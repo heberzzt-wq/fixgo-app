@@ -95,6 +95,7 @@ registry.governance = {};
     "gestia_reputation",
     "gestia_security_logs",
     "gestia_system_health",
+    "jarvis_supervision_reports",
     "gestia_system_modules",
     "log_rutinas",
     "logs_ia_mantenimiento",

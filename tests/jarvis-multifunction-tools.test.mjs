@@ -50,7 +50,7 @@ function createRuntime() {
     };
 }
 
-test("multifunction pack registers seven read-only tools", () => {
+test("multifunction pack registers eight read-only tools", () => {
     const runtime =
         createRuntime();
 
@@ -62,6 +62,7 @@ test("multifunction pack registers seven read-only tools", () => {
         "conversation.respond",
         "system.capabilities",
         "system.health",
+        "system.supervision",
         "business.assist",
         "marketing.plan",
         "page.plan",
@@ -301,6 +302,15 @@ test("multifunction planner preserves mixed commands with common Spanish typos",
     );
 });
 
+test("multifunction planner exposes the daily supervision report", () => {
+    assert.deepEqual(
+        buildJarvisMultifunctionToolCalls(
+            "Jarvis, dame el estado del supervisor diario"
+        ).map(call => call.name),
+        ["system.supervision"]
+    );
+});
+
 test("multifunction planner does not turn explanatory questions into work orders", () => {
     assert.deepEqual(
         buildJarvisMultifunctionToolCalls(
@@ -401,7 +411,7 @@ test("brain seeds natural multifunction requests into the tested planner", () =>
 
     assert.match(
         analysisHub,
-        /brain\.engine\.js\?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1\.2/
+        /brain\.engine\.js\?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1\.3-supervision-v1/
     );
 });
 

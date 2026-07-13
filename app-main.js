@@ -115,7 +115,7 @@ import {
   invocarArquitectoIA
 
 } from
-"./gestia-core/brain.engine.js?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1.2.1";
+"./gestia-core/brain.engine.js?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1.3-supervision-v1";
 // =====================================================
 // 🧠 FORTRESS KERNEL + AUTOHEAL V7.1
 // =====================================================

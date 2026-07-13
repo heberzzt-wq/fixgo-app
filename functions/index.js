@@ -37,6 +37,11 @@ const {
     toPublicIntentContract
 } = require("./jarvis-intent-runtime-v7.cjs");
 
+const {
+    runDailyJarvisSupervision,
+    getLatestJarvisSupervisionReport
+} = require("./jarvis-daily-supervisor");
+
 /**
  * 🛡️ SELLADO DE INFRAESTRUCTURA (GLOBAL SCOPE)
  * Fix Crítico: initializeApp debe ocurrir al cargar el archivo para evitar 'app/no-app'.
@@ -2461,6 +2466,91 @@ exports.limpiarSesionesHuerfanas = functions.pubsub
             }));
             return null;
         }
+    });
+
+/**
+ * JARVIS DAILY SUPERVISOR
+ * Auditoria diaria read-only de contratos criticos desplegados.
+ * No repara, no escribe codigo y no autoriza parches.
+ */
+exports.jarvisDailySupervisor = functions
+    .runWith({ timeoutSeconds: 120, memory: "256MB" })
+    .pubsub
+    .schedule("15 4 * * *")
+    .timeZone("America/Cancun")
+    .onRun(async () => {
+        initCore();
+
+        const report = await runDailyJarvisSupervision({
+            db,
+            admin
+        });
+
+        console.log(JSON.stringify({
+            level: report.status === "HEALTHY" ? "INFO" : "WARNING",
+            message: "JARVIS_DAILY_SUPERVISION_COMPLETE",
+            traceId: report.traceId,
+            status: report.status,
+            score: report.score,
+            failed: report.summary.failed
+        }));
+
+        return null;
+    });
+
+exports.jarvisSupervisionStatus = functions
+    .runWith({ timeoutSeconds: 20, memory: "128MB" })
+    .https
+    .onCall(async (_data, context) => {
+        initCore();
+
+        if (!context.auth?.uid) {
+            throw new functions.https.HttpsError(
+                "unauthenticated",
+                "Se requiere sesion para consultar supervision."
+            );
+        }
+
+        const email = String(context.auth.token?.email || "").toLowerCase();
+        const profileSnap = await db.collection("users").doc(context.auth.uid).get();
+        const role = String(
+            profileSnap.data()?.rol ||
+            profileSnap.data()?.role ||
+            ""
+        ).toLowerCase();
+
+        if (
+            email !== "hebertoh-m@hotmail.com" &&
+            role !== "admin"
+        ) {
+            throw new functions.https.HttpsError(
+                "permission-denied",
+                "Solo administracion puede consultar supervision."
+            );
+        }
+
+        const report = await getLatestJarvisSupervisionReport({ db });
+
+        if (!report) {
+            return {
+                ok: true,
+                status: "PENDING_FIRST_RUN",
+                scheduledAt: "04:15 America/Cancun",
+                report: null
+            };
+        }
+
+        return {
+            ok: true,
+            status: report.status,
+            score: report.score,
+            summary: report.summary,
+            findings: report.findings || [],
+            reportId: report.reportId || report.id,
+            traceId: report.traceId,
+            startedAtIso: report.startedAtIso,
+            policy: report.policy
+        };
     });
 
 /**

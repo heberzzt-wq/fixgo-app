@@ -16,7 +16,135 @@ import {
     describeMediaIngestion
 } from "./jarvis.media.ingestion.js";
 
-const VERSION = "1.0.0-sia7-multifunction-tools";
+const VERSION = "1.1.0-sia7-multifunction-tools";
+
+const LOCAL_SUPERVISION_PROBES = [
+    {
+        path: "/app-login.js",
+        markers: ["FirebaseCore.verificarYRedireccionar"]
+    },
+    {
+        path: "/firebase.js",
+        markers: ["gestia-terminal", "b2b_admin"]
+    },
+    {
+        path: "/gestia-core/jarvis/jarvis.multifunction.planner.js",
+        markers: ["isJarvisTechnicalDiagnosticRequest", "system.supervision"]
+    },
+    {
+        path: "/runtime-health.js",
+        markers: ["runtimeLatency", "getRuntimeHealthSnapshot"]
+    }
+];
+
+async function runLocalDailySupervision() {
+    const checks = [];
+
+    for (const probe of LOCAL_SUPERVISION_PROBES) {
+        try {
+            const response = await fetch(probe.path, {
+                cache: "no-store"
+            });
+            const body = await response.text();
+            const missingMarkers = probe.markers.filter(marker =>
+                !body.includes(marker)
+            );
+
+            checks.push({
+                path: probe.path,
+                ok: response.ok && missingMarkers.length === 0,
+                httpStatus: response.status,
+                missingMarkers
+            });
+        } catch (error) {
+            checks.push({
+                path: probe.path,
+                ok: false,
+                httpStatus: null,
+                missingMarkers: [],
+                error: error?.message || String(error)
+            });
+        }
+    }
+
+    const failed = checks.filter(check => !check.ok);
+    const score = Math.max(0, 100 - (failed.length * 25));
+
+    return {
+        ok: true,
+        status: score >= 90 ? "HEALTHY" : score >= 70 ? "DEGRADED" : "CRITICAL",
+        score,
+        summary: {
+            total: checks.length,
+            passed: checks.length - failed.length,
+            failed: failed.length
+        },
+        findings: failed,
+        checks,
+        checkedAt: new Date().toISOString(),
+        source: "JARVIS_LOCAL_SUPERVISION_FALLBACK",
+        readOnly: true,
+        policy: {
+            autoPatch: false,
+            codeWrite: false
+        }
+    };
+}
+
+async function fetchDailySupervisionStatus() {
+    const user =
+        globalThis?.auth?.currentUser ||
+        globalThis?.window?.auth?.currentUser ||
+        null;
+
+    if (!user) {
+        return {
+            ok: false,
+            error: "AUTH_REQUIRED",
+            message: "Necesito una sesión válida para consultar la supervisión diaria."
+        };
+    }
+
+    const localStatus = await runLocalDailySupervision();
+
+    try {
+        const token = await user.getIdToken();
+        const response = await fetch(
+            "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSupervisionStatus",
+            {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ data: {} })
+            }
+        );
+        const payload = await response.json();
+        const result = payload?.result || payload?.data || null;
+
+        if (!response.ok || !result) {
+            throw new Error(
+                payload?.error?.message ||
+                `SUPERVISION_STATUS_HTTP_${response.status}`
+            );
+        }
+
+        return {
+            ...result,
+            source: "JARVIS_DAILY_SUPERVISOR",
+            readOnly: true,
+            liveProbe: localStatus
+        };
+    } catch (error) {
+        return {
+            ...localStatus,
+            cloudReportAvailable: false,
+            cloudError: error?.message || String(error),
+            message: "Supervisión local completada; el scheduler cloud está pendiente de habilitar facturación/App Engine."
+        };
+    }
+}
 
 function buildConversationResponse(instruction = "") {
     const normalized =
@@ -199,6 +327,13 @@ export function registerJarvisMultifunctionTools(runtime) {
             })
         }),
         register(runtime, {
+            name: "system.supervision",
+            description: "Consulta el ultimo reporte del supervisor diario read-only de Jarvis.",
+            output: "SIA7_DAILY_SUPERVISION_STATUS",
+            execute: async () =>
+                await fetchDailySupervisionStatus()
+        }),
+        register(runtime, {
             name: "business.assist",
             description: "Resuelve consultas empresariales, operativas y de contexto interno sin modificar datos.",
             output: "SIA7_BUSINESS_RESPONSE",
@@ -318,6 +453,7 @@ export function registerJarvisMultifunctionTools(runtime) {
             "conversation.respond",
             "system.capabilities",
             "system.health",
+            "system.supervision",
             "business.assist",
             "marketing.plan",
             "page.plan",

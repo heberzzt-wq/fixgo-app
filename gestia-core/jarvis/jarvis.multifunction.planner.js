@@ -1,4 +1,4 @@
-const VERSION = "1.2.0-sia7-multifunction-planner";
+const VERSION = "1.3.0-sia7-multifunction-planner";
 
 function normalize(value = "") {
     return String(value || "")
@@ -98,6 +98,18 @@ export function buildJarvisMultifunctionToolCalls(
                 "system.health",
                 {},
                 "LOCAL_MULTIFUNCTION_HEALTH"
+            )
+        );
+    }
+
+    if (
+        /\b(supervisor diario|supervision diaria|reporte de supervision|estado del supervisor|ultimo reporte de jarvis)\b/i.test(normalized)
+    ) {
+        calls.push(
+            makeCall(
+                "system.supervision",
+                {},
+                "LOCAL_MULTIFUNCTION_DAILY_SUPERVISION"
             )
         );
     }

@@ -37,7 +37,7 @@ import {
   buildJarvisMultifunctionToolCalls,
   isJarvisTechnicalDiagnosticRequest
 
-} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-multifunction-planner-v1.2-20260713";
+} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-multifunction-planner-v1.3-20260713";
 
 import {
 
@@ -652,6 +652,7 @@ const SEMANTIC_READ_ONLY_MULTIFUNCTION_TOOLS =
     "conversation.respond",
     "system.capabilities",
     "system.health",
+    "system.supervision",
     "business.assist",
     "marketing.plan",
     "page.plan",

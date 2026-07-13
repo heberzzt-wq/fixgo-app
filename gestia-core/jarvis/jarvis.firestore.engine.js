@@ -14,7 +14,7 @@ export async function runFirestoreScan() {
 
     const targets = [
       "users",
-      "tickets",
+      "support_tickets",
       "tecnicos",
       "gestia_logs",
       "gestia_system_health"
@@ -94,7 +94,7 @@ export async function runLiveQuery(input = "") {
     if (text.includes("tickets")) {
 
       const q = query(
-        collection(db, "tickets"),
+        collection(db, "support_tickets"),
         limit(20)
       );
 
@@ -126,7 +126,7 @@ export async function runCommandCenter() {
 
     const targets = [
       "users",
-      "tickets",
+      "support_tickets",
       "tecnicos",
       "gestia_logs",
       "gestia_system_health"
@@ -158,7 +158,7 @@ export async function runCommandCenter() {
 `🧠 COMMAND CENTER
 
 Usuarios: ${board.users}
-Tickets: ${board.tickets}
+Tickets: ${board.support_tickets}
 Técnicos: ${board.tecnicos}
 Logs: ${board.gestia_logs}
 Health: ${health}`
@@ -178,7 +178,7 @@ export async function runSentinel() {
   try {
 
     const targets = [
-      "tickets",
+      "support_tickets",
       "tecnicos",
       "gestia_logs",
       "gestia_system_health"
@@ -200,7 +200,7 @@ export async function runSentinel() {
 
     const alerts = [];
 
-    if (data.tickets > 10) {
+    if (data.support_tickets > 10) {
       alerts.push("⚠️ Tickets elevados");
     }
 
