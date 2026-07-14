@@ -139,13 +139,15 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "document.create",
-            description: "Crea un artefacto HTML, Markdown, texto, CSV o JSON dentro del repositorio.",
+            description: "Crea artefactos HTML, Markdown, CSV, JSON, DOCX, XLSX, PPTX o PDF dentro del repositorio.",
             output: "DOCUMENT_CREATE_RESULT",
             inputSchema: {
-                format: "html|md|txt|csv|json",
+                format: "html|md|txt|csv|json|docx|xlsx|pptx|pdf",
                 output: "string",
                 title: "string",
-                content: "string"
+                content: "string",
+                rows: "array",
+                slides: "array"
             },
             mutates: true,
             requiresApproval: true,
@@ -154,7 +156,9 @@ export function registerJarvisActuatorTools(runtime) {
                     format: args.format || "html",
                     output: args.output,
                     title: args.title,
-                    content: args.content
+                    content: args.content,
+                    rows: args.rows,
+                    slides: args.slides
                 })
         }),
         register(runtime, {

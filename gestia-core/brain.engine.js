@@ -38,7 +38,7 @@ import {
   isJarvisTechnicalDiagnosticRequest,
   mergeJarvisToolCalls
 
-} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-multifunction-planner-v1.8-real-actuators-20260714";
+} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-multifunction-planner-v1.9-native-docs-20260714";
 
 import {
 

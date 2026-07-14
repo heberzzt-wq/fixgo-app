@@ -1050,6 +1050,9 @@ test("multifunction planner routes real browser, image, document and connector a
     const connectors = buildJarvisMultifunctionToolCalls(
         "muestra el estado de conectores"
     );
+    const presentation = buildJarvisMultifunctionToolCalls(
+        "arre crea una presentacion pptx del estado de Jarvis"
+    );
 
     assert.ok(browser.some(call => call.name === "browser.inspect"));
     assert.ok(image.some(call => call.name === "image.generate"));
@@ -1060,6 +1063,11 @@ test("multifunction planner routes real browser, image, document and connector a
         call.approved === true
     ));
     assert.ok(connectors.some(call => call.name === "connector.list"));
+    assert.ok(presentation.some(call =>
+        call.name === "document.create" &&
+        call.args.format === "pptx" &&
+        call.approved === true
+    ));
 });
 
 test("tool bridge composes human actuator answers without dumping browser DOM or image bytes", () => {
@@ -1226,7 +1234,7 @@ test("brain seeds natural multifunction requests into the tested planner", () =>
 
     assert.match(
         analysisHub,
-        /brain\.engine\.js\?v=mixed-intent-v2-20260714-multifunction-planner-v1\.8-real-actuators/
+        /brain\.engine\.js\?v=mixed-intent-v2-20260714-multifunction-planner-v1\.9-native-docs/
     );
 });
 
@@ -1302,5 +1310,5 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260714-real-actuators/);
+    assert.match(core, /jarvis-tools-v7-20260714-native-doc-actuators/);
 });

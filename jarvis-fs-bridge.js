@@ -451,7 +451,11 @@ export function describeJarvisFsBridge() {
             },
             documents: {
                 available: true,
-                formats: ["html", "md", "txt", "csv", "json", "pdf"]
+                formats: [
+                    "html", "md", "txt", "csv", "json",
+                    "docx", "xlsx", "pptx", "pdf"
+                ],
+                nativeOffice: true
             },
             webResearch: {
                 available: true,
@@ -1738,10 +1742,15 @@ export function createJarvisFsBridgeApp({
                 format = "html",
                 output = `.jarvis-artifacts/documents/document.${format}`,
                 content = "",
-                title = "Documento Jarvis"
+                title = "Documento Jarvis",
+                rows = [],
+                slides = []
             } = req.body || {};
             const normalizedFormat = String(format).toLowerCase();
-            const allowed = new Set(["html", "md", "txt", "csv", "json"]);
+            const allowed = new Set([
+                "html", "md", "txt", "csv", "json",
+                "docx", "xlsx", "pptx", "pdf"
+            ]);
 
             if (!allowed.has(normalizedFormat)) {
                 return res.status(400).json({
@@ -1751,7 +1760,11 @@ export function createJarvisFsBridgeApp({
                     version: JARVIS_FS_BRIDGE_VERSION
                 });
             }
-            if (typeof content !== "string" || content.length === 0) {
+            if (
+                (typeof content !== "string" || content.length === 0) &&
+                (!Array.isArray(rows) || rows.length === 0) &&
+                (!Array.isArray(slides) || slides.length === 0)
+            ) {
                 return res.status(400).json({
                     ok: false,
                     status: "DOCUMENT_CONTENT_REQUIRED",
@@ -1761,17 +1774,128 @@ export function createJarvisFsBridgeApp({
 
             const target = artifactPath(output, root, [`.${normalizedFormat}`]);
             const safeTitle = String(title).replace(/[<>&]/g, "");
-            const body = normalizedFormat === "html"
-                ? `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${safeTitle}</title><style>body{font:16px/1.55 system-ui;max-width:960px;margin:48px auto;padding:0 24px;color:#172033}pre{white-space:pre-wrap}</style></head><body><h1>${safeTitle}</h1><pre>${content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre></body></html>`
-                : content;
-            fs.writeFileSync(target, body, "utf8");
+            let body = content;
+
+            if (normalizedFormat === "html") {
+                body = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${safeTitle}</title><style>body{font:16px/1.55 system-ui;max-width:960px;margin:48px auto;padding:0 24px;color:#172033}pre{white-space:pre-wrap}</style></head><body><h1>${safeTitle}</h1><pre>${content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre></body></html>`;
+                fs.writeFileSync(target, body, "utf8");
+            }
+            else if (["md", "txt", "csv", "json"].includes(normalizedFormat)) {
+                fs.writeFileSync(target, body, "utf8");
+            }
+            else if (normalizedFormat === "docx") {
+                const {
+                    Document,
+                    Packer,
+                    Paragraph,
+                    TextRun
+                } = await import("docx");
+                const document = new Document({
+                    sections: [{
+                        children: [
+                            new Paragraph({
+                                children: [new TextRun({ text: safeTitle, bold: true, size: 34 })],
+                                spacing: { after: 320 }
+                            }),
+                            ...String(content).split(/\r?\n/).map(line =>
+                                new Paragraph({ text: line || " ", spacing: { after: 120 } })
+                            )
+                        ]
+                    }]
+                });
+                fs.writeFileSync(target, await Packer.toBuffer(document));
+            }
+            else if (normalizedFormat === "xlsx") {
+                const ExcelJS = (await import("exceljs")).default;
+                const workbook = new ExcelJS.Workbook();
+                const sheet = workbook.addWorksheet(safeTitle.slice(0, 31) || "Jarvis");
+                const tableRows = Array.isArray(rows) && rows.length > 0
+                    ? rows
+                    : String(content).split(/\r?\n/).filter(Boolean).map(line => line.split(","));
+                tableRows.slice(0, 10000).forEach(row =>
+                    sheet.addRow(Array.isArray(row) ? row : Object.values(row || {}))
+                );
+                if (sheet.rowCount > 0) {
+                    sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+                    sheet.getRow(1).fill = {
+                        type: "pattern",
+                        pattern: "solid",
+                        fgColor: { argb: "FF2563EB" }
+                    };
+                    sheet.columns.forEach(column => {
+                        column.width = Math.min(
+                            48,
+                            Math.max(12, ...column.values.slice(1).map(value => String(value || "").length + 2))
+                        );
+                    });
+                }
+                await workbook.xlsx.writeFile(target);
+            }
+            else if (normalizedFormat === "pptx") {
+                const PptxGenJS = (await import("pptxgenjs")).default;
+                const presentation = new PptxGenJS();
+                presentation.layout = "LAYOUT_WIDE";
+                presentation.author = "Jarvis V7";
+                presentation.subject = safeTitle;
+                presentation.title = safeTitle;
+                presentation.company = "FixGo / GestiaPremium";
+                presentation.lang = "es-MX";
+                presentation.theme = {
+                    headFontFace: "Aptos Display",
+                    bodyFontFace: "Aptos",
+                    lang: "es-MX"
+                };
+                const slideItems = Array.isArray(slides) && slides.length > 0
+                    ? slides
+                    : String(content).split(/\n---+\n/).map((bodyText, index) => ({
+                        title: index === 0 ? safeTitle : `Seccion ${index + 1}`,
+                        body: bodyText
+                    }));
+                slideItems.slice(0, 40).forEach(item => {
+                    const slide = presentation.addSlide();
+                    slide.background = { color: "F8FAFC" };
+                    slide.addText(String(item?.title || safeTitle), {
+                        x: 0.65, y: 0.5, w: 11.7, h: 0.7,
+                        fontFace: "Aptos Display", fontSize: 26, bold: true, color: "0F172A"
+                    });
+                    slide.addShape(presentation.ShapeType.line, {
+                        x: 0.65, y: 1.35, w: 2.2, h: 0,
+                        line: { color: "2563EB", width: 4 }
+                    });
+                    slide.addText(String(item?.body || ""), {
+                        x: 0.7, y: 1.7, w: 11.5, h: 5.2,
+                        fontFace: "Aptos", fontSize: 18, color: "334155",
+                        breakLine: false, valign: "top", margin: 0.06
+                    });
+                });
+                await presentation.writeFile({ fileName: target });
+            }
+            else if (normalizedFormat === "pdf") {
+                const PDFDocument = (await import("pdfkit")).default;
+                await new Promise((resolve, reject) => {
+                    const document = new PDFDocument({ margin: 54, size: "A4" });
+                    const stream = fs.createWriteStream(target);
+                    stream.on("finish", resolve);
+                    stream.on("error", reject);
+                    document.pipe(stream);
+                    document.fontSize(22).fillColor("#0f172a").text(safeTitle);
+                    document.moveDown();
+                    document.fontSize(11).fillColor("#334155").text(String(content), {
+                        align: "left",
+                        lineGap: 3
+                    });
+                    document.end();
+                });
+            }
+
+            const bytes = fs.statSync(target).size;
 
             return res.json({
                 ok: true,
                 status: "DOCUMENT_CREATED",
                 format: normalizedFormat,
                 output: path.relative(path.resolve(root), target).replace(/\\/g, "/"),
-                bytes: Buffer.byteLength(body),
+                bytes,
                 version: JARVIS_FS_BRIDGE_VERSION
             });
         }

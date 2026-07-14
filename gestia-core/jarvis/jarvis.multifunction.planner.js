@@ -1,4 +1,4 @@
-const VERSION = "1.8.0-sia7-real-actuator-routing";
+const VERSION = "1.9.0-sia7-native-document-routing";
 
 function normalize(value = "") {
     return String(value || "")
@@ -207,9 +207,17 @@ export function buildJarvisMultifunctionToolCalls(
     }
 
     if (
-        /\b(crea|crear|genera|generar|redacta|redactar)\b[\s\S]{0,60}\b(documento|archivo markdown|csv|reporte html)\b/i.test(normalized)
+        /\b(crea|crear|genera|generar|redacta|redactar)\b[\s\S]{0,60}\b(documento|archivo markdown|csv|reporte html|presentacion|powerpoint|pptx|excel|xlsx|word|docx|pdf|hoja de calculo)\b/i.test(normalized)
     ) {
-        const format = /\bcsv\b/i.test(normalized)
+        const format = /\b(presentacion|powerpoint|pptx)\b/i.test(normalized)
+            ? "pptx"
+            : /\b(excel|xlsx|hoja de calculo)\b/i.test(normalized)
+                ? "xlsx"
+                : /\b(word|docx)\b/i.test(normalized)
+                    ? "docx"
+                    : /\bpdf\b/i.test(normalized)
+                        ? "pdf"
+                        : /\bcsv\b/i.test(normalized)
             ? "csv"
             : /\bmarkdown\b/i.test(normalized)
                 ? "md"

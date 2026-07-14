@@ -11,8 +11,12 @@
   },
   "dependencies": {
     "cors": "^2.8.6",
+    "docx": "^9.7.1",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
-    "firebase-admin": "^13.10.0"
+    "firebase-admin": "^13.10.0",
+    "pdfkit": "^0.19.1",
+    "pptxgenjs": "^4.0.1"
   },
   "overrides": {
     "uuid": "^11.1.1"

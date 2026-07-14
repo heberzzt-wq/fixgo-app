@@ -58,7 +58,7 @@ export {
 
 }
 
-from "../brain.engine.js?v=mixed-intent-v2-20260714-multifunction-planner-v1.8-real-actuators";
+from "../brain.engine.js?v=mixed-intent-v2-20260714-multifunction-planner-v1.9-native-docs";
 
 /* =====================================================
    SCANNER FABRIC

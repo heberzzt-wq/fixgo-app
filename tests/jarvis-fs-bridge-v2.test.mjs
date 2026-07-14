@@ -23,6 +23,10 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
     assert.equal(description.policy.emptyWrites, "blocked");
     assert.equal(typeof description.actuators.browser.available, "boolean");
     assert.equal(description.actuators.documents.available, true);
+    assert.equal(description.actuators.documents.nativeOffice, true);
+    assert.ok(description.actuators.documents.formats.includes("docx"));
+    assert.ok(description.actuators.documents.formats.includes("xlsx"));
+    assert.ok(description.actuators.documents.formats.includes("pptx"));
     assert.equal(description.actuators.webResearch.grounded, true);
 });
 
