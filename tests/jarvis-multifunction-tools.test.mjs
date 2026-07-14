@@ -22,10 +22,45 @@ import {
     resolveGestiaRouteDecision
 } from "../gestia-core/auth/role-authority.js";
 
+import {
+    normalizeImageArtifactOutput
+} from "../gestia-core/jarvis/jarvis.actuator.pack.js";
+
 const __dirname =
     path.dirname(
         fileURLToPath(import.meta.url)
     );
+
+test("image artifact output accepts only a compatible safe local path", () => {
+    assert.equal(
+        normalizeImageArtifactOutput(
+            ".jarvis-artifacts/images/escudo.jpg",
+            "image/jpeg"
+        ),
+        ".jarvis-artifacts/images/escudo.jpg"
+    );
+    assert.equal(
+        normalizeImageArtifactOutput(
+            "genera y guarda la imagen",
+            "image/jpeg"
+        ),
+        undefined
+    );
+    assert.equal(
+        normalizeImageArtifactOutput(
+            ".jarvis-artifacts/images/../escape.jpg",
+            "image/jpeg"
+        ),
+        undefined
+    );
+    assert.equal(
+        normalizeImageArtifactOutput(
+            ".jarvis-artifacts/images/escudo.png",
+            "image/jpeg"
+        ),
+        undefined
+    );
+});
 
 function createRuntime() {
     const registry =
@@ -1216,7 +1251,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /jarvis-tools-v7-20260714-final-image-artifacts/);
+    assert.match(terminal, /jarvis-tools-v7-20260714-safe-image-artifacts/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
         "utf8"
@@ -1460,5 +1495,5 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260714-final-image-artifacts/);
+    assert.match(core, /jarvis-tools-v7-20260714-safe-image-artifacts/);
 });

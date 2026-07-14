@@ -1,4 +1,26 @@
-const VERSION = "7.1.0-image-artifacts";
+const VERSION = "7.1.1-safe-image-artifacts";
+
+export function normalizeImageArtifactOutput(output, mimeType) {
+    const extensions = {
+        "image/png": ".png",
+        "image/jpeg": ".jpg",
+        "image/webp": ".webp"
+    };
+    const extension = extensions[String(mimeType || "").trim().toLowerCase()];
+    const candidate = String(output || "").trim().replaceAll("\\", "/");
+
+    if (
+        !extension ||
+        !candidate.startsWith(".jarvis-artifacts/images/") ||
+        candidate.includes("../") ||
+        candidate.includes("//") ||
+        !candidate.toLowerCase().endsWith(extension)
+    ) {
+        return undefined;
+    }
+
+    return candidate;
+}
 
 function bridgeRequest(path, payload, timeoutMs = 60000) {
     if (typeof globalThis?.JarvisLocalBridge?.requestJson !== "function") {
@@ -197,10 +219,14 @@ export function registerJarvisActuatorTools(runtime) {
                 });
                 let artifact = null;
                 if (result?.ok === true && result?.imageBase64) {
+                    const safeOutput = normalizeImageArtifactOutput(
+                        args.output,
+                        result.mimeType
+                    );
                     artifact = await bridgeRequest("/image", {
                         imageBase64: result.imageBase64,
                         mimeType: result.mimeType,
-                        output: args.output
+                        output: safeOutput
                     }, 30000);
                 }
                 const finalResult = {
