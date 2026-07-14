@@ -851,6 +851,12 @@ test("repo diagnosis separates structural file type from secondary capabilities"
     assert.match(toolsRuntime, /GEOLOCATION_CAPABILITY_DETECTED/);
     assert.match(toolsRuntime, /Tipo principal:/);
     assert.match(toolsRuntime, /Capacidades:/);
+    assert.match(toolsRuntime, /const hasExactPatchObject\s*=/);
+    assert.match(toolsRuntime, /hasPatchPreview[\s\S]{0,180}hasExactPatchObject/);
+    assert.doesNotMatch(
+        toolsRuntime,
+        /patchPreview\|search\\s\*:\|replace\\s\*:/
+    );
     assert.doesNotMatch(toolsRuntime, /Tipo detectado: \$\{fileType\}/);
 
     const core = fs.readFileSync(

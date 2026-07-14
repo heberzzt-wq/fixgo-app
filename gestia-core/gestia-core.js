@@ -1380,6 +1380,8 @@ function collectObservationDrivenCandidates(
                         0,
                     plannedTarget:
                         false,
+                    plannedOrder:
+                        Number.POSITIVE_INFINITY,
                     frequency:
                         0,
                     evidence:
@@ -1426,6 +1428,14 @@ function collectObservationDrivenCandidates(
                 current.plannedTarget ||
                 scoreMeta.plannedTarget === true;
 
+            if (Number.isFinite(scoreMeta.plannedOrder)) {
+                current.plannedOrder =
+                    Math.min(
+                        current.plannedOrder,
+                        scoreMeta.plannedOrder
+                    );
+            }
+
             current.frequency +=
                 1;
 
@@ -1467,7 +1477,7 @@ function collectObservationDrivenCandidates(
             call?.name === "repo.read" ||
             call?.name === "repo.diagnose"
         )
-        .forEach(call => {
+        .forEach((call, plannedOrder) => {
             const file =
                 call?.args?.file ||
                 call?.args?.path ||
@@ -1483,7 +1493,8 @@ function collectObservationDrivenCandidates(
                     score: 45,
                     directMatches: 2,
                     termDirect: true,
-                    plannedTarget: true
+                    plannedTarget: true,
+                    plannedOrder
                 }
             );
         });
@@ -1765,7 +1776,11 @@ function collectObservationDrivenCandidates(
     const plannedCandidates =
         scoredCandidates.filter(candidate =>
             candidate.plannedTarget === true
-        );
+        )
+            .sort((a, b) =>
+                a.plannedOrder - b.plannedOrder ||
+                b.score - a.score
+            );
 
     const selectableCandidates =
         plannedCandidates.length > 0
@@ -1781,7 +1796,9 @@ function collectObservationDrivenCandidates(
 
     return selectableCandidates
         .sort((a, b) =>
-            b.score - a.score
+            a.plannedTarget && b.plannedTarget
+                ? a.plannedOrder - b.plannedOrder || b.score - a.score
+                : b.score - a.score
         )
         .slice(0, 3);
 }

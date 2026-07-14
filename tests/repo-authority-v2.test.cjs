@@ -567,6 +567,14 @@ test("agent loop keeps planned auth targets ahead of accidental terminal matches
                 {
                     name: "repo.diagnose",
                     args: { file: "app-main.js" }
+                },
+                {
+                    name: "repo.read",
+                    args: { file: "cliente.html" }
+                },
+                {
+                    name: "repo.diagnose",
+                    args: { file: "cliente.html" }
                 }
             ],
             observations: [
@@ -578,6 +586,10 @@ test("agent loop keeps planned auth targets ahead of accidental terminal matches
                                 {
                                     file: "terminal-chofer.html",
                                     snippet: "Terminal CEO admin navigation card"
+                                },
+                                {
+                                    file: "cliente.html",
+                                    snippet: "cliente admin card grid flex navigation"
                                 }
                             ]
                         }
@@ -588,8 +600,10 @@ test("agent loop keeps planned auth targets ahead of accidental terminal matches
 
     assert.deepEqual(
         Array.from(plan.candidates, candidate => candidate.file),
-        ["firebase.js", "app-main.js"]
+        ["firebase.js", "app-main.js", "cliente.html"]
     );
+    assert.equal(plan.candidates[0].plannedOrder, 0);
+    assert.equal(plan.candidates[1].plannedOrder, 2);
     assert.equal(plan.candidates[0].plannedTarget, true);
     assert.doesNotMatch(
         plan.candidates.map(candidate => candidate.file).join(","),

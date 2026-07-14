@@ -6196,9 +6196,14 @@ JarvisToolRuntime.register({
             /watchPosition|geolocation|coords|latitude|longitude|geofence|gps/i
                 .test(content);
 
-        const hasPatchPreview =
-            /patchPreview|search\s*:|replace\s*:|dryRun|generatePatch|applyPatch/i
+        const hasExactPatchObject =
+            /\bsearch\s*:\s*["'`][\s\S]{0,800}\breplace\s*:\s*["'`]/i
                 .test(content);
+
+        const hasPatchPreview =
+            /\b(?:patchPreview|dryRun|generatePatch|applyPatch)\b/i
+                .test(content) ||
+            hasExactPatchObject;
 
         const hasGenericUiPatch =
             /\.tarjeta|\.card|\[class\*=['"]card['"]|UI_OPTIMIZATION|!important/i
