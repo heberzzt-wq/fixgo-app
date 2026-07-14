@@ -214,6 +214,7 @@ test("business assistant uses the semantic model when a real company is outside 
         assert.doesNotMatch(result.message, /falta objetivo/i);
         assert.match(semanticRequest?.data?.input || "", /Sitio oficial MPH/);
         assert.match(semanticRequest?.data?.input || "", /mantenimiento y remodelacion/);
+        assert.ok((semanticRequest?.data?.input || "").length <= 1580);
     } finally {
         clearTimeout(authTimer);
         globalThis.auth = previousAuth;
@@ -1323,7 +1324,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(core, /observation\?\.type === "JARVIS_CONVERSATIONAL_RESPONSE"/);
     assert.match(core, /DIRECT_ACTUATOR_COMPOSITION/);
     assert.match(core, /directActuatorFinalResponse/);
-    assert.match(terminal, /sia7-auth-ready-business-v2-20260714/);
+    assert.match(terminal, /sia7-bounded-business-v3-20260714/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {

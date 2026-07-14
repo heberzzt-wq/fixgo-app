@@ -5,7 +5,7 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-multifunction-tools-v2.4-auth-ready-business-20260714";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-multifunction-tools-v2.5-bounded-business-20260714";
 import {
     registerJarvisActuatorTools
 } from "./jarvis/jarvis.actuator.pack.js?v=sia7-real-actuators-v2.2-certified-20260714";

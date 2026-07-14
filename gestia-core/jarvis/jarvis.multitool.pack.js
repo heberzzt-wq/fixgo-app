@@ -21,7 +21,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "1.9.2-sia7-auth-ready-business";
+const VERSION = "1.9.3-sia7-bounded-grounded-business";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 
@@ -1118,12 +1118,12 @@ function recentGroundedBusinessContext() {
     if (!payload || payload?.grounded !== true || !Array.isArray(payload?.sources)) return "";
     return JSON.stringify({
         query: payload.query || null,
-        answer: String(payload.answer || "").slice(0, 2400),
-        sources: payload.sources.slice(0, 6).map(source => ({
+        answer: String(payload.answer || "").slice(0, 520),
+        sources: payload.sources.slice(0, 3).map(source => ({
             title: source?.title || "",
             url: source?.url || ""
         }))
-    }).slice(0, 5000);
+    }).slice(0, 800);
 }
 
 function attachmentsFromInstruction(value = "") {
@@ -1451,18 +1451,19 @@ export function registerJarvisMultifunctionTools(runtime) {
 
                 if (genericStaticAnswer) {
                     const groundedContext = recentGroundedBusinessContext();
-                    const semantic = await fetchSemanticConversation([
+                    const businessPrompt = [
                         "Actua como asesor empresarial privado del Arqui Heberto Mendoza.",
                         "Responde la solicitud concreta con diagnostico, recomendacion, riesgos y siguientes acciones.",
                         "No inventes cifras, clientes, resultados ni hechos; separa hechos proporcionados de supuestos y preguntas pendientes.",
                         "No autorices ni ejecutes cambios. Usa espanol claro y util.",
+                        "Solicitud:",
+                        instruction,
                         groundedContext
                             ? "Contexto factual reciente obtenido por web.research; usalo solo si es relevante y no agregues hechos fuera de estas fuentes:"
                             : "No hay contexto web reciente disponible; identifica claramente la informacion faltante.",
-                        groundedContext,
-                        "Solicitud:",
-                        instruction
-                    ].join("\n"));
+                        groundedContext
+                    ].join("\n").slice(0, 1580);
+                    const semantic = await fetchSemanticConversation(businessPrompt);
 
                     if (semantic?.ok === true && semantic?.message) {
                         return {
