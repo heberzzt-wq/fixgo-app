@@ -69,6 +69,9 @@ test("MPH campaign ships a responsive landing and a real browser video exporter"
     assert.match(reel, /value="30000"/);
     assert.match(reel, /value="45000"/);
     assert.match(reel, /mph-reel-\$\{seconds\}s\.webm/);
+    assert.match(reel, /crypto\.subtle\.digest\('SHA-256'/);
+    assert.match(reel, /jarvis:reel-exported/);
+    assert.match(reel, /recordCapabilityEvidence\("reel_video"/);
 });
 
 test("repo impact falls back to live bridge evidence for newly created files", () => {
