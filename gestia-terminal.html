@@ -1743,10 +1743,21 @@ if (directToolMatch) {
         },
         "media.analyze": {
             name: "media.analyze",
-            args: parseDirectArgs(
-                directArg ||
-                ""
-            )
+            args: (() => {
+                const parsed = parseDirectArgs(directArg || "");
+                const sourceName = parsed.sourceName || parsed.source || "archivo-adjunto";
+                const mimeType = parsed.mimeType || parsed.type || "application/octet-stream";
+                if (!Array.isArray(parsed.pages) && sourceName !== "archivo-adjunto") {
+                    parsed.pages = [{
+                        page: Number.parseInt(parsed.pages, 10) || 1,
+                        text: `Archivo recibido: ${sourceName}; tipo ${mimeType}.`,
+                        sourceName,
+                        mimeType,
+                        artifact: parsed.source || null
+                    }];
+                }
+                return parsed;
+            })()
         },
         "repo.scan": {
             name: "repo.scan",

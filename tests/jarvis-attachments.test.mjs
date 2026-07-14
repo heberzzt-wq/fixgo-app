@@ -26,6 +26,7 @@ test("terminal exposes a GPT-style plus menu, file input and artifact renderer",
     assert.match(terminal, /JarvisAttachments\.composePrompt/);
     assert.match(terminal, /renderArtifactsFromObservations/);
     assert.match(terminal, /renderPendingArtifacts/);
+    assert.match(terminal, /Archivo recibido: \$\{sourceName\}; tipo \$\{mimeType\}/);
     assert.match(attachments, /\/upload/);
     assert.match(attachments, /\/artifact\/read/);
     assert.match(attachments, /jarvis-artifact-download/);
