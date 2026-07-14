@@ -1,6 +1,8 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const { test } = require("node:test");
 
 const {
@@ -47,4 +49,19 @@ test("image generation returns a real image part and ignores thought parts", asy
     assert.equal(result.status, "IMAGE_GENERATED");
     assert.equal(result.imageBase64, "aW1hZ2U=");
     assert.equal(result.text, "Imagen lista");
+});
+
+test("Firebase workflow deploys the image actuator with the Jarvis services", () => {
+    const workflow = fs.readFileSync(
+        path.resolve(__dirname, "../.github/workflows/deploy.yml"),
+        "utf8"
+    );
+    const client = fs.readFileSync(
+        path.resolve(__dirname, "../gestia-core/jarvis/jarvis.actuator.pack.js"),
+        "utf8"
+    );
+
+    assert.match(workflow, /functions:jarvisImageGenerate/);
+    assert.match(client, /CLOUD_FUNCTION_INVALID_RESPONSE_/);
+    assert.match(client, /await response\.text\(\)/);
 });

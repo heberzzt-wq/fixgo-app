@@ -42,7 +42,20 @@ async function callAdminFunction(name, data = {}) {
             body: JSON.stringify({ data })
         }
     );
-    const payload = await response.json();
+    const rawText = await response.text();
+    let payload = null;
+
+    try {
+        payload = JSON.parse(rawText);
+    }
+    catch(error) {
+        return {
+            ok: false,
+            status: `CLOUD_FUNCTION_INVALID_RESPONSE_${response.status}`,
+            error: `La funcion ${name} no devolvio JSON valido.`,
+            responsePreview: rawText.slice(0, 160)
+        };
+    }
     const result = payload?.result || payload?.data || null;
 
     if (!response.ok || !result) {
