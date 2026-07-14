@@ -169,6 +169,13 @@ test("supervision helpers and latest report contract stay deterministic", async 
             status: "CRITICAL"
         }
     );
+    assert.equal(
+        summarizeChecks([
+            ...Array.from({ length: 14 }, () => ({ ok: true })),
+            { ok: false }
+        ]).status,
+        "DEGRADED"
+    );
 
     assert.ok(DEFAULT_PROBES.some(probe => probe.id === "role_authority_contract"));
     assert.ok(DEFAULT_PROBES.some(probe => probe.id === "runtime_role_router"));
@@ -231,7 +238,7 @@ test("daily supervisor probes current V7 deployment signatures", () => {
     const terminalProbe = DEFAULT_PROBES.find(probe => probe.id === "terminal_runtime");
     const webProbe = DEFAULT_PROBES.find(probe => probe.id === "grounded_web_research_contract");
 
-    assert.ok(terminalProbe.markers.includes("multifunction-planner-v2-parallel-delegation"));
+    assert.ok(terminalProbe.markers.includes("parallel-delegation-human-actuator-responses"));
     assert.ok(webProbe.markers.includes("1.7.0-sia7-bounded-supervision-forensics"));
 });
 

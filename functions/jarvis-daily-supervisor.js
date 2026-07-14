@@ -7,7 +7,7 @@ const DEFAULT_PROBES = Object.freeze([
         id: "terminal_runtime",
         path: "/gestia-terminal.html",
         markers: [
-            "multifunction-planner-v2-parallel-delegation",
+            "parallel-delegation-human-actuator-responses",
             "gestia-core/gestia-core.js"
         ]
     },
@@ -251,7 +251,7 @@ function summarizeChecks(checks = []) {
         failed,
         score,
         status:
-            score >= 90
+            failed === 0
                 ? "HEALTHY"
                 : score >= 70
                     ? "DEGRADED"
