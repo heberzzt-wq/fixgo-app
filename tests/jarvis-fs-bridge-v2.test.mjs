@@ -11,7 +11,10 @@ import {
     cancelChunkedUpload,
     completeChunkedUpload,
     describeJarvisFsBridge,
+    editDocxArtifact,
     editPdfOverlayArtifact,
+    editPptxArtifact,
+    editXlsxArtifact,
     inspectLocalConnectors,
     normalizeReadLineRange,
     readJarvisRuntimeContract,
@@ -28,7 +31,7 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.8.0-native-pdf-overlay-editing");
+    assert.equal(description.version, "2.11.0-office-suite-editing");
     assert.equal(description.policy.authority, "full_repo_private_owner");
     assert.equal(description.policy.safeZone, "advisory");
     assert.equal(description.policy.emptyWrites, "blocked");
@@ -45,6 +48,136 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
     assert.equal(description.actuators.multimodalUploads.maxBatchBytes, 500 * 1024 * 1024);
     assert.equal(typeof description.actuators.imageGeneration.verifiedCount, "number");
     assert.deepEqual(description.actuators.connectors.adapters, ["github", "firebase"]);
+});
+
+test("Jarvis edits exact PPTX text while preserving the original presentation", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-pptx-edit-"));
+    try {
+        const PptxGenJS = (await import("pptxgenjs")).default;
+        const JSZip = (await import("jszip")).default;
+        const sourceDir = path.join(root, ".jarvis-artifacts", "uploads");
+        fs.mkdirSync(sourceDir, { recursive: true });
+        const sourceFile = path.join(sourceDir, "presentacion.pptx");
+        const presentation = new PptxGenJS();
+        presentation.layout = "LAYOUT_WIDE";
+        const slide = presentation.addSlide();
+        slide.addText("CLIENTE ACME", { x: 1, y: 1, w: 5, h: 1, bold: true, fontSize: 28, color: "2563EB" });
+        await presentation.writeFile({ fileName: sourceFile });
+        const sourceBytes = fs.readFileSync(sourceFile);
+
+        const result = await editPptxArtifact({
+            root,
+            sourceOutput: ".jarvis-artifacts/uploads/presentacion.pptx",
+            output: ".jarvis-artifacts/documents/presentacion-mph.pptx",
+            replacements: [{ search: "ACME", replace: "MPH", expectedMatches: 1 }]
+        });
+        const archive = await JSZip.loadAsync(fs.readFileSync(path.join(root, result.output)));
+        const slideXml = await archive.file("ppt/slides/slide1.xml").async("string");
+        assert.equal(result.status, "PPTX_EDITED");
+        assert.equal(result.originalPreserved, true);
+        assert.equal(result.replacements[0].matchCount, 1);
+        assert.match(slideXml, /CLIENTE MPH/);
+        assert.match(slideXml, /b="1"/);
+        assert.deepEqual(fs.readFileSync(sourceFile), sourceBytes);
+        assert.notEqual(result.outputSha256, result.sourceSha256);
+
+        await assert.rejects(() => editPptxArtifact({
+            root,
+            sourceOutput: ".jarvis-artifacts/uploads/presentacion.pptx",
+            replacements: [{ search: "NO EXISTE", replace: "X", expectedMatches: 1 }]
+        }), /PPTX_MATCH_COUNT_MISMATCH:0:1/);
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test("Jarvis edits exact DOCX text without rebuilding or changing the original", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-docx-edit-"));
+    try {
+        const { Document, Packer, Paragraph, TextRun } = await import("docx");
+        const JSZip = (await import("jszip")).default;
+        const sourceDir = path.join(root, ".jarvis-artifacts", "uploads");
+        fs.mkdirSync(sourceDir, { recursive: true });
+        const sourceFile = path.join(sourceDir, "contrato.docx");
+        const document = new Document({ sections: [{ children: [
+            new Paragraph({ children: [new TextRun({ text: "CONTRATO DE SERVICIO", bold: true })] }),
+            new Paragraph({ children: [new TextRun("Cliente: ACME")] })
+        ] }] });
+        const sourceBytes = await Packer.toBuffer(document);
+        fs.writeFileSync(sourceFile, sourceBytes);
+
+        const result = await editDocxArtifact({
+            root,
+            sourceOutput: ".jarvis-artifacts/uploads/contrato.docx",
+            output: ".jarvis-artifacts/documents/contrato-mph.docx",
+            replacements: [{ search: "ACME", replace: "MPH", expectedMatches: 1 }]
+        });
+        const archive = await JSZip.loadAsync(fs.readFileSync(path.join(root, result.output)));
+        const documentXml = await archive.file("word/document.xml").async("string");
+        assert.equal(result.status, "DOCX_EDITED");
+        assert.equal(result.originalPreserved, true);
+        assert.equal(result.replacements[0].matchCount, 1);
+        assert.match(documentXml, /Cliente: MPH/);
+        assert.match(documentXml, /<w:b\/>/);
+        assert.deepEqual(fs.readFileSync(sourceFile), sourceBytes);
+        assert.notEqual(result.outputSha256, result.sourceSha256);
+
+        await assert.rejects(() => editDocxArtifact({
+            root,
+            sourceOutput: ".jarvis-artifacts/uploads/contrato.docx",
+            replacements: [{ search: "INEXISTENTE", replace: "X", expectedMatches: 1 }]
+        }), /DOCX_MATCH_COUNT_MISMATCH:0:1/);
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test("Jarvis edits an existing XLSX while preserving untouched formulas and styles", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-xlsx-edit-"));
+    try {
+        const ExcelJS = (await import("exceljs")).default;
+        const sourceDir = path.join(root, ".jarvis-artifacts", "uploads");
+        fs.mkdirSync(sourceDir, { recursive: true });
+        const sourceFile = path.join(sourceDir, "cotizacion.xlsx");
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet("Cotizacion");
+        sheet.getCell("A1").value = "Concepto";
+        sheet.getCell("A1").font = { bold: true, color: { argb: "FFFFFFFF" } };
+        sheet.getCell("A1").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2563EB" } };
+        sheet.getCell("B2").value = 100;
+        sheet.getCell("B2").numFmt = "$#,##0.00";
+        sheet.getCell("B3").value = { formula: "B2*0.16", result: 16 };
+        await workbook.xlsx.writeFile(sourceFile);
+        const sourceBytes = fs.readFileSync(sourceFile);
+
+        const result = await editXlsxArtifact({
+            root,
+            sourceOutput: ".jarvis-artifacts/uploads/cotizacion.xlsx",
+            output: ".jarvis-artifacts/documents/cotizacion-actualizada.xlsx",
+            changes: [{ sheet: "Cotizacion", cell: "B2", value: 90 }]
+        });
+        const edited = new ExcelJS.Workbook();
+        await edited.xlsx.readFile(path.join(root, result.output));
+        const editedSheet = edited.getWorksheet("Cotizacion");
+        assert.equal(result.status, "XLSX_EDITED");
+        assert.equal(result.originalPreserved, true);
+        assert.equal(result.recalculation, "ON_OPEN");
+        assert.equal(editedSheet.getCell("B2").value, 90);
+        assert.equal(editedSheet.getCell("B2").numFmt, "$#,##0.00");
+        assert.equal(editedSheet.getCell("B3").value.formula, "B2*0.16");
+        assert.equal(editedSheet.getCell("A1").font.bold, true);
+        assert.equal(editedSheet.getCell("A1").fill.fgColor.argb, "FF2563EB");
+        assert.deepEqual(fs.readFileSync(sourceFile), sourceBytes);
+        assert.notEqual(result.outputSha256, result.sourceSha256);
+
+        await assert.rejects(() => editXlsxArtifact({
+            root,
+            sourceOutput: ".jarvis-artifacts/uploads/cotizacion.xlsx",
+            changes: [{ sheet: "Cotizacion", cell: "B3", formula: "[externo.xlsx]Hoja1!A1" }]
+        }), /XLSX_FORMULA_NOT_ALLOWED/);
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
 });
 
 test("Jarvis edits a real PDF overlay, preserves the original and blocks overflow", async () => {

@@ -21,7 +21,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "1.10.0-honest-v7-capability-boundaries";
+const VERSION = "1.11.0-structured-document-editing";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 
@@ -38,6 +38,7 @@ const CAPABILITY_LABELS = {
     business_and_marketing: "Negocio, marketing y paginas",
     media_and_documents: "Documentos y medios",
     professional_pdf_editing: "Edicion profesional de PDF",
+    structured_document_editing: "Edicion de documentos estructurados",
     persistent_cases: "Expedientes persistentes",
     reel_video_production: "Produccion de reels y video",
     multimodal_inputs: "Recepcion multimodal de archivos",
@@ -366,6 +367,7 @@ async function buildCapabilityForensics(runtime) {
         ) ||
         null;
     const pdfEditingHealth = readCapabilityEvidence("pdf_editing") || null;
+    const structuredDocumentHealth = readCapabilityEvidence("structured_document_editing") || null;
     const persistentCaseHealth = readCapabilityEvidence("persistent_cases") || null;
     const reelVideoHealth = readCapabilityEvidence("reel_video") || null;
     const connectorsReady =
@@ -491,6 +493,25 @@ async function buildCapabilityForensics(runtime) {
                 actuatorRegistered: tools.has("document.pdf.edit"),
                 verifiedExecution: pdfEditingHealth?.ok === true,
                 health: pdfEditingHealth
+            }
+        },
+        {
+            id: "structured_document_editing",
+            status: tools.has("document.xlsx.edit") && structuredDocumentHealth?.ok === true
+                ? "READY"
+                : tools.has("document.xlsx.edit")
+                    ? "PARTIAL"
+                    : "NOT_AVAILABLE",
+            reason: tools.has("document.xlsx.edit") && structuredDocumentHealth?.ok === true
+                ? "Una edicion XLSX real con original intacto, hashes y cambios exactos fue verificada."
+                : tools.has("document.xlsx.edit")
+                    ? "El editor XLSX nativo esta conectado; falta ejecutar una edicion viva desde Jarvis."
+                    : "No existe un actuador conectado para editar documentos estructurados existentes.",
+            nextAction: "Editar un XLSX real y verificar hojas, formulas, estilos, hash y archivo descargable.",
+            evidence: {
+                xlsxEditorRegistered: tools.has("document.xlsx.edit"),
+                verifiedExecution: structuredDocumentHealth?.ok === true,
+                health: structuredDocumentHealth
             }
         },
         {
@@ -643,6 +664,7 @@ async function buildCapabilityForensics(runtime) {
     const priorityByCapability = {
         media_and_documents: "Conectar edicion documental nativa.",
         professional_pdf_editing: "Conectar y verificar edicion profesional de PDF.",
+        structured_document_editing: "Ejecutar y verificar una edicion XLSX real.",
         persistent_cases: "Verificar recuperacion viva de un expediente persistente.",
         reel_video_production: "Exportar y verificar un reel completo de 30 o 45 segundos.",
         daily_supervision: "Validar una ejecucion diaria persistida del supervisor.",

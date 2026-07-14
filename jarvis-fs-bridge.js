@@ -9,7 +9,7 @@ import { fileURLToPath } from "url";
 import { execFileSync, spawn } from "child_process";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.8.0-native-pdf-overlay-editing";
+    "2.11.0-office-suite-editing";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -1360,6 +1360,252 @@ export async function editPdfOverlayArtifact({
     };
 }
 
+export async function editXlsxArtifact({
+    sourceOutput = "", output = "", changes = [], root = DEFAULT_ROOT
+} = {}) {
+    const source = artifactPath(sourceOutput, root, [".xlsx"]);
+    if (!fs.existsSync(source) || !fs.statSync(source).isFile()) throw new Error("XLSX_SOURCE_NOT_FOUND");
+    const sourceBytes = fs.readFileSync(source);
+    if (sourceBytes.length < 16 || sourceBytes.length > 100 * 1024 * 1024) throw new Error("XLSX_SOURCE_BYTES_OUT_OF_RANGE");
+    if (!Array.isArray(changes) || changes.length < 1 || changes.length > 1000) throw new Error("XLSX_CHANGES_REQUIRED");
+
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(sourceBytes);
+    const applied = [];
+    for (const [index, change] of changes.entries()) {
+        const worksheet = Number.isInteger(Number(change?.sheetIndex))
+            ? workbook.worksheets[Number(change.sheetIndex)]
+            : workbook.getWorksheet(String(change?.sheet || "").trim());
+        if (!worksheet) throw new Error("XLSX_SHEET_NOT_FOUND");
+        const address = String(change?.cell || "").trim().toUpperCase();
+        if (!/^[A-Z]{1,3}[1-9][0-9]{0,6}$/.test(address)) throw new Error("XLSX_CELL_INVALID");
+        const cell = worksheet.getCell(address);
+        const before = cell.value;
+        if (Object.hasOwn(change || {}, "formula")) {
+            const formula = String(change.formula || "").trim().replace(/^=/, "");
+            if (!formula || formula.length > 2000 || /\[[^\]]+\]|https?:|file:/i.test(formula)) throw new Error("XLSX_FORMULA_NOT_ALLOWED");
+            cell.value = { formula, result: change.result ?? null };
+        } else if (Object.hasOwn(change || {}, "value")) {
+            const value = change.value;
+            if (!["string", "number", "boolean"].includes(typeof value) && value !== null) throw new Error("XLSX_VALUE_TYPE_NOT_ALLOWED");
+            cell.value = typeof value === "string" ? value.slice(0, 32767) : value;
+        } else {
+            throw new Error("XLSX_CHANGE_VALUE_REQUIRED");
+        }
+        if (change.numberFormat) cell.numFmt = String(change.numberFormat).slice(0, 160);
+        applied.push({
+            index,
+            sheet: worksheet.name,
+            cell: address,
+            before,
+            after: cell.value,
+            stylePreserved: !change.numberFormat
+        });
+    }
+    workbook.calcProperties ||= {};
+    workbook.calcProperties.fullCalcOnLoad = true;
+    workbook.calcProperties.forceFullCalc = true;
+    workbook.calcProperties.calcMode = "auto";
+    const safeOutput = String(output || `.jarvis-artifacts/documents/edited-${Date.now()}.xlsx`).replace(/\\/g, "/");
+    const target = artifactPath(safeOutput, root, [".xlsx"]);
+    await workbook.xlsx.writeFile(target);
+    const resultBytes = fs.readFileSync(target);
+    return {
+        ok: true,
+        status: "XLSX_EDITED",
+        strategy: "NATIVE_WORKBOOK_EDIT",
+        sourceOutput: path.relative(path.resolve(root), source).replace(/\\/g, "/"),
+        output: path.relative(path.resolve(root), target).replace(/\\/g, "/"),
+        originalPreserved: true,
+        sourceSha256: createHash("sha256").update(sourceBytes).digest("hex"),
+        outputSha256: createHash("sha256").update(resultBytes).digest("hex"),
+        bytes: resultBytes.length,
+        sheets: workbook.worksheets.map(sheet => sheet.name),
+        changes: applied,
+        recalculation: "ON_OPEN"
+    };
+}
+
+function escapeOoxmlText(value = "") {
+    return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+}
+
+function replaceInsideWordTextNodes(xml, search, replacement) {
+    const escapedSearch = escapeOoxmlText(search);
+    const escapedReplacement = escapeOoxmlText(replacement);
+    let cursor = 0;
+    let output = "";
+    let matchCount = 0;
+    while (cursor < xml.length) {
+        const open = xml.indexOf("<w:t", cursor);
+        if (open < 0) {
+            output += xml.slice(cursor);
+            break;
+        }
+        const contentStart = xml.indexOf(">", open);
+        const close = contentStart >= 0 ? xml.indexOf("</w:t>", contentStart + 1) : -1;
+        if (contentStart < 0 || close < 0) throw new Error("DOCX_XML_TEXT_NODE_INVALID");
+        output += xml.slice(cursor, contentStart + 1);
+        const content = xml.slice(contentStart + 1, close);
+        const occurrences = escapedSearch ? content.split(escapedSearch).length - 1 : 0;
+        output += occurrences > 0 ? content.split(escapedSearch).join(escapedReplacement) : content;
+        matchCount += occurrences;
+        output += "</w:t>";
+        cursor = close + 6;
+    }
+    return { xml: output, matchCount };
+}
+
+export async function editDocxArtifact({
+    sourceOutput = "", output = "", replacements = [], root = DEFAULT_ROOT
+} = {}) {
+    const source = artifactPath(sourceOutput, root, [".docx"]);
+    if (!fs.existsSync(source) || !fs.statSync(source).isFile()) throw new Error("DOCX_SOURCE_NOT_FOUND");
+    const sourceBytes = fs.readFileSync(source);
+    if (sourceBytes.length < 16 || sourceBytes.length > 50 * 1024 * 1024) throw new Error("DOCX_SOURCE_BYTES_OUT_OF_RANGE");
+    if (!Array.isArray(replacements) || replacements.length < 1 || replacements.length > 200) throw new Error("DOCX_REPLACEMENTS_REQUIRED");
+
+    const JSZip = (await import("jszip")).default;
+    const archive = await JSZip.loadAsync(sourceBytes, { checkCRC32: true, createFolders: false });
+    const entries = Object.keys(archive.files);
+    if (entries.length > 2000) throw new Error("DOCX_ARCHIVE_ENTRY_LIMIT");
+    const editableParts = entries.filter(name =>
+        name === "word/document.xml" ||
+        (name.startsWith("word/header") && name.endsWith(".xml")) ||
+        (name.startsWith("word/footer") && name.endsWith(".xml"))
+    );
+    if (!editableParts.includes("word/document.xml")) throw new Error("DOCX_DOCUMENT_XML_MISSING");
+    const xmlByPart = new Map();
+    for (const part of editableParts) {
+        const xml = await archive.file(part).async("string");
+        if (xml.length > 15 * 1024 * 1024) throw new Error("DOCX_XML_PART_TOO_LARGE");
+        xmlByPart.set(part, xml);
+    }
+
+    const applied = [];
+    for (const [index, change] of replacements.entries()) {
+        const search = String(change?.search || "");
+        const replace = String(change?.replace ?? "");
+        const expectedMatches = Number(change?.expectedMatches ?? 1);
+        if (!search || search.length > 5000 || replace.length > 5000) throw new Error("DOCX_REPLACEMENT_INVALID");
+        if (!Number.isInteger(expectedMatches) || expectedMatches < 1 || expectedMatches > 1000) throw new Error("DOCX_EXPECTED_MATCHES_INVALID");
+        let totalMatches = 0;
+        for (const [part, xml] of xmlByPart.entries()) {
+            const result = replaceInsideWordTextNodes(xml, search, replace);
+            xmlByPart.set(part, result.xml);
+            totalMatches += result.matchCount;
+        }
+        if (totalMatches !== expectedMatches) throw new Error(`DOCX_MATCH_COUNT_MISMATCH:${totalMatches}:${expectedMatches}`);
+        applied.push({ index, search, replace, matchCount: totalMatches });
+    }
+    for (const [part, xml] of xmlByPart.entries()) archive.file(part, xml);
+    const resultBytes = await archive.generateAsync({ type: "nodebuffer", compression: "DEFLATE", compressionOptions: { level: 6 } });
+    const safeOutput = String(output || `.jarvis-artifacts/documents/edited-${Date.now()}.docx`).replace(/\\/g, "/");
+    const target = artifactPath(safeOutput, root, [".docx"]);
+    fs.writeFileSync(target, resultBytes);
+    return {
+        ok: true,
+        status: "DOCX_EDITED",
+        strategy: "OOXML_EXACT_TEXT_REPLACEMENT",
+        sourceOutput: path.relative(path.resolve(root), source).replace(/\\/g, "/"),
+        output: path.relative(path.resolve(root), target).replace(/\\/g, "/"),
+        originalPreserved: true,
+        sourceSha256: createHash("sha256").update(sourceBytes).digest("hex"),
+        outputSha256: createHash("sha256").update(resultBytes).digest("hex"),
+        bytes: resultBytes.length,
+        replacements: applied,
+        editedParts: editableParts
+    };
+}
+
+function replaceInsidePresentationTextNodes(xml, search, replacement) {
+    const escapedSearch = escapeOoxmlText(search);
+    const escapedReplacement = escapeOoxmlText(replacement);
+    let cursor = 0;
+    let output = "";
+    let matchCount = 0;
+    while (cursor < xml.length) {
+        const open = xml.indexOf("<a:t", cursor);
+        if (open < 0) {
+            output += xml.slice(cursor);
+            break;
+        }
+        const contentStart = xml.indexOf(">", open);
+        const close = contentStart >= 0 ? xml.indexOf("</a:t>", contentStart + 1) : -1;
+        if (contentStart < 0 || close < 0) throw new Error("PPTX_XML_TEXT_NODE_INVALID");
+        output += xml.slice(cursor, contentStart + 1);
+        const content = xml.slice(contentStart + 1, close);
+        const occurrences = escapedSearch ? content.split(escapedSearch).length - 1 : 0;
+        output += occurrences > 0 ? content.split(escapedSearch).join(escapedReplacement) : content;
+        matchCount += occurrences;
+        output += "</a:t>";
+        cursor = close + 6;
+    }
+    return { xml: output, matchCount };
+}
+
+export async function editPptxArtifact({
+    sourceOutput = "", output = "", replacements = [], root = DEFAULT_ROOT
+} = {}) {
+    const source = artifactPath(sourceOutput, root, [".pptx"]);
+    if (!fs.existsSync(source) || !fs.statSync(source).isFile()) throw new Error("PPTX_SOURCE_NOT_FOUND");
+    const sourceBytes = fs.readFileSync(source);
+    if (sourceBytes.length < 16 || sourceBytes.length > 100 * 1024 * 1024) throw new Error("PPTX_SOURCE_BYTES_OUT_OF_RANGE");
+    if (!Array.isArray(replacements) || replacements.length < 1 || replacements.length > 200) throw new Error("PPTX_REPLACEMENTS_REQUIRED");
+    const JSZip = (await import("jszip")).default;
+    const archive = await JSZip.loadAsync(sourceBytes, { checkCRC32: true, createFolders: false });
+    const entries = Object.keys(archive.files);
+    if (entries.length > 5000) throw new Error("PPTX_ARCHIVE_ENTRY_LIMIT");
+    const editableParts = entries.filter(name =>
+        (name.startsWith("ppt/slides/slide") || name.startsWith("ppt/notesSlides/notesSlide")) && name.endsWith(".xml")
+    );
+    if (editableParts.length < 1) throw new Error("PPTX_SLIDES_MISSING");
+    const xmlByPart = new Map();
+    for (const part of editableParts) {
+        const xml = await archive.file(part).async("string");
+        if (xml.length > 20 * 1024 * 1024) throw new Error("PPTX_XML_PART_TOO_LARGE");
+        xmlByPart.set(part, xml);
+    }
+    const applied = [];
+    for (const [index, change] of replacements.entries()) {
+        const search = String(change?.search || "");
+        const replace = String(change?.replace ?? "");
+        const expectedMatches = Number(change?.expectedMatches ?? 1);
+        if (!search || search.length > 5000 || replace.length > 5000) throw new Error("PPTX_REPLACEMENT_INVALID");
+        if (!Number.isInteger(expectedMatches) || expectedMatches < 1 || expectedMatches > 1000) throw new Error("PPTX_EXPECTED_MATCHES_INVALID");
+        let totalMatches = 0;
+        for (const [part, xml] of xmlByPart.entries()) {
+            const result = replaceInsidePresentationTextNodes(xml, search, replace);
+            xmlByPart.set(part, result.xml);
+            totalMatches += result.matchCount;
+        }
+        if (totalMatches !== expectedMatches) throw new Error(`PPTX_MATCH_COUNT_MISMATCH:${totalMatches}:${expectedMatches}`);
+        applied.push({ index, search, replace, matchCount: totalMatches });
+    }
+    for (const [part, xml] of xmlByPart.entries()) archive.file(part, xml);
+    const resultBytes = await archive.generateAsync({ type: "nodebuffer", compression: "DEFLATE", compressionOptions: { level: 6 } });
+    const safeOutput = String(output || `.jarvis-artifacts/documents/edited-${Date.now()}.pptx`).replace(/\\/g, "/");
+    const target = artifactPath(safeOutput, root, [".pptx"]);
+    fs.writeFileSync(target, resultBytes);
+    return {
+        ok: true,
+        status: "PPTX_EDITED",
+        strategy: "OOXML_EXACT_TEXT_REPLACEMENT",
+        sourceOutput: path.relative(path.resolve(root), source).replace(/\\/g, "/"),
+        output: path.relative(path.resolve(root), target).replace(/\\/g, "/"),
+        originalPreserved: true,
+        sourceSha256: createHash("sha256").update(sourceBytes).digest("hex"),
+        outputSha256: createHash("sha256").update(resultBytes).digest("hex"),
+        bytes: resultBytes.length,
+        replacements: applied,
+        editedParts: editableParts
+    };
+}
+
 function decodeXml(value = "") {
     return String(value || "")
         .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
@@ -2577,6 +2823,69 @@ export function createJarvisFsBridgeApp({
             return res.status(400).json({
                 ok: false,
                 status: "PDF_EDIT_FAILED",
+                error: error.message,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+    });
+
+    app.post("/document/xlsx/edit", async (req, res) => {
+        try {
+            return res.json({
+                ...await editXlsxArtifact({
+                    sourceOutput: req.body?.sourceOutput,
+                    output: req.body?.output,
+                    changes: req.body?.changes,
+                    root
+                }),
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        } catch (error) {
+            return res.status(400).json({
+                ok: false,
+                status: "XLSX_EDIT_FAILED",
+                error: error.message,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+    });
+
+    app.post("/document/docx/edit", async (req, res) => {
+        try {
+            return res.json({
+                ...await editDocxArtifact({
+                    sourceOutput: req.body?.sourceOutput,
+                    output: req.body?.output,
+                    replacements: req.body?.replacements,
+                    root
+                }),
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        } catch (error) {
+            return res.status(400).json({
+                ok: false,
+                status: "DOCX_EDIT_FAILED",
+                error: error.message,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+    });
+
+    app.post("/document/pptx/edit", async (req, res) => {
+        try {
+            return res.json({
+                ...await editPptxArtifact({
+                    sourceOutput: req.body?.sourceOutput,
+                    output: req.body?.output,
+                    replacements: req.body?.replacements,
+                    root
+                }),
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        } catch (error) {
+            return res.status(400).json({
+                ok: false,
+                status: "PPTX_EDIT_FAILED",
                 error: error.message,
                 version: JARVIS_FS_BRIDGE_VERSION
             });

@@ -2,7 +2,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "7.3.0-native-pdf-editing";
+const VERSION = "7.6.0-office-suite-editing";
 
 export function normalizeImageArtifactOutput(output, mimeType) {
     const extensions = {
@@ -232,6 +232,99 @@ export function registerJarvisActuatorTools(runtime) {
                     originalPreserved: result?.originalPreserved === true,
                     overflowPassed: result?.visualVerification?.overflowPassed === true,
                     renderedComparisonPassed: result?.visualVerification?.renderedComparisonPassed === true,
+                    checkedAt: new Date().toISOString()
+                });
+                return result;
+            }
+        }),
+        register(runtime, {
+            name: "document.xlsx.edit",
+            description: "Edita celdas o formulas concretas de un XLSX existente, conserva hojas y estilos no solicitados y mantiene intacto el original.",
+            output: "DOCUMENT_XLSX_EDIT_RESULT",
+            inputSchema: {
+                sourceOutput: "string",
+                output: "string",
+                changes: "array<{sheet|sheetIndex,cell,value|formula,result,numberFormat}>"
+            },
+            mutates: true,
+            requiresApproval: true,
+            execute: async (args = {}) => {
+                const result = await bridgeRequest("/document/xlsx/edit", {
+                    sourceOutput: args.sourceOutput,
+                    output: args.output,
+                    changes: args.changes
+                }, 90000);
+                recordCapabilityEvidence("structured_document_editing", {
+                    ok: result?.ok === true && result?.originalPreserved === true && result?.outputSha256 !== result?.sourceSha256,
+                    status: result?.status || "XLSX_EDIT_FAILED",
+                    format: "xlsx",
+                    output: result?.output || null,
+                    sourceSha256: result?.sourceSha256 || null,
+                    outputSha256: result?.outputSha256 || null,
+                    originalPreserved: result?.originalPreserved === true,
+                    changeCount: result?.changes?.length || 0,
+                    checkedAt: new Date().toISOString()
+                });
+                return result;
+            }
+        }),
+        register(runtime, {
+            name: "document.docx.edit",
+            description: "Reemplaza texto exacto en un DOCX existente, preserva el paquete OOXML y exige el numero exacto de coincidencias.",
+            output: "DOCUMENT_DOCX_EDIT_RESULT",
+            inputSchema: {
+                sourceOutput: "string",
+                output: "string",
+                replacements: "array<{search,replace,expectedMatches}>"
+            },
+            mutates: true,
+            requiresApproval: true,
+            execute: async (args = {}) => {
+                const result = await bridgeRequest("/document/docx/edit", {
+                    sourceOutput: args.sourceOutput,
+                    output: args.output,
+                    replacements: args.replacements
+                }, 90000);
+                recordCapabilityEvidence("structured_document_editing", {
+                    ok: result?.ok === true && result?.originalPreserved === true && result?.outputSha256 !== result?.sourceSha256,
+                    status: result?.status || "DOCX_EDIT_FAILED",
+                    format: "docx",
+                    output: result?.output || null,
+                    sourceSha256: result?.sourceSha256 || null,
+                    outputSha256: result?.outputSha256 || null,
+                    originalPreserved: result?.originalPreserved === true,
+                    changeCount: result?.replacements?.length || 0,
+                    checkedAt: new Date().toISOString()
+                });
+                return result;
+            }
+        }),
+        register(runtime, {
+            name: "document.pptx.edit",
+            description: "Reemplaza texto exacto en diapositivas PPTX sin reconstruir la presentacion y conserva intacto el original.",
+            output: "DOCUMENT_PPTX_EDIT_RESULT",
+            inputSchema: {
+                sourceOutput: "string",
+                output: "string",
+                replacements: "array<{search,replace,expectedMatches}>"
+            },
+            mutates: true,
+            requiresApproval: true,
+            execute: async (args = {}) => {
+                const result = await bridgeRequest("/document/pptx/edit", {
+                    sourceOutput: args.sourceOutput,
+                    output: args.output,
+                    replacements: args.replacements
+                }, 90000);
+                recordCapabilityEvidence("structured_document_editing", {
+                    ok: result?.ok === true && result?.originalPreserved === true && result?.outputSha256 !== result?.sourceSha256,
+                    status: result?.status || "PPTX_EDIT_FAILED",
+                    format: "pptx",
+                    output: result?.output || null,
+                    sourceSha256: result?.sourceSha256 || null,
+                    outputSha256: result?.outputSha256 || null,
+                    originalPreserved: result?.originalPreserved === true,
+                    changeCount: result?.replacements?.length || 0,
                     checkedAt: new Date().toISOString()
                 });
                 return result;

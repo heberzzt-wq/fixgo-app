@@ -265,6 +265,7 @@ test("capability forensics reports evidence-backed gaps without claiming Codex p
             "NOT_AVAILABLE"
         );
         assert.ok(result.gaps.some(item => item.id === "professional_pdf_editing"));
+        assert.ok(result.gaps.some(item => item.id === "structured_document_editing"));
         assert.ok(result.gaps.some(item => item.id === "persistent_cases"));
         assert.equal(result.runtime.registeredTools, result.runtime.tools.length);
         assert.ok(result.runtime.tools.includes("system.forensics"));
