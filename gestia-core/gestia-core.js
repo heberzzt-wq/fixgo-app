@@ -4845,9 +4845,52 @@ if (
             })
             : null;
 
+    const directActuatorResponses =
+        allToolObservations
+            .map(observation =>
+                observation?.response ||
+                observation?.data?.response ||
+                null
+            )
+            .filter(response =>
+                response?.type === "JARVIS_CONVERSATIONAL_RESPONSE" &&
+                Boolean(response?.text || response?.report)
+            );
+
+    const directActuatorFinalResponse =
+        !observationDrivenFinalResponse &&
+        !globalAnalysisFinalResponse &&
+        directActuatorResponses.length > 0
+            ? {
+                ok: directActuatorResponses.every(response =>
+                    response?.data?.ok !== false
+                ),
+                title:
+                    String(
+                        directActuatorResponses[0]?.text ||
+                        directActuatorResponses[0]?.report ||
+                        "Resultado de Jarvis"
+                    )
+                        .split("\n")[0]
+                        .replace(/\*\*/g, "")
+                        .trim() ||
+                    "Resultado de Jarvis",
+                text:
+                    directActuatorResponses
+                        .map(response => response.text || response.report)
+                        .filter(Boolean)
+                        .join("\n\n"),
+                responses:
+                    directActuatorResponses,
+                source:
+                    "DIRECT_ACTUATOR_COMPOSITION"
+            }
+            : null;
+
     const finalResponse =
         observationDrivenFinalResponse ||
         globalAnalysisFinalResponse ||
+        directActuatorFinalResponse ||
         null;
 
     if (
