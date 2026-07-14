@@ -1043,6 +1043,24 @@ test("multifunction planner routes real browser, image, document and connector a
     assert.ok(connectors.some(call => call.name === "connector.list"));
 });
 
+test("tool bridge composes human actuator answers without dumping browser DOM or image bytes", () => {
+    const bridge = fs.readFileSync(
+        path.resolve(__dirname, "../gestia-core/tools.bridge.js"),
+        "utf8"
+    );
+    const terminal = fs.readFileSync(
+        path.resolve(__dirname, "../gestia-terminal.html"),
+        "utf8"
+    );
+
+    assert.match(bridge, /function composeActuatorResponse/);
+    assert.match(bridge, /toolName === "browser\.inspect"/);
+    assert.match(bridge, /Titulo detectado/);
+    assert.match(bridge, /imageBase64:\s*undefined/);
+    assert.match(bridge, /No hay conectores externos configurados/);
+    assert.match(terminal, /jarvis-tools-v7-20260714-actuator-responses/);
+});
+
 test("multifunction planner does not turn explanatory questions into work orders", () => {
     assert.deepEqual(
         buildJarvisMultifunctionToolCalls(

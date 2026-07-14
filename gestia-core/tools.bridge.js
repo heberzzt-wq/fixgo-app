@@ -123,6 +123,160 @@ window.JarvisToolMemory = {
             []
 };
 
+function composeActuatorResponse(
+    toolName = "",
+    data = {},
+    context = {}
+) {
+    const composer =
+        window.ResponseComposer;
+
+    if (!composer?.composeJarvis) {
+        return null;
+    }
+
+    if (toolName === "browser.inspect") {
+        const dom =
+            String(data?.dom || data?.stdout || "");
+        const title =
+            dom.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]
+                ?.replace(/\s+/g, " ")
+                .trim() ||
+            "sin titulo";
+
+        return composer.composeJarvis(
+            [
+                "Navegador verificado",
+                "",
+                `Chrome/Edge renderizo **${data?.url || "la URL solicitada"}**.`,
+                `Titulo detectado: **${title}**.`,
+                `Estado: ${data?.status || "BROWSER_INSPECT_OK"}.`,
+                `Tiempo: ${Number(data?.durationMs || 0)} ms.`
+            ].join("\n"),
+            {
+                tool: toolName,
+                url: data?.url || null,
+                title,
+                status: data?.status || null,
+                engine: data?.engine || null,
+                durationMs: data?.durationMs || null
+            },
+            {
+                type: "BROWSER_INSPECTION_RESPONSE",
+                analysisId: context.analysisId,
+                exposeRaw: false
+            }
+        );
+    }
+
+    if (["browser.screenshot", "browser.open", "document.pdf"].includes(toolName)) {
+        return composer.composeJarvis(
+            [
+                toolName === "browser.open"
+                    ? "Navegador abierto"
+                    : toolName === "document.pdf"
+                        ? "PDF creado"
+                        : "Captura creada",
+                "",
+                `Estado: ${data?.status || "COMPLETED"}.`,
+                data?.url ? `URL: ${data.url}.` : "",
+                data?.output ? `Archivo: **${data.output}**.` : ""
+            ].filter(Boolean).join("\n"),
+            {
+                tool: toolName,
+                url: data?.url || null,
+                output: data?.output || null,
+                status: data?.status || null,
+                engine: data?.engine || null
+            },
+            {
+                type: "BROWSER_ACTUATOR_RESPONSE",
+                analysisId: context.analysisId
+            }
+        );
+    }
+
+    if (toolName === "document.create") {
+        return composer.composeJarvis(
+            [
+                "Documento creado",
+                "",
+                `Formato: **${String(data?.format || "archivo").toUpperCase()}**.`,
+                `Archivo: **${data?.output || "sin ruta"}**.`,
+                `Tamano: ${Number(data?.bytes || 0)} bytes.`
+            ].join("\n"),
+            data,
+            {
+                type: "DOCUMENT_CREATE_RESPONSE",
+                analysisId: context.analysisId
+            }
+        );
+    }
+
+    if (toolName === "image.generate") {
+        return composer.composeJarvis(
+            [
+                "Imagen generada",
+                "",
+                `Modelo: **${data?.model || "Gemini Image"}**.`,
+                `Formato: ${data?.mimeType || "imagen"}.`,
+                `Resolucion solicitada: ${data?.imageSize || "1K"} (${data?.aspectRatio || "1:1"}).`,
+                data?.text || "La imagen quedo disponible en el resultado estructurado."
+            ].join("\n"),
+            {
+                ...data,
+                imageBase64: undefined
+            },
+            {
+                type: "IMAGE_GENERATION_RESPONSE",
+                analysisId: context.analysisId,
+                exposeRaw: false
+            }
+        );
+    }
+
+    if (toolName === "connector.list") {
+        const connectors =
+            Array.isArray(data?.connectors)
+                ? data.connectors
+                : [];
+        return composer.composeJarvis(
+            [
+                "Conectores",
+                "",
+                `Conectados: **${Number(data?.connectedCount || 0)}**.`,
+                connectors.length
+                    ? connectors.map(item => `- ${item.id}: ${item.connected ? "CONECTADO" : "DESCONECTADO"}`).join("\n")
+                    : "No hay conectores externos configurados; Jarvis no va a fingir acceso."
+            ].join("\n"),
+            data,
+            {
+                type: "CONNECTOR_LIST_RESPONSE",
+                analysisId: context.analysisId
+            }
+        );
+    }
+
+    if (toolName === "agent.delegate") {
+        return composer.composeJarvis(
+            [
+                "Delegacion completada",
+                "",
+                `Tareas ejecutadas en paralelo: **${Number(data?.taskCount || 0)}**.`,
+                `Estado: ${data?.ok === true ? "COMPLETO" : "CON FALLAS"}.`,
+                `Tiempo total: ${Number(data?.durationMs || 0)} ms.`
+            ].join("\n"),
+            data,
+            {
+                type: "AGENT_DELEGATION_RESPONSE",
+                analysisId: context.analysisId
+            }
+        );
+    }
+
+    return null;
+}
+
 export const ToolsBridge = {
 
     async executeAndCompose(toolName, args = {}, context = {}) {
@@ -262,6 +416,11 @@ export const ToolsBridge = {
         }
 
         const response =
+            composeActuatorResponse(
+                toolName,
+                result.data,
+                context
+            ) ||
             window.ResponseComposer.success(
                 result.data,
                 {
