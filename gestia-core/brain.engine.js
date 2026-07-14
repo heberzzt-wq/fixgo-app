@@ -1946,9 +1946,9 @@ export async function runCognitiveReasoning(
 
       semanticContext,
 
-      cloudReasoning,
+      cloudReasoning: null,
 
-      cloudToolPlan,
+      cloudToolPlan: null,
 
       timestamp:
         Date.now()

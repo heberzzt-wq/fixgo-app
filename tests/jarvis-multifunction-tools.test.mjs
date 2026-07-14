@@ -1357,6 +1357,10 @@ test("brain awaits the model semantic planner and keeps bounded governance", () 
     assert.match(brain, /plannerSeedToolCalls\s*=\s*await buildJarvisMultifunctionToolCalls/);
     assert.match(brain, /mergeJarvisToolCalls/);
     assert.match(brain, /const toolCalls = plannerSeedToolCalls/);
+    assert.match(brain, /cloudReasoning:\s*null/);
+    assert.match(brain, /cloudToolPlan:\s*null/);
+    assert.doesNotMatch(brain, /^\s*cloudReasoning,\s*$/m);
+    assert.doesNotMatch(brain, /^\s*cloudToolPlan,\s*$/m);
     assert.doesNotMatch(brain, /buildLocalTechnicalInvestigationPlan/);
     assert.doesNotMatch(brain, /REPO_HUB_GLOBAL_FORENSIC_EVIDENCE/);
     assert.doesNotMatch(brain, /forensicCandidateFiles\.map/);
