@@ -1130,7 +1130,9 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(bridge, /imageBase64:\s*undefined/);
     assert.match(bridge, /No hay conectores externos configurados/);
     assert.match(bridge, /No se genero ni se fingio una imagen/);
-    assert.match(terminal, /jarvis-tools-v7-20260714-final-human-actuator-failures/);
+    assert.match(bridge, /API key not valid\|API_KEY_INVALID/);
+    assert.match(bridge, /Google rechazo la credencial/);
+    assert.match(terminal, /jarvis-tools-v7-20260714-final-human-actuator-credential-errors/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
         "utf8"

@@ -194,7 +194,7 @@ import '/gestia-core/brain.engine.js?v=mixed-intent-v2-20260714-multifunction-pl
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
 import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260714-final-parallel-research-image-errors';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
-import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260714-final-human-actuator-failures';
+import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260714-final-human-actuator-credential-errors';
 
 // ======================================================================================
 // 🛰️ SECCIÓN 2: GESTIA CORE ORCHESTRATOR (KERNEL V16.0)

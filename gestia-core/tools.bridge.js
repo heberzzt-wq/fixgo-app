@@ -314,20 +314,25 @@ function composeActuatorFailure(
     if (toolName === "image.generate") {
         const credentialMissing =
             /GEMINI_KEY_MISSING|failed-precondition/i.test(errorText);
+        const credentialInvalid =
+            /API key not valid|API_KEY_INVALID/i.test(errorText);
         return window.ResponseComposer.composeJarvis(
             [
                 "Generacion de imagen no disponible",
                 "",
                 credentialMissing
                     ? "El actuador esta desplegado y autenticado, pero falta configurar la credencial **GEMINI_KEY** en GitHub/Firebase."
-                    : `La generacion fallo: ${errorText}.`,
+                    : credentialInvalid
+                        ? "El actuador esta desplegado y autenticado, pero Google rechazo la credencial **GEMINI_KEY** configurada. Debe reemplazarse por una clave valida."
+                        : `La generacion fallo: ${errorText.slice(0, 240)}.`,
                 "No se genero ni se fingio una imagen."
             ].join("\n"),
             {
                 ok: false,
                 tool: toolName,
                 status: result?.status || "FAILED",
-                credentialMissing
+                credentialMissing,
+                credentialInvalid
             },
             {
                 type: "IMAGE_GENERATION_FAILURE",
