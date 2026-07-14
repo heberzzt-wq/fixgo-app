@@ -460,7 +460,7 @@ export function describeJarvisFsBridge() {
             webResearch: {
                 available: true,
                 grounded: true,
-                engine: "bing-rss"
+                engine: "duckduckgo-html-with-bing-rss-fallback"
             }
         }
     };
