@@ -1238,5 +1238,5 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /supervision-v9-grounded-web-health/);
+    assert.match(core, /jarvis-tools-v7-20260714-bounded-forensics-inventory/);
 });
