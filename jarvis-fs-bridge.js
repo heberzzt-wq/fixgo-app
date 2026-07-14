@@ -889,6 +889,10 @@ function artifactPath(file, root = DEFAULT_ROOT, extensions = []) {
 function decodeXml(value = "") {
     return String(value || "")
         .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+        .replace(/&#x([0-9a-f]+);/gi, (_, code) =>
+            String.fromCodePoint(Number.parseInt(code, 16)))
+        .replace(/&#(\d+);/g, (_, code) =>
+            String.fromCodePoint(Number.parseInt(code, 10)))
         .replace(/&amp;/g, "&")
         .replace(/&lt;/g, "<")
         .replace(/&gt;/g, ">")
@@ -935,14 +939,14 @@ function extractDuckDuckGoSources(html = "") {
         const titleMatch = block.match(/class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
         if (!titleMatch) continue;
 
-        const snippetMatch = block.match(/class="result__snippet"[^>]*>[\s\S]*?<\/a>/i);
+        const snippetMatch = block.match(/class="result__snippet"[^>]*>([\s\S]*?)<\/a>/i);
         const url = normalizeDuckDuckGoUrl(titleMatch[1]);
         if (!/^https?:\/\//i.test(url)) continue;
 
         results.push({
             title: stripMarkup(titleMatch[2]).slice(0, 180),
             url,
-            summary: stripMarkup(snippetMatch?.[0] || "").slice(0, 500)
+            summary: stripMarkup(snippetMatch?.[1] || "").slice(0, 500)
         });
     }
 
