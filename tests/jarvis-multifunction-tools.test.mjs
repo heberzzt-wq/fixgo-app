@@ -121,6 +121,76 @@ test("capability forensics reports evidence-backed gaps without claiming Codex p
     }
 });
 
+test("capability forensics distinguishes a deployed scheduler from a completed daily run", async () => {
+    const runtime = createRuntime();
+    registerJarvisMultifunctionTools(runtime);
+
+    runtime.register({
+        name: "system.supervision",
+        mutates: false,
+        requiresApproval: false,
+        execute: async () => ({
+            ok: true,
+            source: "JARVIS_DAILY_SUPERVISOR",
+            status: "PENDING_FIRST_RUN",
+            scheduledAt: "04:15 America/Cancun",
+            liveProbe: {
+                status: "HEALTHY"
+            }
+        })
+    });
+
+    const pending =
+        await runtime.execute("system.forensics");
+    const pendingCapability =
+        pending.capabilities.find(
+            item => item.id === "daily_supervision"
+        );
+
+    assert.equal(pendingCapability.status, "PARTIAL");
+    assert.equal(pendingCapability.evidence.cloudEndpoint, true);
+    assert.equal(pendingCapability.evidence.scheduleDeclared, true);
+    assert.equal(pendingCapability.evidence.scheduledRun, false);
+    assert.match(pendingCapability.reason, /falta evidencia de la primera ejecucion diaria/i);
+    assert.ok(
+        pending.priorities.some(priority =>
+            priority.includes("04:15 America/Cancun")
+        )
+    );
+
+    runtime.register({
+        name: "system.supervision",
+        mutates: false,
+        requiresApproval: false,
+        execute: async () => ({
+            ok: true,
+            source: "JARVIS_DAILY_SUPERVISOR",
+            status: "HEALTHY",
+            reportId: "2026-07-14",
+            startedAtIso: "2026-07-14T09:15:00.000Z",
+            liveProbe: {
+                status: "HEALTHY"
+            }
+        })
+    });
+
+    const completed =
+        await runtime.execute("system.forensics");
+    const completedCapability =
+        completed.capabilities.find(
+            item => item.id === "daily_supervision"
+        );
+
+    assert.equal(completedCapability.status, "READY");
+    assert.equal(completedCapability.evidence.scheduledRun, true);
+    assert.equal(completedCapability.evidence.reportId, "2026-07-14");
+    assert.ok(
+        !completed.gaps.some(gap =>
+            gap.id === "daily_supervision"
+        )
+    );
+});
+
 test("Jarvis answers casual greetings locally when cloud cognition is unavailable", async () => {
     const runtime = createRuntime();
     registerJarvisMultifunctionTools(runtime);
@@ -726,6 +796,7 @@ test("Terminal uses one premium response renderer and preserves semantic titles"
     assert.match(terminal, /finalResponse\?\.title/);
     assert.match(terminal, /const safeTitle\s*=\s*escapeHTML/);
     assert.match(terminal, /\$\{safeTitle\}<\/h3>/);
+    assert.match(terminal, /item\?\.reason/);
     assert.doesNotMatch(terminal, /window\.renderJarvisResponse = function/);
 });
 
@@ -995,5 +1066,5 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /supervision-v6-canonical-probes/);
+    assert.match(core, /supervision-v7-live-forensics/);
 });

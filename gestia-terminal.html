@@ -145,13 +145,13 @@ fetch("/gestia-terminal.js")
 <script type="module" src="/firebase.js"></script>
 
 <script type="module" src="/modules/terminal/proposal-state.js?v=shared-proposal-state-v1-20260713"></script>
-<script type="module" src="/gestia-core/gestia-core.js?v=mixed-intent-v2-20260713-4260-technical-diagnostics-v1-multifunction-planner-v1.5-mixed-investigations"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=mixed-intent-v2-20260713-4260-technical-diagnostics-v1-multifunction-planner-v1.5-mixed-investigations-forensics-v2"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260707-4190"></script>
 <script
 type="module"
 src="/gestia-core/gestia.runtime.v7.js?v=role-authority-v3-single-navigation-20260713">
 </script>
-<script type="module" src="/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260713-supervision-v6-canonical-probes"></script>
+<script type="module" src="/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260713-supervision-v7-live-forensics"></script>
 <script type="module" src="/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123"></script>
 <script type="module" src="/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260707-4123"></script>
 <script type="module" src="/gestia-core/jarvis/jarvis.language.core.v5.js"></script>
@@ -1394,7 +1394,9 @@ function formatTerminalToolPayload(toolName = "", payload = {}) {
             `No disponibles: ${payload?.summary?.NOT_AVAILABLE ?? capabilities.filter(item => item?.status === "NOT_AVAILABLE").length}`,
             "",
             "Capacidades:",
-            ...capabilities.map(item => `- ${item.id}: ${item.status}`),
+            ...capabilities.map(item =>
+                `- ${item.id}: ${item.status}${item?.reason ? ` - ${item.reason}` : ""}`
+            ),
             ...(payload?.priorities?.length
                 ? [
                     "",

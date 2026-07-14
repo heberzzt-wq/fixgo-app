@@ -16,7 +16,7 @@ import {
     describeMediaIngestion
 } from "./jarvis.media.ingestion.js";
 
-const VERSION = "1.3.0-sia7-canonical-supervision";
+const VERSION = "1.4.0-sia7-live-supervision-forensics";
 
 const CAPABILITY_WEIGHTS = {
     READY: 1,
@@ -44,6 +44,140 @@ function hasNamespace(tools, namespaces = []) {
     );
 }
 
+function unwrapRuntimeResult(result = {}) {
+    return result?.data ||
+        result?.response?.data ||
+        result;
+}
+
+async function inspectDailySupervisionCapability(
+    runtime,
+    tools
+) {
+    if (!tools.has("system.supervision")) {
+        return {
+            status: "NOT_AVAILABLE",
+            reason: "La herramienta de estado diario no esta registrada.",
+            nextAction: "Registrar y desplegar el supervisor diario.",
+            evidence: {
+                statusTool: false,
+                cloudEndpoint: false,
+                scheduledRun: false
+            }
+        };
+    }
+
+    try {
+        const execution =
+            await runtime.execute(
+                "system.supervision",
+                {},
+                {
+                    readOnly: true,
+                    source: "system.forensics"
+                }
+            );
+        const report =
+            unwrapRuntimeResult(execution);
+        const cloudEndpoint =
+            report?.ok === true &&
+            report?.source ===
+                "JARVIS_DAILY_SUPERVISOR" &&
+            report?.cloudReportAvailable !== false;
+        const scheduledRun = Boolean(
+            report?.reportId ||
+            report?.startedAtIso
+        );
+        const scheduleDeclared = Boolean(
+            report?.scheduledAt ||
+            scheduledRun
+        );
+        const localProbeStatus =
+            report?.liveProbe?.status ||
+            null;
+
+        if (
+            cloudEndpoint &&
+            scheduledRun
+        ) {
+            return {
+                status: "READY",
+                reason: "El endpoint cloud entrego un reporte diario persistido.",
+                nextAction: null,
+                evidence: {
+                    statusTool: true,
+                    cloudEndpoint: true,
+                    scheduleDeclared: true,
+                    scheduledRun: true,
+                    reportStatus:
+                        report?.status || null,
+                    reportId:
+                        report?.reportId || null,
+                    localProbeStatus
+                }
+            };
+        }
+
+        if (
+            cloudEndpoint &&
+            scheduleDeclared
+        ) {
+            return {
+                status: "PARTIAL",
+                reason: "Scheduler y endpoint cloud activos; falta evidencia de la primera ejecucion diaria.",
+                nextAction: `Validar el primer reporte programado${report?.scheduledAt ? ` a las ${report.scheduledAt}` : ""}.`,
+                evidence: {
+                    statusTool: true,
+                    cloudEndpoint: true,
+                    scheduleDeclared: true,
+                    scheduledRun: false,
+                    reportStatus:
+                        report?.status || null,
+                    localProbeStatus
+                }
+            };
+        }
+
+        return {
+            status: "PARTIAL",
+            reason:
+                report?.message ||
+                report?.error ||
+                "La herramienta existe, pero no probo un reporte cloud utilizable.",
+            nextAction: "Restaurar la consulta cloud y validar un reporte persistido.",
+            evidence: {
+                statusTool: true,
+                cloudEndpoint,
+                scheduleDeclared,
+                scheduledRun,
+                reportStatus:
+                    report?.status || null,
+                error:
+                    report?.error ||
+                    report?.cloudError ||
+                    null,
+                localProbeStatus
+            }
+        };
+    }
+    catch(error) {
+        return {
+            status: "PARTIAL",
+            reason: "La comprobacion del supervisor no pudo completarse.",
+            nextAction: "Revisar el endpoint cloud del supervisor y repetir el forense.",
+            evidence: {
+                statusTool: true,
+                cloudEndpoint: false,
+                scheduleDeclared: false,
+                scheduledRun: false,
+                error:
+                    error?.message ||
+                    String(error)
+            }
+        };
+    }
+}
+
 async function buildCapabilityForensics(runtime) {
     const tools = toolNames(runtime);
     const bridge =
@@ -57,6 +191,12 @@ async function buildCapabilityForensics(runtime) {
     const speechAvailable =
         typeof globalThis?.speechSynthesis !== "undefined" ||
         typeof globalThis?.window?.speechSynthesis !== "undefined";
+
+    const dailySupervision =
+        await inspectDailySupervisionCapability(
+            runtime,
+            tools
+        );
 
     const capabilities = [
         {
@@ -114,6 +254,9 @@ async function buildCapabilityForensics(runtime) {
         {
             id: "media_and_documents",
             status: tools.has("media.analyze") ? "PARTIAL" : "NOT_AVAILABLE",
+            reason: tools.has("media.analyze")
+                ? "Analiza contenido extraido, pero no edita documentos nativos."
+                : "No hay herramienta registrada para analizar documentos.",
             evidence: {
                 extractedContentAnalysis: tools.has("media.analyze"),
                 nativeDocumentEditing: false
@@ -121,15 +264,14 @@ async function buildCapabilityForensics(runtime) {
         },
         {
             id: "daily_supervision",
-            status: tools.has("system.supervision") ? "PARTIAL" : "NOT_AVAILABLE",
-            evidence: {
-                statusTool: tools.has("system.supervision"),
-                schedulerRequiresExternalInfrastructure: true
-            }
+            ...dailySupervision
         },
         {
             id: "browser_control",
             status: hasNamespace(tools, ["browser", "chrome"]) ? "READY" : "NOT_AVAILABLE",
+            reason: hasNamespace(tools, ["browser", "chrome"])
+                ? "Hay un actuador de navegador registrado."
+                : "La pagina no tiene un actuador de navegador verificable.",
             evidence: {
                 actuatorRegistered: hasNamespace(tools, ["browser", "chrome"])
             }
@@ -137,6 +279,9 @@ async function buildCapabilityForensics(runtime) {
         {
             id: "web_research",
             status: hasNamespace(tools, ["web", "search"]) ? "READY" : "NOT_AVAILABLE",
+            reason: hasNamespace(tools, ["web", "search"])
+                ? "Hay una herramienta web con evidencia registrada."
+                : "No hay busqueda web con fuentes y citas registrada.",
             evidence: {
                 actuatorRegistered: hasNamespace(tools, ["web", "search"])
             }
@@ -144,6 +289,9 @@ async function buildCapabilityForensics(runtime) {
         {
             id: "image_generation",
             status: hasNamespace(tools, ["image", "imagegen"]) ? "READY" : "NOT_AVAILABLE",
+            reason: hasNamespace(tools, ["image", "imagegen"])
+                ? "Hay un actuador de imagen registrado."
+                : "No hay generador o editor de imagenes registrado.",
             evidence: {
                 actuatorRegistered: hasNamespace(tools, ["image", "imagegen"])
             }
@@ -154,6 +302,9 @@ async function buildCapabilityForensics(runtime) {
                 hasNamespace(tools, ["connector", "agent", "mail", "calendar"])
                     ? "PARTIAL"
                     : "NOT_AVAILABLE",
+            reason: hasNamespace(tools, ["connector", "agent", "mail", "calendar"])
+                ? "Hay integraciones parciales, pero no cobertura completa de conectores y delegacion."
+                : "No hay conectores externos ni delegacion multiagente registrados.",
             evidence: {
                 connectorsRegistered: hasNamespace(tools, ["connector", "mail", "calendar"]),
                 agentDelegationRegistered: hasNamespace(tools, ["agent"])
@@ -183,7 +334,7 @@ async function buildCapabilityForensics(runtime) {
     const gapIds = new Set(gaps.map(gap => gap.id));
     const priorityByCapability = {
         media_and_documents: "Conectar edicion documental nativa.",
-        daily_supervision: "Completar la infraestructura externa del scheduler diario.",
+        daily_supervision: "Validar una ejecucion diaria persistida del supervisor.",
         browser_control: "Conectar un actuador de navegador verificable.",
         web_research: "Conectar investigacion web con fuentes y citas.",
         image_generation: "Conectar generacion y edicion de imagenes.",
@@ -210,9 +361,15 @@ async function buildCapabilityForensics(runtime) {
         },
         capabilities,
         gaps,
-        priorities: Object.entries(priorityByCapability)
-            .filter(([id]) => gapIds.has(id))
-            .map(([, priority]) => priority),
+        priorities: capabilities
+            .filter(capability =>
+                gapIds.has(capability.id)
+            )
+            .map(capability =>
+                capability.nextAction ||
+                priorityByCapability[capability.id]
+            )
+            .filter(Boolean),
         runtime: {
             registeredTools: tools.size,
             bridge
@@ -250,36 +407,49 @@ const LOCAL_SUPERVISION_PROBES = [
 ];
 
 async function runLocalDailySupervision() {
-    const checks = [];
+    const checks = await Promise.all(
+        LOCAL_SUPERVISION_PROBES.map(
+            async probe => {
+                try {
+                    const response = await fetch(
+                        probe.path,
+                        {
+                            cache: "no-store"
+                        }
+                    );
+                    const body =
+                        await response.text();
+                    const missingMarkers =
+                        probe.markers.filter(marker =>
+                            !body.includes(marker)
+                        );
 
-    for (const probe of LOCAL_SUPERVISION_PROBES) {
-        try {
-            const response = await fetch(probe.path, {
-                cache: "no-store"
-            });
-            const body = await response.text();
-            const missingMarkers = probe.markers.filter(marker =>
-                !body.includes(marker)
-            );
-
-            checks.push({
-                id: probe.id,
-                path: probe.path,
-                ok: response.ok && missingMarkers.length === 0,
-                httpStatus: response.status,
-                missingMarkers
-            });
-        } catch (error) {
-            checks.push({
-                id: probe.id,
-                path: probe.path,
-                ok: false,
-                httpStatus: null,
-                missingMarkers: [],
-                error: error?.message || String(error)
-            });
-        }
-    }
+                    return {
+                        id: probe.id,
+                        path: probe.path,
+                        ok:
+                            response.ok &&
+                            missingMarkers.length === 0,
+                        httpStatus:
+                            response.status,
+                        missingMarkers
+                    };
+                }
+                catch(error) {
+                    return {
+                        id: probe.id,
+                        path: probe.path,
+                        ok: false,
+                        httpStatus: null,
+                        missingMarkers: [],
+                        error:
+                            error?.message ||
+                            String(error)
+                    };
+                }
+            }
+        )
+    );
 
     const failed = checks.filter(check => !check.ok);
     const score = Math.max(0, 100 - (failed.length * 25));
