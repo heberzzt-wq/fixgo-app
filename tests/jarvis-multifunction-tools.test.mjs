@@ -1070,6 +1070,20 @@ test("multifunction planner routes real browser, image, document and connector a
     ));
 });
 
+test("multifunction planner delegates several read-only tasks in parallel", () => {
+    const calls = buildJarvisMultifunctionToolCalls(
+        "Jarvis, delega en paralelo la salud del sistema, conectores y estado git del repo"
+    );
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].name, "agent.delegate");
+    assert.deepEqual(
+        calls[0].args.tasks.map(task => task.tool),
+        ["system.health", "connector.list", "repo.gitStatus"]
+    );
+    assert.equal(calls[0].mutates, false);
+});
+
 test("tool bridge composes human actuator answers without dumping browser DOM or image bytes", () => {
     const bridge = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/tools.bridge.js"),
@@ -1234,7 +1248,7 @@ test("brain seeds natural multifunction requests into the tested planner", () =>
 
     assert.match(
         analysisHub,
-        /brain\.engine\.js\?v=mixed-intent-v2-20260714-multifunction-planner-v1\.9-native-docs/
+        /brain\.engine\.js\?v=mixed-intent-v2-20260714-multifunction-planner-v2-parallel-delegation/
     );
 });
 

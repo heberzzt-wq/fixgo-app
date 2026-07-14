@@ -231,7 +231,7 @@ test("daily supervisor probes current V7 deployment signatures", () => {
     const terminalProbe = DEFAULT_PROBES.find(probe => probe.id === "terminal_runtime");
     const webProbe = DEFAULT_PROBES.find(probe => probe.id === "grounded_web_research_contract");
 
-    assert.ok(terminalProbe.markers.includes("multifunction-planner-v1.9-native-docs"));
+    assert.ok(terminalProbe.markers.includes("multifunction-planner-v2-parallel-delegation"));
     assert.ok(webProbe.markers.includes("1.7.0-sia7-bounded-supervision-forensics"));
 });
 

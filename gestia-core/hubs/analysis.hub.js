@@ -58,7 +58,7 @@ export {
 
 }
 
-from "../brain.engine.js?v=mixed-intent-v2-20260714-multifunction-planner-v1.9-native-docs";
+from "../brain.engine.js?v=mixed-intent-v2-20260714-multifunction-planner-v2-parallel-delegation";
 
 /* =====================================================
    SCANNER FABRIC

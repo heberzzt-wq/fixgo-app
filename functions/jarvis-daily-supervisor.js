@@ -7,7 +7,7 @@ const DEFAULT_PROBES = Object.freeze([
         id: "terminal_runtime",
         path: "/gestia-terminal.html",
         markers: [
-            "multifunction-planner-v1.9-native-docs",
+            "multifunction-planner-v2-parallel-delegation",
             "gestia-core/gestia-core.js"
         ]
     },

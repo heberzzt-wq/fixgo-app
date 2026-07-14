@@ -1,4 +1,4 @@
-const VERSION = "1.9.0-sia7-native-document-routing";
+const VERSION = "2.0.0-sia7-parallel-delegation-routing";
 
 function normalize(value = "") {
     return String(value || "")
@@ -125,6 +125,42 @@ export function buildJarvisMultifunctionToolCalls(
             /\b(internet|web|google|noticias|fuentes)\b[\s\S]{0,100}\b(busca|buscar|investiga|investigar|consulta|consultar|averigua|averiguar|verifica|verificar)\b/i.test(normalized) ||
             /\b(ultimas noticias|informacion actualizada|datos actuales)\b/i.test(normalized)
         );
+
+    const isDelegationRequest =
+        /\b(en paralelo|delega|delegar|divide las tareas|varias tareas a la vez)\b/i.test(normalized);
+
+    if (isDelegationRequest) {
+        const tasks = [];
+
+        if (/\b(salud|sistema|runtime)\b/i.test(normalized)) {
+            tasks.push({ tool: "system.health", args: {} });
+        }
+        if (/\b(conectores|integraciones)\b/i.test(normalized)) {
+            tasks.push({ tool: "connector.list", args: {} });
+        }
+        if (/\b(capacidades|herramientas)\b/i.test(normalized)) {
+            tasks.push({ tool: "system.capabilities", args: {} });
+        }
+        if (/\b(supervision|supervisor)\b/i.test(normalized)) {
+            tasks.push({ tool: "system.supervision", args: {} });
+        }
+        if (isWebResearchRequest) {
+            tasks.push({ tool: "web.research", args: { query: raw } });
+        }
+        if (/\b(repo|repositorio|git)\b/i.test(normalized)) {
+            tasks.push({ tool: "repo.gitStatus", args: {} });
+        }
+
+        if (tasks.length >= 2) {
+            return [
+                makeCall(
+                    "agent.delegate",
+                    { tasks: tasks.slice(0, 4) },
+                    "LOCAL_MULTIFUNCTION_PARALLEL_DELEGATION"
+                )
+            ];
+        }
+    }
 
     if (isCapabilityForensicsRequest) {
         calls.push(
