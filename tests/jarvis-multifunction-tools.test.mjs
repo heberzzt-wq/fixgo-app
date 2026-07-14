@@ -1130,12 +1130,13 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(bridge, /imageBase64:\s*undefined/);
     assert.match(bridge, /No hay conectores externos configurados/);
     assert.match(bridge, /No se genero ni se fingio una imagen/);
-    assert.match(terminal, /jarvis-tools-v7-20260714-final-human-actuator-responses/);
+    assert.match(terminal, /jarvis-tools-v7-20260714-final-human-actuator-failures/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
         "utf8"
     );
     assert.match(core, /directActuatorResponses/);
+    assert.match(core, /observation\?\.type === "JARVIS_CONVERSATIONAL_RESPONSE"/);
     assert.match(core, /DIRECT_ACTUATOR_COMPOSITION/);
     assert.match(core, /directActuatorFinalResponse/);
     assert.match(terminal, /parallel-delegation-human-actuator-responses/);

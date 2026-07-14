@@ -59,10 +59,18 @@ async function callAdminFunction(name, data = {}) {
     const result = payload?.result || payload?.data || null;
 
     if (!response.ok || !result) {
+        const errorDetails = payload?.error?.details;
+        const errorMessage =
+            payload?.error?.message ||
+            errorDetails?.message ||
+            errorDetails?.error ||
+            (typeof errorDetails === "string" ? errorDetails : "") ||
+            `CLOUD_FUNCTION_HTTP_${response.status}`;
         return {
             ok: false,
             status: `CLOUD_FUNCTION_HTTP_${response.status}`,
-            error: payload?.error?.message || `CLOUD_FUNCTION_HTTP_${response.status}`
+            error: errorMessage,
+            cloudCode: payload?.error?.status || payload?.error?.code || null
         };
     }
 
