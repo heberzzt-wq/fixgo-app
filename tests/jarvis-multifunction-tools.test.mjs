@@ -85,6 +85,9 @@ test("multifunction pack registers ten read-only tools", () => {
 
 test("capability forensics reports evidence-backed gaps without claiming Codex parity", async () => {
     const previousBridge = globalThis.JarvisLocalBridge;
+    const previousWebHealth =
+        globalThis.__JARVIS_WEB_RESEARCH_HEALTH__;
+    delete globalThis.__JARVIS_WEB_RESEARCH_HEALTH__;
     globalThis.JarvisLocalBridge = {
         verifyIdentity: async () => ({
             ok: true,
@@ -109,10 +112,31 @@ test("capability forensics reports evidence-backed gaps without claiming Codex p
         );
         assert.equal(
             result.capabilities.find(item => item.id === "web_research")?.status,
-            "READY"
+            "PARTIAL"
         );
-        assert.ok(!result.gaps.some(item => item.id === "web_research"));
+        assert.ok(result.gaps.some(item => item.id === "web_research"));
         assert.ok(result.gaps.some(item => item.id === "image_generation"));
+
+        globalThis.__JARVIS_WEB_RESEARCH_HEALTH__ = {
+            ok: true,
+            grounded: true,
+            status: "GROUNDED",
+            sourceCount: 3,
+            checkedAt:
+                "2026-07-14T01:00:00.000Z"
+        };
+
+        const verified =
+            await runtime.execute("system.forensics");
+        const verifiedWeb =
+            verified.capabilities.find(
+                item => item.id === "web_research"
+            );
+
+        assert.equal(verifiedWeb.status, "READY");
+        assert.equal(verifiedWeb.evidence.verified, true);
+        assert.equal(verifiedWeb.evidence.sourceCount, 3);
+        assert.ok(!verified.gaps.some(item => item.id === "web_research"));
 
         const capabilities = await runtime.execute("system.capabilities");
         assert.equal(capabilities.readiness.parity.canClaimParity, false);
@@ -120,6 +144,13 @@ test("capability forensics reports evidence-backed gaps without claiming Codex p
     }
     finally {
         globalThis.JarvisLocalBridge = previousBridge;
+        if (previousWebHealth === undefined) {
+            delete globalThis.__JARVIS_WEB_RESEARCH_HEALTH__;
+        }
+        else {
+            globalThis.__JARVIS_WEB_RESEARCH_HEALTH__ =
+                previousWebHealth;
+        }
     }
 });
 
@@ -268,8 +299,9 @@ test("terminal direct router exposes every registered multifunction namespace", 
 
     assert.match(
         terminal,
-        /repo\|tests\|codex\|system\|conversation\|business\|marketing\|page\|media/
+        /repo\|tests\|codex\|system\|conversation\|business\|marketing\|page\|media\|web/
     );
+    assert.match(terminal, /"web\.research":\s*\{/);
     assert.match(
         terminal,
         /formatTerminalToolPayload/
@@ -1116,5 +1148,5 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /supervision-v8-grounded-web/);
+    assert.match(core, /supervision-v9-grounded-web-health/);
 });

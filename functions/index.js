@@ -162,8 +162,23 @@ function getGroundedGenAI() {
         return groundedGenAI;
     }
 
+    let runtimeConfig = {};
+
+    try {
+        runtimeConfig =
+            functions.config?.() || {};
+    }
+    catch(error) {}
+
     const apiKey =
-        String(process.env.GEMINI_KEY || "")
+        String(
+            process.env.GEMINI_KEY ||
+            process.env.GEMINI_API_KEY ||
+            runtimeConfig?.gemini?.key ||
+            runtimeConfig?.gemini?.api_key ||
+            runtimeConfig?.google?.gemini_key ||
+            ""
+        )
             .trim();
 
     if (!apiKey) {

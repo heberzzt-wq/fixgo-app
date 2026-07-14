@@ -16,7 +16,7 @@ import {
     describeMediaIngestion
 } from "./jarvis.media.ingestion.js";
 
-const VERSION = "1.5.0-sia7-grounded-web-research";
+const VERSION = "1.6.0-sia7-grounded-web-health";
 
 const CAPABILITY_WEIGHTS = {
     READY: 1,
@@ -178,6 +178,81 @@ async function inspectDailySupervisionCapability(
     }
 }
 
+function inspectWebResearchCapability(
+    tools
+) {
+    const actuatorRegistered =
+        tools.has("web.research");
+    const health =
+        globalThis
+            ?.__JARVIS_WEB_RESEARCH_HEALTH__ ||
+        null;
+    const verified =
+        actuatorRegistered &&
+        health?.ok === true &&
+        health?.grounded === true &&
+        Number(health?.sourceCount || 0) > 0;
+
+    if (verified) {
+        return {
+            status: "READY",
+            reason: "La ultima investigacion web devolvio fuentes verificables.",
+            nextAction: null,
+            evidence: {
+                actuatorRegistered: true,
+                verified: true,
+                sourceCount:
+                    health.sourceCount,
+                checkedAt:
+                    health.checkedAt || null
+            }
+        };
+    }
+
+    if (actuatorRegistered) {
+        const credentialMissing =
+            /credencial gemini/i.test(
+                String(health?.message || "")
+            );
+
+        return {
+            status: "PARTIAL",
+            reason:
+                health?.message ||
+                "El actuador esta registrado, pero aun no hay una busqueda sustentada exitosa.",
+            nextAction: credentialMissing
+                ? "Configurar la credencial Gemini de la funcion y repetir una investigacion web real."
+                : "Ejecutar una investigacion web real y validar respuesta, fuentes y citas.",
+            evidence: {
+                actuatorRegistered: true,
+                verified: false,
+                lastStatus:
+                    health?.status ||
+                    "NOT_TESTED",
+                sourceCount:
+                    Number(
+                        health?.sourceCount ||
+                        0
+                    ),
+                checkedAt:
+                    health?.checkedAt || null
+            }
+        };
+    }
+
+    return {
+        status: "NOT_AVAILABLE",
+        reason: "No hay busqueda web con fuentes y citas registrada.",
+        nextAction: "Conectar investigacion web con fuentes y citas.",
+        evidence: {
+            actuatorRegistered: false,
+            verified: false,
+            sourceCount: 0,
+            checkedAt: null
+        }
+    };
+}
+
 async function buildCapabilityForensics(runtime) {
     const tools = toolNames(runtime);
     const bridge =
@@ -195,6 +270,10 @@ async function buildCapabilityForensics(runtime) {
     const dailySupervision =
         await inspectDailySupervisionCapability(
             runtime,
+            tools
+        );
+    const webResearch =
+        inspectWebResearchCapability(
             tools
         );
 
@@ -278,13 +357,7 @@ async function buildCapabilityForensics(runtime) {
         },
         {
             id: "web_research",
-            status: hasNamespace(tools, ["web", "search"]) ? "READY" : "NOT_AVAILABLE",
-            reason: hasNamespace(tools, ["web", "search"])
-                ? "Hay una herramienta web con evidencia registrada."
-                : "No hay busqueda web con fuentes y citas registrada.",
-            evidence: {
-                actuatorRegistered: hasNamespace(tools, ["web", "search"])
-            }
+            ...webResearch
         },
         {
             id: "image_generation",
@@ -633,6 +706,16 @@ async function fetchGroundedWebResearch(
             );
         }
 
+        globalThis.__JARVIS_WEB_RESEARCH_HEALTH__ = {
+            ok: true,
+            grounded: true,
+            status: "GROUNDED",
+            sourceCount:
+                result.sources.length,
+            checkedAt:
+                new Date().toISOString()
+        };
+
         return {
             ...result,
             source:
@@ -641,13 +724,26 @@ async function fetchGroundedWebResearch(
         };
     }
     catch(error) {
+        const message =
+            error?.message ||
+            "La investigacion web no estuvo disponible.";
+
+        globalThis.__JARVIS_WEB_RESEARCH_HEALTH__ = {
+            ok: false,
+            grounded: false,
+            status: "FAILED",
+            sourceCount: 0,
+            message,
+            checkedAt:
+                new Date().toISOString()
+        };
+
         return {
             ok: false,
             error:
                 "WEB_RESEARCH_UNAVAILABLE",
             message:
-                error?.message ||
-                "La investigacion web no estuvo disponible.",
+                message,
             query:
                 normalizedQuery,
             grounded: false,

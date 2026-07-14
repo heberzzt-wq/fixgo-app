@@ -125,7 +125,7 @@ const DEFAULT_PROBES = Object.freeze([
         id: "grounded_web_research_contract",
         path: "/gestia-core/jarvis/jarvis.multitool.pack.js",
         markers: [
-            "1.5.0-sia7-grounded-web-research",
+            "1.6.0-sia7-grounded-web-health",
             "web.research",
             "JARVIS_GROUNDED_WEB_RESEARCH",
             "result.sources.length === 0"

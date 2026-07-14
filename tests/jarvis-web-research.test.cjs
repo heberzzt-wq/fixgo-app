@@ -206,6 +206,9 @@ test("Firebase deploys grounded web research on the supported Node runtime", () 
 
     assert.ok(webStart >= 0);
     assert.match(functionsIndex, /const \{ GoogleGenAI \} = require\("@google\/genai"\)/);
+    assert.match(functionsIndex, /process\.env\.GEMINI_API_KEY/);
+    assert.match(functionsIndex, /functions\.config\?\.\(\)/);
+    assert.match(functionsIndex, /runtimeConfig\?\.gemini\?\.api_key/);
     assert.match(webSection, /runJarvisWebResearch\(\{/);
     assert.match(webSection, /assertJarvisAdminContext/);
     assert.doesNotMatch(webSection, /initCore\(\)/);

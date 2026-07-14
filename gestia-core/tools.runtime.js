@@ -5,7 +5,7 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-multifunction-tools-v1.6-grounded-web-research-20260713";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-multifunction-tools-v1.7-grounded-web-health-20260713";
 
 export const JarvisToolRuntime = {
     _registry: new Map(),
