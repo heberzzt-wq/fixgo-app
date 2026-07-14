@@ -42,3 +42,10 @@ test("MPH campaign ships a responsive landing and a real browser video exporter"
     assert.match(reel, /new MediaRecorder/);
     assert.match(reel, /mph-reel-15s\.webm/);
 });
+
+test("repo impact falls back to live bridge evidence for newly created files", () => {
+    const runtime = fs.readFileSync(path.resolve(__dirname, "../gestia-core/tools.runtime.js"), "utf8");
+    assert.match(runtime, /IMPACT_READY_LIVE/);
+    assert.match(runtime, /jarvis_repo_impact_live_fallback_v7/);
+    assert.match(runtime, /source: "live_repo_bridge"/);
+});

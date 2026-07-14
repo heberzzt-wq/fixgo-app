@@ -5946,6 +5946,50 @@ JarvisToolRuntime.register({
                 result;
         }
 
+        const liveRead =
+            cleanFile && window.JarvisLocalBridge?.readFile
+                ? await window.JarvisLocalBridge.readFile({
+                    file: cleanFile,
+                    path: cleanFile,
+                    maxBytes: 4096,
+                    source: "jarvis_repo_impact_live_fallback_v7"
+                })
+                : null;
+
+        if (liveRead?.ok === true) {
+            const references = window.JarvisLocalBridge?.grepRepo
+                ? await window.JarvisLocalBridge.grepRepo({
+                    term: basename,
+                    query: basename,
+                    maxMatches: 40,
+                    source: "jarvis_repo_impact_live_references_v7"
+                })
+                : null;
+            const matches = Array.isArray(references?.matches)
+                ? references.matches.filter(match => match?.file !== cleanFile)
+                : [];
+
+            return {
+                ok: true,
+                success: true,
+                status: "IMPACT_READY_LIVE",
+                requestedFile: cleanFile,
+                resolvedFile: liveRead.path || cleanFile,
+                attemptedFiles: attempts,
+                source: "live_repo_bridge",
+                indexed: false,
+                risk: matches.length > 0 ? "MEDIUM" : "LOW",
+                dependents: matches.map(match => ({
+                    file: match.file,
+                    line: match.line || null,
+                    snippet: match.snippet || ""
+                })),
+                totalDependents: matches.length,
+                note: "Archivo verificado en el repositorio real; impacto calculado mediante referencias vivas porque el indice estatico aun no contiene este archivo.",
+                tool: "repo.impact"
+            };
+        }
+
         return {
             ...(lastResult || {}),
             ok:
