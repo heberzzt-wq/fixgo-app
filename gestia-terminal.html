@@ -1385,17 +1385,24 @@ function formatTerminalToolPayload(toolName = "", payload = {}) {
         const capabilities = Array.isArray(payload?.capabilities)
             ? payload.capabilities
             : [];
+        const registeredTools = Array.isArray(payload?.runtime?.tools)
+            ? payload.runtime.tools
+            : [];
 
         return [
             `Preparacion real: ${payload?.readinessScore ?? "ND"}/100`,
             `Paridad Codex: ${payload?.parity?.canClaimParity === true ? "SI" : "NO"}`,
+            `Herramientas registradas: ${payload?.runtime?.registeredTools ?? registeredTools.length}`,
+            ...(registeredTools.length
+                ? [`Inventario: ${registeredTools.join(", ")}`]
+                : []),
             `Listas: ${payload?.summary?.READY ?? capabilities.filter(item => item?.status === "READY").length}`,
             `Parciales: ${payload?.summary?.PARTIAL ?? capabilities.filter(item => item?.status === "PARTIAL").length}`,
             `No disponibles: ${payload?.summary?.NOT_AVAILABLE ?? capabilities.filter(item => item?.status === "NOT_AVAILABLE").length}`,
             "",
             "Capacidades:",
             ...capabilities.map(item =>
-                `- ${item.id}: ${item.status}${item?.reason ? ` - ${item.reason}` : ""}`
+                `- ${item.label || item.id}: ${item.status}${item?.reason ? ` - ${item.reason}` : ""}`
             ),
             ...(payload?.priorities?.length
                 ? [

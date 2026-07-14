@@ -25,6 +25,19 @@ const CAPABILITY_WEIGHTS = {
     NOT_AVAILABLE: 0
 };
 
+const CAPABILITY_LABELS = {
+    repo_engineering: "Ingenieria del repositorio",
+    tests_and_git: "Pruebas y Git",
+    conversation_and_voice: "Conversacion y voz",
+    business_and_marketing: "Negocio, marketing y paginas",
+    media_and_documents: "Documentos y medios",
+    daily_supervision: "Supervision diaria",
+    browser_control: "Control del navegador",
+    web_research: "Investigacion web con fuentes",
+    image_generation: "Generacion y edicion de imagenes",
+    connectors_and_multi_agent: "Conectores y delegacion multiagente"
+};
+
 function toolNames(runtime) {
     return new Set(
         (runtime.list?.() || [])
@@ -423,6 +436,12 @@ async function buildCapabilityForensics(runtime) {
         }
     ];
 
+    for (const capability of capabilities) {
+        capability.label =
+            CAPABILITY_LABELS[capability.id] ||
+            capability.id;
+    }
+
     const achieved = capabilities.reduce(
         (sum, capability) => sum + CAPABILITY_WEIGHTS[capability.status],
         0
@@ -483,6 +502,7 @@ async function buildCapabilityForensics(runtime) {
             .filter(Boolean),
         runtime: {
             registeredTools: tools.size,
+            tools: [...tools].sort(),
             bridge
         },
         readOnly: true,

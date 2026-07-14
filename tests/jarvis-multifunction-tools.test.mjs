@@ -117,6 +117,12 @@ test("capability forensics reports evidence-backed gaps without claiming Codex p
         );
         assert.ok(result.gaps.some(item => item.id === "web_research"));
         assert.ok(result.gaps.some(item => item.id === "image_generation"));
+        assert.equal(result.runtime.registeredTools, result.runtime.tools.length);
+        assert.ok(result.runtime.tools.includes("system.forensics"));
+        assert.equal(
+            result.capabilities.find(item => item.id === "repo_engineering")?.label,
+            "Ingenieria del repositorio"
+        );
 
         globalThis.__JARVIS_WEB_RESEARCH_HEALTH__ = {
             ok: true,
