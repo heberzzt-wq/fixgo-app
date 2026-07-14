@@ -6188,6 +6188,22 @@ JarvisToolRuntime.register({
             /ToolsBridge|JarvisToolRuntime|ResponseComposer|window\./i
                 .test(content);
 
+        const hasAuthObserver =
+            /\bonAuthStateChanged\s*\(/i
+                .test(content);
+
+        const hasRoleAuthorityRouter =
+            /\bresolveGestiaRouteDecision\s*\(|\[ROLE_AUTHORITY_REDIRECT\]|APP_MAIN_ROLE_AUTHORITY_REDIRECT|routeDecision\.reason/i
+                .test(content);
+
+        const hasAuthPendingGuard =
+            /gestia-auth-pending|fortressLoader|AUTH_ROLE_UNRESOLVED/i
+                .test(content);
+
+        const hasLegacyProfileFallback =
+            /legacySnap|colecciones legacy|doc\s*\(\s*db\s*,\s*["'`](tecnicos|clientes|admins)["'`]/i
+                .test(content);
+
         const hasRepoWrite =
             /CODE_WRITE|SIA7_COMMIT|repoCommitWriteFile|writeRepoFile|repo_files|PATCH_SYSTEM_CORE/i
                 .test(content);
@@ -6257,6 +6273,11 @@ JarvisToolRuntime.register({
             TODO_OR_STUB_MARKERS: /\b(?:TODO|FIXME|HACK|TEMP|placeholder|stub)\b/i
         };
 
+        findingLinePatterns.AUTH_SESSION_OBSERVER = /\bonAuthStateChanged\s*\(/i;
+        findingLinePatterns.ROLE_AUTHORITY_ROUTER = /\bresolveGestiaRouteDecision\s*\(|\[ROLE_AUTHORITY_REDIRECT\]|APP_MAIN_ROLE_AUTHORITY_REDIRECT|routeDecision\.reason/i;
+        findingLinePatterns.AUTH_PENDING_GUARD = /gestia-auth-pending|fortressLoader|AUTH_ROLE_UNRESOLVED/i;
+        findingLinePatterns.LEGACY_PROFILE_FALLBACK = /legacySnap|colecciones legacy|doc\s*\(\s*db\s*,\s*["'`](tecnicos|clientes|admins)["'`]/i;
+
         const findEvidenceLines = pattern =>
             pattern
                 ? lines
@@ -6315,6 +6336,15 @@ JarvisToolRuntime.register({
                     : "",
                 typeSignals.firebaseData
                     ? "firestore_data"
+                    : "",
+                hasAuthObserver
+                    ? "auth_observer"
+                    : "",
+                hasRoleAuthorityRouter
+                    ? "role_routing"
+                    : "",
+                hasAuthPendingGuard
+                    ? "auth_pending_guard"
                     : "",
                 typeSignals.gps
                     ? "geolocation"
@@ -6470,6 +6500,110 @@ JarvisToolRuntime.register({
 
             recommendations.push(
                 "No modificar queries, transacciones ni listeners sin prueba posterior."
+            );
+        }
+
+        if (
+            hasAuthObserver
+        ) {
+            findings.push({
+                id:
+                    "AUTH_SESSION_OBSERVER",
+                severity:
+                    "MEDIUM",
+                title:
+                    "Observer de sesion detectado",
+                detail:
+                    "La navegacion depende de que Firebase termine de resolver el usuario y su perfil. Si una pantalla aparece antes de ese cierre, el sintoma visible puede ser un salto temporal entre cliente, admin o CEO.",
+                evidence:
+                    {
+                        lines:
+                            findEvidenceLines(
+                                findingLinePatterns.AUTH_SESSION_OBSERVER
+                            )
+                    }
+            });
+
+            recommendations.push(
+                "Verificar que las superficies privadas permanezcan cubiertas hasta que el observer resuelva usuario, perfil y rol."
+            );
+        }
+
+        if (
+            hasRoleAuthorityRouter
+        ) {
+            findings.push({
+                id:
+                    "ROLE_AUTHORITY_ROUTER",
+                severity:
+                    "HIGH",
+                title:
+                    "Router canonico de rol detectado",
+                detail:
+                    "El destino final lo decide resolveGestiaRouteDecision, no la pagina visible en el primer instante. Un rebote hacia admin suele indicar que el rol canonical ya se resolvio y corrigio una superficie inicial.",
+                evidence:
+                    {
+                        lines:
+                            findEvidenceLines(
+                                findingLinePatterns.ROLE_AUTHORITY_ROUTER
+                            )
+                    }
+            });
+
+            recommendations.push(
+                "Diagnosticar app-login.js, firebase.js, app-main.js y role-authority.js como cadena causal antes de culpar a cliente.html o terminal."
+            );
+        }
+
+        if (
+            hasAuthPendingGuard
+        ) {
+            findings.push({
+                id:
+                    "AUTH_PENDING_GUARD",
+                severity:
+                    "MEDIUM",
+                title:
+                    "Guard visual de auth detectado",
+                detail:
+                    "La clase gestia-auth-pending debe ocultar superficies privadas durante la resolucion. Si hay parpadeo, revisar cache/bundle viejo o una entrada que no aplica este guard temprano.",
+                evidence:
+                    {
+                        lines:
+                            findEvidenceLines(
+                                findingLinePatterns.AUTH_PENDING_GUARD
+                            )
+                    }
+            });
+
+            recommendations.push(
+                "Probar con bundle versionado y revisar consola antes de modificar rutas, porque la fuente actual ya contiene guard contra flicker."
+            );
+        }
+
+        if (
+            hasLegacyProfileFallback
+        ) {
+            findings.push({
+                id:
+                    "LEGACY_PROFILE_FALLBACK",
+                severity:
+                    "MEDIUM",
+                title:
+                    "Fallback de perfil legacy detectado",
+                detail:
+                    "El perfil puede buscarse en colecciones legacy despues del documento central. Esa espera puede explicar retrasos de segundos antes de que el rol final estabilice la ruta.",
+                evidence:
+                    {
+                        lines:
+                            findEvidenceLines(
+                                findingLinePatterns.LEGACY_PROFILE_FALLBACK
+                            )
+                    }
+            });
+
+            recommendations.push(
+                "Medir latencia de perfil central vs legacy antes de asumir que el router esta duplicado."
             );
         }
 

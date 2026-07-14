@@ -1187,6 +1187,114 @@ test("read-only technical response preserves evidence for every diagnosed target
     assert.match(finalResponse.text, /Redirect de cliente tardio/);
 });
 
+test("read-only auth routing response explains causal route evidence", () => {
+    const helpers =
+        loadGestiaCoreAgentLoopHelpers();
+
+    const finalResponse =
+        helpers.composeObservationDrivenFinalResponse({
+            objective:
+                "Jarvis, explica por que al iniciar sesion en admin primero aparece cliente y luego admin, y por que al volver de Terminal a CEO despues termina en admin; revisa la configuracion y no modifiques nada",
+            candidates: [
+                {
+                    file: "app-login.js",
+                    score: 220,
+                    plannedOrder: 0,
+                    plannedTarget: true,
+                    evidence: []
+                },
+                {
+                    file: "firebase.js",
+                    score: 210,
+                    plannedOrder: 1,
+                    plannedTarget: true,
+                    evidence: []
+                },
+                {
+                    file: "app-main.js",
+                    score: 200,
+                    plannedOrder: 2,
+                    plannedTarget: true,
+                    evidence: []
+                }
+            ],
+            primaryConfidence: {
+                mode: "MULTI_CANDIDATE",
+                confident: false
+            },
+            patchPreviewAllowed: false,
+            followUpObservations: [
+                {
+                    response: {
+                        data: {
+                            tool: "repo.diagnose",
+                            file: "app-login.js",
+                            fileType: "firebase_data",
+                            capabilities: ["firestore_data", "auth_observer"],
+                            risk: "MEDIUM",
+                            findings: [
+                                {
+                                    severity: "MEDIUM",
+                                    title: "Observer de sesion detectado",
+                                    detail: "La navegacion depende de que Firebase termine de resolver el usuario y su perfil."
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    response: {
+                        data: {
+                            tool: "repo.diagnose",
+                            file: "firebase.js",
+                            fileType: "firebase_data",
+                            capabilities: ["firestore_data", "auth_observer", "role_routing"],
+                            risk: "HIGH",
+                            findings: [
+                                {
+                                    severity: "HIGH",
+                                    title: "Router canonico de rol detectado",
+                                    detail: "El destino final lo decide resolveGestiaRouteDecision."
+                                },
+                                {
+                                    severity: "MEDIUM",
+                                    title: "Fallback de perfil legacy detectado",
+                                    detail: "La espera del perfil legacy puede explicar retrasos de segundos antes de estabilizar la ruta."
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    response: {
+                        data: {
+                            tool: "repo.diagnose",
+                            file: "app-main.js",
+                            fileType: "firebase_data",
+                            capabilities: ["ui_rendering", "firestore_data", "role_routing", "auth_pending_guard"],
+                            risk: "HIGH",
+                            findings: [
+                                {
+                                    severity: "MEDIUM",
+                                    title: "Guard visual de auth detectado",
+                                    detail: "gestia-auth-pending debe ocultar superficies privadas durante la resolucion."
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        });
+
+    assert.match(finalResponse.text, /^Diagnostico: app-login\.js/m);
+    assert.match(finalResponse.text, /Diagnostico separado por archivo:/);
+    assert.match(finalResponse.text, /Observer de sesion detectado/);
+    assert.match(finalResponse.text, /Router canonico de rol detectado/);
+    assert.match(finalResponse.text, /Fallback de perfil legacy detectado/);
+    assert.match(finalResponse.text, /Guard visual de auth detectado/);
+    assert.match(finalResponse.text, /capacidades ui_rendering, firestore_data, role_routing, auth_pending_guard/);
+});
+
 test("agent loop composes read-only final response for global repo analysis", () => {
     const helpers =
         loadGestiaCoreAgentLoopHelpers();

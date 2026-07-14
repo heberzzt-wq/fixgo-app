@@ -849,6 +849,13 @@ test("repo diagnosis separates structural file type from secondary capabilities"
     );
     assert.match(toolsRuntime, /"geolocation"/);
     assert.match(toolsRuntime, /GEOLOCATION_CAPABILITY_DETECTED/);
+    assert.match(toolsRuntime, /AUTH_SESSION_OBSERVER/);
+    assert.match(toolsRuntime, /ROLE_AUTHORITY_ROUTER/);
+    assert.match(toolsRuntime, /AUTH_PENDING_GUARD/);
+    assert.match(toolsRuntime, /LEGACY_PROFILE_FALLBACK/);
+    assert.match(toolsRuntime, /"auth_observer"/);
+    assert.match(toolsRuntime, /"role_routing"/);
+    assert.match(toolsRuntime, /"auth_pending_guard"/);
     assert.match(toolsRuntime, /Tipo principal:/);
     assert.match(toolsRuntime, /Capacidades:/);
     assert.match(toolsRuntime, /const hasExactPatchObject\s*=/);
