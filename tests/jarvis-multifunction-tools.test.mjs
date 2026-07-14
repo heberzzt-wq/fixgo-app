@@ -765,6 +765,18 @@ test("multifunction planner exposes the daily supervision report", () => {
         ).map(call => call.name),
         ["system.supervision"]
     );
+
+    const toolPack = fs.readFileSync(
+        path.join(__dirname, "..", "gestia-core", "jarvis", "jarvis.multitool.pack.js"),
+        "utf8"
+    );
+
+    assert.match(toolPack, /id:\s*"canonical_role_router"[\s\S]{0,220}"resolveGestiaRouteDecision"/);
+    assert.match(toolPack, /id:\s*"canonical_role_router"[\s\S]{0,260}"\[ROLE_AUTHORITY_REDIRECT\]"/);
+    assert.doesNotMatch(
+        toolPack,
+        /id:\s*"canonical_role_router"[\s\S]{0,180}markers:\s*\["gestia-terminal",\s*"b2b_admin"\]/
+    );
 });
 
 test("multifunction planner routes capability boundary questions to forensics", () => {
@@ -983,5 +995,5 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /semantic-diagnostics-v5-supervision-actions/);
+    assert.match(core, /supervision-v6-canonical-probes/);
 });

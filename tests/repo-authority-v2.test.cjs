@@ -1007,12 +1007,17 @@ test("read-only technical response leads with findings and hides internal teleme
                             tool:
                                 "system.supervision",
                             status:
-                                "HEALTHY",
-                            score:
-                                100,
-                            summary: {
-                                failed:
-                                    0
+                                "PENDING_FIRST_RUN",
+                            liveProbe: {
+                                status:
+                                    "HEALTHY",
+                                score:
+                                    100,
+                                summary: {
+                                    failed:
+                                        0
+                                },
+                                findings: []
                             }
                         }
                     }
@@ -1027,7 +1032,7 @@ test("read-only technical response leads with findings and hides internal teleme
     assert.match(finalResponse.text, /Evidencia:/);
     assert.match(finalResponse.text, /Que revisar primero:/);
     assert.match(finalResponse.text, /Resultados adicionales:/);
-    assert.match(finalResponse.text, /Supervisor diario: HEALTHY · score 100\/100 · 0 probes fallidos/);
+    assert.match(finalResponse.text, /Supervisor diario: PENDING_FIRST_RUN · verificacion local HEALTHY · score 100\/100 · 0 probes fallidos/);
     assert.match(finalResponse.text, /Estado: analisis read-only/);
     assert.doesNotMatch(finalResponse.text, /Modo candidato:/);
     assert.doesNotMatch(finalResponse.text, /PatchPreview:/);
@@ -1302,7 +1307,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /isTerminalBrainRuntimeReady/);
     assert.doesNotMatch(terminal, /function isKernelSessionReady/);
     assert.doesNotMatch(terminal, /window\.KernelHeberto\?\.execute/);
-    assert.match(terminal, /jarvis-tools-v7-20260713-semantic-diagnostics-v2/);
+    assert.match(terminal, /jarvis-tools-v7-20260713-supervision-v6-canonical-probes/);
     assert.match(terminal, /terminalBrainRoute\?\.mode\s*===\s*"PATCH_PROPOSAL"/);
     assert.match(terminal, /terminalBrainRoute\?\.useLastPatchPreview\s*===\s*true/);
     assert.doesNotMatch(terminal, /if\s*\(\s*isNaturalPatchPreviewFollowUp\(comando\)\s*\)/);
@@ -1580,7 +1585,7 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
     assert.match(core, /BRAIN_AUTHORITY_NO_LEGACY_FALLBACK/);
     assert.match(core, /brainAuthorityMode[\s\S]{0,500}atomicState\.isHalted/);
     assert.doesNotMatch(core, /semantic-tool-fallback-41-32/);
-    assert.match(core, /jarvis-tools-v7-20260713-semantic-diagnostics-v5-supervision-actions/);
+    assert.match(core, /jarvis-tools-v7-20260713-supervision-v6-canonical-probes/);
 
     const legacyKernel =
         fs.readFileSync(

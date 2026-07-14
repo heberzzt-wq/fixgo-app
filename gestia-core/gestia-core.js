@@ -189,7 +189,7 @@ import {
 } from '/gestia-core/jarvis/jarvis.vision.engine.js?v=typo-normalization-v2-read-only-negation-20260713';
 import '/gestia-core/brain.engine.js?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1.5-mixed-investigations';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260713-semantic-diagnostics-v5-supervision-actions';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260713-supervision-v6-canonical-probes';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260707-4123';
 
@@ -3000,10 +3000,13 @@ function buildSupplementalObservationLines(
                 );
 
             if (tool === "system.supervision") {
-                const status =
+                const cloudStatus =
                     payload?.status ||
-                    payload?.liveProbe?.status ||
                     "SIN REPORTE";
+
+                const liveStatus =
+                    payload?.liveProbe?.status ||
+                    null;
 
                 const score =
                     payload?.score ??
@@ -3015,13 +3018,29 @@ function buildSupplementalObservationLines(
                     payload?.liveProbe?.summary?.failed ??
                     null;
 
+                const failedChecks = (
+                    payload?.findings?.length
+                        ? payload.findings
+                        : payload?.liveProbe?.findings || []
+                )
+                    .filter(finding => !finding?.ok)
+                    .map(finding => finding?.id)
+                    .filter(Boolean)
+                    .slice(0, 3);
+
                 return [
-                    `- Supervisor diario: ${status}`,
+                    `- Supervisor diario: ${cloudStatus}`,
+                    liveStatus
+                        ? `verificacion local ${liveStatus}`
+                        : "",
                     score !== null
                         ? `score ${score}/100`
                         : "score ND",
                     failed !== null
                         ? `${failed} probes fallidos`
+                        : "",
+                    failedChecks.length
+                        ? `fallas: ${failedChecks.join(", ")}`
                         : ""
                 ]
                     .filter(Boolean)

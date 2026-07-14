@@ -16,7 +16,7 @@ import {
     describeMediaIngestion
 } from "./jarvis.media.ingestion.js";
 
-const VERSION = "1.2.0-sia7-capability-forensics";
+const VERSION = "1.3.0-sia7-canonical-supervision";
 
 const CAPABILITY_WEIGHTS = {
     READY: 1,
@@ -231,7 +231,11 @@ const LOCAL_SUPERVISION_PROBES = [
     {
         id: "canonical_role_router",
         path: "/firebase.js",
-        markers: ["gestia-terminal", "b2b_admin"]
+        markers: [
+            "resolveGestiaRouteDecision",
+            "[ROLE_AUTHORITY_REDIRECT]",
+            "window.location.replace"
+        ]
     },
     {
         id: "technical_intent_priority",
