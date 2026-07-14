@@ -99,7 +99,7 @@ function extractJsonObject(value = "") {
     throw new Error("SEMANTIC_PLAN_JSON_REQUIRED");
 }
 
-function validatePlan(plan = {}, catalog = []) {
+function validatePlan(plan = {}, catalog = [], fallbackInput = "") {
     const allowed = new Map(catalog.map(tool => [tool.name, tool]));
     const sourceCalls = Array.isArray(plan?.toolCalls) ? plan.toolCalls : [];
     const seen = new Set();
@@ -110,11 +110,21 @@ function validatePlan(plan = {}, catalog = []) {
         if (!tool || seen.has(tool.name)) continue;
         seen.add(tool.name);
 
+        const candidateArgs = candidate?.args && typeof candidate.args === "object" && !Array.isArray(candidate.args)
+            ? candidate.args
+            : {};
+        const args = Object.keys(candidateArgs).length > 0
+            ? candidateArgs
+            : fallbackInput
+                ? {
+                    instruction: String(fallbackInput).slice(0, 1600),
+                    query: String(fallbackInput).slice(0, 1600)
+                }
+                : {};
+
         toolCalls.push({
             name: tool.name,
-            args: candidate?.args && typeof candidate.args === "object" && !Array.isArray(candidate.args)
-                ? candidate.args
-                : {},
+            args,
             reason: String(candidate?.reason || "MODEL_SEMANTIC_TOOL_SELECTION").slice(0, 240),
             mutates: tool.mutates,
             approved: false
@@ -255,7 +265,7 @@ async function runJarvisSemanticPlanner({
 
             try {
                 const plan = extractToolCallPlan(payload, safeCatalog) || extractJsonObject(content);
-                const validated = validatePlan(plan, safeCatalog);
+                const validated = validatePlan(plan, safeCatalog, instruction);
                 return {
                     ...validated,
                     provider: "pollinations",

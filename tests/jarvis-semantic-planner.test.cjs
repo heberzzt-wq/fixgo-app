@@ -115,6 +115,15 @@ test("semantic plan validation rejects tools outside the runtime catalog", () =>
     assert.deepEqual(result.toolCalls.map(call => call.name), ["connector.list"]);
 });
 
+test("semantic plan grounds empty model arguments in the original instruction", () => {
+    const result = validatePlan({
+        toolCalls: [{ name: "repo.search", args: {} }]
+    }, catalog, "revisa tecnico b2b y cliente html");
+
+    assert.equal(result.toolCalls[0].args.query, "revisa tecnico b2b y cliente html");
+    assert.equal(result.toolCalls[0].args.instruction, "revisa tecnico b2b y cliente html");
+});
+
 test("semantic provider retries bounded transient throttling", async () => {
     let attempts = 0;
     const response = await requestModel(
