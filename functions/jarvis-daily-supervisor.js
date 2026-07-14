@@ -93,11 +93,31 @@ const DEFAULT_PROBES = Object.freeze([
         ]
     },
     {
+        id: "mixed_investigation_composition",
+        path: "/gestia-core/brain.engine.js",
+        markers: [
+            "composeLocalInvestigationPlan",
+            "mergeJarvisToolCalls",
+            "repoHubGlobalPlan ||"
+        ]
+    },
+    {
+        id: "proposal_state_authority",
+        path: "/modules/terminal/proposal-state.js",
+        markers: [
+            "1.0.0-shared-proposal-state",
+            "cancel_clears_active_and_pending_storage",
+            "new_active_invalidates_pending_approval",
+            "expired_pending_approval_fails_closed"
+        ]
+    },
+    {
         id: "technical_response_clarity",
         path: "/gestia-core/gestia-core.js",
         markers: [
             "Diagnóstico técnico",
             "Que puede fallar:",
+            "Resultados adicionales:",
             "Estado: analisis read-only"
         ]
     },
@@ -239,6 +259,8 @@ const SUPERVISION_DOMAIN_BY_PROBE = Object.freeze({
     semantic_diagnostics_contract: "repo_diagnostics",
     technical_intent_priority: "jarvis_cognition",
     technical_read_only_plan: "jarvis_cognition",
+    mixed_investigation_composition: "jarvis_cognition",
+    proposal_state_authority: "jarvis_governance",
     technical_response_clarity: "jarvis_cognition",
     terminal_response_renderer: "jarvis_cognition",
     runtime_health_module: "runtime_health"

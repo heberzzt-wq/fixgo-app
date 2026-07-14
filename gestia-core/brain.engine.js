@@ -35,9 +35,10 @@ from "./jarvis/jarvis.memory.js";
 import {
 
   buildJarvisMultifunctionToolCalls,
-  isJarvisTechnicalDiagnosticRequest
+  isJarvisTechnicalDiagnosticRequest,
+  mergeJarvisToolCalls
 
-} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-multifunction-planner-v1.4-capability-forensics-20260713";
+} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-multifunction-planner-v1.5-mixed-investigations-20260713";
 
 import {
 
@@ -1044,6 +1045,32 @@ function buildLocalTechnicalInvestigationPlan(
     requiresApprovalForWrite: true,
     confidence: vision?.confidence || null,
     source: "local_technical_investigation"
+  };
+}
+
+function composeLocalInvestigationPlan(
+  investigationPlan = null,
+  supplementalToolCalls = []
+) {
+  if (!investigationPlan) {
+    return null;
+  }
+
+  return {
+    ...investigationPlan,
+    toolCalls:
+      mergeJarvisToolCalls(
+        investigationPlan.toolCalls || [],
+        supplementalToolCalls
+      ),
+    supplementalToolCalls:
+      supplementalToolCalls
+        .map(call => call?.name)
+        .filter(Boolean),
+    source:
+      supplementalToolCalls.length > 0
+        ? `${investigationPlan.source}+multifunction`
+        : investigationPlan.source
   };
 }
 
@@ -2200,15 +2227,12 @@ export async function runCognitiveReasoning(
       );
 
     const repoHubGlobalPlan =
-      plannerHasOperationalToolCalls
-        ? null
-        : buildRepoHubGlobalAnalysisPlan(
-            input,
-            repoHubVisionIntent
-          );
+      buildRepoHubGlobalAnalysisPlan(
+        input,
+        repoHubVisionIntent
+      );
 
     const localTechnicalPlan =
-      plannerHasOperationalToolCalls ||
       repoHubGlobalPlan
         ? null
         : buildLocalTechnicalInvestigationPlan(
@@ -2216,16 +2240,22 @@ export async function runCognitiveReasoning(
             analyzeIntent(input)
           );
 
+    const composedLocalPlan =
+      composeLocalInvestigationPlan(
+        repoHubGlobalPlan ||
+          localTechnicalPlan,
+        plannerSeedToolCalls
+      );
+
     let cloudReasoning =
       null;
 
     if (
-      !repoHubGlobalPlan &&
+      !composedLocalPlan &&
       plannerSeedToolCalls.length === 0
     ) {
       try {
       cloudReasoning =
-        localTechnicalPlan ||
         (
           BRAIN_CONFIG.TOOL_PLANNER_ENABLED === true
             ? await invocarArquitectoIA(
@@ -2271,7 +2301,6 @@ export async function runCognitiveReasoning(
     }
 
     const fallbackCloudToolPlan =
-      repoHubGlobalPlan ||
       normalizeCloudToolPlan(
         cloudReasoning,
         input,
@@ -2279,10 +2308,12 @@ export async function runCognitiveReasoning(
       );
 
     const cloudToolPlan =
-      plannerHasOperationalToolCalls
-        ? null
-        : localTechnicalPlan ||
-          fallbackCloudToolPlan;
+      composedLocalPlan ||
+      (
+        plannerHasOperationalToolCalls
+          ? null
+          : fallbackCloudToolPlan
+      );
 
     const toolCalls =
       cloudToolPlan?.toolCalls?.length > 0

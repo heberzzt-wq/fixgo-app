@@ -144,7 +144,8 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/firebase.js"></script>
 
-<script type="module" src="/gestia-core/gestia-core.js?v=mixed-intent-v2-20260713-4260-technical-diagnostics-v1-multifunction-planner-v1.4-forensic-output-v8-supervision-actions"></script>
+<script type="module" src="/modules/terminal/proposal-state.js?v=shared-proposal-state-v1-20260713"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=mixed-intent-v2-20260713-4260-technical-diagnostics-v1-multifunction-planner-v1.5-mixed-investigations"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260707-4190"></script>
 <script
 type="module"
@@ -2157,12 +2158,6 @@ const isUsableConversationalCloudResponse =
 const LAST_PATCH_PREVIEW_STORAGE_KEY =
     "jarvis:lastPatchPreviewCandidate:v1";
 
-const SIA7_ACTIVE_PATCH_PROPOSAL_STORAGE_KEY =
-    "sia7:activePatchProposal:v1";
-
-const SIA7_ACTIVE_PATCH_PROPOSAL_MAX_AGE_MS =
-    1000 * 60 * 60 * 2;
-
 const SIA7_PROPOSAL_ADJUSTMENT_MAX_AGE_MS =
     1000 * 60 * 60 * 2;
 window.SIA7_PROPOSAL_ADJUSTMENT_MAX_AGE_MS =
@@ -2184,47 +2179,20 @@ const rememberTerminalProposalAdjustment =
             };
     };
 
-const isFreshTerminalActivePatchProposal =
-    function(proposal = {}) {
-        if (
-            !proposal?.file ||
-            !proposal?.search ||
-            !proposal?.replace
-        ) {
-            return false;
-        }
-
-        const updatedAt =
-            Number(proposal.updatedAt || proposal.createdAt || 0);
-
-        if (!updatedAt) {
-            return true;
-        }
-
-        return Date.now() - updatedAt <=
-            SIA7_ACTIVE_PATCH_PROPOSAL_MAX_AGE_MS;
-    };
-
 const clearTerminalActivePatchProposal =
     function() {
-        window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ =
-            null;
-        window.__SIA7_ACTIVE_PATCH_PROPOSAL__ =
-            null;
-        window.__SIA7_PENDING_PATCH_APPROVAL__ =
-            null;
-
-        try {
-            localStorage.removeItem(
-                SIA7_ACTIVE_PATCH_PROPOSAL_STORAGE_KEY
-            );
+        if (window.Sia7ProposalState?.clear) {
+            window.Sia7ProposalState.clear();
+            return;
         }
-        catch(error) {}
+
+        window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ = null;
+        window.__SIA7_ACTIVE_PATCH_PROPOSAL__ = null;
+        window.__SIA7_PENDING_PATCH_APPROVAL__ = null;
 
         try {
-            document
-                .querySelectorAll("[data-sia7-visual-patch-proposal='true']")
-                .forEach(card => card.remove());
+            localStorage.removeItem("sia7:activePatchProposal:v1");
+            localStorage.removeItem("sia7:pendingPatchApproval:v1");
         }
         catch(error) {}
     };
@@ -2234,49 +2202,8 @@ window.__SIA7_CLEAR_ACTIVE_PATCH_PROPOSAL__ =
 
 const readTerminalActivePatchProposal =
     function() {
-        if (
-            window.__SIA7_ACTIVE_PATCH_PROPOSAL__?.file &&
-            isFreshTerminalActivePatchProposal(
-                window.__SIA7_ACTIVE_PATCH_PROPOSAL__
-            )
-        ) {
-            return window.__SIA7_ACTIVE_PATCH_PROPOSAL__;
-        }
-
-        if (window.__SIA7_ACTIVE_PATCH_PROPOSAL__) {
-            clearTerminalActivePatchProposal();
-        }
-
-        try {
-            const raw =
-                localStorage.getItem(
-                    SIA7_ACTIVE_PATCH_PROPOSAL_STORAGE_KEY
-                );
-
-            if (!raw) {
-                return null;
-            }
-
-            const parsed =
-                JSON.parse(raw);
-
-            if (
-                parsed?.file &&
-                isFreshTerminalActivePatchProposal(parsed)
-            ) {
-                window.__SIA7_ACTIVE_PATCH_PROPOSAL__ =
-                    parsed;
-
-                return parsed;
-            }
-
-            if (parsed?.file) {
-                clearTerminalActivePatchProposal();
-            }
-        }
-        catch(error) {}
-
-        return null;
+        return window.Sia7ProposalState
+            ?.readActive?.() || null;
     };
 
 const buildSia7ProposalAdjustmentInput =
@@ -3869,12 +3796,7 @@ if (
         const activeVisualPatchProposal =
             window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ || null;
 
-        const activeSia7PatchProposal =
-            typeof readSia7ActivePatchProposal === "function"
-                ? readSia7ActivePatchProposal()
-                : null;
-
-        const activeLegacyPatchProposal =
+        const activeSharedPatchProposal =
             readTerminalActivePatchProposal();
 
         const activePatchProposal =
@@ -3887,20 +3809,13 @@ if (
                 ) ||
                 (
                     adjustmentTargetFile &&
-                    activeSia7PatchProposal?.file === adjustmentTargetFile
-                        ? activeSia7PatchProposal
-                        : null
-                ) ||
-                (
-                    adjustmentTargetFile &&
-                    activeLegacyPatchProposal?.file === adjustmentTargetFile
-                        ? activeLegacyPatchProposal
+                    activeSharedPatchProposal?.file === adjustmentTargetFile
+                        ? activeSharedPatchProposal
                         : null
                 ) ||
                 activeVisualPatchProposal ||
-                activeSia7PatchProposal ||
-                activeLegacyPatchProposal
-                : activeLegacyPatchProposal;
+                activeSharedPatchProposal
+                : activeSharedPatchProposal;
 
                 const shouldBuildProposalAdjustmentInput =
             activePatchProposal?.file &&
@@ -5997,227 +5912,48 @@ window.addEventListener("load", () => {
       });
   }
 
-  function quoteSia7CommandArg(value = "") {
-    return JSON.stringify(String(value || ""));
+  function requireSia7ProposalState() {
+    if (!window.Sia7ProposalState) {
+      throw new Error("SIA7_PROPOSAL_STATE_UNAVAILABLE");
+    }
+
+    return window.Sia7ProposalState;
   }
 
   function buildSia7PatchPreviewCommand(payload = {}) {
-    if (payload.command) return payload.command;
-
-    return [
-      "repo.patchPreview",
-      `file=${quoteSia7CommandArg(payload.file || "")}`,
-      `search=${quoteSia7CommandArg(payload.search || "")}`,
-      `replace=${quoteSia7CommandArg(payload.replace || "")}`,
-      "dryRun=true"
-    ]
-      .join(" ");
-  }
-
-  const SIA7_ACTIVE_PATCH_PROPOSAL_STORAGE_KEY =
-    "sia7:activePatchProposal:v1";
-
-  const SIA7_PENDING_PATCH_APPROVAL_STORAGE_KEY =
-    "sia7:pendingPatchApproval:v1";
-
-  const SIA7_ACTIVE_PATCH_PROPOSAL_MAX_AGE_MS =
-    1000 * 60 * 60 * 2;
-
-  function isFreshSia7ActivePatchProposal(proposal = {}) {
-    if (!proposal.file || !proposal.search || !proposal.replace) {
-      return false;
-    }
-
-    const updatedAt =
-      Number(proposal.updatedAt || proposal.createdAt || 0);
-
-    if (!updatedAt) return true;
-
-    return Date.now() - updatedAt <=
-      SIA7_ACTIVE_PATCH_PROPOSAL_MAX_AGE_MS;
+    return requireSia7ProposalState()
+      .build(payload)
+      .command;
   }
 
   function buildSia7ActivePatchProposal(payload = {}) {
-    return {
-      version: "41.38",
-      file: payload.file || "",
-      lineRange: {
-        startLine:
-          payload.lineRange?.startLine || null,
-        endLine:
-          payload.lineRange?.endLine || null
-      },
-      search: payload.search || "",
-      replace: payload.replace || "",
-      fileRisk: payload.fileRisk || "ND",
-      patchRisk: payload.patchRisk || "LOW_DRY_RUN",
-      command: buildSia7PatchPreviewCommand(payload),
-      approvalCommand:
-        payload.approvalCommand ||
-        `Jarvis, apruebo patch ${payload.file || ""}`.trim(),
-      dryRun: true,
-      writeAllowed: false,
-      status: "PENDING_ADJUSTMENT_OR_APPROVAL",
-      updatedAt: Date.now()
-    };
+    return requireSia7ProposalState()
+      .build(payload);
   }
 
   function rememberSia7ActivePatchProposal(payload = {}) {
-    const proposal =
-      buildSia7ActivePatchProposal(payload);
-
-    window.__SIA7_ACTIVE_PATCH_PROPOSAL__ =
-      proposal;
-
-    try {
-      localStorage.setItem(
-        SIA7_ACTIVE_PATCH_PROPOSAL_STORAGE_KEY,
-        JSON.stringify(proposal)
-      );
-    }
-    catch(error) {}
-
-    return proposal;
+    return requireSia7ProposalState()
+      .rememberActive(payload);
   }
 
   function readSia7ActivePatchProposal() {
-    if (
-      window.__SIA7_ACTIVE_PATCH_PROPOSAL__ &&
-      isFreshSia7ActivePatchProposal(
-        window.__SIA7_ACTIVE_PATCH_PROPOSAL__
-      )
-    ) {
-      return window.__SIA7_ACTIVE_PATCH_PROPOSAL__;
-    }
-
-    if (window.__SIA7_ACTIVE_PATCH_PROPOSAL__) {
-      clearSia7ActivePatchProposal();
-    }
-
-    try {
-      const raw =
-        localStorage.getItem(
-          SIA7_ACTIVE_PATCH_PROPOSAL_STORAGE_KEY
-        );
-
-      if (!raw) return null;
-
-      const parsed =
-        JSON.parse(raw);
-
-      if (
-        parsed?.file &&
-        isFreshSia7ActivePatchProposal(parsed)
-      ) {
-        window.__SIA7_ACTIVE_PATCH_PROPOSAL__ =
-          parsed;
-
-        return parsed;
-      }
-
-      if (parsed?.file) {
-        clearSia7ActivePatchProposal();
-      }
-    }
-    catch(error) {}
-
-    return null;
+    return requireSia7ProposalState()
+      .readActive();
   }
 
-    function rememberSia7PendingPatchApproval(payload = {}) {
-    const proposal =
-      buildSia7ActivePatchProposal(payload);
-
-    const pendingApproval =
-      {
-        ...proposal,
-        fingerprint:
-          payload.fingerprint || "",
-        approvalCommand:
-          payload.approvalCommand ||
-          proposal.approvalCommand,
-        status:
-          "PENDING_SAFE_WRITE_APPROVAL",
-        createdAt:
-          Date.now(),
-        updatedAt:
-          Date.now()
-      };
-
-    window.__SIA7_PENDING_PATCH_APPROVAL__ =
-      pendingApproval;
-
-    try {
-      localStorage.setItem(
-        SIA7_PENDING_PATCH_APPROVAL_STORAGE_KEY,
-        JSON.stringify(pendingApproval)
-      );
-    }
-    catch(error) {}
-
-    return pendingApproval;
+  function rememberSia7PendingPatchApproval(payload = {}) {
+    return requireSia7ProposalState()
+      .rememberPending(payload);
   }
 
   function readSia7PendingPatchApproval() {
-    const current =
-      window.__SIA7_PENDING_PATCH_APPROVAL__;
-
-    if (
-      current?.file &&
-      current?.search &&
-      current?.replace &&
-      isFreshSia7ActivePatchProposal(current)
-    ) {
-      return current;
-    }
-
-    try {
-      const raw =
-        localStorage.getItem(
-          SIA7_PENDING_PATCH_APPROVAL_STORAGE_KEY
-        );
-
-      if (!raw) return null;
-
-      const parsed =
-        JSON.parse(raw);
-
-      if (
-        parsed?.file &&
-        parsed?.search &&
-        parsed?.replace &&
-        isFreshSia7ActivePatchProposal(parsed)
-      ) {
-        window.__SIA7_PENDING_PATCH_APPROVAL__ =
-          parsed;
-
-        return parsed;
-      }
-    }
-    catch(error) {}
-
-    return null;
+    return requireSia7ProposalState()
+      .readPending();
   }
 
-
   function clearSia7ActivePatchProposal() {
-    window.__SIA7_ACTIVE_VISUAL_PATCH_PROPOSAL__ = null;
-    window.__SIA7_ACTIVE_PATCH_PROPOSAL__ = null;
-    window.__SIA7_PENDING_PATCH_APPROVAL__ = null;
-
-    try {
-      localStorage.removeItem(
-        SIA7_ACTIVE_PATCH_PROPOSAL_STORAGE_KEY
-      );
-    }
-    catch(error) {}
-
-    try {
-      document
-        .querySelectorAll("[data-sia7-visual-patch-proposal='true']")
-        .forEach(card => card.remove());
-    }
-    catch(error) {}
+    return requireSia7ProposalState()
+      .clear();
   }
 
   window.__SIA7_CLEAR_ACTIVE_PATCH_PROPOSAL__ =

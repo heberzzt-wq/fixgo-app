@@ -187,7 +187,7 @@ import {
 import {
     analyzeIntent as analyzeVisionIntent
 } from '/gestia-core/jarvis/jarvis.vision.engine.js?v=typo-normalization-v2-read-only-negation-20260713';
-import '/gestia-core/brain.engine.js?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1.4-global-forensics-v3-ranked';
+import '/gestia-core/brain.engine.js?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1.5-mixed-investigations';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
 import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260713-semantic-diagnostics-v5-supervision-actions';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
@@ -2974,6 +2974,86 @@ function isNonBlockingFollowUpFailure(
     );
 }
 
+function buildSupplementalObservationLines(
+    observations = []
+) {
+    return observations
+        .map((observation, index) => {
+            const tool =
+                getObservationToolName(
+                    observation,
+                    [],
+                    index
+                );
+
+            if (
+                !tool ||
+                tool === "unknown" ||
+                tool.startsWith("repo.")
+            ) {
+                return null;
+            }
+
+            const payload =
+                getObservationPayload(
+                    observation
+                );
+
+            if (tool === "system.supervision") {
+                const status =
+                    payload?.status ||
+                    payload?.liveProbe?.status ||
+                    "SIN REPORTE";
+
+                const score =
+                    payload?.score ??
+                    payload?.liveProbe?.score ??
+                    null;
+
+                const failed =
+                    payload?.summary?.failed ??
+                    payload?.liveProbe?.summary?.failed ??
+                    null;
+
+                return [
+                    `- Supervisor diario: ${status}`,
+                    score !== null
+                        ? `score ${score}/100`
+                        : "score ND",
+                    failed !== null
+                        ? `${failed} probes fallidos`
+                        : ""
+                ]
+                    .filter(Boolean)
+                    .join(" · ");
+            }
+
+            if (tool === "system.health") {
+                return `- Salud del sistema: ${payload?.status || (payload?.ok ? "ONLINE" : "DEGRADED")}.`;
+            }
+
+            const message =
+                payload?.message ||
+                payload?.text ||
+                payload?.response ||
+                "";
+
+            if (
+                typeof message === "string" &&
+                message.trim()
+            ) {
+                return `- ${tool}: ${message.trim().slice(0, 280)}`;
+            }
+
+            return `- ${tool}: ejecutado en modo read-only.`;
+        })
+        .filter(Boolean)
+        .filter((line, index, lines) =>
+            lines.indexOf(line) === index
+        )
+        .slice(0, 3);
+}
+
 function composeObservationDrivenFinalResponse({
     objective = "",
     candidates = [],
@@ -3334,6 +3414,11 @@ function composeObservationDrivenFinalResponse({
             ...sectionLines.slice(0, 2)
         ];
 
+    const supplementalObservationLines =
+        buildSupplementalObservationLines(
+            followUpObservations
+        );
+
     const readOnlyText =
         [
             `Diagnostico: ${topCandidate?.file || "sin archivo confirmado"}`,
@@ -3358,6 +3443,13 @@ function composeObservationDrivenFinalResponse({
                 : ["- Abrir el bloque relevante con repo.read y confirmar la configuracion antes de proponer cambios."]),
             ...(impactFailures.length
                 ? [`- Impacto parcial no disponible: ${impactFailures.map(failure => failure.file || "archivo").join(", ")}.`]
+                : []),
+            ...(supplementalObservationLines.length
+                ? [
+                    "",
+                    "Resultados adicionales:",
+                    ...supplementalObservationLines
+                ]
                 : []),
             "",
             "Estado: analisis read-only; no se modificaron archivos ni se genero un patch."

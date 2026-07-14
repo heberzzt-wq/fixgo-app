@@ -1000,6 +1000,22 @@ test("read-only technical response leads with findings and hides internal teleme
                             ]
                         }
                     }
+                },
+                {
+                    response: {
+                        data: {
+                            tool:
+                                "system.supervision",
+                            status:
+                                "HEALTHY",
+                            score:
+                                100,
+                            summary: {
+                                failed:
+                                    0
+                            }
+                        }
+                    }
                 }
             ]
         });
@@ -1010,6 +1026,8 @@ test("read-only technical response leads with findings and hides internal teleme
     assert.match(finalResponse.text, /Configuracion B2B ambigua/);
     assert.match(finalResponse.text, /Evidencia:/);
     assert.match(finalResponse.text, /Que revisar primero:/);
+    assert.match(finalResponse.text, /Resultados adicionales:/);
+    assert.match(finalResponse.text, /Supervisor diario: HEALTHY · score 100\/100 · 0 probes fallidos/);
     assert.match(finalResponse.text, /Estado: analisis read-only/);
     assert.doesNotMatch(finalResponse.text, /Modo candidato:/);
     assert.doesNotMatch(finalResponse.text, /PatchPreview:/);
@@ -1342,19 +1360,32 @@ test("terminal renders visual patch proposal card without direct write execution
             "utf8"
         );
 
+    const proposalState =
+        fs.readFileSync(
+            path.join(
+                __dirname,
+                "..",
+                "modules",
+                "terminal",
+                "proposal-state.js"
+            ),
+            "utf8"
+        );
+
     assert.match(terminal, /SIA7_VISUAL_PATCH_PROPOSAL/);
     assert.match(terminal, /filterSia7ProposalLearningHints/);
     assert.match(terminal, /sia7:activePatchProposal:v1/);
     assert.match(terminal, /__SIA7_ACTIVE_PATCH_PROPOSAL__/);
     assert.match(terminal, /readTerminalActivePatchProposal/);
-    assert.match(terminal, /SIA7_ACTIVE_PATCH_PROPOSAL_MAX_AGE_MS/);
+    assert.match(terminal, /Sia7ProposalState/);
+    assert.match(proposalState, /DEFAULT_MAX_AGE_MS/);
     assert.match(terminal, /SIA7_PROPOSAL_ADJUSTMENT_MAX_AGE_MS/);
-    assert.match(terminal, /isFreshTerminalActivePatchProposal/);
+    assert.match(proposalState, /isFreshSia7PatchProposal/);
     assert.match(terminal, /clearTerminalActivePatchProposal/);
     assert.match(terminal, /rememberTerminalProposalAdjustment/);
     assert.match(terminal, /__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__/);
-    assert.match(terminal, /!proposal\?\.search/);
-    assert.match(terminal, /!proposal\?\.replace/);
+    assert.match(proposalState, /!proposal\?\.search/);
+    assert.match(proposalState, /!proposal\?\.replace/);
     assert.match(terminal, /buildSia7ProposalAdjustmentInput/);
     assert.match(terminal, /buildSia7ProposalAdjustmentPromptPrefix/);
     assert.match(terminal, /isControlledSia7ProposalAdjustmentInput/);
@@ -1369,7 +1400,7 @@ test("terminal renders visual patch proposal card without direct write execution
     assert.match(terminal, /Contexto SIA7 de propuesta activa/);
     assert.match(terminal, /rememberSia7ActivePatchProposal/);
     assert.match(terminal, /readSia7ActivePatchProposal/);
-    assert.match(terminal, /isFreshSia7ActivePatchProposal/);
+    assert.match(proposalState, /expired_pending_approval_fails_closed/);
     assert.match(terminal, /clearSia7ActivePatchProposal/);
     assert.match(terminal, /readSia7ProposalAdjustmentInFlight/);
     assert.match(terminal, /Propuesta visual SIA7 ajustada/);
@@ -1396,7 +1427,9 @@ test("terminal renders visual patch proposal card without direct write execution
     assert.match(terminal, /Jarvis, ajusta la propuesta anterior para/);
     assert.match(terminal, /Puedes ajustar esta propuesta antes de aprobarla/);
     assert.match(terminal, /Propuesta cancelada, no se escribieron archivos/);
-    assert.match(terminal, /localStorage\.removeItem\(\s*SIA7_ACTIVE_PATCH_PROPOSAL_STORAGE_KEY\s*\)/);
+    assert.match(proposalState, /cancel_clears_active_and_pending_storage/);
+    assert.match(proposalState, /safeRemove\(\s*storage,\s*ACTIVE_STORAGE_KEY/);
+    assert.match(proposalState, /safeRemove\(\s*storage,\s*PENDING_STORAGE_KEY/);
     assert.match(terminal, /No se ejecuto repo\.safePatchApply ni repo\.write/);
     assert.match(terminal, /repo\.write directo queda bloqueado por cadena de mando SIA7/);
     assert.match(terminal, /Ejecutando repo\.write dryRun/);
@@ -1440,7 +1473,7 @@ test("terminal renders visual patch proposal card without direct write execution
     assert.match(terminal, /No escribi archivos/);
     assert.match(terminal, /SIA7_BLOCKED_VISUAL_PROPOSAL_RENDER_SUPPRESSED_41_52/);
     assert.match(terminal, /data-sia7-blocked-patch-proposal="true"/);
-    assert.match(terminal, /querySelectorAll\("\[data-sia7-visual-patch-proposal='true'\]"\)/);
+    assert.match(proposalState, /data-sia7-visual-patch-proposal='true'/);
     assert.match(terminal, /readOnlyRepoSurveyPlan:\s*isReadOnlyRepoSurveyPlan/);
     assert.match(terminal, /__SIA7_PENDING_PATCH_APPROVAL__\s*=\s*null/);
 });
@@ -1505,13 +1538,14 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
     assert.match(brain, /renderPatchPreview:\s*false/);
     assert.match(brain, /writeAllowed:\s*false/);
     assert.match(brain, /writeAuthorization:\s*false/);
-    assert.match(brain, /repoHubGlobalPlan\s*\|\|\s*normalizeCloudToolPlan/);
-    assert.match(brain, /if\s*\(\s*!repoHubGlobalPlan\s*&&\s*plannerSeedToolCalls\.length\s*===\s*0\s*\)\s*\{[\s\S]{0,180}invocarArquitectoIA/);
+    assert.match(brain, /composeLocalInvestigationPlan/);
+    assert.match(brain, /repoHubGlobalPlan\s*\|\|\s*localTechnicalPlan/);
+    assert.match(brain, /if\s*\(\s*!composedLocalPlan\s*&&\s*plannerSeedToolCalls\.length\s*===\s*0\s*\)\s*\{[\s\S]{0,180}invocarArquitectoIA/);
     assert.match(brain, /visionIntent:\s*repoHubVisionIntent/);
     assert.doesNotMatch(brain, /shouldUseLegacyRegexToolDetector/);
     assert.doesNotMatch(brain, /buildToolCallsFromInput/);
     assert.match(brain, /const plannerSeedToolCalls\s*=/);
-    assert.match(brain, /toolCalls:\s*plannerSeedToolCalls/);
+    assert.match(brain, /mergeJarvisToolCalls/);
     assert.match(brain, /isNonRetryableCloudFetchError/);
     assert.match(brain, /CLOUD_COGNITION_FAIL_FAST/);
     assert.match(brain, /fallback:\s*"local_semantic_tool_planner"/);

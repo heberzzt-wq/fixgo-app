@@ -12,7 +12,8 @@ import {
 import {
     buildJarvisMultifunctionToolCalls,
     describeJarvisMultifunctionPlanner,
-    isJarvisTechnicalDiagnosticRequest
+    isJarvisTechnicalDiagnosticRequest,
+    mergeJarvisToolCalls
 } from "../gestia-core/jarvis/jarvis.multifunction.planner.js";
 
 import {
@@ -845,6 +846,47 @@ test("technical diagnostics outrank business keywords without requiring the word
     );
 });
 
+test("mixed investigations retain technical and multifunction tools", () => {
+    const supplemental =
+        buildJarvisMultifunctionToolCalls(
+            "Jarvis, revisa tecnico b2b y dime el estado del supervisor diario"
+        );
+
+    assert.deepEqual(
+        supplemental.map(call => call.name),
+        ["system.supervision"]
+    );
+
+    const merged =
+        mergeJarvisToolCalls(
+            [
+                {
+                    name: "repo.search",
+                    args: { query: "tecnico b2b" }
+                },
+                {
+                    name: "repo.read",
+                    args: { file: "tecnico-b2b.html" }
+                },
+                {
+                    name: "repo.diagnose",
+                    args: { file: "tecnico-b2b.html" }
+                }
+            ],
+            supplemental
+        );
+
+    assert.deepEqual(
+        merged.map(call => call.name),
+        [
+            "repo.search",
+            "repo.read",
+            "repo.diagnose",
+            "system.supervision"
+        ]
+    );
+});
+
 test("brain seeds natural multifunction requests into the tested planner", () => {
     const brain =
         fs.readFileSync(
@@ -862,8 +904,10 @@ test("brain seeds natural multifunction requests into the tested planner", () =>
     assert.match(brain, /plannerSeedToolCalls\.length\s*===\s*0/);
     assert.match(brain, /plannerHasOperationalToolCalls/);
     assert.match(brain, /call\.name\s*!==\s*"conversation\.respond"/);
-    assert.match(brain, /plannerHasOperationalToolCalls\s*\?\s*null\s*:\s*buildRepoHubGlobalAnalysisPlan/);
-    assert.match(brain, /const cloudToolPlan\s*=\s*plannerHasOperationalToolCalls\s*\?\s*null/);
+    assert.match(brain, /composeLocalInvestigationPlan/);
+    assert.match(brain, /mergeJarvisToolCalls/);
+    assert.match(brain, /repoHubGlobalPlan\s*\|\|\s*localTechnicalPlan/);
+    assert.match(brain, /const cloudToolPlan\s*=\s*composedLocalPlan\s*\|\|/);
     assert.match(brain, /buildLocalTechnicalInvestigationPlan/);
     assert.match(brain, /local_technical_investigation/);
     assert.match(brain, /patchPreviewAllowed:\s*false/);
@@ -885,7 +929,7 @@ test("brain seeds natural multifunction requests into the tested planner", () =>
 
     assert.match(
         analysisHub,
-        /brain\.engine\.js\?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1\.4-global-forensics-v3-ranked/
+        /brain\.engine\.js\?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1\.5-mixed-investigations/
     );
 });
 

@@ -1,4 +1,4 @@
-const VERSION = "1.4.0-sia7-capability-forensics";
+const VERSION = "1.5.0-sia7-mixed-investigations";
 
 function normalize(value = "") {
     return String(value || "")
@@ -21,6 +21,27 @@ function makeCall(name, args = {}, reason = "LOCAL_MULTIFUNCTION_PLANNER") {
         mutates: false,
         approved: false
     };
+}
+
+export function mergeJarvisToolCalls(
+    ...groups
+) {
+    const merged = [];
+    const seen = new Set();
+
+    for (const call of groups.flat()) {
+        if (!call?.name) continue;
+
+        const key =
+            `${call.name}:${JSON.stringify(call.args || {})}`;
+
+        if (seen.has(key)) continue;
+
+        seen.add(key);
+        merged.push(call);
+    }
+
+    return merged.slice(0, 8);
 }
 
 export function isJarvisTechnicalDiagnosticRequest(input = "") {
