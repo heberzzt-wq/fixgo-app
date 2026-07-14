@@ -13,7 +13,7 @@ import {
 } from "./jarvis-repo-intelligence.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.12.0-live-repo-intelligence";
+    "2.13.0-one-time-write-authorization";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -216,6 +216,67 @@ export function assertWriteContent(content) {
     }
 
     return true;
+}
+
+function sha256Text(value = "") {
+    return createHash("sha256").update(String(value), "utf8").digest("hex");
+}
+
+function countExactMatches(source = "", search = "") {
+    if (!search) return 0;
+    let count = 0;
+    let cursor = 0;
+    while ((cursor = source.indexOf(search, cursor)) >= 0) {
+        count++;
+        cursor += Math.max(1, search.length);
+    }
+    return count;
+}
+
+function readWriteSnapshot(safePath) {
+    if (!fs.existsSync(safePath)) {
+        return { exists: false, bytes: 0, sha256: sha256Text(""), content: "" };
+    }
+    const stat = fs.lstatSync(safePath);
+    if (stat.isSymbolicLink()) throw new Error("SYMLINK_WRITE_BLOCKED");
+    if (!stat.isFile()) throw new Error("WRITE_TARGET_NOT_FILE");
+    if (stat.size > 2 * 1024 * 1024) throw new Error("WRITE_TARGET_TOO_LARGE");
+    const content = fs.readFileSync(safePath, "utf8");
+    return { exists: true, bytes: stat.size, sha256: sha256Text(content), content };
+}
+
+function assertNoSymlinkPath(root, safePath) {
+    const repoRoot = path.resolve(root);
+    const relativeParts = path.relative(repoRoot, safePath).split(path.sep).filter(Boolean);
+    let current = repoRoot;
+    for (const part of relativeParts) {
+        current = path.join(current, part);
+        if (!fs.existsSync(current)) continue;
+        if (fs.lstatSync(current).isSymbolicLink()) throw new Error("SYMLINK_WRITE_BLOCKED");
+    }
+}
+
+function requireWriteField(payload, field) {
+    const value = typeof payload?.[field] === "string" ? payload[field].trim() : "";
+    if (!value) throw new Error(`${field.toUpperCase()}_REQUIRED`);
+    return value;
+}
+
+function buildWriteFingerprint(payload) {
+    return sha256Text(JSON.stringify({
+        objectiveId: payload.objectiveId,
+        caseId: payload.caseId,
+        authorityId: payload.authorityId,
+        controllerId: payload.controllerId,
+        file: payload.file,
+        search: payload.search,
+        replace: payload.replace,
+        matchCount: payload.matchCount,
+        snapshotSha256: payload.snapshotSha256,
+        nonce: payload.nonce,
+        timestamp: payload.timestamp,
+        expiresAt: payload.expiresAt
+    }));
 }
 
 const GREP_ALLOWED_EXTENSIONS =
@@ -505,6 +566,14 @@ export function describeJarvisFsBridge() {
                     "docx", "xlsx", "pptx", "pdf"
                 ],
                 nativeOffice: true
+            },
+            repoWrite: {
+                available: true,
+                protocol: "prepare_authorize_consume_once",
+                requires: ["objectiveId", "caseId", "authorityId", "controllerId", "fingerprint", "nonce", "snapshot", "matchCount"],
+                postVerify: true,
+                replayBlocked: true,
+                legacyFileContentWrite: false
             },
             multimodalUploads: {
                 available: true,
@@ -1904,6 +1973,8 @@ export function createJarvisFsBridgeApp({
         express();
 
     let repoGraphCache = null;
+    const preparedWrites = new Map();
+    const authorizedWrites = new Map();
 
     const allowedOrigins = new Set([
         "https://fixgo-44e4d.web.app",
@@ -2297,76 +2368,150 @@ export function createJarvisFsBridgeApp({
     });
 
     
-    app.post("/write", async (req, res) => {
+    app.post("/write/prepare", async (req, res) => {
         try {
-            const {
-                file,
-                content,
-                dryRun = false
-            } = req.body || {};
-
-            assertWriteContent(content);
-
-            const safePath =
-                resolveRepoPath(file, root);
-
-            if (
-                dryRun === true
-            ) {
-                return res.json({
-                    ok: true,
-                    dryRun: true,
-                    path:
-                        safePath,
-                    version:
-                        JARVIS_FS_BRIDGE_VERSION
-                });
+            const body = req.body || {};
+            const objectiveId = requireWriteField(body, "objectiveId");
+            const caseId = requireWriteField(body, "caseId");
+            const authorityId = requireWriteField(body, "authorityId");
+            const controllerId = requireWriteField(body, "controllerId");
+            const file = requireWriteField(body, "file").replaceAll("\\", "/");
+            const operation = body.operation === "create" ? "create" : "replace";
+            const search = typeof body.search === "string" ? body.search : "";
+            const replace = typeof body.replace === "string" ? body.replace : "";
+            const requestedMatchCount = Number(body.matchCount);
+            if (authorityId !== "HEBERTO_MENDOZA" || controllerId !== "CODEX_SIA7") throw new Error("WRITE_AUTHORITY_INVALID");
+            if (operation === "replace" && !search) throw new Error("SEARCH_REQUIRED");
+            assertWriteContent(replace);
+            const safePath = resolveRepoPath(file, root);
+            assertNoSymlinkPath(root, safePath);
+            const snapshot = readWriteSnapshot(safePath);
+            if (operation === "create" && snapshot.exists) throw new Error("CREATE_TARGET_EXISTS");
+            if (operation === "replace" && !snapshot.exists) throw new Error("WRITE_TARGET_MISSING");
+            const actualMatchCount = operation === "create" ? 0 : countExactMatches(snapshot.content, search);
+            if (!Number.isInteger(requestedMatchCount) || requestedMatchCount !== actualMatchCount || (operation === "replace" && actualMatchCount < 1)) {
+                throw new Error("WRITE_MATCH_COUNT_MISMATCH");
             }
-
-            fs.mkdirSync(
-                path.dirname(safePath),
-                {
-                    recursive: true
-                }
-            );
-
-            fs.writeFileSync(
-                safePath,
-                content,
-                "utf8"
-            );
-
+            const expectedContent = operation === "create"
+                ? replace
+                : snapshot.content.split(search).join(replace);
+            assertWriteContent(expectedContent);
+            const timestamp = Date.now();
+            const expiresAt = timestamp + Math.max(30000, Math.min(300000, Number(body.ttlMs) || 120000));
+            const nonce = randomUUID();
+            const prepared = {
+                objectiveId, caseId, authorityId, controllerId, file, operation, search, replace,
+                matchCount: actualMatchCount, snapshotSha256: snapshot.sha256, expectedSha256: sha256Text(expectedContent),
+                expectedBytes: Buffer.byteLength(expectedContent, "utf8"), expectedContent, timestamp, expiresAt, nonce
+            };
+            prepared.fingerprint = buildWriteFingerprint(prepared);
+            preparedWrites.set(prepared.fingerprint, prepared);
             return res.json({
                 ok: true,
-                path:
-                    safePath,
-                version:
-                    JARVIS_FS_BRIDGE_VERSION
+                status: "WRITE_PREPARED",
+                approvalId: prepared.fingerprint,
+                fingerprint: prepared.fingerprint,
+                nonce,
+                objectiveId,
+                caseId,
+                file,
+                matchCount: actualMatchCount,
+                snapshotSha256: snapshot.sha256,
+                expectedSha256: prepared.expectedSha256,
+                expectedBytes: prepared.expectedBytes,
+                timestamp,
+                expiresAt,
+                approvalCommand: `AUTORIZO ${prepared.fingerprint}`,
+                version: JARVIS_FS_BRIDGE_VERSION
             });
+        } catch (error) {
+            return res.status(400).json({ ok: false, status: "WRITE_PREPARE_BLOCKED", error: error.message, version: JARVIS_FS_BRIDGE_VERSION });
         }
-        catch(error) {
-            const clientErrors =
-                new Set([
-                    "FILE_REQUIRED",
-                    "ABSOLUTE_PATH_NOT_ALLOWED",
-                    "PATH_OUTSIDE_REPO",
-                    "CONTENT_STRING_REQUIRED",
-                    "EMPTY_WRITE_CONTENT"
-                ]);
+    });
 
-            return res
-                .status(
-                    clientErrors.has(error.message)
-                        ? 400
-                        : 500
-                )
-                .json({
-                    ok: false,
-                    error:
-                        error.message,
-                    version:
-                        JARVIS_FS_BRIDGE_VERSION
-                });
+    app.post("/write/authorize", async (req, res) => {
+        try {
+            const fingerprint = requireWriteField(req.body, "fingerprint");
+            const nonce = requireWriteField(req.body, "nonce");
+            const approvedBy = requireWriteField(req.body, "approvedBy");
+            const approvalCommand = requireWriteField(req.body, "approvalCommand");
+            const prepared = preparedWrites.get(fingerprint);
+            if (!prepared) throw new Error("WRITE_PREPARATION_NOT_FOUND");
+            if (prepared.expiresAt <= Date.now()) throw new Error("WRITE_APPROVAL_EXPIRED");
+            if (prepared.nonce !== nonce) throw new Error("WRITE_NONCE_MISMATCH");
+            if (approvedBy !== "HEBERTO_MENDOZA") throw new Error("WRITE_APPROVER_INVALID");
+            if (approvalCommand !== `AUTORIZO ${fingerprint}`) throw new Error("WRITE_APPROVAL_COMMAND_MISMATCH");
+            preparedWrites.delete(fingerprint);
+            const authorization = {
+                ...prepared,
+                approvedBy,
+                approvalCommand,
+                authorizedAt: Date.now(),
+                consumedAt: null
+            };
+            authorizedWrites.set(fingerprint, authorization);
+            return res.json({
+                ok: true,
+                status: "WRITE_AUTHORIZED_ONCE",
+                approvalId: fingerprint,
+                fingerprint,
+                nonce,
+                approvedBy,
+                expiresAt: authorization.expiresAt,
+                consumedAt: null,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        } catch (error) {
+            return res.status(400).json({ ok: false, status: "WRITE_AUTHORIZATION_BLOCKED", error: error.message, version: JARVIS_FS_BRIDGE_VERSION });
+        }
+    });
+
+    app.post("/write", async (req, res) => {
+        try {
+            const fingerprint = requireWriteField(req.body, "fingerprint");
+            const nonce = requireWriteField(req.body, "nonce");
+            const objectiveId = requireWriteField(req.body, "objectiveId");
+            const caseId = requireWriteField(req.body, "caseId");
+            const authorization = authorizedWrites.get(fingerprint);
+            if (!authorization) throw new Error("WRITE_AUTHORIZATION_NOT_FOUND_OR_CONSUMED");
+            if (authorization.consumedAt) throw new Error("WRITE_AUTHORIZATION_ALREADY_CONSUMED");
+            if (authorization.expiresAt <= Date.now()) throw new Error("WRITE_APPROVAL_EXPIRED");
+            if (authorization.nonce !== nonce) throw new Error("WRITE_NONCE_MISMATCH");
+            if (authorization.objectiveId !== objectiveId) throw new Error("WRITE_OBJECTIVE_MISMATCH");
+            if (authorization.caseId !== caseId) throw new Error("WRITE_CASE_MISMATCH");
+            const safePath = resolveRepoPath(authorization.file, root);
+            assertNoSymlinkPath(root, safePath);
+            const snapshot = readWriteSnapshot(safePath);
+            if (snapshot.sha256 !== authorization.snapshotSha256) throw new Error("WRITE_SNAPSHOT_CHANGED");
+            authorization.consumedAt = Date.now();
+            authorizedWrites.delete(fingerprint);
+            fs.mkdirSync(path.dirname(safePath), { recursive: true });
+            fs.writeFileSync(safePath, authorization.expectedContent, "utf8");
+            const verified = readWriteSnapshot(safePath);
+            if (verified.sha256 !== authorization.expectedSha256 || verified.bytes !== authorization.expectedBytes) {
+                throw new Error("WRITE_POST_VERIFY_FAILED");
+            }
+            return res.json({
+                ok: true,
+                status: "WRITE_COMPLETED_VERIFIED",
+                path: safePath,
+                file: authorization.file,
+                objectiveId,
+                caseId,
+                fingerprint,
+                nonce,
+                matchCount: authorization.matchCount,
+                snapshotSha256: authorization.snapshotSha256,
+                outputSha256: verified.sha256,
+                outputBytes: verified.bytes,
+                approvedBy: authorization.approvedBy,
+                authorizedAt: authorization.authorizedAt,
+                consumedAt: authorization.consumedAt,
+                verified: true,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        } catch (error) {
+            return res.status(400).json({ ok: false, status: "WRITE_BLOCKED", error: error.message, version: JARVIS_FS_BRIDGE_VERSION });
         }
     });
 

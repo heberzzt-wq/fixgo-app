@@ -21,7 +21,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "1.13.0-chief-architect-review";
+const VERSION = "1.14.0-one-time-write-authorization";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 
@@ -34,6 +34,7 @@ const CAPABILITY_WEIGHTS = {
 const CAPABILITY_LABELS = {
     repo_engineering: "Ingenieria del repositorio",
     chief_architect: "Chief Architect V7",
+    one_time_write_authorization: "Autorizacion de escritura de un solo uso",
     tests_and_git: "Pruebas y Git",
     conversation_and_voice: "Conversacion y voz",
     business_and_marketing: "Negocio, marketing y paginas",
@@ -321,6 +322,8 @@ async function buildCapabilityForensics(runtime) {
             "repo.diagnose",
             "repo.graph",
             "repo.rankCandidates",
+            "repo.prepareWrite",
+            "repo.authorizeWrite",
             "repo.write"
         ]);
     const testAndGitToolsReady =
@@ -374,6 +377,7 @@ async function buildCapabilityForensics(runtime) {
     const persistentCaseHealth = readCapabilityEvidence("persistent_cases") || null;
     const reelVideoHealth = readCapabilityEvidence("reel_video") || null;
     const chiefArchitectHealth = globalThis?.__JARVIS_CHIEF_ARCHITECT_HEALTH__ || null;
+    const oneTimeWriteHealth = globalThis?.__JARVIS_ONE_TIME_WRITE_HEALTH__ || null;
     const connectorsReady =
         tools.has("agent.delegate") &&
         connectorHealth?.ok === true &&
@@ -402,7 +406,7 @@ async function buildCapabilityForensics(runtime) {
                 bridge: bridge.status || "UNKNOWN",
                 bridgeReady,
                 toolsReady: repoToolsReady,
-                requiredTools: ["repo.read", "repo.grep", "repo.diagnose", "repo.graph", "repo.rankCandidates", "repo.write"]
+                requiredTools: ["repo.read", "repo.grep", "repo.diagnose", "repo.graph", "repo.rankCandidates", "repo.prepareWrite", "repo.authorizeWrite", "repo.write"]
             }
         },
         {
@@ -422,6 +426,27 @@ async function buildCapabilityForensics(runtime) {
                 toolRegistered: tools.has("repo.architectReview"),
                 verifiedReview: chiefArchitectHealth?.ok === true,
                 health: chiefArchitectHealth
+            }
+        },
+        {
+            id: "one_time_write_authorization",
+            status: hasEvery(tools, ["repo.prepareWrite", "repo.authorizeWrite", "repo.write"]) && oneTimeWriteHealth?.ok === true
+                ? "READY"
+                : hasEvery(tools, ["repo.prepareWrite", "repo.authorizeWrite", "repo.write"])
+                    ? "PARTIAL"
+                    : "NOT_AVAILABLE",
+            reason: oneTimeWriteHealth?.ok === true
+                ? "Una escritura real consumio una autorizacion una sola vez y paso verificacion posterior."
+                : tools.has("repo.prepareWrite")
+                    ? "El protocolo fingerprint/nonce/snapshot esta conectado; falta una ejecucion viva aprobada y verificada."
+                    : "La escritura aun no dispone del protocolo completo de autorizacion de un solo uso.",
+            nextAction: "Preparar un patch real, aprobar su fingerprint exacto, consumirlo una vez y comprobar que el replay queda bloqueado.",
+            evidence: {
+                prepare: tools.has("repo.prepareWrite"),
+                authorize: tools.has("repo.authorizeWrite"),
+                consume: tools.has("repo.write"),
+                verifiedExecution: oneTimeWriteHealth?.ok === true,
+                health: oneTimeWriteHealth
             }
         },
         {
@@ -689,6 +714,7 @@ async function buildCapabilityForensics(runtime) {
         professional_pdf_editing: "Conectar y verificar edicion profesional de PDF.",
         structured_document_editing: "Ejecutar y verificar una edicion XLSX real.",
         chief_architect: "Verificar un plan real completo con Chief Architect V7.",
+        one_time_write_authorization: "Verificar una autorizacion fingerprint/nonce de un solo uso y su bloqueo de replay.",
         persistent_cases: "Verificar recuperacion viva de un expediente persistente.",
         reel_video_production: "Exportar y verificar un reel completo de 30 o 45 segundos.",
         daily_supervision: "Validar una ejecucion diaria persistida del supervisor.",

@@ -5,7 +5,7 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-multifunction-tools-v2.9-chief-architect-20260714";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-multifunction-tools-v3.0-one-time-write-20260714";
 import {
     registerJarvisActuatorTools
 } from "./jarvis/jarvis.actuator.pack.js?v=sia7-real-actuators-v2.6-office-suite-20260714";
@@ -1192,52 +1192,32 @@ window.JarvisLocalBridge.requestJson ||= async function(
     }
 };
 
-window.JarvisLocalBridge.writeFile ||= async function(payload = {}) {
-    const file =
-        payload.file ||
-        payload.path ||
-        "";
-
-    const content =
-        typeof payload.content === "string"
-            ? payload.content
-            : "";
-
-    const dryRun =
-        payload.dryRun === true;
-
-    const result =
-        await window.JarvisLocalBridge.requestJson(
-            "/write",
-            {
-                file,
-                path:
-                    payload.path || file,
-                content,
-                dryRun,
-                source:
-                    payload.source ||
-                    "jarvis_repo_write_v7"
-            },
-            {
-                timeoutMs:
-                    payload.timeoutMs || 30000
-            }
-        );
-
-    return {
-        ...result,
-        httpStatus:
-            result?.httpStatus || null,
-        source:
-            result?.source ||
-            "jarvis_local_bridge_write_client_v7"
-    };
+window.JarvisLocalBridge.prepareWrite ||= async function(payload = {}) {
+    return await window.JarvisLocalBridge.requestJson("/write/prepare", payload, { timeoutMs: payload.timeoutMs || 30000 });
 };
 
-JarvisToolRuntime.register({
+window.JarvisLocalBridge.authorizeWrite ||= async function(payload = {}) {
+    return await window.JarvisLocalBridge.requestJson("/write/authorize", payload, { timeoutMs: payload.timeoutMs || 30000 });
+};
+
+window.JarvisLocalBridge.writeFile ||= async function(payload = {}) {
+    return await window.JarvisLocalBridge.requestJson(
+        "/write",
+        {
+            fingerprint: payload.fingerprint,
+            nonce: payload.nonce,
+            objectiveId: payload.objectiveId,
+            caseId: payload.caseId,
+            source: payload.source || "jarvis_repo_write_v7_one_time"
+        },
+        { timeoutMs: payload.timeoutMs || 30000 }
+    );
+};
+
+// Historical file+content adapter is intentionally unreachable; the live tool below uses prepare/authorize/consume.
+if (false) JarvisToolRuntime.register({
     name:
-        "repo.write",
+        "repo.write.legacyBlocked",
     description:
         "Escribe un archivo del repo mediante Jarvis Local FS Bridge. Requiere aprobación Codex V2.",
         mutates:
@@ -5870,6 +5850,80 @@ JarvisToolRuntime.register({
 });
 
 JarvisToolRuntime.register({
+    name: "repo.prepareWrite",
+    description: "Prepara un patch exacto contra un snapshot y devuelve fingerprint, nonce y comando de aprobación; no escribe.",
+    mutates: false,
+    requiresApproval: false,
+    output: "REPO_WRITE_PREPARATION",
+    execute: async (args = {}, context = {}) => {
+        if (!window.JarvisLocalBridge?.prepareWrite) return { ok: false, status: "WRITE_BRIDGE_NOT_AVAILABLE", error: "WRITE_BRIDGE_NOT_AVAILABLE" };
+        return await window.JarvisLocalBridge.prepareWrite({
+            objectiveId: args.objectiveId || context.objectiveId,
+            caseId: args.caseId || context.caseId,
+            authorityId: args.authorityId || context.authorityId || "HEBERTO_MENDOZA",
+            controllerId: args.controllerId || context.controllerId || "CODEX_SIA7",
+            file: args.file || args.path,
+            operation: args.operation || "replace",
+            search: typeof args.search === "string" ? args.search : "",
+            replace: typeof args.replace === "string" ? args.replace : "",
+            matchCount: Number(args.matchCount),
+            ttlMs: args.ttlMs || 120000,
+            source: "repo_prepare_write_v7"
+        });
+    }
+});
+
+JarvisToolRuntime.register({
+    name: "repo.authorizeWrite",
+    description: "Convierte una preparación exacta en autorización de un solo uso mediante el comando humano ligado al fingerprint.",
+    mutates: true,
+    requiresApproval: true,
+    output: "REPO_WRITE_AUTHORIZATION",
+    execute: async (args = {}) => {
+        if (!window.JarvisLocalBridge?.authorizeWrite) return { ok: false, status: "WRITE_BRIDGE_NOT_AVAILABLE", error: "WRITE_BRIDGE_NOT_AVAILABLE" };
+        return await window.JarvisLocalBridge.authorizeWrite({
+            fingerprint: args.fingerprint,
+            nonce: args.nonce,
+            approvalCommand: args.approvalCommand,
+            approvedBy: args.approvedBy || "HEBERTO_MENDOZA",
+            source: "repo_authorize_write_v7"
+        });
+    }
+});
+
+JarvisToolRuntime.register({
+    name:
+        "repo.write",
+    description: "Consume una autorización exacta de un solo uso y verifica el archivo escrito; no acepta file+content.",
+    mutates: true,
+    requiresApproval:
+        true,
+    output: "REPO_WRITE_RESULT",
+    execute: async (args = {}) => {
+        if (!window.JarvisLocalBridge?.writeFile) return { ok: false, status: "WRITE_BRIDGE_NOT_AVAILABLE", error: "WRITE_BRIDGE_NOT_AVAILABLE" };
+        const result = await window.JarvisLocalBridge.writeFile({
+            fingerprint: args.fingerprint,
+            nonce: args.nonce,
+            objectiveId: args.objectiveId,
+            caseId: args.caseId,
+            source: "repo_write_runtime_v7_one_time"
+        });
+        if (result?.ok === true && result?.verified === true && result?.consumedAt) {
+            globalThis.__JARVIS_ONE_TIME_WRITE_HEALTH__ = {
+                ok: true,
+                status: result.status,
+                fingerprint: result.fingerprint,
+                objectiveId: result.objectiveId,
+                caseId: result.caseId,
+                consumedAt: result.consumedAt,
+                verified: true
+            };
+        }
+        return { ...result, source: "repo_write_runtime_v7_one_time" };
+    }
+});
+
+JarvisToolRuntime.register({
     name: "repo.graph",
     description: "Construye el grafo vivo del repositorio real con dependencias, funciones, llamadas, listeners, endpoints, colecciones y pruebas.",
     mutates: false,
@@ -8556,22 +8610,23 @@ if (window.JarvisToolRuntime?.register && !window.__JARVIS_CODEX_PATCH_TOOL_41_1
     return await readFromGithubRaw();
   }
 
-  async function writeRepoFile(file, content) {
-    if (!file) throw new Error("Missing file");
+  async function writeRepoFile(authorization = {}) {
+    if (!authorization.fingerprint || !authorization.nonce) throw new Error("Missing one-time write authorization");
 
     
     if (window.JarvisToolRuntime?.execute) {
       return await window.JarvisToolRuntime.execute(
         "repo.write",
         {
-          file,
-          content,
-          approved: true
+          fingerprint: authorization.fingerprint,
+          nonce: authorization.nonce,
+          objectiveId: authorization.objectiveId,
+          caseId: authorization.caseId
         },
         {
           source: "codex_v2_write_repo_file_runtime_41_16",
           approved: true,
-          file
+          file: authorization.file
         }
       );
     }
@@ -8678,6 +8733,29 @@ if (window.JarvisToolRuntime?.register && !window.__JARVIS_CODEX_PATCH_TOOL_41_1
       };
     }
 
+    const objectiveId = String(payload.objectiveId || `objective_${crypto.randomUUID()}`);
+    const caseId = String(payload.caseId || `case_${crypto.randomUUID()}`);
+    const matchCount = normalizeText(source).split(search).length - 1;
+    const preparation = await window.JarvisToolRuntime.execute(
+      "repo.prepareWrite",
+      {
+        objectiveId,
+        caseId,
+        authorityId: "HEBERTO_MENDOZA",
+        controllerId: "CODEX_SIA7",
+        file,
+        search,
+        replace,
+        matchCount
+      },
+      { objectiveId, caseId, source: "codex_v2_patch_preparation" }
+    );
+    const prepared = preparation?.data || preparation;
+    if (prepared?.ok !== true) {
+      CodexV2.pendingPatch = null;
+      return { ok: false, blocked: true, code: "PATCH_PREPARATION_FAILED", file, preparation: prepared };
+    }
+
     const preview = {
       ok: true,
       dryRun: true,
@@ -8687,7 +8765,15 @@ if (window.JarvisToolRuntime?.register && !window.__JARVIS_CODEX_PATCH_TOOL_41_1
       diffPreview: buildDiffPreview(search, replace),
       risk: payload.risk || "medium",
       requiresApproval: true,
-      approvalCommand: `Jarvis, apruebo patch ${file}`,
+      objectiveId,
+      caseId,
+      fingerprint: prepared.fingerprint,
+      nonce: prepared.nonce,
+      matchCount: prepared.matchCount,
+      snapshotSha256: prepared.snapshotSha256,
+      expectedSha256: prepared.expectedSha256,
+      expiresAt: prepared.expiresAt,
+      approvalCommand: prepared.approvalCommand,
       createdAt: nowIso()
     };
 
@@ -8697,7 +8783,7 @@ if (window.JarvisToolRuntime?.register && !window.__JARVIS_CODEX_PATCH_TOOL_41_1
     return preview;
   }
 
-  function approvePendingPatch(payload = {}) {
+  async function approvePendingPatch(payload = {}) {
     const file = payload.file || CodexV2.pendingPatch?.file;
 
     if (!CodexV2.pendingPatch) {
@@ -8718,10 +8804,35 @@ if (window.JarvisToolRuntime?.register && !window.__JARVIS_CODEX_PATCH_TOOL_41_1
       };
     }
 
+    if (payload.approvalCommand !== CodexV2.pendingPatch.approvalCommand) {
+      return {
+        ok: false,
+        blocked: true,
+        code: "APPROVAL_COMMAND_MISMATCH",
+        expected: CodexV2.pendingPatch.approvalCommand
+      };
+    }
+
+    const authorization = await window.JarvisToolRuntime.execute(
+      "repo.authorizeWrite",
+      {
+        fingerprint: CodexV2.pendingPatch.fingerprint,
+        nonce: CodexV2.pendingPatch.nonce,
+        approvalCommand: payload.approvalCommand,
+        approvedBy: "HEBERTO_MENDOZA"
+      },
+      { approved: true, source: "codex_v2_one_time_authorization" }
+    );
+    const authorized = authorization?.data || authorization;
+    if (authorized?.ok !== true) {
+      return { ok: false, blocked: true, code: "PATCH_AUTHORIZATION_FAILED", authorization: authorized };
+    }
+
     CodexV2.approvedPatch = {
       ...CodexV2.pendingPatch,
       approved: true,
-      approvedAt: nowIso()
+      approvedAt: nowIso(),
+      authorizedAt: authorized.authorizedAt || nowIso()
     };
 
     return {
@@ -8789,7 +8900,17 @@ if (window.JarvisToolRuntime?.register && !window.__JARVIS_CODEX_PATCH_TOOL_41_1
       };
     }
 
-    const writeResult = await writeRepoFile(approved.file, after);
+    const writeResult = await writeRepoFile(approved);
+
+    if (writeResult?.ok !== true) {
+      return {
+        ok: false,
+        blocked: true,
+        code: "CODE_WRITE_ONE_TIME_AUTHORIZATION_FAILED",
+        file: approved.file,
+        writeResult
+      };
+    }
 
     CodexV2.lastWriteResult = {
       ok: true,

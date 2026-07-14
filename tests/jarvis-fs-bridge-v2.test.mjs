@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { execFileSync } from "node:child_process";
 
 import {
     applyReadLineRange,
@@ -10,6 +11,7 @@ import {
     assertWriteContent,
     cancelChunkedUpload,
     completeChunkedUpload,
+    createJarvisFsBridgeApp,
     describeJarvisFsBridge,
     editDocxArtifact,
     editPdfOverlayArtifact,
@@ -31,7 +33,7 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.12.0-live-repo-intelligence");
+    assert.equal(description.version, "2.13.0-one-time-write-authorization");
     assert.equal(description.policy.authority, "full_repo_private_owner");
     assert.equal(description.policy.safeZone, "advisory");
     assert.equal(description.policy.emptyWrites, "blocked");
@@ -447,5 +449,103 @@ test("Jarvis local research fallback returns bounded verifiable web sources", as
     }
     finally {
         globalThis.fetch = previousFetch;
+    }
+});
+
+test("write bridge requires fingerprinted one-time approval, snapshot and post-verify", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-write-auth-"));
+    execFileSync("git", ["init", "-b", "v5.9-polish"], { cwd: root, stdio: "ignore" });
+    fs.writeFileSync(path.join(root, "jarvis-runtime-contract.json"), JSON.stringify({
+        projectId: "fixgo-test",
+        branch: "v5.9-polish",
+        releaseId: "test-release"
+    }));
+    fs.writeFileSync(path.join(root, "sample.js"), "export const value = 1;\n");
+    const server = createJarvisFsBridgeApp({ root }).listen(0);
+    await new Promise(resolve => server.once("listening", resolve));
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const post = async (route, body) => {
+        const response = await fetch(`${base}${route}`, {
+            method: "POST",
+            headers: { "content-type": "application/json", "x-jarvis-release-id": "test-release" },
+            body: JSON.stringify(body)
+        });
+        return { status: response.status, body: await response.json() };
+    };
+
+    try {
+        const naked = await post("/write", { file: "sample.js", content: "hacked" });
+        assert.equal(naked.status, 400);
+        assert.equal(naked.body.error, "FINGERPRINT_REQUIRED");
+
+        const prepared = await post("/write/prepare", {
+            objectiveId: "objective-1",
+            caseId: "case-1",
+            authorityId: "HEBERTO_MENDOZA",
+            controllerId: "CODEX_SIA7",
+            file: "sample.js",
+            search: "value = 1",
+            replace: "value = 2",
+            matchCount: 1
+        });
+        assert.equal(prepared.body.status, "WRITE_PREPARED");
+        assert.equal(prepared.body.matchCount, 1);
+
+        const rejected = await post("/write/authorize", {
+            fingerprint: prepared.body.fingerprint,
+            nonce: prepared.body.nonce,
+            approvedBy: "HEBERTO_MENDOZA",
+            approvalCommand: "AUTORIZO OTRO CAMBIO"
+        });
+        assert.equal(rejected.status, 400);
+        assert.equal(rejected.body.error, "WRITE_APPROVAL_COMMAND_MISMATCH");
+
+        const authorized = await post("/write/authorize", {
+            fingerprint: prepared.body.fingerprint,
+            nonce: prepared.body.nonce,
+            approvedBy: "HEBERTO_MENDOZA",
+            approvalCommand: prepared.body.approvalCommand
+        });
+        assert.equal(authorized.body.status, "WRITE_AUTHORIZED_ONCE");
+
+        const written = await post("/write", {
+            fingerprint: prepared.body.fingerprint,
+            nonce: prepared.body.nonce,
+            objectiveId: "objective-1",
+            caseId: "case-1"
+        });
+        assert.equal(written.body.status, "WRITE_COMPLETED_VERIFIED");
+        assert.equal(written.body.verified, true);
+        assert.ok(written.body.consumedAt);
+        assert.equal(fs.readFileSync(path.join(root, "sample.js"), "utf8"), "export const value = 2;\n");
+
+        const replay = await post("/write", {
+            fingerprint: prepared.body.fingerprint,
+            nonce: prepared.body.nonce,
+            objectiveId: "objective-1",
+            caseId: "case-1"
+        });
+        assert.equal(replay.status, 400);
+        assert.equal(replay.body.error, "WRITE_AUTHORIZATION_NOT_FOUND_OR_CONSUMED");
+
+        const stale = await post("/write/prepare", {
+            objectiveId: "objective-2", caseId: "case-2",
+            authorityId: "HEBERTO_MENDOZA", controllerId: "CODEX_SIA7",
+            file: "sample.js", search: "value = 2", replace: "value = 3", matchCount: 1
+        });
+        await post("/write/authorize", {
+            fingerprint: stale.body.fingerprint, nonce: stale.body.nonce,
+            approvedBy: "HEBERTO_MENDOZA", approvalCommand: stale.body.approvalCommand
+        });
+        fs.writeFileSync(path.join(root, "sample.js"), "export const value = 99;\n");
+        const staleWrite = await post("/write", {
+            fingerprint: stale.body.fingerprint, nonce: stale.body.nonce,
+            objectiveId: "objective-2", caseId: "case-2"
+        });
+        assert.equal(staleWrite.status, 400);
+        assert.equal(staleWrite.body.error, "WRITE_SNAPSHOT_CHANGED");
+    } finally {
+        await new Promise(resolve => server.close(resolve));
+        fs.rmSync(root, { recursive: true, force: true });
     }
 });

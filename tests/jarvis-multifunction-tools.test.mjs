@@ -329,6 +329,8 @@ test("capability forensics explains partial repo and test actuators when bridge 
             "repo.diagnose",
             "repo.graph",
             "repo.rankCandidates",
+            "repo.prepareWrite",
+            "repo.authorizeWrite",
             "repo.write",
             "tests.run",
             "repo.gitStatus"

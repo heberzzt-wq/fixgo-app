@@ -2109,25 +2109,25 @@ console.log(
 
   function parseApproveCommand(text) {
     const input = String(text || "").trim();
-    const match = input.match(/^jarvis,\s*apruebo\s+patch\s+(.+)$/i);
-
-    if (!match) return null;
+    const pending = window.JarvisCodexV2?.state?.pendingPatch;
+    if (!pending?.approvalCommand || input !== pending.approvalCommand) return null;
 
     return {
       intent: "APPROVE_PATCH",
-      file: match[1].trim()
+      file: pending.file,
+      approvalCommand: input
     };
   }
 
   function parseWriteCommand(text) {
     const input = String(text || "").trim();
-    const match = input.match(/^jarvis,\s*escribe\s+patch\s+(.+)$/i);
-
-    if (!match) return null;
+    const approved = window.JarvisCodexV2?.state?.approvedPatch;
+    if (!approved?.fingerprint || input !== `EJECUTA ${approved.fingerprint}`) return null;
 
     return {
       intent: "WRITE_APPROVED_PATCH",
-      file: match[1].trim()
+      file: approved.file,
+      fingerprint: approved.fingerprint
     };
   }
 
@@ -2144,8 +2144,9 @@ console.log(
         };
       }
 
-      const approval = window.JarvisCodexV2.approvePendingPatch({
-        file: approve.file
+      const approval = await window.JarvisCodexV2.approvePendingPatch({
+        file: approve.file,
+        approvalCommand: approve.approvalCommand
       });
 
       return {
@@ -2153,7 +2154,7 @@ console.log(
         terminalType: "CODEX_V2_APPROVAL",
         ...approval,
         nextCommand: approval.ok
-          ? `Jarvis, escribe patch ${approve.file}`
+          ? `EJECUTA ${window.JarvisCodexV2?.state?.approvedPatch?.fingerprint}`
           : null
       };
     }
