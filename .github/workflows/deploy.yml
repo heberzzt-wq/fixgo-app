@@ -31,7 +31,7 @@ jobs:
             changed_files="$(git ls-tree -r --name-only HEAD)"
           fi
 
-          if grep -Eq '^(functions/|firebase\.json$|\.firebaserc$)' <<<"$changed_files"; then
+          if grep -Eq '^(functions/|firebase\.json$|\.firebaserc$|\.github/workflows/deploy\.yml$)' <<<"$changed_files"; then
             echo "functions_changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "functions_changed=false" >> "$GITHUB_OUTPUT"
