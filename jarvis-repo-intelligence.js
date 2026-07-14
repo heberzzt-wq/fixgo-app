@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { parse } from "./gestia-core/vendor/acorn.mjs";
 
 const SOURCE_EXTENSIONS = new Set([
     ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".html", ".css", ".json"
@@ -117,7 +118,7 @@ function getCallName(tokens, index) {
     return parts.join("");
 }
 
-function extractScriptFacts(source) {
+function extractTokenFacts(source) {
     const tokens = tokenize(source);
     const literals = unique(tokens.filter(token => token.type === "string" && token.value.length <= 240).map(token => token.value));
     const imports = [];
@@ -180,6 +181,94 @@ function extractScriptFacts(source) {
         endpoints,
         collections: unique(collections)
     };
+}
+
+function astCalleeName(node) {
+    if (!node) return "";
+    if (node.type === "Identifier") return node.name;
+    if (node.type === "ThisExpression") return "this";
+    if (node.type === "MemberExpression" && !node.computed) {
+        const owner = astCalleeName(node.object);
+        const property = astCalleeName(node.property);
+        return owner && property ? `${owner}.${property}` : property;
+    }
+    return "";
+}
+
+function astString(node) {
+    return node?.type === "Literal" && typeof node.value === "string"
+        ? node.value
+        : null;
+}
+
+function extractAstFacts(source) {
+    let program;
+    try {
+        program = parse(source, { ecmaVersion: "latest", sourceType: "module", allowHashBang: true });
+    } catch (moduleError) {
+        program = parse(source, { ecmaVersion: "latest", sourceType: "script", allowHashBang: true });
+    }
+
+    const facts = {
+        literals: [], imports: [], exports: [], functions: [], calls: [],
+        listeners: [], endpoints: [], collections: [], parser: "acorn_ast"
+    };
+
+    const visit = node => {
+        if (!node || typeof node !== "object") return;
+        if (node.type === "ImportDeclaration") facts.imports.push(astString(node.source));
+        if (node.type === "ExportNamedDeclaration") {
+            if (node.declaration?.id?.name) facts.exports.push(node.declaration.id.name);
+            for (const declaration of node.declaration?.declarations || []) {
+                if (declaration.id?.name) facts.exports.push(declaration.id.name);
+            }
+            for (const specifier of node.specifiers || []) facts.exports.push(specifier.exported?.name);
+        }
+        if (node.type === "ExportDefaultDeclaration") facts.exports.push(node.declaration?.id?.name || "default");
+        if (node.type === "FunctionDeclaration" && node.id?.name) facts.functions.push(node.id.name);
+        if (node.type === "VariableDeclarator" && node.id?.name && ["ArrowFunctionExpression", "FunctionExpression"].includes(node.init?.type)) {
+            facts.functions.push(node.id.name);
+        }
+        if (node.type === "Literal" && typeof node.value === "string" && node.value.length <= 240) facts.literals.push(node.value);
+        if (node.type === "CallExpression") {
+            const call = astCalleeName(node.callee);
+            if (call) facts.calls.push(call);
+            const firstArgument = astString(node.arguments?.[0]);
+            if (call === "require" && firstArgument) facts.imports.push(firstArgument);
+            if (call.endsWith("addEventListener") || call.endsWith("onSnapshot") || call.endsWith("onAuthStateChanged")) {
+                facts.listeners.push({ call, event: firstArgument });
+            }
+            const parts = call.split(".");
+            const owner = parts[0];
+            const method = parts.at(-1);
+            if (["app", "router", "server"].includes(owner) && ["get", "post", "put", "patch", "delete", "use"].includes(method) && firstArgument) {
+                facts.endpoints.push({ method: method.toUpperCase(), route: firstArgument });
+            }
+            if (call.endsWith("collection") && firstArgument) facts.collections.push(firstArgument);
+        }
+
+        for (const [key, value] of Object.entries(node)) {
+            if (key === "start" || key === "end" || key === "loc") continue;
+            if (Array.isArray(value)) value.forEach(visit);
+            else if (value && typeof value === "object" && typeof value.type === "string") visit(value);
+        }
+    };
+    visit(program);
+
+    return {
+        ...facts,
+        literals: unique(facts.literals), imports: unique(facts.imports), exports: unique(facts.exports),
+        functions: unique(facts.functions), calls: unique(facts.calls).slice(0, 300),
+        collections: unique(facts.collections)
+    };
+}
+
+function extractScriptFacts(source) {
+    try {
+        return extractAstFacts(source);
+    } catch (error) {
+        return { ...extractTokenFacts(source), parser: "bounded_token_fallback", parseError: error.message };
+    }
 }
 
 function extractHtmlFacts(source) {
@@ -267,7 +356,7 @@ export function buildRepoIntelligence({ root = process.cwd(), maxFiles = 2500, m
     return {
         ok: true,
         status: "REPO_GRAPH_READY",
-        source: "live_repo_syntax_graph",
+        source: "live_repo_ast_graph",
         root: path.resolve(root),
         generatedAt: new Date().toISOString(),
         elapsedMs: Date.now() - startedAt,

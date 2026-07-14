@@ -36,7 +36,8 @@ test("live repo graph discovers syntax, dependencies, listeners, endpoints, coll
     try {
         const graph = buildRepoIntelligence({ root });
         assert.equal(graph.ok, true);
-        assert.equal(graph.source, "live_repo_syntax_graph");
+        assert.equal(graph.source, "live_repo_ast_graph");
+        assert.equal(graph.nodes["auth.js"].parser, "acorn_ast");
         assert.deepEqual(graph.nodes["server.js"].dependencies, ["auth.js"]);
         assert.ok(graph.nodes["auth.js"].dependents.includes("server.js"));
         assert.ok(graph.nodes["auth.js"].dependents.includes("login.html"));
