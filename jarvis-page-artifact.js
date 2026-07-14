@@ -17,6 +17,14 @@ function safeUrl(value = "") {
     }
 }
 
+function safeImageUrl(value = "") {
+    const candidate = text(value);
+    if (!candidate) return "";
+    const embedded = ["data:image/png;base64,", "data:image/jpeg;base64,", "data:image/webp;base64,"].some(prefix => candidate.startsWith(prefix));
+    if (embedded) return candidate.length <= 16 * 1024 * 1024 ? candidate : "";
+    return safeUrl(candidate);
+}
+
 function list(value, limit = 12) {
     return Array.isArray(value) ? value.filter(item => item && typeof item === "object").slice(0, limit) : [];
 }
@@ -33,14 +41,14 @@ export function buildPageArtifactHtml(input = {}) {
     const phoneHref = whatsapp ? `https://wa.me/${whatsapp}` : "";
     const primary = /^#[0-9a-f]{6}$/i.test(input.primaryColor || "") ? input.primaryColor : "#2563eb";
     const accent = /^#[0-9a-f]{6}$/i.test(input.accentColor || "") ? input.accentColor : "#22c55e";
-    const heroImage = safeUrl(input.heroImage);
+    const heroImage = safeImageUrl(input.heroImage);
     const canonicalUrl = safeUrl(input.canonicalUrl);
     const mapUrl = safeUrl(input.mapUrl);
-    const gallery = list(input.gallery, 12).map(item => ({ src: safeUrl(item.src), alt: text(item.alt) })).filter(item => item.src && item.alt);
+    const gallery = list(input.gallery, 12).map(item => ({ src: safeImageUrl(item.src), alt: text(item.alt) })).filter(item => item.src && item.alt);
     const testimonials = list(input.testimonials, 8)
         .map(item => ({ ...item, name: text(item.name, text(item.author)) }))
         .filter(item => text(item.quote) && item.name);
-    const beforeAfter = list(input.beforeAfter, 6).map(item => ({ before: safeUrl(item.before), after: safeUrl(item.after), label: text(item.label) })).filter(item => item.before && item.after);
+    const beforeAfter = list(input.beforeAfter, 6).map(item => ({ before: safeImageUrl(item.before), after: safeImageUrl(item.after), label: text(item.label) })).filter(item => item.before && item.after);
     const serviceCards = services.map((service, index) => `<article class="card"><span class="index">${String(index + 1).padStart(2, "0")}</span><h3>${escapeHtml(text(service.title, text(service.name, `Servicio ${index + 1}`)))}</h3><p>${escapeHtml(text(service.description))}</p></article>`).join("");
     const galleryMarkup = gallery.length ? `<section id="galeria"><div class="wrap"><p class="eyebrow">Galería</p><h2>Trabajo que habla por nosotros</h2><div class="gallery">${gallery.map(item => `<figure><img loading="lazy" src="${escapeHtml(item.src)}" alt="${escapeHtml(item.alt)}"><figcaption>${escapeHtml(item.alt)}</figcaption></figure>`).join("")}</div></div></section>` : "";
     const testimonialsMarkup = testimonials.length ? `<section id="testimonios"><div class="wrap"><p class="eyebrow">Testimonios</p><h2>Confianza construida con resultados</h2><div class="cards">${testimonials.map(item => `<blockquote class="card"><p>“${escapeHtml(item.quote)}”</p><footer>${escapeHtml(item.name)}${text(item.role) ? ` · ${escapeHtml(item.role)}` : ""}</footer></blockquote>`).join("")}</div></div></section>` : "";

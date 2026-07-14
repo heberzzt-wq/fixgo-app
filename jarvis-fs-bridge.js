@@ -31,7 +31,7 @@ import {
 import { buildQuotePdfChanges } from "./jarvis-quote-calculator.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.19.0-exact-quote-pdf-calculation";
+    "2.20.0-grounded-page-materials";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -1387,6 +1387,34 @@ export function readArtifactPayload({
         bytes: bytes.length,
         dataBase64: bytes.toString("base64")
     };
+}
+
+export function preparePageMaterialInput({ input = {}, root = DEFAULT_ROOT } = {}) {
+    let embeddedBytes = 0;
+    const materialSources = [];
+    const embedImage = output => {
+        const source = readArtifactPayload({ output, root });
+        if (!source.mimeType.startsWith("image/") || source.mimeType === "image/svg+xml") throw new Error("PAGE_MATERIAL_IMAGE_REQUIRED");
+        if (source.bytes > 12 * 1024 * 1024) throw new Error("PAGE_MATERIAL_IMAGE_TOO_LARGE");
+        embeddedBytes += source.bytes;
+        if (embeddedBytes > 36 * 1024 * 1024) throw new Error("PAGE_MATERIAL_TOTAL_TOO_LARGE");
+        materialSources.push({ output: source.output, mimeType: source.mimeType, bytes: source.bytes });
+        return `data:${source.mimeType};base64,${source.dataBase64}`;
+    };
+    const sourceImages = Array.isArray(input?.sourceImages) ? input.sourceImages.slice(0, 12) : [];
+    const pageInput = { ...(input || {}) };
+    const embeddedGallery = [];
+    for (const item of sourceImages) {
+        const role = String(item?.role || "").trim();
+        const output = String(item?.output || "").trim();
+        const alt = String(item?.alt || "").trim();
+        if (!output || !alt || (role !== "hero" && role !== "gallery")) throw new Error("PAGE_MATERIAL_METADATA_REQUIRED");
+        const src = embedImage(output);
+        if (role === "hero" && !pageInput.heroImage) pageInput.heroImage = src;
+        else embeddedGallery.push({ src, alt });
+    }
+    pageInput.gallery = [...(Array.isArray(pageInput.gallery) ? pageInput.gallery : []), ...embeddedGallery];
+    return { pageInput, embeddedBytes, materialSources };
 }
 
 function pdfColor(rgb, value = "#000000") {
@@ -2959,13 +2987,14 @@ export function createJarvisFsBridgeApp({
 
     app.post("/page/create", async (req, res) => {
         try {
-            const html = buildPageArtifactHtml(req.body || {});
+            const { pageInput, embeddedBytes, materialSources } = preparePageMaterialInput({ input: req.body || {}, root });
+            const html = buildPageArtifactHtml(pageInput);
             const slug = safeFileStem(req.body?.slug || req.body?.brandName || "pagina");
             const output = req.body?.output || `.jarvis-artifacts/pages/${slug}.html`;
             const target = artifactPath(output, root, [".html"]);
             fs.mkdirSync(path.dirname(target), { recursive: true });
             fs.writeFileSync(target, html, "utf8");
-            const verification = describePageArtifact(req.body || {}, html);
+            const verification = describePageArtifact(pageInput, html);
             if (!Object.values(verification.checks).every(Boolean)) {
                 fs.rmSync(target, { force: true });
                 throw new Error("PAGE_POST_VERIFY_FAILED");
@@ -2975,7 +3004,9 @@ export function createJarvisFsBridgeApp({
                 caseId: req.body?.caseId, objectiveId: req.body?.objectiveId, mimeType: "text/html",
                 status: "PAGE_ARTIFACT_CREATED_VERIFIED", approvalRequired: true,
                 approved: req.body?.approved === true, approvedBy: req.body?.approvedBy,
-                editable: true, preview: true, downloadable: true, publishable: true
+                editable: true, preview: true, downloadable: true, publishable: true,
+                originalFile: materialSources[0]?.output || null,
+                transformations: materialSources.map(source => ({ type: "embedded_source_image", ...source }))
             } });
             return res.json({
                 ok: true,
@@ -2983,6 +3014,8 @@ export function createJarvisFsBridgeApp({
                 output: path.relative(root, target).replaceAll("\\", "/"),
                 mimeType: "text/html",
                 bytes: verification.bytes,
+                embeddedBytes,
+                materialSources,
                 checks: verification.checks,
                 downloadable: true,
                 previewable: true,

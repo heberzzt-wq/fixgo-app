@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { buildPageArtifactHtml, describePageArtifact } from "../jarvis-page-artifact.js";
+import { preparePageMaterialInput } from "../jarvis-fs-bridge.js";
 
 const input = {
     brandName: "Multiservicios Peninsulares HMH",
@@ -43,6 +46,37 @@ test("page studio accepts natural business field aliases without generic filler"
     assert.match(html, /Refrigeración/);
     assert.match(html, /Cliente HMH/);
     assert.doesNotMatch(html, /Servicio 1/);
+});
+
+test("page studio embeds real received image artifacts without inventing material", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-page-materials-"));
+    try {
+        const imageDir = path.join(root, ".jarvis-artifacts", "images");
+        fs.mkdirSync(imageDir, { recursive: true });
+        const heroBytes = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4, 0xff, 0xd9]);
+        const galleryBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10, 1, 2, 3, 4]);
+        fs.writeFileSync(path.join(imageDir, "hero.jpg"), heroBytes);
+        fs.writeFileSync(path.join(imageDir, "trabajo.png"), galleryBytes);
+        const prepared = preparePageMaterialInput({
+            root,
+            input: {
+                ...input,
+                sourceImages: [
+                    { output: ".jarvis-artifacts/images/hero.jpg", role: "hero", alt: "Técnico de MPH durante un servicio real" },
+                    { output: ".jarvis-artifacts/images/trabajo.png", role: "gallery", alt: "Evidencia real del trabajo terminado" }
+                ]
+            }
+        });
+        const html = buildPageArtifactHtml(prepared.pageInput);
+        assert.equal(prepared.embeddedBytes, heroBytes.length + galleryBytes.length);
+        assert.deepEqual(prepared.materialSources.map(source => source.output), [".jarvis-artifacts/images/hero.jpg", ".jarvis-artifacts/images/trabajo.png"]);
+        assert.match(html, /data:image\/jpeg;base64/);
+        assert.match(html, /data:image\/png;base64/);
+        assert.match(html, /Evidencia real del trabajo terminado/);
+        assert.throws(() => preparePageMaterialInput({ root, input: { sourceImages: [{ output: ".jarvis-artifacts/images/hero.jpg", role: "hero", alt: "" }] } }), /PAGE_MATERIAL_METADATA_REQUIRED/);
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
 });
 
 test("page creation is connected to bridge, approval-bound actuator and HTML preview", () => {

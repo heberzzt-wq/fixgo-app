@@ -3,7 +3,7 @@ import {
 } from "./jarvis.capability.evidence.js";
 import { adaptImageSource } from "./jarvis.image.adapter.js";
 
-const VERSION = "7.13.0-source-image-adaptation";
+const VERSION = "7.14.0-grounded-page-materials";
 
 export function normalizeImageArtifactOutput(output, mimeType) {
     const extensions = {
@@ -188,11 +188,11 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "page.create",
-            description: "Genera una landing HTML real, responsive, accesible, SEO/Open Graph, formularios y artefacto descargable/previsualizable.",
+            description: "Genera una landing HTML real, responsive, accesible y descargable; puede incrustar como hero o galeria los artefactos de imagen reales recibidos.",
             output: "PAGE_CREATE_ARTIFACT",
             inputSchema: {
                 brandName: "string", title: "string", description: "string", services: "array",
-                heroImage: "string", gallery: "array", testimonials: "array", beforeAfter: "array",
+                heroImage: "string", sourceImages: "array<{output,role:hero|gallery,alt}>", gallery: "array", testimonials: "array", beforeAfter: "array",
                 whatsapp: "string", contactEmail: "string", mapUrl: "string", output: "string",
                 caseId: "string", objectiveId: "string"
             },
@@ -202,7 +202,9 @@ export function registerJarvisActuatorTools(runtime) {
                 const result = await bridgeRequest("/page/create", {
                     ...args,
                     caseId: args.caseId || context.caseId || "",
-                    objectiveId: args.objectiveId || context.objectiveId || ""
+                    objectiveId: args.objectiveId || context.objectiveId || "",
+                    approved: context.approved === true,
+                    approvedBy: context.approvedBy || ""
                 }, 60000);
                 if (result?.ok === true && result?.status === "PAGE_ARTIFACT_CREATED_VERIFIED") {
                     recordCapabilityEvidence("page_creation", {

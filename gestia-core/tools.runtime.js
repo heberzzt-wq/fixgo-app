@@ -8,7 +8,7 @@ import {
 } from "./jarvis/jarvis.multitool.pack.js?v=sia7-multifunction-tools-v3.9-observability-20260714";
 import {
     registerJarvisActuatorTools
-} from "./jarvis/jarvis.actuator.pack.js?v=sia7-real-actuators-v3.3-image-adaptation-20260714";
+} from "./jarvis/jarvis.actuator.pack.js?v=sia7-real-actuators-v3.4-page-materials-20260714";
 import {
     reviewChiefArchitectPlan
 } from "./jarvis/jarvis.chief.architect.js?v=sia7-chief-architect-v1-20260714";
