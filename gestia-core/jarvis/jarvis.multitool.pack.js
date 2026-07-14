@@ -21,7 +21,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "1.12.0-live-repo-intelligence";
+const VERSION = "1.13.0-chief-architect-review";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 
@@ -33,6 +33,7 @@ const CAPABILITY_WEIGHTS = {
 
 const CAPABILITY_LABELS = {
     repo_engineering: "Ingenieria del repositorio",
+    chief_architect: "Chief Architect V7",
     tests_and_git: "Pruebas y Git",
     conversation_and_voice: "Conversacion y voz",
     business_and_marketing: "Negocio, marketing y paginas",
@@ -372,6 +373,7 @@ async function buildCapabilityForensics(runtime) {
     const structuredDocumentHealth = readCapabilityEvidence("structured_document_editing") || null;
     const persistentCaseHealth = readCapabilityEvidence("persistent_cases") || null;
     const reelVideoHealth = readCapabilityEvidence("reel_video") || null;
+    const chiefArchitectHealth = globalThis?.__JARVIS_CHIEF_ARCHITECT_HEALTH__ || null;
     const connectorsReady =
         tools.has("agent.delegate") &&
         connectorHealth?.ok === true &&
@@ -401,6 +403,25 @@ async function buildCapabilityForensics(runtime) {
                 bridgeReady,
                 toolsReady: repoToolsReady,
                 requiredTools: ["repo.read", "repo.grep", "repo.diagnose", "repo.graph", "repo.rankCandidates", "repo.write"]
+            }
+        },
+        {
+            id: "chief_architect",
+            status: tools.has("repo.architectReview") && chiefArchitectHealth?.ok === true
+                ? "READY"
+                : tools.has("repo.architectReview")
+                    ? "PARTIAL"
+                    : "NOT_AVAILABLE",
+            reason: tools.has("repo.architectReview") && chiefArchitectHealth?.ok === true
+                ? "Un plan real supero la revision arquitectonica sin recibir autorizacion automatica."
+                : tools.has("repo.architectReview")
+                    ? "El revisor arquitectonico esta conectado; falta verificar un plan real completo antes de solicitar aprobacion humana."
+                    : "No existe un supervisor arquitectonico conectado al flujo de planes.",
+            nextAction: "Revisar un plan real con causa raiz, alcance, grafo, ranking, pruebas, seguridad y autoridad.",
+            evidence: {
+                toolRegistered: tools.has("repo.architectReview"),
+                verifiedReview: chiefArchitectHealth?.ok === true,
+                health: chiefArchitectHealth
             }
         },
         {
@@ -667,6 +688,7 @@ async function buildCapabilityForensics(runtime) {
         media_and_documents: "Conectar edicion documental nativa.",
         professional_pdf_editing: "Conectar y verificar edicion profesional de PDF.",
         structured_document_editing: "Ejecutar y verificar una edicion XLSX real.",
+        chief_architect: "Verificar un plan real completo con Chief Architect V7.",
         persistent_cases: "Verificar recuperacion viva de un expediente persistente.",
         reel_video_production: "Exportar y verificar un reel completo de 30 o 45 segundos.",
         daily_supervision: "Validar una ejecucion diaria persistida del supervisor.",

@@ -614,7 +614,8 @@ const SEMANTIC_READ_ONLY_REPO_TOOLS =
     "repo.diagnose",
     "repo.impact",
     "repo.graph",
-    "repo.rankCandidates"
+    "repo.rankCandidates",
+    "repo.architectReview"
   ]);
 
 const SEMANTIC_READ_ONLY_MULTIFUNCTION_TOOLS =
@@ -650,7 +651,8 @@ const SEMANTIC_TARGETED_DISCOVERY_TOOLS =
     "repo.diagnose",
     "repo.impact",
     "repo.graph",
-    "repo.rankCandidates"
+    "repo.rankCandidates",
+    "repo.architectReview"
   ]);
 
 const SEMANTIC_REPO_INVESTIGATION_CONCEPTS =
@@ -940,6 +942,13 @@ function sanitizeSemanticToolArgs(args = {}) {
           .filter(item => typeof item === "string")
           .slice(0, 12)
           .map(item => item.slice(0, 300));
+
+        return;
+      }
+
+      if (["plan", "authority"].includes(key) && value && typeof value === "object") {
+        const serialized = JSON.stringify(value);
+        if (serialized.length <= 15000) cleanArgs[key] = JSON.parse(serialized);
       }
     });
 

@@ -8,7 +8,8 @@ const ALLOWED_SEMANTIC_REPO_TOOLS = new Set([
     "repo.diagnose",
     "repo.impact",
     "repo.graph",
-    "repo.rankCandidates"
+    "repo.rankCandidates",
+    "repo.architectReview"
 ]);
 
 const GENERIC_DISCOVERY_TOOLS =
@@ -25,7 +26,8 @@ const TARGETED_DISCOVERY_TOOLS =
         "repo.diagnose",
         "repo.impact",
         "repo.graph",
-        "repo.rankCandidates"
+        "repo.rankCandidates",
+        "repo.architectReview"
     ]);
 
 function sanitizePlannerArgs(args = {}) {
@@ -79,6 +81,13 @@ function sanitizePlannerArgs(args = {}) {
                     .filter(item => typeof item === "string")
                     .slice(0, 12)
                     .map(item => item.slice(0, 300));
+
+                return;
+            }
+
+            if (["plan", "authority"].includes(key) && value && typeof value === "object") {
+                const serialized = JSON.stringify(value);
+                if (serialized.length <= 15000) cleanArgs[key] = JSON.parse(serialized);
             }
         });
 

@@ -1443,6 +1443,7 @@ Return only valid JSON:
     { "name": "repo.impact", "args": { "file": string } },
     { "name": "repo.graph", "args": { "refresh": boolean } },
     { "name": "repo.rankCandidates", "args": { "query": string, "plannedFiles": [string], "limit": 8 } },
+    { "name": "repo.architectReview", "args": { "instruction": string, "plan": object, "authority": { "authorityId": "heberto_mendoza" } } },
     { "name": "repo.scan", "args": {} }
   ],
   "writeAllowed": false,

@@ -5,10 +5,13 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-multifunction-tools-v2.8-repo-graph-20260714";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-multifunction-tools-v2.9-chief-architect-20260714";
 import {
     registerJarvisActuatorTools
 } from "./jarvis/jarvis.actuator.pack.js?v=sia7-real-actuators-v2.6-office-suite-20260714";
+import {
+    reviewChiefArchitectPlan
+} from "./jarvis/jarvis.chief.architect.js?v=sia7-chief-architect-v1-20260714";
 
 export const JarvisToolRuntime = {
     _registry: new Map(),
@@ -5907,6 +5910,43 @@ JarvisToolRuntime.register({
             source: "jarvis_candidate_ranking_tool_v7"
         });
         return { ...result, success: result?.ok === true, tool: "repo.rankCandidates" };
+    }
+});
+
+JarvisToolRuntime.register({
+    name: "repo.architectReview",
+    description: "Revisa un plan con evidencia del grafo y ranking antes de que pueda solicitar aprobación humana; nunca ejecuta ni concede aprobación.",
+    mutates: false,
+    requiresApproval: false,
+    output: "CHIEF_ARCHITECT_REVIEW",
+    execute: async (args = {}, context = {}) => {
+        const instruction = String(args.instruction || args.originalInstruction || context.rawInput || "").trim();
+        const plan = args.plan && typeof args.plan === "object" && !Array.isArray(args.plan) ? args.plan : {};
+        if (!instruction) return { ok: false, status: "CONTRACT_INVALID", error: "ORIGINAL_INSTRUCTION_REQUIRED", tool: "repo.architectReview" };
+        const graph = await window.JarvisLocalBridge?.buildRepoGraph?.({ refresh: args.refresh === true, source: "jarvis_architect_graph_v7" });
+        const plannedFiles = Array.isArray(plan.targetFiles) ? plan.targetFiles : [];
+        const ranking = await window.JarvisLocalBridge?.rankRepoCandidates?.({
+            query: instruction,
+            objective: instruction,
+            plannedFiles,
+            limit: 8,
+            source: "jarvis_architect_ranking_v7"
+        });
+        const review = reviewChiefArchitectPlan({
+            instruction,
+            plan,
+            graph,
+            ranking,
+            authority: args.authority || context.authority || { authorityId: context.authorityId, role: context.role }
+        });
+        globalThis.__JARVIS_CHIEF_ARCHITECT_HEALTH__ = {
+            ok: review.decision === "READY_FOR_HUMAN_APPROVAL",
+            status: review.status,
+            checkedAt: review.reviewedAt,
+            targetFiles: review.targetFiles,
+            blockers: review.blockers.length
+        };
+        return { ...review, success: review.ok === true, tool: "repo.architectReview" };
     }
 });
 

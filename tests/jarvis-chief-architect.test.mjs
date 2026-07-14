@@ -1,0 +1,78 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import { reviewChiefArchitectPlan } from "../gestia-core/jarvis/jarvis.chief.architect.js";
+
+const instruction = "Corrige app-login.js para evitar la redireccion temporal a cliente.";
+const graph = {
+    ok: true,
+    status: "REPO_GRAPH_READY",
+    summary: { dependencyEdges: 4, duplicateEndpoints: 0 },
+    nodes: {
+        "app-login.js": {
+            relatedTests: ["tests/auth-routing.test.mjs"],
+            dependencies: ["firebase.js"],
+            dependents: ["login.html"]
+        }
+    }
+};
+const ranking = {
+    ok: true,
+    status: "CANDIDATE_RANKING_READY",
+    candidates: [{ file: "app-login.js", score: 180 }]
+};
+
+function completePlan() {
+    return {
+        originalInstruction: instruction,
+        targetFiles: ["app-login.js"],
+        rootCause: "Dos observadores de autenticacion compiten y navegan antes de resolver el rol definitivo.",
+        rootCauseEvidence: [{ file: "app-login.js", line: 24 }],
+        scope: { included: ["enrutamiento posterior al login"], excluded: ["permisos Firestore"] },
+        tests: ["tests/auth-routing.test.mjs"],
+        toolCalls: [{
+            name: "repo.write",
+            args: { file: "app-login.js" },
+            mutates: true,
+            requiresApproval: true,
+            approved: false
+        }]
+    };
+}
+
+test("Chief Architect blocks altered instructions and auto-approved mutations", () => {
+    const plan = completePlan();
+    plan.originalInstruction = "Cambia cualquier archivo que quieras.";
+    plan.toolCalls[0].approved = true;
+    const review = reviewChiefArchitectPlan({ instruction, plan, graph, ranking, authority: { authorityId: "heberto_mendoza" } });
+    assert.equal(review.decision, "BLOCKED");
+    assert.ok(review.blockers.some(item => item.id === "instruction_conservation"));
+    assert.ok(review.blockers.some(item => item.id === "security"));
+    assert.equal(review.canExecute, false);
+    assert.equal(review.grantsApproval, false);
+});
+
+test("Chief Architect accepts a grounded plan only for later human approval", () => {
+    const review = reviewChiefArchitectPlan({
+        instruction,
+        plan: completePlan(),
+        graph,
+        ranking,
+        authority: { authorityId: "heberto_mendoza" }
+    });
+    assert.equal(review.decision, "READY_FOR_HUMAN_APPROVAL");
+    assert.equal(review.blockers.length, 0);
+    assert.equal(review.requiresHumanApproval, true);
+    assert.equal(review.canExecute, false);
+    assert.equal(review.grantsApproval, false);
+    assert.equal(review.checks.length, 11);
+});
+
+test("Chief Architect is registered as a real read-only tool and reported honestly", () => {
+    const runtime = fs.readFileSync(new URL("../gestia-core/tools.runtime.js", import.meta.url), "utf8");
+    const forensic = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.multitool.pack.js", import.meta.url), "utf8");
+    assert.match(runtime, /name: "repo\.architectReview"/);
+    assert.match(runtime, /reviewChiefArchitectPlan/);
+    assert.match(forensic, /id: "chief_architect"/);
+    assert.match(forensic, /falta verificar un plan real completo/i);
+});
