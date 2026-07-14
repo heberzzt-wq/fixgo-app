@@ -5,7 +5,7 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-multifunction-tools-v3.0-one-time-write-20260714";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-multifunction-tools-v3.1-git-receipts-20260714";
 import {
     registerJarvisActuatorTools
 } from "./jarvis/jarvis.actuator.pack.js?v=sia7-real-actuators-v2.6-office-suite-20260714";
@@ -4154,6 +4154,21 @@ JarvisToolRuntime.register({
                         "gestia-core/tools.runtime.js"
                     ];
 
+            const receiptFingerprints = Array.isArray(args.receiptFingerprints)
+                ? args.receiptFingerprints.filter(Boolean)
+                : [];
+
+            if (receiptFingerprints.length !== files.length) {
+                return {
+                    ok: false,
+                    status: "VERIFIED_WRITE_RECEIPTS_REQUIRED",
+                    error: "VERIFIED_WRITE_RECEIPTS_REQUIRED",
+                    files,
+                    receiptFingerprints,
+                    tool: "repo.gitCommit"
+                };
+            }
+
             const message =
                 String(args.message || "").trim();
 
@@ -4173,6 +4188,7 @@ JarvisToolRuntime.register({
                     action:
                         "add",
                     files,
+                    receiptFingerprints,
                     cwd:
                         args.cwd || ".",
                     approved:
@@ -4202,6 +4218,7 @@ JarvisToolRuntime.register({
                     action:
                         "commit",
                     message,
+                    receiptFingerprints,
                     cwd:
                         args.cwd || ".",
                     approved:
@@ -4223,13 +4240,19 @@ JarvisToolRuntime.register({
                 message,
                 addResult,
                 commitResult,
+                commitReceipt:
+                    commitResult.commitReceipt || null,
+                pushApprovalCommand:
+                    commitResult.commitReceipt?.receiptId
+                        ? `AUTORIZO PUSH ${commitResult.commitReceipt.receiptId}`
+                        : null,
                 stdout:
                     commitResult.stdout || "",
                 stderr:
                     commitResult.stderr || "",
                 next:
                     commitResult.ok
-                        ? "Commit creado. Puedes ejecutar repo.gitPush con aprobacion."
+                        ? "Commit creado. Usa el pushApprovalCommand exacto junto con commitReceipt.receiptId."
                         : "Commit no creado. Revisar stderr.",
                 tool:
                     "repo.gitCommit",
@@ -4285,6 +4308,12 @@ JarvisToolRuntime.register({
                         "push",
                     remote,
                     branch,
+                    commitReceiptId:
+                        args.commitReceiptId,
+                    approvalCommand:
+                        args.approvalCommand,
+                    approvedBy:
+                        args.approvedBy || "HEBERTO_MENDOZA",
                     cwd:
                         args.cwd || ".",
                     approved:

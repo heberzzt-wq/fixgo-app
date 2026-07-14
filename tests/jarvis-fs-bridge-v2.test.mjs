@@ -33,7 +33,7 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.13.0-one-time-write-authorization");
+    assert.equal(description.version, "2.14.0-write-and-git-receipts");
     assert.equal(description.policy.authority, "full_repo_private_owner");
     assert.equal(description.policy.safeZone, "advisory");
     assert.equal(description.policy.emptyWrites, "blocked");
@@ -455,6 +455,8 @@ test("Jarvis local research fallback returns bounded verifiable web sources", as
 test("write bridge requires fingerprinted one-time approval, snapshot and post-verify", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-write-auth-"));
     execFileSync("git", ["init", "-b", "v5.9-polish"], { cwd: root, stdio: "ignore" });
+    execFileSync("git", ["config", "user.email", "jarvis-test@example.invalid"], { cwd: root });
+    execFileSync("git", ["config", "user.name", "Jarvis Test"], { cwd: root });
     fs.writeFileSync(path.join(root, "jarvis-runtime-contract.json"), JSON.stringify({
         projectId: "fixgo-test",
         branch: "v5.9-polish",
@@ -527,6 +529,34 @@ test("write bridge requires fingerprinted one-time approval, snapshot and post-v
         });
         assert.equal(replay.status, 400);
         assert.equal(replay.body.error, "WRITE_AUTHORIZATION_NOT_FOUND_OR_CONSUMED");
+
+        const addWithoutReceipt = await post("/git", {
+            action: "add", files: ["sample.js"], approved: true, codexApproved: true
+        });
+        assert.equal(addWithoutReceipt.status, 403);
+        assert.equal(addWithoutReceipt.body.error, "VERIFIED_WRITE_RECEIPTS_REQUIRED");
+
+        const added = await post("/git", {
+            action: "add", files: ["sample.js"], receiptFingerprints: [prepared.body.fingerprint],
+            approved: true, codexApproved: true
+        });
+        assert.equal(added.body.status, "GIT_ADD_OK");
+
+        const committed = await post("/git", {
+            action: "commit", message: "Verify one-time write receipt",
+            receiptFingerprints: [prepared.body.fingerprint], approved: true, codexApproved: true
+        });
+        assert.equal(committed.body.status, "GIT_COMMIT_OK");
+        assert.ok(committed.body.commitReceipt?.receiptId);
+
+        const pushMismatch = await post("/git", {
+            action: "push", remote: "origin", branch: "v5.9-polish",
+            commitReceiptId: committed.body.commitReceipt.receiptId,
+            approvalCommand: "AUTORIZO PUSH INCORRECTO", approvedBy: "HEBERTO_MENDOZA",
+            approved: true, codexApproved: true
+        });
+        assert.equal(pushMismatch.status, 403);
+        assert.equal(pushMismatch.body.error, "GIT_PUSH_COMMAND_MISMATCH");
 
         const stale = await post("/write/prepare", {
             objectiveId: "objective-2", caseId: "case-2",

@@ -13,7 +13,7 @@ import {
 } from "./jarvis-repo-intelligence.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.13.0-one-time-write-authorization";
+    "2.14.0-write-and-git-receipts";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -573,6 +573,7 @@ export function describeJarvisFsBridge() {
                 requires: ["objectiveId", "caseId", "authorityId", "controllerId", "fingerprint", "nonce", "snapshot", "matchCount"],
                 postVerify: true,
                 replayBlocked: true,
+                gitReceiptsRequired: true,
                 legacyFileContentWrite: false
             },
             multimodalUploads: {
@@ -1975,6 +1976,9 @@ export function createJarvisFsBridgeApp({
     let repoGraphCache = null;
     const preparedWrites = new Map();
     const authorizedWrites = new Map();
+    const verifiedWriteReceipts = new Map();
+    const stagedWriteReceipts = new Map();
+    const commitReceipts = new Map();
 
     const allowedOrigins = new Set([
         "https://fixgo-44e4d.web.app",
@@ -2491,6 +2495,17 @@ export function createJarvisFsBridgeApp({
             if (verified.sha256 !== authorization.expectedSha256 || verified.bytes !== authorization.expectedBytes) {
                 throw new Error("WRITE_POST_VERIFY_FAILED");
             }
+            verifiedWriteReceipts.set(fingerprint, {
+                fingerprint,
+                file: authorization.file,
+                objectiveId,
+                caseId,
+                outputSha256: verified.sha256,
+                outputBytes: verified.bytes,
+                consumedAt: authorization.consumedAt,
+                stagedAt: null,
+                committedAt: null
+            });
             return res.json({
                 ok: true,
                 status: "WRITE_COMPLETED_VERIFIED",
@@ -3268,6 +3283,10 @@ export function createJarvisFsBridgeApp({
                 message = "",
                 remote = "origin",
                 branch = "",
+                receiptFingerprints = [],
+                commitReceiptId = "",
+                approvalCommand = "",
+                approvedBy = "",
                 approved = false,
                 codexApproved = false,
                 timeoutMs = 120000
@@ -3370,6 +3389,10 @@ export function createJarvisFsBridgeApp({
                 const safeFiles =
                     normalizeGitFiles(files);
 
+                const receipts = Array.isArray(receiptFingerprints)
+                    ? receiptFingerprints.map(value => verifiedWriteReceipts.get(String(value))).filter(Boolean)
+                    : [];
+
                 if (safeFiles.length === 0) {
                     return res.status(400).json({
                         ok: false,
@@ -3380,6 +3403,24 @@ export function createJarvisFsBridgeApp({
                         version:
                             JARVIS_FS_BRIDGE_VERSION
                     });
+                }
+
+                if (receipts.length !== safeFiles.length || !safeFiles.every(file => receipts.some(receipt => receipt.file === file))) {
+                    return res.status(403).json({
+                        ok: false,
+                        status: "GIT_WRITE_RECEIPTS_REQUIRED",
+                        error: "VERIFIED_WRITE_RECEIPTS_REQUIRED",
+                        files: safeFiles,
+                        receiptFingerprints,
+                        version: JARVIS_FS_BRIDGE_VERSION
+                    });
+                }
+
+                for (const receipt of receipts) {
+                    const current = readWriteSnapshot(resolveRepoPath(receipt.file, root));
+                    if (current.sha256 !== receipt.outputSha256) {
+                        return res.status(409).json({ ok: false, status: "GIT_RECEIPT_CONTENT_MISMATCH", error: "GIT_RECEIPT_CONTENT_MISMATCH", file: receipt.file });
+                    }
                 }
 
                 result =
@@ -3393,6 +3434,13 @@ export function createJarvisFsBridgeApp({
                         timeoutMs,
                         root
                     });
+
+                if (result.ok) {
+                    for (const receipt of receipts) {
+                        receipt.stagedAt = Date.now();
+                        stagedWriteReceipts.set(receipt.fingerprint, receipt);
+                    }
+                }
 
                 return res.json({
                     ...result,
@@ -3438,6 +3486,33 @@ export function createJarvisFsBridgeApp({
                     });
                 }
 
+                const receipts = Array.isArray(receiptFingerprints)
+                    ? receiptFingerprints.map(value => stagedWriteReceipts.get(String(value))).filter(Boolean)
+                    : [];
+                if (receipts.length === 0 || receipts.length !== receiptFingerprints.length) {
+                    return res.status(403).json({
+                        ok: false,
+                        status: "GIT_STAGED_RECEIPTS_REQUIRED",
+                        error: "STAGED_WRITE_RECEIPTS_REQUIRED",
+                        receiptFingerprints,
+                        version: JARVIS_FS_BRIDGE_VERSION
+                    });
+                }
+                const cachedNames = await runGitWorkflowCommand({
+                    args: ["diff", "--cached", "--name-only", "--"], cwd, timeoutMs, root
+                });
+                const stagedFiles = String(cachedNames.stdout || "").split(/\r?\n/).map(value => value.trim().replaceAll("\\", "/")).filter(Boolean);
+                const receiptFiles = receipts.map(receipt => receipt.file).sort();
+                if (JSON.stringify([...stagedFiles].sort()) !== JSON.stringify(receiptFiles)) {
+                    return res.status(409).json({ ok: false, status: "GIT_STAGED_SCOPE_MISMATCH", error: "GIT_STAGED_SCOPE_MISMATCH", stagedFiles, receiptFiles });
+                }
+                for (const receipt of receipts) {
+                    const current = readWriteSnapshot(resolveRepoPath(receipt.file, root));
+                    if (current.sha256 !== receipt.outputSha256) {
+                        return res.status(409).json({ ok: false, status: "GIT_RECEIPT_CONTENT_MISMATCH", error: "GIT_RECEIPT_CONTENT_MISMATCH", file: receipt.file });
+                    }
+                }
+
                 result =
                     await runGitWorkflowCommand({
                         args: [
@@ -3450,12 +3525,27 @@ export function createJarvisFsBridgeApp({
                         root
                     });
 
+                let commitReceipt = null;
+                if (result.ok) {
+                    const head = await runGitWorkflowCommand({ args: ["rev-parse", "HEAD"], cwd, timeoutMs, root });
+                    const commitSha = String(head.stdout || "").trim();
+                    const receiptId = sha256Text(JSON.stringify({ commitSha, receiptFingerprints, message: commitMessage }));
+                    commitReceipt = { receiptId, commitSha, receiptFingerprints: [...receiptFingerprints], message: commitMessage, createdAt: Date.now(), consumedAt: null };
+                    commitReceipts.set(receiptId, commitReceipt);
+                    for (const receipt of receipts) {
+                        receipt.committedAt = commitReceipt.createdAt;
+                        verifiedWriteReceipts.delete(receipt.fingerprint);
+                        stagedWriteReceipts.delete(receipt.fingerprint);
+                    }
+                }
+
                 return res.json({
                     ...result,
                     action:
                         "commit",
                     message:
                         commitMessage,
+                    commitReceipt,
                     status:
                         result.ok
                             ? "GIT_COMMIT_OK"
@@ -3499,6 +3589,18 @@ export function createJarvisFsBridgeApp({
                     });
                 }
 
+                const commitReceipt = commitReceipts.get(String(commitReceiptId || ""));
+                if (!commitReceipt || commitReceipt.consumedAt) {
+                    return res.status(403).json({ ok: false, status: "GIT_COMMIT_RECEIPT_REQUIRED", error: "UNCONSUMED_COMMIT_RECEIPT_REQUIRED" });
+                }
+                if (approvedBy !== "HEBERTO_MENDOZA" || approvalCommand !== `AUTORIZO PUSH ${commitReceipt.receiptId}`) {
+                    return res.status(403).json({ ok: false, status: "GIT_PUSH_COMMAND_MISMATCH", error: "GIT_PUSH_COMMAND_MISMATCH", approvalCommand: `AUTORIZO PUSH ${commitReceipt.receiptId}` });
+                }
+                const head = await runGitWorkflowCommand({ args: ["rev-parse", "HEAD"], cwd, timeoutMs, root });
+                if (String(head.stdout || "").trim() !== commitReceipt.commitSha) {
+                    return res.status(409).json({ ok: false, status: "GIT_COMMIT_RECEIPT_HEAD_MISMATCH", error: "GIT_COMMIT_RECEIPT_HEAD_MISMATCH" });
+                }
+
                 result =
                     await runGitWorkflowCommand({
                         args: [
@@ -3511,6 +3613,11 @@ export function createJarvisFsBridgeApp({
                         root
                     });
 
+                if (result.ok) {
+                    commitReceipt.consumedAt = Date.now();
+                    commitReceipts.delete(commitReceipt.receiptId);
+                }
+
                 return res.json({
                     ...result,
                     action:
@@ -3519,6 +3626,8 @@ export function createJarvisFsBridgeApp({
                         safeRemote,
                     branch:
                         safeBranch,
+                    commitReceiptId: commitReceipt.receiptId,
+                    consumedAt: commitReceipt.consumedAt,
                     status:
                         result.ok
                             ? "GIT_PUSH_OK"
