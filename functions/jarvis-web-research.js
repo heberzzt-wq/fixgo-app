@@ -7,11 +7,24 @@ const MAX_QUERY_LENGTH = 600;
 const MAX_SOURCES = 8;
 const MAX_SUPPORTS = 24;
 
+function collapseWhitespace(value = "") {
+    let output = "";
+    let separating = false;
+    for (const character of String(value || "")) {
+        if (character.charCodeAt(0) <= 32) {
+            separating = Boolean(output);
+            continue;
+        }
+        if (separating && output) output += " ";
+        output += character;
+        separating = false;
+        if (output.length >= MAX_QUERY_LENGTH) break;
+    }
+    return output.trim();
+}
+
 function normalizeResearchQuery(value = "") {
-    return String(value || "")
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, MAX_QUERY_LENGTH);
+    return collapseWhitespace(value);
 }
 
 function extractGroundingMetadata(response = {}) {
@@ -19,42 +32,47 @@ function extractGroundingMetadata(response = {}) {
         ?.groundingMetadata || {};
 }
 
-function extractGroundingSources(response = {}) {
+function buildGroundingIndex(response = {}) {
     const metadata =
         extractGroundingMetadata(response);
     const chunks =
         Array.isArray(metadata?.groundingChunks)
             ? metadata.groundingChunks
             : [];
-    const seen = new Set();
-
-    return chunks
-        .map((chunk, index) => {
+    const sourceIdByUrl = new Map();
+    const sourceIdByChunkIndex = new Map();
+    const sources = [];
+    chunks.forEach((chunk, index) => {
             const web = chunk?.web;
             const uri =
                 String(web?.uri || "").trim();
-
-            if (
-                !uri ||
-                !/^https:\/\//i.test(uri) ||
-                seen.has(uri)
-            ) {
-                return null;
+            let valid = false;
+            try {
+                valid = new URL(uri).protocol === "https:";
+            } catch {
+                valid = false;
             }
-
-            seen.add(uri);
-
-            return {
-                id: index + 1,
+            if (!valid) return;
+            let id = sourceIdByUrl.get(uri);
+            if (!id && sources.length < MAX_SOURCES) {
+                id = sources.length + 1;
+                sourceIdByUrl.set(uri, id);
+                sources.push({
+                id,
                 title:
                     String(web?.title || "Fuente web")
                         .trim()
                         .slice(0, 180),
                 url: uri
-            };
-        })
-        .filter(Boolean)
-        .slice(0, MAX_SOURCES);
+                });
+            }
+            if (id) sourceIdByChunkIndex.set(index, id);
+        });
+    return { sources, sourceIdByChunkIndex };
+}
+
+function extractGroundingSources(response = {}) {
+    return buildGroundingIndex(response).sources;
 }
 
 function extractGroundingSupports(response = {}) {
@@ -65,6 +83,8 @@ function extractGroundingSupports(response = {}) {
             ? metadata.groundingSupports
             : [];
 
+    const { sourceIdByChunkIndex } = buildGroundingIndex(response);
+    const seen = new Set();
     return supports
         .map(support => ({
             text:
@@ -79,25 +99,28 @@ function extractGroundingSupports(response = {}) {
                     support?.groundingChunkIndices
                 )
                     ? support.groundingChunkIndices
-                        .filter(index =>
-                            Number.isInteger(index) &&
-                            index >= 0
-                        )
-                        .map(index => index + 1)
+                        .filter(index => Number.isInteger(index) && sourceIdByChunkIndex.has(index))
+                        .map(index => sourceIdByChunkIndex.get(index))
+                        .filter((id, index, ids) => ids.indexOf(id) === index)
                         .slice(0, 8)
                     : []
         }))
-        .filter(support =>
-            support.text &&
-            support.sourceIds.length > 0
-        )
+        .filter(support => {
+            if (!support.text || support.sourceIds.length === 0) return false;
+            const key = `${support.text}|${support.sourceIds.join(",")}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        })
         .slice(0, MAX_SUPPORTS);
 }
 
 async function runJarvisWebResearch({
     ai,
     query,
-    model = DEFAULT_MODEL
+    model = DEFAULT_MODEL,
+    objectiveId = "",
+    caseId = ""
 } = {}) {
     if (!ai?.models?.generateContent) {
         throw new Error(
@@ -120,6 +143,7 @@ async function runJarvisWebResearch({
             contents: [
                 "Investiga la solicitud usando Google Search.",
                 "Responde en espanol con hechos concretos y separa claramente cualquier incertidumbre.",
+                "Distingue hechos consultados de inferencias o recomendaciones del modelo.",
                 "No inventes fuentes ni afirmes haber consultado una pagina que no aparezca en groundingMetadata.",
                 `Solicitud: ${normalizedQuery}`
             ].join("\n"),
@@ -140,10 +164,12 @@ async function runJarvisWebResearch({
             .slice(0, 12000);
     const metadata =
         extractGroundingMetadata(response);
-    const sources =
+    const allSources =
         extractGroundingSources(response);
     const supports =
         extractGroundingSupports(response);
+    const relevantSourceIds = new Set(supports.flatMap(support => support.sourceIds));
+    const sources = allSources.filter(source => relevantSourceIds.has(source.id));
     const searchQueries =
         Array.isArray(metadata?.webSearchQueries)
             ? metadata.webSearchQueries
@@ -156,26 +182,50 @@ async function runJarvisWebResearch({
                 .slice(0, 8)
             : [];
 
+    const researchedAt = new Date().toISOString();
+    const facts = supports.map((support, index) => ({
+        id: index + 1,
+        type: "VERIFIED_FACT",
+        claim: support.text,
+        sourceIds: support.sourceIds
+    }));
+    const inferences = answer ? [{
+        type: "MODEL_SYNTHESIS",
+        text: answer,
+        basisFactIds: facts.map(fact => fact.id),
+        warning: "Síntesis del modelo; verificar contra los hechos y fuentes vinculados."
+    }] : [];
+
     return {
         ok:
             Boolean(answer) &&
-            sources.length > 0,
+            sources.length > 0 &&
+            facts.length > 0,
         grounded:
-            sources.length > 0,
+            sources.length > 0 && facts.length > 0,
         engine:
             "jarvis_grounded_web_research",
         model,
         query:
             normalizedQuery,
+        objectiveId: String(objectiveId || ""),
+        caseId: String(caseId || ""),
+        researchedAt,
+        provider: "google_search_grounding",
         answer,
         sources,
         supports,
+        facts,
+        inferences,
         searchQueries,
         sourceCount:
             sources.length,
         readOnly: true,
         policy: {
             citationsRequired: true,
+            consultedSourcesOnly: true,
+            factsSeparatedFromInference: true,
+            duplicatesRemoved: true,
             codeWrite: false,
             externalSideEffects: false
         }
@@ -185,6 +235,7 @@ async function runJarvisWebResearch({
 module.exports = {
     DEFAULT_MODEL,
     MAX_QUERY_LENGTH,
+    collapseWhitespace,
     normalizeResearchQuery,
     extractGroundingSources,
     extractGroundingSupports,

@@ -107,7 +107,9 @@ test("grounded web research sends Google Search configuration and returns eviden
         await runJarvisWebResearch({
             ai,
             query:
-                "  Investiga   Firebase callable functions  "
+                "  Investiga   Firebase callable functions  ",
+            objectiveId: "OBJ-WEB-1",
+            caseId: "CASE-WEB-1"
         });
 
     assert.equal(
@@ -131,9 +133,29 @@ test("grounded web research sends Google Search configuration and returns eviden
     assert.equal(result.ok, true);
     assert.equal(result.grounded, true);
     assert.equal(result.sourceCount, 1);
+    assert.equal(result.facts.length, 1);
+    assert.equal(result.facts[0].type, "VERIFIED_FACT");
+    assert.equal(result.inferences[0].type, "MODEL_SYNTHESIS");
+    assert.equal(result.objectiveId, "OBJ-WEB-1");
+    assert.equal(result.caseId, "CASE-WEB-1");
+    assert.ok(Date.parse(result.researchedAt));
+    assert.equal(result.policy.consultedSourcesOnly, true);
+    assert.equal(result.policy.factsSeparatedFromInference, true);
     assert.equal(result.readOnly, true);
     assert.equal(result.policy.citationsRequired, true);
     assert.equal(result.policy.externalSideEffects, false);
+});
+
+test("grounding maps duplicate chunks to one canonical source id", () => {
+    const response = groundedResponse();
+    response.candidates[0].groundingMetadata.groundingSupports.push({
+        segment: { text: "La documentación oficial describe funciones callable" },
+        groundingChunkIndices: [2]
+    });
+    const sources = extractGroundingSources(response);
+    const supports = extractGroundingSupports(response);
+    assert.equal(sources.length, 1);
+    assert.deepEqual(supports[1].sourceIds, [1]);
 });
 
 test("web research fails closed when no verifiable source is returned", async () => {

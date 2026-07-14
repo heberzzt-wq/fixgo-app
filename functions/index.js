@@ -44,7 +44,8 @@ const {
 } = require("./jarvis-daily-supervisor");
 
 const {
-    runJarvisWebResearch
+    runJarvisWebResearch,
+    normalizeResearchQuery
 } = require("./jarvis-web-research");
 
 const {
@@ -2697,13 +2698,11 @@ exports.jarvisWebResearch = functions
                 "investigar en la web"
             );
         const query =
-            String(
+            normalizeResearchQuery(
                 data?.query ||
                 data?.prompt ||
                 ""
-            )
-                .replace(/\s+/g, " ")
-                .trim();
+            );
 
         if (
             query.length < 5 ||
@@ -2720,7 +2719,9 @@ exports.jarvisWebResearch = functions
                 await runJarvisWebResearch({
                     ai:
                         getGroundedGenAI(),
-                    query
+                    query,
+                    objectiveId: data?.objectiveId || "",
+                    caseId: data?.caseId || ""
                 });
 
             console.log(JSON.stringify({
@@ -2737,7 +2738,10 @@ exports.jarvisWebResearch = functions
                 sourceCount:
                     result.sourceCount,
                 searchQueryCount:
-                    result.searchQueries.length
+                    result.searchQueries.length,
+                factCount: result.facts.length,
+                objectiveId: result.objectiveId || null,
+                caseId: result.caseId || null
             }));
 
             if (!result.grounded) {

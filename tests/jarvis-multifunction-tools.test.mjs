@@ -279,6 +279,7 @@ test("capability forensics reports evidence-backed gaps without claiming Codex p
             grounded: true,
             status: "GROUNDED",
             sourceCount: 3,
+            factCount: 5,
             checkedAt:
                 "2026-07-14T01:00:00.000Z"
         };
@@ -293,6 +294,7 @@ test("capability forensics reports evidence-backed gaps without claiming Codex p
         assert.equal(verifiedWeb.status, "READY");
         assert.equal(verifiedWeb.evidence.verified, true);
         assert.equal(verifiedWeb.evidence.sourceCount, 3);
+        assert.equal(verifiedWeb.evidence.factCount, 5);
         assert.ok(!verified.gaps.some(item => item.id === "web_research"));
 
         const capabilities = await runtime.execute("system.capabilities");
@@ -1260,15 +1262,16 @@ test("multifunction planner routes model-selected web research without confusing
     );
 });
 
-test("web research strips assistant command boilerplate before searching", () => {
+test("web research receives the semantic query without phrase stripping", () => {
     const source = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/jarvis/jarvis.multitool.pack.js"),
         "utf8"
     );
 
-    assert.match(source, /\(jarvis\|heberto\|gestia\)/);
-    assert.match(source, /investiga\|investigar\|busca\|buscar/);
-    assert.match(source, /(?:web\|internet\|google)/);
+    assert.doesNotMatch(source, /\(jarvis\|heberto\|gestia\)/);
+    assert.doesNotMatch(source, /investiga\|investigar\|busca\|buscar/);
+    assert.match(source, /objectiveId: args\.objectiveId \|\| context\.objectiveId/);
+    assert.match(source, /facts: Array\.isArray\(result\.facts\)/);
 });
 
 test("multifunction planner routes capability boundary questions to forensics", async () => {

@@ -21,7 +21,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "1.20.0-grounded-image-editing";
+const VERSION = "1.21.0-verifiable-web-research";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 
@@ -223,7 +223,8 @@ function inspectWebResearchCapability(
         actuatorRegistered &&
         health?.ok === true &&
         health?.grounded === true &&
-        Number(health?.sourceCount || 0) > 0;
+        Number(health?.sourceCount || 0) > 0 &&
+        Number(health?.factCount || 0) > 0;
 
     if (verified) {
         return {
@@ -235,6 +236,8 @@ function inspectWebResearchCapability(
                 verified: true,
                 sourceCount:
                     health.sourceCount,
+                factCount:
+                    health.factCount,
                 checkedAt:
                     health.checkedAt || null
             }
@@ -243,9 +246,9 @@ function inspectWebResearchCapability(
 
     if (actuatorRegistered) {
         const credentialMissing =
-            /credencial gemini/i.test(
-                String(health?.message || "")
-            );
+            String(health?.message || "")
+                .toLowerCase()
+                .includes("credencial gemini");
 
         return {
             status: "PARTIAL",
@@ -351,10 +354,10 @@ async function buildCapabilityForensics(runtime) {
         ) ||
         null;
     const imageEditingHealth = readCapabilityEvidence("image_editing") || null;
+    const imageError = String(imageHealth?.error || "");
     const imageCredentialInvalid =
-        /API key not valid|API_KEY_INVALID/i.test(
-            String(imageHealth?.error || "")
-        );
+        imageError.toLowerCase().includes("api key not valid") ||
+        imageError.includes("API_KEY_INVALID");
     const connectorHealth =
         globalThis?.__JARVIS_CONNECTOR_HEALTH__ ||
         readCapabilityEvidence("connectors") ||
@@ -1052,14 +1055,12 @@ async function waitForAuthenticatedUser(timeoutMs = 6000) {
 }
 
 async function fetchGroundedWebResearch(
-    query = ""
+    query = "",
+    trace = {}
 ) {
     const user = await waitForAuthenticatedUser();
     const normalizedQuery =
         String(query || "")
-            .replace(/^\s*(jarvis|heberto|gestia)\s*[,;:-]?\s*/i, "")
-            .replace(/^\s*(investiga|investigar|busca|buscar|consulta|consultar|averigua|averiguar|verifica|verificar)\s+(?:en\s+)?(?:la\s+)?(?:web|internet|google)?\s*(?:con\s+)?(?:fuentes?)?(?:\s+(?:oficiales|verificables|confiables))?\s*/i, "")
-            .replace(/\s+/g, " ")
             .trim()
             .slice(0, 600);
 
@@ -1095,7 +1096,9 @@ async function fetchGroundedWebResearch(
                 body: JSON.stringify({
                     data: {
                         query:
-                            normalizedQuery
+                            normalizedQuery,
+                        objectiveId: trace.objectiveId || "",
+                        caseId: trace.caseId || ""
                     }
                 })
             }
@@ -1125,6 +1128,9 @@ async function fetchGroundedWebResearch(
             status: "GROUNDED",
             sourceCount:
                 result.sources.length,
+            factCount: Array.isArray(result.facts) ? result.facts.length : 0,
+            objectiveId: result.objectiveId || trace.objectiveId || null,
+            caseId: result.caseId || trace.caseId || null,
             checkedAt:
                 new Date().toISOString()
         });
@@ -1134,6 +1140,8 @@ async function fetchGroundedWebResearch(
             query: result.query || normalizedQuery,
             answer: String(result.answer || "").slice(0, 5000),
             sources: result.sources.slice(0, 8),
+            facts: Array.isArray(result.facts) ? result.facts.slice(0, 24) : [],
+            inferences: Array.isArray(result.inferences) ? result.inferences.slice(0, 8) : [],
             checkedAt: new Date().toISOString()
         });
 
@@ -1663,14 +1671,20 @@ export function registerJarvisMultifunctionTools(runtime) {
             output: "SIA7_GROUNDED_WEB_RESEARCH",
             inputSchema: {
                 query: "string",
-                prompt: "string"
+                prompt: "string",
+                objectiveId: "string",
+                caseId: "string"
             },
             execute: async (args = {}, context = {}) =>
                 await fetchGroundedWebResearch(
                     args.query ||
                     args.prompt ||
                     context.rawInput ||
-                    ""
+                    "",
+                    {
+                        objectiveId: args.objectiveId || context.objectiveId || "",
+                        caseId: args.caseId || context.caseId || ""
+                    }
                 )
         }),
         register(runtime, {
@@ -1687,11 +1701,13 @@ export function registerJarvisMultifunctionTools(runtime) {
                 const result =
                     runBusinessIntent(instruction);
 
+                const staticMessage =
+                    String(result?.message || "")
+                        .toLowerCase();
                 const genericStaticAnswer =
                     !result ||
-                    /falta objetivo|necesito un objetivo/i.test(
-                        String(result?.message || "")
-                    );
+                    staticMessage.includes("falta objetivo") ||
+                    staticMessage.includes("necesito un objetivo");
 
                 if (genericStaticAnswer) {
                     const groundedContext = recentGroundedBusinessContext();
