@@ -46,7 +46,6 @@ jobs:
         run: npm ci
 
       - name: Install functions dependencies
-        if: steps.changes.outputs.functions_changed == 'true'
         run: npm ci --prefix functions
 
       - name: Validate Jarvis runtime
