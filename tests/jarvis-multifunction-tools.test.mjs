@@ -1182,6 +1182,9 @@ test("daily supervision cloud lookup has a bounded browser deadline", () => {
     );
 
     assert.match(source, /SUPERVISION_CLOUD_TIMEOUT_MS\s*=\s*4500/);
+    assert.match(source, /FORENSICS_SUPERVISION_TIMEOUT_MS\s*=\s*1500/);
+    assert.match(source, /timeoutMs:\s*FORENSICS_SUPERVISION_TIMEOUT_MS/);
+    assert.match(source, /Math\.min\(\s*10000,[\s\S]{0,180}Math\.max\(\s*1000/);
     assert.match(source, /controller\?\.abort\(\)/);
     assert.match(source, /signal:\s*controller\.signal/);
     assert.match(source, /SUPERVISION_STATUS_TIMEOUT_/);
@@ -1238,5 +1241,5 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260714-bounded-forensics-inventory/);
+    assert.match(core, /jarvis-tools-v7-20260714-fast-forensics-inventory/);
 });

@@ -18,6 +18,7 @@ import {
 
 const VERSION = "1.7.0-sia7-bounded-supervision-forensics";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
+const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 
 const CAPABILITY_WEIGHTS = {
     READY: 1,
@@ -85,7 +86,10 @@ async function inspectDailySupervisionCapability(
         const execution =
             await runtime.execute(
                 "system.supervision",
-                {},
+                {
+                    timeoutMs:
+                        FORENSICS_SUPERVISION_TIMEOUT_MS
+                },
                 {
                     readOnly: true,
                     source: "system.forensics"
@@ -640,7 +644,9 @@ async function runLocalDailySupervision() {
     };
 }
 
-async function fetchDailySupervisionStatus() {
+async function fetchDailySupervisionStatus({
+    timeoutMs = SUPERVISION_CLOUD_TIMEOUT_MS
+} = {}) {
     const user =
         globalThis?.auth?.currentUser ||
         globalThis?.window?.auth?.currentUser ||
@@ -655,13 +661,21 @@ async function fetchDailySupervisionStatus() {
     }
 
     const localStatus = await runLocalDailySupervision();
+    const boundedTimeoutMs = Math.min(
+        10000,
+        Math.max(
+            1000,
+            Number(timeoutMs) ||
+                SUPERVISION_CLOUD_TIMEOUT_MS
+        )
+    );
     const controller =
         typeof AbortController !== "undefined"
             ? new AbortController()
             : null;
     const timeoutId = setTimeout(
         () => controller?.abort(),
-        SUPERVISION_CLOUD_TIMEOUT_MS
+        boundedTimeoutMs
     );
 
     try {
@@ -704,7 +718,7 @@ async function fetchDailySupervisionStatus() {
             ...localStatus,
             cloudReportAvailable: false,
             cloudError: timedOut
-                ? `SUPERVISION_STATUS_TIMEOUT_${SUPERVISION_CLOUD_TIMEOUT_MS}MS`
+                ? `SUPERVISION_STATUS_TIMEOUT_${boundedTimeoutMs}MS`
                 : error?.message || String(error),
             message: "Supervisión local completada; el reporte cloud no estuvo disponible. Revisa cloudError para conocer la causa."
         };
@@ -1072,8 +1086,8 @@ export function registerJarvisMultifunctionTools(runtime) {
             name: "system.supervision",
             description: "Consulta el ultimo reporte del supervisor diario read-only de Jarvis.",
             output: "SIA7_DAILY_SUPERVISION_STATUS",
-            execute: async () =>
-                await fetchDailySupervisionStatus()
+            execute: async (args = {}) =>
+                await fetchDailySupervisionStatus(args)
         }),
         register(runtime, {
             name: "web.research",
