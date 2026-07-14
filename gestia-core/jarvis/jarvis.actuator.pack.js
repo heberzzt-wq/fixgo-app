@@ -2,7 +2,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "7.10.0-versioned-artifact-studio";
+const VERSION = "7.11.0-functional-observability";
 
 export function normalizeImageArtifactOutput(output, mimeType) {
     const extensions = {
@@ -166,6 +166,24 @@ export function registerJarvisActuatorTools(runtime) {
                     action: "open",
                     url: args.url
                 })
+        }),
+        register(runtime, {
+            name: "system.observability",
+            description: "Consulta evidencia funcional agregada: latencia, errores, writes, aprobaciones, artefactos, uploads, web, PDF, reels y páginas.",
+            output: "FUNCTIONAL_OBSERVABILITY_SNAPSHOT",
+            inputSchema: { limit: "number" },
+            mutates: false,
+            execute: async (args = {}) => {
+                const result = await bridgeRequest("/observability/snapshot", { limit: args.limit || 500 }, 30000);
+                recordCapabilityEvidence("observability", {
+                    ok: result?.ok === true && Number(result?.counts?.total || 0) > 0,
+                    status: result?.status || "OBSERVABILITY_UNAVAILABLE",
+                    counts: result?.counts || null,
+                    averageLatencyMs: result?.averageLatencyMs ?? null,
+                    checkedAt: new Date().toISOString()
+                });
+                return result;
+            }
         }),
         register(runtime, {
             name: "page.create",

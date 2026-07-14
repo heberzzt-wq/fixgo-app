@@ -21,7 +21,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "1.22.0-versioned-artifact-studio";
+const VERSION = "1.23.0-functional-observability";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 
@@ -51,6 +51,7 @@ const CAPABILITY_LABELS = {
     web_research: "Investigacion web con fuentes",
     image_generation: "Generacion y edicion de imagenes",
     artifact_studio: "Artefactos versionados",
+    observability: "Observabilidad funcional",
     connectors_and_multi_agent: "Conectores y delegacion multiagente"
 };
 
@@ -389,6 +390,7 @@ async function buildCapabilityForensics(runtime) {
     const mediaAnalysisHealth = globalThis?.__JARVIS_MEDIA_ANALYSIS_HEALTH__ || readCapabilityEvidence("media_analysis") || null;
     const pageCreationHealth = readCapabilityEvidence("page_creation") || null;
     const marketingProductionHealth = readCapabilityEvidence("marketing_production") || null;
+    const observabilityHealth = readCapabilityEvidence("observability") || null;
     const connectorsReady =
         tools.has("agent.delegate") &&
         connectorHealth?.ok === true &&
@@ -759,6 +761,23 @@ async function buildCapabilityForensics(runtime) {
                 registeredCount: Number(bridge?.actuators?.artifactStudio?.registeredCount || 0),
                 latest: bridge?.actuators?.artifactStudio?.latest || null
             }
+        },
+        {
+            id: "observability",
+            status: tools.has("system.observability") && observabilityHealth?.ok === true
+                ? "READY"
+                : tools.has("system.observability")
+                    ? "PARTIAL"
+                    : "NOT_AVAILABLE",
+            reason: observabilityHealth?.ok === true
+                ? `La última consulta consolidó ${Number(observabilityHealth.counts?.total || 0)} eventos funcionales.`
+                : "El colector está conectado, pero falta consultar eventos funcionales reales; importar módulos no cuenta como ONLINE.",
+            nextAction: "Consultar system.observability después de ejecutar writes, artefactos, uploads, búsquedas y producción.",
+            evidence: {
+                toolRegistered: tools.has("system.observability"),
+                verifiedExecution: observabilityHealth?.ok === true,
+                health: observabilityHealth
+            }
         }
     ];
 
@@ -801,6 +820,7 @@ async function buildCapabilityForensics(runtime) {
         web_research: "Conectar investigacion web con fuentes y citas.",
         image_generation: "Conectar generacion y edicion de imagenes.",
         artifact_studio: "Registrar y verificar un artefacto en el ledger versionado.",
+        observability: "Consultar y verificar el snapshot de eventos funcionales.",
         connectors_and_multi_agent: "Conectar integraciones externas y delegacion multiagente.",
         repo_engineering: "Restaurar bridge y herramientas de ingenieria del repo.",
         tests_and_git: "Restaurar ejecucion de pruebas y diagnostico Git.",

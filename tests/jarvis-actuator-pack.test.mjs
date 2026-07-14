@@ -34,6 +34,7 @@ test("actuator pack registers browser, documents, image, delegation and connecto
         "browser.inspect",
         "browser.screenshot",
         "browser.open",
+        "system.observability",
         "page.create",
         "reel.create",
         "document.create",
@@ -52,6 +53,7 @@ test("actuator pack registers browser, documents, image, delegation and connecto
     ]);
     assert.equal(runtime.get("browser.inspect").mutates, false);
     assert.equal(runtime.get("system.supervision.runNow").requiresApproval, true);
+    assert.equal(runtime.get("system.observability").mutates, false);
     assert.equal(runtime.get("browser.screenshot").requiresApproval, true);
     assert.equal(runtime.get("page.create").requiresApproval, true);
     assert.equal(runtime.get("reel.create").requiresApproval, true);

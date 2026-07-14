@@ -24,9 +24,13 @@ import {
     listArtifacts,
     registerArtifact
 } from "./jarvis-artifact-studio.js";
+import {
+    appendObservation,
+    buildObservabilitySnapshot
+} from "./jarvis-observability.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.17.0-versioned-artifact-ledger";
+    "2.18.0-functional-observability";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -2053,6 +2057,26 @@ export function createJarvisFsBridgeApp({
         limit: "25mb"
     }));
 
+    app.use((req, res, next) => {
+        if (req.method !== "POST" || req.path === "/observability/snapshot") return next();
+        const startedAt = Date.now();
+        const sendJson = res.json.bind(res);
+        res.json = payload => {
+            try {
+                appendObservation({
+                    root,
+                    operation: req.path,
+                    httpStatus: res.statusCode,
+                    latencyMs: Date.now() - startedAt,
+                    request: req.body || {},
+                    result: payload || {}
+                });
+            } catch {}
+            return sendJson(payload);
+        };
+        return next();
+    });
+
     app.get("/health", (req, res) => {
         const identity =
             describeJarvisBridgeIdentity(root);
@@ -2108,6 +2132,18 @@ export function createJarvisFsBridgeApp({
         }
 
         return next();
+    });
+
+    app.post("/observability/snapshot", (req, res) => {
+        try {
+            return res.json({
+                ...buildObservabilitySnapshot({ root, limit: req.body?.limit }),
+                bridge: describeJarvisFsBridge(),
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        } catch (error) {
+            return res.status(400).json({ ok: false, status: "OBSERVABILITY_READ_FAILED", error: error.message, version: JARVIS_FS_BRIDGE_VERSION });
+        }
     });
 
         app.post("/grep", async (req, res) => {

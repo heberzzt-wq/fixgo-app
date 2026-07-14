@@ -67,6 +67,7 @@ pnpm-debug.log*
 
 # Local scratch and generated repair/test artifacts
 .jarvis-artifacts/
+.jarvis-bridge.*.log
 repo_sandbox/
 branch-test.txt
 prueba.txt
