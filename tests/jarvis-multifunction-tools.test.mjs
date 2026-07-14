@@ -1053,6 +1053,7 @@ test("multifunction planner routes real browser, image, document and connector a
 
     assert.ok(browser.some(call => call.name === "browser.inspect"));
     assert.ok(image.some(call => call.name === "image.generate"));
+    assert.ok(!image.some(call => call.name === "system.forensics"));
     assert.ok(document.some(call =>
         call.name === "document.create" &&
         call.mutates === true &&

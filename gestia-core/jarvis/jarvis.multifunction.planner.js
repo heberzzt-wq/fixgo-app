@@ -82,7 +82,7 @@ export function isJarvisCapabilityForensicsRequest(input = "") {
     return (
         /\b(analisis forense|auditoria forense|capacidades reales|limitaciones|paridad|nivel codex|a tu altura|que te falta|actuadores)\b/i.test(normalized) ||
         (
-            /\b(puedes|sabes|tienes|controla|controlar|genera|generar|envia|enviar|delega|delegar|automatiza|automatizar)\b/i.test(normalized) &&
+            /\b(puedes|sabes|tienes|cuentas con|eres capaz de)\b/i.test(normalized) &&
             /\b(chrome|navegador|internet|web|fuentes|imagen|imagenes|correo|email|calendario|subagentes|agentes|automatizacion|conectores)\b/i.test(normalized)
         )
     );
