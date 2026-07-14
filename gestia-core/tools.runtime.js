@@ -5951,7 +5951,7 @@ JarvisToolRuntime.register({
                 ? await window.JarvisLocalBridge.readFile({
                     file: cleanFile,
                     path: cleanFile,
-                    maxBytes: 4096,
+                    maxBytes: 300000,
                     source: "jarvis_repo_impact_live_fallback_v7"
                 })
                 : null;
