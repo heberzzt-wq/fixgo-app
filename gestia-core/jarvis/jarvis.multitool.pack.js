@@ -21,7 +21,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "1.18.0-evidence-grounded-marketing";
+const VERSION = "1.19.0-reel-artifact-production";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 
@@ -378,6 +378,7 @@ async function buildCapabilityForensics(runtime) {
     const structuredDocumentHealth = readCapabilityEvidence("structured_document_editing") || null;
     const persistentCaseHealth = readCapabilityEvidence("persistent_cases") || null;
     const reelVideoHealth = readCapabilityEvidence("reel_video") || null;
+    const reelStudioHealth = readCapabilityEvidence("reel_studio") || null;
     const chiefArchitectHealth = globalThis?.__JARVIS_CHIEF_ARCHITECT_HEALTH__ || null;
     const oneTimeWriteHealth = globalThis?.__JARVIS_ONE_TIME_WRITE_HEALTH__ || null;
     const mediaAnalysisHealth = globalThis?.__JARVIS_MEDIA_ANALYSIS_HEALTH__ || readCapabilityEvidence("media_analysis") || null;
@@ -627,15 +628,19 @@ async function buildCapabilityForensics(runtime) {
             id: "reel_video_production",
             status: reelVideoHealth?.ok === true
                 ? "READY"
-                : hasEvery(tools, ["marketing.plan", "browser.open"])
+                : hasEvery(tools, ["marketing.plan", "reel.create", "browser.open"])
                     ? "PARTIAL"
                     : "NOT_AVAILABLE",
             reason: reelVideoHealth?.ok === true
                 ? "Un reel de 30 o 45 segundos fue exportado como artefacto descargable y verificado."
-                : "Existe Reel Studio 30/45 y preview real, pero no hay evidencia persistida de una exportacion completa en esta sesion.",
+                : reelStudioHealth?.ok === true
+                    ? "Jarvis creó un Reel Studio específico y verificó su preview/exportador; falta completar un WebM y registrar su hash."
+                    : "El actuador de Reel Studio está conectado; falta crear un estudio y después exportar un WebM completo.",
             nextAction: "Exportar un reel completo de 30 segundos y registrar hash, duracion, formato y artefacto.",
             evidence: {
                 planning: tools.has("marketing.plan"),
+                studioActuator: tools.has("reel.create"),
+                studioHealth: reelStudioHealth,
                 browser: tools.has("browser.open"),
                 verifiedExecution: reelVideoHealth?.ok === true,
                 health: reelVideoHealth

@@ -15,9 +15,13 @@ import {
     buildPageArtifactHtml,
     describePageArtifact
 } from "./jarvis-page-artifact.js";
+import {
+    buildReelStudioHtml,
+    describeReelStudio
+} from "./jarvis-reel-artifact.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.15.0-page-artifact-studio";
+    "2.16.0-reel-artifact-studio";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -53,6 +57,33 @@ const DEFAULT_ROOT =
 
 const RUNTIME_CONTRACT_FILE =
     "jarvis-runtime-contract.json";
+
+function safeFileStem(value = "artifact") {
+    const normalized = String(value || "artifact").normalize("NFD").toLowerCase();
+    let result = "";
+    let separating = false;
+    for (const character of normalized) {
+        const code = character.charCodeAt(0);
+        if (code >= 0x300 && code <= 0x36f) continue;
+        const allowed = (code >= 97 && code <= 122) || (code >= 48 && code <= 57);
+        if (allowed) {
+            result += character;
+            separating = false;
+        } else if (result && !separating) {
+            result += "-";
+            separating = true;
+        }
+        if (result.length >= 80) break;
+    }
+    while (result.endsWith("-")) result = result.slice(0, -1);
+    return result || "artifact";
+}
+
+function cleanMediaFamily(value = "") {
+    const family = String(value || "").trim().toLowerCase();
+    if (family === "image" || family === "video") return family;
+    throw new Error("REEL_MEDIA_FAMILY_REQUIRED");
+}
 
 export function readJarvisRuntimeContract(
     root = DEFAULT_ROOT
@@ -2860,9 +2891,7 @@ export function createJarvisFsBridgeApp({
     app.post("/page/create", async (req, res) => {
         try {
             const html = buildPageArtifactHtml(req.body || {});
-            const slug = String(req.body?.slug || req.body?.brandName || "pagina")
-                .normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
-                .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "pagina";
+            const slug = safeFileStem(req.body?.slug || req.body?.brandName || "pagina");
             const output = req.body?.output || `.jarvis-artifacts/pages/${slug}.html`;
             const target = artifactPath(output, root, [".html"]);
             fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -2885,6 +2914,57 @@ export function createJarvisFsBridgeApp({
             });
         } catch (error) {
             return res.status(400).json({ ok: false, status: "PAGE_CREATE_BLOCKED", error: error.message, version: JARVIS_FS_BRIDGE_VERSION });
+        }
+    });
+
+    app.post("/reel/create", async (req, res) => {
+        try {
+            let embeddedBytes = 0;
+            const embedArtifact = (output, expectedFamily) => {
+                if (!output) return "";
+                const artifact = readArtifactPayload({ output, root });
+                if (!artifact.mimeType.startsWith(`${expectedFamily}/`)) throw new Error("REEL_MEDIA_TYPE_MISMATCH");
+                embeddedBytes += artifact.bytes;
+                if (artifact.bytes > 12 * 1024 * 1024 || embeddedBytes > 40 * 1024 * 1024) throw new Error("REEL_EMBEDDED_MEDIA_LIMIT_EXCEEDED");
+                return `data:${artifact.mimeType};base64,${artifact.dataBase64}`;
+            };
+            const sourceScenes = Array.isArray(req.body?.scenes) ? req.body.scenes.slice(0, 18) : [];
+            const scenes = sourceScenes.map(scene => ({
+                ...scene,
+                assetDataUrl: scene?.assetOutput
+                    ? embedArtifact(scene.assetOutput, cleanMediaFamily(scene.mediaType))
+                    : scene?.assetDataUrl
+            }));
+            const hydrated = {
+                ...(req.body || {}),
+                scenes,
+                logoDataUrl: req.body?.logoOutput ? embedArtifact(req.body.logoOutput, "image") : req.body?.logoDataUrl,
+                audioDataUrl: req.body?.audioOutput ? embedArtifact(req.body.audioOutput, "audio") : req.body?.audioDataUrl
+            };
+            const html = buildReelStudioHtml(hydrated);
+            const verification = describeReelStudio(hydrated, html);
+            if (!Object.values(verification.checks).every(Boolean)) throw new Error("REEL_STUDIO_POST_VERIFY_FAILED");
+            const slug = safeFileStem(req.body?.slug || req.body?.title || req.body?.brandName || "reel");
+            const output = req.body?.output || `.jarvis-artifacts/reels/${slug}-studio.html`;
+            const target = artifactPath(output, root, [".html"]);
+            fs.mkdirSync(path.dirname(target), { recursive: true });
+            fs.writeFileSync(target, html, "utf8");
+            return res.json({
+                ok: true,
+                status: "REEL_STUDIO_CREATED_VERIFIED",
+                output: path.relative(root, target).replaceAll("\\", "/"),
+                mimeType: "text/html",
+                bytes: verification.bytes,
+                embeddedBytes,
+                checks: verification.checks,
+                durationSeconds: Number(hydrated.durationSeconds),
+                downloadable: true,
+                previewable: true,
+                videoExportStatus: "REQUIRES_BROWSER_EXPORT",
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        } catch (error) {
+            return res.status(400).json({ ok: false, status: "REEL_CREATE_BLOCKED", error: error.message, version: JARVIS_FS_BRIDGE_VERSION });
         }
     });
 

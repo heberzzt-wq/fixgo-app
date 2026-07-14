@@ -2,7 +2,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "7.7.0-page-artifact-studio";
+const VERSION = "7.8.0-reel-artifact-studio";
 
 export function normalizeImageArtifactOutput(output, mimeType) {
     const extensions = {
@@ -187,6 +187,33 @@ export function registerJarvisActuatorTools(runtime) {
                         output: result.output,
                         bytes: result.bytes,
                         checks: result.checks,
+                        checkedAt: new Date().toISOString()
+                    });
+                }
+                return result;
+            }
+        }),
+        register(runtime, {
+            name: "reel.create",
+            description: "Crea un estudio de reel 9:16 real, configurable y previsualizable, capaz de exportar WebM y verificar SHA-256 en el navegador.",
+            output: "REEL_STUDIO_ARTIFACT",
+            inputSchema: {
+                brandName: "string", title: "string", cta: "string", durationSeconds: "number",
+                scenes: "array", logoOutput: "string", audioOutput: "string", output: "string"
+            },
+            mutates: true,
+            requiresApproval: true,
+            execute: async (args = {}) => {
+                const result = await bridgeRequest("/reel/create", args, 120000);
+                if (result?.ok === true && result?.status === "REEL_STUDIO_CREATED_VERIFIED") {
+                    recordCapabilityEvidence("reel_studio", {
+                        ok: true,
+                        status: result.status,
+                        output: result.output,
+                        bytes: result.bytes,
+                        durationSeconds: result.durationSeconds,
+                        checks: result.checks,
+                        videoExportStatus: result.videoExportStatus,
                         checkedAt: new Date().toISOString()
                     });
                 }
