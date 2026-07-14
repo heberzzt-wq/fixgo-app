@@ -1090,6 +1090,15 @@ test("multifunction planner routes real browser, image, document and connector a
     ));
 });
 
+test("document contents do not trigger unrelated capability tools", () => {
+    assert.deepEqual(
+        buildJarvisMultifunctionToolCalls(
+            "arre Jarvis, crea una presentacion pptx titulada Informe V7 con secciones capacidades, pruebas y pendientes"
+        ).map(call => call.name),
+        ["document.create"]
+    );
+});
+
 test("multifunction planner delegates several read-only tasks in parallel", () => {
     const calls = buildJarvisMultifunctionToolCalls(
         "Jarvis, delega en paralelo la salud del sistema, conectores y estado git del repo"

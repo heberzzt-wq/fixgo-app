@@ -38,7 +38,7 @@ import {
   isJarvisTechnicalDiagnosticRequest,
   mergeJarvisToolCalls
 
-} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-multifunction-planner-v2-parallel-delegation-20260714";
+} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-multifunction-planner-v2-parallel-delegation-20260714-document-scope";
 
 import {
 

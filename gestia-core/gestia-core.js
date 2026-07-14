@@ -39,7 +39,7 @@ import {
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     isJarvisCapabilityForensicsRequest
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-multifunction-planner-v2-parallel-delegation-20260714';
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-multifunction-planner-v2-parallel-delegation-20260714-document-scope';
 //import { ejecutarCambios } from '/gestia-core/operations-executor.engine.js';
 
 // ======================================================================================

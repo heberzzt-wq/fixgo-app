@@ -126,6 +126,9 @@ export function buildJarvisMultifunctionToolCalls(
             /\b(ultimas noticias|informacion actualizada|datos actuales)\b/i.test(normalized)
         );
 
+    const isDocumentCreationRequest =
+        /\b(crea|crear|genera|generar|redacta|redactar)\b[\s\S]{0,60}\b(documento|archivo markdown|csv|reporte html|presentacion|powerpoint|pptx|excel|xlsx|word|docx|pdf|hoja de calculo)\b/i.test(normalized);
+
     const isDelegationRequest =
         /\b(en paralelo|delega|delegar|divide las tareas|varias tareas a la vez)\b/i.test(normalized);
 
@@ -188,6 +191,7 @@ export function buildJarvisMultifunctionToolCalls(
 
     if (
         !isCapabilityForensicsRequest &&
+        !isDocumentCreationRequest &&
         /\b(que puedes hacer|capacidades|herramientas disponibles|lista de herramientas|multifuncional)\b/i.test(normalized)
     ) {
         calls.push(
@@ -242,9 +246,7 @@ export function buildJarvisMultifunctionToolCalls(
         );
     }
 
-    if (
-        /\b(crea|crear|genera|generar|redacta|redactar)\b[\s\S]{0,60}\b(documento|archivo markdown|csv|reporte html|presentacion|powerpoint|pptx|excel|xlsx|word|docx|pdf|hoja de calculo)\b/i.test(normalized)
-    ) {
+    if (isDocumentCreationRequest) {
         const format = /\b(presentacion|powerpoint|pptx)\b/i.test(normalized)
             ? "pptx"
             : /\b(excel|xlsx|hoja de calculo)\b/i.test(normalized)
