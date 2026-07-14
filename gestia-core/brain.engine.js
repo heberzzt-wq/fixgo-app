@@ -1922,6 +1922,17 @@ export async function runCognitiveReasoning(
 
     const toolCalls = plannerSeedToolCalls;
 
+    const semanticToolPlan = {
+      intent: "SEMANTIC_TOOL_PLAN",
+      objective: input,
+      toolCalls,
+      patchPreviewAllowed: false,
+      renderPatchPreview: false,
+      writeAllowed: false,
+      requiresApprovalForWrite: true,
+      source: "model_semantic_planner"
+    };
+
     const reasoning = {
 
       reasoningId:
@@ -1948,7 +1959,7 @@ export async function runCognitiveReasoning(
 
       cloudReasoning: null,
 
-      cloudToolPlan: null,
+      cloudToolPlan: semanticToolPlan,
 
       timestamp:
         Date.now()
