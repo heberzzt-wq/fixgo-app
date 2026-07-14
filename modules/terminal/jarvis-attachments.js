@@ -164,12 +164,23 @@ function clear() {
     if (input) input.value = "";
 }
 
-function observationData(observation = {}) {
-    return observation?.data?.data || observation?.data || observation?.result?.data || observation?.result || observation;
-}
-
 function observationTool(observation = {}) {
     return observation?.tool || observation?.name || observation?.meta?.tool || observation?.result?.tool || "";
+}
+
+function collectArtifacts(value, tool = "", depth = 0, seen = new Set()) {
+    if (!value || typeof value !== "object" || depth > 7 || seen.has(value)) return [];
+    seen.add(value);
+    const found = [];
+    const output = typeof value.output === "string" ? value.output : "";
+    if (output.startsWith(".jarvis-artifacts/")) {
+        found.push({ output, mimeType: value.mimeType || "", tool });
+    }
+    for (const [key, child] of Object.entries(value)) {
+        if (key === "imageBase64" || key === "dataBase64" || typeof child !== "object") continue;
+        found.push(...collectArtifacts(child, tool || observationTool(value), depth + 1, seen));
+    }
+    return found;
 }
 
 async function renderArtifact(output, mimeType = "", toolName = "") {
@@ -207,8 +218,19 @@ async function renderArtifact(output, mimeType = "", toolName = "") {
 }
 
 async function renderArtifactsFromObservations(observations = []) {
-    const artifacts = (Array.isArray(observations) ? observations : []).map(observation => ({ tool: observationTool(observation), data: observationData(observation) })).filter(item => typeof item.data?.output === "string" && item.data.output.startsWith(".jarvis-artifacts/"));
-    for (const artifact of artifacts) await renderArtifact(artifact.data.output, artifact.data.mimeType, artifact.tool);
+    const artifacts = (Array.isArray(observations) ? observations : [])
+        .flatMap(observation => collectArtifacts(observation, observationTool(observation)))
+        .filter((artifact, index, items) => items.findIndex(item => item.output === artifact.output) === index);
+    for (const artifact of artifacts) await renderArtifact(artifact.output, artifact.mimeType, artifact.tool);
+}
+
+async function renderPendingArtifacts() {
+    const pending = Array.isArray(window.__JARVIS_PENDING_ARTIFACTS__)
+        ? window.__JARVIS_PENDING_ARTIFACTS__.splice(0)
+        : [];
+    for (const artifact of pending) {
+        await renderArtifact(artifact.output, artifact.mimeType, artifact.tool);
+    }
 }
 
 function insertPrompt(text = "") {
@@ -241,7 +263,9 @@ export const JarvisAttachments = {
     composePrompt,
     clear,
     hasFiles: () => state.items.length > 0,
+    renderArtifact,
     renderArtifactsFromObservations,
+    renderPendingArtifacts,
     describe: () => ({ version: VERSION, maxFiles: MAX_FILES, maxFileBytes: MAX_FILE_BYTES })
 };
 

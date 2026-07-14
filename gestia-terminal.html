@@ -4742,6 +4742,9 @@ if (
                 window.JarvisAttachments
                     ?.renderArtifactsFromObservations?.(agentObservations)
                     .catch(error => console.warn("[JARVIS_ARTIFACT_RENDER_FAILED]", error));
+                window.JarvisAttachments
+                    ?.renderPendingArtifacts?.()
+                    .catch(error => console.warn("[JARVIS_PENDING_ARTIFACT_RENDER_FAILED]", error));
 
                 const brainVoiceBriefing =
                     buildSia7BrainVoiceBriefing({

@@ -123,6 +123,18 @@ window.JarvisToolMemory = {
             []
 };
 
+function queueActuatorArtifact(toolName = "", data = {}) {
+    if (!data?.output) return;
+    window.__JARVIS_PENDING_ARTIFACTS__ = Array.isArray(window.__JARVIS_PENDING_ARTIFACTS__)
+        ? window.__JARVIS_PENDING_ARTIFACTS__
+        : [];
+    window.__JARVIS_PENDING_ARTIFACTS__.push({
+        output: data.output,
+        mimeType: data.mimeType || "",
+        tool: toolName
+    });
+}
+
 function composeActuatorResponse(
     toolName = "",
     data = {},
@@ -170,6 +182,7 @@ function composeActuatorResponse(
     }
 
     if (["browser.screenshot", "browser.open", "document.pdf"].includes(toolName)) {
+        queueActuatorArtifact(toolName, data);
         return composer.composeJarvis(
             [
                 toolName === "browser.open"
@@ -197,6 +210,7 @@ function composeActuatorResponse(
     }
 
     if (toolName === "document.create") {
+        queueActuatorArtifact(toolName, data);
         return composer.composeJarvis(
             [
                 "Documento creado",
@@ -214,6 +228,7 @@ function composeActuatorResponse(
     }
 
     if (toolName === "image.generate") {
+        queueActuatorArtifact(toolName, data);
         return composer.composeJarvis(
             [
                 "Imagen generada",

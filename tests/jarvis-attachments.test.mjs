@@ -25,7 +25,20 @@ test("terminal exposes a GPT-style plus menu, file input and artifact renderer",
     assert.match(terminal, /Búsqueda en Internet/);
     assert.match(terminal, /JarvisAttachments\.composePrompt/);
     assert.match(terminal, /renderArtifactsFromObservations/);
+    assert.match(terminal, /renderPendingArtifacts/);
     assert.match(attachments, /\/upload/);
     assert.match(attachments, /\/artifact\/read/);
     assert.match(attachments, /jarvis-artifact-download/);
+});
+
+test("MPH campaign ships a responsive landing and a real browser video exporter", () => {
+    const landing = fs.readFileSync(path.resolve(__dirname, "../mph.html"), "utf8");
+    const reel = fs.readFileSync(path.resolve(__dirname, "../mph-reel.html"), "utf8");
+
+    assert.match(landing, /Multiservicios Peninsulares HMH/);
+    assert.match(landing, /multiserviciospeninsulareshmh\.com/);
+    assert.match(landing, /@media\(max-width:800px\)/);
+    assert.match(reel, /canvas\.captureStream\(30\)/);
+    assert.match(reel, /new MediaRecorder/);
+    assert.match(reel, /mph-reel-15s\.webm/);
 });
