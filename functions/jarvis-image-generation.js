@@ -1,7 +1,8 @@
 "use strict";
 
 const DEFAULT_MODEL = "gemini-3.1-flash-image";
-const IMAGE_ACTUATOR_VERSION = "1.0.1-production";
+const IMAGE_ACTUATOR_VERSION = "1.1.0-provider-fallback";
+const MAX_FALLBACK_IMAGE_BYTES = 8 * 1024 * 1024;
 const ALLOWED_ASPECT_RATIOS = new Set([
     "1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"
 ]);
@@ -86,11 +87,93 @@ async function runJarvisImageGeneration({
     };
 }
 
+function resolveFallbackDimensions(aspectRatio = "1:1", imageSize = "1K") {
+    const base = imageSize === "512" ? 512 : 1024;
+    const [widthRatio, heightRatio] = String(aspectRatio || "1:1")
+        .split(":")
+        .map(value => Math.max(1, Number.parseInt(value, 10) || 1));
+    const scale = Math.min(base / widthRatio, base / heightRatio);
+
+    return {
+        width: Math.max(256, Math.round(widthRatio * scale / 8) * 8),
+        height: Math.max(256, Math.round(heightRatio * scale / 8) * 8)
+    };
+}
+
+async function runJarvisImageFallback({
+    fetchImpl = global.fetch,
+    input
+} = {}) {
+    if (typeof fetchImpl !== "function") {
+        throw new Error("JARVIS_IMAGE_FALLBACK_FETCH_REQUIRED");
+    }
+
+    const request = normalizeImageRequest(input);
+    const dimensions = resolveFallbackDimensions(
+        request.aspectRatio,
+        request.imageSize
+    );
+    const endpoint = new URL(
+        `https://image.pollinations.ai/prompt/${encodeURIComponent(request.prompt)}`
+    );
+    endpoint.searchParams.set("width", String(dimensions.width));
+    endpoint.searchParams.set("height", String(dimensions.height));
+    endpoint.searchParams.set("model", "flux");
+    endpoint.searchParams.set("safe", "true");
+    endpoint.searchParams.set("nologo", "true");
+
+    const response = await fetchImpl(endpoint, {
+        headers: {
+            "User-Agent": "Gestia-Jarvis-V7/1.1"
+        },
+        signal: AbortSignal.timeout(90000)
+    });
+    const mimeType = String(response.headers?.get?.("content-type") || "")
+        .split(";")[0]
+        .trim();
+
+    if (!response.ok || !mimeType.startsWith("image/")) {
+        throw new Error(`JARVIS_IMAGE_FALLBACK_HTTP_${response.status}`);
+    }
+
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (bytes.length === 0 || bytes.length > MAX_FALLBACK_IMAGE_BYTES) {
+        throw new Error("JARVIS_IMAGE_FALLBACK_SIZE_INVALID");
+    }
+
+    return {
+        ok: true,
+        status: "IMAGE_GENERATED_FALLBACK",
+        engine: "jarvis_pollinations_image_fallback",
+        provider: "pollinations",
+        version: IMAGE_ACTUATOR_VERSION,
+        model: "flux",
+        prompt: request.prompt,
+        aspectRatio: request.aspectRatio,
+        imageSize: request.imageSize,
+        width: dimensions.width,
+        height: dimensions.height,
+        mimeType,
+        imageBase64: bytes.toString("base64"),
+        bytes: bytes.length,
+        text: "Imagen generada por el proveedor de respaldo porque Gemini no estuvo disponible.",
+        policy: {
+            synthIdExpected: true,
+            authenticatedAdminOnly: true,
+            safeMode: true,
+            fallback: true
+        }
+    };
+}
+
 module.exports = {
     DEFAULT_MODEL,
     IMAGE_ACTUATOR_VERSION,
     ALLOWED_ASPECT_RATIOS,
     ALLOWED_IMAGE_SIZES,
+    MAX_FALLBACK_IMAGE_BYTES,
     normalizeImageRequest,
-    runJarvisImageGeneration
+    resolveFallbackDimensions,
+    runJarvisImageGeneration,
+    runJarvisImageFallback
 };

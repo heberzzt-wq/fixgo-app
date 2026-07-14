@@ -8,11 +8,13 @@ const { test } = require("node:test");
 const {
     IMAGE_ACTUATOR_VERSION,
     normalizeImageRequest,
-    runJarvisImageGeneration
+    resolveFallbackDimensions,
+    runJarvisImageGeneration,
+    runJarvisImageFallback
 } = require("../functions/jarvis-image-generation");
 
 test("image generation validates and bounds its public request", () => {
-    assert.equal(IMAGE_ACTUATOR_VERSION, "1.0.1-production");
+    assert.equal(IMAGE_ACTUATOR_VERSION, "1.1.0-provider-fallback");
     assert.throws(
         () => normalizeImageRequest({ prompt: "short" }),
         /JARVIS_IMAGE_PROMPT_REQUIRED/
@@ -24,6 +26,32 @@ test("image generation validates and bounds its public request", () => {
     });
     assert.equal(request.aspectRatio, "16:9");
     assert.equal(request.imageSize, "2K");
+});
+
+test("image fallback returns bounded real image bytes", async () => {
+    const result = await runJarvisImageFallback({
+        input: {
+            prompt: "Genera un tablero futurista azul para GestiaPremium",
+            aspectRatio: "16:9",
+            imageSize: "1K"
+        },
+        fetchImpl: async () => ({
+            ok: true,
+            status: 200,
+            headers: { get: () => "image/jpeg" },
+            arrayBuffer: async () => Buffer.from("real-image-bytes")
+        })
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.status, "IMAGE_GENERATED_FALLBACK");
+    assert.equal(result.provider, "pollinations");
+    assert.equal(result.mimeType, "image/jpeg");
+    assert.equal(Buffer.from(result.imageBase64, "base64").toString(), "real-image-bytes");
+    assert.deepEqual(resolveFallbackDimensions("16:9", "1K"), {
+        width: 1024,
+        height: 576
+    });
 });
 
 test("image generation returns a real image part and ignores thought parts", async () => {
@@ -74,4 +102,6 @@ test("Firebase workflow deploys the image actuator with the Jarvis services", ()
     );
     assert.match(client, /CLOUD_FUNCTION_INVALID_RESPONSE_/);
     assert.match(client, /await response\.text\(\)/);
+    assert.match(functionsIndex, /runJarvisImageFallback/);
+    assert.match(functionsIndex, /credentialFailure/);
 });

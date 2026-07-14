@@ -48,7 +48,8 @@ const {
 } = require("./jarvis-web-research");
 
 const {
-    runJarvisImageGeneration
+    runJarvisImageGeneration,
+    runJarvisImageFallback
 } = require("./jarvis-image-generation");
 
 /**
@@ -2786,16 +2787,36 @@ exports.jarvisImageGenerate = functions
         );
 
         try {
-            const result = await runJarvisImageGeneration({
-                ai: getGroundedGenAI(),
-                input: data
-            });
+            let result;
+
+            try {
+                result = await runJarvisImageGeneration({
+                    ai: getGroundedGenAI(),
+                    input: data
+                });
+            }
+            catch(primaryError) {
+                const credentialFailure =
+                    /GEMINI_KEY_MISSING|API key not valid|API_KEY_INVALID/i.test(
+                        primaryError?.message || String(primaryError)
+                    );
+
+                if (!credentialFailure) {
+                    throw primaryError;
+                }
+
+                result = await runJarvisImageFallback({
+                    fetchImpl: fetch,
+                    input: data
+                });
+            }
 
             console.log(JSON.stringify({
                 level: "INFO",
                 message: "JARVIS_IMAGE_GENERATION_COMPLETE",
                 uid: actor.uid,
                 model: result.model,
+                provider: result.provider || "google",
                 bytes: result.bytes,
                 aspectRatio: result.aspectRatio
             }));
