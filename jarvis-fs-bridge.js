@@ -8,7 +8,16 @@ import { fileURLToPath } from "url";
 import { execFileSync, spawn } from "child_process";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.4.0-image-artifacts";
+    "2.5.0-multimodal-artifacts";
+
+const MAX_JARVIS_UPLOAD_BYTES = 12 * 1024 * 1024;
+const MAX_JARVIS_ARTIFACT_READ_BYTES = 20 * 1024 * 1024;
+const JARVIS_UPLOAD_EXTENSIONS = new Set([
+    ".txt", ".md", ".csv", ".json", ".pdf",
+    ".docx", ".xlsx", ".pptx",
+    ".png", ".jpg", ".jpeg", ".webp", ".gif",
+    ".mp3", ".wav", ".m4a", ".mp4", ".webm", ".mov"
+]);
 
 export const JARVIS_FS_BRIDGE_POLICY = {
     authority: "full_repo_private_owner",
@@ -456,6 +465,12 @@ export function describeJarvisFsBridge() {
                     "docx", "xlsx", "pptx", "pdf"
                 ],
                 nativeOffice: true
+            },
+            multimodalUploads: {
+                available: true,
+                maxFilesPerRequest: 4,
+                maxFileBytes: MAX_JARVIS_UPLOAD_BYTES,
+                artifactDownload: true
             },
             webResearch: {
                 available: true,
@@ -929,6 +944,93 @@ export function saveGeneratedImageArtifact({
         output: path.relative(path.resolve(root), target).replace(/\\/g, "/"),
         bytes: bytes.length,
         mimeType: normalizedMimeType
+    };
+}
+
+function decodeBoundedBase64(dataBase64 = "", maxBytes = MAX_JARVIS_UPLOAD_BYTES) {
+    const normalized = String(dataBase64 || "").trim();
+    if (!normalized || normalized.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(normalized)) {
+        throw new Error("ARTIFACT_BASE64_INVALID");
+    }
+
+    const bytes = Buffer.from(normalized, "base64");
+    if (bytes.length === 0 || bytes.length > maxBytes) {
+        throw new Error("ARTIFACT_BYTES_OUT_OF_RANGE");
+    }
+    return bytes;
+}
+
+function artifactMimeType(file = "") {
+    const mimeTypes = {
+        ".txt": "text/plain", ".md": "text/markdown", ".csv": "text/csv",
+        ".json": "application/json", ".pdf": "application/pdf",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".webp": "image/webp", ".gif": "image/gif", ".mp3": "audio/mpeg",
+        ".wav": "audio/wav", ".m4a": "audio/mp4", ".mp4": "video/mp4",
+        ".webm": "video/webm", ".mov": "video/quicktime"
+    };
+    return mimeTypes[path.extname(String(file || "")).toLowerCase()] || "application/octet-stream";
+}
+
+export function saveUploadedArtifact({
+    name = "",
+    mimeType = "application/octet-stream",
+    dataBase64 = "",
+    root = DEFAULT_ROOT
+} = {}) {
+    const originalName = path.basename(String(name || "").trim());
+    const extension = path.extname(originalName).toLowerCase();
+    if (!originalName || !JARVIS_UPLOAD_EXTENSIONS.has(extension)) {
+        throw new Error("UPLOAD_EXTENSION_NOT_ALLOWED");
+    }
+
+    const bytes = decodeBoundedBase64(dataBase64);
+    const baseName = path.basename(originalName, extension)
+        .normalize("NFKD")
+        .replace(/[^A-Za-z0-9._-]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 80) || "archivo";
+    const relativeOutput = `.jarvis-artifacts/uploads/${Date.now()}-${baseName}${extension}`;
+    const target = artifactPath(relativeOutput, root, [extension]);
+    fs.writeFileSync(target, bytes);
+
+    return {
+        ok: true,
+        status: "UPLOAD_SAVED",
+        output: relativeOutput,
+        name: originalName,
+        bytes: bytes.length,
+        mimeType: String(mimeType || artifactMimeType(originalName)),
+        detectedMimeType: artifactMimeType(originalName)
+    };
+}
+
+export function readArtifactPayload({
+    output = "",
+    root = DEFAULT_ROOT
+} = {}) {
+    const relativeOutput = String(output || "").trim().replace(/\\/g, "/");
+    const target = artifactPath(relativeOutput, root);
+    if (!fs.existsSync(target) || !fs.statSync(target).isFile()) {
+        throw new Error("ARTIFACT_NOT_FOUND");
+    }
+
+    const bytes = fs.readFileSync(target);
+    if (bytes.length === 0 || bytes.length > MAX_JARVIS_ARTIFACT_READ_BYTES) {
+        throw new Error("ARTIFACT_READ_BYTES_OUT_OF_RANGE");
+    }
+
+    return {
+        ok: true,
+        status: "ARTIFACT_READ",
+        output: relativeOutput,
+        fileName: path.basename(target),
+        mimeType: artifactMimeType(target),
+        bytes: bytes.length,
+        dataBase64: bytes.toString("base64")
     };
 }
 
@@ -2175,6 +2277,46 @@ export function createJarvisFsBridgeApp({
             return res.status(400).json({
                 ok: false,
                 status: "IMAGE_SAVE_FAILED",
+                error: error.message,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+    });
+
+    app.post("/upload", (req, res) => {
+        try {
+            return res.json({
+                ...saveUploadedArtifact({
+                    name: req.body?.name,
+                    mimeType: req.body?.mimeType,
+                    dataBase64: req.body?.dataBase64,
+                    root
+                }),
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        } catch (error) {
+            return res.status(400).json({
+                ok: false,
+                status: "UPLOAD_SAVE_FAILED",
+                error: error.message,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+    });
+
+    app.post("/artifact/read", (req, res) => {
+        try {
+            return res.json({
+                ...readArtifactPayload({
+                    output: req.body?.output,
+                    root
+                }),
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        } catch (error) {
+            return res.status(error.message === "ARTIFACT_NOT_FOUND" ? 404 : 400).json({
+                ok: false,
+                status: "ARTIFACT_READ_FAILED",
                 error: error.message,
                 version: JARVIS_FS_BRIDGE_VERSION
             });

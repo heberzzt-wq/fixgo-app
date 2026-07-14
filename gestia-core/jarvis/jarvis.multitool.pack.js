@@ -16,7 +16,7 @@ import {
     describeMediaIngestion
 } from "./jarvis.media.ingestion.js";
 
-const VERSION = "1.7.0-sia7-bounded-supervision-forensics";
+const VERSION = "1.8.0-sia7-multimodal-attachments";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 
@@ -32,6 +32,7 @@ const CAPABILITY_LABELS = {
     conversation_and_voice: "Conversacion y voz",
     business_and_marketing: "Negocio, marketing y paginas",
     media_and_documents: "Documentos y medios",
+    multimodal_inputs: "Recepcion multimodal de archivos",
     daily_supervision: "Supervision diaria",
     browser_control: "Control del navegador",
     web_research: "Investigacion web con fuentes",
@@ -323,6 +324,8 @@ async function buildCapabilityForensics(runtime) {
         );
     const connectorHealth =
         globalThis?.__JARVIS_CONNECTOR_HEALTH__ || null;
+    const multimodalHealth =
+        globalThis?.__JARVIS_MULTIMODAL_HEALTH__ || null;
     const connectorsReady =
         tools.has("agent.delegate") &&
         connectorHealth?.ok === true &&
@@ -427,6 +430,26 @@ async function buildCapabilityForensics(runtime) {
                 documentCreation: tools.has("document.create"),
                 pdfRendering: tools.has("document.pdf"),
                 bridgeReady
+            }
+        },
+        {
+            id: "multimodal_inputs",
+            status: bridgeReady && multimodalHealth?.ok === true
+                ? "READY"
+                : bridgeReady && tools.has("media.analyze")
+                    ? "PARTIAL"
+                    : "NOT_AVAILABLE",
+            reason: bridgeReady && multimodalHealth?.ok === true
+                ? `Carga multimodal verificada con ${Number(multimodalHealth.receivedFiles || 1)} archivo(s) real(es).`
+                : "El canal multimodal existe, pero falta recibir y persistir un archivo real en esta sesion.",
+            nextAction: bridgeReady && multimodalHealth?.ok === true
+                ? null
+                : "Adjuntar un archivo desde el boton mas y comprobar su persistencia local.",
+            evidence: {
+                bridgeReady,
+                mediaTool: tools.has("media.analyze"),
+                uploadVerified: multimodalHealth?.ok === true,
+                health: multimodalHealth
             }
         },
         {
@@ -1022,6 +1045,20 @@ function clean(value, fallback = "") {
         : fallback;
 }
 
+function attachmentsFromInstruction(value = "") {
+    const marker = "Archivos adjuntos reales entregados por el usuario:";
+    const source = String(value || "");
+    const markerIndex = source.indexOf(marker);
+    if (markerIndex < 0) return [];
+    const jsonText = source.slice(markerIndex + marker.length).trim();
+    try {
+        const attachments = JSON.parse(jsonText);
+        return Array.isArray(attachments) ? attachments.slice(0, 4) : [];
+    } catch {
+        return [];
+    }
+}
+
 function resolveInstruction(args = {}, context = {}) {
     return clean(
         args.prompt ||
@@ -1331,10 +1368,32 @@ export function registerJarvisMultifunctionTools(runtime) {
                 mimeType: "string",
                 sourceName: "string",
                 pages: "array",
+                attachments: "array",
                 questions: "array"
             },
             execute: async (args = {}, context = {}) => {
-                if (!args.mimeType || !Array.isArray(args.pages)) {
+                const attachments = Array.isArray(args.attachments)
+                    ? args.attachments.slice(0, 4)
+                    : attachmentsFromInstruction(
+                        args.instruction || args.query || context.rawInput || ""
+                    );
+                const pages = Array.isArray(args.pages) && args.pages.length > 0
+                    ? args.pages
+                    : attachments.map((attachment, index) => ({
+                        page: index + 1,
+                        text: clean(
+                            attachment?.extractedText,
+                            `Archivo recibido: ${attachment?.name || "sin nombre"}; tipo ${attachment?.mimeType || "desconocido"}; artefacto ${attachment?.artifact || "no persistido"}.`
+                        ),
+                        sourceName: attachment?.name || "archivo-adjunto",
+                        mimeType: attachment?.mimeType || "application/octet-stream",
+                        artifact: attachment?.artifact || null
+                    }));
+                const mimeType = clean(
+                    args.mimeType,
+                    attachments[0]?.mimeType || "application/octet-stream"
+                );
+                if (!mimeType || pages.length === 0) {
                     return {
                         ok: false,
                         status: "MEDIA_INPUT_REQUIRED",
@@ -1349,14 +1408,24 @@ export function registerJarvisMultifunctionTools(runtime) {
 
                 const record =
                     createMediaIngestionRecord(
-                        args,
+                        {
+                            ...args,
+                            mimeType,
+                            sourceName: clean(args.sourceName, attachments[0]?.name || "adjuntos"),
+                            pages
+                        },
                         authority
                     );
 
-                return buildMediaAnalysis(
+                return {
+                    ...buildMediaAnalysis(
                     record,
-                    args
-                );
+                    { ...args, pages }
+                    ),
+                    attachments,
+                    receivedFiles: attachments.length,
+                    persistedArtifacts: attachments.map(item => item?.artifact).filter(Boolean)
+                };
             }
         })
     ];

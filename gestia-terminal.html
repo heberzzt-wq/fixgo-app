@@ -94,8 +94,32 @@
     <footer class="p-4 bg-gestia-panel border-t border-slate-800 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.5)]">
         <div class="max-w-4xl mx-auto relative">
             <form id="gestia-form" class="relative flex items-end gap-3">
-                
+                <div class="relative shrink-0">
+                    <button type="button" id="jarvis-attach-toggle" data-testid="jarvis-attach-toggle"
+                        class="h-[58px] w-[58px] rounded-2xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-200 flex items-center justify-center transition-colors"
+                        title="Adjuntar y usar herramientas" aria-label="Adjuntar y usar herramientas" aria-expanded="false">
+                        <i class="fa-solid fa-plus text-lg"></i>
+                    </button>
+                    <div id="jarvis-attach-menu" data-testid="jarvis-attach-menu"
+                        class="absolute bottom-[66px] left-0 z-50 w-80 rounded-2xl border border-slate-700 bg-slate-900 p-2 shadow-2xl" hidden>
+                        <button type="button" id="jarvis-menu-upload" class="w-full flex items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-slate-800">
+                            <i class="fa-solid fa-paperclip text-slate-300"></i>
+                            <span><b class="block text-sm text-white">Añadir fotos y archivos</b><small class="text-slate-400">Documentos, imágenes, audio y video</small></span>
+                        </button>
+                        <button type="button" id="jarvis-menu-image" class="w-full flex items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-slate-800">
+                            <i class="fa-solid fa-image text-cyan-300"></i>
+                            <span><b class="block text-sm text-white">Crear una imagen</b><small class="text-slate-400">Generación visual con archivo descargable</small></span>
+                        </button>
+                        <button type="button" id="jarvis-menu-web" class="w-full flex items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-slate-800">
+                            <i class="fa-solid fa-globe text-blue-300"></i>
+                            <span><b class="block text-sm text-white">Búsqueda en Internet</b><small class="text-slate-400">Información actual con fuentes</small></span>
+                        </button>
+                    </div>
+                    <input id="jarvis-file-input" data-testid="jarvis-file-input" type="file" class="hidden" multiple
+                        accept=".txt,.md,.csv,.json,.pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg,.webp,.gif,.mp3,.wav,.m4a,.mp4,.webm,.mov,image/*,audio/*,video/*">
+                </div>
                 <div class="relative flex-1 bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden focus-within:border-gestia-primary focus-within:ring-1 focus-within:ring-gestia-primary transition-all shadow-inner">
+                    <div id="jarvis-attachment-tray" data-testid="jarvis-attachment-tray" class="p-2 flex flex-wrap gap-2 border-b border-slate-800" hidden></div>
                     <textarea 
                         id="gestia-input" 
                         rows="1" 
@@ -145,6 +169,7 @@ fetch("/gestia-terminal.js")
 <script type="module" src="/firebase.js"></script>
 
 <script type="module" src="/modules/terminal/proposal-state.js?v=shared-proposal-state-v1-20260713"></script>
+<script type="module" src="/modules/terminal/jarvis-attachments.js?v=jarvis-multimodal-composer-v1-20260714"></script>
 <script type="module" src="/gestia-core/gestia-core.js?v=sia7-model-semantic-planner-v3-20260714"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260707-4190"></script>
 <script
@@ -1299,12 +1324,18 @@ window.unlockJarvisVoice = function() {
 
             window.unlockJarvisVoice?.();
 
-            const comando = textarea.value.trim();
+            const rawCommand = textarea.value.trim();
+
+            if ((!rawCommand && !window.JarvisAttachments?.hasFiles?.()) || isProcessing) return;
+
+            const comando = window.JarvisAttachments?.composePrompt
+                ? await window.JarvisAttachments.composePrompt(rawCommand)
+                : rawCommand;
 
             window.showJarvisPersistent?.("analizando comando...");
             
             // Orden de validación defensivo para evitar microtasks encadenadas
-            if (!comando || isProcessing) return;
+            if (!comando) return;
 
             // 🟢 INTEGRACIÓN DE TRAZA: Iniciamos el túnel de seguimiento
             const currentTraceId = (typeof window.startTrace === "function") 
@@ -4708,6 +4739,10 @@ if (
                         : "info"
                 );
 
+                window.JarvisAttachments
+                    ?.renderArtifactsFromObservations?.(agentObservations)
+                    .catch(error => console.warn("[JARVIS_ARTIFACT_RENDER_FAILED]", error));
+
                 const brainVoiceBriefing =
                     buildSia7BrainVoiceBriefing({
                         isRepoGlobalAnalysis,
@@ -5152,6 +5187,7 @@ const summary =
                     textarea.value = "";
                     textarea.style.height = "58px";
                 }
+                window.JarvisAttachments?.clear?.();
             }
         });
     }
@@ -5384,7 +5420,7 @@ const summary =
         const safeMessage = escapeHTML(String(message)).split("\n").join("<br>");
 
         const responseHtml = `
-            <div class="flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mb-4">
+            <div data-jarvis-response-card="true" class="flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mb-4">
                 <div class="w-10 h-10 rounded-full ${current.color} flex items-center justify-center shrink-0 shadow-lg">
                     <i class="fa-solid ${current.icon} text-white text-sm"></i>
                 </div>

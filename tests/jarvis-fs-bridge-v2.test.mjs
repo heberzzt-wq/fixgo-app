@@ -13,7 +13,9 @@ import {
     readJarvisRuntimeContract,
     resolveRepoPath,
     runLocalWebResearch,
-    saveGeneratedImageArtifact
+    saveGeneratedImageArtifact,
+    saveUploadedArtifact,
+    readArtifactPayload
 } from "../jarvis-fs-bridge.js";
 
 test("Jarvis FS bridge V2 describes safe full repo policy", () => {
@@ -21,7 +23,7 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.4.0-image-artifacts");
+    assert.equal(description.version, "2.5.0-multimodal-artifacts");
     assert.equal(description.policy.authority, "full_repo_private_owner");
     assert.equal(description.policy.safeZone, "advisory");
     assert.equal(description.policy.emptyWrites, "blocked");
@@ -33,6 +35,28 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
     assert.ok(description.actuators.documents.formats.includes("pptx"));
     assert.equal(description.actuators.webResearch.grounded, true);
     assert.deepEqual(description.actuators.connectors.adapters, ["github", "firebase"]);
+});
+
+test("Jarvis receives an uploaded document and returns it as a downloadable artifact", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-upload-"));
+    try {
+        const saved = saveUploadedArtifact({
+            root,
+            name: "brief-mph.md",
+            mimeType: "text/markdown",
+            dataBase64: Buffer.from("# Brief MPH\nMarketing real").toString("base64")
+        });
+        const downloaded = readArtifactPayload({ root, output: saved.output });
+
+        assert.equal(saved.ok, true);
+        assert.equal(saved.status, "UPLOAD_SAVED");
+        assert.ok(saved.output.startsWith(".jarvis-artifacts/uploads/"));
+        assert.equal(downloaded.ok, true);
+        assert.equal(downloaded.mimeType, "text/markdown");
+        assert.equal(Buffer.from(downloaded.dataBase64, "base64").toString(), "# Brief MPH\nMarketing real");
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
 });
 
 test("Jarvis persists generated image bytes inside its artifact directory", () => {

@@ -222,6 +222,7 @@ async function runJarvisSemanticPlanner({
         "Genera solo llamadas inmediatamente ejecutables de primera etapa; el runtime planificara seguimientos con las observaciones reales.",
         "No razones sobre rutas futuras desconocidas. Una sola repo.search con la consulta del usuario es un plan completo y correcto cuando falta una ruta exacta.",
         "Para una investigacion operativa no uses conversation.respond como sustituto de las herramientas; reservada para charla o explicaciones que no requieren inspeccion.",
+        "Cuando la instruccion incluya 'Archivos adjuntos reales entregados por el usuario', usa media.analyze para analizar esos archivos y copia el arreglo JSON del manifiesto al argumento attachments sin inventar contenido.",
         "Para preguntas explicativas sin trabajo operativo usa conversation.respond si existe.",
         "Devuelve solamente un objeto JSON valido con toolCalls y explanation.",
         "Cada toolCall contiene name, args y reason. Maximo 8 toolCalls.",
