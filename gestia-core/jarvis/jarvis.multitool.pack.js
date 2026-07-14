@@ -21,7 +21,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "1.9.1-sia7-grounded-business-memory";
+const VERSION = "1.9.2-sia7-auth-ready-business";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 
@@ -846,13 +846,23 @@ async function fetchDailySupervisionStatus({
     }
 }
 
+async function waitForAuthenticatedUser(timeoutMs = 6000) {
+    const startedAt = Date.now();
+    do {
+        const user =
+            globalThis?.auth?.currentUser ||
+            globalThis?.window?.auth?.currentUser ||
+            null;
+        if (user) return user;
+        await new Promise(resolve => setTimeout(resolve, 100));
+    } while (Date.now() - startedAt < timeoutMs);
+    return null;
+}
+
 async function fetchGroundedWebResearch(
     query = ""
 ) {
-    const user =
-        globalThis?.auth?.currentUser ||
-        globalThis?.window?.auth?.currentUser ||
-        null;
+    const user = await waitForAuthenticatedUser();
     const normalizedQuery =
         String(query || "")
             .replace(/^\s*(jarvis|heberto|gestia)\s*[,;:-]?\s*/i, "")
@@ -1017,7 +1027,7 @@ async function fetchGroundedWebResearch(
 }
 
 async function fetchSemanticConversation(instruction = "") {
-    const user = globalThis?.auth?.currentUser || globalThis?.window?.auth?.currentUser || null;
+    const user = await waitForAuthenticatedUser();
     if (!user) {
         const result = { ok: false, status: "AUTH_REQUIRED", error: "AUTH_REQUIRED" };
         globalThis.__JARVIS_SEMANTIC_CONVERSATION_HEALTH__ = {
@@ -1468,6 +1478,16 @@ export function registerJarvisMultifunctionTools(runtime) {
                             factsPolicy: "NO_INVENTED_FACTS"
                         };
                     }
+
+                    return {
+                        ok: false,
+                        status: "BUSINESS_SEMANTIC_UNAVAILABLE",
+                        source: "BUSINESS_SEMANTIC_MODEL",
+                        error: semantic?.error || semantic?.status || "SEMANTIC_MODEL_UNAVAILABLE",
+                        instruction,
+                        retryable: true,
+                        factsPolicy: "NO_INVENTED_FACTS"
+                    };
                 }
 
                 return result || {

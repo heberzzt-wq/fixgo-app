@@ -165,11 +165,12 @@ test("business assistant uses the semantic model when a real company is outside 
     const previousFetch = globalThis.fetch;
     const previousMemory = globalThis.JarvisToolMemory;
     let semanticRequest = null;
-    globalThis.auth = {
-        currentUser: {
+    globalThis.auth = { currentUser: null };
+    const authTimer = setTimeout(() => {
+        globalThis.auth.currentUser = {
             getIdToken: async () => "test-token"
-        }
-    };
+        };
+    }, 120);
     globalThis.JarvisToolMemory = {
         last: () => ({
             data: {
@@ -214,6 +215,7 @@ test("business assistant uses the semantic model when a real company is outside 
         assert.match(semanticRequest?.data?.input || "", /Sitio oficial MPH/);
         assert.match(semanticRequest?.data?.input || "", /mantenimiento y remodelacion/);
     } finally {
+        clearTimeout(authTimer);
         globalThis.auth = previousAuth;
         globalThis.fetch = previousFetch;
         globalThis.JarvisToolMemory = previousMemory;
@@ -1321,7 +1323,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(core, /observation\?\.type === "JARVIS_CONVERSATIONAL_RESPONSE"/);
     assert.match(core, /DIRECT_ACTUATOR_COMPOSITION/);
     assert.match(core, /directActuatorFinalResponse/);
-    assert.match(terminal, /sia7-grounded-business-memory-v1-20260714/);
+    assert.match(terminal, /sia7-auth-ready-business-v2-20260714/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
