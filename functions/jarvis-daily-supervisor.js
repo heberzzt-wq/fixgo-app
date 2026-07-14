@@ -78,27 +78,27 @@ const DEFAULT_PROBES = Object.freeze([
         id: "technical_intent_priority",
         path: "/gestia-core/jarvis/jarvis.multifunction.planner.js",
         markers: [
-            "isJarvisTechnicalDiagnosticRequest",
-            "investiga",
-            "!isTechnicalDiagnostic"
+            "3.0.0-model-semantic-planner",
+            "jarvisSemanticPlan",
+            "trustedPlanCalls"
         ]
     },
     {
         id: "technical_read_only_plan",
         path: "/gestia-core/brain.engine.js",
         markers: [
-            "buildLocalTechnicalInvestigationPlan",
+            "const semanticToolPlan",
             "patchPreviewAllowed: false",
-            "local_technical_investigation"
+            "model_semantic_planner"
         ]
     },
     {
         id: "mixed_investigation_composition",
-        path: "/gestia-core/brain.engine.js",
+        path: "/gestia-core/jarvis/jarvis.multifunction.planner.js",
         markers: [
-            "composeLocalInvestigationPlan",
             "mergeJarvisToolCalls",
-            "repoHubGlobalPlan ||"
+            "pendingPlans",
+            "maximumToolCalls: 12"
         ]
     },
     {

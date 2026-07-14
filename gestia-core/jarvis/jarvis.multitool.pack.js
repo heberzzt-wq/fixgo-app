@@ -588,7 +588,11 @@ const LOCAL_SUPERVISION_PROBES = [
     {
         id: "technical_intent_priority",
         path: "/gestia-core/jarvis/jarvis.multifunction.planner.js",
-        markers: ["isJarvisTechnicalDiagnosticRequest", "system.supervision"]
+        markers: [
+            "3.0.0-model-semantic-planner",
+            "jarvisSemanticPlan",
+            "trustedPlanCalls"
+        ]
     },
     {
         id: "runtime_health_module",
