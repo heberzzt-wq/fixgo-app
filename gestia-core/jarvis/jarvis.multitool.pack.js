@@ -21,7 +21,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "1.16.0-grounded-media-analysis";
+const VERSION = "1.17.0-page-production";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 
@@ -38,6 +38,7 @@ const CAPABILITY_LABELS = {
     tests_and_git: "Pruebas y Git",
     conversation_and_voice: "Conversacion y voz",
     business_and_marketing: "Negocio, marketing y paginas",
+    page_production: "Produccion real de paginas",
     media_and_documents: "Documentos y medios",
     professional_pdf_editing: "Edicion profesional de PDF",
     structured_document_editing: "Edicion de documentos estructurados",
@@ -379,6 +380,7 @@ async function buildCapabilityForensics(runtime) {
     const chiefArchitectHealth = globalThis?.__JARVIS_CHIEF_ARCHITECT_HEALTH__ || null;
     const oneTimeWriteHealth = globalThis?.__JARVIS_ONE_TIME_WRITE_HEALTH__ || null;
     const mediaAnalysisHealth = globalThis?.__JARVIS_MEDIA_ANALYSIS_HEALTH__ || readCapabilityEvidence("media_analysis") || null;
+    const pageCreationHealth = readCapabilityEvidence("page_creation") || null;
     const connectorsReady =
         tools.has("agent.delegate") &&
         connectorHealth?.ok === true &&
@@ -506,6 +508,25 @@ async function buildCapabilityForensics(runtime) {
                         : "NOT_AVAILABLE",
             evidence: {
                 requiredTools: ["business.assist", "marketing.plan", "page.plan"]
+            }
+        },
+        {
+            id: "page_production",
+            status: tools.has("page.create") && pageCreationHealth?.ok === true
+                ? "READY"
+                : tools.has("page.create")
+                    ? "PARTIAL"
+                    : "NOT_AVAILABLE",
+            reason: pageCreationHealth?.ok === true
+                ? "Una pagina HTML real paso checks responsive, accesibilidad, SEO y se genero como artefacto descargable."
+                : tools.has("page.create")
+                    ? "El generador de paginas reales esta conectado; falta verificar una creacion viva desde Jarvis."
+                    : "Solo existe planificacion de pagina, sin actuador de produccion.",
+            nextAction: "Crear una landing real con contenido completo, previsualizarla y descargar el HTML verificado.",
+            evidence: {
+                actuatorRegistered: tools.has("page.create"),
+                verifiedExecution: pageCreationHealth?.ok === true,
+                health: pageCreationHealth
             }
         },
         {
@@ -728,7 +749,8 @@ async function buildCapabilityForensics(runtime) {
         repo_engineering: "Restaurar bridge y herramientas de ingenieria del repo.",
         tests_and_git: "Restaurar ejecucion de pruebas y diagnostico Git.",
         conversation_and_voice: "Restaurar conversacion y salida de voz.",
-        business_and_marketing: "Restaurar motores de negocio, marketing y paginas."
+        business_and_marketing: "Restaurar motores de negocio, marketing y paginas.",
+        page_production: "Crear y verificar una landing HTML real como artefacto descargable."
     };
 
     return {

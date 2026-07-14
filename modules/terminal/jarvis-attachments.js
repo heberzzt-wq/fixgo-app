@@ -390,6 +390,15 @@ async function renderArtifact(output, mimeType = "", toolName = "") {
         image.alt = payload.fileName || "Imagen generada por Jarvis";
         card.appendChild(image);
     }
+    else if ((payload.mimeType || mimeType) === "text/html") {
+        const frame = document.createElement("iframe");
+        frame.src = objectUrl;
+        frame.title = payload.fileName || "Vista previa de página creada por Jarvis";
+        frame.sandbox = "allow-forms allow-scripts allow-popups";
+        frame.className = "w-full h-[32rem] rounded-lg bg-white mb-3 border border-slate-700";
+        frame.dataset.testid = "jarvis-html-preview";
+        card.appendChild(frame);
+    }
     const row = createElement("div", "flex items-center justify-between gap-3");
     const details = createElement("div", "min-w-0");
     details.appendChild(createElement("div", "text-sm text-white truncate", payload.fileName || output));

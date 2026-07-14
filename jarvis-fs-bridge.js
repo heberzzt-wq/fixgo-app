@@ -11,9 +11,13 @@ import {
     buildRepoIntelligence,
     rankRepoCandidates
 } from "./jarvis-repo-intelligence.js";
+import {
+    buildPageArtifactHtml,
+    describePageArtifact
+} from "./jarvis-page-artifact.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.14.0-write-and-git-receipts";
+    "2.15.0-page-artifact-studio";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -2850,6 +2854,37 @@ export function createJarvisFsBridgeApp({
                 error: error.message,
                 version: JARVIS_FS_BRIDGE_VERSION
             });
+        }
+    });
+
+    app.post("/page/create", async (req, res) => {
+        try {
+            const html = buildPageArtifactHtml(req.body || {});
+            const slug = String(req.body?.slug || req.body?.brandName || "pagina")
+                .normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "pagina";
+            const output = req.body?.output || `.jarvis-artifacts/pages/${slug}.html`;
+            const target = artifactPath(output, root, [".html"]);
+            fs.mkdirSync(path.dirname(target), { recursive: true });
+            fs.writeFileSync(target, html, "utf8");
+            const verification = describePageArtifact(req.body || {}, html);
+            if (!Object.values(verification.checks).every(Boolean)) {
+                fs.rmSync(target, { force: true });
+                throw new Error("PAGE_POST_VERIFY_FAILED");
+            }
+            return res.json({
+                ok: true,
+                status: "PAGE_ARTIFACT_CREATED_VERIFIED",
+                output: path.relative(root, target).replaceAll("\\", "/"),
+                mimeType: "text/html",
+                bytes: verification.bytes,
+                checks: verification.checks,
+                downloadable: true,
+                previewable: true,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        } catch (error) {
+            return res.status(400).json({ ok: false, status: "PAGE_CREATE_BLOCKED", error: error.message, version: JARVIS_FS_BRIDGE_VERSION });
         }
     });
 

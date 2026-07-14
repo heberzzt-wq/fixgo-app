@@ -2,7 +2,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "7.6.0-office-suite-editing";
+const VERSION = "7.7.0-page-artifact-studio";
 
 export function normalizeImageArtifactOutput(output, mimeType) {
     const extensions = {
@@ -166,6 +166,32 @@ export function registerJarvisActuatorTools(runtime) {
                     action: "open",
                     url: args.url
                 })
+        }),
+        register(runtime, {
+            name: "page.create",
+            description: "Genera una landing HTML real, responsive, accesible, SEO/Open Graph, formularios y artefacto descargable/previsualizable.",
+            output: "PAGE_CREATE_ARTIFACT",
+            inputSchema: {
+                brandName: "string", title: "string", description: "string", services: "array",
+                heroImage: "string", gallery: "array", testimonials: "array", beforeAfter: "array",
+                whatsapp: "string", contactEmail: "string", mapUrl: "string", output: "string"
+            },
+            mutates: true,
+            requiresApproval: true,
+            execute: async (args = {}) => {
+                const result = await bridgeRequest("/page/create", args, 60000);
+                if (result?.ok === true && result?.status === "PAGE_ARTIFACT_CREATED_VERIFIED") {
+                    recordCapabilityEvidence("page_creation", {
+                        ok: true,
+                        status: result.status,
+                        output: result.output,
+                        bytes: result.bytes,
+                        checks: result.checks,
+                        checkedAt: new Date().toISOString()
+                    });
+                }
+                return result;
+            }
         }),
         register(runtime, {
             name: "document.create",
