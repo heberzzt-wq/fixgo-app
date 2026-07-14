@@ -217,6 +217,8 @@ test("Firebase deploys grounded web research on the supported Node runtime", () 
     assert.match(workflow, /node-version:\s*22/);
     assert.match(workflow, /functions:jarvisWebResearch/);
     assert.match(workflow, /fetch-depth:\s*0/);
+    assert.match(workflow, /group:\s*deploy-gestia-\$\{\{ github\.ref \}\}/);
+    assert.match(workflow, /cancel-in-progress:\s*true/);
     assert.match(workflow, /before="\$\{\{ github\.event\.before \}\}"/);
     assert.match(workflow, /id:\s*changes/);
     assert.match(workflow, /functions_changed=true/);

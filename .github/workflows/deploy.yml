@@ -6,6 +6,10 @@ on:
       - main
       - v5.9-polish
 
+concurrency:
+  group: deploy-gestia-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
