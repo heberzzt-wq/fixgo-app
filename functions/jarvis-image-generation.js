@@ -1,7 +1,7 @@
 "use strict";
 
 const DEFAULT_MODEL = "gemini-3.1-flash-image";
-const IMAGE_ACTUATOR_VERSION = "1.0.0";
+const IMAGE_ACTUATOR_VERSION = "1.0.1-production";
 const ALLOWED_ASPECT_RATIOS = new Set([
     "1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"
 ]);

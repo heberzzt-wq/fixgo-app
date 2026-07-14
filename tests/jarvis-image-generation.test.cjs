@@ -12,7 +12,7 @@ const {
 } = require("../functions/jarvis-image-generation");
 
 test("image generation validates and bounds its public request", () => {
-    assert.equal(IMAGE_ACTUATOR_VERSION, "1.0.0");
+    assert.equal(IMAGE_ACTUATOR_VERSION, "1.0.1-production");
     assert.throws(
         () => normalizeImageRequest({ prompt: "short" }),
         /JARVIS_IMAGE_PROMPT_REQUIRED/
