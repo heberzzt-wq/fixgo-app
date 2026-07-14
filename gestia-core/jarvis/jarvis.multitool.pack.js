@@ -314,6 +314,12 @@ async function buildCapabilityForensics(runtime) {
         /API key not valid|API_KEY_INVALID/i.test(
             String(imageHealth?.error || "")
         );
+    const connectorHealth =
+        globalThis?.__JARVIS_CONNECTOR_HEALTH__ || null;
+    const connectorsReady =
+        tools.has("agent.delegate") &&
+        connectorHealth?.ok === true &&
+        Number(connectorHealth?.connectedCount || 0) >= 2;
 
     const capabilities = [
         {
@@ -456,16 +462,21 @@ async function buildCapabilityForensics(runtime) {
         },
         {
             id: "connectors_and_multi_agent",
-            status:
-                hasNamespace(tools, ["connector", "agent", "mail", "calendar"])
+            status: connectorsReady
+                ? "READY"
+                : hasNamespace(tools, ["connector", "agent", "mail", "calendar"])
                     ? "PARTIAL"
                     : "NOT_AVAILABLE",
-            reason: hasNamespace(tools, ["connector", "agent", "mail", "calendar"])
+            reason: connectorsReady
+                ? "GitHub y Firebase estan verificados; la delegacion paralela tambien esta disponible."
+                : hasNamespace(tools, ["connector", "agent", "mail", "calendar"])
                 ? "La delegacion paralela esta disponible; no hay conectores externos autenticados."
                 : "No hay conectores externos ni delegacion multiagente registrados.",
             evidence: {
                 connectorsRegistered: hasNamespace(tools, ["connector", "mail", "calendar"]),
-                agentDelegationRegistered: hasNamespace(tools, ["agent"])
+                agentDelegationRegistered: hasNamespace(tools, ["agent"]),
+                connectedCount: Number(connectorHealth?.connectedCount || 0),
+                verified: connectorHealth?.ok === true
             }
         }
     ];

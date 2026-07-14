@@ -6,6 +6,7 @@ import {
     applyReadLineRange,
     assertWriteContent,
     describeJarvisFsBridge,
+    inspectLocalConnectors,
     normalizeReadLineRange,
     readJarvisRuntimeContract,
     resolveRepoPath,
@@ -28,6 +29,21 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
     assert.ok(description.actuators.documents.formats.includes("xlsx"));
     assert.ok(description.actuators.documents.formats.includes("pptx"));
     assert.equal(description.actuators.webResearch.grounded, true);
+    assert.deepEqual(description.actuators.connectors.adapters, ["github", "firebase"]);
+});
+
+test("Jarvis verifies GitHub and Firebase connectors with read-only probes", async () => {
+    const result = await inspectLocalConnectors({
+        root: process.cwd(),
+        gitProbe: async () => true,
+        fetchImpl: async () => ({ ok: true, status: 200 })
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.status, "CONNECTORS_VERIFIED");
+    assert.equal(result.connectedCount, 2);
+    assert.deepEqual(result.connectors.map(item => item.id), ["github", "firebase"]);
+    assert.equal(result.connectors.every(item => item.connected), true);
 });
 
 test("Jarvis FS bridge loads the release identity contract", () => {

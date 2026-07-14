@@ -90,3 +90,32 @@ test("browser actuator fails closed when the verified local bridge is absent", a
         globalThis.JarvisLocalBridge = previous;
     }
 });
+
+test("connector list reports verified bridge connectors", async () => {
+    const previous = globalThis.JarvisLocalBridge;
+    globalThis.JarvisLocalBridge = {
+        requestJson: async path => ({
+            ok: path === "/connectors",
+            status: "CONNECTORS_VERIFIED",
+            connectedCount: 2,
+            connectors: [
+                { id: "github", connected: true, capabilities: ["repository.remote"] },
+                { id: "firebase", connected: true, capabilities: ["hosting.inspect"] }
+            ]
+        })
+    };
+
+    try {
+        const runtime = createRuntime();
+        registerJarvisActuatorTools(runtime);
+        const result = await runtime.get("connector.list").execute();
+
+        assert.equal(result.ok, true);
+        assert.equal(result.verified, true);
+        assert.equal(result.connectedCount, 2);
+        assert.equal(globalThis.__JARVIS_CONNECTOR_HEALTH__.status, "CONNECTORS_VERIFIED");
+    } finally {
+        globalThis.JarvisLocalBridge = previous;
+        delete globalThis.__JARVIS_CONNECTOR_HEALTH__;
+    }
+});

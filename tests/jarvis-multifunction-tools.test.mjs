@@ -1372,5 +1372,5 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260714-final-parallel-research/);
+    assert.match(core, /jarvis-tools-v7-20260714-final-verified-connectors/);
 });

@@ -251,17 +251,39 @@ export function registerJarvisActuatorTools(runtime) {
             output: "CONNECTOR_LIST",
             execute: async () => {
                 const adapters = globalThis?.JarvisConnectors || {};
-                const connectors = Object.entries(adapters).map(([id, adapter]) => ({
+                const configuredConnectors = Object.entries(adapters).map(([id, adapter]) => ({
                     id,
                     connected: adapter?.connected === true,
                     capabilities: Array.isArray(adapter?.capabilities) ? adapter.capabilities : []
                 }));
 
+                const localResult = await bridgeRequest(
+                    "/connectors",
+                    { timeoutMs: 10000 },
+                    15000
+                );
+                const localConnectors = Array.isArray(localResult?.connectors)
+                    ? localResult.connectors
+                    : [];
+                const connectors = [...localConnectors, ...configuredConnectors]
+                    .filter((item, index, all) =>
+                        all.findIndex(candidate => candidate.id === item.id) === index
+                    );
+                const connectedCount = connectors.filter(item => item.connected).length;
+
+                globalThis.__JARVIS_CONNECTOR_HEALTH__ = {
+                    ok: localResult?.ok === true,
+                    status: localResult?.status || "LOCAL_BRIDGE_REQUIRED",
+                    connectedCount,
+                    checkedAt: new Date().toISOString()
+                };
+
                 return {
                     ok: true,
-                    status: connectors.some(item => item.connected) ? "CONNECTED" : "NO_CONNECTORS_CONFIGURED",
+                    status: connectedCount > 0 ? "CONNECTED" : "NO_CONNECTORS_CONFIGURED",
                     connectors,
-                    connectedCount: connectors.filter(item => item.connected).length
+                    connectedCount,
+                    verified: localResult?.ok === true
                 };
             }
         })

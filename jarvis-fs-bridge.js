@@ -461,6 +461,11 @@ export function describeJarvisFsBridge() {
                 available: true,
                 grounded: true,
                 engine: "duckduckgo-html-with-bing-rss-fallback"
+            },
+            connectors: {
+                available: true,
+                adapters: ["github", "firebase"],
+                verification: "live-read-only"
             }
         }
     };
@@ -1051,6 +1056,120 @@ export async function runLocalWebResearch(query = "", timeoutMs = 20000) {
             externalSideEffects: false,
             fallback: true
         }
+    };
+}
+
+function readJsonFileSafe(filePath) {
+    try {
+        return JSON.parse(fs.readFileSync(filePath, "utf8"));
+    } catch {
+        return null;
+    }
+}
+
+function sanitizeRemoteUrl(value = "") {
+    const remote = String(value || "").trim();
+    if (!remote) return "";
+
+    try {
+        const parsed = new URL(remote);
+        parsed.username = "";
+        parsed.password = "";
+        return parsed.toString().replace(/\/$/, "");
+    } catch {
+        return remote.replace(/:\/\/[^/@]+@/, "://");
+    }
+}
+
+export async function inspectLocalConnectors({
+    root = DEFAULT_ROOT,
+    fetchImpl = globalThis.fetch,
+    gitProbe = null,
+    timeoutMs = 10000
+} = {}) {
+    const resolvedRoot = path.resolve(root);
+    const identity = readGitIdentity(resolvedRoot);
+    const remote = sanitizeRemoteUrl(identity.remote);
+    const probeGit = typeof gitProbe === "function"
+        ? gitProbe
+        : () => {
+            execFileSync("git", ["ls-remote", "--exit-code", "origin", "HEAD"], {
+                cwd: resolvedRoot,
+                encoding: "utf8",
+                stdio: ["ignore", "pipe", "ignore"],
+                timeout: Math.min(Math.max(Number(timeoutMs) || 10000, 2000), 20000)
+            });
+            return true;
+        };
+
+    let githubConnected = false;
+    if (remote) {
+        try {
+            githubConnected = await probeGit(remote) === true;
+        } catch {
+            githubConnected = false;
+        }
+    }
+
+    const firebaseRc = readJsonFileSafe(path.join(resolvedRoot, ".firebaserc"));
+    const firebaseConfig = readJsonFileSafe(path.join(resolvedRoot, "firebase.json"));
+    const projectId = String(firebaseRc?.projects?.default || "").trim();
+    const hostingSite = String(firebaseConfig?.hosting?.site || projectId).trim();
+    const hostingUrl = hostingSite ? `https://${hostingSite}.web.app/` : "";
+    let firebaseConnected = false;
+    let hostingStatus = null;
+
+    if (hostingUrl && typeof fetchImpl === "function") {
+        try {
+            const response = await fetchImpl(hostingUrl, {
+                method: "HEAD",
+                signal: AbortSignal.timeout(
+                    Math.min(Math.max(Number(timeoutMs) || 10000, 2000), 20000)
+                )
+            });
+            hostingStatus = response.status;
+            firebaseConnected = response.ok === true;
+        } catch {
+            firebaseConnected = false;
+        }
+    }
+
+    const connectors = [
+        {
+            id: "github",
+            connected: githubConnected,
+            endpoint: remote || null,
+            capabilities: ["repository.remote", "git.fetch", "git.push.governed"],
+            evidence: {
+                remoteConfigured: Boolean(remote),
+                remoteReachable: githubConnected,
+                branch: identity.branch || null
+            }
+        },
+        {
+            id: "firebase",
+            connected: firebaseConnected,
+            endpoint: hostingUrl || null,
+            capabilities: ["hosting.inspect", "hosting.deploy.governed", "functions.invoke"],
+            evidence: {
+                projectConfigured: Boolean(projectId),
+                projectId: projectId || null,
+                hostingStatus
+            }
+        }
+    ];
+
+    return {
+        ok: true,
+        status: connectors.every(item => item.connected)
+            ? "CONNECTORS_VERIFIED"
+            : connectors.some(item => item.connected)
+                ? "CONNECTORS_PARTIAL"
+                : "NO_CONNECTORS_VERIFIED",
+        connectors,
+        connectedCount: connectors.filter(item => item.connected).length,
+        checkedAt: new Date().toISOString(),
+        readOnly: true
     };
 }
 
@@ -1989,6 +2108,26 @@ export function createJarvisFsBridgeApp({
                 ok: false,
                 grounded: false,
                 status: "WEB_RESEARCH_FAILED",
+                error: error.message,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+    });
+
+    app.post("/connectors", async (req, res) => {
+        try {
+            const result = await inspectLocalConnectors({
+                root,
+                timeoutMs: req.body?.timeoutMs || 10000
+            });
+            return res.json({
+                ...result,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        } catch (error) {
+            return res.status(502).json({
+                ok: false,
+                status: "CONNECTOR_INSPECTION_FAILED",
                 error: error.message,
                 version: JARVIS_FS_BRIDGE_VERSION
             });
