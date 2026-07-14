@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
@@ -10,7 +12,8 @@ import {
     normalizeReadLineRange,
     readJarvisRuntimeContract,
     resolveRepoPath,
-    runLocalWebResearch
+    runLocalWebResearch,
+    saveGeneratedImageArtifact
 } from "../jarvis-fs-bridge.js";
 
 test("Jarvis FS bridge V2 describes safe full repo policy", () => {
@@ -18,7 +21,7 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.3.0-local-actuator-bridge");
+    assert.equal(description.version, "2.4.0-image-artifacts");
     assert.equal(description.policy.authority, "full_repo_private_owner");
     assert.equal(description.policy.safeZone, "advisory");
     assert.equal(description.policy.emptyWrites, "blocked");
@@ -30,6 +33,25 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
     assert.ok(description.actuators.documents.formats.includes("pptx"));
     assert.equal(description.actuators.webResearch.grounded, true);
     assert.deepEqual(description.actuators.connectors.adapters, ["github", "firebase"]);
+});
+
+test("Jarvis persists generated image bytes inside its artifact directory", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-image-"));
+    try {
+        const result = saveGeneratedImageArtifact({
+            root,
+            mimeType: "image/png",
+            imageBase64: Buffer.from("real-image-bytes").toString("base64"),
+            output: ".jarvis-artifacts/images/test.png"
+        });
+
+        assert.equal(result.ok, true);
+        assert.equal(result.status, "IMAGE_SAVED");
+        assert.equal(result.output, ".jarvis-artifacts/images/test.png");
+        assert.equal(fs.readFileSync(path.join(root, result.output)).toString(), "real-image-bytes");
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
 });
 
 test("Jarvis verifies GitHub and Firebase connectors with read-only probes", async () => {

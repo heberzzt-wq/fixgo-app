@@ -221,6 +221,7 @@ function composeActuatorResponse(
                 `Modelo: **${data?.model || "Gemini Image"}**.`,
                 `Formato: ${data?.mimeType || "imagen"}.`,
                 `Resolucion solicitada: ${data?.imageSize || "1K"} (${data?.aspectRatio || "1:1"}).`,
+                data?.output ? `Archivo: **${data.output}** (${Number(data?.bytes || 0)} bytes).` : "Archivo local: no disponible.",
                 data?.text || "La imagen quedo disponible en el resultado estructurado."
             ].join("\n"),
             {

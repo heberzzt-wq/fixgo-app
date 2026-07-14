@@ -1,4 +1,4 @@
-const VERSION = "7.0.0-real-actuators";
+const VERSION = "7.1.0-image-artifacts";
 
 function bridgeRequest(path, payload, timeoutMs = 60000) {
     if (typeof globalThis?.JarvisLocalBridge?.requestJson !== "function") {
@@ -186,24 +186,41 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "image.generate",
-            description: "Genera una imagen con Gemini Image y devuelve bytes base64 y metadatos.",
+            description: "Genera una imagen y la guarda como artefacto local utilizable.",
             output: "IMAGE_GENERATION_RESULT",
-            inputSchema: { prompt: "string", aspectRatio: "string", imageSize: "string" },
+            inputSchema: { prompt: "string", aspectRatio: "string", imageSize: "string", output: "string" },
             execute: async (args = {}, context = {}) => {
                 const result = await callAdminFunction("jarvisImageGenerate", {
                     prompt: args.prompt || context.rawInput || "",
                     aspectRatio: args.aspectRatio || "1:1",
                     imageSize: args.imageSize || "1K"
                 });
+                let artifact = null;
+                if (result?.ok === true && result?.imageBase64) {
+                    artifact = await bridgeRequest("/image", {
+                        imageBase64: result.imageBase64,
+                        mimeType: result.mimeType,
+                        output: args.output
+                    }, 30000);
+                }
+                const finalResult = {
+                    ...result,
+                    persisted: artifact?.ok === true,
+                    output: artifact?.output || null,
+                    bytes: artifact?.bytes || null,
+                    persistenceStatus: artifact?.status || null,
+                    persistenceError: artifact?.ok === false ? artifact.error : null
+                };
                 globalThis.__JARVIS_IMAGE_GENERATION_HEALTH__ = {
-                    ok: result?.ok === true,
-                    status: result?.status || "FAILED",
+                    ok: finalResult.ok === true && finalResult.persisted === true,
+                    status: finalResult.persisted ? finalResult.status : "IMAGE_ARTIFACT_REQUIRED",
                     model: result?.model || null,
-                    error: result?.error || null,
+                    output: finalResult.output,
+                    error: result?.error || finalResult.persistenceError || null,
                     cloudCode: result?.cloudCode || null,
                     checkedAt: new Date().toISOString()
                 };
-                return result;
+                return finalResult;
             }
         }),
         register(runtime, {

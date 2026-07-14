@@ -8,7 +8,7 @@ import { fileURLToPath } from "url";
 import { execFileSync, spawn } from "child_process";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.3.0-local-actuator-bridge";
+    "2.4.0-image-artifacts";
 
 export const JARVIS_FS_BRIDGE_POLICY = {
     authority: "full_repo_private_owner",
@@ -889,6 +889,47 @@ function artifactPath(file, root = DEFAULT_ROOT, extensions = []) {
 
     fs.mkdirSync(path.dirname(target), { recursive: true });
     return target;
+}
+
+export function saveGeneratedImageArtifact({
+    imageBase64 = "",
+    mimeType = "image/png",
+    output = "",
+    root = DEFAULT_ROOT
+} = {}) {
+    const imageTypes = {
+        "image/png": ".png",
+        "image/jpeg": ".jpg",
+        "image/webp": ".webp"
+    };
+    const normalizedMimeType = String(mimeType || "").trim().toLowerCase();
+    const extension = imageTypes[normalizedMimeType];
+
+    if (!extension) {
+        throw new Error("IMAGE_MIME_TYPE_NOT_ALLOWED");
+    }
+
+    const normalizedBase64 = String(imageBase64 || "").trim();
+    if (!normalizedBase64 || normalizedBase64.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(normalizedBase64)) {
+        throw new Error("IMAGE_BASE64_INVALID");
+    }
+    const bytes = Buffer.from(normalizedBase64, "base64");
+    if (bytes.length === 0 || bytes.length > 8 * 1024 * 1024) {
+        throw new Error("IMAGE_BYTES_OUT_OF_RANGE");
+    }
+
+    const relativeOutput = String(output || "").trim() ||
+        `.jarvis-artifacts/images/jarvis-${Date.now()}${extension}`;
+    const target = artifactPath(relativeOutput, root, [extension]);
+    fs.writeFileSync(target, bytes);
+
+    return {
+        ok: true,
+        status: "IMAGE_SAVED",
+        output: path.relative(path.resolve(root), target).replace(/\\/g, "/"),
+        bytes: bytes.length,
+        mimeType: normalizedMimeType
+    };
 }
 
 function decodeXml(value = "") {
@@ -2113,6 +2154,27 @@ export function createJarvisFsBridgeApp({
                 ok: false,
                 grounded: false,
                 status: "WEB_RESEARCH_FAILED",
+                error: error.message,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+    });
+
+    app.post("/image", (req, res) => {
+        try {
+            return res.json({
+                ...saveGeneratedImageArtifact({
+                    imageBase64: req.body?.imageBase64,
+                    mimeType: req.body?.mimeType,
+                    output: req.body?.output,
+                    root
+                }),
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        } catch (error) {
+            return res.status(400).json({
+                ok: false,
+                status: "IMAGE_SAVE_FAILED",
                 error: error.message,
                 version: JARVIS_FS_BRIDGE_VERSION
             });
