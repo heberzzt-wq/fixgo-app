@@ -1,8 +1,9 @@
 import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
+import { adaptImageSource } from "./jarvis.image.adapter.js";
 
-const VERSION = "7.12.0-exact-quote-pdf-calculation";
+const VERSION = "7.13.0-source-image-adaptation";
 
 export function normalizeImageArtifactOutput(output, mimeType) {
     const extensions = {
@@ -542,6 +543,44 @@ export function registerJarvisActuatorTools(runtime) {
                     checkedAt: new Date().toISOString()
                 });
                 return finalResult;
+            }
+        }),
+        register(runtime, {
+            name: "image.adapt",
+            description: "Adapta una imagen real ya recibida a hero, tarjeta, reel y miniaturas mediante canvas local; conserva el original y no genera contenido ficticio.",
+            output: "IMAGE_ADAPTATION_RESULT",
+            inputSchema: { sourceOutput: "string", variants: "array<{id,width,height,mimeType,quality}>", outputPrefix: "string", caseId: "string", objectiveId: "string" },
+            mutates: true,
+            requiresApproval: true,
+            execute: async (args = {}, context = {}) => {
+                const source = await bridgeRequest("/artifact/read", { output: args.sourceOutput }, 30000);
+                if (source?.ok !== true || !String(source.mimeType || "").startsWith("image/") || !source.dataBase64) throw new Error("IMAGE_SOURCE_ARTIFACT_INVALID");
+                const adapted = await adaptImageSource({ sourceBase64: source.dataBase64, sourceMimeType: source.mimeType, variants: args.variants });
+                const prefix = String(args.outputPrefix || `.jarvis-artifacts/images/adapted-${Date.now()}`).trim();
+                const outputs = [];
+                for (const variant of adapted.outputs) {
+                    const extension = variant.mimeType === "image/png" ? ".png" : variant.mimeType === "image/jpeg" ? ".jpg" : ".webp";
+                    const output = normalizeImageArtifactOutput(`${prefix}-${variant.id}${extension}`, variant.mimeType);
+                    if (!output) throw new Error("IMAGE_ADAPTATION_OUTPUT_INVALID");
+                    const persisted = await bridgeRequest("/image", {
+                        imageBase64: variant.dataBase64,
+                        mimeType: variant.mimeType,
+                        output,
+                        origin: "image.adapt",
+                        provider: "browser_canvas",
+                        objectiveId: args.objectiveId || context.objectiveId || "",
+                        caseId: args.caseId || context.caseId || "",
+                        originalFile: source.output,
+                        approved: context.approved === true,
+                        approvedBy: context.approvedBy || "",
+                        transformations: [{ type: "cover_crop_resize", id: variant.id, width: variant.width, height: variant.height, crop: variant.crop }]
+                    }, 30000);
+                    if (persisted?.ok !== true) throw new Error(persisted?.error || "IMAGE_ADAPTATION_PERSIST_FAILED");
+                    outputs.push({ id: variant.id, width: variant.width, height: variant.height, mimeType: variant.mimeType, bytes: persisted.bytes, output: persisted.output, artifact: persisted.artifact });
+                }
+                const result = { ok: true, status: "IMAGE_VARIANTS_ADAPTED_VERIFIED", provider: "browser_canvas", sourceOutput: source.output, originalPreserved: true, generatedContentUsed: false, outputs };
+                recordCapabilityEvidence("image_adaptation", { ...result, checkedAt: new Date().toISOString() });
+                return result;
             }
         }),
         register(runtime, {

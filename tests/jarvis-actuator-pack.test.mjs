@@ -45,6 +45,7 @@ test("actuator pack registers browser, documents, image, delegation and connecto
         "document.pptx.edit",
         "image.generate",
         "image.edit",
+        "image.adapt",
         "artifact.createJson",
         "artifact.list",
         "artifact.read",
@@ -63,6 +64,7 @@ test("actuator pack registers browser, documents, image, delegation and connecto
     assert.equal(runtime.get("document.docx.edit").requiresApproval, true);
     assert.equal(runtime.get("document.pptx.edit").requiresApproval, true);
     assert.equal(runtime.get("image.edit").requiresApproval, true);
+    assert.equal(runtime.get("image.adapt").requiresApproval, true);
     assert.equal(runtime.get("artifact.createJson").requiresApproval, true);
     assert.equal(runtime.get("artifact.list").mutates, false);
     assert.equal(runtime.get("artifact.read").mutates, false);
