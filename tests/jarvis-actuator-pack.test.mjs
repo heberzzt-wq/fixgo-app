@@ -44,6 +44,9 @@ test("actuator pack registers browser, documents, image, delegation and connecto
         "document.pptx.edit",
         "image.generate",
         "image.edit",
+        "artifact.createJson",
+        "artifact.list",
+        "artifact.read",
         "agent.delegate",
         "connector.list"
     ]);
@@ -58,6 +61,9 @@ test("actuator pack registers browser, documents, image, delegation and connecto
     assert.equal(runtime.get("document.docx.edit").requiresApproval, true);
     assert.equal(runtime.get("document.pptx.edit").requiresApproval, true);
     assert.equal(runtime.get("image.edit").requiresApproval, true);
+    assert.equal(runtime.get("artifact.createJson").requiresApproval, true);
+    assert.equal(runtime.get("artifact.list").mutates, false);
+    assert.equal(runtime.get("artifact.read").mutates, false);
 });
 
 test("agent delegation runs only read-only tools and rejects recursive delegation", async () => {

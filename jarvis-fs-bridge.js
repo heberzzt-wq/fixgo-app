@@ -19,9 +19,14 @@ import {
     buildReelStudioHtml,
     describeReelStudio
 } from "./jarvis-reel-artifact.js";
+import {
+    findArtifact,
+    listArtifacts,
+    registerArtifact
+} from "./jarvis-artifact-studio.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.16.0-reel-artifact-studio";
+    "2.17.0-versioned-artifact-ledger";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -577,6 +582,8 @@ export function describeJarvisFsBridge() {
         ".jarvis-artifacts/images",
         [".png", ".jpg", ".jpeg", ".webp"]
     );
+    let artifactEvidence = [];
+    try { artifactEvidence = listArtifacts({ root: DEFAULT_ROOT, limit: 500 }); } catch {}
 
     return {
         ok: true,
@@ -626,6 +633,12 @@ export function describeJarvisFsBridge() {
                 available: true,
                 persistedArtifacts: true,
                 ...imageEvidence
+            },
+            artifactStudio: {
+                available: true,
+                versionedLedger: true,
+                registeredCount: artifactEvidence.length,
+                latest: artifactEvidence[0] || null
             },
             webResearch: {
                 available: true,
@@ -2858,6 +2871,17 @@ export function createJarvisFsBridgeApp({
             const relativeOutput = outputFile
                 ? path.relative(path.resolve(root), outputFile).replace(/\\/g, "/")
                 : null;
+            const artifact = result.ok && relativeOutput && fs.existsSync(outputFile)
+                ? registerArtifact({ root, output: relativeOutput, metadata: {
+                    type: action === "pdf" ? "pdf" : "image",
+                    origin: `browser.${action}`, provider: path.basename(chrome),
+                    caseId: req.body?.caseId, objectiveId: req.body?.objectiveId,
+                    mimeType: artifactMimeType(outputFile), status: `BROWSER_${action.toUpperCase()}_OK`,
+                    approvalRequired: true, approved: req.body?.approved === true, approvedBy: req.body?.approvedBy,
+                    editable: false, preview: true, downloadable: true, publishable: false,
+                    originalFile: url
+                } })
+                : null;
 
             return res.status(result.ok ? 200 : 502).json({
                 ...result,
@@ -2868,6 +2892,7 @@ export function createJarvisFsBridgeApp({
                 dom: action === "inspect" ? result.stdout.slice(0, 250000) : undefined,
                 output: relativeOutput,
                 outputExists: outputFile ? fs.existsSync(outputFile) : null,
+                artifact,
                 version: JARVIS_FS_BRIDGE_VERSION
             });
         }
@@ -2901,6 +2926,13 @@ export function createJarvisFsBridgeApp({
                 fs.rmSync(target, { force: true });
                 throw new Error("PAGE_POST_VERIFY_FAILED");
             }
+            const artifact = registerArtifact({ root, output: path.relative(root, target).replaceAll("\\", "/"), metadata: {
+                type: "landing", origin: "page.create", provider: "jarvis_page_artifact",
+                caseId: req.body?.caseId, objectiveId: req.body?.objectiveId, mimeType: "text/html",
+                status: "PAGE_ARTIFACT_CREATED_VERIFIED", approvalRequired: true,
+                approved: req.body?.approved === true, approvedBy: req.body?.approvedBy,
+                editable: true, preview: true, downloadable: true, publishable: true
+            } });
             return res.json({
                 ok: true,
                 status: "PAGE_ARTIFACT_CREATED_VERIFIED",
@@ -2910,6 +2942,7 @@ export function createJarvisFsBridgeApp({
                 checks: verification.checks,
                 downloadable: true,
                 previewable: true,
+                artifact,
                 version: JARVIS_FS_BRIDGE_VERSION
             });
         } catch (error) {
@@ -2949,6 +2982,14 @@ export function createJarvisFsBridgeApp({
             const target = artifactPath(output, root, [".html"]);
             fs.mkdirSync(path.dirname(target), { recursive: true });
             fs.writeFileSync(target, html, "utf8");
+            const artifact = registerArtifact({ root, output: path.relative(root, target).replaceAll("\\", "/"), metadata: {
+                type: "reel_studio", origin: "reel.create", provider: "browser_media_recorder",
+                caseId: req.body?.caseId, objectiveId: req.body?.objectiveId, mimeType: "text/html",
+                status: "REEL_STUDIO_CREATED_VERIFIED", approvalRequired: true,
+                approved: req.body?.approved === true, approvedBy: req.body?.approvedBy,
+                editable: true, preview: true, downloadable: true, publishable: false,
+                originalFile: req.body?.originalFile
+            } });
             return res.json({
                 ok: true,
                 status: "REEL_STUDIO_CREATED_VERIFIED",
@@ -2961,6 +3002,7 @@ export function createJarvisFsBridgeApp({
                 downloadable: true,
                 previewable: true,
                 videoExportStatus: "REQUIRES_BROWSER_EXPORT",
+                artifact,
                 version: JARVIS_FS_BRIDGE_VERSION
             });
         } catch (error) {
@@ -3122,12 +3164,22 @@ export function createJarvisFsBridgeApp({
 
             const bytes = fs.statSync(target).size;
 
+            const relativeOutput = path.relative(path.resolve(root), target).replaceAll("\\", "/");
+            const artifact = registerArtifact({ root, output: relativeOutput, metadata: {
+                type: normalizedFormat, origin: "document.create", provider: "jarvis_document_engine",
+                caseId: req.body?.caseId, objectiveId: req.body?.objectiveId,
+                mimeType: artifactMimeType(target), status: "DOCUMENT_CREATED",
+                approvalRequired: true, approved: req.body?.approved === true, approvedBy: req.body?.approvedBy,
+                editable: normalizedFormat !== "pdf", preview: normalizedFormat === "html" || normalizedFormat === "pdf",
+                downloadable: true, publishable: false
+            } });
             return res.json({
                 ok: true,
                 status: "DOCUMENT_CREATED",
                 format: normalizedFormat,
-                output: path.relative(path.resolve(root), target).replace(/\\/g, "/"),
+                output: relativeOutput,
                 bytes,
+                artifact,
                 version: JARVIS_FS_BRIDGE_VERSION
             });
         }
@@ -3143,13 +3195,22 @@ export function createJarvisFsBridgeApp({
 
     app.post("/document/pdf/edit", async (req, res) => {
         try {
+            const edited = await editPdfOverlayArtifact({
+                sourceOutput: req.body?.sourceOutput,
+                output: req.body?.output,
+                changes: req.body?.changes,
+                root
+            });
+            const artifact = registerArtifact({ root, output: edited.output, metadata: {
+                type: "pdf_edited", origin: "document.pdf.edit", provider: "pdf-lib",
+                caseId: req.body?.caseId, objectiveId: req.body?.objectiveId, mimeType: "application/pdf",
+                status: edited.status, approvalRequired: true, approved: req.body?.approved === true,
+                approvedBy: req.body?.approvedBy, editable: true, preview: true, downloadable: true,
+                publishable: false, originalFile: req.body?.sourceOutput, transformations: req.body?.changes
+            } });
             return res.json({
-                ...await editPdfOverlayArtifact({
-                    sourceOutput: req.body?.sourceOutput,
-                    output: req.body?.output,
-                    changes: req.body?.changes,
-                    root
-                }),
+                ...edited,
+                artifact,
                 version: JARVIS_FS_BRIDGE_VERSION
             });
         } catch (error) {
@@ -3164,13 +3225,18 @@ export function createJarvisFsBridgeApp({
 
     app.post("/document/xlsx/edit", async (req, res) => {
         try {
+            const edited = await editXlsxArtifact({ sourceOutput: req.body?.sourceOutput, output: req.body?.output, changes: req.body?.changes, root });
+            const artifact = registerArtifact({ root, output: edited.output, metadata: {
+                type: "xlsx_edited", origin: "document.xlsx.edit", provider: "exceljs",
+                caseId: req.body?.caseId, objectiveId: req.body?.objectiveId,
+                mimeType: artifactMimeType(edited.output), status: edited.status, approvalRequired: true,
+                approved: req.body?.approved === true, approvedBy: req.body?.approvedBy, editable: true,
+                preview: false, downloadable: true, publishable: false, originalFile: req.body?.sourceOutput,
+                transformations: req.body?.changes
+            } });
             return res.json({
-                ...await editXlsxArtifact({
-                    sourceOutput: req.body?.sourceOutput,
-                    output: req.body?.output,
-                    changes: req.body?.changes,
-                    root
-                }),
+                ...edited,
+                artifact,
                 version: JARVIS_FS_BRIDGE_VERSION
             });
         } catch (error) {
@@ -3185,13 +3251,18 @@ export function createJarvisFsBridgeApp({
 
     app.post("/document/docx/edit", async (req, res) => {
         try {
+            const edited = await editDocxArtifact({ sourceOutput: req.body?.sourceOutput, output: req.body?.output, replacements: req.body?.replacements, root });
+            const artifact = registerArtifact({ root, output: edited.output, metadata: {
+                type: "docx_edited", origin: "document.docx.edit", provider: "adm-zip",
+                caseId: req.body?.caseId, objectiveId: req.body?.objectiveId,
+                mimeType: artifactMimeType(edited.output), status: edited.status, approvalRequired: true,
+                approved: req.body?.approved === true, approvedBy: req.body?.approvedBy, editable: true,
+                preview: false, downloadable: true, publishable: false, originalFile: req.body?.sourceOutput,
+                transformations: req.body?.replacements
+            } });
             return res.json({
-                ...await editDocxArtifact({
-                    sourceOutput: req.body?.sourceOutput,
-                    output: req.body?.output,
-                    replacements: req.body?.replacements,
-                    root
-                }),
+                ...edited,
+                artifact,
                 version: JARVIS_FS_BRIDGE_VERSION
             });
         } catch (error) {
@@ -3206,13 +3277,18 @@ export function createJarvisFsBridgeApp({
 
     app.post("/document/pptx/edit", async (req, res) => {
         try {
+            const edited = await editPptxArtifact({ sourceOutput: req.body?.sourceOutput, output: req.body?.output, replacements: req.body?.replacements, root });
+            const artifact = registerArtifact({ root, output: edited.output, metadata: {
+                type: "pptx_edited", origin: "document.pptx.edit", provider: "adm-zip",
+                caseId: req.body?.caseId, objectiveId: req.body?.objectiveId,
+                mimeType: artifactMimeType(edited.output), status: edited.status, approvalRequired: true,
+                approved: req.body?.approved === true, approvedBy: req.body?.approvedBy, editable: true,
+                preview: false, downloadable: true, publishable: false, originalFile: req.body?.sourceOutput,
+                transformations: req.body?.replacements
+            } });
             return res.json({
-                ...await editPptxArtifact({
-                    sourceOutput: req.body?.sourceOutput,
-                    output: req.body?.output,
-                    replacements: req.body?.replacements,
-                    root
-                }),
+                ...edited,
+                artifact,
                 version: JARVIS_FS_BRIDGE_VERSION
             });
         } catch (error) {
@@ -3253,13 +3329,24 @@ export function createJarvisFsBridgeApp({
 
     app.post("/image", (req, res) => {
         try {
+            const saved = saveGeneratedImageArtifact({
+                imageBase64: req.body?.imageBase64,
+                mimeType: req.body?.mimeType,
+                output: req.body?.output,
+                root
+            });
+            const artifact = registerArtifact({ root, output: saved.output, metadata: {
+                type: "image", origin: req.body?.origin || "image.generate",
+                provider: req.body?.provider, model: req.body?.model,
+                caseId: req.body?.caseId, objectiveId: req.body?.objectiveId,
+                mimeType: saved.mimeType, status: saved.status,
+                approvalRequired: true, approved: req.body?.approved === true, approvedBy: req.body?.approvedBy,
+                editable: true, preview: true, downloadable: true, publishable: true,
+                originalFile: req.body?.originalFile, transformations: req.body?.transformations
+            } });
             return res.json({
-                ...saveGeneratedImageArtifact({
-                    imageBase64: req.body?.imageBase64,
-                    mimeType: req.body?.mimeType,
-                    output: req.body?.output,
-                    root
-                }),
+                ...saved,
+                artifact,
                 version: JARVIS_FS_BRIDGE_VERSION
             });
         } catch (error) {
@@ -3274,13 +3361,23 @@ export function createJarvisFsBridgeApp({
 
     app.post("/upload", (req, res) => {
         try {
+            const saved = saveUploadedArtifact({
+                name: req.body?.name,
+                mimeType: req.body?.mimeType,
+                dataBase64: req.body?.dataBase64,
+                root
+            });
+            const artifact = registerArtifact({ root, output: saved.output, metadata: {
+                type: "upload", origin: "user_upload", provider: "local",
+                caseId: req.body?.caseId, objectiveId: req.body?.objectiveId,
+                mimeType: saved.mimeType, status: saved.status, approvalRequired: false,
+                approved: true, approvedBy: "HEBERTO_MENDOZA", editable: false,
+                preview: saved.mimeType.startsWith("image/") || saved.mimeType === "application/pdf",
+                downloadable: true, publishable: false
+            } });
             return res.json({
-                ...saveUploadedArtifact({
-                    name: req.body?.name,
-                    mimeType: req.body?.mimeType,
-                    dataBase64: req.body?.dataBase64,
-                    root
-                }),
+                ...saved,
+                artifact,
                 version: JARVIS_FS_BRIDGE_VERSION
             });
         } catch (error) {
@@ -3330,8 +3427,17 @@ export function createJarvisFsBridgeApp({
 
     app.post("/upload/complete", (req, res) => {
         try {
+            const saved = completeChunkedUpload({ uploadId: req.body?.uploadId, root });
+            const artifact = registerArtifact({ root, output: saved.output, metadata: {
+                type: "upload", origin: "user_chunked_upload", provider: "local",
+                caseId: saved.caseId, objectiveId: saved.objectiveId, mimeType: saved.mimeType,
+                status: saved.status, approvalRequired: false, approved: true, approvedBy: "HEBERTO_MENDOZA",
+                editable: false, preview: saved.mimeType.startsWith("image/") || saved.mimeType === "application/pdf",
+                downloadable: true, publishable: false
+            } });
             return res.json({
-                ...completeChunkedUpload({ uploadId: req.body?.uploadId, root }),
+                ...saved,
+                artifact,
                 version: JARVIS_FS_BRIDGE_VERSION
             });
         } catch (error) {
@@ -3352,11 +3458,10 @@ export function createJarvisFsBridgeApp({
 
     app.post("/artifact/read", (req, res) => {
         try {
+            const payload = readArtifactPayload({ output: req.body?.output, root });
             return res.json({
-                ...readArtifactPayload({
-                    output: req.body?.output,
-                    root
-                }),
+                ...payload,
+                artifact: findArtifact({ root, output: payload.output }),
                 version: JARVIS_FS_BRIDGE_VERSION
             });
         } catch (error) {
@@ -3366,6 +3471,44 @@ export function createJarvisFsBridgeApp({
                 error: error.message,
                 version: JARVIS_FS_BRIDGE_VERSION
             });
+        }
+    });
+
+    app.post("/artifact/list", (req, res) => {
+        try {
+            const artifacts = listArtifacts({
+                root, limit: req.body?.limit, type: req.body?.type,
+                caseId: req.body?.caseId, objectiveId: req.body?.objectiveId
+            });
+            return res.json({ ok: true, status: "ARTIFACT_LEDGER_READ", count: artifacts.length, artifacts, version: JARVIS_FS_BRIDGE_VERSION });
+        } catch (error) {
+            return res.status(400).json({ ok: false, status: "ARTIFACT_LEDGER_READ_FAILED", error: error.message, version: JARVIS_FS_BRIDGE_VERSION });
+        }
+    });
+
+    app.post("/artifact/json/create", (req, res) => {
+        try {
+            const allowedTypes = new Set(["json", "campaign", "proposal", "report", "patch_preview", "diff", "test_report"]);
+            const type = String(req.body?.type || "json").trim();
+            if (!allowedTypes.has(type)) throw new Error("ARTIFACT_JSON_TYPE_NOT_ALLOWED");
+            if (!req.body?.data || typeof req.body.data !== "object") throw new Error("ARTIFACT_JSON_DATA_REQUIRED");
+            const slug = safeFileStem(req.body?.slug || `${type}-${Date.now()}`);
+            const output = req.body?.output || `.jarvis-artifacts/${type}/${slug}.json`;
+            const target = artifactPath(output, root, [".json"]);
+            fs.mkdirSync(path.dirname(target), { recursive: true });
+            fs.writeFileSync(target, `${JSON.stringify(req.body.data, null, 2)}\n`, "utf8");
+            const relativeOutput = path.relative(root, target).replaceAll("\\", "/");
+            const artifact = registerArtifact({ root, output: relativeOutput, metadata: {
+                type, origin: req.body?.origin || "artifact.createJson", provider: req.body?.provider || "jarvis",
+                model: req.body?.model, caseId: req.body?.caseId, objectiveId: req.body?.objectiveId,
+                mimeType: "application/json", status: "JSON_ARTIFACT_CREATED_VERIFIED",
+                approvalRequired: true, approved: req.body?.approved === true, approvedBy: req.body?.approvedBy,
+                editable: true, preview: true, downloadable: true, publishable: req.body?.publishable === true,
+                originalFile: req.body?.originalFile, transformations: req.body?.transformations
+            } });
+            return res.json({ ok: true, status: "JSON_ARTIFACT_CREATED_VERIFIED", output: relativeOutput, bytes: artifact.bytes, artifact, version: JARVIS_FS_BRIDGE_VERSION });
+        } catch (error) {
+            return res.status(400).json({ ok: false, status: "JSON_ARTIFACT_CREATE_FAILED", error: error.message, version: JARVIS_FS_BRIDGE_VERSION });
         }
     });
 

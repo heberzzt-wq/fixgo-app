@@ -2,7 +2,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "7.9.0-grounded-image-editing";
+const VERSION = "7.10.0-versioned-artifact-studio";
 
 export function normalizeImageArtifactOutput(output, mimeType) {
     const extensions = {
@@ -174,12 +174,17 @@ export function registerJarvisActuatorTools(runtime) {
             inputSchema: {
                 brandName: "string", title: "string", description: "string", services: "array",
                 heroImage: "string", gallery: "array", testimonials: "array", beforeAfter: "array",
-                whatsapp: "string", contactEmail: "string", mapUrl: "string", output: "string"
+                whatsapp: "string", contactEmail: "string", mapUrl: "string", output: "string",
+                caseId: "string", objectiveId: "string"
             },
             mutates: true,
             requiresApproval: true,
-            execute: async (args = {}) => {
-                const result = await bridgeRequest("/page/create", args, 60000);
+            execute: async (args = {}, context = {}) => {
+                const result = await bridgeRequest("/page/create", {
+                    ...args,
+                    caseId: args.caseId || context.caseId || "",
+                    objectiveId: args.objectiveId || context.objectiveId || ""
+                }, 60000);
                 if (result?.ok === true && result?.status === "PAGE_ARTIFACT_CREATED_VERIFIED") {
                     recordCapabilityEvidence("page_creation", {
                         ok: true,
@@ -199,12 +204,17 @@ export function registerJarvisActuatorTools(runtime) {
             output: "REEL_STUDIO_ARTIFACT",
             inputSchema: {
                 brandName: "string", title: "string", cta: "string", durationSeconds: "number",
-                scenes: "array", logoOutput: "string", audioOutput: "string", output: "string"
+                scenes: "array", logoOutput: "string", audioOutput: "string", output: "string",
+                caseId: "string", objectiveId: "string"
             },
             mutates: true,
             requiresApproval: true,
-            execute: async (args = {}) => {
-                const result = await bridgeRequest("/reel/create", args, 120000);
+            execute: async (args = {}, context = {}) => {
+                const result = await bridgeRequest("/reel/create", {
+                    ...args,
+                    caseId: args.caseId || context.caseId || "",
+                    objectiveId: args.objectiveId || context.objectiveId || ""
+                }, 120000);
                 if (result?.ok === true && result?.status === "REEL_STUDIO_CREATED_VERIFIED") {
                     recordCapabilityEvidence("reel_studio", {
                         ok: true,
@@ -230,18 +240,22 @@ export function registerJarvisActuatorTools(runtime) {
                 title: "string",
                 content: "string",
                 rows: "array",
-                slides: "array"
+                slides: "array",
+                caseId: "string",
+                objectiveId: "string"
             },
             mutates: true,
             requiresApproval: true,
-            execute: async (args = {}) =>
+            execute: async (args = {}, context = {}) =>
                 await bridgeRequest("/document", {
                     format: args.format || "html",
                     output: args.output,
                     title: args.title,
                     content: args.content,
                     rows: args.rows,
-                    slides: args.slides
+                    slides: args.slides,
+                    caseId: args.caseId || context.caseId || "",
+                    objectiveId: args.objectiveId || context.objectiveId || ""
                 })
         }),
         register(runtime, {
@@ -270,11 +284,13 @@ export function registerJarvisActuatorTools(runtime) {
             },
             mutates: true,
             requiresApproval: true,
-            execute: async (args = {}) => {
+            execute: async (args = {}, context = {}) => {
                 const result = await bridgeRequest("/document/pdf/edit", {
                     sourceOutput: args.sourceOutput,
                     output: args.output,
-                    changes: args.changes
+                    changes: args.changes,
+                    caseId: args.caseId || context.caseId || "",
+                    objectiveId: args.objectiveId || context.objectiveId || ""
                 }, 90000);
                 recordCapabilityEvidence("pdf_editing", {
                     ok: result?.ok === true && result?.visualVerification?.renderedComparisonPassed === true,
@@ -301,11 +317,13 @@ export function registerJarvisActuatorTools(runtime) {
             },
             mutates: true,
             requiresApproval: true,
-            execute: async (args = {}) => {
+            execute: async (args = {}, context = {}) => {
                 const result = await bridgeRequest("/document/xlsx/edit", {
                     sourceOutput: args.sourceOutput,
                     output: args.output,
-                    changes: args.changes
+                    changes: args.changes,
+                    caseId: args.caseId || context.caseId || "",
+                    objectiveId: args.objectiveId || context.objectiveId || ""
                 }, 90000);
                 recordCapabilityEvidence("structured_document_editing", {
                     ok: result?.ok === true && result?.originalPreserved === true && result?.outputSha256 !== result?.sourceSha256,
@@ -332,11 +350,13 @@ export function registerJarvisActuatorTools(runtime) {
             },
             mutates: true,
             requiresApproval: true,
-            execute: async (args = {}) => {
+            execute: async (args = {}, context = {}) => {
                 const result = await bridgeRequest("/document/docx/edit", {
                     sourceOutput: args.sourceOutput,
                     output: args.output,
-                    replacements: args.replacements
+                    replacements: args.replacements,
+                    caseId: args.caseId || context.caseId || "",
+                    objectiveId: args.objectiveId || context.objectiveId || ""
                 }, 90000);
                 recordCapabilityEvidence("structured_document_editing", {
                     ok: result?.ok === true && result?.originalPreserved === true && result?.outputSha256 !== result?.sourceSha256,
@@ -363,11 +383,13 @@ export function registerJarvisActuatorTools(runtime) {
             },
             mutates: true,
             requiresApproval: true,
-            execute: async (args = {}) => {
+            execute: async (args = {}, context = {}) => {
                 const result = await bridgeRequest("/document/pptx/edit", {
                     sourceOutput: args.sourceOutput,
                     output: args.output,
-                    replacements: args.replacements
+                    replacements: args.replacements,
+                    caseId: args.caseId || context.caseId || "",
+                    objectiveId: args.objectiveId || context.objectiveId || ""
                 }, 90000);
                 recordCapabilityEvidence("structured_document_editing", {
                     ok: result?.ok === true && result?.originalPreserved === true && result?.outputSha256 !== result?.sourceSha256,
@@ -387,7 +409,7 @@ export function registerJarvisActuatorTools(runtime) {
             name: "image.generate",
             description: "Genera una imagen y la guarda como artefacto local utilizable.",
             output: "IMAGE_GENERATION_RESULT",
-            inputSchema: { prompt: "string", aspectRatio: "string", imageSize: "string", output: "string" },
+            inputSchema: { prompt: "string", aspectRatio: "string", imageSize: "string", output: "string", caseId: "string", objectiveId: "string" },
             execute: async (args = {}, context = {}) => {
                 const result = await callAdminFunction("jarvisImageGenerate", {
                     prompt: args.prompt || context.rawInput || "",
@@ -403,7 +425,12 @@ export function registerJarvisActuatorTools(runtime) {
                     artifact = await bridgeRequest("/image", {
                         imageBase64: result.imageBase64,
                         mimeType: result.mimeType,
-                        output: safeOutput
+                        output: safeOutput,
+                        origin: "image.generate",
+                        provider: result.provider || "google",
+                        model: result.model,
+                        objectiveId: args.objectiveId || context.objectiveId || "",
+                        caseId: args.caseId || context.caseId || ""
                     }, 30000);
                 }
                 const finalResult = {
@@ -433,7 +460,7 @@ export function registerJarvisActuatorTools(runtime) {
             inputSchema: {
                 sourceOutput: "string", prompt: "string", transformations: "array",
                 aspectRatio: "string", imageSize: "string", preserveLogos: "boolean",
-                preserveApprovedText: "boolean", output: "string", objectiveId: "string"
+                preserveApprovedText: "boolean", output: "string", caseId: "string", objectiveId: "string"
             },
             mutates: true,
             requiresApproval: true,
@@ -460,7 +487,14 @@ export function registerJarvisActuatorTools(runtime) {
                     artifact = await bridgeRequest("/image", {
                         imageBase64: result.imageBase64,
                         mimeType: result.mimeType,
-                        output: normalizeImageArtifactOutput(args.output, result.mimeType)
+                        output: normalizeImageArtifactOutput(args.output, result.mimeType),
+                        origin: "image.edit",
+                        provider: result.provider || "google",
+                        model: result.model,
+                        objectiveId: result.objectiveId || context.objectiveId || "",
+                        caseId: args.caseId || context.caseId || "",
+                        originalFile: source.output,
+                        transformations: result.transformations || []
                     }, 30000);
                 }
                 const finalResult = {
@@ -487,6 +521,35 @@ export function registerJarvisActuatorTools(runtime) {
                 });
                 return finalResult;
             }
+        }),
+        register(runtime, {
+            name: "artifact.createJson",
+            description: "Persiste campañas, propuestas, reportes, previews de patch, diffs o resultados de pruebas como JSON versionado.",
+            output: "JSON_ARTIFACT_CREATE_RESULT",
+            inputSchema: { type: "string", slug: "string", data: "object", caseId: "string", objectiveId: "string", originalFile: "string", output: "string" },
+            mutates: true,
+            requiresApproval: true,
+            execute: async (args = {}, context = {}) => await bridgeRequest("/artifact/json/create", {
+                ...args,
+                caseId: args.caseId || context.caseId || "",
+                objectiveId: args.objectiveId || context.objectiveId || ""
+            }, 30000)
+        }),
+        register(runtime, {
+            name: "artifact.list",
+            description: "Consulta el ledger versionado de artefactos por tipo, expediente u objetivo.",
+            output: "ARTIFACT_LEDGER_RESULT",
+            inputSchema: { type: "string", caseId: "string", objectiveId: "string", limit: "number" },
+            mutates: false,
+            execute: async (args = {}) => await bridgeRequest("/artifact/list", args, 30000)
+        }),
+        register(runtime, {
+            name: "artifact.read",
+            description: "Lee bytes y metadatos versionados de un artefacto local concreto.",
+            output: "ARTIFACT_READ_RESULT",
+            inputSchema: { output: "string" },
+            mutates: false,
+            execute: async (args = {}) => await bridgeRequest("/artifact/read", { output: args.output }, 30000)
         }),
         register(runtime, {
             name: "agent.delegate",

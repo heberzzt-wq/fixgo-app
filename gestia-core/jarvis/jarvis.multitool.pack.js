@@ -21,7 +21,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "1.21.0-verifiable-web-research";
+const VERSION = "1.22.0-versioned-artifact-studio";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 
@@ -50,6 +50,7 @@ const CAPABILITY_LABELS = {
     browser_control: "Control del navegador",
     web_research: "Investigacion web con fuentes",
     image_generation: "Generacion y edicion de imagenes",
+    artifact_studio: "Artefactos versionados",
     connectors_and_multi_agent: "Conectores y delegacion multiagente"
 };
 
@@ -739,6 +740,25 @@ async function buildCapabilityForensics(runtime) {
                 connectedCount: Number(connectorHealth?.connectedCount || 0),
                 verified: connectorHealth?.ok === true
             }
+        },
+        {
+            id: "artifact_studio",
+            status: bridgeReady && hasEvery(tools, ["artifact.list", "artifact.read"]) && Number(bridge?.actuators?.artifactStudio?.registeredCount || 0) > 0
+                ? "READY"
+                : hasEvery(tools, ["artifact.list", "artifact.read"])
+                    ? "PARTIAL"
+                    : "NOT_AVAILABLE",
+            reason: bridgeReady && Number(bridge?.actuators?.artifactStudio?.registeredCount || 0) > 0
+                ? `El ledger contiene ${Number(bridge.actuators.artifactStudio.registeredCount)} artefactos versionados y verificables.`
+                : "El ledger y sus herramientas read-only están conectados; falta registrar un artefacto vivo en esta sesión.",
+            nextAction: "Crear un artefacto y verificar artifactId, versión, hash, objetivo, aprobación y relación con el original.",
+            evidence: {
+                listTool: tools.has("artifact.list"),
+                readTool: tools.has("artifact.read"),
+                bridgeReady,
+                registeredCount: Number(bridge?.actuators?.artifactStudio?.registeredCount || 0),
+                latest: bridge?.actuators?.artifactStudio?.latest || null
+            }
         }
     ];
 
@@ -780,6 +800,7 @@ async function buildCapabilityForensics(runtime) {
         browser_control: "Conectar un actuador de navegador verificable.",
         web_research: "Conectar investigacion web con fuentes y citas.",
         image_generation: "Conectar generacion y edicion de imagenes.",
+        artifact_studio: "Registrar y verificar un artefacto en el ledger versionado.",
         connectors_and_multi_agent: "Conectar integraciones externas y delegacion multiagente.",
         repo_engineering: "Restaurar bridge y herramientas de ingenieria del repo.",
         tests_and_git: "Restaurar ejecucion de pruebas y diagnostico Git.",
