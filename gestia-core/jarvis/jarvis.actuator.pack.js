@@ -104,10 +104,6 @@ async function callAdminFunction(name, data = {}) {
 }
 
 function register(runtime, definition) {
-    if (runtime.has?.(definition.name)) {
-        return { ok: true, tool: definition.name, alreadyRegistered: true };
-    }
-
     return runtime.register({
         version: VERSION,
         mutates: false,
