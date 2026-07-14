@@ -1,12 +1,13 @@
 import express from "express";
 import cors from "cors";
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
-import { execFileSync } from "child_process";
+import { execFileSync, spawn } from "child_process";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.1.0-local-fs-bridge";
+    "2.2.0-local-actuator-bridge";
 
 export const JARVIS_FS_BRIDGE_POLICY = {
     authority: "full_repo_private_owner",
@@ -429,6 +430,8 @@ export function grepRepo({
 }
 
 export function describeJarvisFsBridge() {
+    const browserExecutable = resolveChromeExecutable();
+
     return {
         ok: true,
         version:
@@ -436,7 +439,20 @@ export function describeJarvisFsBridge() {
         policy:
             JARVIS_FS_BRIDGE_POLICY,
         root:
-            DEFAULT_ROOT
+            DEFAULT_ROOT,
+        actuators: {
+            browser: {
+                available: Boolean(browserExecutable),
+                engine: browserExecutable
+                    ? path.basename(browserExecutable)
+                    : null,
+                actions: ["inspect", "screenshot", "pdf", "open"]
+            },
+            documents: {
+                available: true,
+                formats: ["html", "md", "txt", "csv", "json", "pdf"]
+            }
+        }
     };
 }
 
@@ -747,13 +763,145 @@ function normalizeGitFiles(files = []) {
         });
 }
 
+function resolveChromeExecutable() {
+    const candidates =
+        process.platform === "win32"
+            ? [
+                process.env.CHROME_PATH,
+                path.join(process.env.PROGRAMFILES || "", "Google/Chrome/Application/chrome.exe"),
+                path.join(process.env["PROGRAMFILES(X86)"] || "", "Google/Chrome/Application/chrome.exe"),
+                path.join(process.env.LOCALAPPDATA || "", "Google/Chrome/Application/chrome.exe"),
+                path.join(process.env.PROGRAMFILES || "", "Microsoft/Edge/Application/msedge.exe")
+            ]
+            : [
+                process.env.CHROME_PATH,
+                "/usr/bin/google-chrome",
+                "/usr/bin/chromium",
+                "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+            ];
+
+    return candidates
+        .filter(Boolean)
+        .find(candidate => fs.existsSync(candidate)) || null;
+}
+
+function normalizeBrowserUrl(value = "") {
+    const url = new URL(String(value || "").trim());
+
+    if (!["http:", "https:"].includes(url.protocol)) {
+        throw new Error("BROWSER_URL_PROTOCOL_NOT_ALLOWED");
+    }
+
+    return url.toString();
+}
+
+async function runProcess(executable, args, {
+    cwd = DEFAULT_ROOT,
+    timeoutMs = 45000
+} = {}) {
+    const startedAt = Date.now();
+
+    return await new Promise(resolve => {
+        const child = spawn(executable, args, {
+            cwd,
+            shell: false,
+            stdio: ["ignore", "pipe", "pipe"]
+        });
+        let stdout = "";
+        let stderr = "";
+        let finished = false;
+        const timer = setTimeout(() => {
+            if (finished) return;
+            finished = true;
+            child.kill("SIGTERM");
+            resolve({
+                ok: false,
+                status: "PROCESS_TIMEOUT",
+                stdout,
+                stderr,
+                durationMs: Date.now() - startedAt
+            });
+        }, Math.max(5000, Number(timeoutMs) || 45000));
+
+        child.stdout.on("data", chunk => {
+            stdout += chunk.toString();
+        });
+        child.stderr.on("data", chunk => {
+            stderr += chunk.toString();
+        });
+        child.on("error", error => {
+            if (finished) return;
+            finished = true;
+            clearTimeout(timer);
+            resolve({
+                ok: false,
+                status: "PROCESS_SPAWN_FAILED",
+                error: error.message,
+                stdout,
+                stderr,
+                durationMs: Date.now() - startedAt
+            });
+        });
+        child.on("close", code => {
+            if (finished) return;
+            finished = true;
+            clearTimeout(timer);
+            resolve({
+                ok: code === 0,
+                status: code === 0 ? "PROCESS_OK" : "PROCESS_FAILED",
+                exitCode: code,
+                stdout,
+                stderr,
+                durationMs: Date.now() - startedAt
+            });
+        });
+    });
+}
+
+function artifactPath(file, root = DEFAULT_ROOT, extensions = []) {
+    const normalized = String(file || "").trim().replace(/\\/g, "/");
+
+    if (!normalized.startsWith(".jarvis-artifacts/")) {
+        throw new Error("ARTIFACT_PATH_REQUIRED");
+    }
+
+    const target = resolveRepoPath(normalized, root);
+    const extension = path.extname(target).toLowerCase();
+
+    if (extensions.length > 0 && !extensions.includes(extension)) {
+        throw new Error("ARTIFACT_EXTENSION_NOT_ALLOWED");
+    }
+
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    return target;
+}
+
 export function createJarvisFsBridgeApp({
     root = DEFAULT_ROOT
 } = {}) {
     const app =
         express();
 
-    app.use(cors());
+    const allowedOrigins = new Set([
+        "https://fixgo-44e4d.web.app",
+        "https://fixgo-44e4d.firebaseapp.com",
+        "http://localhost:5000",
+        "http://127.0.0.1:5000",
+        "http://localhost:5500",
+        "http://127.0.0.1:5500"
+    ]);
+
+    app.use(cors({
+        origin(origin, callback) {
+            if (!origin || allowedOrigins.has(origin)) {
+                return callback(null, true);
+            }
+
+            return callback(new Error("BRIDGE_ORIGIN_NOT_ALLOWED"));
+        },
+        methods: ["GET", "POST", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "X-Jarvis-Release-Id"]
+    }));
 
     app.use(express.json({
         limit: "25mb"
@@ -1147,7 +1295,7 @@ export function createJarvisFsBridgeApp({
         }
     });
 
-        app.post("/run", async (req, res) => {
+    app.post("/run", async (req, res) => {
         try {
             const {
                 command,
@@ -1342,6 +1490,183 @@ export function createJarvisFsBridgeApp({
                     error.message,
                 version:
                     JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+    });
+
+    app.post("/browser", async (req, res) => {
+        try {
+            const {
+                action = "inspect",
+                url: rawUrl,
+                output = ".jarvis-artifacts/browser/latest.png",
+                timeoutMs = 45000
+            } = req.body || {};
+            const url = normalizeBrowserUrl(rawUrl);
+            const chrome = resolveChromeExecutable();
+
+            if (!chrome) {
+                return res.status(503).json({
+                    ok: false,
+                    status: "BROWSER_EXECUTABLE_NOT_FOUND",
+                    error: "BROWSER_EXECUTABLE_NOT_FOUND",
+                    version: JARVIS_FS_BRIDGE_VERSION
+                });
+            }
+
+            if (action === "open") {
+                const child = spawn(chrome, [url], {
+                    detached: true,
+                    shell: false,
+                    stdio: "ignore"
+                });
+                child.unref();
+
+                return res.json({
+                    ok: true,
+                    status: "BROWSER_OPENED",
+                    action,
+                    url,
+                    engine: path.basename(chrome),
+                    version: JARVIS_FS_BRIDGE_VERSION
+                });
+            }
+
+            const args = [
+                "--headless=new",
+                "--disable-gpu",
+                "--disable-background-networking",
+                "--disable-component-update",
+                "--disable-default-apps",
+                "--disable-dev-shm-usage",
+                "--disable-extensions",
+                "--disable-sync",
+                "--metrics-recording-only",
+                "--no-first-run",
+                "--hide-scrollbars"
+            ];
+            const profileDir = fs.mkdtempSync(
+                path.join(os.tmpdir(), "jarvis-browser-")
+            );
+            args.push(`--user-data-dir=${profileDir}`);
+
+            let outputFile = null;
+            if (action === "inspect") {
+                args.push("--dump-dom", url);
+            }
+            else if (action === "screenshot") {
+                outputFile = artifactPath(output, root, [".png"]);
+                args.push("--window-size=1440,1100", `--screenshot=${outputFile}`, url);
+            }
+            else if (action === "pdf") {
+                outputFile = artifactPath(output, root, [".pdf"]);
+                args.push(`--print-to-pdf=${outputFile}`, "--no-pdf-header-footer", url);
+            }
+            else {
+                return res.status(400).json({
+                    ok: false,
+                    status: "BROWSER_ACTION_NOT_ALLOWED",
+                    allowedActions: ["inspect", "screenshot", "pdf", "open"],
+                    action,
+                    version: JARVIS_FS_BRIDGE_VERSION
+                });
+            }
+
+            let result;
+            try {
+                result = await runProcess(chrome, args, {
+                    cwd: path.resolve(root),
+                    timeoutMs
+                });
+            }
+            finally {
+                fs.rmSync(profileDir, {
+                    recursive: true,
+                    force: true
+                });
+            }
+            const relativeOutput = outputFile
+                ? path.relative(path.resolve(root), outputFile).replace(/\\/g, "/")
+                : null;
+
+            return res.status(result.ok ? 200 : 502).json({
+                ...result,
+                status: result.ok ? `BROWSER_${action.toUpperCase()}_OK` : result.status,
+                action,
+                url,
+                engine: path.basename(chrome),
+                dom: action === "inspect" ? result.stdout.slice(0, 250000) : undefined,
+                output: relativeOutput,
+                outputExists: outputFile ? fs.existsSync(outputFile) : null,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+        catch(error) {
+            const clientErrors = new Set([
+                "Invalid URL",
+                "BROWSER_URL_PROTOCOL_NOT_ALLOWED",
+                "ARTIFACT_PATH_REQUIRED",
+                "ARTIFACT_EXTENSION_NOT_ALLOWED",
+                "PATH_OUTSIDE_REPO"
+            ]);
+            return res.status(clientErrors.has(error.message) ? 400 : 500).json({
+                ok: false,
+                status: "BROWSER_COMMAND_FAILED",
+                error: error.message,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+    });
+
+    app.post("/document", async (req, res) => {
+        try {
+            const {
+                format = "html",
+                output = `.jarvis-artifacts/documents/document.${format}`,
+                content = "",
+                title = "Documento Jarvis"
+            } = req.body || {};
+            const normalizedFormat = String(format).toLowerCase();
+            const allowed = new Set(["html", "md", "txt", "csv", "json"]);
+
+            if (!allowed.has(normalizedFormat)) {
+                return res.status(400).json({
+                    ok: false,
+                    status: "DOCUMENT_FORMAT_NOT_ALLOWED",
+                    allowedFormats: [...allowed],
+                    version: JARVIS_FS_BRIDGE_VERSION
+                });
+            }
+            if (typeof content !== "string" || content.length === 0) {
+                return res.status(400).json({
+                    ok: false,
+                    status: "DOCUMENT_CONTENT_REQUIRED",
+                    version: JARVIS_FS_BRIDGE_VERSION
+                });
+            }
+
+            const target = artifactPath(output, root, [`.${normalizedFormat}`]);
+            const safeTitle = String(title).replace(/[<>&]/g, "");
+            const body = normalizedFormat === "html"
+                ? `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${safeTitle}</title><style>body{font:16px/1.55 system-ui;max-width:960px;margin:48px auto;padding:0 24px;color:#172033}pre{white-space:pre-wrap}</style></head><body><h1>${safeTitle}</h1><pre>${content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre></body></html>`
+                : content;
+            fs.writeFileSync(target, body, "utf8");
+
+            return res.json({
+                ok: true,
+                status: "DOCUMENT_CREATED",
+                format: normalizedFormat,
+                output: path.relative(path.resolve(root), target).replace(/\\/g, "/"),
+                bytes: Buffer.byteLength(body),
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+        catch(error) {
+            return res.status(400).json({
+                ok: false,
+                status: "DOCUMENT_CREATE_FAILED",
+                error: error.message,
+                version: JARVIS_FS_BRIDGE_VERSION
             });
         }
     });

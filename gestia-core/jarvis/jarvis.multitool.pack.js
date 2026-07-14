@@ -387,13 +387,19 @@ async function buildCapabilityForensics(runtime) {
         },
         {
             id: "media_and_documents",
-            status: tools.has("media.analyze") ? "PARTIAL" : "NOT_AVAILABLE",
-            reason: tools.has("media.analyze")
-                ? "Analiza contenido extraido, pero no edita documentos nativos."
-                : "No hay herramienta registrada para analizar documentos.",
+            status: bridgeReady && hasEvery(tools, ["media.analyze", "document.create", "document.pdf"])
+                ? "READY"
+                : hasNamespace(tools, ["media", "document"])
+                    ? "PARTIAL"
+                    : "NOT_AVAILABLE",
+            reason: bridgeReady && hasEvery(tools, ["media.analyze", "document.create", "document.pdf"])
+                ? "Analisis y creacion documental conectados al bridge verificado."
+                : "La cobertura documental esta incompleta o el bridge no esta verificado.",
             evidence: {
                 extractedContentAnalysis: tools.has("media.analyze"),
-                nativeDocumentEditing: false
+                documentCreation: tools.has("document.create"),
+                pdfRendering: tools.has("document.pdf"),
+                bridgeReady
             }
         },
         {
@@ -402,12 +408,19 @@ async function buildCapabilityForensics(runtime) {
         },
         {
             id: "browser_control",
-            status: hasNamespace(tools, ["browser", "chrome"]) ? "READY" : "NOT_AVAILABLE",
-            reason: hasNamespace(tools, ["browser", "chrome"])
-                ? "Hay un actuador de navegador registrado."
-                : "La pagina no tiene un actuador de navegador verificable.",
+            status: bridgeReady && bridge?.actuators?.browser?.available === true && hasEvery(tools, ["browser.inspect", "browser.screenshot", "browser.open"])
+                ? "READY"
+                : hasNamespace(tools, ["browser", "chrome"])
+                    ? "PARTIAL"
+                    : "NOT_AVAILABLE",
+            reason: bridgeReady && bridge?.actuators?.browser?.available === true
+                ? "Chrome/Edge y sus actuadores estan verificados por el bridge local."
+                : "El actuador esta registrado, pero no verifico un navegador local ejecutable.",
             evidence: {
-                actuatorRegistered: hasNamespace(tools, ["browser", "chrome"])
+                actuatorRegistered: hasNamespace(tools, ["browser", "chrome"]),
+                browserAvailable: bridge?.actuators?.browser?.available === true,
+                engine: bridge?.actuators?.browser?.engine || null,
+                bridgeReady
             }
         },
         {
@@ -416,12 +429,20 @@ async function buildCapabilityForensics(runtime) {
         },
         {
             id: "image_generation",
-            status: hasNamespace(tools, ["image", "imagegen"]) ? "READY" : "NOT_AVAILABLE",
-            reason: hasNamespace(tools, ["image", "imagegen"])
-                ? "Hay un actuador de imagen registrado."
-                : "No hay generador o editor de imagenes registrado.",
+            status: globalThis?.__JARVIS_IMAGE_GENERATION_HEALTH__?.ok === true
+                ? "READY"
+                : hasNamespace(tools, ["image", "imagegen"])
+                    ? "PARTIAL"
+                    : "NOT_AVAILABLE",
+            reason: globalThis?.__JARVIS_IMAGE_GENERATION_HEALTH__?.ok === true
+                ? "La generacion de imagen produjo una salida real verificada."
+                : hasNamespace(tools, ["image", "imagegen"])
+                    ? "El actuador esta registrado; falta una generacion real en esta sesion."
+                    : "No hay generador o editor de imagenes registrado.",
             evidence: {
-                actuatorRegistered: hasNamespace(tools, ["image", "imagegen"])
+                actuatorRegistered: hasNamespace(tools, ["image", "imagegen"]),
+                verified: globalThis?.__JARVIS_IMAGE_GENERATION_HEALTH__?.ok === true,
+                lastStatus: globalThis?.__JARVIS_IMAGE_GENERATION_HEALTH__?.status || "NOT_TESTED"
             }
         },
         {

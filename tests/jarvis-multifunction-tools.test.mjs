@@ -1019,6 +1019,30 @@ test("multifunction planner routes capability boundary questions to forensics", 
     }
 });
 
+test("multifunction planner routes real browser, image, document and connector actuators", () => {
+    const browser = buildJarvisMultifunctionToolCalls(
+        "revisa https://example.com en el navegador"
+    );
+    const image = buildJarvisMultifunctionToolCalls(
+        "genera una imagen futurista de FixGo"
+    );
+    const document = buildJarvisMultifunctionToolCalls(
+        "arre crea un documento markdown con el reporte"
+    );
+    const connectors = buildJarvisMultifunctionToolCalls(
+        "muestra el estado de conectores"
+    );
+
+    assert.ok(browser.some(call => call.name === "browser.inspect"));
+    assert.ok(image.some(call => call.name === "image.generate"));
+    assert.ok(document.some(call =>
+        call.name === "document.create" &&
+        call.mutates === true &&
+        call.approved === true
+    ));
+    assert.ok(connectors.some(call => call.name === "connector.list"));
+});
+
 test("multifunction planner does not turn explanatory questions into work orders", () => {
     assert.deepEqual(
         buildJarvisMultifunctionToolCalls(
@@ -1165,7 +1189,7 @@ test("brain seeds natural multifunction requests into the tested planner", () =>
 
     assert.match(
         analysisHub,
-        /brain\.engine\.js\?v=mixed-intent-v2-20260714-technical-diagnostics-v1-multifunction-planner-v1\.7-operational-forensics-gate/
+        /brain\.engine\.js\?v=mixed-intent-v2-20260714-multifunction-planner-v1\.8-real-actuators/
     );
 });
 
@@ -1241,5 +1265,5 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260714-fast-forensics-inventory/);
+    assert.match(core, /jarvis-tools-v7-20260714-real-actuators/);
 });

@@ -39,7 +39,7 @@ import {
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     isJarvisCapabilityForensicsRequest
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-multifunction-planner-v1.7-operational-forensics-gate-20260714';
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-multifunction-planner-v1.8-real-actuators-20260714';
 //import { ejecutarCambios } from '/gestia-core/operations-executor.engine.js';
 
 // ======================================================================================
@@ -190,9 +190,9 @@ import {
 import {
     analyzeIntent as analyzeVisionIntent
 } from '/gestia-core/jarvis/jarvis.vision.engine.js?v=typo-normalization-v2-read-only-negation-20260713';
-import '/gestia-core/brain.engine.js?v=mixed-intent-v2-20260714-technical-diagnostics-v1-multifunction-planner-v1.7-operational-forensics-gate';
+import '/gestia-core/brain.engine.js?v=mixed-intent-v2-20260714-multifunction-planner-v1.8-real-actuators';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260714-fast-forensics-inventory';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260714-real-actuators';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260707-4123';
 

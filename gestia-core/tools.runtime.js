@@ -5,7 +5,10 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-multifunction-tools-v1.9-fast-forensics-inventory-20260714";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-multifunction-tools-v2.0-real-actuators-20260714";
+import {
+    registerJarvisActuatorTools
+} from "./jarvis/jarvis.actuator.pack.js?v=sia7-real-actuators-v1-20260714";
 
 export const JarvisToolRuntime = {
     _registry: new Map(),
@@ -561,6 +564,10 @@ registerJarvisMultifunctionTools(
     JarvisToolRuntime
 );
 
+registerJarvisActuatorTools(
+    JarvisToolRuntime
+);
+
 // Registro de herramientas Read-Only iniciales
 JarvisToolRuntime.register({
     name: "repo.audit",
@@ -1048,6 +1055,9 @@ window.JarvisLocalBridge.verifyIdentity ||= async function({
                 bridgeHealth?.root ||
                 actual?.root ||
                 null,
+            actuators:
+                bridgeHealth?.actuators ||
+                {},
             checkedAt: now
         };
 

@@ -16,10 +16,12 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.1.0-local-fs-bridge");
+    assert.equal(description.version, "2.2.0-local-actuator-bridge");
     assert.equal(description.policy.authority, "full_repo_private_owner");
     assert.equal(description.policy.safeZone, "advisory");
     assert.equal(description.policy.emptyWrites, "blocked");
+    assert.equal(typeof description.actuators.browser.available, "boolean");
+    assert.equal(description.actuators.documents.available, true);
 });
 
 test("Jarvis FS bridge loads the release identity contract", () => {

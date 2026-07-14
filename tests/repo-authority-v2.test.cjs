@@ -1566,12 +1566,12 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /mixed-intent-v2-20260714-4260/);
+    assert.match(terminal, /mixed-intent-v2-20260714-multifunction-planner-v1\.8-real-actuators/);
     assert.match(terminal, /jarvis-runtime-macro-v2-20260707-4190/);
     assert.match(terminal, /isTerminalBrainRuntimeReady/);
     assert.doesNotMatch(terminal, /function isKernelSessionReady/);
     assert.doesNotMatch(terminal, /window\.KernelHeberto\?\.execute/);
-    assert.match(terminal, /jarvis-tools-v7-20260714-fast-forensics-inventory/);
+    assert.match(terminal, /jarvis-tools-v7-20260714-real-actuators/);
     assert.match(terminal, /terminalBrainRoute\?\.mode\s*===\s*"PATCH_PROPOSAL"/);
     assert.match(terminal, /terminalBrainRoute\?\.useLastPatchPreview\s*===\s*true/);
     assert.doesNotMatch(terminal, /if\s*\(\s*isNaturalPatchPreviewFollowUp\(comando\)\s*\)/);
@@ -1849,7 +1849,7 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
     assert.match(core, /BRAIN_AUTHORITY_NO_LEGACY_FALLBACK/);
     assert.match(core, /brainAuthorityMode[\s\S]{0,500}atomicState\.isHalted/);
     assert.doesNotMatch(core, /semantic-tool-fallback-41-32/);
-    assert.match(core, /jarvis-tools-v7-20260714-fast-forensics-inventory/);
+    assert.match(core, /jarvis-tools-v7-20260714-real-actuators/);
 
     const legacyKernel =
         fs.readFileSync(

@@ -47,6 +47,10 @@ const {
     runJarvisWebResearch
 } = require("./jarvis-web-research");
 
+const {
+    runJarvisImageGeneration
+} = require("./jarvis-image-generation");
+
 /**
  * 🛡️ SELLADO DE INFRAESTRUCTURA (GLOBAL SCOPE)
  * Fix Crítico: initializeApp debe ocurrir al cargar el archivo para evitar 'app/no-app'.
@@ -2717,6 +2721,55 @@ exports.jarvisWebResearch = functions
                 missingKey
                     ? "La investigacion web no tiene credencial Gemini configurada."
                     : "No fue posible completar la investigacion web con fuentes."
+            );
+        }
+    });
+
+/**
+ * JARVIS IMAGE GENERATION
+ * Generacion multimodal autenticada para administracion.
+ */
+exports.jarvisImageGenerate = functions
+    .runWith({ timeoutSeconds: 120, memory: "1GB" })
+    .https
+    .onCall(async (data = {}, context) => {
+        const actor = await assertJarvisAdminContext(
+            context,
+            "generar imagenes"
+        );
+
+        try {
+            const result = await runJarvisImageGeneration({
+                ai: getGroundedGenAI(),
+                input: data
+            });
+
+            console.log(JSON.stringify({
+                level: "INFO",
+                message: "JARVIS_IMAGE_GENERATION_COMPLETE",
+                uid: actor.uid,
+                model: result.model,
+                bytes: result.bytes,
+                aspectRatio: result.aspectRatio
+            }));
+
+            return result;
+        }
+        catch(error) {
+            console.error(JSON.stringify({
+                level: "ERROR",
+                message: "JARVIS_IMAGE_GENERATION_FAILED",
+                uid: actor.uid,
+                error: error?.message || String(error)
+            }));
+
+            throw new functions.https.HttpsError(
+                error?.message === "JARVIS_IMAGE_PROMPT_REQUIRED"
+                    ? "invalid-argument"
+                    : error?.message === "GEMINI_KEY_MISSING"
+                        ? "failed-precondition"
+                        : "internal",
+                error?.message || "No fue posible generar la imagen."
             );
         }
     });

@@ -1,4 +1,4 @@
-const VERSION = "1.7.0-sia7-operational-forensics-gate";
+const VERSION = "1.8.0-sia7-real-actuator-routing";
 
 function normalize(value = "") {
     return String(value || "")
@@ -101,6 +101,9 @@ export function buildJarvisMultifunctionToolCalls(
     if (!normalized) return [];
 
     const calls = [];
+    const explicitApproval =
+        /\b(apruebo|aprobado|autorizo|autorizado|dale|arre)\b/i.test(normalized);
+    const urlMatch = raw.match(/https?:\/\/[^\s<>'"]+/i);
 
     const isTechnicalDiagnostic =
         isJarvisTechnicalDiagnosticRequest(normalized);
@@ -168,6 +171,71 @@ export function buildJarvisMultifunctionToolCalls(
                     query: raw
                 },
                 "LOCAL_MULTIFUNCTION_GROUNDED_WEB_RESEARCH"
+            )
+        );
+    }
+
+    const browserRequest =
+        Boolean(urlMatch) &&
+        /\b(abre|abrir|navega|navegar|inspecciona|inspeccionar|revisa|revisar|captura|screenshot|pantallazo)\b/i.test(normalized);
+
+    if (browserRequest) {
+        const wantsScreenshot =
+            /\b(captura|screenshot|pantallazo)\b/i.test(normalized);
+        calls.push({
+            ...makeCall(
+                wantsScreenshot ? "browser.screenshot" : "browser.inspect",
+                { url: urlMatch[0] },
+                "LOCAL_MULTIFUNCTION_BROWSER"
+            ),
+            mutates: wantsScreenshot,
+            approved: wantsScreenshot && explicitApproval
+        });
+    }
+
+    if (
+        /\b(genera|generar|crea|crear|disena|disenar|edita|editar)\b[\s\S]{0,50}\b(imagen|ilustracion|foto|logo|banner)\b/i.test(normalized) ||
+        /\b(imagen|ilustracion|foto|logo|banner)\b[\s\S]{0,50}\b(genera|generar|crea|crear|disena|disenar)\b/i.test(normalized)
+    ) {
+        calls.push(
+            makeCall(
+                "image.generate",
+                { prompt: raw },
+                "LOCAL_MULTIFUNCTION_IMAGE_GENERATION"
+            )
+        );
+    }
+
+    if (
+        /\b(crea|crear|genera|generar|redacta|redactar)\b[\s\S]{0,60}\b(documento|archivo markdown|csv|reporte html)\b/i.test(normalized)
+    ) {
+        const format = /\bcsv\b/i.test(normalized)
+            ? "csv"
+            : /\bmarkdown\b/i.test(normalized)
+                ? "md"
+                : "html";
+        calls.push({
+            ...makeCall(
+                "document.create",
+                {
+                    format,
+                    output: `.jarvis-artifacts/documents/jarvis-${Date.now()}.${format}`,
+                    title: "Documento Jarvis",
+                    content: raw
+                },
+                "LOCAL_MULTIFUNCTION_DOCUMENT_CREATE"
+            ),
+            mutates: true,
+            approved: explicitApproval
+        });
+    }
+
+    if (/\b(lista|muestra|revisa|estado)\b[\s\S]{0,40}\b(conectores|integraciones)\b/i.test(normalized)) {
+        calls.push(
+            makeCall(
+                "connector.list",
+                {},
+                "LOCAL_MULTIFUNCTION_CONNECTOR_LIST"
             )
         );
     }
@@ -290,7 +358,12 @@ export function describeJarvisMultifunctionPlanner() {
             "marketing",
             "page",
             "media",
-            "web"
+            "web",
+            "browser",
+            "document",
+            "image",
+            "connector",
+            "agent"
         ]
     };
 }

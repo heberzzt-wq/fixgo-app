@@ -58,7 +58,7 @@ export {
 
 }
 
-from "../brain.engine.js?v=mixed-intent-v2-20260714-technical-diagnostics-v1-multifunction-planner-v1.7-operational-forensics-gate";
+from "../brain.engine.js?v=mixed-intent-v2-20260714-multifunction-planner-v1.8-real-actuators";
 
 /* =====================================================
    SCANNER FABRIC
