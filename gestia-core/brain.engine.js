@@ -962,15 +962,6 @@ function inferTechnicalDiagnosticFiles(
     }
   };
 
-  if (/\btecnico\s+b2b\b/.test(normalized)) {
-    add("tecnico-b2b.html");
-    add("app-tecnico-b2b.js");
-  }
-
-  if (/\bcliente(?:\s+html)?\b/.test(normalized)) {
-    add("cliente.html");
-  }
-
   if (/\b(login|sesion|auth|autentica)/.test(normalized)) {
     add("app-login.js");
     add("firebase.js");
@@ -981,6 +972,15 @@ function inferTechnicalDiagnosticFiles(
     add("app-main.js");
   }
 
+  if (/\btecnico\s+b2b\b/.test(normalized)) {
+    add("tecnico-b2b.html");
+    add("app-tecnico-b2b.js");
+  }
+
+  if (/\bcliente(?:\s+html)?\b/.test(normalized)) {
+    add("cliente.html");
+  }
+
   if (
     vision?.targetFile &&
     vision.targetFile !== "repo.hub"
@@ -988,7 +988,7 @@ function inferTechnicalDiagnosticFiles(
     add(vision.targetFile);
   }
 
-  return files.slice(0, 3);
+  return files.slice(0, 6);
 }
 
 function buildLocalTechnicalInvestigationPlan(
@@ -1038,7 +1038,7 @@ function buildLocalTechnicalInvestigationPlan(
     intent: "REPO_INVESTIGATION",
     objective: cleanObjective || objective,
     targetFiles: files,
-    toolCalls: toolCalls.slice(0, 8),
+    toolCalls: toolCalls.slice(0, 14),
     writeAllowed: false,
     patchPreviewAllowed: false,
     renderPatchPreview: false,

@@ -1378,6 +1378,8 @@ function collectObservationDrivenCandidates(
                         0,
                     weakNoiseEvidenceHits:
                         0,
+                    plannedTarget:
+                        false,
                     frequency:
                         0,
                     evidence:
@@ -1420,6 +1422,10 @@ function collectObservationDrivenCandidates(
                     ? 1
                     : 0;
 
+            current.plannedTarget =
+                current.plannedTarget ||
+                scoreMeta.plannedTarget === true;
+
             current.frequency +=
                 1;
 
@@ -1455,6 +1461,32 @@ function collectObservationDrivenCandidates(
                 current
             );
         };
+
+    toolCalls
+        .filter(call =>
+            call?.name === "repo.read" ||
+            call?.name === "repo.diagnose"
+        )
+        .forEach(call => {
+            const file =
+                call?.args?.file ||
+                call?.args?.path ||
+                "";
+
+            addCandidate(
+                file,
+                {
+                    sourceTool: call.name,
+                    snippet: "Objetivo seleccionado por el plan tecnico local."
+                },
+                {
+                    score: 45,
+                    directMatches: 2,
+                    termDirect: true,
+                    plannedTarget: true
+                }
+            );
+        });
 
     observations.forEach((observation, index) => {
         const toolName =
@@ -1639,12 +1671,14 @@ function collectObservationDrivenCandidates(
                 WEAK_CORE_FILE_PATTERN.test(
                     candidate.file
                 ) &&
-                candidate.directScore < 2
+                candidate.directScore < 2 &&
+                !candidate.plannedTarget
                     ? 40
                     : 0;
 
             const infrastructurePenalty =
                 isInfrastructure &&
+                !candidate.plannedTarget &&
                 !explicitlyMentioned &&
                 !metaExplicitObjective
                     ? 120
@@ -1652,6 +1686,7 @@ function collectObservationDrivenCandidates(
 
             const metaEnginePenalty =
                 metaEvidenceHits > 0 &&
+                !candidate.plannedTarget &&
                 !explicitlyMentioned &&
                 !metaExplicitObjective
                     ? 160 + (metaEvidenceHits * 35)
@@ -1727,8 +1762,15 @@ function collectObservationDrivenCandidates(
             candidate.productUiEvidenceHits > 0
         );
 
+    const plannedCandidates =
+        scoredCandidates.filter(candidate =>
+            candidate.plannedTarget === true
+        );
+
     const selectableCandidates =
-        visualProductCandidates.length > 0
+        plannedCandidates.length > 0
+            ? plannedCandidates
+            : visualProductCandidates.length > 0
             ? visualProductCandidates
             : productSurfaceCandidates.length > 0
             ? scoredCandidates.filter(candidate =>

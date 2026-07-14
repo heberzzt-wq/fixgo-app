@@ -539,6 +539,64 @@ test("agent loop follow-up focuses a strong product UI primary candidate", () =>
     );
 });
 
+test("agent loop keeps planned auth targets ahead of accidental terminal matches", () => {
+    const helpers =
+        loadGestiaCoreAgentLoopHelpers();
+
+    const plan =
+        helpers.buildObservationDrivenFollowUpToolCalls({
+            rawInput:
+                "explica por que al volver de Terminal a CEO termina en admin",
+            toolCalls: [
+                {
+                    name: "repo.search",
+                    args: { query: "terminal CEO admin" }
+                },
+                {
+                    name: "repo.read",
+                    args: { file: "firebase.js" }
+                },
+                {
+                    name: "repo.diagnose",
+                    args: { file: "firebase.js" }
+                },
+                {
+                    name: "repo.read",
+                    args: { file: "app-main.js" }
+                },
+                {
+                    name: "repo.diagnose",
+                    args: { file: "app-main.js" }
+                }
+            ],
+            observations: [
+                {
+                    response: {
+                        data: {
+                            tool: "repo.search",
+                            matches: [
+                                {
+                                    file: "terminal-chofer.html",
+                                    snippet: "Terminal CEO admin navigation card"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        });
+
+    assert.deepEqual(
+        Array.from(plan.candidates, candidate => candidate.file),
+        ["firebase.js", "app-main.js"]
+    );
+    assert.equal(plan.candidates[0].plannedTarget, true);
+    assert.doesNotMatch(
+        plan.candidates.map(candidate => candidate.file).join(","),
+        /terminal-chofer\.html/
+    );
+});
+
 test("agent loop preserves short B2B qualifiers when ranking repo candidates", () => {
     const helpers =
         loadGestiaCoreAgentLoopHelpers();
