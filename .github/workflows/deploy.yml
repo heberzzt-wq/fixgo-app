@@ -31,5 +31,24 @@ jobs:
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
+      - name: Sync Gemini secret when configured
+        env:
+          GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          secret_value="${GEMINI_KEY:-$GEMINI_API_KEY}"
+          if [ -z "$secret_value" ]; then
+            echo "::warning::Gemini credential is not configured; grounded web research remains fail-closed."
+            exit 0
+          fi
+
+          secret_file="$RUNNER_TEMP/gemini-key"
+          trap 'rm -f "$secret_file"' EXIT
+          printf '%s' "$secret_value" > "$secret_file"
+          chmod 600 "$secret_file"
+          firebase functions:secrets:set GEMINI_KEY --data-file "$secret_file" --project fixgo-44e4d --token "$FIREBASE_TOKEN"
+          echo "Gemini credential synchronized with Firebase Secret Manager."
+
       - name: Deploy Hosting and Jarvis multifunction services
         run: firebase deploy --only hosting,functions:jarvisDailySupervisor,functions:jarvisSupervisionStatus,functions:jarvisWebResearch --project fixgo-44e4d --token "${{ secrets.FIREBASE_TOKEN }}"
