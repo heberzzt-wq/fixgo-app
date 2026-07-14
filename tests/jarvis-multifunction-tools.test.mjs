@@ -1015,6 +1015,17 @@ test("multifunction planner routes real web research without confusing it with c
     );
 });
 
+test("web research strips assistant command boilerplate before searching", () => {
+    const source = fs.readFileSync(
+        path.resolve(__dirname, "../gestia-core/jarvis/jarvis.multitool.pack.js"),
+        "utf8"
+    );
+
+    assert.match(source, /\(jarvis\|heberto\|gestia\)/);
+    assert.match(source, /investiga\|investigar\|busca\|buscar/);
+    assert.match(source, /(?:web\|internet\|google)/);
+});
+
 test("multifunction planner routes capability boundary questions to forensics", () => {
     const prompts = [
         "Jarvis, corre un analisis forense de tus capacidades reales",
@@ -1095,11 +1106,13 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
 
     assert.match(bridge, /function composeActuatorResponse/);
+    assert.match(bridge, /function composeActuatorFailure/);
     assert.match(bridge, /toolName === "browser\.inspect"/);
     assert.match(bridge, /Titulo detectado/);
     assert.match(bridge, /imageBase64:\s*undefined/);
     assert.match(bridge, /No hay conectores externos configurados/);
-    assert.match(terminal, /jarvis-tools-v7-20260714-supervision-native-doc-responses/);
+    assert.match(bridge, /No se genero ni se fingio una imagen/);
+    assert.match(terminal, /jarvis-tools-v7-20260714-final-human-actuator-responses/);
 });
 
 test("multifunction planner does not turn explanatory questions into work orders", () => {
@@ -1324,5 +1337,5 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260714-native-doc-actuators/);
+    assert.match(core, /jarvis-tools-v7-20260714-final-parallel-research/);
 });

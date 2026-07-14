@@ -295,6 +295,76 @@ function composeActuatorResponse(
     return null;
 }
 
+function composeActuatorFailure(
+    toolName = "",
+    result = {},
+    context = {}
+) {
+    if (!window.ResponseComposer?.composeJarvis) {
+        return null;
+    }
+
+    const errorText = String(
+        result?.error?.message ||
+        result?.error ||
+        result?.status ||
+        "TOOL_FAILED"
+    );
+
+    if (toolName === "image.generate") {
+        const credentialMissing =
+            /GEMINI_KEY_MISSING|failed-precondition/i.test(errorText);
+        return window.ResponseComposer.composeJarvis(
+            [
+                "Generacion de imagen no disponible",
+                "",
+                credentialMissing
+                    ? "El actuador esta desplegado y autenticado, pero falta configurar la credencial **GEMINI_KEY** en GitHub/Firebase."
+                    : `La generacion fallo: ${errorText}.`,
+                "No se genero ni se fingio una imagen."
+            ].join("\n"),
+            {
+                ok: false,
+                tool: toolName,
+                status: result?.status || "FAILED",
+                credentialMissing
+            },
+            {
+                type: "IMAGE_GENERATION_FAILURE",
+                analysisId: context.analysisId,
+                exposeRaw: false
+            }
+        );
+    }
+
+    if (
+        toolName.startsWith("browser.") ||
+        toolName.startsWith("document.") ||
+        toolName === "system.supervision.runNow"
+    ) {
+        return window.ResponseComposer.composeJarvis(
+            [
+                "Actuador no completado",
+                "",
+                `Herramienta: **${toolName}**.`,
+                `Causa: ${errorText}.`
+            ].join("\n"),
+            {
+                ok: false,
+                tool: toolName,
+                status: result?.status || "FAILED"
+            },
+            {
+                type: "ACTUATOR_FAILURE_RESPONSE",
+                analysisId: context.analysisId,
+                exposeRaw: false
+            }
+        );
+    }
+
+    return null;
+}
+
 export const ToolsBridge = {
 
     async executeAndCompose(toolName, args = {}, context = {}) {
@@ -333,7 +403,11 @@ export const ToolsBridge = {
             );
 
         if (!result?.ok) {
-            return window.ResponseComposer.error(
+            return composeActuatorFailure(
+                toolName,
+                result,
+                context
+            ) || window.ResponseComposer.error(
                 result?.error || "Error desconocido",
                 "TOOL_EXECUTION_FAILED",
                 {
