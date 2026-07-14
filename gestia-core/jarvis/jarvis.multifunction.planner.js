@@ -1,4 +1,4 @@
-const VERSION = "1.5.0-sia7-mixed-investigations";
+const VERSION = "1.6.0-sia7-grounded-web-research";
 
 function normalize(value = "") {
     return String(value || "")
@@ -49,6 +49,19 @@ export function isJarvisTechnicalDiagnosticRequest(input = "") {
 
     if (!normalized) return false;
 
+    const hasExplicitWebSurface =
+        /\b(internet|en la web|google|noticias|fuentes web|informacion actualizada|datos actuales)\b/i.test(normalized);
+    const hasExplicitRepoScope =
+        /\b(repo|repositorio|codigo local|archivo local|este proyecto|esta aplicacion)\b/i.test(normalized) ||
+        /[a-z0-9_-]+\.(?:js|mjs|cjs|html|css|json)\b/i.test(normalized);
+
+    if (
+        hasExplicitWebSurface &&
+        !hasExplicitRepoScope
+    ) {
+        return false;
+    }
+
     const hasDiagnosticVerb =
         /\b(analiza|analizar|revisa|revisar|audita|auditar|investiga|investigar|diagnostica|diagnosticar|busca|buscar|verifica|verificar|checa|checar)\b/i.test(normalized);
 
@@ -88,8 +101,16 @@ export function buildJarvisMultifunctionToolCalls(
     const isCapabilityForensicsRequest =
         /\b(analisis forense|auditoria forense|capacidades reales|limitaciones|paridad|nivel codex|a tu altura|que te falta|actuadores)\b/i.test(normalized) ||
         (
-            /\b(puedes|sabes|tienes|controla|controlar|busca|buscar|genera|generar|envia|enviar|delega|delegar|automatiza|automatizar)\b/i.test(normalized) &&
+            /\b(puedes|sabes|tienes|controla|controlar|genera|generar|envia|enviar|delega|delegar|automatiza|automatizar)\b/i.test(normalized) &&
             /\b(chrome|navegador|internet|web|fuentes|imagen|imagenes|correo|email|calendario|subagentes|agentes|automatizacion|conectores)\b/i.test(normalized)
+        );
+
+    const isWebResearchRequest =
+        !isCapabilityForensicsRequest &&
+        (
+            /\b(busca|buscar|investiga|investigar|consulta|consultar|averigua|averiguar|verifica|verificar)\b[\s\S]{0,100}\b(internet|web|google|noticias|fuentes|informacion actual|datos actuales)\b/i.test(normalized) ||
+            /\b(internet|web|google|noticias|fuentes)\b[\s\S]{0,100}\b(busca|buscar|investiga|investigar|consulta|consultar|averigua|averiguar|verifica|verificar)\b/i.test(normalized) ||
+            /\b(ultimas noticias|informacion actualizada|datos actuales)\b/i.test(normalized)
         );
 
     if (isCapabilityForensicsRequest) {
@@ -125,6 +146,18 @@ export function buildJarvisMultifunctionToolCalls(
                 "system.capabilities",
                 {},
                 "LOCAL_MULTIFUNCTION_CAPABILITIES"
+            )
+        );
+    }
+
+    if (isWebResearchRequest) {
+        calls.push(
+            makeCall(
+                "web.research",
+                {
+                    query: raw
+                },
+                "LOCAL_MULTIFUNCTION_GROUNDED_WEB_RESEARCH"
             )
         );
     }
@@ -246,7 +279,8 @@ export function describeJarvisMultifunctionPlanner() {
             "business",
             "marketing",
             "page",
-            "media"
+            "media",
+            "web"
         ]
     };
 }

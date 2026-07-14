@@ -122,6 +122,16 @@ const DEFAULT_PROBES = Object.freeze([
         ]
     },
     {
+        id: "grounded_web_research_contract",
+        path: "/gestia-core/jarvis/jarvis.multitool.pack.js",
+        markers: [
+            "1.5.0-sia7-grounded-web-research",
+            "web.research",
+            "JARVIS_GROUNDED_WEB_RESEARCH",
+            "result.sources.length === 0"
+        ]
+    },
+    {
         id: "terminal_response_renderer",
         path: "/gestia-terminal.html",
         markers: [
@@ -262,6 +272,7 @@ const SUPERVISION_DOMAIN_BY_PROBE = Object.freeze({
     mixed_investigation_composition: "jarvis_cognition",
     proposal_state_authority: "jarvis_governance",
     technical_response_clarity: "jarvis_cognition",
+    grounded_web_research_contract: "web_research",
     terminal_response_renderer: "jarvis_cognition",
     runtime_health_module: "runtime_health"
 });
@@ -289,6 +300,10 @@ function buildSupervisionRecommendations(checks = []) {
 
     if (failedDomains.has("runtime_health")) {
         recommendations.push("Revisar runtime-health y latencia de modulos antes de declarar el sistema estable.");
+    }
+
+    if (failedDomains.has("web_research")) {
+        recommendations.push("Validar web.research con una consulta real y confirmar respuesta sustentada, fuentes y cero efectos externos.");
     }
 
     if (failedDomains.has("unknown")) {

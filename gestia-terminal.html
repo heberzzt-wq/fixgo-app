@@ -145,13 +145,13 @@ fetch("/gestia-terminal.js")
 <script type="module" src="/firebase.js"></script>
 
 <script type="module" src="/modules/terminal/proposal-state.js?v=shared-proposal-state-v1-20260713"></script>
-<script type="module" src="/gestia-core/gestia-core.js?v=mixed-intent-v2-20260713-4260-technical-diagnostics-v1-multifunction-planner-v1.5-mixed-investigations-forensics-v2"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=mixed-intent-v2-20260713-4260-technical-diagnostics-v1-multifunction-planner-v1.6-grounded-web-research"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260707-4190"></script>
 <script
 type="module"
 src="/gestia-core/gestia.runtime.v7.js?v=role-authority-v3-single-navigation-20260713">
 </script>
-<script type="module" src="/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260713-supervision-v7-live-forensics"></script>
+<script type="module" src="/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260713-supervision-v8-grounded-web"></script>
 <script type="module" src="/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123"></script>
 <script type="module" src="/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260707-4123"></script>
 <script type="module" src="/gestia-core/jarvis/jarvis.language.core.v5.js"></script>
@@ -1402,6 +1402,34 @@ function formatTerminalToolPayload(toolName = "", payload = {}) {
                     "",
                     "Siguientes mejoras:",
                     ...payload.priorities.map(item => `- ${item}`)
+                ]
+                : [])
+        ].join("\n");
+    }
+
+    if (name === "web.research") {
+        const sources =
+            Array.isArray(payload?.sources)
+                ? payload.sources.slice(0, 8)
+                : [];
+
+        return [
+            `Investigacion web: ${payload?.grounded === true ? "SUSTENTADA" : "SIN FUENTES"}`,
+            `Consulta: ${payload?.query || "ND"}`,
+            `Fuentes verificables: ${sources.length}`,
+            "",
+            String(
+                payload?.answer ||
+                payload?.message ||
+                "No hubo respuesta disponible."
+            ).trim(),
+            ...(sources.length
+                ? [
+                    "",
+                    "Fuentes:",
+                    ...sources.map((source, index) =>
+                        `- [${index + 1}] ${source?.title || "Fuente web"}: ${source?.url || "URL no disponible"}`
+                    )
                 ]
                 : [])
         ].join("\n");

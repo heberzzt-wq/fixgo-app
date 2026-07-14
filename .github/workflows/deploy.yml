@@ -17,7 +17,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install app dependencies
         run: npm ci
@@ -31,5 +31,5 @@ jobs:
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
-      - name: Deploy Hosting and Jarvis supervision
-        run: firebase deploy --only hosting,functions:jarvisDailySupervisor,functions:jarvisSupervisionStatus --project fixgo-44e4d --token "${{ secrets.FIREBASE_TOKEN }}"
+      - name: Deploy Hosting and Jarvis multifunction services
+        run: firebase deploy --only hosting,functions:jarvisDailySupervisor,functions:jarvisSupervisionStatus,functions:jarvisWebResearch --project fixgo-44e4d --token "${{ secrets.FIREBASE_TOKEN }}"

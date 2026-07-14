@@ -23,6 +23,7 @@ const cors = require("cors");
 const crypto = require("crypto");
 const Stripe = require("stripe");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenAI } = require("@google/genai");
 
 const {
     validateRepoWriteSyntax
@@ -41,6 +42,10 @@ const {
     runDailyJarvisSupervision,
     getLatestJarvisSupervisionReport
 } = require("./jarvis-daily-supervisor");
+
+const {
+    runJarvisWebResearch
+} = require("./jarvis-web-research");
 
 /**
  * 🛡️ SELLADO DE INFRAESTRUCTURA (GLOBAL SCOPE)
@@ -122,6 +127,7 @@ const {
 
 let stripe;
 let genAI;
+let groundedGenAI;
 let firewallV5;
 let initialized = false;
 
@@ -147,7 +153,29 @@ function initCore() {
 
     firewallV5 = firewall.firewallV5;
     initialized = true;
+
     console.log("🛡️ [MOTOR] Sentinel V5.56: IGNICIÓN_CONFIRMADA");
+}
+
+function getGroundedGenAI() {
+    if (groundedGenAI) {
+        return groundedGenAI;
+    }
+
+    const apiKey =
+        String(process.env.GEMINI_KEY || "")
+            .trim();
+
+    if (!apiKey) {
+        throw new Error(
+            "GEMINI_KEY_MISSING"
+        );
+    }
+
+    groundedGenAI =
+        new GoogleGenAI({ apiKey });
+
+    return groundedGenAI;
 }
 
 // ======================================================================================
@@ -2468,6 +2496,51 @@ exports.limpiarSesionesHuerfanas = functions.pubsub
         }
     });
 
+async function assertJarvisAdminContext(
+    context,
+    action = "usar Jarvis"
+) {
+    if (!context.auth?.uid) {
+        throw new functions.https.HttpsError(
+            "unauthenticated",
+            `Se requiere sesion para ${action}.`
+        );
+    }
+
+    const email =
+        String(
+            context.auth.token?.email ||
+            ""
+        ).toLowerCase();
+    const profileSnap =
+        await db
+            .collection("users")
+            .doc(context.auth.uid)
+            .get();
+    const role =
+        String(
+            profileSnap.data()?.rol ||
+            profileSnap.data()?.role ||
+            ""
+        ).toLowerCase();
+
+    if (
+        email !== "hebertoh-m@hotmail.com" &&
+        role !== "admin"
+    ) {
+        throw new functions.https.HttpsError(
+            "permission-denied",
+            `Solo administracion puede ${action}.`
+        );
+    }
+
+    return {
+        uid: context.auth.uid,
+        email,
+        role
+    };
+}
+
 /**
  * JARVIS DAILY SUPERVISOR
  * Auditoria diaria read-only de contratos criticos desplegados.
@@ -2500,30 +2573,10 @@ exports.jarvisSupervisionStatus = functions
     .runWith({ timeoutSeconds: 20, memory: "128MB" })
     .https
     .onCall(async (_data, context) => {
-        if (!context.auth?.uid) {
-            throw new functions.https.HttpsError(
-                "unauthenticated",
-                "Se requiere sesion para consultar supervision."
-            );
-        }
-
-        const email = String(context.auth.token?.email || "").toLowerCase();
-        const profileSnap = await db.collection("users").doc(context.auth.uid).get();
-        const role = String(
-            profileSnap.data()?.rol ||
-            profileSnap.data()?.role ||
-            ""
-        ).toLowerCase();
-
-        if (
-            email !== "hebertoh-m@hotmail.com" &&
-            role !== "admin"
-        ) {
-            throw new functions.https.HttpsError(
-                "permission-denied",
-                "Solo administracion puede consultar supervision."
-            );
-        }
+        await assertJarvisAdminContext(
+            context,
+            "consultar supervision"
+        );
 
         const report = await getLatestJarvisSupervisionReport({ db });
 
@@ -2550,6 +2603,107 @@ exports.jarvisSupervisionStatus = functions
             startedAtIso: report.startedAtIso,
             policy: report.policy
         };
+    });
+
+/**
+ * JARVIS GROUNDED WEB RESEARCH
+ * Investigacion web actual con fuentes estructuradas.
+ * Solo lectura, administracion autenticada y sin acciones externas.
+ */
+exports.jarvisWebResearch = functions
+    .runWith({ timeoutSeconds: 60, memory: "256MB" })
+    .https
+    .onCall(async (data = {}, context) => {
+        const actor =
+            await assertJarvisAdminContext(
+                context,
+                "investigar en la web"
+            );
+        const query =
+            String(
+                data?.query ||
+                data?.prompt ||
+                ""
+            )
+                .replace(/\s+/g, " ")
+                .trim();
+
+        if (
+            query.length < 5 ||
+            query.length > 600
+        ) {
+            throw new functions.https.HttpsError(
+                "invalid-argument",
+                "La consulta web debe tener entre 5 y 600 caracteres."
+            );
+        }
+
+        try {
+            const result =
+                await runJarvisWebResearch({
+                    ai:
+                        getGroundedGenAI(),
+                    query
+                });
+
+            console.log(JSON.stringify({
+                level:
+                    result.grounded
+                        ? "INFO"
+                        : "WARNING",
+                message:
+                    "JARVIS_WEB_RESEARCH_COMPLETE",
+                uid:
+                    actor.uid,
+                grounded:
+                    result.grounded,
+                sourceCount:
+                    result.sourceCount,
+                searchQueryCount:
+                    result.searchQueries.length
+            }));
+
+            if (!result.grounded) {
+                throw new functions.https.HttpsError(
+                    "failed-precondition",
+                    "La investigacion no devolvio fuentes verificables."
+                );
+            }
+
+            return result;
+        }
+        catch(error) {
+            if (
+                error instanceof
+                    functions.https.HttpsError
+            ) {
+                throw error;
+            }
+
+            console.error(JSON.stringify({
+                level: "ERROR",
+                message:
+                    "JARVIS_WEB_RESEARCH_FAILED",
+                uid:
+                    actor.uid,
+                error:
+                    error?.message ||
+                    String(error)
+            }));
+
+            const missingKey =
+                error?.message ===
+                    "GEMINI_KEY_MISSING";
+
+            throw new functions.https.HttpsError(
+                missingKey
+                    ? "failed-precondition"
+                    : "internal",
+                missingKey
+                    ? "La investigacion web no tiene credencial Gemini configurada."
+                    : "No fue posible completar la investigacion web con fuentes."
+            );
+        }
     });
 
 /**

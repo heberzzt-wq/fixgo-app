@@ -177,6 +177,7 @@ test("supervision helpers and latest report contract stay deterministic", async 
     assert.ok(DEFAULT_PROBES.some(probe => probe.id === "technical_response_clarity"));
     assert.ok(DEFAULT_PROBES.some(probe => probe.id === "mixed_investigation_composition"));
     assert.ok(DEFAULT_PROBES.some(probe => probe.id === "proposal_state_authority"));
+    assert.ok(DEFAULT_PROBES.some(probe => probe.id === "grounded_web_research_contract"));
     assert.ok(DEFAULT_PROBES.some(probe => probe.id === "terminal_response_renderer"));
 
     assert.deepEqual(

@@ -16,7 +16,7 @@ import {
     describeMediaIngestion
 } from "./jarvis.media.ingestion.js";
 
-const VERSION = "1.4.0-sia7-live-supervision-forensics";
+const VERSION = "1.5.0-sia7-grounded-web-research";
 
 const CAPABILITY_WEIGHTS = {
     READY: 1,
@@ -403,6 +403,15 @@ const LOCAL_SUPERVISION_PROBES = [
         id: "runtime_health_module",
         path: "/runtime-health.js",
         markers: ["runtimeLatency", "getRuntimeHealthSnapshot"]
+    },
+    {
+        id: "grounded_web_research",
+        path: "/gestia-core/jarvis/jarvis.multitool.pack.js",
+        markers: [
+            "web.research",
+            "JARVIS_GROUNDED_WEB_RESEARCH",
+            "jarvisWebResearch"
+        ]
     }
 ];
 
@@ -459,7 +468,8 @@ async function runLocalDailySupervision() {
     const failureDomains = [
         ...(authRoutingFailed ? ["auth_routing"] : []),
         ...(failed.some(check => check.id === "technical_intent_priority") ? ["jarvis_cognition"] : []),
-        ...(failed.some(check => check.id === "runtime_health_module") ? ["runtime_health"] : [])
+        ...(failed.some(check => check.id === "runtime_health_module") ? ["runtime_health"] : []),
+        ...(failed.some(check => check.id === "grounded_web_research") ? ["web_research"] : [])
     ];
     const recommendations = [
         ...(authRoutingFailed
@@ -470,6 +480,9 @@ async function runLocalDailySupervision() {
             : []),
         ...(failureDomains.includes("runtime_health")
             ? ["Revisar runtime-health y latencia de modulos antes de declarar el sistema estable."]
+            : []),
+        ...(failureDomains.includes("web_research")
+            ? ["Probar web.research y confirmar una respuesta sustentada con fuentes verificables."]
             : [])
     ];
 
@@ -547,6 +560,99 @@ async function fetchDailySupervisionStatus() {
             cloudReportAvailable: false,
             cloudError: error?.message || String(error),
             message: "Supervisión local completada; el reporte cloud no estuvo disponible. Revisa cloudError para conocer la causa."
+        };
+    }
+}
+
+async function fetchGroundedWebResearch(
+    query = ""
+) {
+    const user =
+        globalThis?.auth?.currentUser ||
+        globalThis?.window?.auth?.currentUser ||
+        null;
+    const normalizedQuery =
+        String(query || "")
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 600);
+
+    if (!user) {
+        return {
+            ok: false,
+            error: "AUTH_REQUIRED",
+            message: "Necesito una sesion valida para investigar en la web."
+        };
+    }
+
+    if (normalizedQuery.length < 5) {
+        return {
+            ok: false,
+            error: "WEB_RESEARCH_QUERY_REQUIRED",
+            message: "Dime que tema debo investigar en la web."
+        };
+    }
+
+    try {
+        const token =
+            await user.getIdToken();
+        const response = await fetch(
+            "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisWebResearch",
+            {
+                method: "POST",
+                headers: {
+                    "Authorization":
+                        `Bearer ${token}`,
+                    "Content-Type":
+                        "application/json"
+                },
+                body: JSON.stringify({
+                    data: {
+                        query:
+                            normalizedQuery
+                    }
+                })
+            }
+        );
+        const payload =
+            await response.json();
+        const result =
+            payload?.result ||
+            payload?.data ||
+            null;
+
+        if (
+            !response.ok ||
+            !result?.grounded ||
+            !Array.isArray(result?.sources) ||
+            result.sources.length === 0
+        ) {
+            throw new Error(
+                payload?.error?.message ||
+                `WEB_RESEARCH_HTTP_${response.status}`
+            );
+        }
+
+        return {
+            ...result,
+            source:
+                "JARVIS_GROUNDED_WEB_RESEARCH",
+            readOnly: true
+        };
+    }
+    catch(error) {
+        return {
+            ok: false,
+            error:
+                "WEB_RESEARCH_UNAVAILABLE",
+            message:
+                error?.message ||
+                "La investigacion web no estuvo disponible.",
+            query:
+                normalizedQuery,
+            grounded: false,
+            sources: [],
+            readOnly: true
         };
     }
 }
@@ -798,6 +904,22 @@ export function registerJarvisMultifunctionTools(runtime) {
                 await fetchDailySupervisionStatus()
         }),
         register(runtime, {
+            name: "web.research",
+            description: "Investiga informacion actual en Google Search y devuelve una respuesta sustentada con fuentes estructuradas.",
+            output: "SIA7_GROUNDED_WEB_RESEARCH",
+            inputSchema: {
+                query: "string",
+                prompt: "string"
+            },
+            execute: async (args = {}, context = {}) =>
+                await fetchGroundedWebResearch(
+                    args.query ||
+                    args.prompt ||
+                    context.rawInput ||
+                    ""
+                )
+        }),
+        register(runtime, {
             name: "business.assist",
             description: "Resuelve consultas empresariales, operativas y de contexto interno sin modificar datos.",
             output: "SIA7_BUSINESS_RESPONSE",
@@ -919,6 +1041,7 @@ export function registerJarvisMultifunctionTools(runtime) {
             "system.forensics",
             "system.health",
             "system.supervision",
+            "web.research",
             "business.assist",
             "marketing.plan",
             "page.plan",
@@ -937,7 +1060,8 @@ export function describeJarvisMultifunctionTools() {
             "business",
             "marketing",
             "page",
-            "media"
+            "media",
+            "web"
         ],
         readOnlyByDefault: true,
         derivedWritesRequireApproval: true

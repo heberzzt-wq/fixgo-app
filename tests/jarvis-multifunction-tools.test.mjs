@@ -56,7 +56,7 @@ function createRuntime() {
     };
 }
 
-test("multifunction pack registers nine read-only tools", () => {
+test("multifunction pack registers ten read-only tools", () => {
     const runtime =
         createRuntime();
 
@@ -70,6 +70,7 @@ test("multifunction pack registers nine read-only tools", () => {
         "system.forensics",
         "system.health",
         "system.supervision",
+        "web.research",
         "business.assist",
         "marketing.plan",
         "page.plan",
@@ -108,8 +109,9 @@ test("capability forensics reports evidence-backed gaps without claiming Codex p
         );
         assert.equal(
             result.capabilities.find(item => item.id === "web_research")?.status,
-            "NOT_AVAILABLE"
+            "READY"
         );
+        assert.ok(!result.gaps.some(item => item.id === "web_research"));
         assert.ok(result.gaps.some(item => item.id === "image_generation"));
 
         const capabilities = await runtime.execute("system.capabilities");
@@ -797,6 +799,9 @@ test("Terminal uses one premium response renderer and preserves semantic titles"
     assert.match(terminal, /const safeTitle\s*=\s*escapeHTML/);
     assert.match(terminal, /\$\{safeTitle\}<\/h3>/);
     assert.match(terminal, /item\?\.reason/);
+    assert.match(terminal, /name === "web\.research"/);
+    assert.match(terminal, /Fuentes verificables:/);
+    assert.match(terminal, /source\?\.url/);
     assert.doesNotMatch(terminal, /window\.renderJarvisResponse = function/);
 });
 
@@ -844,9 +849,54 @@ test("multifunction planner exposes the daily supervision report", () => {
 
     assert.match(toolPack, /id:\s*"canonical_role_router"[\s\S]{0,220}"resolveGestiaRouteDecision"/);
     assert.match(toolPack, /id:\s*"canonical_role_router"[\s\S]{0,260}"\[ROLE_AUTHORITY_REDIRECT\]"/);
+    assert.match(toolPack, /id:\s*"grounded_web_research"[\s\S]{0,240}"web\.research"/);
+    assert.match(toolPack, /id:\s*"grounded_web_research"[\s\S]{0,280}"jarvisWebResearch"/);
     assert.doesNotMatch(
         toolPack,
         /id:\s*"canonical_role_router"[\s\S]{0,180}markers:\s*\["gestia-terminal",\s*"b2b_admin"\]/
+    );
+});
+
+test("multifunction planner routes real web research without confusing it with capability forensics", () => {
+    const prompts = [
+        "Jarvis, busca en internet las ultimas novedades de Firebase Functions",
+        "Investiga en la web el estado actual de Gemini API y dame fuentes",
+        "Dame las ultimas noticias de inteligencia artificial"
+    ];
+
+    for (const prompt of prompts) {
+        const calls =
+            buildJarvisMultifunctionToolCalls(
+                prompt
+            );
+
+        assert.deepEqual(
+            calls.map(call => call.name),
+            ["web.research"],
+            prompt
+        );
+        assert.equal(
+            calls[0].args.query,
+            prompt
+        );
+        assert.equal(
+            calls[0].mutates,
+            false
+        );
+        assert.equal(
+            isJarvisTechnicalDiagnosticRequest(
+                prompt
+            ),
+            false,
+            prompt
+        );
+    }
+
+    assert.deepEqual(
+        buildJarvisMultifunctionToolCalls(
+            "Jarvis, puedes buscar en internet y citar fuentes?"
+        ).map(call => call.name),
+        ["system.forensics"]
     );
 });
 
@@ -1012,7 +1062,7 @@ test("brain seeds natural multifunction requests into the tested planner", () =>
 
     assert.match(
         analysisHub,
-        /brain\.engine\.js\?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1\.5-mixed-investigations/
+        /brain\.engine\.js\?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1\.6-grounded-web-research/
     );
 });
 
@@ -1066,5 +1116,5 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /supervision-v7-live-forensics/);
+    assert.match(core, /supervision-v8-grounded-web/);
 });

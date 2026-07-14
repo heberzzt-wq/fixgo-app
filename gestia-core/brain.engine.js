@@ -38,7 +38,7 @@ import {
   isJarvisTechnicalDiagnosticRequest,
   mergeJarvisToolCalls
 
-} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-multifunction-planner-v1.5-mixed-investigations-20260713";
+} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-multifunction-planner-v1.6-grounded-web-research-20260713";
 
 import {
 
