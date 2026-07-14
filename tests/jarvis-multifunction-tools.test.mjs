@@ -1085,7 +1085,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(bridge, /Titulo detectado/);
     assert.match(bridge, /imageBase64:\s*undefined/);
     assert.match(bridge, /No hay conectores externos configurados/);
-    assert.match(terminal, /jarvis-tools-v7-20260714-actuator-responses/);
+    assert.match(terminal, /jarvis-tools-v7-20260714-supervision-native-doc-responses/);
 });
 
 test("multifunction planner does not turn explanatory questions into work orders", () => {

@@ -7,7 +7,7 @@ const DEFAULT_PROBES = Object.freeze([
         id: "terminal_runtime",
         path: "/gestia-terminal.html",
         markers: [
-            "technical-diagnostics-v1",
+            "multifunction-planner-v1.9-native-docs",
             "gestia-core/gestia-core.js"
         ]
     },
@@ -125,7 +125,7 @@ const DEFAULT_PROBES = Object.freeze([
         id: "grounded_web_research_contract",
         path: "/gestia-core/jarvis/jarvis.multitool.pack.js",
         markers: [
-            "1.6.0-sia7-grounded-web-health",
+            "1.7.0-sia7-bounded-supervision-forensics",
             "web.research",
             "JARVIS_GROUNDED_WEB_RESEARCH",
             "result.sources.length === 0"
