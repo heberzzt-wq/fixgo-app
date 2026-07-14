@@ -3,11 +3,12 @@ import cors from "cors";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import * as tls from "node:tls";
 import { fileURLToPath } from "url";
 import { execFileSync, spawn } from "child_process";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.2.0-local-actuator-bridge";
+    "2.3.0-local-actuator-bridge";
 
 export const JARVIS_FS_BRIDGE_POLICY = {
     authority: "full_repo_private_owner",
@@ -451,6 +452,11 @@ export function describeJarvisFsBridge() {
             documents: {
                 available: true,
                 formats: ["html", "md", "txt", "csv", "json", "pdf"]
+            },
+            webResearch: {
+                available: true,
+                grounded: true,
+                engine: "bing-rss"
             }
         }
     };
@@ -874,6 +880,114 @@ function artifactPath(file, root = DEFAULT_ROOT, extensions = []) {
 
     fs.mkdirSync(path.dirname(target), { recursive: true });
     return target;
+}
+
+function decodeXml(value = "") {
+    return String(value || "")
+        .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'");
+}
+
+function stripMarkup(value = "") {
+    return decodeXml(value)
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function extractRssTag(item = "", tag = "") {
+    return decodeXml(
+        item.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, "i"))?.[1] || ""
+    ).trim();
+}
+
+export async function runLocalWebResearch(query = "", timeoutMs = 20000) {
+    const normalizedQuery = String(query || "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 500);
+
+    if (normalizedQuery.length < 5) {
+        throw new Error("WEB_RESEARCH_QUERY_REQUIRED");
+    }
+
+    const searchUrl =
+        `https://www.bing.com/search?format=rss&q=${encodeURIComponent(normalizedQuery)}`;
+
+    if (
+        typeof tls.getCACertificates === "function" &&
+        typeof tls.setDefaultCACertificates === "function"
+    ) {
+        const certificates = [
+            ...tls.getCACertificates("default"),
+            ...tls.getCACertificates("system")
+        ];
+        tls.setDefaultCACertificates([...new Set(certificates)]);
+    }
+
+    const response = await fetch(searchUrl, {
+        headers: {
+            "User-Agent": "Mozilla/5.0 JarvisV7/1.0"
+        },
+        signal: AbortSignal.timeout(Math.min(Math.max(Number(timeoutMs) || 20000, 5000), 30000))
+    });
+
+    if (!response.ok) {
+        throw new Error(`WEB_SEARCH_HTTP_${response.status}`);
+    }
+
+    const rss = await response.text();
+    const items = rss.match(/<item>[\s\S]*?<\/item>/gi) || [];
+    const seen = new Set();
+    const sources = items
+        .map(item => ({
+            title: stripMarkup(extractRssTag(item, "title")).slice(0, 180),
+            url: extractRssTag(item, "link"),
+            summary: stripMarkup(extractRssTag(item, "description")).slice(0, 500)
+        }))
+        .filter(source => {
+            if (!/^https?:\/\//i.test(source.url) || seen.has(source.url)) return false;
+            seen.add(source.url);
+            return true;
+        })
+        .slice(0, 6)
+        .map((source, index) => ({ id: index + 1, ...source }));
+
+    if (sources.length === 0) {
+        throw new Error("WEB_RESEARCH_NO_SOURCES");
+    }
+
+    return {
+        ok: true,
+        grounded: true,
+        status: "GROUNDED_LOCAL_SEARCH",
+        engine: "jarvis_local_bing_rss_research",
+        query: normalizedQuery,
+        answer: [
+            `Encontre ${sources.length} fuentes web para: ${normalizedQuery}`,
+            "",
+            ...sources.slice(0, 4).map(source =>
+                `[${source.id}] ${source.title}: ${source.summary || "Sin resumen disponible."}`
+            )
+        ].join("\n"),
+        sources: sources.map(({ summary, ...source }) => source),
+        supports: sources.map(source => ({
+            text: source.summary || source.title,
+            sourceIds: [source.id]
+        })),
+        sourceCount: sources.length,
+        searchQueries: [normalizedQuery],
+        readOnly: true,
+        policy: {
+            citationsRequired: true,
+            externalSideEffects: false,
+            fallback: true
+        }
+    };
 }
 
 export function createJarvisFsBridgeApp({
@@ -1665,6 +1779,32 @@ export function createJarvisFsBridgeApp({
             return res.status(400).json({
                 ok: false,
                 status: "DOCUMENT_CREATE_FAILED",
+                error: error.message,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+    });
+
+    app.post("/research", async (req, res) => {
+        try {
+            const result = await runLocalWebResearch(
+                req.body?.query || req.body?.prompt || "",
+                req.body?.timeoutMs || 20000
+            );
+            return res.json({
+                ...result,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+        catch(error) {
+            return res.status(
+                error.message === "WEB_RESEARCH_QUERY_REQUIRED"
+                    ? 400
+                    : 502
+            ).json({
+                ok: false,
+                grounded: false,
+                status: "WEB_RESEARCH_FAILED",
                 error: error.message,
                 version: JARVIS_FS_BRIDGE_VERSION
             });

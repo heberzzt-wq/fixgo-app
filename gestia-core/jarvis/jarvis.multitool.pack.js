@@ -839,6 +839,42 @@ async function fetchGroundedWebResearch(
             error?.message ||
             "La investigacion web no estuvo disponible.";
 
+        if (typeof globalThis?.JarvisLocalBridge?.requestJson === "function") {
+            const localResult =
+                await globalThis.JarvisLocalBridge.requestJson(
+                    "/research",
+                    {
+                        query: normalizedQuery,
+                        timeoutMs: 20000
+                    },
+                    {
+                        timeoutMs: 25000
+                    }
+                );
+
+            if (
+                localResult?.ok === true &&
+                localResult?.grounded === true &&
+                Array.isArray(localResult?.sources) &&
+                localResult.sources.length > 0
+            ) {
+                globalThis.__JARVIS_WEB_RESEARCH_HEALTH__ = {
+                    ok: true,
+                    grounded: true,
+                    status: "GROUNDED_LOCAL_FALLBACK",
+                    sourceCount: localResult.sources.length,
+                    checkedAt: new Date().toISOString()
+                };
+
+                return {
+                    ...localResult,
+                    cloudError: message,
+                    source: "JARVIS_LOCAL_GROUNDED_WEB_RESEARCH",
+                    readOnly: true
+                };
+            }
+        }
+
         globalThis.__JARVIS_WEB_RESEARCH_HEALTH__ = {
             ok: false,
             grounded: false,
