@@ -3,7 +3,7 @@ import {
 } from "./jarvis.capability.evidence.js";
 import { adaptImageSource } from "./jarvis.image.adapter.js";
 
-const VERSION = "7.14.0-grounded-page-materials";
+const VERSION = "7.16.0-rendered-pdf-region-diff";
 
 export function normalizeImageArtifactOutput(output, mimeType) {
     const extensions = {
@@ -296,13 +296,13 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "document.pdf.edit",
-            description: "Edita cajas concretas de un PDF existente, conserva el original, bloquea desbordamientos y puede recalcular descuento antes de IVA con aritmetica exacta; requiere revision visual antes de considerarse verificado.",
+            description: "Localiza y edita campos de un PDF existente, recalcula descuento antes de IVA y compara paginas renderizadas para bloquear cambios fuera de las regiones aprobadas.",
             output: "DOCUMENT_PDF_EDIT_RESULT",
             inputSchema: {
                 sourceOutput: "string",
                 output: "string",
                 changes: "array<{page,x,y|yFromTop,width,height,text,fontSize,color,backgroundColor}>",
-                quote: "{subtotal,discountPercent,taxPercent,currency,fields:{discount,taxableSubtotal,tax,total}}"
+                quote: "{subtotal,discountPercent,taxPercent,currency,fields|fieldAnchors:{discount,taxableSubtotal,tax,total}}"
             },
             mutates: true,
             requiresApproval: true,

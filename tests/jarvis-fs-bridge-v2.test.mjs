@@ -33,7 +33,7 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.20.0-grounded-page-materials");
+    assert.equal(description.version, "2.22.0-rendered-pdf-region-diff");
     assert.equal(description.policy.authority, "full_repo_private_owner");
     assert.equal(description.policy.safeZone, "advisory");
     assert.equal(description.policy.emptyWrites, "blocked");
@@ -203,10 +203,13 @@ test("Jarvis edits a real PDF overlay, preserves the original and blocks overflo
             changes: [{ page: 1, x: 70, y: 110, width: 190, height: 30, text: "TOTAL ACTUALIZADO: 90.00", fontSize: 12 }]
         });
         assert.equal(result.ok, true);
-        assert.equal(result.status, "PDF_EDITED_REQUIRES_VISUAL_REVIEW");
+        assert.equal(result.status, "PDF_EDITED_VERIFIED");
         assert.equal(result.originalPreserved, true);
         assert.equal(result.visualVerification.overflowPassed, true);
-        assert.equal(result.visualVerification.renderedComparisonPassed, false);
+        assert.equal(result.visualVerification.renderedComparisonPassed, true);
+        assert.equal(result.visualVerification.humanReviewRequired, false);
+        assert.ok(result.visualVerification.approvedRegionChangedPixels > 0);
+        assert.ok(result.visualVerification.outsideDifferenceRatio <= 0.0005);
         assert.deepEqual(fs.readFileSync(sourceFile), sourceBytes);
         assert.notEqual(result.outputSha256, result.sourceSha256);
         assert.equal(fs.existsSync(path.join(root, result.output)), true);

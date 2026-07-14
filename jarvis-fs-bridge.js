@@ -29,9 +29,11 @@ import {
     buildObservabilitySnapshot
 } from "./jarvis-observability.js";
 import { buildQuotePdfChanges } from "./jarvis-quote-calculator.js";
+import { locatePdfFieldAnchors } from "./jarvis-pdf-layout.js";
+import { verifyPdfVisualChanges } from "./jarvis-pdf-visual.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.20.0-grounded-page-materials";
+    "2.22.0-rendered-pdf-region-diff";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -1451,7 +1453,11 @@ export async function editPdfOverlayArtifact({
     if (!fs.existsSync(source) || !fs.statSync(source).isFile()) throw new Error("PDF_SOURCE_NOT_FOUND");
     const sourceBytes = fs.readFileSync(source);
     if (sourceBytes.length < 8 || sourceBytes.length > 50 * 1024 * 1024) throw new Error("PDF_SOURCE_BYTES_OUT_OF_RANGE");
-    const quotePlan = quote ? buildQuotePdfChanges(quote) : null;
+    const locatedFields = quote && !quote.fields && quote.fieldAnchors
+        ? await locatePdfFieldAnchors({ pdfBytes: sourceBytes, anchors: quote.fieldAnchors })
+        : null;
+    const quoteInput = quote ? { ...quote, fields: quote.fields || locatedFields?.fields } : null;
+    const quotePlan = quoteInput ? buildQuotePdfChanges(quoteInput) : null;
     const requestedChanges = [
         ...(Array.isArray(changes) ? changes : []),
         ...(quotePlan?.changes || [])
@@ -1496,12 +1502,18 @@ export async function editPdfOverlayArtifact({
     }
 
     const resultBytes = Buffer.from(await document.save({ useObjectStreams: false }));
+    let renderedVerification;
+    try {
+        renderedVerification = await verifyPdfVisualChanges({ sourceBytes, outputBytes: resultBytes, changes: applied });
+    } catch (error) {
+        renderedVerification = { ok: false, renderedComparisonPassed: false, error: error.message };
+    }
     const safeOutput = String(output || `.jarvis-artifacts/documents/edited-${Date.now()}.pdf`).replace(/\\/g, "/");
     const target = artifactPath(safeOutput, root, [".pdf"]);
     fs.writeFileSync(target, resultBytes);
     return {
         ok: true,
-        status: "PDF_EDITED_REQUIRES_VISUAL_REVIEW",
+        status: renderedVerification.renderedComparisonPassed ? "PDF_EDITED_VERIFIED" : "PDF_EDITED_REQUIRES_VISUAL_REVIEW",
         strategy: "NATIVE_OVERLAY",
         sourceOutput: path.relative(path.resolve(root), source).replace(/\\/g, "/"),
         output: path.relative(path.resolve(root), target).replace(/\\/g, "/"),
@@ -1514,11 +1526,12 @@ export async function editPdfOverlayArtifact({
         visualVerification: {
             overflowChecks: applied.length,
             overflowPassed: applied.every(item => item.overflow === false),
-            renderedComparisonPassed: false,
-            humanReviewRequired: true
+            ...renderedVerification,
+            humanReviewRequired: renderedVerification.renderedComparisonPassed !== true
         },
         quoteCalculation: quotePlan?.calculation || null,
-        quoteChangeLog: quotePlan?.changeLog || []
+        quoteChangeLog: quotePlan?.changeLog || [],
+        fieldLocationEvidence: locatedFields?.evidence || []
     };
 }
 
