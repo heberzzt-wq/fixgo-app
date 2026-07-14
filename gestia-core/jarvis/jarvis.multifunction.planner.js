@@ -1,4 +1,4 @@
-const VERSION = "1.6.0-sia7-grounded-web-research";
+const VERSION = "1.7.0-sia7-operational-forensics-gate";
 
 function normalize(value = "") {
     return String(value || "")
@@ -74,6 +74,20 @@ export function isJarvisTechnicalDiagnosticRequest(input = "") {
     return hasTechnicalEvidence;
 }
 
+export function isJarvisCapabilityForensicsRequest(input = "") {
+    const normalized = normalize(input);
+
+    if (!normalized) return false;
+
+    return (
+        /\b(analisis forense|auditoria forense|capacidades reales|limitaciones|paridad|nivel codex|a tu altura|que te falta|actuadores)\b/i.test(normalized) ||
+        (
+            /\b(puedes|sabes|tienes|controla|controlar|genera|generar|envia|enviar|delega|delegar|automatiza|automatizar)\b/i.test(normalized) &&
+            /\b(chrome|navegador|internet|web|fuentes|imagen|imagenes|correo|email|calendario|subagentes|agentes|automatizacion|conectores)\b/i.test(normalized)
+        )
+    );
+}
+
 export function buildJarvisMultifunctionToolCalls(
     input = "",
     context = {}
@@ -99,11 +113,7 @@ export function buildJarvisMultifunctionToolCalls(
         !hasExplicitOperationalRequest;
 
     const isCapabilityForensicsRequest =
-        /\b(analisis forense|auditoria forense|capacidades reales|limitaciones|paridad|nivel codex|a tu altura|que te falta|actuadores)\b/i.test(normalized) ||
-        (
-            /\b(puedes|sabes|tienes|controla|controlar|genera|generar|envia|enviar|delega|delegar|automatiza|automatizar)\b/i.test(normalized) &&
-            /\b(chrome|navegador|internet|web|fuentes|imagen|imagenes|correo|email|calendario|subagentes|agentes|automatizacion|conectores)\b/i.test(normalized)
-        );
+        isJarvisCapabilityForensicsRequest(normalized);
 
     const isWebResearchRequest =
         !isCapabilityForensicsRequest &&

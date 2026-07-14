@@ -38,7 +38,7 @@ import {
   isJarvisTechnicalDiagnosticRequest,
   mergeJarvisToolCalls
 
-} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-multifunction-planner-v1.6-grounded-web-research-20260713";
+} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-multifunction-planner-v1.7-operational-forensics-gate-20260714";
 
 import {
 

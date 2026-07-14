@@ -37,6 +37,9 @@ import {
 
 // Motores de lógica estratégica (Cerebro) y ejecución mecánica (Brazo)
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
+import {
+    isJarvisCapabilityForensicsRequest
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-multifunction-planner-v1.7-operational-forensics-gate-20260714';
 //import { ejecutarCambios } from '/gestia-core/operations-executor.engine.js';
 
 // ======================================================================================
@@ -4161,6 +4164,9 @@ export const GestiaCore = {
 
         const hasExplicitOperationalRequest =
             /\b(crea|crear|genera|generar|construye|construir|modifica|modificar|actualiza|actualizar|repara|reparar|implementa|implementar|ejecuta|ejecutar|despliega|desplegar|anali[sz](?:a|ar|e)?|revi[sz](?:a|ar|e)?|busca|buscar|escanea|escanear|elimina|eliminar|escribe|aprobar|aprueba)\b/i.test(
+                normalizedLightInput
+            ) ||
+            isJarvisCapabilityForensicsRequest(
                 normalizedLightInput
             );
 

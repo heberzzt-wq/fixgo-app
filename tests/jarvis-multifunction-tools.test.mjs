@@ -12,6 +12,7 @@ import {
 import {
     buildJarvisMultifunctionToolCalls,
     describeJarvisMultifunctionPlanner,
+    isJarvisCapabilityForensicsRequest,
     isJarvisTechnicalDiagnosticRequest,
     mergeJarvisToolCalls
 } from "../gestia-core/jarvis/jarvis.multifunction.planner.js";
@@ -404,6 +405,8 @@ test("general semantic intent stays casual and speaks through the terminal", () 
     assert.match(core, /semanticPrimaryConcept\s*!==\s*"GENERAL"/);
     assert.match(core, /isConversationalQuestion/);
     assert.match(core, /hasExplicitOperationalRequest/);
+    assert.match(core, /isJarvisCapabilityForensicsRequest/);
+    assert.match(core, /hasExplicitOperationalRequest\s*=\s*[\s\S]{0,800}isJarvisCapabilityForensicsRequest/);
     assert.match(core, /anali\[sz\]/);
     assert.match(core, /typo-normalization-v1-20260713/);
     assert.match(semantic, /replace\(\/\\banalisa\\b\/g, "analiza"\)/);
@@ -948,11 +951,17 @@ test("multifunction planner routes real web research without confusing it with c
 test("multifunction planner routes capability boundary questions to forensics", () => {
     const prompts = [
         "Jarvis, corre un analisis forense de tus capacidades reales",
+        "Jarvis, corre un analisis forense de tus capacidades reales modo Codex V7: dime que herramientas tienes, cuales faltan, donde falla, y no modifiques nada",
         "Jarvis, que te falta para estar a nivel Codex",
         "Puedes controlar Chrome, buscar internet, generar imagenes y delegar subagentes?"
     ];
 
     for (const prompt of prompts) {
+        assert.equal(
+            isJarvisCapabilityForensicsRequest(prompt),
+            true,
+            `forensics gate: ${prompt}`
+        );
         assert.deepEqual(
             buildJarvisMultifunctionToolCalls(prompt).map(call => call.name),
             ["system.forensics"],
