@@ -16,7 +16,8 @@ import {
     describeMediaIngestion
 } from "./jarvis.media.ingestion.js";
 
-const VERSION = "1.6.0-sia7-grounded-web-health";
+const VERSION = "1.7.0-sia7-bounded-supervision-forensics";
+const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 
 const CAPABILITY_WEIGHTS = {
     READY: 1,
@@ -276,32 +277,69 @@ async function buildCapabilityForensics(runtime) {
         inspectWebResearchCapability(
             tools
         );
+    const repoToolsReady =
+        hasEvery(tools, [
+            "repo.read",
+            "repo.grep",
+            "repo.diagnose",
+            "repo.write"
+        ]);
+    const testAndGitToolsReady =
+        hasEvery(tools, [
+            "tests.run",
+            "repo.gitStatus"
+        ]);
+    const bridgeReady =
+        bridge.ok === true;
 
     const capabilities = [
         {
             id: "repo_engineering",
             status:
-                bridge.ok === true && hasEvery(tools, [
-                    "repo.read",
-                    "repo.grep",
-                    "repo.diagnose",
-                    "repo.write"
-                ])
+                bridgeReady && repoToolsReady
                     ? "READY"
-                    : "NOT_AVAILABLE",
+                    : bridgeReady || repoToolsReady
+                        ? "PARTIAL"
+                        : "NOT_AVAILABLE",
+            reason: bridgeReady && repoToolsReady
+                ? "Bridge e instrumentos del repositorio verificados."
+                : repoToolsReady
+                    ? "Las herramientas existen, pero el bridge local no verifico identidad."
+                    : bridgeReady
+                        ? "El bridge verifico identidad, pero faltan herramientas esenciales del repositorio."
+                        : "No hay bridge verificado ni cobertura completa de herramientas del repositorio.",
+            nextAction: bridgeReady && repoToolsReady
+                ? null
+                : "Restaurar identidad del bridge y verificar lectura, busqueda, diagnostico y escritura gobernada.",
             evidence: {
                 bridge: bridge.status || "UNKNOWN",
+                bridgeReady,
+                toolsReady: repoToolsReady,
                 requiredTools: ["repo.read", "repo.grep", "repo.diagnose", "repo.write"]
             }
         },
         {
             id: "tests_and_git",
             status:
-                bridge.ok === true && hasEvery(tools, ["tests.run", "repo.gitStatus"])
+                bridgeReady && testAndGitToolsReady
                     ? "READY"
-                    : "NOT_AVAILABLE",
+                    : bridgeReady || testAndGitToolsReady
+                        ? "PARTIAL"
+                        : "NOT_AVAILABLE",
+            reason: bridgeReady && testAndGitToolsReady
+                ? "Pruebas y estado Git disponibles mediante un bridge verificado."
+                : testAndGitToolsReady
+                    ? "Los actuadores de pruebas y Git existen, pero el bridge local no verifico identidad."
+                    : bridgeReady
+                        ? "El bridge esta verificado, pero faltan actuadores de pruebas o estado Git."
+                        : "No hay bridge verificado ni actuadores completos de pruebas y Git.",
+            nextAction: bridgeReady && testAndGitToolsReady
+                ? null
+                : "Restaurar el bridge y validar ejecucion de pruebas y lectura del estado Git.",
             evidence: {
                 bridge: bridge.status || "UNKNOWN",
+                bridgeReady,
+                toolsReady: testAndGitToolsReady,
                 requiredTools: ["tests.run", "repo.gitStatus"]
             }
         },
@@ -597,6 +635,14 @@ async function fetchDailySupervisionStatus() {
     }
 
     const localStatus = await runLocalDailySupervision();
+    const controller =
+        typeof AbortController !== "undefined"
+            ? new AbortController()
+            : null;
+    const timeoutId = setTimeout(
+        () => controller?.abort(),
+        SUPERVISION_CLOUD_TIMEOUT_MS
+    );
 
     try {
         const token = await user.getIdToken();
@@ -608,7 +654,10 @@ async function fetchDailySupervisionStatus() {
                     "Authorization": `Bearer ${token}`,
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify({ data: {} })
+                body: JSON.stringify({ data: {} }),
+                ...(controller
+                    ? { signal: controller.signal }
+                    : {})
             }
         );
         const payload = await response.json();
@@ -628,12 +677,19 @@ async function fetchDailySupervisionStatus() {
             liveProbe: localStatus
         };
     } catch (error) {
+        const timedOut =
+            controller?.signal?.aborted === true;
+
         return {
             ...localStatus,
             cloudReportAvailable: false,
-            cloudError: error?.message || String(error),
+            cloudError: timedOut
+                ? `SUPERVISION_STATUS_TIMEOUT_${SUPERVISION_CLOUD_TIMEOUT_MS}MS`
+                : error?.message || String(error),
             message: "Supervisión local completada; el reporte cloud no estuvo disponible. Revisa cloudError para conocer la causa."
         };
+    } finally {
+        clearTimeout(timeoutId);
     }
 }
 

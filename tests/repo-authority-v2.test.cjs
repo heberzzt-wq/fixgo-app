@@ -1832,7 +1832,7 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
     );
 
     assert.match(core, /patchPreviewAllowedByPlan/);
-    assert.match(core, /brain\.engine\.js\?v=mixed-intent-v2-20260713/);
+    assert.match(core, /brain\.engine\.js\?v=mixed-intent-v2-20260714/);
     assert.doesNotMatch(core, /brain\.engine\.js\?v=cloud-planner-fail-fast-41-62/);
     assert.match(core, /async analizarIntencionLigera/);
     assert.match(core, /sincronizarCorralSemantico/);

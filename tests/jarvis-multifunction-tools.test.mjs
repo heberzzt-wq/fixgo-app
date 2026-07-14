@@ -155,6 +155,49 @@ test("capability forensics reports evidence-backed gaps without claiming Codex p
     }
 });
 
+test("capability forensics explains partial repo and test actuators when bridge identity fails", async () => {
+    const previousBridge = globalThis.JarvisLocalBridge;
+    globalThis.JarvisLocalBridge = {
+        verifyIdentity: async () => ({
+            ok: false,
+            status: "BRIDGE_IDENTITY_MISMATCH"
+        })
+    };
+
+    try {
+        const runtime = createRuntime();
+
+        for (const name of [
+            "repo.read",
+            "repo.grep",
+            "repo.diagnose",
+            "repo.write",
+            "tests.run",
+            "repo.gitStatus"
+        ]) {
+            runtime.register({
+                name,
+                execute: async () => ({ ok: true })
+            });
+        }
+
+        registerJarvisMultifunctionTools(runtime);
+        const result = await runtime.execute("system.forensics");
+        const repo = result.capabilities.find(item => item.id === "repo_engineering");
+        const testsAndGit = result.capabilities.find(item => item.id === "tests_and_git");
+
+        assert.equal(repo.status, "PARTIAL");
+        assert.equal(repo.evidence.toolsReady, true);
+        assert.equal(repo.evidence.bridgeReady, false);
+        assert.match(repo.reason, /bridge local no verifico identidad/i);
+        assert.equal(testsAndGit.status, "PARTIAL");
+        assert.match(testsAndGit.nextAction, /estado Git/i);
+    }
+    finally {
+        globalThis.JarvisLocalBridge = previousBridge;
+    }
+});
+
 test("capability forensics distinguishes a deployed scheduler from a completed daily run", async () => {
     const runtime = createRuntime();
     registerJarvisMultifunctionTools(runtime);
@@ -1116,8 +1159,27 @@ test("brain seeds natural multifunction requests into the tested planner", () =>
 
     assert.match(
         analysisHub,
-        /brain\.engine\.js\?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1\.6-grounded-web-research/
+        /brain\.engine\.js\?v=mixed-intent-v2-20260714-technical-diagnostics-v1-multifunction-planner-v1\.7-operational-forensics-gate/
     );
+});
+
+test("daily supervision cloud lookup has a bounded browser deadline", () => {
+    const source = fs.readFileSync(
+        path.join(
+            __dirname,
+            "..",
+            "gestia-core",
+            "jarvis",
+            "jarvis.multitool.pack.js"
+        ),
+        "utf8"
+    );
+
+    assert.match(source, /SUPERVISION_CLOUD_TIMEOUT_MS\s*=\s*4500/);
+    assert.match(source, /controller\?\.abort\(\)/);
+    assert.match(source, /signal:\s*controller\.signal/);
+    assert.match(source, /SUPERVISION_STATUS_TIMEOUT_/);
+    assert.match(source, /clearTimeout\(timeoutId\)/);
 });
 
 test("multifunction descriptor remains approval-bound", () => {
