@@ -31,6 +31,26 @@ test("reel studio creates a configurable 9:16 WebM production artifact", () => {
     assert.ok(report.bytes > 8000);
 });
 
+test("reel studio builds a complete editable 45-second production timeline", () => {
+    const fortyFiveSecondInput = {
+        ...input,
+        durationSeconds: 45,
+        scenes: [
+            { ...input.scenes[0], durationSeconds: 6 },
+            { ...input.scenes[1], durationSeconds: 10 },
+            { ...input.scenes[2], durationSeconds: 12 },
+            { ...input.scenes[3], durationSeconds: 10 },
+            { ...input.scenes[4], durationSeconds: 7 }
+        ]
+    };
+    const html = buildReelStudioHtml(fortyFiveSecondInput);
+    const report = describeReelStudio(fortyFiveSecondInput, html);
+    assert.equal(fortyFiveSecondInput.scenes.reduce((total, scene) => total + scene.durationSeconds, 0), 45);
+    assert.match(html, /"durationSeconds":45/);
+    assert.match(html, /jarvis-reel-'\+spec\.durationSeconds\+'s\.webm/);
+    assert.ok(Object.values(report.checks).every(Boolean));
+});
+
 test("reel studio blocks short or inconsistent timelines", () => {
     assert.throws(() => buildReelStudioHtml({ ...input, durationSeconds: 15 }), /REEL_DURATION_NOT_ALLOWED/);
     assert.throws(() => buildReelStudioHtml({ ...input, durationSeconds: 45 }), /REEL_TIMELINE_DURATION_MISMATCH/);

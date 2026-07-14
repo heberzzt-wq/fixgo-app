@@ -2,7 +2,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "7.11.0-functional-observability";
+const VERSION = "7.12.0-exact-quote-pdf-calculation";
 
 export function normalizeImageArtifactOutput(output, mimeType) {
     const extensions = {
@@ -293,12 +293,13 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "document.pdf.edit",
-            description: "Edita cajas de texto concretas de un PDF existente, conserva el original y bloquea desbordamientos; requiere revision visual antes de considerarse verificado.",
+            description: "Edita cajas concretas de un PDF existente, conserva el original, bloquea desbordamientos y puede recalcular descuento antes de IVA con aritmetica exacta; requiere revision visual antes de considerarse verificado.",
             output: "DOCUMENT_PDF_EDIT_RESULT",
             inputSchema: {
                 sourceOutput: "string",
                 output: "string",
-                changes: "array<{page,x,y|yFromTop,width,height,text,fontSize,color,backgroundColor}>"
+                changes: "array<{page,x,y|yFromTop,width,height,text,fontSize,color,backgroundColor}>",
+                quote: "{subtotal,discountPercent,taxPercent,currency,fields:{discount,taxableSubtotal,tax,total}}"
             },
             mutates: true,
             requiresApproval: true,
@@ -307,8 +308,11 @@ export function registerJarvisActuatorTools(runtime) {
                     sourceOutput: args.sourceOutput,
                     output: args.output,
                     changes: args.changes,
+                    quote: args.quote,
                     caseId: args.caseId || context.caseId || "",
-                    objectiveId: args.objectiveId || context.objectiveId || ""
+                    objectiveId: args.objectiveId || context.objectiveId || "",
+                    approved: context.approved === true,
+                    approvedBy: context.approvedBy || ""
                 }, 90000);
                 recordCapabilityEvidence("pdf_editing", {
                     ok: result?.ok === true && result?.visualVerification?.renderedComparisonPassed === true,

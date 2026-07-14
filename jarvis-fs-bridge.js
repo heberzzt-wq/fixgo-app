@@ -28,9 +28,10 @@ import {
     appendObservation,
     buildObservabilitySnapshot
 } from "./jarvis-observability.js";
+import { buildQuotePdfChanges } from "./jarvis-quote-calculator.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.18.0-functional-observability";
+    "2.19.0-exact-quote-pdf-calculation";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -1416,13 +1417,18 @@ function wrapPdfText(text, font, fontSize, maxWidth) {
 }
 
 export async function editPdfOverlayArtifact({
-    sourceOutput = "", output = "", changes = [], root = DEFAULT_ROOT
+    sourceOutput = "", output = "", changes = [], quote = null, root = DEFAULT_ROOT
 } = {}) {
     const source = artifactPath(sourceOutput, root, [".pdf"]);
     if (!fs.existsSync(source) || !fs.statSync(source).isFile()) throw new Error("PDF_SOURCE_NOT_FOUND");
     const sourceBytes = fs.readFileSync(source);
     if (sourceBytes.length < 8 || sourceBytes.length > 50 * 1024 * 1024) throw new Error("PDF_SOURCE_BYTES_OUT_OF_RANGE");
-    if (!Array.isArray(changes) || changes.length < 1 || changes.length > 100) throw new Error("PDF_CHANGES_REQUIRED");
+    const quotePlan = quote ? buildQuotePdfChanges(quote) : null;
+    const requestedChanges = [
+        ...(Array.isArray(changes) ? changes : []),
+        ...(quotePlan?.changes || [])
+    ];
+    if (requestedChanges.length < 1 || requestedChanges.length > 100) throw new Error("PDF_CHANGES_REQUIRED");
 
     const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
     const document = await PDFDocument.load(sourceBytes, { updateMetadata: false });
@@ -1430,7 +1436,7 @@ export async function editPdfOverlayArtifact({
     const pages = document.getPages();
     const applied = [];
 
-    for (const [index, change] of changes.entries()) {
+    for (const [index, change] of requestedChanges.entries()) {
         const pageNumber = Number(change?.page || 1);
         if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > pages.length) throw new Error("PDF_PAGE_OUT_OF_RANGE");
         const page = pages[pageNumber - 1];
@@ -1482,7 +1488,9 @@ export async function editPdfOverlayArtifact({
             overflowPassed: applied.every(item => item.overflow === false),
             renderedComparisonPassed: false,
             humanReviewRequired: true
-        }
+        },
+        quoteCalculation: quotePlan?.calculation || null,
+        quoteChangeLog: quotePlan?.changeLog || []
     };
 }
 
@@ -3235,6 +3243,7 @@ export function createJarvisFsBridgeApp({
                 sourceOutput: req.body?.sourceOutput,
                 output: req.body?.output,
                 changes: req.body?.changes,
+                quote: req.body?.quote,
                 root
             });
             const artifact = registerArtifact({ root, output: edited.output, metadata: {
@@ -3242,7 +3251,7 @@ export function createJarvisFsBridgeApp({
                 caseId: req.body?.caseId, objectiveId: req.body?.objectiveId, mimeType: "application/pdf",
                 status: edited.status, approvalRequired: true, approved: req.body?.approved === true,
                 approvedBy: req.body?.approvedBy, editable: true, preview: true, downloadable: true,
-                publishable: false, originalFile: req.body?.sourceOutput, transformations: req.body?.changes
+                publishable: false, originalFile: req.body?.sourceOutput, transformations: edited.changes
             } });
             return res.json({
                 ...edited,
