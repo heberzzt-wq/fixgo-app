@@ -21,7 +21,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "1.9.0-sia7-certified-capabilities";
+const VERSION = "1.9.1-sia7-grounded-business-memory";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 
@@ -926,6 +926,14 @@ async function fetchGroundedWebResearch(
             checkedAt:
                 new Date().toISOString()
         });
+        recordCapabilityEvidence("web_research_context", {
+            ok: true,
+            grounded: true,
+            query: result.query || normalizedQuery,
+            answer: String(result.answer || "").slice(0, 5000),
+            sources: result.sources.slice(0, 8),
+            checkedAt: new Date().toISOString()
+        });
 
         return {
             ...result,
@@ -963,6 +971,14 @@ async function fetchGroundedWebResearch(
                     grounded: true,
                     status: "GROUNDED_LOCAL_FALLBACK",
                     sourceCount: localResult.sources.length,
+                    checkedAt: new Date().toISOString()
+                });
+                recordCapabilityEvidence("web_research_context", {
+                    ok: true,
+                    grounded: true,
+                    query: localResult.query || normalizedQuery,
+                    answer: String(localResult.answer || "").slice(0, 5000),
+                    sources: localResult.sources.slice(0, 8),
                     checkedAt: new Date().toISOString()
                 });
 
@@ -1079,6 +1095,25 @@ function clean(value, fallback = "") {
     return typeof value === "string" && value.trim()
         ? value.trim()
         : fallback;
+}
+
+function recentGroundedBusinessContext() {
+    const entry = globalThis?.JarvisToolMemory?.last?.("web.research") || null;
+    const payload =
+        entry?.data ||
+        entry?.response?.data ||
+        entry?.response ||
+        readCapabilityEvidence("web_research_context") ||
+        null;
+    if (!payload || payload?.grounded !== true || !Array.isArray(payload?.sources)) return "";
+    return JSON.stringify({
+        query: payload.query || null,
+        answer: String(payload.answer || "").slice(0, 2400),
+        sources: payload.sources.slice(0, 6).map(source => ({
+            title: source?.title || "",
+            url: source?.url || ""
+        }))
+    }).slice(0, 5000);
 }
 
 function attachmentsFromInstruction(value = "") {
@@ -1413,11 +1448,16 @@ export function registerJarvisMultifunctionTools(runtime) {
                     );
 
                 if (genericStaticAnswer) {
+                    const groundedContext = recentGroundedBusinessContext();
                     const semantic = await fetchSemanticConversation([
                         "Actua como asesor empresarial privado del Arqui Heberto Mendoza.",
                         "Responde la solicitud concreta con diagnostico, recomendacion, riesgos y siguientes acciones.",
                         "No inventes cifras, clientes, resultados ni hechos; separa hechos proporcionados de supuestos y preguntas pendientes.",
                         "No autorices ni ejecutes cambios. Usa espanol claro y util.",
+                        groundedContext
+                            ? "Contexto factual reciente obtenido por web.research; usalo solo si es relevante y no agregues hechos fuera de estas fuentes:"
+                            : "No hay contexto web reciente disponible; identifica claramente la informacion faltante.",
+                        groundedContext,
                         "Solicitud:",
                         instruction
                     ].join("\n"));

@@ -163,12 +163,29 @@ test("multifunction pack registers certification and remains read-only", () => {
 test("business assistant uses the semantic model when a real company is outside the static registry", async () => {
     const previousAuth = globalThis.auth;
     const previousFetch = globalThis.fetch;
+    const previousMemory = globalThis.JarvisToolMemory;
+    let semanticRequest = null;
     globalThis.auth = {
         currentUser: {
             getIdToken: async () => "test-token"
         }
     };
-    globalThis.fetch = async () => ({
+    globalThis.JarvisToolMemory = {
+        last: () => ({
+            data: {
+                grounded: true,
+                query: "Multiservicios Peninsulares HMH",
+                answer: "Empresa de mantenimiento y remodelacion con servicios publicados.",
+                sources: [{
+                    title: "Sitio oficial MPH",
+                    url: "https://multiserviciospeninsulareshmh.com/"
+                }]
+            }
+        })
+    };
+    globalThis.fetch = async (_url, options) => {
+        semanticRequest = JSON.parse(options.body);
+        return ({
         ok: true,
         status: 200,
         text: async () => JSON.stringify({
@@ -181,6 +198,7 @@ test("business assistant uses the semantic model when a real company is outside 
             }
         })
     });
+    };
 
     try {
         const runtime = createRuntime();
@@ -193,9 +211,12 @@ test("business assistant uses the semantic model when a real company is outside 
         assert.equal(result.source, "BUSINESS_SEMANTIC_MODEL");
         assert.equal(result.factsPolicy, "NO_INVENTED_FACTS");
         assert.doesNotMatch(result.message, /falta objetivo/i);
+        assert.match(semanticRequest?.data?.input || "", /Sitio oficial MPH/);
+        assert.match(semanticRequest?.data?.input || "", /mantenimiento y remodelacion/);
     } finally {
         globalThis.auth = previousAuth;
         globalThis.fetch = previousFetch;
+        globalThis.JarvisToolMemory = previousMemory;
     }
 });
 
