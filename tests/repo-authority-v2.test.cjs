@@ -1253,6 +1253,11 @@ test("read-only auth routing response explains causal route evidence", () => {
                             findings: [
                                 {
                                     severity: "HIGH",
+                                    title: "Operaciones Firestore detectadas",
+                                    detail: "El archivo toca datos o listeners."
+                                },
+                                {
+                                    severity: "HIGH",
                                     title: "Router canonico de rol detectado",
                                     detail: "El destino final lo decide resolveGestiaRouteDecision."
                                 },
@@ -1274,6 +1279,11 @@ test("read-only auth routing response explains causal route evidence", () => {
                             capabilities: ["ui_rendering", "firestore_data", "role_routing", "auth_pending_guard"],
                             risk: "HIGH",
                             findings: [
+                                {
+                                    severity: "HIGH",
+                                    title: "Operaciones Firestore detectadas",
+                                    detail: "El archivo toca datos o listeners."
+                                },
                                 {
                                     severity: "MEDIUM",
                                     title: "Guard visual de auth detectado",

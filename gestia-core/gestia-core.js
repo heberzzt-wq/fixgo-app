@@ -3476,8 +3476,36 @@ function composeObservationDrivenFinalResponse({
             ? "- No preparar patch hasta que el usuario pida una propuesta concreta sobre archivos/rangos especificos."
             : "- Si se decide parchear, usar solo search/replace exacto sobre la seccion anclada.";
 
+    const prioritizeCausalFindings =
+        findings =>
+            [...(findings || [])]
+                .sort((a, b) => {
+                    const priorityFor =
+                        finding => {
+                            const signal =
+                                `${finding?.id || ""} ${finding?.title || ""}`
+                                    .toUpperCase();
+
+                            if (
+                                /ROLE_AUTHORITY_ROUTER|ROUTER CANONICO|AUTH_PENDING_GUARD|GUARD VISUAL/.test(signal)
+                            ) {
+                                return 0;
+                            }
+
+                            if (
+                                /AUTH_SESSION_OBSERVER|OBSERVER DE SESION|LEGACY_PROFILE_FALLBACK|FALLBACK DE PERFIL/.test(signal)
+                            ) {
+                                return 1;
+                            }
+
+                            return 2;
+                        };
+
+                    return priorityFor(a) - priorityFor(b);
+                });
+
     const executiveFindingLines =
-        (topDiagnosis?.findings || [])
+        prioritizeCausalFindings(topDiagnosis?.findings || [])
             .filter(finding =>
                 String(finding?.severity || "INFO").toUpperCase() !== "INFO"
             )
@@ -3502,7 +3530,7 @@ function composeObservationDrivenFinalResponse({
         diagnosisByFile.length > 1
             ? diagnosisByFile.flatMap(diagnosis => {
                 const findings =
-                    (diagnosis?.findings || [])
+                    prioritizeCausalFindings(diagnosis?.findings || [])
                         .filter(finding =>
                             String(finding?.severity || "INFO").toUpperCase() !== "INFO"
                         )
