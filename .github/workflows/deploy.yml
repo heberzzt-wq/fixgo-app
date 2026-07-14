@@ -51,6 +51,12 @@ jobs:
       - name: Validate Jarvis runtime
         run: npm run ci:test
 
+      - name: Verify sovereign deploy gate
+        env:
+          JARVIS_CI_PASSED: "true"
+          JARVIS_FIREBASE_PROJECT: fixgo-44e4d
+        run: node scripts/jarvis-deploy-gate.mjs
+
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
