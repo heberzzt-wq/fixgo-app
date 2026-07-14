@@ -274,6 +274,24 @@ function composeActuatorResponse(
         );
     }
 
+    if (toolName === "system.supervision.runNow") {
+        return composer.composeJarvis(
+            [
+                "Supervision ejecutada",
+                "",
+                `Estado: **${data?.status || "UNKNOWN"}**.`,
+                `Puntuacion: **${Number(data?.score || 0)}/100**.`,
+                `Comprobaciones: ${Number(data?.summary?.total || 0)}; fallas: ${Number(data?.summary?.failed || 0)}.`,
+                data?.reportId ? `Reporte persistido: **${data.reportId}**.` : ""
+            ].filter(Boolean).join("\n"),
+            data,
+            {
+                type: "SUPERVISION_RUN_NOW_RESPONSE",
+                analysisId: context.analysisId
+            }
+        );
+    }
+
     return null;
 }
 

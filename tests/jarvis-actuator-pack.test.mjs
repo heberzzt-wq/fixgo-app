@@ -30,6 +30,7 @@ test("actuator pack registers browser, documents, image, delegation and connecto
 
     assert.equal(result.ok, true);
     assert.deepEqual(names, [
+        "system.supervision.runNow",
         "browser.inspect",
         "browser.screenshot",
         "browser.open",
@@ -40,6 +41,7 @@ test("actuator pack registers browser, documents, image, delegation and connecto
         "connector.list"
     ]);
     assert.equal(runtime.get("browser.inspect").mutates, false);
+    assert.equal(runtime.get("system.supervision.runNow").requiresApproval, true);
     assert.equal(runtime.get("browser.screenshot").requiresApproval, true);
     assert.equal(runtime.get("document.create").requiresApproval, true);
 });

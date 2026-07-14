@@ -255,12 +255,24 @@ export function buildJarvisMultifunctionToolCalls(
     if (
         /\b(supervisor diario|supervision diaria|reporte de supervision|estado del supervisor|ultimo reporte de jarvis)\b/i.test(normalized)
     ) {
+        const runNow =
+            /\b(ejecuta|ejecutar|corre|correr|lanza|lanzar|ahora)\b/i.test(normalized);
         calls.push(
-            makeCall(
-                "system.supervision",
-                {},
-                "LOCAL_MULTIFUNCTION_DAILY_SUPERVISION"
-            )
+            runNow
+                ? {
+                    ...makeCall(
+                        "system.supervision.runNow",
+                        {},
+                        "LOCAL_MULTIFUNCTION_RUN_SUPERVISION_NOW"
+                    ),
+                    mutates: true,
+                    approved: explicitApproval
+                }
+                : makeCall(
+                    "system.supervision",
+                    {},
+                    "LOCAL_MULTIFUNCTION_DAILY_SUPERVISION"
+                )
         );
     }
 

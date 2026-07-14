@@ -89,6 +89,15 @@ export function registerJarvisActuatorTools(runtime) {
 
     const registrations = [
         register(runtime, {
+            name: "system.supervision.runNow",
+            description: "Ejecuta bajo autorizacion administrativa la supervision persistida sin esperar al horario diario.",
+            output: "SUPERVISION_RUN_NOW_RESULT",
+            mutates: true,
+            requiresApproval: true,
+            execute: async () =>
+                await callAdminFunction("jarvisSupervisionRunNow", {})
+        }),
+        register(runtime, {
             name: "browser.inspect",
             description: "Carga una URL en Chrome/Edge headless real y devuelve el DOM renderizado.",
             output: "BROWSER_INSPECTION",

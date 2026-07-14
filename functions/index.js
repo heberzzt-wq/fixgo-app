@@ -2624,6 +2624,45 @@ exports.jarvisSupervisionStatus = functions
         };
     });
 
+exports.jarvisSupervisionRunNow = functions
+    .runWith({ timeoutSeconds: 120, memory: "256MB" })
+    .https
+    .onCall(async (_data, context) => {
+        const actor = await assertJarvisAdminContext(
+            context,
+            "ejecutar supervision"
+        );
+        const report = await runDailyJarvisSupervision({
+            db,
+            admin
+        });
+
+        console.log(JSON.stringify({
+            level: report.status === "HEALTHY" ? "INFO" : "WARNING",
+            message: "JARVIS_SUPERVISION_RUN_NOW_COMPLETE",
+            uid: actor.uid,
+            traceId: report.traceId,
+            status: report.status,
+            score: report.score
+        }));
+
+        return {
+            ok: true,
+            status: report.status,
+            score: report.score,
+            summary: report.summary,
+            findings: report.findings || [],
+            failureDomains: report.failureDomains || [],
+            recommendations: report.recommendations || [],
+            checks: report.checks || [],
+            reportId: report.reportId || report.id,
+            traceId: report.traceId,
+            startedAtIso: report.startedAtIso,
+            source: "JARVIS_SUPERVISION_RUN_NOW",
+            policy: report.policy
+        };
+    });
+
 /**
  * JARVIS GROUNDED WEB RESEARCH
  * Investigacion web actual con fuentes estructuradas.

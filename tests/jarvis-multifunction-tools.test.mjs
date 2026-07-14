@@ -954,6 +954,24 @@ test("multifunction planner exposes the daily supervision report", () => {
     );
 });
 
+test("multifunction planner runs supervision now only with explicit approval", () => {
+    const pending = buildJarvisMultifunctionToolCalls(
+        "ejecuta la supervision diaria ahora"
+    );
+    const approved = buildJarvisMultifunctionToolCalls(
+        "arre ejecuta la supervision diaria ahora"
+    );
+
+    assert.ok(pending.some(call =>
+        call.name === "system.supervision.runNow" &&
+        call.approved === false
+    ));
+    assert.ok(approved.some(call =>
+        call.name === "system.supervision.runNow" &&
+        call.approved === true
+    ));
+});
+
 test("multifunction planner routes real web research without confusing it with capability forensics", () => {
     const prompts = [
         "Jarvis, busca en internet las ultimas novedades de Firebase Functions",

@@ -217,6 +217,8 @@ test("functions and client registry expose the supervisor safely", () => {
     assert.match(functionsIndex, /schedule\("15 4 \* \* \*"\)/);
     assert.match(functionsIndex, /timeZone\("America\/Cancun"\)/);
     assert.match(functionsIndex, /exports\.jarvisSupervisionStatus/);
+    assert.match(functionsIndex, /exports\.jarvisSupervisionRunNow/);
+    assert.match(functionsIndex, /JARVIS_SUPERVISION_RUN_NOW_COMPLETE/);
     assert.match(functionsIndex, /recommendations: report\.recommendations/);
     assert.match(registry, /"jarvis_supervision_reports"/);
     assert.doesNotMatch(firestoreEngine, /collection\(db, "tickets"\)/);
