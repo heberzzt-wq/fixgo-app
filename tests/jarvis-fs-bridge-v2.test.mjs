@@ -6,7 +6,10 @@ import { test } from "node:test";
 
 import {
     applyReadLineRange,
+    appendChunkedUpload,
     assertWriteContent,
+    cancelChunkedUpload,
+    completeChunkedUpload,
     describeJarvisFsBridge,
     inspectLocalConnectors,
     normalizeReadLineRange,
@@ -15,6 +18,7 @@ import {
     runLocalWebResearch,
     saveGeneratedImageArtifact,
     saveUploadedArtifact,
+    startChunkedUpload,
     readArtifactPayload
 } from "../jarvis-fs-bridge.js";
 
@@ -23,7 +27,7 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.6.0-certified-artifact-evidence");
+    assert.equal(description.version, "2.7.0-chunked-multimodal-ingestion");
     assert.equal(description.policy.authority, "full_repo_private_owner");
     assert.equal(description.policy.safeZone, "advisory");
     assert.equal(description.policy.emptyWrites, "blocked");
@@ -35,8 +39,80 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
     assert.ok(description.actuators.documents.formats.includes("pptx"));
     assert.equal(description.actuators.webResearch.grounded, true);
     assert.equal(typeof description.actuators.multimodalUploads.verifiedCount, "number");
+    assert.equal(description.actuators.multimodalUploads.transport, "chunked_progressive");
+    assert.equal(description.actuators.multimodalUploads.maxFilesPerRequest, 30);
+    assert.equal(description.actuators.multimodalUploads.maxBatchBytes, 500 * 1024 * 1024);
     assert.equal(typeof description.actuators.imageGeneration.verifiedCount, "number");
     assert.deepEqual(description.actuators.connectors.adapters, ["github", "firebase"]);
+});
+
+test("Jarvis streams a file in bounded chunks, verifies SHA-256 and preserves trace", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-chunked-upload-"));
+    try {
+        const source = Buffer.from("contenido progresivo real para expediente V7");
+        const started = startChunkedUpload({
+            root,
+            batchId: "batch-forensic-v7",
+            name: "evidencia.xml",
+            mimeType: "application/xml",
+            expectedBytes: source.length,
+            caseId: "CASE-7",
+            objectiveId: "OBJ-7"
+        });
+        const first = source.subarray(0, 13);
+        const second = source.subarray(13);
+        const progress = appendChunkedUpload({ root, uploadId: started.uploadId, offset: 0, dataBase64: first.toString("base64") });
+        assert.equal(progress.receivedBytes, first.length);
+        appendChunkedUpload({ root, uploadId: started.uploadId, offset: first.length, dataBase64: second.toString("base64") });
+        const completed = completeChunkedUpload({ root, uploadId: started.uploadId });
+        assert.equal(completed.status, "UPLOAD_SAVED");
+        assert.equal(completed.caseId, "CASE-7");
+        assert.equal(completed.objectiveId, "OBJ-7");
+        assert.match(completed.sha256, /^[a-f0-9]{64}$/);
+        assert.deepEqual(fs.readFileSync(path.join(root, completed.output)), source);
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test("Jarvis fails closed on chunk offset mismatch and supports individual cancellation", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-cancel-upload-"));
+    try {
+        const started = startChunkedUpload({ root, batchId: "batch-cancel-v7", name: "foto.jpg", expectedBytes: 4 });
+        assert.throws(() => appendChunkedUpload({ root, uploadId: started.uploadId, offset: 2, dataBase64: Buffer.from("ab").toString("base64") }), /UPLOAD_CHUNK_OFFSET_MISMATCH/);
+        assert.equal(cancelChunkedUpload({ root, uploadId: started.uploadId }).status, "UPLOAD_CANCELLED");
+        assert.throws(() => completeChunkedUpload({ root, uploadId: started.uploadId }), /UPLOAD_SESSION_NOT_FOUND/);
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test("Jarvis enforces the 30-file limit in the persisted batch ledger", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-batch-limit-"));
+    try {
+        const sessions = Array.from({ length: 30 }, (_, index) => startChunkedUpload({
+            root,
+            batchId: "batch-thirty-files-v7",
+            name: `evidencia-${index}.txt`,
+            expectedBytes: 1
+        }));
+        assert.equal(sessions.length, 30);
+        assert.throws(() => startChunkedUpload({
+            root,
+            batchId: "batch-thirty-files-v7",
+            name: "evidencia-31.txt",
+            expectedBytes: 1
+        }), /UPLOAD_BATCH_FILE_LIMIT/);
+        cancelChunkedUpload({ root, uploadId: sessions[0].uploadId });
+        assert.equal(startChunkedUpload({
+            root,
+            batchId: "batch-thirty-files-v7",
+            name: "reemplazo.txt",
+            expectedBytes: 1
+        }).ok, true);
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
 });
 
 test("Jarvis receives an uploaded document and returns it as a downloadable artifact", () => {

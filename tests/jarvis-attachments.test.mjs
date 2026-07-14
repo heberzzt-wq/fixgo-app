@@ -14,9 +14,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 test("multimodal composer exposes bounded upload capabilities", () => {
     const description = JarvisAttachments.describe();
-    assert.equal(description.version, "1.1.0-persistent-evidence");
-    assert.equal(description.maxFiles, 4);
-    assert.equal(description.maxFileBytes, 12 * 1024 * 1024);
+    assert.equal(description.version, "2.0.0-chunked-recoverable-queue");
+    assert.equal(description.transport, "chunked_progressive");
+    assert.equal(description.maxFiles, 30);
+    assert.equal(description.maxFileBytes, 250 * 1024 * 1024);
+    assert.equal(description.maxTotalBytes, 500 * 1024 * 1024);
+    assert.equal(description.chunkBytes, 2 * 1024 * 1024);
+    assert.equal(description.concurrency, 3);
+    assert.equal(description.recoverableCompletedArtifacts, true);
 });
 
 test("verified capability evidence survives independent forensic reads", () => {
@@ -44,6 +49,10 @@ test("terminal exposes a GPT-style plus menu, file input and artifact renderer",
     assert.match(terminal, /renderPendingArtifacts/);
     assert.match(terminal, /Archivo recibido: \$\{sourceName\}; tipo \$\{mimeType\}/);
     assert.match(attachments, /\/upload/);
+    assert.match(attachments, /\/upload\/start/);
+    assert.match(attachments, /\/upload\/chunk/);
+    assert.match(attachments, /\/upload\/complete/);
+    assert.match(attachments, /\/upload\/cancel/);
     assert.match(attachments, /\/artifact\/read/);
     assert.match(attachments, /jarvis-artifact-download/);
 });
@@ -57,7 +66,9 @@ test("MPH campaign ships a responsive landing and a real browser video exporter"
     assert.match(landing, /@media\(max-width:800px\)/);
     assert.match(reel, /canvas\.captureStream\(30\)/);
     assert.match(reel, /new MediaRecorder/);
-    assert.match(reel, /mph-reel-15s\.webm/);
+    assert.match(reel, /value="30000"/);
+    assert.match(reel, /value="45000"/);
+    assert.match(reel, /mph-reel-\$\{seconds\}s\.webm/);
 });
 
 test("repo impact falls back to live bridge evidence for newly created files", () => {

@@ -701,6 +701,27 @@ test("multifunction media analysis preserves source trace and stays advisory", a
     assert.equal(analysis.policy.mayAuthorizeWrite, false);
 });
 
+test("multifunction media analysis consumes a complete 30-file persisted manifest", async () => {
+    const runtime = createRuntime();
+    registerJarvisMultifunctionTools(runtime);
+    const attachments = Array.from({ length: 30 }, (_, index) => ({
+        name: `evidencia-${index + 1}.png`,
+        mimeType: "image/png",
+        bytes: 1024,
+        artifact: `.jarvis-artifacts/uploads/evidencia-${index + 1}.png`,
+        sha256: String(index + 1).padStart(64, "0")
+    }));
+    const analysis = await runtime.execute("media.analyze", {
+        prompt: "clasifica las 30 evidencias",
+        attachments
+    }, { analysisId: "MULTI-MEDIA-30" });
+
+    assert.equal(analysis.ok, true);
+    assert.equal(analysis.receivedFiles, 30);
+    assert.equal(analysis.persistedArtifacts.length, 30);
+    assert.equal(analysis.trace.objectiveId, "MULTI-MEDIA-30");
+});
+
 test("multifunction planner accepts model-selected bounded read-only tools", async () => {
     const calls =
         await planWithModel(

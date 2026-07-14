@@ -1134,7 +1134,7 @@ function attachmentsFromInstruction(value = "") {
     const jsonText = source.slice(markerIndex + marker.length).trim();
     try {
         const attachments = JSON.parse(jsonText);
-        return Array.isArray(attachments) ? attachments.slice(0, 4) : [];
+        return Array.isArray(attachments) ? attachments.slice(0, 30) : [];
     } catch {
         return [];
     }
@@ -1564,7 +1564,7 @@ export function registerJarvisMultifunctionTools(runtime) {
             },
             execute: async (args = {}, context = {}) => {
                 const attachments = Array.isArray(args.attachments)
-                    ? args.attachments.slice(0, 4)
+                    ? args.attachments.slice(0, 30)
                     : attachmentsFromInstruction(
                         args.instruction || args.query || context.rawInput || ""
                     );

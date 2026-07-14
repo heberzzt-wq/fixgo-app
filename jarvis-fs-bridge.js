@@ -4,19 +4,26 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import * as tls from "node:tls";
+import { createHash, randomUUID } from "node:crypto";
 import { fileURLToPath } from "url";
 import { execFileSync, spawn } from "child_process";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.6.0-certified-artifact-evidence";
+    "2.7.0-chunked-multimodal-ingestion";
 
-const MAX_JARVIS_UPLOAD_BYTES = 12 * 1024 * 1024;
+const MAX_JARVIS_UPLOAD_FILES = 30;
+const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
+const MAX_JARVIS_UPLOAD_BATCH_BYTES = 500 * 1024 * 1024;
+const MAX_JARVIS_UPLOAD_CHUNK_BYTES = 2 * 1024 * 1024;
+const MAX_JARVIS_LEGACY_UPLOAD_BYTES = 12 * 1024 * 1024;
 const MAX_JARVIS_ARTIFACT_READ_BYTES = 20 * 1024 * 1024;
 const JARVIS_UPLOAD_EXTENSIONS = new Set([
-    ".txt", ".md", ".csv", ".json", ".pdf",
+    ".txt", ".md", ".csv", ".json", ".xml", ".yaml", ".yml", ".pdf",
     ".docx", ".xlsx", ".pptx",
-    ".png", ".jpg", ".jpeg", ".webp", ".gif",
-    ".mp3", ".wav", ".m4a", ".mp4", ".webm", ".mov"
+    ".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg",
+    ".mp3", ".wav", ".m4a", ".mp4", ".webm", ".mov",
+    ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".css", ".html",
+    ".py", ".java", ".kt", ".c", ".h", ".cpp", ".hpp", ".sql", ".zip"
 ]);
 
 export const JARVIS_FS_BRIDGE_POLICY = {
@@ -497,8 +504,12 @@ export function describeJarvisFsBridge() {
             },
             multimodalUploads: {
                 available: true,
-                maxFilesPerRequest: 4,
+                transport: "chunked_progressive",
+                maxFilesPerRequest: MAX_JARVIS_UPLOAD_FILES,
                 maxFileBytes: MAX_JARVIS_UPLOAD_BYTES,
+                maxBatchBytes: MAX_JARVIS_UPLOAD_BATCH_BYTES,
+                maxChunkBytes: MAX_JARVIS_UPLOAD_CHUNK_BYTES,
+                resumablePersistedArtifacts: true,
                 artifactDownload: true,
                 ...uploadEvidence
             },
@@ -998,16 +1009,207 @@ function decodeBoundedBase64(dataBase64 = "", maxBytes = MAX_JARVIS_UPLOAD_BYTES
 function artifactMimeType(file = "") {
     const mimeTypes = {
         ".txt": "text/plain", ".md": "text/markdown", ".csv": "text/csv",
-        ".json": "application/json", ".pdf": "application/pdf",
+        ".json": "application/json", ".xml": "application/xml",
+        ".yaml": "application/yaml", ".yml": "application/yaml", ".pdf": "application/pdf",
         ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".svg": "image/svg+xml",
         ".webp": "image/webp", ".gif": "image/gif", ".mp3": "audio/mpeg",
         ".wav": "audio/wav", ".m4a": "audio/mp4", ".mp4": "video/mp4",
-        ".webm": "video/webm", ".mov": "video/quicktime"
+        ".webm": "video/webm", ".mov": "video/quicktime", ".js": "text/javascript",
+        ".mjs": "text/javascript", ".cjs": "text/javascript", ".ts": "text/typescript",
+        ".tsx": "text/typescript", ".jsx": "text/javascript", ".css": "text/css",
+        ".html": "text/html", ".py": "text/x-python", ".sql": "application/sql",
+        ".zip": "application/zip"
     };
     return mimeTypes[path.extname(String(file || "")).toLowerCase()] || "application/octet-stream";
+}
+
+function detectArtifactMimeType(file, originalName = "") {
+    const descriptor = fs.openSync(file, "r");
+    const header = Buffer.alloc(32);
+    let length = 0;
+    try { length = fs.readSync(descriptor, header, 0, header.length, 0); }
+    finally { fs.closeSync(descriptor); }
+    const bytes = header.subarray(0, length);
+    const ascii = bytes.toString("latin1");
+    if (ascii.startsWith("%PDF-")) return "application/pdf";
+    if (bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return "image/png";
+    if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
+    if (ascii.startsWith("GIF87a") || ascii.startsWith("GIF89a")) return "image/gif";
+    if (ascii.startsWith("RIFF") && ascii.slice(8, 12) === "WEBP") return "image/webp";
+    if (ascii.startsWith("RIFF") && ascii.slice(8, 12) === "WAVE") return "audio/wav";
+    if (ascii.startsWith("ID3") || (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0)) return "audio/mpeg";
+    if (ascii.slice(4, 8) === "ftyp") return path.extname(originalName).toLowerCase() === ".m4a" ? "audio/mp4" : "video/mp4";
+    if (bytes.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))) return "video/webm";
+    if (bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04) {
+        return [".docx", ".xlsx", ".pptx"].includes(path.extname(originalName).toLowerCase())
+            ? artifactMimeType(originalName)
+            : "application/zip";
+    }
+    return artifactMimeType(originalName);
+}
+
+function normalizeUploadDescriptor(name = "") {
+    const originalName = path.basename(String(name || "").trim());
+    const extension = path.extname(originalName).toLowerCase();
+    if (!originalName || !JARVIS_UPLOAD_EXTENSIONS.has(extension)) {
+        throw new Error("UPLOAD_EXTENSION_NOT_ALLOWED");
+    }
+    const baseName = path.basename(originalName, extension)
+        .normalize("NFKD")
+        .replace(/[^A-Za-z0-9._-]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 80) || "archivo";
+    return { originalName, extension, baseName };
+}
+
+function uploadSessionPaths(uploadId, root = DEFAULT_ROOT) {
+    const safeId = String(uploadId || "").trim();
+    if (!/^[a-f0-9-]{20,80}$/i.test(safeId)) throw new Error("UPLOAD_ID_INVALID");
+    const directory = path.resolve(root, ".jarvis-artifacts/uploads/.sessions");
+    const uploadRoot = path.resolve(root, ".jarvis-artifacts/uploads");
+    if (directory !== uploadRoot && !directory.startsWith(`${uploadRoot}${path.sep}`)) {
+        throw new Error("UPLOAD_SESSION_PATH_INVALID");
+    }
+    fs.mkdirSync(directory, { recursive: true });
+    return {
+        part: path.join(directory, `${safeId}.part`),
+        metadata: path.join(directory, `${safeId}.json`)
+    };
+}
+
+function readUploadSession(uploadId, root = DEFAULT_ROOT) {
+    const paths = uploadSessionPaths(uploadId, root);
+    if (!fs.existsSync(paths.metadata)) throw new Error("UPLOAD_SESSION_NOT_FOUND");
+    return { paths, metadata: JSON.parse(fs.readFileSync(paths.metadata, "utf8")) };
+}
+
+function writeUploadSession(paths, metadata) {
+    fs.writeFileSync(paths.metadata, JSON.stringify(metadata, null, 2), "utf8");
+}
+
+function uploadBatchLedger(batchId, root = DEFAULT_ROOT) {
+    const safeBatchId = String(batchId || "").trim();
+    if (!/^[A-Za-z0-9._-]{8,100}$/.test(safeBatchId)) throw new Error("UPLOAD_BATCH_ID_INVALID");
+    const directory = path.resolve(root, ".jarvis-artifacts/uploads/.batches");
+    fs.mkdirSync(directory, { recursive: true });
+    const file = path.join(directory, `${safeBatchId}.json`);
+    let usage = { batchId: safeBatchId, files: 0, bytes: 0, completedFiles: 0 };
+    try { usage = { ...usage, ...JSON.parse(fs.readFileSync(file, "utf8")) }; } catch {}
+    return { file, usage };
+}
+
+function writeBatchLedger(batch, usage) {
+    fs.writeFileSync(batch.file, JSON.stringify({ ...usage, updatedAt: new Date().toISOString() }, null, 2), "utf8");
+}
+
+export function startChunkedUpload({
+    batchId = "", name = "", mimeType = "application/octet-stream", expectedBytes = 0,
+    caseId = null, objectiveId = null, root = DEFAULT_ROOT
+} = {}) {
+    const safeBatchId = String(batchId || "").trim();
+    if (!/^[A-Za-z0-9._-]{8,100}$/.test(safeBatchId)) throw new Error("UPLOAD_BATCH_ID_INVALID");
+    const descriptor = normalizeUploadDescriptor(name);
+    const size = Number(expectedBytes || 0);
+    if (!Number.isSafeInteger(size) || size < 1 || size > MAX_JARVIS_UPLOAD_BYTES) {
+        throw new Error("UPLOAD_FILE_BYTES_OUT_OF_RANGE");
+    }
+    const batch = uploadBatchLedger(safeBatchId, root);
+    const usage = batch.usage;
+    if (usage.files >= MAX_JARVIS_UPLOAD_FILES) throw new Error("UPLOAD_BATCH_FILE_LIMIT");
+    if (usage.bytes + size > MAX_JARVIS_UPLOAD_BATCH_BYTES) throw new Error("UPLOAD_BATCH_BYTES_OUT_OF_RANGE");
+
+    const uploadId = randomUUID();
+    const paths = uploadSessionPaths(uploadId, root);
+    fs.writeFileSync(paths.part, Buffer.alloc(0));
+    const metadata = {
+        uploadId, batchId: safeBatchId, name: descriptor.originalName,
+        mimeType: String(mimeType || artifactMimeType(descriptor.originalName)),
+        detectedMimeType: artifactMimeType(descriptor.originalName), expectedBytes: size,
+        receivedBytes: 0, caseId: caseId || null, objectiveId: objectiveId || null,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+    };
+    writeUploadSession(paths, metadata);
+    writeBatchLedger(batch, { ...usage, files: usage.files + 1, bytes: usage.bytes + size });
+    return { ok: true, status: "UPLOAD_SESSION_READY", ...metadata, maxChunkBytes: MAX_JARVIS_UPLOAD_CHUNK_BYTES };
+}
+
+export function appendChunkedUpload({ uploadId = "", offset = 0, dataBase64 = "", root = DEFAULT_ROOT } = {}) {
+    const session = readUploadSession(uploadId, root);
+    const expectedOffset = Number(offset || 0);
+    if (expectedOffset !== session.metadata.receivedBytes) throw new Error("UPLOAD_CHUNK_OFFSET_MISMATCH");
+    const bytes = decodeBoundedBase64(dataBase64, MAX_JARVIS_UPLOAD_CHUNK_BYTES);
+    if (session.metadata.receivedBytes + bytes.length > session.metadata.expectedBytes) {
+        throw new Error("UPLOAD_CHUNK_EXCEEDS_EXPECTED_BYTES");
+    }
+    fs.appendFileSync(session.paths.part, bytes);
+    session.metadata.receivedBytes += bytes.length;
+    session.metadata.updatedAt = new Date().toISOString();
+    writeUploadSession(session.paths, session.metadata);
+    return {
+        ok: true, status: "UPLOAD_CHUNK_SAVED", uploadId: session.metadata.uploadId,
+        receivedBytes: session.metadata.receivedBytes, expectedBytes: session.metadata.expectedBytes,
+        progress: Math.round((session.metadata.receivedBytes / session.metadata.expectedBytes) * 100)
+    };
+}
+
+function sha256FileBounded(file) {
+    const hash = createHash("sha256");
+    const descriptor = fs.openSync(file, "r");
+    const buffer = Buffer.allocUnsafe(1024 * 1024);
+    try {
+        let bytesRead = 0;
+        do {
+            bytesRead = fs.readSync(descriptor, buffer, 0, buffer.length, null);
+            if (bytesRead > 0) hash.update(buffer.subarray(0, bytesRead));
+        } while (bytesRead > 0);
+    } finally {
+        fs.closeSync(descriptor);
+    }
+    return hash.digest("hex");
+}
+
+export function completeChunkedUpload({ uploadId = "", root = DEFAULT_ROOT } = {}) {
+    const session = readUploadSession(uploadId, root);
+    const actualBytes = fs.statSync(session.paths.part).size;
+    if (actualBytes !== session.metadata.expectedBytes || actualBytes !== session.metadata.receivedBytes) {
+        throw new Error("UPLOAD_INCOMPLETE");
+    }
+    const descriptor = normalizeUploadDescriptor(session.metadata.name);
+    const hash = sha256FileBounded(session.paths.part);
+    const detectedMimeType = detectArtifactMimeType(session.paths.part, session.metadata.name);
+    const relativeOutput = `.jarvis-artifacts/uploads/${Date.now()}-${hash.slice(0, 12)}-${descriptor.baseName}${descriptor.extension}`;
+    const target = artifactPath(relativeOutput, root, [descriptor.extension]);
+    fs.renameSync(session.paths.part, target);
+    fs.rmSync(session.paths.metadata, { force: true });
+    const batch = uploadBatchLedger(session.metadata.batchId, root);
+    writeBatchLedger(batch, { ...batch.usage, completedFiles: Number(batch.usage.completedFiles || 0) + 1 });
+    return {
+        ok: true, status: "UPLOAD_SAVED", output: relativeOutput, name: session.metadata.name,
+        bytes: actualBytes, sha256: hash, mimeType: session.metadata.mimeType,
+        detectedMimeType, caseId: session.metadata.caseId,
+        objectiveId: session.metadata.objectiveId, batchId: session.metadata.batchId
+    };
+}
+
+export function cancelChunkedUpload({ uploadId = "", root = DEFAULT_ROOT } = {}) {
+    const paths = uploadSessionPaths(uploadId, root);
+    const existed = fs.existsSync(paths.part) || fs.existsSync(paths.metadata);
+    let metadata = null;
+    try { metadata = JSON.parse(fs.readFileSync(paths.metadata, "utf8")); } catch {}
+    fs.rmSync(paths.part, { force: true });
+    fs.rmSync(paths.metadata, { force: true });
+    if (metadata?.batchId) {
+        const batch = uploadBatchLedger(metadata.batchId, root);
+        writeBatchLedger(batch, {
+            ...batch.usage,
+            files: Math.max(0, Number(batch.usage.files || 0) - 1),
+            bytes: Math.max(0, Number(batch.usage.bytes || 0) - Number(metadata.expectedBytes || 0))
+        });
+    }
+    return { ok: true, status: existed ? "UPLOAD_CANCELLED" : "UPLOAD_ALREADY_GONE", uploadId };
 }
 
 export function saveUploadedArtifact({
@@ -1016,18 +1218,9 @@ export function saveUploadedArtifact({
     dataBase64 = "",
     root = DEFAULT_ROOT
 } = {}) {
-    const originalName = path.basename(String(name || "").trim());
-    const extension = path.extname(originalName).toLowerCase();
-    if (!originalName || !JARVIS_UPLOAD_EXTENSIONS.has(extension)) {
-        throw new Error("UPLOAD_EXTENSION_NOT_ALLOWED");
-    }
+    const { originalName, extension, baseName } = normalizeUploadDescriptor(name);
 
-    const bytes = decodeBoundedBase64(dataBase64);
-    const baseName = path.basename(originalName, extension)
-        .normalize("NFKD")
-        .replace(/[^A-Za-z0-9._-]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .slice(0, 80) || "archivo";
+    const bytes = decodeBoundedBase64(dataBase64, MAX_JARVIS_LEGACY_UPLOAD_BYTES);
     const relativeOutput = `.jarvis-artifacts/uploads/${Date.now()}-${baseName}${extension}`;
     const target = artifactPath(relativeOutput, root, [extension]);
     fs.writeFileSync(target, bytes);
@@ -2336,6 +2529,63 @@ export function createJarvisFsBridgeApp({
                 error: error.message,
                 version: JARVIS_FS_BRIDGE_VERSION
             });
+        }
+    });
+
+    app.post("/upload/start", (req, res) => {
+        try {
+            return res.json({
+                ...startChunkedUpload({
+                    batchId: req.body?.batchId,
+                    name: req.body?.name,
+                    mimeType: req.body?.mimeType,
+                    expectedBytes: req.body?.expectedBytes,
+                    caseId: req.body?.caseId,
+                    objectiveId: req.body?.objectiveId,
+                    root
+                }),
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        } catch (error) {
+            return res.status(400).json({ ok: false, status: "UPLOAD_SESSION_FAILED", error: error.message, version: JARVIS_FS_BRIDGE_VERSION });
+        }
+    });
+
+    app.post("/upload/chunk", (req, res) => {
+        try {
+            return res.json({
+                ...appendChunkedUpload({
+                    uploadId: req.body?.uploadId,
+                    offset: req.body?.offset,
+                    dataBase64: req.body?.dataBase64,
+                    root
+                }),
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        } catch (error) {
+            return res.status(400).json({ ok: false, status: "UPLOAD_CHUNK_FAILED", error: error.message, version: JARVIS_FS_BRIDGE_VERSION });
+        }
+    });
+
+    app.post("/upload/complete", (req, res) => {
+        try {
+            return res.json({
+                ...completeChunkedUpload({ uploadId: req.body?.uploadId, root }),
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        } catch (error) {
+            return res.status(400).json({ ok: false, status: "UPLOAD_COMPLETE_FAILED", error: error.message, version: JARVIS_FS_BRIDGE_VERSION });
+        }
+    });
+
+    app.post("/upload/cancel", (req, res) => {
+        try {
+            return res.json({
+                ...cancelChunkedUpload({ uploadId: req.body?.uploadId, root }),
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        } catch (error) {
+            return res.status(400).json({ ok: false, status: "UPLOAD_CANCEL_FAILED", error: error.message, version: JARVIS_FS_BRIDGE_VERSION });
         }
     });
 
