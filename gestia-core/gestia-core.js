@@ -3427,6 +3427,39 @@ function composeObservationDrivenFinalResponse({
                 `- [${finding.severity || "MEDIUM"}] ${finding.title || finding.id || "Hallazgo"}: ${finding.detail || "Sin detalle adicional."}`
             );
 
+    const diagnosisByFile =
+        [
+            ...new Map(
+                diagnoses
+                    .filter(diagnosis => diagnosis?.file)
+                    .map(diagnosis => [
+                        normalizeObservationFilePath(diagnosis.file),
+                        diagnosis
+                    ])
+            ).values()
+        ];
+
+    const multiTargetDiagnosisLines =
+        diagnosisByFile.length > 1
+            ? diagnosisByFile.flatMap(diagnosis => {
+                const findings =
+                    (diagnosis?.findings || [])
+                        .filter(finding =>
+                            String(finding?.severity || "INFO").toUpperCase() !== "INFO"
+                        )
+                        .slice(0, 2);
+
+                return [
+                    `- ${diagnosis.file} [${diagnosis.risk || "ND"}]`,
+                    ...(findings.length
+                        ? findings.map(finding =>
+                            `  - [${finding.severity || "MEDIUM"}] ${finding.title || finding.id || "Hallazgo"}: ${finding.detail || "Sin detalle adicional."}`
+                        )
+                        : ["  - Sin hallazgos sustantivos por heuristica local."])
+                ];
+            })
+            : [];
+
     const executiveEvidenceLines =
         [
             ...evidenceLines.slice(0, 4),
@@ -3450,6 +3483,13 @@ function composeObservationDrivenFinalResponse({
             ...(executiveFindingLines.length
                 ? executiveFindingLines
                 : [cause]),
+            ...(multiTargetDiagnosisLines.length
+                ? [
+                    "",
+                    "Diagnostico separado por objetivo:",
+                    ...multiTargetDiagnosisLines
+                ]
+                : []),
             "",
             "Evidencia:",
             ...(executiveEvidenceLines.length

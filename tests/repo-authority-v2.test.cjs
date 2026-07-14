@@ -1041,6 +1041,74 @@ test("read-only technical response leads with findings and hides internal teleme
     assert.equal(finalResponse.candidates.length, 2);
 });
 
+test("read-only technical response preserves evidence for every diagnosed target", () => {
+    const helpers =
+        loadGestiaCoreAgentLoopHelpers();
+
+    const finalResponse =
+        helpers.composeObservationDrivenFinalResponse({
+            objective:
+                "Jarvis, revisa tecnico B2B y cliente HTME, dime que puede fallar y no modifiques nada",
+            candidates: [
+                {
+                    file: "tecnico-b2b.html",
+                    score: 180,
+                    evidence: []
+                },
+                {
+                    file: "cliente.html",
+                    score: 160,
+                    evidence: []
+                }
+            ],
+            primaryConfidence: {
+                mode: "MULTI_CANDIDATE",
+                confident: false
+            },
+            patchPreviewAllowed: false,
+            followUpObservations: [
+                {
+                    response: {
+                        data: {
+                            tool: "repo.diagnose",
+                            file: "tecnico-b2b.html",
+                            risk: "HIGH",
+                            findings: [
+                                {
+                                    severity: "HIGH",
+                                    title: "Permisos B2B ambiguos",
+                                    detail: "El portal mezcla autoridad tecnica y cliente."
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    response: {
+                        data: {
+                            tool: "repo.diagnose",
+                            file: "cliente.html",
+                            risk: "MEDIUM",
+                            findings: [
+                                {
+                                    severity: "MEDIUM",
+                                    title: "Redirect de cliente tardio",
+                                    detail: "La vista puede mostrarse antes de resolver el rol."
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        });
+
+    assert.match(finalResponse.text, /Diagnostico separado por objetivo:/);
+    assert.match(finalResponse.text, /- tecnico-b2b\.html \[HIGH\]/);
+    assert.match(finalResponse.text, /Permisos B2B ambiguos/);
+    assert.match(finalResponse.text, /- cliente\.html \[MEDIUM\]/);
+    assert.match(finalResponse.text, /Redirect de cliente tardio/);
+});
+
 test("agent loop composes read-only final response for global repo analysis", () => {
     const helpers =
         loadGestiaCoreAgentLoopHelpers();
