@@ -2,7 +2,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "7.8.0-reel-artifact-studio";
+const VERSION = "7.9.0-grounded-image-editing";
 
 export function normalizeImageArtifactOutput(output, mimeType) {
     const extensions = {
@@ -421,6 +421,68 @@ export function registerJarvisActuatorTools(runtime) {
                     output: finalResult.output,
                     error: result?.error || finalResult.persistenceError || null,
                     cloudCode: result?.cloudCode || null,
+                    checkedAt: new Date().toISOString()
+                });
+                return finalResult;
+            }
+        }),
+        register(runtime, {
+            name: "image.edit",
+            description: "Edita una imagen persistida con transformaciones explícitas, conserva trazabilidad del original y guarda un output descargable nuevo.",
+            output: "IMAGE_EDIT_RESULT",
+            inputSchema: {
+                sourceOutput: "string", prompt: "string", transformations: "array",
+                aspectRatio: "string", imageSize: "string", preserveLogos: "boolean",
+                preserveApprovedText: "boolean", output: "string", objectiveId: "string"
+            },
+            mutates: true,
+            requiresApproval: true,
+            execute: async (args = {}, context = {}) => {
+                if (!args.sourceOutput) throw new Error("IMAGE_SOURCE_OUTPUT_REQUIRED");
+                const source = await bridgeRequest("/artifact/read", { output: args.sourceOutput }, 30000);
+                if (source?.ok !== true || !String(source.mimeType || "").startsWith("image/") || !source.dataBase64) {
+                    throw new Error("IMAGE_SOURCE_ARTIFACT_INVALID");
+                }
+                const result = await callAdminFunction("jarvisImageGenerate", {
+                    prompt: args.prompt || context.rawInput || "",
+                    transformations: Array.isArray(args.transformations) ? args.transformations : [],
+                    aspectRatio: args.aspectRatio || "1:1",
+                    imageSize: args.imageSize || "1K",
+                    sourceImageBase64: source.dataBase64,
+                    sourceMimeType: source.mimeType,
+                    sourceOutput: source.output,
+                    preserveLogos: args.preserveLogos !== false,
+                    preserveApprovedText: args.preserveApprovedText !== false,
+                    objectiveId: args.objectiveId || context.objectiveId || ""
+                });
+                let artifact = null;
+                if (result?.ok === true && result?.status === "IMAGE_EDITED" && result?.imageBase64) {
+                    artifact = await bridgeRequest("/image", {
+                        imageBase64: result.imageBase64,
+                        mimeType: result.mimeType,
+                        output: normalizeImageArtifactOutput(args.output, result.mimeType)
+                    }, 30000);
+                }
+                const finalResult = {
+                    ...result,
+                    persisted: artifact?.ok === true,
+                    output: artifact?.output || null,
+                    outputBytes: artifact?.bytes || null,
+                    originalPreserved: true,
+                    sourceOutput: source.output,
+                    sourceBytes: source.bytes
+                };
+                recordCapabilityEvidence("image_editing", {
+                    ok: finalResult.ok === true && finalResult.persisted === true && finalResult.sourceSha256,
+                    status: finalResult.persisted ? finalResult.status : "IMAGE_EDIT_ARTIFACT_REQUIRED",
+                    provider: finalResult.provider || null,
+                    model: finalResult.model || null,
+                    sourceOutput: finalResult.sourceOutput,
+                    sourceSha256: finalResult.sourceSha256 || null,
+                    output: finalResult.output,
+                    transformations: finalResult.transformations || [],
+                    objectiveId: finalResult.objectiveId || null,
+                    originalPreserved: true,
                     checkedAt: new Date().toISOString()
                 });
                 return finalResult;

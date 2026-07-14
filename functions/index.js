@@ -2919,10 +2919,12 @@ exports.jarvisImageGenerate = functions
                 });
             }
             catch(primaryError) {
+                const primaryMessage =
+                    primaryError?.message || String(primaryError);
                 const credentialFailure =
-                    /GEMINI_KEY_MISSING|API key not valid|API_KEY_INVALID/i.test(
-                        primaryError?.message || String(primaryError)
-                    );
+                    primaryMessage.includes("GEMINI_KEY_MISSING") ||
+                    primaryMessage.toLowerCase().includes("api key not valid") ||
+                    primaryMessage.includes("API_KEY_INVALID");
 
                 if (!credentialFailure) {
                     throw primaryError;
@@ -2940,8 +2942,12 @@ exports.jarvisImageGenerate = functions
                 uid: actor.uid,
                 model: result.model,
                 provider: result.provider || "google",
+                action: result.action || "generate",
                 bytes: result.bytes,
-                aspectRatio: result.aspectRatio
+                aspectRatio: result.aspectRatio,
+                objectiveId: result.objectiveId || null,
+                sourceOutput: result.sourceOutput || null,
+                transformations: result.transformations || []
             }));
 
             return result;
@@ -2954,8 +2960,13 @@ exports.jarvisImageGenerate = functions
                 error: error?.message || String(error)
             }));
 
+            const invalidArgument =
+                error?.message === "JARVIS_IMAGE_PROMPT_REQUIRED" ||
+                error?.message === "JARVIS_IMAGE_SOURCE_INVALID" ||
+                error?.message === "JARVIS_IMAGE_SOURCE_BASE64_INVALID" ||
+                error?.message === "JARVIS_IMAGE_TRANSFORMATIONS_REQUIRED";
             throw new functions.https.HttpsError(
-                error?.message === "JARVIS_IMAGE_PROMPT_REQUIRED"
+                invalidArgument
                     ? "invalid-argument"
                     : error?.message === "GEMINI_KEY_MISSING"
                         ? "failed-precondition"

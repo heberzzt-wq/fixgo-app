@@ -21,7 +21,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "1.19.0-reel-artifact-production";
+const VERSION = "1.20.0-grounded-image-editing";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 
@@ -350,6 +350,7 @@ async function buildCapabilityForensics(runtime) {
                 : null
         ) ||
         null;
+    const imageEditingHealth = readCapabilityEvidence("image_editing") || null;
     const imageCredentialInvalid =
         /API key not valid|API_KEY_INVALID/i.test(
             String(imageHealth?.error || "")
@@ -693,21 +694,26 @@ async function buildCapabilityForensics(runtime) {
         },
         {
             id: "image_generation",
-            status: imageHealth?.ok === true
+            status: imageHealth?.ok === true && imageEditingHealth?.ok === true
                 ? "READY"
-                : hasNamespace(tools, ["image", "imagegen"])
+                : hasEvery(tools, ["image.generate", "image.edit"])
                     ? "PARTIAL"
                     : "NOT_AVAILABLE",
-            reason: imageHealth?.ok === true
-                ? "La generacion de imagen produjo una salida real verificada."
+            reason: imageHealth?.ok === true && imageEditingHealth?.ok === true
+                ? "Generación y edición produjeron outputs reales, descargables y trazables al archivo fuente."
                 : imageCredentialInvalid
                     ? "Google rechazo la credencial GEMINI_KEY configurada; el actuador funciona, pero no puede generar hasta reemplazarla."
+                : imageHealth?.ok === true && tools.has("image.edit")
+                    ? "La generación está verificada y el editor está conectado; falta una edición real que preserve el original."
                 : hasNamespace(tools, ["image", "imagegen"])
-                    ? "El actuador esta registrado; falta una generacion real en esta sesion."
+                    ? "Los actuadores están registrados; faltan ejecuciones reales verificadas."
                     : "No hay generador o editor de imagenes registrado.",
             evidence: {
                 actuatorRegistered: hasNamespace(tools, ["image", "imagegen"]),
-                verified: imageHealth?.ok === true,
+                generationVerified: imageHealth?.ok === true,
+                editingActuator: tools.has("image.edit"),
+                editingVerified: imageEditingHealth?.ok === true,
+                editingHealth: imageEditingHealth,
                 lastStatus: imageHealth?.status || "NOT_TESTED",
                 credentialInvalid: imageCredentialInvalid
             }

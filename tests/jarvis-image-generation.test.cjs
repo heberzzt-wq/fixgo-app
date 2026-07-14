@@ -14,7 +14,7 @@ const {
 } = require("../functions/jarvis-image-generation");
 
 test("image generation validates and bounds its public request", () => {
-    assert.equal(IMAGE_ACTUATOR_VERSION, "1.1.0-provider-fallback");
+    assert.equal(IMAGE_ACTUATOR_VERSION, "1.2.0-grounded-editing");
     assert.throws(
         () => normalizeImageRequest({ prompt: "short" }),
         /JARVIS_IMAGE_PROMPT_REQUIRED/
@@ -26,6 +26,48 @@ test("image generation validates and bounds its public request", () => {
     });
     assert.equal(request.aspectRatio, "16:9");
     assert.equal(request.imageSize, "2K");
+});
+
+test("image editing sends the real source image and records transformations", async () => {
+    let request;
+    const ai = {
+        models: {
+            generateContent: async input => {
+                request = input;
+                return { candidates: [{ content: { parts: [{ inlineData: { mimeType: "image/webp", data: "ZWRpdGVk" } }] } }] };
+            }
+        }
+    };
+    const source = Buffer.from("source-image");
+    const result = await runJarvisImageGeneration({
+        ai,
+        input: {
+            prompt: "Convierte esta fotografía en un hero horizontal limpio",
+            sourceImageBase64: source.toString("base64"),
+            sourceMimeType: "image/png",
+            sourceOutput: ".jarvis-artifacts/uploads/source.png",
+            transformations: ["recortar a hero", "conservar logotipo"],
+            aspectRatio: "16:9",
+            objectiveId: "OBJ-IMAGE-1"
+        }
+    });
+    assert.equal(result.status, "IMAGE_EDITED");
+    assert.equal(result.action, "edit");
+    assert.equal(result.provider, "google");
+    assert.equal(result.sourceOutput, ".jarvis-artifacts/uploads/source.png");
+    assert.equal(result.sourceSha256.length, 64);
+    assert.deepEqual(result.transformations, ["recortar a hero", "conservar logotipo"]);
+    assert.equal(result.objectiveId, "OBJ-IMAGE-1");
+    assert.equal(request.contents[0].parts[1].inlineData.data, source.toString("base64"));
+    await assert.rejects(
+        () => runJarvisImageFallback({ input: {
+            prompt: "Edita esta imagen",
+            sourceImageBase64: source.toString("base64"),
+            sourceMimeType: "image/png",
+            transformations: ["recortar"]
+        } }),
+        /JARVIS_IMAGE_EDIT_FALLBACK_NOT_ALLOWED/
+    );
 });
 
 test("image fallback returns bounded real image bytes", async () => {
