@@ -21,7 +21,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "1.9.3-sia7-bounded-grounded-business";
+const VERSION = "1.10.0-honest-v7-capability-boundaries";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 
@@ -37,6 +37,9 @@ const CAPABILITY_LABELS = {
     conversation_and_voice: "Conversacion y voz",
     business_and_marketing: "Negocio, marketing y paginas",
     media_and_documents: "Documentos y medios",
+    professional_pdf_editing: "Edicion profesional de PDF",
+    persistent_cases: "Expedientes persistentes",
+    reel_video_production: "Produccion de reels y video",
     multimodal_inputs: "Recepcion multimodal de archivos",
     daily_supervision: "Supervision diaria",
     browser_control: "Control del navegador",
@@ -362,6 +365,9 @@ async function buildCapabilityForensics(runtime) {
                 : null
         ) ||
         null;
+    const pdfEditingHealth = readCapabilityEvidence("pdf_editing") || null;
+    const persistentCaseHealth = readCapabilityEvidence("persistent_cases") || null;
+    const reelVideoHealth = readCapabilityEvidence("reel_video") || null;
     const connectorsReady =
         tools.has("agent.delegate") &&
         connectorHealth?.ok === true &&
@@ -466,6 +472,59 @@ async function buildCapabilityForensics(runtime) {
                 documentCreation: tools.has("document.create"),
                 pdfRendering: tools.has("document.pdf"),
                 bridgeReady
+            }
+        },
+        {
+            id: "professional_pdf_editing",
+            status: tools.has("document.pdf.edit") && pdfEditingHealth?.ok === true
+                ? "READY"
+                : tools.has("document.pdf.edit")
+                    ? "PARTIAL"
+                    : "NOT_AVAILABLE",
+            reason: tools.has("document.pdf.edit") && pdfEditingHealth?.ok === true
+                ? "Una edicion de PDF real produjo artefacto nuevo y evidencia visual verificada."
+                : tools.has("document.pdf.edit")
+                    ? "Existe un editor real, pero falta verificar fidelidad visual sobre un PDF del usuario."
+                    : "No existe todavia un actuador conectado para editar un PDF existente conservando su formato.",
+            nextAction: "Editar una cotizacion PDF real, recalcular valores, comparar paginas y verificar desbordamientos.",
+            evidence: {
+                actuatorRegistered: tools.has("document.pdf.edit"),
+                verifiedExecution: pdfEditingHealth?.ok === true,
+                health: pdfEditingHealth
+            }
+        },
+        {
+            id: "persistent_cases",
+            status: persistentCaseHealth?.ok === true
+                ? "READY"
+                : bridgeReady && multimodalHealth?.ok === true
+                    ? "PARTIAL"
+                    : "NOT_AVAILABLE",
+            reason: persistentCaseHealth?.ok === true
+                ? "Un expediente recuperable con caseId, objectiveId e instruccion original inmutable fue verificado."
+                : "El ledger esta conectado al compositor, pero falta una carga viva que pruebe recuperacion del expediente.",
+            nextAction: "Adjuntar un archivo, recargar la Terminal y comprobar que el mismo caseId y objectiveId se recuperan.",
+            evidence: {
+                verifiedExecution: persistentCaseHealth?.ok === true,
+                health: persistentCaseHealth
+            }
+        },
+        {
+            id: "reel_video_production",
+            status: reelVideoHealth?.ok === true
+                ? "READY"
+                : hasEvery(tools, ["marketing.plan", "browser.open"])
+                    ? "PARTIAL"
+                    : "NOT_AVAILABLE",
+            reason: reelVideoHealth?.ok === true
+                ? "Un reel de 30 o 45 segundos fue exportado como artefacto descargable y verificado."
+                : "Existe Reel Studio 30/45 y preview real, pero no hay evidencia persistida de una exportacion completa en esta sesion.",
+            nextAction: "Exportar un reel completo de 30 segundos y registrar hash, duracion, formato y artefacto.",
+            evidence: {
+                planning: tools.has("marketing.plan"),
+                browser: tools.has("browser.open"),
+                verifiedExecution: reelVideoHealth?.ok === true,
+                health: reelVideoHealth
             }
         },
         {
@@ -583,6 +642,9 @@ async function buildCapabilityForensics(runtime) {
     const gapIds = new Set(gaps.map(gap => gap.id));
     const priorityByCapability = {
         media_and_documents: "Conectar edicion documental nativa.",
+        professional_pdf_editing: "Conectar y verificar edicion profesional de PDF.",
+        persistent_cases: "Verificar recuperacion viva de un expediente persistente.",
+        reel_video_production: "Exportar y verificar un reel completo de 30 o 45 segundos.",
         daily_supervision: "Validar una ejecucion diaria persistida del supervisor.",
         browser_control: "Conectar un actuador de navegador verificable.",
         web_research: "Conectar investigacion web con fuentes y citas.",

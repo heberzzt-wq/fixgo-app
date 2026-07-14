@@ -36,6 +36,7 @@ test("actuator pack registers browser, documents, image, delegation and connecto
         "browser.open",
         "document.create",
         "document.pdf",
+        "document.pdf.edit",
         "image.generate",
         "agent.delegate",
         "connector.list"
@@ -44,6 +45,7 @@ test("actuator pack registers browser, documents, image, delegation and connecto
     assert.equal(runtime.get("system.supervision.runNow").requiresApproval, true);
     assert.equal(runtime.get("browser.screenshot").requiresApproval, true);
     assert.equal(runtime.get("document.create").requiresApproval, true);
+    assert.equal(runtime.get("document.pdf.edit").requiresApproval, true);
 });
 
 test("agent delegation runs only read-only tools and rejects recursive delegation", async () => {

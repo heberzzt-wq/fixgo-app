@@ -11,6 +11,7 @@ import {
     cancelChunkedUpload,
     completeChunkedUpload,
     describeJarvisFsBridge,
+    editPdfOverlayArtifact,
     inspectLocalConnectors,
     normalizeReadLineRange,
     readJarvisRuntimeContract,
@@ -27,7 +28,7 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.7.0-chunked-multimodal-ingestion");
+    assert.equal(description.version, "2.8.0-native-pdf-overlay-editing");
     assert.equal(description.policy.authority, "full_repo_private_owner");
     assert.equal(description.policy.safeZone, "advisory");
     assert.equal(description.policy.emptyWrites, "blocked");
@@ -44,6 +45,45 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
     assert.equal(description.actuators.multimodalUploads.maxBatchBytes, 500 * 1024 * 1024);
     assert.equal(typeof description.actuators.imageGeneration.verifiedCount, "number");
     assert.deepEqual(description.actuators.connectors.adapters, ["github", "firebase"]);
+});
+
+test("Jarvis edits a real PDF overlay, preserves the original and blocks overflow", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-pdf-edit-"));
+    try {
+        const { PDFDocument, StandardFonts } = await import("pdf-lib");
+        const document = await PDFDocument.create();
+        const page = document.addPage([612, 792]);
+        const font = await document.embedFont(StandardFonts.Helvetica);
+        page.drawText("TOTAL ORIGINAL: 100.00", { x: 72, y: 120, size: 12, font });
+        const sourceBytes = Buffer.from(await document.save({ useObjectStreams: false }));
+        const sourceDir = path.join(root, ".jarvis-artifacts", "uploads");
+        fs.mkdirSync(sourceDir, { recursive: true });
+        const sourceFile = path.join(sourceDir, "cotizacion.pdf");
+        fs.writeFileSync(sourceFile, sourceBytes);
+
+        const result = await editPdfOverlayArtifact({
+            root,
+            sourceOutput: ".jarvis-artifacts/uploads/cotizacion.pdf",
+            output: ".jarvis-artifacts/documents/cotizacion-editada.pdf",
+            changes: [{ page: 1, x: 70, y: 110, width: 190, height: 30, text: "TOTAL ACTUALIZADO: 90.00", fontSize: 12 }]
+        });
+        assert.equal(result.ok, true);
+        assert.equal(result.status, "PDF_EDITED_REQUIRES_VISUAL_REVIEW");
+        assert.equal(result.originalPreserved, true);
+        assert.equal(result.visualVerification.overflowPassed, true);
+        assert.equal(result.visualVerification.renderedComparisonPassed, false);
+        assert.deepEqual(fs.readFileSync(sourceFile), sourceBytes);
+        assert.notEqual(result.outputSha256, result.sourceSha256);
+        assert.equal(fs.existsSync(path.join(root, result.output)), true);
+
+        await assert.rejects(() => editPdfOverlayArtifact({
+            root,
+            sourceOutput: ".jarvis-artifacts/uploads/cotizacion.pdf",
+            changes: [{ page: 1, x: 70, y: 110, width: 20, height: 10, text: "ESTE TEXTO NO CABE", fontSize: 12 }]
+        }), /PDF_TEXT_TOO_WIDE|PDF_TEXT_OVERFLOW/);
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
 });
 
 test("Jarvis streams a file in bounded chunks, verifies SHA-256 and preserves trace", () => {

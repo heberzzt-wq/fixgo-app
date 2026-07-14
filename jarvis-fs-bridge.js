@@ -9,7 +9,7 @@ import { fileURLToPath } from "url";
 import { execFileSync, spawn } from "child_process";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.7.0-chunked-multimodal-ingestion";
+    "2.8.0-native-pdf-overlay-editing";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -1262,6 +1262,104 @@ export function readArtifactPayload({
     };
 }
 
+function pdfColor(rgb, value = "#000000") {
+    const normalized = String(value || "#000000").replace(/^#/, "");
+    if (!/^[a-f0-9]{6}$/i.test(normalized)) throw new Error("PDF_COLOR_INVALID");
+    return rgb(
+        Number.parseInt(normalized.slice(0, 2), 16) / 255,
+        Number.parseInt(normalized.slice(2, 4), 16) / 255,
+        Number.parseInt(normalized.slice(4, 6), 16) / 255
+    );
+}
+
+function wrapPdfText(text, font, fontSize, maxWidth) {
+    const words = String(text || "").trim().split(/\s+/).filter(Boolean);
+    const lines = [];
+    let line = "";
+    for (const word of words) {
+        const candidate = line ? `${line} ${word}` : word;
+        if (font.widthOfTextAtSize(candidate, fontSize) <= maxWidth) line = candidate;
+        else {
+            if (line) lines.push(line);
+            if (font.widthOfTextAtSize(word, fontSize) > maxWidth) throw new Error("PDF_TEXT_TOO_WIDE");
+            line = word;
+        }
+    }
+    if (line) lines.push(line);
+    return lines.length > 0 ? lines : [""];
+}
+
+export async function editPdfOverlayArtifact({
+    sourceOutput = "", output = "", changes = [], root = DEFAULT_ROOT
+} = {}) {
+    const source = artifactPath(sourceOutput, root, [".pdf"]);
+    if (!fs.existsSync(source) || !fs.statSync(source).isFile()) throw new Error("PDF_SOURCE_NOT_FOUND");
+    const sourceBytes = fs.readFileSync(source);
+    if (sourceBytes.length < 8 || sourceBytes.length > 50 * 1024 * 1024) throw new Error("PDF_SOURCE_BYTES_OUT_OF_RANGE");
+    if (!Array.isArray(changes) || changes.length < 1 || changes.length > 100) throw new Error("PDF_CHANGES_REQUIRED");
+
+    const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
+    const document = await PDFDocument.load(sourceBytes, { updateMetadata: false });
+    const font = await document.embedFont(StandardFonts.Helvetica);
+    const pages = document.getPages();
+    const applied = [];
+
+    for (const [index, change] of changes.entries()) {
+        const pageNumber = Number(change?.page || 1);
+        if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > pages.length) throw new Error("PDF_PAGE_OUT_OF_RANGE");
+        const page = pages[pageNumber - 1];
+        const { width: pageWidth, height: pageHeight } = page.getSize();
+        const x = Number(change?.x);
+        const width = Number(change?.width);
+        const height = Number(change?.height);
+        const fontSize = Number(change?.fontSize || 10);
+        const y = Number.isFinite(Number(change?.yFromTop))
+            ? pageHeight - Number(change.yFromTop) - height
+            : Number(change?.y);
+        if (![x, y, width, height, fontSize].every(Number.isFinite) || x < 0 || y < 0 || width <= 0 || height <= 0 || fontSize < 4 || fontSize > 72 || x + width > pageWidth || y + height > pageHeight) {
+            throw new Error("PDF_EDIT_BOX_OUT_OF_BOUNDS");
+        }
+        const text = String(change?.text ?? "").slice(0, 2000);
+        const padding = Math.max(1, Number(change?.padding || 2));
+        const lineHeight = fontSize * 1.2;
+        const lines = wrapPdfText(text, font, fontSize, width - padding * 2);
+        if (lines.length * lineHeight > height - padding * 2) throw new Error("PDF_TEXT_OVERFLOW");
+        page.drawRectangle({ x, y, width, height, color: pdfColor(rgb, change?.backgroundColor || "#ffffff") });
+        lines.forEach((line, lineIndex) => page.drawText(line, {
+            x: x + padding,
+            y: y + height - padding - fontSize - lineIndex * lineHeight,
+            size: fontSize,
+            font,
+            color: pdfColor(rgb, change?.color || "#000000")
+        }));
+        applied.push({ index, page: pageNumber, x, y, width, height, text, fontSize, overflow: false });
+    }
+
+    const resultBytes = Buffer.from(await document.save({ useObjectStreams: false }));
+    const safeOutput = String(output || `.jarvis-artifacts/documents/edited-${Date.now()}.pdf`).replace(/\\/g, "/");
+    const target = artifactPath(safeOutput, root, [".pdf"]);
+    fs.writeFileSync(target, resultBytes);
+    return {
+        ok: true,
+        status: "PDF_EDITED_REQUIRES_VISUAL_REVIEW",
+        strategy: "NATIVE_OVERLAY",
+        sourceOutput: path.relative(path.resolve(root), source).replace(/\\/g, "/"),
+        output: path.relative(path.resolve(root), target).replace(/\\/g, "/"),
+        originalPreserved: true,
+        sourceSha256: createHash("sha256").update(sourceBytes).digest("hex"),
+        outputSha256: createHash("sha256").update(resultBytes).digest("hex"),
+        bytes: resultBytes.length,
+        pages: pages.length,
+        changes: applied,
+        visualVerification: {
+            overflowChecks: applied.length,
+            overflowPassed: applied.every(item => item.overflow === false),
+            renderedComparisonPassed: false,
+            humanReviewRequired: true
+        }
+    };
+}
+
 function decodeXml(value = "") {
     return String(value || "")
         .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
@@ -2458,6 +2556,27 @@ export function createJarvisFsBridgeApp({
             return res.status(400).json({
                 ok: false,
                 status: "DOCUMENT_CREATE_FAILED",
+                error: error.message,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+    });
+
+    app.post("/document/pdf/edit", async (req, res) => {
+        try {
+            return res.json({
+                ...await editPdfOverlayArtifact({
+                    sourceOutput: req.body?.sourceOutput,
+                    output: req.body?.output,
+                    changes: req.body?.changes,
+                    root
+                }),
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        } catch (error) {
+            return res.status(400).json({
+                ok: false,
+                status: "PDF_EDIT_FAILED",
                 error: error.message,
                 version: JARVIS_FS_BRIDGE_VERSION
             });

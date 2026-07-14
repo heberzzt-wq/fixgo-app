@@ -2,7 +2,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "7.2.0-persistent-capability-evidence";
+const VERSION = "7.3.0-native-pdf-editing";
 
 export function normalizeImageArtifactOutput(output, mimeType) {
     const extensions = {
@@ -205,6 +205,37 @@ export function registerJarvisActuatorTools(runtime) {
                     output: args.output || ".jarvis-artifacts/documents/document.pdf",
                     timeoutMs: args.timeoutMs || 45000
                 }, (args.timeoutMs || 45000) + 5000)
+        }),
+        register(runtime, {
+            name: "document.pdf.edit",
+            description: "Edita cajas de texto concretas de un PDF existente, conserva el original y bloquea desbordamientos; requiere revision visual antes de considerarse verificado.",
+            output: "DOCUMENT_PDF_EDIT_RESULT",
+            inputSchema: {
+                sourceOutput: "string",
+                output: "string",
+                changes: "array<{page,x,y|yFromTop,width,height,text,fontSize,color,backgroundColor}>"
+            },
+            mutates: true,
+            requiresApproval: true,
+            execute: async (args = {}) => {
+                const result = await bridgeRequest("/document/pdf/edit", {
+                    sourceOutput: args.sourceOutput,
+                    output: args.output,
+                    changes: args.changes
+                }, 90000);
+                recordCapabilityEvidence("pdf_editing", {
+                    ok: result?.ok === true && result?.visualVerification?.renderedComparisonPassed === true,
+                    status: result?.status || "PDF_EDIT_FAILED",
+                    output: result?.output || null,
+                    sourceSha256: result?.sourceSha256 || null,
+                    outputSha256: result?.outputSha256 || null,
+                    originalPreserved: result?.originalPreserved === true,
+                    overflowPassed: result?.visualVerification?.overflowPassed === true,
+                    renderedComparisonPassed: result?.visualVerification?.renderedComparisonPassed === true,
+                    checkedAt: new Date().toISOString()
+                });
+                return result;
+            }
         }),
         register(runtime, {
             name: "image.generate",

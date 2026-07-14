@@ -226,6 +226,15 @@ async function prepareFile(file, existingItem = null) {
             item.caseId = saved.caseId;
             item.objectiveId = saved.objectiveId;
             state.caseRecord = JarvisCaseLedger.recordAttachment(saved.caseId, saved);
+            recordCapabilityEvidence("persistent_cases", {
+                ok: false,
+                status: "PERSISTENT_CASE_PENDING_ORIGINAL_INSTRUCTION",
+                caseId: state.caseRecord.caseId,
+                objectiveId: state.caseRecord.objectiveId,
+                originalInstructionBound: Boolean(state.caseRecord.originalInstruction),
+                attachmentCount: state.caseRecord.attachments.length,
+                checkedAt: new Date().toISOString()
+            });
             persistReadyItems();
             window.__JARVIS_MULTIMODAL_HEALTH__ = recordCapabilityEvidence("multimodal_inputs", {
                 ok: true,
@@ -305,6 +314,15 @@ async function composePrompt(rawPrompt = "") {
     if (ready.length === 0) return normalizedPrompt;
     const caseRecord = ensureCase();
     state.caseRecord = JarvisCaseLedger.bindInstruction(caseRecord.caseId, normalizedPrompt);
+    recordCapabilityEvidence("persistent_cases", {
+        ok: true,
+        status: "PERSISTENT_CASE_VERIFIED",
+        caseId: state.caseRecord.caseId,
+        objectiveId: state.caseRecord.objectiveId,
+        originalInstructionBound: true,
+        attachmentCount: state.caseRecord.attachments.length,
+        checkedAt: new Date().toISOString()
+    });
     const manifest = ready.map(item => ({
         name: itemName(item),
         mimeType: itemType(item) || item.saved?.detectedMimeType || "application/octet-stream",
