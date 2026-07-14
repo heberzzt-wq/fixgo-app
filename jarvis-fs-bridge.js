@@ -958,16 +958,7 @@ function extractDuckDuckGoSources(html = "") {
     return results;
 }
 
-export async function runLocalWebResearch(query = "", timeoutMs = 20000) {
-    const normalizedQuery = String(query || "")
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 500);
-
-    if (normalizedQuery.length < 5) {
-        throw new Error("WEB_RESEARCH_QUERY_REQUIRED");
-    }
-
+function ensureSystemCertificates() {
     if (
         typeof tls.getCACertificates === "function" &&
         typeof tls.setDefaultCACertificates === "function"
@@ -978,6 +969,19 @@ export async function runLocalWebResearch(query = "", timeoutMs = 20000) {
         ];
         tls.setDefaultCACertificates([...new Set(certificates)]);
     }
+}
+
+export async function runLocalWebResearch(query = "", timeoutMs = 20000) {
+    const normalizedQuery = String(query || "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 500);
+
+    if (normalizedQuery.length < 5) {
+        throw new Error("WEB_RESEARCH_QUERY_REQUIRED");
+    }
+
+    ensureSystemCertificates();
 
     const boundedTimeoutMs = Math.min(Math.max(Number(timeoutMs) || 20000, 5000), 30000);
     let engine = "jarvis_local_duckduckgo_html_research";
@@ -1087,6 +1091,7 @@ export async function inspectLocalConnectors({
     gitProbe = null,
     timeoutMs = 10000
 } = {}) {
+    ensureSystemCertificates();
     const resolvedRoot = path.resolve(root);
     const identity = readGitIdentity(resolvedRoot);
     const remote = sanitizeRemoteUrl(identity.remote);
