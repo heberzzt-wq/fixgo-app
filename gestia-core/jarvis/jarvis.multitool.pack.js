@@ -308,6 +308,12 @@ async function buildCapabilityForensics(runtime) {
         ]);
     const bridgeReady =
         bridge.ok === true;
+    const imageHealth =
+        globalThis?.__JARVIS_IMAGE_GENERATION_HEALTH__ || null;
+    const imageCredentialInvalid =
+        /API key not valid|API_KEY_INVALID/i.test(
+            String(imageHealth?.error || "")
+        );
 
     const capabilities = [
         {
@@ -429,20 +435,23 @@ async function buildCapabilityForensics(runtime) {
         },
         {
             id: "image_generation",
-            status: globalThis?.__JARVIS_IMAGE_GENERATION_HEALTH__?.ok === true
+            status: imageHealth?.ok === true
                 ? "READY"
                 : hasNamespace(tools, ["image", "imagegen"])
                     ? "PARTIAL"
                     : "NOT_AVAILABLE",
-            reason: globalThis?.__JARVIS_IMAGE_GENERATION_HEALTH__?.ok === true
+            reason: imageHealth?.ok === true
                 ? "La generacion de imagen produjo una salida real verificada."
+                : imageCredentialInvalid
+                    ? "Google rechazo la credencial GEMINI_KEY configurada; el actuador funciona, pero no puede generar hasta reemplazarla."
                 : hasNamespace(tools, ["image", "imagegen"])
                     ? "El actuador esta registrado; falta una generacion real en esta sesion."
                     : "No hay generador o editor de imagenes registrado.",
             evidence: {
                 actuatorRegistered: hasNamespace(tools, ["image", "imagegen"]),
-                verified: globalThis?.__JARVIS_IMAGE_GENERATION_HEALTH__?.ok === true,
-                lastStatus: globalThis?.__JARVIS_IMAGE_GENERATION_HEALTH__?.status || "NOT_TESTED"
+                verified: imageHealth?.ok === true,
+                lastStatus: imageHealth?.status || "NOT_TESTED",
+                credentialInvalid: imageCredentialInvalid
             }
         },
         {
@@ -452,7 +461,7 @@ async function buildCapabilityForensics(runtime) {
                     ? "PARTIAL"
                     : "NOT_AVAILABLE",
             reason: hasNamespace(tools, ["connector", "agent", "mail", "calendar"])
-                ? "Hay integraciones parciales, pero no cobertura completa de conectores y delegacion."
+                ? "La delegacion paralela esta disponible; no hay conectores externos autenticados."
                 : "No hay conectores externos ni delegacion multiagente registrados.",
             evidence: {
                 connectorsRegistered: hasNamespace(tools, ["connector", "mail", "calendar"]),

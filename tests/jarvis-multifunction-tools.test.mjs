@@ -1132,6 +1132,12 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(bridge, /No se genero ni se fingio una imagen/);
     assert.match(bridge, /API key not valid\|API_KEY_INVALID/);
     assert.match(bridge, /Google rechazo la credencial/);
+    const toolPack = fs.readFileSync(
+        path.resolve(__dirname, "../gestia-core/jarvis/jarvis.multitool.pack.js"),
+        "utf8"
+    );
+    assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
+    assert.match(toolPack, /delegacion paralela esta disponible/);
     assert.match(terminal, /jarvis-tools-v7-20260714-final-human-actuator-credential-errors/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),

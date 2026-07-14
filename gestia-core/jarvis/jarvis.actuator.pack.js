@@ -199,6 +199,8 @@ export function registerJarvisActuatorTools(runtime) {
                     ok: result?.ok === true,
                     status: result?.status || "FAILED",
                     model: result?.model || null,
+                    error: result?.error || null,
+                    cloudCode: result?.cloudCode || null,
                     checkedAt: new Date().toISOString()
                 };
                 return result;
