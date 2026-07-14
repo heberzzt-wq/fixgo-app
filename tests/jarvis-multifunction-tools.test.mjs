@@ -717,6 +717,9 @@ test("multifunction media analysis preserves source trace and stays advisory", a
 });
 
 test("multifunction media analysis consumes a complete 30-file persisted manifest", async () => {
+    const previousAuth = globalThis.auth;
+    const previousBridge = globalThis.JarvisLocalBridge;
+    const previousFetch = globalThis.fetch;
     const runtime = createRuntime();
     registerJarvisMultifunctionTools(runtime);
     const attachments = Array.from({ length: 30 }, (_, index) => ({
@@ -726,15 +729,47 @@ test("multifunction media analysis consumes a complete 30-file persisted manifes
         artifact: `.jarvis-artifacts/uploads/evidencia-${index + 1}.png`,
         sha256: String(index + 1).padStart(64, "0")
     }));
-    const analysis = await runtime.execute("media.analyze", {
-        prompt: "clasifica las 30 evidencias",
-        attachments
-    }, { analysisId: "MULTI-MEDIA-30" });
+    try {
+        globalThis.auth = { currentUser: { getIdToken: async () => "token" } };
+        globalThis.JarvisLocalBridge = {
+            requestJson: async () => ({
+                ok: true,
+                dataBase64: "iVBORw0KGgo=",
+                mimeType: "image/png",
+                bytes: 8,
+                fileName: "evidencia.png"
+            })
+        };
+        globalThis.fetch = async (_url, options) => {
+            const request = JSON.parse(options.body);
+            const files = request.data.files;
+            return {
+                ok: true,
+                json: async () => ({
+                    result: {
+                        ok: true,
+                        status: "MEDIA_ANALYSIS_GROUNDED",
+                        sources: files.map(file => ({ name: file.name, evidence: [{ observation: "byte real" }]})),
+                        policy: { readOnly: true, illegibleContentMustRemainUnknown: true }
+                    }
+                })
+            };
+        };
+        const analysis = await runtime.execute("media.analyze", {
+            prompt: "clasifica las 30 evidencias",
+            attachments
+        }, { analysisId: "MULTI-MEDIA-30" });
 
-    assert.equal(analysis.ok, true);
-    assert.equal(analysis.receivedFiles, 30);
-    assert.equal(analysis.persistedArtifacts.length, 30);
-    assert.equal(analysis.trace.objectiveId, "MULTI-MEDIA-30");
+        assert.equal(analysis.ok, true);
+        assert.equal(analysis.receivedFiles, 30);
+        assert.equal(analysis.analyzedFiles, 8);
+        assert.equal(analysis.persistedArtifacts.length, 30);
+        assert.equal(analysis.status, "MEDIA_ANALYSIS_GROUNDED");
+    } finally {
+        globalThis.auth = previousAuth;
+        globalThis.JarvisLocalBridge = previousBridge;
+        globalThis.fetch = previousFetch;
+    }
 });
 
 test("multifunction planner accepts model-selected bounded read-only tools", async () => {

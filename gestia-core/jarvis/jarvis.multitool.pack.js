@@ -21,7 +21,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "1.15.0-write-and-git-receipts";
+const VERSION = "1.16.0-grounded-media-analysis";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 
@@ -378,6 +378,7 @@ async function buildCapabilityForensics(runtime) {
     const reelVideoHealth = readCapabilityEvidence("reel_video") || null;
     const chiefArchitectHealth = globalThis?.__JARVIS_CHIEF_ARCHITECT_HEALTH__ || null;
     const oneTimeWriteHealth = globalThis?.__JARVIS_ONE_TIME_WRITE_HEALTH__ || null;
+    const mediaAnalysisHealth = globalThis?.__JARVIS_MEDIA_ANALYSIS_HEALTH__ || readCapabilityEvidence("media_analysis") || null;
     const connectorsReady =
         tools.has("agent.delegate") &&
         connectorHealth?.ok === true &&
@@ -509,19 +510,21 @@ async function buildCapabilityForensics(runtime) {
         },
         {
             id: "media_and_documents",
-            status: bridgeReady && hasEvery(tools, ["media.analyze", "document.create", "document.pdf"])
+            status: bridgeReady && hasEvery(tools, ["media.analyze", "document.create", "document.pdf"]) && mediaAnalysisHealth?.ok === true
                 ? "READY"
                 : hasNamespace(tools, ["media", "document"])
                     ? "PARTIAL"
                     : "NOT_AVAILABLE",
-            reason: bridgeReady && hasEvery(tools, ["media.analyze", "document.create", "document.pdf"])
-                ? "Analisis y creacion documental conectados al bridge verificado."
-                : "La cobertura documental esta incompleta o el bridge no esta verificado.",
+            reason: mediaAnalysisHealth?.ok === true
+                ? "Analisis visual/documental real con evidencia e incertidumbre, mas creacion documental conectada."
+                : "Las herramientas existen, pero falta verificar un analisis visual o PDF real sin contenido inventado.",
             evidence: {
                 extractedContentAnalysis: tools.has("media.analyze"),
                 documentCreation: tools.has("document.create"),
                 pdfRendering: tools.has("document.pdf"),
-                bridgeReady
+                bridgeReady,
+                verifiedAnalysis: mediaAnalysisHealth?.ok === true,
+                health: mediaAnalysisHealth
             }
         },
         {
@@ -1160,6 +1163,58 @@ async function fetchGroundedWebResearch(
     }
 }
 
+async function fetchGroundedMediaAnalysis(attachments = [], question = "") {
+    const user = await waitForAuthenticatedUser();
+    if (!user) return { ok: false, status: "AUTH_REQUIRED", error: "AUTH_REQUIRED" };
+    if (typeof globalThis?.JarvisLocalBridge?.requestJson !== "function") {
+        return { ok: false, status: "LOCAL_BRIDGE_REQUIRED", error: "LOCAL_BRIDGE_REQUIRED" };
+    }
+    const supported = new Set(["application/pdf", "image/png", "image/jpeg", "image/webp"]);
+    const files = [];
+    let totalBytes = 0;
+    for (const attachment of attachments.slice(0, 8)) {
+        if (!attachment?.artifact || !supported.has(String(attachment.mimeType || "").toLowerCase())) continue;
+        const payload = await globalThis.JarvisLocalBridge.requestJson(
+            "/artifact/read",
+            { output: attachment.artifact },
+            { timeoutMs: 30000 }
+        );
+        if (payload?.ok !== true || !payload?.dataBase64 || Number(payload.bytes || 0) > 7 * 1024 * 1024) continue;
+        if (totalBytes + Number(payload.bytes || 0) > 9 * 1024 * 1024) break;
+        totalBytes += Number(payload.bytes || 0);
+        files.push({
+            name: attachment.name || payload.fileName || "archivo",
+            mimeType: attachment.mimeType || payload.mimeType,
+            dataBase64: payload.dataBase64
+        });
+    }
+    if (files.length === 0) {
+        return { ok: false, status: "READABLE_MEDIA_ARTIFACT_REQUIRED", error: "READABLE_MEDIA_ARTIFACT_REQUIRED" };
+    }
+    const token = await user.getIdToken();
+    const response = await fetch(
+        "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisMediaAnalyze",
+        {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ data: { files, question: String(question || "").slice(0, 3000) } })
+        }
+    );
+    const payload = await response.json();
+    const result = payload?.result || payload?.data || null;
+    if (!response.ok || result?.ok !== true || !Array.isArray(result?.sources)) {
+        return { ok: false, status: "MEDIA_ANALYSIS_UNAVAILABLE", error: payload?.error?.message || `HTTP_${response.status}` };
+    }
+    globalThis.__JARVIS_MEDIA_ANALYSIS_HEALTH__ = recordCapabilityEvidence("media_analysis", {
+        ok: true,
+        status: result.status,
+        sourceCount: result.sources.length,
+        evidenceCount: result.sources.reduce((sum, source) => sum + (source.evidence?.length || 0), 0),
+        checkedAt: new Date().toISOString()
+    });
+    return result;
+}
+
 async function fetchSemanticConversation(instruction = "") {
     const user = await waitForAuthenticatedUser();
     if (!user) {
@@ -1702,6 +1757,32 @@ export function registerJarvisMultifunctionTools(runtime) {
                     : attachmentsFromInstruction(
                         args.instruction || args.query || context.rawInput || ""
                     );
+                const persistedMedia = attachments.filter(attachment => attachment?.artifact);
+                if (persistedMedia.length > 0) {
+                    const grounded = await fetchGroundedMediaAnalysis(
+                        persistedMedia,
+                        args.instruction || args.query || context.rawInput || "Analiza los archivos entregados."
+                    );
+                    if (grounded?.ok === true) {
+                        return {
+                            ...grounded,
+                            attachments,
+                            receivedFiles: attachments.length,
+                            analyzedFiles: grounded.sources.length,
+                            persistedArtifacts: persistedMedia.map(item => item.artifact)
+                        };
+                    }
+                    if (!Array.isArray(args.pages) || args.pages.length === 0) {
+                        return {
+                            ok: false,
+                            status: grounded?.status || "MEDIA_ANALYSIS_UNAVAILABLE",
+                            error: grounded?.error || "MEDIA_ANALYSIS_UNAVAILABLE",
+                            message: "Los archivos existen, pero no pude obtener evidencia visual/documental verificable; no inventare su contenido.",
+                            attachments,
+                            receivedFiles: attachments.length
+                        };
+                    }
+                }
                 const pages = Array.isArray(args.pages) && args.pages.length > 0
                     ? args.pages
                     : attachments.map((attachment, index) => ({

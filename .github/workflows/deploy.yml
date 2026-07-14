@@ -79,4 +79,4 @@ jobs:
 
       - name: Deploy Jarvis multifunction services
         if: steps.changes.outputs.functions_changed == 'true'
-        run: firebase deploy --only functions:jarvisDailySupervisor,functions:jarvisSupervisionStatus,functions:jarvisSupervisionRunNow,functions:jarvisWebResearch,functions:jarvisImageGenerate,functions:jarvisSemanticPlan,functions:jarvisSemanticRespond --project fixgo-44e4d --token "${{ secrets.FIREBASE_TOKEN }}"
+        run: firebase deploy --only functions:jarvisDailySupervisor,functions:jarvisSupervisionStatus,functions:jarvisSupervisionRunNow,functions:jarvisWebResearch,functions:jarvisImageGenerate,functions:jarvisMediaAnalyze,functions:jarvisSemanticPlan,functions:jarvisSemanticRespond --project fixgo-44e4d --token "${{ secrets.FIREBASE_TOKEN }}"

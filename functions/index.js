@@ -53,6 +53,10 @@ const {
 } = require("./jarvis-image-generation");
 
 const {
+    runJarvisMediaAnalysis
+} = require("./jarvis-media-analysis");
+
+const {
     runJarvisSemanticPlanner,
     runJarvisSemanticResponse
 } = require("./jarvis-semantic-planner");
@@ -2856,6 +2860,35 @@ exports.jarvisSemanticRespond = functions
                     : "unavailable",
                 error?.message || "Jarvis no pudo responder con el modelo semantico."
             );
+        }
+    });
+
+/**
+ * JARVIS GROUNDED MEDIA ANALYSIS
+ * Analisis multimodal autenticado con evidencia e incertidumbre explicita.
+ */
+exports.jarvisMediaAnalyze = functions
+    .runWith({ timeoutSeconds: 180, memory: "1GB", secrets: ["GEMINI_KEY"] })
+    .https
+    .onCall(async (data = {}, context) => {
+        const actor = await assertJarvisAdminContext(context, "analizar documentos e imagenes");
+        try {
+            const result = await runJarvisMediaAnalysis({
+                ai: getGroundedGenAI(),
+                input: data
+            });
+            console.log(JSON.stringify({
+                level: "INFO",
+                message: "JARVIS_MEDIA_ANALYSIS_COMPLETE",
+                uid: actor.uid,
+                sources: result.sources.length,
+                model: result.model
+            }));
+            return result;
+        } catch (error) {
+            console.error(JSON.stringify({ level: "ERROR", message: "JARVIS_MEDIA_ANALYSIS_FAILED", uid: actor.uid, error: error?.message || String(error) }));
+            const invalid = /COUNT_INVALID|TYPE_UNSUPPORTED|BASE64_INVALID|SIZE_INVALID|SOURCE_COUNT_MISMATCH/.test(error?.message || "");
+            throw new functions.https.HttpsError(invalid ? "invalid-argument" : "internal", error?.message || "No fue posible analizar los archivos.");
         }
     });
 
