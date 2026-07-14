@@ -132,7 +132,7 @@ async function planWithModel(input, toolCalls, { approved = false } = {}) {
     });
 }
 
-test("multifunction pack registers ten read-only tools", () => {
+test("multifunction pack registers certification and remains read-only", () => {
     const runtime =
         createRuntime();
 
@@ -145,6 +145,7 @@ test("multifunction pack registers ten read-only tools", () => {
         "system.capabilities",
         "system.forensics",
         "system.health",
+        "system.certify",
         "system.supervision",
         "web.research",
         "business.assist",
@@ -157,6 +158,45 @@ test("multifunction pack registers ten read-only tools", () => {
         runtime.list().every(tool => tool.mutates === false),
         true
     );
+});
+
+test("business assistant uses the semantic model when a real company is outside the static registry", async () => {
+    const previousAuth = globalThis.auth;
+    const previousFetch = globalThis.fetch;
+    globalThis.auth = {
+        currentUser: {
+            getIdToken: async () => "test-token"
+        }
+    };
+    globalThis.fetch = async () => ({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+            result: {
+                ok: true,
+                status: "SEMANTIC_RESPONSE_READY",
+                provider: "test-provider",
+                model: "test-model",
+                message: "Propuesta B2B basada en mantenimiento verificable, con riesgos y siguientes acciones."
+            }
+        })
+    });
+
+    try {
+        const runtime = createRuntime();
+        registerJarvisMultifunctionTools(runtime);
+        const result = await runtime.execute("business.assist", {
+            prompt: "Define una propuesta de valor B2B para MPH sin inventar datos"
+        });
+        assert.equal(result.ok, true);
+        assert.equal(result.status, "BUSINESS_ADVISORY_READY");
+        assert.equal(result.source, "BUSINESS_SEMANTIC_MODEL");
+        assert.equal(result.factsPolicy, "NO_INVENTED_FACTS");
+        assert.doesNotMatch(result.message, /falta objetivo/i);
+    } finally {
+        globalThis.auth = previousAuth;
+        globalThis.fetch = previousFetch;
+    }
 });
 
 test("capability forensics reports evidence-backed gaps without claiming Codex parity", async () => {

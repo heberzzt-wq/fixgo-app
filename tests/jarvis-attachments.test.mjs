@@ -5,14 +5,30 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { JarvisAttachments } from "../modules/terminal/jarvis-attachments.js";
+import {
+    readCapabilityEvidence,
+    recordCapabilityEvidence
+} from "../gestia-core/jarvis/jarvis.capability.evidence.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 test("multimodal composer exposes bounded upload capabilities", () => {
     const description = JarvisAttachments.describe();
-    assert.equal(description.version, "1.0.0-multimodal-composer");
+    assert.equal(description.version, "1.1.0-persistent-evidence");
     assert.equal(description.maxFiles, 4);
     assert.equal(description.maxFileBytes, 12 * 1024 * 1024);
+});
+
+test("verified capability evidence survives independent forensic reads", () => {
+    const recorded = recordCapabilityEvidence("test_capability", {
+        ok: true,
+        status: "VERIFIED",
+        checkedAt: new Date().toISOString()
+    });
+    const restored = readCapabilityEvidence("test_capability");
+    assert.equal(recorded.evidenceSource, "JARVIS_VERIFIED_TOOL_EXECUTION");
+    assert.equal(restored?.ok, true);
+    assert.equal(restored?.status, "VERIFIED");
 });
 
 test("terminal exposes a GPT-style plus menu, file input and artifact renderer", () => {

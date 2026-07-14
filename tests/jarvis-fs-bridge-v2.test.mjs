@@ -23,7 +23,7 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.5.0-multimodal-artifacts");
+    assert.equal(description.version, "2.6.0-certified-artifact-evidence");
     assert.equal(description.policy.authority, "full_repo_private_owner");
     assert.equal(description.policy.safeZone, "advisory");
     assert.equal(description.policy.emptyWrites, "blocked");
@@ -34,6 +34,8 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
     assert.ok(description.actuators.documents.formats.includes("xlsx"));
     assert.ok(description.actuators.documents.formats.includes("pptx"));
     assert.equal(description.actuators.webResearch.grounded, true);
+    assert.equal(typeof description.actuators.multimodalUploads.verifiedCount, "number");
+    assert.equal(typeof description.actuators.imageGeneration.verifiedCount, "number");
     assert.deepEqual(description.actuators.connectors.adapters, ["github", "firebase"]);
 });
 

@@ -8,7 +8,7 @@ import { fileURLToPath } from "url";
 import { execFileSync, spawn } from "child_process";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.5.0-multimodal-artifacts";
+    "2.6.0-certified-artifact-evidence";
 
 const MAX_JARVIS_UPLOAD_BYTES = 12 * 1024 * 1024;
 const MAX_JARVIS_ARTIFACT_READ_BYTES = 20 * 1024 * 1024;
@@ -439,8 +439,37 @@ export function grepRepo({
     };
 }
 
+function describeArtifactEvidence(relativeDirectory, extensions = []) {
+    try {
+        const directory = path.resolve(DEFAULT_ROOT, relativeDirectory);
+        const allowed = new Set(extensions.map(item => item.toLowerCase()));
+        const files = fs.readdirSync(directory, { withFileTypes: true })
+            .filter(entry => entry.isFile() && allowed.has(path.extname(entry.name).toLowerCase()))
+            .map(entry => {
+                const stat = fs.statSync(path.join(directory, entry.name));
+                return { name: entry.name, bytes: stat.size, updatedAt: stat.mtime.toISOString() };
+            })
+            .filter(file => file.bytes > 0)
+            .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+        return {
+            verifiedCount: files.length,
+            latest: files[0] || null
+        };
+    } catch {
+        return { verifiedCount: 0, latest: null };
+    }
+}
+
 export function describeJarvisFsBridge() {
     const browserExecutable = resolveChromeExecutable();
+    const uploadEvidence = describeArtifactEvidence(
+        ".jarvis-artifacts/uploads",
+        [...JARVIS_UPLOAD_EXTENSIONS]
+    );
+    const imageEvidence = describeArtifactEvidence(
+        ".jarvis-artifacts/images",
+        [".png", ".jpg", ".jpeg", ".webp"]
+    );
 
     return {
         ok: true,
@@ -470,7 +499,13 @@ export function describeJarvisFsBridge() {
                 available: true,
                 maxFilesPerRequest: 4,
                 maxFileBytes: MAX_JARVIS_UPLOAD_BYTES,
-                artifactDownload: true
+                artifactDownload: true,
+                ...uploadEvidence
+            },
+            imageGeneration: {
+                available: true,
+                persistedArtifacts: true,
+                ...imageEvidence
             },
             webResearch: {
                 available: true,

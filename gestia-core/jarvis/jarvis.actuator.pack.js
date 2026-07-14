@@ -1,4 +1,8 @@
-const VERSION = "7.1.1-safe-image-artifacts";
+import {
+    recordCapabilityEvidence
+} from "./jarvis.capability.evidence.js";
+
+const VERSION = "7.2.0-persistent-capability-evidence";
 
 export function normalizeImageArtifactOutput(output, mimeType) {
     const extensions = {
@@ -237,7 +241,7 @@ export function registerJarvisActuatorTools(runtime) {
                     persistenceStatus: artifact?.status || null,
                     persistenceError: artifact?.ok === false ? artifact.error : null
                 };
-                globalThis.__JARVIS_IMAGE_GENERATION_HEALTH__ = {
+                globalThis.__JARVIS_IMAGE_GENERATION_HEALTH__ = recordCapabilityEvidence("image_generation", {
                     ok: finalResult.ok === true && finalResult.persisted === true,
                     status: finalResult.persisted ? finalResult.status : "IMAGE_ARTIFACT_REQUIRED",
                     model: result?.model || null,
@@ -245,7 +249,7 @@ export function registerJarvisActuatorTools(runtime) {
                     error: result?.error || finalResult.persistenceError || null,
                     cloudCode: result?.cloudCode || null,
                     checkedAt: new Date().toISOString()
-                };
+                });
                 return finalResult;
             }
         }),
@@ -314,12 +318,12 @@ export function registerJarvisActuatorTools(runtime) {
                     );
                 const connectedCount = connectors.filter(item => item.connected).length;
 
-                globalThis.__JARVIS_CONNECTOR_HEALTH__ = {
+                globalThis.__JARVIS_CONNECTOR_HEALTH__ = recordCapabilityEvidence("connectors", {
                     ok: localResult?.ok === true,
                     status: localResult?.status || "LOCAL_BRIDGE_REQUIRED",
                     connectedCount,
                     checkedAt: new Date().toISOString()
-                };
+                });
 
                 return {
                     ok: true,

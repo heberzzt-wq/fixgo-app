@@ -16,7 +16,12 @@ import {
     describeMediaIngestion
 } from "./jarvis.media.ingestion.js";
 
-const VERSION = "1.8.0-sia7-multimodal-attachments";
+import {
+    readCapabilityEvidence,
+    recordCapabilityEvidence
+} from "./jarvis.capability.evidence.js";
+
+const VERSION = "1.9.0-sia7-certified-capabilities";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 
@@ -203,8 +208,8 @@ function inspectWebResearchCapability(
     const actuatorRegistered =
         tools.has("web.research");
     const health =
-        globalThis
-            ?.__JARVIS_WEB_RESEARCH_HEALTH__ ||
+        globalThis?.__JARVIS_WEB_RESEARCH_HEALTH__ ||
+        readCapabilityEvidence("web_research") ||
         null;
     const verified =
         actuatorRegistered &&
@@ -288,7 +293,9 @@ async function buildCapabilityForensics(runtime) {
     const semanticPlannerHealth =
         globalThis?.__JARVIS_SEMANTIC_PLANNER_HEALTH__ || null;
     const semanticConversationHealth =
-        globalThis?.__JARVIS_SEMANTIC_CONVERSATION_HEALTH__ || null;
+        globalThis?.__JARVIS_SEMANTIC_CONVERSATION_HEALTH__ ||
+        readCapabilityEvidence("semantic_conversation") ||
+        null;
     const semanticModelReady =
         semanticPlannerHealth?.ok === true ||
         semanticConversationHealth?.ok === true;
@@ -317,15 +324,44 @@ async function buildCapabilityForensics(runtime) {
     const bridgeReady =
         bridge.ok === true;
     const imageHealth =
-        globalThis?.__JARVIS_IMAGE_GENERATION_HEALTH__ || null;
+        globalThis?.__JARVIS_IMAGE_GENERATION_HEALTH__ ||
+        readCapabilityEvidence("image_generation") ||
+        (
+            Number(bridge?.actuators?.imageGeneration?.verifiedCount || 0) > 0
+                ? {
+                    ok: true,
+                    status: "PERSISTED_ARTIFACT_VERIFIED",
+                    output: bridge.actuators.imageGeneration.latest?.name || null,
+                    checkedAt: bridge.actuators.imageGeneration.latest?.updatedAt || null,
+                    evidenceSource: "LOCAL_BRIDGE_ARTIFACT_SCAN"
+                }
+                : null
+        ) ||
+        null;
     const imageCredentialInvalid =
         /API key not valid|API_KEY_INVALID/i.test(
             String(imageHealth?.error || "")
         );
     const connectorHealth =
-        globalThis?.__JARVIS_CONNECTOR_HEALTH__ || null;
+        globalThis?.__JARVIS_CONNECTOR_HEALTH__ ||
+        readCapabilityEvidence("connectors") ||
+        null;
     const multimodalHealth =
-        globalThis?.__JARVIS_MULTIMODAL_HEALTH__ || null;
+        globalThis?.__JARVIS_MULTIMODAL_HEALTH__ ||
+        readCapabilityEvidence("multimodal_inputs") ||
+        (
+            Number(bridge?.actuators?.multimodalUploads?.verifiedCount || 0) > 0
+                ? {
+                    ok: true,
+                    status: "PERSISTED_UPLOAD_VERIFIED",
+                    receivedFiles: bridge.actuators.multimodalUploads.verifiedCount,
+                    lastOutput: bridge.actuators.multimodalUploads.latest?.name || null,
+                    checkedAt: bridge.actuators.multimodalUploads.latest?.updatedAt || null,
+                    evidenceSource: "LOCAL_BRIDGE_ARTIFACT_SCAN"
+                }
+                : null
+        ) ||
+        null;
     const connectorsReady =
         tools.has("agent.delegate") &&
         connectorHealth?.ok === true &&
@@ -881,7 +917,7 @@ async function fetchGroundedWebResearch(
             );
         }
 
-        globalThis.__JARVIS_WEB_RESEARCH_HEALTH__ = {
+        globalThis.__JARVIS_WEB_RESEARCH_HEALTH__ = recordCapabilityEvidence("web_research", {
             ok: true,
             grounded: true,
             status: "GROUNDED",
@@ -889,7 +925,7 @@ async function fetchGroundedWebResearch(
                 result.sources.length,
             checkedAt:
                 new Date().toISOString()
-        };
+        });
 
         return {
             ...result,
@@ -922,13 +958,13 @@ async function fetchGroundedWebResearch(
                 Array.isArray(localResult?.sources) &&
                 localResult.sources.length > 0
             ) {
-                globalThis.__JARVIS_WEB_RESEARCH_HEALTH__ = {
+                globalThis.__JARVIS_WEB_RESEARCH_HEALTH__ = recordCapabilityEvidence("web_research", {
                     ok: true,
                     grounded: true,
                     status: "GROUNDED_LOCAL_FALLBACK",
                     sourceCount: localResult.sources.length,
                     checkedAt: new Date().toISOString()
-                };
+                });
 
                 return {
                     ...localResult,
@@ -1017,13 +1053,13 @@ async function fetchSemanticConversation(instruction = "") {
             };
             return failure;
         }
-        globalThis.__JARVIS_SEMANTIC_CONVERSATION_HEALTH__ = {
+        globalThis.__JARVIS_SEMANTIC_CONVERSATION_HEALTH__ = recordCapabilityEvidence("semantic_conversation", {
             ok: true,
             status: result.status,
             provider: result.provider,
             model: result.model,
             checkedAt: new Date().toISOString()
-        };
+        });
         return result;
     } catch (error) {
         const failure = {
@@ -1264,6 +1300,76 @@ export function registerJarvisMultifunctionTools(runtime) {
             }
         }),
         register(runtime, {
+            name: "system.certify",
+            description: "Ejecuta una certificacion real y read-only de conversacion, web, conectores, supervisor, bridge, Git y pruebas; solo declara paridad si toda la evidencia pasa.",
+            output: "SIA7_CAPABILITY_CERTIFICATION",
+            inputSchema: {
+                deep: "boolean"
+            },
+            execute: async (args = {}, context = {}) => {
+                const deep = args.deep !== false;
+                const requestedChecks = [
+                    ["system.health", {}],
+                    ["conversation.respond", { prompt: "Responde solamente: CERTIFICACION_CONVERSACION_OK" }],
+                    ["web.research", { query: "Multiservicios Peninsulares HMH sitio oficial" }],
+                    ["connector.list", {}],
+                    ["system.supervision", { timeoutMs: SUPERVISION_CLOUD_TIMEOUT_MS }]
+                ];
+                if (deep) {
+                    requestedChecks.push(
+                        ["repo.gitStatus", {}],
+                        ["tests.run", {}]
+                    );
+                }
+
+                const checks = [];
+                for (const [tool, toolArgs] of requestedChecks) {
+                    if (!runtime.get?.(tool) && !runtime.has?.(tool)) {
+                        checks.push({ tool, ok: false, status: "TOOL_NOT_REGISTERED" });
+                        continue;
+                    }
+                    const execution = await runtime.execute(tool, toolArgs, {
+                        ...context,
+                        readOnly: true,
+                        source: "system.certify"
+                    });
+                    const result = unwrapRuntimeResult(execution);
+                    checks.push({
+                        tool,
+                        ok: execution?.ok !== false && result?.ok !== false,
+                        status: result?.status || execution?.status || "COMPLETED",
+                        evidence: {
+                            source: result?.source || null,
+                            score: result?.score ?? null,
+                            passed: result?.passed ?? null,
+                            failed: result?.failed ?? null,
+                            connectedCount: result?.connectedCount ?? null,
+                            sourceCount: result?.sourceCount ?? result?.sources?.length ?? null
+                        }
+                    });
+                }
+
+                const forensics = await buildCapabilityForensics(runtime);
+                const failedChecks = checks.filter(check => check.ok !== true);
+                const certified =
+                    failedChecks.length === 0 &&
+                    forensics.parity.canClaimParity === true &&
+                    forensics.readinessScore === 100;
+
+                return {
+                    ok: certified,
+                    status: certified ? "CODEX_PARITY_CERTIFIED" : "CERTIFICATION_INCOMPLETE",
+                    certified,
+                    deep,
+                    checks,
+                    failedChecks,
+                    forensics,
+                    policy: "EVIDENCE_ONLY_NO_PLACEHOLDERS",
+                    checkedAt: new Date().toISOString()
+                };
+            }
+        }),
+        register(runtime, {
             name: "system.supervision",
             description: "Consulta el ultimo reporte del supervisor diario read-only de Jarvis.",
             output: "SIA7_DAILY_SUPERVISION_STATUS",
@@ -1288,7 +1394,7 @@ export function registerJarvisMultifunctionTools(runtime) {
         }),
         register(runtime, {
             name: "business.assist",
-            description: "Resuelve consultas empresariales, operativas y de contexto interno sin modificar datos.",
+            description: "Analiza estrategia, operaciones, ventas, costos, riesgos y decisiones empresariales con un modelo semantico; no inventa datos ni modifica sistemas.",
             output: "SIA7_BUSINESS_RESPONSE",
             inputSchema: {
                 prompt: "string"
@@ -1299,6 +1405,38 @@ export function registerJarvisMultifunctionTools(runtime) {
 
                 const result =
                     runBusinessIntent(instruction);
+
+                const genericStaticAnswer =
+                    !result ||
+                    /falta objetivo|necesito un objetivo/i.test(
+                        String(result?.message || "")
+                    );
+
+                if (genericStaticAnswer) {
+                    const semantic = await fetchSemanticConversation([
+                        "Actua como asesor empresarial privado del Arqui Heberto Mendoza.",
+                        "Responde la solicitud concreta con diagnostico, recomendacion, riesgos y siguientes acciones.",
+                        "No inventes cifras, clientes, resultados ni hechos; separa hechos proporcionados de supuestos y preguntas pendientes.",
+                        "No autorices ni ejecutes cambios. Usa espanol claro y util.",
+                        "Solicitud:",
+                        instruction
+                    ].join("\n"));
+
+                    if (semantic?.ok === true && semantic?.message) {
+                        return {
+                            ok: true,
+                            status: "BUSINESS_ADVISORY_READY",
+                            source: "BUSINESS_SEMANTIC_MODEL",
+                            version: VERSION,
+                            message: semantic.message,
+                            provider: semantic.provider || null,
+                            model: semantic.model || null,
+                            instruction,
+                            advisory: true,
+                            factsPolicy: "NO_INVENTED_FACTS"
+                        };
+                    }
+                }
 
                 return result || {
                     ok: true,
@@ -1439,6 +1577,7 @@ export function registerJarvisMultifunctionTools(runtime) {
             "system.capabilities",
             "system.forensics",
             "system.health",
+            "system.certify",
             "system.supervision",
             "web.research",
             "business.assist",

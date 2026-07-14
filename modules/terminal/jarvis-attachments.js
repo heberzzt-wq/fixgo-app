@@ -1,4 +1,8 @@
-const VERSION = "1.0.0-multimodal-composer";
+import {
+    recordCapabilityEvidence
+} from "../../gestia-core/jarvis/jarvis.capability.evidence.js";
+
+const VERSION = "1.1.0-persistent-evidence";
 const MAX_FILES = 4;
 const MAX_FILE_BYTES = 12 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 24 * 1024 * 1024;
@@ -114,14 +118,14 @@ async function prepareFile(file) {
             item.output = saved.output;
             item.status = "ready";
             item.saved = saved;
-            window.__JARVIS_MULTIMODAL_HEALTH__ = {
+            window.__JARVIS_MULTIMODAL_HEALTH__ = recordCapabilityEvidence("multimodal_inputs", {
                 ok: true,
                 status: "MULTIMODAL_UPLOAD_VERIFIED",
                 receivedFiles: state.items.filter(entry => entry.status === "ready").length,
                 lastMimeType: saved.mimeType,
                 lastOutput: saved.output,
                 checkedAt: new Date().toISOString()
-            };
+            });
         } catch (error) {
             item.status = "failed";
             item.error = error?.message || String(error);

@@ -5,10 +5,10 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-multifunction-tools-v2.1-verified-connectors-20260714";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-multifunction-tools-v2.2-certified-20260714";
 import {
     registerJarvisActuatorTools
-} from "./jarvis/jarvis.actuator.pack.js?v=sia7-real-actuators-v2.1-safe-image-artifacts-20260714";
+} from "./jarvis/jarvis.actuator.pack.js?v=sia7-real-actuators-v2.2-certified-20260714";
 
 export const JarvisToolRuntime = {
     _registry: new Map(),
