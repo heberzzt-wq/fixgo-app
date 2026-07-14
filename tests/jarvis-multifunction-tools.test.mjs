@@ -1013,6 +1013,13 @@ test("multifunction planner routes real web research without confusing it with c
         ).map(call => call.name),
         ["system.forensics"]
     );
+
+    assert.deepEqual(
+        buildJarvisMultifunctionToolCalls(
+            "Jarvis, investiga en la web con fuentes oficiales por que Firebase Hosting puede mostrar contenido antiguo despues de desplegar"
+        ).map(call => call.name),
+        ["web.research"]
+    );
 });
 
 test("web research strips assistant command boilerplate before searching", () => {

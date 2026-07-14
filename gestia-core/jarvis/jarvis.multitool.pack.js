@@ -758,7 +758,7 @@ async function fetchGroundedWebResearch(
     const normalizedQuery =
         String(query || "")
             .replace(/^\s*(jarvis|heberto|gestia)\s*[,;:-]?\s*/i, "")
-            .replace(/^\s*(investiga|investigar|busca|buscar|consulta|consultar|averigua|averiguar|verifica|verificar)\s+(?:en\s+)?(?:la\s+)?(?:web|internet|google)?\s*(?:con\s+fuentes)?\s*/i, "")
+            .replace(/^\s*(investiga|investigar|busca|buscar|consulta|consultar|averigua|averiguar|verifica|verificar)\s+(?:en\s+)?(?:la\s+)?(?:web|internet|google)?\s*(?:con\s+)?(?:fuentes?)?(?:\s+(?:oficiales|verificables|confiables))?\s*/i, "")
             .replace(/\s+/g, " ")
             .trim()
             .slice(0, 600);

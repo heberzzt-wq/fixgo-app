@@ -344,7 +344,7 @@ export function buildJarvisMultifunctionToolCalls(
 
     if (
         !isExplanatoryQuestion &&
-        /\b(marketing|campana|publicidad|contenido|redes sociales|flyer|reel|tiktok|instagram|facebook|embudo|copies|calendario de contenido)\b/i.test(normalized)
+        /\b(marketing|campana|publicidad|redes sociales|flyer|reel|tiktok|instagram|facebook|embudo|copies|calendario de contenido)\b/i.test(normalized)
     ) {
         calls.push(
             makeCall(

@@ -909,6 +909,46 @@ function extractRssTag(item = "", tag = "") {
     ).trim();
 }
 
+function normalizeDuckDuckGoUrl(value = "") {
+    const decoded = decodeXml(value).trim();
+    if (!decoded) return "";
+
+    try {
+        const candidate = decoded.startsWith("//")
+            ? `https:${decoded}`
+            : decoded;
+        const parsed = new URL(candidate);
+        const redirected = parsed.hostname.endsWith("duckduckgo.com")
+            ? parsed.searchParams.get("uddg")
+            : "";
+        return redirected || candidate;
+    } catch {
+        return "";
+    }
+}
+
+function extractDuckDuckGoSources(html = "") {
+    const results = [];
+    const blocks = String(html || "").split(/<div class="result results_links[^>]*>/i).slice(1);
+
+    for (const block of blocks) {
+        const titleMatch = block.match(/class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
+        if (!titleMatch) continue;
+
+        const snippetMatch = block.match(/class="result__snippet"[^>]*>[\s\S]*?<\/a>/i);
+        const url = normalizeDuckDuckGoUrl(titleMatch[1]);
+        if (!/^https?:\/\//i.test(url)) continue;
+
+        results.push({
+            title: stripMarkup(titleMatch[2]).slice(0, 180),
+            url,
+            summary: stripMarkup(snippetMatch?.[0] || "").slice(0, 500)
+        });
+    }
+
+    return results;
+}
+
 export async function runLocalWebResearch(query = "", timeoutMs = 20000) {
     const normalizedQuery = String(query || "")
         .replace(/\s+/g, " ")
@@ -918,9 +958,6 @@ export async function runLocalWebResearch(query = "", timeoutMs = 20000) {
     if (normalizedQuery.length < 5) {
         throw new Error("WEB_RESEARCH_QUERY_REQUIRED");
     }
-
-    const searchUrl =
-        `https://www.bing.com/search?format=rss&q=${encodeURIComponent(normalizedQuery)}`;
 
     if (
         typeof tls.getCACertificates === "function" &&
@@ -933,26 +970,45 @@ export async function runLocalWebResearch(query = "", timeoutMs = 20000) {
         tls.setDefaultCACertificates([...new Set(certificates)]);
     }
 
-    const response = await fetch(searchUrl, {
-        headers: {
-            "User-Agent": "Mozilla/5.0 JarvisV7/1.0"
-        },
-        signal: AbortSignal.timeout(Math.min(Math.max(Number(timeoutMs) || 20000, 5000), 30000))
-    });
+    const boundedTimeoutMs = Math.min(Math.max(Number(timeoutMs) || 20000, 5000), 30000);
+    let engine = "jarvis_local_duckduckgo_html_research";
+    let candidates = [];
 
-    if (!response.ok) {
-        throw new Error(`WEB_SEARCH_HTTP_${response.status}`);
+    try {
+        const response = await fetch(
+            `https://html.duckduckgo.com/html/?q=${encodeURIComponent(normalizedQuery)}`,
+            {
+                headers: { "User-Agent": "Mozilla/5.0 JarvisV7/1.0" },
+                signal: AbortSignal.timeout(boundedTimeoutMs)
+            }
+        );
+        if (response.ok) {
+            candidates = extractDuckDuckGoSources(await response.text());
+        }
+    } catch {
+        candidates = [];
     }
 
-    const rss = await response.text();
-    const items = rss.match(/<item>[\s\S]*?<\/item>/gi) || [];
-    const seen = new Set();
-    const sources = items
-        .map(item => ({
+    if (candidates.length === 0) {
+        engine = "jarvis_local_bing_rss_research";
+        const response = await fetch(
+            `https://www.bing.com/search?format=rss&q=${encodeURIComponent(normalizedQuery)}`,
+            {
+                headers: { "User-Agent": "Mozilla/5.0 JarvisV7/1.0" },
+                signal: AbortSignal.timeout(boundedTimeoutMs)
+            }
+        );
+        if (!response.ok) throw new Error(`WEB_SEARCH_HTTP_${response.status}`);
+        const rss = await response.text();
+        candidates = (rss.match(/<item>[\s\S]*?<\/item>/gi) || []).map(item => ({
             title: stripMarkup(extractRssTag(item, "title")).slice(0, 180),
             url: extractRssTag(item, "link"),
             summary: stripMarkup(extractRssTag(item, "description")).slice(0, 500)
-        }))
+        }));
+    }
+
+    const seen = new Set();
+    const sources = candidates
         .filter(source => {
             if (!/^https?:\/\//i.test(source.url) || seen.has(source.url)) return false;
             seen.add(source.url);
@@ -969,7 +1025,7 @@ export async function runLocalWebResearch(query = "", timeoutMs = 20000) {
         ok: true,
         grounded: true,
         status: "GROUNDED_LOCAL_SEARCH",
-        engine: "jarvis_local_bing_rss_research",
+        engine,
         query: normalizedQuery,
         answer: [
             `Encontre ${sources.length} fuentes web para: ${normalizedQuery}`,
