@@ -454,6 +454,8 @@ test("general semantic intent stays casual and speaks through the terminal", () 
     assert.match(core, /semanticPrimaryConcept\s*!==\s*"GENERAL"/);
     assert.match(core, /isConversationalQuestion/);
     assert.match(core, /hasExplicitOperationalRequest/);
+    assert.match(core, /hasMultifunctionOperationalRequest/);
+    assert.match(core, /lightMultifunctionCalls\.some/);
     assert.match(core, /isJarvisCapabilityForensicsRequest/);
     assert.match(core, /hasExplicitOperationalRequest\s*=\s*[\s\S]{0,800}isJarvisCapabilityForensicsRequest/);
     assert.match(core, /anali\[sz\]/);

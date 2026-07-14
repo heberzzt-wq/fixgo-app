@@ -4162,10 +4162,22 @@ export const GestiaCore = {
         const normalizedLightInput =
             normalizeObservationText(inputRaw);
 
+        const lightMultifunctionCalls =
+            buildJarvisMultifunctionToolCalls(
+                inputRaw
+            );
+
+        const hasMultifunctionOperationalRequest =
+            lightMultifunctionCalls.some(call =>
+                call?.name &&
+                call.name !== "conversation.respond"
+            );
+
         const hasExplicitOperationalRequest =
             /\b(crea|crear|genera|generar|construye|construir|modifica|modificar|actualiza|actualizar|repara|reparar|implementa|implementar|ejecuta|ejecutar|despliega|desplegar|anali[sz](?:a|ar|e)?|revi[sz](?:a|ar|e)?|busca|buscar|escanea|escanear|elimina|eliminar|escribe|aprobar|aprueba)\b/i.test(
                 normalizedLightInput
             ) ||
+            hasMultifunctionOperationalRequest ||
             isJarvisCapabilityForensicsRequest(
                 normalizedLightInput
             );
