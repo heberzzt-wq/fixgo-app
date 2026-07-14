@@ -21,7 +21,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "1.17.0-page-production";
+const VERSION = "1.18.0-evidence-grounded-marketing";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 
@@ -38,6 +38,7 @@ const CAPABILITY_LABELS = {
     tests_and_git: "Pruebas y Git",
     conversation_and_voice: "Conversacion y voz",
     business_and_marketing: "Negocio, marketing y paginas",
+    marketing_production: "Marketing basado en evidencia",
     page_production: "Produccion real de paginas",
     media_and_documents: "Documentos y medios",
     professional_pdf_editing: "Edicion profesional de PDF",
@@ -381,6 +382,7 @@ async function buildCapabilityForensics(runtime) {
     const oneTimeWriteHealth = globalThis?.__JARVIS_ONE_TIME_WRITE_HEALTH__ || null;
     const mediaAnalysisHealth = globalThis?.__JARVIS_MEDIA_ANALYSIS_HEALTH__ || readCapabilityEvidence("media_analysis") || null;
     const pageCreationHealth = readCapabilityEvidence("page_creation") || null;
+    const marketingProductionHealth = readCapabilityEvidence("marketing_production") || null;
     const connectorsReady =
         tools.has("agent.delegate") &&
         connectorHealth?.ok === true &&
@@ -527,6 +529,25 @@ async function buildCapabilityForensics(runtime) {
                 actuatorRegistered: tools.has("page.create"),
                 verifiedExecution: pageCreationHealth?.ok === true,
                 health: pageCreationHealth
+            }
+        },
+        {
+            id: "marketing_production",
+            status: tools.has("marketing.plan") && marketingProductionHealth?.ok === true
+                ? "READY"
+                : tools.has("marketing.plan")
+                    ? "PARTIAL"
+                    : "NOT_AVAILABLE",
+            reason: marketingProductionHealth?.ok === true
+                ? "Marketing V7 produjo una campaña específica usando fuentes de evidencia declaradas."
+                : tools.has("marketing.plan")
+                    ? "El motor evita regex e invenciones; falta ejecutar una campaña con campos semánticos y evidencia real."
+                    : "El motor de marketing no está registrado.",
+            nextAction: "Producir una campaña desde servicios, testimonios, fotografías, documentos o investigación verificable.",
+            evidence: {
+                plannerRegistered: tools.has("marketing.plan"),
+                verifiedExecution: marketingProductionHealth?.ok === true,
+                health: marketingProductionHealth
             }
         },
         {
@@ -750,6 +771,7 @@ async function buildCapabilityForensics(runtime) {
         tests_and_git: "Restaurar ejecucion de pruebas y diagnostico Git.",
         conversation_and_voice: "Restaurar conversacion y salida de voz.",
         business_and_marketing: "Restaurar motores de negocio, marketing y paginas.",
+        marketing_production: "Ejecutar Marketing V7 con evidencia real y verificar todos sus entregables.",
         page_production: "Crear y verificar una landing HTML real como artefacto descargable."
     };
 
@@ -1712,19 +1734,34 @@ export function registerJarvisMultifunctionTools(runtime) {
         }),
         register(runtime, {
             name: "marketing.plan",
-            description: "Genera campana, embudo, copies, calendario y entregables editables sujetos a aprobacion.",
+            description: "Produce una campaña específica desde campos semánticos y evidencia real; no clasifica con regex ni inventa datos faltantes.",
             output: "SIA7_MARKETING_PLAN",
             inputSchema: {
                 prompt: "string",
                 brandName: "string",
                 audience: "string",
-                offer: "string"
+                offer: "string",
+                pain: "string",
+                promise: "string",
+                differentiator: "string",
+                tone: "string",
+                cta: "string",
+                assets: "array",
+                channels: "array",
+                services: "array",
+                testimonials: "array",
+                photographs: "array",
+                documents: "array",
+                landing: "object",
+                repoEvidence: "array",
+                webResearch: "array",
+                durationSeconds: "number"
             },
             execute: async (args = {}, context = {}) => {
                 const instruction =
                     resolveInstruction(args, context);
 
-                return planMarketingRequest(
+                const result = planMarketingRequest(
                     instruction,
                     {
                         ...context,
@@ -1732,6 +1769,18 @@ export function registerJarvisMultifunctionTools(runtime) {
                         ...resolveAuthority(args, context)
                     }
                 );
+                if (result?.readyForProduction === true && result?.grounding?.status === "GROUNDED") {
+                    recordCapabilityEvidence("marketing_production", {
+                        ok: true,
+                        status: result.status,
+                        objectiveId: result.trace?.objectiveId || "",
+                        sourceCount: result.grounding.sourceCount,
+                        assets: result.assets,
+                        channels: result.channels,
+                        checkedAt: new Date().toISOString()
+                    });
+                }
+                return result;
             }
         }),
         register(runtime, {

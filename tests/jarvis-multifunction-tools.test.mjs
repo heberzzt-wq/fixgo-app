@@ -651,7 +651,16 @@ test("multifunction tools create marketing and page proposals without write auth
             "marketing.plan",
             {
                 prompt: "crea marketing para Instagram con reel y landing",
-                brandName: "FixGo"
+                brandName: "FixGo",
+                audience: "administradores de inmuebles",
+                offer: "control operativo y seguimiento técnico",
+                pain: "órdenes dispersas sin evidencia centralizada",
+                promise: "operación trazable desde una sola plataforma",
+                differentiator: "seguimiento de cada orden con evidencia",
+                cta: "Solicita una demostración",
+                channels: ["instagram"],
+                assets: ["reel", "landing_page"],
+                services: [{ name: "Gestión de órdenes", source: "repo" }]
             },
             {
                 analysisId: "MULTI-MKT-1"
@@ -661,6 +670,7 @@ test("multifunction tools create marketing and page proposals without write auth
     assert.equal(marketing.ok, true);
     assert.equal(marketing.domain, "marketing");
     assert.equal(marketing.approval.publishAllowed, false);
+    assert.equal(marketing.readyForProduction, true);
     assert.ok(marketing.assets.includes("reel"));
 
     const page =

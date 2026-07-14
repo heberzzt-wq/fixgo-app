@@ -1,279 +1,292 @@
 /**
- * =====================================================================================
- * JARVIS MARKETING ENGINE V3
- * Structured, editable and approval-bound marketing production for Gestia/SIA7.
- * =====================================================================================
+ * Marketing Studio V7
+ * Produces structured campaigns from explicit semantic fields and traceable evidence.
+ * It does not classify free text with keyword lists or regular expressions.
  */
 
-const VERSION = "3.0.0-sia7-marketing-studio";
+const VERSION = "7.0.0-evidence-grounded-marketing";
 
-const CHANNELS = [
-    ["tiktok", /\b(tiktok|tik tok)\b/i],
-    ["instagram", /\b(instagram|insta|ig)\b/i],
-    ["facebook", /\b(facebook|fb)\b/i],
-    ["whatsapp", /\b(whatsapp|wa)\b/i],
-    ["web", /\b(web|landing|pagina|sitio)\b/i]
-];
-
-const ASSETS = [
-    ["landing_page", /\b(landing|pagina|web|sitio|home|page)\b/i],
-    ["flyer", /\b(flyer|flayer|volante|poster|post)\b/i],
-    ["editable_photo", /\b(foto|imagen|editable|photo|mockup)\b/i],
-    ["reel", /\b(reel|video corto|short|tiktok|tik tok|historia|story)\b/i],
-    ["campaign", /\b(campana|marketing|publicidad|anuncio|ads|contenido)\b/i]
-];
-
-export function planMarketingRequest(rawInput = "", context = {}) {
-    const raw = String(rawInput || "");
-    const normalized = normalize(raw);
-    const assets = detectAssets(raw);
-    const channels = detectChannels(raw);
-    const brand = resolveBrand(context);
-    const primaryAsset = assets[0] || "campaign";
-    const trace = buildTrace(context, raw);
-
-    const plan = {
-        ok: true,
-        engine: "jarvis_marketing_engine",
-        version: VERSION,
-        source: "jarvis_marketing_engine_v3",
-        raw,
-        intent: "MARKETING_PACKAGE",
-        domain: "marketing",
-        trace,
-        approval: {
-            required: true,
-            approved: false,
-            authorityId: trace.authorityId,
-            controllerId: trace.controllerId,
-            publishAllowed: false,
-            deployAllowed: false
-        },
-        brand,
-        primaryAsset,
-        assets,
-        channels,
-        goal: buildGoal(primaryAsset, channels, brand),
-        audience: context.audience || "administradores, empresas y clientes operativos",
-        offer: context.offer || "operacion mas rapida, trazable y profesional",
-        editable: true,
-        campaign: buildCampaign(primaryAsset, channels, brand, context),
-        funnel: buildFunnel(brand, context),
-        copies: buildCopies(channels, brand, context),
-        calendar: buildCalendar(channels, brand),
-        publications: buildPublications(channels, brand, context),
-        deliverables: buildDeliverables(primaryAsset, assets, channels, brand),
-        creativeBrief: buildCreativeBrief(primaryAsset, channels, brand, normalized),
-        videoPackage: buildVideoPackage(channels, brand, context),
-        productionSteps: buildProductionSteps(primaryAsset, assets, channels),
-        confidence: assets.length || channels.length ? 0.96 : 0.78
-    };
-
-    plan.message = summarizePlan(plan);
-    return plan;
+function clean(value) {
+    return typeof value === "string" && value.trim() ? value.trim() : "";
 }
 
-export function isMarketingRequest(rawInput = "") {
-    const raw = String(rawInput || "");
-    return ASSETS.some(([, pattern]) => pattern.test(raw)) ||
-        CHANNELS.some(([, pattern]) => pattern.test(raw)) ||
-        /\b(marketing|marca|campana|publicidad|contenido|redes sociales|embudo|copy|calendario)\b/i.test(raw);
+function strings(value, limit = 20) {
+    if (!Array.isArray(value)) return [];
+    return [...new Set(value.map(clean).filter(Boolean))].slice(0, limit);
 }
 
-function buildTrace(context, raw) {
+function hashtag(value) {
+    const normalized = clean(value).normalize("NFD");
+    const safe = Array.from(normalized).filter(character => {
+        const code = character.toLowerCase().charCodeAt(0);
+        return (code >= 97 && code <= 122) || (code >= 48 && code <= 57);
+    }).join("");
+    return safe ? `#${safe}` : "";
+}
+
+function validEvidence(id, item) {
+    if (!item || typeof item !== "object") return false;
+    if (id === "landing") return Boolean(clean(item.url) || clean(item.output) || clean(item.content));
+    if (id === "repo") return Boolean(clean(item.path) || clean(item.file)) && Boolean(clean(item.symbol) || clean(item.hash) || clean(item.excerpt));
+    if (id === "documents") return Boolean(clean(item.source) || clean(item.name) || clean(item.output)) && Boolean(clean(item.excerpt) || item.page);
+    if (id === "photographs") return Boolean(clean(item.output) || clean(item.name) || clean(item.path)) && Boolean(clean(item.sha256) || clean(item.source));
+    if (id === "testimonials") return Boolean(clean(item.quote) && clean(item.source));
+    if (id === "services") return Boolean((clean(item.name) || clean(item.title)) && clean(item.source));
+    if (id === "web_research") return Boolean(clean(item.url) && (clean(item.title) || clean(item.snippet)));
+    return false;
+}
+
+function evidenceEntry(id, value) {
+    const candidates = Array.isArray(value) ? value : value ? [value] : [];
+    const items = candidates.filter(item => validEvidence(id, item));
     return {
-        objectiveId: context.objectiveId || `MKT-${Date.now()}`,
-        authorityId: context.authorityId || "HEBERTO_MENDOZA",
-        controllerId: context.controllerId || "CODEX_SIA7",
-        instruction: raw,
+        id,
+        available: items.length > 0,
+        count: items.length,
+        items
+    };
+}
+
+function buildGrounding(context) {
+    const sources = [
+        evidenceEntry("landing", context.landing),
+        evidenceEntry("repo", context.repoEvidence),
+        evidenceEntry("documents", context.documents),
+        evidenceEntry("photographs", context.photographs),
+        evidenceEntry("testimonials", context.testimonials),
+        evidenceEntry("services", context.services),
+        evidenceEntry("web_research", context.webResearch)
+    ];
+    const available = sources.filter(source => source.available);
+    return {
+        status: available.length ? "GROUNDED" : "USER_CONTEXT_ONLY",
+        sourceCount: available.length,
+        sources,
+        policy: "NO_INVENTED_FACTS"
+    };
+}
+
+function buildTrace(context, instruction) {
+    return {
+        objectiveId: clean(context.objectiveId) || `MKT-${Date.now()}`,
+        caseId: clean(context.caseId),
+        authorityId: clean(context.authorityId) || "HEBERTO_MENDOZA",
+        controllerId: clean(context.controllerId) || "CODEX_SIA7",
+        instruction,
         generatedAt: Date.now(),
-        source: "human_instruction",
+        source: "semantic_fields_and_evidence",
         memoryRole: "advisory_only"
     };
 }
 
-function normalize(text = "") {
-    return String(text)
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/\s+/g, " ")
-        .trim();
-}
-
-function detectAssets(raw = "") {
-    return [...new Set(ASSETS.filter(([, pattern]) => pattern.test(raw)).map(([asset]) => asset))];
-}
-
-function detectChannels(raw = "") {
-    return [...new Set(CHANNELS.filter(([, pattern]) => pattern.test(raw)).map(([channel]) => channel))];
-}
-
-function resolveBrand(context = {}) {
+function resolveBrand(context) {
     return {
-        name: context.brandName || context.name || "FixGo / GestiaPremium",
-        voice: context.voice || "confiable, directo, operativo y premium",
-        market: context.market || "servicios, administracion y operacion inmobiliaria",
-        owner: context.owner || "Heberto"
+        name: clean(context.brandName) || clean(context.name),
+        voice: clean(context.tone) || clean(context.voice),
+        market: clean(context.market),
+        owner: clean(context.owner)
     };
 }
 
-function buildGoal(asset, channels, brand) {
-    const channelText = channels.length ? ` para ${channels.join(", ")}` : "";
-    return `Crear ${asset.replace(/_/g, " ")}${channelText} de ${brand.name}`;
+function missingRequired(brand, context) {
+    const missing = [];
+    if (!brand.name) missing.push("brandName");
+    if (!clean(context.audience)) missing.push("audience");
+    if (!clean(context.offer)) missing.push("offer");
+    if (!clean(context.pain)) missing.push("pain");
+    if (!clean(context.promise)) missing.push("promise");
+    if (!clean(context.differentiator)) missing.push("differentiator");
+    if (!clean(context.cta)) missing.push("cta");
+    return missing;
 }
 
-function buildCampaign(primaryAsset, channels, brand, context) {
-    return {
-        name: context.campaignName || `${brand.name} Control Total`,
-        objective: context.campaignObjective || "generar conversaciones calificadas y solicitudes de demo",
-        primaryAsset,
-        channels: channels.length ? channels : ["instagram", "facebook", "whatsapp"],
-        promise: context.promise || "menos friccion, mas control y evidencia real",
-        kpis: ["alcance", "clics", "conversaciones", "demos", "conversiones"],
-        status: "draft_for_approval"
-    };
-}
-
-function buildFunnel(brand, context) {
+function buildHooks(brand, pain, promise, differentiator) {
     return [
-        { stage: "awareness", asset: "reel_or_post", message: "Haz visible el problema operativo" },
-        { stage: "consideration", asset: "carousel_or_landing", message: `Explica como ${brand.name} centraliza la operacion` },
-        { stage: "conversion", asset: "whatsapp_or_demo", message: context.cta || "Agenda una demo" },
-        { stage: "follow_up", asset: "case_study", message: "Demuestra trazabilidad, evidencia y resultado" }
+        `${pain} no tiene que seguir frenando tu operación.`,
+        `${brand.name}: ${promise}.`,
+        `La diferencia está en ${differentiator}.`,
+        `Si hoy enfrentas ${pain.toLowerCase()}, este cambio es para ti.`
     ];
 }
 
-function buildCopies(channels, brand, context) {
-    const cta = context.cta || "Agenda una demo";
-    const requested = channels.length ? channels : ["instagram", "facebook", "whatsapp"];
-    return requested.map(channel => ({
+function buildCopies(channels, campaign) {
+    return channels.map(channel => ({
         channel,
-        hook: "Tu operacion no necesita mas mensajes dispersos. Necesita control.",
-        body: `${brand.name} centraliza ordenes, evidencia, seguimiento y resultados en un solo flujo.`,
-        cta,
+        hook: campaign.hooks[0],
+        body: `${campaign.offer}. ${campaign.promise} gracias a ${campaign.differentiator}.`,
+        cta: campaign.cta,
+        evidencePolicy: "Use only supplied assets and cited sources",
         editable: true,
         status: "draft_for_approval"
     }));
 }
 
-function buildCalendar(channels, brand) {
-    const requested = channels.length ? channels : ["instagram", "facebook"];
+function buildCalendar(channels, brand, campaign) {
     return [
-        { day: 1, type: "post", topic: "problema operativo", channels: requested },
-        { day: 3, type: "reel", topic: `${brand.name} en 30 segundos`, channels: requested },
-        { day: 5, type: "carousel", topic: "beneficios y evidencia", channels: requested },
-        { day: 7, type: "story_sequence", topic: "pregunta + demo + CTA", channels: requested }
+        { day: 1, stage: "awareness", format: "reel", topic: campaign.pain, channels },
+        { day: 2, stage: "awareness", format: "story", topic: campaign.hooks[2], channels },
+        { day: 3, stage: "consideration", format: "carousel", topic: campaign.differentiator, channels },
+        { day: 5, stage: "consideration", format: "testimonial", topic: `Evidencia de ${brand.name}`, channels },
+        { day: 7, stage: "conversion", format: "landing_or_message", topic: campaign.cta, channels }
     ];
 }
 
-function buildPublications(channels, brand, context) {
-    const cta = context.cta || "Solicita una demo";
-    const requested = channels.length ? channels : ["instagram", "facebook"];
-    return requested.map(channel => ({
-        channel,
-        title: `${brand.name}: control operativo sin perder trazabilidad`,
-        caption: `Ordenes, evidencia y seguimiento desde un solo sistema. ${cta}.`,
-        hashtags: ["#GestiaPremium", "#Operacion", "#Mantenimiento", "#Tecnologia"],
-        publishStatus: "blocked_until_human_approval"
-    }));
+function buildFunnel(campaign) {
+    return [
+        { stage: "awareness", asset: "reel_or_post", message: campaign.pain },
+        { stage: "consideration", asset: "carousel_or_landing", message: campaign.differentiator },
+        { stage: "conversion", asset: "whatsapp_form_or_call", message: campaign.cta },
+        { stage: "follow_up", asset: "verified_case_or_testimonial", message: campaign.promise }
+    ];
 }
 
-function buildDeliverables(primaryAsset, assets, channels, brand) {
-    const requestedAssets = assets.length ? assets : [primaryAsset];
-    const deliverables = [];
-
-    for (const asset of requestedAssets) {
-        if (asset === "landing_page") deliverables.push({
-            type: "landing_page", format: "html/css/js", editable: true,
-            sections: ["hero", "beneficios", "servicios", "prueba social", "cta"],
-            title: `${brand.name} landing page`
-        });
-        if (asset === "flyer") deliverables.push({
-            type: "flyer", format: "editable_image_brief", editable: true,
-            sizes: ["1080x1350", "1080x1080", "story_1080x1920"]
-        });
-        if (asset === "editable_photo") deliverables.push({
-            type: "photo_edit", format: "image_prompt_and_layers", editable: true,
-            layers: ["subject", "background", "headline", "cta", "logo"]
-        });
-        if (asset === "reel") deliverables.push({
-            type: "short_video", format: "script_storyboard_subtitles_prompts", editable: true,
-            durationSeconds: 30, channels: channels.length ? channels : ["tiktok", "instagram"]
-        });
-        if (asset === "campaign") deliverables.push({
-            type: "campaign_calendar", format: "weekly_plan", editable: true,
-            cadence: "3 posts + 2 reels + 1 story sequence"
-        });
-    }
-    return deliverables;
-}
-
-function buildCreativeBrief(primaryAsset, channels, brand, normalized) {
+function buildVideoPackage(channels, campaign, durationSeconds) {
+    const duration = Number.isFinite(Number(durationSeconds)) && Number(durationSeconds) >= 30
+        ? Math.min(Number(durationSeconds), 180)
+        : 30;
     return {
-        primaryAsset,
-        hook: "Tu operacion puede verse profesional, medirse y resolverse desde un solo sistema.",
-        visualDirection: "limpio, premium, tecnologico, con evidencia real del servicio",
-        copyAngle: detectCopyAngle(normalized),
-        callToAction: channels.includes("whatsapp") ? "Agenda por WhatsApp" : "Solicita una demo",
-        photoPrompt: `Imagen editorial premium para ${brand.name}, operacion profesional, interfaz digital, equipo en campo, luz natural, alta confianza, formato comercial editable`
-    };
-}
-
-function buildVideoPackage(channels, brand, context) {
-    return {
-        durationSeconds: Number(context.durationSeconds) || 30,
-        channels: channels.length ? channels : ["instagram", "tiktok"],
+        durationSeconds: duration,
+        aspectRatio: "9:16",
+        dimensions: { width: 1080, height: 1920 },
+        channels,
         script: [
-            "Hook: operaciones dispersas cuestan tiempo y control.",
-            `Problema: mensajes, ordenes y evidencia separados.`,
-            `Solucion: ${brand.name} centraliza el flujo.`,
-            `Resultado: trazabilidad, velocidad y confianza.`,
-            `CTA: ${context.cta || "Agenda una demo"}.`
+            { section: "hook", text: campaign.hooks[0] },
+            { section: "problem", text: campaign.pain },
+            { section: "solution", text: campaign.offer },
+            { section: "proof", text: campaign.differentiator },
+            { section: "cta", text: campaign.cta }
         ],
         storyboard: [
-            { shot: 1, seconds: "0-3", visual: "caos de mensajes y tareas", overlay: "¿Todavia operas asi?" },
-            { shot: 2, seconds: "3-10", visual: "dashboard y orden de servicio", overlay: "Centraliza" },
-            { shot: 3, seconds: "10-20", visual: "tecnico con evidencia", overlay: "Traza cada paso" },
-            { shot: 4, seconds: "20-27", visual: "resultado y cliente satisfecho", overlay: "Control real" },
-            { shot: 5, seconds: "27-30", visual: "logo y CTA", overlay: context.cta || "Agenda una demo" }
+            { scene: 1, range: "0-4", purpose: "hook", overlay: campaign.hooks[0] },
+            { scene: 2, range: "4-11", purpose: "pain", overlay: campaign.pain },
+            { scene: 3, range: "11-20", purpose: "offer", overlay: campaign.offer },
+            { scene: 4, range: `20-${duration - 4}`, purpose: "proof", overlay: campaign.differentiator },
+            { scene: 5, range: `${duration - 4}-${duration}`, purpose: "cta", overlay: campaign.cta }
         ],
-        subtitles: true,
-        visualPrompts: [
-            `Escena comercial premium de ${brand.name}, tecnico profesional usando una app, entorno inmobiliario moderno`,
-            `Dashboard SaaS limpio mostrando ordenes, evidencia y seguimiento, estilo tecnologico premium`
-        ],
+        subtitles: { required: true, editable: true },
+        narration: { scriptReady: true, voiceApprovalRequired: true },
+        export: { preview: true, webm: true, mp4: "WHEN_INFRASTRUCTURE_AVAILABLE" },
         status: "draft_for_approval"
     };
 }
 
-function detectCopyAngle(normalized = "") {
-    if (normalized.includes("empresa") || normalized.includes("b2b")) return "beneficio empresarial y control operativo";
-    if (normalized.includes("premium")) return "marca premium y confianza";
-    if (normalized.includes("tiktok") || normalized.includes("reel")) return "gancho rapido, problema visible y solucion en 30 segundos";
-    return "claridad operativa y ahorro de tiempo";
-}
-
-function buildProductionSteps(primaryAsset, assets, channels) {
-    return [
-        { step: "brief", title: "Definir oferta, publico y CTA", status: "ready" },
-        { step: "copy", title: "Generar textos por canal", status: "ready" },
-        { step: "visual", title: "Crear prompt/asset editable", status: "ready" },
-        { step: "publish_plan", title: channels.length ? `Adaptar para ${channels.join(", ")}` : "Adaptar para canales principales", status: "ready" },
-        {
-            step: "repo_or_asset_output",
-            title: primaryAsset === "landing_page" || assets.includes("landing_page") ? "Crear pagina dentro del repo" : "Preparar asset editable para aprobacion",
-            status: "requires_approval"
+function buildDeliverables(assets, channels, campaign) {
+    return assets.map(asset => {
+        let format = "structured_campaign_json";
+        let dimensions = [];
+        if (asset === "reel") {
+            format = "video_storyboard_and_script";
+            dimensions = [{ width: 1080, height: 1920, aspectRatio: "9:16" }];
+        } else if (asset === "landing_page") {
+            format = "responsive_html";
+            dimensions = [{ width: "responsive", height: "content" }];
+        } else if (asset === "flyer") {
+            format = "editable_image_brief";
+            dimensions = [
+                { width: 1080, height: 1350, aspectRatio: "4:5" },
+                { width: 1080, height: 1080, aspectRatio: "1:1" },
+                { width: 1080, height: 1920, aspectRatio: "9:16" }
+            ];
         }
-    ];
+        return {
+            type: asset,
+            format,
+            dimensions,
+            channels,
+            editable: true,
+            approvalRequired: true,
+            productionBrief: {
+                offer: campaign.offer,
+                audience: campaign.audience,
+                promise: campaign.promise,
+                cta: campaign.cta
+            }
+        };
+    });
 }
 
-function summarizePlan(plan = {}) {
-    return `Marketing V3 listo: ${plan.goal}. Campana, embudo, copies, calendario, publicaciones y paquete audiovisual preparados para aprobacion.`;
+export function planMarketingRequest(rawInput = "", context = {}) {
+    const instruction = clean(rawInput);
+    const brand = resolveBrand(context);
+    const channels = strings(context.channels).length
+        ? strings(context.channels)
+        : ["instagram", "facebook", "whatsapp"];
+    const assets = strings(context.assets).length ? strings(context.assets) : ["campaign"];
+    const grounding = buildGrounding(context);
+    const missingInputs = missingRequired(brand, context);
+    const readyForProduction = missingInputs.length === 0;
+    const campaign = readyForProduction ? {
+        name: clean(context.campaignName) || `${brand.name} — campaña de conversión`,
+        objective: clean(context.campaignObjective) || `Convertir interés de ${clean(context.audience)} en conversaciones calificadas`,
+        audience: clean(context.audience),
+        offer: clean(context.offer),
+        pain: clean(context.pain),
+        promise: clean(context.promise),
+        differentiator: clean(context.differentiator),
+        tone: clean(context.tone) || clean(brand.voice) || "directo y profesional",
+        cta: clean(context.cta),
+        hooks: buildHooks(brand, clean(context.pain), clean(context.promise), clean(context.differentiator)),
+        description: `${clean(context.offer)}. ${clean(context.promise)}. ${clean(context.cta)}.`,
+        hashtags: strings(context.hashtags).length
+            ? strings(context.hashtags)
+            : [hashtag(brand.name), hashtag(context.market), "#ServicioProfesional", "#AtencionTecnica"].filter(Boolean),
+        metrics: strings(context.metrics).length
+            ? strings(context.metrics)
+            : ["qualified_conversations", "landing_conversion", "cost_per_lead", "appointments"],
+        variants: [
+            { id: "A", angle: "pain_first", hookIndex: 0 },
+            { id: "B", angle: "promise_first", hookIndex: 1 }
+        ]
+    } : null;
+
+    const plan = {
+        ok: true,
+        status: readyForProduction ? "MARKETING_PACKAGE_READY" : "MARKETING_INPUT_REQUIRED",
+        engine: "jarvis_marketing_engine",
+        version: VERSION,
+        source: "jarvis_marketing_engine_v7",
+        raw: instruction,
+        intent: "MARKETING_PACKAGE",
+        domain: "marketing",
+        trace: buildTrace(context, instruction),
+        approval: {
+            required: true,
+            approved: false,
+            publishAllowed: false,
+            deployAllowed: false
+        },
+        brand,
+        assets,
+        channels,
+        grounding,
+        missingInputs,
+        readyForProduction,
+        campaign,
+        copies: campaign ? buildCopies(channels, campaign) : [],
+        calendar: campaign ? buildCalendar(channels, brand, campaign) : [],
+        funnel: campaign ? buildFunnel(campaign) : [],
+        publications: campaign ? buildCopies(channels, campaign).map(copy => ({ ...copy, publishStatus: "blocked_until_human_approval" })) : [],
+        deliverables: campaign ? buildDeliverables(assets, channels, campaign) : [],
+        videoPackage: campaign ? buildVideoPackage(channels, campaign, context.durationSeconds) : null,
+        pieces: campaign ? assets.map((asset, index) => ({ id: index + 1, asset, variant: index % 2 ? "B" : "A" })) : [],
+        formats: campaign ? buildDeliverables(assets, channels, campaign).map(item => ({ type: item.type, format: item.format, dimensions: item.dimensions })) : [],
+        onScreenTexts: campaign ? buildVideoPackage(channels, campaign, context.durationSeconds).storyboard.map(scene => scene.overlay) : [],
+        publicationPlan: campaign ? buildCalendar(channels, brand, campaign) : [],
+        editable: true
+    };
+    plan.message = readyForProduction
+        ? `Marketing V7 preparó una campaña específica para ${brand.name}, sustentada en ${grounding.sourceCount} fuentes de evidencia.`
+        : `Marketing V7 no inventó contenido: faltan ${missingInputs.join(", ")}.`;
+    return plan;
+}
+
+export function isMarketingRequest(input = null) {
+    return Boolean(input && typeof input === "object" && clean(input.domain) === "marketing");
 }
 
 export const JarvisMarketingEngine = {
     version: VERSION,
+    routing: "semantic_model_only",
     isMarketingRequest,
     plan: planMarketingRequest
 };
