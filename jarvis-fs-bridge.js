@@ -7,9 +7,13 @@ import * as tls from "node:tls";
 import { createHash, randomUUID } from "node:crypto";
 import { fileURLToPath } from "url";
 import { execFileSync, spawn } from "child_process";
+import {
+    buildRepoIntelligence,
+    rankRepoCandidates
+} from "./jarvis-repo-intelligence.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.11.0-office-suite-editing";
+    "2.12.0-live-repo-intelligence";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -1899,6 +1903,8 @@ export function createJarvisFsBridgeApp({
     const app =
         express();
 
+    let repoGraphCache = null;
+
     const allowedOrigins = new Set([
         "https://fixgo-44e4d.web.app",
         "https://fixgo-44e4d.firebaseapp.com",
@@ -2032,6 +2038,58 @@ export function createJarvisFsBridgeApp({
                     version:
                         JARVIS_FS_BRIDGE_VERSION
                 });
+        }
+    });
+
+    app.post("/repo/graph", async (req, res) => {
+        try {
+            const maxFiles = Math.max(1, Math.min(5000, Number(req.body?.maxFiles) || 2500));
+            const maxFileSizeBytes = Math.max(1000, Math.min(2000000, Number(req.body?.maxFileSizeBytes) || 800000));
+            const refresh = req.body?.refresh === true;
+            if (!repoGraphCache || refresh || repoGraphCache.maxFiles !== maxFiles || repoGraphCache.maxFileSizeBytes !== maxFileSizeBytes) {
+                repoGraphCache = {
+                    maxFiles,
+                    maxFileSizeBytes,
+                    graph: buildRepoIntelligence({ root, maxFiles, maxFileSizeBytes })
+                };
+            }
+            const transportNodes = Object.fromEntries(
+                Object.entries(repoGraphCache.graph.nodes || {}).map(([file, node]) => {
+                    const { literals: privateLiterals, ...safeNode } = node;
+                    return [file, safeNode];
+                })
+            );
+            return res.json({
+                ...repoGraphCache.graph,
+                nodes: transportNodes,
+                cache: refresh ? "REFRESHED" : "READY",
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        } catch (error) {
+            return res.status(500).json({ ok: false, status: "REPO_GRAPH_FAILED", error: error.message, version: JARVIS_FS_BRIDGE_VERSION });
+        }
+    });
+
+    app.post("/repo/candidates", async (req, res) => {
+        try {
+            const query = String(req.body?.query || req.body?.objective || "").trim();
+            if (!query) return res.status(400).json({ ok: false, status: "QUERY_REQUIRED", error: "QUERY_REQUIRED" });
+            if (!repoGraphCache || req.body?.refresh === true) {
+                repoGraphCache = {
+                    maxFiles: 2500,
+                    maxFileSizeBytes: 800000,
+                    graph: buildRepoIntelligence({ root, maxFiles: 2500, maxFileSizeBytes: 800000 })
+                };
+            }
+            const result = rankRepoCandidates({
+                graph: repoGraphCache.graph,
+                query,
+                plannedFiles: Array.isArray(req.body?.plannedFiles) ? req.body.plannedFiles : [],
+                limit: req.body?.limit || 8
+            });
+            return res.json({ ...result, version: JARVIS_FS_BRIDGE_VERSION });
+        } catch (error) {
+            return res.status(500).json({ ok: false, status: "CANDIDATE_RANKING_FAILED", error: error.message, version: JARVIS_FS_BRIDGE_VERSION });
         }
     });
 

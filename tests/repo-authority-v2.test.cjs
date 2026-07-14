@@ -343,11 +343,11 @@ test("semantic tool planner replaces audit-only plans with focused discovery", (
     assert.deepEqual(
         plan.toolCalls.map(call => call.name).slice(0, 2),
         [
-            "repo.search",
-            "repo.grep"
+            "repo.rankCandidates",
+            "repo.search"
         ]
     );
-    assert.equal(plan.toolCalls[0].args.term, "tarjetas");
+    assert.match(plan.toolCalls[0].args.query, /tarjetas/);
     assert.equal(plan.toolCalls[1].args.term, "tarjetas");
     assert.equal(plan.toolCalls[0].mutates, false);
     assert.equal(plan.toolCalls[0].approved, false);
@@ -375,13 +375,14 @@ test("semantic tool planner replaces scan-only plans with focused discovery", ()
     assert.deepEqual(
         plan.toolCalls.map(call => call.name),
         [
+            "repo.rankCandidates",
             "repo.search",
-            "repo.grep",
             "repo.grep"
         ]
     );
-    assert.equal(plan.toolCalls[0].args.term, "render");
+    assert.match(plan.toolCalls[0].args.query, /render/);
     assert.equal(plan.toolCalls[1].args.term, "render");
+    assert.equal(plan.toolCalls[2].args.term, "render");
 });
 
 test("semantic tool planner falls back to general response without tool calls", () => {

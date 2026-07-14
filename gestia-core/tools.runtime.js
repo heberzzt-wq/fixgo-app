@@ -5,7 +5,7 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-multifunction-tools-v2.7-document-edit-20260714";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-multifunction-tools-v2.8-repo-graph-20260714";
 import {
     registerJarvisActuatorTools
 } from "./jarvis/jarvis.actuator.pack.js?v=sia7-real-actuators-v2.6-office-suite-20260714";
@@ -5867,6 +5867,50 @@ JarvisToolRuntime.register({
 });
 
 JarvisToolRuntime.register({
+    name: "repo.graph",
+    description: "Construye el grafo vivo del repositorio real con dependencias, funciones, llamadas, listeners, endpoints, colecciones y pruebas.",
+    mutates: false,
+    requiresApproval: false,
+    output: "REPO_GRAPH_RESULT",
+    execute: async (args = {}) => {
+        if (!window.JarvisLocalBridge?.buildRepoGraph) {
+            return { ok: false, status: "LOCAL_BRIDGE_REQUIRED", error: "JarvisLocalBridge.buildRepoGraph no está disponible.", tool: "repo.graph" };
+        }
+        const result = await window.JarvisLocalBridge.buildRepoGraph({
+            refresh: args.refresh === true,
+            maxFiles: args.maxFiles || 2500,
+            maxFileSizeBytes: args.maxFileSizeBytes || 800000,
+            source: "jarvis_repo_graph_tool_v7"
+        });
+        return { ...result, success: result?.ok === true, tool: "repo.graph" };
+    }
+});
+
+JarvisToolRuntime.register({
+    name: "repo.rankCandidates",
+    description: "Clasifica archivos candidatos con puntuación aditiva desglosada, evidencia, dependencias, pruebas, riesgos y justificación.",
+    mutates: false,
+    requiresApproval: false,
+    output: "REPO_CANDIDATE_RANKING_RESULT",
+    execute: async (args = {}) => {
+        const query = String(args.query || args.objective || "").trim();
+        if (!query) return { ok: false, status: "CONTRACT_INVALID", error: "QUERY_REQUIRED", tool: "repo.rankCandidates" };
+        if (!window.JarvisLocalBridge?.rankRepoCandidates) {
+            return { ok: false, status: "LOCAL_BRIDGE_REQUIRED", error: "JarvisLocalBridge.rankRepoCandidates no está disponible.", tool: "repo.rankCandidates" };
+        }
+        const result = await window.JarvisLocalBridge.rankRepoCandidates({
+            query,
+            objective: query,
+            plannedFiles: Array.isArray(args.plannedFiles) ? args.plannedFiles : [],
+            limit: args.limit || 8,
+            refresh: args.refresh === true,
+            source: "jarvis_candidate_ranking_tool_v7"
+        });
+        return { ...result, success: result?.ok === true, tool: "repo.rankCandidates" };
+    }
+});
+
+JarvisToolRuntime.register({
     name: "repo.impact",
     description: "Analiza el impacto y las dependencias (qué se rompe si se modifica un archivo).",
     mutates: false,
@@ -7040,6 +7084,34 @@ window.JarvisLocalBridge.grepRepo ||= async function(payload = {}) {
             result?.source ||
             "jarvis_local_bridge_grep_client_v7"
     };
+};
+
+window.JarvisLocalBridge.buildRepoGraph ||= async function(payload = {}) {
+    return await window.JarvisLocalBridge.requestJson(
+        "/repo/graph",
+        {
+            refresh: payload.refresh === true,
+            maxFiles: payload.maxFiles || 2500,
+            maxFileSizeBytes: payload.maxFileSizeBytes || 800000,
+            source: payload.source || "jarvis_repo_graph_v7"
+        },
+        { timeoutMs: payload.timeoutMs || 120000 }
+    );
+};
+
+window.JarvisLocalBridge.rankRepoCandidates ||= async function(payload = {}) {
+    return await window.JarvisLocalBridge.requestJson(
+        "/repo/candidates",
+        {
+            query: payload.query || payload.objective || "",
+            objective: payload.objective || payload.query || "",
+            plannedFiles: Array.isArray(payload.plannedFiles) ? payload.plannedFiles : [],
+            limit: payload.limit || 8,
+            refresh: payload.refresh === true,
+            source: payload.source || "jarvis_candidate_ranking_v7"
+        },
+        { timeoutMs: payload.timeoutMs || 120000 }
+    );
 };
 
 

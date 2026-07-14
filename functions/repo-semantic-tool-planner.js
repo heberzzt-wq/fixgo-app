@@ -6,7 +6,9 @@ const ALLOWED_SEMANTIC_REPO_TOOLS = new Set([
     "repo.grep",
     "repo.read",
     "repo.diagnose",
-    "repo.impact"
+    "repo.impact",
+    "repo.graph",
+    "repo.rankCandidates"
 ]);
 
 const GENERIC_DISCOVERY_TOOLS =
@@ -21,7 +23,9 @@ const TARGETED_DISCOVERY_TOOLS =
         "repo.grep",
         "repo.read",
         "repo.diagnose",
-        "repo.impact"
+        "repo.impact",
+        "repo.graph",
+        "repo.rankCandidates"
     ]);
 
 function sanitizePlannerArgs(args = {}) {
@@ -66,6 +70,15 @@ function sanitizePlannerArgs(args = {}) {
             if (typeof value === "boolean") {
                 cleanArgs[key] =
                     value;
+
+                return;
+            }
+
+            if (Array.isArray(value)) {
+                cleanArgs[key] = value
+                    .filter(item => typeof item === "string")
+                    .slice(0, 12)
+                    .map(item => item.slice(0, 300));
             }
         });
 
@@ -135,6 +148,15 @@ function buildFocusedDiscoveryCalls(
         cleanObjective;
 
     const calls = [
+        makeToolCall(
+            "repo.rankCandidates",
+            {
+                query: cleanObjective,
+                objective: cleanObjective,
+                limit: 8
+            },
+            "AI_SEMANTIC_EXPLAINABLE_CANDIDATE_RANKING"
+        ),
         makeToolCall(
             "repo.search",
             {

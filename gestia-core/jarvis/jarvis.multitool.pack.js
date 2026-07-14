@@ -21,7 +21,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "1.11.0-structured-document-editing";
+const VERSION = "1.12.0-live-repo-intelligence";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 
@@ -318,6 +318,8 @@ async function buildCapabilityForensics(runtime) {
             "repo.read",
             "repo.grep",
             "repo.diagnose",
+            "repo.graph",
+            "repo.rankCandidates",
             "repo.write"
         ]);
     const testAndGitToolsReady =
@@ -398,7 +400,7 @@ async function buildCapabilityForensics(runtime) {
                 bridge: bridge.status || "UNKNOWN",
                 bridgeReady,
                 toolsReady: repoToolsReady,
-                requiredTools: ["repo.read", "repo.grep", "repo.diagnose", "repo.write"]
+                requiredTools: ["repo.read", "repo.grep", "repo.diagnose", "repo.graph", "repo.rankCandidates", "repo.write"]
             }
         },
         {

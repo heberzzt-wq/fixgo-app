@@ -1441,6 +1441,8 @@ Return only valid JSON:
     { "name": "repo.read", "args": { "file": string, "maxBytes": 300000 } },
     { "name": "repo.diagnose", "args": { "file": string, "mode": "diagnose", "rawInput": string } },
     { "name": "repo.impact", "args": { "file": string } },
+    { "name": "repo.graph", "args": { "refresh": boolean } },
+    { "name": "repo.rankCandidates", "args": { "query": string, "plannedFiles": [string], "limit": 8 } },
     { "name": "repo.scan", "args": {} }
   ],
   "writeAllowed": false,
@@ -1453,6 +1455,8 @@ Rules:
 - Do not write, patch, approve, delete, deploy, or mutate state.
 - If a concrete file is mentioned, include repo.read and repo.diagnose for that file.
 - If the exact file is unknown, use repo.search and repo.grep with focused evidence terms from the user's objective.
+- For every repository investigation, rank candidates with repo.rankCandidates; include model-selected plannedFiles when evidence identifies them.
+- Use repo.graph when the request asks about dependencies, ownership, impact, architecture, routes, listeners, endpoints, or tests.
 - Do not use repo.audit in this planner. Full repo audits are handled only by explicit direct commands outside tool_planner.
 - Do not answer concrete UI, mobile, layout, render, flow, or code symptoms with repo.scan alone.
 - If the user is not asking about code, repo, debugging, UI, architecture, or repair, return GENERAL_RESPONSE with an empty toolCalls array.

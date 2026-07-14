@@ -612,7 +612,9 @@ const SEMANTIC_READ_ONLY_REPO_TOOLS =
     "repo.grep",
     "repo.read",
     "repo.diagnose",
-    "repo.impact"
+    "repo.impact",
+    "repo.graph",
+    "repo.rankCandidates"
   ]);
 
 const SEMANTIC_READ_ONLY_MULTIFUNCTION_TOOLS =
@@ -646,7 +648,9 @@ const SEMANTIC_TARGETED_DISCOVERY_TOOLS =
     "repo.grep",
     "repo.read",
     "repo.diagnose",
-    "repo.impact"
+    "repo.impact",
+    "repo.graph",
+    "repo.rankCandidates"
   ]);
 
 const SEMANTIC_REPO_INVESTIGATION_CONCEPTS =
@@ -734,6 +738,15 @@ function buildFocusedSemanticToolCalls(
     cleanObjective;
 
   const calls = [
+    buildSemanticToolCall(
+      "repo.rankCandidates",
+      {
+        query: cleanObjective,
+        objective: cleanObjective,
+        limit: 8
+      },
+      "LOCAL_SEMANTIC_EXPLAINABLE_CANDIDATE_RANKING"
+    ),
     buildSemanticToolCall(
       "repo.search",
       {
@@ -918,6 +931,15 @@ function sanitizeSemanticToolArgs(args = {}) {
       if (typeof value === "boolean") {
         cleanArgs[key] =
           value;
+
+        return;
+      }
+
+      if (Array.isArray(value)) {
+        cleanArgs[key] = value
+          .filter(item => typeof item === "string")
+          .slice(0, 12)
+          .map(item => item.slice(0, 300));
       }
     });
 
