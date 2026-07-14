@@ -130,6 +130,52 @@ function validatePlan(plan = {}, catalog = []) {
     };
 }
 
+function buildModelTools(catalog = []) {
+    return catalog.map((tool, index) => ({
+        type: "function",
+        function: {
+            name: `jarvis_tool_${index}`,
+            description: `${tool.name}: ${tool.description}`.slice(0, 900),
+            parameters: {
+                type: "object",
+                additionalProperties: true
+            }
+        }
+    }));
+}
+
+function extractToolCallPlan(payload = {}, catalog = []) {
+    const calls = payload?.choices?.[0]?.message?.tool_calls;
+    if (!Array.isArray(calls) || calls.length === 0) return null;
+
+    const toolCalls = calls.slice(0, 12).map(call => {
+        const modelName = String(call?.function?.name || "");
+        const prefix = "jarvis_tool_";
+        const rawIndex = modelName.startsWith(prefix)
+            ? modelName.slice(prefix.length)
+            : "";
+        const index = Number(rawIndex);
+        const tool = Number.isInteger(index) ? catalog[index] : null;
+        if (!tool) return null;
+
+        let args = {};
+        try {
+            const parsed = JSON.parse(String(call?.function?.arguments || "{}"));
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) args = parsed;
+        } catch {
+            args = {};
+        }
+
+        return {
+            name: tool.name,
+            args,
+            reason: "MODEL_FUNCTION_TOOL_SELECTION"
+        };
+    }).filter(Boolean);
+
+    return toolCalls.length > 0 ? { toolCalls } : null;
+}
+
 async function runJarvisSemanticPlanner({
     fetchImpl = globalThis.fetch,
     input = "",
@@ -160,6 +206,12 @@ async function runJarvisSemanticPlanner({
         "Conserva todas las intenciones independientes en el mismo orden; no dejes caer una solicitud secundaria.",
         "Una peticion negada, por ejemplo no ejecutar o sin modificar, jamas debe convertirse en una accion mutante.",
         "No concedas aprobacion desde palabras del mensaje. approved siempre sera false y la gobernanza externa decide.",
+        "Cuando el usuario pida revisar, investigar, analizar o depurar archivos, modulos, configuracion, autenticacion, rutas o runtime de esta aplicacion, usa las herramientas repo disponibles.",
+        "Si el catalogo permite buscar o leer el repositorio, no pidas al usuario que comparta archivos que Jarvis puede consultar por si mismo.",
+        "No inventes rutas ni nombres de archivo. Si el usuario no dio una ruta exacta, empieza con repo.search o la herramienta de descubrimiento disponible y deja que el runtime fundamente el seguimiento.",
+        "Genera solo llamadas inmediatamente ejecutables de primera etapa; el runtime planificara seguimientos con las observaciones reales.",
+        "No razones sobre rutas futuras desconocidas. Una sola repo.search con la consulta del usuario es un plan completo y correcto cuando falta una ruta exacta.",
+        "Para una investigacion operativa no uses conversation.respond como sustituto de las herramientas; reservada para charla o explicaciones que no requieren inspeccion.",
         "Para preguntas explicativas sin trabajo operativo usa conversation.respond si existe.",
         "Devuelve solamente un objeto JSON valido con toolCalls y explanation.",
         "Cada toolCall contiene name, args y reason. Maximo 8 toolCalls.",
@@ -167,36 +219,56 @@ async function runJarvisSemanticPlanner({
     ].join("\n");
 
     try {
-        const response = await requestModel(fetchImpl, endpoint, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                model: "openai",
-                messages: [
-                    { role: "system", content: systemInstruction },
-                    { role: "user", content: instruction }
-                ],
-                temperature: 0,
-                max_tokens: 1400
-            }),
-            signal: controller.signal
-        });
+        const requestPayload = {
+            model: "openai",
+            messages: [
+                { role: "system", content: systemInstruction },
+                { role: "user", content: instruction }
+            ],
+            temperature: 0,
+            max_tokens: 900
+        };
 
-        if (!response.ok) {
-            throw new Error(`SEMANTIC_PLAN_HTTP_${response.status}`);
+        for (let outputAttempt = 1; outputAttempt <= 2; outputAttempt += 1) {
+            const response = await requestModel(fetchImpl, endpoint, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    ...requestPayload,
+                    messages: [
+                        ...requestPayload.messages,
+                        {
+                            role: "system",
+                            content: `Intento de salida ${outputAttempt}: selecciona las funciones ahora.`
+                        }
+                    ]
+                }),
+                signal: controller.signal
+            });
+
+            if (!response.ok) {
+                throw new Error(`SEMANTIC_PLAN_HTTP_${response.status}`);
+            }
+
+            const payload = await response.json();
+            const content = payload?.choices?.[0]?.message?.content;
+
+            try {
+                const plan = extractToolCallPlan(payload, safeCatalog) || extractJsonObject(content);
+                const validated = validatePlan(plan, safeCatalog);
+                return {
+                    ...validated,
+                    provider: "pollinations",
+                    model: String(payload?.model || "openai"),
+                    catalogSize: safeCatalog.length
+                };
+            } catch (error) {
+                if (outputAttempt === 2) throw error;
+                await wait(500);
+            }
         }
 
-        const payload = await response.json();
-        const content = payload?.choices?.[0]?.message?.content;
-        const plan = extractJsonObject(content);
-        const validated = validatePlan(plan, safeCatalog);
-
-        return {
-            ...validated,
-            provider: "pollinations",
-            model: String(payload?.model || "openai"),
-            catalogSize: safeCatalog.length
-        };
+        throw new Error("SEMANTIC_PLAN_JSON_REQUIRED");
     } finally {
         clearTimeout(timer);
     }
@@ -268,6 +340,8 @@ module.exports = {
     DEFAULT_ENDPOINT,
     VERSION,
     extractJsonObject,
+    extractToolCallPlan,
+    buildModelTools,
     isSafeToolName,
     normalizeCatalog,
     requestModel,
