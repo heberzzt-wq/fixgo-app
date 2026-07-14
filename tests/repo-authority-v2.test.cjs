@@ -1072,6 +1072,8 @@ test("read-only technical response preserves evidence for every diagnosed target
                         data: {
                             tool: "repo.diagnose",
                             file: "tecnico-b2b.html",
+                            fileType: "html_application",
+                            capabilities: ["ui_rendering"],
                             risk: "HIGH",
                             findings: [
                                 {
@@ -1088,6 +1090,8 @@ test("read-only technical response preserves evidence for every diagnosed target
                         data: {
                             tool: "repo.diagnose",
                             file: "cliente.html",
+                            fileType: "html_application",
+                            capabilities: ["ui_rendering", "firestore_data"],
                             risk: "MEDIUM",
                             findings: [
                                 {
@@ -1102,10 +1106,12 @@ test("read-only technical response preserves evidence for every diagnosed target
             ]
         });
 
-    assert.match(finalResponse.text, /Diagnostico separado por objetivo:/);
+    assert.match(finalResponse.text, /Diagnostico separado por archivo:/);
     assert.match(finalResponse.text, /- tecnico-b2b\.html \[HIGH\]/);
+    assert.match(finalResponse.text, /tipo html_application; capacidades ui_rendering/);
     assert.match(finalResponse.text, /Permisos B2B ambiguos/);
     assert.match(finalResponse.text, /- cliente\.html \[MEDIUM\]/);
+    assert.match(finalResponse.text, /capacidades ui_rendering, firestore_data/);
     assert.match(finalResponse.text, /Redirect de cliente tardio/);
 });
 

@@ -3451,6 +3451,7 @@ function composeObservationDrivenFinalResponse({
 
                 return [
                     `- ${diagnosis.file} [${diagnosis.risk || "ND"}]`,
+                    `  - Configuracion detectada: tipo ${diagnosis.fileType || "ND"}; capacidades ${(diagnosis.capabilities || []).join(", ") || "ninguna especial"}.`,
                     ...(findings.length
                         ? findings.map(finding =>
                             `  - [${finding.severity || "MEDIUM"}] ${finding.title || finding.id || "Hallazgo"}: ${finding.detail || "Sin detalle adicional."}`
@@ -3486,7 +3487,7 @@ function composeObservationDrivenFinalResponse({
             ...(multiTargetDiagnosisLines.length
                 ? [
                     "",
-                    "Diagnostico separado por objetivo:",
+                    "Diagnostico separado por archivo:",
                     ...multiTargetDiagnosisLines
                 ]
                 : []),
