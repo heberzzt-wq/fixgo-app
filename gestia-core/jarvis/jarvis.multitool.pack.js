@@ -284,6 +284,13 @@ async function buildCapabilityForensics(runtime) {
     const speechAvailable =
         typeof globalThis?.speechSynthesis !== "undefined" ||
         typeof globalThis?.window?.speechSynthesis !== "undefined";
+    const semanticPlannerHealth =
+        globalThis?.__JARVIS_SEMANTIC_PLANNER_HEALTH__ || null;
+    const semanticConversationHealth =
+        globalThis?.__JARVIS_SEMANTIC_CONVERSATION_HEALTH__ || null;
+    const semanticModelReady =
+        semanticPlannerHealth?.ok === true ||
+        semanticConversationHealth?.ok === true;
 
     const dailySupervision =
         await inspectDailySupervisionCapability(
@@ -375,14 +382,22 @@ async function buildCapabilityForensics(runtime) {
         {
             id: "conversation_and_voice",
             status:
-                tools.has("conversation.respond") && speechAvailable
+                tools.has("conversation.respond") && speechAvailable && semanticModelReady
                     ? "READY"
-                    : tools.has("conversation.respond")
+                    : tools.has("conversation.respond") || semanticModelReady
                         ? "PARTIAL"
                         : "NOT_AVAILABLE",
+            reason: semanticModelReady
+                ? speechAvailable
+                    ? "Conversacion semantica real y salida de voz verificadas."
+                    : "El modelo semantico respondio; falta salida de voz verificable."
+                : "La herramienta existe, pero el modelo semantico aun no produjo evidencia real en esta sesion.",
             evidence: {
                 conversationTool: tools.has("conversation.respond"),
-                speechSynthesis: speechAvailable
+                speechSynthesis: speechAvailable,
+                semanticModelVerified: semanticModelReady,
+                planner: semanticPlannerHealth,
+                conversation: semanticConversationHealth
             }
         },
         {
@@ -922,30 +937,79 @@ async function fetchGroundedWebResearch(
     }
 }
 
-function buildConversationResponse(instruction = "") {
-    const normalized =
-        String(instruction || "")
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
-            .toLowerCase();
-
-    if (/\b(tecate|cerveza|cheve|chelita)\b/i.test(normalized)) {
-        return "¡Buenos días, pariente! Una Tecate bien fría suena buena; nomás con calma si vas a manejar. ¿Qué armamos hoy?";
+async function fetchSemanticConversation(instruction = "") {
+    const user = globalThis?.auth?.currentUser || globalThis?.window?.auth?.currentUser || null;
+    if (!user) {
+        const result = { ok: false, status: "AUTH_REQUIRED", error: "AUTH_REQUIRED" };
+        globalThis.__JARVIS_SEMANTIC_CONVERSATION_HEALTH__ = {
+            ...result,
+            checkedAt: new Date().toISOString()
+        };
+        return result;
     }
 
-    if (/\b(buenos dias|buen dia)\b/i.test(normalized)) {
-        return "¡Buenos días, pariente! Jarvis está activo y listo. ¿Qué armamos hoy?";
-    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 55000);
 
-    if (/\b(buenas tardes)\b/i.test(normalized)) {
-        return "¡Buenas tardes, pariente! Jarvis está activo y listo. ¿Qué hacemos?";
+    try {
+        const token = await user.getIdToken();
+        const response = await fetch(
+            "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticRespond",
+            {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ data: { input: instruction } }),
+                signal: controller.signal
+            }
+        );
+        const text = await response.text();
+        let payload;
+        try {
+            payload = JSON.parse(text);
+        } catch {
+            const result = { ok: false, status: "INVALID_MODEL_RESPONSE", error: `HTTP_${response.status}` };
+            globalThis.__JARVIS_SEMANTIC_CONVERSATION_HEALTH__ = {
+                ...result,
+                checkedAt: new Date().toISOString()
+            };
+            return result;
+        }
+        const result = payload?.result || payload?.data;
+        if (!response.ok || !result?.ok || !result?.message) {
+            const failure = {
+                ok: false,
+                status: "SEMANTIC_CONVERSATION_UNAVAILABLE",
+                error: payload?.error?.message || result?.error || `HTTP_${response.status}`
+            };
+            globalThis.__JARVIS_SEMANTIC_CONVERSATION_HEALTH__ = {
+                ...failure,
+                checkedAt: new Date().toISOString()
+            };
+            return failure;
+        }
+        globalThis.__JARVIS_SEMANTIC_CONVERSATION_HEALTH__ = {
+            ok: true,
+            status: result.status,
+            provider: result.provider,
+            model: result.model,
+            checkedAt: new Date().toISOString()
+        };
+        return result;
+    } catch (error) {
+        const failure = {
+            ok: false,
+            status: "SEMANTIC_CONVERSATION_UNAVAILABLE",
+            error: error?.message || String(error),
+            checkedAt: new Date().toISOString()
+        };
+        globalThis.__JARVIS_SEMANTIC_CONVERSATION_HEALTH__ = failure;
+        return failure;
+    } finally {
+        clearTimeout(timer);
     }
-
-    if (/\b(buenas noches)\b/i.test(normalized)) {
-        return "¡Buenas noches, pariente! Jarvis está en línea. ¿En qué te apoyo?";
-    }
-
-    return "Aquí estoy, pariente. Jarvis está activo y listo para ayudarte.";
 }
 
 function clean(value, fallback = "") {
@@ -1017,7 +1081,7 @@ export function registerJarvisMultifunctionTools(runtime) {
     const registrations = [
         register(runtime, {
             name: "conversation.respond",
-            description: "Responde saludos y conversación casual localmente cuando la cognición cloud no está disponible.",
+            description: "Responde conversación y preguntas mediante un modelo semántico real sin frases prefabricadas.",
             output: "SIA7_CONVERSATION_RESPONSE",
             inputSchema: {
                 prompt: "string"
@@ -1026,13 +1090,10 @@ export function registerJarvisMultifunctionTools(runtime) {
                 const instruction =
                     resolveInstruction(args, context);
 
+                const result = await fetchSemanticConversation(instruction);
                 return {
-                    ok: true,
-                    engine: "jarvis_local_conversation",
-                    message:
-                        buildConversationResponse(instruction),
+                    ...result,
                     instruction,
-                    localFallback: true,
                     readOnly: true
                 };
             }

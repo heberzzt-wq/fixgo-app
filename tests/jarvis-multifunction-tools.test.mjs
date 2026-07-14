@@ -57,6 +57,46 @@ function createRuntime() {
     };
 }
 
+const semanticPlannerCatalog = [
+    ["conversation.respond", false],
+    ["system.health", false],
+    ["system.supervision", false],
+    ["system.supervision.runNow", true],
+    ["system.forensics", false],
+    ["web.research", false],
+    ["browser.inspect", false],
+    ["image.generate", false],
+    ["document.create", true],
+    ["connector.list", false],
+    ["agent.delegate", false],
+    ["page.plan", false],
+    ["marketing.plan", false],
+    ["media.analyze", false],
+    ["business.assist", false],
+    ["repo.search", false],
+    ["repo.read", false],
+    ["repo.diagnose", false]
+].map(([name, mutates]) => ({
+    name,
+    description: `Herramienta runtime ${name}`,
+    mutates,
+    requiresApproval: mutates
+}));
+
+async function planWithModel(input, toolCalls, { approved = false } = {}) {
+    return await buildJarvisMultifunctionToolCalls(input, {
+        approved,
+        toolCatalog: semanticPlannerCatalog,
+        semanticPlanner: async () => ({
+            ok: true,
+            status: "SEMANTIC_PLAN_READY",
+            provider: "test-model",
+            model: "semantic-test",
+            toolCalls
+        })
+    });
+}
+
 test("multifunction pack registers ten read-only tools", () => {
     const runtime =
         createRuntime();
@@ -274,7 +314,24 @@ test("capability forensics distinguishes a deployed scheduler from a completed d
     );
 });
 
-test("Jarvis answers casual greetings locally when cloud cognition is unavailable", async () => {
+test("Jarvis answers casual conversation through the real semantic model", async () => {
+    const previousAuth = globalThis.auth;
+    const previousFetch = globalThis.fetch;
+    globalThis.auth = { currentUser: { getIdToken: async () => "test-token" } };
+    globalThis.fetch = async () => ({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+            result: {
+                ok: true,
+                status: "SEMANTIC_RESPONSE_READY",
+                provider: "pollinations",
+                model: "semantic-test",
+                message: "Buenos días, pariente. ¿Qué armamos hoy?"
+            }
+        })
+    });
+
     const runtime = createRuntime();
     registerJarvisMultifunctionTools(runtime);
 
@@ -286,16 +343,20 @@ test("Jarvis answers casual greetings locally when cloud cognition is unavailabl
     );
 
     assert.equal(result.ok, true);
-    assert.equal(result.localFallback, true);
-    assert.match(result.message, /Buenos días, pariente/i);
-    assert.match(result.message, /Tecate/i);
+    assert.equal(result.provider, "pollinations");
+    assert.equal(result.model, "semantic-test");
+    assert.match(result.message, /Buenos días/);
 
-    const calls = buildJarvisMultifunctionToolCalls(
-        "buenos dias jarvis, se me antoja una tecate"
+    const calls = await planWithModel(
+        "buenos dias jarvis, se me antoja una tecate",
+        [{ name: "conversation.respond", args: { prompt: "buenos dias jarvis" } }]
     );
 
     assert.equal(calls[0]?.name, "conversation.respond");
     assert.equal(calls[0]?.mutates, false);
+
+    globalThis.auth = previousAuth;
+    globalThis.fetch = previousFetch;
 });
 
 test("system health reports a real bridge identity mismatch as degraded", async () => {
@@ -423,7 +484,7 @@ test("terminal unlocks, queues and recovers Jarvis speech", () => {
     assert.match(terminal, /__JARVIS_TTS_ACTIVE_UTTERANCE__/);
 });
 
-test("general semantic intent stays casual and speaks through the terminal", () => {
+test("semantic model planner replaces phrase gates and preserves terminal speech", () => {
     const core = fs.readFileSync(
         path.join(
             __dirname,
@@ -441,42 +502,25 @@ test("general semantic intent stays casual and speaks through the terminal", () 
         ),
         "utf8"
     );
-    const semantic = fs.readFileSync(
-        path.join(__dirname, "..", "gestia-core", "semantic.engine.js"),
-        "utf8"
-    );
-    const vision = fs.readFileSync(
-        path.join(__dirname, "..", "gestia-core", "jarvis", "jarvis.vision.engine.js"),
+    const planner = fs.readFileSync(
+        path.join(__dirname, "..", "gestia-core", "jarvis", "jarvis.multifunction.planner.js"),
         "utf8"
     );
 
-    assert.match(core, /semantic\.primaryConcept\s*\|\|\s*semantic\.concept/);
-    assert.match(core, /semanticPrimaryConcept\s*!==\s*"GENERAL"/);
-    assert.match(core, /isConversationalQuestion/);
-    assert.match(core, /hasExplicitOperationalRequest/);
-    assert.match(core, /hasMultifunctionOperationalRequest/);
-    assert.match(core, /lightMultifunctionCalls\.some/);
-    assert.match(core, /isJarvisCapabilityForensicsRequest/);
-    assert.match(core, /hasExplicitOperationalRequest\s*=\s*[\s\S]{0,800}isJarvisCapabilityForensicsRequest/);
-    assert.match(core, /anali\[sz\]/);
-    assert.match(core, /typo-normalization-v1-20260713/);
-    assert.match(semantic, /replace\(\/\\banalisa\\b\/g, "analiza"\)/);
-    assert.match(vision, /replace\(\/\\banalisa\\b\/g, "analiza"\)/);
-    assert.match(core, /isExplicitCasualSocialRequest/);
-    assert.match(core, /conversational_question_without_operational_verb/);
-    assert.match(core, /explicit_social_request_without_operational_verb/);
-    assert.ok(
-        core.indexOf("if (isConversationalQuestion)") <
-            core.indexOf("state?.hasPatchPreview &&"),
-        "a new explanatory question must outrank stale patch state"
-    );
-    assert.match(terminal, /canAnswerCasualTerminalLocally/);
-    assert.match(terminal, /Una API es un puente con reglas definidas/);
-    assert.match(terminal, /El marketing digital usa canales como redes sociales/);
-    assert.match(terminal, /Una landing es una página enfocada en una sola campaña/);
-    assert.match(terminal, /Responsive significa que una interfaz adapta su distribución/);
-    assert.match(terminal, /Una flotilla es el conjunto de vehículos/);
-    assert.match(terminal, /findLocalTerminalExplanation\(value\)/);
+    assert.match(core, /await buildJarvisMultifunctionToolCalls/);
+    assert.match(core, /lightMultifunctionCalls\.length === 1/);
+    assert.match(core, /model_selected_conversation/);
+    assert.doesNotMatch(core, /hasExplicitOperationalRequest/);
+    assert.doesNotMatch(core, /isExplicitCasualSocialRequest/);
+    assert.match(planner, /jarvisSemanticPlan/);
+    assert.match(planner, /trustedPlanCalls/);
+    assert.doesNotMatch(planner, /\.test\(/);
+    assert.doesNotMatch(planner, /new RegExp/);
+    assert.doesNotMatch(planner, /ACTION_MAP|ENTITY_MAP|STOPWORDS/);
+    assert.match(terminal, /jarvisSemanticRespond/);
+    assert.doesNotMatch(terminal, /canAnswerCasualTerminalLocally/);
+    assert.doesNotMatch(terminal, /findLocalTerminalExplanation/);
+    assert.doesNotMatch(terminal, /localExplanations/);
     assert.match(terminal, /await window\.consultarCerebroIA\(comando\)/);
     assert.match(terminal, /await window\.hablarJarvis\?\.\(\s*casualResponse/);
     assert.match(terminal, /window\.showJarvis\?\.\(\s*"Sistema listo"/);
@@ -558,13 +602,14 @@ test("multifunction media analysis preserves source trace and stays advisory", a
     assert.equal(analysis.policy.mayAuthorizeWrite, false);
 });
 
-test("multifunction planner routes natural requests into bounded read-only tools", () => {
+test("multifunction planner accepts model-selected bounded read-only tools", async () => {
     const calls =
-        buildJarvisMultifunctionToolCalls(
+        await planWithModel(
             "Jarvis, crea una landing y marketing con reels para Instagram",
-            {
-                brandName: "FixGo"
-            }
+            [
+                { name: "page.plan", args: { brandName: "FixGo" } },
+                { name: "marketing.plan", args: { brandName: "FixGo" } }
+            ]
         );
 
     assert.deepEqual(
@@ -586,10 +631,14 @@ test("multifunction planner routes natural requests into bounded read-only tools
     );
 });
 
-test("multifunction planner preserves mixed commands with common Spanish typos", () => {
+test("multifunction planner preserves every mixed command selected by the model", async () => {
     const calls =
-        buildJarvisMultifunctionToolCalls(
-            "Jarvis, analisa este PDF y crea una landing responsive"
+        await planWithModel(
+            "Jarvis, analisa este PDF y crea una landing responsive",
+            [
+                { name: "page.plan", args: {} },
+                { name: "media.analyze", args: {} }
+            ]
         );
 
     assert.deepEqual(
@@ -606,9 +655,10 @@ test("multifunction planner preserves mixed commands with common Spanish typos",
     );
 
     assert.deepEqual(
-        buildJarvisMultifunctionToolCalls(
-            "Jarvis, reviza el sistema y dime si esta sano"
-        ).map(call => call.name),
+        (await planWithModel(
+            "Jarvis, reviza el sistema y dime si esta sano",
+            [{ name: "system.health", args: {} }]
+        )).map(call => call.name),
         [
             "system.health"
         ]
@@ -933,11 +983,12 @@ test("repo diagnosis separates structural file type from secondary capabilities"
     );
 });
 
-test("multifunction planner exposes the daily supervision report", () => {
+test("multifunction planner exposes the daily supervision report", async () => {
     assert.deepEqual(
-        buildJarvisMultifunctionToolCalls(
-            "Jarvis, dame el estado del supervisor diario"
-        ).map(call => call.name),
+        (await planWithModel(
+            "Jarvis, dame el estado del supervisor diario",
+            [{ name: "system.supervision", args: {} }]
+        )).map(call => call.name),
         ["system.supervision"]
     );
 
@@ -956,12 +1007,16 @@ test("multifunction planner exposes the daily supervision report", () => {
     );
 });
 
-test("multifunction planner runs supervision now only with explicit approval", () => {
-    const pending = buildJarvisMultifunctionToolCalls(
-        "ejecuta la supervision diaria ahora"
+test("multifunction planner accepts approval only from trusted runtime context", async () => {
+    const selected = [{ name: "system.supervision.runNow", args: {} }];
+    const pending = await planWithModel(
+        "arre ejecuta la supervision diaria ahora",
+        selected
     );
-    const approved = buildJarvisMultifunctionToolCalls(
-        "arre ejecuta la supervision diaria ahora"
+    const approved = await planWithModel(
+        "ejecuta la supervision diaria ahora",
+        selected,
+        { approved: true }
     );
 
     assert.ok(pending.some(call =>
@@ -974,7 +1029,7 @@ test("multifunction planner runs supervision now only with explicit approval", (
     ));
 });
 
-test("multifunction planner routes real web research without confusing it with capability forensics", () => {
+test("multifunction planner routes model-selected web research without confusing it with forensics", async () => {
     const prompts = [
         "Jarvis, busca en internet las ultimas novedades de Firebase Functions",
         "Investiga en la web el estado actual de Gemini API y dame fuentes",
@@ -983,8 +1038,9 @@ test("multifunction planner routes real web research without confusing it with c
 
     for (const prompt of prompts) {
         const calls =
-            buildJarvisMultifunctionToolCalls(
-                prompt
+            await planWithModel(
+                prompt,
+                [{ name: "web.research", args: { query: prompt } }]
             );
 
         assert.deepEqual(
@@ -1001,25 +1057,25 @@ test("multifunction planner routes real web research without confusing it with c
             false
         );
         assert.equal(
-            isJarvisTechnicalDiagnosticRequest(
-                prompt
-            ),
+            isJarvisTechnicalDiagnosticRequest(calls),
             false,
             prompt
         );
     }
 
     assert.deepEqual(
-        buildJarvisMultifunctionToolCalls(
-            "Jarvis, puedes buscar en internet y citar fuentes?"
-        ).map(call => call.name),
+        (await planWithModel(
+            "Jarvis, puedes buscar en internet y citar fuentes?",
+            [{ name: "system.forensics", args: {} }]
+        )).map(call => call.name),
         ["system.forensics"]
     );
 
     assert.deepEqual(
-        buildJarvisMultifunctionToolCalls(
-            "Jarvis, investiga en la web con fuentes oficiales por que Firebase Hosting puede mostrar contenido antiguo despues de desplegar"
-        ).map(call => call.name),
+        (await planWithModel(
+            "Jarvis, investiga en la web con fuentes oficiales por que Firebase Hosting puede mostrar contenido antiguo despues de desplegar",
+            [{ name: "web.research", args: { query: "Firebase Hosting" } }]
+        )).map(call => call.name),
         ["web.research"]
     );
 });
@@ -1035,7 +1091,7 @@ test("web research strips assistant command boilerplate before searching", () =>
     assert.match(source, /(?:web\|internet\|google)/);
 });
 
-test("multifunction planner routes capability boundary questions to forensics", () => {
+test("multifunction planner routes capability boundary questions to forensics", async () => {
     const prompts = [
         "Jarvis, corre un analisis forense de tus capacidades reales",
         "Jarvis, corre un analisis forense de tus capacidades reales modo Codex V7: dime que herramientas tienes, cuales faltan, donde falla, y no modifiques nada",
@@ -1044,34 +1100,45 @@ test("multifunction planner routes capability boundary questions to forensics", 
     ];
 
     for (const prompt of prompts) {
+        const calls = await planWithModel(
+            prompt,
+            [{ name: "system.forensics", args: {} }]
+        );
         assert.equal(
-            isJarvisCapabilityForensicsRequest(prompt),
+            isJarvisCapabilityForensicsRequest(calls),
             true,
             `forensics gate: ${prompt}`
         );
         assert.deepEqual(
-            buildJarvisMultifunctionToolCalls(prompt).map(call => call.name),
+            calls.map(call => call.name),
             ["system.forensics"],
             prompt
         );
     }
 });
 
-test("multifunction planner routes real browser, image, document and connector actuators", () => {
-    const browser = buildJarvisMultifunctionToolCalls(
-        "revisa https://example.com en el navegador"
+test("multifunction planner routes real browser, image, document and connector actuators", async () => {
+    const browser = await planWithModel(
+        "revisa https://example.com en el navegador",
+        [{ name: "browser.inspect", args: { url: "https://example.com" } }]
     );
-    const image = buildJarvisMultifunctionToolCalls(
-        "genera una imagen futurista de FixGo"
+    const image = await planWithModel(
+        "genera una imagen futurista de FixGo",
+        [{ name: "image.generate", args: { prompt: "FixGo" } }]
     );
-    const document = buildJarvisMultifunctionToolCalls(
-        "arre crea un documento markdown con el reporte"
+    const document = await planWithModel(
+        "crea un documento markdown con el reporte",
+        [{ name: "document.create", args: { format: "md" } }],
+        { approved: true }
     );
-    const connectors = buildJarvisMultifunctionToolCalls(
-        "muestra el estado de conectores"
+    const connectors = await planWithModel(
+        "muestra el estado de conectores",
+        [{ name: "connector.list", args: {} }]
     );
-    const presentation = buildJarvisMultifunctionToolCalls(
-        "arre crea una presentacion pptx del estado de Jarvis"
+    const presentation = await planWithModel(
+        "crea una presentacion pptx del estado de Jarvis",
+        [{ name: "document.create", args: { format: "pptx" } }],
+        { approved: true }
     );
 
     assert.ok(browser.some(call => call.name === "browser.inspect"));
@@ -1090,18 +1157,29 @@ test("multifunction planner routes real browser, image, document and connector a
     ));
 });
 
-test("document contents do not trigger unrelated capability tools", () => {
+test("document contents do not trigger unrelated capability tools", async () => {
     assert.deepEqual(
-        buildJarvisMultifunctionToolCalls(
-            "arre Jarvis, crea una presentacion pptx titulada Informe V7 con secciones capacidades, pruebas y pendientes"
-        ).map(call => call.name),
+        (await planWithModel(
+            "Jarvis, crea una presentacion pptx titulada Informe V7 con secciones capacidades, pruebas y pendientes",
+            [{ name: "document.create", args: { format: "pptx" } }]
+        )).map(call => call.name),
         ["document.create"]
     );
 });
 
-test("multifunction planner delegates several read-only tasks in parallel", () => {
-    const calls = buildJarvisMultifunctionToolCalls(
-        "Jarvis, delega en paralelo la salud del sistema, conectores y estado git del repo"
+test("multifunction planner delegates several read-only tasks in parallel", async () => {
+    const calls = await planWithModel(
+        "Jarvis, delega en paralelo la salud del sistema, conectores y estado git del repo",
+        [{
+            name: "agent.delegate",
+            args: {
+                tasks: [
+                    { tool: "system.health", args: {} },
+                    { tool: "connector.list", args: {} },
+                    { tool: "repo.gitStatus", args: {} }
+                ]
+            }
+        }]
     );
 
     assert.equal(calls.length, 1);
@@ -1147,44 +1225,48 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(core, /observation\?\.type === "JARVIS_CONVERSATIONAL_RESPONSE"/);
     assert.match(core, /DIRECT_ACTUATOR_COMPOSITION/);
     assert.match(core, /directActuatorFinalResponse/);
-    assert.match(terminal, /parallel-delegation-human-actuator-responses/);
+    assert.match(terminal, /sia7-model-semantic-planner-v3-20260714/);
 });
 
-test("multifunction planner does not turn explanatory questions into work orders", () => {
+test("multifunction planner keeps explanatory questions conversational", async () => {
     assert.deepEqual(
-        buildJarvisMultifunctionToolCalls(
-            "Que es marketing digital y para que sirve?"
-        ),
-        []
+        (await planWithModel(
+            "Que es marketing digital y para que sirve?",
+            [{ name: "conversation.respond", args: { prompt: "marketing digital" } }]
+        )).map(call => call.name),
+        ["conversation.respond"]
     );
 
     assert.deepEqual(
-        buildJarvisMultifunctionToolCalls(
-            "Explicame que es una flotilla"
-        ),
-        []
+        (await planWithModel(
+            "Explicame que es una flotilla",
+            [{ name: "conversation.respond", args: { prompt: "flotilla" } }]
+        )).map(call => call.name),
+        ["conversation.respond"]
     );
 
     assert.deepEqual(
-        buildJarvisMultifunctionToolCalls(
-            "Explicame marketing y crea una campana para Instagram"
-        ).map(call => call.name),
+        (await planWithModel(
+            "Explicame marketing y crea una campana para Instagram",
+            [{ name: "marketing.plan", args: {} }]
+        )).map(call => call.name),
         [
             "marketing.plan"
         ]
     );
 
     assert.deepEqual(
-        buildJarvisMultifunctionToolCalls(
-            "Explicame marketing y haz una campana para TikTok"
-        ).map(call => call.name),
+        (await planWithModel(
+            "Explicame marketing y haz una campana para TikTok",
+            [{ name: "marketing.plan", args: {} }]
+        )).map(call => call.name),
         [
             "marketing.plan"
         ]
     );
 });
 
-test("technical diagnostics outrank business keywords without requiring the word repo", () => {
+test("model-selected technical diagnostics outrank business tools", async () => {
     const prompts = [
         "Jarvis, reviza tecnico b2b y cliente html y dime como esta la configuracion y que puede fallar",
         "Jarvis, investiga por que al iniciar sesion en admin primero me manda a cliente y despues de segundos me manda a admin",
@@ -1193,35 +1275,40 @@ test("technical diagnostics outrank business keywords without requiring the word
     ];
 
     for (const prompt of prompts) {
+        const calls = await planWithModel(
+            prompt,
+            [{ name: "repo.search", args: { query: prompt } }]
+        );
         assert.equal(
-            isJarvisTechnicalDiagnosticRequest(prompt),
+            isJarvisTechnicalDiagnosticRequest(calls),
             true,
             prompt
         );
-        assert.deepEqual(
-            buildJarvisMultifunctionToolCalls(prompt),
-            [],
-            `business fallback must not capture: ${prompt}`
-        );
+        assert.ok(!calls.some(call => call.name === "business.assist"));
     }
 
     assert.deepEqual(
-        buildJarvisMultifunctionToolCalls(
-            "Jarvis, dame un resumen del cliente"
-        ).map(call => call.name),
+        (await planWithModel(
+            "Jarvis, dame un resumen del cliente",
+            [{ name: "business.assist", args: {} }]
+        )).map(call => call.name),
         ["business.assist"]
     );
 });
 
-test("mixed investigations retain technical and multifunction tools", () => {
+test("mixed investigations retain technical and multifunction tools", async () => {
     const supplemental =
-        buildJarvisMultifunctionToolCalls(
-            "Jarvis, revisa tecnico b2b y dime el estado del supervisor diario"
+        await planWithModel(
+            "Jarvis, revisa tecnico b2b y dime el estado del supervisor diario",
+            [
+                { name: "repo.search", args: { query: "tecnico b2b" } },
+                { name: "system.supervision", args: {} }
+            ]
         );
 
     assert.deepEqual(
         supplemental.map(call => call.name),
-        ["system.supervision"]
+        ["repo.search", "system.supervision"]
     );
 
     const merged =
@@ -1254,7 +1341,7 @@ test("mixed investigations retain technical and multifunction tools", () => {
     );
 });
 
-test("brain seeds natural multifunction requests into the tested planner", () => {
+test("brain awaits the model semantic planner and keeps bounded governance", () => {
     const brain =
         fs.readFileSync(
             path.join(
@@ -1267,21 +1354,13 @@ test("brain seeds natural multifunction requests into the tested planner", () =>
         );
 
     assert.match(brain, /buildJarvisMultifunctionToolCalls/);
-    assert.match(brain, /plannerSeedToolCalls\s*=\s*buildJarvisMultifunctionToolCalls/);
-    assert.match(brain, /plannerSeedToolCalls\.length\s*===\s*0/);
-    assert.match(brain, /plannerHasOperationalToolCalls/);
-    assert.match(brain, /call\.name\s*!==\s*"conversation\.respond"/);
-    assert.match(brain, /composeLocalInvestigationPlan/);
+    assert.match(brain, /plannerSeedToolCalls\s*=\s*await buildJarvisMultifunctionToolCalls/);
     assert.match(brain, /mergeJarvisToolCalls/);
-    assert.match(brain, /repoHubGlobalPlan\s*\|\|\s*localTechnicalPlan/);
-    assert.match(brain, /const cloudToolPlan\s*=\s*composedLocalPlan\s*\|\|/);
-    assert.match(brain, /buildLocalTechnicalInvestigationPlan/);
-    assert.match(brain, /local_technical_investigation/);
-    assert.match(brain, /patchPreviewAllowed:\s*false/);
-    assert.match(brain, /renderPatchPreview:\s*false/);
-    assert.match(brain, /REPO_HUB_GLOBAL_FORENSIC_EVIDENCE/);
-    assert.match(brain, /forensicCandidateFiles\.map/);
-    assert.match(brain, /requestedEvidenceCount \+ 3/);
+    assert.match(brain, /const toolCalls = plannerSeedToolCalls/);
+    assert.doesNotMatch(brain, /buildLocalTechnicalInvestigationPlan/);
+    assert.doesNotMatch(brain, /REPO_HUB_GLOBAL_FORENSIC_EVIDENCE/);
+    assert.doesNotMatch(brain, /forensicCandidateFiles\.map/);
+    assert.doesNotMatch(brain, /requestedEvidenceCount \+ 3/);
 
     const analysisHub = fs.readFileSync(
         path.join(
@@ -1296,7 +1375,7 @@ test("brain seeds natural multifunction requests into the tested planner", () =>
 
     assert.match(
         analysisHub,
-        /brain\.engine\.js\?v=mixed-intent-v2-20260714-multifunction-planner-v2-parallel-delegation/
+        /brain\.engine\.js\?v=sia7-model-semantic-planner-v3-20260714/
     );
 });
 
@@ -1335,7 +1414,9 @@ test("multifunction descriptor remains approval-bound", () => {
         describeJarvisMultifunctionPlanner();
 
     assert.equal(planner.mutates, false);
-    assert.equal(planner.maximumToolCalls, 3);
+    assert.equal(planner.maximumToolCalls, 12);
+    assert.equal(planner.architecture, "model_selected_runtime_catalog");
+    assert.equal(planner.approvalSource, "trusted_runtime_context");
 });
 
 test("terminal ledger stays compact and escapes persisted labels", () => {

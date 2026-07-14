@@ -1,427 +1,231 @@
-const VERSION = "2.0.0-sia7-parallel-delegation-routing";
+const VERSION = "3.0.0-model-semantic-planner";
+const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
+const CACHE_TTL_MS = 30000;
+const planCache = new Map();
+const pendingPlans = new Map();
 
-function normalize(value = "") {
-    return String(value || "")
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/^\s*(jarvis|heberto|gestia)[,\s:;-]*/i, "")
-        .toLowerCase()
-        .replace(/\banalisa\b/g, "analiza")
-        .replace(/\banalisar\b/g, "analizar")
-        .replace(/\breviza\b/g, "revisa")
-        .replace(/\brevizar\b/g, "revisar")
-        .trim();
+function runtimeCatalog(context = {}) {
+    const supplied = Array.isArray(context.toolCatalog)
+        ? context.toolCatalog
+        : null;
+    const registered = globalThis?.JarvisToolRuntime?.list?.();
+    const source = supplied || (Array.isArray(registered) ? registered : []);
+
+    return source
+        .filter(tool => tool?.name && typeof tool.name === "string")
+        .slice(0, 60)
+        .map(tool => ({
+            name: tool.name,
+            description: String(tool.description || "").slice(0, 500),
+            mutates: tool.mutates === true,
+            requiresApproval: tool.requiresApproval === true,
+            inputSchema: tool.inputSchema && typeof tool.inputSchema === "object"
+                ? tool.inputSchema
+                : null
+        }));
 }
 
-function makeCall(name, args = {}, reason = "LOCAL_MULTIFUNCTION_PLANNER") {
-    return {
-        name,
-        args,
-        reason,
-        mutates: false,
-        approved: false
-    };
+function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
+    const allowed = new Map(catalog.map(tool => [tool.name, tool]));
+    const candidates = Array.isArray(plan?.toolCalls) ? plan.toolCalls : [];
+    const seen = new Set();
+    const calls = [];
+
+    for (const candidate of candidates.slice(0, 12)) {
+        const tool = allowed.get(String(candidate?.name || ""));
+        if (!tool || seen.has(tool.name)) continue;
+        seen.add(tool.name);
+
+        calls.push({
+            name: tool.name,
+            args: candidate?.args && typeof candidate.args === "object" && !Array.isArray(candidate.args)
+                ? candidate.args
+                : {},
+            reason: String(candidate?.reason || "MODEL_SEMANTIC_TOOL_SELECTION").slice(0, 240),
+            mutates: tool.mutates,
+            approved: tool.mutates === true && context.approved === true
+        });
+    }
+
+    return calls;
 }
 
-export function mergeJarvisToolCalls(
-    ...groups
-) {
+async function callSemanticPlanner(input = "", catalog = []) {
+    const user = globalThis?.auth?.currentUser || globalThis?.window?.auth?.currentUser || null;
+    if (!user) {
+        throw new Error("SEMANTIC_PLANNER_AUTH_REQUIRED");
+    }
+
+    const token = await user.getIdToken();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 55000);
+
+    try {
+        const response = await fetch(ENDPOINT, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ data: { input, catalog } }),
+            signal: controller.signal
+        });
+        const text = await response.text();
+        let payload;
+
+        try {
+            payload = JSON.parse(text);
+        } catch {
+            throw new Error(`SEMANTIC_PLANNER_INVALID_RESPONSE_${response.status}`);
+        }
+
+        const result = payload?.result || payload?.data;
+        if (!response.ok || !result?.ok) {
+            throw new Error(
+                payload?.error?.message ||
+                result?.error ||
+                `SEMANTIC_PLANNER_HTTP_${response.status}`
+            );
+        }
+
+        return result;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+function planCacheKey(input = "", catalog = []) {
+    return JSON.stringify({
+        input,
+        tools: catalog.map(tool => ({
+            name: tool.name,
+            mutates: tool.mutates,
+            requiresApproval: tool.requiresApproval
+        }))
+    });
+}
+
+async function resolveSemanticPlan(input = "", catalog = [], semanticPlanner = null) {
+    const key = planCacheKey(input, catalog);
+    const cached = planCache.get(key);
+
+    if (cached && Date.now() - cached.savedAt < CACHE_TTL_MS) {
+        return cached.plan;
+    }
+
+    if (pendingPlans.has(key)) {
+        return pendingPlans.get(key);
+    }
+
+    const request = Promise.resolve()
+        .then(() => typeof semanticPlanner === "function"
+            ? semanticPlanner({ input, catalog })
+            : callSemanticPlanner(input, catalog))
+        .then(plan => {
+            planCache.set(key, { plan, savedAt: Date.now() });
+            return plan;
+        })
+        .finally(() => pendingPlans.delete(key));
+
+    pendingPlans.set(key, request);
+    return request;
+}
+
+export function mergeJarvisToolCalls(...groups) {
     const merged = [];
     const seen = new Set();
 
     for (const call of groups.flat()) {
         if (!call?.name) continue;
-
-        const key =
-            `${call.name}:${JSON.stringify(call.args || {})}`;
-
+        const key = `${call.name}:${JSON.stringify(call.args || {})}`;
         if (seen.has(key)) continue;
-
         seen.add(key);
         merged.push(call);
     }
 
-    return merged.slice(0, 8);
+    return merged.slice(0, 12);
 }
 
-export function isJarvisTechnicalDiagnosticRequest(input = "") {
-    const normalized = normalize(input);
+export function isJarvisTechnicalDiagnosticRequest(planOrCalls = []) {
+    const calls = Array.isArray(planOrCalls)
+        ? planOrCalls
+        : Array.isArray(planOrCalls?.toolCalls)
+            ? planOrCalls.toolCalls
+            : [];
 
-    if (!normalized) return false;
-
-    const hasExplicitWebSurface =
-        /\b(internet|en la web|google|noticias|fuentes web|informacion actualizada|datos actuales)\b/i.test(normalized);
-    const hasExplicitRepoScope =
-        /\b(repo|repositorio|codigo local|archivo local|este proyecto|esta aplicacion)\b/i.test(normalized) ||
-        /[a-z0-9_-]+\.(?:js|mjs|cjs|html|css|json)\b/i.test(normalized);
-
-    if (
-        hasExplicitWebSurface &&
-        !hasExplicitRepoScope
-    ) {
-        return false;
-    }
-
-    const hasDiagnosticVerb =
-        /\b(analiza|analizar|revisa|revisar|audita|auditar|investiga|investigar|diagnostica|diagnosticar|busca|buscar|verifica|verificar|checa|checar)\b/i.test(normalized);
-
-    if (!hasDiagnosticVerb) return false;
-
-    const hasTechnicalEvidence =
-        /\b(repo|repositorio|codigo|archivo|configuracion|runtime|router|ruta|redireccion|redirige|sesion|login|auth|firebase|firestore|terminal|ceo|admin|html|javascript|css|bug|error|falla|fallar|segundos)\b/i.test(normalized) ||
-        /[a-z0-9_-]+\.(?:js|mjs|cjs|html|css|json)\b/i.test(normalized);
-
-    return hasTechnicalEvidence;
-}
-
-export function isJarvisCapabilityForensicsRequest(input = "") {
-    const normalized = normalize(input);
-
-    if (!normalized) return false;
-
-    return (
-        /\b(analisis forense|auditoria forense|capacidades reales|limitaciones|paridad|nivel codex|a tu altura|que te falta|actuadores)\b/i.test(normalized) ||
-        (
-            /\b(puedes|sabes|tienes|cuentas con|eres capaz de)\b/i.test(normalized) &&
-            /\b(chrome|navegador|internet|web|fuentes|imagen|imagenes|correo|email|calendario|subagentes|agentes|automatizacion|conectores)\b/i.test(normalized)
-        )
+    return calls.some(call =>
+        String(call?.name || "").startsWith("repo.") &&
+        call?.name !== "repo.gitStatus" &&
+        call?.name !== "repo.gitDiff"
     );
 }
 
-export function buildJarvisMultifunctionToolCalls(
-    input = "",
-    context = {}
-) {
-    const raw =
-        String(input || "").trim();
+export function isJarvisCapabilityForensicsRequest(planOrCalls = []) {
+    const calls = Array.isArray(planOrCalls)
+        ? planOrCalls
+        : Array.isArray(planOrCalls?.toolCalls)
+            ? planOrCalls.toolCalls
+            : [];
+    return calls.some(call => call?.name === "system.forensics");
+}
 
-    const normalized =
-        normalize(raw);
+export async function buildJarvisMultifunctionToolCalls(input = "", context = {}) {
+    const instruction = String(input || "").trim();
+    if (!instruction) return [];
 
-    if (!normalized) return [];
+    const catalog = runtimeCatalog(context);
+    if (catalog.length === 0) {
+        globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__ = {
+            ok: false,
+            status: "TOOL_CATALOG_REQUIRED",
+            checkedAt: new Date().toISOString()
+        };
+        return [];
+    }
 
-    const calls = [];
-    const explicitApproval =
-        /\b(apruebo|aprobado|autorizo|autorizado|dale|arre)\b/i.test(normalized);
-    const urlMatch = raw.match(/https?:\/\/[^\s<>'"]+/i);
-
-    const isTechnicalDiagnostic =
-        isJarvisTechnicalDiagnosticRequest(normalized);
-
-    const hasExplicitOperationalRequest =
-        /\b(crea|crear|haz|hacer|prepara|preparar|disena|disenar|arma|construye|construir|desarrolla|desarrollar|genera|generar|analiza|analizar|analice|revisa|revisar|revise|extrae|extraer|resume|resumir|planifica|planificar|redacta|redactar|propone|proponer)\b/i.test(normalized);
-
-    const isExplanatoryQuestion =
-        /\b(que es|como funciona|explica(?:me)?|define|que significa|para que sirve)\b/i.test(normalized) &&
-        !hasExplicitOperationalRequest;
-
-    const isCapabilityForensicsRequest =
-        isJarvisCapabilityForensicsRequest(normalized);
-
-    const isWebResearchRequest =
-        !isCapabilityForensicsRequest &&
-        (
-            /\b(busca|buscar|investiga|investigar|consulta|consultar|averigua|averiguar|verifica|verificar)\b[\s\S]{0,100}\b(internet|web|google|noticias|fuentes|informacion actual|datos actuales)\b/i.test(normalized) ||
-            /\b(internet|web|google|noticias|fuentes)\b[\s\S]{0,100}\b(busca|buscar|investiga|investigar|consulta|consultar|averigua|averiguar|verifica|verificar)\b/i.test(normalized) ||
-            /\b(ultimas noticias|informacion actualizada|datos actuales)\b/i.test(normalized)
+    try {
+        const plan = await resolveSemanticPlan(
+            instruction,
+            catalog,
+            context.semanticPlanner
         );
+        const calls = trustedPlanCalls(plan, catalog, context);
 
-    const isDocumentCreationRequest =
-        /\b(crea|crear|genera|generar|redacta|redactar)\b[\s\S]{0,60}\b(documento|archivo markdown|csv|reporte html|presentacion|powerpoint|pptx|excel|xlsx|word|docx|pdf|hoja de calculo)\b/i.test(normalized);
+        globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__ = {
+            ok: plan?.ok === true,
+            status: plan?.status || "SEMANTIC_PLAN_READY",
+            provider: plan?.provider || "injected",
+            model: plan?.model || null,
+            toolCount: calls.length,
+            checkedAt: new Date().toISOString()
+        };
 
-    const isDelegationRequest =
-        /\b(en paralelo|delega|delegar|divide las tareas|varias tareas a la vez)\b/i.test(normalized);
-
-    if (isDelegationRequest) {
-        const tasks = [];
-
-        if (/\b(salud|sistema|runtime)\b/i.test(normalized)) {
-            tasks.push({ tool: "system.health", args: {} });
-        }
-        if (/\b(conectores|integraciones)\b/i.test(normalized)) {
-            tasks.push({ tool: "connector.list", args: {} });
-        }
-        if (/\b(capacidades|herramientas)\b/i.test(normalized)) {
-            tasks.push({ tool: "system.capabilities", args: {} });
-        }
-        if (/\b(supervision|supervisor)\b/i.test(normalized)) {
-            tasks.push({ tool: "system.supervision", args: {} });
-        }
-        if (isWebResearchRequest) {
-            tasks.push({ tool: "web.research", args: { query: raw } });
-        }
-        if (/\b(repo|repositorio|git)\b/i.test(normalized)) {
-            tasks.push({ tool: "repo.gitStatus", args: {} });
-        }
-
-        if (tasks.length >= 2) {
-            return [
-                makeCall(
-                    "agent.delegate",
-                    { tasks: tasks.slice(0, 4) },
-                    "LOCAL_MULTIFUNCTION_PARALLEL_DELEGATION"
-                )
-            ];
-        }
+        return calls;
+    } catch (error) {
+        globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__ = {
+            ok: false,
+            status: "SEMANTIC_PLANNER_UNAVAILABLE",
+            error: error?.message || String(error),
+            checkedAt: new Date().toISOString()
+        };
+        return [];
     }
-
-    if (isCapabilityForensicsRequest) {
-        calls.push(
-            makeCall(
-                "system.forensics",
-                {},
-                "LOCAL_MULTIFUNCTION_CAPABILITY_FORENSICS"
-            )
-        );
-    }
-
-    if (
-        /\b(hola|buenos dias|buen dia|buenas tardes|buenas noches|que tal|como estas|tecate|cerveza|cheve|chelita)\b/i.test(normalized)
-    ) {
-        calls.push(
-            makeCall(
-                "conversation.respond",
-                {
-                    prompt: raw
-                },
-                "LOCAL_MULTIFUNCTION_CONVERSATION"
-            )
-        );
-    }
-
-    if (
-        !isCapabilityForensicsRequest &&
-        !isDocumentCreationRequest &&
-        /\b(que puedes hacer|capacidades|herramientas disponibles|lista de herramientas|multifuncional)\b/i.test(normalized)
-    ) {
-        calls.push(
-            makeCall(
-                "system.capabilities",
-                {},
-                "LOCAL_MULTIFUNCTION_CAPABILITIES"
-            )
-        );
-    }
-
-    if (isWebResearchRequest) {
-        calls.push(
-            makeCall(
-                "web.research",
-                {
-                    query: raw
-                },
-                "LOCAL_MULTIFUNCTION_GROUNDED_WEB_RESEARCH"
-            )
-        );
-    }
-
-    const browserRequest =
-        Boolean(urlMatch) &&
-        /\b(abre|abrir|navega|navegar|inspecciona|inspeccionar|revisa|revisar|captura|screenshot|pantallazo)\b/i.test(normalized);
-
-    if (browserRequest) {
-        const wantsScreenshot =
-            /\b(captura|screenshot|pantallazo)\b/i.test(normalized);
-        calls.push({
-            ...makeCall(
-                wantsScreenshot ? "browser.screenshot" : "browser.inspect",
-                { url: urlMatch[0] },
-                "LOCAL_MULTIFUNCTION_BROWSER"
-            ),
-            mutates: wantsScreenshot,
-            approved: wantsScreenshot && explicitApproval
-        });
-    }
-
-    if (
-        /\b(genera|generar|crea|crear|disena|disenar|edita|editar)\b[\s\S]{0,50}\b(imagen|ilustracion|foto|logo|banner)\b/i.test(normalized) ||
-        /\b(imagen|ilustracion|foto|logo|banner)\b[\s\S]{0,50}\b(genera|generar|crea|crear|disena|disenar)\b/i.test(normalized)
-    ) {
-        calls.push(
-            makeCall(
-                "image.generate",
-                { prompt: raw },
-                "LOCAL_MULTIFUNCTION_IMAGE_GENERATION"
-            )
-        );
-    }
-
-    if (isDocumentCreationRequest) {
-        const format = /\b(presentacion|powerpoint|pptx)\b/i.test(normalized)
-            ? "pptx"
-            : /\b(excel|xlsx|hoja de calculo)\b/i.test(normalized)
-                ? "xlsx"
-                : /\b(word|docx)\b/i.test(normalized)
-                    ? "docx"
-                    : /\bpdf\b/i.test(normalized)
-                        ? "pdf"
-                        : /\bcsv\b/i.test(normalized)
-            ? "csv"
-            : /\bmarkdown\b/i.test(normalized)
-                ? "md"
-                : "html";
-        calls.push({
-            ...makeCall(
-                "document.create",
-                {
-                    format,
-                    output: `.jarvis-artifacts/documents/jarvis-${Date.now()}.${format}`,
-                    title: "Documento Jarvis",
-                    content: raw
-                },
-                "LOCAL_MULTIFUNCTION_DOCUMENT_CREATE"
-            ),
-            mutates: true,
-            approved: explicitApproval
-        });
-    }
-
-    if (/\b(lista|muestra|revisa|estado)\b[\s\S]{0,40}\b(conectores|integraciones)\b/i.test(normalized)) {
-        calls.push(
-            makeCall(
-                "connector.list",
-                {},
-                "LOCAL_MULTIFUNCTION_CONNECTOR_LIST"
-            )
-        );
-    }
-
-    if (
-        /\b(salud del sistema|estado del runtime|diagnostico del sistema|revisa el sistema)\b/i.test(normalized)
-    ) {
-        calls.push(
-            makeCall(
-                "system.health",
-                {},
-                "LOCAL_MULTIFUNCTION_HEALTH"
-            )
-        );
-    }
-
-    if (
-        /\b(supervisor diario|supervision diaria|reporte de supervision|estado del supervisor|ultimo reporte de jarvis)\b/i.test(normalized)
-    ) {
-        const runNow =
-            /\b(ejecuta|ejecutar|corre|correr|lanza|lanzar|ahora)\b/i.test(normalized);
-        calls.push(
-            runNow
-                ? {
-                    ...makeCall(
-                        "system.supervision.runNow",
-                        {},
-                        "LOCAL_MULTIFUNCTION_RUN_SUPERVISION_NOW"
-                    ),
-                    mutates: true,
-                    approved: explicitApproval
-                }
-                : makeCall(
-                    "system.supervision",
-                    {},
-                    "LOCAL_MULTIFUNCTION_DAILY_SUPERVISION"
-                )
-        );
-    }
-
-    const pageRequest =
-        /\b(crea|crear|disena|disenar|arma|construye|genera)\b[\s\S]{0,80}\b(pagina|landing|sitio|website|web)\b/i.test(normalized) ||
-        /\b(pagina|landing|sitio|website)\b[\s\S]{0,80}\b(responsive|oficial|editable)\b/i.test(normalized);
-
-    if (pageRequest) {
-        calls.push(
-            makeCall(
-                "page.plan",
-                {
-                    prompt: raw,
-                    pageName:
-                        context.pageName ||
-                        "pagina-oficial",
-                    brandName:
-                        context.brandName ||
-                        "GestiaPremium"
-                },
-                "LOCAL_MULTIFUNCTION_PAGE"
-            )
-        );
-    }
-
-    if (
-        !isExplanatoryQuestion &&
-        /\b(marketing|campana|publicidad|redes sociales|flyer|reel|tiktok|instagram|facebook|embudo|copies|calendario de contenido)\b/i.test(normalized)
-    ) {
-        calls.push(
-            makeCall(
-                "marketing.plan",
-                {
-                    prompt: raw,
-                    brandName:
-                        context.brandName ||
-                        "FixGo / GestiaPremium",
-                    audience:
-                        context.audience ||
-                        ""
-                },
-                "LOCAL_MULTIFUNCTION_MARKETING"
-            )
-        );
-    }
-
-    if (
-        /\b(analiza|analizar|analice|revisa|revisar|revise|extrae|extraer|resume|resumir)\b[\s\S]{0,80}\b(pdf|imagen|foto|documento)\b/i.test(normalized)
-    ) {
-        calls.push(
-            makeCall(
-                "media.analyze",
-                {
-                    prompt: raw,
-                    mimeType:
-                        context?.media?.mimeType ||
-                        context?.mimeType ||
-                        ""
-                },
-                "LOCAL_MULTIFUNCTION_MEDIA"
-            )
-        );
-    }
-
-    if (
-        calls.length === 0 &&
-        !isExplanatoryQuestion &&
-        !isTechnicalDiagnostic &&
-        /\b(flotilla|tecnico|cliente|inquilino|empresa|reporte operativo|resumen empresarial)\b/i.test(normalized)
-    ) {
-        calls.push(
-            makeCall(
-                "business.assist",
-                {
-                    prompt: raw
-                },
-                "LOCAL_MULTIFUNCTION_BUSINESS"
-            )
-        );
-    }
-
-    return calls.slice(0, 3);
 }
 
 export function describeJarvisMultifunctionPlanner() {
     return {
         ok: true,
         version: VERSION,
-        maximumToolCalls: 3,
+        maximumToolCalls: 12,
+        architecture: "model_selected_runtime_catalog",
         mutates: false,
-        domains: [
-            "conversation",
-            "system",
-            "business",
-            "marketing",
-            "page",
-            "media",
-            "web",
-            "browser",
-            "document",
-            "image",
-            "connector",
-            "agent"
-        ]
+        failMode: "closed",
+        approvalSource: "trusted_runtime_context"
     };
 }
+
+export const __test = {
+    runtimeCatalog,
+    trustedPlanCalls,
+    planCacheKey
+};

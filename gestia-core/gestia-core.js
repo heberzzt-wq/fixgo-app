@@ -38,8 +38,8 @@ import {
 // Motores de lógica estratégica (Cerebro) y ejecución mecánica (Brazo)
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
-    isJarvisCapabilityForensicsRequest
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-multifunction-planner-v2-parallel-delegation-20260714-document-scope';
+    buildJarvisMultifunctionToolCalls
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-model-semantic-planner-v3-20260714';
 //import { ejecutarCambios } from '/gestia-core/operations-executor.engine.js';
 
 // ======================================================================================
@@ -186,11 +186,8 @@ const CORE_CONFIG = {
 import {
     sincronizarCorralSemantico,
     getSemanticCognitiveState
-} from '/gestia-core/semantic.engine.js?v=typo-normalization-v1-20260713';
-import {
-    analyzeIntent as analyzeVisionIntent
-} from '/gestia-core/jarvis/jarvis.vision.engine.js?v=typo-normalization-v2-read-only-negation-20260713';
-import '/gestia-core/brain.engine.js?v=mixed-intent-v2-20260714-multifunction-planner-v2-parallel-delegation';
+} from '/gestia-core/semantic.engine.js?v=sia7-model-context-v8-20260714';
+import '/gestia-core/brain.engine.js?v=sia7-model-semantic-planner-v3-20260714';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
 import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260714-final-image-artifacts';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
@@ -4107,144 +4104,15 @@ export const GestiaCore = {
             return null;
         }
 
-        try {
-            await sincronizarCorralSemantico(
-                inputRaw
-            );
-        } catch(error) {
-            console.warn(
-                "GESTIA_CORE_LIGHT_SEMANTIC_FAIL",
-                error
-            );
-        }
-
-        const semantic =
-            getSemanticCognitiveState()
-                ?.lastSemanticResolution
-                ?.semantic ||
-            {};
-
-        const vision =
-            analyzeVisionIntent(
-                inputRaw
-            ) ||
-            {};
-
-        const semanticPrimaryConcept =
-            semantic.primaryConcept ||
-            semantic.concept ||
-            semantic.concepts?.[0]?.concept ||
-            "GENERAL";
-
-        const semanticHasOperationalConcept =
-            Array.isArray(semantic.concepts) &&
-            semantic.concepts.length > 0 &&
-            semanticPrimaryConcept !== "GENERAL";
-
-        const visionHasOperationalIntent =
-            Boolean(
-                vision.targetFile ||
-                vision.action ||
-                (
-                    vision.intent &&
-                    vision.intent !== "UNKNOWN"
-                )
-            );
-
-        const hasActiveTechnicalFlow =
-            Boolean(
-                state?.hasActivePatchProposal ||
-                state?.hasLastPatchPreview ||
-                state?.hasPatchPreview ||
-                state?.proposalAdjustmentInFlight
-            );
-
-        const normalizedLightInput =
-            normalizeObservationText(inputRaw);
-
         const lightMultifunctionCalls =
-            buildJarvisMultifunctionToolCalls(
-                inputRaw
-            );
-
-        const hasMultifunctionOperationalRequest =
-            lightMultifunctionCalls.some(call =>
-                call?.name &&
-                call.name !== "conversation.respond"
-            );
-
-        const hasExplicitOperationalRequest =
-            /\b(crea|crear|genera|generar|construye|construir|modifica|modificar|actualiza|actualizar|repara|reparar|implementa|implementar|ejecuta|ejecutar|despliega|desplegar|anali[sz](?:a|ar|e)?|revi[sz](?:a|ar|e)?|busca|buscar|escanea|escanear|elimina|eliminar|escribe|aprobar|aprueba)\b/i.test(
-                normalizedLightInput
-            ) ||
-            hasMultifunctionOperationalRequest ||
-            isJarvisCapabilityForensicsRequest(
-                normalizedLightInput
-            );
-
-        const isExplicitCasualSocialRequest =
-            /\b(hola|buenos dias|buen dia|buenas tardes|buenas noches|gracias|se me antoja|tengo ganas|vamos por|salud|cansad[oa]|me canse)\b/i.test(
-                normalizedLightInput
-            );
-
-        const isConversationalQuestion =
-            /\b(que es|quien es|como funciona|explica(?:me)?|dime|cuenta(?:me)?|define|significa)\b/i.test(
-                normalizedLightInput
-            ) &&
-            !hasExplicitOperationalRequest;
-
-        const semanticConceptNames =
-            Array.isArray(semantic.concepts)
-                ? semantic.concepts
-                    .map(item => item?.concept)
-                    .filter(Boolean)
-                : [];
-
-        const semanticHasPatchPreviewConcept =
-            [
-                semantic.primaryConcept,
-                semantic.concept,
-                ...semanticConceptNames
-            ]
-                .filter(Boolean)
-                .some(concept =>
-                    [
-                        "PATCH_ANALYSIS",
-                        "SUPERVISED_EXECUTION"
-                    ]
-                        .includes(concept)
-                );
-
-        const visionHasPatchPreviewAction =
-            [
-                vision.action,
-                vision.intent
-            ]
-                .filter(Boolean)
-                .some(value =>
-                    [
-                        "patch",
-                        "fix",
-                        "UPDATE",
-                        "REPAIR"
-                    ]
-                        .includes(value)
-                );
-
-        const visionTargetsRepoHubAnalysis =
-            vision.targetFile === "repo.hub" ||
-            vision.action === "inspect_repo" ||
-            (
-                Array.isArray(vision.tags) &&
-                vision.tags.includes("repo_analysis")
+            await buildJarvisMultifunctionToolCalls(
+                inputRaw,
+                { state }
             );
 
         if (
-            isConversationalQuestion ||
-            (
-                isExplicitCasualSocialRequest &&
-                !hasExplicitOperationalRequest
-            )
+            lightMultifunctionCalls.length === 1 &&
+            lightMultifunctionCalls[0]?.name === "conversation.respond"
         ) {
             return {
                 mode: "CASUAL_NOOP",
@@ -4254,51 +4122,7 @@ export const GestiaCore = {
                 useRepoTools: false,
                 renderCard: false,
                 prepareCommand: false,
-                reason: isConversationalQuestion
-                    ? "conversational_question_without_operational_verb"
-                    : "explicit_social_request_without_operational_verb"
-            };
-        }
-
-        if (
-            state?.hasPatchPreview &&
-            !visionTargetsRepoHubAnalysis &&
-            (
-                semanticHasPatchPreviewConcept ||
-                visionHasPatchPreviewAction
-            )
-        ) {
-            return {
-                mode: "PATCH_PROPOSAL",
-                confidence: 0.88,
-                objective: "Reuse active patchPreviewCandidate for supervised dry-run preview.",
-                useAgentLoop: false,
-                useRepoTools: false,
-                renderCard: true,
-                prepareCommand: true,
-                writeAllowed: false,
-                writeAuthorization: false,
-                approvalRequiredForWrite: true,
-                useLastPatchPreview: true,
-                reason: "semantic_patch_preview_follow_up_with_active_candidate"
-            };
-        }
-
-        if (
-            !hasActiveTechnicalFlow &&
-            !hasExplicitOperationalRequest &&
-            !semanticHasOperationalConcept &&
-            !visionHasOperationalIntent
-        ) {
-            return {
-                mode: "CASUAL_NOOP",
-                confidence: 0.82,
-                objective: "",
-                useAgentLoop: false,
-                useRepoTools: false,
-                renderCard: false,
-                prepareCommand: false,
-                reason: "semantic_and_vision_general_without_active_flow"
+                reason: "model_selected_conversation"
             };
         }
 

@@ -58,7 +58,7 @@ export {
 
 }
 
-from "../brain.engine.js?v=mixed-intent-v2-20260714-multifunction-planner-v2-parallel-delegation";
+from "../brain.engine.js?v=sia7-model-semantic-planner-v3-20260714";
 
 /* =====================================================
    SCANNER FABRIC

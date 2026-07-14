@@ -52,6 +52,11 @@ const {
     runJarvisImageFallback
 } = require("./jarvis-image-generation");
 
+const {
+    runJarvisSemanticPlanner,
+    runJarvisSemanticResponse
+} = require("./jarvis-semantic-planner");
+
 /**
  * 🛡️ SELLADO DE INFRAESTRUCTURA (GLOBAL SCOPE)
  * Fix Crítico: initializeApp debe ocurrir al cargar el archivo para evitar 'app/no-app'.
@@ -2765,6 +2770,86 @@ exports.jarvisWebResearch = functions
                 missingKey
                     ? "La investigacion web no tiene credencial Gemini configurada."
                     : "No fue posible completar la investigacion web con fuentes."
+            );
+        }
+    });
+
+/**
+ * JARVIS SEMANTIC TOOL PLANNER
+ * Planeacion mediante un modelo real y catalogo runtime; no clasifica con regex ni diccionarios.
+ */
+exports.jarvisSemanticPlan = functions
+    .runWith({ timeoutSeconds: 60, memory: "256MB" })
+    .https
+    .onCall(async (data = {}, context) => {
+        const actor = await assertJarvisAdminContext(
+            context,
+            "planificar herramientas"
+        );
+
+        try {
+            const result = await runJarvisSemanticPlanner({
+                fetchImpl: fetch,
+                input: data?.input,
+                catalog: data?.catalog
+            });
+
+            console.log(JSON.stringify({
+                level: "INFO",
+                message: "JARVIS_SEMANTIC_PLAN_COMPLETE",
+                uid: actor.uid,
+                model: result.model,
+                catalogSize: result.catalogSize,
+                toolCount: result.toolCalls.length
+            }));
+
+            return result;
+        } catch (error) {
+            console.error(JSON.stringify({
+                level: "ERROR",
+                message: "JARVIS_SEMANTIC_PLAN_FAILED",
+                uid: actor.uid,
+                error: error?.message || String(error)
+            }));
+
+            throw new functions.https.HttpsError(
+                error?.message === "SEMANTIC_PLAN_INPUT_OUT_OF_RANGE" ||
+                error?.message === "SEMANTIC_PLAN_CATALOG_REQUIRED"
+                    ? "invalid-argument"
+                    : "unavailable",
+                error?.message || "No fue posible crear el plan semantico."
+            );
+        }
+    });
+
+exports.jarvisSemanticRespond = functions
+    .runWith({ timeoutSeconds: 60, memory: "256MB" })
+    .https
+    .onCall(async (data = {}, context) => {
+        const actor = await assertJarvisAdminContext(
+            context,
+            "conversar con Jarvis"
+        );
+
+        try {
+            const result = await runJarvisSemanticResponse({
+                fetchImpl: fetch,
+                input: data?.input || data?.prompt
+            });
+
+            console.log(JSON.stringify({
+                level: "INFO",
+                message: "JARVIS_SEMANTIC_RESPONSE_COMPLETE",
+                uid: actor.uid,
+                model: result.model
+            }));
+            return result;
+        } catch (error) {
+            throw new functions.https.HttpsError(
+                error?.message === "SEMANTIC_RESPONSE_INPUT_OUT_OF_RANGE"
+                    ? "invalid-argument"
+                    : "unavailable",
+                error?.message || "Jarvis no pudo responder con el modelo semantico."
             );
         }
     });

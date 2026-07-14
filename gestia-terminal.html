@@ -145,7 +145,7 @@ fetch("/gestia-terminal.js")
 <script type="module" src="/firebase.js"></script>
 
 <script type="module" src="/modules/terminal/proposal-state.js?v=shared-proposal-state-v1-20260713"></script>
-<script type="module" src="/gestia-core/gestia-core.js?v=mixed-intent-v2-20260714-parallel-delegation-human-actuator-responses-light-router-verified-connectors"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=sia7-model-semantic-planner-v3-20260714"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260707-4190"></script>
 <script
 type="module"
@@ -1234,7 +1234,7 @@ window.unlockJarvisVoice = function() {
 
         try {
             const PROJECT_ID = "fixgo-44e4d"; 
-            const functionUrl = `https://us-central1-${PROJECT_ID}.cloudfunctions.net/jarvisConversacional`;
+            const functionUrl = `https://us-central1-${PROJECT_ID}.cloudfunctions.net/jarvisSemanticRespond`;
 
             const obtenerTokenSeguro = () => {
                 return new Promise((resolve, reject) => {
@@ -1275,7 +1275,7 @@ window.unlockJarvisVoice = function() {
             ]);
 
             const jsonResponse = JSON.parse(text);
-            return jsonResponse.result?.respuesta || "Núcleo en silencio.";
+            return jsonResponse.result?.message || "";
 
         } catch (error) {
             if (error === "AUTH_TIMEOUT") return "El búnker no respondió a la firma de identidad.";
@@ -2077,118 +2077,6 @@ const isProtectedTerminalCommand =
             /^(repo|tests|codex|system|conversation|business|marketing|page|media)\./i.test(normalized) ||
             /^(jarvis,\s*)?(apruebo|aprobar|aprueba|escribe)\s+patch\b/i.test(normalized)
         );
-    };
-
-const findLocalTerminalExplanation =
-    function(value = "") {
-        const normalized =
-            normalizeCasualGateText(value);
-
-        if (
-            !/\b(que es|como funciona|explica(?:me)?|define|significa|para que sirve)\b/i.test(normalized)
-        ) {
-            return "";
-        }
-
-        const localExplanations = [
-            {
-                pattern: /\bapi\b/i,
-                response: "Una API es un puente con reglas definidas que permite que dos aplicaciones intercambien datos y ejecuten funciones de forma segura."
-            },
-            {
-                pattern: /\b(repositorio|repo)\b/i,
-                response: "Un repositorio es el espacio donde se guarda el código, su historial de cambios y la colaboración del proyecto."
-            },
-            {
-                pattern: /\bbase de datos\b/i,
-                response: "Una base de datos organiza y conserva información para que una aplicación pueda consultarla y actualizarla de manera controlada."
-            },
-            {
-                pattern: /\bfirebase\b/i,
-                response: "Firebase es una plataforma de Google que ofrece servicios para aplicaciones, como autenticación, base de datos, funciones y hosting."
-            },
-            {
-                pattern: /\bgithub\b/i,
-                response: "GitHub aloja repositorios Git y facilita revisar, compartir y publicar cambios de código en equipo."
-            },
-            {
-                pattern: /\b(inteligencia artificial|ia)\b/i,
-                response: "La inteligencia artificial permite que un sistema analice información y produzca decisiones o respuestas a partir de patrones y modelos."
-            },
-            {
-                pattern: /\bmarketing(?: digital)?\b/i,
-                response: "El marketing digital usa canales como redes sociales, buscadores, correo y páginas web para atraer personas, comunicar valor y convertir interés en clientes medibles."
-            },
-            {
-                pattern: /\b(landing|pagina de aterrizaje)\b/i,
-                response: "Una landing es una página enfocada en una sola campaña u objetivo, con un mensaje claro y una llamada a la acción como registrarse, pedir información o comprar."
-            },
-            {
-                pattern: /\bresponsive\b/i,
-                response: "Responsive significa que una interfaz adapta su distribución, tamaños y controles para funcionar correctamente en celular, tableta y computadora."
-            },
-            {
-                pattern: /\bflotilla\b/i,
-                response: "Una flotilla es el conjunto de vehículos que una organización administra, incluyendo ubicación, mantenimiento, combustible, operadores y disponibilidad."
-            }
-        ];
-
-        const localExplanation =
-            localExplanations.find(item =>
-                item.pattern.test(normalized)
-            );
-
-        return localExplanation?.response || "";
-    };
-
-const buildCasualTerminalResponse =
-    function(value = "") {
-        const normalized =
-            normalizeCasualGateText(value);
-
-        const localExplanation =
-            findLocalTerminalExplanation(value);
-
-        if (localExplanation) {
-            return localExplanation;
-        }
-
-        if (
-            /\b(tecate|cerveza|cheve|chelita)\b/i.test(normalized)
-        ) {
-            return "¡Buenos días, pariente! Una Tecate bien fría suena buena; nomás con calma si vas a manejar. ¿Qué armamos hoy?";
-        }
-
-        if (
-            /\b(se\s+me\s+antoja|tengo\s+ganas|vamos\s+por|salud)\b/i.test(normalized)
-        ) {
-            return "Buenas, arquitecto. Jajaja suena a buen plan; aqui sigo al pendiente cuando quieras seguirle.";
-        }
-
-        if (
-            /\b(cansad[oa]|me\s+canse|me\s+cans[eé])\b/i.test(normalized)
-        ) {
-            return "Te entiendo, arquitecto. Tomate un respiro; aqui me quedo listo para seguir cuando digas.";
-        }
-
-        if (
-            /\b(hola|buenos dias|buen dia|buenas tardes|buenas noches)\b/i.test(normalized)
-        ) {
-            return "¡Buenos días, pariente! Jarvis está activo y listo. ¿Qué armamos hoy?";
-        }
-
-        return "Buenas, arquitecto. Aqui sigo al pendiente.";
-    };
-
-const canAnswerCasualTerminalLocally =
-    function(value = "") {
-        const normalized =
-            normalizeCasualGateText(value);
-
-        return Boolean(
-            findLocalTerminalExplanation(value)
-        ) ||
-            /\b(hola|buenos dias|buen dia|buenas tardes|buenas noches|gracias|se me antoja|tengo ganas|vamos por|salud|cansad[oa]|me canse)\b/i.test(normalized);
     };
 
 const isUsableConversationalCloudResponse =
@@ -3217,24 +3105,13 @@ if (
                     terminalBrainRoute.confidence || 0.8
             });
 
-            let casualResponse =
-                buildCasualTerminalResponse(comando);
-
-            if (
-                !canAnswerCasualTerminalLocally(comando) &&
+            const casualResponse =
                 typeof window.consultarCerebroIA === "function"
-            ) {
-                const cloudCasualResponse =
-                    await window.consultarCerebroIA(comando);
+                    ? await window.consultarCerebroIA(comando)
+                    : "";
 
-                if (
-                    isUsableConversationalCloudResponse(
-                        cloudCasualResponse
-                    )
-                ) {
-                    casualResponse =
-                        cloudCasualResponse;
-                }
+            if (!isUsableConversationalCloudResponse(casualResponse)) {
+                throw new Error("SEMANTIC_CONVERSATION_UNAVAILABLE");
             }
 
             window.renderJarvisResponse?.(

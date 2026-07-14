@@ -27,7 +27,7 @@ import {
   sincronizarCorralSemantico,
   getSemanticCognitiveState
 
-} from "./semantic.engine.js?v=typo-normalization-v1-20260713";
+} from "./semantic.engine.js?v=sia7-model-context-v8-20260714";
 
 import { JarvisMemory }
 from "./jarvis/jarvis.memory.js";
@@ -35,24 +35,15 @@ from "./jarvis/jarvis.memory.js";
 import {
 
   buildJarvisMultifunctionToolCalls,
-  isJarvisTechnicalDiagnosticRequest,
   mergeJarvisToolCalls
 
-} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-multifunction-planner-v2-parallel-delegation-20260714-document-scope";
-
-import {
-
-  analyzeIntent
-
-} from "./jarvis/jarvis.vision.engine.js?v=typo-normalization-v2-read-only-negation-20260713";
+} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-model-semantic-planner-v3-20260714";
 
 import {
 
   runCommandCenter,
   runSentinel,
-  runLiveQuery,
-  runPredictor,
-  runCommander
+  runLiveQuery
 
 } from "./jarvis/jarvis.firestore.engine.js";
 
@@ -406,32 +397,6 @@ async function buildLiveContext(
 
   let predictor = null;
   let commander = null;
-
-  if (
-
-    String(prompt)
-      .toLowerCase()
-      .includes("riesgo")
-
-  ) {
-
-    predictor =
-      await runPredictor()
-        .catch(() => null);
-  }
-
-  if (
-
-    String(prompt)
-      .toLowerCase()
-      .includes("prioridad")
-
-  ) {
-
-    commander =
-      await runCommander()
-        .catch(() => null);
-  }
 
   return {
 
@@ -801,251 +766,6 @@ function buildFocusedSemanticToolCalls(
       maxToolCalls
     )
   );
-}
-
-function resolveRepoHubVisionIntent(
-  input = ""
-) {
-  try {
-    const vision =
-      analyzeIntent(input);
-
-    if (
-      vision?.targetFile === "repo.hub" &&
-      vision?.action === "inspect_repo" &&
-      Array.isArray(vision?.tags) &&
-      vision.tags.includes("read_only")
-    ) {
-      return vision;
-    }
-  } catch(error) {
-    console.warn(
-      "REPO_HUB_VISION_INTENT_FAIL",
-      error
-    );
-  }
-
-  return null;
-}
-
-function buildRepoHubGlobalAnalysisPlan(
-  objective = "",
-  vision = null
-) {
-  if (!vision) {
-    return null;
-  }
-
-  const cleanObjective =
-    normalizeSemanticPlannerText(
-      objective
-    );
-
-  const countWords = {
-    uno: 1,
-    una: 1,
-    dos: 2,
-    tres: 3,
-    cuatro: 4,
-    cinco: 5
-  };
-
-  const countMatch =
-    cleanObjective.match(
-      /\b(\d{1,2}|uno|una|dos|tres|cuatro|cinco)\s+(?:fallas?|errores?|riesgos?|problemas?|hallazgos?)\b/
-    );
-
-  const requestedEvidenceCount =
-    Math.min(
-      3,
-      Math.max(
-        1,
-        countMatch
-          ? Number(countMatch[1]) || countWords[countMatch[1]] || 3
-          : 3
-      )
-    );
-
-  const forensicCandidateFiles = [
-    "gestia-terminal.js",
-    "gestia-core/operations-executor.engine.js",
-    "gestia-core/plans.engine.js",
-    "gestia-core/tools.runtime.js",
-    "gestia-core/brain.engine.js",
-    "gestia-core/gestia-core.js"
-  ].slice(0, requestedEvidenceCount + 3);
-
-  return {
-    intent:
-      "REPO_GLOBAL_ANALYSIS",
-    objective:
-      cleanObjective ||
-      objective,
-    targetFile:
-      "repo.hub",
-    module:
-      "repo",
-    action:
-      "inspect_repo",
-    toolCalls: [
-      buildSemanticToolCall(
-        "repo.scan",
-        {
-          scope:
-            "repo",
-          maxFiles:
-            5000
-        },
-        "REPO_HUB_GLOBAL_ANALYSIS"
-      ),
-      buildSemanticToolCall(
-        "repo.search",
-        {
-          query:
-            cleanObjective ||
-            objective,
-          maxMatches:
-            120
-        },
-        "REPO_HUB_GLOBAL_ANALYSIS"
-      ),
-      ...forensicCandidateFiles.map(file =>
-        buildSemanticToolCall(
-          "repo.diagnose",
-          {
-            file,
-            mode: "diagnose",
-            rawInput: cleanObjective || objective
-          },
-          "REPO_HUB_GLOBAL_FORENSIC_EVIDENCE"
-        )
-      )
-    ],
-    writeAllowed:
-      false,
-    writeAuthorization:
-      false,
-    requiresApprovalForWrite:
-      true,
-    patchPreviewAllowed:
-      false,
-    renderPatchPreview:
-      false,
-    requestedEvidenceCount,
-    forensicCandidateFiles,
-    confidence:
-      vision.confidence || null,
-    source:
-      "repo_hub_vision_intent"
-  };
-}
-
-function inferTechnicalDiagnosticFiles(
-  objective = "",
-  vision = null
-) {
-  const normalized =
-    normalizeSemanticPlannerText(objective)
-      .toLowerCase();
-
-  const files = [
-    ...(
-      normalized.match(
-        /\b[a-z0-9_-]+\.(?:js|mjs|cjs|html|css|json)\b/g
-      ) || []
-    )
-  ];
-
-  const add = file => {
-    if (file && !files.includes(file)) {
-      files.push(file);
-    }
-  };
-
-  if (/\b(login|sesion|auth|autentica)/.test(normalized)) {
-    add("app-login.js");
-    add("firebase.js");
-  }
-
-  if (/\b(redireccion|redirige|manda|admin|ceo|terminal)\b/.test(normalized)) {
-    add("firebase.js");
-    add("app-main.js");
-  }
-
-  if (/\btecnico\s+b2b\b/.test(normalized)) {
-    add("tecnico-b2b.html");
-    add("app-tecnico-b2b.js");
-  }
-
-  if (/\bcliente(?:\s+html)?\b/.test(normalized)) {
-    add("cliente.html");
-  }
-
-  if (
-    vision?.targetFile &&
-    vision.targetFile !== "repo.hub"
-  ) {
-    add(vision.targetFile);
-  }
-
-  return files.slice(0, 6);
-}
-
-function buildLocalTechnicalInvestigationPlan(
-  objective = "",
-  vision = null
-) {
-  if (!isJarvisTechnicalDiagnosticRequest(objective)) {
-    return null;
-  }
-
-  const cleanObjective =
-    normalizeSemanticPlannerText(objective);
-
-  const files =
-    inferTechnicalDiagnosticFiles(
-      cleanObjective,
-      vision
-    );
-
-  const toolCalls = [
-    buildSemanticToolCall(
-      "repo.search",
-      {
-        query: cleanObjective,
-        maxMatches: 120
-      },
-      "LOCAL_TECHNICAL_INVESTIGATION"
-    )
-  ];
-
-  for (const file of files) {
-    toolCalls.push(
-      buildSemanticToolCall(
-        "repo.read",
-        { file },
-        "LOCAL_TECHNICAL_INVESTIGATION"
-      ),
-      buildSemanticToolCall(
-        "repo.diagnose",
-        { file },
-        "LOCAL_TECHNICAL_INVESTIGATION"
-      )
-    );
-  }
-
-  return {
-    intent: "REPO_INVESTIGATION",
-    objective: cleanObjective || objective,
-    targetFiles: files,
-    toolCalls: toolCalls.slice(0, 14),
-    writeAllowed: false,
-    patchPreviewAllowed: false,
-    renderPatchPreview: false,
-    requiresApprovalForWrite: true,
-    confidence: vision?.confidence || null,
-    source: "local_technical_investigation"
-  };
 }
 
 function composeLocalInvestigationPlan(
@@ -2187,138 +1907,20 @@ export async function runCognitiveReasoning(
         ?.lastSemanticResolution
         ?.semantic;
 
-    const inferences =
-      inferOperationalIntent(
-        semantic
-      );
-
-    const strategicMode =
-      determineStrategicMode(
-
-        semantic,
-        inferences
-      );
-
-    const executionChain =
-    buildExecutionChain(
-
-      inferences,
-
-      semantic,
-
-      contexto
-    );
-
-    const repoHubVisionIntent =
-      resolveRepoHubVisionIntent(
-        input
-      );
+    const inferences = [];
+    const strategicMode = "PROTECTIVE";
+    const executionChain = [];
 
     const plannerSeedToolCalls =
-      buildJarvisMultifunctionToolCalls(
+      await buildJarvisMultifunctionToolCalls(
         input,
-        contexto
-      );
-
-    const plannerHasOperationalToolCalls =
-      plannerSeedToolCalls.some(call =>
-        call?.name &&
-        call.name !== "conversation.respond"
-      );
-
-    const repoHubGlobalPlan =
-      buildRepoHubGlobalAnalysisPlan(
-        input,
-        repoHubVisionIntent
-      );
-
-    const localTechnicalPlan =
-      repoHubGlobalPlan
-        ? null
-        : buildLocalTechnicalInvestigationPlan(
-            input,
-            analyzeIntent(input)
-          );
-
-    const composedLocalPlan =
-      composeLocalInvestigationPlan(
-        repoHubGlobalPlan ||
-          localTechnicalPlan,
-        plannerSeedToolCalls
-      );
-
-    let cloudReasoning =
-      null;
-
-    if (
-      !composedLocalPlan &&
-      plannerSeedToolCalls.length === 0
-    ) {
-      try {
-      cloudReasoning =
-        (
-          BRAIN_CONFIG.TOOL_PLANNER_ENABLED === true
-            ? await invocarArquitectoIA(
-
-        input,
-
-                {
-          ...contexto,
-          semantic,
-          inferences,
-          strategicMode,
-          executionChain,
-          toolCalls:
-            plannerSeedToolCalls,
-          plannerMode:
-            "TOOL_PLANNER"
-        },
-
-        crypto.randomUUID(),
-        3200,
-        null,
-        "jarvis",
-        "tool_planner"
-        )
-            : null
-        );
-      } catch(cloudPlannerError) {
-      console.warn(
-        "CLOUD_TOOL_PLANNER_FAIL",
-        cloudPlannerError
-      );
-
-      emitBrainTelemetry(
-        "CLOUD_TOOL_PLANNER_FAIL",
         {
-          error:
-            cloudPlannerError?.message ||
-            String(cloudPlannerError)
-        },
-        "WARNING"
-      );
-      }
-    }
-
-    const fallbackCloudToolPlan =
-      normalizeCloudToolPlan(
-        cloudReasoning,
-        input,
-        semantic
+          ...contexto,
+          semantic
+        }
       );
 
-    const cloudToolPlan =
-      composedLocalPlan ||
-      (
-        plannerHasOperationalToolCalls
-          ? null
-          : fallbackCloudToolPlan
-      );
-
-    const toolCalls =
-      cloudToolPlan?.toolCalls?.length > 0
-        ? cloudToolPlan.toolCalls
-        : plannerSeedToolCalls;
+    const toolCalls = plannerSeedToolCalls;
 
     const reasoning = {
 
@@ -2331,8 +1933,7 @@ export async function runCognitiveReasoning(
 
       inferences,
 
-      visionIntent:
-        repoHubVisionIntent,
+      visionIntent: null,
 
             strategicMode:
         toolCalls.length > 0

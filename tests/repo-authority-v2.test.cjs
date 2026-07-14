@@ -1566,7 +1566,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /mixed-intent-v2-20260714-parallel-delegation-human-actuator-responses/);
+    assert.match(terminal, /sia7-model-semantic-planner-v3-20260714/);
     assert.match(terminal, /jarvis-runtime-macro-v2-20260707-4190/);
     assert.match(terminal, /isTerminalBrainRuntimeReady/);
     assert.doesNotMatch(terminal, /function isKernelSessionReady/);
@@ -1780,7 +1780,7 @@ test("terminal keeps natural repository analysis in the brain route", () => {
     assert.doesNotMatch(terminal, /combinedRepoFileMatch/);
 });
 
-test("brain protects repo hub analysis from visual patch proposal drift", () => {
+test("brain delegates natural intent to the bounded semantic model planner", () => {
     const brain =
         fs.readFileSync(
             path.join(
@@ -1792,32 +1792,23 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
             "utf8"
         );
 
-    assert.match(brain, /import\s*\{[\s\S]*analyzeIntent[\s\S]*\}\s*from\s*"\.\/jarvis\/jarvis\.vision\.engine\.js\?v=typo-normalization-v2-read-only-negation-20260713"/);
+    assert.match(brain, /buildJarvisMultifunctionToolCalls/);
+    assert.match(brain, /sia7-model-semantic-planner-v3-20260714/);
     assert.equal(
         (brain.match(/function initJarvisCodexV2BrainRouter/g) || []).length,
         1
     );
     assert.match(brain, /CODEX_V2_RUNTIME_NOT_READY/);
-    assert.match(brain, /resolveRepoHubVisionIntent/);
-    assert.match(brain, /buildRepoHubGlobalAnalysisPlan/);
-    assert.match(brain, /targetFile:\s*"repo\.hub"/);
-    assert.match(brain, /intent:\s*"REPO_GLOBAL_ANALYSIS"/);
-    assert.match(brain, /action:\s*"inspect_repo"/);
-    assert.match(brain, /patchPreviewAllowed:\s*false/);
-    assert.match(brain, /renderPatchPreview:\s*false/);
-    assert.match(brain, /writeAllowed:\s*false/);
-    assert.match(brain, /writeAuthorization:\s*false/);
-    assert.match(brain, /composeLocalInvestigationPlan/);
-    assert.match(brain, /repoHubGlobalPlan\s*\|\|\s*localTechnicalPlan/);
-    assert.match(brain, /if\s*\(\s*!composedLocalPlan\s*&&\s*plannerSeedToolCalls\.length\s*===\s*0\s*\)\s*\{[\s\S]{0,180}invocarArquitectoIA/);
-    assert.match(brain, /visionIntent:\s*repoHubVisionIntent/);
+    assert.doesNotMatch(brain, /resolveRepoHubVisionIntent/);
+    assert.doesNotMatch(brain, /buildRepoHubGlobalAnalysisPlan/);
+    assert.match(brain, /visionIntent:\s*null/);
     assert.doesNotMatch(brain, /shouldUseLegacyRegexToolDetector/);
     assert.doesNotMatch(brain, /buildToolCallsFromInput/);
-    assert.match(brain, /const plannerSeedToolCalls\s*=/);
+    assert.match(brain, /const plannerSeedToolCalls\s*=\s*await buildJarvisMultifunctionToolCalls/);
+    assert.match(brain, /const toolCalls = plannerSeedToolCalls/);
     assert.match(brain, /mergeJarvisToolCalls/);
     assert.match(brain, /isNonRetryableCloudFetchError/);
     assert.match(brain, /CLOUD_COGNITION_FAIL_FAST/);
-    assert.match(brain, /fallback:\s*"local_semantic_tool_planner"/);
     assert.match(brain, /breaker\.openUntil\s*=[\s\S]{0,120}BREAKER_COOLDOWN_MS/);
 
     const core =
@@ -1832,18 +1823,15 @@ test("brain protects repo hub analysis from visual patch proposal drift", () => 
     );
 
     assert.match(core, /patchPreviewAllowedByPlan/);
-    assert.match(core, /brain\.engine\.js\?v=mixed-intent-v2-20260714/);
+    assert.match(core, /brain\.engine\.js\?v=sia7-model-semantic-planner-v3-20260714/);
     assert.doesNotMatch(core, /brain\.engine\.js\?v=cloud-planner-fail-fast-41-62/);
     assert.match(core, /async analizarIntencionLigera/);
     assert.match(core, /sincronizarCorralSemantico/);
     assert.match(core, /getSemanticCognitiveState/);
-    assert.match(core, /analyzeVisionIntent/);
-    assert.match(core, /mode:\s*"PATCH_PROPOSAL"/);
-    assert.match(core, /useLastPatchPreview:\s*true/);
-    assert.match(core, /semantic_patch_preview_follow_up_with_active_candidate/);
-    assert.match(core, /const visionTargetsRepoHubAnalysis\s*=/);
-    assert.match(core, /!\s*visionTargetsRepoHubAnalysis/);
-    assert.match(core, /semantic_and_vision_general_without_active_flow/);
+    assert.doesNotMatch(core, /analyzeVisionIntent/);
+    assert.match(core, /model_selected_conversation/);
+    assert.doesNotMatch(core, /semantic_patch_preview_follow_up_with_active_candidate/);
+    assert.doesNotMatch(core, /semantic_and_vision_general_without_active_flow/);
     assert.match(core, /const brainAuthorityMode\s*=/);
     assert.match(core, /context\?\.naturalIntentAuthority\s*===\s*"brain"/);
     assert.match(core, /BRAIN_AUTHORITY_NO_LEGACY_FALLBACK/);
