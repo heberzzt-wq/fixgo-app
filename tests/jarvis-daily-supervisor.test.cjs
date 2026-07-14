@@ -224,6 +224,27 @@ test("functions and client registry expose the supervisor safely", () => {
     assert.doesNotMatch(runtimeHealth, /SIA7 REPAIR PLACEHOLDER/);
 });
 
+test("supervision endpoints stay isolated from optional Stripe and Gemini initialization", () => {
+    const functionsIndex = fs.readFileSync(
+        path.join(__dirname, "..", "functions", "index.js"),
+        "utf8"
+    );
+    const supervisorStart = functionsIndex.indexOf("exports.jarvisDailySupervisor");
+    const nextSection = functionsIndex.indexOf(
+        "exports.despachoTaticoB2B",
+        supervisorStart
+    );
+    const supervisionSection = functionsIndex.slice(
+        supervisorStart,
+        nextSection > supervisorStart ? nextSection : undefined
+    );
+
+    assert.ok(supervisorStart >= 0);
+    assert.doesNotMatch(supervisionSection, /initCore\(\)/);
+    assert.match(supervisionSection, /runDailyJarvisSupervision\(\{/);
+    assert.match(supervisionSection, /getLatestJarvisSupervisionReport\(\{ db \}\)/);
+});
+
 test("functions runtime stays on the supported Node 22 contract", () => {
     const functionsPackage = JSON.parse(
         fs.readFileSync(

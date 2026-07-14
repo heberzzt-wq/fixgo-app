@@ -2479,8 +2479,6 @@ exports.jarvisDailySupervisor = functions
     .schedule("15 4 * * *")
     .timeZone("America/Cancun")
     .onRun(async () => {
-        initCore();
-
         const report = await runDailyJarvisSupervision({
             db,
             admin
@@ -2502,8 +2500,6 @@ exports.jarvisSupervisionStatus = functions
     .runWith({ timeoutSeconds: 20, memory: "128MB" })
     .https
     .onCall(async (_data, context) => {
-        initCore();
-
         if (!context.auth?.uid) {
             throw new functions.https.HttpsError(
                 "unauthenticated",
