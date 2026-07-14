@@ -64,6 +64,14 @@ test("Firebase workflow deploys the image actuator with the Jarvis services", ()
     );
 
     assert.match(workflow, /functions:jarvisImageGenerate/);
+    const functionsIndex = fs.readFileSync(
+        path.resolve(__dirname, "../functions/index.js"),
+        "utf8"
+    );
+    assert.match(
+        functionsIndex,
+        /exports\.jarvisImageGenerate[\s\S]{0,240}secrets:\s*\["GEMINI_KEY"\]/
+    );
     assert.match(client, /CLOUD_FUNCTION_INVALID_RESPONSE_/);
     assert.match(client, /await response\.text\(\)/);
 });

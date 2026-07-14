@@ -2669,7 +2669,11 @@ exports.jarvisSupervisionRunNow = functions
  * Solo lectura, administracion autenticada y sin acciones externas.
  */
 exports.jarvisWebResearch = functions
-    .runWith({ timeoutSeconds: 60, memory: "256MB" })
+    .runWith({
+        timeoutSeconds: 60,
+        memory: "256MB",
+        secrets: ["GEMINI_KEY"]
+    })
     .https
     .onCall(async (data = {}, context) => {
         const actor =
@@ -2769,7 +2773,11 @@ exports.jarvisWebResearch = functions
  * Generacion multimodal autenticada para administracion.
  */
 exports.jarvisImageGenerate = functions
-    .runWith({ timeoutSeconds: 120, memory: "1GB" })
+    .runWith({
+        timeoutSeconds: 120,
+        memory: "1GB",
+        secrets: ["GEMINI_KEY"]
+    })
     .https
     .onCall(async (data = {}, context) => {
         const actor = await assertJarvisAdminContext(
