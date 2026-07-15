@@ -4706,7 +4706,7 @@ if (
                             }
                         );
                     return {
-                        toolCalls: nextToolCalls,
+                        toolCalls: nextToolCalls.slice(0, 1),
                         missionComplete: nextToolCalls.missionComplete === true,
                         completionAssessment: nextToolCalls.completionAssessment || null
                     };
