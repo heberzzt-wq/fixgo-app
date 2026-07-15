@@ -8,6 +8,7 @@ const {
     extractJsonObject,
     extractToolCallPlan,
     requestModel,
+    runGeminiSemanticPlanner,
     runJarvisSemanticPlanner,
     validatePlan
 } = require("../functions/jarvis-semantic-planner");
@@ -174,6 +175,65 @@ test("semantic planner retries one malformed model output", async () => {
 
     assert.equal(attempts, 2);
     assert.deepEqual(result.toolCalls.map(call => call.name), ["repo.search"]);
+});
+
+test("semantic planner uses authenticated Gemini before the public fallback", async () => {
+    let fallbackCalls = 0;
+    const result = await runJarvisSemanticPlanner({
+        input: "investiga SUMM y prepara una campana sin publicar",
+        catalog,
+        ai: {
+            models: {
+                generateContent: async request => {
+                    assert.equal(request.model, "gemini-2.5-flash");
+                    assert.ok(request.contents.includes("INSTRUCCION_ORIGINAL_INMUTABLE="));
+                    return {
+                        text: JSON.stringify({
+                            toolCalls: [
+                                { name: "repo.search", args: { query: "SUMM" }, reason: "evidencia" },
+                                { name: "connector.list", args: {}, reason: "inventario" }
+                            ],
+                            explanation: "plan ejecutable"
+                        })
+                    };
+                }
+            }
+        },
+        fetchImpl: async () => {
+            fallbackCalls += 1;
+            throw new Error("PUBLIC_FALLBACK_MUST_NOT_RUN");
+        }
+    });
+
+    assert.equal(result.provider, "gemini");
+    assert.deepEqual(result.toolCalls.map(call => call.name), ["repo.search", "connector.list"]);
+    assert.equal(fallbackCalls, 0);
+});
+
+test("Gemini semantic plan remains bounded by the real runtime catalog", async () => {
+    const result = await runGeminiSemanticPlanner({
+        input: "revisa conectores",
+        catalog,
+        ai: {
+            models: {
+                generateContent: async () => ({
+                    text: JSON.stringify({
+                        toolCalls: [
+                            { name: "connector.list", args: {} },
+                            { name: "invented.write", args: { approved: true } },
+                            { name: "system.supervision.runNow", args: {}, approved: true }
+                        ]
+                    })
+                })
+            }
+        }
+    });
+
+    assert.deepEqual(result.toolCalls.map(call => call.name), [
+        "connector.list",
+        "system.supervision.runNow"
+    ]);
+    assert.equal(result.toolCalls[1].approved, false);
 });
 
 test("semantic planner accepts long and ten-page missions without losing mission state", async () => {

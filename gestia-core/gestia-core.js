@@ -39,7 +39,7 @@ import {
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     buildJarvisMultifunctionToolCalls
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-model-semantic-planner-v4-missions-20260714';
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-model-semantic-planner-v5-gemini-20260714';
 import {
     runJarvisMission
 } from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-mission-orchestrator-v1-20260714';
@@ -190,7 +190,7 @@ import {
     sincronizarCorralSemantico,
     getSemanticCognitiveState
 } from '/gestia-core/semantic.engine.js?v=sia7-model-context-v8-20260714';
-import '/gestia-core/brain.engine.js?v=sia7-model-semantic-planner-v4-missions-20260714';
+import '/gestia-core/brain.engine.js?v=sia7-model-semantic-planner-v5-gemini-20260714';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
 import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260714-missions-v20';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
@@ -4311,6 +4311,35 @@ export const GestiaCore = {
 
                         const reasoning =
                             cognitiveResult?.reasoning;
+
+                        if (!cognitiveResult?.ok || !reasoning) {
+                            const plannerError =
+                                cognitiveResult?.error ||
+                                "SEMANTIC_PLANNER_UNAVAILABLE";
+
+                            atomicState.isHalted = true;
+                            atomicState.haltReason = "AGENT_TOOL_RESULT";
+                            atomicState.agentResult = {
+                                version: "7.2.1-semantic-fail-visible",
+                                mode: "MODEL_PLANNER_UNAVAILABLE",
+                                toolCalls: [],
+                                observations: [],
+                                mission: null,
+                                verified: false,
+                                finalResponse: {
+                                    ok: false,
+                                    title: "Jarvis no pudo iniciar la mision",
+                                    text: [
+                                        "El planificador semantico no entrego un plan ejecutable.",
+                                        `Causa verificable: ${plannerError}.`,
+                                        "No se ejecuto ninguna herramienta, no se modifico codigo y la mision no se reporta como completada.",
+                                        "Puedes reintentar la misma orden; Jarvis conserva el texto original en la interfaz."
+                                    ].join("\n"),
+                                    source: "SEMANTIC_PLANNER_FAILURE_VISIBLE"
+                                }
+                            };
+                            return;
+                        }
 
                         propuesta = {
 

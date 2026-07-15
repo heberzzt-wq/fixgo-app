@@ -2793,7 +2793,7 @@ exports.jarvisWebResearch = functions
  * Planeacion mediante un modelo real y catalogo runtime; no clasifica con regex ni diccionarios.
  */
 exports.jarvisSemanticPlan = functions
-    .runWith({ timeoutSeconds: 60, memory: "256MB" })
+    .runWith({ timeoutSeconds: 120, memory: "512MB", secrets: ["GEMINI_KEY"] })
     .https
     .onCall(async (data = {}, context) => {
         const actor = await assertJarvisAdminContext(
@@ -2804,6 +2804,7 @@ exports.jarvisSemanticPlan = functions
         try {
             const result = await runJarvisSemanticPlanner({
                 fetchImpl: fetch,
+                ai: getGroundedGenAI(),
                 input: data?.input,
                 catalog: data?.catalog,
                 missionState: data?.missionState || null

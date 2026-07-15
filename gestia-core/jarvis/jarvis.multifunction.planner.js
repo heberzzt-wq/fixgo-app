@@ -58,7 +58,7 @@ async function callSemanticPlanner(input = "", catalog = [], missionState = null
 
     const token = await user.getIdToken();
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 55000);
+    const timer = setTimeout(() => controller.abort(), 110000);
 
     try {
         const response = await fetch(ENDPOINT, {

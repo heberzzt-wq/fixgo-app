@@ -37,7 +37,7 @@ import {
   buildJarvisMultifunctionToolCalls,
   mergeJarvisToolCalls
 
-} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-model-semantic-planner-v4-missions-20260714";
+} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-model-semantic-planner-v5-gemini-20260714";
 
 import {
 
@@ -1955,6 +1955,20 @@ export async function runCognitiveReasoning(
 
     const toolCalls = plannerSeedToolCalls;
 
+    const semanticPlannerHealth =
+      globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__ || null;
+
+    if (
+      toolCalls.length === 0 &&
+      semanticPlannerHealth?.ok === false
+    ) {
+      throw new Error(
+        semanticPlannerHealth.error ||
+        semanticPlannerHealth.status ||
+        "SEMANTIC_PLANNER_UNAVAILABLE"
+      );
+    }
+
     const semanticToolPlan = {
       intent: "SEMANTIC_TOOL_PLAN",
       objective: input,
@@ -1993,6 +2007,8 @@ export async function runCognitiveReasoning(
       cloudReasoning: null,
 
       cloudToolPlan: semanticToolPlan,
+
+      semanticPlannerHealth,
 
       timestamp:
         Date.now()
