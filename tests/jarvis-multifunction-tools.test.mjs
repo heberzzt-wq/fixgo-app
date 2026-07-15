@@ -174,6 +174,13 @@ test("browser mission contract returns every model-selected high-level tool", as
         const trusted = plannerTest.trustedPlanCalls(result, semanticPlannerCatalog, {});
         assert.equal(trusted[0].args.allowedDomain, "www.summ.com.mx");
         assert.equal(trusted[4].args.durationSeconds, 45);
+
+        const recoveredPlan = await plannerTest.callBrowserSemanticPlan(
+            "Investiga SUMM y entrega landing.",
+            semanticPlannerCatalog
+        );
+        assert.equal(recoveredPlan.provider, "pollinations-browser-json");
+        assert.ok(recoveredPlan.toolCalls.some(call => call.name === "page.plan"));
     } finally {
         globalThis.fetch = originalFetch;
     }

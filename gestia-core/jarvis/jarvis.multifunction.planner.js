@@ -1,4 +1,4 @@
-const VERSION = "3.1.0-browser-mission-contract";
+const VERSION = "3.2.0-browser-semantic-recovery";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
@@ -73,6 +73,54 @@ async function callBrowserMissionContract(input = "", catalog = []) {
         clearTimeout(timer);
     }
     throw lastError || new Error("CLIENT_MISSION_CONTRACT_UNAVAILABLE");
+}
+
+async function callBrowserSemanticPlan(input = "", catalog = [], missionState = null) {
+    if (typeof fetch !== "function") throw new Error("CLIENT_SEMANTIC_PLAN_FETCH_REQUIRED");
+    const instruction = String(input || "");
+    const boundedInstruction = instruction.length <= 12000
+        ? instruction
+        : `${instruction.slice(0, 8000)}\n[PARTE_MEDIA_PERSISTIDA]\n${instruction.slice(-3500)}`;
+    const prompt = [
+        "Eres el planificador semantico de herramientas de Jarvis V7.",
+        "Interpreta significado, typos, negaciones y ordenes mixtas. Selecciona exclusivamente nombres exactos del catalogo.",
+        "No autorices escrituras. Conserva todas las intenciones independientes y usa herramientas especializadas para entregables operativos.",
+        "Si una investigacion limita fuentes a un dominio, copia el dominio exacto en allowedDomain de web.research.",
+        "Devuelve solamente JSON valido con toolCalls, missionComplete=false y explanation.",
+        `CATALOGO=${catalog.map(tool => tool.name).join(",")}`,
+        missionState ? `ESTADO_DE_MISION=${JSON.stringify(missionState).slice(0, 12000)}` : "",
+        `INSTRUCCION=${boundedInstruction}`
+    ].join("\n");
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 45000);
+    let lastError = null;
+    try {
+        for (const seed of [42, 43, 44]) {
+            try {
+                const response = await fetch(
+                    `https://text.pollinations.ai/${encodeURIComponent(prompt)}?model=openai-fast&seed=${seed}&json=true`,
+                    { signal: controller.signal }
+                );
+                if (!response.ok) throw new Error(`CLIENT_SEMANTIC_PLAN_HTTP_${response.status}`);
+                const plan = extractJsonObject(await response.text());
+                if (!Array.isArray(plan?.toolCalls) || plan.toolCalls.length === 0) {
+                    throw new Error("CLIENT_SEMANTIC_PLAN_EMPTY");
+                }
+                return {
+                    ...plan,
+                    ok: true,
+                    status: "SEMANTIC_PLAN_READY",
+                    provider: "pollinations-browser-json",
+                    model: "openai-fast"
+                };
+            } catch (error) {
+                lastError = error;
+            }
+        }
+    } finally {
+        clearTimeout(timer);
+    }
+    throw lastError || new Error("CLIENT_SEMANTIC_PLAN_UNAVAILABLE");
 }
 
 function runtimeCatalog(context = {}) {
@@ -293,6 +341,33 @@ export async function buildJarvisMultifunctionToolCalls(input = "", context = {}
 
         return calls;
     } catch (error) {
+        if (
+            context?.missionState?.phase !== "MISSION_CONTRACT" &&
+            typeof context.semanticPlanner !== "function"
+        ) {
+            try {
+                const fallbackPlan = await callBrowserSemanticPlan(
+                    instruction,
+                    catalog,
+                    context.missionState || null
+                );
+                const fallbackCalls = trustedPlanCalls(fallbackPlan, catalog, context);
+                globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__ = {
+                    ok: true,
+                    status: fallbackPlan.status,
+                    provider: fallbackPlan.provider,
+                    model: fallbackPlan.model,
+                    toolCount: fallbackCalls.length,
+                    recoveredFrom: error?.message || String(error),
+                    checkedAt: new Date().toISOString()
+                };
+                return fallbackCalls;
+            } catch (browserFallbackError) {
+                error = new Error(
+                    `CLOUD_${error?.message || "FAILED"}__BROWSER_${browserFallbackError?.message || "FAILED"}`
+                );
+            }
+        }
         globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__ = {
             ok: false,
             status: "SEMANTIC_PLANNER_UNAVAILABLE",
@@ -321,5 +396,6 @@ export const __test = {
     trustedPlanCalls,
     planCacheKey,
     extractJsonObject,
-    callBrowserMissionContract
+    callBrowserMissionContract,
+    callBrowserSemanticPlan
 };
