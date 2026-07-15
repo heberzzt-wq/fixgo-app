@@ -94,6 +94,8 @@ test("semantic planner preserves mixed tools and never grants prompt approval", 
             assert.ok(body.messages[0].content.includes("Una sola repo.search"));
             assert.ok(body.messages[0].content.includes("no uses conversation.respond como sustituto"));
             assert.equal(body.tool_choice, "required");
+            assert.equal(body.model, "openai-fast");
+            assert.deepEqual(body.response_format, { type: "json_object" });
             assert.equal(body.tools[0].function.name, "jarvis_tool_0");
             return {
                 ok: true,

@@ -352,15 +352,19 @@ async function runJarvisSemanticPlanner({
         }
 
         const requestPayload = {
-            model: "openai",
+            model: "openai-fast",
             tools: buildModelTools(safeCatalog),
             tool_choice: "required",
+            parallel_tool_calls: true,
+            response_format: {
+                type: "json_object"
+            },
             messages: [
                 { role: "system", content: systemInstruction },
                 { role: "user", content: instruction }
             ],
             temperature: 0,
-            max_tokens: 900
+            max_tokens: 1600
         };
 
         for (let outputAttempt = 1; outputAttempt <= 2; outputAttempt += 1) {
