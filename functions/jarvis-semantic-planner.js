@@ -508,6 +508,20 @@ async function runSimpleSemanticPlanner({
         const payloadText = await response.text();
         const plan = extractJsonObject(payloadText);
         let validatedPlan = validatePlan(plan, safeCatalog, instruction);
+        if (missionState?.phase === "MISSION_CONTRACT" && validatedPlan.toolCalls.length === 0) {
+            for (const retrySeed of [85, 86]) {
+                const retryPrompt = [
+                    prompt,
+                    "REINTENTO DE CONTRATO: la salida anterior no contenia herramientas validas. Enumera ahora TODAS las herramientas exactas del catalogo necesarias para cada entregable y usa missionComplete=false."
+                ].join("\n");
+                const retryUrl = `https://text.pollinations.ai/${encodeURIComponent(retryPrompt)}?model=openai-fast&seed=${retrySeed}&json=true`;
+                const retryResponse = await fetchImpl(retryUrl, { signal: controller.signal });
+                if (!retryResponse?.ok) continue;
+                const retryPlan = extractJsonObject(await retryResponse.text());
+                validatedPlan = validatePlan(retryPlan, safeCatalog, instruction);
+                if (validatedPlan.toolCalls.length > 0) break;
+            }
+        }
         const selectedCatalog = validatedPlan.toolCalls
             .map(call => safeCatalog.find(tool => tool.name === call.name))
             .filter(tool => tool?.inputSchema);
@@ -589,7 +603,7 @@ async function runJarvisSemanticPlanner({
                 input: instruction,
                 catalog: safeCatalog,
                 missionState,
-                timeoutMs: Math.min(Number(timeoutMs) || 25000, 25000)
+                timeoutMs: Math.min(Number(timeoutMs) || 45000, 45000)
             });
         }
 

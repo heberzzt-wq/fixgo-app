@@ -317,6 +317,36 @@ test("mission contract uses the dedicated complete simple-model prompt", async (
     assert.equal(result.provider, "pollinations-simple-json");
 });
 
+test("empty mission contract retries with another semantic sample", async () => {
+    const urls = [];
+    const result = await runSimpleSemanticPlanner({
+        input: "Investiga y revisa conectores.",
+        catalog,
+        missionState: { phase: "MISSION_CONTRACT", writeAllowed: false },
+        fetchImpl: async url => {
+            urls.push(url);
+            return {
+                ok: true,
+                text: async () => JSON.stringify(
+                    urls.length === 1
+                        ? { toolCalls: [], missionComplete: false }
+                        : {
+                            toolCalls: [
+                                { name: "repo.search", args: { query: "investigacion" } },
+                                { name: "connector.list", args: {} }
+                            ],
+                            missionComplete: false
+                        }
+                )
+            };
+        }
+    });
+
+    assert.ok(urls[0].includes("seed=84"));
+    assert.ok(urls[1].includes("seed=85"));
+    assert.deepEqual(result.toolCalls.map(call => call.name), ["repo.search", "connector.list"]);
+});
+
 test("simple planner keeps a sixty-tool catalog inside a safe URL budget", async () => {
     const largeCatalog = Array.from({ length: 60 }, (_, index) => ({
         name: `domain${index}.tool${index}`,
