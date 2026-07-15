@@ -27,6 +27,45 @@ function normalizeResearchQuery(value = "") {
     return collapseWhitespace(value);
 }
 
+function cleanHost(value = "") {
+    const host = String(value || "").trim().toLowerCase();
+    return host.startsWith("www.") ? host.slice(4) : host;
+}
+
+function requestedDomainFromQuery(query = "", explicitDomain = "") {
+    if (explicitDomain) {
+        try {
+            return cleanHost(new URL(explicitDomain.includes("://") ? explicitDomain : `https://${explicitDomain}`).hostname);
+        } catch {
+            return "";
+        }
+    }
+
+    const trailing = new Set([".", ",", ";", ":", ")", "]", "}", "!", "?", "\"", "'"]);
+    for (const rawToken of String(query || "").split(" ")) {
+        let token = rawToken.trim();
+        while (token && trailing.has(token.at(-1))) token = token.slice(0, -1);
+        if (!token.includes("://")) continue;
+        try {
+            const parsed = new URL(token);
+            if (parsed.protocol === "https:" || parsed.protocol === "http:") return cleanHost(parsed.hostname);
+        } catch {
+            continue;
+        }
+    }
+    return "";
+}
+
+function sourceMatchesDomain(source = {}, domain = "") {
+    if (!domain) return true;
+    try {
+        const host = cleanHost(new URL(source.url).hostname);
+        return host === domain || host.endsWith(`.${domain}`);
+    } catch {
+        return false;
+    }
+}
+
 function extractGroundingMetadata(response = {}) {
     return response?.candidates?.[0]
         ?.groundingMetadata || {};
@@ -120,7 +159,8 @@ async function runJarvisWebResearch({
     query,
     model = DEFAULT_MODEL,
     objectiveId = "",
-    caseId = ""
+    caseId = "",
+    allowedDomain = ""
 } = {}) {
     if (!ai?.models?.generateContent) {
         throw new Error(
@@ -130,6 +170,11 @@ async function runJarvisWebResearch({
 
     const normalizedQuery =
         normalizeResearchQuery(query);
+    const requestedDomain =
+        requestedDomainFromQuery(normalizedQuery, allowedDomain);
+    const groundedQuery = requestedDomain
+        ? normalizeResearchQuery(`site:${requestedDomain} ${normalizedQuery}`)
+        : normalizedQuery;
 
     if (normalizedQuery.length < 5) {
         throw new Error(
@@ -145,7 +190,10 @@ async function runJarvisWebResearch({
                 "Responde en espanol con hechos concretos y separa claramente cualquier incertidumbre.",
                 "Distingue hechos consultados de inferencias o recomendaciones del modelo.",
                 "No inventes fuentes ni afirmes haber consultado una pagina que no aparezca en groundingMetadata.",
-                `Solicitud: ${normalizedQuery}`
+                requestedDomain
+                    ? `Usa ${requestedDomain} como dominio primario obligatorio. Descarta empresas y dominios de nombre parecido.`
+                    : "No se indico un dominio primario obligatorio.",
+                `Solicitud: ${groundedQuery}`
             ].join("\n"),
             config: {
                 tools: [
@@ -166,10 +214,16 @@ async function runJarvisWebResearch({
         extractGroundingMetadata(response);
     const allSources =
         extractGroundingSources(response);
-    const supports =
+    const acceptedSources = allSources.filter(source => sourceMatchesDomain(source, requestedDomain));
+    const acceptedIds = new Set(acceptedSources.map(source => source.id));
+    const discardedSources = allSources.filter(source => !acceptedIds.has(source.id));
+    const allSupports =
         extractGroundingSupports(response);
+    const supports = allSupports
+        .map(support => ({ ...support, sourceIds: support.sourceIds.filter(id => acceptedIds.has(id)) }))
+        .filter(support => support.sourceIds.length > 0);
     const relevantSourceIds = new Set(supports.flatMap(support => support.sourceIds));
-    const sources = allSources.filter(source => relevantSourceIds.has(source.id));
+    const sources = acceptedSources.filter(source => relevantSourceIds.has(source.id));
     const searchQueries =
         Array.isArray(metadata?.webSearchQueries)
             ? metadata.webSearchQueries
@@ -207,13 +261,15 @@ async function runJarvisWebResearch({
             "jarvis_grounded_web_research",
         model,
         query:
-            normalizedQuery,
+            groundedQuery,
+        requestedDomain: requestedDomain || null,
         objectiveId: String(objectiveId || ""),
         caseId: String(caseId || ""),
         researchedAt,
         provider: "google_search_grounding",
         answer,
         sources,
+        discardedSources,
         supports,
         facts,
         inferences,
@@ -224,6 +280,7 @@ async function runJarvisWebResearch({
         policy: {
             citationsRequired: true,
             consultedSourcesOnly: true,
+            requestedDomainEnforced: Boolean(requestedDomain),
             factsSeparatedFromInference: true,
             duplicatesRemoved: true,
             codeWrite: false,
@@ -237,6 +294,8 @@ module.exports = {
     MAX_QUERY_LENGTH,
     collapseWhitespace,
     normalizeResearchQuery,
+    requestedDomainFromQuery,
+    sourceMatchesDomain,
     extractGroundingSources,
     extractGroundingSupports,
     runJarvisWebResearch

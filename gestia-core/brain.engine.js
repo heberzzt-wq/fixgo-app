@@ -37,7 +37,7 @@ import {
   buildJarvisMultifunctionToolCalls,
   mergeJarvisToolCalls
 
-} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-model-semantic-planner-v3-20260714";
+} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-model-semantic-planner-v4-missions-20260714";
 
 import {
 
@@ -628,6 +628,8 @@ const SEMANTIC_READ_ONLY_MULTIFUNCTION_TOOLS =
     "business.assist",
     "marketing.plan",
     "page.plan",
+    "image.plan",
+    "reel.plan",
     "media.analyze"
   ]);
 

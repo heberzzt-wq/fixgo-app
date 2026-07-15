@@ -2721,7 +2721,8 @@ exports.jarvisWebResearch = functions
                         getGroundedGenAI(),
                     query,
                     objectiveId: data?.objectiveId || "",
-                    caseId: data?.caseId || ""
+                    caseId: data?.caseId || "",
+                    allowedDomain: data?.allowedDomain || ""
                 });
 
             console.log(JSON.stringify({
@@ -2804,7 +2805,8 @@ exports.jarvisSemanticPlan = functions
             const result = await runJarvisSemanticPlanner({
                 fetchImpl: fetch,
                 input: data?.input,
-                catalog: data?.catalog
+                catalog: data?.catalog,
+                missionState: data?.missionState || null
             });
 
             console.log(JSON.stringify({

@@ -21,7 +21,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "1.23.0-functional-observability";
+const VERSION = "1.24.0-mission-production-planning";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 
@@ -1139,7 +1139,8 @@ async function fetchGroundedWebResearch(
                         query:
                             normalizedQuery,
                         objectiveId: trace.objectiveId || "",
-                        caseId: trace.caseId || ""
+                        caseId: trace.caseId || "",
+                        allowedDomain: trace.allowedDomain || ""
                     }
                 })
             }
@@ -1471,6 +1472,82 @@ function resolveAuthority(args = {}, context = {}) {
     };
 }
 
+export function buildImageRequirementsPlan(args = {}, context = {}) {
+    const authority = resolveAuthority(args, context);
+    const brandName = clean(args.brandName);
+    const campaignGoal = clean(args.campaignGoal || args.objective);
+    const concepts = Array.isArray(args.concepts)
+        ? args.concepts.filter(item => item && typeof item === "object").slice(0, 12)
+        : [];
+    const requirements = concepts.map((item, index) => ({
+        id: index + 1,
+        name: clean(item.name),
+        purpose: clean(item.purpose),
+        composition: clean(item.composition),
+        grounding: clean(item.grounding || item.sourceGrounding),
+        generationPrompt: clean(item.generationPrompt || item.prompt),
+        exclusionPrompt: clean(item.exclusionPrompt || item.negativePrompt),
+        aspectRatios: Array.isArray(item.aspectRatios)
+            ? item.aspectRatios.map(value => clean(value)).filter(Boolean).slice(0, 6)
+            : []
+    }));
+    const valid = Boolean(brandName && campaignGoal) && requirements.length > 0 && requirements.every(item =>
+        item.name && item.purpose && item.composition && item.grounding && item.generationPrompt && item.aspectRatios.length > 0
+    );
+    return {
+        ok: valid,
+        status: valid ? "IMAGE_REQUIREMENTS_PLAN_READY" : "IMAGE_REQUIREMENTS_EVIDENCE_REQUIRED",
+        brandName,
+        campaignGoal,
+        audience: clean(args.audience),
+        requirements,
+        missingInformation: valid ? [] : ["brandName", "campaignGoal", "grounded image concepts"],
+        trace: authority,
+        generatedImages: false,
+        readOnly: true,
+        writeAllowed: false
+    };
+}
+
+export function buildReelPlanningSpec(args = {}, context = {}) {
+    const authority = resolveAuthority(args, context);
+    const brandName = clean(args.brandName);
+    const title = clean(args.title);
+    const cta = clean(args.cta);
+    const durationSeconds = Number(args.durationSeconds);
+    const scenes = Array.isArray(args.scenes)
+        ? args.scenes.filter(item => item && typeof item === "object").slice(0, 18).map((item, index) => ({
+            id: index + 1,
+            durationSeconds: Number(item.durationSeconds),
+            visual: clean(item.visual || item.visualDescription),
+            overlay: clean(item.overlay),
+            voiceover: clean(item.voiceover || item.narration),
+            evidence: clean(item.evidence || item.sourceGrounding),
+            transition: clean(item.transition)
+        }))
+        : [];
+    const timelineSeconds = scenes.reduce((sum, item) => sum + (Number.isFinite(item.durationSeconds) ? item.durationSeconds : 0), 0);
+    const valid = Boolean(brandName && title && cta) && Number.isFinite(durationSeconds) && durationSeconds >= 15 && durationSeconds <= 180 &&
+        scenes.length >= 3 && Math.abs(timelineSeconds - durationSeconds) <= 0.01 &&
+        scenes.every(item => item.durationSeconds > 0 && item.visual && item.overlay && item.voiceover && item.evidence);
+    return {
+        ok: valid,
+        status: valid ? "REEL_PLAN_READY" : "REEL_PLAN_EVIDENCE_REQUIRED",
+        brandName,
+        title,
+        cta,
+        durationSeconds,
+        format: { width: 1080, height: 1920, aspectRatio: "9:16" },
+        scenes,
+        timelineSeconds,
+        missingInformation: valid ? [] : ["brand content", "grounded scenes", "exact duration"],
+        trace: authority,
+        producedVideo: false,
+        readOnly: true,
+        writeAllowed: false
+    };
+}
+
 function register(runtime, definition) {
     return runtime.register({
         version: VERSION,
@@ -1714,7 +1791,8 @@ export function registerJarvisMultifunctionTools(runtime) {
                 query: "string",
                 prompt: "string",
                 objectiveId: "string",
-                caseId: "string"
+                caseId: "string",
+                allowedDomain: "string"
             },
             execute: async (args = {}, context = {}) =>
                 await fetchGroundedWebResearch(
@@ -1724,7 +1802,8 @@ export function registerJarvisMultifunctionTools(runtime) {
                     "",
                     {
                         objectiveId: args.objectiveId || context.objectiveId || "",
-                        caseId: args.caseId || context.caseId || ""
+                        caseId: args.caseId || context.caseId || "",
+                        allowedDomain: args.allowedDomain || ""
                     }
                 )
         }),
@@ -1880,6 +1959,24 @@ export function registerJarvisMultifunctionTools(runtime) {
             }
         }),
         register(runtime, {
+            name: "image.plan",
+            description: "Define requisitos y prompts de imagen sustentados en evidencia sin generar archivos ni inventar materiales.",
+            output: "SIA7_IMAGE_REQUIREMENTS_PLAN",
+            inputSchema: {
+                brandName: "string", campaignGoal: "string", audience: "string", concepts: "array"
+            },
+            execute: async (args = {}, context = {}) => buildImageRequirementsPlan(args, context)
+        }),
+        register(runtime, {
+            name: "reel.plan",
+            description: "Construye un storyboard vertical con timeline exacto y evidencia por escena sin producir video.",
+            output: "SIA7_REEL_PLAN",
+            inputSchema: {
+                brandName: "string", title: "string", cta: "string", durationSeconds: "number", scenes: "array"
+            },
+            execute: async (args = {}, context = {}) => buildReelPlanningSpec(args, context)
+        }),
+        register(runtime, {
             name: "media.analyze",
             description: "Analiza texto, tablas e imagenes ya extraidas de PDF, PNG, JPEG o WebP con trazabilidad read-only.",
             output: "SIA7_MEDIA_ANALYSIS",
@@ -1990,6 +2087,8 @@ export function registerJarvisMultifunctionTools(runtime) {
             "business.assist",
             "marketing.plan",
             "page.plan",
+            "image.plan",
+            "reel.plan",
             "media.analyze"
         ]
     };

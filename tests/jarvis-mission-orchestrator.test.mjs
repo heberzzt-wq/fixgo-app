@@ -1,0 +1,132 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { recoverJarvisMission, runJarvisMission, __test } from "../gestia-core/jarvis/jarvis.mission.orchestrator.js";
+
+function memoryStorage() {
+    const values = new Map();
+    return {
+        getItem: key => values.has(key) ? values.get(key) : null,
+        setItem: (key, value) => values.set(key, String(value))
+    };
+}
+
+test("mission preserves a ten-page instruction while routing with a bounded representation", async () => {
+    const instruction = Array.from({ length: 4000 }, (_, index) => `Parrafo ${index}: requisito verificable de la mision.`).join("\n");
+    assert.ok(instruction.length > 12000);
+    const mission = await runJarvisMission({
+        instruction,
+        initialToolCalls: [],
+        planner: async () => ({ toolCalls: [] }),
+        execute: async () => ({ ok: true }),
+        storage: memoryStorage()
+    });
+    assert.equal(mission.originalInstruction, instruction);
+    assert.equal(mission.rawInstructionLength, instruction.length);
+    assert.equal(mission.routingInstructionLength, 12000);
+    assert.equal(mission.instructionHash.length, 64);
+});
+
+test("mission continues from research through marketing, page and reel planning", async () => {
+    const storage = memoryStorage();
+    const sequence = ["web.research", "marketing.plan", "page.plan", "reel.plan"];
+    const executed = [];
+    const mission = await runJarvisMission({
+        instruction: "Investiga summ.com.mx y entrega estrategia, landing propuesta y storyboard de reel sin publicar.",
+        initialToolCalls: [{ name: sequence[0], args: { query: "site:summ.com.mx SUMM" } }],
+        planner: async ({ mission: current }) => {
+            const next = sequence[current.completedTasks.length];
+            return { toolCalls: next ? [{ name: next, args: { prompt: "evidencia previa" } }] : [] };
+        },
+        execute: async call => {
+            executed.push(call.name);
+            return call.name === "web.research"
+                ? { ok: true, sources: [{ url: "https://www.summ.com.mx/" }], answer: "Fuente oficial" }
+                : { ok: true, status: "READY", summary: `${call.name} completo` };
+        },
+        storage
+    });
+    assert.deepEqual(executed, sequence);
+    assert.equal(mission.reason, "ALL_EXECUTABLE_TASKS_COMPLETED");
+    assert.equal(mission.completedTasks.length, 4);
+    assert.equal(mission.writeAllowed, false);
+    const recovered = recoverJarvisMission(mission.missionId, { storage });
+    assert.equal(recovered.objectiveId, mission.objectiveId);
+    assert.equal(recovered.originalInstruction, mission.originalInstruction);
+});
+
+test("mission blocks writes, retries one failure and reports an honest partial result", async () => {
+    let attempts = 0;
+    const mission = await runJarvisMission({
+        instruction: "Prepara sin publicar.",
+        initialToolCalls: [{ name: "page.create", args: { output: "landing.html" }, approved: true }],
+        planner: async () => ({ toolCalls: [] }),
+        execute: async (call, context) => {
+            attempts += 1;
+            assert.equal(call.approved, false);
+            assert.equal(context.approved, false);
+            return { ok: false, status: "PENDING_APPROVAL" };
+        },
+        storage: memoryStorage(),
+        maximumRetries: 1
+    });
+    assert.equal(attempts, 2);
+    assert.equal(mission.reason, "PARTIAL_CAPABILITY_BLOCKED");
+    assert.equal(mission.blockedTasks.length, 1);
+    assert.equal(mission.approvalRequiredForWrite, true);
+});
+
+test("mission stops repeated plans and respects maximum steps", async () => {
+    let index = 0;
+    const mission = await runJarvisMission({
+        instruction: "Ejecuta una mision acotada.",
+        initialToolCalls: [{ name: "web.research", args: { query: "a" } }],
+        planner: async () => ({ toolCalls: [{ name: "web.research", args: { query: "a" } }] }),
+        execute: async () => ({ ok: true }),
+        storage: memoryStorage(),
+        maximumSteps: 2
+    });
+    index += mission.executedTools.length;
+    assert.equal(index, 1);
+    assert.equal(mission.reason, "ALL_EXECUTABLE_TASKS_COMPLETED");
+
+    const bounded = await runJarvisMission({
+        instruction: "Genera tareas distintas sin fin.",
+        initialToolCalls: [],
+        planner: async () => ({ toolCalls: [{ name: "tool.read", args: { page: ++index } }] }),
+        execute: async () => ({ ok: true }),
+        storage: memoryStorage(),
+        maximumSteps: 3
+    });
+    assert.equal(bounded.iterations, 3);
+    assert.equal(bounded.reason, "MAXIMUM_STEPS_REACHED");
+});
+
+test("mission cancellation and deadline close without another tool", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const cancelled = await runJarvisMission({
+        instruction: "Cancela seguro.",
+        initialToolCalls: [{ name: "tool.read", args: {} }],
+        planner: async () => ({ toolCalls: [] }),
+        execute: async () => assert.fail("must not execute"),
+        storage: memoryStorage(),
+        signal: controller.signal
+    });
+    assert.equal(cancelled.reason, "CANCELLED");
+
+    const deadline = await runJarvisMission({
+        instruction: "Expira seguro.",
+        planner: async () => ({ toolCalls: [] }),
+        execute: async () => assert.fail("must not execute"),
+        storage: memoryStorage(),
+        timeoutMs: -1
+    });
+    assert.equal(deadline.reason, "DEADLINE_EXCEEDED");
+});
+
+test("routing compaction is deterministic and does not replace the authority instruction", () => {
+    const instruction = "A".repeat(20000);
+    const routing = __test.compactRoutingInstruction(instruction);
+    assert.equal(routing.length, 12000);
+    assert.notEqual(routing, instruction);
+});

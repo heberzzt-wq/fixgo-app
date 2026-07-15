@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "1.0.0-model-tool-planner";
+const VERSION = "1.1.0-long-mission-planner";
 const DEFAULT_ENDPOINT = "https://text.pollinations.ai/openai";
 
 function wait(ms) {
@@ -117,8 +117,8 @@ function validatePlan(plan = {}, catalog = [], fallbackInput = "") {
             ? candidateArgs
             : fallbackInput
                 ? {
-                    instruction: String(fallbackInput).slice(0, 1600),
-                    query: String(fallbackInput).slice(0, 1600)
+                    instruction: String(fallbackInput).slice(0, 12000),
+                    query: String(fallbackInput).slice(0, 600)
                 }
                 : {};
 
@@ -191,12 +191,13 @@ async function runJarvisSemanticPlanner({
     input = "",
     catalog = [],
     endpoint = DEFAULT_ENDPOINT,
-    timeoutMs = 45000
+    timeoutMs = 45000,
+    missionState = null
 } = {}) {
     const instruction = String(input || "").trim();
     const safeCatalog = normalizeCatalog(catalog);
 
-    if (instruction.length < 1 || instruction.length > 1600) {
+    if (instruction.length < 1 || instruction.length > 120000) {
         throw new Error("SEMANTIC_PLAN_INPUT_OUT_OF_RANGE");
     }
     if (safeCatalog.length === 0) {
@@ -220,13 +221,16 @@ async function runJarvisSemanticPlanner({
         "Si el catalogo permite buscar o leer el repositorio, no pidas al usuario que comparta archivos que Jarvis puede consultar por si mismo.",
         "No inventes rutas ni nombres de archivo. Si el usuario no dio una ruta exacta, empieza con repo.search o la herramienta de descubrimiento disponible y deja que el runtime fundamente el seguimiento.",
         "Genera solo llamadas inmediatamente ejecutables de primera etapa; el runtime planificara seguimientos con las observaciones reales.",
+        "Si recibes ESTADO_DE_MISION, revisa la instruccion original inmutable, lo ya ejecutado, lo pendiente y lo bloqueado; selecciona la siguiente herramienta real necesaria.",
+        "No repitas una herramienta completada con los mismos argumentos. No cierres con toolCalls vacio si queda un entregable ejecutable del usuario.",
         "No razones sobre rutas futuras desconocidas. Una sola repo.search con la consulta del usuario es un plan completo y correcto cuando falta una ruta exacta.",
         "Para una investigacion operativa no uses conversation.respond como sustituto de las herramientas; reservada para charla o explicaciones que no requieren inspeccion.",
         "Cuando la instruccion incluya 'Archivos adjuntos reales entregados por el usuario', usa media.analyze para analizar esos archivos y copia el arreglo JSON del manifiesto al argumento attachments sin inventar contenido.",
         "Para preguntas explicativas sin trabajo operativo usa conversation.respond si existe.",
         "Devuelve solamente un objeto JSON valido con toolCalls y explanation.",
         "Cada toolCall contiene name, args y reason. Maximo 8 toolCalls.",
-        `CATALOGO=${JSON.stringify(safeCatalog)}`
+        `CATALOGO=${JSON.stringify(safeCatalog)}`,
+        missionState ? `ESTADO_DE_MISION=${JSON.stringify(missionState).slice(0, 30000)}` : ""
     ].join("\n");
 
     try {
@@ -292,7 +296,7 @@ async function runJarvisSemanticResponse({
     timeoutMs = 45000
 } = {}) {
     const instruction = String(input || "").trim();
-    if (instruction.length < 1 || instruction.length > 1600) {
+    if (instruction.length < 1 || instruction.length > 120000) {
         throw new Error("SEMANTIC_RESPONSE_INPUT_OUT_OF_RANGE");
     }
 

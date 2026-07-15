@@ -5,6 +5,8 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+    buildImageRequirementsPlan,
+    buildReelPlanningSpec,
     describeJarvisMultifunctionTools,
     registerJarvisMultifunctionTools
 } from "../gestia-core/jarvis/jarvis.multitool.pack.js";
@@ -106,6 +108,8 @@ const semanticPlannerCatalog = [
     ["agent.delegate", false],
     ["page.plan", false],
     ["marketing.plan", false],
+    ["image.plan", false],
+    ["reel.plan", false],
     ["media.analyze", false],
     ["business.assist", false],
     ["repo.search", false],
@@ -151,6 +155,8 @@ test("multifunction pack registers certification and remains read-only", () => {
         "business.assist",
         "marketing.plan",
         "page.plan",
+        "image.plan",
+        "reel.plan",
         "media.analyze"
     ]);
 
@@ -158,6 +164,43 @@ test("multifunction pack registers certification and remains read-only", () => {
         runtime.list().every(tool => tool.mutates === false),
         true
     );
+});
+
+test("campaign visual and reel planning require grounded structured evidence", () => {
+    const imagePlan = buildImageRequirementsPlan({
+        brandName: "SUMM",
+        campaignGoal: "Presentar servicios empresariales",
+        audience: "Tomadores de decision",
+        concepts: [{
+            name: "Hero corporativo",
+            purpose: "Comunicar la propuesta",
+            composition: "Equipo y operacion real en primer plano",
+            grounding: "https://www.summ.com.mx/servicios",
+            generationPrompt: "Composicion corporativa basada en el servicio documentado, sin logotipos inventados",
+            exclusionPrompt: "Texto ilegible",
+            aspectRatios: ["16:9", "1:1"]
+        }]
+    });
+    assert.equal(imagePlan.ok, true);
+    assert.equal(imagePlan.generatedImages, false);
+    assert.equal(imagePlan.writeAllowed, false);
+
+    const reelPlan = buildReelPlanningSpec({
+        brandName: "SUMM",
+        title: "Soluciones que avanzan",
+        cta: "Solicita informacion",
+        durationSeconds: 45,
+        scenes: [
+            { durationSeconds: 15, visual: "Portada corporativa", overlay: "SUMM", voiceover: "Conoce SUMM", evidence: "https://www.summ.com.mx/" },
+            { durationSeconds: 15, visual: "Servicios publicados", overlay: "Servicios", voiceover: "Soluciones para empresas", evidence: "https://www.summ.com.mx/servicios" },
+            { durationSeconds: 15, visual: "Cierre con contacto", overlay: "Conversemos", voiceover: "Solicita informacion", evidence: "https://www.summ.com.mx/contacto" }
+        ]
+    });
+    assert.equal(reelPlan.ok, true);
+    assert.equal(reelPlan.timelineSeconds, 45);
+    assert.equal(reelPlan.producedVideo, false);
+    assert.equal(reelPlan.writeAllowed, false);
+    assert.equal(buildReelPlanningSpec({ durationSeconds: 45, scenes: [] }).ok, false);
 });
 
 test("business assistant uses the semantic model when a real company is outside the static registry", async () => {

@@ -11,6 +11,8 @@ const { test } =
 
 const {
     normalizeResearchQuery,
+    requestedDomainFromQuery,
+    sourceMatchesDomain,
     extractGroundingSources,
     extractGroundingSupports,
     runJarvisWebResearch
@@ -187,6 +189,40 @@ test("web research fails closed when no verifiable source is returned", async ()
     assert.equal(result.ok, false);
     assert.equal(result.grounded, false);
     assert.deepEqual(result.sources, []);
+});
+
+test("web research enforces the requested domain and discards similar companies", async () => {
+    const response = {
+        text: "Sintesis limitada al sitio oficial.",
+        candidates: [{
+            groundingMetadata: {
+                groundingChunks: [
+                    { web: { uri: "https://www.summ.com.mx/servicios", title: "SUMM servicios" } },
+                    { web: { uri: "https://summma.com/", title: "Empresa distinta" } },
+                    { web: { uri: "https://summ.com/about", title: "Dominio distinto" } },
+                    { web: { uri: "https://sumexpress.mx/", title: "Empresa distinta MX" } }
+                ],
+                groundingSupports: [
+                    { segment: { text: "SUMM publica sus servicios" }, groundingChunkIndices: [0] },
+                    { segment: { text: "Otra empresa publica productos" }, groundingChunkIndices: [1, 2, 3] }
+                ],
+                webSearchQueries: ["site:summ.com.mx SUMM"]
+            }
+        }]
+    };
+    let request;
+    const result = await runJarvisWebResearch({
+        ai: { models: { generateContent: async value => { request = value; return response; } } },
+        query: "Investiga https://www.summ.com.mx/ para una campana"
+    });
+    assert.equal(requestedDomainFromQuery("Investiga https://www.summ.com.mx/ para una campana"), "summ.com.mx");
+    assert.equal(sourceMatchesDomain({ url: "https://blog.summ.com.mx/post" }, "summ.com.mx"), true);
+    assert.ok(request.contents.includes("site:summ.com.mx"));
+    assert.deepEqual(result.sources.map(source => source.url), ["https://www.summ.com.mx/servicios"]);
+    assert.equal(result.discardedSources.length, 3);
+    assert.equal(result.facts.length, 1);
+    assert.equal(result.requestedDomain, "summ.com.mx");
+    assert.equal(result.policy.requestedDomainEnforced, true);
 });
 
 test("Firebase deploys grounded web research on the supported Node runtime", () => {

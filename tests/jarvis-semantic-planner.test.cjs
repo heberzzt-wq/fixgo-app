@@ -175,3 +175,34 @@ test("semantic planner retries one malformed model output", async () => {
     assert.equal(attempts, 2);
     assert.deepEqual(result.toolCalls.map(call => call.name), ["repo.search"]);
 });
+
+test("semantic planner accepts long and ten-page missions without losing mission state", async () => {
+    const longInstruction = Array.from({ length: 500 }, (_, index) => `Pagina y requisito ${index}: conservar evidencia.`).join("\n");
+    assert.ok(longInstruction.length > 1600);
+    let requestBody;
+    const result = await runJarvisSemanticPlanner({
+        input: longInstruction,
+        catalog,
+        missionState: {
+            missionId: "MISSION-LONG-1",
+            completedTasks: [{ name: "repo.search", args: { query: "evidencia" } }],
+            pendingTasks: [],
+            blockedTasks: [],
+            writeAllowed: false
+        },
+        fetchImpl: async (_url, request) => {
+            requestBody = JSON.parse(request.body);
+            return {
+                ok: true,
+                json: async () => ({
+                    model: "semantic-test-model",
+                    choices: [{ message: { content: JSON.stringify({ toolCalls: [{ name: "connector.list", args: {} }] }) } }]
+                })
+            };
+        }
+    });
+    assert.equal(result.toolCalls[0].name, "connector.list");
+    assert.equal(requestBody.messages[1].content, longInstruction);
+    assert.ok(requestBody.messages[0].content.includes("MISSION-LONG-1"));
+    assert.ok(requestBody.messages[0].content.includes("No repitas una herramienta completada"));
+});

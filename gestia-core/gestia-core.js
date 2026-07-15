@@ -39,7 +39,10 @@ import {
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     buildJarvisMultifunctionToolCalls
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-model-semantic-planner-v3-20260714';
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-model-semantic-planner-v4-missions-20260714';
+import {
+    runJarvisMission
+} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-mission-orchestrator-v1-20260714';
 //import { ejecutarCambios } from '/gestia-core/operations-executor.engine.js';
 
 // ======================================================================================
@@ -187,9 +190,9 @@ import {
     sincronizarCorralSemantico,
     getSemanticCognitiveState
 } from '/gestia-core/semantic.engine.js?v=sia7-model-context-v8-20260714';
-import '/gestia-core/brain.engine.js?v=sia7-model-semantic-planner-v3-20260714';
+import '/gestia-core/brain.engine.js?v=sia7-model-semantic-planner-v4-missions-20260714';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260714-pdf-visual-v19';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260714-missions-v20';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260714-safe-image-artifacts';
 
@@ -4516,31 +4519,96 @@ if (
         );
     }
 
+    const missionResult =
+        await runJarvisMission({
+            instruction:
+                inputRaw,
+            initialToolCalls:
+                propuesta.toolCalls,
+            caseId:
+                context.caseId || null,
+            objectiveId:
+                context.objectiveId || null,
+            maximumSteps:
+                12,
+            maximumRetries:
+                1,
+            timeoutMs:
+                180000,
+            planner:
+                async ({ originalInstruction, mission }) => ({
+                    toolCalls:
+                        await buildJarvisMultifunctionToolCalls(
+                            originalInstruction.slice(0, 120000),
+                            {
+                                ...context,
+                                missionState: {
+                                    missionId: mission.missionId,
+                                    caseId: mission.caseId,
+                                    objectiveId: mission.objectiveId,
+                                    instructionHash: mission.instructionHash,
+                                    rawInstructionLength: mission.rawInstructionLength,
+                                    routingInstructionLength: mission.routingInstructionLength,
+                                    completedTasks: mission.completedTasks.map(item => ({
+                                        name: item.name,
+                                        args: item.args,
+                                        observation: item.observation
+                                    })),
+                                    pendingTasks: mission.pendingTasks.map(item => ({ name: item.name, args: item.args })),
+                                    blockedTasks: mission.blockedTasks.map(item => ({
+                                        name: item.name,
+                                        args: item.args,
+                                        reason: item.reason
+                                    })),
+                                    iterations: mission.iterations,
+                                    writeAllowed: false
+                                }
+                            }
+                        )
+                }),
+            execute:
+                async (call, missionContext) => {
+                    const results = await window.ToolsBridge.executeMany(
+                        [call],
+                        {
+                            ...context,
+                            ...missionContext,
+                            tenantId,
+                            analysisId,
+                            rol,
+                            learningHints:
+                                agentLearningHints,
+                            reasoning:
+                                propuesta.cognition ||
+                                propuesta.reasoning ||
+                                null,
+                            approved:
+                                false
+                        }
+                    );
+                    return results[0] || { ok: false, status: "EMPTY_TOOL_OBSERVATION" };
+                }
+        });
+
     const toolObservations =
-        await window.ToolsBridge.executeMany(
-            propuesta.toolCalls,
-            {
-                ...context,
-                rawInput:
-                    inputRaw,
-                tenantId,
-                analysisId,
-                rol,
-                learningHints:
-                    agentLearningHints,
-                reasoning:
-                    propuesta.cognition ||
-                    propuesta.reasoning ||
-                    null
-            }
-        );
+        missionResult.runtimeResults || [];
+
+    const missionToolCalls = [
+        ...missionResult.completedTasks,
+        ...missionResult.blockedTasks,
+        ...missionResult.pendingTasks
+    ].map(item => ({
+        name: item.name,
+        args: item.args || {},
+        approved: false
+    }));
 
         const followUpPlan =
         buildObservationDrivenFollowUpToolCalls({
             observations:
                 toolObservations,
             toolCalls:
-                propuesta.toolCalls,
+                missionToolCalls,
             rawInput:
                 inputRaw,
             learningHints:
@@ -4583,7 +4651,7 @@ if (
 
     const allToolCalls =
         [
-            ...propuesta.toolCalls,
+            ...missionToolCalls,
             ...followUpPlan.followUpToolCalls
         ];
 
@@ -4727,10 +4795,66 @@ if (
             }
             : null;
 
+    const missionFinalResponse =
+        !observationDrivenFinalResponse &&
+        !globalAnalysisFinalResponse &&
+        !directActuatorFinalResponse &&
+        missionResult.executedTools.length > 1
+            ? (() => {
+                const completed = missionResult.completedTasks.map(item => {
+                    const evidence = item.observation?.summary
+                        ? `: ${item.observation.summary}`
+                        : item.observation?.sourceCount > 0
+                            ? `: ${item.observation.sourceCount} fuentes validas`
+                            : ": completada con el runtime";
+                    return `- ${item.name}${evidence}`;
+                });
+                const sources = missionResult.completedTasks
+                    .flatMap(item => item.observation?.validSources || [])
+                    .filter((source, index, items) =>
+                        source?.url && items.findIndex(candidate => candidate?.url === source.url) === index
+                    )
+                    .slice(0, 12)
+                    .map(source => `- ${source.title || "Fuente"}: ${source.url}`);
+                const blocked = missionResult.blockedTasks.map(item =>
+                    `- ${item.name}: ${item.reason || item.observation?.status || "capacidad no disponible"}`
+                );
+                const pending = missionResult.pendingTasks.map(item => `- ${item.name}`);
+                return {
+                    ok: missionResult.status === "COMPLETED",
+                    title: "Mision Jarvis completada",
+                    text: [
+                        `Mision ${missionResult.missionId}`,
+                        "",
+                        "Resultados ejecutados:",
+                        ...completed,
+                        sources.length > 0 ? "" : null,
+                        sources.length > 0 ? "Fuentes validas:" : null,
+                        ...sources,
+                        "",
+                        `Motores realmente utilizados: ${missionResult.executedTools.join(", ")}.`,
+                        blocked.length > 0 ? "" : null,
+                        blocked.length > 0 ? "Capacidades bloqueadas:" : null,
+                        ...blocked,
+                        pending.length > 0 ? "" : null,
+                        pending.length > 0 ? "Tareas pendientes:" : null,
+                        ...pending,
+                        "",
+                        `Cierre: ${missionResult.reason}.`,
+                        missionResult.status === "COMPLETED"
+                            ? "Estado: listo para revisar y decidir la produccion; no se publico ni escribio automaticamente."
+                            : "Estado: resultado parcial honesto; no se publico ni escribio automaticamente."
+                    ].filter(value => value !== null).join("\n"),
+                    source: "PERSISTENT_MISSION_COMPOSITION"
+                };
+            })()
+            : null;
+
     const finalResponse =
         observationDrivenFinalResponse ||
         globalAnalysisFinalResponse ||
         directActuatorFinalResponse ||
+        missionFinalResponse ||
         null;
 
     if (
@@ -4861,7 +4985,7 @@ if (
     propuesta.agentLoop =
         {
             version:
-                "7.1.0",
+                "7.2.0-persistent-mission",
             mode:
                 "TOOL_PLAN",
             reasoning:
@@ -4872,6 +4996,26 @@ if (
                 allToolCalls,
             observations:
                 allToolObservations,
+            mission: {
+                missionId: missionResult.missionId,
+                caseId: missionResult.caseId,
+                objectiveId: missionResult.objectiveId,
+                instructionHash: missionResult.instructionHash,
+                rawInstructionLength: missionResult.rawInstructionLength,
+                routingInstructionLength: missionResult.routingInstructionLength,
+                status: missionResult.status,
+                reason: missionResult.reason,
+                iterations: missionResult.iterations,
+                plannedTools: missionResult.plannedTools,
+                executedTools: missionResult.executedTools,
+                completedTasks: missionResult.completedTasks,
+                pendingTasks: missionResult.pendingTasks,
+                blockedTasks: missionResult.blockedTasks,
+                errors: missionResult.errors,
+                durationMs: missionResult.durationMs,
+                writeAllowed: false,
+                approvalRequiredForWrite: true
+            },
             followUp:
                 {
                     mode:

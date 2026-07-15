@@ -50,7 +50,7 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
     return calls;
 }
 
-async function callSemanticPlanner(input = "", catalog = []) {
+async function callSemanticPlanner(input = "", catalog = [], missionState = null) {
     const user = globalThis?.auth?.currentUser || globalThis?.window?.auth?.currentUser || null;
     if (!user) {
         throw new Error("SEMANTIC_PLANNER_AUTH_REQUIRED");
@@ -67,7 +67,7 @@ async function callSemanticPlanner(input = "", catalog = []) {
                 "Authorization": `Bearer ${token}`,
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ data: { input, catalog } }),
+            body: JSON.stringify({ data: { input, catalog, missionState } }),
             signal: controller.signal
         });
         const text = await response.text();
@@ -94,9 +94,10 @@ async function callSemanticPlanner(input = "", catalog = []) {
     }
 }
 
-function planCacheKey(input = "", catalog = []) {
+function planCacheKey(input = "", catalog = [], missionState = null) {
     return JSON.stringify({
         input,
+        missionState,
         tools: catalog.map(tool => ({
             name: tool.name,
             mutates: tool.mutates,
@@ -105,8 +106,8 @@ function planCacheKey(input = "", catalog = []) {
     });
 }
 
-async function resolveSemanticPlan(input = "", catalog = [], semanticPlanner = null) {
-    const key = planCacheKey(input, catalog);
+async function resolveSemanticPlan(input = "", catalog = [], semanticPlanner = null, missionState = null) {
+    const key = planCacheKey(input, catalog, missionState);
     const cached = planCache.get(key);
 
     if (cached && Date.now() - cached.savedAt < CACHE_TTL_MS) {
@@ -119,8 +120,8 @@ async function resolveSemanticPlan(input = "", catalog = [], semanticPlanner = n
 
     const request = Promise.resolve()
         .then(() => typeof semanticPlanner === "function"
-            ? semanticPlanner({ input, catalog })
-            : callSemanticPlanner(input, catalog))
+            ? semanticPlanner({ input, catalog, missionState })
+            : callSemanticPlanner(input, catalog, missionState))
         .then(plan => {
             planCache.set(key, { plan, savedAt: Date.now() });
             return plan;
@@ -187,7 +188,8 @@ export async function buildJarvisMultifunctionToolCalls(input = "", context = {}
         const plan = await resolveSemanticPlan(
             instruction,
             catalog,
-            context.semanticPlanner
+            context.semanticPlanner,
+            context.missionState || null
         );
         const calls = trustedPlanCalls(plan, catalog, context);
 
