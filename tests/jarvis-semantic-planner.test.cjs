@@ -97,6 +97,8 @@ test("semantic planner maps provider function calls to the runtime catalog", () 
     const modelTools = buildModelTools(catalog);
     assert.equal(modelTools[0].function.name, "jarvis_tool_0");
     assert.ok(modelTools[0].function.description.includes("repo.search"));
+    assert.equal(modelTools[0].function.parameters.properties.query.type, "string");
+    assert.equal(modelTools[0].function.parameters.additionalProperties, false);
 
     const plan = extractToolCallPlan({
         choices: [{
@@ -117,6 +119,8 @@ test("semantic planner maps Gemini native function calls to the runtime catalog"
     const declarations = buildGeminiModelTools(catalog);
     assert.equal(declarations[0].name, "jarvis_tool_0");
     assert.ok(declarations[0].description.includes("repo.search"));
+    assert.equal(declarations[0].parametersJsonSchema.properties.query.type, "string");
+    assert.equal(declarations[0].parametersJsonSchema.additionalProperties, false);
 
     const plan = extractGeminiToolCallPlan({
         functionCalls: [
@@ -142,6 +146,8 @@ test("semantic planner preserves mixed tools and never grants prompt approval", 
             assert.ok(body.messages[0].content.includes("No inventes rutas ni nombres de archivo"));
             assert.ok(body.messages[0].content.includes("Una sola repo.search"));
             assert.ok(body.messages[0].content.includes("no uses conversation.respond como sustituto"));
+            assert.ok(body.messages[0].content.includes("Para investigar informacion publica actual"));
+            assert.ok(body.messages[0].content.includes("browser.inspect se reserva para diagnostico tecnico"));
             assert.equal(body.tool_choice, "required");
             assert.equal(body.model, "openai-fast");
             assert.deepEqual(body.response_format, { type: "json_object" });

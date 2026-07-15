@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "1.3.0-nonempty-provider-contract";
+const VERSION = "1.4.0-grounded-native-tool-schemas";
 const DEFAULT_ENDPOINT = "https://text.pollinations.ai/openai";
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -170,22 +170,45 @@ function buildModelTools(catalog = []) {
         function: {
             name: `jarvis_tool_${index}`,
             description: `${tool.name}: ${tool.description}`.slice(0, 900),
-            parameters: {
-                type: "object",
-                additionalProperties: true
-            }
+            parameters: buildNativeInputSchema(tool.inputSchema)
         }
     }));
+}
+
+function jsonTypeForSchemaHint(hint) {
+    if (hint && typeof hint === "object" && !Array.isArray(hint)) {
+        return hint.type ? hint : { type: "object", additionalProperties: true };
+    }
+
+    const normalized = String(hint || "string").trim().toLowerCase();
+    if (normalized.startsWith("array")) return { type: "array", items: {} };
+    if (normalized === "number" || normalized === "integer") return { type: normalized };
+    if (normalized === "boolean") return { type: "boolean" };
+    if (normalized === "object") return { type: "object", additionalProperties: true };
+    return { type: "string" };
+}
+
+function buildNativeInputSchema(inputSchema = null) {
+    if (!inputSchema || typeof inputSchema !== "object" || Array.isArray(inputSchema)) {
+        return { type: "object", additionalProperties: true };
+    }
+
+    if (inputSchema.type === "object" && inputSchema.properties) return inputSchema;
+
+    return {
+        type: "object",
+        properties: Object.fromEntries(
+            Object.entries(inputSchema).map(([name, hint]) => [name, jsonTypeForSchemaHint(hint)])
+        ),
+        additionalProperties: false
+    };
 }
 
 function buildGeminiModelTools(catalog = []) {
     return catalog.map((tool, index) => ({
         name: `jarvis_tool_${index}`,
         description: `${tool.name}: ${tool.description}`.slice(0, 900),
-        parametersJsonSchema: {
-            type: "object",
-            additionalProperties: true
-        }
+        parametersJsonSchema: buildNativeInputSchema(tool.inputSchema)
     }));
 }
 
@@ -236,6 +259,7 @@ function buildSemanticSystemInstruction(catalog = [], missionState = null) {
         "No repitas una herramienta completada con los mismos argumentos. No cierres con toolCalls vacio si queda un entregable ejecutable del usuario.",
         "No razones sobre rutas futuras desconocidas. Una sola repo.search con la consulta del usuario es un plan completo y correcto cuando falta una ruta exacta.",
         "Para una investigacion operativa no uses conversation.respond como sustituto de las herramientas; reservada para charla o explicaciones que no requieren inspeccion.",
+        "Para investigar informacion publica actual y entregar hechos con fuentes usa web.research. browser.inspect se reserva para diagnostico tecnico del navegador o cuando se pida expresamente inspeccionar el DOM renderizado de una URL exacta.",
         "Cuando la instruccion incluya 'Archivos adjuntos reales entregados por el usuario', usa media.analyze para analizar esos archivos y copia el arreglo JSON del manifiesto al argumento attachments sin inventar contenido.",
         "Para preguntas explicativas sin trabajo operativo usa conversation.respond si existe.",
         "Devuelve solamente un objeto JSON valido con toolCalls y explanation.",
