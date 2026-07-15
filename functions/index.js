@@ -2771,7 +2771,7 @@ exports.jarvisWebResearch = functions
             let result;
             try {
                 result = await runJarvisWebResearch({
-                    ai: getGroundedGenAI(),
+                    ai: getPlannerGenAI(),
                     query,
                     objectiveId: data?.objectiveId || "",
                     caseId: data?.caseId || "",
@@ -2951,7 +2951,7 @@ exports.jarvisMediaAnalyze = functions
         const actor = await assertJarvisAdminContext(context, "analizar documentos e imagenes");
         try {
             const result = await runJarvisMediaAnalysis({
-                ai: getGroundedGenAI(),
+                ai: getPlannerGenAI(),
                 input: data
             });
             console.log(JSON.stringify({
