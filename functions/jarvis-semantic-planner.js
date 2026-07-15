@@ -501,27 +501,35 @@ async function runSimpleSemanticPlanner({
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), Math.max(5000, Number(timeoutMs) || 25000));
     try {
-        const seed = missionState?.phase === "MISSION_CONTRACT" ? 84 : 42;
-        const url = `https://text.pollinations.ai/${encodeURIComponent(prompt)}?model=openai-fast&seed=${seed}&json=true`;
-        const response = await fetchImpl(url, { signal: controller.signal });
-        if (!response?.ok) throw new Error(`SIMPLE_SEMANTIC_HTTP_${response?.status || 0}`);
-        const payloadText = await response.text();
-        const plan = extractJsonObject(payloadText);
-        let validatedPlan = validatePlan(plan, safeCatalog, instruction);
-        if (missionState?.phase === "MISSION_CONTRACT" && validatedPlan.toolCalls.length === 0) {
-            for (const retrySeed of [85, 86]) {
-                const retryPrompt = [
+        const contractMode = missionState?.phase === "MISSION_CONTRACT";
+        const seeds = contractMode ? [84, 85, 86] : [42, 43];
+        let validatedPlan = null;
+        let lastPlanError = null;
+        for (const [attemptIndex, seed] of seeds.entries()) {
+            const attemptPrompt = attemptIndex === 0
+                ? prompt
+                : [
                     prompt,
-                    "REINTENTO DE CONTRATO: la salida anterior no contenia herramientas validas. Enumera ahora TODAS las herramientas exactas del catalogo necesarias para cada entregable y usa missionComplete=false."
+                    contractMode
+                        ? "REINTENTO DE CONTRATO: la salida anterior fue invalida. Enumera ahora TODAS las herramientas exactas del catalogo necesarias para cada entregable y usa missionComplete=false."
+                        : "REINTENTO DE PLAN: la salida anterior fue invalida. Devuelve JSON valido con al menos una herramienta exacta del catalogo, salvo que una auditoria de mision demuestre missionComplete=true."
                 ].join("\n");
-                const retryUrl = `https://text.pollinations.ai/${encodeURIComponent(retryPrompt)}?model=openai-fast&seed=${retrySeed}&json=true`;
-                const retryResponse = await fetchImpl(retryUrl, { signal: controller.signal });
-                if (!retryResponse?.ok) continue;
-                const retryPlan = extractJsonObject(await retryResponse.text());
-                validatedPlan = validatePlan(retryPlan, safeCatalog, instruction);
-                if (validatedPlan.toolCalls.length > 0) break;
+            const url = `https://text.pollinations.ai/${encodeURIComponent(attemptPrompt)}?model=openai-fast&seed=${seed}&json=true`;
+            try {
+                const response = await fetchImpl(url, { signal: controller.signal });
+                if (!response?.ok) throw new Error(`SIMPLE_SEMANTIC_HTTP_${response?.status || 0}`);
+                const candidatePlan = extractJsonObject(await response.text());
+                const candidateValidated = validatePlan(candidatePlan, safeCatalog, instruction);
+                if (candidateValidated.toolCalls.length > 0 || candidateValidated.missionComplete === true) {
+                    validatedPlan = candidateValidated;
+                    break;
+                }
+                lastPlanError = new Error("SEMANTIC_PLAN_EMPTY");
+            } catch (error) {
+                lastPlanError = error;
             }
         }
+        if (!validatedPlan) throw lastPlanError || new Error("SEMANTIC_PLAN_EMPTY");
         const selectedCatalog = validatedPlan.toolCalls
             .map(call => safeCatalog.find(tool => tool.name === call.name))
             .filter(tool => tool?.inputSchema);

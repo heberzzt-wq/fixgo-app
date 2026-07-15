@@ -317,7 +317,7 @@ test("mission contract uses the dedicated complete simple-model prompt", async (
     assert.equal(result.provider, "pollinations-simple-json");
 });
 
-test("empty mission contract retries with another semantic sample", async () => {
+test("malformed mission contract retries with another semantic sample", async () => {
     const urls = [];
     const result = await runSimpleSemanticPlanner({
         input: "Investiga y revisa conectores.",
@@ -327,17 +327,15 @@ test("empty mission contract retries with another semantic sample", async () => 
             urls.push(url);
             return {
                 ok: true,
-                text: async () => JSON.stringify(
-                    urls.length === 1
-                        ? { toolCalls: [], missionComplete: false }
-                        : {
+                text: async () => urls.length === 1
+                    ? "salida sin json"
+                    : JSON.stringify({
                             toolCalls: [
                                 { name: "repo.search", args: { query: "investigacion" } },
                                 { name: "connector.list", args: {} }
                             ],
                             missionComplete: false
-                        }
-                )
+                        })
             };
         }
     });
