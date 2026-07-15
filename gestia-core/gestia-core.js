@@ -4665,6 +4665,22 @@ if (
                         ...mission.blockedTasks.map(item => item.name)
                     ]);
                     const requiredToolNames = new Set(mission.requiredToolNames);
+                    const missingRequiredToolNames = mission.requiredToolNames.filter(
+                        name => !resolvedToolNames.has(name)
+                    );
+                    if (missingRequiredToolNames.length === 0) {
+                        return {
+                            toolCalls: [],
+                            missionComplete: true,
+                            completionAssessment: {
+                                status: "MODEL_CONTRACT_RUNTIME_AUDITED",
+                                required: [...mission.requiredToolNames],
+                                completed: mission.completedTasks.map(item => item.name),
+                                blocked: mission.blockedTasks.map(item => item.name),
+                                missing: []
+                            }
+                        };
+                    }
                     const nextToolCalls =
                         await buildJarvisMultifunctionToolCalls(
                             originalInstruction.slice(0, 120000),
@@ -4688,9 +4704,7 @@ if (
                                     rawInstructionLength: mission.rawInstructionLength,
                                     routingInstructionLength: mission.routingInstructionLength,
                                     requiredToolNames: mission.requiredToolNames,
-                                    missingRequiredToolNames: mission.requiredToolNames.filter(
-                                        name => !resolvedToolNames.has(name)
-                                    ),
+                                    missingRequiredToolNames,
                                     completedTasks: mission.completedTasks.map(item => ({
                                         name: item.name,
                                         args: item.args,
