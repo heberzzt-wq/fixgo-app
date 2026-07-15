@@ -1,4 +1,4 @@
-const VERSION = "3.2.0-browser-semantic-recovery";
+const VERSION = "3.3.0-resilient-browser-semantic-recovery";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
@@ -44,10 +44,10 @@ async function callBrowserMissionContract(input = "", catalog = []) {
         `INSTRUCCION=${boundedInstruction}`
     ].join("\n");
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 45000);
+    const timer = setTimeout(() => controller.abort(), 60000);
     let lastError = null;
     try {
-        for (const seed of [84, 85, 86]) {
+        for (const seed of [84, 85, 86, 87, 88]) {
             try {
                 const response = await fetch(
                     `https://text.pollinations.ai/${encodeURIComponent(prompt)}?model=openai-fast&seed=${seed}&json=true`,
@@ -358,6 +358,7 @@ export async function buildJarvisMultifunctionToolCalls(input = "", context = {}
                     provider: fallbackPlan.provider,
                     model: fallbackPlan.model,
                     toolCount: fallbackCalls.length,
+                    toolNames: fallbackCalls.map(call => call.name),
                     recoveredFrom: error?.message || String(error),
                     checkedAt: new Date().toISOString()
                 };

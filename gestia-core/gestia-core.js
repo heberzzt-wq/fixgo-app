@@ -40,7 +40,7 @@ import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     buildJarvisMultifunctionToolCalls,
     mergeJarvisToolCalls
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-model-semantic-planner-v9-browser-recovery-20260715';
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-model-semantic-planner-v10-resilient-browser-20260715';
 import {
     runJarvisMission
 } from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-mission-orchestrator-v3-contract-20260715';
@@ -4615,20 +4615,30 @@ if (
             ?.filter(tool => tool?.name !== "conversation.respond" && tool?.mutates !== true)
             ?.slice(0, 13) ||
         [];
-    const missionContractToolCalls =
-        await buildJarvisMultifunctionToolCalls(
-            inputRaw.slice(0, 120000),
-            {
-                ...context,
-                throwOnUnavailable: true,
-                toolCatalog: missionToolCatalog,
-                missionState: {
-                    phase: "MISSION_CONTRACT",
-                    writeAllowed: false,
-                    existingInitialTools: operationalInitialToolCalls.map(call => call?.name).filter(Boolean)
+    let missionContractToolCalls;
+    try {
+        missionContractToolCalls =
+            await buildJarvisMultifunctionToolCalls(
+                inputRaw.slice(0, 120000),
+                {
+                    ...context,
+                    throwOnUnavailable: true,
+                    toolCatalog: missionToolCatalog,
+                    missionState: {
+                        phase: "MISSION_CONTRACT",
+                        writeAllowed: false,
+                        existingInitialTools: operationalInitialToolCalls.map(call => call?.name).filter(Boolean)
+                    }
                 }
-            }
+            );
+    } catch (contractError) {
+        console.warn("[MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN]", contractError);
+        const allowedMissionTools = new Set(missionToolCatalog.map(tool => tool.name));
+        missionContractToolCalls = operationalInitialToolCalls.filter(
+            call => allowedMissionTools.has(call?.name)
         );
+        if (missionContractToolCalls.length === 0) throw contractError;
+    }
     const missionInitialToolCalls =
         mergeJarvisToolCalls(
             operationalInitialToolCalls,

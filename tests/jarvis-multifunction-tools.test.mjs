@@ -729,6 +729,10 @@ test("semantic model planner replaces phrase gates and preserves terminal speech
     assert.doesNotMatch(core, /isExplicitCasualSocialRequest/);
     assert.match(planner, /jarvisSemanticPlan/);
     assert.match(planner, /trustedPlanCalls/);
+    assert.match(planner, /callBrowserMissionContract/);
+    assert.match(planner, /callBrowserSemanticPlan/);
+    assert.match(core, /MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN/);
+    assert.match(core, /allowedMissionTools/);
     assert.doesNotMatch(planner, /\.test\(/);
     assert.doesNotMatch(planner, /new RegExp/);
     assert.doesNotMatch(planner, /ACTION_MAP|ENTITY_MAP|STOPWORDS/);
