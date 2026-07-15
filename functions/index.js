@@ -2991,7 +2991,7 @@ exports.jarvisImageGenerate = functions
 
             try {
                 result = await runJarvisImageGeneration({
-                    ai: getGroundedGenAI(),
+                    ai: getPlannerGenAI(),
                     input: data
                 });
             }
