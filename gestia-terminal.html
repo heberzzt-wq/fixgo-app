@@ -170,7 +170,7 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/modules/terminal/proposal-state.js?v=shared-proposal-state-v1-20260713"></script>
 <script type="module" src="/modules/terminal/jarvis-attachments.js?v=jarvis-multimodal-queue-v2-20260714"></script>
-<script type="module" src="/gestia-core/gestia-core.js?v=sia7-bounded-business-v3-20260714-missions-v23"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=sia7-bounded-business-v3-20260714-missions-v24"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260707-4190"></script>
 <script
 type="module"
@@ -2329,6 +2329,10 @@ const decideTerminalModeFromContext =
                     Number(semantic.confidence || 0.75),
                 objective:
                     semantic.objective || "",
+                toolCalls:
+                    Array.isArray(semantic.toolCalls)
+                        ? semantic.toolCalls
+                        : [],
                 useAgentLoop:
                     semantic.useAgentLoop !== false,
                 useRepoTools:

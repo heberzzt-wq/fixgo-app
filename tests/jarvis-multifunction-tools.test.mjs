@@ -671,6 +671,10 @@ test("semantic model planner replaces phrase gates and preserves terminal speech
     assert.match(core, /EVIDENCIA_VERIFICADA/);
     assert.match(core, /lightMultifunctionCalls\.length === 1/);
     assert.match(core, /model_selected_conversation/);
+    assert.match(core, /model_selected_multifunction_plan/);
+    assert.match(core, /TERMINAL_SEMANTIC_PLAN_SEED/);
+    assert.match(core, /terminalPlannerSeed\.length > 0/);
+    assert.match(core, /!propuesta &&\s*window\.runCognitiveReasoning/);
     assert.doesNotMatch(core, /hasExplicitOperationalRequest/);
     assert.doesNotMatch(core, /isExplicitCasualSocialRequest/);
     assert.match(planner, /jarvisSemanticPlan/);
@@ -679,6 +683,7 @@ test("semantic model planner replaces phrase gates and preserves terminal speech
     assert.doesNotMatch(planner, /new RegExp/);
     assert.doesNotMatch(planner, /ACTION_MAP|ENTITY_MAP|STOPWORDS/);
     assert.match(terminal, /jarvisSemanticRespond/);
+    assert.match(terminal, /Array\.isArray\(semantic\.toolCalls\)/);
     assert.doesNotMatch(terminal, /canAnswerCasualTerminalLocally/);
     assert.doesNotMatch(terminal, /findLocalTerminalExplanation/);
     assert.doesNotMatch(terminal, /localExplanations/);

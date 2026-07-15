@@ -4129,6 +4129,22 @@ export const GestiaCore = {
             };
         }
 
+        if (lightMultifunctionCalls.length > 0) {
+            return {
+                mode: "BRAIN_DELEGATED",
+                confidence: 0.9,
+                objective: String(inputRaw || "").trim(),
+                useAgentLoop: true,
+                useRepoTools: lightMultifunctionCalls.some(call =>
+                    String(call?.name || "").startsWith("repo.")
+                ),
+                renderCard: true,
+                prepareCommand: false,
+                reason: "model_selected_multifunction_plan",
+                toolCalls: lightMultifunctionCalls
+            };
+        }
+
         return null;
     },
 
@@ -4244,7 +4260,45 @@ export const GestiaCore = {
                     "HYBRID_REASONING"
                 );
 
-                let propuesta = null;
+                const terminalPlannerSeed =
+                    Array.isArray(context?.terminalBrainRoute?.toolCalls)
+                        ? context.terminalBrainRoute.toolCalls.filter(call =>
+                            call &&
+                            typeof call.name === "string" &&
+                            call.name.trim()
+                        )
+                        : [];
+
+                let propuesta =
+                    terminalPlannerSeed.length > 0
+                        ? {
+                            analysis_id: analysisId,
+                            cognition: {
+                                strategicMode: "PROTECTIVE",
+                                reason: "TERMINAL_SEMANTIC_PLAN_SEED",
+                                writeAllowed: false,
+                                writeAuthorization: false,
+                                approvalRequiredForWrite: true
+                            },
+                            reasoning: {
+                                strategicMode: "PROTECTIVE",
+                                reason: "TERMINAL_SEMANTIC_PLAN_SEED",
+                                toolCalls: terminalPlannerSeed,
+                                writeAllowed: false,
+                                writeAuthorization: false,
+                                approvalRequiredForWrite: true
+                            },
+                            strategicMode: "PROTECTIVE",
+                            semantic: {},
+                            inferences: [],
+                            executionChain: terminalPlannerSeed.map(call => ({
+                                step: "TOOL_CALL",
+                                target: call.name
+                            })),
+                            toolCalls: terminalPlannerSeed,
+                            changes: []
+                        }
+                        : null;
 
                 const agentLearningHints =
                     recallAgentLoopLearningHints({
@@ -4276,6 +4330,7 @@ export const GestiaCore = {
 
                 if (
 
+                    !propuesta &&
                     window.runCognitiveReasoning
 
                 ) {
