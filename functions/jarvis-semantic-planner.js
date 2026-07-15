@@ -472,6 +472,7 @@ async function runSimpleSemanticPlanner({
         ? instruction
         : `${instruction.slice(0, 8000)}\n[PARTE_MEDIA_PERSISTIDA]\n${instruction.slice(-3500)}`;
     const compactMission = missionState ? {
+        phase: missionState.phase || null,
         missionId: missionState.missionId || null,
         completedTasks: (missionState.completedTasks || []).map(item => ({
             name: item?.name || null,
@@ -489,6 +490,9 @@ async function runSimpleSemanticPlanner({
         "En misiones, no repitas herramientas completadas y usa herramientas especializadas, no conversation.respond, para entregables operativos.",
         "Devuelve unicamente JSON valido con toolCalls, explanation, missionComplete y completionAssessment. missionComplete solo puede ser true al auditar que todos los entregables de la mision ya estan satisfechos.",
         "Si la instruccion limita fuentes a un dominio, copia el dominio exacto en allowedDomain de web.research.",
+        missionState?.phase === "MISSION_CONTRACT"
+            ? "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only necesarias para TODOS los entregables, no solo la primera etapa. No omitas herramientas especializadas de landing, imagen, reel, inventario o autoevaluacion cuando se pidan. Conserva el orden de dependencias y usa missionComplete=false."
+            : "",
         `CATALOGO_NOMBRES=${safeCatalog.map(tool => tool.name).join(",")}`,
         `HERRAMIENTAS_MUTANTES_NO_AUTORIZADAS=${safeCatalog.filter(tool => tool.mutates).map(tool => tool.name).join(",")}`,
         compactMission ? `ESTADO_DE_MISION=${JSON.stringify(compactMission)}` : "",
@@ -497,7 +501,8 @@ async function runSimpleSemanticPlanner({
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), Math.max(5000, Number(timeoutMs) || 25000));
     try {
-        const url = `https://text.pollinations.ai/${encodeURIComponent(prompt)}?model=openai-fast&seed=42&json=true`;
+        const seed = missionState?.phase === "MISSION_CONTRACT" ? 84 : 42;
+        const url = `https://text.pollinations.ai/${encodeURIComponent(prompt)}?model=openai-fast&seed=${seed}&json=true`;
         const response = await fetchImpl(url, { signal: controller.signal });
         if (!response?.ok) throw new Error(`SIMPLE_SEMANTIC_HTTP_${response?.status || 0}`);
         const payloadText = await response.text();
@@ -578,6 +583,16 @@ async function runJarvisSemanticPlanner({
     let simpleFailure = null;
 
     try {
+        if (missionState?.phase === "MISSION_CONTRACT" && typeof simpleFetchImpl === "function") {
+            return await runSimpleSemanticPlanner({
+                fetchImpl: simpleFetchImpl,
+                input: instruction,
+                catalog: safeCatalog,
+                missionState,
+                timeoutMs: Math.min(Number(timeoutMs) || 25000, 25000)
+            });
+        }
+
         if (ai?.models?.generateContent) {
             try {
                 return await runGeminiSemanticPlanner({

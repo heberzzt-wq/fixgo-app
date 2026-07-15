@@ -280,6 +280,43 @@ test("empty simple plan cannot terminate the real provider chain", async () => {
     assert.equal(result.toolCalls[0].name, "repo.search");
 });
 
+test("mission contract uses the dedicated complete simple-model prompt", async () => {
+    const urls = [];
+    const result = await runJarvisSemanticPlanner({
+        input: "Investiga, entrega diagnostico y revisa conectores sin escribir.",
+        catalog,
+        missionState: { phase: "MISSION_CONTRACT", writeAllowed: false },
+        ai: {
+            models: {
+                generateContent: async () => {
+                    throw new Error("VERTEX_MUST_NOT_RUN_FOR_CONTRACT");
+                }
+            }
+        },
+        simpleFetchImpl: async url => {
+            urls.push(url);
+            return {
+                ok: true,
+                text: async () => JSON.stringify({
+                    toolCalls: [
+                        { name: "repo.search", args: { query: "diagnostico" } },
+                        { name: "connector.list", args: {} }
+                    ],
+                    missionComplete: false
+                })
+            };
+        },
+        fetchImpl: async () => {
+            throw new Error("COMPATIBLE_FALLBACK_MUST_NOT_RUN");
+        }
+    });
+
+    assert.ok(urls[0].includes("seed=84"));
+    assert.ok(urls[0].includes("CONTRATO%20COMPLETO"));
+    assert.deepEqual(result.toolCalls.map(call => call.name), ["repo.search", "connector.list"]);
+    assert.equal(result.provider, "pollinations-simple-json");
+});
+
 test("simple planner keeps a sixty-tool catalog inside a safe URL budget", async () => {
     const largeCatalog = Array.from({ length: 60 }, (_, index) => ({
         name: `domain${index}.tool${index}`,
