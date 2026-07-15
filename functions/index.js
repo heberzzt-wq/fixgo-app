@@ -238,6 +238,11 @@ function getPlannerGenAI() {
 
     const providers = [];
 
+    providers.push({
+        name: "vertex-adc",
+        ai: getVertexGenAI()
+    });
+
     try {
         providers.push({
             name: "gemini-developer",
@@ -251,11 +256,6 @@ function getPlannerGenAI() {
             error: error?.message || String(error)
         }));
     }
-
-    providers.push({
-        name: "vertex-adc",
-        ai: getVertexGenAI()
-    });
 
     plannerGenAI = createJarvisGenAIProviderChain({ providers });
     return plannerGenAI;
