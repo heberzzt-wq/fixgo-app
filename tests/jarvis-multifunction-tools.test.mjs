@@ -16,7 +16,8 @@ import {
     describeJarvisMultifunctionPlanner,
     isJarvisCapabilityForensicsRequest,
     isJarvisTechnicalDiagnosticRequest,
-    mergeJarvisToolCalls
+    mergeJarvisToolCalls,
+    __test as plannerTest
 } from "../gestia-core/jarvis/jarvis.multifunction.planner.js";
 
 import {
@@ -135,6 +136,48 @@ async function planWithModel(input, toolCalls, { approved = false } = {}) {
         })
     });
 }
+
+test("browser mission contract returns every model-selected high-level tool", async () => {
+    const originalFetch = globalThis.fetch;
+    let requestedUrl = "";
+    globalThis.fetch = async url => {
+        requestedUrl = String(url);
+        return {
+            ok: true,
+            text: async () => JSON.stringify({
+                toolCalls: [
+                    { name: "web.research", arguments: { query: "SUMM", allowedDomain: "www.summ.com.mx" } },
+                    { name: "marketing.plan", arguments: {} },
+                    { name: "page.plan", arguments: {} },
+                    { name: "image.plan", arguments: {} },
+                    { name: "reel.plan", arguments: { durationSeconds: 45 } }
+                ],
+                missionComplete: false
+            })
+        };
+    };
+    try {
+        const result = await plannerTest.callBrowserMissionContract(
+            "Investiga SUMM y entrega marketing, landing, imagen y reel sin escribir.",
+            semanticPlannerCatalog
+        );
+        assert.ok(requestedUrl.includes("text.pollinations.ai"));
+        assert.equal(result.provider, "pollinations-browser-json");
+        assert.deepEqual(result.toolCalls.map(call => call.name), [
+            "web.research",
+            "marketing.plan",
+            "page.plan",
+            "image.plan",
+            "reel.plan"
+        ]);
+
+        const trusted = plannerTest.trustedPlanCalls(result, semanticPlannerCatalog, {});
+        assert.equal(trusted[0].args.allowedDomain, "www.summ.com.mx");
+        assert.equal(trusted[4].args.durationSeconds, 45);
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
+});
 
 test("multifunction pack registers certification and remains read-only", () => {
     const runtime =

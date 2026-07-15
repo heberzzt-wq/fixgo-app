@@ -1,8 +1,79 @@
-const VERSION = "3.0.0-model-semantic-planner";
+const VERSION = "3.1.0-browser-mission-contract";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
 const pendingPlans = new Map();
+
+function extractJsonObject(value = "") {
+    const source = String(value || "");
+    let start = -1;
+    let depth = 0;
+    let quoted = false;
+    let escaped = false;
+    for (let index = 0; index < source.length; index += 1) {
+        const character = source[index];
+        if (quoted) {
+            if (escaped) escaped = false;
+            else if (character === "\\") escaped = true;
+            else if (character === '"') quoted = false;
+            continue;
+        }
+        if (character === '"') quoted = true;
+        else if (character === "{") {
+            if (start < 0) start = index;
+            depth += 1;
+        } else if (character === "}" && start >= 0) {
+            depth -= 1;
+            if (depth === 0) return JSON.parse(source.slice(start, index + 1));
+        }
+    }
+    throw new Error("CLIENT_MISSION_CONTRACT_JSON_REQUIRED");
+}
+
+async function callBrowserMissionContract(input = "", catalog = []) {
+    if (typeof fetch !== "function") throw new Error("CLIENT_MISSION_CONTRACT_FETCH_REQUIRED");
+    const instruction = String(input || "");
+    const boundedInstruction = instruction.length <= 12000
+        ? instruction
+        : `${instruction.slice(0, 8000)}\n[PARTE_MEDIA_PERSISTIDA]\n${instruction.slice(-3500)}`;
+    const prompt = [
+        "Eres el planificador semantico de Jarvis V7.",
+        "Devuelve solamente JSON valido.",
+        "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only necesarias para TODOS los entregables, no solo la primera etapa. No omitas landing, imagen, reel, inventario o autoevaluacion cuando se pidan. Conserva el orden y usa missionComplete=false.",
+        `CATALOGO=${catalog.map(tool => tool.name).join(",")}`,
+        `INSTRUCCION=${boundedInstruction}`
+    ].join("\n");
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 45000);
+    let lastError = null;
+    try {
+        for (const seed of [84, 85, 86]) {
+            try {
+                const response = await fetch(
+                    `https://text.pollinations.ai/${encodeURIComponent(prompt)}?model=openai-fast&seed=${seed}&json=true`,
+                    { signal: controller.signal }
+                );
+                if (!response.ok) throw new Error(`CLIENT_MISSION_CONTRACT_HTTP_${response.status}`);
+                const plan = extractJsonObject(await response.text());
+                if (!Array.isArray(plan?.toolCalls) || plan.toolCalls.length === 0) {
+                    throw new Error("CLIENT_MISSION_CONTRACT_EMPTY");
+                }
+                return {
+                    ...plan,
+                    ok: true,
+                    status: "SEMANTIC_PLAN_READY",
+                    provider: "pollinations-browser-json",
+                    model: "openai-fast"
+                };
+            } catch (error) {
+                lastError = error;
+            }
+        }
+    } finally {
+        clearTimeout(timer);
+    }
+    throw lastError || new Error("CLIENT_MISSION_CONTRACT_UNAVAILABLE");
+}
 
 function runtimeCatalog(context = {}) {
     const supplied = Array.isArray(context.toolCatalog)
@@ -38,8 +109,10 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
 
         calls.push({
             name: tool.name,
-            args: candidate?.args && typeof candidate.args === "object" && !Array.isArray(candidate.args)
-                ? candidate.args
+            args: (candidate?.args || candidate?.arguments) &&
+                typeof (candidate.args || candidate.arguments) === "object" &&
+                !Array.isArray(candidate.args || candidate.arguments)
+                ? (candidate.args || candidate.arguments)
                 : {},
             reason: String(candidate?.reason || "MODEL_SEMANTIC_TOOL_SELECTION").slice(0, 240),
             mutates: tool.mutates,
@@ -185,10 +258,15 @@ export async function buildJarvisMultifunctionToolCalls(input = "", context = {}
     }
 
     try {
+        const contractPlanner = context?.missionState?.phase === "MISSION_CONTRACT" &&
+            typeof context.semanticPlanner !== "function"
+            ? ({ input: contractInput, catalog: contractCatalog }) =>
+                callBrowserMissionContract(contractInput, contractCatalog)
+            : context.semanticPlanner;
         const plan = await resolveSemanticPlan(
             instruction,
             catalog,
-            context.semanticPlanner,
+            contractPlanner,
             context.missionState || null
         );
         const calls = trustedPlanCalls(plan, catalog, context);
@@ -241,5 +319,7 @@ export function describeJarvisMultifunctionPlanner() {
 export const __test = {
     runtimeCatalog,
     trustedPlanCalls,
-    planCacheKey
+    planCacheKey,
+    extractJsonObject,
+    callBrowserMissionContract
 };
