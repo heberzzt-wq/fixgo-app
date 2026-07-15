@@ -256,7 +256,7 @@ async function runGeminiSemanticPlanner({
         extractJsonObject(String(response?.text || ""));
     return {
         ...validatePlan(plan, safeCatalog, instruction),
-        provider: "gemini",
+        provider: String(ai.lastProvider || "gemini"),
         model,
         catalogSize: safeCatalog.length
     };

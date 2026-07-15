@@ -41,6 +41,7 @@ test("provider chain continues from an invalid developer key to Vertex AI", asyn
     assert.deepEqual(calls, ["developer", "vertex"]);
     assert.equal(result.text, "ok");
     assert.equal(result.request, request);
+    assert.equal(chain.lastProvider, "vertex-adc");
 });
 
 test("provider chain reports every real provider failure without fabricating output", async () => {

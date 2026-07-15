@@ -8,12 +8,16 @@ function normalizeProviders(providers) {
 
 function createJarvisGenAIProviderChain({ providers = [] } = {}) {
     const availableProviders = normalizeProviders(providers);
+    let lastProvider = null;
 
     if (availableProviders.length === 0) {
         throw new Error("JARVIS_GENAI_PROVIDER_REQUIRED");
     }
 
     return {
+        get lastProvider() {
+            return lastProvider;
+        },
         models: {
             async generateContent(request) {
                 const failures = [];
@@ -24,6 +28,7 @@ function createJarvisGenAIProviderChain({ providers = [] } = {}) {
                         if (!response) {
                             throw new Error("EMPTY_PROVIDER_RESPONSE");
                         }
+                        lastProvider = String(provider.name || "genai");
                         return response;
                     }
                     catch(error) {

@@ -292,6 +292,7 @@ test("semantic planner uses authenticated Gemini before the public fallback", as
         input: "investiga SUMM y prepara una campana sin publicar",
         catalog,
         ai: {
+            lastProvider: "vertex-adc",
             models: {
                 generateContent: async request => {
                     assert.equal(request.model, "gemini-2.5-flash");
@@ -311,7 +312,7 @@ test("semantic planner uses authenticated Gemini before the public fallback", as
         }
     });
 
-    assert.equal(result.provider, "gemini");
+    assert.equal(result.provider, "vertex-adc");
     assert.deepEqual(result.toolCalls.map(call => call.name), ["repo.search", "connector.list"]);
     assert.equal(fallbackCalls, 0);
 });
