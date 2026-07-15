@@ -290,6 +290,36 @@ async function runGeminiSemanticPlanner({
     const safeCatalog = normalizeCatalog(catalog);
     if (!instruction || safeCatalog.length === 0) throw new Error("SEMANTIC_GEMINI_INPUT_REQUIRED");
 
+    if (missionState?.phase === "MISSION_CONTRACT") {
+        const contractResponse = await ai.models.generateContent({
+            model,
+            contents: [
+                buildSemanticSystemInstruction(safeCatalog, null),
+                `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
+                [
+                    "CONTRATO_DE_MISION: enumera en toolCalls todas las herramientas read-only necesarias para satisfacer cada entregable independiente de la instruccion, no solo la primera etapa.",
+                    "Incluye herramientas especializadas de investigacion, negocio, marketing, pagina, imagen, reel, documentos o diagnostico cuando el usuario haya pedido esos resultados.",
+                    "Conserva el orden de dependencias. No incluyas herramientas mutantes si la orden prohibe escribir, publicar, generar archivos o producir medios.",
+                    "Si las fuentes estan limitadas a un dominio, copia ese dominio exacto en allowedDomain de cada web.research.",
+                    "Devuelve JSON con toolCalls, explanation, missionComplete=false y completionAssessment que liste los entregables cubiertos por cada herramienta."
+                ].join("\n")
+            ].join("\n\n"),
+            config: {
+                temperature: 0,
+                maxOutputTokens: 2200,
+                responseMimeType: "application/json"
+            }
+        });
+        const contractPlan = extractJsonObject(String(contractResponse?.text || ""));
+        return requireExecutablePlan({
+            ...validatePlan(contractPlan, safeCatalog, instruction),
+            provider: String(ai.lastProvider || "gemini"),
+            model,
+            catalogSize: safeCatalog.length,
+            planKind: "MISSION_CONTRACT"
+        });
+    }
+
     const request = {
         model,
         contents: [

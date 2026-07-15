@@ -33,6 +33,7 @@ test("mission continues from research through marketing, page and reel planning"
     const mission = await runJarvisMission({
         instruction: "Investiga summ.com.mx y entrega estrategia, landing propuesta y storyboard de reel sin publicar.",
         initialToolCalls: [{ name: sequence[0], args: { query: "site:summ.com.mx SUMM" } }],
+        requiredToolNames: sequence,
         planner: async ({ mission: current }) => {
             const next = sequence[current.completedTasks.length];
             return next
@@ -54,6 +55,7 @@ test("mission continues from research through marketing, page and reel planning"
     const recovered = recoverJarvisMission(mission.missionId, { storage });
     assert.equal(recovered.objectiveId, mission.objectiveId);
     assert.equal(recovered.originalInstruction, mission.originalInstruction);
+    assert.deepEqual(recovered.requiredToolNames, sequence);
 });
 
 test("mission blocks writes, retries one failure and reports an honest partial result", async () => {
@@ -140,6 +142,21 @@ test("mission never reports completion when the semantic planner is unavailable"
     assert.equal(mission.reason, "PLANNER_UNAVAILABLE");
     assert.equal(mission.status, "PARTIAL");
     assert.equal(mission.errors[0].tool, "semantic.planner");
+});
+
+test("mission cannot close while its model-generated contract is incomplete", async () => {
+    const mission = await runJarvisMission({
+        instruction: "Entrega investigacion, landing e imagen.",
+        initialToolCalls: [{ name: "web.research", args: { query: "fuente" } }],
+        requiredToolNames: ["web.research", "page.plan", "image.plan"],
+        planner: async () => ({ toolCalls: [], missionComplete: true }),
+        execute: async () => ({ ok: true, status: "READY" }),
+        storage: memoryStorage()
+    });
+
+    assert.equal(mission.reason, "MISSION_CONTRACT_INCOMPLETE");
+    assert.deepEqual(mission.contractMissingTools, ["page.plan", "image.plan"]);
+    assert.equal(mission.status, "PARTIAL");
 });
 
 test("routing compaction is deterministic and does not replace the authority instruction", () => {

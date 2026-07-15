@@ -103,6 +103,7 @@ function trustedCalls(calls = [], mission) {
 export async function runJarvisMission({
     instruction,
     initialToolCalls = [],
+    requiredToolNames = [],
     planner,
     execute,
     storage,
@@ -134,6 +135,11 @@ export async function runJarvisMission({
         status: "RUNNING",
         reason: null,
         plannedTools: [],
+        requiredToolNames: [...new Set(
+            (Array.isArray(requiredToolNames) ? requiredToolNames : [])
+                .map(name => text(name, 100))
+                .filter(Boolean)
+        )],
         executedTools: [],
         completedTasks: [],
         pendingTasks: [],
@@ -183,11 +189,19 @@ export async function runJarvisMission({
             mission.updatedAt = now();
             saveMission(persistence, mission);
             if (additions.length === 0) {
-                mission.reason = plan?.missionComplete === true
+                const completedNames = new Set(mission.completedTasks.map(item => item.name));
+                const blockedNames = new Set(mission.blockedTasks.map(item => item.name));
+                mission.contractMissingTools = mission.requiredToolNames.filter(
+                    name => !completedNames.has(name) && !blockedNames.has(name)
+                );
+                const contractSatisfied = mission.contractMissingTools.length === 0;
+                mission.reason = plan?.missionComplete === true && contractSatisfied
                     ? mission.blockedTasks.length > 0
                         ? "PARTIAL_CAPABILITY_BLOCKED"
                         : "ALL_EXECUTABLE_TASKS_COMPLETED"
-                    : "PLANNER_NO_EXECUTABLE_PLAN";
+                    : contractSatisfied
+                        ? "PLANNER_NO_EXECUTABLE_PLAN"
+                        : "MISSION_CONTRACT_INCOMPLETE";
                 break;
             }
         }

@@ -38,11 +38,12 @@ import {
 // Motores de lógica estratégica (Cerebro) y ejecución mecánica (Brazo)
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
-    buildJarvisMultifunctionToolCalls
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-model-semantic-planner-v6-audited-completion-20260715';
+    buildJarvisMultifunctionToolCalls,
+    mergeJarvisToolCalls
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-model-semantic-planner-v7-mission-contract-20260715';
 import {
     runJarvisMission
-} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-mission-orchestrator-v2-explicit-completion-20260715';
+} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-mission-orchestrator-v3-contract-20260715';
 //import { ejecutarCambios } from '/gestia-core/operations-executor.engine.js';
 
 // ======================================================================================
@@ -4608,12 +4609,39 @@ if (
             ? propuesta.toolCalls.filter(call => call?.name !== "conversation.respond")
             : propuesta.toolCalls;
 
+    const missionToolCatalog =
+        globalThis.JarvisToolRuntime
+            ?.list?.()
+            ?.filter(tool => tool?.name !== "conversation.respond" && tool?.mutates !== true) ||
+        [];
+    const missionContractToolCalls =
+        await buildJarvisMultifunctionToolCalls(
+            inputRaw.slice(0, 120000),
+            {
+                ...context,
+                throwOnUnavailable: true,
+                toolCatalog: missionToolCatalog,
+                missionState: {
+                    phase: "MISSION_CONTRACT",
+                    writeAllowed: false,
+                    existingInitialTools: operationalInitialToolCalls.map(call => call?.name).filter(Boolean)
+                }
+            }
+        );
+    const missionInitialToolCalls =
+        mergeJarvisToolCalls(
+            operationalInitialToolCalls,
+            missionContractToolCalls
+        );
+
     const missionResult =
         await runJarvisMission({
             instruction:
                 inputRaw,
             initialToolCalls:
-                operationalInitialToolCalls,
+                missionInitialToolCalls,
+            requiredToolNames:
+                [...new Set(missionContractToolCalls.map(call => call.name))],
             caseId:
                 context.caseId || null,
             objectiveId:
