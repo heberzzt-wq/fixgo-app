@@ -60,17 +60,36 @@ function validateAnalysis(parsed, files) {
 }
 
 async function runJarvisMediaAnalysis({ ai, input = {}, model = DEFAULT_MODEL } = {}) {
-    if (!ai?.getGenerativeModel) throw new Error("MEDIA_AI_REQUIRED");
+    const modernClient = Boolean(ai?.models?.generateContent);
+    const legacyClient = Boolean(ai?.getGenerativeModel);
+    if (!modernClient && !legacyClient) throw new Error("MEDIA_AI_REQUIRED");
     const files = normalizeMediaFiles(input.files);
     const question = String(input.question || input.instruction || "Analiza los materiales entregados.").trim().slice(0, 3000);
     const prompt = `Eres el analista visual y documental privado de Heberto Mendoza. Analiza exclusivamente los archivos adjuntos. No inventes texto, objetos, cifras ni páginas ilegibles. Distingue observación de inferencia. Devuelve JSON estricto con esta forma: {"sources":[{"description":"","objects":[],"composition":{"framing":"","lighting":"","visualHierarchy":""},"visibleData":[{"value":"","page":null,"confidence":0,"evidence":""}],"pages":[{"page":1,"summary":"","tables":[],"images":[],"evidence":[],"uncertainty":[]}],"marketingUse":[],"quality":{"score":0,"issues":[],"improvements":[]},"uncertainty":[],"evidence":[]}],"comparison":{"beforeAfter":false,"differences":[],"confidence":0},"recommendations":[]}. Debe existir una entrada sources por archivo y en el mismo orden. Para PDF aporta evidencia por página. Para imágenes evalúa hero, galería, servicio, equipo, testimonio y antes/después sólo cuando haya evidencia. Si algo no se lee, colócalo en uncertainty. Pregunta: ${question}`;
     const parts = [prompt, ...files.map(file => ({ inlineData: { mimeType: file.mimeType, data: file.dataBase64 } }))];
-    const generator = ai.getGenerativeModel({
-        model,
-        generationConfig: { temperature: 0.05, maxOutputTokens: 8192, responseMimeType: "application/json" }
-    });
-    const generated = await generator.generateContent(parts);
-    const text = generated?.response?.text?.();
+    let text = "";
+
+    if (modernClient) {
+        const generated = await ai.models.generateContent({
+            model,
+            contents: [{ role: "user", parts }],
+            config: {
+                temperature: 0.05,
+                maxOutputTokens: 8192,
+                responseMimeType: "application/json"
+            }
+        });
+        text = String(generated?.text || "");
+    }
+    else {
+        const generator = ai.getGenerativeModel({
+            model,
+            generationConfig: { temperature: 0.05, maxOutputTokens: 8192, responseMimeType: "application/json" }
+        });
+        const generated = await generator.generateContent(parts);
+        text = String(generated?.response?.text?.() || "");
+    }
+
     if (!text) throw new Error("MEDIA_ANALYSIS_OUTPUT_MISSING");
     let parsed;
     try {
@@ -78,7 +97,12 @@ async function runJarvisMediaAnalysis({ ai, input = {}, model = DEFAULT_MODEL } 
     } catch (error) {
         throw new Error("MEDIA_ANALYSIS_JSON_INVALID");
     }
-    return { ...validateAnalysis(parsed, files), model, analyzedAt: new Date().toISOString() };
+    return {
+        ...validateAnalysis(parsed, files),
+        provider: String(ai.lastProvider || (modernClient ? "gemini-modern" : "gemini-legacy")),
+        model,
+        analyzedAt: new Date().toISOString()
+    };
 }
 
 module.exports = {

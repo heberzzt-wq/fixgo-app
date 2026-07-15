@@ -53,6 +53,50 @@ test("grounded media analysis sends real inline bytes and preserves evidence and
     assert.equal(result.policy.illegibleContentMustRemainUnknown, true);
 });
 
+test("grounded media analysis supports the deployed modern provider chain", async () => {
+    let request;
+    const result = await runJarvisMediaAnalysis({
+        ai: {
+            lastProvider: "vertex-adc",
+            models: {
+                generateContent: async value => {
+                    request = value;
+                    return {
+                        text: JSON.stringify({
+                            sources: [{
+                                description: "Imagen tecnica verificable",
+                                objects: ["equipo"],
+                                composition: {},
+                                visibleData: [],
+                                pages: [],
+                                marketingUse: ["hero"],
+                                quality: { score: 80 },
+                                uncertainty: [],
+                                evidence: ["equipo visible"]
+                            }],
+                            comparison: null,
+                            recommendations: []
+                        })
+                    };
+                }
+            }
+        },
+        input: {
+            files: [{
+                name: "equipo.png",
+                mimeType: "image/png",
+                dataBase64: Buffer.from("imagen-real").toString("base64")
+            }],
+            question: "Describe solamente lo visible."
+        }
+    });
+
+    assert.equal(request.model, "gemini-2.5-flash");
+    assert.equal(request.contents[0].parts[1].inlineData.mimeType, "image/png");
+    assert.equal(result.provider, "vertex-adc");
+    assert.equal(result.sources[0].description, "Imagen tecnica verificable");
+});
+
 test("media analysis rejects unsupported, excessive and malformed inputs before model execution", () => {
     assert.throws(() => normalizeMediaFiles([]), /COUNT_INVALID/);
     assert.throws(() => normalizeMediaFiles([{ name: "x", mimeType: "text/plain", dataBase64: tinyPng }]), /TYPE_UNSUPPORTED/);
