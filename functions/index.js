@@ -63,6 +63,10 @@ const {
     runJarvisSemanticResponse
 } = require("./jarvis-semantic-planner");
 
+const {
+    createJarvisGenAIProviderChain
+} = require("./jarvis-genai-provider-chain");
+
 /**
  * 🛡️ SELLADO DE INFRAESTRUCTURA (GLOBAL SCOPE)
  * Fix Crítico: initializeApp debe ocurrir al cargar el archivo para evitar 'app/no-app'.
@@ -144,6 +148,8 @@ const {
 let stripe;
 let genAI;
 let groundedGenAI;
+let vertexGenAI;
+let plannerGenAI;
 let firewallV5;
 let initialized = false;
 
@@ -207,6 +213,52 @@ function getGroundedGenAI() {
         new GoogleGenAI({ apiKey });
 
     return groundedGenAI;
+}
+
+function getVertexGenAI() {
+    if (!vertexGenAI) {
+        vertexGenAI = new GoogleGenAI({
+            vertexai: true,
+            project:
+                process.env.GCLOUD_PROJECT ||
+                process.env.GOOGLE_CLOUD_PROJECT ||
+                "fixgo-44e4d",
+            location: "global",
+            apiVersion: "v1"
+        });
+    }
+
+    return vertexGenAI;
+}
+
+function getPlannerGenAI() {
+    if (plannerGenAI) {
+        return plannerGenAI;
+    }
+
+    const providers = [];
+
+    try {
+        providers.push({
+            name: "gemini-developer",
+            ai: getGroundedGenAI()
+        });
+    }
+    catch(error) {
+        console.warn(JSON.stringify({
+            level: "WARNING",
+            message: "JARVIS_GEMINI_DEVELOPER_UNAVAILABLE",
+            error: error?.message || String(error)
+        }));
+    }
+
+    providers.push({
+        name: "vertex-adc",
+        ai: getVertexGenAI()
+    });
+
+    plannerGenAI = createJarvisGenAIProviderChain({ providers });
+    return plannerGenAI;
 }
 
 // ======================================================================================
@@ -2821,7 +2873,7 @@ exports.jarvisSemanticPlan = functions
             const result = await runJarvisSemanticPlanner({
                 fetchImpl: fetch,
                 simpleFetchImpl: fetch,
-                ai: getGroundedGenAI(),
+                ai: getPlannerGenAI(),
                 input: data?.input,
                 catalog: data?.catalog,
                 missionState: data?.missionState || null
