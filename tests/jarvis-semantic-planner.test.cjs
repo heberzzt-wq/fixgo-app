@@ -239,6 +239,41 @@ test("simple anonymous planner returns a validated compact semantic plan", async
     assert.equal(result.toolCalls[0].approved, false);
 });
 
+test("empty simple plan cannot terminate the real provider chain", async () => {
+    let compatibleCalls = 0;
+    const result = await runJarvisSemanticPlanner({
+        input: "investiga SUMM y prepara marketing",
+        catalog,
+        simpleFetchImpl: async () => ({
+            ok: true,
+            text: async () => JSON.stringify({ toolCalls: [], explanation: "" })
+        }),
+        fetchImpl: async () => {
+            compatibleCalls += 1;
+            return {
+                ok: true,
+                json: async () => ({
+                    model: "compatible-recovery-model",
+                    choices: [{
+                        message: {
+                            tool_calls: [{
+                                function: {
+                                    name: "jarvis_tool_0",
+                                    arguments: JSON.stringify({ query: "site:summ.com.mx SUMM" })
+                                }
+                            }]
+                        }
+                    }]
+                })
+            };
+        }
+    });
+
+    assert.equal(compatibleCalls, 1);
+    assert.equal(result.provider, "pollinations");
+    assert.equal(result.toolCalls[0].name, "repo.search");
+});
+
 test("simple planner keeps a sixty-tool catalog inside a safe URL budget", async () => {
     const largeCatalog = Array.from({ length: 60 }, (_, index) => ({
         name: `domain${index}.tool${index}`,

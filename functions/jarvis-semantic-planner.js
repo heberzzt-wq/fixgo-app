@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "1.2.0-grounded-provider-chain";
+const VERSION = "1.3.0-nonempty-provider-contract";
 const DEFAULT_ENDPOINT = "https://text.pollinations.ai/openai";
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -141,6 +141,13 @@ function validatePlan(plan = {}, catalog = [], fallbackInput = "") {
     };
 }
 
+function requireExecutablePlan(plan = {}) {
+    if (!Array.isArray(plan?.toolCalls) || plan.toolCalls.length === 0) {
+        throw new Error("SEMANTIC_PLAN_EMPTY");
+    }
+    return plan;
+}
+
 function compactMissionObservation(observation = {}) {
     const sources = Array.isArray(observation?.validSources)
         ? observation.validSources.slice(0, 6).map(source => ({
@@ -270,12 +277,12 @@ async function runGeminiSemanticPlanner({
     const plan =
         extractGeminiToolCallPlan(response, safeCatalog) ||
         extractJsonObject(String(response?.text || ""));
-    return {
+    return requireExecutablePlan({
         ...validatePlan(plan, safeCatalog, instruction),
         provider: String(ai.lastProvider || "gemini"),
         model,
         catalogSize: safeCatalog.length
-    };
+    });
 }
 
 function extractToolCallPlan(payload = {}, catalog = []) {
@@ -387,12 +394,12 @@ async function runSimpleSemanticPlanner({
                 };
             }
         }
-        return {
+        return requireExecutablePlan({
             ...validatedPlan,
             provider: "pollinations-simple-json",
             model: "openai-fast",
             catalogSize: safeCatalog.length
-        };
+        });
     } finally {
         clearTimeout(timer);
     }
@@ -516,12 +523,12 @@ async function runJarvisSemanticPlanner({
             try {
                 const plan = extractToolCallPlan(payload, safeCatalog) || extractJsonObject(content);
                 const validated = validatePlan(plan, safeCatalog, instruction);
-                return {
+                return requireExecutablePlan({
                     ...validated,
                     provider: "pollinations",
                     model: String(payload?.model || "openai"),
                     catalogSize: safeCatalog.length
-                };
+                });
             } catch (error) {
                 if (outputAttempt === 2) {
                     if (simpleFailure) {
