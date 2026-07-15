@@ -501,6 +501,66 @@ test("Gemini semantic plan remains bounded by the real runtime catalog", async (
     assert.equal(result.toolCalls[1].approved, false);
 });
 
+test("Gemini audits mission completion when native function output is empty", async () => {
+    let calls = 0;
+    const result = await runGeminiSemanticPlanner({
+        input: "Investiga y despues entrega el diagnostico faltante.",
+        catalog,
+        missionState: {
+            missionId: "MISSION-AUDIT-1",
+            completedTasks: [{ name: "connector.list" }],
+            pendingTasks: [],
+            blockedTasks: []
+        },
+        ai: {
+            lastProvider: "vertex-adc",
+            models: {
+                generateContent: async request => {
+                    calls += 1;
+                    if (calls === 1) return {};
+                    assert.equal(request.config.responseMimeType, "application/json");
+                    return {
+                        text: JSON.stringify({
+                            toolCalls: [{ name: "repo.search", args: { query: "diagnostico" } }],
+                            missionComplete: false,
+                            completionAssessment: { missing: ["diagnostico"] }
+                        })
+                    };
+                }
+            }
+        }
+    });
+
+    assert.equal(calls, 2);
+    assert.equal(result.toolCalls[0].name, "repo.search");
+    assert.equal(result.missionComplete, false);
+});
+
+test("semantic mission completion requires an explicit model audit", async () => {
+    const result = await runSimpleSemanticPlanner({
+        input: "Cierra solamente si todos los entregables estan listos.",
+        catalog,
+        missionState: {
+            missionId: "MISSION-AUDIT-2",
+            completedTasks: catalog.map(item => ({ name: item.name })),
+            pendingTasks: [],
+            blockedTasks: []
+        },
+        fetchImpl: async () => ({
+            ok: true,
+            text: async () => JSON.stringify({
+                toolCalls: [],
+                missionComplete: true,
+                completionAssessment: { missing: [], satisfied: ["todos"] }
+            })
+        })
+    });
+
+    assert.equal(result.toolCalls.length, 0);
+    assert.equal(result.missionComplete, true);
+    assert.deepEqual(result.completionAssessment.missing, []);
+});
+
 test("semantic planner accepts long and ten-page missions without losing mission state", async () => {
     const longInstruction = Array.from({ length: 500 }, (_, index) => `Pagina y requisito ${index}: conservar evidencia.`).join("\n");
     assert.ok(longInstruction.length > 1600);

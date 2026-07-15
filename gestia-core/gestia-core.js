@@ -39,10 +39,10 @@ import {
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     buildJarvisMultifunctionToolCalls
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-model-semantic-planner-v5-gemini-20260714';
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-model-semantic-planner-v6-audited-completion-20260715';
 import {
     runJarvisMission
-} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-mission-orchestrator-v1-20260714';
+} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-mission-orchestrator-v2-explicit-completion-20260715';
 //import { ejecutarCambios } from '/gestia-core/operations-executor.engine.js';
 
 // ======================================================================================
@@ -4619,18 +4619,19 @@ if (
             objectiveId:
                 context.objectiveId || null,
             maximumSteps:
-                12,
+                20,
             maximumRetries:
                 1,
             timeoutMs:
-                180000,
+                360000,
             planner:
-                async ({ originalInstruction, mission }) => ({
-                    toolCalls:
+                async ({ originalInstruction, mission }) => {
+                    const nextToolCalls =
                         await buildJarvisMultifunctionToolCalls(
                             originalInstruction.slice(0, 120000),
                             {
                                 ...context,
+                                throwOnUnavailable: true,
                                 toolCatalog:
                                     globalThis.JarvisToolRuntime
                                         ?.list?.()
@@ -4658,8 +4659,13 @@ if (
                                     writeAllowed: false
                                 }
                             }
-                        )
-                }),
+                        );
+                    return {
+                        toolCalls: nextToolCalls,
+                        missionComplete: nextToolCalls.missionComplete === true,
+                        completionAssessment: nextToolCalls.completionAssessment || null
+                    };
+                },
             execute:
                 async (call, missionContext) => {
                     const results = await window.ToolsBridge.executeMany(

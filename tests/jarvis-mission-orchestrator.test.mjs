@@ -16,7 +16,7 @@ test("mission preserves a ten-page instruction while routing with a bounded repr
     const mission = await runJarvisMission({
         instruction,
         initialToolCalls: [],
-        planner: async () => ({ toolCalls: [] }),
+        planner: async () => ({ toolCalls: [], missionComplete: true }),
         execute: async () => ({ ok: true }),
         storage: memoryStorage()
     });
@@ -35,7 +35,9 @@ test("mission continues from research through marketing, page and reel planning"
         initialToolCalls: [{ name: sequence[0], args: { query: "site:summ.com.mx SUMM" } }],
         planner: async ({ mission: current }) => {
             const next = sequence[current.completedTasks.length];
-            return { toolCalls: next ? [{ name: next, args: { prompt: "evidencia previa" } }] : [] };
+            return next
+                ? { toolCalls: [{ name: next, args: { prompt: "evidencia previa" } }] }
+                : { toolCalls: [], missionComplete: true };
         },
         execute: async call => {
             executed.push(call.name);
@@ -59,7 +61,7 @@ test("mission blocks writes, retries one failure and reports an honest partial r
     const mission = await runJarvisMission({
         instruction: "Prepara sin publicar.",
         initialToolCalls: [{ name: "page.create", args: { output: "landing.html" }, approved: true }],
-        planner: async () => ({ toolCalls: [] }),
+        planner: async () => ({ toolCalls: [], missionComplete: true }),
         execute: async (call, context) => {
             attempts += 1;
             assert.equal(call.approved, false);
@@ -87,7 +89,7 @@ test("mission stops repeated plans and respects maximum steps", async () => {
     });
     index += mission.executedTools.length;
     assert.equal(index, 1);
-    assert.equal(mission.reason, "ALL_EXECUTABLE_TASKS_COMPLETED");
+    assert.equal(mission.reason, "PLANNER_NO_EXECUTABLE_PLAN");
 
     const bounded = await runJarvisMission({
         instruction: "Genera tareas distintas sin fin.",
@@ -122,6 +124,22 @@ test("mission cancellation and deadline close without another tool", async () =>
         timeoutMs: -1
     });
     assert.equal(deadline.reason, "DEADLINE_EXCEEDED");
+});
+
+test("mission never reports completion when the semantic planner is unavailable", async () => {
+    const mission = await runJarvisMission({
+        instruction: "Investiga y entrega todos los resultados.",
+        initialToolCalls: [{ name: "web.research", args: { query: "fuente oficial" } }],
+        planner: async () => {
+            throw new Error("SEMANTIC_PLANNER_UNAVAILABLE");
+        },
+        execute: async () => ({ ok: true, status: "READY" }),
+        storage: memoryStorage()
+    });
+
+    assert.equal(mission.reason, "PLANNER_UNAVAILABLE");
+    assert.equal(mission.status, "PARTIAL");
+    assert.equal(mission.errors[0].tool, "semantic.planner");
 });
 
 test("routing compaction is deterministic and does not replace the authority instruction", () => {

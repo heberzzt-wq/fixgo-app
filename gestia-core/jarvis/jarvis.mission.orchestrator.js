@@ -1,4 +1,4 @@
-const VERSION = "1.0.0-persistent-observation-loop";
+const VERSION = "1.1.0-explicit-model-audited-completion";
 const STORAGE_KEY = "jarvis.missions.v1";
 
 function text(value = "", maximum = 120000) {
@@ -160,18 +160,34 @@ export async function runJarvisMission({
         }
 
         if (mission.pendingTasks.length === 0) {
-            const plan = await planner({
-                originalInstruction,
-                routingInstruction: mission.routingInstruction,
-                mission: structuredClone(mission)
-            });
+            let plan;
+            try {
+                plan = await planner({
+                    originalInstruction,
+                    routingInstruction: mission.routingInstruction,
+                    mission: structuredClone(mission)
+                });
+            } catch (error) {
+                mission.reason = "PLANNER_UNAVAILABLE";
+                mission.errors.push({
+                    tool: "semantic.planner",
+                    status: text(error?.message || "PLANNER_UNAVAILABLE", 500),
+                    retryable: true,
+                    at: now()
+                });
+                break;
+            }
             const additions = trustedCalls(plan?.toolCalls || plan || [], mission);
             mission.pendingTasks.push(...additions);
             mission.plannedTools.push(...additions.map(item => item.name));
             mission.updatedAt = now();
             saveMission(persistence, mission);
             if (additions.length === 0) {
-                mission.reason = mission.blockedTasks.length > 0 ? "PARTIAL_CAPABILITY_BLOCKED" : "ALL_EXECUTABLE_TASKS_COMPLETED";
+                mission.reason = plan?.missionComplete === true
+                    ? mission.blockedTasks.length > 0
+                        ? "PARTIAL_CAPABILITY_BLOCKED"
+                        : "ALL_EXECUTABLE_TASKS_COMPLETED"
+                    : "PLANNER_NO_EXECUTABLE_PLAN";
                 break;
             }
         }

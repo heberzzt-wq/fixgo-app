@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "1.4.0-grounded-native-tool-schemas";
+const VERSION = "1.5.0-model-audited-mission-completion";
 const DEFAULT_ENDPOINT = "https://text.pollinations.ai/openai";
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -137,12 +137,19 @@ function validatePlan(plan = {}, catalog = [], fallbackInput = "") {
         status: "SEMANTIC_PLAN_READY",
         version: VERSION,
         toolCalls,
-        explanation: String(plan?.explanation || "").slice(0, 600)
+        explanation: String(plan?.explanation || "").slice(0, 600),
+        missionComplete: toolCalls.length === 0 && plan?.missionComplete === true,
+        completionAssessment: plan?.completionAssessment && typeof plan.completionAssessment === "object"
+            ? plan.completionAssessment
+            : null
     };
 }
 
 function requireExecutablePlan(plan = {}) {
-    if (!Array.isArray(plan?.toolCalls) || plan.toolCalls.length === 0) {
+    if (
+        !Array.isArray(plan?.toolCalls) ||
+        (plan.toolCalls.length === 0 && plan?.missionComplete !== true)
+    ) {
         throw new Error("SEMANTIC_PLAN_EMPTY");
     }
     return plan;
@@ -257,12 +264,14 @@ function buildSemanticSystemInstruction(catalog = [], missionState = null) {
         "Si recibes ESTADO_DE_MISION, revisa la instruccion original inmutable, lo ya ejecutado, lo pendiente y lo bloqueado; selecciona la siguiente herramienta real necesaria.",
         "En una mision con una herramienta operativa ya completada, conversation.respond no es un entregable ni puede sustituir marketing.plan, page.plan, image.plan, reel.plan, web.research u otra herramienta especializada disponible.",
         "No repitas una herramienta completada con los mismos argumentos. No cierres con toolCalls vacio si queda un entregable ejecutable del usuario.",
+        "En ESTADO_DE_MISION, devuelve missionComplete=true solamente despues de auditar uno por uno todos los entregables de la instruccion original contra completedTasks. Si falta cualquiera, missionComplete=false y selecciona su siguiente herramienta real.",
+        "Cuando el usuario limite la investigacion a un dominio, copia ese dominio exacto en allowedDomain de web.research y descarta fuentes externas.",
         "No razones sobre rutas futuras desconocidas. Una sola repo.search con la consulta del usuario es un plan completo y correcto cuando falta una ruta exacta.",
         "Para una investigacion operativa no uses conversation.respond como sustituto de las herramientas; reservada para charla o explicaciones que no requieren inspeccion.",
         "Para investigar informacion publica actual y entregar hechos con fuentes usa web.research. browser.inspect se reserva para diagnostico tecnico del navegador o cuando se pida expresamente inspeccionar el DOM renderizado de una URL exacta.",
         "Cuando la instruccion incluya 'Archivos adjuntos reales entregados por el usuario', usa media.analyze para analizar esos archivos y copia el arreglo JSON del manifiesto al argumento attachments sin inventar contenido.",
         "Para preguntas explicativas sin trabajo operativo usa conversation.respond si existe.",
-        "Devuelve solamente un objeto JSON valido con toolCalls y explanation.",
+        "Devuelve solamente un objeto JSON valido con toolCalls, explanation, missionComplete y completionAssessment.",
         "Cada toolCall contiene name, args y reason. Maximo 8 toolCalls.",
         `CATALOGO=${JSON.stringify(catalog)}`,
         missionState ? `ESTADO_DE_MISION=${JSON.stringify(missionState).slice(0, 30000)}` : ""
@@ -281,7 +290,7 @@ async function runGeminiSemanticPlanner({
     const safeCatalog = normalizeCatalog(catalog);
     if (!instruction || safeCatalog.length === 0) throw new Error("SEMANTIC_GEMINI_INPUT_REQUIRED");
 
-    const response = await ai.models.generateContent({
+    const request = {
         model,
         contents: [
             buildSemanticSystemInstruction(safeCatalog, missionState),
@@ -297,10 +306,32 @@ async function runGeminiSemanticPlanner({
                 }
             }
         }
-    });
-    const plan =
-        extractGeminiToolCallPlan(response, safeCatalog) ||
-        extractJsonObject(String(response?.text || ""));
+    };
+    const response = await ai.models.generateContent(request);
+    let plan = extractGeminiToolCallPlan(response, safeCatalog);
+
+    if (!plan && String(response?.text || "").trim()) {
+        plan = extractJsonObject(String(response.text));
+    }
+
+    if (!plan && missionState) {
+        const auditResponse = await ai.models.generateContent({
+            model,
+            contents: [
+                buildSemanticSystemInstruction(safeCatalog, missionState),
+                `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
+                "AUDITORIA_FINAL_OBLIGATORIA: compara cada entregable pedido con completedTasks. Devuelve JSON. Si falta algo, incluye la siguiente toolCall real; solo si todo esta satisfecho usa missionComplete=true."
+            ].join("\n\n"),
+            config: {
+                temperature: 0,
+                maxOutputTokens: 1600,
+                responseMimeType: "application/json"
+            }
+        });
+        plan = extractJsonObject(String(auditResponse?.text || ""));
+    }
+
+    if (!plan) throw new Error("SEMANTIC_PLAN_JSON_REQUIRED");
     return requireExecutablePlan({
         ...validatePlan(plan, safeCatalog, instruction),
         provider: String(ai.lastProvider || "gemini"),
@@ -370,7 +401,8 @@ async function runSimpleSemanticPlanner({
         "Interpreta significado, errores ortograficos, negaciones y ordenes mixtas.",
         "Selecciona solo nombres del catalogo. Nunca autorices escrituras.",
         "En misiones, no repitas herramientas completadas y usa herramientas especializadas, no conversation.respond, para entregables operativos.",
-        "Devuelve unicamente JSON valido con forma {\"toolCalls\":[{\"name\":\"nombre.real\",\"args\":{},\"reason\":\"motivo\"}],\"explanation\":\"\"}.",
+        "Devuelve unicamente JSON valido con toolCalls, explanation, missionComplete y completionAssessment. missionComplete solo puede ser true al auditar que todos los entregables de la mision ya estan satisfechos.",
+        "Si la instruccion limita fuentes a un dominio, copia el dominio exacto en allowedDomain de web.research.",
         `CATALOGO_NOMBRES=${safeCatalog.map(tool => tool.name).join(",")}`,
         `HERRAMIENTAS_MUTANTES_NO_AUTORIZADAS=${safeCatalog.filter(tool => tool.mutates).map(tool => tool.name).join(",")}`,
         compactMission ? `ESTADO_DE_MISION=${JSON.stringify(compactMission)}` : "",

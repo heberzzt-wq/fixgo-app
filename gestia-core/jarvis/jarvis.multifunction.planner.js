@@ -202,6 +202,17 @@ export async function buildJarvisMultifunctionToolCalls(input = "", context = {}
             checkedAt: new Date().toISOString()
         };
 
+        Object.defineProperties(calls, {
+            missionComplete: {
+                value: plan?.missionComplete === true,
+                enumerable: false
+            },
+            completionAssessment: {
+                value: plan?.completionAssessment || null,
+                enumerable: false
+            }
+        });
+
         return calls;
     } catch (error) {
         globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__ = {
@@ -210,6 +221,7 @@ export async function buildJarvisMultifunctionToolCalls(input = "", context = {}
             error: error?.message || String(error),
             checkedAt: new Date().toISOString()
         };
+        if (context.throwOnUnavailable === true) throw error;
         return [];
     }
 }
