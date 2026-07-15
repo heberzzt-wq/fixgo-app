@@ -55,12 +55,12 @@ function buildGrounding(context) {
         evidenceEntry("photographs", context.photographs),
         evidenceEntry("testimonials", context.testimonials),
         evidenceEntry("services", context.services),
-        evidenceEntry("web_research", context.webResearch)
+        evidenceEntry("web_research", context.webResearch || context.validSources)
     ];
     const available = sources.filter(source => source.available);
     return {
         status: available.length ? "GROUNDED" : "USER_CONTEXT_ONLY",
-        sourceCount: available.length,
+        sourceCount: available.reduce((total, source) => total + source.count, 0),
         sources,
         policy: "NO_INVENTED_FACTS"
     };

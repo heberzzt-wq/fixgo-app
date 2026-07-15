@@ -1,6 +1,6 @@
 import {
     planMarketingRequest
-} from "./jarvis.marketing.engine.js";
+} from "./jarvis.marketing.engine.js?v=sia7-marketing-v8-mission-evidence-20260715";
 
 import {
     runBusinessIntent

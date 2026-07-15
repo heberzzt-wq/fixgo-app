@@ -233,6 +233,9 @@ export async function runJarvisMission({
                 caseId: mission.caseId,
                 objectiveId: mission.objectiveId,
                 rawInput: originalInstruction,
+                validSources: mission.completedTasks
+                    .flatMap(item => item.observation?.validSources || [])
+                    .slice(0, 20),
                 writeAllowed: false,
                 approved: false
             });
