@@ -5,7 +5,7 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-multifunction-tools-v4-missions-20260714";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-multifunction-tools-v5-structured-media-plans-20260715";
 import {
     registerJarvisActuatorTools
 } from "./jarvis/jarvis.actuator.pack.js?v=sia7-real-actuators-v3.6-pdf-visual-20260714";

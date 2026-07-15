@@ -1963,7 +1963,29 @@ export function registerJarvisMultifunctionTools(runtime) {
             description: "Define requisitos y prompts de imagen sustentados en evidencia sin generar archivos ni inventar materiales.",
             output: "SIA7_IMAGE_REQUIREMENTS_PLAN",
             inputSchema: {
-                brandName: "string", campaignGoal: "string", audience: "string", concepts: "array"
+                type: "object",
+                properties: {
+                    brandName: { type: "string" },
+                    campaignGoal: { type: "string" },
+                    audience: { type: "string" },
+                    concepts: {
+                        type: "array",
+                        items: {
+                            type: "object",
+                            properties: {
+                                name: { type: "string" },
+                                purpose: { type: "string" },
+                                composition: { type: "string" },
+                                grounding: { type: "string" },
+                                generationPrompt: { type: "string" },
+                                exclusionPrompt: { type: "string" },
+                                aspectRatios: { type: "array", items: { type: "string" } }
+                            },
+                            required: ["name", "purpose", "composition", "grounding", "generationPrompt", "aspectRatios"]
+                        }
+                    }
+                },
+                required: ["brandName", "campaignGoal", "concepts"]
             },
             execute: async (args = {}, context = {}) => buildImageRequirementsPlan(args, context)
         }),
@@ -1972,7 +1994,29 @@ export function registerJarvisMultifunctionTools(runtime) {
             description: "Construye un storyboard vertical con timeline exacto y evidencia por escena sin producir video.",
             output: "SIA7_REEL_PLAN",
             inputSchema: {
-                brandName: "string", title: "string", cta: "string", durationSeconds: "number", scenes: "array"
+                type: "object",
+                properties: {
+                    brandName: { type: "string" },
+                    title: { type: "string" },
+                    cta: { type: "string" },
+                    durationSeconds: { type: "number" },
+                    scenes: {
+                        type: "array",
+                        items: {
+                            type: "object",
+                            properties: {
+                                durationSeconds: { type: "number" },
+                                visual: { type: "string" },
+                                overlay: { type: "string" },
+                                voiceover: { type: "string" },
+                                evidence: { type: "string" },
+                                transition: { type: "string" }
+                            },
+                            required: ["durationSeconds", "visual", "overlay", "voiceover", "evidence"]
+                        }
+                    }
+                },
+                required: ["brandName", "title", "cta", "durationSeconds", "scenes"]
             },
             execute: async (args = {}, context = {}) => buildReelPlanningSpec(args, context)
         }),
