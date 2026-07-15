@@ -308,8 +308,23 @@ export async function buildJarvisMultifunctionToolCalls(input = "", context = {}
     try {
         const contractPlanner = context?.missionState?.phase === "MISSION_CONTRACT" &&
             typeof context.semanticPlanner !== "function"
-            ? ({ input: contractInput, catalog: contractCatalog }) =>
-                callBrowserMissionContract(contractInput, contractCatalog)
+            ? async ({ input: contractInput, catalog: contractCatalog, missionState }) => {
+                try {
+                    return await callSemanticPlanner(
+                        contractInput,
+                        contractCatalog,
+                        missionState
+                    );
+                } catch (cloudError) {
+                    try {
+                        return await callBrowserMissionContract(contractInput, contractCatalog);
+                    } catch (browserError) {
+                        throw new Error(
+                            `CLOUD_${cloudError?.message || "FAILED"}__BROWSER_${browserError?.message || "FAILED"}`
+                        );
+                    }
+                }
+            }
             : context.semanticPlanner;
         const plan = await resolveSemanticPlan(
             instruction,

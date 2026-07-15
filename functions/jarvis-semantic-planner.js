@@ -605,16 +605,6 @@ async function runJarvisSemanticPlanner({
     let simpleFailure = null;
 
     try {
-        if (missionState?.phase === "MISSION_CONTRACT" && typeof simpleFetchImpl === "function") {
-            return await runSimpleSemanticPlanner({
-                fetchImpl: simpleFetchImpl,
-                input: instruction,
-                catalog: safeCatalog,
-                missionState,
-                timeoutMs: Math.min(Number(timeoutMs) || 45000, 45000)
-            });
-        }
-
         if (ai?.models?.generateContent) {
             try {
                 return await runGeminiSemanticPlanner({
