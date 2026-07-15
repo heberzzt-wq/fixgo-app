@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "1.1.0-long-mission-planner";
+const VERSION = "1.2.0-grounded-provider-chain";
 const DEFAULT_ENDPOINT = "https://text.pollinations.ai/openai";
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -138,6 +138,22 @@ function validatePlan(plan = {}, catalog = [], fallbackInput = "") {
         version: VERSION,
         toolCalls,
         explanation: String(plan?.explanation || "").slice(0, 600)
+    };
+}
+
+function compactMissionObservation(observation = {}) {
+    const sources = Array.isArray(observation?.validSources)
+        ? observation.validSources.slice(0, 6).map(source => ({
+            title: String(source?.title || "").slice(0, 160),
+            url: String(source?.url || "").slice(0, 500)
+        }))
+        : [];
+    return {
+        ok: observation?.ok !== false,
+        status: String(observation?.status || "").slice(0, 160),
+        summary: String(observation?.summary || observation?.message || "").slice(0, 1200),
+        sourceCount: Number(observation?.sourceCount || sources.length || 0),
+        validSources: sources
     };
 }
 
@@ -309,7 +325,10 @@ async function runSimpleSemanticPlanner({
         : `${instruction.slice(0, 8000)}\n[PARTE_MEDIA_PERSISTIDA]\n${instruction.slice(-3500)}`;
     const compactMission = missionState ? {
         missionId: missionState.missionId || null,
-        completedTasks: (missionState.completedTasks || []).map(item => item?.name).filter(Boolean),
+        completedTasks: (missionState.completedTasks || []).map(item => ({
+            name: item?.name || null,
+            evidence: compactMissionObservation(item?.observation || {})
+        })).filter(item => item.name),
         pendingTasks: (missionState.pendingTasks || []).map(item => item?.name).filter(Boolean),
         blockedTasks: (missionState.blockedTasks || []).map(item => item?.name).filter(Boolean),
         iterations: Number(missionState.iterations || 0),
@@ -334,8 +353,42 @@ async function runSimpleSemanticPlanner({
         if (!response?.ok) throw new Error(`SIMPLE_SEMANTIC_HTTP_${response?.status || 0}`);
         const payloadText = await response.text();
         const plan = extractJsonObject(payloadText);
+        let validatedPlan = validatePlan(plan, safeCatalog, instruction);
+        const selectedCatalog = validatedPlan.toolCalls
+            .map(call => safeCatalog.find(tool => tool.name === call.name))
+            .filter(tool => tool?.inputSchema);
+
+        if (selectedCatalog.length > 0) {
+            try {
+                const enrichmentPrompt = [
+                    "Completa argumentos semanticos para las herramientas ya seleccionadas por Jarvis.",
+                    "Usa solamente la instruccion y evidencia entregadas; omite datos desconocidos y no inventes.",
+                    "Devuelve unicamente JSON valido con forma {\"toolCalls\":[{\"name\":\"nombre.exacto\",\"args\":{},\"reason\":\"\"}]}",
+                    `HERRAMIENTAS_Y_ESQUEMAS=${JSON.stringify(selectedCatalog.map(tool => ({ name: tool.name, inputSchema: tool.inputSchema })))}`,
+                    compactMission ? `EVIDENCIA_DE_MISION=${JSON.stringify(compactMission).slice(0, 7000)}` : "",
+                    `INSTRUCCION=${routingInstruction}`
+                ].join("\n");
+                const enrichmentUrl = `https://text.pollinations.ai/${encodeURIComponent(enrichmentPrompt)}?model=openai-fast&seed=43&json=true`;
+                const enrichmentResponse = await fetchImpl(enrichmentUrl, { signal: controller.signal });
+                if (enrichmentResponse?.ok) {
+                    const enrichmentPlan = extractJsonObject(await enrichmentResponse.text());
+                    const enriched = validatePlan(enrichmentPlan, selectedCatalog, instruction);
+                    const enrichedByName = new Map(enriched.toolCalls.map(call => [call.name, call]));
+                    validatedPlan = {
+                        ...validatedPlan,
+                        toolCalls: validatedPlan.toolCalls.map(call => enrichedByName.get(call.name) || call)
+                    };
+                }
+            }
+            catch(error) {
+                validatedPlan = {
+                    ...validatedPlan,
+                    enrichmentWarning: error?.message || "SIMPLE_ARGUMENT_ENRICHMENT_UNAVAILABLE"
+                };
+            }
+        }
         return {
-            ...validatePlan(plan, safeCatalog, instruction),
+            ...validatedPlan,
             provider: "pollinations-simple-json",
             model: "openai-fast",
             catalogSize: safeCatalog.length
@@ -599,6 +652,7 @@ module.exports = {
     buildSemanticSystemInstruction,
     isSafeToolName,
     normalizeCatalog,
+    compactMissionObservation,
     requestModel,
     runGeminiSemanticPlanner,
     runSimpleSemanticPlanner,

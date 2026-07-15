@@ -6,6 +6,7 @@ const { test } = require("node:test");
 const {
     buildModelTools,
     buildGeminiModelTools,
+    compactMissionObservation,
     extractGeminiToolCallPlan,
     extractJsonObject,
     extractToolCallPlan,
@@ -259,6 +260,75 @@ test("simple planner keeps a sixty-tool catalog inside a safe URL budget", async
 
     assert.ok(requestedUrl.length < 7000);
     assert.equal(requestedUrl.includes("Descripcion%20operacional%20extensa"), false);
+});
+
+test("simple planner enriches selected specialized tools with grounded schema arguments", async () => {
+    const specializedCatalog = [{
+        name: "marketing.plan",
+        description: "Planifica marketing con evidencia.",
+        mutates: false,
+        inputSchema: {
+            brandName: "string",
+            audience: "string",
+            offer: "string",
+            webResearch: "array"
+        }
+    }];
+    const urls = [];
+    const result = await runSimpleSemanticPlanner({
+        input: "Prepara marketing para SUMM con la investigacion completada.",
+        catalog: specializedCatalog,
+        missionState: {
+            missionId: "MISSION-ENRICH-1",
+            completedTasks: [{
+                name: "web.research",
+                observation: {
+                    summary: "SUMM presta servicios juridicos.",
+                    validSources: [{ title: "SUMM", url: "https://www.summ.com.mx/" }]
+                }
+            }]
+        },
+        fetchImpl: async url => {
+            urls.push(url);
+            return {
+                ok: true,
+                text: async () => JSON.stringify(
+                    urls.length === 1
+                        ? { toolCalls: [{ name: "marketing.plan", args: {} }] }
+                        : {
+                            toolCalls: [{
+                                name: "marketing.plan",
+                                args: {
+                                    brandName: "SUMM",
+                                    audience: "empresas",
+                                    offer: "servicios juridicos",
+                                    webResearch: [{ url: "https://www.summ.com.mx/" }]
+                                }
+                            }]
+                        }
+                )
+            };
+        }
+    });
+
+    assert.equal(urls.length, 2);
+    assert.ok(urls[1].includes("HERRAMIENTAS_Y_ESQUEMAS"));
+    assert.equal(result.toolCalls[0].args.brandName, "SUMM");
+    assert.equal(result.toolCalls[0].args.webResearch[0].url, "https://www.summ.com.mx/");
+});
+
+test("mission evidence compaction preserves verified sources without carrying raw payloads", () => {
+    const compact = compactMissionObservation({
+        ok: true,
+        status: "WEB_RESEARCH_READY",
+        summary: "Evidencia primaria verificada.",
+        validSources: [{ title: "SUMM", url: "https://www.summ.com.mx/" }],
+        rawHtml: "x".repeat(50000)
+    });
+
+    assert.equal(compact.status, "WEB_RESEARCH_READY");
+    assert.equal(compact.validSources[0].url, "https://www.summ.com.mx/");
+    assert.equal(Object.hasOwn(compact, "rawHtml"), false);
 });
 
 test("semantic plan validation rejects tools outside the runtime catalog", () => {
