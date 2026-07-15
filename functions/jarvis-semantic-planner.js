@@ -155,6 +155,46 @@ function buildModelTools(catalog = []) {
     }));
 }
 
+function buildGeminiModelTools(catalog = []) {
+    return catalog.map((tool, index) => ({
+        name: `jarvis_tool_${index}`,
+        description: `${tool.name}: ${tool.description}`.slice(0, 900),
+        parametersJsonSchema: {
+            type: "object",
+            additionalProperties: true
+        }
+    }));
+}
+
+function extractGeminiToolCallPlan(response = {}, catalog = []) {
+    const directCalls = Array.isArray(response?.functionCalls)
+        ? response.functionCalls
+        : [];
+    const partCalls = Array.isArray(response?.candidates?.[0]?.content?.parts)
+        ? response.candidates[0].content.parts
+            .map(part => part?.functionCall)
+            .filter(Boolean)
+        : [];
+    const calls = directCalls.length > 0 ? directCalls : partCalls;
+    const toolCalls = calls.slice(0, 12).map(call => {
+        const providerName = String(call?.name || "");
+        const prefix = "jarvis_tool_";
+        const index = providerName.startsWith(prefix)
+            ? Number(providerName.slice(prefix.length))
+            : Number.NaN;
+        const tool = Number.isInteger(index) ? catalog[index] : null;
+        if (!tool) return null;
+        return {
+            name: tool.name,
+            args: call?.args && typeof call.args === "object" && !Array.isArray(call.args)
+                ? call.args
+                : {},
+            reason: "GEMINI_FUNCTION_TOOL_SELECTION"
+        };
+    }).filter(Boolean);
+    return toolCalls.length > 0 ? { toolCalls } : null;
+}
+
 function buildSemanticSystemInstruction(catalog = [], missionState = null) {
     return [
         "Eres el planificador semantico de herramientas de Jarvis V7.",
@@ -202,10 +242,17 @@ async function runGeminiSemanticPlanner({
         config: {
             temperature: 0,
             maxOutputTokens: 1600,
-            responseMimeType: "application/json"
+            tools: [{ functionDeclarations: buildGeminiModelTools(safeCatalog) }],
+            toolConfig: {
+                functionCallingConfig: {
+                    mode: "ANY"
+                }
+            }
         }
     });
-    const plan = extractJsonObject(String(response?.text || ""));
+    const plan =
+        extractGeminiToolCallPlan(response, safeCatalog) ||
+        extractJsonObject(String(response?.text || ""));
     return {
         ...validatePlan(plan, safeCatalog, instruction),
         provider: "gemini",
@@ -285,6 +332,21 @@ async function runJarvisSemanticPlanner({
                 });
             } catch (geminiError) {
                 if (typeof fetchImpl !== "function") throw geminiError;
+                try {
+                    return await runJarvisSemanticPlanner({
+                        fetchImpl,
+                        ai: null,
+                        input: instruction,
+                        catalog: safeCatalog,
+                        endpoint,
+                        timeoutMs,
+                        missionState
+                    });
+                } catch (fallbackError) {
+                    throw new Error(
+                        `SEMANTIC_GEMINI_${geminiError?.message || "FAILED"}__FALLBACK_${fallbackError?.message || "FAILED"}`
+                    );
+                }
             }
         }
 
@@ -409,8 +471,10 @@ module.exports = {
     DEFAULT_GEMINI_MODEL,
     DEFAULT_ENDPOINT,
     VERSION,
+    extractGeminiToolCallPlan,
     extractJsonObject,
     extractToolCallPlan,
+    buildGeminiModelTools,
     buildModelTools,
     buildSemanticSystemInstruction,
     isSafeToolName,

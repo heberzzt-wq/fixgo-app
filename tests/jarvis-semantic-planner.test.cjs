@@ -5,6 +5,8 @@ const { test } = require("node:test");
 
 const {
     buildModelTools,
+    buildGeminiModelTools,
+    extractGeminiToolCallPlan,
     extractJsonObject,
     extractToolCallPlan,
     requestModel,
@@ -60,6 +62,23 @@ test("semantic planner maps provider function calls to the runtime catalog", () 
 
     assert.deepEqual(plan.toolCalls.map(call => call.name), ["repo.search", "connector.list"]);
     assert.equal(plan.toolCalls[0].args.query, "b2b");
+});
+
+test("semantic planner maps Gemini native function calls to the runtime catalog", () => {
+    const declarations = buildGeminiModelTools(catalog);
+    assert.equal(declarations[0].name, "jarvis_tool_0");
+    assert.ok(declarations[0].description.includes("repo.search"));
+
+    const plan = extractGeminiToolCallPlan({
+        functionCalls: [
+            { name: "jarvis_tool_0", args: { query: "SUMM" } },
+            { name: "jarvis_tool_1", args: {} },
+            { name: "invented_tool", args: {} }
+        ]
+    }, catalog);
+
+    assert.deepEqual(plan.toolCalls.map(call => call.name), ["repo.search", "connector.list"]);
+    assert.equal(plan.toolCalls[0].args.query, "SUMM");
 });
 
 test("semantic planner preserves mixed tools and never grants prompt approval", async () => {
@@ -188,13 +207,10 @@ test("semantic planner uses authenticated Gemini before the public fallback", as
                     assert.equal(request.model, "gemini-2.5-flash");
                     assert.ok(request.contents.includes("INSTRUCCION_ORIGINAL_INMUTABLE="));
                     return {
-                        text: JSON.stringify({
-                            toolCalls: [
-                                { name: "repo.search", args: { query: "SUMM" }, reason: "evidencia" },
-                                { name: "connector.list", args: {}, reason: "inventario" }
-                            ],
-                            explanation: "plan ejecutable"
-                        })
+                        functionCalls: [
+                            { name: "jarvis_tool_0", args: { query: "SUMM" } },
+                            { name: "jarvis_tool_1", args: {} }
+                        ]
                     };
                 }
             }
