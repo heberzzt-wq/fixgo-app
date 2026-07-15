@@ -4700,6 +4700,104 @@ if (
             ...followUpObservations
         ];
 
+    let semanticMissionFinalResponse = null;
+
+    if (missionResult.executedTools.length > 1) {
+        const boundedInstruction = inputRaw.length <= 40000
+            ? inputRaw
+            : `${inputRaw.slice(0, 20000)}\n[PARTE_MEDIA_PERSISTIDA_EN_EXPEDIENTE]\n${inputRaw.slice(-20000)}`;
+        const evidenceBlocks = missionResult.completedTasks
+            .map(item => {
+                let serialized;
+                try {
+                    serialized = JSON.stringify(
+                        item.observation || {},
+                        (_key, value) => typeof value === "string" && value.length > 12000
+                            ? `${value.slice(0, 12000)}\n[CONTENIDO_EXTENSO_ACOTADO]`
+                            : value
+                    );
+                }
+                catch(error) {
+                    serialized = JSON.stringify({
+                        summary: item.observation?.summary || "Observacion ejecutada; detalle no serializable.",
+                        serializationError: error?.message || "OBSERVATION_NOT_SERIALIZABLE"
+                    });
+                }
+                return `HERRAMIENTA=${item.name}\nOBSERVACION=${serialized.slice(0, 18000)}`;
+            })
+            .join("\n\n")
+            .slice(0, 70000);
+        const compositionPrompt = [
+            "Compone el informe final de una mision real de Jarvis.",
+            "Usa exclusivamente las observaciones verificadas incluidas abajo; no agregues hechos ni ejecuciones.",
+            "Entrega contenido util, no un resumen superficial.",
+            "Integra, cuando exista evidencia: investigacion y fuentes, analisis, estrategia y campana, landing propuesta, requisitos y prompts visuales, storyboard con tiempos, herramientas usadas, informacion faltante y autoevaluacion.",
+            "Distingue lo ejecutado de lo solamente planeado. No muestres JSON, telemetria, blobs ni datos internos.",
+            `MISSION_ID=${missionResult.missionId}`,
+            `OBJECTIVE_ID=${missionResult.objectiveId}`,
+            `INSTRUCTION_HASH=${missionResult.instructionHash}`,
+            `HERRAMIENTAS_EJECUTADAS=${missionResult.executedTools.join(", ")}`,
+            `ESTADO=${missionResult.status}`,
+            `MOTIVO_CIERRE=${missionResult.reason}`,
+            `INSTRUCCION_ORIGINAL=${boundedInstruction}`,
+            `EVIDENCIA_VERIFICADA:\n${evidenceBlocks}`
+        ].join("\n\n");
+
+        try {
+            const compositionObservations = await window.ToolsBridge.executeMany(
+                [{
+                    name: "conversation.respond",
+                    args: { prompt: compositionPrompt },
+                    approved: false
+                }],
+                {
+                    ...context,
+                    rawInput: compositionPrompt,
+                    tenantId,
+                    analysisId,
+                    rol,
+                    approved: false
+                }
+            );
+            const compositionObservation = compositionObservations[0] || null;
+            const compositionPayload =
+                compositionObservation?.response ||
+                compositionObservation?.data?.response ||
+                compositionObservation?.data ||
+                compositionObservation;
+            const compositionText = String(
+                compositionPayload?.message ||
+                compositionPayload?.text ||
+                compositionPayload?.report ||
+                ""
+            ).trim();
+
+            if (compositionPayload?.ok !== false && compositionText) {
+                semanticMissionFinalResponse = {
+                    ok: missionResult.status === "COMPLETED",
+                    title: "Mision Jarvis completada",
+                    text: [
+                        compositionText,
+                        "",
+                        `Herramientas ejecutadas verificadas: ${missionResult.executedTools.join(", ")}.`,
+                        `Compositor semantico: ${compositionPayload?.provider || "proveedor verificado"}${compositionPayload?.model ? ` / ${compositionPayload.model}` : ""}.`,
+                        "Escrituras y publicaciones automaticas: no ejecutadas."
+                    ].join("\n"),
+                    source: "SEMANTIC_MISSION_COMPOSITION",
+                    provider: compositionPayload?.provider || null,
+                    model: compositionPayload?.model || null
+                };
+            }
+        }
+        catch(error) {
+            this.emitirPulso(
+                "AGENT_LOOP",
+                "SEMANTIC_MISSION_COMPOSITION_UNAVAILABLE",
+                error?.message || "local fallback"
+            );
+        }
+    }
+
     const cloudToolPlan =
         propuesta?.reasoning?.cloudToolPlan ||
         propuesta?.cognition?.cloudToolPlan ||
@@ -4894,6 +4992,7 @@ if (
         observationDrivenFinalResponse ||
         globalAnalysisFinalResponse ||
         directActuatorFinalResponse ||
+        semanticMissionFinalResponse ||
         missionFinalResponse ||
         null;
 

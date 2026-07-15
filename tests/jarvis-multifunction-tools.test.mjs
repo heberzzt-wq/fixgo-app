@@ -667,6 +667,8 @@ test("semantic model planner replaces phrase gates and preserves terminal speech
     );
 
     assert.match(core, /await buildJarvisMultifunctionToolCalls/);
+    assert.match(core, /SEMANTIC_MISSION_COMPOSITION/);
+    assert.match(core, /EVIDENCIA_VERIFICADA/);
     assert.match(core, /lightMultifunctionCalls\.length === 1/);
     assert.match(core, /model_selected_conversation/);
     assert.doesNotMatch(core, /hasExplicitOperationalRequest/);

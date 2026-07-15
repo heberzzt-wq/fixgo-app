@@ -490,6 +490,7 @@ async function runJarvisSemanticPlanner({
 
 async function runJarvisSemanticResponse({
     fetchImpl = globalThis.fetch,
+    ai = null,
     input = "",
     endpoint = DEFAULT_ENDPOINT,
     timeoutMs = 45000
@@ -501,8 +502,42 @@ async function runJarvisSemanticResponse({
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), Math.max(5000, Number(timeoutMs) || 45000));
+    let primaryFailure = null;
 
     try {
+        if (ai?.models?.generateContent) {
+            try {
+                const response = await ai.models.generateContent({
+                    model: DEFAULT_GEMINI_MODEL,
+                    contents: instruction,
+                    config: {
+                        temperature: 0.2,
+                        maxOutputTokens: 2200,
+                        systemInstruction: [
+                            "Eres Jarvis, asistente multifuncional privado de Heberto Mendoza.",
+                            "Responde en espanol natural, completo, directo y verificable.",
+                            "Usa solamente la evidencia incluida en la solicitud.",
+                            "No inventes ejecuciones, archivos, accesos, fuentes ni resultados.",
+                            "Distingue claramente lo ejecutado, lo planeado y lo bloqueado."
+                        ].join("\n")
+                    }
+                });
+                const message = String(response?.text || "").trim();
+                if (!message) throw new Error("SEMANTIC_RESPONSE_EMPTY");
+                return {
+                    ok: true,
+                    status: "SEMANTIC_RESPONSE_READY",
+                    version: VERSION,
+                    provider: String(ai.lastProvider || "gemini"),
+                    model: DEFAULT_GEMINI_MODEL,
+                    message
+                };
+            }
+            catch(error) {
+                primaryFailure = error;
+            }
+        }
+
         const response = await requestModel(fetchImpl, endpoint, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -528,7 +563,9 @@ async function runJarvisSemanticResponse({
         });
 
         if (!response.ok) {
-            throw new Error(`SEMANTIC_RESPONSE_HTTP_${response.status}`);
+            throw new Error(
+                `${primaryFailure ? `PRIMARY_${primaryFailure?.message || "FAILED"}__` : ""}SEMANTIC_RESPONSE_HTTP_${response.status}`
+            );
         }
 
         const payload = await response.json();

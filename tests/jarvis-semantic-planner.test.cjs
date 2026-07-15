@@ -13,8 +13,55 @@ const {
     runGeminiSemanticPlanner,
     runSimpleSemanticPlanner,
     runJarvisSemanticPlanner,
+    runJarvisSemanticResponse,
     validatePlan
 } = require("../functions/jarvis-semantic-planner");
+
+test("semantic response uses the authenticated provider chain and reports provenance", async () => {
+    const result = await runJarvisSemanticResponse({
+        input: "Integra solamente la evidencia entregada.",
+        ai: {
+            lastProvider: "vertex-adc",
+            models: {
+                generateContent: async request => {
+                    assert.equal(request.model, "gemini-2.5-flash");
+                    return { text: "Resultado integrado con evidencia." };
+                }
+            }
+        },
+        fetchImpl: async () => {
+            throw new Error("PUBLIC_FALLBACK_MUST_NOT_RUN");
+        }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.provider, "vertex-adc");
+    assert.equal(result.message, "Resultado integrado con evidencia.");
+});
+
+test("semantic response falls back when the authenticated providers are unavailable", async () => {
+    const result = await runJarvisSemanticResponse({
+        input: "Integra evidencia.",
+        ai: {
+            models: {
+                generateContent: async () => {
+                    throw new Error("PROVIDERS_UNAVAILABLE");
+                }
+            }
+        },
+        fetchImpl: async () => ({
+            ok: true,
+            json: async () => ({
+                model: "openai-fast",
+                choices: [{ message: { content: "Composicion de respaldo." } }]
+            })
+        })
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.provider, "pollinations");
+    assert.equal(result.message, "Composicion de respaldo.");
+});
 
 const catalog = [
     {
