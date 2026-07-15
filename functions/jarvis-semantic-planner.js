@@ -307,47 +307,7 @@ async function runGeminiSemanticPlanner({
             config: {
                 temperature: 0,
                 maxOutputTokens: 2200,
-                tools: [{
-                    functionDeclarations: [{
-                        name: "jarvis_mission_contract",
-                        description: "Devuelve el contrato completo y ordenado de herramientas read-only para todos los entregables solicitados.",
-                        parametersJsonSchema: {
-                            type: "object",
-                            properties: {
-                                toolCalls: {
-                                    type: "array",
-                                    items: {
-                                        type: "object",
-                                        properties: {
-                                            name: {
-                                                type: "string",
-                                                enum: safeCatalog.map(tool => tool.name)
-                                            },
-                                            args: {
-                                                type: "object",
-                                                additionalProperties: true
-                                            },
-                                            reason: { type: "string" }
-                                        },
-                                        required: ["name", "args"]
-                                    }
-                                },
-                                explanation: { type: "string" },
-                                completionAssessment: {
-                                    type: "object",
-                                    additionalProperties: true
-                                }
-                            },
-                            required: ["toolCalls"]
-                        }
-                    }]
-                }],
-                toolConfig: {
-                    functionCallingConfig: {
-                        mode: "ANY",
-                        allowedFunctionNames: ["jarvis_mission_contract"]
-                    }
-                }
+                responseMimeType: "application/json"
             }
         });
         const contractFunctionCalls = Array.isArray(contractResponse?.functionCalls)

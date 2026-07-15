@@ -610,14 +610,8 @@ test("Gemini creates a complete read-only mission contract before execution", as
             lastProvider: "vertex-adc",
             models: {
                 generateContent: async request => {
-                    assert.equal(
-                        request.config.tools[0].functionDeclarations[0].name,
-                        "jarvis_mission_contract"
-                    );
-                    assert.deepEqual(
-                        request.config.toolConfig.functionCallingConfig.allowedFunctionNames,
-                        ["jarvis_mission_contract"]
-                    );
+                    assert.equal(request.config.responseMimeType, "application/json");
+                    assert.equal(request.config.tools, undefined);
                     assert.ok(request.contents.includes("CONTRATO_DE_MISION"));
                     assert.ok(request.contents.includes("todas las herramientas read-only necesarias"));
                     return {
