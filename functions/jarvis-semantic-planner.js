@@ -209,6 +209,7 @@ function buildSemanticSystemInstruction(catalog = [], missionState = null) {
         "No inventes rutas ni nombres de archivo. Si el usuario no dio una ruta exacta, empieza con repo.search o la herramienta de descubrimiento disponible y deja que el runtime fundamente el seguimiento.",
         "Genera solo llamadas inmediatamente ejecutables de primera etapa; el runtime planificara seguimientos con las observaciones reales.",
         "Si recibes ESTADO_DE_MISION, revisa la instruccion original inmutable, lo ya ejecutado, lo pendiente y lo bloqueado; selecciona la siguiente herramienta real necesaria.",
+        "En una mision con una herramienta operativa ya completada, conversation.respond no es un entregable ni puede sustituir marketing.plan, page.plan, image.plan, reel.plan, web.research u otra herramienta especializada disponible.",
         "No repitas una herramienta completada con los mismos argumentos. No cierres con toolCalls vacio si queda un entregable ejecutable del usuario.",
         "No razones sobre rutas futuras desconocidas. Una sola repo.search con la consulta del usuario es un plan completo y correcto cuando falta una ruta exacta.",
         "Para una investigacion operativa no uses conversation.respond como sustituto de las herramientas; reservada para charla o explicaciones que no requieren inspeccion.",

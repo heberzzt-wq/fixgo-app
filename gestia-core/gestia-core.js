@@ -4548,12 +4548,17 @@ if (
         );
     }
 
+    const operationalInitialToolCalls =
+        propuesta.toolCalls.some(call => call?.name !== "conversation.respond")
+            ? propuesta.toolCalls.filter(call => call?.name !== "conversation.respond")
+            : propuesta.toolCalls;
+
     const missionResult =
         await runJarvisMission({
             instruction:
                 inputRaw,
             initialToolCalls:
-                propuesta.toolCalls,
+                operationalInitialToolCalls,
             caseId:
                 context.caseId || null,
             objectiveId:
@@ -4571,6 +4576,11 @@ if (
                             originalInstruction.slice(0, 120000),
                             {
                                 ...context,
+                                toolCatalog:
+                                    globalThis.JarvisToolRuntime
+                                        ?.list?.()
+                                        ?.filter(tool => tool?.name !== "conversation.respond") ||
+                                    [],
                                 missionState: {
                                     missionId: mission.missionId,
                                     caseId: mission.caseId,
@@ -4797,6 +4807,7 @@ if (
     const directActuatorFinalResponse =
         !observationDrivenFinalResponse &&
         !globalAnalysisFinalResponse &&
+        missionResult.executedTools.length === 1 &&
         directActuatorResponses.length > 0
             ? {
                 ok: directActuatorResponses.every(response =>
