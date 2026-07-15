@@ -4612,7 +4612,8 @@ if (
     const missionToolCatalog =
         globalThis.JarvisToolRuntime
             ?.list?.()
-            ?.filter(tool => tool?.name !== "conversation.respond" && tool?.mutates !== true) ||
+            ?.filter(tool => tool?.name !== "conversation.respond" && tool?.mutates !== true)
+            ?.slice(0, 13) ||
         [];
     const missionContractToolCalls =
         await buildJarvisMultifunctionToolCalls(
