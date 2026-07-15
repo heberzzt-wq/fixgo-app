@@ -170,7 +170,7 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/modules/terminal/proposal-state.js?v=shared-proposal-state-v1-20260713"></script>
 <script type="module" src="/modules/terminal/jarvis-attachments.js?v=jarvis-multimodal-queue-v2-20260714"></script>
-<script type="module" src="/gestia-core/gestia-core.js?v=sia7-bounded-business-v3-20260714-missions-v26"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=sia7-bounded-business-v3-20260714-missions-v27"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260707-4190"></script>
 <script
 type="module"
@@ -5170,6 +5170,16 @@ const summary =
             "⚠️ [TERMINAL_CORE_FIRST_FAIL]",
             coreFirstError
         );
+        window.renderJarvisResponse?.(
+            "Jarvis no pudo completar la misión",
+            [
+                "El núcleo detuvo la ejecución sin entrar a rutas legacy.",
+                `Causa verificable: ${String(coreFirstError?.message || coreFirstError || "CORE_EXECUTION_FAILED").slice(0, 1200)}`,
+                "No se reporta la misión como completada."
+            ].join("\n"),
+            "warning"
+        );
+        handled = true;
     }
 }
 

@@ -307,10 +307,66 @@ async function runGeminiSemanticPlanner({
             config: {
                 temperature: 0,
                 maxOutputTokens: 2200,
-                responseMimeType: "application/json"
+                tools: [{
+                    functionDeclarations: [{
+                        name: "jarvis_mission_contract",
+                        description: "Devuelve el contrato completo y ordenado de herramientas read-only para todos los entregables solicitados.",
+                        parametersJsonSchema: {
+                            type: "object",
+                            properties: {
+                                toolCalls: {
+                                    type: "array",
+                                    items: {
+                                        type: "object",
+                                        properties: {
+                                            name: {
+                                                type: "string",
+                                                enum: safeCatalog.map(tool => tool.name)
+                                            },
+                                            args: {
+                                                type: "object",
+                                                additionalProperties: true
+                                            },
+                                            reason: { type: "string" }
+                                        },
+                                        required: ["name", "args"]
+                                    }
+                                },
+                                explanation: { type: "string" },
+                                completionAssessment: {
+                                    type: "object",
+                                    additionalProperties: true
+                                }
+                            },
+                            required: ["toolCalls"]
+                        }
+                    }]
+                }],
+                toolConfig: {
+                    functionCallingConfig: {
+                        mode: "ANY",
+                        allowedFunctionNames: ["jarvis_mission_contract"]
+                    }
+                }
             }
         });
-        const contractPlan = extractJsonObject(String(contractResponse?.text || ""));
+        const contractFunctionCalls = Array.isArray(contractResponse?.functionCalls)
+            ? contractResponse.functionCalls
+            : Array.isArray(contractResponse?.candidates?.[0]?.content?.parts)
+                ? contractResponse.candidates[0].content.parts
+                    .map(part => part?.functionCall)
+                    .filter(Boolean)
+                : [];
+        const contractCall = contractFunctionCalls.find(
+            call => call?.name === "jarvis_mission_contract"
+        );
+        if (!contractCall?.args || typeof contractCall.args !== "object") {
+            throw new Error("MISSION_CONTRACT_FUNCTION_REQUIRED");
+        }
+        const contractPlan = {
+            ...contractCall.args,
+            missionComplete: false
+        };
         return requireExecutablePlan({
             ...validatePlan(contractPlan, safeCatalog, instruction),
             provider: String(ai.lastProvider || "gemini"),
