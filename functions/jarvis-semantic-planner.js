@@ -353,7 +353,10 @@ async function runGeminiSemanticPlanner({
         ].join("\n\n"),
         config: {
             temperature: 0,
-            maxOutputTokens: 1600,
+            maxOutputTokens: 3000,
+            thinkingConfig: {
+                thinkingBudget: 0
+            },
             tools: [{ functionDeclarations: buildGeminiModelTools(safeCatalog) }],
             toolConfig: {
                 functionCallingConfig: {
@@ -379,7 +382,10 @@ async function runGeminiSemanticPlanner({
             ].join("\n\n"),
             config: {
                 temperature: 0,
-                maxOutputTokens: 1600,
+                maxOutputTokens: 3000,
+                thinkingConfig: {
+                    thinkingBudget: 0
+                },
                 responseMimeType: "application/json"
             }
         });

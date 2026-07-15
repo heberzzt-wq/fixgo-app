@@ -640,6 +640,36 @@ test("Gemini creates a complete read-only mission contract before execution", as
     assert.equal(result.missionComplete, false);
 });
 
+test("Gemini reserves response budget for evidence-driven mission follow-ups", async () => {
+    const result = await runGeminiSemanticPlanner({
+        input: "Continua con el siguiente entregable real.",
+        catalog,
+        missionState: {
+            missionId: "MISSION-BUDGET",
+            completedTasks: [{ name: "repo.search", observation: { ok: true } }],
+            pendingTasks: [],
+            blockedTasks: []
+        },
+        ai: {
+            lastProvider: "vertex-adc",
+            models: {
+                generateContent: async request => {
+                    assert.equal(request.config.thinkingConfig.thinkingBudget, 0);
+                    assert.equal(request.config.maxOutputTokens, 3000);
+                    return {
+                        functionCalls: [{
+                            name: "jarvis_tool_1",
+                            args: {}
+                        }]
+                    };
+                }
+            }
+        }
+    });
+
+    assert.equal(result.toolCalls[0].name, "connector.list");
+});
+
 test("Gemini accepts a strict JSON mission contract when the provider omits native function calls", async () => {
     const result = await runGeminiSemanticPlanner({
         input: "Investiga, prepara marketing y una pagina sin escribir.",

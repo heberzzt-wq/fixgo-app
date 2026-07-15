@@ -4660,9 +4660,10 @@ if (
                 360000,
             planner:
                 async ({ originalInstruction, mission }) => {
-                    const completedToolNames = new Set(
-                        mission.completedTasks.map(item => item.name)
-                    );
+                    const resolvedToolNames = new Set([
+                        ...mission.completedTasks.map(item => item.name),
+                        ...mission.blockedTasks.map(item => item.name)
+                    ]);
                     const nextToolCalls =
                         await buildJarvisMultifunctionToolCalls(
                             originalInstruction.slice(0, 120000),
@@ -4674,7 +4675,7 @@ if (
                                         ?.list?.()
                                         ?.filter(tool =>
                                             tool?.name !== "conversation.respond" &&
-                                            !completedToolNames.has(tool?.name)
+                                            !resolvedToolNames.has(tool?.name)
                                         ) ||
                                     [],
                                 missionState: {
@@ -4686,7 +4687,7 @@ if (
                                     routingInstructionLength: mission.routingInstructionLength,
                                     requiredToolNames: mission.requiredToolNames,
                                     missingRequiredToolNames: mission.requiredToolNames.filter(
-                                        name => !completedToolNames.has(name)
+                                        name => !resolvedToolNames.has(name)
                                     ),
                                     completedTasks: mission.completedTasks.map(item => ({
                                         name: item.name,
