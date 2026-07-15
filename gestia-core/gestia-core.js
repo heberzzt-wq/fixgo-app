@@ -38,9 +38,8 @@ import {
 // Motores de lógica estratégica (Cerebro) y ejecución mecánica (Brazo)
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
-    buildJarvisMultifunctionToolCalls,
-    mergeJarvisToolCalls
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-model-semantic-planner-v10-resilient-browser-20260715';
+    buildJarvisMultifunctionToolCalls
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-model-semantic-planner-v11-sequential-contract-20260715';
 import {
     runJarvisMission
 } from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-mission-orchestrator-v3-contract-20260715';
@@ -4639,11 +4638,7 @@ if (
         );
         if (missionContractToolCalls.length === 0) throw contractError;
     }
-    const missionInitialToolCalls =
-        mergeJarvisToolCalls(
-            operationalInitialToolCalls,
-            missionContractToolCalls
-        );
+    const missionInitialToolCalls = missionContractToolCalls.slice(0, 1);
 
     const missionResult =
         await runJarvisMission({
@@ -4665,6 +4660,9 @@ if (
                 360000,
             planner:
                 async ({ originalInstruction, mission }) => {
+                    const completedToolNames = new Set(
+                        mission.completedTasks.map(item => item.name)
+                    );
                     const nextToolCalls =
                         await buildJarvisMultifunctionToolCalls(
                             originalInstruction.slice(0, 120000),
@@ -4674,7 +4672,10 @@ if (
                                 toolCatalog:
                                     globalThis.JarvisToolRuntime
                                         ?.list?.()
-                                        ?.filter(tool => tool?.name !== "conversation.respond") ||
+                                        ?.filter(tool =>
+                                            tool?.name !== "conversation.respond" &&
+                                            !completedToolNames.has(tool?.name)
+                                        ) ||
                                     [],
                                 missionState: {
                                     missionId: mission.missionId,
@@ -4683,6 +4684,10 @@ if (
                                     instructionHash: mission.instructionHash,
                                     rawInstructionLength: mission.rawInstructionLength,
                                     routingInstructionLength: mission.routingInstructionLength,
+                                    requiredToolNames: mission.requiredToolNames,
+                                    missingRequiredToolNames: mission.requiredToolNames.filter(
+                                        name => !completedToolNames.has(name)
+                                    ),
                                     completedTasks: mission.completedTasks.map(item => ({
                                         name: item.name,
                                         args: item.args,
