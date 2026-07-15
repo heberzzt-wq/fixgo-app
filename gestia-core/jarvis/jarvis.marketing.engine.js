@@ -55,7 +55,12 @@ function buildGrounding(context) {
         evidenceEntry("photographs", context.photographs),
         evidenceEntry("testimonials", context.testimonials),
         evidenceEntry("services", context.services),
-        evidenceEntry("web_research", context.webResearch || context.validSources)
+        evidenceEntry(
+            "web_research",
+            Array.isArray(context.webResearch) && context.webResearch.length > 0
+                ? context.webResearch
+                : context.validSources
+        )
     ];
     const available = sources.filter(source => source.available);
     return {

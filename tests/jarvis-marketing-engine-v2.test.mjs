@@ -65,6 +65,27 @@ test("marketing V7 builds an evidence-grounded multi-channel production package"
     assert.equal(plan.publicationPlan.length, 5);
 });
 
+test("marketing V7 inherits verified mission sources when explicit web research is empty", () => {
+    const plan = planMarketingRequest("campaña grounded", {
+        brandName: "SUMM",
+        audience: "Empresas",
+        offer: "Defensa fiscal estratégica",
+        pain: "Fiscalización compleja",
+        promise: "Estrategia jurídica verificable",
+        differentiator: "Experiencia documentada",
+        cta: "Agenda una consulta",
+        webResearch: [],
+        validSources: [
+            { title: "SUMM", url: "https://www.summ.com.mx/" },
+            { title: "About SUMM", url: "https://www.summ.com.mx/about" }
+        ]
+    });
+
+    assert.equal(plan.grounding.status, "GROUNDED");
+    assert.equal(plan.grounding.sourceCount, 2);
+    assert.equal(plan.message.includes("2 fuentes"), true);
+});
+
 test("marketing V7 leaves free-text routing to the semantic model", () => {
     const source = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.marketing.engine.js", import.meta.url), "utf8");
     assert.doesNotMatch(source, /const CHANNELS|const ASSETS|RegExp|\.test\(/);
