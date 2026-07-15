@@ -306,7 +306,10 @@ async function runGeminiSemanticPlanner({
             ].join("\n\n"),
             config: {
                 temperature: 0,
-                maxOutputTokens: 2200,
+                maxOutputTokens: 4000,
+                thinkingConfig: {
+                    thinkingBudget: 0
+                },
                 responseMimeType: "application/json"
             }
         });

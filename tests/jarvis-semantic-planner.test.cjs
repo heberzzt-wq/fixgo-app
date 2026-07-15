@@ -611,6 +611,8 @@ test("Gemini creates a complete read-only mission contract before execution", as
             models: {
                 generateContent: async request => {
                     assert.equal(request.config.responseMimeType, "application/json");
+                    assert.equal(request.config.thinkingConfig.thinkingBudget, 0);
+                    assert.equal(request.config.maxOutputTokens, 4000);
                     assert.equal(request.config.tools, undefined);
                     assert.ok(request.contents.includes("CONTRATO_DE_MISION"));
                     assert.ok(request.contents.includes("todas las herramientas read-only necesarias"));
