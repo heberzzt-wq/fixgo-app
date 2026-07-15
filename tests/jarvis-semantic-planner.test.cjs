@@ -644,6 +644,34 @@ test("Gemini creates a complete read-only mission contract before execution", as
     assert.equal(result.missionComplete, false);
 });
 
+test("Gemini accepts a strict JSON mission contract when the provider omits native function calls", async () => {
+    const result = await runGeminiSemanticPlanner({
+        input: "Investiga, prepara marketing y una pagina sin escribir.",
+        catalog,
+        missionState: { phase: "MISSION_CONTRACT", writeAllowed: false },
+        ai: {
+            lastProvider: "vertex-adc",
+            models: {
+                generateContent: async () => ({
+                    text: JSON.stringify({
+                        toolCalls: [
+                            { name: "repo.search", args: { query: "investigacion" } },
+                            { name: "connector.list", args: {} }
+                        ],
+                        completionAssessment: {
+                            covered: ["investigacion", "marketing", "pagina"]
+                        }
+                    })
+                })
+            }
+        }
+    });
+
+    assert.equal(result.planKind, "MISSION_CONTRACT");
+    assert.deepEqual(result.toolCalls.map(call => call.name), ["repo.search", "connector.list"]);
+    assert.equal(result.missionComplete, false);
+});
+
 test("semantic mission completion requires an explicit model audit", async () => {
     const result = await runSimpleSemanticPlanner({
         input: "Cierra solamente si todos los entregables estan listos.",

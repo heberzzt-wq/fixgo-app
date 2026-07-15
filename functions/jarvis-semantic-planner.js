@@ -360,11 +360,17 @@ async function runGeminiSemanticPlanner({
         const contractCall = contractFunctionCalls.find(
             call => call?.name === "jarvis_mission_contract"
         );
-        if (!contractCall?.args || typeof contractCall.args !== "object") {
-            throw new Error("MISSION_CONTRACT_FUNCTION_REQUIRED");
+        let contractPayload = contractCall?.args && typeof contractCall.args === "object"
+            ? contractCall.args
+            : null;
+        if (!contractPayload && String(contractResponse?.text || "").trim()) {
+            contractPayload = extractJsonObject(String(contractResponse.text));
+        }
+        if (!contractPayload || typeof contractPayload !== "object") {
+            throw new Error("MISSION_CONTRACT_OUTPUT_REQUIRED");
         }
         const contractPlan = {
-            ...contractCall.args,
+            ...contractPayload,
             missionComplete: false
         };
         return requireExecutablePlan({
