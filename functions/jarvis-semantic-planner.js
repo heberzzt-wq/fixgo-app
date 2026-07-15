@@ -352,6 +352,8 @@ async function runJarvisSemanticPlanner({
 
         const requestPayload = {
             model: "openai",
+            tools: buildModelTools(safeCatalog),
+            tool_choice: "required",
             messages: [
                 { role: "system", content: systemInstruction },
                 { role: "user", content: instruction }

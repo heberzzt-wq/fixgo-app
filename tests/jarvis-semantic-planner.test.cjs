@@ -93,6 +93,8 @@ test("semantic planner preserves mixed tools and never grants prompt approval", 
             assert.ok(body.messages[0].content.includes("No inventes rutas ni nombres de archivo"));
             assert.ok(body.messages[0].content.includes("Una sola repo.search"));
             assert.ok(body.messages[0].content.includes("no uses conversation.respond como sustituto"));
+            assert.equal(body.tool_choice, "required");
+            assert.equal(body.tools[0].function.name, "jarvis_tool_0");
             return {
                 ok: true,
                 json: async () => ({
@@ -122,6 +124,38 @@ test("semantic planner preserves mixed tools and never grants prompt approval", 
     ]);
     assert.equal(result.toolCalls[2].mutates, true);
     assert.equal(result.toolCalls[2].approved, false);
+});
+
+test("public semantic fallback consumes native provider tool calls", async () => {
+    const result = await runJarvisSemanticPlanner({
+        input: "investiga SUMM con fuentes",
+        catalog,
+        fetchImpl: async (_url, request) => {
+            const body = JSON.parse(request.body);
+            assert.equal(body.tool_choice, "required");
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({
+                    model: "openai-compatible-test",
+                    choices: [{
+                        message: {
+                            tool_calls: [{
+                                function: {
+                                    name: "jarvis_tool_0",
+                                    arguments: JSON.stringify({ query: "site:summ.com.mx SUMM" })
+                                }
+                            }]
+                        }
+                    }]
+                })
+            };
+        }
+    });
+
+    assert.equal(result.provider, "pollinations");
+    assert.equal(result.toolCalls[0].name, "repo.search");
+    assert.equal(result.toolCalls[0].args.query, "site:summ.com.mx SUMM");
 });
 
 test("semantic plan validation rejects tools outside the runtime catalog", () => {
