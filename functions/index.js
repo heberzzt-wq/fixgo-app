@@ -2820,6 +2820,7 @@ exports.jarvisSemanticPlan = functions
         try {
             const result = await runJarvisSemanticPlanner({
                 fetchImpl: fetch,
+                simpleFetchImpl: fetch,
                 ai: getGroundedGenAI(),
                 input: data?.input,
                 catalog: data?.catalog,

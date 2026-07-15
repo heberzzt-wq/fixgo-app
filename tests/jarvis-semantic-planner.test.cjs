@@ -11,6 +11,7 @@ const {
     extractToolCallPlan,
     requestModel,
     runGeminiSemanticPlanner,
+    runSimpleSemanticPlanner,
     runJarvisSemanticPlanner,
     validatePlan
 } = require("../functions/jarvis-semantic-planner");
@@ -158,6 +159,36 @@ test("public semantic fallback consumes native provider tool calls", async () =>
     assert.equal(result.provider, "pollinations");
     assert.equal(result.toolCalls[0].name, "repo.search");
     assert.equal(result.toolCalls[0].args.query, "site:summ.com.mx SUMM");
+});
+
+test("simple anonymous planner returns a validated compact semantic plan", async () => {
+    let requestedUrl = "";
+    const result = await runSimpleSemanticPlanner({
+        input: "investiga SUMM y despues prepara marketing",
+        catalog,
+        missionState: {
+            missionId: "MISSION-SIMPLE-1",
+            completedTasks: [{ name: "repo.search" }],
+            pendingTasks: [],
+            blockedTasks: [],
+            iterations: 1
+        },
+        fetchImpl: async url => {
+            requestedUrl = url;
+            return {
+                ok: true,
+                text: async () => JSON.stringify({
+                    toolCalls: [{ name: "connector.list", args: {}, reason: "siguiente herramienta" }]
+                })
+            };
+        }
+    });
+
+    assert.ok(requestedUrl.startsWith("https://text.pollinations.ai/"));
+    assert.ok(requestedUrl.includes("json=true"));
+    assert.equal(result.provider, "pollinations-simple-json");
+    assert.equal(result.toolCalls[0].name, "connector.list");
+    assert.equal(result.toolCalls[0].approved, false);
 });
 
 test("semantic plan validation rejects tools outside the runtime catalog", () => {

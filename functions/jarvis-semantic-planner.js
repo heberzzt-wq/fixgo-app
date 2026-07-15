@@ -294,8 +294,59 @@ function extractToolCallPlan(payload = {}, catalog = []) {
     return toolCalls.length > 0 ? { toolCalls } : null;
 }
 
+async function runSimpleSemanticPlanner({
+    fetchImpl,
+    input = "",
+    catalog = [],
+    missionState = null,
+    timeoutMs = 25000
+} = {}) {
+    if (typeof fetchImpl !== "function") throw new Error("SIMPLE_SEMANTIC_FETCH_REQUIRED");
+    const instruction = String(input || "").trim();
+    const safeCatalog = normalizeCatalog(catalog);
+    const routingInstruction = instruction.length <= 12000
+        ? instruction
+        : `${instruction.slice(0, 8000)}\n[PARTE_MEDIA_PERSISTIDA]\n${instruction.slice(-3500)}`;
+    const compactMission = missionState ? {
+        missionId: missionState.missionId || null,
+        completedTasks: (missionState.completedTasks || []).map(item => item?.name).filter(Boolean),
+        pendingTasks: (missionState.pendingTasks || []).map(item => item?.name).filter(Boolean),
+        blockedTasks: (missionState.blockedTasks || []).map(item => item?.name).filter(Boolean),
+        iterations: Number(missionState.iterations || 0),
+        writeAllowed: false
+    } : null;
+    const prompt = [
+        "Eres el planificador semantico de Jarvis V7.",
+        "Interpreta significado, errores ortograficos, negaciones y ordenes mixtas.",
+        "Selecciona solo nombres del catalogo. Nunca autorices escrituras.",
+        "En misiones, no repitas herramientas completadas y usa herramientas especializadas, no conversation.respond, para entregables operativos.",
+        "Devuelve unicamente JSON valido con forma {\"toolCalls\":[{\"name\":\"nombre.real\",\"args\":{},\"reason\":\"motivo\"}],\"explanation\":\"\"}.",
+        `CATALOGO=${JSON.stringify(safeCatalog.map(tool => ({ name: tool.name, description: tool.description.slice(0, 180), mutates: tool.mutates })))}`,
+        compactMission ? `ESTADO_DE_MISION=${JSON.stringify(compactMission)}` : "",
+        `INSTRUCCION=${routingInstruction}`
+    ].join("\n");
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), Math.max(5000, Number(timeoutMs) || 25000));
+    try {
+        const url = `https://text.pollinations.ai/${encodeURIComponent(prompt)}?model=openai-fast&seed=42&json=true`;
+        const response = await fetchImpl(url, { signal: controller.signal });
+        if (!response?.ok) throw new Error(`SIMPLE_SEMANTIC_HTTP_${response?.status || 0}`);
+        const payloadText = await response.text();
+        const plan = extractJsonObject(payloadText);
+        return {
+            ...validatePlan(plan, safeCatalog, instruction),
+            provider: "pollinations-simple-json",
+            model: "openai-fast",
+            catalogSize: safeCatalog.length
+        };
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 async function runJarvisSemanticPlanner({
     fetchImpl = globalThis.fetch,
+    simpleFetchImpl = null,
     ai = null,
     input = "",
     catalog = [],
@@ -336,6 +387,7 @@ async function runJarvisSemanticPlanner({
                 try {
                     return await runJarvisSemanticPlanner({
                         fetchImpl,
+                        simpleFetchImpl,
                         ai: null,
                         input: instruction,
                         catalog: safeCatalog,
@@ -348,6 +400,20 @@ async function runJarvisSemanticPlanner({
                         `SEMANTIC_GEMINI_${geminiError?.message || "FAILED"}__FALLBACK_${fallbackError?.message || "FAILED"}`
                     );
                 }
+            }
+        }
+
+        if (typeof simpleFetchImpl === "function") {
+            try {
+                return await runSimpleSemanticPlanner({
+                    fetchImpl: simpleFetchImpl,
+                    input: instruction,
+                    catalog: safeCatalog,
+                    missionState,
+                    timeoutMs: Math.min(Number(timeoutMs) || 25000, 25000)
+                });
+            } catch (simpleError) {
+                if (typeof fetchImpl !== "function") throw simpleError;
             }
         }
 
@@ -488,6 +554,7 @@ module.exports = {
     normalizeCatalog,
     requestModel,
     runGeminiSemanticPlanner,
+    runSimpleSemanticPlanner,
     runJarvisSemanticPlanner,
     runJarvisSemanticResponse,
     validatePlan
