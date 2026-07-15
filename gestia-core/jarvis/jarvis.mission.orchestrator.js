@@ -63,6 +63,22 @@ function saveMission(storage, mission) {
     return structuredClone(mission);
 }
 
+function compactEvidence(value, depth = 0) {
+    if (value == null || depth > 4) return null;
+    if (typeof value === "string") return text(value, 700);
+    if (typeof value === "number" || typeof value === "boolean") return value;
+    if (Array.isArray(value)) {
+        return value.slice(0, 10).map(item => compactEvidence(item, depth + 1));
+    }
+    if (typeof value !== "object") return null;
+    return Object.fromEntries(
+        Object.entries(value)
+            .slice(0, 30)
+            .map(([key, item]) => [text(key, 100), compactEvidence(item, depth + 1)])
+            .filter(([, item]) => item !== null)
+    );
+}
+
 function safeObservation(result = {}) {
     const payload =
         result?.observations?.[0]?.data ||
@@ -79,7 +95,8 @@ function safeObservation(result = {}) {
         validSources: Array.isArray(payload?.sources) ? payload.sources.slice(0, 12) : [],
         discardedSources: Array.isArray(payload?.discardedSources) ? payload.discardedSources.slice(0, 12) : [],
         summary: text(payload?.message || payload?.answer || payload?.summary || payload?.text || "", 3000),
-        artifact: text(payload?.artifact || payload?.output || "", 500) || null
+        artifact: text(payload?.artifact || payload?.output || "", 500) || null,
+        evidence: compactEvidence(payload)
     };
 }
 

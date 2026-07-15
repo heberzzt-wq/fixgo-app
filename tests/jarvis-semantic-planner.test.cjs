@@ -429,11 +429,13 @@ test("mission evidence compaction preserves verified sources without carrying ra
         status: "WEB_RESEARCH_READY",
         summary: "Evidencia primaria verificada.",
         validSources: [{ title: "SUMM", url: "https://www.summ.com.mx/" }],
+        evidence: { campaign: { audience: "Empresas", cta: "Agenda" } },
         rawHtml: "x".repeat(50000)
     });
 
     assert.equal(compact.status, "WEB_RESEARCH_READY");
     assert.equal(compact.validSources[0].url, "https://www.summ.com.mx/");
+    assert.equal(compact.evidence.campaign.cta, "Agenda");
     assert.equal(Object.hasOwn(compact, "rawHtml"), false);
 });
 

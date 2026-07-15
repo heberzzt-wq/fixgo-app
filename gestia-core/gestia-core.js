@@ -42,7 +42,7 @@ import {
 } from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-model-semantic-planner-v11-sequential-contract-20260715';
 import {
     runJarvisMission
-} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-mission-orchestrator-v3-contract-20260715';
+} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-mission-orchestrator-v4-evidence-chain-20260715';
 //import { ejecutarCambios } from '/gestia-core/operations-executor.engine.js';
 
 // ======================================================================================
@@ -4664,6 +4664,7 @@ if (
                         ...mission.completedTasks.map(item => item.name),
                         ...mission.blockedTasks.map(item => item.name)
                     ]);
+                    const requiredToolNames = new Set(mission.requiredToolNames);
                     const nextToolCalls =
                         await buildJarvisMultifunctionToolCalls(
                             originalInstruction.slice(0, 120000),
@@ -4675,6 +4676,7 @@ if (
                                         ?.list?.()
                                         ?.filter(tool =>
                                             tool?.name !== "conversation.respond" &&
+                                            requiredToolNames.has(tool?.name) &&
                                             !resolvedToolNames.has(tool?.name)
                                         ) ||
                                     [],

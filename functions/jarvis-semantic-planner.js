@@ -155,6 +155,22 @@ function requireExecutablePlan(plan = {}) {
     return plan;
 }
 
+function compactMissionEvidence(value, depth = 0) {
+    if (value == null || depth > 4) return null;
+    if (typeof value === "string") return String(value).slice(0, 700);
+    if (typeof value === "number" || typeof value === "boolean") return value;
+    if (Array.isArray(value)) {
+        return value.slice(0, 10).map(item => compactMissionEvidence(item, depth + 1));
+    }
+    if (typeof value !== "object") return null;
+    return Object.fromEntries(
+        Object.entries(value)
+            .slice(0, 30)
+            .map(([key, item]) => [String(key).slice(0, 100), compactMissionEvidence(item, depth + 1)])
+            .filter(([, item]) => item !== null)
+    );
+}
+
 function compactMissionObservation(observation = {}) {
     const sources = Array.isArray(observation?.validSources)
         ? observation.validSources.slice(0, 6).map(source => ({
@@ -167,7 +183,8 @@ function compactMissionObservation(observation = {}) {
         status: String(observation?.status || "").slice(0, 160),
         summary: String(observation?.summary || observation?.message || "").slice(0, 1200),
         sourceCount: Number(observation?.sourceCount || sources.length || 0),
-        validSources: sources
+        validSources: sources,
+        evidence: compactMissionEvidence(observation?.evidence)
     };
 }
 

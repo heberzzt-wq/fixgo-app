@@ -44,6 +44,8 @@ test("mission continues from research through marketing, page and reel planning"
             executed.push(call.name);
             return call.name === "web.research"
                 ? { ok: true, sources: [{ url: "https://www.summ.com.mx/" }], answer: "Fuente oficial" }
+                : call.name === "marketing.plan"
+                    ? { ok: true, status: "READY", campaign: { audience: "Empresas", cta: "Agenda" } }
                 : { ok: true, status: "READY", summary: `${call.name} completo` };
         },
         storage
@@ -51,6 +53,10 @@ test("mission continues from research through marketing, page and reel planning"
     assert.deepEqual(executed, sequence);
     assert.equal(mission.reason, "ALL_EXECUTABLE_TASKS_COMPLETED");
     assert.equal(mission.completedTasks.length, 4);
+    assert.equal(
+        mission.completedTasks.find(item => item.name === "marketing.plan").observation.evidence.campaign.cta,
+        "Agenda"
+    );
     assert.equal(mission.writeAllowed, false);
     const recovered = recoverJarvisMission(mission.missionId, { storage });
     assert.equal(recovered.objectiveId, mission.objectiveId);
