@@ -191,6 +191,29 @@ test("simple anonymous planner returns a validated compact semantic plan", async
     assert.equal(result.toolCalls[0].approved, false);
 });
 
+test("simple planner keeps a sixty-tool catalog inside a safe URL budget", async () => {
+    const largeCatalog = Array.from({ length: 60 }, (_, index) => ({
+        name: `domain${index}.tool${index}`,
+        description: "Descripcion operacional extensa ".repeat(30),
+        mutates: index % 9 === 0
+    }));
+    let requestedUrl = "";
+    await runSimpleSemanticPlanner({
+        input: "Planifica la siguiente accion de una mision extensa sin escribir.",
+        catalog: largeCatalog,
+        fetchImpl: async url => {
+            requestedUrl = url;
+            return {
+                ok: true,
+                text: async () => JSON.stringify({ toolCalls: [{ name: "domain1.tool1", args: {} }] })
+            };
+        }
+    });
+
+    assert.ok(requestedUrl.length < 7000);
+    assert.equal(requestedUrl.includes("Descripcion%20operacional%20extensa"), false);
+});
+
 test("semantic plan validation rejects tools outside the runtime catalog", () => {
     const result = validatePlan({
         toolCalls: [

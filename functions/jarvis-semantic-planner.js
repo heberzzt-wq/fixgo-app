@@ -321,7 +321,8 @@ async function runSimpleSemanticPlanner({
         "Selecciona solo nombres del catalogo. Nunca autorices escrituras.",
         "En misiones, no repitas herramientas completadas y usa herramientas especializadas, no conversation.respond, para entregables operativos.",
         "Devuelve unicamente JSON valido con forma {\"toolCalls\":[{\"name\":\"nombre.real\",\"args\":{},\"reason\":\"motivo\"}],\"explanation\":\"\"}.",
-        `CATALOGO=${JSON.stringify(safeCatalog.map(tool => ({ name: tool.name, description: tool.description.slice(0, 180), mutates: tool.mutates })))}`,
+        `CATALOGO_NOMBRES=${safeCatalog.map(tool => tool.name).join(",")}`,
+        `HERRAMIENTAS_MUTANTES_NO_AUTORIZADAS=${safeCatalog.filter(tool => tool.mutates).map(tool => tool.name).join(",")}`,
         compactMission ? `ESTADO_DE_MISION=${JSON.stringify(compactMission)}` : "",
         `INSTRUCCION=${routingInstruction}`
     ].join("\n");
@@ -372,6 +373,7 @@ async function runJarvisSemanticPlanner({
     const systemInstruction = [
         buildSemanticSystemInstruction(safeCatalog, missionState)
     ].join("\n");
+    let simpleFailure = null;
 
     try {
         if (ai?.models?.generateContent) {
@@ -413,6 +415,7 @@ async function runJarvisSemanticPlanner({
                     timeoutMs: Math.min(Number(timeoutMs) || 25000, 25000)
                 });
             } catch (simpleError) {
+                simpleFailure = simpleError;
                 if (typeof fetchImpl !== "function") throw simpleError;
             }
         }
@@ -467,7 +470,14 @@ async function runJarvisSemanticPlanner({
                     catalogSize: safeCatalog.length
                 };
             } catch (error) {
-                if (outputAttempt === 2) throw error;
+                if (outputAttempt === 2) {
+                    if (simpleFailure) {
+                        throw new Error(
+                            `SIMPLE_${simpleFailure?.message || "FAILED"}__OPENAI_COMPATIBLE_${error?.message || "FAILED"}`
+                        );
+                    }
+                    throw error;
+                }
                 await wait(500);
             }
         }
