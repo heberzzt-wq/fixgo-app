@@ -66,6 +66,210 @@ function sourceMatchesDomain(source = {}, domain = "") {
     }
 }
 
+function readHtmlAttribute(openingTag = "", attributeName = "") {
+    const source = String(openingTag || "");
+    const target = String(attributeName || "").toLowerCase();
+    let index = 0;
+    while (index < source.length) {
+        while (index < source.length && source.charCodeAt(index) <= 32) index += 1;
+        const nameStart = index;
+        while (index < source.length) {
+            const character = source[index];
+            if (character === "=" || character === ">" || character.charCodeAt(0) <= 32) break;
+            index += 1;
+        }
+        const name = source.slice(nameStart, index).toLowerCase();
+        while (index < source.length && source.charCodeAt(index) <= 32) index += 1;
+        if (source[index] !== "=") {
+            index += 1;
+            continue;
+        }
+        index += 1;
+        while (index < source.length && source.charCodeAt(index) <= 32) index += 1;
+        const quote = source[index] === '"' || source[index] === "'" ? source[index++] : null;
+        const valueStart = index;
+        if (quote) {
+            while (index < source.length && source[index] !== quote) index += 1;
+        } else {
+            while (index < source.length && source[index] !== ">" && source[index].charCodeAt(0) > 32) index += 1;
+        }
+        if (name === target) return source.slice(valueStart, index).trim();
+        index += 1;
+    }
+    return "";
+}
+
+function visibleText(fragment = "", maximum = 900) {
+    let output = "";
+    let insideTag = false;
+    let separating = false;
+    for (const character of String(fragment || "")) {
+        if (character === "<") {
+            insideTag = true;
+            separating = Boolean(output);
+            continue;
+        }
+        if (character === ">") {
+            insideTag = false;
+            continue;
+        }
+        if (insideTag) continue;
+        if (character.charCodeAt(0) <= 32) {
+            separating = Boolean(output);
+            continue;
+        }
+        if (separating && output) output += " ";
+        output += character;
+        separating = false;
+        if (output.length >= maximum) break;
+    }
+    return output.trim();
+}
+
+function extractHtmlElements(html = "", tagName = "", maximum = 12) {
+    const source = String(html || "");
+    const lower = source.toLowerCase();
+    const tag = String(tagName || "").toLowerCase();
+    const opening = `<${tag}`;
+    const closing = `</${tag}>`;
+    const values = [];
+    let cursor = 0;
+    while (values.length < maximum) {
+        const start = lower.indexOf(opening, cursor);
+        if (start < 0) break;
+        const contentStart = lower.indexOf(">", start);
+        if (contentStart < 0) break;
+        const end = lower.indexOf(closing, contentStart + 1);
+        if (end < 0) break;
+        const value = visibleText(source.slice(contentStart + 1, end));
+        if (value) values.push(value);
+        cursor = end + closing.length;
+    }
+    return values;
+}
+
+function extractHtmlLinks(html = "", baseUrl = "", domain = "", maximum = 24) {
+    const source = String(html || "");
+    const lower = source.toLowerCase();
+    const links = [];
+    let cursor = 0;
+    while (links.length < maximum) {
+        const start = lower.indexOf("<a", cursor);
+        if (start < 0) break;
+        const end = lower.indexOf(">", start);
+        if (end < 0) break;
+        const href = readHtmlAttribute(source.slice(start + 2, end), "href");
+        cursor = end + 1;
+        if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) continue;
+        try {
+            const url = new URL(href, baseUrl);
+            url.hash = "";
+            const candidate = { url: url.href };
+            if (url.protocol === "https:" && sourceMatchesDomain(candidate, domain) && !links.includes(url.href)) {
+                links.push(url.href);
+            }
+        } catch {
+            continue;
+        }
+    }
+    return links;
+}
+
+async function runJarvisDirectDomainResearch({
+    fetchImpl = globalThis.fetch,
+    query = "",
+    allowedDomain = "",
+    objectiveId = "",
+    caseId = "",
+    maximumPages = 6
+} = {}) {
+    const normalizedQuery = normalizeResearchQuery(query);
+    const domain = requestedDomainFromQuery(normalizedQuery, allowedDomain);
+    if (!domain) throw new Error("DIRECT_RESEARCH_DOMAIN_REQUIRED");
+    if (typeof fetchImpl !== "function") throw new Error("DIRECT_RESEARCH_FETCH_REQUIRED");
+
+    const queue = [`https://${domain}/`];
+    const visited = new Set();
+    const pages = [];
+    while (queue.length > 0 && pages.length < maximumPages) {
+        const url = queue.shift();
+        if (visited.has(url)) continue;
+        visited.add(url);
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 12000);
+        try {
+            const response = await fetchImpl(url, {
+                headers: { "User-Agent": "JarvisReadOnlyResearch/1.0" },
+                redirect: "follow",
+                signal: controller.signal
+            });
+            const finalUrl = response?.url || url;
+            if (!response?.ok || !sourceMatchesDomain({ url: finalUrl }, domain)) continue;
+            const contentType = String(response.headers?.get?.("content-type") || "").toLowerCase();
+            if (!contentType.includes("text/html")) continue;
+            const html = String(await response.text()).slice(0, 1500000);
+            const title = extractHtmlElements(html, "title", 1)[0] || finalUrl;
+            const headings = [
+                ...extractHtmlElements(html, "h1", 4),
+                ...extractHtmlElements(html, "h2", 8)
+            ].slice(0, 10);
+            const paragraphs = extractHtmlElements(html, "p", 12)
+                .filter(item => item.length >= 40)
+                .slice(0, 6);
+            if (headings.length === 0 && paragraphs.length === 0) continue;
+            pages.push({ url: finalUrl, title, headings, paragraphs });
+            for (const link of extractHtmlLinks(html, finalUrl, domain)) {
+                if (!visited.has(link) && !queue.includes(link)) queue.push(link);
+            }
+        } catch {
+            continue;
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+    if (pages.length === 0) throw new Error("DIRECT_RESEARCH_NO_PRIMARY_PAGES");
+
+    const sources = pages.map((page, index) => ({ id: index + 1, title: page.title, url: page.url }));
+    const facts = pages.map((page, index) => ({
+        id: index + 1,
+        type: "PRIMARY_PAGE_EVIDENCE",
+        claim: [page.title, ...page.headings, ...page.paragraphs].filter(Boolean).join(" | ").slice(0, 2400),
+        sourceIds: [index + 1]
+    }));
+    const supports = facts.map(fact => ({ text: fact.claim, sourceIds: fact.sourceIds }));
+    return {
+        ok: true,
+        grounded: true,
+        engine: "jarvis_direct_primary_domain_research",
+        model: null,
+        query: normalizedQuery,
+        requestedDomain: domain,
+        objectiveId: String(objectiveId || ""),
+        caseId: String(caseId || ""),
+        researchedAt: new Date().toISOString(),
+        provider: "direct_primary_domain_crawl",
+        answer: facts.map(fact => fact.claim).join("\n\n").slice(0, 12000),
+        sources,
+        discardedSources: [],
+        supports,
+        facts,
+        inferences: [],
+        searchQueries: [],
+        sourceCount: sources.length,
+        readOnly: true,
+        policy: {
+            citationsRequired: true,
+            consultedSourcesOnly: true,
+            requestedDomainEnforced: true,
+            factsSeparatedFromInference: true,
+            duplicatesRemoved: true,
+            codeWrite: false,
+            externalSideEffects: false,
+            fallbackReason: "GEMINI_CREDENTIAL_UNAVAILABLE"
+        }
+    };
+}
+
 function extractGroundingMetadata(response = {}) {
     return response?.candidates?.[0]
         ?.groundingMetadata || {};
@@ -296,6 +500,11 @@ module.exports = {
     normalizeResearchQuery,
     requestedDomainFromQuery,
     sourceMatchesDomain,
+    readHtmlAttribute,
+    visibleText,
+    extractHtmlElements,
+    extractHtmlLinks,
+    runJarvisDirectDomainResearch,
     extractGroundingSources,
     extractGroundingSupports,
     runJarvisWebResearch

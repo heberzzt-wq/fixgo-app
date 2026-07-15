@@ -45,6 +45,7 @@ const {
 
 const {
     runJarvisWebResearch,
+    runJarvisDirectDomainResearch,
     normalizeResearchQuery
 } = require("./jarvis-web-research");
 
@@ -2715,15 +2716,30 @@ exports.jarvisWebResearch = functions
         }
 
         try {
-            const result =
-                await runJarvisWebResearch({
-                    ai:
-                        getGroundedGenAI(),
+            let result;
+            try {
+                result = await runJarvisWebResearch({
+                    ai: getGroundedGenAI(),
                     query,
                     objectiveId: data?.objectiveId || "",
                     caseId: data?.caseId || "",
                     allowedDomain: data?.allowedDomain || ""
                 });
+            } catch (primaryError) {
+                const primaryMessage = primaryError?.message || String(primaryError);
+                const credentialFailure =
+                    primaryMessage.includes("GEMINI_KEY_MISSING") ||
+                    primaryMessage.includes("API key not valid") ||
+                    primaryMessage.includes("API_KEY_INVALID");
+                if (!credentialFailure) throw primaryError;
+                result = await runJarvisDirectDomainResearch({
+                    fetchImpl: fetch,
+                    query,
+                    objectiveId: data?.objectiveId || "",
+                    caseId: data?.caseId || "",
+                    allowedDomain: data?.allowedDomain || ""
+                });
+            }
 
             console.log(JSON.stringify({
                 level:

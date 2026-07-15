@@ -15,6 +15,7 @@ const {
     sourceMatchesDomain,
     extractGroundingSources,
     extractGroundingSupports,
+    runJarvisDirectDomainResearch,
     runJarvisWebResearch
 } = require(
     "../functions/jarvis-web-research"
@@ -223,6 +224,46 @@ test("web research enforces the requested domain and discards similar companies"
     assert.equal(result.facts.length, 1);
     assert.equal(result.requestedDomain, "summ.com.mx");
     assert.equal(result.policy.requestedDomainEnforced, true);
+});
+
+test("direct domain fallback crawls only primary pages when Gemini credentials fail", async () => {
+    const pages = new Map([
+        ["https://summ.com.mx/", `
+            <html><head><title>SUMM oficial</title></head><body>
+            <h1>Soluciones integrales de mantenimiento</h1>
+            <p>SUMM presenta servicios empresariales de mantenimiento y atención para instalaciones.</p>
+            <a href="/servicios">Servicios</a>
+            <a href="https://summma.com/empresa">Empresa parecida</a>
+            </body></html>
+        `],
+        ["https://summ.com.mx/servicios", `
+            <html><head><title>Servicios SUMM</title></head><body>
+            <h1>Servicios especializados</h1>
+            <p>La página oficial describe atención preventiva, correctiva y soporte para clientes empresariales.</p>
+            </body></html>
+        `]
+    ]);
+    const result = await runJarvisDirectDomainResearch({
+        query: "Investiga únicamente https://www.summ.com.mx/",
+        fetchImpl: async url => {
+            const normalized = String(url).replace("https://www.summ.com.mx", "https://summ.com.mx");
+            const html = pages.get(normalized);
+            return {
+                ok: Boolean(html),
+                url: normalized,
+                headers: { get: name => name === "content-type" ? "text/html; charset=utf-8" : "" },
+                text: async () => html || ""
+            };
+        }
+    });
+
+    assert.equal(result.provider, "direct_primary_domain_crawl");
+    assert.equal(result.grounded, true);
+    assert.equal(result.sources.length, 2);
+    assert.ok(result.sources.every(source => new URL(source.url).hostname === "summ.com.mx"));
+    assert.equal(result.discardedSources.length, 0);
+    assert.equal(result.inferences.length, 0);
+    assert.equal(result.policy.fallbackReason, "GEMINI_CREDENTIAL_UNAVAILABLE");
 });
 
 test("Firebase deploys grounded web research on the supported Node runtime", () => {
