@@ -1,1 +1,1 @@
-{"jobId":"sia7-4192-grep-agent-loop-public-20260716-43","endpoint":"/grep","expectedReleaseId":"v5.9-polish-forensic-20260713.1","body":{"term":"Agent Loop","cwd":".","maxMatches":80}}
+{"jobId":"sia7-4192-grep-agent-loop-public-20260716-44","endpoint":"/grep","body":{"term":"Agent Loop","cwd":".","maxMatches":80,"expectedReleaseId":"v5.9-polish-forensic-20260713.1"}}
