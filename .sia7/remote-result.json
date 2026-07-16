@@ -1,8 +1,8 @@
 {
   "jobId": "sia7-4192-grep-agent-loop-public-20260713-41",
-  "completedAt": "2026-07-13T15:51:17.942Z",
+  "completedAt": "2026-07-16T16:42:11.593Z",
   "ok": false,
-  "error": "RESULT_SYNC_FAILED: From https://github.com/heberzzt-wq/fixgo-app\n * branch              v5.9-polish -> FETCH_HEAD\nwarning: fetch updated the current branch head.\nfast-forwarding your working tree from\ncommit d9415851ba30fd08f7c10bd236ee73173ce94945.\nerror: Your local changes to the following files would be overwritten by merge:\n\tfirebase.json\nPlease commit your changes or stash them before you merge.\nAborting\nfatal: Cannot fast-forward your working tree.\nAfter making sure that you saved anything precious from\n$ git diff d9415851ba30fd08f7c10bd236ee73173ce94945\noutput, run\n$ git reset --hard\nto recover.\n",
+  "error": "fetch failed",
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
