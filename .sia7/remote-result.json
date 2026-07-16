@@ -1,8 +1,35 @@
 {
   "jobId": "sia7-4192-grep-agent-loop-public-20260713-41",
-  "completedAt": "2026-07-16T16:42:11.593Z",
+  "completedAt": "2026-07-16T16:43:59.820Z",
   "ok": false,
-  "error": "fetch failed",
+  "httpStatus": 409,
+  "endpoint": "/grep",
+  "payload": {
+    "ok": false,
+    "status": "BRIDGE_RELEASE_MISMATCH",
+    "error": "BRIDGE_RELEASE_MISMATCH",
+    "expectedReleaseId": "",
+    "actualReleaseId": "v5.9-polish-forensic-20260713.1",
+    "identity": {
+      "ok": true,
+      "status": "BRIDGE_IDENTITY_OK",
+      "root": "C:\\Users\\heber\\Desktop\\play-store-Gestia\\fixgo-app-main",
+      "contract": {
+        "ok": true,
+        "projectId": "fixgo-app",
+        "branch": "v5.9-polish",
+        "releaseId": "v5.9-polish-forensic-20260713.1",
+        "contractPath": "C:\\Users\\heber\\Desktop\\play-store-Gestia\\fixgo-app-main\\jarvis-runtime-contract.json"
+      },
+      "git": {
+        "root": "C:/Users/heber/Desktop/play-store-Gestia/fixgo-app-main",
+        "branch": "v5.9-polish",
+        "head": "f536fc3edd068a04e7a91bad51cecadf242eacb2",
+        "remote": "https://github.com/heberzzt-wq/fixgo-app.git"
+      }
+    },
+    "version": "2.22.0-rendered-pdf-region-diff"
+  },
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
