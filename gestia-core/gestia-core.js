@@ -2142,6 +2142,110 @@ function getCandidateReadData(
     null;
 }
 
+function composeRequestedSourceStructureResponse({
+    objective = "",
+    candidates = [],
+    observations = []
+} = {}) {
+    const normalizedObjective =
+        String(objective || "")
+            .toLocaleLowerCase();
+
+    const structuredReads =
+        extractReadData(
+            observations
+        )
+            .map(readData => ({
+                readData,
+                file:
+                    getReadFile(readData),
+                structure:
+                    readData?.sourceStructure ||
+                    null
+            }))
+            .filter(item =>
+                item.file &&
+                item.structure?.kind ===
+                    "tool_registry" &&
+                Array.isArray(
+                    item.structure.registrations
+                )
+            );
+
+    const requestedRegistrations =
+        structuredReads.flatMap(item =>
+            item.structure.registrations
+                .filter(registration =>
+                    registration?.name &&
+                    normalizedObjective.includes(
+                        String(
+                            registration.name
+                        ).toLocaleLowerCase()
+                    )
+                )
+                .map(registration => ({
+                    ...registration,
+                    file:
+                        item.file
+                }))
+        );
+
+    if (!requestedRegistrations.length) {
+        return null;
+    }
+
+    const primaryFile =
+        requestedRegistrations[0].file ||
+        candidates[0]?.file ||
+        null;
+
+    const registrationLines =
+        requestedRegistrations.flatMap(
+            registration => [
+                `- ${registration.name} — ${registration.file}:${registration.line}`,
+                registration.description
+                    ? `  Funcion: ${registration.description}`
+                    : "",
+                registration.inputSchema
+                    ? `  Entrada: ${registration.inputSchema}`
+                    : "",
+                registration.output
+                    ? `  Salida: ${registration.output}`
+                    : ""
+            ]
+                .filter(Boolean)
+        );
+
+    return {
+        ok:
+            true,
+        title:
+            "Lectura estructural verificada",
+        text:
+            [
+                `Archivo leido: ${primaryFile}`,
+                `Tipo real: tool_registry`,
+                "",
+                "Registros solicitados:",
+                ...registrationLines,
+                "",
+                `Evidencia: indice estructural derivado del contenido real leido por repo.read; ${requestedRegistrations.length} registro(s) solicitado(s) localizado(s).`,
+                "Estado: lectura read-only; no se modificaron archivos, no se genero patch y no se desplego."
+            ]
+                .join("\n"),
+        file:
+            primaryFile,
+        registrations:
+            requestedRegistrations,
+        source:
+            "REPO_READ_SOURCE_STRUCTURE",
+        writeAllowed:
+            false,
+        patchGenerated:
+            false
+    };
+}
+
 function getEvidenceLineNumber(
     evidence = {}
 ) {
@@ -3200,6 +3304,18 @@ function composeObservationDrivenFinalResponse({
             patchGenerated:
                 false
         };
+    }
+
+    const requestedSourceStructureResponse =
+        composeRequestedSourceStructureResponse({
+            objective,
+            candidates,
+            observations:
+                followUpObservations
+        });
+
+    if (requestedSourceStructureResponse) {
+        return requestedSourceStructureResponse;
     }
 
     const diagnoses =

@@ -107,6 +107,7 @@ function loadGestiaCoreAgentLoopHelpers(options = {}) {
 module.exports = {
     assessPrimaryCandidateConfidence,
     buildObservationDrivenFollowUpToolCalls,
+    composeRequestedSourceStructureResponse,
     composeObservationDrivenFinalResponse,
     composeRepoGlobalAnalysisFinalResponse,
     buildCompactLayoutReplacement,
@@ -1188,6 +1189,115 @@ test("read-only technical response preserves evidence for every diagnosed target
     assert.match(finalResponse.text, /Redirect de cliente tardio/);
 });
 
+test("exact repo reads answer requested tool registrations from source structure", () => {
+    const helpers =
+        loadGestiaCoreAgentLoopHelpers();
+
+    const finalResponse =
+        helpers.composeObservationDrivenFinalResponse({
+            objective:
+                "Lee gestia-core/jarvis/jarvis.multitool.pack.js y dime que registra marketing.plan e image.plan. No modifiques.",
+            candidates: [{
+                file:
+                    "gestia-core/jarvis/jarvis.multitool.pack.js",
+                evidence: []
+            }],
+            patchPreviewAllowed:
+                false,
+            followUpObservations: [{
+                response: {
+                    data: {
+                        ok:
+                            true,
+                        tool:
+                            "repo.read",
+                        file:
+                            "gestia-core/jarvis/jarvis.multitool.pack.js",
+                        content:
+                            "contenido real",
+                        sourceStructure: {
+                            kind:
+                                "tool_registry",
+                            registrationCount:
+                                13,
+                            registrations: [{
+                                line:
+                                    2034,
+                                name:
+                                    "marketing.plan",
+                                description:
+                                    "Produce una campana sustentada.",
+                                inputSchema:
+                                    "MARKETING_ARGUMENT_SCHEMA",
+                                output:
+                                    "SIA7_MARKETING_PLAN"
+                            }, {
+                                line:
+                                    2182,
+                                name:
+                                    "image.plan",
+                                description:
+                                    "Define requisitos visuales.",
+                                inputSchema:
+                                    "IMAGE_PLAN_ARGUMENT_SCHEMA",
+                                output:
+                                    "SIA7_IMAGE_REQUIREMENTS_PLAN"
+                            }, {
+                                line:
+                                    2200,
+                                name:
+                                    "reel.plan",
+                                description:
+                                    "Define un reel.",
+                                inputSchema:
+                                    "REEL_PLAN_ARGUMENT_SCHEMA",
+                                output:
+                                    "SIA7_REEL_PLAN"
+                            }]
+                        }
+                    }
+                }
+            }]
+        });
+
+    assert.equal(
+        finalResponse.title,
+        "Lectura estructural verificada"
+    );
+    assert.equal(
+        finalResponse.source,
+        "REPO_READ_SOURCE_STRUCTURE"
+    );
+    assert.equal(
+        finalResponse.registrations.length,
+        2
+    );
+    assert.match(
+        finalResponse.text,
+        /marketing\.plan.*jarvis\.multitool\.pack\.js:2034/
+    );
+    assert.match(
+        finalResponse.text,
+        /Entrada: MARKETING_ARGUMENT_SCHEMA/
+    );
+    assert.match(
+        finalResponse.text,
+        /Salida: SIA7_IMAGE_REQUIREMENTS_PLAN/
+    );
+    assert.doesNotMatch(
+        finalResponse.text,
+        /reel\.plan/
+    );
+    assert.doesNotMatch(
+        finalResponse.text,
+        /Router canonico/
+    );
+    assert.equal(
+        finalResponse.writeAllowed,
+        false
+    );
+});
+
 test("read-only auth routing response explains causal route evidence", () => {
     const helpers =
         loadGestiaCoreAgentLoopHelpers();
@@ -1567,7 +1677,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /sia7-bounded-business-v3-20260724-missions-v37/);
+    assert.match(terminal, /sia7-bounded-business-v3-20260724-missions-v38/);
     assert.match(terminal, /jarvis-runtime-macro-v2-20260707-4190/);
     assert.match(terminal, /isTerminalBrainRuntimeReady/);
     assert.doesNotMatch(terminal, /function isKernelSessionReady/);
