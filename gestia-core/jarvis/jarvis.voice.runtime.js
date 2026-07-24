@@ -94,6 +94,7 @@ export function createJarvisVoiceRuntime({
     function stop() {
         generation += 1;
         speechSynthesis?.cancel?.();
+        return true;
     }
 
     async function speak(text, options = {}) {
@@ -140,6 +141,7 @@ export function createJarvisVoiceRuntime({
 
     return Object.freeze({
         version: VOICE_RUNTIME_VERSION,
+        codename: "JARVIS_V7",
         profile: Object.freeze({ ...config }),
         available,
         refreshVoice,
