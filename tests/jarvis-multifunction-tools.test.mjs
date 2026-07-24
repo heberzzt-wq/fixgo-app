@@ -801,6 +801,129 @@ test("multifunction tools create marketing and page proposals without write auth
     assert.equal(page.outputContract.deployAllowed, false);
 });
 
+test("grounded missions complete semantic arguments for marketing, page, image and reel", async () => {
+    const runtime = createRuntime();
+    registerJarvisMultifunctionTools(runtime);
+    const validSources = [
+        {
+            title: "Summit Law Firm",
+            url: "https://www.summ.com.mx/",
+            snippet: "Firma fundada en 2002 especializada en derecho tributario, constitucional y administrativo."
+        }
+    ];
+    const semanticArgumentPlanner = async ({ catalog }) => {
+        const toolName = catalog[0].name;
+        const argsByTool = {
+            "marketing.plan": {
+                brandName: "Summit Law Firm",
+                audience: "Empresas mexicanas con retos fiscales y administrativos",
+                offer: "Diagnóstico inicial y cotización",
+                pain: "Controversias fiscales y administrativas complejas",
+                promise: "Propuesta estratégica para abordar el caso con información verificable",
+                differentiator: "Experiencia documentada desde 2002 en las áreas publicadas por la firma",
+                cta: "Solicitar una reunión",
+                channels: ["linkedin", "facebook", "instagram"],
+                assets: ["landing_page", "image_brief", "reel"],
+                durationSeconds: 45
+            },
+            "page.plan": {
+                pageName: "summit-diagnostico-legal",
+                brandName: "Summit Law Firm",
+                title: "Estrategia legal para empresas",
+                description: "Propuesta de diagnóstico inicial basada en las áreas publicadas por Summit.",
+                sections: ["hero", "areas_de_practica", "proceso", "cta", "fuentes"]
+            },
+            "image.plan": {
+                brandName: "Summit Law Firm",
+                campaignGoal: "Presentar un diagnóstico legal inicial",
+                audience: "Empresas mexicanas",
+                concepts: [{
+                    name: "Estrategia jurídica empresarial",
+                    purpose: "Presentar la propuesta",
+                    composition: "Escena corporativa sobria sin logotipos ni personas identificables",
+                    grounding: "https://www.summ.com.mx/",
+                    generationPrompt: "Imagen corporativa sobria sobre estrategia legal empresarial en Cancún, sin texto ni logotipos",
+                    exclusionPrompt: "Logotipos inventados, texto ilegible, resultados garantizados",
+                    aspectRatios: ["16:9", "4:5", "9:16"]
+                }]
+            },
+            "reel.plan": {
+                brandName: "Summit Law Firm",
+                title: "Estrategia antes del conflicto",
+                cta: "Solicita una reunión",
+                durationSeconds: 45,
+                scenes: [
+                    {
+                        durationSeconds: 6,
+                        visual: "Apertura corporativa sobria",
+                        overlay: "Los retos legales exigen estrategia",
+                        voiceover: "Los retos fiscales y administrativos requieren un análisis serio.",
+                        evidence: "https://www.summ.com.mx/",
+                        transition: "corte"
+                    },
+                    {
+                        durationSeconds: 12,
+                        visual: "Áreas de práctica en tarjetas",
+                        overlay: "Derecho tributario, constitucional y administrativo",
+                        voiceover: "Summit publica experiencia en derecho tributario, constitucional y administrativo.",
+                        evidence: "https://www.summ.com.mx/",
+                        transition: "deslizamiento"
+                    },
+                    {
+                        durationSeconds: 15,
+                        visual: "Mesa de diagnóstico empresarial",
+                        overlay: "Diagnóstico inicial",
+                        voiceover: "La campaña propone comenzar con un diagnóstico y una cotización.",
+                        evidence: "Orden original del usuario",
+                        transition: "fundido"
+                    },
+                    {
+                        durationSeconds: 12,
+                        visual: "Cierre con llamada a la acción",
+                        overlay: "Solicita una reunión",
+                        voiceover: "Solicita una reunión para revisar el contexto de tu empresa.",
+                        evidence: "Orden original del usuario",
+                        transition: "cierre"
+                    }
+                ]
+            }
+        };
+        return {
+            ok: true,
+            status: "SEMANTIC_PLAN_READY",
+            provider: "test-grounded-planner",
+            model: "semantic-test",
+            toolCalls: [{
+                name: toolName,
+                args: argsByTool[toolName],
+                reason: "GROUNDED_ARGUMENT_TEST"
+            }]
+        };
+    };
+    const context = {
+        rawInput: "Investiga SUMM y entrega campaña, landing, imagen y reel de 45 segundos en read-only.",
+        validSources,
+        semanticArgumentPlanner,
+        analysisId: "MULTI-GROUNDED-1"
+    };
+
+    const marketing = await runtime.execute("marketing.plan", {}, context);
+    const page = await runtime.execute("page.plan", {}, context);
+    const image = await runtime.execute("image.plan", {}, context);
+    const reel = await runtime.execute("reel.plan", {}, context);
+
+    assert.equal(marketing.status, "MARKETING_PACKAGE_READY");
+    assert.equal(marketing.objectiveSatisfied, true);
+    assert.equal(marketing.semanticEnrichment.used, true);
+    assert.equal(page.page.title, "Estrategia legal para empresas");
+    assert.equal(page.semanticEnrichment.used, true);
+    assert.equal(image.status, "IMAGE_REQUIREMENTS_PLAN_READY");
+    assert.equal(image.semanticEnrichment.used, true);
+    assert.equal(reel.status, "REEL_PLAN_READY");
+    assert.equal(reel.timelineSeconds, 45);
+    assert.equal(reel.semanticEnrichment.used, true);
+});
+
 test("multifunction media analysis preserves source trace and stays advisory", async () => {
     const runtime =
         createRuntime();
@@ -1515,7 +1638,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(core, /observation\?\.type === "JARVIS_CONVERSATIONAL_RESPONSE"/);
     assert.match(core, /DIRECT_ACTUATOR_COMPOSITION/);
     assert.match(core, /directActuatorFinalResponse/);
-    assert.match(terminal, /sia7-bounded-business-v3-20260724-missions-v33/);
+    assert.match(terminal, /sia7-bounded-business-v3-20260724-missions-v34/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {

@@ -1,4 +1,4 @@
-const VERSION = "3.3.0-resilient-browser-semantic-recovery";
+const VERSION = "3.4.0-grounded-deliverable-arguments";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
@@ -251,6 +251,117 @@ async function resolveSemanticPlan(input = "", catalog = [], semanticPlanner = n
 
     pendingPlans.set(key, request);
     return request;
+}
+
+function boundedEvidenceSources(value = []) {
+    return (Array.isArray(value) ? value : [])
+        .filter(source => source && typeof source === "object")
+        .slice(0, 12)
+        .map(source => ({
+            title: String(source.title || "").slice(0, 180),
+            url: String(source.url || "").slice(0, 700),
+            snippet: String(source.snippet || source.summary || "").slice(0, 700)
+        }));
+}
+
+function filterSemanticArguments(args = {}, inputSchema = null) {
+    if (!args || typeof args !== "object" || Array.isArray(args)) return {};
+    const properties =
+        inputSchema?.type === "object" && inputSchema?.properties
+            ? inputSchema.properties
+            : inputSchema && typeof inputSchema === "object"
+                ? inputSchema
+                : null;
+    if (!properties || Array.isArray(properties)) return { ...args };
+    const allowed = new Set(Object.keys(properties));
+    return Object.fromEntries(
+        Object.entries(args).filter(([key]) => allowed.has(key))
+    );
+}
+
+export async function completeJarvisPlanningArguments({
+    toolName = "",
+    description = "",
+    inputSchema = null,
+    instruction = "",
+    currentArgs = {},
+    validSources = [],
+    semanticPlanner = null
+} = {}) {
+    const name = String(toolName || "").trim();
+    const originalInstruction = String(instruction || "").trim();
+    const sources = boundedEvidenceSources(validSources);
+    if (!name || !originalInstruction) {
+        throw new Error("SEMANTIC_ARGUMENT_CONTEXT_REQUIRED");
+    }
+
+    const catalog = [{
+        name,
+        description: [
+            String(description || "").trim(),
+            "Devuelve argumentos completos para un entregable read-only y específico.",
+            "Usa exclusivamente la instrucción original y las fuentes verificadas incluidas.",
+            "No inventes hechos, resultados, testimonios ni publicaciones."
+        ].filter(Boolean).join(" ").slice(0, 500),
+        mutates: false,
+        requiresApproval: false,
+        inputSchema
+    }];
+    const briefingInstruction = [
+        `Prepara solamente los argumentos ejecutables para ${name}.`,
+        "Completa los campos semánticos que puedan derivarse de la orden y la evidencia.",
+        "Los mensajes de campaña, problemas, promesas y diferenciadores son propuestas estratégicas; no los presentes como hechos verificados.",
+        "Para landing, imagen y reel entrega una especificación concreta y sustentada, sin crear archivos, generar medios, publicar ni desplegar.",
+        "Si se pide un reel, la suma de la duración de escenas debe coincidir exactamente con la duración total.",
+        `INSTRUCCION_ORIGINAL=${originalInstruction.slice(0, 12000)}`,
+        `ARGUMENTOS_EXISTENTES=${JSON.stringify(currentArgs || {}).slice(0, 6000)}`,
+        `FUENTES_VERIFICADAS=${JSON.stringify(sources).slice(0, 12000)}`,
+        `ESQUEMA_DE_ARGUMENTOS=${JSON.stringify(inputSchema || {}).slice(0, 12000)}`
+    ].join("\n");
+
+    let plan;
+    try {
+        plan = await resolveSemanticPlan(
+            briefingInstruction,
+            catalog,
+            semanticPlanner,
+            {
+                phase: "GROUNDED_ARGUMENT_COMPLETION",
+                toolName: name,
+                sourceCount: sources.length,
+                writeAllowed: false
+            }
+        );
+    } catch (cloudError) {
+        if (typeof semanticPlanner === "function") throw cloudError;
+        const fallback = await callBrowserSemanticPlan(
+            briefingInstruction,
+            catalog,
+            {
+                phase: "GROUNDED_ARGUMENT_COMPLETION",
+                toolName: name,
+                sourceCount: sources.length,
+                writeAllowed: false
+            }
+        );
+        plan = fallback;
+    }
+
+    const call = trustedPlanCalls(plan, catalog, {})[0] || null;
+    const args = filterSemanticArguments(call?.args || {}, inputSchema);
+    if (Object.keys(args).length === 0) {
+        throw new Error("SEMANTIC_ARGUMENTS_REQUIRED");
+    }
+
+    return {
+        ok: true,
+        status: "GROUNDED_ARGUMENTS_READY",
+        toolName: name,
+        args,
+        provider: plan?.provider || "semantic_planner",
+        model: plan?.model || null,
+        sourceCount: sources.length
+    };
 }
 
 export function mergeJarvisToolCalls(...groups) {

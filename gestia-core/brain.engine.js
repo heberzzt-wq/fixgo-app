@@ -37,7 +37,7 @@ import {
   buildJarvisMultifunctionToolCalls,
   mergeJarvisToolCalls
 
-} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-model-semantic-planner-v5-gemini-20260714";
+} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-grounded-deliverable-arguments-20260724";
 
 import {
 

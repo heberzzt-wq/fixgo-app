@@ -1567,7 +1567,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /sia7-bounded-business-v3-20260724-missions-v33/);
+    assert.match(terminal, /sia7-bounded-business-v3-20260724-missions-v34/);
     assert.match(terminal, /jarvis-runtime-macro-v2-20260707-4190/);
     assert.match(terminal, /isTerminalBrainRuntimeReady/);
     assert.doesNotMatch(terminal, /function isKernelSessionReady/);
@@ -1794,7 +1794,7 @@ test("brain delegates natural intent to the bounded semantic model planner", () 
         );
 
     assert.match(brain, /buildJarvisMultifunctionToolCalls/);
-    assert.match(brain, /sia7-model-semantic-planner-v5-gemini-20260714/);
+    assert.match(brain, /sia7-grounded-deliverable-arguments-20260724/);
     assert.equal(
         (brain.match(/function initJarvisCodexV2BrainRouter/g) || []).length,
         1
@@ -1824,7 +1824,7 @@ test("brain delegates natural intent to the bounded semantic model planner", () 
     );
 
     assert.match(core, /patchPreviewAllowedByPlan/);
-    assert.match(core, /brain\.engine\.js\?v=sia7-model-semantic-planner-v5-gemini-20260714/);
+    assert.match(core, /brain\.engine\.js\?v=sia7-grounded-deliverable-arguments-20260724/);
     assert.doesNotMatch(core, /brain\.engine\.js\?v=cloud-planner-fail-fast-41-62/);
     assert.match(core, /async analizarIntencionLigera/);
     assert.match(core, /sincronizarCorralSemantico/);

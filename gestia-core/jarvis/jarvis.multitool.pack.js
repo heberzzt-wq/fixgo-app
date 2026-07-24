@@ -21,9 +21,113 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 
-const VERSION = "1.24.0-mission-production-planning";
+import {
+    completeJarvisPlanningArguments
+} from "./jarvis.multifunction.planner.js?v=sia7-grounded-deliverable-arguments-20260724";
+
+const VERSION = "1.25.0-grounded-deliverable-arguments";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
+
+const MARKETING_ARGUMENT_SCHEMA = {
+    type: "object",
+    properties: {
+        prompt: { type: "string" },
+        brandName: { type: "string" },
+        audience: { type: "string" },
+        offer: { type: "string" },
+        pain: { type: "string" },
+        promise: { type: "string" },
+        differentiator: { type: "string" },
+        tone: { type: "string" },
+        cta: { type: "string" },
+        assets: { type: "array", items: { type: "string" } },
+        channels: { type: "array", items: { type: "string" } },
+        services: { type: "array", items: { type: "object", additionalProperties: true } },
+        testimonials: { type: "array", items: { type: "object", additionalProperties: true } },
+        photographs: { type: "array", items: { type: "object", additionalProperties: true } },
+        documents: { type: "array", items: { type: "object", additionalProperties: true } },
+        repoEvidence: { type: "array", items: { type: "object", additionalProperties: true } },
+        webResearch: { type: "array", items: { type: "object", additionalProperties: true } },
+        landing: { type: "object", additionalProperties: true },
+        hashtags: { type: "array", items: { type: "string" } },
+        metrics: { type: "array", items: { type: "string" } },
+        market: { type: "string" },
+        campaignName: { type: "string" },
+        campaignObjective: { type: "string" },
+        durationSeconds: { type: "number" }
+    },
+    additionalProperties: false
+};
+
+const PAGE_ARGUMENT_SCHEMA = {
+    type: "object",
+    properties: {
+        prompt: { type: "string" },
+        pageName: { type: "string" },
+        brandName: { type: "string" },
+        title: { type: "string" },
+        description: { type: "string" },
+        style: { type: "string" },
+        sections: { type: "array", items: { type: "string" } }
+    },
+    required: ["pageName", "brandName", "title", "description", "sections"],
+    additionalProperties: false
+};
+
+const IMAGE_PLAN_ARGUMENT_SCHEMA = {
+    type: "object",
+    properties: {
+        brandName: { type: "string" },
+        campaignGoal: { type: "string" },
+        audience: { type: "string" },
+        concepts: {
+            type: "array",
+            items: {
+                type: "object",
+                properties: {
+                    name: { type: "string" },
+                    purpose: { type: "string" },
+                    composition: { type: "string" },
+                    grounding: { type: "string" },
+                    generationPrompt: { type: "string" },
+                    exclusionPrompt: { type: "string" },
+                    aspectRatios: { type: "array", items: { type: "string" } }
+                },
+                required: ["name", "purpose", "composition", "grounding", "generationPrompt", "aspectRatios"]
+            }
+        }
+    },
+    required: ["brandName", "campaignGoal", "concepts"],
+    additionalProperties: false
+};
+
+const REEL_PLAN_ARGUMENT_SCHEMA = {
+    type: "object",
+    properties: {
+        brandName: { type: "string" },
+        title: { type: "string" },
+        cta: { type: "string" },
+        durationSeconds: { type: "number" },
+        scenes: {
+            type: "array",
+            items: {
+                type: "object",
+                properties: {
+                    durationSeconds: { type: "number" },
+                    visual: { type: "string" },
+                    overlay: { type: "string" },
+                    voiceover: { type: "string" },
+                    evidence: { type: "string" },
+                    transition: { type: "string" }
+                },
+                required: ["durationSeconds", "visual", "overlay", "voiceover", "evidence"]
+            }
+        }
+    },
+    required: ["brandName", "title", "cta", "durationSeconds", "scenes"],
+    additionalProperties: false
+};
 
 const CAPABILITY_WEIGHTS = {
     READY: 1,
@@ -1401,6 +1505,54 @@ function clean(value, fallback = "") {
         : fallback;
 }
 
+function hasPlanningValue(value) {
+    if (typeof value === "string") return Boolean(value.trim());
+    if (Array.isArray(value)) return value.length > 0;
+    if (typeof value === "number") return Number.isFinite(value);
+    return Boolean(value && typeof value === "object" && Object.keys(value).length > 0);
+}
+
+function mergeMissingPlanningArgs(currentArgs = {}, semanticArgs = {}) {
+    const merged = {
+        ...(currentArgs && typeof currentArgs === "object" ? currentArgs : {})
+    };
+    for (const [key, value] of Object.entries(semanticArgs || {})) {
+        if (!hasPlanningValue(merged[key]) && hasPlanningValue(value)) {
+            merged[key] = value;
+        }
+    }
+    return merged;
+}
+
+async function completeGroundedToolArgs({
+    toolName,
+    description,
+    inputSchema,
+    args = {},
+    context = {}
+} = {}) {
+    const sources = Array.isArray(context.validSources)
+        ? context.validSources.filter(Boolean).slice(0, 12)
+        : [];
+    if (sources.length === 0) return null;
+    const semantic = await completeJarvisPlanningArguments({
+        toolName,
+        description,
+        inputSchema,
+        instruction: resolveInstruction(args, context),
+        currentArgs: args,
+        validSources: sources,
+        semanticPlanner:
+            typeof context.semanticArgumentPlanner === "function"
+                ? context.semanticArgumentPlanner
+                : null
+    });
+    return {
+        ...semantic,
+        args: mergeMissingPlanningArgs(args, semantic.args)
+    };
+}
+
 function recentGroundedBusinessContext() {
     const entry = globalThis?.JarvisToolMemory?.last?.("web.research") || null;
     const payload =
@@ -1883,39 +2035,55 @@ export function registerJarvisMultifunctionTools(runtime) {
             name: "marketing.plan",
             description: "Produce una campaña específica desde campos semánticos y evidencia real; no clasifica con regex ni inventa datos faltantes.",
             output: "SIA7_MARKETING_PLAN",
-            inputSchema: {
-                prompt: "string",
-                brandName: "string",
-                audience: "string",
-                offer: "string",
-                pain: "string",
-                promise: "string",
-                differentiator: "string",
-                tone: "string",
-                cta: "string",
-                assets: "array",
-                channels: "array",
-                services: "array",
-                testimonials: "array",
-                photographs: "array",
-                documents: "array",
-                landing: "object",
-                repoEvidence: "array",
-                webResearch: "array",
-                durationSeconds: "number"
-            },
+            inputSchema: MARKETING_ARGUMENT_SCHEMA,
             execute: async (args = {}, context = {}) => {
                 const instruction =
                     resolveInstruction(args, context);
 
-                const result = planMarketingRequest(
+                let planningArgs = args;
+                let result = planMarketingRequest(
                     instruction,
                     {
                         ...context,
-                        ...args,
-                        ...resolveAuthority(args, context)
+                        ...planningArgs,
+                        ...resolveAuthority(planningArgs, context)
                     }
                 );
+                let semanticEnrichment = null;
+                if (
+                    result?.readyForProduction !== true &&
+                    Array.isArray(context.validSources) &&
+                    context.validSources.length > 0
+                ) {
+                    try {
+                        semanticEnrichment = await completeGroundedToolArgs({
+                            toolName: "marketing.plan",
+                            description: "Completa un brief de campaña específico y sustentado para continuar una misión multifunción.",
+                            inputSchema: MARKETING_ARGUMENT_SCHEMA,
+                            args: planningArgs,
+                            context
+                        });
+                        planningArgs = semanticEnrichment?.args || planningArgs;
+                        result = planMarketingRequest(
+                            instruction,
+                            {
+                                ...context,
+                                ...planningArgs,
+                                ...resolveAuthority(planningArgs, context)
+                            }
+                        );
+                    } catch (error) {
+                        return {
+                            ...result,
+                            ok: false,
+                            status: "MARKETING_ARGUMENT_ENRICHMENT_UNAVAILABLE",
+                            objectiveSatisfied: false,
+                            requiresInput: false,
+                            retryable: true,
+                            error: error?.message || String(error)
+                        };
+                    }
+                }
                 if (result?.readyForProduction === true && result?.grounding?.status === "GROUNDED") {
                     recordCapabilityEvidence("marketing_production", {
                         ok: true,
@@ -1927,98 +2095,197 @@ export function registerJarvisMultifunctionTools(runtime) {
                         checkedAt: new Date().toISOString()
                     });
                 }
-                return result;
+                return {
+                    ...result,
+                    objectiveSatisfied: result?.readyForProduction === true,
+                    semanticEnrichment: semanticEnrichment
+                        ? {
+                            used: true,
+                            provider: semanticEnrichment.provider,
+                            model: semanticEnrichment.model,
+                            sourceCount: semanticEnrichment.sourceCount
+                        }
+                        : {
+                            used: false
+                        }
+                };
             }
         }),
         register(runtime, {
             name: "page.plan",
             description: "Construye una especificacion responsive, editable y accesible de pagina sin escribir ni desplegar.",
             output: "SIA7_PAGE_SPEC",
-            inputSchema: {
-                prompt: "string",
-                pageName: "string",
-                title: "string",
-                description: "string",
-                sections: "array"
-            },
+            inputSchema: PAGE_ARGUMENT_SCHEMA,
             execute: async (args = {}, context = {}) => {
+                let planningArgs = args;
+                let semanticEnrichment = null;
+                const requiresSpecificBrief =
+                    Array.isArray(context.validSources) &&
+                    context.validSources.length > 0 &&
+                    (
+                        !clean(args.pageName) ||
+                        !clean(args.title) ||
+                        !clean(args.description) ||
+                        !Array.isArray(args.sections) ||
+                        args.sections.length === 0
+                    );
+                if (requiresSpecificBrief) {
+                    try {
+                        semanticEnrichment = await completeGroundedToolArgs({
+                            toolName: "page.plan",
+                            description: "Completa una propuesta específica de landing page con copy y secciones sustentadas.",
+                            inputSchema: PAGE_ARGUMENT_SCHEMA,
+                            args,
+                            context
+                        });
+                        planningArgs = semanticEnrichment?.args || planningArgs;
+                    } catch (error) {
+                        return {
+                            ok: false,
+                            status: "PAGE_ARGUMENT_ENRICHMENT_UNAVAILABLE",
+                            objectiveSatisfied: false,
+                            retryable: true,
+                            error: error?.message || String(error)
+                        };
+                    }
+                }
                 const authority =
-                    resolveAuthority(args, context);
+                    resolveAuthority(planningArgs, context);
 
-                return createOfficialPageSpec(
+                const spec = createOfficialPageSpec(
                     {
-                        ...args,
+                        ...planningArgs,
                         pageName:
                             clean(
-                                args.pageName,
+                                planningArgs.pageName,
                                 "pagina-oficial"
                             )
                     },
                     authority
                 );
+                return {
+                    ...spec,
+                    objectiveSatisfied: true,
+                    semanticEnrichment: semanticEnrichment
+                        ? {
+                            used: true,
+                            provider: semanticEnrichment.provider,
+                            model: semanticEnrichment.model,
+                            sourceCount: semanticEnrichment.sourceCount
+                        }
+                        : {
+                            used: false
+                        }
+                };
             }
         }),
         register(runtime, {
             name: "image.plan",
             description: "Define requisitos y prompts de imagen sustentados en evidencia sin generar archivos ni inventar materiales.",
             output: "SIA7_IMAGE_REQUIREMENTS_PLAN",
-            inputSchema: {
-                type: "object",
-                properties: {
-                    brandName: { type: "string" },
-                    campaignGoal: { type: "string" },
-                    audience: { type: "string" },
-                    concepts: {
-                        type: "array",
-                        items: {
-                            type: "object",
-                            properties: {
-                                name: { type: "string" },
-                                purpose: { type: "string" },
-                                composition: { type: "string" },
-                                grounding: { type: "string" },
-                                generationPrompt: { type: "string" },
-                                exclusionPrompt: { type: "string" },
-                                aspectRatios: { type: "array", items: { type: "string" } }
-                            },
-                            required: ["name", "purpose", "composition", "grounding", "generationPrompt", "aspectRatios"]
-                        }
+            inputSchema: IMAGE_PLAN_ARGUMENT_SCHEMA,
+            execute: async (args = {}, context = {}) => {
+                let planningArgs = args;
+                let result = buildImageRequirementsPlan(planningArgs, context);
+                let semanticEnrichment = null;
+                if (
+                    result?.ok !== true &&
+                    Array.isArray(context.validSources) &&
+                    context.validSources.length > 0
+                ) {
+                    try {
+                        semanticEnrichment = await completeGroundedToolArgs({
+                            toolName: "image.plan",
+                            description: "Completa conceptos y prompts visuales sustentados sin generar archivos.",
+                            inputSchema: IMAGE_PLAN_ARGUMENT_SCHEMA,
+                            args: planningArgs,
+                            context
+                        });
+                        planningArgs = semanticEnrichment?.args || planningArgs;
+                        result = buildImageRequirementsPlan(planningArgs, context);
+                    } catch (error) {
+                        return {
+                            ...result,
+                            ok: false,
+                            status: "IMAGE_ARGUMENT_ENRICHMENT_UNAVAILABLE",
+                            objectiveSatisfied: false,
+                            requiresInput: false,
+                            retryable: true,
+                            error: error?.message || String(error)
+                        };
                     }
-                },
-                required: ["brandName", "campaignGoal", "concepts"]
-            },
-            execute: async (args = {}, context = {}) => buildImageRequirementsPlan(args, context)
+                }
+                return {
+                    ...result,
+                    objectiveSatisfied: result?.ok === true,
+                    requiresInput: result?.ok !== true,
+                    missingInputs: result?.ok === true ? [] : result?.missingInformation || [],
+                    semanticEnrichment: semanticEnrichment
+                        ? {
+                            used: true,
+                            provider: semanticEnrichment.provider,
+                            model: semanticEnrichment.model,
+                            sourceCount: semanticEnrichment.sourceCount
+                        }
+                        : {
+                            used: false
+                        }
+                };
+            }
         }),
         register(runtime, {
             name: "reel.plan",
             description: "Construye un storyboard vertical con timeline exacto y evidencia por escena sin producir video.",
             output: "SIA7_REEL_PLAN",
-            inputSchema: {
-                type: "object",
-                properties: {
-                    brandName: { type: "string" },
-                    title: { type: "string" },
-                    cta: { type: "string" },
-                    durationSeconds: { type: "number" },
-                    scenes: {
-                        type: "array",
-                        items: {
-                            type: "object",
-                            properties: {
-                                durationSeconds: { type: "number" },
-                                visual: { type: "string" },
-                                overlay: { type: "string" },
-                                voiceover: { type: "string" },
-                                evidence: { type: "string" },
-                                transition: { type: "string" }
-                            },
-                            required: ["durationSeconds", "visual", "overlay", "voiceover", "evidence"]
-                        }
+            inputSchema: REEL_PLAN_ARGUMENT_SCHEMA,
+            execute: async (args = {}, context = {}) => {
+                let planningArgs = args;
+                let result = buildReelPlanningSpec(planningArgs, context);
+                let semanticEnrichment = null;
+                if (
+                    result?.ok !== true &&
+                    Array.isArray(context.validSources) &&
+                    context.validSources.length > 0
+                ) {
+                    try {
+                        semanticEnrichment = await completeGroundedToolArgs({
+                            toolName: "reel.plan",
+                            description: "Completa un storyboard vertical con guion, evidencia y duración exacta sin producir video.",
+                            inputSchema: REEL_PLAN_ARGUMENT_SCHEMA,
+                            args: planningArgs,
+                            context
+                        });
+                        planningArgs = semanticEnrichment?.args || planningArgs;
+                        result = buildReelPlanningSpec(planningArgs, context);
+                    } catch (error) {
+                        return {
+                            ...result,
+                            ok: false,
+                            status: "REEL_ARGUMENT_ENRICHMENT_UNAVAILABLE",
+                            objectiveSatisfied: false,
+                            requiresInput: false,
+                            retryable: true,
+                            error: error?.message || String(error)
+                        };
                     }
-                },
-                required: ["brandName", "title", "cta", "durationSeconds", "scenes"]
-            },
-            execute: async (args = {}, context = {}) => buildReelPlanningSpec(args, context)
+                }
+                return {
+                    ...result,
+                    objectiveSatisfied: result?.ok === true,
+                    requiresInput: result?.ok !== true,
+                    missingInputs: result?.ok === true ? [] : result?.missingInformation || [],
+                    semanticEnrichment: semanticEnrichment
+                        ? {
+                            used: true,
+                            provider: semanticEnrichment.provider,
+                            model: semanticEnrichment.model,
+                            sourceCount: semanticEnrichment.sourceCount
+                        }
+                        : {
+                            used: false
+                        }
+                };
+            }
         }),
         register(runtime, {
             name: "media.analyze",
