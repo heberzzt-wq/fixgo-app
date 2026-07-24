@@ -29,6 +29,7 @@
 import { auth, db } from '/firebase.js';
 import { 
     doc, 
+    getDoc,
     runTransaction, 
     serverTimestamp,
     updateDoc,
@@ -4293,6 +4294,49 @@ export const GestiaCore = {
         const rol = context.rol || 'tecnico';
         const esSoberano = ['ceo', 'arquitecto_supremo'].includes(rol);
 
+        const terminalPlannerSeed =
+            Array.isArray(
+                context?.terminalBrainRoute?.toolCalls
+            )
+                ? context.terminalBrainRoute.toolCalls.filter(call =>
+                    call &&
+                    typeof call.name === "string" &&
+                    call.name.trim()
+                )
+                : [];
+
+        const registeredTools =
+            window.JarvisToolRuntime
+                ?.list?.() ||
+            [];
+
+        const registeredToolsByName =
+            new Map(
+                registeredTools
+                    .filter(tool =>
+                        tool?.name
+                    )
+                    .map(tool => [
+                        tool.name,
+                        tool
+                    ])
+            );
+
+        const isVerifiedReadOnlyToolPlan =
+            terminalPlannerSeed.length > 0 &&
+            terminalPlannerSeed.every(call => {
+                const definition =
+                    registeredToolsByName.get(
+                        call.name
+                    );
+
+                return (
+                    definition &&
+                    definition.mutates !== true &&
+                    call.approved !== true
+                );
+            });
+
         this.emitirPulso("INIT", "TERMINAL_START", `ID: ${analysisId.substring(0, 8)}`);
 
         // Referencias de Estado Primordiales (Firestore)
@@ -4319,8 +4363,49 @@ export const GestiaCore = {
 
             this.emitirPulso("INIT", "TERMINAL_START", `ID: ${analysisId.substring(0, 8)}`);
             this.emitirPulso("PREPARE", "STARTING_TRANSACTION");
-            
-            await runTransaction(db, async (transaction) => {
+
+            const executePreparePhase =
+                isVerifiedReadOnlyToolPlan
+                    ? async callback =>
+                        callback({
+                            get:
+                                reference =>
+                                    getDoc(reference),
+                            set() {
+                                throw new Error(
+                                    "READ_ONLY_PREPARE_WRITE_BLOCKED"
+                                );
+                            },
+                            update() {
+                                throw new Error(
+                                    "READ_ONLY_PREPARE_WRITE_BLOCKED"
+                                );
+                            },
+                            delete() {
+                                throw new Error(
+                                    "READ_ONLY_PREPARE_WRITE_BLOCKED"
+                                );
+                            }
+                        })
+                    : callback =>
+                        runTransaction(
+                            db,
+                            callback,
+                            {
+                                maxAttempts:
+                                    1
+                            }
+                        );
+
+            if (isVerifiedReadOnlyToolPlan) {
+                this.emitirPulso(
+                    "PREPARE",
+                    "READ_ONLY_SNAPSHOT",
+                    `${terminalPlannerSeed.length} herramientas verificadas sin mutacion`
+                );
+            }
+
+            await executePreparePhase(async (transaction) => {
                 
                 // 1. Lectura Secuencial de Sensores Reales
                 const fwSnap = await transaction.get(firewallRef);
@@ -4386,15 +4471,6 @@ export const GestiaCore = {
                     "COGNITION",
                     "HYBRID_REASONING"
                 );
-
-                const terminalPlannerSeed =
-                    Array.isArray(context?.terminalBrainRoute?.toolCalls)
-                        ? context.terminalBrainRoute.toolCalls.filter(call =>
-                            call &&
-                            typeof call.name === "string" &&
-                            call.name.trim()
-                        )
-                        : [];
 
                 let propuesta =
                     terminalPlannerSeed.length > 0
@@ -5986,8 +6062,57 @@ if (!tieneCambios) {
                 }
             }
 
-            const esHostil = error.message.includes("LIMIT") || error.message.includes("SHIELD") || error.message.includes("BAN");
-            await this.registrarPenalizacion(user.uid, tenantId, esHostil);
+            const esHostil =
+                error.message.includes("LIMIT") ||
+                error.message.includes("SHIELD") ||
+                error.message.includes("BAN");
+
+            if (esHostil) {
+                let penaltyTimeoutId =
+                    null;
+
+                const penaltyOutcome =
+                    await Promise.race([
+                        this.registrarPenalizacion(
+                            user.uid,
+                            tenantId,
+                            true
+                        )
+                            .then(() =>
+                                "PENALTY_RECORDED"
+                            ),
+                        new Promise(resolve => {
+                            penaltyTimeoutId =
+                                setTimeout(
+                                    () =>
+                                        resolve(
+                                            "PENALTY_TIMEOUT"
+                                        ),
+                                    4000
+                                );
+                        })
+                    ]);
+
+                if (penaltyTimeoutId) {
+                    clearTimeout(
+                        penaltyTimeoutId
+                    );
+                }
+
+                this.emitirPulso(
+                    "FIREWALL",
+                    penaltyOutcome,
+                    error.message
+                );
+            }
+            else {
+                this.emitirPulso(
+                    "FIREWALL",
+                    "INFRASTRUCTURE_FAILURE_NOT_PENALIZED",
+                    error.message
+                );
+            }
+
             return { status: "error", msg: error.message };
 
         } finally {
@@ -6022,7 +6147,7 @@ if (!tieneCambios) {
                 }
             });
         } catch (e) {
-            console.error("🚨 [PENALTY_FAILED]:", e.message);
+            console.warn("⚠️ [PENALTY_FAILED]:", e.message);
         }
     },
 

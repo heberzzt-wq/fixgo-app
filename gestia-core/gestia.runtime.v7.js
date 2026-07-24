@@ -5169,7 +5169,7 @@ window.GestiaRuntime.checkServiceWorkerUpdates =
 
         catch(error) {
 
-            console.error(
+            console.warn(
 
                 "🚨 [SW_UPDATE_CHECK_FAIL]",
 
