@@ -1,9 +1,10 @@
 /* =========================================================
-   JARVIS RUNTIME FACADE V8 FOUNDATION
+   JARVIS V7 RUNTIME FACADE FOUNDATION
    Non-breaking consolidation layer for legacy runtime services.
+   V7 is the Jarvis product codename, not a semantic version number.
 ========================================================= */
 
-const JARVIS_RUNTIME_FACADE_VERSION = "8.0.0-foundation";
+const JARVIS_RUNTIME_FACADE_VERSION = "1.0.0-foundation";
 
 function clone(value) {
     if (typeof structuredClone === "function") {
@@ -19,7 +20,8 @@ export function createJarvisRuntime({
     missionEngine = null,
     tools = null,
     eventBus = null,
-    telemetry = null
+    telemetry = null,
+    voice = null
 } = {}) {
     const services = {
         runtime,
@@ -28,12 +30,14 @@ export function createJarvisRuntime({
         missionEngine,
         tools,
         eventBus,
-        telemetry
+        telemetry,
+        voice
     };
 
     const state = {
         initializedAt: Date.now(),
         version: JARVIS_RUNTIME_FACADE_VERSION,
+        codename: "JARVIS_V7",
         status: "READY"
     };
 
@@ -62,6 +66,18 @@ export function createJarvisRuntime({
         throw new Error("JARVIS_RUNTIME_MISSION_ENGINE_INVALID");
     }
 
+    async function speak(text, options = {}) {
+        const voiceRuntime = requireService("voice");
+        if (typeof voiceRuntime.speak !== "function") {
+            throw new Error("JARVIS_RUNTIME_VOICE_INVALID");
+        }
+        return await voiceRuntime.speak(text, options);
+    }
+
+    function stopSpeaking() {
+        return services.voice?.stop?.() ?? false;
+    }
+
     function snapshot() {
         return clone({
             state,
@@ -79,9 +95,12 @@ export function createJarvisRuntime({
 
     return Object.freeze({
         version: JARVIS_RUNTIME_FACADE_VERSION,
+        codename: "JARVIS_V7",
         state,
         services,
         runMission,
+        speak,
+        stopSpeaking,
         requireService,
         snapshot
     });
@@ -91,7 +110,7 @@ export function installJarvisRuntimeFacade(config = {}) {
     const facade = createJarvisRuntime(config);
 
     if (typeof window !== "undefined") {
-        window.JarvisRuntimeV8 = facade;
+        window.JarvisRuntimeV7 = facade;
         window.Jarvis = window.Jarvis || facade;
     }
 
