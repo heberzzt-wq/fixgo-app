@@ -65,7 +65,7 @@ test("marketing V7 builds an evidence-grounded multi-channel production package"
     assert.equal(plan.publicationPlan.length, 5);
 });
 
-test("marketing V7 inherits verified mission sources when explicit web research is empty", () => {
+test("marketing V7 gives verified mission sources priority over semantic web research arguments", () => {
     const plan = planMarketingRequest("campaña grounded", {
         brandName: "SUMM",
         audience: "Empresas",
@@ -74,7 +74,9 @@ test("marketing V7 inherits verified mission sources when explicit web research 
         promise: "Estrategia jurídica verificable",
         differentiator: "Experiencia documentada",
         cta: "Agenda una consulta",
-        webResearch: [],
+        webResearch: [
+            { title: "", url: "https://example.invalid/" }
+        ],
         validSources: [
             { title: "SUMM", url: "https://www.summ.com.mx/" },
             { title: "About SUMM", url: "https://www.summ.com.mx/about" }

@@ -1,6 +1,6 @@
 import {
     planMarketingRequest
-} from "./jarvis.marketing.engine.js?v=sia7-marketing-v9-verified-source-priority-20260715";
+} from "./jarvis.marketing.engine.js?v=sia7-marketing-v10-runtime-source-authority-20260724";
 
 import {
     runBusinessIntent

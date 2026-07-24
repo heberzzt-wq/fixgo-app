@@ -48,6 +48,12 @@ function evidenceEntry(id, value) {
 }
 
 function buildGrounding(context) {
+    const verifiedMissionSources =
+        Array.isArray(context.validSources) && context.validSources.length > 0
+            ? context.validSources
+            : Array.isArray(context.webResearch)
+                ? context.webResearch
+                : [];
     const sources = [
         evidenceEntry("landing", context.landing),
         evidenceEntry("repo", context.repoEvidence),
@@ -57,9 +63,7 @@ function buildGrounding(context) {
         evidenceEntry("services", context.services),
         evidenceEntry(
             "web_research",
-            Array.isArray(context.webResearch) && context.webResearch.length > 0
-                ? context.webResearch
-                : context.validSources
+            verifiedMissionSources
         )
     ];
     const available = sources.filter(source => source.available);
