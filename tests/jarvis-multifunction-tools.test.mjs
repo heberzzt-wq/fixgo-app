@@ -736,6 +736,9 @@ test("semantic model planner replaces phrase gates and preserves terminal speech
     assert.match(planner, /callBrowserSemanticPlan/);
     assert.match(core, /MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN/);
     assert.match(core, /allowedMissionTools/);
+    assert.match(core, /operationalMissionToolNames/);
+    assert.match(core, /\.slice\(0, 60\)/);
+    assert.doesNotMatch(core, /\.slice\(0, 13\)/);
     assert.doesNotMatch(planner, /\.test\(/);
     assert.doesNotMatch(planner, /new RegExp/);
     assert.doesNotMatch(planner, /ACTION_MAP|ENTITY_MAP|STOPWORDS/);
@@ -1638,7 +1641,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(core, /observation\?\.type === "JARVIS_CONVERSATIONAL_RESPONSE"/);
     assert.match(core, /DIRECT_ACTUATOR_COMPOSITION/);
     assert.match(core, /directActuatorFinalResponse/);
-    assert.match(terminal, /sia7-bounded-business-v3-20260724-missions-v35/);
+    assert.match(terminal, /sia7-bounded-business-v3-20260724-missions-v36/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {

@@ -4608,12 +4608,22 @@ if (
             ? propuesta.toolCalls.filter(call => call?.name !== "conversation.respond")
             : propuesta.toolCalls;
 
-    const missionToolCatalog =
+    const operationalMissionToolNames =
+        new Set(
+            operationalInitialToolCalls
+                .map(call => call?.name)
+                .filter(Boolean)
+        );
+    const registeredMissionTools =
         globalThis.JarvisToolRuntime
             ?.list?.()
-            ?.filter(tool => tool?.name !== "conversation.respond" && tool?.mutates !== true)
-            ?.slice(0, 13) ||
+            ?.filter(tool => tool?.name !== "conversation.respond" && tool?.mutates !== true) ||
         [];
+    const missionToolCatalog =
+        [
+            ...registeredMissionTools.filter(tool => operationalMissionToolNames.has(tool.name)),
+            ...registeredMissionTools.filter(tool => !operationalMissionToolNames.has(tool.name))
+        ].slice(0, 60);
     let missionContractToolCalls;
     try {
         missionContractToolCalls =
