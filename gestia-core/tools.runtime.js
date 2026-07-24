@@ -12,6 +12,10 @@ import {
 import {
     reviewChiefArchitectPlan
 } from "./jarvis/jarvis.chief.architect.js?v=sia7-chief-architect-v1-20260714";
+import {
+    analyzeRepoSourceStructure,
+    buildExecutableSourceView
+} from "./repo/repo.source.structure.js?v=sia7-source-structure-v1-20260724";
 
 export const JarvisToolRuntime = {
     _registry: new Map(),
@@ -771,13 +775,17 @@ JarvisToolRuntime.register({
                     );
 
                 return {
-                    ...materializedBridgeRead,
                     ok: true,
                     file:
                         normalizedFile,
                     path:
                         bridgeRead.path ||
                         normalizedFile,
+                    sourceStructure:
+                        analyzeRepoSourceStructure(
+                            materializedBridgeRead.content
+                        ),
+                    ...materializedBridgeRead,
                     content:
                         materializedBridgeRead.content,
                     size:
@@ -876,11 +884,21 @@ catch(error) {
                 found.name
             )
         ) {
+            const materializedFound =
+                applyRequestedLineRange(found);
+
             return {
                 ok: true,
                 file:
                     normalizedFile,
-                ...applyRequestedLineRange(found)
+                sourceStructure:
+                    analyzeRepoSourceStructure(
+                        materializedFound.content ||
+                        materializedFound.text ||
+                        materializedFound.source ||
+                        ""
+                    ),
+                ...materializedFound
             };
         }
 
@@ -920,11 +938,23 @@ catch(error) {
                 contextResult.file
             )
         ) {
+            const materializedContext =
+                applyRequestedLineRange(
+                    contextResult
+                );
+
             return {
                 ok: true,
                 file:
                     normalizedFile,
-                ...applyRequestedLineRange(contextResult)
+                sourceStructure:
+                    analyzeRepoSourceStructure(
+                        materializedContext.content ||
+                        materializedContext.text ||
+                        materializedContext.source ||
+                        ""
+                    ),
+                ...materializedContext
             };
         }
 
@@ -951,6 +981,16 @@ catch(error) {
             null;
 
         if (matched) {
+            const matchedContent =
+                applyRequestedLineRange({
+                    content:
+                        matched.content ||
+                        matched.text ||
+                        matched.source ||
+                        ""
+                }).content ||
+                "";
+
             return {
                 ok: true,
                 file:
@@ -962,14 +1002,12 @@ catch(error) {
                     normalizedFile,
                 metadata:
                     matched,
+                sourceStructure:
+                    analyzeRepoSourceStructure(
+                        matchedContent
+                    ),
                 content:
-                    applyRequestedLineRange({
-                        content:
-                            matched.content ||
-                            matched.text ||
-                            matched.source ||
-                            ""
-                    }).content ||
+                    matchedContent ||
                     null,
                 note:
                     matched.content ||
@@ -6371,6 +6409,16 @@ JarvisToolRuntime.register({
         const lines =
             content.split(/\r?\n/);
 
+        const executableContent =
+            buildExecutableSourceView(
+                content
+            );
+
+        const sourceStructure =
+            analyzeRepoSourceStructure(
+                content
+            );
+
         const trimmedLines =
             lines.map(line => line.trim());
 
@@ -6392,46 +6440,46 @@ JarvisToolRuntime.register({
             [];
 
         const hasHtmlTemplate =
-            /`[\s\S]*<\s*(div|section|button|form|main|article|header|footer|nav|table|ul|li|span|input|select|textarea)\b/i
-                .test(content) ||
             /innerHTML\s*=|insertAdjacentHTML|createElement\s*\(/i
-                .test(content);
+                .test(executableContent) ||
+            /<\s*(div|section|button|form|main|article|header|footer|nav|table|ul|li|span|input|select|textarea)\b/i
+                .test(executableContent);
 
         const hasTailwindOrClasses =
-            /class(Name)?\s*=|class\s*=|bg-|text-|grid|flex|rounded|shadow|p-\d|m-\d|gap-\d/i
-                .test(content);
+            /class(Name)?\s*=|class\s*=|classList\s*\./i
+                .test(executableContent);
 
         const hasFirestore =
             /\b(collection|doc|getDoc|getDocs|setDoc|updateDoc|addDoc|deleteDoc|runTransaction|query|where|onSnapshot)\s*\(/i
-                .test(content);
+                .test(executableContent);
 
         const hasRuntimeBridge =
             /ToolsBridge|JarvisToolRuntime|ResponseComposer|window\./i
-                .test(content);
+                .test(executableContent);
 
         const hasAuthObserver =
             /\bonAuthStateChanged\s*\(/i
-                .test(content);
+                .test(executableContent);
 
         const hasRoleAuthorityRouter =
             /\bresolveGestiaRouteDecision\s*\(|\[ROLE_AUTHORITY_REDIRECT\]|APP_MAIN_ROLE_AUTHORITY_REDIRECT|routeDecision\.reason/i
-                .test(content);
+                .test(executableContent);
 
         const hasAuthPendingGuard =
             /gestia-auth-pending|fortressLoader|AUTH_ROLE_UNRESOLVED/i
-                .test(content);
+                .test(executableContent);
 
         const hasLegacyProfileFallback =
             /legacySnap|colecciones legacy|doc\s*\(\s*db\s*,\s*["'`](tecnicos|clientes|admins)["'`]/i
-                .test(content);
+                .test(executableContent);
 
         const hasRepoWrite =
             /CODE_WRITE|SIA7_COMMIT|repoCommitWriteFile|writeRepoFile|repo_files|PATCH_SYSTEM_CORE/i
-                .test(content);
+                .test(executableContent);
 
         const hasGps =
             /watchPosition|geolocation|coords|latitude|longitude|geofence|gps/i
-                .test(content);
+                .test(executableContent);
 
         const hasExactPatchObject =
             /\bsearch\s*:\s*["'`][\s\S]{0,800}\breplace\s*:\s*["'`]/i
@@ -6439,12 +6487,17 @@ JarvisToolRuntime.register({
 
         const hasPatchPreview =
             /\b(?:patchPreview|dryRun|generatePatch|applyPatch)\b/i
-                .test(content) ||
+                .test(executableContent) ||
             hasExactPatchObject;
 
         const hasGenericUiPatch =
             /\.tarjeta|\.card|\[class\*=['"]card['"]|UI_OPTIMIZATION|!important/i
-                .test(content);
+                .test(executableContent);
+
+        const hasToolRegistry =
+            sourceStructure.kind ===
+                "tool_registry" &&
+            sourceStructure.registrationCount > 0;
 
         const duplicateCaseNames =
             [];
@@ -6540,6 +6593,9 @@ JarvisToolRuntime.register({
                 patchEngine:
                     hasPatchPreview,
 
+                toolRegistry:
+                    hasToolRegistry,
+
                 html:
                     normalizedFile.endsWith(".html"),
 
@@ -6576,6 +6632,9 @@ JarvisToolRuntime.register({
                 typeSignals.patchEngine
                     ? "patch_preview"
                     : "",
+                typeSignals.toolRegistry
+                    ? "tool_registry"
+                    : "",
                 typeSignals.executor
                     ? "repo_execution"
                     : ""
@@ -6596,6 +6655,10 @@ JarvisToolRuntime.register({
         else if (typeSignals.json) {
             fileType =
                 "json_document";
+        }
+        else if (typeSignals.toolRegistry) {
+            fileType =
+                "tool_registry";
         }
         else if (typeSignals.router) {
             fileType =
@@ -7082,6 +7145,7 @@ JarvisToolRuntime.register({
             riskScore,
             source:
                 readSource,
+            sourceStructure,
             metrics: {
                 lines:
                     lines.length,
