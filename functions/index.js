@@ -46,7 +46,8 @@ const {
 const {
     runJarvisWebResearch,
     runJarvisDirectDomainResearch,
-    normalizeResearchQuery
+    normalizeResearchQuery,
+    requestedDomainFromQuery
 } = require("./jarvis-web-research");
 
 const {
@@ -2777,20 +2778,50 @@ exports.jarvisWebResearch = functions
                     caseId: data?.caseId || "",
                     allowedDomain: data?.allowedDomain || ""
                 });
+                if (!result?.grounded) {
+                    throw new Error(
+                        "PRIMARY_RESEARCH_NOT_GROUNDED"
+                    );
+                }
             } catch (primaryError) {
-                const primaryMessage = primaryError?.message || String(primaryError);
+                const primaryMessage =
+                    primaryError?.message ||
+                    String(primaryError);
                 const credentialFailure =
                     primaryMessage.includes("GEMINI_KEY_MISSING") ||
                     primaryMessage.includes("API key not valid") ||
                     primaryMessage.includes("API_KEY_INVALID");
-                if (!credentialFailure) throw primaryError;
-                result = await runJarvisDirectDomainResearch({
-                    fetchImpl: fetch,
-                    query,
-                    objectiveId: data?.objectiveId || "",
-                    caseId: data?.caseId || "",
-                    allowedDomain: data?.allowedDomain || ""
-                });
+                const requestedDomain =
+                    requestedDomainFromQuery(
+                        query,
+                        data?.allowedDomain || ""
+                    );
+                if (!requestedDomain) throw primaryError;
+                try {
+                    result =
+                        await runJarvisDirectDomainResearch({
+                            fetchImpl: fetch,
+                            query,
+                            objectiveId:
+                                data?.objectiveId || "",
+                            caseId:
+                                data?.caseId || "",
+                            allowedDomain:
+                                data?.allowedDomain || "",
+                            fallbackReason:
+                                credentialFailure
+                                    ? "GEMINI_CREDENTIAL_UNAVAILABLE"
+                                    : "PRIMARY_GROUNDED_RESEARCH_UNAVAILABLE"
+                        });
+                } catch (fallbackError) {
+                    throw new Error(
+                        [
+                            primaryMessage,
+                            fallbackError?.message ||
+                            String(fallbackError)
+                        ].join(" | ")
+                    );
+                }
             }
 
             console.log(JSON.stringify({

@@ -42,7 +42,7 @@ import {
 } from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-model-semantic-planner-v11-sequential-contract-20260715';
 import {
     runJarvisMission
-} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-mission-orchestrator-v5-source-chain-20260715';
+} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-mission-orchestrator-v6-objective-contract-20260724';
 //import { ejecutarCambios } from '/gestia-core/operations-executor.engine.js';
 
 // ======================================================================================
@@ -4753,6 +4753,14 @@ if (
 
     const toolObservations =
         missionResult.runtimeResults || [];
+    const missionResponseTitle =
+        missionResult.status === "COMPLETED"
+            ? "Mision Jarvis completada"
+            : missionResult.reason === "MISSION_INPUT_REQUIRED"
+                ? "Mision Jarvis requiere informacion"
+                : missionResult.reason === "PARTIAL_CAPABILITY_BLOCKED"
+                    ? "Mision Jarvis parcialmente completada"
+                    : "Mision Jarvis incompleta";
 
     const missionToolCalls = [
         ...missionResult.completedTasks,
@@ -4897,7 +4905,7 @@ if (
             if (compositionPayload?.ok !== false && compositionText) {
                 semanticMissionFinalResponse = {
                     ok: missionResult.status === "COMPLETED",
-                    title: "Mision Jarvis completada",
+                    title: missionResponseTitle,
                     text: [
                         compositionText,
                         "",
@@ -5082,7 +5090,7 @@ if (
                 const pending = missionResult.pendingTasks.map(item => `- ${item.name}`);
                 return {
                     ok: missionResult.status === "COMPLETED",
-                    title: "Mision Jarvis completada",
+                    title: missionResponseTitle,
                     text: [
                         `Mision ${missionResult.missionId}`,
                         "",

@@ -88,15 +88,80 @@ function safeObservation(result = {}) {
         result?.data ||
         result?.response ||
         result;
+    const status = text(
+        payload?.status ||
+        result?.status ||
+        (result?.ok === false ? "FAILED" : "COMPLETED"),
+        120
+    );
+    const normalizedStatus = status.toUpperCase();
+    const executionOk =
+        result?.ok !== false &&
+        payload?.ok !== false;
+    const missingInputs = Array.isArray(payload?.missingInputs)
+        ? payload.missingInputs.filter(Boolean).slice(0, 20)
+        : [];
+    const requiresInput =
+        payload?.requiresInput === true ||
+        normalizedStatus.includes("INPUT_REQUIRED") ||
+        missingInputs.length > 0;
+    const requiresApproval =
+        payload?.requiresApproval === true ||
+        normalizedStatus.includes("PENDING_APPROVAL");
+    const failedStatus =
+        normalizedStatus === "FAILED" ||
+        normalizedStatus === "TOOL_FAILED" ||
+        normalizedStatus.endsWith("_FAILED");
+    const degraded =
+        payload?.degraded === true ||
+        normalizedStatus.includes("DEGRADED") ||
+        normalizedStatus === "GROUNDED_LOCAL_FALLBACK" ||
+        Boolean(payload?.cloudError);
+    const explicitObjectiveSatisfied =
+        typeof payload?.objectiveSatisfied === "boolean"
+            ? payload.objectiveSatisfied
+            : null;
+    const objectiveSatisfied =
+        executionOk &&
+        !failedStatus &&
+        !requiresInput &&
+        !requiresApproval &&
+        (
+            explicitObjectiveSatisfied !== null
+                ? explicitObjectiveSatisfied
+                : payload?.readyForProduction !== false
+        );
+    const blocked =
+        payload?.blocked === true ||
+        requiresInput ||
+        requiresApproval;
+    const retryable =
+        payload?.retryable === true ||
+        (
+            !executionOk &&
+            !blocked &&
+            payload?.retryable !== false
+        );
+
     return {
-        ok: result?.ok !== false && payload?.ok !== false,
-        status: text(payload?.status || result?.status || (result?.ok === false ? "FAILED" : "COMPLETED"), 120),
+        ok: executionOk,
+        executionOk,
+        objectiveSatisfied,
+        status,
+        requiresInput,
+        requiresApproval,
+        blocked,
+        degraded,
+        retryable,
         sourceCount: Number(payload?.sourceCount || payload?.sources?.length || 0),
         validSources: Array.isArray(payload?.sources) ? payload.sources.slice(0, 12) : [],
         discardedSources: Array.isArray(payload?.discardedSources) ? payload.discardedSources.slice(0, 12) : [],
         summary: text(payload?.message || payload?.answer || payload?.summary || payload?.text || "", 3000),
         artifact: text(payload?.artifact || payload?.output || "", 500) || null,
-        evidence: compactEvidence(payload)
+        evidence: compactEvidence({
+            ...payload,
+            missingInputs
+        })
     };
 }
 
@@ -245,18 +310,77 @@ export async function runJarvisMission({
 
         const observation = safeObservation(result);
         runtimeResults.push(result);
-        const record = { ...task, status: observation.ok ? "COMPLETED" : "FAILED", observation, completedAt: now() };
+        const recordStatus = observation.objectiveSatisfied
+            ? "COMPLETED"
+            : observation.blocked
+                ? "BLOCKED"
+                : "FAILED";
+        const record = {
+            ...task,
+            status: recordStatus,
+            observation,
+            completedAt: now()
+        };
         mission.executedTools.push(task.name);
         mission.observations.push({ tool: task.name, signature: task.signature, ...observation, at: now() });
 
-        if (observation.ok) {
+        if (observation.objectiveSatisfied) {
             mission.completedTasks.push(record);
-        } else if (task.attempts <= maximumRetries) {
-            mission.pendingTasks.push({ ...task, status: "RETRY_PENDING" });
-            mission.errors.push({ tool: task.name, status: observation.status, retryable: true, at: now() });
+        } else if (observation.blocked) {
+            mission.blockedTasks.push({
+                ...record,
+                reason: observation.status
+            });
+            mission.errors.push({
+                tool: task.name,
+                status: observation.status,
+                retryable: false,
+                requiresInput: observation.requiresInput,
+                requiresApproval: observation.requiresApproval,
+                at: now()
+            });
+
+            if (observation.requiresInput) {
+                const completedNames = new Set(
+                    mission.completedTasks.map(item => item.name)
+                );
+                const blockedNames = new Set(
+                    mission.blockedTasks.map(item => item.name)
+                );
+                mission.contractMissingTools =
+                    mission.requiredToolNames.filter(
+                        name =>
+                            !completedNames.has(name) &&
+                            !blockedNames.has(name)
+                    );
+                mission.reason = "MISSION_INPUT_REQUIRED";
+                break;
+            }
+        } else if (
+            observation.retryable &&
+            task.attempts <= maximumRetries
+        ) {
+            mission.pendingTasks.push({
+                ...task,
+                status: "RETRY_PENDING"
+            });
+            mission.errors.push({
+                tool: task.name,
+                status: observation.status,
+                retryable: true,
+                at: now()
+            });
         } else {
-            mission.blockedTasks.push({ ...record, reason: observation.status });
-            mission.errors.push({ tool: task.name, status: observation.status, retryable: false, at: now() });
+            mission.blockedTasks.push({
+                ...record,
+                reason: observation.status
+            });
+            mission.errors.push({
+                tool: task.name,
+                status: observation.status,
+                retryable: false,
+                at: now()
+            });
         }
 
         mission.updatedAt = now();

@@ -56,11 +56,128 @@ function requestedDomainFromQuery(query = "", explicitDomain = "") {
     return "";
 }
 
+function requestedHostsFromQuery(query = "", explicitDomain = "") {
+    const domain =
+        requestedDomainFromQuery(query, explicitDomain);
+    if (!domain) return [];
+
+    const hosts = [];
+    const addHost = value => {
+        const candidate =
+            String(value || "").trim();
+        if (!candidate) return;
+        try {
+            const url =
+                new URL(
+                    candidate.includes("://")
+                        ? candidate
+                        : `https://${candidate}`
+                );
+            const host =
+                String(url.hostname || "")
+                    .trim()
+                    .toLowerCase();
+            if (
+                (url.protocol === "https:" || url.protocol === "http:") &&
+                cleanHost(host) === domain &&
+                !hosts.includes(host)
+            ) {
+                hosts.push(host);
+            }
+        } catch {
+            return;
+        }
+    };
+
+    const trailing =
+        new Set([
+            ".",
+            ",",
+            ";",
+            ":",
+            ")",
+            "]",
+            "}",
+            "!",
+            "?",
+            "\"",
+            "'"
+        ]);
+    for (
+        const rawToken of
+        String(query || "").split(" ")
+    ) {
+        let token =
+            rawToken.trim();
+        while (
+            token &&
+            trailing.has(token.at(-1))
+        ) {
+            token =
+                token.slice(0, -1);
+        }
+        if (token.includes("://")) addHost(token);
+    }
+
+    addHost(explicitDomain);
+    addHost(domain);
+    addHost(`www.${domain}`);
+    return hosts;
+}
+
 function sourceMatchesDomain(source = {}, domain = "") {
     if (!domain) return true;
     try {
-        const host = cleanHost(new URL(source.url).hostname);
-        return host === domain || host.endsWith(`.${domain}`);
+        const parsed =
+            new URL(source.url);
+        const host =
+            cleanHost(parsed.hostname);
+        if (
+            host === domain ||
+            host.endsWith(`.${domain}`)
+        ) {
+            return true;
+        }
+
+        const isGoogleGroundingRedirect =
+            host ===
+                "vertexaisearch.cloud.google.com" &&
+            parsed.pathname.startsWith(
+                "/grounding-api-redirect/"
+            );
+        if (!isGoogleGroundingRedirect) {
+            return false;
+        }
+
+        for (
+            const hint of [
+                source.domain,
+                source.title
+            ]
+        ) {
+            try {
+                const hintHost =
+                    cleanHost(
+                        new URL(
+                            String(hint || "")
+                                .includes("://")
+                                ? String(hint)
+                                : `https://${String(hint || "")}`
+                        ).hostname
+                    );
+                if (
+                    hintHost === domain ||
+                    hintHost.endsWith(
+                        `.${domain}`
+                    )
+                ) {
+                    return true;
+                }
+            } catch {
+                continue;
+            }
+        }
+        return false;
     } catch {
         return false;
     }
@@ -181,17 +298,39 @@ async function runJarvisDirectDomainResearch({
     allowedDomain = "",
     objectiveId = "",
     caseId = "",
-    maximumPages = 6
+    maximumPages = 6,
+    fallbackReason =
+        "GEMINI_CREDENTIAL_UNAVAILABLE"
 } = {}) {
     const normalizedQuery = normalizeResearchQuery(query);
     const domain = requestedDomainFromQuery(normalizedQuery, allowedDomain);
     if (!domain) throw new Error("DIRECT_RESEARCH_DOMAIN_REQUIRED");
     if (typeof fetchImpl !== "function") throw new Error("DIRECT_RESEARCH_FETCH_REQUIRED");
 
-    const queue = [`https://${domain}/`];
+    const entryUrls =
+        requestedHostsFromQuery(
+            normalizedQuery,
+            allowedDomain
+        ).map(host => `https://${host}/`);
+    const queue = [];
+    if (entryUrls.length > 0) {
+        queue.push(entryUrls.shift());
+    }
     const visited = new Set();
     const pages = [];
-    while (queue.length > 0 && pages.length < maximumPages) {
+    while (
+        (
+            queue.length > 0 ||
+            (
+                pages.length === 0 &&
+                entryUrls.length > 0
+            )
+        ) &&
+        pages.length < maximumPages
+    ) {
+        if (queue.length === 0) {
+            queue.push(entryUrls.shift());
+        }
         const url = queue.shift();
         if (visited.has(url)) continue;
         visited.add(url);
@@ -265,7 +404,11 @@ async function runJarvisDirectDomainResearch({
             duplicatesRemoved: true,
             codeWrite: false,
             externalSideEffects: false,
-            fallbackReason: "GEMINI_CREDENTIAL_UNAVAILABLE"
+            fallbackReason:
+                String(fallbackReason || "")
+                    .trim()
+                    .slice(0, 160) ||
+                "PRIMARY_GROUNDED_RESEARCH_UNAVAILABLE"
         }
     };
 }
@@ -447,16 +590,36 @@ async function runJarvisWebResearch({
         claim: support.text,
         sourceIds: support.sourceIds
     }));
-    const inferences = answer ? [{
+    const supportedAnswer =
+        supports
+            .map(support => support.text)
+            .filter((value, index, values) =>
+                Boolean(value) &&
+                values.indexOf(value) === index
+            )
+            .join("\n\n")
+            .slice(0, 12000);
+    const verifiedAnswer =
+        requestedDomain
+            ? supportedAnswer
+            : answer;
+    const modelSynthesisAllowed =
+        !requestedDomain ||
+        discardedSources.length === 0;
+    const inferences =
+        answer &&
+        modelSynthesisAllowed
+            ? [{
         type: "MODEL_SYNTHESIS",
         text: answer,
         basisFactIds: facts.map(fact => fact.id),
         warning: "Síntesis del modelo; verificar contra los hechos y fuentes vinculados."
-    }] : [];
+            }]
+            : [];
 
     return {
         ok:
-            Boolean(answer) &&
+            Boolean(verifiedAnswer) &&
             sources.length > 0 &&
             facts.length > 0,
         grounded:
@@ -471,7 +634,8 @@ async function runJarvisWebResearch({
         caseId: String(caseId || ""),
         researchedAt,
         provider: "google_search_grounding",
-        answer,
+        answer:
+            verifiedAnswer,
         sources,
         discardedSources,
         supports,
@@ -485,6 +649,9 @@ async function runJarvisWebResearch({
             citationsRequired: true,
             consultedSourcesOnly: true,
             requestedDomainEnforced: Boolean(requestedDomain),
+            modelSynthesisFiltered:
+                Boolean(requestedDomain) &&
+                !modelSynthesisAllowed,
             factsSeparatedFromInference: true,
             duplicatesRemoved: true,
             codeWrite: false,
@@ -499,6 +666,7 @@ module.exports = {
     collapseWhitespace,
     normalizeResearchQuery,
     requestedDomainFromQuery,
+    requestedHostsFromQuery,
     sourceMatchesDomain,
     readHtmlAttribute,
     visibleText,

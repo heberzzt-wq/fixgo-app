@@ -12,6 +12,7 @@ const { test } =
 const {
     normalizeResearchQuery,
     requestedDomainFromQuery,
+    requestedHostsFromQuery,
     sourceMatchesDomain,
     extractGroundingSources,
     extractGroundingSupports,
@@ -194,7 +195,7 @@ test("web research fails closed when no verifiable source is returned", async ()
 
 test("web research enforces the requested domain and discards similar companies", async () => {
     const response = {
-        text: "Sintesis limitada al sitio oficial.",
+        text: "SUMM publica servicios. Otra empresa publica productos distintos.",
         candidates: [{
             groundingMetadata: {
                 groundingChunks: [
@@ -222,13 +223,76 @@ test("web research enforces the requested domain and discards similar companies"
     assert.deepEqual(result.sources.map(source => source.url), ["https://www.summ.com.mx/servicios"]);
     assert.equal(result.discardedSources.length, 3);
     assert.equal(result.facts.length, 1);
+    assert.equal(result.answer, "SUMM publica sus servicios");
+    assert.equal(result.inferences.length, 0);
+    assert.equal(result.policy.modelSynthesisFiltered, true);
     assert.equal(result.requestedDomain, "summ.com.mx");
     assert.equal(result.policy.requestedDomainEnforced, true);
 });
 
+test("web research validates Google grounding redirects with their domain attribution", async () => {
+    const response = {
+        text: "Summit Law Firm ofrece servicios jurídicos en Cancún.",
+        candidates: [{
+            groundingMetadata: {
+                groundingChunks: [
+                    {
+                        web: {
+                            uri: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/summ-source",
+                            title: "www.summ.com.mx"
+                        }
+                    },
+                    {
+                        web: {
+                            uri: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/similar-source",
+                            title: "summma.com"
+                        }
+                    }
+                ],
+                groundingSupports: [
+                    {
+                        segment: {
+                            text: "Summit Law Firm ofrece servicios jurídicos en Cancún."
+                        },
+                        groundingChunkIndices: [0]
+                    },
+                    {
+                        segment: {
+                            text: "Una empresa distinta ofrece productos."
+                        },
+                        groundingChunkIndices: [1]
+                    }
+                ],
+                webSearchQueries: [
+                    "site:summ.com.mx Summit Law Firm"
+                ]
+            }
+        }]
+    };
+    const result = await runJarvisWebResearch({
+        ai: {
+            models: {
+                generateContent:
+                    async () => response
+            }
+        },
+        query:
+            "Investiga https://www.summ.com.mx/"
+    });
+
+    assert.equal(result.grounded, true);
+    assert.equal(result.sources.length, 1);
+    assert.equal(
+        result.sources[0].title,
+        "www.summ.com.mx"
+    );
+    assert.equal(result.discardedSources.length, 1);
+    assert.equal(result.facts.length, 1);
+});
+
 test("direct domain fallback crawls only primary pages when Gemini credentials fail", async () => {
     const pages = new Map([
-        ["https://summ.com.mx/", `
+        ["https://www.summ.com.mx/", `
             <html><head><title>SUMM oficial</title></head><body>
             <h1>Soluciones integrales de mantenimiento</h1>
             <p>SUMM presenta servicios empresariales de mantenimiento y atención para instalaciones.</p>
@@ -236,17 +300,19 @@ test("direct domain fallback crawls only primary pages when Gemini credentials f
             <a href="https://summma.com/empresa">Empresa parecida</a>
             </body></html>
         `],
-        ["https://summ.com.mx/servicios", `
+        ["https://www.summ.com.mx/servicios", `
             <html><head><title>Servicios SUMM</title></head><body>
             <h1>Servicios especializados</h1>
             <p>La página oficial describe atención preventiva, correctiva y soporte para clientes empresariales.</p>
             </body></html>
         `]
     ]);
+    const fetched = [];
     const result = await runJarvisDirectDomainResearch({
         query: "Investiga únicamente https://www.summ.com.mx/",
         fetchImpl: async url => {
-            const normalized = String(url).replace("https://www.summ.com.mx", "https://summ.com.mx");
+            const normalized = String(url);
+            fetched.push(normalized);
             const html = pages.get(normalized);
             return {
                 ok: Boolean(html),
@@ -259,8 +325,16 @@ test("direct domain fallback crawls only primary pages when Gemini credentials f
 
     assert.equal(result.provider, "direct_primary_domain_crawl");
     assert.equal(result.grounded, true);
+    assert.equal(fetched[0], "https://www.summ.com.mx/");
+    assert.deepEqual(
+        requestedHostsFromQuery(
+            "Investiga únicamente https://www.summ.com.mx/",
+            "summ.com.mx"
+        ).slice(0, 2),
+        ["www.summ.com.mx", "summ.com.mx"]
+    );
     assert.equal(result.sources.length, 2);
-    assert.ok(result.sources.every(source => new URL(source.url).hostname === "summ.com.mx"));
+    assert.ok(result.sources.every(source => new URL(source.url).hostname === "www.summ.com.mx"));
     assert.equal(result.discardedSources.length, 0);
     assert.equal(result.inferences.length, 0);
     assert.equal(result.policy.fallbackReason, "GEMINI_CREDENTIAL_UNAVAILABLE");
@@ -309,6 +383,9 @@ test("Firebase deploys grounded web research on the supported Node runtime", () 
     assert.match(functionsIndex, /functions\.config\?\.\(\)/);
     assert.match(functionsIndex, /runtimeConfig\?\.gemini\?\.api_key/);
     assert.match(webSection, /runJarvisWebResearch\(\{/);
+    assert.match(webSection, /PRIMARY_RESEARCH_NOT_GROUNDED/);
+    assert.match(webSection, /requestedDomainFromQuery/);
+    assert.match(webSection, /runJarvisDirectDomainResearch\(\{/);
     assert.match(webSection, /assertJarvisAdminContext/);
     assert.doesNotMatch(webSection, /initCore\(\)/);
     assert.equal(functionsPackage.engines.node, "22");

@@ -64,7 +64,86 @@ test("mission continues from research through marketing, page and reel planning"
     assert.deepEqual(recovered.requiredToolNames, sequence);
 });
 
-test("mission blocks writes, retries one failure and reports an honest partial result", async () => {
+test("mission stops dependent deliverables when marketing requires input", async () => {
+    const sequence = [
+        "web.research",
+        "marketing.plan",
+        "page.plan",
+        "image.plan",
+        "reel.plan"
+    ];
+    const executed = [];
+    const mission = await runJarvisMission({
+        instruction: "Investiga y entrega campaña, landing, imagen y reel sin publicar.",
+        initialToolCalls: sequence.map(name => ({
+            name,
+            args: { prompt: "Usa evidencia previa" }
+        })),
+        requiredToolNames: sequence,
+        planner: async () => ({ toolCalls: [], missionComplete: true }),
+        execute: async call => {
+            executed.push(call.name);
+            if (call.name === "web.research") {
+                return {
+                    ok: true,
+                    status: "GROUNDED",
+                    sources: [{ url: "https://www.summ.com.mx/" }],
+                    answer: "Fuente oficial"
+                };
+            }
+            if (call.name === "marketing.plan") {
+                return {
+                    ok: true,
+                    status: "MARKETING_INPUT_REQUIRED",
+                    readyForProduction: false,
+                    campaign: null,
+                    missingInputs: ["audience", "offer"]
+                };
+            }
+            return {
+                ok: true,
+                status: "COMPLETED_READ_ONLY_PLAN"
+            };
+        },
+        storage: memoryStorage()
+    });
+
+    assert.deepEqual(executed, ["web.research", "marketing.plan"]);
+    assert.deepEqual(
+        mission.completedTasks.map(item => item.name),
+        ["web.research"]
+    );
+    assert.deepEqual(
+        mission.pendingTasks.map(item => item.name),
+        ["page.plan", "image.plan", "reel.plan"]
+    );
+    assert.equal(mission.reason, "MISSION_INPUT_REQUIRED");
+    assert.equal(mission.status, "PARTIAL");
+    assert.equal(mission.blockedTasks[0].observation.executionOk, true);
+    assert.equal(mission.blockedTasks[0].observation.objectiveSatisfied, false);
+    assert.equal(mission.blockedTasks[0].observation.requiresInput, true);
+    assert.deepEqual(
+        mission.blockedTasks[0].observation.evidence.missingInputs,
+        ["audience", "offer"]
+    );
+});
+
+test("observation contract separates a completed plan from production readiness", () => {
+    const observation = __test.safeObservation({
+        ok: true,
+        status: "COMPLETED_READ_ONLY_PLAN",
+        objectiveSatisfied: true,
+        readyForProduction: false,
+        summary: "El plan solicitado quedó completo."
+    });
+
+    assert.equal(observation.executionOk, true);
+    assert.equal(observation.objectiveSatisfied, true);
+    assert.equal(observation.requiresInput, false);
+    assert.equal(observation.blocked, false);
+});
+
+test("mission blocks writes without retrying an approval requirement", async () => {
     let attempts = 0;
     const mission = await runJarvisMission({
         instruction: "Prepara sin publicar.",
@@ -79,9 +158,10 @@ test("mission blocks writes, retries one failure and reports an honest partial r
         storage: memoryStorage(),
         maximumRetries: 1
     });
-    assert.equal(attempts, 2);
+    assert.equal(attempts, 1);
     assert.equal(mission.reason, "PARTIAL_CAPABILITY_BLOCKED");
     assert.equal(mission.blockedTasks.length, 1);
+    assert.equal(mission.blockedTasks[0].observation.requiresApproval, true);
     assert.equal(mission.approvalRequiredForWrite, true);
 });
 
