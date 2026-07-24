@@ -1268,6 +1268,47 @@ test("exact repo reads answer requested tool registrations from source structure
                         }
                     }
                 }
+            }, {
+                response: {
+                    data: {
+                        ok:
+                            true,
+                        tool:
+                            "repo.gitStatus",
+                        branchLine:
+                            "## v5.9-polish...origin/v5.9-polish",
+                        changedFiles:
+                            []
+                    }
+                }
+            }, {
+                response: {
+                    data: {
+                        ok:
+                            true,
+                        tool:
+                            "repo.search",
+                        totalMatches:
+                            2,
+                        results:
+                            []
+                    }
+                }
+            }, {
+                response: {
+                    data: {
+                        ok:
+                            true,
+                        tool:
+                            "repo.diagnose",
+                        file:
+                            "gestia-core/jarvis/jarvis.multitool.pack.js",
+                        risk:
+                            "LOW",
+                        findings:
+                            []
+                    }
+                }
             }]
         });
 
@@ -1302,6 +1343,18 @@ test("exact repo reads answer requested tool registrations from source structure
     assert.doesNotMatch(
         finalResponse.text,
         /Router canonico/
+    );
+    assert.match(
+        finalResponse.text,
+        /Git: ## v5\.9-polish\.\.\.origin\/v5\.9-polish; 0 cambio/
+    );
+    assert.match(
+        finalResponse.text,
+        /Busqueda repo: 2 resultado/
+    );
+    assert.match(
+        finalResponse.text,
+        /Riesgo local de gestia-core\/jarvis\/jarvis\.multitool\.pack\.js: LOW/
     );
     assert.equal(
         finalResponse.writeAllowed,
@@ -1688,7 +1741,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /sia7-bounded-business-v3-20260724-readonly-snapshot-v40/);
+    assert.match(terminal, /sia7-bounded-business-v3-20260724-completion-audit-v41/);
     assert.match(terminal, /jarvis-runtime-macro-v2-20260707-4190/);
     assert.match(terminal, /isTerminalBrainRuntimeReady/);
     assert.doesNotMatch(terminal, /function isKernelSessionReady/);
@@ -1915,7 +1968,7 @@ test("brain delegates natural intent to the bounded semantic model planner", () 
         );
 
     assert.match(brain, /buildJarvisMultifunctionToolCalls/);
-    assert.match(brain, /sia7-grounded-deliverable-arguments-20260724/);
+    assert.match(brain, /sia7-semantic-completion-audit-20260724/);
     assert.equal(
         (brain.match(/function initJarvisCodexV2BrainRouter/g) || []).length,
         1
@@ -1945,7 +1998,7 @@ test("brain delegates natural intent to the bounded semantic model planner", () 
     );
 
     assert.match(core, /patchPreviewAllowedByPlan/);
-    assert.match(core, /brain\.engine\.js\?v=sia7-grounded-deliverable-arguments-20260724/);
+    assert.match(core, /brain\.engine\.js\?v=sia7-semantic-completion-audit-20260724/);
     assert.doesNotMatch(core, /brain\.engine\.js\?v=cloud-planner-fail-fast-41-62/);
     assert.match(core, /async analizarIntencionLigera/);
     assert.match(core, /sincronizarCorralSemantico/);
@@ -2175,6 +2228,22 @@ test("verified read-only missions stay outside retrying Firestore transactions",
     assert.match(
         core,
         /PENALTY_TIMEOUT/
+    );
+    assert.match(
+        core,
+        /phase:\s*"COMPLETION_AUDIT"/
+    );
+    assert.match(
+        core,
+        /SEMANTIC_COMPLETION_AUDIT_PASSED/
+    );
+    assert.match(
+        core,
+        /SEMANTIC_COMPLETION_AUDIT_REQUIRED/
+    );
+    assert.doesNotMatch(
+        core,
+        /missingRequiredToolNames\.length === 0\)\s*\{\s*return\s*\{\s*toolCalls:\s*\[\],\s*missionComplete:\s*true/
     );
     assert.match(
         runtime,

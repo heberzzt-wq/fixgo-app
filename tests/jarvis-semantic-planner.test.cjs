@@ -6,6 +6,7 @@ const { test } = require("node:test");
 const {
     buildModelTools,
     buildGeminiModelTools,
+    buildSemanticSystemInstruction,
     compactMissionObservation,
     extractGeminiToolCallPlan,
     extractJsonObject,
@@ -17,6 +18,45 @@ const {
     runJarvisSemanticResponse,
     validatePlan
 } = require("../functions/jarvis-semantic-planner");
+
+test("semantic planner treats search as discovery rather than completed inspection", () => {
+    const instruction =
+        buildSemanticSystemInstruction(
+            [{
+                name:
+                    "repo.search",
+                mutates:
+                    false
+            }, {
+                name:
+                    "repo.read",
+                mutates:
+                    false
+            }, {
+                name:
+                    "repo.diagnose",
+                mutates:
+                    false
+            }],
+            {
+                phase:
+                    "COMPLETION_AUDIT"
+            }
+        );
+
+    assert.match(
+        instruction,
+        /repo\.search es descubrimiento inicial/
+    );
+    assert.match(
+        instruction,
+        /no satisface por si sola una solicitud que tambien pide leer/
+    );
+    assert.match(
+        instruction,
+        /devuelve missionComplete=true solamente despues de auditar/
+    );
+});
 
 test("semantic response uses the authenticated provider chain and reports provenance", async () => {
     const result = await runJarvisSemanticResponse({
@@ -144,7 +184,8 @@ test("semantic planner preserves mixed tools and never grants prompt approval", 
             assert.ok(body.messages[0].content.includes("approved siempre sera false"));
             assert.ok(body.messages[0].content.includes("no pidas al usuario que comparta archivos"));
             assert.ok(body.messages[0].content.includes("No inventes rutas ni nombres de archivo"));
-            assert.ok(body.messages[0].content.includes("Una sola repo.search"));
+            assert.ok(body.messages[0].content.includes("repo.search es descubrimiento inicial"));
+            assert.ok(body.messages[0].content.includes("no satisface por si sola"));
             assert.ok(body.messages[0].content.includes("no uses conversation.respond como sustituto"));
             assert.ok(body.messages[0].content.includes("Para investigar informacion publica actual"));
             assert.ok(body.messages[0].content.includes("browser.inspect se reserva para diagnostico tecnico"));

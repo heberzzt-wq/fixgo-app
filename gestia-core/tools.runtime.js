@@ -5,7 +5,7 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-grounded-deliverable-arguments-20260724";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-semantic-completion-audit-20260724";
 import {
     registerJarvisActuatorTools
 } from "./jarvis/jarvis.actuator.pack.js?v=sia7-real-actuators-v3.6-pdf-visual-20260714";

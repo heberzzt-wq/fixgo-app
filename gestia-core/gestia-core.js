@@ -40,7 +40,7 @@ import {
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     buildJarvisMultifunctionToolCalls
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-grounded-deliverable-arguments-20260724';
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-semantic-completion-audit-20260724';
 import {
     runJarvisMission
 } from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-mission-orchestrator-v6-objective-contract-20260724';
@@ -191,9 +191,9 @@ import {
     sincronizarCorralSemantico,
     getSemanticCognitiveState
 } from '/gestia-core/semantic.engine.js?v=sia7-model-context-v8-20260714';
-import '/gestia-core/brain.engine.js?v=sia7-grounded-deliverable-arguments-20260724';
+import '/gestia-core/brain.engine.js?v=sia7-semantic-completion-audit-20260724';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260724-source-structure-v25';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260724-completion-audit-v26';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260714-safe-image-artifacts';
 
@@ -2228,6 +2228,70 @@ function composeRequestedSourceStructureResponse({
                 .filter(Boolean)
         );
 
+    const observationData =
+        observations
+            .map(observation =>
+                getObservationRepoData(
+                    observation
+                )
+            )
+            .filter(Boolean);
+
+    const gitStatus =
+        observationData.find(data =>
+            data?.tool ===
+                "repo.gitStatus"
+        ) ||
+        null;
+
+    const repoSearch =
+        observationData.find(data =>
+            data?.tool ===
+                "repo.search"
+        ) ||
+        null;
+
+    const fileDiagnosis =
+        observationData.find(data =>
+            data?.tool ===
+                "repo.diagnose" &&
+            normalizeObservationFilePath(
+                data?.file ||
+                data?.resolvedFile ||
+                ""
+            ) === primaryFile
+        ) ||
+        null;
+
+    const operationalLines =
+        [
+            gitStatus
+                ? `- Git: ${gitStatus.branchLine || "rama no reportada"}; ${Array.isArray(gitStatus.changedFiles) ? gitStatus.changedFiles.length : 0} cambio(s) local(es).`
+                : "",
+            repoSearch
+                ? `- Busqueda repo: ${repoSearch.totalMatches ?? repoSearch.results?.length ?? repoSearch.matches?.length ?? 0} resultado(s) verificado(s).`
+                : "",
+            fileDiagnosis
+                ? `- Riesgo local de ${primaryFile}: ${fileDiagnosis.risk || fileDiagnosis.riskLevel || "ND"}.`
+                : "",
+            ...(
+                fileDiagnosis?.findings ||
+                []
+            )
+                .filter(finding =>
+                    String(
+                        finding?.severity ||
+                        "INFO"
+                    ).toUpperCase() !==
+                        "INFO"
+                )
+                .slice(0, 3)
+                .map(finding =>
+                    `- [${finding.severity || "MEDIUM"}] ${finding.title || finding.id || "Hallazgo"}: ${finding.detail || "Sin detalle adicional."}`
+                )
+        ]
+            .filter(Boolean);
+
     return {
         ok:
             true,
@@ -2240,6 +2304,13 @@ function composeRequestedSourceStructureResponse({
                 "",
                 "Registros solicitados:",
                 ...registrationLines,
+                ...(operationalLines.length
+                    ? [
+                        "",
+                        "Estado y riesgos:",
+                        ...operationalLines
+                    ]
+                    : []),
                 "",
                 `Evidencia: indice estructural derivado del contenido real leido por repo.read; ${requestedRegistrations.length} registro(s) solicitado(s) localizado(s).`,
                 "Estado: lectura read-only; no se modificaron archivos, no se genero patch y no se desplego."
@@ -4882,15 +4953,137 @@ if (
                         name => !resolvedToolNames.has(name)
                     );
                     if (missingRequiredToolNames.length === 0) {
+                        const completionAuditCatalog =
+                            registeredMissionTools
+                                .filter(tool =>
+                                    !resolvedToolNames.has(
+                                        tool?.name
+                                    )
+                                )
+                                .slice(0, 60);
+
+                        if (completionAuditCatalog.length > 0) {
+                            const completionAuditToolCalls =
+                                await buildJarvisMultifunctionToolCalls(
+                                    originalInstruction.slice(0, 120000),
+                                    {
+                                        ...context,
+                                        throwOnUnavailable:
+                                            true,
+                                        toolCatalog:
+                                            completionAuditCatalog,
+                                        missionState: {
+                                            phase:
+                                                "COMPLETION_AUDIT",
+                                            missionId:
+                                                mission.missionId,
+                                            caseId:
+                                                mission.caseId,
+                                            objectiveId:
+                                                mission.objectiveId,
+                                            instructionHash:
+                                                mission.instructionHash,
+                                            rawInstructionLength:
+                                                mission.rawInstructionLength,
+                                            routingInstructionLength:
+                                                mission.routingInstructionLength,
+                                            requiredToolNames:
+                                                mission.requiredToolNames,
+                                            completedTasks:
+                                                mission.completedTasks.map(item => ({
+                                                    name:
+                                                        item.name,
+                                                    args:
+                                                        item.args,
+                                                    observation:
+                                                        item.observation
+                                                })),
+                                            pendingTasks:
+                                                mission.pendingTasks.map(item => ({
+                                                    name:
+                                                        item.name,
+                                                    args:
+                                                        item.args
+                                                })),
+                                            blockedTasks:
+                                                mission.blockedTasks.map(item => ({
+                                                    name:
+                                                        item.name,
+                                                    args:
+                                                        item.args,
+                                                    reason:
+                                                        item.reason
+                                                })),
+                                            iterations:
+                                                mission.iterations,
+                                            writeAllowed:
+                                                false
+                                        }
+                                    }
+                                );
+
+                            if (
+                                completionAuditToolCalls
+                                    .missionComplete === true
+                            ) {
+                                return {
+                                    toolCalls: [],
+                                    missionComplete: true,
+                                    completionAssessment:
+                                        completionAuditToolCalls
+                                            .completionAssessment ||
+                                        {
+                                            status:
+                                                "SEMANTIC_COMPLETION_AUDIT_PASSED",
+                                            completed:
+                                                mission.completedTasks.map(item =>
+                                                    item.name
+                                                ),
+                                            blocked:
+                                                mission.blockedTasks.map(item =>
+                                                    item.name
+                                                ),
+                                            missing:
+                                                []
+                                        }
+                                };
+                            }
+
+                            if (completionAuditToolCalls.length > 0) {
+                                return {
+                                    toolCalls:
+                                        completionAuditToolCalls.slice(
+                                            0,
+                                            1
+                                        ),
+                                    missionComplete:
+                                        false,
+                                    completionAssessment:
+                                        completionAuditToolCalls
+                                            .completionAssessment ||
+                                        {
+                                            status:
+                                                "SEMANTIC_COMPLETION_AUDIT_CONTINUES",
+                                            completed:
+                                                mission.completedTasks.map(item =>
+                                                    item.name
+                                                )
+                                        }
+                                };
+                            }
+                        }
+
                         return {
                             toolCalls: [],
-                            missionComplete: true,
+                            missionComplete: false,
                             completionAssessment: {
-                                status: "MODEL_CONTRACT_RUNTIME_AUDITED",
+                                status: "SEMANTIC_COMPLETION_AUDIT_REQUIRED",
                                 required: [...mission.requiredToolNames],
                                 completed: mission.completedTasks.map(item => item.name),
                                 blocked: mission.blockedTasks.map(item => item.name),
-                                missing: []
+                                missing: [],
+                                reason:
+                                    "El contrato inicial termino, pero falta una auditoria semantica final de todos los entregables."
                             }
                         };
                     }

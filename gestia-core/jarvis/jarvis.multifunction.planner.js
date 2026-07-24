@@ -1,4 +1,4 @@
-const VERSION = "3.4.0-grounded-deliverable-arguments";
+const VERSION = "3.5.0-semantic-completion-audit";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();

@@ -23,7 +23,7 @@ import {
 
 import {
     completeJarvisPlanningArguments
-} from "./jarvis.multifunction.planner.js?v=sia7-grounded-deliverable-arguments-20260724";
+} from "./jarvis.multifunction.planner.js?v=sia7-semantic-completion-audit-20260724";
 
 const VERSION = "1.25.0-grounded-deliverable-arguments";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;

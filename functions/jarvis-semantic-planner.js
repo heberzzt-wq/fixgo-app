@@ -287,7 +287,7 @@ function buildSemanticSystemInstruction(catalog = [], missionState = null) {
         "Para page.plan, image.plan y reel.plan completa una especificacion concreta basada solo en la evidencia disponible. Planear en read-only no equivale a crear, publicar ni desplegar.",
         "En reel.plan la suma exacta de durationSeconds de las escenas debe coincidir con durationSeconds total.",
         "Cuando el usuario limite la investigacion a un dominio, copia ese dominio exacto en allowedDomain de web.research y descarta fuentes externas.",
-        "No razones sobre rutas futuras desconocidas. Una sola repo.search con la consulta del usuario es un plan completo y correcto cuando falta una ruta exacta.",
+        "No razones sobre rutas futuras desconocidas. repo.search es descubrimiento inicial cuando falta una ruta exacta; no satisface por si sola una solicitud que tambien pide leer, revisar contenido, diagnosticar, explicar hallazgos o calcular riesgos.",
         "Para una investigacion operativa no uses conversation.respond como sustituto de las herramientas; reservada para charla o explicaciones que no requieren inspeccion.",
         "Para investigar informacion publica actual y entregar hechos con fuentes usa web.research. browser.inspect se reserva para diagnostico tecnico del navegador o cuando se pida expresamente inspeccionar el DOM renderizado de una URL exacta.",
         "Cuando la instruccion incluya 'Archivos adjuntos reales entregados por el usuario', usa media.analyze para analizar esos archivos y copia el arreglo JSON del manifiesto al argumento attachments sin inventar contenido.",
@@ -320,6 +320,7 @@ async function runGeminiSemanticPlanner({
                 [
                     "CONTRATO_DE_MISION: enumera en toolCalls todas las herramientas read-only necesarias para satisfacer cada entregable independiente de la instruccion, no solo la primera etapa.",
                     "Incluye herramientas especializadas de investigacion, negocio, marketing, pagina, imagen, reel, documentos o diagnostico cuando el usuario haya pedido esos resultados.",
+                    "Distingue descubrimiento de inspeccion: repo.search o repo.scan no completan por si solas un entregable que pide revisar archivos, explicar hallazgos o evaluar riesgos; el contrato debe conservar las herramientas de lectura, diagnostico e impacto disponibles.",
                     "Conserva el orden de dependencias. No incluyas herramientas mutantes si la orden prohibe escribir, publicar, generar archivos o producir medios.",
                     "Si las fuentes estan limitadas a un dominio, copia ese dominio exacto en allowedDomain de cada web.research.",
                     "Devuelve JSON con toolCalls, explanation, missionComplete=false y completionAssessment que liste los entregables cubiertos por cada herramienta."
