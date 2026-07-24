@@ -1253,6 +1253,17 @@ test("exact repo reads answer requested tool registrations from source structure
                                     "REEL_PLAN_ARGUMENT_SCHEMA",
                                 output:
                                     "SIA7_REEL_PLAN"
+                            }, {
+                                line:
+                                    2034,
+                                name:
+                                    "marketing.plan",
+                                description:
+                                    "Duplicado aportado por otro observador.",
+                                inputSchema:
+                                    "MARKETING_ARGUMENT_SCHEMA",
+                                output:
+                                    "SIA7_MARKETING_PLAN"
                             }]
                         }
                     }
@@ -1677,7 +1688,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /sia7-bounded-business-v3-20260724-missions-v38/);
+    assert.match(terminal, /sia7-bounded-business-v3-20260724-missions-v39/);
     assert.match(terminal, /jarvis-runtime-macro-v2-20260707-4190/);
     assert.match(terminal, /isTerminalBrainRuntimeReady/);
     assert.doesNotMatch(terminal, /function isKernelSessionReady/);

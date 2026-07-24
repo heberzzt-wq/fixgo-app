@@ -2172,7 +2172,7 @@ function composeRequestedSourceStructureResponse({
                 )
             );
 
-    const requestedRegistrations =
+    const requestedRegistrationCandidates =
         structuredReads.flatMap(item =>
             item.structure.registrations
                 .filter(registration =>
@@ -2189,6 +2189,17 @@ function composeRequestedSourceStructureResponse({
                         item.file
                 }))
         );
+
+    const requestedRegistrations =
+        [
+            ...new Map(
+                requestedRegistrationCandidates
+                    .map(registration => [
+                        `${registration.file}::${registration.name}`,
+                        registration
+                    ])
+            ).values()
+        ];
 
     if (!requestedRegistrations.length) {
         return null;
