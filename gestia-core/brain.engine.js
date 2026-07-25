@@ -37,7 +37,7 @@ import {
   buildJarvisMultifunctionToolCalls,
   mergeJarvisToolCalls
 
-} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-semantic-coverage-audit-v54-20260724";
+} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-deferred-grounded-contracts-v59-20260724";
 
 import {
 

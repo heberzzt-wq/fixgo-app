@@ -1,4 +1,4 @@
-const VERSION = "3.8.0-semantic-coverage-audit";
+const VERSION = "3.9.0-deferred-grounded-contracts";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
@@ -199,6 +199,9 @@ function runtimeCatalog(context = {}) {
 function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
     const allowed = new Map(catalog.map(tool => [tool.name, tool]));
     const candidates = Array.isArray(plan?.toolCalls) ? plan.toolCalls : [];
+    const allowDeferred =
+        String(plan?.planKind || "")
+            .startsWith("MISSION_CONTRACT");
     const seen = new Set();
     const calls = [];
 
@@ -216,14 +219,32 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
         if (seen.has(signature)) continue;
         seen.add(signature);
 
-        if (!hasRequiredToolArguments(tool, args)) continue;
+        const argumentsComplete =
+            hasRequiredToolArguments(
+                tool,
+                args
+            );
+        if (
+            !argumentsComplete &&
+            !allowDeferred
+        ) {
+            continue;
+        }
 
         calls.push({
             name: tool.name,
             args,
             reason: String(candidate?.reason || "MODEL_SEMANTIC_TOOL_SELECTION").slice(0, 240),
             mutates: tool.mutates,
-            approved: tool.mutates === true && context.approved === true
+            approved: tool.mutates === true && context.approved === true,
+            ...(
+                argumentsComplete
+                    ? {}
+                    : {
+                        deferred:
+                            true
+                    }
+            )
         });
     }
 

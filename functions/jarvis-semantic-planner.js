@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "1.11.0-independent-coverage-reports";
+const VERSION = "1.12.0-deferred-grounded-contracts";
 const DEFAULT_ENDPOINT = "https://text.pollinations.ai/openai";
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -100,7 +100,14 @@ function extractJsonObject(value = "") {
     throw new Error("SEMANTIC_PLAN_JSON_REQUIRED");
 }
 
-function validatePlan(plan = {}, catalog = [], fallbackInput = "") {
+function validatePlan(
+    plan = {},
+    catalog = [],
+    fallbackInput = "",
+    {
+        allowDeferred = false
+    } = {}
+) {
     const allowed = new Map(catalog.map(tool => [tool.name, tool]));
     const sourceCalls = Array.isArray(plan?.toolCalls) ? plan.toolCalls : [];
     const seen = new Set();
@@ -124,14 +131,32 @@ function validatePlan(plan = {}, catalog = [], fallbackInput = "") {
                     query: String(fallbackInput).slice(0, 600)
                 }
                 : {};
-        if (!hasRequiredToolArguments(tool, args)) continue;
+        const argumentsComplete =
+            hasRequiredToolArguments(
+                tool,
+                args
+            );
+        if (
+            !argumentsComplete &&
+            !allowDeferred
+        ) {
+            continue;
+        }
 
         toolCalls.push({
             name: tool.name,
             args,
             reason: String(candidate?.reason || "MODEL_SEMANTIC_TOOL_SELECTION").slice(0, 240),
             mutates: tool.mutates,
-            approved: false
+            approved: false,
+            ...(
+                argumentsComplete
+                    ? {}
+                    : {
+                        deferred:
+                            true
+                    }
+            )
         });
     }
 
@@ -397,7 +422,14 @@ async function runGeminiSemanticPlanner({
             ...contractPayload,
             missionComplete: false
         };
-        const validatedContract = validatePlan(contractPlan, safeCatalog, instruction);
+        const validatedContract = validatePlan(
+            contractPlan,
+            safeCatalog,
+            instruction,
+            {
+                allowDeferred: true
+            }
+        );
         let coverageAudit = null;
         let coverageWarning = null;
         let independentCoverage = null;
@@ -454,7 +486,10 @@ async function runGeminiSemanticPlanner({
             coverageAudit = validatePlan(
                 { ...coveragePayload, missionComplete: false },
                 safeCatalog,
-                instruction
+                instruction,
+                {
+                    allowDeferred: true
+                }
             );
         } catch (error) {
             coverageWarning = error?.message || "MISSION_COVERAGE_AUDIT_UNAVAILABLE";
@@ -509,7 +544,10 @@ async function runGeminiSemanticPlanner({
             independentCoverage = validatePlan(
                 { ...independentPayload, missionComplete: false },
                 safeCatalog,
-                instruction
+                instruction,
+                {
+                    allowDeferred: true
+                }
             );
         } catch (error) {
             independentCoverageWarning =
@@ -749,7 +787,15 @@ async function runSimpleSemanticPlanner({
                 const response = await fetchImpl(url, { signal: controller.signal });
                 if (!response?.ok) throw new Error(`SIMPLE_SEMANTIC_HTTP_${response?.status || 0}`);
                 const candidatePlan = extractJsonObject(await response.text());
-                const candidateValidated = validatePlan(candidatePlan, safeCatalog, instruction);
+                const candidateValidated = validatePlan(
+                    candidatePlan,
+                    safeCatalog,
+                    instruction,
+                    {
+                        allowDeferred:
+                            contractMode
+                    }
+                );
                 if (
                     contractMode &&
                     validatedPlan &&

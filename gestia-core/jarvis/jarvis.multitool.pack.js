@@ -23,7 +23,7 @@ import {
 
 import {
     completeJarvisPlanningArguments
-} from "./jarvis.multifunction.planner.js?v=sia7-semantic-coverage-audit-v54-20260724";
+} from "./jarvis.multifunction.planner.js?v=sia7-deferred-grounded-contracts-v59-20260724";
 
 const VERSION = "1.25.0-grounded-deliverable-arguments";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
@@ -988,7 +988,7 @@ const LOCAL_SUPERVISION_PROBES = [
         id: "technical_intent_priority",
         path: "/gestia-core/jarvis/jarvis.multifunction.planner.js",
         markers: [
-            "3.8.0-semantic-coverage-audit",
+            "3.9.0-deferred-grounded-contracts",
             "jarvisSemanticPlan",
             "trustedPlanCalls"
         ]

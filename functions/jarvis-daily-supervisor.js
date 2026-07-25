@@ -78,7 +78,7 @@ const DEFAULT_PROBES = Object.freeze([
         id: "technical_intent_priority",
         path: "/gestia-core/jarvis/jarvis.multifunction.planner.js",
         markers: [
-            "3.8.0-semantic-coverage-audit",
+            "3.9.0-deferred-grounded-contracts",
             "jarvisSemanticPlan",
             "trustedPlanCalls"
         ]

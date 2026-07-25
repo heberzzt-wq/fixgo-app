@@ -241,7 +241,7 @@ test("daily supervisor probes current V7 deployment signatures", () => {
 
     assert.ok(terminalProbe.markers.includes("parallel-delegation-human-actuator-responses"));
     assert.ok(webProbe.markers.includes("1.7.0-sia7-bounded-supervision-forensics"));
-    assert.ok(cognitionProbe.markers.includes("3.8.0-semantic-coverage-audit"));
+    assert.ok(cognitionProbe.markers.includes("3.9.0-deferred-grounded-contracts"));
 });
 
 test("supervision endpoints stay isolated from optional Stripe and Gemini initialization", () => {

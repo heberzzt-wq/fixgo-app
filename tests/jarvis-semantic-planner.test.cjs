@@ -1039,7 +1039,26 @@ test("independent Gemini coverage restores a specialized deliverable missed twic
         name,
         description: `Herramienta ${name}`,
         mutates: false,
-        requiresApproval: false
+        requiresApproval: false,
+        inputSchema: name === "reel.plan"
+            ? {
+                type: "object",
+                required: [
+                    "brandName",
+                    "title",
+                    "cta",
+                    "durationSeconds",
+                    "scenes"
+                ],
+                properties: {
+                    brandName: { type: "string" },
+                    title: { type: "string" },
+                    cta: { type: "string" },
+                    durationSeconds: { type: "number" },
+                    scenes: { type: "array" }
+                }
+            }
+            : null
     }));
     let requestCount = 0;
     const result = await runGeminiSemanticPlanner({
@@ -1101,6 +1120,10 @@ test("independent Gemini coverage restores a specialized deliverable missed twic
     assert.equal(
         result.toolCalls[4].args.durationSeconds,
         30
+    );
+    assert.equal(
+        result.toolCalls[4].deferred,
+        true
     );
 });
 

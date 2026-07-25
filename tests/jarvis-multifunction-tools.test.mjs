@@ -285,6 +285,25 @@ test("browser planner blocks tool calls with missing required arguments", () => 
         ).length,
         1
     );
+
+    const deferred =
+        plannerTest.trustedPlanCalls(
+            {
+                planKind:
+                    "MISSION_CONTRACT_AUDITED",
+                toolCalls: [{
+                    name:
+                        "repo.read",
+                    args:
+                        {}
+                }]
+            },
+            catalog,
+            {}
+        );
+
+    assert.equal(deferred.length, 1);
+    assert.equal(deferred[0].deferred, true);
 });
 
 test("multifunction pack registers certification and remains read-only", () => {
@@ -1784,8 +1803,8 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-independent-coverage-reports-v58-20260724/);
-    assert.match(terminal, /jarvis-tools-v7-20260724-complete-reports-v57/);
+    assert.match(terminal, /sia7-deferred-grounded-contracts-v59-20260724/);
+    assert.match(terminal, /jarvis-tools-v7-20260724-deferred-contracts-v59/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -1966,7 +1985,7 @@ test("daily supervision cloud lookup has a bounded browser deadline", () => {
     assert.match(source, /signal:\s*controller\.signal/);
     assert.match(source, /SUPERVISION_STATUS_TIMEOUT_/);
     assert.match(source, /clearTimeout\(timeoutId\)/);
-    assert.match(source, /3\.8\.0-semantic-coverage-audit/);
+    assert.match(source, /3\.9\.0-deferred-grounded-contracts/);
     assert.doesNotMatch(source, /3\.0\.0-model-semantic-planner/);
 });
 
