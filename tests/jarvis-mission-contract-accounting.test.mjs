@@ -78,18 +78,32 @@ test("mission contract keeps blocked marketing and dependent deliverables missin
     assert.equal(mission.status, "PARTIAL");
 });
 
-test("approval-blocked required work remains missing without being retried", async () => {
-    let attempts = 0;
+test("approval-blocked work stops dependent tasks and remains missing", async () => {
+    const executed = [];
     const mission = await runJarvisMission({
-        instruction: "Prepara la página, pero no publiques sin aprobación.",
-        initialToolCalls: [{
-            name: "page.create",
-            args: { output: "landing.html" }
-        }],
-        requiredToolNames: ["page.create"],
+        instruction: "Prepara y publica la página solamente después de aprobación.",
+        initialToolCalls: [
+            {
+                name: "page.create",
+                args: { output: "landing.html" }
+            },
+            {
+                name: "page.publish",
+                args: { input: "landing.html" }
+            },
+            {
+                name: "analytics.verify",
+                args: { target: "landing.html" }
+            }
+        ],
+        requiredToolNames: [
+            "page.create",
+            "page.publish",
+            "analytics.verify"
+        ],
         planner: async () => ({ toolCalls: [], missionComplete: true }),
-        execute: async () => {
-            attempts += 1;
+        execute: async call => {
+            executed.push(call.name);
             return {
                 ok: true,
                 status: "PENDING_APPROVAL",
@@ -100,11 +114,19 @@ test("approval-blocked required work remains missing without being retried", asy
         maximumRetries: 2
     });
 
-    assert.equal(attempts, 1);
+    assert.deepEqual(executed, ["page.create"]);
     assert.equal(mission.blockedTasks.length, 1);
+    assert.equal(mission.blockedTasks[0].name, "page.create");
     assert.equal(mission.blockedTasks[0].observation.requiresApproval, true);
-    assert.deepEqual(mission.contractMissingTools, ["page.create"]);
-    assert.equal(mission.reason, "PARTIAL_CAPABILITY_BLOCKED");
+    assert.deepEqual(
+        mission.pendingTasks.map(item => item.name),
+        ["page.publish", "analytics.verify"]
+    );
+    assert.deepEqual(
+        mission.contractMissingTools,
+        ["page.create", "page.publish", "analytics.verify"]
+    );
+    assert.equal(mission.reason, "MISSION_APPROVAL_REQUIRED");
     assert.equal(mission.status, "PARTIAL");
 });
 
