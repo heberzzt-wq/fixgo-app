@@ -1,5 +1,5 @@
 /**
- * GESTIA RESPONSE COMPOSER - v7.1 (SEMANTIC CONTRACT)
+ * GESTIA RESPONSE COMPOSER - v7.2 (SEMANTIC RUNTIME CONTRACT)
  * Objetivo: Estandarizar todas las salidas del sistema para Front-end, Terminal y Agent Tool Runtime.
  * Estructura estándar SIA7: { ok, status, type, data, meta, traceId }
  */
@@ -125,6 +125,46 @@ function aggregateObservationSemantics(observations = []) {
             )
         ].slice(0, 20)
     };
+}
+
+function semanticRuntimeEnvelope(result = {}) {
+    if (!result || typeof result !== "object") return result;
+    const payload =
+        result?.data &&
+        typeof result.data === "object" &&
+        !Array.isArray(result.data)
+            ? result.data
+            : result;
+    const semantics = normalizeToolSemantics(payload);
+
+    return {
+        ...result,
+        ...semantics,
+        status: semantics.status,
+        data: result.data
+    };
+}
+
+function installSemanticRuntimeEnvelope(runtime = globalThis.window?.JarvisToolRuntime) {
+    if (!runtime || typeof runtime.execute !== "function") return false;
+    if (runtime.__semanticEnvelopeInstalled === true) return true;
+
+    const execute = runtime.execute.bind(runtime);
+    runtime.execute = async (...args) =>
+        semanticRuntimeEnvelope(
+            await execute(...args)
+        );
+    Object.defineProperty(
+        runtime,
+        "__semanticEnvelopeInstalled",
+        {
+            value: true,
+            configurable: false,
+            enumerable: false,
+            writable: false
+        }
+    );
+    return true;
 }
 
 export const ResponseComposer = {
@@ -370,12 +410,15 @@ export const ResponseComposer = {
 
 export const __test = {
     aggregateObservationSemantics,
-    normalizeToolSemantics
+    installSemanticRuntimeEnvelope,
+    normalizeToolSemantics,
+    semanticRuntimeEnvelope
 };
 
 window.ResponseComposer = ResponseComposer;
 window.GestiaResponseComposer = ResponseComposer;
+installSemanticRuntimeEnvelope();
 
 console.info(
-    "📦 [RESPONSE_COMPOSER] ONLINE v7.1 semantic-contract"
+    "📦 [RESPONSE_COMPOSER] ONLINE v7.2 semantic-runtime-contract"
 );
