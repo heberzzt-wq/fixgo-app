@@ -23,7 +23,7 @@ import {
 
 import {
     completeJarvisPlanningArguments
-} from "./jarvis.multifunction.planner.js?v=sia7-exact-entity-mission-v45-20260724";
+} from "./jarvis.multifunction.planner.js?v=sia7-multi-instance-tools-v53-20260724";
 
 const VERSION = "1.25.0-grounded-deliverable-arguments";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
@@ -988,7 +988,7 @@ const LOCAL_SUPERVISION_PROBES = [
         id: "technical_intent_priority",
         path: "/gestia-core/jarvis/jarvis.multifunction.planner.js",
         markers: [
-            "3.6.0-verified-definition-audit",
+            "3.7.0-multi-instance-tool-contract",
             "jarvisSemanticPlan",
             "trustedPlanCalls"
         ]

@@ -40,7 +40,7 @@ import {
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     buildJarvisMultifunctionToolCalls
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-exact-entity-mission-v45-20260724';
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-multi-instance-tools-v53-20260724';
 import {
     runJarvisMission
 } from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-grounded-execution-args-v51-20260724';
@@ -194,9 +194,9 @@ import {
     sincronizarCorralSemantico,
     getSemanticCognitiveState
 } from '/gestia-core/semantic.engine.js?v=sia7-model-context-v8-20260714';
-import '/gestia-core/brain.engine.js?v=sia7-exact-entity-mission-v45-20260724';
+import '/gestia-core/brain.engine.js?v=sia7-multi-instance-tools-v53-20260724';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260724-supervision-v49';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260724-multi-instance-v53';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260714-safe-image-artifacts';
 

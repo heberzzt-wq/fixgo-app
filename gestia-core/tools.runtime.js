@@ -5,7 +5,7 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-supervision-current-planner-v49-20260724";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-multi-instance-tools-v53-20260724";
 import {
     registerJarvisActuatorTools
 } from "./jarvis/jarvis.actuator.pack.js?v=sia7-real-actuators-v3.6-pdf-visual-20260714";

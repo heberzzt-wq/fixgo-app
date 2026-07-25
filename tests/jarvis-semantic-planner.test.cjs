@@ -96,6 +96,48 @@ test("semantic planner rejects calls missing schema-required arguments", () => {
     );
 });
 
+test("semantic planner preserves repeated tools for independent arguments", () => {
+    const searchTool = {
+        name: "repo.search",
+        mutates: false,
+        inputSchema: {
+            type: "object",
+            required: ["query"],
+            properties: {
+                query: { type: "string" }
+            }
+        }
+    };
+    const plan = validatePlan(
+        {
+            toolCalls: [
+                {
+                    name: "repo.search",
+                    args: { query: "tecnico b2b" }
+                },
+                {
+                    name: "repo.search",
+                    args: { query: "admin route" }
+                },
+                {
+                    name: "repo.search",
+                    args: { query: "tecnico b2b" }
+                }
+            ]
+        },
+        [searchTool],
+        "revisa ambos objetivos"
+    );
+
+    assert.deepEqual(
+        plan.toolCalls.map(call => call.args.query),
+        [
+            "tecnico b2b",
+            "admin route"
+        ]
+    );
+});
+
 test("semantic response uses the authenticated provider chain and reports provenance", async () => {
     const result = await runJarvisSemanticResponse({
         input: "Integra solamente la evidencia entregada.",

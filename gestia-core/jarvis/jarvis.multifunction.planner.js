@@ -1,4 +1,4 @@
-const VERSION = "3.6.0-verified-definition-audit";
+const VERSION = "3.7.0-multi-instance-tool-contract";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
@@ -40,6 +40,7 @@ async function callBrowserMissionContract(input = "", catalog = []) {
         "Eres el planificador semantico de Jarvis V7.",
         "Devuelve solamente JSON valido.",
         "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only necesarias para TODOS los entregables, no solo la primera etapa. No omitas landing, imagen, reel, inventario o autoevaluacion cuando se pidan. Conserva el orden y usa missionComplete=false.",
+        "No colapses sujetos u objetivos independientes. Repite el mismo nombre de herramienta cuando necesite argumentos distintos para cubrirlos por separado.",
         `CATALOGO=${catalog.map(tool => tool.name).join(",")}`,
         `INSTRUCCION=${boundedInstruction}`
     ].join("\n");
@@ -85,6 +86,7 @@ async function callBrowserSemanticPlan(input = "", catalog = [], missionState = 
         "Eres el planificador semantico de herramientas de Jarvis V7.",
         "Interpreta significado, typos, negaciones y ordenes mixtas. Selecciona exclusivamente nombres exactos del catalogo.",
         "No autorices escrituras. Conserva todas las intenciones independientes y usa herramientas especializadas para entregables operativos.",
+        "Si varios objetivos requieren la misma herramienta con argumentos distintos, devuelve una llamada separada para cada uno.",
         "Si una investigacion limita fuentes a un dominio, copia el dominio exacto en allowedDomain de web.research.",
         "Si una investigacion pide hechos sobre una entidad nombrada sin dominio, copia el nombre exacto en exactEntity de web.research.",
         missionState?.phase === "COMPLETION_AUDIT"
@@ -164,15 +166,18 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
 
     for (const candidate of candidates.slice(0, 12)) {
         const tool = allowed.get(String(candidate?.name || ""));
-        if (!tool || seen.has(tool.name)) continue;
-        seen.add(tool.name);
-
         const args =
             (candidate?.args || candidate?.arguments) &&
             typeof (candidate.args || candidate.arguments) === "object" &&
             !Array.isArray(candidate.args || candidate.arguments)
                 ? (candidate.args || candidate.arguments)
                 : {};
+        if (!tool) continue;
+        const signature =
+            `${tool.name}:${JSON.stringify(args)}`;
+        if (seen.has(signature)) continue;
+        seen.add(signature);
+
         if (!hasRequiredToolArguments(tool, args)) continue;
 
         calls.push({

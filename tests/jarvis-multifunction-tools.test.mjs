@@ -1126,6 +1126,35 @@ test("multifunction planner preserves every mixed command selected by the model"
     );
 });
 
+test("multifunction planner preserves repeated tools for independent targets", async () => {
+    const calls =
+        await planWithModel(
+            "Revisa tecnico b2b y tambien la ruta de admin.",
+            [
+                {
+                    name: "repo.search",
+                    args: { query: "tecnico b2b" }
+                },
+                {
+                    name: "repo.search",
+                    args: { query: "admin route" }
+                },
+                {
+                    name: "repo.search",
+                    args: { query: "tecnico b2b" }
+                }
+            ]
+        );
+
+    assert.deepEqual(
+        calls.map(call => call.args.query),
+        [
+            "tecnico b2b",
+            "admin route"
+        ]
+    );
+});
+
 test("terminal preserves operational tools when a mixed command also contains a greeting", () => {
     const terminal = fs.readFileSync(
         path.join(__dirname, "..", "gestia-terminal.html"),
@@ -1687,7 +1716,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(core, /observation\?\.type === "JARVIS_CONVERSATIONAL_RESPONSE"/);
     assert.match(core, /DIRECT_ACTUATOR_COMPOSITION/);
     assert.match(core, /directActuatorFinalResponse/);
-    assert.match(terminal, /sia7-balanced-mission-evidence-v52-20260724/);
+    assert.match(terminal, /sia7-multi-instance-tools-v53-20260724/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -1868,7 +1897,7 @@ test("daily supervision cloud lookup has a bounded browser deadline", () => {
     assert.match(source, /signal:\s*controller\.signal/);
     assert.match(source, /SUPERVISION_STATUS_TIMEOUT_/);
     assert.match(source, /clearTimeout\(timeoutId\)/);
-    assert.match(source, /3\.6\.0-verified-definition-audit/);
+    assert.match(source, /3\.7\.0-multi-instance-tool-contract/);
     assert.doesNotMatch(source, /3\.0\.0-model-semantic-planner/);
 });
 
