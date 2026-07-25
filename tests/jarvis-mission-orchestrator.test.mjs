@@ -64,6 +64,61 @@ test("mission continues from research through marketing, page and reel planning"
     assert.deepEqual(recovered.requiredToolNames, sequence);
 });
 
+test("mission grounds dependent execution arguments with prior evidence", async () => {
+    const mission = await runJarvisMission({
+        instruction: "Revisa tecnico b2b y explica su impacto sin modificar.",
+        initialToolCalls: [
+            {
+                name: "repo.search",
+                args: { query: "tecnico b2b" }
+            },
+            {
+                name: "repo.impact",
+                args: { file: "b2b.html" }
+            }
+        ],
+        requiredToolNames: ["repo.search", "repo.impact"],
+        planner: async () => ({
+            toolCalls: [],
+            missionComplete: false
+        }),
+        execute: async (call, context) => {
+            if (call.name === "repo.search") {
+                assert.deepEqual(context.completedTasks, []);
+                return {
+                    ok: true,
+                    status: "COMPLETED",
+                    results: [{ file: "tecnico-b2b.html" }]
+                };
+            }
+
+            assert.equal(context.completedTasks.length, 1);
+            assert.equal(context.completedTasks[0].name, "repo.search");
+            return {
+                ok: true,
+                status: "IMPACT_READY_LIVE",
+                missionExecution: {
+                    name: "repo.impact",
+                    args: { file: "tecnico-b2b.html" },
+                    argumentGrounded: true
+                }
+            };
+        },
+        storage: memoryStorage()
+    });
+
+    assert.equal(mission.reason, "ALL_EXECUTABLE_TASKS_COMPLETED");
+    assert.equal(mission.status, "COMPLETED");
+    assert.deepEqual(
+        mission.completedTasks.find(item => item.name === "repo.impact").args,
+        { file: "tecnico-b2b.html" }
+    );
+    assert.deepEqual(
+        mission.observations.find(item => item.tool === "repo.impact").args,
+        { file: "tecnico-b2b.html" }
+    );
+});
+
 test("mission stops dependent deliverables when marketing requires input", async () => {
     const sequence = [
         "web.research",

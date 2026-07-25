@@ -43,7 +43,7 @@ import {
 } from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-exact-entity-mission-v45-20260724';
 import {
     runJarvisMission
-} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-mission-complete-evidence-v48-20260724';
+} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-grounded-execution-args-v51-20260724';
 import {
     resolveExplicitRepositoryTargets
 } from '/gestia-core/repo/repo.source.structure.js?v=sia7-explicit-repo-targets-v3-20260724';
@@ -5393,8 +5393,97 @@ if (
                 },
             execute:
                 async (call, missionContext) => {
+                    const toolDefinition =
+                        registeredMissionTools.find(tool =>
+                            tool?.name === call?.name
+                        ) ||
+                        null;
+                    let executionCall =
+                        {
+                            ...call,
+                            args: {
+                                ...(call?.args || {})
+                            },
+                            approved:
+                                false
+                        };
+                    let argumentGrounded =
+                        false;
+
+                    if (
+                        toolDefinition?.inputSchema &&
+                        Array.isArray(missionContext?.completedTasks) &&
+                        missionContext.completedTasks.length > 0
+                    ) {
+                        try {
+                            const groundedCalls =
+                                await buildJarvisMultifunctionToolCalls(
+                                    missionContext.rawInput.slice(0, 120000),
+                                    {
+                                        ...context,
+                                        throwOnUnavailable:
+                                            true,
+                                        toolCatalog:
+                                            [
+                                                toolDefinition
+                                            ],
+                                        missionState: {
+                                            phase:
+                                                "EXECUTION_ARGUMENT_AUDIT",
+                                            missionId:
+                                                missionContext.missionId,
+                                            caseId:
+                                                missionContext.caseId,
+                                            objectiveId:
+                                                missionContext.objectiveId,
+                                            toolName:
+                                                call.name,
+                                            currentArgs:
+                                                call.args || {},
+                                            completedTasks:
+                                                missionContext.completedTasks,
+                                            blockedTasks:
+                                                missionContext.blockedTasks || [],
+                                            writeAllowed:
+                                                false
+                                        }
+                                    }
+                                );
+                            const groundedCall =
+                                groundedCalls.find(candidate =>
+                                    candidate?.name === call.name
+                                ) ||
+                                null;
+
+                            if (groundedCall) {
+                                executionCall =
+                                    {
+                                        ...executionCall,
+                                        args: {
+                                            ...executionCall.args,
+                                            ...(groundedCall.args || {})
+                                        },
+                                        approved:
+                                            false
+                                    };
+                                argumentGrounded =
+                                    true;
+                            }
+                        }
+                        catch(error) {
+                            console.warn(
+                                "[MISSION_ARGUMENT_AUDIT_FALLBACK]",
+                                call?.name,
+                                error?.message ||
+                                "SEMANTIC_ARGUMENT_AUDIT_UNAVAILABLE"
+                            );
+                        }
+                    }
+
                     const results = await window.ToolsBridge.executeMany(
-                        [call],
+                        [
+                            executionCall
+                        ],
                         {
                             ...context,
                             ...missionContext,
@@ -5411,7 +5500,25 @@ if (
                                 false
                         }
                     );
-                    return results[0] || { ok: false, status: "EMPTY_TOOL_OBSERVATION" };
+                    const result =
+                        results[0] ||
+                        {
+                            ok:
+                                false,
+                            status:
+                                "EMPTY_TOOL_OBSERVATION"
+                        };
+
+                    return {
+                        ...result,
+                        missionExecution: {
+                            name:
+                                executionCall.name,
+                            args:
+                                executionCall.args,
+                            argumentGrounded
+                        }
+                    };
                 }
         });
 

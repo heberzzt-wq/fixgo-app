@@ -316,6 +316,17 @@ export async function runJarvisMission({
                 caseId: mission.caseId,
                 objectiveId: mission.objectiveId,
                 rawInput: originalInstruction,
+                completedTasks: mission.completedTasks.map(item => ({
+                    name: item.name,
+                    args: item.args,
+                    observation: item.observation
+                })),
+                blockedTasks: mission.blockedTasks.map(item => ({
+                    name: item.name,
+                    args: item.args,
+                    reason: item.reason,
+                    observation: item.observation
+                })),
                 validSources: mission.completedTasks
                     .flatMap(item => item.observation?.validSources || [])
                     .slice(0, 20),
@@ -327,6 +338,12 @@ export async function runJarvisMission({
         }
 
         const observation = safeObservation(result);
+        const executedArgs =
+            result?.missionExecution?.args &&
+            typeof result.missionExecution.args === "object" &&
+            !Array.isArray(result.missionExecution.args)
+                ? result.missionExecution.args
+                : task.args;
         runtimeResults.push(result);
         const recordStatus = observation.objectiveSatisfied
             ? "COMPLETED"
@@ -335,12 +352,19 @@ export async function runJarvisMission({
                 : "FAILED";
         const record = {
             ...task,
+            args: executedArgs,
             status: recordStatus,
             observation,
             completedAt: now()
         };
         mission.executedTools.push(task.name);
-        mission.observations.push({ tool: task.name, signature: task.signature, ...observation, at: now() });
+        mission.observations.push({
+            tool: task.name,
+            args: executedArgs,
+            signature: task.signature,
+            ...observation,
+            at: now()
+        });
 
         if (observation.objectiveSatisfied) {
             mission.completedTasks.push(record);
