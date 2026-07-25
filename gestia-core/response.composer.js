@@ -1,8 +1,131 @@
 /**
- * GESTIA RESPONSE COMPOSER - v7.0 (PRODUCTION GRADE)
+ * GESTIA RESPONSE COMPOSER - v7.1 (SEMANTIC CONTRACT)
  * Objetivo: Estandarizar todas las salidas del sistema para Front-end, Terminal y Agent Tool Runtime.
  * Estructura estándar SIA7: { ok, status, type, data, meta, traceId }
  */
+
+function semanticStatus(value = "", fallback = "COMPLETED") {
+    const status = String(value || fallback).trim();
+    return status || fallback;
+}
+
+function normalizeToolSemantics(result = {}) {
+    const status = semanticStatus(
+        result?.status,
+        result?.ok === false ? "FAILED" : "COMPLETED"
+    );
+    const normalizedStatus = status.toUpperCase();
+    const executionOk =
+        typeof result?.executionOk === "boolean"
+            ? result.executionOk
+            : result?.ok !== false;
+    const missingInputs = Array.isArray(result?.missingInputs)
+        ? result.missingInputs.filter(Boolean).slice(0, 20)
+        : [];
+    const requiresInput =
+        result?.requiresInput === true ||
+        normalizedStatus.includes("INPUT_REQUIRED") ||
+        missingInputs.length > 0;
+    const requiresApproval =
+        result?.requiresApproval === true ||
+        normalizedStatus.includes("PENDING_APPROVAL");
+    const failedStatus =
+        normalizedStatus === "FAILED" ||
+        normalizedStatus === "TOOL_FAILED" ||
+        normalizedStatus.endsWith("_FAILED");
+    const degraded =
+        result?.degraded === true ||
+        normalizedStatus.includes("DEGRADED") ||
+        normalizedStatus === "GROUNDED_LOCAL_FALLBACK" ||
+        Boolean(result?.cloudError);
+    const explicitObjectiveSatisfied =
+        typeof result?.objectiveSatisfied === "boolean"
+            ? result.objectiveSatisfied
+            : null;
+    const objectiveSatisfied =
+        executionOk &&
+        !failedStatus &&
+        !requiresInput &&
+        !requiresApproval &&
+        (
+            explicitObjectiveSatisfied !== null
+                ? explicitObjectiveSatisfied
+                : result?.readyForProduction !== false
+        );
+    const blocked =
+        result?.blocked === true ||
+        requiresInput ||
+        requiresApproval;
+    const retryable =
+        typeof result?.retryable === "boolean"
+            ? result.retryable
+            : !executionOk && !blocked;
+
+    return {
+        ok: executionOk,
+        executionOk,
+        objectiveSatisfied,
+        status,
+        requiresInput,
+        requiresApproval,
+        blocked,
+        degraded,
+        retryable,
+        missingInputs
+    };
+}
+
+function aggregateObservationSemantics(observations = []) {
+    const safeObservations = Array.isArray(observations)
+        ? observations.filter(Boolean)
+        : [];
+    const semantics = safeObservations.map(observation => ({
+        ...normalizeToolSemantics(observation?.data || observation),
+        status:
+            observation?.status ||
+            observation?.data?.status ||
+            "COMPLETED"
+    }));
+
+    if (semantics.length === 0) {
+        return normalizeToolSemantics({
+            ok: true,
+            status: "SUCCESS",
+            objectiveSatisfied: true
+        });
+    }
+
+    const executionOk = semantics.every(item => item.executionOk === true);
+    const objectiveSatisfied = semantics.every(item => item.objectiveSatisfied === true);
+    const requiresInput = semantics.some(item => item.requiresInput === true);
+    const requiresApproval = semantics.some(item => item.requiresApproval === true);
+    const blocked = semantics.some(item => item.blocked === true);
+    const degraded = semantics.some(item => item.degraded === true);
+    const retryable = semantics.some(item => item.retryable === true);
+    const unresolved = semantics.find(item => item.objectiveSatisfied !== true);
+    const degradedResult = semantics.find(item => item.degraded === true);
+    const status =
+        unresolved?.status ||
+        degradedResult?.status ||
+        "SUCCESS";
+
+    return {
+        ok: executionOk,
+        executionOk,
+        objectiveSatisfied,
+        status,
+        requiresInput,
+        requiresApproval,
+        blocked,
+        degraded,
+        retryable,
+        missingInputs: [
+            ...new Set(
+                semantics.flatMap(item => item.missingInputs || [])
+            )
+        ].slice(0, 20)
+    };
+}
 
 export const ResponseComposer = {
 
@@ -33,6 +156,10 @@ export const ResponseComposer = {
 
         return {
             ok: false,
+            executionOk: false,
+            objectiveSatisfied: false,
+            blocked: true,
+            retryable: false,
             status: "ERROR",
             type: "ERROR_RESPONSE",
             error: {
@@ -94,10 +221,10 @@ export const ResponseComposer = {
 
     composeToolObservation(toolName = "", result = {}, meta = {}) {
         const traceId = this._generateTraceId();
+        const semantics = normalizeToolSemantics(result);
 
         return {
-            ok: result?.ok !== false,
-            status: result?.ok === false ? "FAILED" : "COMPLETED",
+            ...semantics,
             type: "TOOL_OBSERVATION",
             tool: toolName,
             data: result,
@@ -119,10 +246,10 @@ export const ResponseComposer = {
         meta = {}
     } = {}) {
         const traceId = this._generateTraceId();
+        const semantics = aggregateObservationSemantics(observations);
 
         return {
-            ok: true,
-            status: "SUCCESS",
+            ...semantics,
             type: "AGENT_TOOL_RESULT",
             analysis_id: analysisId,
             operation_id: analysisId,
@@ -135,7 +262,8 @@ export const ResponseComposer = {
                 toolCalls,
                 observations,
                 response,
-                reasoning
+                reasoning,
+                semantic: semantics
             },
             meta: {
                 ...meta,
@@ -240,9 +368,14 @@ export const ResponseComposer = {
     }
 };
 
+export const __test = {
+    aggregateObservationSemantics,
+    normalizeToolSemantics
+};
+
 window.ResponseComposer = ResponseComposer;
 window.GestiaResponseComposer = ResponseComposer;
 
 console.info(
-    "📦 [RESPONSE_COMPOSER] ONLINE v7.0"
+    "📦 [RESPONSE_COMPOSER] ONLINE v7.1 semantic-contract"
 );
