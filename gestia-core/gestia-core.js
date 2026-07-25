@@ -5515,6 +5515,20 @@ if (
             ...toolObservations,
             ...followUpObservations
         ];
+    const verifiedMissionToolNames =
+        [
+            ...new Set(
+                [
+                    ...missionResult.executedTools,
+                    ...followUpPlan
+                        .followUpToolCalls
+                        .map(call =>
+                            call?.name
+                        )
+                        .filter(Boolean)
+                ]
+            )
+        ];
 
     let semanticMissionFinalResponse = null;
 
@@ -5529,7 +5543,17 @@ if (
                 observation:
                     item
             })),
-            ...missionResult.completedTasks
+            ...missionResult.completedTasks,
+            ...followUpObservations.map(
+                (observation, index) => ({
+                    name:
+                        followUpPlan
+                            .followUpToolCalls[index]
+                            ?.name ||
+                        "followup.readonly",
+                    observation
+                })
+            )
         ]
             .map(item => {
                 let serialized;
@@ -5566,7 +5590,7 @@ if (
             `MISSION_ID=${missionResult.missionId}`,
             `OBJECTIVE_ID=${missionResult.objectiveId}`,
             `INSTRUCTION_HASH=${missionResult.instructionHash}`,
-            `HERRAMIENTAS_EJECUTADAS=${missionResult.executedTools.join(", ")}`,
+            `HERRAMIENTAS_EJECUTADAS=${verifiedMissionToolNames.join(", ")}`,
             `ESTADO=${missionResult.status}`,
             `MOTIVO_CIERRE=${missionResult.reason}`,
             `INSTRUCCION_ORIGINAL=${boundedInstruction}`,
@@ -5616,7 +5640,7 @@ if (
                     text: [
                         compositionText,
                         "",
-                        `Herramientas ejecutadas verificadas: ${missionResult.executedTools.join(", ")}.`,
+                        `Herramientas ejecutadas verificadas: ${verifiedMissionToolNames.join(", ")}.`,
                         `Compositor semantico: ${compositionPayload?.provider || "proveedor verificado"}${compositionPayload?.model ? ` / ${compositionPayload.model}` : ""}.`,
                         "Escrituras y publicaciones automaticas: no ejecutadas."
                     ].join("\n"),
