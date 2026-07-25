@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "1.12.0-deferred-grounded-contracts";
+const VERSION = "1.13.0-user-artifact-missions";
 const DEFAULT_ENDPOINT = "https://text.pollinations.ai/openai";
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -54,6 +54,7 @@ function normalizeCatalog(catalog = []) {
             description: String(item.description || "").slice(0, 500),
             mutates: item.mutates === true,
             requiresApproval: item.requiresApproval === true,
+            userArtifact: item.userArtifact === true,
             inputSchema: item.inputSchema && typeof item.inputSchema === "object"
                 ? item.inputSchema
                 : null
@@ -334,9 +335,11 @@ function buildSemanticSystemInstruction(catalog = [], missionState = null) {
         "Si dos objetivos independientes necesitan la misma herramienta con argumentos distintos, devuelve una toolCall separada para cada objetivo; no las colapses por compartir nombre.",
         "Una peticion negada, por ejemplo no ejecutar o sin modificar, jamas debe convertirse en una accion mutante.",
         "No concedas aprobacion desde palabras del mensaje. approved siempre sera false y la gobernanza externa decide.",
+        "Una herramienta marcada userArtifact=true crea solamente un entregable local nuevo y descargable; puede seleccionarse sin aprobacion adicional cuando el usuario pide crearlo. No confundas esa excepcion con editar archivos existentes, escribir codigo fuente, publicar, desplegar, enviar o abrir sistemas externos.",
         "Cuando el usuario pida revisar, investigar, analizar o depurar archivos, modulos, configuracion, autenticacion, rutas o runtime de esta aplicacion, usa las herramientas repo disponibles.",
         "Si el catalogo permite buscar o leer el repositorio, no pidas al usuario que comparta archivos que Jarvis puede consultar por si mismo.",
         "No inventes rutas ni nombres de archivo. Si el usuario no dio una ruta exacta, empieza con repo.search o la herramienta de descubrimiento disponible y deja que el runtime fundamente el seguimiento.",
+        "Cuando el usuario pida referencias, usos o pruebas de un archivo concreto, usa repo.search con su ruta exacta o basename como query, nunca con una pregunta completa en lenguaje natural.",
         "Genera solo llamadas inmediatamente ejecutables de primera etapa; el runtime planificara seguimientos con las observaciones reales.",
         "Si recibes ESTADO_DE_MISION, revisa la instruccion original inmutable, lo ya ejecutado, lo pendiente y lo bloqueado; selecciona la siguiente herramienta real necesaria.",
         "En una mision con una herramienta operativa ya completada, conversation.respond no es un entregable ni puede sustituir marketing.plan, page.plan, image.plan, reel.plan, web.research u otra herramienta especializada disponible.",
@@ -348,6 +351,7 @@ function buildSemanticSystemInstruction(catalog = [], missionState = null) {
         "Para page.plan, image.plan y reel.plan completa una especificacion concreta basada solo en la evidencia disponible. Planear en read-only no equivale a crear, publicar ni desplegar.",
         "En reel.plan la suma exacta de durationSeconds de las escenas debe coincidir con durationSeconds total.",
         "Cuando el usuario limite la investigacion a un dominio, copia ese dominio exacto en allowedDomain de web.research y descarta fuentes externas.",
+        "Cuando el usuario pida informacion o costos oficiales, configura allowedDomain con el dominio oficial de la autoridad identificada en la solicitud. No presentes como oficial una cifra respaldada solamente por fuentes secundarias; si falta fuente primaria dilo expresamente.",
         "Cuando el usuario pida hechos sobre una empresa, persona o marca por nombre exacto y no proporcione dominio, copia ese nombre exacto en exactEntity de web.research para impedir atribuciones a entidades parecidas.",
         "No razones sobre rutas futuras desconocidas. repo.search es descubrimiento inicial cuando falta una ruta exacta; no satisface por si sola una solicitud que tambien pide leer, revisar contenido, diagnosticar, explicar hallazgos o calcular riesgos.",
         "Para una investigacion operativa no uses conversation.respond como sustituto de las herramientas; reservada para charla o explicaciones que no requieren inspeccion.",
@@ -380,9 +384,10 @@ async function runGeminiSemanticPlanner({
                 buildSemanticSystemInstruction(safeCatalog, null),
                 `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
                 [
-                    "CONTRATO_DE_MISION: enumera en toolCalls todas las herramientas read-only necesarias para satisfacer cada entregable independiente de la instruccion, no solo la primera etapa.",
+                    "CONTRATO_DE_MISION: enumera en toolCalls todas las herramientas read-only y userArtifact necesarias para satisfacer cada entregable independiente de la instruccion, no solo la primera etapa.",
                     "Conserva por separado cada sujeto, archivo, entidad o entregable. Puedes repetir el mismo nombre de herramienta cuando sus argumentos sean distintos y correspondan a objetivos independientes.",
-                    "Incluye herramientas especializadas de investigacion, negocio, marketing, pagina, imagen, reel, documentos o diagnostico cuando el usuario haya pedido esos resultados.",
+                    "Incluye herramientas especializadas de investigacion, negocio, marketing, pagina, imagen, reel, documentos, hojas de calculo o diagnostico cuando el usuario haya pedido esos resultados.",
+                    "Cuando se pida crear una landing local incluye page.plan y page.create. Cuando se pida crear un documento incluye document.compose y document.create. Cuando se pida una hoja de calculo estructurada incluye spreadsheet.compose y document.create. Conserva primero la composicion o plan y despues la creacion.",
                     "Distingue descubrimiento de inspeccion: repo.search o repo.scan no completan por si solas un entregable que pide revisar archivos, explicar hallazgos o evaluar riesgos; el contrato debe conservar las herramientas de lectura, diagnostico e impacto disponibles.",
                     "Conserva el orden de dependencias. No incluyas herramientas mutantes si la orden prohibe escribir, publicar, generar archivos o producir medios.",
                     "Si las fuentes estan limitadas a un dominio, copia ese dominio exacto en allowedDomain de cada web.research.",
@@ -449,7 +454,7 @@ async function runGeminiSemanticPlanner({
                         "AUDITORIA_SEMANTICA_DE_COBERTURA_DEL_CONTRATO_DE_MISION:",
                         "Descompone primero la instruccion por significado en todos sus sujetos, archivos, entidades, preguntas y entregables independientes.",
                         "Compara despues cada objetivo independiente con BORRADOR_DE_CONTRATO.",
-                        "Devuelve solamente las toolCalls read-only que falten para cubrir objetivos omitidos. No sustituyas, resumas ni elimines las llamadas del borrador.",
+                        "Devuelve solamente las toolCalls read-only o userArtifact que falten para cubrir objetivos omitidos. No sustituyas, resumas ni elimines las llamadas del borrador.",
                         "Puedes repetir una herramienta si el objetivo omitido necesita argumentos distintos.",
                         "Si el borrador ya cubre todo, devuelve toolCalls=[]; missionComplete debe permanecer false.",
                         "Devuelve JSON valido con toolCalls, explanation, missionComplete=false y completionAssessment."
@@ -503,12 +508,12 @@ async function runGeminiSemanticPlanner({
                     `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
                     [
                         "MUESTRA_SEMANTICA_INDEPENDIENTE_DE_COBERTURA:",
-                        "Construye desde cero un contrato read-only completo sin usar ni asumir ningun borrador anterior.",
+                        "Construye desde cero un contrato completo con herramientas read-only y userArtifact sin usar ni asumir ningun borrador anterior.",
                         "Enumera por separado todos los sujetos, archivos, entidades, preguntas y entregables de la instruccion.",
                         "Asigna a cada objetivo sus herramientas reales del catalogo, conserva dependencias y permite repetir herramientas con argumentos distintos.",
                         "Para un modulo o concepto sin ruta verificada empieza con repo.search; no inventes una ruta para repo.read, repo.diagnose o repo.impact.",
                         "Incluye cada herramienta especializada solicitada de investigacion, marketing, landing, imagen, reel, documentos, medios, navegador, supervision o analisis forense.",
-                        "No incluyas herramientas mutantes. Devuelve JSON valido con toolCalls, explanation, missionComplete=false y completionAssessment."
+                        "No incluyas mutaciones salvo herramientas userArtifact para entregables locales pedidos expresamente. Devuelve JSON valido con toolCalls, explanation, missionComplete=false y completionAssessment."
                     ].join("\n")
                 ].join("\n\n"),
                 config: {
@@ -739,8 +744,9 @@ async function runSimpleSemanticPlanner({
         "Devuelve unicamente JSON valido con toolCalls, explanation, missionComplete y completionAssessment. missionComplete solo puede ser true al auditar que todos los entregables de la mision ya estan satisfechos.",
         "Si la instruccion limita fuentes a un dominio, copia el dominio exacto en allowedDomain de web.research.",
         "Si la instruccion pide hechos de una entidad nombrada sin dominio, copia su nombre exacto en exactEntity de web.research.",
+        "Si la instruccion pide referencias, usos o pruebas de un archivo concreto, usa repo.search con la ruta exacta o basename como query, no con una pregunta completa.",
         missionState?.phase === "MISSION_CONTRACT"
-            ? "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only necesarias para TODOS los entregables, no solo la primera etapa. No omitas herramientas especializadas de landing, imagen, reel, inventario o autoevaluacion cuando se pidan. Conserva el orden de dependencias y usa missionComplete=false."
+            ? "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only y userArtifact necesarias para TODOS los entregables, no solo la primera etapa. Para una landing creada usa page.plan y page.create; para un documento usa document.compose y document.create; para una hoja estructurada usa spreadsheet.compose y document.create. No omitas imagen, reel, inventario o autoevaluacion cuando se pidan. Conserva el orden de dependencias y usa missionComplete=false."
             : "",
         missionState?.phase === "COMPLETION_AUDIT"
             ? "AUDITORIA DE CIERRE: no estas obligado a elegir una herramienta. Compara todos los entregables con la evidencia. Si estan satisfechos usa toolCalls=[] y missionComplete=true; si falta algo usa exactamente una herramienta pertinente con argumentos completos. No explores capacidades no solicitadas. Si repo.search entrego sourceDefinitions o definitionFiles, prioriza esas rutas ejecutables sobre archivos que solo mencionan el simbolo y permite repetir lectura o diagnostico cuando el archivo sea distinto."
@@ -772,7 +778,7 @@ async function runSimpleSemanticPlanner({
                         toolCalls: validatedPlan.toolCalls,
                         completionAssessment: validatedPlan.completionAssessment
                     }).slice(0, 16000)}`,
-                    "AUDITORIA SEMANTICA DE COBERTURA: descompone la instruccion por significado en todos sus sujetos, archivos, entidades, preguntas y entregables independientes. Devuelve solamente toolCalls read-only faltantes. No elimines ni sustituyas llamadas del borrador. Si todo esta cubierto devuelve toolCalls=[] y missionComplete=false."
+                    "AUDITORIA SEMANTICA DE COBERTURA: descompone la instruccion por significado en todos sus sujetos, archivos, entidades, preguntas y entregables independientes. Devuelve solamente toolCalls read-only o userArtifact faltantes. No elimines ni sustituyas llamadas del borrador. Si todo esta cubierto devuelve toolCalls=[] y missionComplete=false."
                 ].join("\n")
                 : attemptIndex === 0
                     ? prompt

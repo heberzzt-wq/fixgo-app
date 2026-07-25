@@ -1,4 +1,4 @@
-const VERSION = "3.9.0-deferred-grounded-contracts";
+const VERSION = "4.0.0-user-artifact-missions";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
@@ -39,7 +39,7 @@ async function callBrowserMissionContract(input = "", catalog = []) {
     const prompt = [
         "Eres el planificador semantico de Jarvis V7.",
         "Devuelve solamente JSON valido.",
-        "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only necesarias para TODOS los entregables, no solo la primera etapa. No omitas landing, imagen, reel, inventario o autoevaluacion cuando se pidan. Conserva el orden y usa missionComplete=false.",
+        "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only y userArtifact necesarias para TODOS los entregables. Para crear una landing usa page.plan y page.create; para crear un documento usa document.compose y document.create; para crear una hoja estructurada usa spreadsheet.compose y document.create. Conserva el orden y usa missionComplete=false.",
         "No colapses sujetos u objetivos independientes. Repite el mismo nombre de herramienta cuando necesite argumentos distintos para cubrirlos por separado.",
         `CATALOGO=${catalog.map(tool => tool.name).join(",")}`,
         `INSTRUCCION=${boundedInstruction}`
@@ -55,7 +55,7 @@ async function callBrowserMissionContract(input = "", catalog = []) {
                     ? [
                         prompt,
                         `BORRADOR_DE_CONTRATO=${JSON.stringify(auditedPlan).slice(0, 16000)}`,
-                        "AUDITORIA SEMANTICA DE COBERTURA: descompone la instruccion en todos sus sujetos, archivos, entidades, preguntas y entregables independientes. Devuelve solamente toolCalls read-only faltantes. No elimines ni sustituyas el borrador. Si ya cubre todo devuelve toolCalls=[] y missionComplete=false."
+                        "AUDITORIA SEMANTICA DE COBERTURA: descompone la instruccion en todos sus sujetos, archivos, entidades, preguntas y entregables independientes. Devuelve solamente toolCalls read-only o userArtifact faltantes. No elimines ni sustituyas el borrador. Si ya cubre todo devuelve toolCalls=[] y missionComplete=false."
                     ].join("\n")
                     : prompt;
                 const response = await fetch(
@@ -123,9 +123,11 @@ async function callBrowserSemanticPlan(input = "", catalog = [], missionState = 
     const prompt = [
         "Eres el planificador semantico de herramientas de Jarvis V7.",
         "Interpreta significado, typos, negaciones y ordenes mixtas. Selecciona exclusivamente nombres exactos del catalogo.",
-        "No autorices escrituras. Conserva todas las intenciones independientes y usa herramientas especializadas para entregables operativos.",
+        "No autorices escrituras. Las herramientas userArtifact pueden crear solamente entregables locales nuevos cuando el usuario lo pide; no equivalen a editar codigo, publicar o desplegar. Conserva todas las intenciones independientes y usa herramientas especializadas para entregables operativos.",
         "Si varios objetivos requieren la misma herramienta con argumentos distintos, devuelve una llamada separada para cada uno.",
+        "Si piden referencias, usos o pruebas de un archivo concreto, usa repo.search con la ruta exacta o basename como query, no con una pregunta completa.",
         "Si una investigacion limita fuentes a un dominio, copia el dominio exacto en allowedDomain de web.research.",
+        "Si se piden datos oficiales, usa allowedDomain con el dominio oficial de la autoridad identificada y no presentes fuentes secundarias como oficiales.",
         "Si una investigacion pide hechos sobre una entidad nombrada sin dominio, copia el nombre exacto en exactEntity de web.research.",
         missionState?.phase === "COMPLETION_AUDIT"
             ? "AUDITORIA DE CIERRE: compara cada entregable con la evidencia. Si todo esta satisfecho devuelve toolCalls=[] y missionComplete=true. Si falta algo devuelve exactamente una herramienta pertinente con argumentos completos y missionComplete=false. No explores capacidades no solicitadas. Si repo.search entrego sourceDefinitions o definitionFiles, prioriza esas rutas ejecutables sobre archivos que solo mencionan el simbolo y permite repetir lectura o diagnostico cuando el archivo sea distinto."
@@ -190,6 +192,7 @@ function runtimeCatalog(context = {}) {
             description: String(tool.description || "").slice(0, 500),
             mutates: tool.mutates === true,
             requiresApproval: tool.requiresApproval === true,
+            userArtifact: tool.userArtifact === true,
             inputSchema: tool.inputSchema && typeof tool.inputSchema === "object"
                 ? tool.inputSchema
                 : null

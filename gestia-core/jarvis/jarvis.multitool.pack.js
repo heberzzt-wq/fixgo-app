@@ -23,9 +23,9 @@ import {
 
 import {
     completeJarvisPlanningArguments
-} from "./jarvis.multifunction.planner.js?v=sia7-deferred-grounded-contracts-v59-20260724";
+} from "./jarvis.multifunction.planner.js?v=sia7-user-artifact-missions-v60-20260724";
 
-const VERSION = "1.25.0-grounded-deliverable-arguments";
+const VERSION = "1.26.0-user-artifact-missions";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 
@@ -988,7 +988,7 @@ const LOCAL_SUPERVISION_PROBES = [
         id: "technical_intent_priority",
         path: "/gestia-core/jarvis/jarvis.multifunction.planner.js",
         markers: [
-            "3.9.0-deferred-grounded-contracts",
+            "4.0.0-user-artifact-missions",
             "jarvisSemanticPlan",
             "trustedPlanCalls"
         ]
@@ -1530,6 +1530,41 @@ function clean(value, fallback = "") {
         : fallback;
 }
 
+function extractSemanticJsonObject(value = "") {
+    const source = String(value || "").trim();
+    if (!source) throw new Error("SEMANTIC_JSON_REQUIRED");
+    try {
+        const parsed = JSON.parse(source);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            return parsed;
+        }
+    } catch {
+        // Continue with a bounded object extraction for providers that wrap JSON in prose.
+    }
+    const start = source.indexOf("{");
+    const end = source.lastIndexOf("}");
+    if (start < 0 || end <= start) throw new Error("SEMANTIC_JSON_REQUIRED");
+    const parsed = JSON.parse(source.slice(start, end + 1));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("SEMANTIC_JSON_OBJECT_REQUIRED");
+    }
+    return parsed;
+}
+
+function normalizedWorkbookSheets(value = []) {
+    if (!Array.isArray(value)) return [];
+    return value.slice(0, 12).map((sheet, index) => ({
+        name: clean(sheet?.name, `Hoja ${index + 1}`).slice(0, 31),
+        rows: Array.isArray(sheet?.rows)
+            ? sheet.rows.slice(0, 10000).map(row =>
+                Array.isArray(row)
+                    ? row.slice(0, 80)
+                    : Object.values(row || {}).slice(0, 80)
+            )
+            : []
+    })).filter(sheet => sheet.rows.length > 0);
+}
+
 function hasPlanningValue(value) {
     if (typeof value === "string") return Boolean(value.trim());
     if (Array.isArray(value)) return value.length > 0;
@@ -1764,6 +1799,194 @@ export function registerJarvisMultifunctionTools(runtime) {
                     ...result,
                     instruction,
                     readOnly: true
+                };
+            }
+        }),
+        register(runtime, {
+            name: "document.compose",
+            description: "Redacta en memoria el contenido completo y original de un documento solicitado, sin copiar fuentes ni escribir archivos; se usa antes de document.create.",
+            output: "DOCUMENT_CONTENT_BLUEPRINT",
+            inputSchema: {
+                title: "string",
+                format: "html|md|txt|docx|pdf",
+                instructions: "string"
+            },
+            execute: async (args = {}, context = {}) => {
+                const instruction = resolveInstruction(
+                    {
+                        ...args,
+                        prompt:
+                            args.instructions ||
+                            context.rawInput ||
+                            ""
+                    },
+                    context
+                );
+                const title = clean(args.title, "Documento Jarvis");
+                const format = clean(args.format, "docx").toLowerCase();
+                const semantic = await fetchSemanticConversation(
+                    [
+                        "Redacta el contenido completo, original y listo para guardar de este documento solicitado por el usuario.",
+                        "No describas lo que harias: entrega el documento terminado.",
+                        "Cubre cada requisito, incluye ejercicios, respuestas, tablas o secciones cuando se pidan y evita contenido copiado de fuentes externas.",
+                        "No uses cercas de codigo ni JSON. No omitas el final por longitud.",
+                        `TITULO=${title}`,
+                        `FORMATO=${format}`,
+                        `SOLICITUD=${instruction}`
+                    ].join("\n"),
+                    {
+                        maxOutputTokens:
+                            8000
+                    }
+                );
+                const content =
+                    clean(
+                        semantic?.message
+                    );
+                const ok =
+                    semantic?.ok === true &&
+                    content.length >= 500;
+                return {
+                    ok,
+                    status:
+                        ok
+                            ? "DOCUMENT_CONTENT_COMPOSED"
+                            : "DOCUMENT_CONTENT_COMPOSITION_FAILED",
+                    title,
+                    format,
+                    content,
+                    provider:
+                        semantic?.provider ||
+                        null,
+                    model:
+                        semantic?.model ||
+                        null,
+                    original:
+                        true,
+                    readOnly:
+                        true,
+                    objectiveSatisfied:
+                        ok,
+                    error:
+                        ok
+                            ? null
+                            : semantic?.error ||
+                            "DOCUMENT_CONTENT_TOO_SHORT"
+                };
+            }
+        }),
+        register(runtime, {
+            name: "spreadsheet.compose",
+            description: "Diseña en memoria un libro XLSX completo con varias hojas, filas, supuestos y formulas; se usa antes de document.create y no escribe archivos.",
+            output: "SPREADSHEET_BLUEPRINT",
+            inputSchema: {
+                title: "string",
+                instructions: "string"
+            },
+            execute: async (args = {}, context = {}) => {
+                const instruction = resolveInstruction(
+                    {
+                        ...args,
+                        prompt:
+                            args.instructions ||
+                            context.rawInput ||
+                            ""
+                    },
+                    context
+                );
+                const title = clean(
+                    args.title,
+                    "Libro de trabajo Jarvis"
+                );
+                const semantic = await fetchSemanticConversation(
+                    [
+                        "Diseña un libro XLSX completo y ejecutable como JSON estricto.",
+                        "Devuelve solamente un objeto JSON con title y sheets. sheets es un arreglo de objetos {name,rows}; rows es un arreglo de arreglos.",
+                        "Toda formula debe ser una cadena que empiece con = y usar referencias de Excel. Separa criterios, supuestos o fuentes en una hoja propia cuando la solicitud lo requiera.",
+                        "No inventes datos de mercado: cualquier valor de ejemplo debe rotularse claramente como SUPUESTO y las formulas deben conservar la trazabilidad del calculo.",
+                        "Incluye todos los conceptos, subtotales, porcentajes y resultado final pedidos. No agregues explicaciones fuera del JSON.",
+                        `TITULO=${title}`,
+                        `SOLICITUD=${instruction}`
+                    ].join("\n"),
+                    {
+                        maxOutputTokens:
+                            8000
+                    }
+                );
+                let workbook = null;
+                try {
+                    workbook =
+                        extractSemanticJsonObject(
+                            semantic?.message ||
+                            ""
+                        );
+                } catch (error) {
+                    return {
+                        ok: false,
+                        status:
+                            "SPREADSHEET_BLUEPRINT_INVALID",
+                        title,
+                        sheets: [],
+                        readOnly:
+                            true,
+                        objectiveSatisfied:
+                            false,
+                        error:
+                            error?.message ||
+                            "SPREADSHEET_JSON_INVALID"
+                    };
+                }
+                const sheets =
+                    normalizedWorkbookSheets(
+                        workbook?.sheets
+                    );
+                const formulaCount =
+                    sheets.reduce(
+                        (total, sheet) =>
+                            total +
+                            sheet.rows.flat().filter(cell =>
+                                typeof cell === "string" &&
+                                cell.startsWith("=")
+                            ).length,
+                        0
+                    );
+                const ok =
+                    semantic?.ok === true &&
+                    sheets.length > 0 &&
+                    formulaCount > 0;
+                return {
+                    ok,
+                    status:
+                        ok
+                            ? "SPREADSHEET_BLUEPRINT_READY"
+                            : "SPREADSHEET_BLUEPRINT_INCOMPLETE",
+                    title:
+                        clean(
+                            workbook?.title,
+                            title
+                        ),
+                    format:
+                        "xlsx",
+                    sheets,
+                    formulaCount,
+                    assumptionsExplicit:
+                        JSON.stringify(sheets)
+                            .toLocaleLowerCase()
+                            .includes("supuesto"),
+                    provider:
+                        semantic?.provider ||
+                        null,
+                    model:
+                        semantic?.model ||
+                        null,
+                    readOnly:
+                        true,
+                    objectiveSatisfied:
+                        ok,
+                    error:
+                        ok
+                            ? null
+                            : "SPREADSHEET_SHEETS_OR_FORMULAS_REQUIRED"
                 };
             }
         }),

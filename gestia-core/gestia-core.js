@@ -40,10 +40,10 @@ import {
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     buildJarvisMultifunctionToolCalls
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-deferred-grounded-contracts-v59-20260724';
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-user-artifact-missions-v60-20260724';
 import {
     runJarvisMission
-} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-grounded-execution-args-v51-20260724';
+} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-user-artifact-missions-v60-20260724';
 import {
     addRepositoryDiscoveryPreflights,
     resolveExplicitRepositoryTargets
@@ -195,11 +195,11 @@ import {
     sincronizarCorralSemantico,
     getSemanticCognitiveState
 } from '/gestia-core/semantic.engine.js?v=sia7-model-context-v8-20260714';
-import '/gestia-core/brain.engine.js?v=sia7-deferred-grounded-contracts-v59-20260724';
+import '/gestia-core/brain.engine.js?v=sia7-user-artifact-missions-v60-20260724';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260724-deferred-contracts-v59';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260724-user-artifacts-v60';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
-import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260714-safe-image-artifacts';
+import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260724-user-artifacts-v60';
 
 // ======================================================================================
 // 🛰️ SECCIÓN 2: GESTIA CORE ORCHESTRATOR (KERNEL V16.0)
@@ -5083,7 +5083,16 @@ if (
     const registeredMissionTools =
         globalThis.JarvisToolRuntime
             ?.list?.()
-            ?.filter(tool => tool?.name !== "conversation.respond" && tool?.mutates !== true) ||
+            ?.filter(tool =>
+                tool?.name !== "conversation.respond" &&
+                (
+                    tool?.mutates !== true ||
+                    (
+                        tool?.userArtifact === true &&
+                        tool?.requiresApproval !== true
+                    )
+                )
+            ) ||
         [];
     const missionToolCatalog =
         [
@@ -5102,6 +5111,7 @@ if (
                     missionState: {
                         phase: "MISSION_CONTRACT",
                         writeAllowed: false,
+                        userArtifactAllowed: true,
                         existingInitialTools: operationalInitialToolCalls.map(call => call?.name).filter(Boolean)
                     }
                 }
@@ -5269,7 +5279,9 @@ if (
                                             iterations:
                                                 mission.iterations,
                                             writeAllowed:
-                                                false
+                                                false,
+                                            userArtifactAllowed:
+                                                true
                                         }
                                     }
                                 );
@@ -5393,7 +5405,8 @@ if (
                                         reason: item.reason
                                     })),
                                     iterations: mission.iterations,
-                                    writeAllowed: false
+                                    writeAllowed: false,
+                                    userArtifactAllowed: true
                                 }
                             }
                         );
@@ -5423,6 +5436,66 @@ if (
                         false;
 
                     if (
+                        call?.name === "document.create" &&
+                        Array.isArray(missionContext?.completedTasks)
+                    ) {
+                        const blueprintTask =
+                            [...missionContext.completedTasks]
+                                .reverse()
+                                .find(item =>
+                                    item?.name === "spreadsheet.compose" ||
+                                    item?.name === "document.compose"
+                                ) ||
+                            null;
+                        const blueprint =
+                            blueprintTask?.observation?.preparedArtifact ||
+                            blueprintTask?.observation?.evidence ||
+                            {};
+
+                        if (
+                            blueprintTask?.name === "spreadsheet.compose" &&
+                            Array.isArray(blueprint?.sheets) &&
+                            blueprint.sheets.length > 0
+                        ) {
+                            executionCall.args = {
+                                ...executionCall.args,
+                                format:
+                                    "xlsx",
+                                title:
+                                    blueprint.title ||
+                                    executionCall.args.title ||
+                                    "Libro de trabajo Jarvis",
+                                sheets:
+                                    blueprint.sheets
+                            };
+                            argumentGrounded =
+                                true;
+                        }
+                        else if (
+                            blueprintTask?.name === "document.compose" &&
+                            typeof blueprint?.content === "string" &&
+                            blueprint.content.trim()
+                        ) {
+                            executionCall.args = {
+                                ...executionCall.args,
+                                format:
+                                    blueprint.format ||
+                                    executionCall.args.format ||
+                                    "docx",
+                                title:
+                                    blueprint.title ||
+                                    executionCall.args.title ||
+                                    "Documento Jarvis",
+                                content:
+                                    blueprint.content
+                            };
+                            argumentGrounded =
+                                true;
+                        }
+                    }
+
+                    if (
+                        !argumentGrounded &&
                         toolDefinition?.inputSchema &&
                         Array.isArray(missionContext?.completedTasks) &&
                         missionContext.completedTasks.length > 0
@@ -5457,7 +5530,9 @@ if (
                                             blockedTasks:
                                                 missionContext.blockedTasks || [],
                                             writeAllowed:
-                                                false
+                                                false,
+                                            userArtifactAllowed:
+                                                toolDefinition?.userArtifact === true
                                         }
                                     }
                                 );
@@ -5627,6 +5702,29 @@ if (
                 ]
             )
         ];
+    const createdUserArtifacts =
+        missionResult.completedTasks
+            .filter(item =>
+                registeredMissionTools
+                    .find(tool => tool?.name === item?.name)
+                    ?.userArtifact === true
+            )
+            .map(item => ({
+                tool:
+                    item.name,
+                output:
+                    item.observation?.artifact ||
+                    item.observation?.evidence?.output ||
+                    null
+            }));
+    const artifactExecutionSummary =
+        createdUserArtifacts.length > 0
+            ? `Artefactos locales creados: ${createdUserArtifacts.map(item =>
+                item.output
+                    ? `${item.tool} (${item.output})`
+                    : item.tool
+            ).join(", ")}. Publicaciones y despliegues: no ejecutados.`
+            : "Escrituras y publicaciones automaticas: no ejecutadas.";
 
     let semanticMissionFinalResponse = null;
 
@@ -5773,7 +5871,7 @@ if (
                         "",
                         `Herramientas ejecutadas verificadas: ${verifiedMissionToolNames.join(", ")}.`,
                         `Compositor semantico: ${compositionPayload?.provider || "proveedor verificado"}${compositionPayload?.model ? ` / ${compositionPayload.model}` : ""}.`,
-                        "Escrituras y publicaciones automaticas: no ejecutadas."
+                        artifactExecutionSummary
                     ].join("\n"),
                     source: "SEMANTIC_MISSION_COMPOSITION",
                     provider: compositionPayload?.provider || null,

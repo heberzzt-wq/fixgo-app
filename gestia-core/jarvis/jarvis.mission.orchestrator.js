@@ -1,4 +1,4 @@
-const VERSION = "1.1.0-explicit-model-audited-completion";
+const VERSION = "1.2.0-user-artifact-evidence";
 const STORAGE_KEY = "jarvis.missions.v1";
 
 function text(value = "", maximum = 120000) {
@@ -142,6 +142,55 @@ function safeObservation(result = {}) {
             !blocked &&
             payload?.retryable !== false
         );
+    const preparedArtifact =
+        normalizedStatus === "DOCUMENT_CONTENT_COMPOSED"
+            ? {
+                kind:
+                    "document",
+                title:
+                    text(payload?.title, 300),
+                format:
+                    text(payload?.format, 30),
+                content:
+                    String(payload?.content ?? "").slice(0, 50000)
+            }
+            : normalizedStatus === "SPREADSHEET_BLUEPRINT_READY"
+                ? {
+                    kind:
+                        "spreadsheet",
+                    title:
+                        text(payload?.title, 300),
+                    format:
+                        "xlsx",
+                    sheets:
+                        Array.isArray(payload?.sheets)
+                            ? payload.sheets.slice(0, 12).map((sheet, index) => ({
+                                name:
+                                    text(
+                                        sheet?.name ||
+                                        `Hoja ${index + 1}`,
+                                        31
+                                    ),
+                                rows:
+                                    Array.isArray(sheet?.rows)
+                                        ? sheet.rows.slice(0, 2000).map(row =>
+                                            (
+                                                Array.isArray(row)
+                                                    ? row
+                                                    : Object.values(row || {})
+                                            )
+                                                .slice(0, 80)
+                                                .map(cell =>
+                                                    typeof cell === "string"
+                                                        ? text(cell, 500)
+                                                        : cell
+                                                )
+                                        )
+                                        : []
+                            }))
+                            : []
+                }
+                : null;
 
     return {
         ok: executionOk,
@@ -169,6 +218,7 @@ function safeObservation(result = {}) {
             3000
         ),
         artifact: text(payload?.artifact || payload?.output || "", 500) || null,
+        preparedArtifact,
         evidence: compactEvidence({
             ...payload,
             missingInputs

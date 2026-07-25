@@ -33,7 +33,7 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.22.0-rendered-pdf-region-diff");
+    assert.equal(description.version, "2.23.0-user-artifact-workbooks");
     assert.equal(description.policy.authority, "full_repo_private_owner");
     assert.equal(description.policy.safeZone, "advisory");
     assert.equal(description.policy.emptyWrites, "blocked");
@@ -50,6 +50,69 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
     assert.equal(description.actuators.multimodalUploads.maxBatchBytes, 500 * 1024 * 1024);
     assert.equal(typeof description.actuators.imageGeneration.verifiedCount, "number");
     assert.deepEqual(description.actuators.connectors.adapters, ["github", "firebase"]);
+});
+
+test("Jarvis creates a multi-sheet XLSX with executable formulas", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-xlsx-create-"));
+    execFileSync("git", ["init", "-b", "v5.9-polish"], { cwd: root, stdio: "ignore" });
+    fs.writeFileSync(path.join(root, "jarvis-runtime-contract.json"), JSON.stringify({
+        projectId: "fixgo-test",
+        branch: "v5.9-polish",
+        releaseId: "test-release"
+    }));
+    const server = createJarvisFsBridgeApp({ root }).listen(0);
+    await new Promise(resolve => server.once("listening", resolve));
+    const base = `http://127.0.0.1:${server.address().port}`;
+
+    try {
+        const response = await fetch(`${base}/document`, {
+            method: "POST",
+            headers: {
+                "content-type": "application/json",
+                "x-jarvis-release-id": "test-release"
+            },
+            body: JSON.stringify({
+                format: "xlsx",
+                output: ".jarvis-artifacts/documents/apu.xlsx",
+                title: "APU muro",
+                sheets: [
+                    {
+                        name: "APU",
+                        rows: [
+                            ["Concepto", "Cantidad", "Precio", "Importe"],
+                            ["Block supuesto", 13, 20, "=B2*C2"],
+                            ["Costo directo", "", "", "=SUM(D2:D2)"]
+                        ]
+                    },
+                    {
+                        name: "Criterios",
+                        rows: [
+                            ["Criterio", "Valor"],
+                            ["Precios", "SUPUESTO; validar cotizaciones"]
+                        ]
+                    }
+                ]
+            })
+        });
+        const result = await response.json();
+        const ExcelJS = (await import("exceljs")).default;
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.readFile(path.join(root, result.output));
+
+        assert.equal(response.status, 200);
+        assert.equal(result.status, "DOCUMENT_CREATED");
+        assert.equal(result.artifact.approval.required, false);
+        assert.equal(result.artifact.approval.approvedBy, "LOCAL_ARTIFACT_POLICY");
+        assert.deepEqual(workbook.worksheets.map(sheet => sheet.name), ["APU", "Criterios"]);
+        assert.equal(workbook.getWorksheet("APU").getCell("D2").value.formula, "B2*C2");
+        assert.equal(
+            workbook.getWorksheet("Criterios").getCell("B2").value,
+            "SUPUESTO; validar cotizaciones"
+        );
+    } finally {
+        await new Promise(resolve => server.close(resolve));
+        fs.rmSync(root, { recursive: true, force: true });
+    }
 });
 
 test("Jarvis edits exact PPTX text while preserving the original presentation", async () => {

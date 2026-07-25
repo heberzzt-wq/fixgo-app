@@ -925,7 +925,7 @@ test("Gemini creates a complete read-only mission contract before execution", as
                         assert.equal(request.config.thinkingConfig.thinkingBudget, 0);
                         assert.equal(request.config.maxOutputTokens, 4000);
                         assert.ok(request.contents.includes("CONTRATO_DE_MISION"));
-                        assert.ok(request.contents.includes("todas las herramientas read-only necesarias"));
+                        assert.ok(request.contents.includes("todas las herramientas read-only y userArtifact necesarias"));
                     } else if (requestCount === 2) {
                         assert.equal(request.config.thinkingConfig.thinkingBudget, 0);
                         assert.equal(request.config.maxOutputTokens, 3000);

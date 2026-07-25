@@ -33,7 +33,7 @@ import { locatePdfFieldAnchors } from "./jarvis-pdf-layout.js";
 import { verifyPdfVisualChanges } from "./jarvis-pdf-visual.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.22.0-rendered-pdf-region-diff";
+    "2.23.0-user-artifact-workbooks";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -3015,8 +3015,8 @@ export function createJarvisFsBridgeApp({
             const artifact = registerArtifact({ root, output: path.relative(root, target).replaceAll("\\", "/"), metadata: {
                 type: "landing", origin: "page.create", provider: "jarvis_page_artifact",
                 caseId: req.body?.caseId, objectiveId: req.body?.objectiveId, mimeType: "text/html",
-                status: "PAGE_ARTIFACT_CREATED_VERIFIED", approvalRequired: true,
-                approved: req.body?.approved === true, approvedBy: req.body?.approvedBy,
+                status: "PAGE_ARTIFACT_CREATED_VERIFIED", approvalRequired: false,
+                approved: true, approvedBy: "LOCAL_ARTIFACT_POLICY",
                 editable: true, preview: true, downloadable: true, publishable: true,
                 originalFile: materialSources[0]?.output || null,
                 transformations: materialSources.map(source => ({ type: "embedded_source_image", ...source }))
@@ -3075,8 +3075,8 @@ export function createJarvisFsBridgeApp({
             const artifact = registerArtifact({ root, output: path.relative(root, target).replaceAll("\\", "/"), metadata: {
                 type: "reel_studio", origin: "reel.create", provider: "browser_media_recorder",
                 caseId: req.body?.caseId, objectiveId: req.body?.objectiveId, mimeType: "text/html",
-                status: "REEL_STUDIO_CREATED_VERIFIED", approvalRequired: true,
-                approved: req.body?.approved === true, approvedBy: req.body?.approvedBy,
+                status: "REEL_STUDIO_CREATED_VERIFIED", approvalRequired: false,
+                approved: true, approvedBy: "LOCAL_ARTIFACT_POLICY",
                 editable: true, preview: true, downloadable: true, publishable: false,
                 originalFile: req.body?.originalFile
             } });
@@ -3108,6 +3108,7 @@ export function createJarvisFsBridgeApp({
                 content = "",
                 title = "Documento Jarvis",
                 rows = [],
+                sheets = [],
                 slides = []
             } = req.body || {};
             const normalizedFormat = String(format).toLowerCase();
@@ -3127,6 +3128,7 @@ export function createJarvisFsBridgeApp({
             if (
                 (typeof content !== "string" || content.length === 0) &&
                 (!Array.isArray(rows) || rows.length === 0) &&
+                (!Array.isArray(sheets) || sheets.length === 0) &&
                 (!Array.isArray(slides) || slides.length === 0)
             ) {
                 return res.status(400).json({
@@ -3172,27 +3174,64 @@ export function createJarvisFsBridgeApp({
             else if (normalizedFormat === "xlsx") {
                 const ExcelJS = (await import("exceljs")).default;
                 const workbook = new ExcelJS.Workbook();
-                const sheet = workbook.addWorksheet(safeTitle.slice(0, 31) || "Jarvis");
-                const tableRows = Array.isArray(rows) && rows.length > 0
-                    ? rows
-                    : String(content).split(/\r?\n/).filter(Boolean).map(line => line.split(","));
-                tableRows.slice(0, 10000).forEach(row =>
-                    sheet.addRow(Array.isArray(row) ? row : Object.values(row || {}))
-                );
-                if (sheet.rowCount > 0) {
-                    sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
-                    sheet.getRow(1).fill = {
-                        type: "pattern",
-                        pattern: "solid",
-                        fgColor: { argb: "FF2563EB" }
-                    };
-                    sheet.columns.forEach(column => {
-                        column.width = Math.min(
-                            48,
-                            Math.max(12, ...column.values.slice(1).map(value => String(value || "").length + 2))
-                        );
+                const sourceSheets = Array.isArray(sheets) && sheets.length > 0
+                    ? sheets.slice(0, 12)
+                    : [{
+                        name: safeTitle,
+                        rows: Array.isArray(rows) && rows.length > 0
+                            ? rows
+                            : String(content).split(/\r?\n/).filter(Boolean).map(line => line.split(","))
+                    }];
+                const usedSheetNames = new Set();
+                sourceSheets.forEach((sheetInput, sheetIndex) => {
+                    const baseName = String(sheetInput?.name || `Hoja ${sheetIndex + 1}`)
+                        .replace(/[\\/?*[\]:]/g, " ")
+                        .trim()
+                        .slice(0, 31) || `Hoja ${sheetIndex + 1}`;
+                    let sheetName = baseName;
+                    let suffix = 2;
+                    while (usedSheetNames.has(sheetName)) {
+                        const ending = ` ${suffix}`;
+                        sheetName = `${baseName.slice(0, 31 - ending.length)}${ending}`;
+                        suffix += 1;
+                    }
+                    usedSheetNames.add(sheetName);
+                    const sheet = workbook.addWorksheet(sheetName);
+                    const tableRows = Array.isArray(sheetInput?.rows)
+                        ? sheetInput.rows
+                        : [];
+                    tableRows.slice(0, 10000).forEach(row => {
+                        const values = Array.isArray(row)
+                            ? row
+                            : Object.values(row || {});
+                        sheet.addRow(values.map(value =>
+                            typeof value === "string" && value.startsWith("=")
+                                ? { formula: value.slice(1) }
+                                : value
+                        ));
                     });
-                }
+                    if (sheet.rowCount > 0) {
+                        sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+                        sheet.getRow(1).fill = {
+                            type: "pattern",
+                            pattern: "solid",
+                            fgColor: { argb: "FF2563EB" }
+                        };
+                        sheet.views = [{ state: "frozen", ySplit: 1 }];
+                        sheet.columns.forEach(column => {
+                            column.width = Math.min(
+                                48,
+                                Math.max(12, ...column.values.slice(1).map(value =>
+                                    String(
+                                        value && typeof value === "object" && value.formula
+                                            ? `=${value.formula}`
+                                            : value || ""
+                                    ).length + 2
+                                ))
+                            );
+                        });
+                    }
+                });
                 await workbook.xlsx.writeFile(target);
             }
             else if (normalizedFormat === "pptx") {
@@ -3259,7 +3298,7 @@ export function createJarvisFsBridgeApp({
                 type: normalizedFormat, origin: "document.create", provider: "jarvis_document_engine",
                 caseId: req.body?.caseId, objectiveId: req.body?.objectiveId,
                 mimeType: artifactMimeType(target), status: "DOCUMENT_CREATED",
-                approvalRequired: true, approved: req.body?.approved === true, approvedBy: req.body?.approvedBy,
+                approvalRequired: false, approved: true, approvedBy: "LOCAL_ARTIFACT_POLICY",
                 editable: normalizedFormat !== "pdf", preview: normalizedFormat === "html" || normalizedFormat === "pdf",
                 downloadable: true, publishable: false
             } });
@@ -3431,7 +3470,7 @@ export function createJarvisFsBridgeApp({
                 provider: req.body?.provider, model: req.body?.model,
                 caseId: req.body?.caseId, objectiveId: req.body?.objectiveId,
                 mimeType: saved.mimeType, status: saved.status,
-                approvalRequired: true, approved: req.body?.approved === true, approvedBy: req.body?.approvedBy,
+                approvalRequired: false, approved: true, approvedBy: "LOCAL_ARTIFACT_POLICY",
                 editable: true, preview: true, downloadable: true, publishable: true,
                 originalFile: req.body?.originalFile, transformations: req.body?.transformations
             } });

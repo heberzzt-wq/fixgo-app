@@ -3,7 +3,7 @@ import {
 } from "./jarvis.capability.evidence.js";
 import { adaptImageSource } from "./jarvis.image.adapter.js";
 
-const VERSION = "7.16.0-rendered-pdf-region-diff";
+const VERSION = "7.17.0-user-artifact-missions";
 
 export function normalizeImageArtifactOutput(output, mimeType) {
     const extensions = {
@@ -188,7 +188,7 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "page.create",
-            description: "Genera una landing HTML real, responsive, accesible y descargable; puede incrustar como hero o galeria los artefactos de imagen reales recibidos.",
+            description: "Genera una landing HTML local nueva, responsive, accesible y descargable; puede incrustar como hero o galeria los artefactos de imagen reales recibidos. No publica ni despliega.",
             output: "PAGE_CREATE_ARTIFACT",
             inputSchema: {
                 brandName: "string", title: "string", description: "string", services: "array",
@@ -197,7 +197,8 @@ export function registerJarvisActuatorTools(runtime) {
                 caseId: "string", objectiveId: "string"
             },
             mutates: true,
-            requiresApproval: true,
+            requiresApproval: false,
+            userArtifact: true,
             execute: async (args = {}, context = {}) => {
                 const result = await bridgeRequest("/page/create", {
                     ...args,
@@ -221,7 +222,7 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "reel.create",
-            description: "Crea un estudio de reel 9:16 real, configurable y previsualizable, capaz de exportar WebM y verificar SHA-256 en el navegador.",
+            description: "Crea un estudio de reel 9:16 local nuevo, configurable, descargable y previsualizable, capaz de exportar WebM y verificar SHA-256 en el navegador. No publica.",
             output: "REEL_STUDIO_ARTIFACT",
             inputSchema: {
                 brandName: "string", title: "string", cta: "string", durationSeconds: "number",
@@ -229,7 +230,8 @@ export function registerJarvisActuatorTools(runtime) {
                 caseId: "string", objectiveId: "string"
             },
             mutates: true,
-            requiresApproval: true,
+            requiresApproval: false,
+            userArtifact: true,
             execute: async (args = {}, context = {}) => {
                 const result = await bridgeRequest("/reel/create", {
                     ...args,
@@ -253,7 +255,7 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "document.create",
-            description: "Crea artefactos HTML, Markdown, CSV, JSON, DOCX, XLSX, PPTX o PDF dentro del repositorio.",
+            description: "Crea un documento local nuevo y descargable en HTML, Markdown, CSV, JSON, DOCX, XLSX, PPTX o PDF dentro de .jarvis-artifacts; XLSX admite varias hojas y formulas. No edita archivos existentes.",
             output: "DOCUMENT_CREATE_RESULT",
             inputSchema: {
                 format: "html|md|txt|csv|json|docx|xlsx|pptx|pdf",
@@ -261,12 +263,14 @@ export function registerJarvisActuatorTools(runtime) {
                 title: "string",
                 content: "string",
                 rows: "array",
+                sheets: "array<{name,rows}>",
                 slides: "array",
                 caseId: "string",
                 objectiveId: "string"
             },
             mutates: true,
-            requiresApproval: true,
+            requiresApproval: false,
+            userArtifact: true,
             execute: async (args = {}, context = {}) =>
                 await bridgeRequest("/document", {
                     format: args.format || "html",
@@ -274,6 +278,7 @@ export function registerJarvisActuatorTools(runtime) {
                     title: args.title,
                     content: args.content,
                     rows: args.rows,
+                    sheets: args.sheets,
                     slides: args.slides,
                     caseId: args.caseId || context.caseId || "",
                     objectiveId: args.objectiveId || context.objectiveId || ""
@@ -432,9 +437,12 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "image.generate",
-            description: "Genera una imagen y la guarda como artefacto local utilizable.",
+            description: "Genera una imagen local nueva y descargable dentro de .jarvis-artifacts; no publica ni modifica una imagen existente.",
             output: "IMAGE_GENERATION_RESULT",
             inputSchema: { prompt: "string", aspectRatio: "string", imageSize: "string", output: "string", caseId: "string", objectiveId: "string" },
+            mutates: true,
+            requiresApproval: false,
+            userArtifact: true,
             execute: async (args = {}, context = {}) => {
                 const result = await callAdminFunction("jarvisImageGenerate", {
                     prompt: args.prompt || context.rawInput || "",

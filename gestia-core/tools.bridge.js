@@ -227,6 +227,35 @@ function composeActuatorResponse(
         );
     }
 
+    if (["page.create", "reel.create"].includes(toolName)) {
+        queueActuatorArtifact(toolName, data);
+        const isPage =
+            toolName === "page.create";
+        return composer.composeJarvis(
+            [
+                isPage
+                    ? "Landing creada"
+                    : "Estudio de reel creado",
+                "",
+                `Estado: **${data?.status || "COMPLETED"}**.`,
+                `Archivo: **${data?.output || "sin ruta"}**.`,
+                `Tamano: ${Number(data?.bytes || 0)} bytes.`,
+                isPage
+                    ? "El HTML local quedo disponible para vista previa y descarga; no fue publicado ni desplegado."
+                    : "El estudio local quedo disponible para vista previa y descarga; la exportacion WebM se realiza desde el navegador."
+            ].join("\n"),
+            data,
+            {
+                type:
+                    isPage
+                        ? "PAGE_CREATE_RESPONSE"
+                        : "REEL_CREATE_RESPONSE",
+                analysisId:
+                    context.analysisId
+            }
+        );
+    }
+
     if (toolName === "image.generate") {
         queueActuatorArtifact(toolName, data);
         return composer.composeJarvis(

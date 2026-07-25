@@ -410,6 +410,46 @@ test("mission cannot close while its model-generated contract is incomplete", as
     assert.equal(mission.status, "PARTIAL");
 });
 
+test("mission preserves complete prepared content for a following artifact creator", async () => {
+    const content = "Guia completa\n" + "Contenido educativo verificable. ".repeat(300);
+    let preparedContent = "";
+    const mission = await runJarvisMission({
+        instruction: "Crea una guia DOCX completa.",
+        initialToolCalls: [
+            { name: "document.compose", args: { format: "docx" } },
+            { name: "document.create", args: { format: "docx" } }
+        ],
+        requiredToolNames: ["document.compose", "document.create"],
+        planner: async () => ({ toolCalls: [], missionComplete: true }),
+        execute: async (call, context) => {
+            if (call.name === "document.compose") {
+                return {
+                    ok: true,
+                    status: "DOCUMENT_CONTENT_COMPOSED",
+                    title: "Guia",
+                    format: "docx",
+                    content
+                };
+            }
+            preparedContent =
+                context.completedTasks[0].observation.preparedArtifact.content;
+            return {
+                ok: true,
+                status: "DOCUMENT_CREATED",
+                output: ".jarvis-artifacts/documents/guia.docx"
+            };
+        },
+        storage: memoryStorage()
+    });
+
+    assert.equal(mission.status, "COMPLETED");
+    assert.equal(preparedContent, content);
+    assert.equal(
+        mission.completedTasks[0].observation.preparedArtifact.kind,
+        "document"
+    );
+});
+
 test("routing compaction is deterministic and does not replace the authority instruction", () => {
     const instruction = "A".repeat(20000);
     const routing = __test.compactRoutingInstruction(instruction);

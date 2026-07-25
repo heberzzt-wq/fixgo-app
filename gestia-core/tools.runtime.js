@@ -5,10 +5,10 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-deferred-grounded-contracts-v59-20260724";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-user-artifact-missions-v60-20260724";
 import {
     registerJarvisActuatorTools
-} from "./jarvis/jarvis.actuator.pack.js?v=sia7-real-actuators-v3.6-pdf-visual-20260714";
+} from "./jarvis/jarvis.actuator.pack.js?v=sia7-user-artifact-missions-v60-20260724";
 import {
     reviewChiefArchitectPlan
 } from "./jarvis/jarvis.chief.architect.js?v=sia7-chief-architect-v1-20260714";
@@ -35,6 +35,8 @@ export const JarvisToolRuntime = {
             requiresApproval:
                 tool.requiresApproval ??
                 tool.mutates === true,
+            userArtifact:
+                tool.userArtifact === true,
             version:
                 tool.version || "1.0.0",
             description:
@@ -222,6 +224,8 @@ export const JarvisToolRuntime = {
                     t.mutates === true,
                 requiresApproval:
                     t.requiresApproval === true,
+                userArtifact:
+                    t.userArtifact === true,
                 output:
                     t.output,
                 inputSchema:
@@ -5797,6 +5801,8 @@ JarvisToolRuntime.register({
 
         let bridgeResult =
             null;
+        const exactFileSearches =
+            [];
 
         let bridgeError =
             null;
@@ -6009,11 +6015,86 @@ JarvisToolRuntime.register({
             }
         }
 
+        if (
+            window.JarvisLocalBridge?.grepRepo
+        ) {
+            const exactFileTerms =
+                [
+                    ...new Set(
+                        tokens
+                            .filter(token =>
+                                token.includes("/") ||
+                                token.includes(".")
+                            )
+                            .flatMap(token => {
+                                const parts =
+                                    token.split("/");
+                                const basename =
+                                    parts[parts.length - 1] ||
+                                    token;
+                                return [
+                                    token,
+                                    basename
+                                ];
+                            })
+                            .filter(term =>
+                                term &&
+                                normalizeSearchText(term) !==
+                                    normalizeSearchText(bridgeTerm)
+                            )
+                    )
+                ]
+                    .slice(0, 4);
+
+            for (const term of exactFileTerms) {
+                try {
+                    const result =
+                        await window.JarvisLocalBridge.grepRepo({
+                            term,
+                            query:
+                                term,
+                            cwd:
+                                argObject.cwd || ".",
+                            maxFiles:
+                                argObject.maxFiles || 1200,
+                            maxFileSizeBytes:
+                                argObject.maxFileSizeBytes || 512000,
+                            maxMatches:
+                                80,
+                            source:
+                                "jarvis_repo_exact_file_reference_search_v7"
+                        });
+                    exactFileSearches.push({
+                        term,
+                        result
+                    });
+                }
+                catch(error) {
+                    exactFileSearches.push({
+                        term,
+                        result: {
+                            ok:
+                                false,
+                            error:
+                                error?.message ||
+                                String(error),
+                            matches:
+                                []
+                        }
+                    });
+                }
+            }
+        }
+
         const matches =
             [
                 ...definitionMatches,
                 ...(
                     bridgeResult?.matches ||
+                    []
+                ),
+                ...exactFileSearches.flatMap(item =>
+                    item?.result?.matches ||
                     []
                 )
             ]
@@ -6050,12 +6131,39 @@ JarvisToolRuntime.register({
                 indexResults.length,
             matches,
             totalMatches:
-                bridgeResult?.totalMatches ||
+                (
+                    Number(bridgeResult?.totalMatches || 0) +
+                    exactFileSearches.reduce(
+                        (total, item) =>
+                            total +
+                            Number(
+                                item?.result?.totalMatches ||
+                                item?.result?.matches?.length ||
+                                0
+                            ),
+                        0
+                    )
+                ) ||
                 matches.length ||
                 0,
             totalFilesScanned:
-                bridgeResult?.totalFilesScanned ||
+                Math.max(
+                    Number(
+                        bridgeResult?.totalFilesScanned ||
+                        0
+                    ),
+                    ...exactFileSearches.map(item =>
+                        Number(
+                            item?.result?.totalFilesScanned ||
+                            0
+                        )
+                    )
+                ) ||
                 0,
+            exactFileSearchTerms:
+                exactFileSearches.map(item =>
+                    item.term
+                ),
             bridgeStatus:
                 bridgeResult
                     ? (
