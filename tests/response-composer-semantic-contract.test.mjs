@@ -56,6 +56,9 @@ test("agent tool result keeps an input-required observation semantically blocked
     assert.equal(result.requiresInput, true);
     assert.equal(result.blocked, true);
     assert.deepEqual(result.data.semantic.missingInputs, ["audience"]);
+    assert.match(result.text, /necesita información/i);
+    assert.match(result.text, /audience/i);
+    assert.equal(result.data.semanticSummary, result.text);
 });
 
 test("approval requirement remains visible in the composed agent envelope", () => {
@@ -77,6 +80,7 @@ test("approval requirement remains visible in the composed agent envelope", () =
     assert.equal(result.requiresApproval, true);
     assert.equal(result.blocked, true);
     assert.equal(result.retryable, false);
+    assert.match(result.report, /necesita aprobación/i);
 });
 
 test("degraded success is successful but remains explicitly degraded", () => {
@@ -97,6 +101,7 @@ test("degraded success is successful but remains explicitly degraded", () => {
     assert.equal(result.status, "GROUNDED_LOCAL_FALLBACK");
     assert.equal(result.degraded, true);
     assert.equal(result.blocked, false);
+    assert.match(result.text, /modo degradado/i);
 });
 
 test("technical failure stays retryable without pretending objective completion", () => {
@@ -109,6 +114,19 @@ test("technical failure stays retryable without pretending objective completion"
     assert.equal(semantic.objectiveSatisfied, false);
     assert.equal(semantic.blocked, false);
     assert.equal(semantic.retryable, true);
+});
+
+test("failure status overrides an incorrect ok true flag", () => {
+    const semantic = __test.normalizeToolSemantics({
+        ok: true,
+        status: "TOOL_FAILED"
+    });
+
+    assert.equal(semantic.ok, false);
+    assert.equal(semantic.executionOk, false);
+    assert.equal(semantic.objectiveSatisfied, false);
+    assert.equal(semantic.retryable, true);
+    assert.equal(__test.shouldHaltToolSequence(semantic), true);
 });
 
 test("runtime wrapper lifts nested semantic status without losing raw data", async () => {
@@ -146,6 +164,24 @@ test("runtime wrapper lifts nested semantic status without losing raw data", asy
     assert.equal(runtime.__semanticEnvelopeInstalled, true);
 });
 
+test("runtime wrapper preserves top-level failure over successful nested data", () => {
+    const result = __test.semanticRuntimeEnvelope({
+        ok: false,
+        status: "TOOL_FAILED",
+        data: {
+            ok: true,
+            status: "COMPLETED",
+            output: "stale.txt"
+        }
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.executionOk, false);
+    assert.equal(result.objectiveSatisfied, false);
+    assert.equal(result.status, "TOOL_FAILED");
+    assert.equal(result.retryable, true);
+});
+
 test("bridge sequence guard stops dependent calls after semantic input block", async () => {
     const executed = [];
     const bridge = {
@@ -158,7 +194,8 @@ test("bridge sequence guard stops dependent calls after semantic input block", a
                     objectiveSatisfied: false,
                     status: "MARKETING_INPUT_REQUIRED",
                     requiresInput: true,
-                    blocked: true
+                    blocked: true,
+                    missingInputs: ["audience"]
                 }
                 : {
                     ok: true,
@@ -184,4 +221,47 @@ test("bridge sequence guard stops dependent calls after semantic input block", a
     assert.equal(results.length, 2);
     assert.equal(results[1].requiresInput, true);
     assert.equal(bridge.__semanticSequenceGuardInstalled, true);
+});
+
+test("bridge guard reconciles semantic state into tool memory", async () => {
+    const memoryEntry = {
+        tool: "marketing.plan",
+        ok: true,
+        status: "SUCCESS"
+    };
+    globalThis.window.__JARVIS_TOOL_MEMORY__ = {
+        version: "7.0.0",
+        maxEntries: 25,
+        entries: [memoryEntry],
+        last: memoryEntry
+    };
+    const bridge = {
+        async executeAndCompose() {
+            return {
+                ok: true,
+                executionOk: true,
+                objectiveSatisfied: false,
+                status: "MARKETING_INPUT_REQUIRED",
+                requiresInput: true,
+                blocked: true,
+                missingInputs: ["audience", "offer"]
+            };
+        }
+    };
+
+    __test.installSemanticBridgeGuard(bridge);
+    const result = await bridge.executeAndCompose(
+        "marketing.plan",
+        {},
+        {}
+    );
+
+    assert.equal(result.objectiveSatisfied, false);
+    assert.equal(memoryEntry.ok, true);
+    assert.equal(memoryEntry.executionOk, true);
+    assert.equal(memoryEntry.objectiveSatisfied, false);
+    assert.equal(memoryEntry.status, "MARKETING_INPUT_REQUIRED");
+    assert.equal(memoryEntry.requiresInput, true);
+    assert.equal(memoryEntry.blocked, true);
+    assert.deepEqual(memoryEntry.missingInputs, ["audience", "offer"]);
 });
