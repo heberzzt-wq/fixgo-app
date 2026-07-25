@@ -1850,7 +1850,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /sia7-grounded-execution-args-v51-20260724/);
+    assert.match(terminal, /sia7-balanced-mission-evidence-v52-20260724/);
     assert.match(terminal, /jarvis-runtime-macro-v2-20260707-4190/);
     assert.match(terminal, /isTerminalBrainRuntimeReady/);
     assert.doesNotMatch(terminal, /function isKernelSessionReady/);
@@ -2282,6 +2282,18 @@ test("multi-tool missions prefer grounded semantic composition over a generic re
     assert.match(
         core,
         /followUpObservations\.map/
+    );
+    assert.match(
+        core,
+        /const perEvidenceBudget\s*=/
+    );
+    assert.match(
+        core,
+        /68000\s*\/\s*Math\.max\(\s*missionEvidenceItems\.length/
+    );
+    assert.match(
+        core,
+        /entrega una seccion verificable para cada uno/
     );
 });
 
