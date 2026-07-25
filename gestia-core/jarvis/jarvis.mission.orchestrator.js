@@ -174,7 +174,10 @@ function safeObservation(result = {}) {
             ? explicitRetryable
             : !executionOk && !blocked;
     const preparedArtifact =
-        normalizedStatus === "DOCUMENT_CONTENT_COMPOSED"
+        normalizedStatus === "DOCUMENT_CONTENT_COMPOSED" &&
+        payload?.validationPassed === true &&
+        payload?.compositionComplete === true &&
+        payload?.completionMarkerPresent === true
             ? {
                 kind:
                     "document",
@@ -183,7 +186,60 @@ function safeObservation(result = {}) {
                 format:
                     text(payload?.format, 30),
                 content:
-                    String(payload?.content ?? "").slice(0, 50000)
+                    String(payload?.content ?? "").slice(0, 500000),
+                contract:
+                    compactEvidence(
+                        payload?.contract ||
+                        {}
+                    ),
+                wordCount:
+                    Number(
+                        payload?.wordCount
+                    ) ||
+                    0,
+                sectionCount:
+                    Number(
+                        payload?.sectionCount
+                    ) ||
+                    0,
+                headingCount:
+                    Number(
+                        payload?.headingCount
+                    ) ||
+                    0,
+                tableBlueprintCount:
+                    Number(
+                        payload?.tableBlueprintCount
+                    ) ||
+                    0,
+                templateCount:
+                    Number(
+                        payload?.templateCount
+                    ) ||
+                    0,
+                questionCount:
+                    Number(
+                        payload?.questionCount
+                    ) ||
+                    0,
+                answerKeyCount:
+                    Number(
+                        payload?.answerKeyCount
+                    ) ||
+                    0,
+                completionMarkerPresent:
+                    true,
+                compositionComplete:
+                    true,
+                validationPassed:
+                    true,
+                validationFailures:
+                    [],
+                continuationCount:
+                    Number(
+                        payload?.continuationCount
+                    ) ||
+                    0
             }
             : normalizedStatus === "SPREADSHEET_BLUEPRINT_READY"
                 ? {

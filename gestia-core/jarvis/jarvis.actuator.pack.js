@@ -267,6 +267,9 @@ export function registerJarvisActuatorTools(runtime) {
                 rows: "array",
                 sheets: "array<{name,rows}>",
                 requireFormulas: "boolean",
+                requireDocumentValidation: "boolean",
+                documentContract: "object",
+                documentValidation: "object",
                 slides: "array",
                 caseId: "string",
                 objectiveId: "string"
@@ -288,6 +291,16 @@ export function registerJarvisActuatorTools(runtime) {
                     requireFormulas:
                         args.requireFormulas ===
                         true,
+                    requireDocumentValidation:
+                        args
+                            .requireDocumentValidation ===
+                        true,
+                    documentContract:
+                        args.documentContract ||
+                        {},
+                    documentValidation:
+                        args.documentValidation ||
+                        {},
                     slides: args.slides,
                     caseId: args.caseId || context.caseId || "",
                     objectiveId: args.objectiveId || context.objectiveId || ""

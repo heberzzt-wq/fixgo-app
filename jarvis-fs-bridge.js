@@ -19,6 +19,10 @@ import {
     validateWorkbookFormulaStructure
 } from "./gestia-core/jarvis/jarvis.workbook.validator.js";
 import {
+    buildDocxArtifactBuffer,
+    validateDocxArtifactFile
+} from "./jarvis-docx-artifact.js";
+import {
     buildReelStudioHtml,
     describeReelStudio
 } from "./jarvis-reel-artifact.js";
@@ -36,7 +40,7 @@ import { locatePdfFieldAnchors } from "./jarvis-pdf-layout.js";
 import { verifyPdfVisualChanges } from "./jarvis-pdf-visual.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.27.0-xlsx-blueprint-gate";
+    "2.28.0-docx-contract-gate";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -3241,6 +3245,9 @@ export function createJarvisFsBridgeApp({
                 rows = [],
                 sheets = [],
                 requireFormulas = false,
+                requireDocumentValidation = false,
+                documentContract = {},
+                documentValidation = {},
                 slides = []
             } = req.body || {};
             const normalizedFormat = String(format).toLowerCase();
@@ -3278,6 +3285,7 @@ export function createJarvisFsBridgeApp({
                     : `.jarvis-artifacts/documents/${safeFileStem(safeTitle)}-${Date.now()}.${normalizedFormat}`;
             const target = artifactPath(resolvedOutput, root, [`.${normalizedFormat}`]);
             let body = content;
+            let documentVerification = null;
 
             if (normalizedFormat === "html") {
                 body = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${safeTitle}</title><style>body{font:16px/1.55 system-ui;max-width:960px;margin:48px auto;padding:0 24px;color:#172033}pre{white-space:pre-wrap}</style></head><body><h1>${safeTitle}</h1><pre>${content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre></body></html>`;
@@ -3287,26 +3295,49 @@ export function createJarvisFsBridgeApp({
                 fs.writeFileSync(target, body, "utf8");
             }
             else if (normalizedFormat === "docx") {
-                const {
-                    Document,
-                    Packer,
-                    Paragraph,
-                    TextRun
-                } = await import("docx");
-                const document = new Document({
-                    sections: [{
-                        children: [
-                            new Paragraph({
-                                children: [new TextRun({ text: safeTitle, bold: true, size: 34 })],
-                                spacing: { after: 320 }
-                            }),
-                            ...String(content).split(/\r?\n/).map(line =>
-                                new Paragraph({ text: line || " ", spacing: { after: 120 } })
-                            )
-                        ]
-                    }]
-                });
-                fs.writeFileSync(target, await Packer.toBuffer(document));
+                const artifact =
+                    await buildDocxArtifactBuffer({
+                        title:
+                            safeTitle,
+                        content
+                    });
+                fs.writeFileSync(
+                    target,
+                    artifact.buffer
+                );
+                documentVerification =
+                    await validateDocxArtifactFile({
+                        file:
+                            target,
+                        contract:
+                            documentContract,
+                        expectedValidation:
+                            documentValidation
+                    });
+                if (
+                    requireDocumentValidation === true &&
+                    documentVerification.ok !== true
+                ) {
+                    fs.rmSync(
+                        target,
+                        { force: true }
+                    );
+                    return res.status(422).json({
+                        ok: false,
+                        status:
+                            "DOCUMENT_VALIDATION_FAILED",
+                        error:
+                            "DOCUMENT_VALIDATION_FAILED",
+                        output:
+                            null,
+                        quarantined:
+                            true,
+                        validation:
+                            documentVerification,
+                        version:
+                            JARVIS_FS_BRIDGE_VERSION
+                    });
+                }
             }
             else if (normalizedFormat === "xlsx") {
                 const ExcelJS = (await import("exceljs")).default;
@@ -3519,6 +3550,8 @@ export function createJarvisFsBridgeApp({
                 downloadable: true, publishable: false
             } });
             return res.json({
+                documentValidation:
+                    documentVerification,
                 ok: true,
                 status: "DOCUMENT_CREATED",
                 format: normalizedFormat,

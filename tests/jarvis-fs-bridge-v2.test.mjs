@@ -33,7 +33,7 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.27.0-xlsx-blueprint-gate");
+    assert.equal(description.version, "2.28.0-docx-contract-gate");
     assert.equal(description.policy.authority, "full_repo_private_owner");
     assert.equal(description.policy.safeZone, "advisory");
     assert.equal(description.policy.emptyWrites, "blocked");

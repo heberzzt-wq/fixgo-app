@@ -2404,6 +2404,30 @@ test("multi-tool missions prefer grounded semantic composition over a generic re
         core,
         /no se creo un libro vacio o parcial/
     );
+    assert.match(
+        core,
+        /blueprint\s*\.validationPassed\s*===\s*true/
+    );
+    assert.match(
+        core,
+        /blueprint\s*\.compositionComplete\s*===\s*true/
+    );
+    assert.match(
+        core,
+        /blueprint\s*\.completionMarkerPresent\s*===\s*true/
+    );
+    assert.match(
+        core,
+        /requireDocumentValidation/
+    );
+    assert.match(
+        core,
+        /documentBlueprintRequired/
+    );
+    assert.match(
+        core,
+        /no se creo ni publico un documento vacio, placeholder o parcial/
+    );
 });
 
 test("mission composition rejects truncated model headers and accepts complete reports", () => {

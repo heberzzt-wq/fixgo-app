@@ -546,7 +546,18 @@ test("mission preserves complete prepared content for a following artifact creat
                     status: "DOCUMENT_CONTENT_COMPOSED",
                     title: "Guia",
                     format: "docx",
-                    content
+                    content,
+                    wordCount: 901,
+                    sectionCount: 6,
+                    headingCount: 6,
+                    tableBlueprintCount: 2,
+                    templateCount: 1,
+                    questionCount: 0,
+                    answerKeyCount: 0,
+                    completionMarkerPresent: true,
+                    compositionComplete: true,
+                    validationPassed: true,
+                    contract: { minWords: 900, minSections: 6 }
                 };
             }
             preparedContent =
@@ -563,8 +574,48 @@ test("mission preserves complete prepared content for a following artifact creat
     assert.equal(mission.status, "COMPLETED");
     assert.equal(preparedContent, content);
     assert.equal(
-        mission.completedTasks[0].observation.preparedArtifact.kind,
+        mission.completedTasks[0]
+            .observation
+            .preparedArtifact
+            .kind,
         "document"
+    );
+    assert.equal(
+        mission.completedTasks[0]
+            .observation
+            .preparedArtifact
+            .validationPassed,
+        true
+    );
+    assert.equal(
+        mission.completedTasks[0]
+            .observation
+            .preparedArtifact
+            .wordCount,
+        901
+    );
+    assert.equal(
+        mission.completedTasks[0]
+            .observation
+            .preparedArtifact
+            .contract
+            .minWords,
+        900
+    );
+});
+
+test("mission refuses a status-only document blueprint without V68 validation evidence", () => {
+    const observation = __test.safeObservation({
+        ok: true,
+        status: "DOCUMENT_CONTENT_COMPOSED",
+        title: "Manual",
+        format: "docx",
+        content: "El contenido completo del manual generado por document.compose."
+    });
+
+    assert.equal(
+        observation.preparedArtifact,
+        null
     );
 });
 

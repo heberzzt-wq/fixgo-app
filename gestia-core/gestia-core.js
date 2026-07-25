@@ -5518,7 +5518,16 @@ if (
                         else if (
                             blueprintTask?.name === "document.compose" &&
                             typeof blueprint?.content === "string" &&
-                            blueprint.content.trim()
+                            blueprint.content.trim() &&
+                            blueprint
+                                .validationPassed ===
+                                true &&
+                            blueprint
+                                .compositionComplete ===
+                                true &&
+                            blueprint
+                                .completionMarkerPresent ===
+                                true
                         ) {
                             executionCall.args = {
                                 ...executionCall.args,
@@ -5531,7 +5540,30 @@ if (
                                     executionCall.args.title ||
                                     "Documento Jarvis",
                                 content:
-                                    blueprint.content
+                                    blueprint.content,
+                                requireDocumentValidation:
+                                    true,
+                                documentContract:
+                                    blueprint.contract ||
+                                    {},
+                                documentValidation: {
+                                    wordCount:
+                                        blueprint.wordCount,
+                                    sectionCount:
+                                        blueprint.sectionCount,
+                                    headingCount:
+                                        blueprint.headingCount,
+                                    tableBlueprintCount:
+                                        blueprint.tableBlueprintCount,
+                                    templateCount:
+                                        blueprint.templateCount,
+                                    questionCount:
+                                        blueprint.questionCount,
+                                    answerKeyCount:
+                                        blueprint.answerKeyCount,
+                                    validationPassed:
+                                        true
+                                }
                             };
                             argumentGrounded =
                                 true;
@@ -5594,6 +5626,39 @@ if (
                                         )
                                 )
                             );
+                        const documentBlueprintFailed =
+                            Array.isArray(
+                                missionContext
+                                    ?.blockedTasks
+                            ) &&
+                            missionContext
+                                .blockedTasks
+                                .some(item =>
+                                    item?.name ===
+                                    "document.compose"
+                                );
+                        const documentBlueprintRequired =
+                            String(
+                                executionCall
+                                    .args
+                                    .format ||
+                                ""
+                            ).toLocaleLowerCase() ===
+                                "docx" &&
+                            (
+                                documentBlueprintFailed ||
+                                (
+                                    Array.isArray(
+                                        missionContext
+                                            ?.requiredToolNames
+                                    ) &&
+                                    missionContext
+                                        .requiredToolNames
+                                        .includes(
+                                            "document.compose"
+                                        )
+                                )
+                            );
                         const directDocumentReady =
                             (
                                 typeof executionCall.args.content === "string" &&
@@ -5612,7 +5677,8 @@ if (
                             !argumentGrounded &&
                             (
                                 !directDocumentReady ||
-                                spreadsheetBlueprintRequired
+                                spreadsheetBlueprintRequired ||
+                                documentBlueprintRequired
                             )
                         ) {
                             return {
@@ -5620,7 +5686,9 @@ if (
                                 status:
                                     spreadsheetBlueprintRequired
                                         ? "SPREADSHEET_BLUEPRINT_REQUIRED"
-                                        : "DOCUMENT_BLUEPRINT_REQUIRED",
+                                        : documentBlueprintRequired
+                                            ? "DOCUMENT_BLUEPRINT_REQUIRED"
+                                            : "DOCUMENT_BLUEPRINT_REQUIRED",
                                 objectiveSatisfied:
                                     false,
                                 blocked:
@@ -5630,7 +5698,9 @@ if (
                                 error:
                                     spreadsheetBlueprintRequired
                                         ? "La composicion XLSX verificable no termino; no se creo un libro vacio o parcial."
-                                        : "La composicion verificable del artefacto no termino; no se creo un archivo parcial.",
+                                        : documentBlueprintRequired
+                                            ? "La composicion DOCX verificable no termino; no se creo ni publico un documento vacio, placeholder o parcial."
+                                            : "La composicion verificable del artefacto no termino; no se creo un archivo parcial.",
                                 missionExecution: {
                                     name:
                                         call.name,

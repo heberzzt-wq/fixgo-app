@@ -27,8 +27,12 @@ import {
 import {
     validateWorkbookFormulaStructure
 } from "./jarvis.workbook.validator.js?v=sia7-deep-artifact-validation-v65-20260725";
+import {
+    extractDocumentContract,
+    validateDocumentBlueprint
+} from "./jarvis.document.validator.js?v=sia7-docx-contract-gate-v68-20260725";
 
-const VERSION = "1.30.0-deep-artifact-validation";
+const VERSION = "1.31.0-docx-contract-gate";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";
@@ -2137,6 +2141,10 @@ export function registerJarvisMultifunctionTools(runtime) {
                 );
                 const title = clean(args.title, "Documento Jarvis");
                 const format = clean(args.format, "docx").toLowerCase();
+                const contract =
+                    extractDocumentContract(
+                        instruction
+                    );
                 let semantic = await fetchSemanticConversation(
                     [
                         "Redacta el contenido completo, original y listo para guardar de este documento solicitado por el usuario.",
@@ -2145,6 +2153,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                         "Distribuye la extension entre todos los requisitos y prioriza que ninguno quede fuera.",
                         "No uses cercas de codigo ni JSON. No omitas el final por longitud.",
                         `Finaliza obligatoriamente con ${DOCUMENT_COMPLETION_MARKER} en una linea independiente.`,
+                        `CONTRATO_VERIFICABLE=${JSON.stringify(contract)}`,
                         `TITULO=${title}`,
                         `FORMATO=${format}`,
                         `SOLICITUD=${instruction}`
@@ -2159,58 +2168,97 @@ export function registerJarvisMultifunctionTools(runtime) {
                         semantic?.message
                     );
                 let completionVerified =
-                    content.includes(
+                    content
+                        .includes(
                         DOCUMENT_COMPLETION_MARKER
                     );
                 let continuationCount = 0;
+                let validation =
+                    validateDocumentBlueprint({
+                        content:
+                            stripDocumentCompletionMarker(
+                                content
+                            ),
+                        instruction,
+                        completionMarkerPresent:
+                            completionVerified
+                    });
 
-                if (
+                while (
                     semantic?.ok === true &&
-                    !completionVerified
+                    validation.ok !== true &&
+                    continuationCount < 4
                 ) {
+                    const composedSoFar =
+                        stripDocumentCompletionMarker(
+                            content
+                        );
                     const continuation =
                         await fetchSemanticConversation(
                             [
-                                "Continua y termina el documento que fue cortado.",
+                                "Continua y termina el documento; la version acumulada aun no satisface el contrato verificable.",
                                 "Entrega solamente el contenido faltante desde el punto exacto donde termino; no repitas el contenido existente.",
                                 "Completa todos los requisitos de la solicitud original que aun falten.",
+                                "No declares que el documento esta completo hasta corregir todas las fallas indicadas.",
                                 `Finaliza obligatoriamente con ${DOCUMENT_COMPLETION_MARKER} en una linea independiente.`,
+                                `FALLAS_PENDIENTES=${JSON.stringify(validation.failures)}`,
+                                `CONTRATO_VERIFICABLE=${JSON.stringify(contract)}`,
                                 `TITULO=${title}`,
                                 `FORMATO=${format}`,
                                 `SOLICITUD_ORIGINAL=${instruction}`,
-                                `CONTENIDO_YA_REDACTADO=${content}`
+                                `CONTENIDO_YA_REDACTADO=${composedSoFar}`
                             ].join("\n"),
                             {
                                 maxOutputTokens:
                                     8000
                             }
                         );
-                    continuationCount = 1;
+                    continuationCount += 1;
                     if (
                         continuation?.ok === true &&
                         clean(continuation.message)
                     ) {
                         content =
                             appendSemanticContinuation(
-                                content,
+                                composedSoFar,
                                 clean(continuation.message)
                             );
                         semantic = continuation;
+                    }
+                    else {
+                        semantic = continuation;
+                        break;
                     }
                     completionVerified =
                         content.includes(
                             DOCUMENT_COMPLETION_MARKER
                         );
+                    validation =
+                        validateDocumentBlueprint({
+                            content:
+                                stripDocumentCompletionMarker(
+                                    content
+                                ),
+                            instruction,
+                            completionMarkerPresent:
+                                completionVerified
+                        });
                 }
 
                 content =
                     stripDocumentCompletionMarker(
                         content
                     );
+                validation =
+                    validateDocumentBlueprint({
+                        content,
+                        instruction,
+                        completionMarkerPresent:
+                            completionVerified
+                    });
                 const ok =
                     semantic?.ok === true &&
-                    completionVerified &&
-                    content.length >= 500;
+                    validation.ok === true;
                 return {
                     ok,
                     status:
@@ -2229,6 +2277,35 @@ export function registerJarvisMultifunctionTools(runtime) {
                     original:
                         true,
                     completionVerified,
+                    completionMarkerPresent:
+                        validation
+                            .completionMarkerPresent,
+                    compositionComplete:
+                        validation
+                            .compositionComplete,
+                    validationPassed:
+                        validation
+                            .validationPassed,
+                    validationFailures:
+                        validation.failures,
+                    contract:
+                        validation.contract,
+                    wordCount:
+                        validation.wordCount,
+                    sectionCount:
+                        validation.sectionCount,
+                    headingCount:
+                        validation.headingCount,
+                    tableBlueprintCount:
+                        validation.tableBlueprintCount,
+                    templateCount:
+                        validation.templateCount,
+                    questionCount:
+                        validation.questionCount,
+                    answerKeyCount:
+                        validation.answerKeyCount,
+                    tables:
+                        validation.tables,
                     continuationCount,
                     readOnly:
                         true,
@@ -2238,11 +2315,8 @@ export function registerJarvisMultifunctionTools(runtime) {
                         ok
                             ? null
                             : semantic?.error ||
-                            (
-                                completionVerified
-                                    ? "DOCUMENT_CONTENT_TOO_SHORT"
-                                    : "DOCUMENT_COMPLETION_NOT_VERIFIED"
-                            )
+                            validation.failures[0] ||
+                            "DOCUMENT_CONTENT_COMPOSITION_FAILED"
                 };
             }
         }),

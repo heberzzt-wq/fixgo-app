@@ -444,7 +444,7 @@ test("document composition continues a cut response and verifies its real ending
             {
                 title: "Guía de Español",
                 format: "docx",
-                instructions: "Incluye plan de 7 días y simulacro de 20 reactivos."
+                instructions: "Incluye un plan de estudio de 7 días y una conclusión operativa."
             }
         );
 
@@ -456,6 +456,137 @@ test("document composition continues a cut response and verifies its real ending
         assert.match(result.content, /Contenido inicial/);
         assert.match(result.content, /20 reactivos y respuestas/);
         assert.doesNotMatch(result.content, /JARVIS_DOCUMENT_COMPLETE/);
+    } finally {
+        globalThis.auth = previousAuth;
+        globalThis.fetch = previousFetch;
+    }
+});
+
+test("document composition continues after a premature marker until the contract passes", async () => {
+    const previousAuth = globalThis.auth;
+    const previousFetch = globalThis.fetch;
+    const runtime = createRuntime();
+    registerJarvisMultifunctionTools(runtime);
+    let requestCount = 0;
+
+    try {
+        globalThis.auth = {
+            currentUser: {
+                getIdToken: async () => "test-token"
+            }
+        };
+        globalThis.fetch = async () => {
+            requestCount += 1;
+            const message = requestCount === 1
+                ? [
+                    "# 1. Portada",
+                    ("Presentación profesional con control documental, alcance y responsables verificables. ").repeat(4)
+                ].join("\n\n")
+                : requestCount === 2
+                    ? [
+                        "# 2. Objetivo y alcance",
+                        ("Procedimiento operativo con criterios de aceptación y evidencias. ").repeat(4),
+                        "[[JARVIS_DOCUMENT_COMPLETE]]"
+                    ].join("\n\n")
+                    : [
+                        "# 3. Anexos",
+                        ("Registro final único con trazabilidad, responsables, controles, acciones preventivas y criterios verificables para cerrar la operación. ").repeat(14),
+                        "[[JARVIS_DOCUMENT_COMPLETE]]"
+                    ].join("\n\n");
+            return {
+                ok: true,
+                text: async () => JSON.stringify({
+                    result: {
+                        ok: true,
+                        status: "SEMANTIC_RESPONSE_READY",
+                        provider: "test",
+                        model: "test-model",
+                        message
+                    }
+                })
+            };
+        };
+
+        const result = await runtime.execute(
+            "document.compose",
+            {
+                title: "Manual verificable",
+                format: "docx",
+                instructions: [
+                    "Crea un manual de mínimo 180 palabras y 3 secciones.",
+                    "1. Portada",
+                    "2. Objetivo y alcance",
+                    "3. Anexos"
+                ].join("\n")
+            }
+        );
+
+        assert.equal(requestCount, 3);
+        assert.equal(result.ok, true, JSON.stringify(result));
+        assert.equal(result.validationPassed, true);
+        assert.equal(result.compositionComplete, true);
+        assert.equal(result.continuationCount, 2);
+        assert.ok(result.wordCount >= 180);
+        assert.equal(result.sectionCount, 3);
+        assert.deepEqual(result.validationFailures, []);
+        assert.doesNotMatch(result.content, /JARVIS_DOCUMENT_COMPLETE/);
+    } finally {
+        globalThis.auth = previousAuth;
+        globalThis.fetch = previousFetch;
+    }
+});
+
+test("document composition rejects a placeholder even when every response claims completion", async () => {
+    const previousAuth = globalThis.auth;
+    const previousFetch = globalThis.fetch;
+    const runtime = createRuntime();
+    registerJarvisMultifunctionTools(runtime);
+    let requestCount = 0;
+
+    try {
+        globalThis.auth = {
+            currentUser: {
+                getIdToken: async () => "test-token"
+            }
+        };
+        globalThis.fetch = async () => {
+            requestCount += 1;
+            return {
+                ok: true,
+                text: async () => JSON.stringify({
+                    result: {
+                        ok: true,
+                        status: "SEMANTIC_RESPONSE_READY",
+                        provider: "test",
+                        model: "test-model",
+                        message: [
+                            "Manual Operativo",
+                            "El contenido completo del manual generado por document.compose.",
+                            "[[JARVIS_DOCUMENT_COMPLETE]]"
+                        ].join("\n\n")
+                    }
+                })
+            };
+        };
+
+        const result = await runtime.execute(
+            "document.compose",
+            {
+                title: "Manual Operativo",
+                format: "docx",
+                instructions: "Crea un documento de mínimo 80 palabras."
+            }
+        );
+
+        assert.equal(requestCount, 5);
+        assert.equal(result.ok, false);
+        assert.equal(result.status, "DOCUMENT_CONTENT_COMPOSITION_FAILED");
+        assert.equal(result.validationPassed, false);
+        assert.equal(result.continuationCount, 4);
+        assert.ok(result.validationFailures.includes("DOCUMENT_PLACEHOLDER_DETECTED"));
+        assert.ok(result.validationFailures.some(item =>
+            item.startsWith("DOCUMENT_WORD_COUNT_BELOW_MINIMUM")
+        ));
     } finally {
         globalThis.auth = previousAuth;
         globalThis.fetch = previousFetch;
