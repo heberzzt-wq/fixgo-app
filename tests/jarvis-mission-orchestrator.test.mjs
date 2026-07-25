@@ -651,6 +651,65 @@ test("mission refuses a status-only document blueprint without V68 validation ev
     );
 });
 
+test("mission preserves failed document validation evidence for an honest report", () => {
+    const observation =
+        __test.safeObservation({
+            ok:
+                false,
+            status:
+                "DOCUMENT_CONTENT_COMPOSITION_FAILED",
+            error:
+                "SEMANTIC_CONVERSATION_UNAVAILABLE",
+            validationFailures: [
+                "DOCUMENT_WORD_COUNT_BELOW_MINIMUM:1200:4500"
+            ],
+            wordCount:
+                1200,
+            sectionCount:
+                12,
+            tableBlueprintCount:
+                6,
+            continuationCount:
+                1,
+            segmentedComposition:
+                true,
+            objectiveSatisfied:
+                false,
+            blocked:
+                true,
+            retryable:
+                false
+        });
+
+    assert.equal(
+        observation.error,
+        "SEMANTIC_CONVERSATION_UNAVAILABLE"
+    );
+    assert.deepEqual(
+        observation
+            .validationFailures,
+        [
+            "DOCUMENT_WORD_COUNT_BELOW_MINIMUM:1200:4500"
+        ]
+    );
+    assert.equal(
+        observation.wordCount,
+        1200
+    );
+    assert.equal(
+        observation.sectionCount,
+        12
+    );
+    assert.equal(
+        observation.tableBlueprintCount,
+        6
+    );
+    assert.equal(
+        observation.segmentedComposition,
+        true
+    );
+});
+
 test("mission preserves a complete page blueprint for the local page creator", async () => {
     const pageInput = {
         brandName: "Multiservicios Peninsulares HMH",

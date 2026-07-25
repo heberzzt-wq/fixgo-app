@@ -43,7 +43,7 @@ import {
 } from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-deep-artifact-validation-v65-20260725';
 import {
     runJarvisMission
-} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-runtime-truth-v70-20260725';
+} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-visible-document-failures-v73-20260725';
 import {
     addRepositoryDiscoveryPreflights,
     resolveExplicitRepositoryTargets

@@ -387,6 +387,92 @@ function safeObservation(result = {}) {
             ) || "",
             3000
         ),
+        error:
+            text(
+                payload?.error ||
+                result?.error ||
+                "",
+                1000
+            ) ||
+            null,
+        validationFailures:
+            Array.isArray(
+                payload
+                    ?.validationFailures
+            )
+                ? payload
+                    .validationFailures
+                    .slice(0, 30)
+                    .map(value =>
+                        text(
+                            value,
+                            500
+                        )
+                    )
+                    .filter(Boolean)
+                : [],
+        wordCount:
+            Number(
+                payload?.wordCount
+            ) ||
+            0,
+        sectionCount:
+            Number(
+                payload?.sectionCount
+            ) ||
+            0,
+        tableBlueprintCount:
+            Number(
+                payload
+                    ?.tableBlueprintCount
+            ) ||
+            0,
+        templateCount:
+            Number(
+                payload?.templateCount
+            ) ||
+            0,
+        questionCount:
+            Number(
+                payload?.questionCount
+            ) ||
+            0,
+        answerKeyCount:
+            Number(
+                payload?.answerKeyCount
+            ) ||
+            0,
+        vehicleCount:
+            Number(
+                payload?.vehicleCount
+            ) ||
+            0,
+        partCount:
+            Number(
+                payload?.partCount
+            ) ||
+            0,
+        kpiCount:
+            Number(
+                payload?.kpiCount
+            ) ||
+            0,
+        implementationDayCoverage:
+            Number(
+                payload
+                    ?.implementationDayCoverage
+            ) ||
+            0,
+        continuationCount:
+            Number(
+                payload
+                    ?.continuationCount
+            ) ||
+            0,
+        segmentedComposition:
+            payload
+                ?.segmentedComposition ===
+            true,
         artifact: text(
             payload?.output ||
             (
