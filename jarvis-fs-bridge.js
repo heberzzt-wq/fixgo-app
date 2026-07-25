@@ -36,7 +36,7 @@ import { locatePdfFieldAnchors } from "./jarvis-pdf-layout.js";
 import { verifyPdfVisualChanges } from "./jarvis-pdf-visual.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.26.0-deep-artifact-validation";
+    "2.27.0-xlsx-blueprint-gate";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -3240,6 +3240,7 @@ export function createJarvisFsBridgeApp({
                 title = "Documento Jarvis",
                 rows = [],
                 sheets = [],
+                requireFormulas = false,
                 slides = []
             } = req.body || {};
             const normalizedFormat = String(format).toLowerCase();
@@ -3344,6 +3345,37 @@ export function createJarvisFsBridgeApp({
                     validateWorkbookFormulaStructure(
                         preparedSheets
                     );
+                const containsWorkbookContent =
+                    preparedSheets.some(sheet =>
+                        sheet.rows.some(row =>
+                            (
+                                Array.isArray(row)
+                                    ? row
+                                    : Object.values(
+                                        row ||
+                                        {}
+                                    )
+                            ).some(value =>
+                                value !== null &&
+                                value !== undefined &&
+                                value !== ""
+                            )
+                        )
+                    );
+                if (!containsWorkbookContent) {
+                    throw new Error(
+                        "XLSX_WORKBOOK_CONTENT_REQUIRED"
+                    );
+                }
+                if (
+                    requireFormulas === true &&
+                    structuralValidation
+                        .formulaCount < 1
+                ) {
+                    throw new Error(
+                        "XLSX_WORKBOOK_FORMULAS_REQUIRED"
+                    );
+                }
                 if (
                     structuralValidation
                         .invalidFormulas

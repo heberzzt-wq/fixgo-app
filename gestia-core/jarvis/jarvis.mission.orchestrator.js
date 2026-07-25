@@ -219,7 +219,16 @@ function safeObservation(result = {}) {
                                         )
                                         : []
                             }))
-                            : []
+                            : [],
+                    formulaCount:
+                        Number(
+                            payload?.formulaCount
+                        ) ||
+                        0,
+                    formulaValidationPassed:
+                        payload
+                            ?.formulaValidationPassed ===
+                        true
                 }
                 : normalizedStatus === "PAGE_CONTENT_COMPOSED"
                     ? {
@@ -504,6 +513,8 @@ export async function runJarvisMission({
                 caseId: mission.caseId,
                 objectiveId: mission.objectiveId,
                 rawInput: originalInstruction,
+                requiredToolNames:
+                    [...mission.requiredToolNames],
                 completedTasks: mission.completedTasks.map(item => ({
                     name: item.name,
                     args: item.args,

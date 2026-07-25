@@ -615,6 +615,55 @@ test("mission preserves a complete page blueprint for the local page creator", a
     assert.deepEqual(preparedPage, pageInput);
 });
 
+test("spreadsheet observations preserve only validated executable blueprint metadata", () => {
+    const observation =
+        __test.safeObservation({
+            ok:
+                true,
+            status:
+                "SPREADSHEET_BLUEPRINT_READY",
+            title:
+                "APU",
+            sheets: [{
+                name:
+                    "APU",
+                rows: [
+                    [
+                        "Concepto",
+                        "Importe"
+                    ],
+                    [
+                        "Block",
+                        "=2*10"
+                    ]
+                ]
+            }],
+            formulaCount:
+                1,
+            formulaValidationPassed:
+                true
+        });
+
+    assert.equal(
+        observation
+            .preparedArtifact
+            .kind,
+        "spreadsheet"
+    );
+    assert.equal(
+        observation
+            .preparedArtifact
+            .formulaCount,
+        1
+    );
+    assert.equal(
+        observation
+            .preparedArtifact
+            .formulaValidationPassed,
+        true
+    );
+});
+
 test("routing compaction is deterministic and does not replace the authority instruction", () => {
     const instruction = "A".repeat(20000);
     const routing = __test.compactRoutingInstruction(instruction);

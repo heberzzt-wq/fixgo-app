@@ -43,7 +43,7 @@ import {
 } from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-deep-artifact-validation-v65-20260725';
 import {
     runJarvisMission
-} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-deep-artifact-validation-v65-20260725';
+} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-xlsx-blueprint-gate-v67-20260725';
 import {
     addRepositoryDiscoveryPreflights,
     resolveExplicitRepositoryTargets
@@ -197,7 +197,7 @@ import {
 } from '/gestia-core/semantic.engine.js?v=sia7-model-context-v8-20260714';
 import '/gestia-core/brain.engine.js?v=sia7-deep-artifact-validation-v65-20260725';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260725-deep-artifacts-v65';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260725-xlsx-blueprint-gate-v67';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260725-semantic-envelope-v64';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260725-deep-artifacts-v65';
 
@@ -5491,7 +5491,13 @@ if (
                         if (
                             blueprintTask?.name === "spreadsheet.compose" &&
                             Array.isArray(blueprint?.sheets) &&
-                            blueprint.sheets.length > 0
+                            blueprint.sheets.length > 0 &&
+                            blueprint
+                                .formulaValidationPassed ===
+                                true &&
+                            Number(
+                                blueprint?.formulaCount
+                            ) > 0
                         ) {
                             executionCall.args = {
                                 ...executionCall.args,
@@ -5502,7 +5508,9 @@ if (
                                     executionCall.args.title ||
                                     "Libro de trabajo Jarvis",
                                 sheets:
-                                    blueprint.sheets
+                                    blueprint.sheets,
+                                requireFormulas:
+                                    true
                             };
                             argumentGrounded =
                                 true;
@@ -5529,6 +5537,63 @@ if (
                                 true;
                         }
 
+                        const directSheetsReady =
+                            Array.isArray(
+                                executionCall.args.sheets
+                            ) &&
+                            executionCall.args.sheets
+                                .some(sheet =>
+                                    Array.isArray(
+                                        sheet?.rows
+                                    ) &&
+                                    sheet.rows.some(row =>
+                                        (
+                                            Array.isArray(row)
+                                                ? row
+                                                : Object.values(
+                                                    row ||
+                                                    {}
+                                                )
+                                        ).some(cell =>
+                                            cell !== null &&
+                                            cell !== undefined &&
+                                            cell !== ""
+                                        )
+                                    )
+                                );
+                        const spreadsheetBlueprintFailed =
+                            Array.isArray(
+                                missionContext
+                                    ?.blockedTasks
+                            ) &&
+                            missionContext
+                                .blockedTasks
+                                .some(item =>
+                                    item?.name ===
+                                    "spreadsheet.compose"
+                                );
+                        const spreadsheetBlueprintRequired =
+                            String(
+                                executionCall
+                                    .args
+                                    .format ||
+                                ""
+                            ).toLocaleLowerCase() ===
+                                "xlsx" &&
+                            (
+                                spreadsheetBlueprintFailed ||
+                                (
+                                    Array.isArray(
+                                        missionContext
+                                            ?.requiredToolNames
+                                    ) &&
+                                    missionContext
+                                        .requiredToolNames
+                                        .includes(
+                                            "spreadsheet.compose"
+                                        )
+                                )
+                            );
                         const directDocumentReady =
                             (
                                 typeof executionCall.args.content === "string" &&
@@ -5538,22 +5603,24 @@ if (
                                 Array.isArray(executionCall.args.rows) &&
                                 executionCall.args.rows.length > 0
                             ) ||
-                            (
-                                Array.isArray(executionCall.args.sheets) &&
-                                executionCall.args.sheets.length > 0
-                            ) ||
+                            directSheetsReady ||
                             (
                                 Array.isArray(executionCall.args.slides) &&
                                 executionCall.args.slides.length > 0
                             );
                         if (
                             !argumentGrounded &&
-                            !directDocumentReady
+                            (
+                                !directDocumentReady ||
+                                spreadsheetBlueprintRequired
+                            )
                         ) {
                             return {
                                 ok: false,
                                 status:
-                                    "DOCUMENT_BLUEPRINT_REQUIRED",
+                                    spreadsheetBlueprintRequired
+                                        ? "SPREADSHEET_BLUEPRINT_REQUIRED"
+                                        : "DOCUMENT_BLUEPRINT_REQUIRED",
                                 objectiveSatisfied:
                                     false,
                                 blocked:
@@ -5561,7 +5628,9 @@ if (
                                 retryable:
                                     false,
                                 error:
-                                    "La composicion verificable del artefacto no termino; no se creo un archivo parcial.",
+                                    spreadsheetBlueprintRequired
+                                        ? "La composicion XLSX verificable no termino; no se creo un libro vacio o parcial."
+                                        : "La composicion verificable del artefacto no termino; no se creo un archivo parcial.",
                                 missionExecution: {
                                     name:
                                         call.name,

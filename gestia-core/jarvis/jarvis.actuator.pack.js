@@ -266,6 +266,7 @@ export function registerJarvisActuatorTools(runtime) {
                 content: "string",
                 rows: "array",
                 sheets: "array<{name,rows}>",
+                requireFormulas: "boolean",
                 slides: "array",
                 caseId: "string",
                 objectiveId: "string"
@@ -284,6 +285,9 @@ export function registerJarvisActuatorTools(runtime) {
                     content: args.content,
                     rows: args.rows,
                     sheets: args.sheets,
+                    requireFormulas:
+                        args.requireFormulas ===
+                        true,
                     slides: args.slides,
                     caseId: args.caseId || context.caseId || "",
                     objectiveId: args.objectiveId || context.objectiveId || ""

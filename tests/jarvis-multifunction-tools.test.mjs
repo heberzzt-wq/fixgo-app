@@ -561,6 +561,163 @@ test("spreadsheet composition repairs invalid cross-sheet formulas before creati
     }
 });
 
+test("spreadsheet composition rebuilds empty and structurally invalid attempts before creation", async () => {
+    const runtime =
+        createRuntime();
+    registerJarvisMultifunctionTools(
+        runtime
+    );
+    const previousAuth =
+        globalThis.auth;
+    const previousFetch =
+        globalThis.fetch;
+    let requestCount = 0;
+
+    try {
+        globalThis.auth = {
+            currentUser: {
+                getIdToken:
+                    async () =>
+                        "test-token"
+            }
+        };
+        globalThis.fetch = async () => {
+            requestCount += 1;
+            const workbook =
+                requestCount === 1
+                    ? {
+                        title:
+                            "APU",
+                        sheets:
+                            []
+                    }
+                    : requestCount === 2
+                        ? {
+                            title:
+                                "APU",
+                            sheets: [{
+                                name:
+                                    "APU",
+                                rows: [
+                                    [
+                                        "Concepto",
+                                        "Cantidad",
+                                        "Precio",
+                                        "Importe"
+                                    ],
+                                    [
+                                        "Block",
+                                        13,
+                                        "SUPUESTO",
+                                        "=B2*C2"
+                                    ]
+                                ]
+                            }]
+                        }
+                        : {
+                            title:
+                                "APU",
+                            sheets: [{
+                                name:
+                                    "APU",
+                                rows: [
+                                    [
+                                        "Concepto",
+                                        "Cantidad",
+                                        "Precio",
+                                        "Importe",
+                                        "Criterio"
+                                    ],
+                                    [
+                                        "Block",
+                                        13,
+                                        20,
+                                        "=B2*C2",
+                                        "SUPUESTO"
+                                    ]
+                                ]
+                            }, {
+                                name:
+                                    "Criterios",
+                                rows: [
+                                    [
+                                        "Dato",
+                                        "Tratamiento"
+                                    ],
+                                    [
+                                        "Precio",
+                                        "SUPUESTO; validar"
+                                    ]
+                                ]
+                            }]
+                        };
+            return {
+                ok:
+                    true,
+                text:
+                    async () =>
+                        JSON.stringify({
+                            result: {
+                                ok:
+                                    true,
+                                status:
+                                    "SEMANTIC_RESPONSE_READY",
+                                provider:
+                                    "test",
+                                model:
+                                    "test-model",
+                                message:
+                                    JSON.stringify(
+                                        workbook
+                                    )
+                            }
+                        })
+            };
+        };
+
+        const result =
+            await runtime.execute(
+                "spreadsheet.compose",
+                {
+                    title:
+                        "APU",
+                    instructions:
+                        "Crea un APU con formulas."
+                }
+            );
+
+        assert.equal(requestCount, 3);
+        assert.equal(
+            result.ok,
+            true,
+            JSON.stringify(result)
+        );
+        assert.equal(
+            result.repairCount,
+            2
+        );
+        assert.equal(
+            result.formulaCount,
+            1
+        );
+        assert.equal(
+            result.formulaValidationPassed,
+            true
+        );
+        assert.equal(
+            result.sheets[0]
+                .rows[1][4],
+            "SUPUESTO"
+        );
+    }
+    finally {
+        globalThis.auth =
+            previousAuth;
+        globalThis.fetch =
+            previousFetch;
+    }
+});
+
 test("campaign visual and reel planning require grounded structured evidence", () => {
     const imagePlan = buildImageRequirementsPlan({
         brandName: "SUMM",
@@ -2028,7 +2185,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-repo-composition-v66-20260725/);
+    assert.match(terminal, /sia7-xlsx-blueprint-gate-v67-20260725/);
     assert.match(terminal, /jarvis-tools-v7-20260725-deep-artifacts-v65/);
 });
 

@@ -33,7 +33,7 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.26.0-deep-artifact-validation");
+    assert.equal(description.version, "2.27.0-xlsx-blueprint-gate");
     assert.equal(description.policy.authority, "full_repo_private_owner");
     assert.equal(description.policy.safeZone, "advisory");
     assert.equal(description.policy.emptyWrites, "blocked");
@@ -75,6 +75,7 @@ test("Jarvis creates a multi-sheet XLSX with executable formulas", async () => {
                 format: "xlsx",
                 output: "",
                 title: "APU muro",
+                requireFormulas: true,
                 sheets: [
                     {
                         name: "APU",
@@ -182,6 +183,62 @@ test("Jarvis creates a multi-sheet XLSX with executable formulas", async () => {
         assert.match(
             structuralInvalidResult.error,
             /XLSX_FORMULA_STRUCTURE_INVALID/
+        );
+
+        const emptyWorkbookResponse = await fetch(`${base}/document`, {
+            method: "POST",
+            headers: {
+                "content-type": "application/json",
+                "x-jarvis-release-id": "test-release"
+            },
+            body: JSON.stringify({
+                format: "xlsx",
+                title: "Libro vacio",
+                sheets: [{
+                    name: "APU",
+                    rows: []
+                }]
+            })
+        });
+        const emptyWorkbookResult =
+            await emptyWorkbookResponse.json();
+        assert.equal(
+            emptyWorkbookResponse.status,
+            400
+        );
+        assert.match(
+            emptyWorkbookResult.error,
+            /XLSX_WORKBOOK_CONTENT_REQUIRED/
+        );
+
+        const formulaRequiredResponse = await fetch(`${base}/document`, {
+            method: "POST",
+            headers: {
+                "content-type": "application/json",
+                "x-jarvis-release-id": "test-release"
+            },
+            body: JSON.stringify({
+                format: "xlsx",
+                title: "Libro sin formulas",
+                requireFormulas: true,
+                sheets: [{
+                    name: "APU",
+                    rows: [
+                        ["Concepto", "Precio"],
+                        ["Block", 20]
+                    ]
+                }]
+            })
+        });
+        const formulaRequiredResult =
+            await formulaRequiredResponse.json();
+        assert.equal(
+            formulaRequiredResponse.status,
+            400
+        );
+        assert.match(
+            formulaRequiredResult.error,
+            /XLSX_WORKBOOK_FORMULAS_REQUIRED/
         );
     } finally {
         await new Promise(resolve => server.close(resolve));

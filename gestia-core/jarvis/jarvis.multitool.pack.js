@@ -2318,11 +2318,36 @@ export function registerJarvisMultifunctionTools(runtime) {
                     normalizeAndValidateWorkbookSheets(
                         workbook?.sheets
                     );
+                let repairCount = 0;
+                const repairRequired =
+                    () =>
+                        validation.sheets.length === 0 ||
+                        validation.formulaCount < 1 ||
+                        validation
+                            .invalidFormulas
+                            .length > 0;
 
-                if (
+                while (
                     semantic?.ok === true &&
-                    validation.invalidFormulas.length > 0
+                    repairRequired() &&
+                    repairCount < 2
                 ) {
+                    repairCount += 1;
+                    const validationIssues =
+                        validation
+                            .invalidFormulas
+                            .length > 0
+                            ? validation.invalidFormulas
+                            : [
+                                {
+                                    issue:
+                                        validation
+                                            .sheets
+                                            .length === 0
+                                            ? "WORKBOOK_SHEETS_REQUIRED"
+                                            : "WORKBOOK_FORMULAS_REQUIRED"
+                                }
+                            ];
                     const repair =
                         await fetchSemanticConversation(
                             [
@@ -2335,7 +2360,8 @@ export function registerJarvisMultifunctionTools(runtime) {
                                 "Toda celda usada en una operacion numerica debe contener un numero o una formula; mueve SUPUESTO a una columna de criterio separada.",
                                 "Despues de mover, agregar o retirar filas, recalcula todas las referencias.",
                                 `SOLICITUD_ORIGINAL=${instruction}`,
-                                `ERRORES_DE_FORMULA=${JSON.stringify(validation.invalidFormulas)}`,
+                                `INTENTO_DE_REPARACION=${repairCount}`,
+                                `ERRORES_ESTRUCTURALES=${JSON.stringify(validationIssues)}`,
                                 `LIBRO_A_REPARAR=${JSON.stringify({
                                     title:
                                         clean(
@@ -2363,15 +2389,21 @@ export function registerJarvisMultifunctionTools(runtime) {
                             );
                         if (
                             repair?.ok === true &&
-                            repairedValidation.sheets.length > 0
+                            repairedValidation
+                                .sheets
+                                .length > 0
                         ) {
                             workbook = repairedWorkbook;
                             semantic = repair;
                             validation = repairedValidation;
                         }
+                        else {
+                            break;
+                        }
                     }
                     catch {
                         // The validation result below remains fail-closed.
+                        break;
                     }
                 }
 
@@ -2401,6 +2433,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                     sheets,
                     formulaCount,
                     formulaValidationPassed:
+                        formulaCount > 0 &&
                         invalidFormulas.length === 0,
                     invalidFormulas:
                         invalidFormulas.slice(0, 20),
@@ -2418,6 +2451,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                         true,
                     objectiveSatisfied:
                         ok,
+                    repairCount,
                     error:
                         ok
                             ? null
