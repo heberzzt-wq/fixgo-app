@@ -27,6 +27,83 @@ function normalizeResearchQuery(value = "") {
     return collapseWhitespace(value);
 }
 
+function lexicalTokens(value = "") {
+    const tokens = [];
+    const seen = new Set();
+    let token = "";
+
+    const flush = function() {
+        const candidate =
+            token.trim();
+        token = "";
+        if (
+            candidate.length < 3 ||
+            seen.has(candidate)
+        ) {
+            return;
+        }
+        seen.add(candidate);
+        tokens.push(candidate);
+    };
+
+    for (
+        const character of
+        String(value || "")
+            .normalize("NFD")
+            .toLocaleLowerCase()
+    ) {
+        const code =
+            character.charCodeAt(0);
+        const isAsciiLetter =
+            code >= 97 &&
+            code <= 122;
+        const isDigit =
+            code >= 48 &&
+            code <= 57;
+
+        if (
+            isAsciiLetter ||
+            isDigit
+        ) {
+            token += character;
+            continue;
+        }
+
+        flush();
+    }
+
+    flush();
+    return tokens.slice(0, 16);
+}
+
+function sourceMatchesExactEntity(
+    source = {},
+    exactEntity = ""
+) {
+    const required =
+        lexicalTokens(exactEntity);
+    if (required.length === 0) {
+        return true;
+    }
+
+    const available =
+        new Set(
+            lexicalTokens(
+                [
+                    source?.title,
+                    source?.domain,
+                    source?.url
+                ]
+                    .filter(Boolean)
+                    .join(" ")
+            )
+        );
+
+    return required.every(token =>
+        available.has(token)
+    );
+}
+
 function cleanHost(value = "") {
     const host = String(value || "").trim().toLowerCase();
     return host.startsWith("www.") ? host.slice(4) : host;
@@ -507,7 +584,8 @@ async function runJarvisWebResearch({
     model = DEFAULT_MODEL,
     objectiveId = "",
     caseId = "",
-    allowedDomain = ""
+    allowedDomain = "",
+    exactEntity = ""
 } = {}) {
     if (!ai?.models?.generateContent) {
         throw new Error(
@@ -519,6 +597,11 @@ async function runJarvisWebResearch({
         normalizeResearchQuery(query);
     const requestedDomain =
         requestedDomainFromQuery(normalizedQuery, allowedDomain);
+    const normalizedExactEntity =
+        requestedDomain
+            ? ""
+            : collapseWhitespace(exactEntity)
+                .slice(0, 240);
     const groundedQuery = requestedDomain
         ? normalizeResearchQuery(`site:${requestedDomain} ${normalizedQuery}`)
         : normalizedQuery;
@@ -539,7 +622,9 @@ async function runJarvisWebResearch({
                 "No inventes fuentes ni afirmes haber consultado una pagina que no aparezca en groundingMetadata.",
                 requestedDomain
                     ? `Usa ${requestedDomain} como dominio primario obligatorio. Descarta empresas y dominios de nombre parecido.`
-                    : "No se indico un dominio primario obligatorio.",
+                    : normalizedExactEntity
+                        ? `La entidad exacta obligatoria es "${normalizedExactEntity}". No atribuyas hechos de empresas, personas o marcas con nombres solamente parecidos.`
+                        : "No se indico un dominio primario ni una entidad exacta obligatoria.",
                 `Solicitud: ${groundedQuery}`
             ].join("\n"),
             config: {
@@ -561,7 +646,19 @@ async function runJarvisWebResearch({
         extractGroundingMetadata(response);
     const allSources =
         extractGroundingSources(response);
-    const acceptedSources = allSources.filter(source => sourceMatchesDomain(source, requestedDomain));
+    const acceptedSources = allSources
+        .filter(source =>
+            sourceMatchesDomain(
+                source,
+                requestedDomain
+            )
+        )
+        .filter(source =>
+            sourceMatchesExactEntity(
+                source,
+                normalizedExactEntity
+            )
+        );
     const acceptedIds = new Set(acceptedSources.map(source => source.id));
     const discardedSources = allSources.filter(source => !acceptedIds.has(source.id));
     const allSupports =
@@ -600,11 +697,15 @@ async function runJarvisWebResearch({
             .join("\n\n")
             .slice(0, 12000);
     const verifiedAnswer =
-        requestedDomain
+        requestedDomain ||
+        normalizedExactEntity
             ? supportedAnswer
             : answer;
     const modelSynthesisAllowed =
-        !requestedDomain ||
+        (
+            !requestedDomain &&
+            !normalizedExactEntity
+        ) ||
         discardedSources.length === 0;
     const inferences =
         answer &&
@@ -617,11 +718,28 @@ async function runJarvisWebResearch({
             }]
             : [];
 
+    const entityVerified =
+        !normalizedExactEntity ||
+        (
+            sources.length > 0 &&
+            facts.length > 0
+        );
+    const entityNotVerified =
+        Boolean(normalizedExactEntity) &&
+        !entityVerified;
+
     return {
         ok:
-            Boolean(verifiedAnswer) &&
-            sources.length > 0 &&
-            facts.length > 0,
+            entityNotVerified ||
+            (
+                Boolean(verifiedAnswer) &&
+                sources.length > 0 &&
+                facts.length > 0
+            ),
+        status:
+            entityNotVerified
+                ? "ENTITY_NOT_VERIFIED"
+                : "GROUNDED",
         grounded:
             sources.length > 0 && facts.length > 0,
         engine:
@@ -630,12 +748,31 @@ async function runJarvisWebResearch({
         query:
             groundedQuery,
         requestedDomain: requestedDomain || null,
+        exactEntity:
+            normalizedExactEntity ||
+            null,
+        entityVerification: {
+            required:
+                Boolean(
+                    normalizedExactEntity
+                ),
+            verified:
+                entityVerified,
+            status:
+                entityNotVerified
+                    ? "ENTITY_NOT_VERIFIED"
+                    : normalizedExactEntity
+                        ? "ENTITY_VERIFIED"
+                        : "NOT_REQUIRED"
+        },
         objectiveId: String(objectiveId || ""),
         caseId: String(caseId || ""),
         researchedAt,
         provider: "google_search_grounding",
         answer:
-            verifiedAnswer,
+            entityNotVerified
+                ? `No pude verificar la identidad exacta "${normalizedExactEntity}" con las fuentes consultadas. Los resultados de nombres parecidos quedaron descartados y no se les atribuyo ningun hecho.`
+                : verifiedAnswer,
         sources,
         discardedSources,
         supports,
@@ -649,6 +786,15 @@ async function runJarvisWebResearch({
             citationsRequired: true,
             consultedSourcesOnly: true,
             requestedDomainEnforced: Boolean(requestedDomain),
+            exactEntityEnforced:
+                Boolean(
+                    normalizedExactEntity
+                ),
+            similarEntitiesDiscarded:
+                Boolean(
+                    normalizedExactEntity
+                ) &&
+                discardedSources.length > 0,
             modelSynthesisFiltered:
                 Boolean(requestedDomain) &&
                 !modelSynthesisAllowed,
@@ -665,9 +811,11 @@ module.exports = {
     MAX_QUERY_LENGTH,
     collapseWhitespace,
     normalizeResearchQuery,
+    lexicalTokens,
     requestedDomainFromQuery,
     requestedHostsFromQuery,
     sourceMatchesDomain,
+    sourceMatchesExactEntity,
     readHtmlAttribute,
     visibleText,
     extractHtmlElements,

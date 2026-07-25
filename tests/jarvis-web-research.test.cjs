@@ -11,9 +11,11 @@ const { test } =
 
 const {
     normalizeResearchQuery,
+    lexicalTokens,
     requestedDomainFromQuery,
     requestedHostsFromQuery,
     sourceMatchesDomain,
+    sourceMatchesExactEntity,
     extractGroundingSources,
     extractGroundingSupports,
     runJarvisDirectDomainResearch,
@@ -228,6 +230,122 @@ test("web research enforces the requested domain and discards similar companies"
     assert.equal(result.policy.modelSynthesisFiltered, true);
     assert.equal(result.requestedDomain, "summ.com.mx");
     assert.equal(result.policy.requestedDomainEnforced, true);
+});
+
+test("exact entity research discards similarly named companies instead of attributing their facts", async () => {
+    const response = {
+        text:
+            "Resultados de empresas con nombres parecidos.",
+        candidates: [{
+            groundingMetadata: {
+                groundingChunks: [
+                    {
+                        web: {
+                            uri:
+                                "https://gasolinamexico.com.mx/multiservicio-peninsular",
+                            title:
+                                "MULTISERVICIO PENINSULAR SA DE CV"
+                        }
+                    },
+                    {
+                        web: {
+                            uri:
+                                "https://multiservicioshym.com/",
+                            title:
+                                "Multiservicios H&M"
+                        }
+                    },
+                    {
+                        web: {
+                            uri:
+                                "https://peninsularmep.com.mx/",
+                            title:
+                                "Grupo Peninsular MEP"
+                        }
+                    }
+                ],
+                groundingSupports: [
+                    {
+                        segment: {
+                            text:
+                                "Una gasolinera tiene un permiso."
+                        },
+                        groundingChunkIndices: [
+                            0
+                        ]
+                    },
+                    {
+                        segment: {
+                            text:
+                                "Otra empresa repara equipos."
+                        },
+                        groundingChunkIndices: [
+                            1,
+                            2
+                        ]
+                    }
+                ]
+            }
+        }]
+    };
+    const result =
+        await runJarvisWebResearch({
+            ai: {
+                models: {
+                    generateContent:
+                        async () => response
+                }
+            },
+            query:
+                "Multiservicios Peninsulares HMH",
+            exactEntity:
+                "Multiservicios Peninsulares HMH"
+        });
+
+    assert.deepEqual(
+        lexicalTokens(
+            "Multiservicios Peninsulares HMH"
+        ),
+        [
+            "multiservicios",
+            "peninsulares",
+            "hmh"
+        ]
+    );
+    assert.equal(
+        sourceMatchesExactEntity(
+            response.candidates[0]
+                .groundingMetadata
+                .groundingChunks[0]
+                .web,
+            "Multiservicios Peninsulares HMH"
+        ),
+        false
+    );
+    assert.equal(
+        result.status,
+        "ENTITY_NOT_VERIFIED"
+    );
+    assert.equal(result.ok, true);
+    assert.equal(result.grounded, false);
+    assert.equal(
+        result.entityVerification.verified,
+        false
+    );
+    assert.equal(result.sources.length, 0);
+    assert.equal(
+        result.discardedSources.length,
+        3
+    );
+    assert.equal(result.facts.length, 0);
+    assert.match(
+        result.answer,
+        /No pude verificar la identidad exacta/
+    );
+    assert.equal(
+        result.policy.similarEntitiesDiscarded,
+        true
+    );
 });
 
 test("web research validates Google grounding redirects with their domain attribution", async () => {

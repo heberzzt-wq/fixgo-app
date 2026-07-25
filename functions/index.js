@@ -2776,9 +2776,14 @@ exports.jarvisWebResearch = functions
                     query,
                     objectiveId: data?.objectiveId || "",
                     caseId: data?.caseId || "",
-                    allowedDomain: data?.allowedDomain || ""
+                    allowedDomain: data?.allowedDomain || "",
+                    exactEntity: data?.exactEntity || ""
                 });
-                if (!result?.grounded) {
+                if (
+                    !result?.grounded &&
+                    result?.status !==
+                        "ENTITY_NOT_VERIFIED"
+                ) {
                     throw new Error(
                         "PRIMARY_RESEARCH_NOT_GROUNDED"
                     );
@@ -2844,7 +2849,11 @@ exports.jarvisWebResearch = functions
                 caseId: result.caseId || null
             }));
 
-            if (!result.grounded) {
+            if (
+                !result.grounded &&
+                result?.status !==
+                    "ENTITY_NOT_VERIFIED"
+            ) {
                 throw new functions.https.HttpsError(
                     "failed-precondition",
                     "La investigacion no devolvio fuentes verificables."

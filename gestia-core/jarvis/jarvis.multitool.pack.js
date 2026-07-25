@@ -23,7 +23,7 @@ import {
 
 import {
     completeJarvisPlanningArguments
-} from "./jarvis.multifunction.planner.js?v=sia7-verified-definition-audit-20260724";
+} from "./jarvis.multifunction.planner.js?v=sia7-exact-entity-mission-v45-20260724";
 
 const VERSION = "1.25.0-grounded-deliverable-arguments";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
@@ -1244,7 +1244,8 @@ async function fetchGroundedWebResearch(
                             normalizedQuery,
                         objectiveId: trace.objectiveId || "",
                         caseId: trace.caseId || "",
-                        allowedDomain: trace.allowedDomain || ""
+                        allowedDomain: trace.allowedDomain || "",
+                        exactEntity: trace.exactEntity || ""
                     }
                 })
             }
@@ -1258,9 +1259,14 @@ async function fetchGroundedWebResearch(
 
         if (
             !response.ok ||
-            !result?.grounded ||
-            !Array.isArray(result?.sources) ||
-            result.sources.length === 0
+            (
+                result?.status !== "ENTITY_NOT_VERIFIED" &&
+                (
+                    !result?.grounded ||
+                    !Array.isArray(result?.sources) ||
+                    result.sources.length === 0
+                )
+            )
         ) {
             throw new Error(
                 payload?.error?.message ||
@@ -1944,7 +1950,8 @@ export function registerJarvisMultifunctionTools(runtime) {
                 prompt: "string",
                 objectiveId: "string",
                 caseId: "string",
-                allowedDomain: "string"
+                allowedDomain: "string",
+                exactEntity: "string"
             },
             execute: async (args = {}, context = {}) =>
                 await fetchGroundedWebResearch(
@@ -1955,7 +1962,8 @@ export function registerJarvisMultifunctionTools(runtime) {
                     {
                         objectiveId: args.objectiveId || context.objectiveId || "",
                         caseId: args.caseId || context.caseId || "",
-                        allowedDomain: args.allowedDomain || ""
+                        allowedDomain: args.allowedDomain || "",
+                        exactEntity: args.exactEntity || ""
                     }
                 )
         }),

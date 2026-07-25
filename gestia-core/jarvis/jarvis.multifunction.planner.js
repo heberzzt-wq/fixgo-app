@@ -86,6 +86,7 @@ async function callBrowserSemanticPlan(input = "", catalog = [], missionState = 
         "Interpreta significado, typos, negaciones y ordenes mixtas. Selecciona exclusivamente nombres exactos del catalogo.",
         "No autorices escrituras. Conserva todas las intenciones independientes y usa herramientas especializadas para entregables operativos.",
         "Si una investigacion limita fuentes a un dominio, copia el dominio exacto en allowedDomain de web.research.",
+        "Si una investigacion pide hechos sobre una entidad nombrada sin dominio, copia el nombre exacto en exactEntity de web.research.",
         missionState?.phase === "COMPLETION_AUDIT"
             ? "AUDITORIA DE CIERRE: compara cada entregable con la evidencia. Si todo esta satisfecho devuelve toolCalls=[] y missionComplete=true. Si falta algo devuelve exactamente una herramienta pertinente con argumentos completos y missionComplete=false. No explores capacidades no solicitadas. Si repo.search entrego sourceDefinitions o definitionFiles, prioriza esas rutas ejecutables sobre archivos que solo mencionan el simbolo y permite repetir lectura o diagnostico cuando el archivo sea distinto."
             : "Devuelve solamente JSON valido con toolCalls, missionComplete=false y explanation.",

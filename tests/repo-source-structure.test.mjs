@@ -7,7 +7,8 @@ import { fileURLToPath } from "node:url";
 import {
     analyzeRepoSourceStructure,
     buildExecutableSourceView,
-    extractQualifiedSourceIdentifiers
+    extractQualifiedSourceIdentifiers,
+    resolveExplicitRepositoryTargets
 } from "../gestia-core/repo/repo.source.structure.js";
 
 const __dirname =
@@ -123,6 +124,27 @@ test("qualified identifier extraction finds tool symbols without phrase rules", 
             "marketing.plan",
             "image.plan",
             "jarvis.multitool.pack.js"
+        ]
+    );
+});
+
+test("explicit repository targets keep every named file and exclude runtime tool identifiers", () => {
+    assert.deepEqual(
+        resolveExplicitRepositoryTargets(
+            "Revisa app-login.js, firebase.js, app-main.js y gestia-terminal.html; confirma marketing.plan en gestia-core/jarvis/jarvis.multitool.pack.js.",
+            {
+                registeredToolNames: [
+                    "marketing.plan",
+                    "image.plan"
+                ]
+            }
+        ),
+        [
+            "app-login.js",
+            "firebase.js",
+            "app-main.js",
+            "gestia-terminal.html",
+            "gestia-core/jarvis/jarvis.multitool.pack.js"
         ]
     );
 });

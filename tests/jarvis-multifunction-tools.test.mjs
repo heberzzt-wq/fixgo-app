@@ -1687,7 +1687,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(core, /observation\?\.type === "JARVIS_CONVERSATIONAL_RESPONSE"/);
     assert.match(core, /DIRECT_ACTUATOR_COMPOSITION/);
     assert.match(core, /directActuatorFinalResponse/);
-    assert.match(terminal, /sia7-bounded-business-v3-20260724-git-evidence-v44/);
+    assert.match(terminal, /sia7-mission-evidence-composition-v45-20260724/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {

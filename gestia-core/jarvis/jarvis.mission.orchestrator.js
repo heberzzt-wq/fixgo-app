@@ -156,7 +156,18 @@ function safeObservation(result = {}) {
         sourceCount: Number(payload?.sourceCount || payload?.sources?.length || 0),
         validSources: Array.isArray(payload?.sources) ? payload.sources.slice(0, 12) : [],
         discardedSources: Array.isArray(payload?.discardedSources) ? payload.discardedSources.slice(0, 12) : [],
-        summary: text(payload?.message || payload?.answer || payload?.summary || payload?.text || "", 3000),
+        summary: text(
+            [
+                payload?.message,
+                payload?.answer,
+                payload?.summary,
+                payload?.text
+            ].find(value =>
+                typeof value === "string" &&
+                value.trim()
+            ) || "",
+            3000
+        ),
         artifact: text(payload?.artifact || payload?.output || "", 500) || null,
         evidence: compactEvidence({
             ...payload,
@@ -277,7 +288,14 @@ export async function runJarvisMission({
                     name => !completedNames.has(name) && !blockedNames.has(name)
                 );
                 const contractSatisfied = mission.contractMissingTools.length === 0;
-                mission.reason = plan?.missionComplete === true && contractSatisfied
+                const verifiedContractSatisfied =
+                    contractSatisfied &&
+                    mission.requiredToolNames.length > 0 &&
+                    mission.completedTasks.length > 0;
+                mission.reason = (
+                    plan?.missionComplete === true ||
+                    verifiedContractSatisfied
+                ) && contractSatisfied
                     ? mission.blockedTasks.length > 0
                         ? "PARTIAL_CAPABILITY_BLOCKED"
                         : "ALL_EXECUTABLE_TASKS_COMPLETED"

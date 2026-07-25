@@ -305,6 +305,7 @@ function buildSemanticSystemInstruction(catalog = [], missionState = null) {
         "Para page.plan, image.plan y reel.plan completa una especificacion concreta basada solo en la evidencia disponible. Planear en read-only no equivale a crear, publicar ni desplegar.",
         "En reel.plan la suma exacta de durationSeconds de las escenas debe coincidir con durationSeconds total.",
         "Cuando el usuario limite la investigacion a un dominio, copia ese dominio exacto en allowedDomain de web.research y descarta fuentes externas.",
+        "Cuando el usuario pida hechos sobre una empresa, persona o marca por nombre exacto y no proporcione dominio, copia ese nombre exacto en exactEntity de web.research para impedir atribuciones a entidades parecidas.",
         "No razones sobre rutas futuras desconocidas. repo.search es descubrimiento inicial cuando falta una ruta exacta; no satisface por si sola una solicitud que tambien pide leer, revisar contenido, diagnosticar, explicar hallazgos o calcular riesgos.",
         "Para una investigacion operativa no uses conversation.respond como sustituto de las herramientas; reservada para charla o explicaciones que no requieren inspeccion.",
         "Para investigar informacion publica actual y entregar hechos con fuentes usa web.research. browser.inspect se reserva para diagnostico tecnico del navegador o cuando se pida expresamente inspeccionar el DOM renderizado de una URL exacta.",
@@ -341,6 +342,7 @@ async function runGeminiSemanticPlanner({
                     "Distingue descubrimiento de inspeccion: repo.search o repo.scan no completan por si solas un entregable que pide revisar archivos, explicar hallazgos o evaluar riesgos; el contrato debe conservar las herramientas de lectura, diagnostico e impacto disponibles.",
                     "Conserva el orden de dependencias. No incluyas herramientas mutantes si la orden prohibe escribir, publicar, generar archivos o producir medios.",
                     "Si las fuentes estan limitadas a un dominio, copia ese dominio exacto en allowedDomain de cada web.research.",
+                    "Si se investiga una entidad nombrada sin dominio, copia el nombre exacto en exactEntity de web.research.",
                     "Devuelve JSON con toolCalls, explanation, missionComplete=false y completionAssessment que liste los entregables cubiertos por cada herramienta."
                 ].join("\n")
             ].join("\n\n"),
@@ -540,6 +542,7 @@ async function runSimpleSemanticPlanner({
         "En misiones, no repitas herramientas completadas y usa herramientas especializadas, no conversation.respond, para entregables operativos.",
         "Devuelve unicamente JSON valido con toolCalls, explanation, missionComplete y completionAssessment. missionComplete solo puede ser true al auditar que todos los entregables de la mision ya estan satisfechos.",
         "Si la instruccion limita fuentes a un dominio, copia el dominio exacto en allowedDomain de web.research.",
+        "Si la instruccion pide hechos de una entidad nombrada sin dominio, copia su nombre exacto en exactEntity de web.research.",
         missionState?.phase === "MISSION_CONTRACT"
             ? "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only necesarias para TODOS los entregables, no solo la primera etapa. No omitas herramientas especializadas de landing, imagen, reel, inventario o autoevaluacion cuando se pidan. Conserva el orden de dependencias y usa missionComplete=false."
             : "",

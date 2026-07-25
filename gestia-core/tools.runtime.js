@@ -5,7 +5,7 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-verified-definition-audit-20260724";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-exact-entity-mission-v45-20260724";
 import {
     registerJarvisActuatorTools
 } from "./jarvis/jarvis.actuator.pack.js?v=sia7-real-actuators-v3.6-pdf-visual-20260714";
@@ -16,7 +16,7 @@ import {
     analyzeRepoSourceStructure,
     buildExecutableSourceView,
     extractQualifiedSourceIdentifiers
-} from "./repo/repo.source.structure.js?v=sia7-source-structure-v2-20260724";
+} from "./repo/repo.source.structure.js?v=sia7-explicit-repo-targets-v3-20260724";
 
 export const JarvisToolRuntime = {
     _registry: new Map(),

@@ -184,6 +184,111 @@ export function extractQualifiedSourceIdentifiers(value = "") {
     return identifiers.slice(0, 12);
 }
 
+export function resolveExplicitRepositoryTargets(
+    value = "",
+    {
+        registeredToolNames = []
+    } = {}
+) {
+    const toolNames =
+        new Set(
+            (Array.isArray(registeredToolNames)
+                ? registeredToolNames
+                : []
+            )
+                .map(name =>
+                    String(name || "")
+                        .trim()
+                        .toLocaleLowerCase()
+                )
+                .filter(Boolean)
+        );
+    const candidates = [];
+    const seen = new Set();
+    let token = "";
+
+    const flush = function() {
+        let candidate =
+            token.replaceAll("\\", "/");
+        token = "";
+
+        while (
+            candidate.startsWith(".") ||
+            candidate.startsWith("/")
+        ) {
+            candidate =
+                candidate.slice(1);
+        }
+
+        while (
+            candidate.endsWith(".") ||
+            candidate.endsWith("/")
+        ) {
+            candidate =
+                candidate.slice(0, -1);
+        }
+
+        if (!candidate.includes(".")) {
+            return;
+        }
+
+        const hasPath =
+            candidate.includes("/");
+        const dotCount =
+            [...candidate]
+                .filter(character =>
+                    character === "."
+                )
+                .length;
+
+        if (
+            !hasPath &&
+            dotCount !== 1
+        ) {
+            return;
+        }
+
+        const key =
+            candidate.toLocaleLowerCase();
+        if (
+            toolNames.has(key) ||
+            seen.has(key)
+        ) {
+            return;
+        }
+
+        seen.add(key);
+        candidates.push(candidate);
+    };
+
+    for (
+        const character of
+        String(value || "")
+    ) {
+        const code =
+            character.charCodeAt(0);
+        const allowed =
+            (code >= 48 && code <= 57) ||
+            (code >= 65 && code <= 90) ||
+            (code >= 97 && code <= 122) ||
+            character === "_" ||
+            character === "-" ||
+            character === "." ||
+            character === "/" ||
+            character === "\\";
+
+        if (allowed) {
+            token += character;
+            continue;
+        }
+
+        flush();
+    }
+
+    flush();
+    return candidates.slice(0, 16);
+}
+
 export function buildExecutableSourceView(source = "") {
     const input =
         String(source || "");

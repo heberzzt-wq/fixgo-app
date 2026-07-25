@@ -143,6 +143,77 @@ test("observation contract separates a completed plan from production readiness"
     assert.equal(observation.blocked, false);
 });
 
+test("structured summaries never degrade to object string coercion", () => {
+    const observation = __test.safeObservation({
+        ok: true,
+        readinessScore: 82,
+        summary: {
+            total: 12,
+            READY: 8,
+            PARTIAL: 4
+        }
+    });
+
+    assert.equal(observation.summary, "");
+    assert.notEqual(
+        observation.summary,
+        "[object Object]"
+    );
+    assert.equal(
+        observation.evidence.readinessScore,
+        82
+    );
+});
+
+test("a fully executed model contract closes even when the final audit returns no duplicate work", async () => {
+    const sequence = [
+        "web.research",
+        "marketing.plan",
+        "image.plan",
+        "reel.plan"
+    ];
+    const mission = await runJarvisMission({
+        instruction:
+            "Investiga y prepara campana, imagen y reel en read-only.",
+        initialToolCalls:
+            sequence.map(name => ({
+                name,
+                args: {
+                    instruction:
+                        "mision verificada"
+                }
+            })),
+        requiredToolNames:
+            sequence,
+        planner:
+            async () => ({
+                toolCalls: [],
+                missionComplete: false
+            }),
+        execute:
+            async () => ({
+                ok: true,
+                status:
+                    "COMPLETED_READ_ONLY_PLAN"
+            }),
+        storage:
+            memoryStorage()
+    });
+
+    assert.equal(
+        mission.reason,
+        "ALL_EXECUTABLE_TASKS_COMPLETED"
+    );
+    assert.equal(
+        mission.status,
+        "COMPLETED"
+    );
+    assert.deepEqual(
+        mission.executedTools,
+        sequence
+    );
+});
+
 test("mission blocks writes without retrying an approval requirement", async () => {
     let attempts = 0;
     const mission = await runJarvisMission({
