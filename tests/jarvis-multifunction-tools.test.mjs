@@ -1687,7 +1687,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(core, /observation\?\.type === "JARVIS_CONVERSATIONAL_RESPONSE"/);
     assert.match(core, /DIRECT_ACTUATOR_COMPOSITION/);
     assert.match(core, /directActuatorFinalResponse/);
-    assert.match(terminal, /sia7-mission-evidence-composition-v48-20260724/);
+    assert.match(terminal, /sia7-mission-evidence-composition-v49-20260724/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -1868,6 +1868,8 @@ test("daily supervision cloud lookup has a bounded browser deadline", () => {
     assert.match(source, /signal:\s*controller\.signal/);
     assert.match(source, /SUPERVISION_STATUS_TIMEOUT_/);
     assert.match(source, /clearTimeout\(timeoutId\)/);
+    assert.match(source, /3\.6\.0-verified-definition-audit/);
+    assert.doesNotMatch(source, /3\.0\.0-model-semantic-planner/);
 });
 
 test("multifunction descriptor remains approval-bound", () => {

@@ -988,7 +988,7 @@ const LOCAL_SUPERVISION_PROBES = [
         id: "technical_intent_priority",
         path: "/gestia-core/jarvis/jarvis.multifunction.planner.js",
         markers: [
-            "3.0.0-model-semantic-planner",
+            "3.6.0-verified-definition-audit",
             "jarvisSemanticPlan",
             "trustedPlanCalls"
         ]

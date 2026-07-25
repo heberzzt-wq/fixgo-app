@@ -237,9 +237,11 @@ test("functions and client registry expose the supervisor safely", () => {
 test("daily supervisor probes current V7 deployment signatures", () => {
     const terminalProbe = DEFAULT_PROBES.find(probe => probe.id === "terminal_runtime");
     const webProbe = DEFAULT_PROBES.find(probe => probe.id === "grounded_web_research_contract");
+    const cognitionProbe = DEFAULT_PROBES.find(probe => probe.id === "technical_intent_priority");
 
     assert.ok(terminalProbe.markers.includes("parallel-delegation-human-actuator-responses"));
     assert.ok(webProbe.markers.includes("1.7.0-sia7-bounded-supervision-forensics"));
+    assert.ok(cognitionProbe.markers.includes("3.6.0-verified-definition-audit"));
 });
 
 test("supervision endpoints stay isolated from optional Stripe and Gemini initialization", () => {
