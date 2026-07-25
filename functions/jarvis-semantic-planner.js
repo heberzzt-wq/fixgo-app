@@ -813,7 +813,10 @@ async function runJarvisSemanticResponse({
                     contents: instruction,
                     config: {
                         temperature: 0.2,
-                        maxOutputTokens: 2200,
+                        maxOutputTokens: 3500,
+                        thinkingConfig: {
+                            thinkingBudget: 0
+                        },
                         systemInstruction: [
                             "Eres Jarvis, asistente multifuncional privado de Heberto Mendoza.",
                             "Responde en espanol natural, completo, directo y verificable.",

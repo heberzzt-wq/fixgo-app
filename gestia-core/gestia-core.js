@@ -4049,6 +4049,34 @@ function composeObservationDrivenFinalResponse({
     };
 }
 
+function isCompleteMissionCompositionText(value = "") {
+    const composition =
+        String(value || "")
+            .trim();
+    if (composition.length < 240) {
+        return false;
+    }
+
+    let lineBreaks = 0;
+    let backticks = 0;
+    for (
+        const character of
+        composition
+    ) {
+        if (character === "\n") {
+            lineBreaks += 1;
+        }
+        if (character === "`") {
+            backticks += 1;
+        }
+    }
+
+    return (
+        lineBreaks >= 2 &&
+        backticks % 2 === 0
+    );
+}
+
 function composeRepoGlobalAnalysisFinalResponse({
     objective = "",
     toolCalls = [],
@@ -5534,6 +5562,7 @@ if (
             "Integra, cuando exista evidencia: investigacion y fuentes, analisis, estrategia y campana, landing propuesta, requisitos y prompts visuales, storyboard con tiempos, herramientas usadas, informacion faltante y autoevaluacion.",
             "Si existe una observacion conversation.respond solicitada junto con trabajo operativo, conserva su mensaje al principio y despues presenta el informe operativo.",
             "Distingue lo ejecutado de lo solamente planeado. No muestres JSON, telemetria, blobs ni datos internos.",
+            "No repitas identificadores internos de mision, objetivo, hash o trazas en el informe visible.",
             `MISSION_ID=${missionResult.missionId}`,
             `OBJECTIVE_ID=${missionResult.objectiveId}`,
             `INSTRUCTION_HASH=${missionResult.instructionHash}`,
@@ -5575,7 +5604,12 @@ if (
                 ""
             ).trim();
 
-            if (compositionPayload?.ok !== false && compositionText) {
+            if (
+                compositionPayload?.ok !== false &&
+                isCompleteMissionCompositionText(
+                    compositionText
+                )
+            ) {
                 semanticMissionFinalResponse = {
                     ok: missionResult.status === "COMPLETED",
                     title: missionResponseTitle,

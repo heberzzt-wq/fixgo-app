@@ -104,6 +104,15 @@ test("semantic response uses the authenticated provider chain and reports proven
             models: {
                 generateContent: async request => {
                     assert.equal(request.model, "gemini-2.5-flash");
+                    assert.equal(
+                        request.config.maxOutputTokens,
+                        3500
+                    );
+                    assert.equal(
+                        request.config.thinkingConfig
+                            .thinkingBudget,
+                        0
+                    );
                     return { text: "Resultado integrado con evidencia." };
                 }
             }
