@@ -2267,12 +2267,112 @@ function composeRequestedSourceStructureResponse({
             )
             .filter(Boolean);
 
+    const nestedObservationData = [];
+    const visitedObservationObjects =
+        new Set();
+
+    const collectNestedObservationData =
+        function(value, depth = 0) {
+            if (
+                !value ||
+                typeof value !== "object" ||
+                depth > 6 ||
+                visitedObservationObjects.has(value) ||
+                nestedObservationData.length >= 300
+            ) {
+                return;
+            }
+
+            visitedObservationObjects.add(value);
+
+            if (!Array.isArray(value)) {
+                nestedObservationData.push(value);
+            }
+
+            for (
+                const child
+                of Array.isArray(value)
+                    ? value.slice(0, 40)
+                    : Object.values(value).slice(0, 40)
+            ) {
+                collectNestedObservationData(
+                    child,
+                    depth + 1
+                );
+            }
+        };
+
+    observations.forEach(observation =>
+        collectNestedObservationData(
+            observation
+        )
+    );
+
     const gitStatus =
-        observationData.find(data =>
-            data?.tool ===
-                "repo.gitStatus"
-        ) ||
+        [
+            ...observationData,
+            ...nestedObservationData
+        ]
+            .find(data =>
+                data?.tool ===
+                    "repo.gitStatus" ||
+                String(
+                    data?.command ||
+                    ""
+                )
+                    .includes(
+                        "git status --short --branch"
+                    ) ||
+                String(
+                    data?.branchLine ||
+                    ""
+                )
+                    .startsWith(
+                        "##"
+                    )
+            ) ||
         null;
+
+    const gitBranchLine =
+        gitStatus?.branchLine ||
+        String(
+            gitStatus?.stdout ||
+            ""
+        )
+            .split("\n")
+            .map(line =>
+                line.endsWith("\r")
+                    ? line.slice(0, -1)
+                    : line
+            )
+            .find(line =>
+                line.startsWith(
+                    "##"
+                )
+            ) ||
+        null;
+
+    const gitChangedFiles =
+        Array.isArray(
+            gitStatus?.changedFiles
+        )
+            ? gitStatus.changedFiles
+            : String(
+                gitStatus?.stdout ||
+                ""
+            )
+                .split("\n")
+                .map(line =>
+                    line.endsWith("\r")
+                        ? line.slice(0, -1)
+                        : line
+                )
+                .filter(line =>
+                    line &&
+                    !line.startsWith(
+                        "##"
+                    )
+                );
 
     const repoSearch =
         observationData.find(data =>
@@ -2296,7 +2396,7 @@ function composeRequestedSourceStructureResponse({
     const operationalLines =
         [
             gitStatus
-                ? `- Git: ${gitStatus.branchLine || "rama no reportada"}; ${Array.isArray(gitStatus.changedFiles) ? gitStatus.changedFiles.length : 0} cambio(s) local(es).`
+                ? `- Git: ${gitBranchLine || "rama no reportada"}; ${gitChangedFiles.length} cambio(s) local(es).`
                 : "",
             repoSearch
                 ? `- Busqueda repo: ${repoSearch.totalMatches ?? repoSearch.results?.length ?? repoSearch.matches?.length ?? 0} resultado(s) verificado(s).`

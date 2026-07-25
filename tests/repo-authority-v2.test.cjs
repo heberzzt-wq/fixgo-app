@@ -1271,14 +1271,14 @@ test("exact repo reads answer requested tool registrations from source structure
             }, {
                 response: {
                     data: {
-                        ok:
-                            true,
-                        tool:
-                            "repo.gitStatus",
-                        branchLine:
-                            "## v5.9-polish...origin/v5.9-polish",
-                        changedFiles:
-                            []
+                        result: {
+                            ok:
+                                true,
+                            command:
+                                "git status --short --branch",
+                            stdout:
+                                "## v5.9-polish...origin/v5.9-polish\n"
+                        }
                     }
                 }
             }, {
@@ -1849,7 +1849,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /sia7-bounded-business-v3-20260724-definition-audit-v43/);
+    assert.match(terminal, /sia7-bounded-business-v3-20260724-git-evidence-v44/);
     assert.match(terminal, /jarvis-runtime-macro-v2-20260707-4190/);
     assert.match(terminal, /isTerminalBrainRuntimeReady/);
     assert.doesNotMatch(terminal, /function isKernelSessionReady/);
