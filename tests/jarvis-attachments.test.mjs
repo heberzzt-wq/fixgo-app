@@ -14,7 +14,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 test("multimodal composer exposes bounded upload capabilities", () => {
     const description = JarvisAttachments.describe();
-    assert.equal(description.version, "2.1.0-single-artifact-render");
+    assert.equal(description.version, "2.2.0-current-mission-artifacts");
     assert.equal(description.transport, "chunked_progressive");
     assert.equal(description.maxFiles, 30);
     assert.equal(description.maxFileBytes, 250 * 1024 * 1024);
@@ -60,6 +60,9 @@ test("terminal exposes a GPT-style plus menu, file input and artifact renderer",
     assert.match(attachments, /state\.renderingOutputs\.has\(output\)/);
     assert.match(attachments, /state\.renderedOutputs\.add\(output\)/);
     assert.match(attachments, /state\.renderingOutputs\.delete\(output\)/);
+    assert.match(attachments, /currentMissionArtifactPayloads/);
+    assert.match(attachments, /collectDirectArtifact/);
+    assert.doesNotMatch(attachments, /collectArtifacts\(child/);
 });
 
 test("MPH campaign ships a responsive landing and a real browser video exporter", () => {

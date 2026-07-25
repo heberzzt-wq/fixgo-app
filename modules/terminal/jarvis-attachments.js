@@ -5,7 +5,7 @@ import {
     JarvisCaseLedger
 } from "../../gestia-core/jarvis/jarvis.case.ledger.js";
 
-const VERSION = "2.1.0-single-artifact-render";
+const VERSION = "2.2.0-current-mission-artifacts";
 const MAX_FILES = 30;
 const MAX_FILE_BYTES = 250 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 500 * 1024 * 1024;
@@ -357,19 +357,34 @@ function observationTool(observation = {}) {
     return observation?.tool || observation?.name || observation?.meta?.tool || observation?.result?.tool || "";
 }
 
-function collectArtifacts(value, tool = "", depth = 0, seen = new Set()) {
-    if (!value || typeof value !== "object" || depth > 7 || seen.has(value)) return [];
-    seen.add(value);
-    const found = [];
+function collectDirectArtifact(value, tool = "") {
+    if (!value || typeof value !== "object") return [];
     const output = typeof value.output === "string" ? value.output : "";
     if (output.startsWith(".jarvis-artifacts/")) {
-        found.push({ output, mimeType: value.mimeType || "", tool });
+        return [{
+            output,
+            mimeType:
+                value.mimeType ||
+                "",
+            tool
+        }];
     }
-    for (const [key, child] of Object.entries(value)) {
-        if (key === "imageBase64" || key === "dataBase64" || typeof child !== "object") continue;
-        found.push(...collectArtifacts(child, tool || observationTool(value), depth + 1, seen));
-    }
-    return found;
+    return [];
+}
+
+function currentMissionArtifactPayloads(observation = {}) {
+    return [
+        observation?.response?.data,
+        observation?.data?.response?.data,
+        observation?.result?.response?.data,
+        observation?.data,
+        observation?.result?.data
+    ]
+        .filter(value =>
+            value &&
+            typeof value ===
+                "object"
+        );
 }
 
 async function renderArtifact(output, mimeType = "", toolName = "") {
@@ -442,7 +457,19 @@ async function renderArtifact(output, mimeType = "", toolName = "") {
 
 async function renderArtifactsFromObservations(observations = []) {
     const artifacts = (Array.isArray(observations) ? observations : [])
-        .flatMap(observation => collectArtifacts(observation, observationTool(observation)))
+        .flatMap(observation =>
+            currentMissionArtifactPayloads(
+                observation
+            )
+                .flatMap(payload =>
+                    collectDirectArtifact(
+                        payload,
+                        observationTool(
+                            observation
+                        )
+                    )
+                )
+        )
         .filter((artifact, index, items) => items.findIndex(item => item.output === artifact.output) === index);
     for (const artifact of artifacts) await renderArtifact(artifact.output, artifact.mimeType, artifact.tool);
 }
