@@ -169,6 +169,36 @@ test("semantic response uses the authenticated provider chain and reports proven
     assert.equal(result.message, "Resultado integrado con evidencia.");
 });
 
+test("semantic response accepts a bounded extended budget for complete mission reports", async () => {
+    const result = await runJarvisSemanticResponse({
+        input: "Integra todas las secciones y cierra el informe.",
+        maxOutputTokens: 12000,
+        ai: {
+            lastProvider: "vertex-adc",
+            models: {
+                generateContent: async request => {
+                    assert.equal(
+                        request.config.maxOutputTokens,
+                        8000
+                    );
+                    return {
+                        text: "Informe completo. [JARVIS_REPORT_COMPLETE]"
+                    };
+                }
+            }
+        },
+        fetchImpl: async () => {
+            throw new Error("PUBLIC_FALLBACK_MUST_NOT_RUN");
+        }
+    });
+
+    assert.equal(result.ok, true);
+    assert.match(
+        result.message,
+        /JARVIS_REPORT_COMPLETE/
+    );
+});
+
 test("semantic response falls back when the authenticated providers are unavailable", async () => {
     const result = await runJarvisSemanticResponse({
         input: "Integra evidencia.",

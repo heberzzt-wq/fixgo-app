@@ -627,8 +627,11 @@ test("capability forensics distinguishes a deployed scheduler from a completed d
 test("Jarvis answers casual conversation through the real semantic model", async () => {
     const previousAuth = globalThis.auth;
     const previousFetch = globalThis.fetch;
+    let semanticRequest = null;
     globalThis.auth = { currentUser: { getIdToken: async () => "test-token" } };
-    globalThis.fetch = async () => ({
+    globalThis.fetch = async (_url, options) => {
+        semanticRequest = JSON.parse(options.body);
+        return {
         ok: true,
         status: 200,
         text: async () => JSON.stringify({
@@ -640,7 +643,8 @@ test("Jarvis answers casual conversation through the real semantic model", async
                 message: "Buenos días, pariente. ¿Qué armamos hoy?"
             }
         })
-    });
+        };
+    };
 
     const runtime = createRuntime();
     registerJarvisMultifunctionTools(runtime);
@@ -655,6 +659,10 @@ test("Jarvis answers casual conversation through the real semantic model", async
     assert.equal(result.ok, true);
     assert.equal(result.provider, "pollinations");
     assert.equal(result.model, "semantic-test");
+    assert.equal(
+        semanticRequest.data.maxOutputTokens,
+        3500
+    );
     assert.match(result.message, /Buenos días/);
 
     const calls = await planWithModel(
@@ -1771,8 +1779,8 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(core, /observation\?\.type === "JARVIS_CONVERSATIONAL_RESPONSE"/);
     assert.match(core, /DIRECT_ACTUATOR_COMPOSITION/);
     assert.match(core, /directActuatorFinalResponse/);
-    assert.match(terminal, /sia7-repo-discovery-preflight-v56-20260724/);
-    assert.match(terminal, /jarvis-tools-v7-20260724-repo-hydration-v55/);
+    assert.match(terminal, /sia7-complete-mission-reports-v57-20260724/);
+    assert.match(terminal, /jarvis-tools-v7-20260724-complete-reports-v57/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {

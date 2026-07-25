@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "1.9.0-semantic-coverage-audit";
+const VERSION = "1.10.0-complete-semantic-reports";
 const DEFAULT_ENDPOINT = "https://text.pollinations.ai/openai";
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -928,9 +928,19 @@ async function runJarvisSemanticResponse({
     ai = null,
     input = "",
     endpoint = DEFAULT_ENDPOINT,
-    timeoutMs = 45000
+    timeoutMs = 45000,
+    maxOutputTokens = 3500
 } = {}) {
     const instruction = String(input || "").trim();
+    const outputTokenBudget =
+        Math.max(
+            500,
+            Math.min(
+                8000,
+                Number(maxOutputTokens) ||
+                3500
+            )
+        );
     if (instruction.length < 1 || instruction.length > 120000) {
         throw new Error("SEMANTIC_RESPONSE_INPUT_OUT_OF_RANGE");
     }
@@ -947,7 +957,7 @@ async function runJarvisSemanticResponse({
                     contents: instruction,
                     config: {
                         temperature: 0.2,
-                        maxOutputTokens: 3500,
+                        maxOutputTokens: outputTokenBudget,
                         thinkingConfig: {
                             thinkingBudget: 0
                         },
@@ -995,7 +1005,7 @@ async function runJarvisSemanticResponse({
                     { role: "user", content: instruction }
                 ],
                 temperature: 0.3,
-                max_tokens: 900
+                max_tokens: outputTokenBudget
             }),
             signal: controller.signal
         });

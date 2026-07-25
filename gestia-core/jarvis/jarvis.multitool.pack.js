@@ -1430,7 +1430,12 @@ async function fetchGroundedMediaAnalysis(attachments = [], question = "") {
     return result;
 }
 
-async function fetchSemanticConversation(instruction = "") {
+async function fetchSemanticConversation(
+    instruction = "",
+    {
+        maxOutputTokens = 3500
+    } = {}
+) {
     const user = await waitForAuthenticatedUser();
     if (!user) {
         const result = { ok: false, status: "AUTH_REQUIRED", error: "AUTH_REQUIRED" };
@@ -1454,7 +1459,21 @@ async function fetchSemanticConversation(instruction = "") {
                     "Authorization": `Bearer ${token}`,
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify({ data: { input: instruction } }),
+                body: JSON.stringify({
+                    data: {
+                        input:
+                            instruction,
+                        maxOutputTokens:
+                            Math.max(
+                                500,
+                                Math.min(
+                                    8000,
+                                    Number(maxOutputTokens) ||
+                                    3500
+                                )
+                            )
+                    }
+                }),
                 signal: controller.signal
             }
         );
@@ -1726,13 +1745,21 @@ export function registerJarvisMultifunctionTools(runtime) {
             description: "Responde conversación y preguntas mediante un modelo semántico real sin frases prefabricadas.",
             output: "SIA7_CONVERSATION_RESPONSE",
             inputSchema: {
-                prompt: "string"
+                prompt: "string",
+                maxOutputTokens: "number"
             },
             execute: async (args = {}, context = {}) => {
                 const instruction =
                     resolveInstruction(args, context);
 
-                const result = await fetchSemanticConversation(instruction);
+                const result =
+                    await fetchSemanticConversation(
+                        instruction,
+                        {
+                            maxOutputTokens:
+                                args.maxOutputTokens
+                        }
+                    );
                 return {
                     ...result,
                     instruction,

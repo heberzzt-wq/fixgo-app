@@ -2960,7 +2960,9 @@ exports.jarvisSemanticRespond = functions
             const result = await runJarvisSemanticResponse({
                 fetchImpl: fetch,
                 ai: getPlannerGenAI(),
-                input: data?.input || data?.prompt
+                input: data?.input || data?.prompt,
+                maxOutputTokens:
+                    data?.maxOutputTokens
             });
 
             console.log(JSON.stringify({

@@ -1850,8 +1850,8 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /sia7-repo-discovery-preflight-v56-20260724/);
-    assert.match(terminal, /jarvis-tools-v7-20260724-repo-hydration-v55/);
+    assert.match(terminal, /sia7-complete-mission-reports-v57-20260724/);
+    assert.match(terminal, /jarvis-tools-v7-20260724-complete-reports-v57/);
     assert.match(terminal, /jarvis-runtime-macro-v2-20260707-4190/);
     assert.match(terminal, /isTerminalBrainRuntimeReady/);
     assert.doesNotMatch(terminal, /function isKernelSessionReady/);
@@ -2109,7 +2109,7 @@ test("brain delegates natural intent to the bounded semantic model planner", () 
 
     assert.match(core, /patchPreviewAllowedByPlan/);
     assert.match(core, /brain\.engine\.js\?v=sia7-semantic-coverage-audit-v54-20260724/);
-    assert.match(core, /tools\.runtime\.js\?v=jarvis-tools-v7-20260724-repo-hydration-v55/);
+    assert.match(core, /tools\.runtime\.js\?v=jarvis-tools-v7-20260724-complete-reports-v57/);
     assert.doesNotMatch(core, /brain\.engine\.js\?v=cloud-planner-fail-fast-41-62/);
     assert.match(core, /async analizarIntencionLigera/);
     assert.match(core, /sincronizarCorralSemantico/);
@@ -2320,10 +2320,23 @@ test("mission composition rejects truncated model headers and accepts complete r
                 "- El primer archivo conserva la autoridad de sesion.",
                 "- El segundo archivo resuelve la ruta final.",
                 "",
-                "No se realizaron escrituras ni despliegues."
+                "No se realizaron escrituras ni despliegues.",
+                "[JARVIS_REPORT_COMPLETE]"
             ].join("\n")
         ),
         true
+    );
+    assert.equal(
+        helpers.isCompleteMissionCompositionText(
+            [
+                "Resultado largo de la mision.",
+                "",
+                "Hallazgos suficientes, pero el proveedor termino antes de confirmar el cierre.",
+                "",
+                "Esta salida no tiene el marcador final."
+            ].join("\n")
+        ),
+        false
     );
 });
 
