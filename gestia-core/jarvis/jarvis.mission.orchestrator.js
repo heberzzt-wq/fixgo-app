@@ -227,6 +227,27 @@ function safeObservation(result = {}) {
                         payload?.answerKeyCount
                     ) ||
                     0,
+                vehicleCount:
+                    Number(
+                        payload?.vehicleCount
+                    ) ||
+                    0,
+                partCount:
+                    Number(
+                        payload?.partCount
+                    ) ||
+                    0,
+                kpiCount:
+                    Number(
+                        payload?.kpiCount
+                    ) ||
+                    0,
+                implementationDayCoverage:
+                    Number(
+                        payload
+                            ?.implementationDayCoverage
+                    ) ||
+                    0,
                 completionMarkerPresent:
                     true,
                 compositionComplete:

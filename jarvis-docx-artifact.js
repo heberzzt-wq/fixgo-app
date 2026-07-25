@@ -1,6 +1,6 @@
 import fs from "node:fs";
 
-const VERSION = "1.0.0-docx-post-write-gate";
+const VERSION = "1.1.0-docx-quantitative-gate";
 
 function text(value = "") {
     return String(value ?? "").replace(/\r\n/g, "\n");
@@ -249,6 +249,24 @@ function extractParagraphs(xml = "") {
 function extractTables(xml = "") {
     return [...String(xml).matchAll(/<w:tbl(?:\s[^>]*)?>[\s\S]*?<\/w:tbl>/g)]
         .map(tableMatch => {
+            const precedingHeadings =
+                extractParagraphs(
+                    String(xml).slice(
+                        0,
+                        tableMatch.index
+                    )
+                )
+                    .filter(item =>
+                        /^(?:heading[1-6]|title|titulo[1-6]?)$/i
+                            .test(item.style) ||
+                        headingDescriptor(item.text)
+                    );
+            const contextHeading =
+                precedingHeadings.length > 0
+                    ? precedingHeadings[
+                        precedingHeadings.length - 1
+                    ].text
+                    : "";
             const rows = [...tableMatch[0].matchAll(/<w:tr(?:\s[^>]*)?>[\s\S]*?<\/w:tr>/g)]
                 .map(rowMatch =>
                     [...rowMatch[0].matchAll(/<w:tc(?:\s[^>]*)?>[\s\S]*?<\/w:tc>/g)]
@@ -256,7 +274,8 @@ function extractTables(xml = "") {
                 );
             return {
                 headers: rows[0] || [],
-                rows: rows.slice(1)
+                rows: rows.slice(1),
+                contextHeading
             };
         });
 }
@@ -276,20 +295,87 @@ function sectionPresence(headings = [], requiredSections = []) {
     return missing;
 }
 
-function countNumberedItems(lines = []) {
-    return lines.filter(line => /^\s*(?:pregunta\s+)?\d{1,3}[.)]\s+\S/i.test(line)).length;
+function numberedItem(line = "") {
+    const match =
+        String(line).match(
+            /^\s*(?:pregunta\s+)?(\d{1,3})[.)]\s+(.+)/i
+        );
+    if (!match) return null;
+    return {
+        number: Number(match[1]),
+        value: match[2].trim()
+    };
+}
+
+function countConsecutiveItems(lines = [], {
+    requireQuestion = false
+} = {}) {
+    let expected = 1;
+    let count = 0;
+    let started = false;
+    for (const line of lines) {
+        const item = numberedItem(line);
+        if (!item) {
+            if (started && String(line || "").trim()) break;
+            continue;
+        }
+        if (item.number !== expected) {
+            if (started) break;
+            continue;
+        }
+        if (
+            requireQuestion &&
+            !/[¿?]/.test(item.value)
+        ) {
+            if (started) break;
+            continue;
+        }
+        started = true;
+        count += 1;
+        expected += 1;
+    }
+    return count;
 }
 
 function questionMetrics(lines = []) {
-    const evaluationIndex = lines.findIndex(line => /evaluaci[oó]n\s+final|examen\s+(?:final|simulacro)/i.test(line));
     const keyIndex = lines.findIndex(line => /clave\s+(?:completa\s+)?de\s+respuestas|respuestas\s+correctas/i.test(line));
-    const questionLines = evaluationIndex >= 0
-        ? lines.slice(evaluationIndex + 1, keyIndex > evaluationIndex ? keyIndex : undefined)
-        : [];
+    const evaluationLimit =
+        keyIndex >= 0
+            ? keyIndex
+            : lines.length;
+    let evaluationIndex = -1;
+    for (
+        let index = 0;
+        index < evaluationLimit;
+        index += 1
+    ) {
+        if (
+            /evaluaci[oó]n\s+final|examen\s+(?:final|simulacro)|examen\s+de\s+\d+\s+preguntas/i
+                .test(lines[index])
+        ) {
+            evaluationIndex = index;
+        }
+    }
+    const questionLines =
+        evaluationIndex >= 0
+            ? lines.slice(
+                evaluationIndex + 1,
+                keyIndex > evaluationIndex
+                    ? keyIndex
+                    : lines.length
+            )
+            : [];
     const answerLines = keyIndex >= 0 ? lines.slice(keyIndex + 1) : [];
     return {
-        questionCount: countNumberedItems(questionLines),
-        answerKeyCount: countNumberedItems(answerLines),
+        questionCount:
+            countConsecutiveItems(
+                questionLines,
+                { requireQuestion: true }
+            ),
+        answerKeyCount:
+            countConsecutiveItems(
+                answerLines
+            ),
         answerKeyPresent: keyIndex >= 0
     };
 }
@@ -308,9 +394,121 @@ function placeholderDetected(value = "") {
 
 function templateTableCount(tables = []) {
     return tables.filter(table => {
+        const heading =
+            normalize(
+                table?.contextHeading ||
+                ""
+            );
         const headers = normalize((table.headers || []).join(" "));
-        return /responsable|firma|fecha|observacion|accion|autorizacion|reporte|orden|entrega|cierre|control/.test(headers);
+        const signatureCount = [
+            "responsable",
+            "firma",
+            "fecha",
+            "observacion",
+            "accion",
+            "autorizacion",
+            "cierre"
+        ].filter(token =>
+            headers.includes(token)
+        ).length;
+        return (
+            /(?:^|\s)(?:formato|plantilla)(?:\s|$)/
+                .test(heading) &&
+            signatureCount >= 2
+        );
     }).length;
+}
+
+function tableWithHeaders(tables = [], required = []) {
+    return tables.find(table => {
+        const headers =
+            normalize(
+                (table?.headers || [])
+                    .join(" ")
+            );
+        return required.every(token =>
+            headers.includes(token)
+        );
+    }) || null;
+}
+
+function implementationDayCoverage(table = null) {
+    const days = new Set();
+    for (const row of Array.isArray(table?.rows) ? table.rows : []) {
+        const value =
+            String(row?.[0] ?? "")
+                .trim();
+        const range =
+            value.match(
+                /^(\d{1,3})\s*(?:-|a|al)\s*(\d{1,3})$/i
+            );
+        if (range) {
+            const start = Number(range[1]);
+            const end = Number(range[2]);
+            for (
+                let day = start;
+                day <= end && day <= 366;
+                day += 1
+            ) {
+                days.add(day);
+            }
+            continue;
+        }
+        const single =
+            value.match(/^(\d{1,3})$/);
+        if (single) days.add(Number(single[1]));
+    }
+    let coverage = 0;
+    while (days.has(coverage + 1)) {
+        coverage += 1;
+    }
+    return coverage;
+}
+
+function quantitativeTableMetrics(tables = []) {
+    const vehicleTable =
+        tableWithHeaders(
+            tables,
+            ["unidad", "kilometraje"]
+        );
+    const partsTable =
+        tableWithHeaders(
+            tables,
+            ["codigo", "refaccion"]
+        ) ||
+        tableWithHeaders(
+            tables,
+            ["parte", "cantidad"]
+        );
+    const kpiTable =
+        tableWithHeaders(
+            tables,
+            ["indicador", "formula"]
+        );
+    const planTable =
+        tableWithHeaders(
+            tables,
+            ["dias", "fase"]
+        ) ||
+        tableWithHeaders(
+            tables,
+            ["dia", "actividad"]
+        );
+    return {
+        vehicleCount:
+            vehicleTable?.rows?.length ||
+            0,
+        partCount:
+            partsTable?.rows?.length ||
+            0,
+        kpiCount:
+            kpiTable?.rows?.length ||
+            0,
+        implementationDayCoverage:
+            implementationDayCoverage(
+                planTable
+            )
+    };
 }
 
 export async function validateDocxArtifactFile({
@@ -341,6 +539,10 @@ export async function validateDocxArtifactFile({
     );
     const headings = headingParagraphs.map(item => item.text);
     const questions = questionMetrics(lines);
+    const quantitative =
+        quantitativeTableMetrics(
+            tables
+        );
     const actual = {
         bytes: buffer.length,
         paragraphCount: paragraphs.length,
@@ -352,6 +554,15 @@ export async function validateDocxArtifactFile({
         questionCount: questions.questionCount,
         answerKeyCount: questions.answerKeyCount,
         answerKeyPresent: questions.answerKeyPresent,
+        vehicleCount:
+            quantitative.vehicleCount,
+        partCount:
+            quantitative.partCount,
+        kpiCount:
+            quantitative.kpiCount,
+        implementationDayCoverage:
+            quantitative
+                .implementationDayCoverage,
         placeholderDetected: placeholderDetected(documentText),
         missingSections: sectionPresence(headings, contract?.requiredSections || [])
     };
@@ -377,6 +588,22 @@ export async function validateDocxArtifactFile({
             contract?.requireAnswerKey ? Number(contract?.minQuestions || 0) : 0,
             Number(expectedValidation?.answerKeyCount || 0)
         ),
+        minVehicles: Math.max(
+            Number(contract?.minVehicles || 0),
+            Number(expectedValidation?.vehicleCount || 0)
+        ),
+        minParts: Math.max(
+            Number(contract?.minParts || 0),
+            Number(expectedValidation?.partCount || 0)
+        ),
+        minKpis: Math.max(
+            Number(contract?.minKpis || 0),
+            Number(expectedValidation?.kpiCount || 0)
+        ),
+        implementationDays: Math.max(
+            Number(contract?.implementationDays || 0),
+            Number(expectedValidation?.implementationDayCoverage || 0)
+        ),
         requireAnswerKey: contract?.requireAnswerKey === true || Number(expectedValidation?.answerKeyCount || 0) > 0
     };
     const failures = [];
@@ -389,6 +616,10 @@ export async function validateDocxArtifactFile({
     if (actual.questionCount < required.minQuestions) failures.push(`DOCX_QUESTION_COUNT_BELOW_MINIMUM:${actual.questionCount}:${required.minQuestions}`);
     if (required.requireAnswerKey && !actual.answerKeyPresent) failures.push("DOCX_ANSWER_KEY_MISSING");
     if (actual.answerKeyCount < required.minAnswers) failures.push(`DOCX_ANSWER_KEY_INCOMPLETE:${actual.answerKeyCount}:${required.minAnswers}`);
+    if (actual.vehicleCount < required.minVehicles) failures.push(`DOCX_VEHICLE_COUNT_BELOW_MINIMUM:${actual.vehicleCount}:${required.minVehicles}`);
+    if (actual.partCount < required.minParts) failures.push(`DOCX_PART_COUNT_BELOW_MINIMUM:${actual.partCount}:${required.minParts}`);
+    if (actual.kpiCount < required.minKpis) failures.push(`DOCX_KPI_COUNT_BELOW_MINIMUM:${actual.kpiCount}:${required.minKpis}`);
+    if (actual.implementationDayCoverage < required.implementationDays) failures.push(`DOCX_IMPLEMENTATION_DAY_COVERAGE_BELOW_MINIMUM:${actual.implementationDayCoverage}:${required.implementationDays}`);
     if (actual.missingSections.length > 0) failures.push(`DOCX_REQUIRED_SECTIONS_MISSING:${actual.missingSections.join("|")}`);
     if (actual.placeholderDetected) failures.push("DOCX_PLACEHOLDER_DETECTED");
     if (expectedValidation?.validationPassed !== true) failures.push("DOCX_SOURCE_BLUEPRINT_NOT_VALIDATED");
@@ -415,6 +646,7 @@ export function describeDocxArtifactGate() {
             "real-word-tables",
             "questions-and-answer-key",
             "operational-templates",
+            "vehicle-parts-kpi-and-plan-cardinality",
             "placeholder-rejection"
         ]
     };

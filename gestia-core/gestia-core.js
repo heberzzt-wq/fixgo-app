@@ -5561,6 +5561,15 @@ if (
                                         blueprint.questionCount,
                                     answerKeyCount:
                                         blueprint.answerKeyCount,
+                                    vehicleCount:
+                                        blueprint.vehicleCount,
+                                    partCount:
+                                        blueprint.partCount,
+                                    kpiCount:
+                                        blueprint.kpiCount,
+                                    implementationDayCoverage:
+                                        blueprint
+                                            .implementationDayCoverage,
                                     validationPassed:
                                         true
                                 }
@@ -5626,17 +5635,6 @@ if (
                                         )
                                 )
                             );
-                        const documentBlueprintFailed =
-                            Array.isArray(
-                                missionContext
-                                    ?.blockedTasks
-                            ) &&
-                            missionContext
-                                .blockedTasks
-                                .some(item =>
-                                    item?.name ===
-                                    "document.compose"
-                                );
                         const documentBlueprintRequired =
                             String(
                                 executionCall
@@ -5644,21 +5642,7 @@ if (
                                     .format ||
                                 ""
                             ).toLocaleLowerCase() ===
-                                "docx" &&
-                            (
-                                documentBlueprintFailed ||
-                                (
-                                    Array.isArray(
-                                        missionContext
-                                            ?.requiredToolNames
-                                    ) &&
-                                    missionContext
-                                        .requiredToolNames
-                                        .includes(
-                                            "document.compose"
-                                        )
-                                )
-                            );
+                                "docx";
                         const directDocumentReady =
                             (
                                 typeof executionCall.args.content === "string" &&

@@ -257,7 +257,7 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "document.create",
-            description: "Crea un documento local nuevo y descargable en HTML, Markdown, CSV, JSON, DOCX, XLSX, PPTX o PDF dentro de .jarvis-artifacts; XLSX admite varias hojas y formulas. No edita archivos existentes.",
+            description: "Crea un documento local nuevo y descargable en HTML, Markdown, CSV, JSON, DOCX, XLSX, PPTX o PDF dentro de .jarvis-artifacts; DOCX exige un document.compose completo y validado, y XLSX admite varias hojas y formulas. No edita archivos existentes.",
             output: "DOCUMENT_CREATE_RESULT",
             inputSchema: {
                 format: "html|md|txt|csv|json|docx|xlsx|pptx|pdf",

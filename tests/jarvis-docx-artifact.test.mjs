@@ -49,7 +49,7 @@ function validContent() {
 test("DOCX artifact gate describes post-write OOXML validation", () => {
     const result = describeDocxArtifactGate();
     assert.equal(result.ok, true);
-    assert.equal(result.version, "1.0.0-docx-post-write-gate");
+    assert.equal(result.version, "1.1.0-docx-quantitative-gate");
     assert.ok(result.checks.includes("real-word-tables"));
 });
 
@@ -76,6 +76,106 @@ test("DOCX builder converts markdown tables into real Word tables and passes the
         assert.equal(validation.actual.answerKeyCount, 2);
     } finally {
         fs.rmSync(fixture.directory, { recursive: true, force: true });
+    }
+});
+
+function markdownTable(headers, rows) {
+    return [
+        `| ${headers.join(" | ")} |`,
+        `|${headers.map(() => "---").join("|")}|`,
+        ...rows.map(row => `| ${row.join(" | ")} |`)
+    ].join("\n");
+}
+
+function quantitativeArtifactContent({
+    vehicles = 25,
+    parts = 15,
+    kpis = 12,
+    days = 30
+} = {}) {
+    return [
+        "# Inventario de la flota",
+        markdownTable(
+            ["Unidad", "Kilometraje", "Estado"],
+            Array.from({ length: vehicles }, (_, index) => [
+                `FG-${index + 1}`,
+                String(1000 + index),
+                "Operativa"
+            ])
+        ),
+        "# Control de refacciones",
+        markdownTable(
+            ["Código", "Refacción", "Cantidad"],
+            Array.from({ length: parts }, (_, index) => [
+                `RF-${index + 1}`,
+                `Refacción ${index + 1}`,
+                "1"
+            ])
+        ),
+        "# Indicadores KPI",
+        markdownTable(
+            ["Indicador", "Fórmula", "Meta"],
+            Array.from({ length: kpis }, (_, index) => [
+                `KPI ${index + 1}`,
+                `Valor ${index + 1} / base`,
+                "95 %"
+            ])
+        ),
+        "# Plan de implementación de 30 días",
+        markdownTable(
+            ["Días", "Fase", "Actividad"],
+            [["1", "Inicio", "Gobierno"], [`2-${days}`, "Ejecución", "Despliegue"]]
+        ),
+        ("Procedimiento verificable con responsables, evidencia, control, medición y cierre documentado. ").repeat(20)
+    ].join("\n\n");
+}
+
+test("DOCX post-write gate enforces requested table cardinalities", async () => {
+    const quantitativeContract = {
+        minWords: 80,
+        minSections: 4,
+        minTables: 4,
+        minTemplates: 0,
+        minQuestions: 0,
+        minVehicles: 25,
+        minParts: 15,
+        minKpis: 12,
+        implementationDays: 30,
+        requireAnswerKey: false,
+        requiredSections: []
+    };
+    const validFixture = await writeArtifact(quantitativeArtifactContent());
+    const invalidFixture = await writeArtifact(quantitativeArtifactContent({
+        vehicles: 24,
+        parts: 14,
+        kpis: 11,
+        days: 29
+    }));
+    try {
+        const valid = await validateDocxArtifactFile({
+            file: validFixture.file,
+            contract: quantitativeContract,
+            expectedValidation: { validationPassed: true }
+        });
+        assert.equal(valid.ok, true, JSON.stringify(valid.failures));
+        assert.equal(valid.actual.vehicleCount, 25);
+        assert.equal(valid.actual.partCount, 15);
+        assert.equal(valid.actual.kpiCount, 12);
+        assert.equal(valid.actual.implementationDayCoverage, 30);
+
+        const invalid = await validateDocxArtifactFile({
+            file: invalidFixture.file,
+            contract: quantitativeContract,
+            expectedValidation: { validationPassed: true }
+        });
+        assert.equal(invalid.ok, false);
+        assert.ok(invalid.failures.some(item => item.startsWith("DOCX_VEHICLE_COUNT_BELOW_MINIMUM")));
+        assert.ok(invalid.failures.some(item => item.startsWith("DOCX_PART_COUNT_BELOW_MINIMUM")));
+        assert.ok(invalid.failures.some(item => item.startsWith("DOCX_KPI_COUNT_BELOW_MINIMUM")));
+        assert.ok(invalid.failures.some(item => item.startsWith("DOCX_IMPLEMENTATION_DAY_COVERAGE_BELOW_MINIMUM")));
+    } finally {
+        fs.rmSync(validFixture.directory, { recursive: true, force: true });
+        fs.rmSync(invalidFixture.directory, { recursive: true, force: true });
     }
 });
 

@@ -79,7 +79,7 @@ function validManualContent() {
 test("document validator describes the V68 structural gate", () => {
     const description = describeDocumentValidator();
     assert.equal(description.ok, true);
-    assert.equal(description.version, "1.0.0-docx-contract-gate");
+    assert.equal(description.version, "1.1.0-docx-quantitative-gate");
     assert.ok(description.checks.includes("placeholder-and-diversity"));
 });
 
@@ -141,4 +141,123 @@ test("document validator accepts a complete multi-section blueprint with tables 
     assert.equal(result.answerKeyCount, 25);
     assert.equal(result.missingSections.length, 0);
     assert.equal(result.validationPassed, true);
+});
+
+function table(headers, rows) {
+    return [
+        `| ${headers.join(" | ")} |`,
+        `|${headers.map(() => "---").join("|")}|`,
+        ...rows.map(row => `| ${row.join(" | ")} |`)
+    ].join("\n");
+}
+
+function quantitativeContent({
+    vehicles = 25,
+    parts = 15,
+    kpis = 12,
+    days = 30
+} = {}) {
+    return [
+        "# Inventario de la flota",
+        table(
+            ["Unidad", "Kilometraje", "Estado"],
+            Array.from({ length: vehicles }, (_, index) => [
+                `FG-${index + 1}`,
+                String(1000 + index),
+                "Operativa"
+            ])
+        ),
+        "# Control de refacciones",
+        table(
+            ["Código", "Refacción", "Cantidad"],
+            Array.from({ length: parts }, (_, index) => [
+                `RF-${index + 1}`,
+                `Refacción ${index + 1}`,
+                "1"
+            ])
+        ),
+        "# Indicadores KPI",
+        table(
+            ["Indicador", "Fórmula", "Meta"],
+            Array.from({ length: kpis }, (_, index) => [
+                `KPI ${index + 1}`,
+                `Valor ${index + 1} / base`,
+                "95 %"
+            ])
+        ),
+        "# Plan de implementación de 30 días",
+        table(
+            ["Días", "Fase", "Actividad"],
+            [["1", "Inicio", "Gobierno"], [`2-${days}`, "Ejecución", "Despliegue"]]
+        ),
+        ("Procedimiento verificable con responsables, evidencia, control, medición y cierre documentado. ").repeat(20)
+    ].join("\n\n");
+}
+
+test("document contract enforces vehicles, parts, KPI and implementation-day cardinality", () => {
+    const instruction = [
+        "Crea un manual para una flota de servicio con tablas reales e inventario de 25 vehículos.",
+        "Incluye un catálogo de 15 refacciones, 12 KPI y un plan de implementación de 30 días."
+    ].join("\n");
+    const contract = extractDocumentContract(instruction);
+    assert.equal(contract.minVehicles, 25);
+    assert.equal(contract.minParts, 15);
+    assert.equal(contract.minKpis, 12);
+    assert.equal(contract.implementationDays, 30);
+
+    const valid = validateDocumentBlueprint({
+        instruction,
+        content: quantitativeContent(),
+        completionMarkerPresent: true
+    });
+    assert.equal(valid.ok, true, JSON.stringify(valid.failures));
+    assert.equal(valid.vehicleCount, 25);
+    assert.equal(valid.partCount, 15);
+    assert.equal(valid.kpiCount, 12);
+    assert.equal(valid.implementationDayCoverage, 30);
+
+    const incomplete = validateDocumentBlueprint({
+        instruction,
+        content: quantitativeContent({
+            vehicles: 24,
+            parts: 14,
+            kpis: 11,
+            days: 29
+        }),
+        completionMarkerPresent: true
+    });
+    assert.equal(incomplete.ok, false);
+    assert.ok(incomplete.failures.some(item => item.startsWith("DOCUMENT_VEHICLE_COUNT_BELOW_MINIMUM")));
+    assert.ok(incomplete.failures.some(item => item.startsWith("DOCUMENT_PART_COUNT_BELOW_MINIMUM")));
+    assert.ok(incomplete.failures.some(item => item.startsWith("DOCUMENT_KPI_COUNT_BELOW_MINIMUM")));
+    assert.ok(incomplete.failures.some(item => item.startsWith("DOCUMENT_IMPLEMENTATION_DAY_COVERAGE_BELOW_MINIMUM")));
+});
+
+test("index entries and following sections cannot inflate questions or answer keys", () => {
+    const questions = Array.from({ length: 25 }, (_, index) =>
+        `${index + 1}. ¿Pregunta operativa ${index + 1}?`
+    );
+    const answers = Array.from({ length: 23 }, (_, index) =>
+        `${index + 1}. Respuesta ${index + 1}`
+    );
+    const result = validateDocumentBlueprint({
+        instruction: "Crea un examen de 25 preguntas con clave completa de respuestas.",
+        completionMarkerPresent: true,
+        content: [
+            "# Índice",
+            "16. Evaluación final",
+            "17. Glosario",
+            "18. Anexos",
+            "# 16. Evaluación final",
+            ...questions,
+            "## Clave completa de respuestas",
+            ...answers,
+            "# 17. Glosario",
+            "# 18. Anexos",
+            ("Contenido operativo verificable, específico y útil para la formación del equipo. ").repeat(20)
+        ].join("\n")
+    });
+    assert.equal(result.questionCount, 25);
+    assert.equal(result.answerKeyCount, 23);
+    assert.ok(result.failures.some(item => item.startsWith("DOCUMENT_ANSWER_KEY_INCOMPLETE")));
 });

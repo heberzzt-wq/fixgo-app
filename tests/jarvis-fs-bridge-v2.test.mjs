@@ -33,7 +33,7 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.28.0-docx-contract-gate");
+    assert.equal(description.version, "2.29.0-docx-quantitative-gate");
     assert.equal(description.policy.authority, "full_repo_private_owner");
     assert.equal(description.policy.safeZone, "advisory");
     assert.equal(description.policy.emptyWrites, "blocked");
@@ -239,6 +239,33 @@ test("Jarvis creates a multi-sheet XLSX with executable formulas", async () => {
         assert.match(
             formulaRequiredResult.error,
             /XLSX_WORKBOOK_FORMULAS_REQUIRED/
+        );
+
+        const unvalidatedDocxResponse = await fetch(`${base}/document`, {
+            method: "POST",
+            headers: {
+                "content-type": "application/json",
+                "x-jarvis-release-id": "test-release"
+            },
+            body: JSON.stringify({
+                format: "docx",
+                title: "Documento sin gate",
+                content: "Contenido que no fue validado por document.compose."
+            })
+        });
+        const unvalidatedDocxResult =
+            await unvalidatedDocxResponse.json();
+        assert.equal(
+            unvalidatedDocxResponse.status,
+            422
+        );
+        assert.equal(
+            unvalidatedDocxResult.status,
+            "DOCUMENT_VALIDATION_REQUIRED"
+        );
+        assert.equal(
+            unvalidatedDocxResult.output,
+            null
         );
     } finally {
         await new Promise(resolve => server.close(resolve));

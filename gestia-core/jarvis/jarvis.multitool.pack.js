@@ -2304,6 +2304,15 @@ export function registerJarvisMultifunctionTools(runtime) {
                         validation.questionCount,
                     answerKeyCount:
                         validation.answerKeyCount,
+                    vehicleCount:
+                        validation.vehicleCount,
+                    partCount:
+                        validation.partCount,
+                    kpiCount:
+                        validation.kpiCount,
+                    implementationDayCoverage:
+                        validation
+                            .implementationDayCoverage,
                     tables:
                         validation.tables,
                     continuationCount,

@@ -554,6 +554,10 @@ test("mission preserves complete prepared content for a following artifact creat
                     templateCount: 1,
                     questionCount: 0,
                     answerKeyCount: 0,
+                    vehicleCount: 25,
+                    partCount: 15,
+                    kpiCount: 12,
+                    implementationDayCoverage: 30,
                     completionMarkerPresent: true,
                     compositionComplete: true,
                     validationPassed: true,
@@ -601,6 +605,34 @@ test("mission preserves complete prepared content for a following artifact creat
             .contract
             .minWords,
         900
+    );
+    assert.equal(
+        mission.completedTasks[0]
+            .observation
+            .preparedArtifact
+            .vehicleCount,
+        25
+    );
+    assert.equal(
+        mission.completedTasks[0]
+            .observation
+            .preparedArtifact
+            .partCount,
+        15
+    );
+    assert.equal(
+        mission.completedTasks[0]
+            .observation
+            .preparedArtifact
+            .kpiCount,
+        12
+    );
+    assert.equal(
+        mission.completedTasks[0]
+            .observation
+            .preparedArtifact
+            .implementationDayCoverage,
+        30
     );
 });
 

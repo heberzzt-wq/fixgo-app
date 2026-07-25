@@ -40,7 +40,7 @@ import { locatePdfFieldAnchors } from "./jarvis-pdf-layout.js";
 import { verifyPdfVisualChanges } from "./jarvis-pdf-visual.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.28.0-docx-contract-gate";
+    "2.29.0-docx-quantitative-gate";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -3274,6 +3274,22 @@ export function createJarvisFsBridgeApp({
                     ok: false,
                     status: "DOCUMENT_CONTENT_REQUIRED",
                     version: JARVIS_FS_BRIDGE_VERSION
+                });
+            }
+            if (
+                normalizedFormat === "docx" &&
+                requireDocumentValidation !== true
+            ) {
+                return res.status(422).json({
+                    ok: false,
+                    status:
+                        "DOCUMENT_VALIDATION_REQUIRED",
+                    error:
+                        "DOCUMENT_VALIDATION_REQUIRED",
+                    output:
+                        null,
+                    version:
+                        JARVIS_FS_BRIDGE_VERSION
                 });
             }
 
