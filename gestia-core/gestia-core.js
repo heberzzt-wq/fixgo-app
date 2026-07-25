@@ -5198,29 +5198,8 @@ if (
                         name => !resolvedToolNames.has(name)
                     );
                     if (missingRequiredToolNames.length === 0) {
-                        const completionAuditNamespaces =
-                            new Set(
-                                [
-                                    ...mission.requiredToolNames,
-                                    ...mission.completedTasks.map(item => item.name),
-                                    ...mission.blockedTasks.map(item => item.name)
-                                ]
-                                    .map(name =>
-                                        String(name || "")
-                                            .split(".")[0]
-                                            .trim()
-                                    )
-                                    .filter(Boolean)
-                            );
                         const completionAuditCatalog =
                             registeredMissionTools
-                                .filter(tool =>
-                                    completionAuditNamespaces.has(
-                                        String(tool?.name || "")
-                                            .split(".")[0]
-                                            .trim()
-                                    )
-                                )
                                 .slice(0, 60);
 
                         if (completionAuditCatalog.length > 0) {
