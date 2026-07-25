@@ -1779,7 +1779,12 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(core, /observation\?\.type === "JARVIS_CONVERSATIONAL_RESPONSE"/);
     assert.match(core, /DIRECT_ACTUATOR_COMPOSITION/);
     assert.match(core, /directActuatorFinalResponse/);
-    assert.match(terminal, /sia7-complete-mission-reports-v57-20260724/);
+    assert.match(terminal, /const multiToolSummarySource\s*=/);
+    assert.match(
+        terminal,
+        /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
+    );
+    assert.match(terminal, /sia7-independent-coverage-reports-v58-20260724/);
     assert.match(terminal, /jarvis-tools-v7-20260724-complete-reports-v57/);
 });
 

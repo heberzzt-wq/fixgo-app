@@ -170,7 +170,7 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/modules/terminal/proposal-state.js?v=shared-proposal-state-v1-20260713"></script>
 <script type="module" src="/modules/terminal/jarvis-attachments.js?v=jarvis-multimodal-queue-v2-20260714"></script>
-<script type="module" src="/gestia-core/gestia-core.js?v=sia7-complete-mission-reports-v57-20260724"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=sia7-independent-coverage-reports-v58-20260724"></script>
 <script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260707-4190"></script>
 <script
 type="module"
@@ -4676,7 +4676,7 @@ if (
                         }
                         : null;
 
-                const multiToolSummary =
+                const multiToolSummarySource =
                     [
                         ...(
                             isRepoGlobalAnalysis
@@ -4738,8 +4738,14 @@ if (
                                     )
                         )
                     ]
-                        .join("\n\n")
-                        .slice(0, 12000);
+                        .join("\n\n");
+                const multiToolSummary =
+                    multiToolSummarySource.slice(
+                        0,
+                        finalResponse?.text
+                            ? 50000
+                            : 12000
+                    );
 
                 const multiToolTitle =
                     visualPatchProposal

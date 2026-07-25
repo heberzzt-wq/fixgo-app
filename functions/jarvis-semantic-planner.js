@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "1.10.0-complete-semantic-reports";
+const VERSION = "1.11.0-independent-coverage-reports";
 const DEFAULT_ENDPOINT = "https://text.pollinations.ai/openai";
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -400,6 +400,8 @@ async function runGeminiSemanticPlanner({
         const validatedContract = validatePlan(contractPlan, safeCatalog, instruction);
         let coverageAudit = null;
         let coverageWarning = null;
+        let independentCoverage = null;
+        let independentCoverageWarning = null;
 
         try {
             const coverageResponse = await ai.models.generateContent({
@@ -458,20 +460,80 @@ async function runGeminiSemanticPlanner({
             coverageWarning = error?.message || "MISSION_COVERAGE_AUDIT_UNAVAILABLE";
         }
 
+        try {
+            const independentResponse = await ai.models.generateContent({
+                model,
+                contents: [
+                    buildSemanticSystemInstruction(safeCatalog, null),
+                    `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
+                    [
+                        "MUESTRA_SEMANTICA_INDEPENDIENTE_DE_COBERTURA:",
+                        "Construye desde cero un contrato read-only completo sin usar ni asumir ningun borrador anterior.",
+                        "Enumera por separado todos los sujetos, archivos, entidades, preguntas y entregables de la instruccion.",
+                        "Asigna a cada objetivo sus herramientas reales del catalogo, conserva dependencias y permite repetir herramientas con argumentos distintos.",
+                        "Para un modulo o concepto sin ruta verificada empieza con repo.search; no inventes una ruta para repo.read, repo.diagnose o repo.impact.",
+                        "Incluye cada herramienta especializada solicitada de investigacion, marketing, landing, imagen, reel, documentos, medios, navegador, supervision o analisis forense.",
+                        "No incluyas herramientas mutantes. Devuelve JSON valido con toolCalls, explanation, missionComplete=false y completionAssessment."
+                    ].join("\n")
+                ].join("\n\n"),
+                config: {
+                    temperature: 0,
+                    maxOutputTokens: 4000,
+                    thinkingConfig: {
+                        thinkingBudget: 256
+                    },
+                    responseMimeType: "application/json"
+                }
+            });
+            const independentFunctionCalls = Array.isArray(independentResponse?.functionCalls)
+                ? independentResponse.functionCalls
+                : Array.isArray(independentResponse?.candidates?.[0]?.content?.parts)
+                    ? independentResponse.candidates[0].content.parts
+                        .map(part => part?.functionCall)
+                        .filter(Boolean)
+                    : [];
+            const independentCall = independentFunctionCalls.find(
+                call => call?.name === "jarvis_mission_contract"
+            );
+            let independentPayload =
+                independentCall?.args &&
+                typeof independentCall.args === "object"
+                    ? independentCall.args
+                    : null;
+            if (!independentPayload && String(independentResponse?.text || "").trim()) {
+                independentPayload = extractJsonObject(String(independentResponse.text));
+            }
+            if (!independentPayload || typeof independentPayload !== "object") {
+                throw new Error("MISSION_INDEPENDENT_COVERAGE_OUTPUT_REQUIRED");
+            }
+            independentCoverage = validatePlan(
+                { ...independentPayload, missionComplete: false },
+                safeCatalog,
+                instruction
+            );
+        } catch (error) {
+            independentCoverageWarning =
+                error?.message ||
+                "MISSION_INDEPENDENT_COVERAGE_UNAVAILABLE";
+        }
+
         const auditedContract = {
             ...validatedContract,
             toolCalls: mergePlanToolCalls(
                 validatedContract.toolCalls,
-                coverageAudit?.toolCalls || []
+                coverageAudit?.toolCalls || [],
+                independentCoverage?.toolCalls || []
             ),
             missionComplete: false,
-            completionAssessment: coverageAudit
+            completionAssessment: coverageAudit || independentCoverage
                 ? {
                     draft: validatedContract.completionAssessment,
-                    coverageAudit: coverageAudit.completionAssessment
+                    coverageAudit: coverageAudit?.completionAssessment || null,
+                    independentCoverage: independentCoverage?.completionAssessment || null
                 }
                 : validatedContract.completionAssessment,
-            ...(coverageWarning ? { coverageWarning } : {})
+            ...(coverageWarning ? { coverageWarning } : {}),
+            ...(independentCoverageWarning ? { independentCoverageWarning } : {})
         };
         return requireExecutablePlan({
             ...auditedContract,

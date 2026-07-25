@@ -920,15 +920,20 @@ test("Gemini creates a complete read-only mission contract before execution", as
                 generateContent: async request => {
                     requestCount += 1;
                     assert.equal(request.config.responseMimeType, "application/json");
-                    assert.equal(request.config.thinkingConfig.thinkingBudget, 0);
                     assert.equal(request.config.tools, undefined);
                     if (requestCount === 1) {
+                        assert.equal(request.config.thinkingConfig.thinkingBudget, 0);
                         assert.equal(request.config.maxOutputTokens, 4000);
                         assert.ok(request.contents.includes("CONTRATO_DE_MISION"));
                         assert.ok(request.contents.includes("todas las herramientas read-only necesarias"));
-                    } else {
+                    } else if (requestCount === 2) {
+                        assert.equal(request.config.thinkingConfig.thinkingBudget, 0);
                         assert.equal(request.config.maxOutputTokens, 3000);
                         assert.ok(request.contents.includes("AUDITORIA_SEMANTICA_DE_COBERTURA"));
+                    } else {
+                        assert.equal(request.config.thinkingConfig.thinkingBudget, 256);
+                        assert.equal(request.config.maxOutputTokens, 4000);
+                        assert.ok(request.contents.includes("MUESTRA_SEMANTICA_INDEPENDIENTE_DE_COBERTURA"));
                     }
                     return {
                         functionCalls: [{
@@ -950,7 +955,7 @@ test("Gemini creates a complete read-only mission contract before execution", as
     });
 
     assert.equal(result.planKind, "MISSION_CONTRACT_AUDITED");
-    assert.equal(requestCount, 2);
+    assert.equal(requestCount, 3);
     assert.deepEqual(result.toolCalls.map(call => call.name), ["repo.search", "connector.list"]);
     assert.equal(result.missionComplete, false);
 });
@@ -1012,14 +1017,91 @@ test("Gemini coverage audit restores an independent subject omitted by the draft
         }
     });
 
-    assert.equal(requests.length, 2);
+    assert.equal(requests.length, 3);
     assert.match(requests[1].contents, /AUDITORIA_SEMANTICA_DE_COBERTURA/);
     assert.match(requests[1].contents, /BORRADOR_DE_CONTRATO/);
+    assert.match(requests[2].contents, /MUESTRA_SEMANTICA_INDEPENDIENTE_DE_COBERTURA/);
     assert.deepEqual(
         result.toolCalls.map(call => call.args.query),
         ["app-login.js", "firebase.js", "tecnico b2b"]
     );
     assert.equal(result.planKind, "MISSION_CONTRACT_AUDITED");
+});
+
+test("independent Gemini coverage restores a specialized deliverable missed twice", async () => {
+    const campaignCatalog = [
+        "web.research",
+        "marketing.plan",
+        "page.plan",
+        "image.plan",
+        "reel.plan"
+    ].map(name => ({
+        name,
+        description: `Herramienta ${name}`,
+        mutates: false,
+        requiresApproval: false
+    }));
+    let requestCount = 0;
+    const result = await runGeminiSemanticPlanner({
+        input: "Investiga el dominio y entrega marketing, landing, imagen y reel de 30 segundos.",
+        catalog: campaignCatalog,
+        missionState: { phase: "MISSION_CONTRACT", writeAllowed: false },
+        ai: {
+            lastProvider: "vertex-adc",
+            models: {
+                generateContent: async request => {
+                    requestCount += 1;
+                    if (requestCount < 3) {
+                        return {
+                            text: JSON.stringify({
+                                toolCalls: [
+                                    { name: "web.research", args: { query: "dominio" } },
+                                    { name: "marketing.plan", args: {} },
+                                    { name: "page.plan", args: {} },
+                                    { name: "image.plan", args: {} }
+                                ],
+                                missionComplete: false
+                            })
+                        };
+                    }
+                    assert.match(
+                        request.contents,
+                        /MUESTRA_SEMANTICA_INDEPENDIENTE_DE_COBERTURA/
+                    );
+                    return {
+                        text: JSON.stringify({
+                            toolCalls: [{
+                                name: "reel.plan",
+                                args: {
+                                    durationSeconds: 30
+                                }
+                            }],
+                            missionComplete: false,
+                            completionAssessment: {
+                                restored: ["reel de 30 segundos"]
+                            }
+                        })
+                    };
+                }
+            }
+        }
+    });
+
+    assert.equal(requestCount, 3);
+    assert.deepEqual(
+        result.toolCalls.map(call => call.name),
+        [
+            "web.research",
+            "marketing.plan",
+            "page.plan",
+            "image.plan",
+            "reel.plan"
+        ]
+    );
+    assert.equal(
+        result.toolCalls[4].args.durationSeconds,
+        30
+    );
 });
 
 test("Gemini reserves response budget for evidence-driven mission follow-ups", async () => {
