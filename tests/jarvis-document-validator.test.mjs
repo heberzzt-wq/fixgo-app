@@ -79,7 +79,7 @@ function validManualContent() {
 test("document validator describes the V68 structural gate", () => {
     const description = describeDocumentValidator();
     assert.equal(description.ok, true);
-    assert.equal(description.version, "1.1.0-docx-quantitative-gate");
+    assert.equal(description.version, "1.2.0-segmented-document-contract");
     assert.ok(description.checks.includes("placeholder-and-diversity"));
 });
 

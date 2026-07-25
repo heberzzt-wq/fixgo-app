@@ -32,11 +32,12 @@ import {
     validateDocumentBlueprint
 } from "./jarvis.document.validator.js?v=sia7-runtime-truth-v70-20260725";
 
-const VERSION = "1.32.0-verified-runtime-identity";
+const VERSION = "1.33.0-segmented-document-compose";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";
 const DOCUMENT_MAX_CONTINUATIONS = 6;
+const DOCUMENT_SEGMENT_COUNT = 3;
 
 const MARKETING_ARGUMENT_SCHEMA = {
     type: "object",
@@ -1569,6 +1570,179 @@ function stripDocumentCompletionMarker(content = "") {
         .trim();
 }
 
+function buildDocumentSegmentPrompts({
+    instruction = "",
+    title = "",
+    format = "docx",
+    contract = {}
+} = {}) {
+    const totalSections =
+        Math.max(
+            Number(
+                contract.minSections
+            ) || 0,
+            Array.isArray(
+                contract.requiredSections
+            )
+                ? contract
+                    .requiredSections
+                    .length
+                : 0,
+            DOCUMENT_SEGMENT_COUNT
+        );
+    const minimumWordsPerSegment =
+        Math.ceil(
+            Math.max(
+                Number(contract.minWords) ||
+                    0,
+                300
+            ) /
+            DOCUMENT_SEGMENT_COUNT
+        ) +
+        120;
+    let sectionCursor = 1;
+
+    return Array.from({
+        length:
+            DOCUMENT_SEGMENT_COUNT
+    }, (_unused, index) => {
+        const remainingSections =
+            totalSections -
+            sectionCursor +
+            1;
+        const remainingSegments =
+            DOCUMENT_SEGMENT_COUNT -
+            index;
+        const sectionCount =
+            Math.ceil(
+                remainingSections /
+                remainingSegments
+            );
+        const sectionStart =
+            sectionCursor;
+        const sectionEnd =
+            sectionStart +
+            sectionCount -
+            1;
+        sectionCursor =
+            sectionEnd +
+            1;
+        const requiredTitles =
+            Array.isArray(
+                contract.requiredSections
+            )
+                ? contract
+                    .requiredSections
+                    .slice(
+                        sectionStart - 1,
+                        sectionEnd
+                    )
+                : [];
+        const assignments = [];
+
+        if (
+            Number(contract.minTables) >
+            0
+        ) {
+            assignments.push(
+                `Incluye al menos ${Math.ceil(
+                    Number(contract.minTables) /
+                    DOCUMENT_SEGMENT_COUNT
+                )} tablas Markdown completas en este segmento.`
+            );
+        }
+        if (index === 0) {
+            if (
+                Number(contract.minVehicles) >
+                0
+            ) {
+                assignments.push(
+                    `Incluye un inventario tabular de ${contract.minVehicles} vehículos con registros distintos y encabezados "Unidad | Kilometraje | Tipo | Estado".`
+                );
+            }
+            if (
+                Number(contract.minParts) >
+                0
+            ) {
+                assignments.push(
+                    `Incluye un catálogo tabular de ${contract.minParts} refacciones distintas y encabezados "Código | Refacción | Existencia | Reorden".`
+                );
+            }
+        }
+        if (index === 1) {
+            if (
+                Number(contract.minKpis) >
+                0
+            ) {
+                assignments.push(
+                    `Incluye una tabla de ${contract.minKpis} KPI distintos con encabezados "Indicador | Fórmula | Meta | Frecuencia | Responsable".`
+                );
+            }
+            if (
+                Number(
+                    contract
+                        .implementationDays
+                ) > 0
+            ) {
+                assignments.push(
+                    `Incluye un plan tabular con encabezados "Día | Actividad | Responsable | Evidencia" y ${contract.implementationDays} filas cuyo primer campo sea cada número consecutivo del 1 al ${contract.implementationDays}.`
+                );
+            }
+        }
+        if (index === 2) {
+            if (
+                Number(contract.minTemplates) >
+                0
+            ) {
+                assignments.push(
+                    `Incluye exactamente ${contract.minTemplates} formatos operativos completos; cada uno debe llevar encabezado "Formato N" y una tabla propia con campos operativos.`
+                );
+            }
+            if (
+                Number(contract.minQuestions) >
+                0
+            ) {
+                assignments.push(
+                    `Incluye el encabezado "Examen de ${contract.minQuestions} preguntas" seguido de ${contract.minQuestions} preguntas consecutivas numeradas del 1 al ${contract.minQuestions}.`
+                );
+                if (
+                    contract.requireAnswerKey ===
+                    true
+                ) {
+                    assignments.push(
+                        `Después del examen incluye "Clave completa de respuestas" con ${contract.minQuestions} respuestas consecutivas numeradas del 1 al ${contract.minQuestions}.`
+                    );
+                }
+            }
+        }
+
+        return [
+            `Redacta el segmento ${index + 1} de ${DOCUMENT_SEGMENT_COUNT} de un documento profesional que se ensamblará automáticamente.`,
+            `Produce al menos ${minimumWordsPerSegment} palabras sustantivas en este segmento.`,
+            requiredTitles.length > 0
+                ? [
+                    "Usa exactamente estos encabezados principales con su numeración global:",
+                    ...requiredTitles.map(
+                        (
+                            section,
+                            sectionIndex
+                        ) =>
+                            `${sectionStart + sectionIndex}. ${section}`
+                    )
+                ].join("\n")
+                : `Crea exactamente las secciones principales numeradas ${sectionStart} a ${sectionEnd}, con títulos profesionales distintos y contenido operativo.`,
+            ...assignments,
+            "No repitas secciones de otros segmentos. No resumas ni describas lo que harías: entrega contenido final.",
+            "Usa tablas Markdown reales cuando se pidan tablas. No uses placeholders, cercas de código ni JSON.",
+            "No incluyas marcadores internos de finalización; el ensamblador verificará el contrato completo.",
+            `CONTRATO_GLOBAL=${JSON.stringify(contract)}`,
+            `TITULO=${title}`,
+            `FORMATO=${format}`,
+            `SOLICITUD_ORIGINAL=${instruction}`
+        ].join("\n");
+    });
+}
+
 function extractSemanticJsonObject(value = "") {
     const source = String(value || "").trim();
     if (!source) throw new Error("SEMANTIC_JSON_REQUIRED");
@@ -2160,33 +2334,124 @@ export function registerJarvisMultifunctionTools(runtime) {
                     extractDocumentContract(
                         instruction
                     );
-                let semantic = await fetchSemanticConversation(
-                    [
-                        "Redacta el contenido completo, original y listo para guardar de este documento solicitado por el usuario.",
-                        "No describas lo que harias: entrega el documento terminado.",
-                        "Cubre cada requisito, incluye ejercicios, respuestas, tablas o secciones cuando se pidan y evita contenido copiado de fuentes externas.",
-                        "Distribuye la extension entre todos los requisitos y prioriza que ninguno quede fuera.",
-                        "No uses cercas de codigo ni JSON. No omitas el final por longitud.",
-                        `Finaliza obligatoriamente con ${DOCUMENT_COMPLETION_MARKER} en una linea independiente.`,
-                        `CONTRATO_VERIFICABLE=${JSON.stringify(contract)}`,
-                        `TITULO=${title}`,
-                        `FORMATO=${format}`,
-                        `SOLICITUD=${instruction}`
-                    ].join("\n"),
-                    {
-                        maxOutputTokens:
-                            8000
-                    }
-                );
-                let content =
-                    clean(
-                        semantic?.message
-                    );
-                let completionVerified =
-                    content
-                        .includes(
-                        DOCUMENT_COMPLETION_MARKER
-                    );
+                const segmentedComposition =
+                    Number(contract.minWords) >=
+                        2500 ||
+                    Number(contract.minSections) >=
+                        12;
+                let semantic;
+                let content;
+                let completionVerified;
+
+                if (segmentedComposition) {
+                    const segmentPrompts =
+                        buildDocumentSegmentPrompts({
+                            instruction,
+                            title,
+                            format,
+                            contract
+                        });
+                    const segmentResults =
+                        await Promise.all(
+                            segmentPrompts.map(
+                                async prompt => {
+                                    let result =
+                                        await fetchSemanticConversation(
+                                            prompt,
+                                            {
+                                                maxOutputTokens:
+                                                    6000
+                                            }
+                                        );
+                                    if (
+                                        result?.ok !==
+                                        true
+                                    ) {
+                                        result =
+                                            await fetchSemanticConversation(
+                                                prompt,
+                                                {
+                                                    maxOutputTokens:
+                                                        6000
+                                                }
+                                            );
+                                    }
+                                    return result;
+                                }
+                            )
+                        );
+                    const successfulSegments =
+                        segmentResults
+                            .filter(result =>
+                                result?.ok ===
+                                true
+                            );
+                    content =
+                        successfulSegments
+                            .map(result =>
+                                stripDocumentCompletionMarker(
+                                    clean(
+                                        result
+                                            .message
+                                    )
+                                )
+                            )
+                            .filter(Boolean)
+                            .join("\n\n");
+                    completionVerified =
+                        successfulSegments.length ===
+                        segmentPrompts.length;
+                    semantic =
+                        completionVerified
+                            ? {
+                                ...successfulSegments[
+                                    successfulSegments.length -
+                                    1
+                                ],
+                                message:
+                                    content
+                            }
+                            : segmentResults.find(
+                                result =>
+                                    result?.ok !==
+                                    true
+                            ) ||
+                            {
+                                ok:
+                                    false,
+                                error:
+                                    "DOCUMENT_SEGMENT_COMPOSITION_FAILED"
+                            };
+                }
+                else {
+                    semantic =
+                        await fetchSemanticConversation(
+                            [
+                                "Redacta el contenido completo, original y listo para guardar de este documento solicitado por el usuario.",
+                                "No describas lo que harias: entrega el documento terminado.",
+                                "Cubre cada requisito, incluye ejercicios, respuestas, tablas o secciones cuando se pidan y evita contenido copiado de fuentes externas.",
+                                "Distribuye la extension entre todos los requisitos y prioriza que ninguno quede fuera.",
+                                "No uses cercas de codigo ni JSON. No omitas el final por longitud.",
+                                `Finaliza obligatoriamente con ${DOCUMENT_COMPLETION_MARKER} en una linea independiente.`,
+                                `CONTRATO_VERIFICABLE=${JSON.stringify(contract)}`,
+                                `TITULO=${title}`,
+                                `FORMATO=${format}`,
+                                `SOLICITUD=${instruction}`
+                            ].join("\n"),
+                            {
+                                maxOutputTokens:
+                                    8000
+                            }
+                        );
+                    content =
+                        clean(
+                            semantic?.message
+                        );
+                    completionVerified =
+                        content.includes(
+                            DOCUMENT_COMPLETION_MARKER
+                        );
+                }
                 let continuationCount = 0;
                 let validation =
                     validateDocumentBlueprint({
@@ -2332,6 +2597,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                     tables:
                         validation.tables,
                     continuationCount,
+                    segmentedComposition,
                     readOnly:
                         true,
                     objectiveSatisfied:

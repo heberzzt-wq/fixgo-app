@@ -1039,6 +1039,185 @@ test("capability forensics reports evidence-backed gaps without claiming Codex p
     }
 });
 
+test("large document composition builds verified semantic segments concurrently", async () => {
+    const previousAuth = globalThis.auth;
+    const previousFetch = globalThis.fetch;
+    const runtime = createRuntime();
+    registerJarvisMultifunctionTools(runtime);
+    let requestCount = 0;
+    const sectionNarrative =
+        sectionNumber =>
+            Array.from(
+                { length: 36 },
+                (_unused, index) =>
+                    `Procedimiento operativo seguro verificable folio${sectionNumber}x${index + 1} con responsable, evidencia, frecuencia, criterio, recurso, riesgo y acción correctiva documentada.`
+            )
+                .join(" ");
+    const markdownTable = label => [
+        `### ${label}`,
+        "| Campo | Responsable | Evidencia | Frecuencia |",
+        "| --- | --- | --- | --- |",
+        "| Control | Coordinador | Registro | Diario |"
+    ].join("\n");
+    const segmentOne = [
+        ...Array.from(
+            { length: 6 },
+            (_unused, index) =>
+                `# ${index + 1}. Sección operativa ${index + 1}\n\n${sectionNarrative(index + 1)}`
+        ),
+        [
+            "### Inventario de 25 vehículos",
+            "| Unidad | Kilometraje | Tipo | Estado |",
+            "| --- | --- | --- | --- |",
+            ...Array.from(
+                { length: 25 },
+                (_unused, index) =>
+                    `| VEH-${index + 1} | ${1000 + index} | Servicio | Activo |`
+            )
+        ].join("\n"),
+        [
+            "### Catálogo de 15 refacciones",
+            "| Código | Refacción | Existencia | Reorden |",
+            "| --- | --- | --- | --- |",
+            ...Array.from(
+                { length: 15 },
+                (_unused, index) =>
+                    `| REF-${index + 1} | Refacción ${index + 1} | 4 | 2 |`
+            )
+        ].join("\n"),
+        markdownTable("Control preventivo"),
+        markdownTable("Control de emergencias")
+    ].join("\n\n");
+    const segmentTwo = [
+        ...Array.from(
+            { length: 6 },
+            (_unused, index) =>
+                `# ${index + 7}. Sección operativa ${index + 7}\n\n${sectionNarrative(index + 7)}`
+        ),
+        [
+            "### Indicadores KPI",
+            "| Indicador | Fórmula | Meta | Frecuencia | Responsable |",
+            "| --- | --- | --- | --- | --- |",
+            ...Array.from(
+                { length: 12 },
+                (_unused, index) =>
+                    `| KPI ${index + 1} | Valor real / objetivo | 95% | Mensual | Coordinador |`
+            )
+        ].join("\n"),
+        [
+            "### Plan de implementación",
+            "| Día | Actividad | Responsable | Evidencia |",
+            "| --- | --- | --- | --- |",
+            ...Array.from(
+                { length: 30 },
+                (_unused, index) =>
+                    `| ${index + 1} | Actividad ${index + 1} | Coordinador | Registro ${index + 1} |`
+            )
+        ].join("\n"),
+        markdownTable("Matriz de riesgo"),
+        markdownTable("Escalamiento")
+    ].join("\n\n");
+    const formats = Array.from(
+        { length: 7 },
+        (_unused, index) => [
+            `## Formato ${index + 1}. Registro operativo`,
+            "| Fecha | Responsable | Actividad | Evidencia | Firma |",
+            "| --- | --- | --- | --- | --- |",
+            `| AAAA-MM-DD | Responsable ${index + 1} | Control ${index + 1} | Folio | Firma |`
+        ].join("\n")
+    ).join("\n\n");
+    const questions = Array.from(
+        { length: 25 },
+        (_unused, index) =>
+            `${index + 1}. ¿Cuál es el control operativo ${index + 1}?`
+    ).join("\n");
+    const answers = Array.from(
+        { length: 25 },
+        (_unused, index) =>
+            `${index + 1}. Respuesta verificada ${index + 1}.`
+    ).join("\n");
+    const segmentThree = [
+        ...Array.from(
+            { length: 6 },
+            (_unused, index) =>
+                `# ${index + 13}. Sección operativa ${index + 13}\n\n${sectionNarrative(index + 13)}`
+        ),
+        formats,
+        "## Examen de 25 preguntas",
+        questions,
+        "## Clave completa de respuestas",
+        answers
+    ].join("\n\n");
+    const segments = [
+        segmentOne,
+        segmentTwo,
+        segmentThree
+    ];
+
+    try {
+        globalThis.auth = {
+            currentUser: {
+                getIdToken: async () =>
+                    "test-token"
+            }
+        };
+        globalThis.fetch = async (_url, options) => {
+            const request =
+                JSON.parse(options.body);
+            assert.equal(
+                request.data.maxOutputTokens,
+                6000
+            );
+            const message =
+                segments[requestCount];
+            requestCount += 1;
+            return {
+                ok: true,
+                text: async () =>
+                    JSON.stringify({
+                        result: {
+                            ok: true,
+                            status: "SEMANTIC_RESPONSE_READY",
+                            provider: "test",
+                            model: "test-model",
+                            message
+                        }
+                    })
+            };
+        };
+
+        const result = await runtime.execute(
+            "document.compose",
+            {
+                title: "Manual segmentado",
+                format: "docx",
+                instructions: [
+                    "Crea un manual de mínimo 4500 palabras con 18 secciones.",
+                    "Incluye mínimo 12 tablas reales, inventario de 25 vehículos, catálogo de 15 refacciones, 12 KPI, plan de implementación de 30 días, 7 formatos operativos, examen de 25 preguntas y clave completa de respuestas."
+                ].join(" ")
+            }
+        );
+
+        assert.equal(requestCount, 3);
+        assert.equal(result.ok, true, JSON.stringify(result));
+        assert.equal(result.segmentedComposition, true);
+        assert.equal(result.continuationCount, 0);
+        assert.ok(result.wordCount >= 4500);
+        assert.ok(result.sectionCount >= 18);
+        assert.ok(result.tableBlueprintCount >= 12);
+        assert.equal(result.vehicleCount, 25);
+        assert.equal(result.partCount, 15);
+        assert.equal(result.kpiCount, 12);
+        assert.equal(result.implementationDayCoverage, 30);
+        assert.equal(result.templateCount, 7);
+        assert.equal(result.questionCount, 25);
+        assert.equal(result.answerKeyCount, 25);
+    } finally {
+        globalThis.auth = previousAuth;
+        globalThis.fetch = previousFetch;
+    }
+});
+
 test("system health exposes bridge server version separately from tool pack version", async () => {
     const previousBridge = globalThis.JarvisLocalBridge;
     globalThis.JarvisLocalBridge = {
@@ -1065,7 +1244,7 @@ test("system health exposes bridge server version separately from tool pack vers
         );
         assert.equal(
             result.toolPackVersion,
-            "1.32.0-verified-runtime-identity"
+            "1.33.0-segmented-document-compose"
         );
         assert.notEqual(
             result.toolPackVersion,
@@ -2353,7 +2532,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-runtime-truth-v70-20260725/);
+    assert.match(terminal, /sia7-segmented-docx-v72-20260725/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
     assert.match(terminal, /jarvis-tools-v7-20260725-deep-artifacts-v65/);

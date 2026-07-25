@@ -197,7 +197,7 @@ import {
 } from '/gestia-core/semantic.engine.js?v=sia7-model-context-v8-20260714';
 import '/gestia-core/brain.engine.js?v=sia7-deep-artifact-validation-v65-20260725';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260725-runtime-truth-v70';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260725-segmented-docx-v72';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260725-semantic-envelope-v64';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260725-deep-artifacts-v65';
 
@@ -5244,7 +5244,13 @@ if (
             maximumRetries:
                 1,
             timeoutMs:
-                360000,
+                missionInitialToolCalls
+                    .some(call =>
+                        call?.name ===
+                        "document.compose"
+                    )
+                    ? 900000
+                    : 360000,
             planner:
                 async ({ originalInstruction, mission }) => {
                     const resolvedToolNames = new Set([
@@ -6460,9 +6466,55 @@ if (
                     )
                     .slice(0, 12)
                     .map(source => `- ${source.title || "Fuente"}: ${source.url}`);
-                const blocked = missionResult.blockedTasks.map(item =>
-                    `- ${item.name}: ${item.reason || item.observation?.status || "capacidad no disponible"}`
-                );
+                const blocked = missionResult.blockedTasks.map(item => {
+                    const observation =
+                        item.observation ||
+                        {};
+                    const details = [
+                        item.reason ||
+                        observation.status ||
+                        "capacidad no disponible",
+                        observation.error
+                            ? `error=${observation.error}`
+                            : null,
+                        Array.isArray(
+                            observation
+                                .validationFailures
+                        ) &&
+                        observation
+                            .validationFailures
+                            .length > 0
+                            ? `validacion=${observation.validationFailures.join(", ")}`
+                            : null,
+                        Number.isFinite(
+                            Number(
+                                observation
+                                    .wordCount
+                            )
+                        )
+                            ? `palabras=${Number(observation.wordCount)}`
+                            : null,
+                        Number.isFinite(
+                            Number(
+                                observation
+                                    .sectionCount
+                            )
+                        )
+                            ? `secciones=${Number(observation.sectionCount)}`
+                            : null,
+                        Number.isFinite(
+                            Number(
+                                observation
+                                    .tableBlueprintCount
+                            )
+                        )
+                            ? `tablas=${Number(observation.tableBlueprintCount)}`
+                            : null
+                    ]
+                        .filter(Boolean)
+                        .join("; ");
+                    return `- ${item.name}: ${details}`;
+                });
                 const pending = missionResult.pendingTasks.map(item => `- ${item.name}`);
                 return {
                     ok: missionResult.status === "COMPLETED",

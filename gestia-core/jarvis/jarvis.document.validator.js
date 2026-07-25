@@ -1,4 +1,4 @@
-const VERSION = "1.1.0-docx-quantitative-gate";
+const VERSION = "1.2.0-segmented-document-contract";
 
 const SPANISH_NUMBERS = new Map([
     ["un", 1], ["una", 1], ["uno", 1], ["dos", 2], ["tres", 3],
@@ -261,7 +261,15 @@ function questionMetrics(content = "") {
         index < evaluationLimit;
         index += 1
     ) {
+        const normalizedLine =
+            normalize(
+                lines[index]
+            );
         if (
+            normalizedLine ===
+                "examen" ||
+            normalizedLine ===
+                "evaluacion" ||
             /evaluaci[oó]n\s+final|examen\s+(?:final|simulacro)|examen\s+de\s+\d+\s+preguntas/i
                 .test(lines[index])
         ) {
