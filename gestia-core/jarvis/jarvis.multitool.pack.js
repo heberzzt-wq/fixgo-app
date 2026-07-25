@@ -23,9 +23,12 @@ import {
 
 import {
     completeJarvisPlanningArguments
-} from "./jarvis.multifunction.planner.js?v=sia7-validated-artifacts-v63-20260724";
+} from "./jarvis.multifunction.planner.js?v=sia7-deep-artifact-validation-v65-20260725";
+import {
+    validateWorkbookFormulaStructure
+} from "./jarvis.workbook.validator.js?v=sia7-deep-artifact-validation-v65-20260725";
 
-const VERSION = "1.29.0-validated-spreadsheet-formulas";
+const VERSION = "1.30.0-deep-artifact-validation";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";
@@ -1810,10 +1813,45 @@ function normalizeAndValidateWorkbookSheets(value = []) {
             })
         )
     }));
+    const structuralValidation =
+        validateWorkbookFormulaStructure(
+            sheets
+        );
+    const existingIssueKeys =
+        new Set(
+            invalidFormulas.map(issue => [
+                issue.sheet,
+                issue.row,
+                issue.column,
+                issue.issue
+            ].join("\u0000"))
+        );
+    for (
+        const issue of
+            structuralValidation.invalidFormulas
+    ) {
+        const issueKey = [
+            issue.sheet,
+            issue.row,
+            issue.column,
+            issue.issue
+        ].join("\u0000");
+        if (existingIssueKeys.has(issueKey)) {
+            continue;
+        }
+        existingIssueKeys.add(issueKey);
+        invalidFormulas.push(issue);
+    }
 
     return {
         sheets,
-        formulaCount,
+        formulaCount:
+            Math.max(
+                formulaCount,
+                structuralValidation.formulaCount
+            ),
+        structuralValidationVersion:
+            structuralValidation.version,
         invalidFormulas
     };
 }
@@ -2239,6 +2277,10 @@ export function registerJarvisMultifunctionTools(runtime) {
                         "Toda formula debe ser una cadena que empiece con = y usar referencias de Excel. Separa criterios, supuestos o fuentes en una hoja propia cuando la solicitud lo requiera.",
                         "En formulas, las hojas con espacios deben citarse por su nombre exacto, por ejemplo ='Mano de Obra'!F4; no sustituyas espacios por guiones bajos.",
                         "Nunca escribas comentarios, etiquetas ni la palabra SUPUESTO dentro de una formula; colocalos en una celda separada.",
+                        "Cada referencia debe apuntar a una celda que exista dentro de las filas y columnas declaradas.",
+                        "Ninguna formula puede depender de si misma, ni directamente ni a traves de otras formulas.",
+                        "Toda celda usada en multiplicacion, division, suma, resta o potencia debe contener un numero o una formula; coloca la etiqueta SUPUESTO en otra columna.",
+                        "Si agregas o retiras filas, recalcula todas las referencias antes de entregar el JSON.",
                         "No inventes datos de mercado: cualquier valor de ejemplo debe rotularse claramente como SUPUESTO y las formulas deben conservar la trazabilidad del calculo.",
                         "Incluye todos los conceptos, subtotales, porcentajes y resultado final pedidos. No agregues explicaciones fuera del JSON.",
                         `TITULO=${title}`,
@@ -2288,6 +2330,10 @@ export function registerJarvisMultifunctionTools(runtime) {
                                 "Conserva todos los datos, hojas y formulas validas.",
                                 "Corrige cada formula indicada. Las referencias deben usar el nombre exacto de una hoja existente; si tiene espacios, encierralo entre comillas simples.",
                                 "No incluyas comentarios o etiquetas dentro de formulas. Mueve esas etiquetas a otra celda.",
+                                "Cada referencia debe apuntar a una celda existente dentro de las filas y columnas declaradas.",
+                                "Elimina dependencias circulares directas e indirectas.",
+                                "Toda celda usada en una operacion numerica debe contener un numero o una formula; mueve SUPUESTO a una columna de criterio separada.",
+                                "Despues de mover, agregar o retirar filas, recalcula todas las referencias.",
                                 `SOLICITUD_ORIGINAL=${instruction}`,
                                 `ERRORES_DE_FORMULA=${JSON.stringify(validation.invalidFormulas)}`,
                                 `LIBRO_A_REPARAR=${JSON.stringify({

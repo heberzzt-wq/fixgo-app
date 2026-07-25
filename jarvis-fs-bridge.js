@@ -16,6 +16,9 @@ import {
     describePageArtifact
 } from "./jarvis-page-artifact.js";
 import {
+    validateWorkbookFormulaStructure
+} from "./gestia-core/jarvis/jarvis.workbook.validator.js";
+import {
     buildReelStudioHtml,
     describeReelStudio
 } from "./jarvis-reel-artifact.js";
@@ -33,7 +36,7 @@ import { locatePdfFieldAnchors } from "./jarvis-pdf-layout.js";
 import { verifyPdfVisualChanges } from "./jarvis-pdf-visual.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.25.0-validated-spreadsheet-formulas";
+    "2.26.0-deep-artifact-validation";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -3332,14 +3335,36 @@ export function createJarvisFsBridgeApp({
                     return {
                         name: sheetName,
                         rows: Array.isArray(sheetInput?.rows)
-                            ? sheetInput.rows
+                            ? sheetInput.rows.slice(0, 10000)
                             : []
                     };
                 });
                 const sheetNames = preparedSheets.map(sheet => sheet.name);
+                const structuralValidation =
+                    validateWorkbookFormulaStructure(
+                        preparedSheets
+                    );
+                if (
+                    structuralValidation
+                        .invalidFormulas
+                        .length > 0
+                ) {
+                    const issue =
+                        structuralValidation
+                            .invalidFormulas[0];
+                    throw new Error(
+                        [
+                            "XLSX_FORMULA_STRUCTURE_INVALID",
+                            issue.sheet,
+                            issue.row,
+                            issue.column,
+                            issue.issue
+                        ].join(":")
+                    );
+                }
                 preparedSheets.forEach(sheetInput => {
                     const sheet = workbook.addWorksheet(sheetInput.name);
-                    sheetInput.rows.slice(0, 10000).forEach((row, rowIndex) => {
+                    sheetInput.rows.forEach((row, rowIndex) => {
                         const values = Array.isArray(row)
                             ? row
                             : Object.values(row || {});

@@ -14,7 +14,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 test("multimodal composer exposes bounded upload capabilities", () => {
     const description = JarvisAttachments.describe();
-    assert.equal(description.version, "2.0.0-chunked-recoverable-queue");
+    assert.equal(description.version, "2.1.0-single-artifact-render");
     assert.equal(description.transport, "chunked_progressive");
     assert.equal(description.maxFiles, 30);
     assert.equal(description.maxFileBytes, 250 * 1024 * 1024);
@@ -55,6 +55,11 @@ test("terminal exposes a GPT-style plus menu, file input and artifact renderer",
     assert.match(attachments, /\/upload\/cancel/);
     assert.match(attachments, /\/artifact\/read/);
     assert.match(attachments, /jarvis-artifact-download/);
+    assert.match(attachments, /renderingOutputs: new Set\(\)/);
+    assert.match(attachments, /renderedOutputs: new Set\(\)/);
+    assert.match(attachments, /state\.renderingOutputs\.has\(output\)/);
+    assert.match(attachments, /state\.renderedOutputs\.add\(output\)/);
+    assert.match(attachments, /state\.renderingOutputs\.delete\(output\)/);
 });
 
 test("MPH campaign ships a responsive landing and a real browser video exporter", () => {
@@ -79,4 +84,14 @@ test("repo impact falls back to live bridge evidence for newly created files", (
     assert.match(runtime, /IMPACT_READY_LIVE/);
     assert.match(runtime, /jarvis_repo_impact_live_fallback_v7/);
     assert.match(runtime, /source: "live_repo_bridge"/);
+});
+
+test("repo reads provide bounded numbered source evidence for semantic composition", () => {
+    const runtime = fs.readFileSync(path.resolve(__dirname, "../gestia-core/tools.runtime.js"), "utf8");
+    const core = fs.readFileSync(path.resolve(__dirname, "../gestia-core/gestia-core.js"), "utf8");
+
+    assert.match(runtime, /numberedSourceContent/);
+    assert.match(runtime, /numberedContent/);
+    assert.match(core, /verifiedRepositoryRead/);
+    assert.match(core, /itemEvidenceBudget/);
 });

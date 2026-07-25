@@ -33,7 +33,7 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.25.0-validated-spreadsheet-formulas");
+    assert.equal(description.version, "2.26.0-deep-artifact-validation");
     assert.equal(description.policy.authority, "full_repo_private_owner");
     assert.equal(description.policy.safeZone, "advisory");
     assert.equal(description.policy.emptyWrites, "blocked");
@@ -140,9 +140,48 @@ test("Jarvis creates a multi-sheet XLSX with executable formulas", async () => {
         const invalidResult = await invalidResponse.json();
         assert.equal(invalidResponse.status, 400);
         assert.equal(invalidResult.status, "DOCUMENT_CREATE_FAILED");
+        assert.ok(
+            invalidResult.error.startsWith(
+                "XLSX_FORMULA_"
+            ),
+            invalidResult.error
+        );
+
+        const structuralInvalidResponse = await fetch(`${base}/document`, {
+            method: "POST",
+            headers: {
+                "content-type": "application/json",
+                "x-jarvis-release-id": "test-release"
+            },
+            body: JSON.stringify({
+                format: "xlsx",
+                title: "APU estructuralmente invalido",
+                sheets: [
+                    {
+                        name: "APU",
+                        rows: [
+                            ["Concepto", "Cantidad", "Precio", "Importe"],
+                            ["Block", 13, "SUPUESTO", "=B2*C2"],
+                            ["Circular", "", "", "=D3"],
+                            ["Fuera", "", "", "=B20*2"]
+                        ]
+                    }
+                ]
+            })
+        });
+        const structuralInvalidResult =
+            await structuralInvalidResponse.json();
+        assert.equal(
+            structuralInvalidResponse.status,
+            400
+        );
+        assert.equal(
+            structuralInvalidResult.status,
+            "DOCUMENT_CREATE_FAILED"
+        );
         assert.match(
-            invalidResult.error,
-            /XLSX_FORMULA_INVALID/
+            structuralInvalidResult.error,
+            /XLSX_FORMULA_STRUCTURE_INVALID/
         );
     } finally {
         await new Promise(resolve => server.close(resolve));

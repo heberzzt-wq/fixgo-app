@@ -37,7 +37,7 @@ import {
   buildJarvisMultifunctionToolCalls,
   mergeJarvisToolCalls
 
-} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-validated-artifacts-v63-20260724";
+} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-deep-artifact-validation-v65-20260725";
 
 import {
 

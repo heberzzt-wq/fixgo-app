@@ -5,7 +5,7 @@ import {
     JarvisCaseLedger
 } from "../../gestia-core/jarvis/jarvis.case.ledger.js";
 
-const VERSION = "2.0.0-chunked-recoverable-queue";
+const VERSION = "2.1.0-single-artifact-render";
 const MAX_FILES = 30;
 const MAX_FILE_BYTES = 250 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 500 * 1024 * 1024;
@@ -16,6 +16,8 @@ const TEXT_EXTENSIONS = new Set(["txt", "md", "csv", "json", "xml", "yaml", "yml
 const state = {
     items: [],
     objectUrls: new Set(),
+    renderingOutputs: new Set(),
+    renderedOutputs: new Set(),
     batchId: `batch-${crypto.randomUUID?.() || Date.now()}`,
     pendingBatch: null,
     caseRecord: null
@@ -373,44 +375,69 @@ function collectArtifacts(value, tool = "", depth = 0, seen = new Set()) {
 async function renderArtifact(output, mimeType = "", toolName = "") {
     const outputContainer = document.getElementById("gestia-output");
     if (!outputContainer || !output || typeof window.JarvisLocalBridge?.requestJson !== "function") return;
-    if (Array.from(outputContainer.querySelectorAll("[data-jarvis-artifact-output]")).some(item => item.dataset.jarvisArtifactOutput === output)) return;
-    const payload = await window.JarvisLocalBridge.requestJson("/artifact/read", { output }, { timeoutMs: 30000 });
-    if (payload?.ok !== true || !payload?.dataBase64) return;
-    const blob = base64ToBlob(payload.dataBase64, payload.mimeType || mimeType);
-    const objectUrl = URL.createObjectURL(blob);
-    state.objectUrls.add(objectUrl);
-    const host = outputContainer.lastElementChild?.querySelector(".bg-gestia-panel") || outputContainer.lastElementChild;
-    if (!host) return;
-    const card = createElement("div", "mt-4 rounded-xl border border-slate-600 bg-slate-900/80 p-3");
-    card.dataset.jarvisArtifactOutput = output;
-    card.dataset.testid = "jarvis-artifact-card";
-    if ((payload.mimeType || mimeType).startsWith("image/")) {
-        const image = createElement("img", "w-full max-h-96 object-contain rounded-lg bg-black/30 mb-3");
-        image.src = objectUrl;
-        image.alt = payload.fileName || "Imagen generada por Jarvis";
-        card.appendChild(image);
+    const alreadyInDocument =
+        Array.from(
+            outputContainer.querySelectorAll(
+                "[data-jarvis-artifact-output]"
+            )
+        ).some(
+            item =>
+                item.dataset
+                    .jarvisArtifactOutput === output
+        );
+    if (state.renderingOutputs.has(output)) return;
+    if (state.renderedOutputs.has(output)) {
+        if (alreadyInDocument) return;
+        state.renderedOutputs.delete(output);
     }
-    else if ((payload.mimeType || mimeType) === "text/html") {
-        const frame = document.createElement("iframe");
-        frame.src = objectUrl;
-        frame.title = payload.fileName || "Vista previa de página creada por Jarvis";
-        frame.sandbox = "allow-forms allow-scripts allow-popups";
-        frame.className = "w-full h-[32rem] rounded-lg bg-white mb-3 border border-slate-700";
-        frame.dataset.testid = "jarvis-html-preview";
-        card.appendChild(frame);
+    else if (alreadyInDocument) {
+        state.renderedOutputs.add(output);
+        return;
     }
-    const row = createElement("div", "flex items-center justify-between gap-3");
-    const details = createElement("div", "min-w-0");
-    details.appendChild(createElement("div", "text-sm text-white truncate", payload.fileName || output));
-    details.appendChild(createElement("div", "text-xs text-slate-400", `${formatBytes(payload.bytes)} · ${toolName || "artefacto"}`));
-    row.appendChild(details);
-    const download = createElement("a", "shrink-0 inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-2 text-xs font-semibold text-white", "Descargar");
-    download.href = objectUrl;
-    download.download = payload.fileName || "jarvis-artifact";
-    download.dataset.testid = "jarvis-artifact-download";
-    row.appendChild(download);
-    card.appendChild(row);
-    host.appendChild(card);
+    state.renderingOutputs.add(output);
+    try {
+        const payload = await window.JarvisLocalBridge.requestJson("/artifact/read", { output }, { timeoutMs: 30000 });
+        if (payload?.ok !== true || !payload?.dataBase64) return;
+        const blob = base64ToBlob(payload.dataBase64, payload.mimeType || mimeType);
+        const objectUrl = URL.createObjectURL(blob);
+        state.objectUrls.add(objectUrl);
+        const host = outputContainer.lastElementChild?.querySelector(".bg-gestia-panel") || outputContainer.lastElementChild;
+        if (!host) return;
+        const card = createElement("div", "mt-4 rounded-xl border border-slate-600 bg-slate-900/80 p-3");
+        card.dataset.jarvisArtifactOutput = output;
+        card.dataset.testid = "jarvis-artifact-card";
+        if ((payload.mimeType || mimeType).startsWith("image/")) {
+            const image = createElement("img", "w-full max-h-96 object-contain rounded-lg bg-black/30 mb-3");
+            image.src = objectUrl;
+            image.alt = payload.fileName || "Imagen generada por Jarvis";
+            card.appendChild(image);
+        }
+        else if ((payload.mimeType || mimeType) === "text/html") {
+            const frame = document.createElement("iframe");
+            frame.src = objectUrl;
+            frame.title = payload.fileName || "Vista previa de página creada por Jarvis";
+            frame.sandbox = "allow-forms allow-scripts allow-popups";
+            frame.className = "w-full h-[32rem] rounded-lg bg-white mb-3 border border-slate-700";
+            frame.dataset.testid = "jarvis-html-preview";
+            card.appendChild(frame);
+        }
+        const row = createElement("div", "flex items-center justify-between gap-3");
+        const details = createElement("div", "min-w-0");
+        details.appendChild(createElement("div", "text-sm text-white truncate", payload.fileName || output));
+        details.appendChild(createElement("div", "text-xs text-slate-400", `${formatBytes(payload.bytes)} · ${toolName || "artefacto"}`));
+        row.appendChild(details);
+        const download = createElement("a", "shrink-0 inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-2 text-xs font-semibold text-white", "Descargar");
+        download.href = objectUrl;
+        download.download = payload.fileName || "jarvis-artifact";
+        download.dataset.testid = "jarvis-artifact-download";
+        row.appendChild(download);
+        card.appendChild(row);
+        host.appendChild(card);
+        state.renderedOutputs.add(output);
+    }
+    finally {
+        state.renderingOutputs.delete(output);
+    }
 }
 
 async function renderArtifactsFromObservations(observations = []) {

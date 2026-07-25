@@ -1,4 +1,4 @@
-const VERSION = "1.7.0-approval-stop-contract";
+const VERSION = "1.8.0-verified-source-evidence";
 const STORAGE_KEY = "jarvis.missions.v1";
 
 function text(value = "", maximum = 120000) {
@@ -232,6 +232,46 @@ function safeObservation(result = {}) {
                             )
                     }
                     : null;
+    const verifiedRead =
+        typeof payload?.numberedContent === "string" &&
+        payload.numberedContent.trim()
+            ? {
+                tool:
+                    "repo.read",
+                file:
+                    text(
+                        payload?.file ||
+                        payload?.path,
+                        500
+                    ),
+                path:
+                    text(
+                        payload?.path ||
+                        payload?.file,
+                        500
+                    ),
+                partial:
+                    payload?.partial === true,
+                startLine:
+                    Number(payload?.startLine) ||
+                    1,
+                endLine:
+                    Number(payload?.endLine) ||
+                    null,
+                totalLines:
+                    Number(payload?.totalLines) ||
+                    null,
+                numberedContent:
+                    String(
+                        payload.numberedContent
+                    ).slice(0, 60000),
+                sourceStructure:
+                    compactEvidence(
+                        payload?.sourceStructure ||
+                        {}
+                    )
+            }
+            : null;
 
     return {
         ok: executionOk,
@@ -273,6 +313,7 @@ function safeObservation(result = {}) {
             500
         ) || null,
         preparedArtifact,
+        verifiedRead,
         evidence: compactEvidence({
             ...payload,
             envelope: {

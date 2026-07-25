@@ -5,10 +5,10 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-validated-artifacts-v63-20260724";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-deep-artifact-validation-v65-20260725";
 import {
     registerJarvisActuatorTools
-} from "./jarvis/jarvis.actuator.pack.js?v=sia7-validated-artifacts-v63-20260724";
+} from "./jarvis/jarvis.actuator.pack.js?v=sia7-deep-artifact-validation-v65-20260725";
 import {
     reviewChiefArchitectPlan
 } from "./jarvis/jarvis.chief.architect.js?v=sia7-chief-architect-v1-20260714";
@@ -784,6 +784,31 @@ JarvisToolRuntime.register({
                 };
             };
 
+        const numberedSourceContent =
+            function(
+                content = "",
+                startLine = 1,
+                maximum = 60000
+            ) {
+                const firstLine =
+                    Math.max(
+                        1,
+                        Number(startLine) ||
+                        1
+                    );
+                return String(content || "")
+                    .split("\n")
+                    .map((rawLine, index) => {
+                        const line =
+                            rawLine.endsWith("\r")
+                                ? rawLine.slice(0, -1)
+                                : rawLine;
+                        return `${firstLine + index}: ${line}`;
+                    })
+                    .join("\n")
+                    .slice(0, maximum);
+            };
+
                         if (
             window.JarvisLocalBridge?.readFile
         ) {
@@ -824,6 +849,13 @@ JarvisToolRuntime.register({
                     ...materializedBridgeRead,
                     content:
                         materializedBridgeRead.content,
+                    numberedContent:
+                        numberedSourceContent(
+                            materializedBridgeRead.content,
+                            materializedBridgeRead.startLine ||
+                            requestedLineRange?.startLine ||
+                            1
+                        ),
                     size:
                         materializedBridgeRead.size ||
                         bridgeRead.size ||
@@ -934,7 +966,17 @@ catch(error) {
                         materializedFound.source ||
                         ""
                     ),
-                ...materializedFound
+                ...materializedFound,
+                numberedContent:
+                    numberedSourceContent(
+                        materializedFound.content ||
+                        materializedFound.text ||
+                        materializedFound.source ||
+                        "",
+                        materializedFound.startLine ||
+                        requestedLineRange?.startLine ||
+                        1
+                    )
             };
         }
 
@@ -990,7 +1032,17 @@ catch(error) {
                         materializedContext.source ||
                         ""
                     ),
-                ...materializedContext
+                ...materializedContext,
+                numberedContent:
+                    numberedSourceContent(
+                        materializedContext.content ||
+                        materializedContext.text ||
+                        materializedContext.source ||
+                        "",
+                        materializedContext.startLine ||
+                        requestedLineRange?.startLine ||
+                        1
+                    )
             };
         }
 
@@ -1045,6 +1097,12 @@ catch(error) {
                 content:
                     matchedContent ||
                     null,
+                numberedContent:
+                    numberedSourceContent(
+                        matchedContent,
+                        requestedLineRange?.startLine ||
+                        1
+                    ),
                 note:
                     matched.content ||
                     matched.text ||

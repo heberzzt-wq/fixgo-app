@@ -491,8 +491,11 @@ test("spreadsheet composition repairs invalid cross-sheet formulas before creati
                         {
                             name: "Costo Directo",
                             rows: [
-                                ["Concepto", "Importe"],
-                                ["Herramienta", "=Mano_de_Obra!B2*0.03 (SUPUESTO)"]
+                                ["Concepto", "Cantidad", "Precio", "Importe"],
+                                ["Herramienta", 1, "SUPUESTO", "=B2*C2"],
+                                ["Circular", "", "", "=D3"],
+                                ["Fuera", "", "", "=B20*2"],
+                                ["Mano de obra", "", "", "=Mano_de_Obra!B2*0.03 (SUPUESTO)"]
                             ]
                         }
                     ]
@@ -2011,7 +2014,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /jarvis-tools-v7-20260724-validated-artifacts-v63/);
+    assert.match(terminal, /jarvis-tools-v7-20260725-deep-artifacts-v65/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
         "utf8"
@@ -2025,8 +2028,8 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-validated-artifacts-v63-20260724/);
-    assert.match(terminal, /jarvis-tools-v7-20260724-validated-artifacts-v63/);
+    assert.match(terminal, /sia7-deep-artifact-validation-v65-20260725/);
+    assert.match(terminal, /jarvis-tools-v7-20260725-deep-artifacts-v65/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -2271,7 +2274,7 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260724-validated-artifacts-v63/);
+    assert.match(core, /jarvis-tools-v7-20260725-deep-artifacts-v65/);
     assert.match(
         terminal,
         /jarvis-tools-v7-20260725-semantic-envelope-v64/

@@ -323,6 +323,60 @@ test("mission evidence preserves a complete bounded tool registry", () => {
     );
 });
 
+test("repo read observations preserve numbered verified source beyond compact summaries", () => {
+    const numberedContent =
+        Array.from(
+            {
+                length: 180
+            },
+            (_, index) =>
+                `${index + 1}: export const symbol${index + 1} = ${index + 1};`
+        ).join("\n");
+    assert.ok(numberedContent.length > 700);
+
+    const observation =
+        __test.safeObservation({
+            ok: true,
+            tool: "repo.read",
+            file: "gestia-core/response.composer.js",
+            path: "gestia-core/response.composer.js",
+            content: numberedContent,
+            numberedContent,
+            startLine: 1,
+            endLine: 180,
+            totalLines: 180,
+            sourceStructure: {
+                kind: "javascript_module",
+                exports: [
+                    {
+                        name: "symbol180",
+                        line: 180
+                    }
+                ]
+            }
+        });
+
+    assert.equal(
+        observation.verifiedRead.file,
+        "gestia-core/response.composer.js"
+    );
+    assert.equal(
+        observation.verifiedRead.numberedContent,
+        numberedContent
+    );
+    assert.equal(
+        observation.verifiedRead.totalLines,
+        180
+    );
+    assert.equal(
+        observation.verifiedRead
+            .sourceStructure
+            .exports[0]
+            .line,
+        180
+    );
+});
+
 test("a fully executed model contract closes even when the final audit returns no duplicate work", async () => {
     const sequence = [
         "web.research",
