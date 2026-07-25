@@ -1,4 +1,4 @@
-const VERSION = "1.3.0-complete-user-artifact-evidence";
+const VERSION = "1.4.0-verified-complete-artifacts";
 const STORAGE_KEY = "jarvis.missions.v1";
 
 function text(value = "", maximum = 120000) {
@@ -227,7 +227,17 @@ function safeObservation(result = {}) {
             ) || "",
             3000
         ),
-        artifact: text(payload?.artifact || payload?.output || "", 500) || null,
+        artifact: text(
+            payload?.output ||
+            (
+                typeof payload?.artifact === "string"
+                    ? payload.artifact
+                    : payload?.artifact?.file ||
+                        payload?.artifact?.output ||
+                        ""
+            ),
+            500
+        ) || null,
         preparedArtifact,
         evidence: compactEvidence({
             ...payload,
@@ -240,15 +250,44 @@ function trustedCalls(calls = [], mission) {
     const completed = new Set(mission.completedTasks.map(item => item.signature));
     const pending = new Set(mission.pendingTasks.map(item => item.signature));
     const blocked = new Set(mission.blockedTasks.map(item => item.signature));
+    const missionDedupeKeys = new Set(
+        [
+            ...mission.completedTasks,
+            ...mission.pendingTasks,
+            ...mission.blockedTasks
+        ]
+            .map(item => item?.missionDedupeKey)
+            .filter(Boolean)
+    );
     const accepted = [];
     for (const candidate of Array.isArray(calls) ? calls : []) {
         const name = text(candidate?.name, 100);
         if (!name) continue;
         const call = { name, args: candidate?.args && typeof candidate.args === "object" ? candidate.args : {}, approved: false };
+        const missionDedupeKey =
+            text(
+                candidate?.missionDedupeKey,
+                500
+            );
+        if (
+            missionDedupeKey &&
+            missionDedupeKeys.has(missionDedupeKey)
+        ) {
+            continue;
+        }
         const signature = callSignature(call);
         if (completed.has(signature) || pending.has(signature) || blocked.has(signature)) continue;
         pending.add(signature);
-        accepted.push({ ...call, signature, attempts: 0, status: "PENDING" });
+        if (missionDedupeKey) {
+            missionDedupeKeys.add(missionDedupeKey);
+        }
+        accepted.push({
+            ...call,
+            ...(missionDedupeKey ? { missionDedupeKey } : {}),
+            signature,
+            attempts: 0,
+            status: "PENDING"
+        });
     }
     return accepted;
 }

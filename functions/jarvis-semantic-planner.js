@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "1.14.0-complete-user-artifacts";
+const VERSION = "1.15.0-verified-complete-artifacts";
 const DEFAULT_ENDPOINT = "https://text.pollinations.ai/openai";
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -55,6 +55,9 @@ function normalizeCatalog(catalog = []) {
             mutates: item.mutates === true,
             requiresApproval: item.requiresApproval === true,
             userArtifact: item.userArtifact === true,
+            missionDedupeBy: Array.isArray(item.missionDedupeBy)
+                ? item.missionDedupeBy.map(String)
+                : null,
             inputSchema: item.inputSchema && typeof item.inputSchema === "object"
                 ? item.inputSchema
                 : null
@@ -101,6 +104,17 @@ function extractJsonObject(value = "") {
     throw new Error("SEMANTIC_PLAN_JSON_REQUIRED");
 }
 
+function missionDedupeKey(tool = {}, args = {}) {
+    if (!Array.isArray(tool?.missionDedupeBy)) return "";
+    return `${tool.name}:${JSON.stringify(
+        tool.missionDedupeBy.map(field =>
+            Object.prototype.hasOwnProperty.call(args, field)
+                ? args[field]
+                : null
+        )
+    )}`;
+}
+
 function validatePlan(
     plan = {},
     catalog = [],
@@ -112,6 +126,7 @@ function validatePlan(
     const allowed = new Map(catalog.map(tool => [tool.name, tool]));
     const sourceCalls = Array.isArray(plan?.toolCalls) ? plan.toolCalls : [];
     const seen = new Set();
+    const seenMissionDedupeKeys = new Set();
     const toolCalls = [];
 
     for (const candidate of sourceCalls.slice(0, 12)) {
@@ -143,6 +158,20 @@ function validatePlan(
         ) {
             continue;
         }
+        const dedupeKey =
+            missionDedupeKey(
+                tool,
+                args
+            );
+        if (
+            dedupeKey &&
+            seenMissionDedupeKeys.has(dedupeKey)
+        ) {
+            continue;
+        }
+        if (dedupeKey) {
+            seenMissionDedupeKeys.add(dedupeKey);
+        }
 
         toolCalls.push({
             name: tool.name,
@@ -150,6 +179,7 @@ function validatePlan(
             reason: String(candidate?.reason || "MODEL_SEMANTIC_TOOL_SELECTION").slice(0, 240),
             mutates: tool.mutates,
             approved: false,
+            ...(dedupeKey ? { missionDedupeKey: dedupeKey } : {}),
             ...(
                 argumentsComplete
                     ? {}
@@ -177,12 +207,22 @@ function validatePlan(
 function mergePlanToolCalls(...groups) {
     const merged = [];
     const seen = new Set();
+    const seenMissionDedupeKeys = new Set();
 
     for (const call of groups.flat()) {
         if (!call?.name) continue;
         const signature = `${call.name}:${JSON.stringify(call.args || {})}`;
         if (seen.has(signature)) continue;
+        if (
+            call.missionDedupeKey &&
+            seenMissionDedupeKeys.has(call.missionDedupeKey)
+        ) {
+            continue;
+        }
         seen.add(signature);
+        if (call.missionDedupeKey) {
+            seenMissionDedupeKeys.add(call.missionDedupeKey);
+        }
         merged.push(call);
     }
 

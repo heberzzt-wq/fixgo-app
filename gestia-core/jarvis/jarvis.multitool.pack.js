@@ -23,11 +23,12 @@ import {
 
 import {
     completeJarvisPlanningArguments
-} from "./jarvis.multifunction.planner.js?v=sia7-complete-user-artifacts-v61-20260724";
+} from "./jarvis.multifunction.planner.js?v=sia7-verified-complete-artifacts-v62-20260724";
 
-const VERSION = "1.27.0-complete-user-artifacts";
+const VERSION = "1.28.0-verified-complete-artifacts";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
+const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";
 
 const MARKETING_ARGUMENT_SCHEMA = {
     type: "object",
@@ -988,7 +989,7 @@ const LOCAL_SUPERVISION_PROBES = [
         id: "technical_intent_priority",
         path: "/gestia-core/jarvis/jarvis.multifunction.planner.js",
         markers: [
-            "4.1.0-complete-user-artifacts",
+            "4.2.0-verified-complete-artifacts",
             "jarvisSemanticPlan",
             "trustedPlanCalls"
         ]
@@ -1530,6 +1531,28 @@ function clean(value, fallback = "") {
         : fallback;
 }
 
+function appendSemanticContinuation(existing = "", continuation = "") {
+    const current = String(existing || "").trimEnd();
+    const next = String(continuation || "").trimStart();
+    if (!current) return next;
+    if (!next) return current;
+
+    const maximumOverlap = Math.min(current.length, next.length, 4000);
+    for (let length = maximumOverlap; length >= 40; length -= 1) {
+        if (current.slice(-length) === next.slice(0, length)) {
+            return `${current}${next.slice(length)}`;
+        }
+    }
+    return `${current}\n\n${next}`;
+}
+
+function stripDocumentCompletionMarker(content = "") {
+    return String(content || "")
+        .split(DOCUMENT_COMPLETION_MARKER)
+        .join("")
+        .trim();
+}
+
 function extractSemanticJsonObject(value = "") {
     const source = String(value || "").trim();
     if (!source) throw new Error("SEMANTIC_JSON_REQUIRED");
@@ -1827,6 +1850,7 @@ export function registerJarvisMultifunctionTools(runtime) {
             name: "document.compose",
             description: "Redacta en memoria el contenido completo y original de un documento solicitado, sin copiar fuentes ni escribir archivos; se usa antes de document.create.",
             output: "DOCUMENT_CONTENT_BLUEPRINT",
+            missionDedupeBy: ["format"],
             inputSchema: {
                 title: "string",
                 format: "html|md|txt|docx|pdf",
@@ -1845,12 +1869,14 @@ export function registerJarvisMultifunctionTools(runtime) {
                 );
                 const title = clean(args.title, "Documento Jarvis");
                 const format = clean(args.format, "docx").toLowerCase();
-                const semantic = await fetchSemanticConversation(
+                let semantic = await fetchSemanticConversation(
                     [
                         "Redacta el contenido completo, original y listo para guardar de este documento solicitado por el usuario.",
                         "No describas lo que harias: entrega el documento terminado.",
                         "Cubre cada requisito, incluye ejercicios, respuestas, tablas o secciones cuando se pidan y evita contenido copiado de fuentes externas.",
+                        "Distribuye la extension entre todos los requisitos y prioriza que ninguno quede fuera.",
                         "No uses cercas de codigo ni JSON. No omitas el final por longitud.",
+                        `Finaliza obligatoriamente con ${DOCUMENT_COMPLETION_MARKER} en una linea independiente.`,
                         `TITULO=${title}`,
                         `FORMATO=${format}`,
                         `SOLICITUD=${instruction}`
@@ -1860,12 +1886,62 @@ export function registerJarvisMultifunctionTools(runtime) {
                             8000
                     }
                 );
-                const content =
+                let content =
                     clean(
                         semantic?.message
                     );
+                let completionVerified =
+                    content.includes(
+                        DOCUMENT_COMPLETION_MARKER
+                    );
+                let continuationCount = 0;
+
+                if (
+                    semantic?.ok === true &&
+                    !completionVerified
+                ) {
+                    const continuation =
+                        await fetchSemanticConversation(
+                            [
+                                "Continua y termina el documento que fue cortado.",
+                                "Entrega solamente el contenido faltante desde el punto exacto donde termino; no repitas el contenido existente.",
+                                "Completa todos los requisitos de la solicitud original que aun falten.",
+                                `Finaliza obligatoriamente con ${DOCUMENT_COMPLETION_MARKER} en una linea independiente.`,
+                                `TITULO=${title}`,
+                                `FORMATO=${format}`,
+                                `SOLICITUD_ORIGINAL=${instruction}`,
+                                `CONTENIDO_YA_REDACTADO=${content}`
+                            ].join("\n"),
+                            {
+                                maxOutputTokens:
+                                    8000
+                            }
+                        );
+                    continuationCount = 1;
+                    if (
+                        continuation?.ok === true &&
+                        clean(continuation.message)
+                    ) {
+                        content =
+                            appendSemanticContinuation(
+                                content,
+                                clean(continuation.message)
+                            );
+                        semantic = continuation;
+                    }
+                    completionVerified =
+                        content.includes(
+                            DOCUMENT_COMPLETION_MARKER
+                        );
+                }
+
+                content =
+                    stripDocumentCompletionMarker(
+                        content
+                    );
                 const ok =
                     semantic?.ok === true &&
+                    completionVerified &&
                     content.length >= 500;
                 return {
                     ok,
@@ -1884,6 +1960,8 @@ export function registerJarvisMultifunctionTools(runtime) {
                         null,
                     original:
                         true,
+                    completionVerified,
+                    continuationCount,
                     readOnly:
                         true,
                     objectiveSatisfied:
@@ -1892,7 +1970,11 @@ export function registerJarvisMultifunctionTools(runtime) {
                         ok
                             ? null
                             : semantic?.error ||
-                            "DOCUMENT_CONTENT_TOO_SHORT"
+                            (
+                                completionVerified
+                                    ? "DOCUMENT_CONTENT_TOO_SHORT"
+                                    : "DOCUMENT_COMPLETION_NOT_VERIFIED"
+                            )
                 };
             }
         }),
@@ -1900,6 +1982,7 @@ export function registerJarvisMultifunctionTools(runtime) {
             name: "spreadsheet.compose",
             description: "Diseña en memoria un libro XLSX completo con varias hojas, filas, supuestos y formulas; se usa antes de document.create y no escribe archivos.",
             output: "SPREADSHEET_BLUEPRINT",
+            missionDedupeBy: [],
             inputSchema: {
                 title: "string",
                 instructions: "string"
@@ -2015,6 +2098,7 @@ export function registerJarvisMultifunctionTools(runtime) {
             name: "page.compose",
             description: "Redacta en memoria el contenido completo y honesto de una landing local, incluidos servicios y ruta de contacto, antes de page.create; no escribe ni publica.",
             output: "PAGE_CONTENT_BLUEPRINT",
+            missionDedupeBy: [],
             inputSchema: {
                 brandName: "string",
                 title: "string",

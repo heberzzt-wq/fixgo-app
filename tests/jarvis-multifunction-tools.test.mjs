@@ -311,6 +311,68 @@ test("browser planner blocks tool calls with missing required arguments", () => 
     assert.equal(deferred[0].deferred, true);
 });
 
+test("browser planner deduplicates artifact stages by declared mission identity", () => {
+    const catalog = [
+        {
+            name: "page.compose",
+            mutates: false,
+            missionDedupeBy: []
+        },
+        {
+            name: "document.create",
+            mutates: true,
+            userArtifact: true,
+            missionDedupeBy: ["format"]
+        }
+    ];
+    const calls = plannerTest.trustedPlanCalls(
+        {
+            planKind: "MISSION_CONTRACT_AUDITED",
+            toolCalls: [
+                {
+                    name: "page.compose",
+                    args: { title: "Landing HMH" }
+                },
+                {
+                    name: "page.compose",
+                    args: { title: "HMH servicios" }
+                },
+                {
+                    name: "document.create",
+                    args: { format: "docx", title: "Guía A" }
+                },
+                {
+                    name: "document.create",
+                    args: { format: "docx", title: "Guía B" }
+                },
+                {
+                    name: "document.create",
+                    args: { format: "xlsx", title: "APU" }
+                }
+            ]
+        },
+        catalog,
+        {}
+    );
+
+    assert.deepEqual(
+        calls.map(call => `${call.name}:${call.args.format || "singleton"}`),
+        [
+            "page.compose:singleton",
+            "document.create:docx",
+            "document.create:xlsx"
+        ]
+    );
+    assert.deepEqual(
+        calls.map(call => call.missionDedupeKey),
+        [
+            "page.compose:[]",
+            'document.create:["docx"]',
+            'document.create:["xlsx"]'
+        ]
+    );
+});
+
 test("multifunction pack registers certification and remains read-only", () => {
     const runtime =
         createRuntime();
@@ -342,6 +404,62 @@ test("multifunction pack registers certification and remains read-only", () => {
         runtime.list().every(tool => tool.mutates === false),
         true
     );
+});
+
+test("document composition continues a cut response and verifies its real ending", async () => {
+    const previousAuth = globalThis.auth;
+    const previousFetch = globalThis.fetch;
+    const runtime = createRuntime();
+    registerJarvisMultifunctionTools(runtime);
+    let requestCount = 0;
+
+    try {
+        globalThis.auth = {
+            currentUser: {
+                getIdToken: async () => "test-token"
+            }
+        };
+        globalThis.fetch = async (_url, options) => {
+            requestCount += 1;
+            const request = JSON.parse(options.body);
+            assert.equal(request.data.maxOutputTokens, 8000);
+            return {
+                ok: true,
+                text: async () => JSON.stringify({
+                    result: {
+                        ok: true,
+                        status: "SEMANTIC_RESPONSE_READY",
+                        provider: "test",
+                        model: "test-model",
+                        message: requestCount === 1
+                            ? `${"# Guía\n\nContenido inicial. ".repeat(30)}\n## Plan de estudio`
+                            : "Días 1 al 7 completos.\n## Simulacro\n20 reactivos y respuestas.\n[[JARVIS_DOCUMENT_COMPLETE]]"
+                    }
+                })
+            };
+        };
+
+        const result = await runtime.execute(
+            "document.compose",
+            {
+                title: "Guía de Español",
+                format: "docx",
+                instructions: "Incluye plan de 7 días y simulacro de 20 reactivos."
+            }
+        );
+
+        assert.equal(requestCount, 2);
+        assert.equal(result.ok, true);
+        assert.equal(result.status, "DOCUMENT_CONTENT_COMPOSED");
+        assert.equal(result.completionVerified, true);
+        assert.equal(result.continuationCount, 1);
+        assert.match(result.content, /Contenido inicial/);
+        assert.match(result.content, /20 reactivos y respuestas/);
+        assert.doesNotMatch(result.content, /JARVIS_DOCUMENT_COMPLETE/);
+    } finally {
+        globalThis.auth = previousAuth;
+        globalThis.fetch = previousFetch;
+    }
 });
 
 test("campaign visual and reel planning require grounded structured evidence", () => {
@@ -1797,7 +1915,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /jarvis-tools-v7-20260724-complete-artifacts-v61/);
+    assert.match(terminal, /jarvis-tools-v7-20260724-verified-artifacts-v62/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
         "utf8"
@@ -1811,8 +1929,8 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-complete-user-artifacts-v61-20260724/);
-    assert.match(terminal, /jarvis-tools-v7-20260724-complete-artifacts-v61/);
+    assert.match(terminal, /sia7-verified-complete-artifacts-v62-20260724/);
+    assert.match(terminal, /jarvis-tools-v7-20260724-verified-artifacts-v62/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -1993,7 +2111,7 @@ test("daily supervision cloud lookup has a bounded browser deadline", () => {
     assert.match(source, /signal:\s*controller\.signal/);
     assert.match(source, /SUPERVISION_STATUS_TIMEOUT_/);
     assert.match(source, /clearTimeout\(timeoutId\)/);
-    assert.match(source, /4\.1\.0-complete-user-artifacts/);
+    assert.match(source, /4\.2\.0-verified-complete-artifacts/);
     assert.doesNotMatch(source, /3\.0\.0-model-semantic-planner/);
 });
 
@@ -2053,7 +2171,7 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260724-complete-artifacts-v61/);
+    assert.match(core, /jarvis-tools-v7-20260724-verified-artifacts-v62/);
 });
 
 test("repo diagnosis accepts synchronous null discovery before loading fallback context", () => {

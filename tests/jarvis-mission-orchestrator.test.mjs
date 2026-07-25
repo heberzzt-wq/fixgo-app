@@ -220,6 +220,70 @@ test("structured summaries never degrade to object string coercion", () => {
     );
 });
 
+test("structured artifact evidence resolves to its real file path", () => {
+    const observation = __test.safeObservation({
+        ok: true,
+        artifact: {
+            file: ".jarvis-artifacts/documents/guia.docx",
+            bytes: 24000
+        }
+    });
+
+    assert.equal(
+        observation.artifact,
+        ".jarvis-artifacts/documents/guia.docx"
+    );
+    assert.notEqual(
+        observation.artifact,
+        "[object Object]"
+    );
+});
+
+test("mission dedupe identity prevents repeated semantic artifact stages", async () => {
+    const executed = [];
+    const mission = await runJarvisMission({
+        instruction: "Crea una landing local.",
+        initialToolCalls: [
+            {
+                name: "page.compose",
+                args: { title: "Landing HMH" },
+                missionDedupeKey: "page.compose:[]"
+            },
+            {
+                name: "page.compose",
+                args: { title: "HMH servicios" },
+                missionDedupeKey: "page.compose:[]"
+            }
+        ],
+        requiredToolNames: ["page.compose"],
+        planner: async () => ({
+            toolCalls: [],
+            missionComplete: true
+        }),
+        execute: async call => {
+            executed.push(call.name);
+            return {
+                ok: true,
+                status: "PAGE_CONTENT_COMPOSED",
+                pageInput: {
+                    brandName: "HMH",
+                    title: "Landing HMH",
+                    description: "Servicios reales en Cancún.",
+                    services: [{
+                        title: "Mantenimiento",
+                        description: "Atención local."
+                    }],
+                    whatsappRequested: true
+                }
+            };
+        },
+        storage: memoryStorage()
+    });
+
+    assert.deepEqual(executed, ["page.compose"]);
+    assert.equal(mission.status, "COMPLETED");
+});
+
 test("mission evidence preserves a complete bounded tool registry", () => {
     const registrations =
         Array.from(

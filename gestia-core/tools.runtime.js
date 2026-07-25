@@ -5,10 +5,10 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-complete-user-artifacts-v61-20260724";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-verified-complete-artifacts-v62-20260724";
 import {
     registerJarvisActuatorTools
-} from "./jarvis/jarvis.actuator.pack.js?v=sia7-complete-user-artifacts-v61-20260724";
+} from "./jarvis/jarvis.actuator.pack.js?v=sia7-verified-complete-artifacts-v62-20260724";
 import {
     reviewChiefArchitectPlan
 } from "./jarvis/jarvis.chief.architect.js?v=sia7-chief-architect-v1-20260714";
@@ -37,6 +37,10 @@ export const JarvisToolRuntime = {
                 tool.mutates === true,
             userArtifact:
                 tool.userArtifact === true,
+            missionDedupeBy:
+                Array.isArray(tool.missionDedupeBy)
+                    ? tool.missionDedupeBy.map(String)
+                    : null,
             version:
                 tool.version || "1.0.0",
             description:
@@ -226,6 +230,10 @@ export const JarvisToolRuntime = {
                     t.requiresApproval === true,
                 userArtifact:
                     t.userArtifact === true,
+                missionDedupeBy:
+                    Array.isArray(t.missionDedupeBy)
+                        ? [...t.missionDedupeBy]
+                        : null,
                 output:
                     t.output,
                 inputSchema:

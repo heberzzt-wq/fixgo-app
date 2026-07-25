@@ -40,10 +40,10 @@ import {
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     buildJarvisMultifunctionToolCalls
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-complete-user-artifacts-v61-20260724';
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-verified-complete-artifacts-v62-20260724';
 import {
     runJarvisMission
-} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-complete-user-artifacts-v61-20260724';
+} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-verified-complete-artifacts-v62-20260724';
 import {
     addRepositoryDiscoveryPreflights,
     resolveExplicitRepositoryTargets
@@ -195,11 +195,11 @@ import {
     sincronizarCorralSemantico,
     getSemanticCognitiveState
 } from '/gestia-core/semantic.engine.js?v=sia7-model-context-v8-20260714';
-import '/gestia-core/brain.engine.js?v=sia7-complete-user-artifacts-v61-20260724';
+import '/gestia-core/brain.engine.js?v=sia7-verified-complete-artifacts-v62-20260724';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260724-complete-artifacts-v61';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260724-verified-artifacts-v62';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
-import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260724-complete-artifacts-v61';
+import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260724-verified-artifacts-v62';
 
 // ======================================================================================
 // 🛰️ SECCIÓN 2: GESTIA CORE ORCHESTRATOR (KERNEL V16.0)
@@ -5810,7 +5810,7 @@ if (
                     serialized = JSON.stringify(
                         item.observation || {},
                         (_key, value) => typeof value === "string" && value.length > 12000
-                            ? `${value.slice(0, 12000)}\n[CONTENIDO_EXTENSO_ACOTADO]`
+                            ? `${value.slice(0, 12000)}\n[CONTENIDO_COMPLETO_PERSISTIDO_EN_ARTEFACTO; LONGITUD=${value.length}]`
                             : value
                     );
                 }

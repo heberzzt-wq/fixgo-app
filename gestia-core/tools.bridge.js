@@ -125,6 +125,20 @@ window.JarvisToolMemory = {
 
 function queueActuatorArtifact(toolName = "", data = {}) {
     if (!data?.output) return;
+    window.__JARVIS_QUEUED_ARTIFACT_OUTPUTS__ =
+        window.__JARVIS_QUEUED_ARTIFACT_OUTPUTS__ instanceof Set
+            ? window.__JARVIS_QUEUED_ARTIFACT_OUTPUTS__
+            : new Set();
+    if (
+        window.__JARVIS_QUEUED_ARTIFACT_OUTPUTS__.has(
+            data.output
+        )
+    ) {
+        return;
+    }
+    window.__JARVIS_QUEUED_ARTIFACT_OUTPUTS__.add(
+        data.output
+    );
     window.__JARVIS_PENDING_ARTIFACTS__ = Array.isArray(window.__JARVIS_PENDING_ARTIFACTS__)
         ? window.__JARVIS_PENDING_ARTIFACTS__
         : [];

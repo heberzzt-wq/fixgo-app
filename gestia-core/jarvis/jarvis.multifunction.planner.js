@@ -1,4 +1,4 @@
-const VERSION = "4.1.0-complete-user-artifacts";
+const VERSION = "4.2.0-verified-complete-artifacts";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
@@ -193,10 +193,24 @@ function runtimeCatalog(context = {}) {
             mutates: tool.mutates === true,
             requiresApproval: tool.requiresApproval === true,
             userArtifact: tool.userArtifact === true,
+            missionDedupeBy: Array.isArray(tool.missionDedupeBy)
+                ? [...tool.missionDedupeBy]
+                : null,
             inputSchema: tool.inputSchema && typeof tool.inputSchema === "object"
                 ? tool.inputSchema
                 : null
         }));
+}
+
+function missionDedupeKey(tool = {}, args = {}) {
+    if (!Array.isArray(tool?.missionDedupeBy)) return "";
+    return `${tool.name}:${JSON.stringify(
+        tool.missionDedupeBy.map(field =>
+            Object.prototype.hasOwnProperty.call(args, field)
+                ? args[field]
+                : null
+        )
+    )}`;
 }
 
 function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
@@ -206,6 +220,7 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
         String(plan?.planKind || "")
             .startsWith("MISSION_CONTRACT");
     const seen = new Set();
+    const seenMissionDedupeKeys = new Set();
     const calls = [];
 
     for (const candidate of candidates.slice(0, 12)) {
@@ -221,6 +236,20 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
             `${tool.name}:${JSON.stringify(args)}`;
         if (seen.has(signature)) continue;
         seen.add(signature);
+        const dedupeKey =
+            missionDedupeKey(
+                tool,
+                args
+            );
+        if (
+            dedupeKey &&
+            seenMissionDedupeKeys.has(dedupeKey)
+        ) {
+            continue;
+        }
+        if (dedupeKey) {
+            seenMissionDedupeKeys.add(dedupeKey);
+        }
 
         const argumentsComplete =
             hasRequiredToolArguments(
@@ -240,6 +269,7 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
             reason: String(candidate?.reason || "MODEL_SEMANTIC_TOOL_SELECTION").slice(0, 240),
             mutates: tool.mutates,
             approved: tool.mutates === true && context.approved === true,
+            ...(dedupeKey ? { missionDedupeKey: dedupeKey } : {}),
             ...(
                 argumentsComplete
                     ? {}

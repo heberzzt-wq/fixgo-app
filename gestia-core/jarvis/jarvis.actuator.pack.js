@@ -3,7 +3,7 @@ import {
 } from "./jarvis.capability.evidence.js";
 import { adaptImageSource } from "./jarvis.image.adapter.js";
 
-const VERSION = "7.18.0-complete-user-artifacts";
+const VERSION = "7.19.0-verified-complete-artifacts";
 
 export function normalizeImageArtifactOutput(output, mimeType) {
     const extensions = {
@@ -199,6 +199,7 @@ export function registerJarvisActuatorTools(runtime) {
             mutates: true,
             requiresApproval: false,
             userArtifact: true,
+            missionDedupeBy: [],
             execute: async (args = {}, context = {}) => {
                 const result = await bridgeRequest("/page/create", {
                     ...args,
@@ -232,6 +233,7 @@ export function registerJarvisActuatorTools(runtime) {
             mutates: true,
             requiresApproval: false,
             userArtifact: true,
+            missionDedupeBy: [],
             execute: async (args = {}, context = {}) => {
                 const result = await bridgeRequest("/reel/create", {
                     ...args,
@@ -271,6 +273,7 @@ export function registerJarvisActuatorTools(runtime) {
             mutates: true,
             requiresApproval: false,
             userArtifact: true,
+            missionDedupeBy: ["format"],
             execute: async (args = {}, context = {}) =>
                 await bridgeRequest("/document", {
                     format: args.format || "html",
