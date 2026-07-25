@@ -1,0 +1,162 @@
+name: SIA7 Jarvis contract checkpoint
+
+on:
+  push:
+    branches:
+      - v5.9-polish
+    paths:
+      - .github/workflows/sia7-jarvis-contract-checkpoint.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sia7-jarvis-contract-checkpoint-v5-9-polish
+  cancel-in-progress: false
+
+jobs:
+  verify-and-patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout v5.9-polish
+        uses: actions/checkout@v4
+        with:
+          ref: v5.9-polish
+          fetch-depth: 0
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Write the red contract assertion
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          function replaceExact(file, search, replace) {
+            const source = fs.readFileSync(file, 'utf8');
+            const count = source.split(search).length - 1;
+            if (count !== 1) {
+              throw new Error(`PATCH_MATCH_COUNT_MISMATCH:${file}:${count}:1`);
+            }
+            fs.writeFileSync(file, source.replace(search, replace), 'utf8');
+          }
+
+          replaceExact(
+            'tests/jarvis-mission-orchestrator.test.mjs',
+            `    assert.deepEqual(
+                  mission.blockedTasks[0].observation.evidence.missingInputs,
+                  ["audience", "offer"]
+              );
+          });`,
+            `    assert.deepEqual(
+                  mission.blockedTasks[0].observation.evidence.missingInputs,
+                  ["audience", "offer"]
+              );
+              assert.deepEqual(
+                  mission.contractMissingTools,
+                  ["marketing.plan", "page.plan", "image.plan", "reel.plan"]
+              );
+          });`
+          );
+          NODE
+
+      - name: Confirm the isolated test is red before implementation
+        shell: bash
+        run: |
+          set +e
+          node --test --test-name-pattern="mission stops dependent deliverables when marketing requires input" tests/jarvis-mission-orchestrator.test.mjs > /tmp/jarvis-red.log 2>&1
+          status=$?
+          set -e
+          cat /tmp/jarvis-red.log
+          if [ "$status" -eq 0 ]; then
+            echo "Expected the new contract assertion to fail before the implementation patch."
+            exit 1
+          fi
+
+      - name: Patch honest contract accounting
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          function replaceExact(file, search, replace) {
+            const source = fs.readFileSync(file, 'utf8');
+            const count = source.split(search).length - 1;
+            if (count !== 1) {
+              throw new Error(`PATCH_MATCH_COUNT_MISMATCH:${file}:${count}:1`);
+            }
+            fs.writeFileSync(file, source.replace(search, replace), 'utf8');
+          }
+
+          const file = 'gestia-core/jarvis/jarvis.mission.orchestrator.js';
+
+          replaceExact(
+            file,
+            'const VERSION = "1.4.0-verified-complete-artifacts";',
+            'const VERSION = "1.5.0-honest-contract-accounting";'
+          );
+
+          replaceExact(
+            file,
+            `                const completedNames = new Set(mission.completedTasks.map(item => item.name));
+                            const blockedNames = new Set(mission.blockedTasks.map(item => item.name));
+                            mission.contractMissingTools = mission.requiredToolNames.filter(
+                                name => !completedNames.has(name) && !blockedNames.has(name)
+                            );
+                            const contractSatisfied = mission.contractMissingTools.length === 0;`,
+            `                const completedNames = new Set(mission.completedTasks.map(item => item.name));
+                            const blockedNames = new Set(mission.blockedTasks.map(item => item.name));
+                            mission.contractMissingTools = mission.requiredToolNames.filter(
+                                name => !completedNames.has(name)
+                            );
+                            const contractUnaccountedTools =
+                                mission.contractMissingTools.filter(
+                                    name => !blockedNames.has(name)
+                                );
+                            const contractSatisfied = contractUnaccountedTools.length === 0;`
+          );
+
+          replaceExact(
+            file,
+            `                const completedNames = new Set(
+                                mission.completedTasks.map(item => item.name)
+                            );
+                            const blockedNames = new Set(
+                                mission.blockedTasks.map(item => item.name)
+                            );
+                            mission.contractMissingTools =
+                                mission.requiredToolNames.filter(
+                                    name =>
+                                        !completedNames.has(name) &&
+                                        !blockedNames.has(name)
+                                );`,
+            `                const completedNames = new Set(
+                                mission.completedTasks.map(item => item.name)
+                            );
+                            mission.contractMissingTools =
+                                mission.requiredToolNames.filter(
+                                    name =>
+                                        !completedNames.has(name)
+                                );`
+          );
+          NODE
+
+      - name: Verify the contract checkpoint
+        shell: bash
+        run: |
+          node --test --test-name-pattern="mission stops dependent deliverables when marketing requires input" tests/jarvis-mission-orchestrator.test.mjs
+          node --test tests/jarvis-mission-orchestrator.test.mjs
+          git diff --check
+
+      - name: Commit verified checkpoint
+        shell: bash
+        run: |
+          git config user.name "SIA7 Jarvis Maintainer"
+          git config user.email "actions@users.noreply.github.com"
+          git add gestia-core/jarvis/jarvis.mission.orchestrator.js tests/jarvis-mission-orchestrator.test.mjs
+          git commit -m "Fix Jarvis mission contract accounting"
+          git push origin HEAD:v5.9-polish
