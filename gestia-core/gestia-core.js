@@ -43,7 +43,7 @@ import {
 } from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-exact-entity-mission-v45-20260724';
 import {
     runJarvisMission
-} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-mission-contract-evidence-v45-20260724';
+} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-mission-complete-evidence-v48-20260724';
 import {
     resolveExplicitRepositoryTargets
 } from '/gestia-core/repo/repo.source.structure.js?v=sia7-explicit-repo-targets-v3-20260724';

@@ -165,6 +165,45 @@ test("structured summaries never degrade to object string coercion", () => {
     );
 });
 
+test("mission evidence preserves a complete bounded tool registry", () => {
+    const registrations =
+        Array.from(
+            {
+                length: 18
+            },
+            (_, index) => ({
+                name:
+                    `domain.tool${index + 1}`,
+                line:
+                    index + 10
+            })
+        );
+    const observation =
+        __test.safeObservation({
+            ok: true,
+            sourceStructure: {
+                kind:
+                    "tool_registry",
+                registrations
+            }
+        });
+
+    assert.equal(
+        observation.evidence
+            .sourceStructure
+            .registrations
+            .length,
+        18
+    );
+    assert.equal(
+        observation.evidence
+            .sourceStructure
+            .registrations[17]
+            .name,
+        "domain.tool18"
+    );
+});
+
 test("a fully executed model contract closes even when the final audit returns no duplicate work", async () => {
     const sequence = [
         "web.research",

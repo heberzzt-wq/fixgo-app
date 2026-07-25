@@ -68,7 +68,7 @@ function compactEvidence(value, depth = 0) {
     if (typeof value === "string") return text(value, 700);
     if (typeof value === "number" || typeof value === "boolean") return value;
     if (Array.isArray(value)) {
-        return value.slice(0, 10).map(item => compactEvidence(item, depth + 1));
+        return value.slice(0, 24).map(item => compactEvidence(item, depth + 1));
     }
     if (typeof value !== "object") return null;
     return Object.fromEntries(
