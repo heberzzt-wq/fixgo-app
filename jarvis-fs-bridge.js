@@ -33,7 +33,7 @@ import { locatePdfFieldAnchors } from "./jarvis-pdf-layout.js";
 import { verifyPdfVisualChanges } from "./jarvis-pdf-visual.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.23.0-user-artifact-workbooks";
+    "2.24.0-complete-user-artifacts";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -3003,7 +3003,12 @@ export function createJarvisFsBridgeApp({
             const { pageInput, embeddedBytes, materialSources } = preparePageMaterialInput({ input: req.body || {}, root });
             const html = buildPageArtifactHtml(pageInput);
             const slug = safeFileStem(req.body?.slug || req.body?.brandName || "pagina");
-            const output = req.body?.output || `.jarvis-artifacts/pages/${slug}.html`;
+            const requestedOutput =
+                String(req.body?.output || "").trim().replaceAll("\\", "/");
+            const output =
+                requestedOutput.startsWith(".jarvis-artifacts/")
+                    ? requestedOutput
+                    : `.jarvis-artifacts/pages/${slug}-${Date.now()}.html`;
             const target = artifactPath(output, root, [".html"]);
             fs.mkdirSync(path.dirname(target), { recursive: true });
             fs.writeFileSync(target, html, "utf8");
@@ -3068,7 +3073,12 @@ export function createJarvisFsBridgeApp({
             const verification = describeReelStudio(hydrated, html);
             if (!Object.values(verification.checks).every(Boolean)) throw new Error("REEL_STUDIO_POST_VERIFY_FAILED");
             const slug = safeFileStem(req.body?.slug || req.body?.title || req.body?.brandName || "reel");
-            const output = req.body?.output || `.jarvis-artifacts/reels/${slug}-studio.html`;
+            const requestedOutput =
+                String(req.body?.output || "").trim().replaceAll("\\", "/");
+            const output =
+                requestedOutput.startsWith(".jarvis-artifacts/")
+                    ? requestedOutput
+                    : `.jarvis-artifacts/reels/${slug}-${Date.now()}-studio.html`;
             const target = artifactPath(output, root, [".html"]);
             fs.mkdirSync(path.dirname(target), { recursive: true });
             fs.writeFileSync(target, html, "utf8");
@@ -3138,8 +3148,13 @@ export function createJarvisFsBridgeApp({
                 });
             }
 
-            const target = artifactPath(output, root, [`.${normalizedFormat}`]);
             const safeTitle = String(title).replace(/[<>&]/g, "");
+            const resolvedOutput =
+                String(output || "").trim().replaceAll("\\", "/")
+                    .startsWith(".jarvis-artifacts/")
+                    ? String(output).trim().replaceAll("\\", "/")
+                    : `.jarvis-artifacts/documents/${safeFileStem(safeTitle)}-${Date.now()}.${normalizedFormat}`;
+            const target = artifactPath(resolvedOutput, root, [`.${normalizedFormat}`]);
             let body = content;
 
             if (normalizedFormat === "html") {

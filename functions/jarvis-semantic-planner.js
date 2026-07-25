@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "1.13.0-user-artifact-missions";
+const VERSION = "1.14.0-complete-user-artifacts";
 const DEFAULT_ENDPOINT = "https://text.pollinations.ai/openai";
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -387,7 +387,8 @@ async function runGeminiSemanticPlanner({
                     "CONTRATO_DE_MISION: enumera en toolCalls todas las herramientas read-only y userArtifact necesarias para satisfacer cada entregable independiente de la instruccion, no solo la primera etapa.",
                     "Conserva por separado cada sujeto, archivo, entidad o entregable. Puedes repetir el mismo nombre de herramienta cuando sus argumentos sean distintos y correspondan a objetivos independientes.",
                     "Incluye herramientas especializadas de investigacion, negocio, marketing, pagina, imagen, reel, documentos, hojas de calculo o diagnostico cuando el usuario haya pedido esos resultados.",
-                    "Cuando se pida crear una landing local incluye page.plan y page.create. Cuando se pida crear un documento incluye document.compose y document.create. Cuando se pida una hoja de calculo estructurada incluye spreadsheet.compose y document.create. Conserva primero la composicion o plan y despues la creacion.",
+                    "Cuando se pida crear una landing local incluye page.plan, page.compose y page.create. Cuando se pida crear un documento incluye document.compose y document.create. Cuando se pida una hoja de calculo estructurada incluye spreadsheet.compose y document.create. Conserva primero la composicion o plan y despues la creacion.",
+                    "Para cada artefacto solicita exactamente una composicion y una creacion; no dupliques variantes del mismo entregable salvo que el usuario pida varias.",
                     "Distingue descubrimiento de inspeccion: repo.search o repo.scan no completan por si solas un entregable que pide revisar archivos, explicar hallazgos o evaluar riesgos; el contrato debe conservar las herramientas de lectura, diagnostico e impacto disponibles.",
                     "Conserva el orden de dependencias. No incluyas herramientas mutantes si la orden prohibe escribir, publicar, generar archivos o producir medios.",
                     "Si las fuentes estan limitadas a un dominio, copia ese dominio exacto en allowedDomain de cada web.research.",
@@ -746,7 +747,7 @@ async function runSimpleSemanticPlanner({
         "Si la instruccion pide hechos de una entidad nombrada sin dominio, copia su nombre exacto en exactEntity de web.research.",
         "Si la instruccion pide referencias, usos o pruebas de un archivo concreto, usa repo.search con la ruta exacta o basename como query, no con una pregunta completa.",
         missionState?.phase === "MISSION_CONTRACT"
-            ? "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only y userArtifact necesarias para TODOS los entregables, no solo la primera etapa. Para una landing creada usa page.plan y page.create; para un documento usa document.compose y document.create; para una hoja estructurada usa spreadsheet.compose y document.create. No omitas imagen, reel, inventario o autoevaluacion cuando se pidan. Conserva el orden de dependencias y usa missionComplete=false."
+            ? "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only y userArtifact necesarias para TODOS los entregables, no solo la primera etapa. Para una landing creada usa page.plan, page.compose y page.create; para un documento usa document.compose y document.create; para una hoja estructurada usa spreadsheet.compose y document.create. Para cada artefacto usa exactamente una composicion y una creacion salvo que el usuario pida variantes. No omitas imagen, reel, inventario o autoevaluacion cuando se pidan. Conserva el orden de dependencias y usa missionComplete=false."
             : "",
         missionState?.phase === "COMPLETION_AUDIT"
             ? "AUDITORIA DE CIERRE: no estas obligado a elegir una herramienta. Compara todos los entregables con la evidencia. Si estan satisfechos usa toolCalls=[] y missionComplete=true; si falta algo usa exactamente una herramienta pertinente con argumentos completos. No explores capacidades no solicitadas. Si repo.search entrego sourceDefinitions o definitionFiles, prioriza esas rutas ejecutables sobre archivos que solo mencionan el simbolo y permite repetir lectura o diagnostico cuando el archivo sea distinto."

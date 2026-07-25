@@ -33,7 +33,7 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.23.0-user-artifact-workbooks");
+    assert.equal(description.version, "2.24.0-complete-user-artifacts");
     assert.equal(description.policy.authority, "full_repo_private_owner");
     assert.equal(description.policy.safeZone, "advisory");
     assert.equal(description.policy.emptyWrites, "blocked");
@@ -73,7 +73,7 @@ test("Jarvis creates a multi-sheet XLSX with executable formulas", async () => {
             },
             body: JSON.stringify({
                 format: "xlsx",
-                output: ".jarvis-artifacts/documents/apu.xlsx",
+                output: "",
                 title: "APU muro",
                 sheets: [
                     {

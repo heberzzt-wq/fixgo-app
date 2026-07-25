@@ -3,7 +3,7 @@ import {
 } from "./jarvis.capability.evidence.js";
 import { adaptImageSource } from "./jarvis.image.adapter.js";
 
-const VERSION = "7.17.0-user-artifact-missions";
+const VERSION = "7.18.0-complete-user-artifacts";
 
 export function normalizeImageArtifactOutput(output, mimeType) {
     const extensions = {
@@ -193,7 +193,7 @@ export function registerJarvisActuatorTools(runtime) {
             inputSchema: {
                 brandName: "string", title: "string", description: "string", services: "array",
                 heroImage: "string", sourceImages: "array<{output,role:hero|gallery,alt}>", gallery: "array", testimonials: "array", beforeAfter: "array",
-                whatsapp: "string", contactEmail: "string", mapUrl: "string", output: "string",
+                whatsapp: "string", whatsappRequested: "boolean", contactEmail: "string", mapUrl: "string", output: "string",
                 caseId: "string", objectiveId: "string"
             },
             mutates: true,
@@ -274,7 +274,9 @@ export function registerJarvisActuatorTools(runtime) {
             execute: async (args = {}, context = {}) =>
                 await bridgeRequest("/document", {
                     format: args.format || "html",
-                    output: args.output,
+                    output:
+                        args.output ||
+                        undefined,
                     title: args.title,
                     content: args.content,
                     rows: args.rows,

@@ -5,10 +5,10 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-user-artifact-missions-v60-20260724";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-complete-user-artifacts-v61-20260724";
 import {
     registerJarvisActuatorTools
-} from "./jarvis/jarvis.actuator.pack.js?v=sia7-user-artifact-missions-v60-20260724";
+} from "./jarvis/jarvis.actuator.pack.js?v=sia7-complete-user-artifacts-v61-20260724";
 import {
     reviewChiefArchitectPlan
 } from "./jarvis/jarvis.chief.architect.js?v=sia7-chief-architect-v1-20260714";
@@ -6032,9 +6032,28 @@ JarvisToolRuntime.register({
                                 const basename =
                                     parts[parts.length - 1] ||
                                     token;
+                                const extensionIndex =
+                                    basename.lastIndexOf(".");
+                                const basenameStem =
+                                    extensionIndex > 0
+                                        ? basename.slice(0, extensionIndex)
+                                        : basename;
+                                const tokenStem =
+                                    extensionIndex > 0
+                                        ? token.slice(
+                                            0,
+                                            token.length -
+                                            (
+                                                basename.length -
+                                                basenameStem.length
+                                            )
+                                        )
+                                        : token;
                                 return [
                                     token,
-                                    basename
+                                    basename,
+                                    tokenStem,
+                                    basenameStem
                                 ];
                             })
                             .filter(term =>
@@ -6105,6 +6124,33 @@ JarvisToolRuntime.register({
                         candidate?.snippet === match?.snippet
                     ) === index
                 );
+        const testFiles =
+            [
+                ...new Set(
+                    matches
+                        .map(match =>
+                            String(
+                                match?.file ||
+                                match?.path ||
+                                ""
+                            )
+                                .split("\\")
+                                .join("/")
+                                .trim()
+                        )
+                        .filter(file => {
+                            const basename =
+                                file.split("/").pop() ||
+                                "";
+                            return (
+                                file.startsWith("tests/") ||
+                                file.includes("/tests/") ||
+                                basename.includes(".test.")
+                            );
+                        })
+                )
+            ]
+                .slice(0, 40);
 
         return {
             ok: true,
@@ -6164,6 +6210,7 @@ JarvisToolRuntime.register({
                 exactFileSearches.map(item =>
                     item.term
                 ),
+            testFiles,
             bridgeStatus:
                 bridgeResult
                     ? (

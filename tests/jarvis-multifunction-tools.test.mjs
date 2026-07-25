@@ -107,6 +107,7 @@ const semanticPlannerCatalog = [
     ["image.generate", true, true],
     ["document.compose", false],
     ["spreadsheet.compose", false],
+    ["page.compose", false],
     ["document.create", true, true],
     ["connector.list", false],
     ["agent.delegate", false],
@@ -320,6 +321,9 @@ test("multifunction pack registers certification and remains read-only", () => {
     assert.equal(result.ok, true);
     assert.deepEqual(result.tools, [
         "conversation.respond",
+        "document.compose",
+        "spreadsheet.compose",
+        "page.compose",
         "system.capabilities",
         "system.forensics",
         "system.health",
@@ -1793,7 +1797,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /jarvis-tools-v7-20260724-user-artifacts-v60/);
+    assert.match(terminal, /jarvis-tools-v7-20260724-complete-artifacts-v61/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
         "utf8"
@@ -1807,8 +1811,8 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-user-artifact-missions-v60-20260724/);
-    assert.match(terminal, /jarvis-tools-v7-20260724-user-artifacts-v60/);
+    assert.match(terminal, /sia7-complete-user-artifacts-v61-20260724/);
+    assert.match(terminal, /jarvis-tools-v7-20260724-complete-artifacts-v61/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -1989,7 +1993,7 @@ test("daily supervision cloud lookup has a bounded browser deadline", () => {
     assert.match(source, /signal:\s*controller\.signal/);
     assert.match(source, /SUPERVISION_STATUS_TIMEOUT_/);
     assert.match(source, /clearTimeout\(timeoutId\)/);
-    assert.match(source, /4\.0\.0-user-artifact-missions/);
+    assert.match(source, /4\.1\.0-complete-user-artifacts/);
     assert.doesNotMatch(source, /3\.0\.0-model-semantic-planner/);
 });
 
@@ -2039,13 +2043,17 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
     assert.match(toolsRuntime, /requestedFile:\s*normalizedFile,\s*resolvedFile/);
     assert.match(toolsRuntime, /const findingLinePatterns\s*=\s*\{/);
     assert.match(toolsRuntime, /finding\.evidence[\s\S]{0,300}lines:\s*evidenceLines/);
+    assert.match(toolsRuntime, /const basenameStem\s*=/);
+    assert.match(toolsRuntime, /const tokenStem\s*=/);
+    assert.match(toolsRuntime, /exactFileSearchTerms:/);
+    assert.match(toolsRuntime, /testFiles,/);
 
     const core = fs.readFileSync(
         path.join(__dirname, "..", "gestia-core", "gestia-core.js"),
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260724-user-artifacts-v60/);
+    assert.match(core, /jarvis-tools-v7-20260724-complete-artifacts-v61/);
 });
 
 test("repo diagnosis accepts synchronous null discovery before loading fallback context", () => {

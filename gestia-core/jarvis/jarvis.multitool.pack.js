@@ -23,9 +23,9 @@ import {
 
 import {
     completeJarvisPlanningArguments
-} from "./jarvis.multifunction.planner.js?v=sia7-user-artifact-missions-v60-20260724";
+} from "./jarvis.multifunction.planner.js?v=sia7-complete-user-artifacts-v61-20260724";
 
-const VERSION = "1.26.0-user-artifact-missions";
+const VERSION = "1.27.0-complete-user-artifacts";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 
@@ -988,7 +988,7 @@ const LOCAL_SUPERVISION_PROBES = [
         id: "technical_intent_priority",
         path: "/gestia-core/jarvis/jarvis.multifunction.planner.js",
         markers: [
-            "4.0.0-user-artifact-missions",
+            "4.1.0-complete-user-artifacts",
             "jarvisSemanticPlan",
             "trustedPlanCalls"
         ]
@@ -1565,6 +1565,27 @@ function normalizedWorkbookSheets(value = []) {
     })).filter(sheet => sheet.rows.length > 0);
 }
 
+function normalizedPageArtifactInput(value = {}, fallbackTitle = "") {
+    const services = Array.isArray(value?.services)
+        ? value.services.slice(0, 12).map(service => ({
+            title: clean(service?.title || service?.name),
+            description: clean(service?.description)
+        })).filter(service =>
+            service.title &&
+            service.description
+        )
+        : [];
+    return {
+        brandName: clean(value?.brandName),
+        title: clean(value?.title, fallbackTitle),
+        description: clean(value?.description),
+        services,
+        whatsapp: clean(value?.whatsapp).replace(/[^0-9]/g, ""),
+        contactEmail: clean(value?.contactEmail),
+        whatsappRequested: value?.whatsappRequested === true
+    };
+}
+
 function hasPlanningValue(value) {
     if (typeof value === "string") return Boolean(value.trim());
     if (Array.isArray(value)) return value.length > 0;
@@ -1987,6 +2008,105 @@ export function registerJarvisMultifunctionTools(runtime) {
                         ok
                             ? null
                             : "SPREADSHEET_SHEETS_OR_FORMULAS_REQUIRED"
+                };
+            }
+        }),
+        register(runtime, {
+            name: "page.compose",
+            description: "Redacta en memoria el contenido completo y honesto de una landing local, incluidos servicios y ruta de contacto, antes de page.create; no escribe ni publica.",
+            output: "PAGE_CONTENT_BLUEPRINT",
+            inputSchema: {
+                brandName: "string",
+                title: "string",
+                instructions: "string"
+            },
+            execute: async (args = {}, context = {}) => {
+                const instruction = resolveInstruction(
+                    {
+                        ...args,
+                        prompt:
+                            args.instructions ||
+                            context.rawInput ||
+                            ""
+                    },
+                    context
+                );
+                const semantic = await fetchSemanticConversation(
+                    [
+                        "Redacta el contenido completo de una landing page como JSON estricto.",
+                        "Devuelve solamente un objeto con brandName, title, description, services, whatsapp, contactEmail y whatsappRequested.",
+                        "services debe ser un arreglo de objetos {title,description} con contenido específico y honesto.",
+                        "No inventes clientes, certificaciones, testimonios, teléfonos, correos, garantías ni experiencia no proporcionada.",
+                        "Si el usuario pide WhatsApp pero no dio número, usa whatsapp vacío y whatsappRequested=true; nunca inventes un número.",
+                        "La descripción debe tener al menos 20 caracteres y debe existir por lo menos un servicio.",
+                        `MARCA=${clean(args.brandName)}`,
+                        `TITULO=${clean(args.title)}`,
+                        `SOLICITUD=${instruction}`
+                    ].join("\n"),
+                    {
+                        maxOutputTokens:
+                            5000
+                    }
+                );
+                let pageInput = null;
+                try {
+                    pageInput =
+                        normalizedPageArtifactInput(
+                            extractSemanticJsonObject(
+                                semantic?.message ||
+                                ""
+                            ),
+                            clean(args.title)
+                        );
+                }
+                catch(error) {
+                    return {
+                        ok: false,
+                        status:
+                            "PAGE_CONTENT_COMPOSITION_INVALID",
+                        pageInput: null,
+                        readOnly:
+                            true,
+                        objectiveSatisfied:
+                            false,
+                        error:
+                            error?.message ||
+                            "PAGE_CONTENT_JSON_INVALID"
+                    };
+                }
+                const contactReady =
+                    pageInput.whatsapp ||
+                    pageInput.contactEmail.includes("@") ||
+                    pageInput.whatsappRequested;
+                const ok =
+                    semantic?.ok === true &&
+                    pageInput.brandName &&
+                    pageInput.title &&
+                    pageInput.description.length >= 20 &&
+                    pageInput.services.length > 0 &&
+                    contactReady;
+                return {
+                    ok:
+                        Boolean(ok),
+                    status:
+                        ok
+                            ? "PAGE_CONTENT_COMPOSED"
+                            : "PAGE_CONTENT_COMPOSITION_INCOMPLETE",
+                    pageInput,
+                    provider:
+                        semantic?.provider ||
+                        null,
+                    model:
+                        semantic?.model ||
+                        null,
+                    readOnly:
+                        true,
+                    objectiveSatisfied:
+                        Boolean(ok),
+                    error:
+                        ok
+                            ? null
+                            : "PAGE_CONTENT_OR_CONTACT_REQUIRED"
                 };
             }
         }),
@@ -2647,6 +2767,9 @@ export function registerJarvisMultifunctionTools(runtime) {
         registrations,
         tools: [
             "conversation.respond",
+            "document.compose",
+            "spreadsheet.compose",
+            "page.compose",
             "system.capabilities",
             "system.forensics",
             "system.health",

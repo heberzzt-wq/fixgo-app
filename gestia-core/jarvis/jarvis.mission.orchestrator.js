@@ -1,4 +1,4 @@
-const VERSION = "1.2.0-user-artifact-evidence";
+const VERSION = "1.3.0-complete-user-artifact-evidence";
 const STORAGE_KEY = "jarvis.missions.v1";
 
 function text(value = "", maximum = 120000) {
@@ -190,7 +190,17 @@ function safeObservation(result = {}) {
                             }))
                             : []
                 }
-                : null;
+                : normalizedStatus === "PAGE_CONTENT_COMPOSED"
+                    ? {
+                        kind:
+                            "page",
+                        pageInput:
+                            compactEvidence(
+                                payload?.pageInput ||
+                                {}
+                            )
+                    }
+                    : null;
 
     return {
         ok: executionOk,

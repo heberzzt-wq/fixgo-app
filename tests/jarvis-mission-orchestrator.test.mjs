@@ -450,6 +450,53 @@ test("mission preserves complete prepared content for a following artifact creat
     );
 });
 
+test("mission preserves a complete page blueprint for the local page creator", async () => {
+    const pageInput = {
+        brandName: "Multiservicios Peninsulares HMH",
+        title: "Servicios en Cancún",
+        description: "Mantenimiento profesional para hogares y negocios en Cancún.",
+        services: [
+            {
+                title: "Refrigeración",
+                description: "Diagnóstico y mantenimiento sin promesas inventadas."
+            }
+        ],
+        whatsapp: "",
+        contactEmail: "",
+        whatsappRequested: true
+    };
+    let preparedPage = null;
+    const mission = await runJarvisMission({
+        instruction: "Crea una landing local descargable.",
+        initialToolCalls: [
+            { name: "page.compose", args: {} },
+            { name: "page.create", args: {} }
+        ],
+        requiredToolNames: ["page.compose", "page.create"],
+        planner: async () => ({ toolCalls: [], missionComplete: true }),
+        execute: async (call, context) => {
+            if (call.name === "page.compose") {
+                return {
+                    ok: true,
+                    status: "PAGE_CONTENT_COMPOSED",
+                    pageInput
+                };
+            }
+            preparedPage =
+                context.completedTasks[0].observation.preparedArtifact.pageInput;
+            return {
+                ok: true,
+                status: "PAGE_ARTIFACT_CREATED_VERIFIED",
+                output: ".jarvis-artifacts/pages/hmh.html"
+            };
+        },
+        storage: memoryStorage()
+    });
+
+    assert.equal(mission.status, "COMPLETED");
+    assert.deepEqual(preparedPage, pageInput);
+});
+
 test("routing compaction is deterministic and does not replace the authority instruction", () => {
     const instruction = "A".repeat(20000);
     const routing = __test.compactRoutingInstruction(instruction);

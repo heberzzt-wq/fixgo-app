@@ -37,6 +37,17 @@ test("page studio fails closed instead of filling missing business content", () 
     assert.throws(() => buildPageArtifactHtml({ ...input, whatsapp: "", contactEmail: "" }), /PAGE_CONTACT_ROUTE_REQUIRED/);
 });
 
+test("page studio supports an honest generic WhatsApp CTA without inventing a number", () => {
+    const html = buildPageArtifactHtml({
+        ...input,
+        whatsapp: "",
+        contactEmail: "",
+        whatsappRequested: true
+    });
+    assert.match(html, /https:\/\/wa\.me\/\?text=/);
+    assert.doesNotMatch(html, /529981234567/);
+});
+
 test("page studio accepts natural business field aliases without generic filler", () => {
     const html = buildPageArtifactHtml({
         ...input,
@@ -79,12 +90,13 @@ test("page studio embeds real received image artifacts without inventing materia
     }
 });
 
-test("page creation is connected to bridge, approval-bound actuator and HTML preview", () => {
+test("page creation is connected as a local user artifact with HTML preview", () => {
     const bridge = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
     const actuator = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.actuator.pack.js", import.meta.url), "utf8");
     const renderer = fs.readFileSync(new URL("../modules/terminal/jarvis-attachments.js", import.meta.url), "utf8");
     assert.match(bridge, /app\.post\("\/page\/create"/);
     assert.match(actuator, /name: "page\.create"/);
-    assert.match(actuator, /requiresApproval: true/);
+    assert.match(actuator, /name: "page\.create"[\s\S]{0,900}requiresApproval: false/);
+    assert.match(actuator, /name: "page\.create"[\s\S]{0,950}userArtifact: true/);
     assert.match(renderer, /jarvis-html-preview/);
 });
