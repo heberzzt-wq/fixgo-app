@@ -1,1 +1,13 @@
-{"jobId":"sia7-4192-grep-agent-loop-public-20260716-44","endpoint":"/grep","body":{"term":"Agent Loop","cwd":".","maxMatches":80,"expectedReleaseId":"v5.9-polish-forensic-20260713.1"}}
+{
+  "jobId": "sia7-jarvis-contract-missing-blocked-20260725-01",
+  "operation": "patch",
+  "humanApproved": true,
+  "patch": {
+    "dryRun": false,
+    "humanApproved": true,
+    "file": "gestia-core/jarvis/jarvis.mission.orchestrator.js",
+    "search": "                const completedNames = new Set(mission.completedTasks.map(item => item.name));\n                const blockedNames = new Set(mission.blockedTasks.map(item => item.name));\n                mission.contractMissingTools = mission.requiredToolNames.filter(\n                    name => !completedNames.has(name) && !blockedNames.has(name)\n                );\n                const contractSatisfied = mission.contractMissingTools.length === 0;",
+    "replace": "                const completedNames = new Set(mission.completedTasks.map(item => item.name));\n                const blockedNames = new Set(mission.blockedTasks.map(item => item.name));\n                mission.contractMissingTools = mission.requiredToolNames.filter(\n                    name => !completedNames.has(name)\n                );\n                const contractUnaccountedTools =\n                    mission.contractMissingTools.filter(\n                        name => !blockedNames.has(name)\n                    );\n                const contractSatisfied = contractUnaccountedTools.length === 0;",
+    "expectedMatches": 1
+  }
+}
