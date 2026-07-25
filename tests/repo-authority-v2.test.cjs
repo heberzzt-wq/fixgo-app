@@ -99,7 +99,10 @@ function loadGestiaCoreAgentLoopHelpers(options = {}) {
             randomUUID() {
                 return "00000000-0000-4000-8000-000000000000";
             }
-        }
+        },
+        resolveExplicitRepositoryTargets:
+            options.resolveExplicitRepositoryTargets ||
+            (() => [])
     };
 
     vm.runInNewContext(
@@ -539,6 +542,94 @@ test("agent loop follow-up focuses a strong product UI primary candidate", () =>
             "repo.diagnose:app-tecnico-b2b.js",
             "repo.impact:app-tecnico-b2b.js"
         ]
+    );
+});
+
+test("agent loop does not repeat completed tools for one explicit repository target", () => {
+    const explicitTarget =
+        "gestia-core/response.composer.js";
+    const helpers =
+        loadGestiaCoreAgentLoopHelpers({
+            resolveExplicitRepositoryTargets:
+                () => [
+                    explicitTarget
+                ]
+        });
+    const plan =
+        helpers.buildObservationDrivenFollowUpToolCalls({
+            rawInput:
+                `Analiza ${explicitTarget} y explica sus exportaciones.`,
+            toolCalls: [
+                {
+                    name:
+                        "repo.read",
+                    args: {
+                        file:
+                            explicitTarget
+                    }
+                },
+                {
+                    name:
+                        "repo.diagnose",
+                    args: {
+                        file:
+                            explicitTarget
+                    }
+                },
+                {
+                    name:
+                        "repo.impact",
+                    args: {
+                        file:
+                            explicitTarget
+                    }
+                }
+            ],
+            observations: [
+                {
+                    response: {
+                        data: {
+                            tool:
+                                "repo.search",
+                            matches: [
+                                {
+                                    file:
+                                        explicitTarget,
+                                    line:
+                                        1,
+                                    snippet:
+                                        "GESTIA RESPONSE COMPOSER"
+                                },
+                                {
+                                    file:
+                                        "tests/response-composer-semantic-contract.test.mjs",
+                                    line:
+                                        1,
+                                    snippet:
+                                        explicitTarget
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        });
+
+    assert.deepEqual(
+        Array.from(
+            plan.relevantCandidates,
+            candidate =>
+                candidate.file
+        ),
+        [
+            explicitTarget
+        ]
+    );
+    assert.deepEqual(
+        Array.from(
+            plan.followUpToolCalls
+        ),
+        []
     );
 });
 
@@ -1850,7 +1941,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /sia7-deep-artifact-validation-v65-20260725/);
+    assert.match(terminal, /sia7-repo-composition-v66-20260725/);
     assert.match(terminal, /jarvis-tools-v7-20260725-deep-artifacts-v65/);
     assert.match(terminal, /jarvis-runtime-macro-v2-20260707-4190/);
     assert.match(terminal, /isTerminalBrainRuntimeReady/);
@@ -2296,6 +2387,14 @@ test("multi-tool missions prefer grounded semantic composition over a generic re
     assert.match(
         core,
         /entrega una seccion verificable para cada uno/
+    );
+    assert.match(
+        core,
+        /SEMANTIC_MISSION_COMPOSITION_RETRY/
+    );
+    assert.match(
+        core,
+        /EVIDENCIA_VERIFICADA_ACOTADA/
     );
 });
 
