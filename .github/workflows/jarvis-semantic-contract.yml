@@ -1,0 +1,62 @@
+name: Jarvis semantic contract
+
+on:
+  push:
+    branches:
+      - v5.9-polish
+    paths:
+      - gestia-core/response.composer.js
+      - gestia-core/jarvis/jarvis.mission.orchestrator.js
+      - tests/response-composer-semantic-contract.test.mjs
+      - tests/jarvis-mission-contract-accounting.test.mjs
+      - tests/jarvis-mission-orchestrator.test.mjs
+      - package.json
+      - .github/workflows/jarvis-semantic-contract.yml
+  pull_request:
+    paths:
+      - gestia-core/response.composer.js
+      - gestia-core/jarvis/jarvis.mission.orchestrator.js
+      - tests/response-composer-semantic-contract.test.mjs
+      - tests/jarvis-mission-contract-accounting.test.mjs
+      - tests/jarvis-mission-orchestrator.test.mjs
+      - package.json
+      - .github/workflows/jarvis-semantic-contract.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jarvis-semantic-contract-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  semantic-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify semantic runtime syntax
+        run: |
+          node --check gestia-core/response.composer.js
+          node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
+
+      - name: Run Jarvis semantic contract tests
+        run: |
+          node --test \
+            tests/response-composer-semantic-contract.test.mjs \
+            tests/jarvis-mission-contract-accounting.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs
+
+      - name: Reject whitespace errors
+        run: git diff --check
