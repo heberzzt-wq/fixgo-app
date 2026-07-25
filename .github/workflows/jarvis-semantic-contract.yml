@@ -9,6 +9,7 @@ on:
       - gestia-core/jarvis/jarvis.mission.orchestrator.js
       - tests/response-composer-semantic-contract.test.mjs
       - tests/jarvis-mission-contract-accounting.test.mjs
+      - tests/jarvis-mission-failure-precedence.test.mjs
       - tests/jarvis-mission-orchestrator.test.mjs
       - package.json
       - .github/workflows/jarvis-semantic-contract.yml
@@ -18,6 +19,7 @@ on:
       - gestia-core/jarvis/jarvis.mission.orchestrator.js
       - tests/response-composer-semantic-contract.test.mjs
       - tests/jarvis-mission-contract-accounting.test.mjs
+      - tests/jarvis-mission-failure-precedence.test.mjs
       - tests/jarvis-mission-orchestrator.test.mjs
       - package.json
       - .github/workflows/jarvis-semantic-contract.yml
@@ -56,6 +58,7 @@ jobs:
           node --test \
             tests/response-composer-semantic-contract.test.mjs \
             tests/jarvis-mission-contract-accounting.test.mjs \
+            tests/jarvis-mission-failure-precedence.test.mjs \
             tests/jarvis-mission-orchestrator.test.mjs
 
       - name: Reject whitespace errors
