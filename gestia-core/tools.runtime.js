@@ -5,7 +5,7 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-governed-completion-audit-20260724";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-verified-definition-audit-20260724";
 import {
     registerJarvisActuatorTools
 } from "./jarvis/jarvis.actuator.pack.js?v=sia7-real-actuators-v3.6-pdf-visual-20260714";
@@ -14,8 +14,9 @@ import {
 } from "./jarvis/jarvis.chief.architect.js?v=sia7-chief-architect-v1-20260714";
 import {
     analyzeRepoSourceStructure,
-    buildExecutableSourceView
-} from "./repo/repo.source.structure.js?v=sia7-source-structure-v1-20260724";
+    buildExecutableSourceView,
+    extractQualifiedSourceIdentifiers
+} from "./repo/repo.source.structure.js?v=sia7-source-structure-v2-20260724";
 
 export const JarvisToolRuntime = {
     _registry: new Map(),
@@ -5830,9 +5831,199 @@ JarvisToolRuntime.register({
             }
         }
 
+        const qualifiedIdentifiers =
+            extractQualifiedSourceIdentifiers(
+                `${query} ${bridgeTerm}`
+            );
+
+        const sourceDefinitions = [];
+        const definitionMatches = [];
+        const inspectedFiles = new Map();
+        const definitionKeys = new Set();
+
+        if (
+            qualifiedIdentifiers.length > 0 &&
+            window.JarvisLocalBridge?.grepRepo &&
+            window.JarvisLocalBridge?.readFile
+        ) {
+            for (
+                const identifier
+                of qualifiedIdentifiers.slice(0, 6)
+            ) {
+                let identifierSearch =
+                    null;
+
+                try {
+                    identifierSearch =
+                        await window.JarvisLocalBridge.grepRepo({
+                            term:
+                                identifier,
+                            query:
+                                identifier,
+                            cwd:
+                                argObject.cwd || ".",
+                            maxFiles:
+                                argObject.maxFiles || 1200,
+                            maxFileSizeBytes:
+                                argObject.maxFileSizeBytes || 512000,
+                            maxMatches:
+                                80,
+                            source:
+                                "jarvis_repo_exact_identifier_search_v7"
+                        });
+                }
+                catch(error) {
+                    identifierSearch = {
+                        ok:
+                            false,
+                        error:
+                            error?.message ||
+                            String(error),
+                        matches:
+                            []
+                    };
+                }
+
+                const identifierFiles =
+                    [
+                        ...new Set(
+                            (
+                                identifierSearch?.matches ||
+                                []
+                            )
+                                .map(match =>
+                                    String(
+                                        match?.file ||
+                                        ""
+                                    )
+                                        .split("\\")
+                                        .join("/")
+                                        .trim()
+                                )
+                                .filter(Boolean)
+                        )
+                    ]
+                        .slice(0, 16);
+
+                for (const file of identifierFiles) {
+                    if (!inspectedFiles.has(file)) {
+                        let readResult;
+
+                        try {
+                            readResult =
+                                await window.JarvisLocalBridge.readFile({
+                                    file,
+                                    path:
+                                        file,
+                                    maxBytes:
+                                        400000,
+                                    source:
+                                        "jarvis_repo_definition_inspection_v7"
+                                });
+                        }
+                        catch(error) {
+                            readResult = {
+                                ok:
+                                    false,
+                                error:
+                                    error?.message ||
+                                    String(error)
+                            };
+                        }
+
+                        const content =
+                            readResult?.content ||
+                            readResult?.data?.content ||
+                            "";
+
+                        inspectedFiles.set(
+                            file,
+                            typeof content === "string" &&
+                            content
+                                ? analyzeRepoSourceStructure(
+                                    content
+                                )
+                                : null
+                        );
+                    }
+
+                    const structure =
+                        inspectedFiles.get(
+                            file
+                        );
+
+                    if (
+                        structure?.kind !==
+                            "tool_registry"
+                    ) {
+                        continue;
+                    }
+
+                    for (
+                        const registration
+                        of structure.registrations ||
+                        []
+                    ) {
+                        if (
+                            String(
+                                registration?.name ||
+                                ""
+                            )
+                                .toLocaleLowerCase() !==
+                            identifier.toLocaleLowerCase()
+                        ) {
+                            continue;
+                        }
+
+                        const key =
+                            `${file}::${registration.name}`;
+
+                        if (definitionKeys.has(key)) {
+                            continue;
+                        }
+
+                        definitionKeys.add(key);
+                        sourceDefinitions.push({
+                            ...registration,
+                            file,
+                            identifier,
+                            verified:
+                                true,
+                            source:
+                                "repo_source_structure"
+                        });
+                        definitionMatches.push({
+                            file,
+                            line:
+                                registration.line ||
+                                null,
+                            snippet:
+                                `name: "${registration.name}"`,
+                            matchKind:
+                                "executable_registration",
+                            verified:
+                                true
+                        });
+                    }
+                }
+            }
+        }
+
         const matches =
-            bridgeResult?.matches ||
-            [];
+            [
+                ...definitionMatches,
+                ...(
+                    bridgeResult?.matches ||
+                    []
+                )
+            ]
+                .filter((match, index, list) =>
+                    list.findIndex(candidate =>
+                        candidate?.file === match?.file &&
+                        candidate?.line === match?.line &&
+                        candidate?.snippet === match?.snippet
+                    ) === index
+                );
 
         return {
             ok: true,
@@ -5842,6 +6033,17 @@ JarvisToolRuntime.register({
             term:
                 bridgeTerm,
             tokens,
+            qualifiedIdentifiers,
+            sourceDefinitions,
+            definitionFiles:
+                [
+                    ...new Set(
+                        sourceDefinitions.map(
+                            definition =>
+                                definition.file
+                        )
+                    )
+                ],
             results:
                 indexResults,
             totalResults:

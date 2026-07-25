@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "1.6.0-governed-completion-audit";
+const VERSION = "1.7.0-verified-definition-audit";
 const DEFAULT_ENDPOINT = "https://text.pollinations.ai/openai";
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -300,6 +300,7 @@ function buildSemanticSystemInstruction(catalog = [], missionState = null) {
         "No repitas una herramienta completada con los mismos argumentos. No cierres con toolCalls vacio si queda un entregable ejecutable del usuario.",
         "En ESTADO_DE_MISION, devuelve missionComplete=true solamente despues de auditar uno por uno todos los entregables de la instruccion original contra completedTasks. Si falta cualquiera, missionComplete=false y selecciona su siguiente herramienta real.",
         "En ESTADO_DE_MISION, cada llamada debe llevar argumentos completos derivados de la instruccion original y de las observaciones verificadas; no devuelvas args vacios si la evidencia ya permite construir el entregable.",
+        "Si repo.search entrega sourceDefinitions o definitionFiles, esas rutas son definiciones ejecutables verificadas y deben tener prioridad sobre archivos que solo mencionan el simbolo. Para revisar o evaluar riesgos usa repo.read, repo.diagnose o repo.impact sobre esas rutas, aunque la misma herramienta ya se haya usado antes con otro archivo.",
         "Para marketing.plan completa brandName, audience, offer, pain, promise, differentiator, cta, channels y assets. Pain, promise y differentiator deben ser propuestas estrategicas sustentadas, no hechos inventados.",
         "Para page.plan, image.plan y reel.plan completa una especificacion concreta basada solo en la evidencia disponible. Planear en read-only no equivale a crear, publicar ni desplegar.",
         "En reel.plan la suma exacta de durationSeconds de las escenas debe coincidir con durationSeconds total.",
@@ -396,6 +397,7 @@ async function runGeminiSemanticPlanner({
                     "Si todo esta satisfecho, devuelve toolCalls=[] y missionComplete=true.",
                     "Si falta evidencia, devuelve missionComplete=false y exactamente una herramienta pertinente, inmediatamente ejecutable y con todos sus argumentos requeridos.",
                     "No elijas herramientas para explorar capacidades no solicitadas, no repitas herramientas resueltas y no uses archivos o adjuntos inexistentes.",
+                    "Cuando repo.search haya entregado sourceDefinitions o definitionFiles, usa esas rutas verificadas para la lectura, diagnostico o impacto pendiente; una mencion del mismo simbolo en otro archivo no sustituye su definicion ejecutable.",
                     "Devuelve solamente JSON valido con toolCalls, explanation, missionComplete y completionAssessment."
                 ].join("\n")
             ].join("\n\n"),
@@ -542,7 +544,7 @@ async function runSimpleSemanticPlanner({
             ? "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only necesarias para TODOS los entregables, no solo la primera etapa. No omitas herramientas especializadas de landing, imagen, reel, inventario o autoevaluacion cuando se pidan. Conserva el orden de dependencias y usa missionComplete=false."
             : "",
         missionState?.phase === "COMPLETION_AUDIT"
-            ? "AUDITORIA DE CIERRE: no estas obligado a elegir una herramienta. Compara todos los entregables con la evidencia. Si estan satisfechos usa toolCalls=[] y missionComplete=true; si falta algo usa exactamente una herramienta pertinente con argumentos completos. No explores capacidades no solicitadas."
+            ? "AUDITORIA DE CIERRE: no estas obligado a elegir una herramienta. Compara todos los entregables con la evidencia. Si estan satisfechos usa toolCalls=[] y missionComplete=true; si falta algo usa exactamente una herramienta pertinente con argumentos completos. No explores capacidades no solicitadas. Si repo.search entrego sourceDefinitions o definitionFiles, prioriza esas rutas ejecutables sobre archivos que solo mencionan el simbolo y permite repetir lectura o diagnostico cuando el archivo sea distinto."
             : "",
         `CATALOGO_NOMBRES=${safeCatalog.map(tool => tool.name).join(",")}`,
         missionState?.phase === "COMPLETION_AUDIT"

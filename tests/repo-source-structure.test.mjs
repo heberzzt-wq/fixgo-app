@@ -6,7 +6,8 @@ import { fileURLToPath } from "node:url";
 
 import {
     analyzeRepoSourceStructure,
-    buildExecutableSourceView
+    buildExecutableSourceView,
+    extractQualifiedSourceIdentifiers
 } from "../gestia-core/repo/repo.source.structure.js";
 
 const __dirname =
@@ -110,5 +111,18 @@ test("executable source view excludes documentary role markers", () => {
             "ToolsBridge.executeMany"
         ),
         true
+    );
+});
+
+test("qualified identifier extraction finds tool symbols without phrase rules", () => {
+    assert.deepEqual(
+        extractQualifiedSourceIdentifiers(
+            "MODO READ ONLY. Busca marketing.plan e image.plan; revisa gestia-core/jarvis/jarvis.multitool.pack.js."
+        ),
+        [
+            "marketing.plan",
+            "image.plan",
+            "jarvis.multitool.pack.js"
+        ]
     );
 });

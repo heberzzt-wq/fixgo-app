@@ -1318,7 +1318,7 @@ test("exact repo reads answer requested tool registrations from source structure
     );
     assert.equal(
         finalResponse.source,
-        "REPO_READ_SOURCE_STRUCTURE"
+        "REPO_SOURCE_STRUCTURE"
     );
     assert.equal(
         finalResponse.registrations.length,
@@ -1359,6 +1359,114 @@ test("exact repo reads answer requested tool registrations from source structure
     assert.equal(
         finalResponse.writeAllowed,
         false
+    );
+});
+
+test("verified executable definitions outrank files that only mention a tool", () => {
+    const helpers =
+        loadGestiaCoreAgentLoopHelpers();
+
+    const finalResponse =
+        helpers.composeObservationDrivenFinalResponse({
+            objective:
+                "Busca donde se registran marketing.plan e image.plan y dime riesgos con rutas verificadas.",
+            candidates: [{
+                file:
+                    "functions/jarvis-semantic-planner.js",
+                evidence: []
+            }],
+            patchPreviewAllowed:
+                false,
+            followUpObservations: [{
+                response: {
+                    data: {
+                        ok:
+                            true,
+                        tool:
+                            "repo.search",
+                        totalMatches:
+                            18,
+                        definitionFiles: [
+                            "gestia-core/jarvis/jarvis.multitool.pack.js"
+                        ],
+                        sourceDefinitions: [{
+                            line:
+                                2035,
+                            name:
+                                "marketing.plan",
+                            file:
+                                "gestia-core/jarvis/jarvis.multitool.pack.js",
+                            inputSchema:
+                                "MARKETING_ARGUMENT_SCHEMA",
+                            output:
+                                "SIA7_MARKETING_PLAN",
+                            verified:
+                                true
+                        }, {
+                            line:
+                                2183,
+                            name:
+                                "image.plan",
+                            file:
+                                "gestia-core/jarvis/jarvis.multitool.pack.js",
+                            inputSchema:
+                                "IMAGE_PLAN_ARGUMENT_SCHEMA",
+                            output:
+                                "SIA7_IMAGE_REQUIREMENTS_PLAN",
+                            verified:
+                                true
+                        }],
+                        matches: [{
+                            file:
+                                "functions/jarvis-semantic-planner.js",
+                            line:
+                                299,
+                            snippet:
+                                "marketing.plan"
+                        }]
+                    }
+                }
+            }, {
+                response: {
+                    data: {
+                        ok:
+                            true,
+                        tool:
+                            "repo.diagnose",
+                        file:
+                            "gestia-core/jarvis/jarvis.multitool.pack.js",
+                        risk:
+                            "LOW",
+                        findings:
+                            []
+                    }
+                }
+            }]
+        });
+
+    assert.equal(
+        finalResponse.title,
+        "Lectura estructural verificada"
+    );
+    assert.equal(
+        finalResponse.file,
+        "gestia-core/jarvis/jarvis.multitool.pack.js"
+    );
+    assert.match(
+        finalResponse.text,
+        /marketing\.plan.*jarvis\.multitool\.pack\.js:2035/
+    );
+    assert.match(
+        finalResponse.text,
+        /image\.plan.*jarvis\.multitool\.pack\.js:2183/
+    );
+    assert.match(
+        finalResponse.text,
+        /Riesgo local de gestia-core\/jarvis\/jarvis\.multitool\.pack\.js: LOW/
+    );
+    assert.doesNotMatch(
+        finalResponse.text,
+        /Archivo leido: functions\/jarvis-semantic-planner\.js/
     );
 });
 
@@ -1741,7 +1849,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /sia7-bounded-business-v3-20260724-governed-audit-v42/);
+    assert.match(terminal, /sia7-bounded-business-v3-20260724-definition-audit-v43/);
     assert.match(terminal, /jarvis-runtime-macro-v2-20260707-4190/);
     assert.match(terminal, /isTerminalBrainRuntimeReady/);
     assert.doesNotMatch(terminal, /function isKernelSessionReady/);
@@ -1968,7 +2076,7 @@ test("brain delegates natural intent to the bounded semantic model planner", () 
         );
 
     assert.match(brain, /buildJarvisMultifunctionToolCalls/);
-    assert.match(brain, /sia7-governed-completion-audit-20260724/);
+    assert.match(brain, /sia7-verified-definition-audit-20260724/);
     assert.equal(
         (brain.match(/function initJarvisCodexV2BrainRouter/g) || []).length,
         1
@@ -1998,7 +2106,7 @@ test("brain delegates natural intent to the bounded semantic model planner", () 
     );
 
     assert.match(core, /patchPreviewAllowedByPlan/);
-    assert.match(core, /brain\.engine\.js\?v=sia7-governed-completion-audit-20260724/);
+    assert.match(core, /brain\.engine\.js\?v=sia7-verified-definition-audit-20260724/);
     assert.doesNotMatch(core, /brain\.engine\.js\?v=cloud-planner-fail-fast-41-62/);
     assert.match(core, /async analizarIntencionLigera/);
     assert.match(core, /sincronizarCorralSemantico/);

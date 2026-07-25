@@ -40,7 +40,7 @@ import {
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     buildJarvisMultifunctionToolCalls
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-governed-completion-audit-20260724';
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-verified-definition-audit-20260724';
 import {
     runJarvisMission
 } from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-mission-orchestrator-v6-objective-contract-20260724';
@@ -191,9 +191,9 @@ import {
     sincronizarCorralSemantico,
     getSemanticCognitiveState
 } from '/gestia-core/semantic.engine.js?v=sia7-model-context-v8-20260714';
-import '/gestia-core/brain.engine.js?v=sia7-governed-completion-audit-20260724';
+import '/gestia-core/brain.engine.js?v=sia7-verified-definition-audit-20260724';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260724-governed-audit-v27';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260724-definition-audit-v28';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260714-safe-image-artifacts';
 
@@ -2191,10 +2191,40 @@ function composeRequestedSourceStructureResponse({
                 }))
         );
 
+    const searchedRegistrationCandidates =
+        observations.flatMap(observation => {
+            const data =
+                getObservationRepoData(
+                    observation
+                );
+
+            return (
+                Array.isArray(
+                    data?.sourceDefinitions
+                )
+                    ? data.sourceDefinitions
+                    : []
+            )
+                .filter(definition =>
+                    definition?.verified === true &&
+                    definition?.name &&
+                    definition?.file &&
+                    normalizedObjective.includes(
+                        String(
+                            definition.name
+                        )
+                            .toLocaleLowerCase()
+                    )
+                );
+        });
+
     const requestedRegistrations =
         [
             ...new Map(
-                requestedRegistrationCandidates
+                [
+                    ...requestedRegistrationCandidates,
+                    ...searchedRegistrationCandidates
+                ]
                     .map(registration => [
                         `${registration.file}::${registration.name}`,
                         registration
@@ -2312,7 +2342,7 @@ function composeRequestedSourceStructureResponse({
                     ]
                     : []),
                 "",
-                `Evidencia: indice estructural derivado del contenido real leido por repo.read; ${requestedRegistrations.length} registro(s) solicitado(s) localizado(s).`,
+                `Evidencia: indice estructural derivado de contenido real inspeccionado por las herramientas del repositorio; ${requestedRegistrations.length} registro(s) solicitado(s) localizado(s).`,
                 "Estado: lectura read-only; no se modificaron archivos, no se genero patch y no se desplego."
             ]
                 .join("\n"),
@@ -2321,7 +2351,7 @@ function composeRequestedSourceStructureResponse({
         registrations:
             requestedRegistrations,
         source:
-            "REPO_READ_SOURCE_STRUCTURE",
+            "REPO_SOURCE_STRUCTURE",
         writeAllowed:
             false,
         patchGenerated:
@@ -4974,9 +5004,6 @@ if (
                                         String(tool?.name || "")
                                             .split(".")[0]
                                             .trim()
-                                    ) &&
-                                    !resolvedToolNames.has(
-                                        tool?.name
                                     )
                                 )
                                 .slice(0, 60);
@@ -5041,6 +5068,25 @@ if (
                                     }
                                 );
 
+                            const resolvedAuditSignatures =
+                                new Set(
+                                    [
+                                        ...mission.completedTasks,
+                                        ...mission.blockedTasks
+                                    ]
+                                        .map(item =>
+                                            `${item.name}:${JSON.stringify(item.args || {})}`
+                                        )
+                                );
+
+                            const nextCompletionAuditToolCall =
+                                completionAuditToolCalls.find(call =>
+                                    !resolvedAuditSignatures.has(
+                                        `${call.name}:${JSON.stringify(call.args || {})}`
+                                    )
+                                ) ||
+                                null;
+
                             if (
                                 completionAuditToolCalls
                                     .missionComplete === true
@@ -5068,13 +5114,12 @@ if (
                                 };
                             }
 
-                            if (completionAuditToolCalls.length > 0) {
+                            if (nextCompletionAuditToolCall) {
                                 return {
                                     toolCalls:
-                                        completionAuditToolCalls.slice(
-                                            0,
-                                            1
-                                        ),
+                                        [
+                                            nextCompletionAuditToolCall
+                                        ],
                                     missionComplete:
                                         false,
                                     completionAssessment:
