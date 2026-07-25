@@ -1,4 +1,4 @@
-const VERSION = "1.6.0-failure-status-precedence";
+const VERSION = "1.7.0-approval-stop-contract";
 const STORAGE_KEY = "jarvis.missions.v1";
 
 function text(value = "", maximum = 120000) {
@@ -527,7 +527,10 @@ export async function runJarvisMission({
                 at: now()
             });
 
-            if (observation.requiresInput) {
+            if (
+                observation.requiresInput ||
+                observation.requiresApproval
+            ) {
                 const completedNames = new Set(
                     mission.completedTasks.map(item => item.name)
                 );
@@ -536,7 +539,9 @@ export async function runJarvisMission({
                         name =>
                             !completedNames.has(name)
                     );
-                mission.reason = "MISSION_INPUT_REQUIRED";
+                mission.reason = observation.requiresInput
+                    ? "MISSION_INPUT_REQUIRED"
+                    : "MISSION_APPROVAL_REQUIRED";
                 break;
             }
         } else if (
