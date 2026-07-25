@@ -6581,31 +6581,49 @@ JarvisToolRuntime.register({
                 } =
                     await import('/gestia-core/hubs/repo.hub.js');
 
-                const found =
-                    await findRepoFile({
-                        file:
-                            resolvedFile,
-                        path:
-                            resolvedFile,
-                        target:
-                            resolvedFile
-                    })
-                        .catch(() => null);
+                let found =
+                    null;
 
-                const loaded =
-                    found?.content ||
-                    found?.source ||
-                    found?.text
-                        ? found
-                        : await loadRepoContext({
+                try {
+                    found =
+                        await findRepoFile({
                             file:
                                 resolvedFile,
                             path:
                                 resolvedFile,
                             target:
                                 resolvedFile
-                        })
-                            .catch(() => null);
+                        });
+                } catch {
+                    found =
+                        null;
+                }
+
+                let loaded =
+                    found?.content ||
+                    found?.source ||
+                    found?.text
+                        ? found
+                        : null;
+
+                if (
+                    !loaded
+                ) {
+                    try {
+                        loaded =
+                            await loadRepoContext({
+                                file:
+                                    resolvedFile,
+                                path:
+                                    resolvedFile,
+                                target:
+                                    resolvedFile
+                            });
+                    } catch {
+                        loaded =
+                            null;
+                    }
+                }
 
                 const fallbackContent =
                     loaded?.content ||

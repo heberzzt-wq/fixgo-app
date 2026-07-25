@@ -1771,8 +1771,8 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(core, /observation\?\.type === "JARVIS_CONVERSATIONAL_RESPONSE"/);
     assert.match(core, /DIRECT_ACTUATOR_COMPOSITION/);
     assert.match(core, /directActuatorFinalResponse/);
-    assert.match(terminal, /sia7-semantic-coverage-audit-v54-20260724/);
-    assert.match(terminal, /jarvis-tools-v7-20260724-semantic-coverage-v54/);
+    assert.match(terminal, /sia7-repo-hydration-v55-20260724/);
+    assert.match(terminal, /jarvis-tools-v7-20260724-repo-hydration-v55/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -2010,4 +2010,19 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
     );
 
     assert.match(core, /jarvis-tools-v7-20260714-safe-image-artifacts/);
+});
+
+test("repo diagnosis accepts synchronous null discovery before loading fallback context", () => {
+    const source = fs.readFileSync(
+        path.join(__dirname, "..", "gestia-core", "tools.runtime.js"),
+        "utf8"
+    );
+
+    assert.match(source, /let found\s*=\s*null;/);
+    assert.match(source, /found\s*=\s*await findRepoFile/);
+    assert.match(source, /loaded\s*=\s*await loadRepoContext/);
+    assert.doesNotMatch(
+        source,
+        /findRepoFile\([\s\S]{0,350}\)\s*\.catch\(\(\) => null\)/
+    );
 });
