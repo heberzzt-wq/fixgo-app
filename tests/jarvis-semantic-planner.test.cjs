@@ -475,6 +475,48 @@ test("malformed mission contract retries with another semantic sample", async ()
     assert.deepEqual(result.toolCalls.map(call => call.name), ["repo.search", "connector.list"]);
 });
 
+test("simple mission contract unions independent semantic coverage samples", async () => {
+    const coverageCatalog = [{
+        name: "repo.search",
+        description: "Busca sujetos independientes.",
+        mutates: false,
+        requiresApproval: false
+    }];
+    let requestCount = 0;
+    const result = await runSimpleSemanticPlanner({
+        input: "Reviza tecnico b2b, app-login.js y firebase.js.",
+        catalog: coverageCatalog,
+        missionState: { phase: "MISSION_CONTRACT", writeAllowed: false },
+        fetchImpl: async url => {
+            requestCount += 1;
+            if (requestCount === 2) {
+                assert.match(decodeURIComponent(url), /AUDITORIA SEMANTICA DE COBERTURA/);
+            }
+            return {
+                ok: true,
+                text: async () => JSON.stringify({
+                    toolCalls: requestCount === 1
+                        ? [
+                            { name: "repo.search", args: { query: "app-login.js" } },
+                            { name: "repo.search", args: { query: "firebase.js" } }
+                        ]
+                        : [
+                            { name: "repo.search", args: { query: "tecnico b2b" } }
+                        ],
+                    missionComplete: false
+                })
+            };
+        }
+    });
+
+    assert.equal(requestCount, 2);
+    assert.deepEqual(
+        result.toolCalls.map(call => call.args.query),
+        ["app-login.js", "firebase.js", "tecnico b2b"]
+    );
+    assert.equal(result.planKind, "MISSION_CONTRACT_AUDITED");
+});
+
 test("simple planner keeps a sixty-tool catalog inside a safe URL budget", async () => {
     const largeCatalog = Array.from({ length: 60 }, (_, index) => ({
         name: `domain${index}.tool${index}`,
@@ -837,6 +879,7 @@ test("Gemini completion audit can close without a forced tool call", async () =>
 });
 
 test("Gemini creates a complete read-only mission contract before execution", async () => {
+    let requestCount = 0;
     const result = await runGeminiSemanticPlanner({
         input: "Investiga el dominio oficial y revisa conectores sin escribir.",
         catalog,
@@ -845,12 +888,18 @@ test("Gemini creates a complete read-only mission contract before execution", as
             lastProvider: "vertex-adc",
             models: {
                 generateContent: async request => {
+                    requestCount += 1;
                     assert.equal(request.config.responseMimeType, "application/json");
                     assert.equal(request.config.thinkingConfig.thinkingBudget, 0);
-                    assert.equal(request.config.maxOutputTokens, 4000);
                     assert.equal(request.config.tools, undefined);
-                    assert.ok(request.contents.includes("CONTRATO_DE_MISION"));
-                    assert.ok(request.contents.includes("todas las herramientas read-only necesarias"));
+                    if (requestCount === 1) {
+                        assert.equal(request.config.maxOutputTokens, 4000);
+                        assert.ok(request.contents.includes("CONTRATO_DE_MISION"));
+                        assert.ok(request.contents.includes("todas las herramientas read-only necesarias"));
+                    } else {
+                        assert.equal(request.config.maxOutputTokens, 3000);
+                        assert.ok(request.contents.includes("AUDITORIA_SEMANTICA_DE_COBERTURA"));
+                    }
                     return {
                         functionCalls: [{
                             name: "jarvis_mission_contract",
@@ -870,9 +919,77 @@ test("Gemini creates a complete read-only mission contract before execution", as
         }
     });
 
-    assert.equal(result.planKind, "MISSION_CONTRACT");
+    assert.equal(result.planKind, "MISSION_CONTRACT_AUDITED");
+    assert.equal(requestCount, 2);
     assert.deepEqual(result.toolCalls.map(call => call.name), ["repo.search", "connector.list"]);
     assert.equal(result.missionComplete, false);
+});
+
+test("Gemini coverage audit restores an independent subject omitted by the draft contract", async () => {
+    const coverageCatalog = [{
+        name: "repo.search",
+        description: "Busca cada sujeto independiente en el repositorio.",
+        mutates: false,
+        requiresApproval: false,
+        inputSchema: {
+            type: "object",
+            required: ["query"],
+            properties: {
+                query: { type: "string" }
+            }
+        }
+    }];
+    const requests = [];
+    const result = await runGeminiSemanticPlanner({
+        input: "Reviza tecnico b2b, app-login.js y firebase.js; explica el salto de cliente a admin.",
+        catalog: coverageCatalog,
+        missionState: { phase: "MISSION_CONTRACT", writeAllowed: false },
+        ai: {
+            lastProvider: "vertex-adc",
+            models: {
+                generateContent: async request => {
+                    requests.push(request);
+                    if (requests.length === 1) {
+                        return {
+                            functionCalls: [{
+                                name: "jarvis_mission_contract",
+                                args: {
+                                    toolCalls: [
+                                        { name: "repo.search", args: { query: "app-login.js" } },
+                                        { name: "repo.search", args: { query: "firebase.js" } }
+                                    ],
+                                    completionAssessment: {
+                                        covered: ["salto de cliente a admin"]
+                                    }
+                                }
+                            }]
+                        };
+                    }
+                    return {
+                        text: JSON.stringify({
+                            toolCalls: [{
+                                name: "repo.search",
+                                args: { query: "tecnico b2b" }
+                            }],
+                            missionComplete: false,
+                            completionAssessment: {
+                                restored: ["tecnico b2b"]
+                            }
+                        })
+                    };
+                }
+            }
+        }
+    });
+
+    assert.equal(requests.length, 2);
+    assert.match(requests[1].contents, /AUDITORIA_SEMANTICA_DE_COBERTURA/);
+    assert.match(requests[1].contents, /BORRADOR_DE_CONTRATO/);
+    assert.deepEqual(
+        result.toolCalls.map(call => call.args.query),
+        ["app-login.js", "firebase.js", "tecnico b2b"]
+    );
+    assert.equal(result.planKind, "MISSION_CONTRACT_AUDITED");
 });
 
 test("Gemini reserves response budget for evidence-driven mission follow-ups", async () => {
@@ -928,7 +1045,7 @@ test("Gemini accepts a strict JSON mission contract when the provider omits nati
         }
     });
 
-    assert.equal(result.planKind, "MISSION_CONTRACT");
+    assert.equal(result.planKind, "MISSION_CONTRACT_AUDITED");
     assert.deepEqual(result.toolCalls.map(call => call.name), ["repo.search", "connector.list"]);
     assert.equal(result.missionComplete, false);
 });

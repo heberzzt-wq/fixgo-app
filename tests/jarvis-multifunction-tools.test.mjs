@@ -186,6 +186,61 @@ test("browser mission contract returns every model-selected high-level tool", as
     }
 });
 
+test("browser mission contract audits and restores a subject omitted by its first sample", async () => {
+    const originalFetch = globalThis.fetch;
+    let requestCount = 0;
+    const catalog = [{
+        name: "repo.search",
+        description: "Busca cada sujeto independiente.",
+        mutates: false,
+        requiresApproval: false,
+        inputSchema: {
+            type: "object",
+            required: ["query"],
+            properties: {
+                query: { type: "string" }
+            }
+        }
+    }];
+    globalThis.fetch = async url => {
+        requestCount += 1;
+        const decodedUrl = decodeURIComponent(String(url));
+        if (requestCount === 2) {
+            assert.match(decodedUrl, /AUDITORIA SEMANTICA DE COBERTURA/);
+            assert.match(decodedUrl, /BORRADOR_DE_CONTRATO/);
+        }
+        return {
+            ok: true,
+            text: async () => JSON.stringify({
+                toolCalls: requestCount === 1
+                    ? [
+                        { name: "repo.search", arguments: { query: "app-login.js" } },
+                        { name: "repo.search", arguments: { query: "firebase.js" } }
+                    ]
+                    : [
+                        { name: "repo.search", arguments: { query: "tecnico b2b" } }
+                    ],
+                missionComplete: false
+            })
+        };
+    };
+
+    try {
+        const result = await plannerTest.callBrowserMissionContract(
+            "Reviza tecnico b2b, app-login.js y firebase.js.",
+            catalog
+        );
+        assert.equal(requestCount, 2);
+        assert.equal(result.planKind, "MISSION_CONTRACT_AUDITED");
+        assert.deepEqual(
+            plannerTest.trustedPlanCalls(result, catalog, {}).map(call => call.args.query),
+            ["app-login.js", "firebase.js", "tecnico b2b"]
+        );
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
+});
+
 test("browser planner blocks tool calls with missing required arguments", () => {
     const catalog = [{
         name: "repo.read",
@@ -1716,7 +1771,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(core, /observation\?\.type === "JARVIS_CONVERSATIONAL_RESPONSE"/);
     assert.match(core, /DIRECT_ACTUATOR_COMPOSITION/);
     assert.match(core, /directActuatorFinalResponse/);
-    assert.match(terminal, /sia7-multi-instance-tools-v53-20260724/);
+    assert.match(terminal, /sia7-semantic-coverage-audit-v54-20260724/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -1897,7 +1952,7 @@ test("daily supervision cloud lookup has a bounded browser deadline", () => {
     assert.match(source, /signal:\s*controller\.signal/);
     assert.match(source, /SUPERVISION_STATUS_TIMEOUT_/);
     assert.match(source, /clearTimeout\(timeoutId\)/);
-    assert.match(source, /3\.7\.0-multi-instance-tool-contract/);
+    assert.match(source, /3\.8\.0-semantic-coverage-audit/);
     assert.doesNotMatch(source, /3\.0\.0-model-semantic-planner/);
 });
 

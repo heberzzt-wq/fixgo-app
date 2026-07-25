@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "1.8.0-multi-instance-tool-contract";
+const VERSION = "1.9.0-semantic-coverage-audit";
 const DEFAULT_ENDPOINT = "https://text.pollinations.ai/openai";
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -146,6 +146,21 @@ function validatePlan(plan = {}, catalog = [], fallbackInput = "") {
             ? plan.completionAssessment
             : null
     };
+}
+
+function mergePlanToolCalls(...groups) {
+    const merged = [];
+    const seen = new Set();
+
+    for (const call of groups.flat()) {
+        if (!call?.name) continue;
+        const signature = `${call.name}:${JSON.stringify(call.args || {})}`;
+        if (seen.has(signature)) continue;
+        seen.add(signature);
+        merged.push(call);
+    }
+
+    return merged.slice(0, 12);
 }
 
 function requireExecutablePlan(plan = {}) {
@@ -382,12 +397,88 @@ async function runGeminiSemanticPlanner({
             ...contractPayload,
             missionComplete: false
         };
+        const validatedContract = validatePlan(contractPlan, safeCatalog, instruction);
+        let coverageAudit = null;
+        let coverageWarning = null;
+
+        try {
+            const coverageResponse = await ai.models.generateContent({
+                model,
+                contents: [
+                    buildSemanticSystemInstruction(safeCatalog, null),
+                    `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
+                    `BORRADOR_DE_CONTRATO=${JSON.stringify({
+                        toolCalls: validatedContract.toolCalls,
+                        completionAssessment: validatedContract.completionAssessment
+                    })}`,
+                    [
+                        "AUDITORIA_SEMANTICA_DE_COBERTURA_DEL_CONTRATO_DE_MISION:",
+                        "Descompone primero la instruccion por significado en todos sus sujetos, archivos, entidades, preguntas y entregables independientes.",
+                        "Compara despues cada objetivo independiente con BORRADOR_DE_CONTRATO.",
+                        "Devuelve solamente las toolCalls read-only que falten para cubrir objetivos omitidos. No sustituyas, resumas ni elimines las llamadas del borrador.",
+                        "Puedes repetir una herramienta si el objetivo omitido necesita argumentos distintos.",
+                        "Si el borrador ya cubre todo, devuelve toolCalls=[]; missionComplete debe permanecer false.",
+                        "Devuelve JSON valido con toolCalls, explanation, missionComplete=false y completionAssessment."
+                    ].join("\n")
+                ].join("\n\n"),
+                config: {
+                    temperature: 0,
+                    maxOutputTokens: 3000,
+                    thinkingConfig: {
+                        thinkingBudget: 0
+                    },
+                    responseMimeType: "application/json"
+                }
+            });
+            const coverageFunctionCalls = Array.isArray(coverageResponse?.functionCalls)
+                ? coverageResponse.functionCalls
+                : Array.isArray(coverageResponse?.candidates?.[0]?.content?.parts)
+                    ? coverageResponse.candidates[0].content.parts
+                        .map(part => part?.functionCall)
+                        .filter(Boolean)
+                    : [];
+            const coverageCall = coverageFunctionCalls.find(
+                call => call?.name === "jarvis_mission_contract"
+            );
+            let coveragePayload = coverageCall?.args && typeof coverageCall.args === "object"
+                ? coverageCall.args
+                : null;
+            if (!coveragePayload && String(coverageResponse?.text || "").trim()) {
+                coveragePayload = extractJsonObject(String(coverageResponse.text));
+            }
+            if (!coveragePayload || typeof coveragePayload !== "object") {
+                throw new Error("MISSION_COVERAGE_AUDIT_OUTPUT_REQUIRED");
+            }
+            coverageAudit = validatePlan(
+                { ...coveragePayload, missionComplete: false },
+                safeCatalog,
+                instruction
+            );
+        } catch (error) {
+            coverageWarning = error?.message || "MISSION_COVERAGE_AUDIT_UNAVAILABLE";
+        }
+
+        const auditedContract = {
+            ...validatedContract,
+            toolCalls: mergePlanToolCalls(
+                validatedContract.toolCalls,
+                coverageAudit?.toolCalls || []
+            ),
+            missionComplete: false,
+            completionAssessment: coverageAudit
+                ? {
+                    draft: validatedContract.completionAssessment,
+                    coverageAudit: coverageAudit.completionAssessment
+                }
+                : validatedContract.completionAssessment,
+            ...(coverageWarning ? { coverageWarning } : {})
+        };
         return requireExecutablePlan({
-            ...validatePlan(contractPlan, safeCatalog, instruction),
+            ...auditedContract,
             provider: String(ai.lastProvider || "gemini"),
             model,
             catalogSize: safeCatalog.length,
-            planKind: "MISSION_CONTRACT"
+            planKind: "MISSION_CONTRACT_AUDITED"
         });
     }
 
@@ -574,9 +665,18 @@ async function runSimpleSemanticPlanner({
         let validatedPlan = null;
         let lastPlanError = null;
         for (const [attemptIndex, seed] of seeds.entries()) {
-            const attemptPrompt = attemptIndex === 0
-                ? prompt
-                : [
+            const attemptPrompt = contractMode && validatedPlan
+                ? [
+                    prompt,
+                    `BORRADOR_DE_CONTRATO=${JSON.stringify({
+                        toolCalls: validatedPlan.toolCalls,
+                        completionAssessment: validatedPlan.completionAssessment
+                    }).slice(0, 16000)}`,
+                    "AUDITORIA SEMANTICA DE COBERTURA: descompone la instruccion por significado en todos sus sujetos, archivos, entidades, preguntas y entregables independientes. Devuelve solamente toolCalls read-only faltantes. No elimines ni sustituyas llamadas del borrador. Si todo esta cubierto devuelve toolCalls=[] y missionComplete=false."
+                ].join("\n")
+                : attemptIndex === 0
+                    ? prompt
+                    : [
                     prompt,
                     contractMode
                         ? "REINTENTO DE CONTRATO: la salida anterior fue invalida. Enumera ahora TODAS las herramientas exactas del catalogo necesarias para cada entregable y usa missionComplete=false."
@@ -588,8 +688,29 @@ async function runSimpleSemanticPlanner({
                 if (!response?.ok) throw new Error(`SIMPLE_SEMANTIC_HTTP_${response?.status || 0}`);
                 const candidatePlan = extractJsonObject(await response.text());
                 const candidateValidated = validatePlan(candidatePlan, safeCatalog, instruction);
+                if (
+                    contractMode &&
+                    validatedPlan &&
+                    Array.isArray(candidatePlan?.toolCalls)
+                ) {
+                    validatedPlan = {
+                        ...validatedPlan,
+                        toolCalls: mergePlanToolCalls(
+                            validatedPlan.toolCalls,
+                            candidateValidated.toolCalls
+                        ),
+                        completionAssessment: {
+                            draft: validatedPlan.completionAssessment,
+                            coverageAudit: candidateValidated.completionAssessment
+                        },
+                        missionComplete: false,
+                        planKind: "MISSION_CONTRACT_AUDITED"
+                    };
+                    break;
+                }
                 if (candidateValidated.toolCalls.length > 0 || candidateValidated.missionComplete === true) {
                     validatedPlan = candidateValidated;
+                    if (contractMode) continue;
                     break;
                 }
                 lastPlanError = new Error("SEMANTIC_PLAN_EMPTY");
@@ -617,10 +738,18 @@ async function runSimpleSemanticPlanner({
                 if (enrichmentResponse?.ok) {
                     const enrichmentPlan = extractJsonObject(await enrichmentResponse.text());
                     const enriched = validatePlan(enrichmentPlan, selectedCatalog, instruction);
-                    const enrichedByName = new Map(enriched.toolCalls.map(call => [call.name, call]));
+                    const enrichedByName = new Map();
+                    for (const call of enriched.toolCalls) {
+                        const queue = enrichedByName.get(call.name) || [];
+                        queue.push(call);
+                        enrichedByName.set(call.name, queue);
+                    }
                     validatedPlan = {
                         ...validatedPlan,
-                        toolCalls: validatedPlan.toolCalls.map(call => enrichedByName.get(call.name) || call)
+                        toolCalls: validatedPlan.toolCalls.map(call => {
+                            const queue = enrichedByName.get(call.name) || [];
+                            return queue.shift() || call;
+                        })
                     };
                 }
             }

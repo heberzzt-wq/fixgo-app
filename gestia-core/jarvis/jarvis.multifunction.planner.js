@@ -1,4 +1,4 @@
-const VERSION = "3.7.0-multi-instance-tool-contract";
+const VERSION = "3.8.0-semantic-coverage-audit";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
@@ -47,24 +47,50 @@ async function callBrowserMissionContract(input = "", catalog = []) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 60000);
     let lastError = null;
+    let auditedPlan = null;
     try {
         for (const seed of [84, 85, 86, 87, 88]) {
             try {
+                const attemptPrompt = auditedPlan
+                    ? [
+                        prompt,
+                        `BORRADOR_DE_CONTRATO=${JSON.stringify(auditedPlan).slice(0, 16000)}`,
+                        "AUDITORIA SEMANTICA DE COBERTURA: descompone la instruccion en todos sus sujetos, archivos, entidades, preguntas y entregables independientes. Devuelve solamente toolCalls read-only faltantes. No elimines ni sustituyas el borrador. Si ya cubre todo devuelve toolCalls=[] y missionComplete=false."
+                    ].join("\n")
+                    : prompt;
                 const response = await fetch(
-                    `https://text.pollinations.ai/${encodeURIComponent(prompt)}?model=openai-fast&seed=${seed}&json=true`,
+                    `https://text.pollinations.ai/${encodeURIComponent(attemptPrompt)}?model=openai-fast&seed=${seed}&json=true`,
                     { signal: controller.signal }
                 );
                 if (!response.ok) throw new Error(`CLIENT_MISSION_CONTRACT_HTTP_${response.status}`);
                 const plan = extractJsonObject(await response.text());
-                if (!Array.isArray(plan?.toolCalls) || plan.toolCalls.length === 0) {
+                if (!Array.isArray(plan?.toolCalls)) {
                     throw new Error("CLIENT_MISSION_CONTRACT_EMPTY");
                 }
+                if (!auditedPlan) {
+                    if (plan.toolCalls.length === 0) {
+                        throw new Error("CLIENT_MISSION_CONTRACT_EMPTY");
+                    }
+                    auditedPlan = plan;
+                    continue;
+                }
+                const merged = mergeJarvisToolCalls(
+                    auditedPlan.toolCalls || [],
+                    plan.toolCalls || []
+                );
                 return {
-                    ...plan,
+                    ...auditedPlan,
+                    toolCalls: merged,
+                    completionAssessment: {
+                        draft: auditedPlan.completionAssessment || null,
+                        coverageAudit: plan.completionAssessment || null
+                    },
+                    missionComplete: false,
                     ok: true,
                     status: "SEMANTIC_PLAN_READY",
                     provider: "pollinations-browser-json",
-                    model: "openai-fast"
+                    model: "openai-fast",
+                    planKind: "MISSION_CONTRACT_AUDITED"
                 };
             } catch (error) {
                 lastError = error;
@@ -72,6 +98,18 @@ async function callBrowserMissionContract(input = "", catalog = []) {
         }
     } finally {
         clearTimeout(timer);
+    }
+    if (auditedPlan) {
+        return {
+            ...auditedPlan,
+            missionComplete: false,
+            ok: true,
+            status: "SEMANTIC_PLAN_READY",
+            provider: "pollinations-browser-json",
+            model: "openai-fast",
+            planKind: "MISSION_CONTRACT",
+            coverageWarning: lastError?.message || "CLIENT_MISSION_COVERAGE_AUDIT_UNAVAILABLE"
+        };
     }
     throw lastError || new Error("CLIENT_MISSION_CONTRACT_UNAVAILABLE");
 }
@@ -422,7 +460,7 @@ export function mergeJarvisToolCalls(...groups) {
 
     for (const call of groups.flat()) {
         if (!call?.name) continue;
-        const key = `${call.name}:${JSON.stringify(call.args || {})}`;
+        const key = `${call.name}:${JSON.stringify(call.args || call.arguments || {})}`;
         if (seen.has(key)) continue;
         seen.add(key);
         merged.push(call);
