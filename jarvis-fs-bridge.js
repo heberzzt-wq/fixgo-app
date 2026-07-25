@@ -33,7 +33,7 @@ import { locatePdfFieldAnchors } from "./jarvis-pdf-layout.js";
 import { verifyPdfVisualChanges } from "./jarvis-pdf-visual.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.24.0-complete-user-artifacts";
+    "2.25.0-validated-spreadsheet-formulas";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -2068,6 +2068,124 @@ export async function inspectLocalConnectors({
     };
 }
 
+function xlsxFormulaIssue(formula = "", sheetNames = []) {
+    const body = String(formula || "");
+    if (!body || body.length > 2000) return "FORMULA_LENGTH_INVALID";
+    const lower = body.toLowerCase();
+    if (
+        body.includes("[") ||
+        body.includes("]") ||
+        lower.includes("://") ||
+        lower.includes("file:")
+    ) {
+        return "EXTERNAL_REFERENCE_NOT_ALLOWED";
+    }
+
+    const names = new Set(sheetNames.map(String));
+    const boundaries = new Set([
+        "+", "-", "*", "/", "^", "=", "<", ">",
+        "(", ")", ",", ";", "%", "&"
+    ]);
+    let parentheses = 0;
+    let singleQuoted = false;
+    let doubleQuoted = false;
+
+    for (let index = 0; index < body.length; index += 1) {
+        const character = body[index];
+        if (singleQuoted) {
+            if (
+                character === "'" &&
+                body[index + 1] === "'"
+            ) {
+                index += 1;
+            }
+            else if (character === "'") {
+                singleQuoted = false;
+            }
+            continue;
+        }
+        if (doubleQuoted) {
+            if (
+                character === '"' &&
+                body[index + 1] === '"'
+            ) {
+                index += 1;
+            }
+            else if (character === '"') {
+                doubleQuoted = false;
+            }
+            continue;
+        }
+        if (character === "'") {
+            singleQuoted = true;
+            continue;
+        }
+        if (character === '"') {
+            doubleQuoted = true;
+            continue;
+        }
+        if (
+            character === " " ||
+            character === "\t" ||
+            character === "\n" ||
+            character === "\r"
+        ) {
+            return "FORMULA_WHITESPACE_OUTSIDE_LITERAL";
+        }
+        if (character === "(") parentheses += 1;
+        if (character === ")") {
+            parentheses -= 1;
+            if (parentheses < 0) {
+                return "FORMULA_PARENTHESES_INVALID";
+            }
+        }
+        if (character !== "!") continue;
+
+        let sheetName = "";
+        if (body[index - 1] === "'") {
+            let start = index - 2;
+            while (start >= 0) {
+                if (
+                    body[start] === "'" &&
+                    body[start - 1] === "'"
+                ) {
+                    start -= 2;
+                    continue;
+                }
+                if (body[start] === "'") break;
+                start -= 1;
+            }
+            if (start < 0) return "FORMULA_SHEET_QUOTE_INVALID";
+            sheetName = body
+                .slice(start + 1, index - 1)
+                .split("''")
+                .join("'");
+        }
+        else {
+            let start = index - 1;
+            while (
+                start >= 0 &&
+                !boundaries.has(body[start])
+            ) {
+                start -= 1;
+            }
+            sheetName = body.slice(start + 1, index);
+        }
+        if (!names.has(sheetName)) {
+            return `FORMULA_SHEET_NOT_FOUND:${sheetName}`;
+        }
+    }
+
+    if (
+        singleQuoted ||
+        doubleQuoted ||
+        parentheses !== 0
+    ) {
+        return "FORMULA_STRUCTURE_INVALID";
+    }
+    return null;
+}
+
 export function createJarvisFsBridgeApp({
     root = DEFAULT_ROOT
 } = {}) {
@@ -3198,7 +3316,7 @@ export function createJarvisFsBridgeApp({
                             : String(content).split(/\r?\n/).filter(Boolean).map(line => line.split(","))
                     }];
                 const usedSheetNames = new Set();
-                sourceSheets.forEach((sheetInput, sheetIndex) => {
+                const preparedSheets = sourceSheets.map((sheetInput, sheetIndex) => {
                     const baseName = String(sheetInput?.name || `Hoja ${sheetIndex + 1}`)
                         .replace(/[\\/?*[\]:]/g, " ")
                         .trim()
@@ -3211,19 +3329,42 @@ export function createJarvisFsBridgeApp({
                         suffix += 1;
                     }
                     usedSheetNames.add(sheetName);
-                    const sheet = workbook.addWorksheet(sheetName);
-                    const tableRows = Array.isArray(sheetInput?.rows)
-                        ? sheetInput.rows
-                        : [];
-                    tableRows.slice(0, 10000).forEach(row => {
+                    return {
+                        name: sheetName,
+                        rows: Array.isArray(sheetInput?.rows)
+                            ? sheetInput.rows
+                            : []
+                    };
+                });
+                const sheetNames = preparedSheets.map(sheet => sheet.name);
+                preparedSheets.forEach(sheetInput => {
+                    const sheet = workbook.addWorksheet(sheetInput.name);
+                    sheetInput.rows.slice(0, 10000).forEach((row, rowIndex) => {
                         const values = Array.isArray(row)
                             ? row
                             : Object.values(row || {});
-                        sheet.addRow(values.map(value =>
-                            typeof value === "string" && value.startsWith("=")
-                                ? { formula: value.slice(1) }
-                                : value
-                        ));
+                        sheet.addRow(values.map((value, columnIndex) => {
+                            if (
+                                typeof value !== "string" ||
+                                !value.startsWith("=")
+                            ) {
+                                return value;
+                            }
+                            const formula = value.slice(1);
+                            const issue =
+                                xlsxFormulaIssue(
+                                    formula,
+                                    sheetNames
+                                );
+                            if (issue) {
+                                throw new Error(
+                                    `XLSX_FORMULA_INVALID:${sheet.name}:${rowIndex + 1}:${columnIndex + 1}:${issue}`
+                                );
+                            }
+                            return {
+                                formula
+                            };
+                        }));
                     });
                     if (sheet.rowCount > 0) {
                         sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
@@ -3247,6 +3388,9 @@ export function createJarvisFsBridgeApp({
                         });
                     }
                 });
+                workbook.calcProperties ||= {};
+                workbook.calcProperties.fullCalcOnLoad = true;
+                workbook.calcProperties.forceFullCalc = true;
                 await workbook.xlsx.writeFile(target);
             }
             else if (normalizedFormat === "pptx") {

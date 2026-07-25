@@ -33,7 +33,7 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.24.0-complete-user-artifacts");
+    assert.equal(description.version, "2.25.0-validated-spreadsheet-formulas");
     assert.equal(description.policy.authority, "full_repo_private_owner");
     assert.equal(description.policy.safeZone, "advisory");
     assert.equal(description.policy.emptyWrites, "blocked");
@@ -108,6 +108,41 @@ test("Jarvis creates a multi-sheet XLSX with executable formulas", async () => {
         assert.equal(
             workbook.getWorksheet("Criterios").getCell("B2").value,
             "SUPUESTO; validar cotizaciones"
+        );
+
+        const invalidResponse = await fetch(`${base}/document`, {
+            method: "POST",
+            headers: {
+                "content-type": "application/json",
+                "x-jarvis-release-id": "test-release"
+            },
+            body: JSON.stringify({
+                format: "xlsx",
+                title: "APU inválido",
+                sheets: [
+                    {
+                        name: "Mano de Obra",
+                        rows: [
+                            ["Concepto", "Importe"],
+                            ["Cuadrilla", 100]
+                        ]
+                    },
+                    {
+                        name: "Costo Directo",
+                        rows: [
+                            ["Concepto", "Importe"],
+                            ["Mano de obra", "=Mano_de_Obra!B2*0.03 (SUPUESTO)"]
+                        ]
+                    }
+                ]
+            })
+        });
+        const invalidResult = await invalidResponse.json();
+        assert.equal(invalidResponse.status, 400);
+        assert.equal(invalidResult.status, "DOCUMENT_CREATE_FAILED");
+        assert.match(
+            invalidResult.error,
+            /XLSX_FORMULA_INVALID/
         );
     } finally {
         await new Promise(resolve => server.close(resolve));

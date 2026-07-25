@@ -462,6 +462,102 @@ test("document composition continues a cut response and verifies its real ending
     }
 });
 
+test("spreadsheet composition repairs invalid cross-sheet formulas before creation", async () => {
+    const previousAuth = globalThis.auth;
+    const previousFetch = globalThis.fetch;
+    const runtime = createRuntime();
+    registerJarvisMultifunctionTools(runtime);
+    let requestCount = 0;
+
+    try {
+        globalThis.auth = {
+            currentUser: {
+                getIdToken: async () => "test-token"
+            }
+        };
+        globalThis.fetch = async () => {
+            requestCount += 1;
+            const workbook = requestCount === 1
+                ? {
+                    title: "APU",
+                    sheets: [
+                        {
+                            name: "Mano de Obra",
+                            rows: [
+                                ["Concepto", "Importe"],
+                                ["Cuadrilla", 100]
+                            ]
+                        },
+                        {
+                            name: "Costo Directo",
+                            rows: [
+                                ["Concepto", "Importe"],
+                                ["Herramienta", "=Mano_de_Obra!B2*0.03 (SUPUESTO)"]
+                            ]
+                        }
+                    ]
+                }
+                : {
+                    title: "APU",
+                    sheets: [
+                        {
+                            name: "Mano de Obra",
+                            rows: [
+                                ["Concepto", "Importe"],
+                                ["Cuadrilla", 100]
+                            ]
+                        },
+                        {
+                            name: "Costo Directo",
+                            rows: [
+                                ["Concepto", "Importe", "Criterio"],
+                                ["Herramienta", "='Mano de Obra'!B2*0.03", "SUPUESTO"]
+                            ]
+                        }
+                    ]
+                };
+            return {
+                ok: true,
+                text: async () => JSON.stringify({
+                    result: {
+                        ok: true,
+                        status: "SEMANTIC_RESPONSE_READY",
+                        provider: "test",
+                        model: "test-model",
+                        message: JSON.stringify(workbook)
+                    }
+                })
+            };
+        };
+
+        const result = await runtime.execute(
+            "spreadsheet.compose",
+            {
+                title: "APU",
+                instructions: "Crea un APU con fórmulas y supuestos."
+            }
+        );
+
+        assert.equal(requestCount, 2);
+        assert.equal(result.ok, true, JSON.stringify(result));
+        assert.equal(result.status, "SPREADSHEET_BLUEPRINT_READY");
+        assert.equal(result.formulaValidationPassed, true);
+        assert.equal(result.invalidFormulas.length, 0);
+        assert.equal(result.formulaCount, 1);
+        assert.equal(
+            result.sheets[1].rows[1][1],
+            "='Mano de Obra'!B2*0.03"
+        );
+        assert.equal(
+            result.sheets[1].rows[1][2],
+            "SUPUESTO"
+        );
+    } finally {
+        globalThis.auth = previousAuth;
+        globalThis.fetch = previousFetch;
+    }
+});
+
 test("campaign visual and reel planning require grounded structured evidence", () => {
     const imagePlan = buildImageRequirementsPlan({
         brandName: "SUMM",
@@ -1915,7 +2011,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /jarvis-tools-v7-20260724-verified-artifacts-v62/);
+    assert.match(terminal, /jarvis-tools-v7-20260724-validated-artifacts-v63/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
         "utf8"
@@ -1929,8 +2025,8 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-verified-complete-artifacts-v62-20260724/);
-    assert.match(terminal, /jarvis-tools-v7-20260724-verified-artifacts-v62/);
+    assert.match(terminal, /sia7-validated-artifacts-v63-20260724/);
+    assert.match(terminal, /jarvis-tools-v7-20260724-validated-artifacts-v63/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -2171,7 +2267,10 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260724-verified-artifacts-v62/);
+    assert.match(core, /jarvis-tools-v7-20260724-validated-artifacts-v63/);
+    assert.match(core, /DOCUMENT_BLUEPRINT_REQUIRED/);
+    assert.match(core, /PAGE_BLUEPRINT_REQUIRED/);
+    assert.match(core, /no se creo un archivo parcial/);
 });
 
 test("repo diagnosis accepts synchronous null discovery before loading fallback context", () => {

@@ -5,10 +5,10 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-verified-complete-artifacts-v62-20260724";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-validated-artifacts-v63-20260724";
 import {
     registerJarvisActuatorTools
-} from "./jarvis/jarvis.actuator.pack.js?v=sia7-verified-complete-artifacts-v62-20260724";
+} from "./jarvis/jarvis.actuator.pack.js?v=sia7-validated-artifacts-v63-20260724";
 import {
     reviewChiefArchitectPlan
 } from "./jarvis/jarvis.chief.architect.js?v=sia7-chief-architect-v1-20260714";

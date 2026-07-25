@@ -23,9 +23,9 @@ import {
 
 import {
     completeJarvisPlanningArguments
-} from "./jarvis.multifunction.planner.js?v=sia7-verified-complete-artifacts-v62-20260724";
+} from "./jarvis.multifunction.planner.js?v=sia7-validated-artifacts-v63-20260724";
 
-const VERSION = "1.28.0-verified-complete-artifacts";
+const VERSION = "1.29.0-validated-spreadsheet-formulas";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";
@@ -1588,6 +1588,236 @@ function normalizedWorkbookSheets(value = []) {
     })).filter(sheet => sheet.rows.length > 0);
 }
 
+function quotedWorkbookSheetName(name = "") {
+    return `'${String(name).split("'").join("''")}'`;
+}
+
+function replaceUnquotedSheetReference(
+    formula = "",
+    alias = "",
+    replacement = ""
+) {
+    const source = String(formula || "");
+    const needle = `${String(alias)}!`;
+    if (!needle || needle === "!") return source;
+    let cursor = 0;
+    let output = "";
+    while (cursor < source.length) {
+        const match = source.indexOf(needle, cursor);
+        if (match < 0) {
+            output += source.slice(cursor);
+            break;
+        }
+        output += source.slice(cursor, match);
+        if (match > 0 && source[match - 1] === "'") {
+            output += needle;
+        }
+        else {
+            output += replacement;
+        }
+        cursor = match + needle.length;
+    }
+    return output;
+}
+
+function normalizeFormulaSheetReferences(formula = "", sheetNames = []) {
+    let normalized = String(formula || "");
+    const names = [...sheetNames]
+        .map(String)
+        .sort((left, right) => right.length - left.length);
+
+    for (const name of names) {
+        const quotedName = quotedWorkbookSheetName(name);
+        const aliases = new Set([
+            name,
+            name.split(" ").join("_")
+        ]);
+        for (const alias of aliases) {
+            const quotedAlias = quotedWorkbookSheetName(alias);
+            normalized = normalized
+                .split(`${quotedAlias}!`)
+                .join(`${quotedName}!`);
+            normalized =
+                replaceUnquotedSheetReference(
+                    normalized,
+                    alias,
+                    `${quotedName}!`
+                );
+        }
+    }
+    return normalized;
+}
+
+function workbookFormulaIssue(formula = "", sheetNames = []) {
+    const source = String(formula || "");
+    const body = source.startsWith("=")
+        ? source.slice(1)
+        : source;
+    if (!body || body.length > 2000) return "FORMULA_LENGTH_INVALID";
+    const lower = body.toLowerCase();
+    if (
+        body.includes("[") ||
+        body.includes("]") ||
+        lower.includes("://") ||
+        lower.includes("file:")
+    ) {
+        return "EXTERNAL_REFERENCE_NOT_ALLOWED";
+    }
+
+    const names = new Set(sheetNames.map(String));
+    const boundaries = new Set([
+        "+", "-", "*", "/", "^", "=", "<", ">",
+        "(", ")", ",", ";", "%", "&"
+    ]);
+    let parentheses = 0;
+    let singleQuoted = false;
+    let doubleQuoted = false;
+
+    for (let index = 0; index < body.length; index += 1) {
+        const character = body[index];
+        if (singleQuoted) {
+            if (
+                character === "'" &&
+                body[index + 1] === "'"
+            ) {
+                index += 1;
+            }
+            else if (character === "'") {
+                singleQuoted = false;
+            }
+            continue;
+        }
+        if (doubleQuoted) {
+            if (
+                character === '"' &&
+                body[index + 1] === '"'
+            ) {
+                index += 1;
+            }
+            else if (character === '"') {
+                doubleQuoted = false;
+            }
+            continue;
+        }
+        if (character === "'") {
+            singleQuoted = true;
+            continue;
+        }
+        if (character === '"') {
+            doubleQuoted = true;
+            continue;
+        }
+        if (
+            character === " " ||
+            character === "\t" ||
+            character === "\n" ||
+            character === "\r"
+        ) {
+            return "FORMULA_WHITESPACE_OUTSIDE_LITERAL";
+        }
+        if (character === "(") parentheses += 1;
+        if (character === ")") {
+            parentheses -= 1;
+            if (parentheses < 0) {
+                return "FORMULA_PARENTHESES_INVALID";
+            }
+        }
+        if (character !== "!") continue;
+
+        let sheetName = "";
+        if (body[index - 1] === "'") {
+            let start = index - 2;
+            while (start >= 0) {
+                if (
+                    body[start] === "'" &&
+                    body[start - 1] === "'"
+                ) {
+                    start -= 2;
+                    continue;
+                }
+                if (body[start] === "'") break;
+                start -= 1;
+            }
+            if (start < 0) return "FORMULA_SHEET_QUOTE_INVALID";
+            sheetName = body
+                .slice(start + 1, index - 1)
+                .split("''")
+                .join("'");
+        }
+        else {
+            let start = index - 1;
+            while (
+                start >= 0 &&
+                !boundaries.has(body[start])
+            ) {
+                start -= 1;
+            }
+            sheetName = body.slice(start + 1, index);
+        }
+        if (!names.has(sheetName)) {
+            return `FORMULA_SHEET_NOT_FOUND:${sheetName}`;
+        }
+    }
+
+    if (
+        singleQuoted ||
+        doubleQuoted ||
+        parentheses !== 0
+    ) {
+        return "FORMULA_STRUCTURE_INVALID";
+    }
+    return null;
+}
+
+function normalizeAndValidateWorkbookSheets(value = []) {
+    const originalSheets = normalizedWorkbookSheets(value);
+    const sheetNames = originalSheets.map(sheet => sheet.name);
+    const invalidFormulas = [];
+    let formulaCount = 0;
+    const sheets = originalSheets.map(sheet => ({
+        ...sheet,
+        rows: sheet.rows.map((row, rowIndex) =>
+            row.map((cell, columnIndex) => {
+                if (
+                    typeof cell !== "string" ||
+                    !cell.startsWith("=")
+                ) {
+                    return cell;
+                }
+                const formula =
+                    normalizeFormulaSheetReferences(
+                        cell,
+                        sheetNames
+                    );
+                const issue =
+                    workbookFormulaIssue(
+                        formula,
+                        sheetNames
+                    );
+                if (issue) {
+                    invalidFormulas.push({
+                        sheet: sheet.name,
+                        row: rowIndex + 1,
+                        column: columnIndex + 1,
+                        formula: formula.slice(0, 500),
+                        issue
+                    });
+                }
+                else {
+                    formulaCount += 1;
+                }
+                return formula;
+            })
+        )
+    }));
+
+    return {
+        sheets,
+        formulaCount,
+        invalidFormulas
+    };
+}
+
 function normalizedPageArtifactInput(value = {}, fallbackTitle = "") {
     const services = Array.isArray(value?.services)
         ? value.services.slice(0, 12).map(service => ({
@@ -2002,11 +2232,13 @@ export function registerJarvisMultifunctionTools(runtime) {
                     args.title,
                     "Libro de trabajo Jarvis"
                 );
-                const semantic = await fetchSemanticConversation(
+                let semantic = await fetchSemanticConversation(
                     [
                         "Diseña un libro XLSX completo y ejecutable como JSON estricto.",
                         "Devuelve solamente un objeto JSON con title y sheets. sheets es un arreglo de objetos {name,rows}; rows es un arreglo de arreglos.",
                         "Toda formula debe ser una cadena que empiece con = y usar referencias de Excel. Separa criterios, supuestos o fuentes en una hoja propia cuando la solicitud lo requiera.",
+                        "En formulas, las hojas con espacios deben citarse por su nombre exacto, por ejemplo ='Mano de Obra'!F4; no sustituyas espacios por guiones bajos.",
+                        "Nunca escribas comentarios, etiquetas ni la palabra SUPUESTO dentro de una formula; colocalos en una celda separada.",
                         "No inventes datos de mercado: cualquier valor de ejemplo debe rotularse claramente como SUPUESTO y las formulas deben conservar la trazabilidad del calculo.",
                         "Incluye todos los conceptos, subtotales, porcentajes y resultado final pedidos. No agregues explicaciones fuera del JSON.",
                         `TITULO=${title}`,
@@ -2040,24 +2272,73 @@ export function registerJarvisMultifunctionTools(runtime) {
                             "SPREADSHEET_JSON_INVALID"
                     };
                 }
-                const sheets =
-                    normalizedWorkbookSheets(
+                let validation =
+                    normalizeAndValidateWorkbookSheets(
                         workbook?.sheets
                     );
-                const formulaCount =
-                    sheets.reduce(
-                        (total, sheet) =>
-                            total +
-                            sheet.rows.flat().filter(cell =>
-                                typeof cell === "string" &&
-                                cell.startsWith("=")
-                            ).length,
-                        0
-                    );
+
+                if (
+                    semantic?.ok === true &&
+                    validation.invalidFormulas.length > 0
+                ) {
+                    const repair =
+                        await fetchSemanticConversation(
+                            [
+                                "Repara este libro XLSX y devuelve solamente el objeto JSON completo con title y sheets.",
+                                "Conserva todos los datos, hojas y formulas validas.",
+                                "Corrige cada formula indicada. Las referencias deben usar el nombre exacto de una hoja existente; si tiene espacios, encierralo entre comillas simples.",
+                                "No incluyas comentarios o etiquetas dentro de formulas. Mueve esas etiquetas a otra celda.",
+                                `SOLICITUD_ORIGINAL=${instruction}`,
+                                `ERRORES_DE_FORMULA=${JSON.stringify(validation.invalidFormulas)}`,
+                                `LIBRO_A_REPARAR=${JSON.stringify({
+                                    title:
+                                        clean(
+                                            workbook?.title,
+                                            title
+                                        ),
+                                    sheets:
+                                        validation.sheets
+                                })}`
+                            ].join("\n"),
+                            {
+                                maxOutputTokens:
+                                    8000
+                            }
+                        );
+                    try {
+                        const repairedWorkbook =
+                            extractSemanticJsonObject(
+                                repair?.message ||
+                                ""
+                            );
+                        const repairedValidation =
+                            normalizeAndValidateWorkbookSheets(
+                                repairedWorkbook?.sheets
+                            );
+                        if (
+                            repair?.ok === true &&
+                            repairedValidation.sheets.length > 0
+                        ) {
+                            workbook = repairedWorkbook;
+                            semantic = repair;
+                            validation = repairedValidation;
+                        }
+                    }
+                    catch {
+                        // The validation result below remains fail-closed.
+                    }
+                }
+
+                const {
+                    sheets,
+                    formulaCount,
+                    invalidFormulas
+                } = validation;
                 const ok =
                     semantic?.ok === true &&
                     sheets.length > 0 &&
-                    formulaCount > 0;
+                    formulaCount > 0 &&
+                    invalidFormulas.length === 0;
                 return {
                     ok,
                     status:
@@ -2073,6 +2354,10 @@ export function registerJarvisMultifunctionTools(runtime) {
                         "xlsx",
                     sheets,
                     formulaCount,
+                    formulaValidationPassed:
+                        invalidFormulas.length === 0,
+                    invalidFormulas:
+                        invalidFormulas.slice(0, 20),
                     assumptionsExplicit:
                         JSON.stringify(sheets)
                             .toLocaleLowerCase()
@@ -2090,7 +2375,9 @@ export function registerJarvisMultifunctionTools(runtime) {
                     error:
                         ok
                             ? null
-                            : "SPREADSHEET_SHEETS_OR_FORMULAS_REQUIRED"
+                            : invalidFormulas.length > 0
+                                ? "SPREADSHEET_FORMULA_VALIDATION_FAILED"
+                                : "SPREADSHEET_SHEETS_OR_FORMULAS_REQUIRED"
                 };
             }
         }),
@@ -2115,7 +2402,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                     },
                     context
                 );
-                const semantic = await fetchSemanticConversation(
+                let semantic = await fetchSemanticConversation(
                     [
                         "Redacta el contenido completo de una landing page como JSON estricto.",
                         "Devuelve solamente un objeto con brandName, title, description, services, whatsapp, contactEmail y whatsappRequested.",
