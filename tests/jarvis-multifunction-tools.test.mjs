@@ -578,11 +578,11 @@ test("document composition rejects a placeholder even when every response claims
             }
         );
 
-        assert.equal(requestCount, 5);
+        assert.equal(requestCount, 7);
         assert.equal(result.ok, false);
         assert.equal(result.status, "DOCUMENT_CONTENT_COMPOSITION_FAILED");
         assert.equal(result.validationPassed, false);
-        assert.equal(result.continuationCount, 4);
+        assert.equal(result.continuationCount, 6);
         assert.ok(result.validationFailures.includes("DOCUMENT_PLACEHOLDER_DETECTED"));
         assert.ok(result.validationFailures.some(item =>
             item.startsWith("DOCUMENT_WORD_COUNT_BELOW_MINIMUM")
@@ -1036,6 +1036,43 @@ test("capability forensics reports evidence-backed gaps without claiming Codex p
             globalThis.__JARVIS_WEB_RESEARCH_HEALTH__ =
                 previousWebHealth;
         }
+    }
+});
+
+test("system health exposes bridge server version separately from tool pack version", async () => {
+    const previousBridge = globalThis.JarvisLocalBridge;
+    globalThis.JarvisLocalBridge = {
+        verifyIdentity: async () => ({
+            ok: true,
+            status: "BRIDGE_IDENTITY_OK",
+            bridgeVersion: "2.29.0-docx-quantitative-gate",
+            bridgeRoot: "C:/repo"
+        })
+    };
+
+    try {
+        const runtime = createRuntime();
+        registerJarvisMultifunctionTools(runtime);
+        const result = await runtime.execute("system.health");
+
+        assert.equal(
+            result.bridgeVersion,
+            "2.29.0-docx-quantitative-gate"
+        );
+        assert.equal(
+            result.runtime.bridgeVersion,
+            "2.29.0-docx-quantitative-gate"
+        );
+        assert.equal(
+            result.toolPackVersion,
+            "1.32.0-verified-runtime-identity"
+        );
+        assert.notEqual(
+            result.toolPackVersion,
+            result.bridgeVersion
+        );
+    } finally {
+        globalThis.JarvisLocalBridge = previousBridge;
     }
 });
 
@@ -2316,7 +2353,9 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-xlsx-blueprint-gate-v67-20260725/);
+    assert.match(terminal, /sia7-runtime-truth-v70-20260725/);
+    assert.match(core, /unresolvedUserArtifactTasks/);
+    assert.match(core, /missionResult\.blockedTasks\.map/);
     assert.match(terminal, /jarvis-tools-v7-20260725-deep-artifacts-v65/);
 });
 

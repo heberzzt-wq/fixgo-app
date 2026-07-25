@@ -5,10 +5,10 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-xlsx-blueprint-gate-v67-20260725";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-runtime-truth-v70-20260725";
 import {
     registerJarvisActuatorTools
-} from "./jarvis/jarvis.actuator.pack.js?v=sia7-xlsx-blueprint-gate-v67-20260725";
+} from "./jarvis/jarvis.actuator.pack.js?v=sia7-runtime-truth-v70-20260725";
 import {
     reviewChiefArchitectPlan
 } from "./jarvis/jarvis.chief.architect.js?v=sia7-chief-architect-v1-20260714";
@@ -1184,6 +1184,9 @@ window.JarvisLocalBridge.verifyIdentity ||= async function({
                 compatible
                     ? "BRIDGE_IDENTITY_OK"
                     : "BRIDGE_IDENTITY_MISMATCH",
+            bridgeVersion:
+                bridgeHealth?.version ||
+                null,
             expected,
             actual,
             bridgeRoot:

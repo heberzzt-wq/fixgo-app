@@ -30,12 +30,13 @@ import {
 import {
     extractDocumentContract,
     validateDocumentBlueprint
-} from "./jarvis.document.validator.js?v=sia7-docx-contract-gate-v68-20260725";
+} from "./jarvis.document.validator.js?v=sia7-runtime-truth-v70-20260725";
 
-const VERSION = "1.31.0-docx-contract-gate";
+const VERSION = "1.32.0-verified-runtime-identity";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";
+const DOCUMENT_MAX_CONTINUATIONS = 6;
 
 const MARKETING_ARGUMENT_SCHEMA = {
     type: "object",
@@ -1455,7 +1456,15 @@ async function fetchSemanticConversation(
     }
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 55000);
+    const responseTimeoutMs =
+        Number(maxOutputTokens) >= 6000
+            ? 130000
+            : 55000;
+    const timer =
+        setTimeout(
+            () => controller.abort(),
+            responseTimeoutMs
+        );
 
     try {
         const token = await user.getIdToken();
@@ -2129,16 +2138,22 @@ export function registerJarvisMultifunctionTools(runtime) {
                 instructions: "string"
             },
             execute: async (args = {}, context = {}) => {
-                const instruction = resolveInstruction(
-                    {
-                        ...args,
-                        prompt:
-                            args.instructions ||
-                            context.rawInput ||
-                            ""
-                    },
-                    context
-                );
+                const originalInstruction =
+                    clean(context.rawInput);
+                const plannedInstruction =
+                    clean(args.instructions);
+                const instruction =
+                    [
+                        originalInstruction,
+                        plannedInstruction &&
+                        plannedInstruction !==
+                            originalInstruction
+                            ? `DETALLE_DEL_PLAN=${plannedInstruction}`
+                            : ""
+                    ]
+                        .filter(Boolean)
+                        .join("\n\n") ||
+                    resolveInstruction(args, context);
                 const title = clean(args.title, "Documento Jarvis");
                 const format = clean(args.format, "docx").toLowerCase();
                 const contract =
@@ -2187,7 +2202,8 @@ export function registerJarvisMultifunctionTools(runtime) {
                 while (
                     semantic?.ok === true &&
                     validation.ok !== true &&
-                    continuationCount < 4
+                    continuationCount <
+                        DOCUMENT_MAX_CONTINUATIONS
                 ) {
                     const composedSoFar =
                         stripDocumentCompletionMarker(
@@ -2744,6 +2760,10 @@ export function registerJarvisMultifunctionTools(runtime) {
                         status === "ONLINE",
                     engine: "jarvis_multifunction_tools",
                     version: VERSION,
+                    toolPackVersion: VERSION,
+                    bridgeVersion:
+                        bridge.bridgeVersion ||
+                        null,
                     status,
                     failures,
                     runtime: {
@@ -2752,6 +2772,9 @@ export function registerJarvisMultifunctionTools(runtime) {
                             bridge.ok === true,
                         bridgeStatus:
                             bridge.status || "UNKNOWN",
+                        bridgeVersion:
+                            bridge.bridgeVersion ||
+                            null,
                         bridgeRoot:
                             bridge.bridgeRoot || null,
                         responseComposerAvailable:

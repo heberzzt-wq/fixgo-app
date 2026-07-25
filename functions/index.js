@@ -2948,7 +2948,7 @@ exports.jarvisSemanticPlan = functions
     });
 
 exports.jarvisSemanticRespond = functions
-    .runWith({ timeoutSeconds: 60, memory: "256MB" })
+    .runWith({ timeoutSeconds: 180, memory: "256MB" })
     .https
     .onCall(async (data = {}, context) => {
         const actor = await assertJarvisAdminContext(

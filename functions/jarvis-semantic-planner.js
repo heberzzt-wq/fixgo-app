@@ -1083,7 +1083,7 @@ async function runJarvisSemanticResponse({
     ai = null,
     input = "",
     endpoint = DEFAULT_ENDPOINT,
-    timeoutMs = 45000,
+    timeoutMs = null,
     maxOutputTokens = 3500
 } = {}) {
     const instruction = String(input || "").trim();
@@ -1100,8 +1100,21 @@ async function runJarvisSemanticResponse({
         throw new Error("SEMANTIC_RESPONSE_INPUT_OUT_OF_RANGE");
     }
 
+    const effectiveTimeoutMs =
+        Number(timeoutMs) > 0
+            ? Math.max(
+                5000,
+                Number(timeoutMs)
+            )
+            : outputTokenBudget >= 6000
+                ? 120000
+                : 45000;
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), Math.max(5000, Number(timeoutMs) || 45000));
+    const timer =
+        setTimeout(
+            () => controller.abort(),
+            effectiveTimeoutMs
+        );
     let primaryFailure = null;
 
     try {
