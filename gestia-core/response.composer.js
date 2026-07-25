@@ -1,5 +1,5 @@
 /**
- * GESTIA RESPONSE COMPOSER - v7.3 (SEMANTIC EXECUTION GUARD)
+ * GESTIA RESPONSE COMPOSER - v7.4 (SEMANTIC MEMORY + TERMINAL)
  * Objetivo: Estandarizar todas las salidas del sistema para Front-end, Terminal y Agent Tool Runtime.
  * Estructura estándar SIA7: { ok, status, type, data, meta, traceId }
  */
@@ -9,16 +9,35 @@ function semanticStatus(value = "", fallback = "COMPLETED") {
     return status || fallback;
 }
 
+function isFailureStatus(status = "") {
+    const normalizedStatus =
+        semanticStatus(status, "")
+            .toUpperCase();
+
+    return (
+        normalizedStatus === "FAILED" ||
+        normalizedStatus === "TOOL_FAILED" ||
+        normalizedStatus === "ERROR" ||
+        normalizedStatus.endsWith("_FAILED") ||
+        normalizedStatus.endsWith("_FAILURE") ||
+        normalizedStatus.endsWith("_ERROR")
+    );
+}
+
 function normalizeToolSemantics(result = {}) {
     const status = semanticStatus(
         result?.status,
         result?.ok === false ? "FAILED" : "COMPLETED"
     );
     const normalizedStatus = status.toUpperCase();
-    const executionOk =
+    const failedStatus = isFailureStatus(normalizedStatus);
+    const rawExecutionOk =
         typeof result?.executionOk === "boolean"
             ? result.executionOk
             : result?.ok !== false;
+    const executionOk =
+        rawExecutionOk &&
+        !failedStatus;
     const missingInputs = Array.isArray(result?.missingInputs)
         ? result.missingInputs.filter(Boolean).slice(0, 20)
         : [];
@@ -29,10 +48,6 @@ function normalizeToolSemantics(result = {}) {
     const requiresApproval =
         result?.requiresApproval === true ||
         normalizedStatus.includes("PENDING_APPROVAL");
-    const failedStatus =
-        normalizedStatus === "FAILED" ||
-        normalizedStatus === "TOOL_FAILED" ||
-        normalizedStatus.endsWith("_FAILED");
     const degraded =
         result?.degraded === true ||
         normalizedStatus.includes("DEGRADED") ||
@@ -44,7 +59,6 @@ function normalizeToolSemantics(result = {}) {
             : null;
     const objectiveSatisfied =
         executionOk &&
-        !failedStatus &&
         !requiresInput &&
         !requiresApproval &&
         (
@@ -79,13 +93,21 @@ function aggregateObservationSemantics(observations = []) {
     const safeObservations = Array.isArray(observations)
         ? observations.filter(Boolean)
         : [];
-    const semantics = safeObservations.map(observation => ({
-        ...normalizeToolSemantics(observation?.data || observation),
-        status:
-            observation?.status ||
-            observation?.data?.status ||
-            "COMPLETED"
-    }));
+    const semantics = safeObservations.map(observation => {
+        const semantic = normalizeToolSemantics(
+            observation?.data ||
+            observation
+        );
+
+        return {
+            ...semantic,
+            status:
+                semantic.status ||
+                observation?.status ||
+                observation?.data?.status ||
+                "COMPLETED"
+        };
+    });
 
     if (semantics.length === 0) {
         return normalizeToolSemantics({
@@ -129,18 +151,86 @@ function aggregateObservationSemantics(observations = []) {
 
 function semanticRuntimeEnvelope(result = {}) {
     if (!result || typeof result !== "object") return result;
+
+    const hasTopLevelSemantics =
+        typeof result?.executionOk === "boolean" ||
+        typeof result?.objectiveSatisfied === "boolean" ||
+        result?.requiresInput === true ||
+        result?.requiresApproval === true ||
+        result?.blocked === true ||
+        result?.degraded === true ||
+        result?.retryable === true ||
+        isFailureStatus(result?.status);
+
     const payload =
+        !hasTopLevelSemantics &&
         result?.data &&
         typeof result.data === "object" &&
         !Array.isArray(result.data)
             ? result.data
             : result;
-    const semantics = normalizeToolSemantics(payload);
+
+    const payloadSemantics =
+        normalizeToolSemantics(payload);
+    const envelopeSemantics =
+        payload === result
+            ? payloadSemantics
+            : normalizeToolSemantics(result);
+    const executionOk =
+        payloadSemantics.executionOk &&
+        envelopeSemantics.executionOk;
+    const objectiveSatisfied =
+        executionOk &&
+        payloadSemantics.objectiveSatisfied &&
+        envelopeSemantics.objectiveSatisfied;
+    const requiresInput =
+        payloadSemantics.requiresInput ||
+        envelopeSemantics.requiresInput;
+    const requiresApproval =
+        payloadSemantics.requiresApproval ||
+        envelopeSemantics.requiresApproval;
+    const blocked =
+        payloadSemantics.blocked ||
+        envelopeSemantics.blocked;
+    const degraded =
+        payloadSemantics.degraded ||
+        envelopeSemantics.degraded;
+    const retryable =
+        !blocked &&
+        (
+            payloadSemantics.retryable ||
+            envelopeSemantics.retryable
+        );
+    const genericEnvelopeStatus =
+        ["", "SUCCESS", "COMPLETED"].includes(
+            String(result?.status || "")
+                .toUpperCase()
+        );
+    const status =
+        genericEnvelopeStatus
+            ? payloadSemantics.status
+            : envelopeSemantics.status;
+    const semantics = {
+        ok: executionOk,
+        executionOk,
+        objectiveSatisfied,
+        status,
+        requiresInput,
+        requiresApproval,
+        blocked,
+        degraded,
+        retryable,
+        missingInputs: [
+            ...new Set([
+                ...(payloadSemantics.missingInputs || []),
+                ...(envelopeSemantics.missingInputs || [])
+            ])
+        ].slice(0, 20)
+    };
 
     return {
         ...result,
         ...semantics,
-        status: semantics.status,
         data: result.data
     };
 }
@@ -170,26 +260,181 @@ function installSemanticRuntimeEnvelope(runtime = globalThis.window?.JarvisToolR
 function shouldHaltToolSequence(result = {}) {
     return (
         result?.ok === false ||
+        result?.executionOk === false ||
         result?.blocked === true ||
         result?.requiresInput === true ||
         result?.requiresApproval === true ||
         result?.objectiveSatisfied === false ||
+        isFailureStatus(result?.status) ||
         String(result?.status || "").toUpperCase() === "PENDING_APPROVAL"
     );
+}
+
+function reconcileToolMemory(
+    toolName = "",
+    result = {}
+) {
+    const memory =
+        globalThis.window?.__JARVIS_TOOL_MEMORY__;
+
+    if (
+        !memory ||
+        !Array.isArray(memory.entries)
+    ) {
+        return false;
+    }
+
+    const semantics =
+        semanticRuntimeEnvelope(result);
+    const matchesTool =
+        entry =>
+            !toolName ||
+            entry?.tool === toolName;
+    const targets = [
+        memory.last,
+        memory.entries.find(matchesTool)
+    ].filter((entry, index, list) =>
+        entry &&
+        matchesTool(entry) &&
+        list.indexOf(entry) === index
+    );
+
+    for (const entry of targets) {
+        Object.assign(
+            entry,
+            {
+                ok:
+                    semantics?.executionOk === true,
+                executionOk:
+                    semantics?.executionOk === true,
+                objectiveSatisfied:
+                    semantics?.objectiveSatisfied === true,
+                status:
+                    semantics?.status ||
+                    entry.status ||
+                    "UNKNOWN",
+                requiresInput:
+                    semantics?.requiresInput === true,
+                requiresApproval:
+                    semantics?.requiresApproval === true,
+                blocked:
+                    semantics?.blocked === true,
+                degraded:
+                    semantics?.degraded === true,
+                retryable:
+                    semantics?.retryable === true,
+                missingInputs:
+                    Array.isArray(semantics?.missingInputs)
+                        ? [...semantics.missingInputs]
+                        : []
+            }
+        );
+    }
+
+    return targets.length > 0;
+}
+
+function semanticSummary(
+    semantics = {},
+    observations = []
+) {
+    const status =
+        String(semantics?.status || "UNKNOWN");
+    const missingInputs =
+        Array.isArray(semantics?.missingInputs)
+            ? semantics.missingInputs
+            : [];
+
+    if (semantics?.requiresInput === true) {
+        return [
+            "Jarvis necesita información para continuar.",
+            `Estado: ${status}.`,
+            missingInputs.length
+                ? `Faltan: ${missingInputs.join(", ")}.`
+                : "La herramienta no indicó cuáles datos faltan.",
+            "Las tareas dependientes quedaron pendientes; no se fingió que la misión terminó."
+        ].join("\n");
+    }
+
+    if (semantics?.requiresApproval === true) {
+        return [
+            "Jarvis preparó la operación, pero necesita aprobación.",
+            `Estado: ${status}.`,
+            "No se ejecutaron las tareas dependientes ni se declaró la misión completada."
+        ].join("\n");
+    }
+
+    if (semantics?.executionOk === false) {
+        return [
+            "Jarvis no pudo completar la ejecución de la herramienta.",
+            `Estado: ${status}.`,
+            semantics?.retryable === true
+                ? "El fallo está marcado como reintentable."
+                : "El fallo no está marcado como reintentable."
+        ].join("\n");
+    }
+
+    if (semantics?.degraded === true) {
+        return [
+            "Jarvis completó la tarea en modo degradado.",
+            `Estado: ${status}.`,
+            "El resultado sigue disponible, pero conserva la advertencia de capacidad reducida."
+        ].join("\n");
+    }
+
+    const unresolved = Array.isArray(observations)
+        ? observations.find(observation =>
+            observation?.objectiveSatisfied === false
+        )
+        : null;
+
+    if (unresolved) {
+        return [
+            "Jarvis ejecutó la herramienta, pero el objetivo todavía no está satisfecho.",
+            `Estado: ${status}.`
+        ].join("\n");
+    }
+
+    return "";
 }
 
 function installSemanticBridgeGuard(bridge = globalThis.window?.ToolsBridge) {
     if (!bridge || typeof bridge.executeAndCompose !== "function") return false;
     if (bridge.__semanticSequenceGuardInstalled === true) return true;
 
-    const executeAndCompose = bridge.executeAndCompose.bind(bridge);
+    const executeAndCompose =
+        bridge.executeAndCompose.bind(bridge);
+
+    bridge.executeAndCompose =
+        async function executeAndComposeWithSemanticMemory(
+            toolName,
+            args = {},
+            context = {}
+        ) {
+            const result =
+                semanticRuntimeEnvelope(
+                    await executeAndCompose(
+                        toolName,
+                        args,
+                        context
+                    )
+                );
+
+            reconcileToolMemory(
+                toolName,
+                result
+            );
+
+            return result;
+        };
+
     bridge.executeMany = async function executeManyWithSemanticGuard(
         toolCalls = [],
         context = {}
     ) {
         const results = [];
         for (const call of Array.isArray(toolCalls) ? toolCalls : []) {
-            const result = await executeAndCompose(
+            const result = await bridge.executeAndCompose(
                 call?.name,
                 call?.args || {},
                 {
@@ -202,6 +447,7 @@ function installSemanticBridgeGuard(bridge = globalThis.window?.ToolsBridge) {
         }
         return results;
     };
+
     Object.defineProperty(
         bridge,
         "__semanticSequenceGuardInstalled",
@@ -352,6 +598,20 @@ export const ResponseComposer = {
     } = {}) {
         const traceId = this._generateTraceId();
         const semantics = aggregateObservationSemantics(observations);
+        const summary =
+            semanticSummary(
+                semantics,
+                observations
+            );
+        const responseText =
+            typeof response?.text === "string"
+                ? response.text
+                : typeof response?.report === "string"
+                    ? response.report
+                    : "";
+        const visibleText =
+            summary ||
+            responseText;
 
         return {
             ...semantics,
@@ -363,12 +623,22 @@ export const ResponseComposer = {
             observations,
             response,
             reasoning,
+            ...(visibleText
+                ? {
+                    format: "markdown",
+                    report: visibleText,
+                    text: visibleText
+                }
+                : {}),
             data: {
                 toolCalls,
                 observations,
                 response,
                 reasoning,
-                semantic: semantics
+                semantic: semantics,
+                semanticSummary:
+                    summary ||
+                    null
             },
             meta: {
                 ...meta,
@@ -477,8 +747,11 @@ export const __test = {
     aggregateObservationSemantics,
     installSemanticBridgeGuard,
     installSemanticRuntimeEnvelope,
+    isFailureStatus,
     normalizeToolSemantics,
+    reconcileToolMemory,
     semanticRuntimeEnvelope,
+    semanticSummary,
     shouldHaltToolSequence
 };
 
@@ -488,5 +761,5 @@ installSemanticRuntimeEnvelope();
 scheduleSemanticBridgeGuard();
 
 console.info(
-    "📦 [RESPONSE_COMPOSER] ONLINE v7.3 semantic-execution-guard"
+    "📦 [RESPONSE_COMPOSER] ONLINE v7.4 semantic-memory-terminal"
 );
