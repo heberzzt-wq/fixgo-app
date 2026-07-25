@@ -289,6 +289,151 @@ export function resolveExplicitRepositoryTargets(
     return candidates.slice(0, 16);
 }
 
+function normalizedRepositoryPath(value = "") {
+    let clean =
+        String(value || "")
+            .trim()
+            .replaceAll("\\", "/");
+
+    while (
+        clean.startsWith("./") ||
+        clean.startsWith("/")
+    ) {
+        clean =
+            clean.startsWith("./")
+                ? clean.slice(2)
+                : clean.slice(1);
+    }
+
+    return clean.toLocaleLowerCase();
+}
+
+export function addRepositoryDiscoveryPreflights({
+    toolCalls = [],
+    catalog = [],
+    repositoryIndex = {}
+} = {}) {
+    const calls =
+        Array.isArray(toolCalls)
+            ? toolCalls
+            : [];
+    const tools =
+        Array.isArray(catalog)
+            ? catalog
+            : [];
+    const searchTool =
+        tools.find(tool =>
+            tool?.name === "repo.search" &&
+            tool?.mutates !== true
+        ) ||
+        null;
+    const indexedPaths =
+        new Set();
+
+    if (
+        repositoryIndex &&
+        typeof repositoryIndex === "object"
+    ) {
+        for (
+            const [key, metadata] of
+            Object.entries(repositoryIndex)
+        ) {
+            const path =
+                normalizedRepositoryPath(
+                    metadata?.path ||
+                    metadata?.file ||
+                    key
+                );
+
+            if (!path) continue;
+            indexedPaths.add(path);
+
+            const segments =
+                path.split("/")
+                    .filter(Boolean);
+            const basename =
+                segments[segments.length - 1] ||
+                "";
+
+            if (basename) {
+                indexedPaths.add(basename);
+            }
+        }
+    }
+
+    if (
+        !searchTool ||
+        indexedPaths.size === 0
+    ) {
+        return calls.slice(0, 20);
+    }
+
+    const result = [];
+    const scheduledSearches =
+        new Set();
+
+    for (const call of calls) {
+        const definition =
+            tools.find(tool =>
+                tool?.name === call?.name
+            ) ||
+            null;
+        const required =
+            Array.isArray(
+                definition?.inputSchema?.required
+            )
+                ? definition.inputSchema.required
+                : [];
+        const requiresVerifiedFile =
+            String(call?.name || "")
+                .startsWith("repo.") &&
+            required.includes("file");
+        const rawTarget =
+            call?.args?.file ||
+            call?.args?.path ||
+            call?.args?.target ||
+            "";
+        const normalizedTarget =
+            normalizedRepositoryPath(
+                rawTarget
+            );
+
+        if (
+            requiresVerifiedFile &&
+            normalizedTarget &&
+            !indexedPaths.has(normalizedTarget)
+        ) {
+            if (
+                !scheduledSearches.has(
+                    normalizedTarget
+                )
+            ) {
+                scheduledSearches.add(
+                    normalizedTarget
+                );
+                result.push({
+                    name:
+                        searchTool.name,
+                    args: {
+                        query:
+                            String(rawTarget)
+                                .trim()
+                                .slice(0, 600)
+                    },
+                    approved:
+                        false,
+                    reason:
+                        "REPOSITORY_TARGET_DISCOVERY_PREFLIGHT"
+                });
+            }
+        }
+
+        result.push(call);
+    }
+
+    return result.slice(0, 20);
+}
+
 export function buildExecutableSourceView(source = "") {
     const input =
         String(source || "");

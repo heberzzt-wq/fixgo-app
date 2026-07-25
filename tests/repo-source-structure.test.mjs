@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+    addRepositoryDiscoveryPreflights,
     analyzeRepoSourceStructure,
     buildExecutableSourceView,
     extractQualifiedSourceIdentifiers,
@@ -146,5 +147,76 @@ test("explicit repository targets keep every named file and exclude runtime tool
             "gestia-terminal.html",
             "gestia-core/jarvis/jarvis.multitool.pack.js"
         ]
+    );
+});
+
+test("unresolved schema-required repo files receive discovery preflights from the live index", () => {
+    const catalog = [{
+        name: "repo.search",
+        mutates: false,
+        inputSchema: {
+            type: "object",
+            required: ["query"]
+        }
+    }, {
+        name: "repo.diagnose",
+        mutates: false,
+        inputSchema: {
+            type: "object",
+            required: ["file"]
+        }
+    }, {
+        name: "repo.read",
+        mutates: false,
+        inputSchema: {
+            type: "object",
+            required: ["file"]
+        }
+    }];
+    const calls =
+        addRepositoryDiscoveryPreflights({
+            toolCalls: [{
+                name: "repo.diagnose",
+                args: {
+                    file: "tecnico b2b"
+                }
+            }, {
+                name: "repo.read",
+                args: {
+                    file: "app-login.js"
+                }
+            }],
+            catalog,
+            repositoryIndex: {
+                login: {
+                    path: "app-login.js"
+                },
+                tecnico: {
+                    path: "tecnico-b2b.html"
+                }
+            }
+        });
+
+    assert.deepEqual(
+        calls.map(call => ({
+            name: call.name,
+            args: call.args
+        })),
+        [{
+            name: "repo.search",
+            args: {
+                query: "tecnico b2b"
+            }
+        }, {
+            name: "repo.diagnose",
+            args: {
+                file: "tecnico b2b"
+            }
+        }, {
+            name: "repo.read",
+            args: {
+                file: "app-login.js"
+            }
+        }]
     );
 });

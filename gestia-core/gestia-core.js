@@ -45,8 +45,9 @@ import {
     runJarvisMission
 } from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-grounded-execution-args-v51-20260724';
 import {
+    addRepositoryDiscoveryPreflights,
     resolveExplicitRepositoryTargets
-} from '/gestia-core/repo/repo.source.structure.js?v=sia7-explicit-repo-targets-v3-20260724';
+} from '/gestia-core/repo/repo.source.structure.js?v=sia7-repo-discovery-preflight-v4-20260724';
 //import { ejecutarCambios } from '/gestia-core/operations-executor.engine.js';
 
 // ======================================================================================
@@ -5163,11 +5164,17 @@ if (
                     "EXPLICIT_REPOSITORY_TARGET_EVIDENCE"
             }));
     const missionInitialToolCalls =
-        [
-            ...missionContractToolCalls,
-            ...explicitRepositoryReadCalls
-        ]
-            .slice(0, 20);
+        addRepositoryDiscoveryPreflights({
+            toolCalls: [
+                ...missionContractToolCalls,
+                ...explicitRepositoryReadCalls
+            ],
+            catalog:
+                missionToolCatalog,
+            repositoryIndex:
+                window.__REPO_INDEX__ ||
+                {}
+        });
 
     const missionResult =
         await runJarvisMission({
