@@ -1772,6 +1772,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(core, /DIRECT_ACTUATOR_COMPOSITION/);
     assert.match(core, /directActuatorFinalResponse/);
     assert.match(terminal, /sia7-semantic-coverage-audit-v54-20260724/);
+    assert.match(terminal, /jarvis-tools-v7-20260724-semantic-coverage-v54/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
