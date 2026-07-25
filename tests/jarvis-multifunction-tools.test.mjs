@@ -2266,8 +2266,20 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         path.join(__dirname, "..", "gestia-core", "gestia-core.js"),
         "utf8"
     );
+    const terminal = fs.readFileSync(
+        path.join(__dirname, "..", "gestia-terminal.html"),
+        "utf8"
+    );
 
     assert.match(core, /jarvis-tools-v7-20260724-validated-artifacts-v63/);
+    assert.match(
+        terminal,
+        /jarvis-tools-v7-20260725-semantic-envelope-v64/
+    );
+    assert.match(
+        core,
+        /jarvis-tools-v7-20260725-semantic-envelope-v64/
+    );
     assert.match(core, /DOCUMENT_BLUEPRINT_REQUIRED/);
     assert.match(core, /PAGE_BLUEPRINT_REQUIRED/);
     assert.match(core, /no se creo un archivo parcial/);
