@@ -110,3 +110,38 @@ test("technical failure stays retryable without pretending objective completion"
     assert.equal(semantic.blocked, false);
     assert.equal(semantic.retryable, true);
 });
+
+test("runtime wrapper lifts nested semantic status without losing raw data", async () => {
+    const rawData = {
+        ok: true,
+        status: "MARKETING_INPUT_REQUIRED",
+        readyForProduction: false,
+        campaign: null,
+        missingInputs: ["audience", "offer"]
+    };
+    const runtime = {
+        async execute() {
+            return {
+                ok: true,
+                success: true,
+                status: "COMPLETED",
+                data: rawData,
+                executionId: "runtime-semantic-test"
+            };
+        }
+    };
+
+    assert.equal(__test.installSemanticRuntimeEnvelope(runtime), true);
+    assert.equal(__test.installSemanticRuntimeEnvelope(runtime), true);
+
+    const result = await runtime.execute("marketing.plan", {}, {});
+
+    assert.equal(result.ok, true);
+    assert.equal(result.executionOk, true);
+    assert.equal(result.objectiveSatisfied, false);
+    assert.equal(result.status, "MARKETING_INPUT_REQUIRED");
+    assert.equal(result.requiresInput, true);
+    assert.equal(result.blocked, true);
+    assert.equal(result.data, rawData);
+    assert.equal(runtime.__semanticEnvelopeInstalled, true);
+});
