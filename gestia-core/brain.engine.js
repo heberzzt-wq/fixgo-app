@@ -37,7 +37,7 @@ import {
   buildJarvisMultifunctionToolCalls,
   mergeJarvisToolCalls
 
-} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-semantic-completion-audit-20260724";
+} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-governed-completion-audit-20260724";
 
 import {
 

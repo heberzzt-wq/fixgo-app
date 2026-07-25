@@ -186,6 +186,52 @@ test("browser mission contract returns every model-selected high-level tool", as
     }
 });
 
+test("browser planner blocks tool calls with missing required arguments", () => {
+    const catalog = [{
+        name: "repo.read",
+        description: "Lee un archivo real.",
+        mutates: false,
+        requiresApproval: false,
+        inputSchema: {
+            type: "object",
+            required: ["file"],
+            properties: {
+                file: { type: "string" }
+            },
+            additionalProperties: false
+        }
+    }];
+
+    assert.equal(
+        plannerTest.trustedPlanCalls(
+            {
+                toolCalls: [{
+                    name: "repo.read",
+                    args: {}
+                }]
+            },
+            catalog,
+            {}
+        ).length,
+        0
+    );
+    assert.equal(
+        plannerTest.trustedPlanCalls(
+            {
+                toolCalls: [{
+                    name: "repo.read",
+                    args: {
+                        file: "gestia-core/gestia-core.js"
+                    }
+                }]
+            },
+            catalog,
+            {}
+        ).length,
+        1
+    );
+});
+
 test("multifunction pack registers certification and remains read-only", () => {
     const runtime =
         createRuntime();
@@ -1641,7 +1687,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(core, /observation\?\.type === "JARVIS_CONVERSATIONAL_RESPONSE"/);
     assert.match(core, /DIRECT_ACTUATOR_COMPOSITION/);
     assert.match(core, /directActuatorFinalResponse/);
-    assert.match(terminal, /sia7-bounded-business-v3-20260724-completion-audit-v41/);
+    assert.match(terminal, /sia7-bounded-business-v3-20260724-governed-audit-v42/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {

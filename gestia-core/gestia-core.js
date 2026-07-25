@@ -40,7 +40,7 @@ import {
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     buildJarvisMultifunctionToolCalls
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-semantic-completion-audit-20260724';
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-governed-completion-audit-20260724';
 import {
     runJarvisMission
 } from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-mission-orchestrator-v6-objective-contract-20260724';
@@ -191,9 +191,9 @@ import {
     sincronizarCorralSemantico,
     getSemanticCognitiveState
 } from '/gestia-core/semantic.engine.js?v=sia7-model-context-v8-20260714';
-import '/gestia-core/brain.engine.js?v=sia7-semantic-completion-audit-20260724';
+import '/gestia-core/brain.engine.js?v=sia7-governed-completion-audit-20260724';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260724-completion-audit-v26';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260724-governed-audit-v27';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260707-4123';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260714-safe-image-artifacts';
 
@@ -4953,9 +4953,28 @@ if (
                         name => !resolvedToolNames.has(name)
                     );
                     if (missingRequiredToolNames.length === 0) {
+                        const completionAuditNamespaces =
+                            new Set(
+                                [
+                                    ...mission.requiredToolNames,
+                                    ...mission.completedTasks.map(item => item.name),
+                                    ...mission.blockedTasks.map(item => item.name)
+                                ]
+                                    .map(name =>
+                                        String(name || "")
+                                            .split(".")[0]
+                                            .trim()
+                                    )
+                                    .filter(Boolean)
+                            );
                         const completionAuditCatalog =
                             registeredMissionTools
                                 .filter(tool =>
+                                    completionAuditNamespaces.has(
+                                        String(tool?.name || "")
+                                            .split(".")[0]
+                                            .trim()
+                                    ) &&
                                     !resolvedToolNames.has(
                                         tool?.name
                                     )

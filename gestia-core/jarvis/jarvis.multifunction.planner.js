@@ -1,4 +1,4 @@
-const VERSION = "3.5.0-semantic-completion-audit";
+const VERSION = "3.5.1-governed-completion-audit";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
@@ -86,7 +86,9 @@ async function callBrowserSemanticPlan(input = "", catalog = [], missionState = 
         "Interpreta significado, typos, negaciones y ordenes mixtas. Selecciona exclusivamente nombres exactos del catalogo.",
         "No autorices escrituras. Conserva todas las intenciones independientes y usa herramientas especializadas para entregables operativos.",
         "Si una investigacion limita fuentes a un dominio, copia el dominio exacto en allowedDomain de web.research.",
-        "Devuelve solamente JSON valido con toolCalls, missionComplete=false y explanation.",
+        missionState?.phase === "COMPLETION_AUDIT"
+            ? "AUDITORIA DE CIERRE: compara cada entregable con la evidencia. Si todo esta satisfecho devuelve toolCalls=[] y missionComplete=true. Si falta algo devuelve exactamente una herramienta pertinente con argumentos completos y missionComplete=false. No explores capacidades no solicitadas."
+            : "Devuelve solamente JSON valido con toolCalls, missionComplete=false y explanation.",
         `CATALOGO=${catalog.map(tool => tool.name).join(",")}`,
         missionState ? `ESTADO_DE_MISION=${JSON.stringify(missionState).slice(0, 12000)}` : "",
         `INSTRUCCION=${boundedInstruction}`
@@ -103,7 +105,16 @@ async function callBrowserSemanticPlan(input = "", catalog = [], missionState = 
                 );
                 if (!response.ok) throw new Error(`CLIENT_SEMANTIC_PLAN_HTTP_${response.status}`);
                 const plan = extractJsonObject(await response.text());
-                if (!Array.isArray(plan?.toolCalls) || plan.toolCalls.length === 0) {
+                if (
+                    !Array.isArray(plan?.toolCalls) ||
+                    (
+                        plan.toolCalls.length === 0 &&
+                        !(
+                            missionState?.phase === "COMPLETION_AUDIT" &&
+                            plan?.missionComplete === true
+                        )
+                    )
+                ) {
                     throw new Error("CLIENT_SEMANTIC_PLAN_EMPTY");
                 }
                 return {
@@ -155,19 +166,54 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
         if (!tool || seen.has(tool.name)) continue;
         seen.add(tool.name);
 
+        const args =
+            (candidate?.args || candidate?.arguments) &&
+            typeof (candidate.args || candidate.arguments) === "object" &&
+            !Array.isArray(candidate.args || candidate.arguments)
+                ? (candidate.args || candidate.arguments)
+                : {};
+        if (!hasRequiredToolArguments(tool, args)) continue;
+
         calls.push({
             name: tool.name,
-            args: (candidate?.args || candidate?.arguments) &&
-                typeof (candidate.args || candidate.arguments) === "object" &&
-                !Array.isArray(candidate.args || candidate.arguments)
-                ? (candidate.args || candidate.arguments)
-                : {},
+            args,
             reason: String(candidate?.reason || "MODEL_SEMANTIC_TOOL_SELECTION").slice(0, 240),
             mutates: tool.mutates,
             approved: tool.mutates === true && context.approved === true
         });
     }
 
+    return calls;
+}
+
+function hasRequiredToolArguments(tool = {}, args = {}) {
+    if (!args || typeof args !== "object" || Array.isArray(args)) return false;
+    const required = Array.isArray(tool?.inputSchema?.required)
+        ? tool.inputSchema.required
+        : [];
+
+    return required.every(name => {
+        if (!Object.prototype.hasOwnProperty.call(args, name)) return false;
+        const value = args[name];
+        if (value == null) return false;
+        if (typeof value === "string") return value.trim().length > 0;
+        if (Array.isArray(value)) return value.length > 0;
+        if (typeof value === "object") return Object.keys(value).length > 0;
+        return true;
+    });
+}
+
+function attachPlanMetadata(calls = [], plan = {}) {
+    Object.defineProperties(calls, {
+        missionComplete: {
+            value: plan?.missionComplete === true,
+            enumerable: false
+        },
+        completionAssessment: {
+            value: plan?.completionAssessment || null,
+            enumerable: false
+        }
+    });
     return calls;
 }
 
@@ -454,18 +500,7 @@ export async function buildJarvisMultifunctionToolCalls(input = "", context = {}
             checkedAt: new Date().toISOString()
         };
 
-        Object.defineProperties(calls, {
-            missionComplete: {
-                value: plan?.missionComplete === true,
-                enumerable: false
-            },
-            completionAssessment: {
-                value: plan?.completionAssessment || null,
-                enumerable: false
-            }
-        });
-
-        return calls;
+        return attachPlanMetadata(calls, plan);
     } catch (error) {
         if (
             context?.missionState?.phase !== "MISSION_CONTRACT" &&
@@ -488,7 +523,7 @@ export async function buildJarvisMultifunctionToolCalls(input = "", context = {}
                     recoveredFrom: error?.message || String(error),
                     checkedAt: new Date().toISOString()
                 };
-                return fallbackCalls;
+                return attachPlanMetadata(fallbackCalls, fallbackPlan);
             } catch (browserFallbackError) {
                 error = new Error(
                     `CLOUD_${error?.message || "FAILED"}__BROWSER_${browserFallbackError?.message || "FAILED"}`
@@ -521,6 +556,7 @@ export function describeJarvisMultifunctionPlanner() {
 export const __test = {
     runtimeCatalog,
     trustedPlanCalls,
+    hasRequiredToolArguments,
     planCacheKey,
     extractJsonObject,
     callBrowserMissionContract,

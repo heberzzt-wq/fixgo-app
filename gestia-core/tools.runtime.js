@@ -5,7 +5,7 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-semantic-completion-audit-20260724";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-governed-completion-audit-20260724";
 import {
     registerJarvisActuatorTools
 } from "./jarvis/jarvis.actuator.pack.js?v=sia7-real-actuators-v3.6-pdf-visual-20260714";
@@ -611,6 +611,29 @@ JarvisToolRuntime.register({
     mutates: false,
     requiresApproval: false,
     output: "REPO_FILE_CONTENT",
+    inputSchema: {
+        type: "object",
+        required: ["file"],
+        properties: {
+            file: {
+                type: "string",
+                description: "Ruta real verificada del archivo que se debe leer."
+            },
+            startLine: {
+                type: "integer",
+                description: "Primera linea opcional."
+            },
+            endLine: {
+                type: "integer",
+                description: "Ultima linea opcional."
+            },
+            maxBytes: {
+                type: "integer",
+                description: "Limite opcional de bytes."
+            }
+        },
+        additionalProperties: false
+    },
     execute: async (args = {}, context = {}) => {
         const file =
             args.file ||
@@ -5629,6 +5652,17 @@ JarvisToolRuntime.register({
     mutates: false,
     requiresApproval: false,
     output: "REPO_SEARCH_RESULT",
+    inputSchema: {
+        type: "object",
+        required: ["query"],
+        properties: {
+            query: {
+                type: "string",
+                description: "Texto o simbolo que se debe localizar en el repositorio real."
+            }
+        },
+        additionalProperties: false
+    },
     execute: async (args = {}, context = {}) => {
         const argObject =
             args &&
@@ -6077,6 +6111,17 @@ JarvisToolRuntime.register({
     mutates: false,
     requiresApproval: false,
     output: "REPO_IMPACT_RESULT",
+    inputSchema: {
+        type: "object",
+        required: ["file"],
+        properties: {
+            file: {
+                type: "string",
+                description: "Ruta real verificada del archivo cuyo impacto se debe analizar."
+            }
+        },
+        additionalProperties: false
+    },
     execute: async (args = {}, context = {}) => {
         const { analyzeRepoImpact } = await import('/gestia-core/hubs/repo.hub.js');
 

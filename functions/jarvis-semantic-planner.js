@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "1.5.0-model-audited-mission-completion";
+const VERSION = "1.6.0-governed-completion-audit";
 const DEFAULT_ENDPOINT = "https://text.pollinations.ai/openai";
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -122,6 +122,7 @@ function validatePlan(plan = {}, catalog = [], fallbackInput = "") {
                     query: String(fallbackInput).slice(0, 600)
                 }
                 : {};
+        if (!hasRequiredToolArguments(tool, args)) continue;
 
         toolCalls.push({
             name: tool.name,
@@ -226,6 +227,22 @@ function buildNativeInputSchema(inputSchema = null) {
         ),
         additionalProperties: false
     };
+}
+
+function hasRequiredToolArguments(tool = {}, args = {}) {
+    if (!args || typeof args !== "object" || Array.isArray(args)) return false;
+    const schema = buildNativeInputSchema(tool?.inputSchema);
+    const required = Array.isArray(schema?.required) ? schema.required : [];
+
+    return required.every(name => {
+        if (!Object.prototype.hasOwnProperty.call(args, name)) return false;
+        const value = args[name];
+        if (value == null) return false;
+        if (typeof value === "string") return value.trim().length > 0;
+        if (Array.isArray(value)) return value.length > 0;
+        if (typeof value === "object") return Object.keys(value).length > 0;
+        return true;
+    });
 }
 
 function buildGeminiModelTools(catalog = []) {
@@ -367,6 +384,40 @@ async function runGeminiSemanticPlanner({
         });
     }
 
+    if (missionState?.phase === "COMPLETION_AUDIT") {
+        const auditResponse = await ai.models.generateContent({
+            model,
+            contents: [
+                buildSemanticSystemInstruction(safeCatalog, missionState),
+                `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
+                [
+                    "AUDITORIA_DE_CIERRE_CONTROLADA: no estas obligado a llamar una herramienta.",
+                    "Compara uno por uno los entregables de la instruccion con completedTasks y su evidencia.",
+                    "Si todo esta satisfecho, devuelve toolCalls=[] y missionComplete=true.",
+                    "Si falta evidencia, devuelve missionComplete=false y exactamente una herramienta pertinente, inmediatamente ejecutable y con todos sus argumentos requeridos.",
+                    "No elijas herramientas para explorar capacidades no solicitadas, no repitas herramientas resueltas y no uses archivos o adjuntos inexistentes.",
+                    "Devuelve solamente JSON valido con toolCalls, explanation, missionComplete y completionAssessment."
+                ].join("\n")
+            ].join("\n\n"),
+            config: {
+                temperature: 0,
+                maxOutputTokens: 3000,
+                thinkingConfig: {
+                    thinkingBudget: 0
+                },
+                responseMimeType: "application/json"
+            }
+        });
+        const auditPlan = extractJsonObject(String(auditResponse?.text || ""));
+        return requireExecutablePlan({
+            ...validatePlan(auditPlan, safeCatalog, instruction),
+            provider: String(ai.lastProvider || "gemini"),
+            model,
+            catalogSize: safeCatalog.length,
+            planKind: "COMPLETION_AUDIT"
+        });
+    }
+
     const request = {
         model,
         contents: [
@@ -490,7 +541,17 @@ async function runSimpleSemanticPlanner({
         missionState?.phase === "MISSION_CONTRACT"
             ? "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only necesarias para TODOS los entregables, no solo la primera etapa. No omitas herramientas especializadas de landing, imagen, reel, inventario o autoevaluacion cuando se pidan. Conserva el orden de dependencias y usa missionComplete=false."
             : "",
+        missionState?.phase === "COMPLETION_AUDIT"
+            ? "AUDITORIA DE CIERRE: no estas obligado a elegir una herramienta. Compara todos los entregables con la evidencia. Si estan satisfechos usa toolCalls=[] y missionComplete=true; si falta algo usa exactamente una herramienta pertinente con argumentos completos. No explores capacidades no solicitadas."
+            : "",
         `CATALOGO_NOMBRES=${safeCatalog.map(tool => tool.name).join(",")}`,
+        missionState?.phase === "COMPLETION_AUDIT"
+            ? `CATALOGO_DE_AUDITORIA=${JSON.stringify(safeCatalog.map(tool => ({
+                name: tool.name,
+                description: tool.description,
+                inputSchema: tool.inputSchema
+            })))}`
+            : "",
         `HERRAMIENTAS_MUTANTES_NO_AUTORIZADAS=${safeCatalog.filter(tool => tool.mutates).map(tool => tool.name).join(",")}`,
         compactMission ? `ESTADO_DE_MISION=${JSON.stringify(compactMission)}` : "",
         `INSTRUCCION=${routingInstruction}`
@@ -646,11 +707,16 @@ async function runJarvisSemanticPlanner({
             }
         }
 
+        const completionAuditMode = missionState?.phase === "COMPLETION_AUDIT";
         const requestPayload = {
             model: "openai-fast",
-            tools: buildModelTools(safeCatalog),
-            tool_choice: "required",
-            parallel_tool_calls: true,
+            ...(completionAuditMode
+                ? {}
+                : {
+                    tools: buildModelTools(safeCatalog),
+                    tool_choice: "required",
+                    parallel_tool_calls: true
+                }),
             response_format: {
                 type: "json_object"
             },
@@ -672,7 +738,9 @@ async function runJarvisSemanticPlanner({
                         ...requestPayload.messages,
                         {
                             role: "system",
-                            content: `Intento de salida ${outputAttempt}: selecciona las funciones ahora.`
+                            content: completionAuditMode
+                                ? `Intento de auditoria ${outputAttempt}: cierra solo con evidencia completa; de lo contrario devuelve una sola herramienta pertinente y ejecutable.`
+                                : `Intento de salida ${outputAttempt}: selecciona las funciones ahora.`
                         }
                     ]
                 }),
@@ -687,7 +755,9 @@ async function runJarvisSemanticPlanner({
             const content = payload?.choices?.[0]?.message?.content;
 
             try {
-                const plan = extractToolCallPlan(payload, safeCatalog) || extractJsonObject(content);
+                const plan = completionAuditMode
+                    ? extractJsonObject(content)
+                    : extractToolCallPlan(payload, safeCatalog) || extractJsonObject(content);
                 const validated = validatePlan(plan, safeCatalog, instruction);
                 return requireExecutablePlan({
                     ...validated,
@@ -823,6 +893,7 @@ module.exports = {
     buildGeminiModelTools,
     buildModelTools,
     buildSemanticSystemInstruction,
+    hasRequiredToolArguments,
     isSafeToolName,
     normalizeCatalog,
     compactMissionObservation,

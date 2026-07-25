@@ -11,6 +11,7 @@ const {
     extractGeminiToolCallPlan,
     extractJsonObject,
     extractToolCallPlan,
+    hasRequiredToolArguments,
     requestModel,
     runGeminiSemanticPlanner,
     runSimpleSemanticPlanner,
@@ -55,6 +56,43 @@ test("semantic planner treats search as discovery rather than completed inspecti
     assert.match(
         instruction,
         /devuelve missionComplete=true solamente despues de auditar/
+    );
+});
+
+test("semantic planner rejects calls missing schema-required arguments", () => {
+    const readTool = {
+        name: "repo.read",
+        mutates: false,
+        inputSchema: {
+            type: "object",
+            required: ["file"],
+            properties: {
+                file: { type: "string" }
+            }
+        }
+    };
+
+    assert.equal(hasRequiredToolArguments(readTool, {}), false);
+    assert.equal(hasRequiredToolArguments(readTool, { file: "   " }), false);
+    assert.equal(
+        hasRequiredToolArguments(
+            readTool,
+            { file: "gestia-core/gestia-core.js" }
+        ),
+        true
+    );
+    assert.equal(
+        validatePlan(
+            {
+                toolCalls: [{
+                    name: "repo.read",
+                    args: {}
+                }]
+            },
+            [readTool],
+            "revisa el repo"
+        ).toolCalls.length,
+        0
     );
 });
 
@@ -642,6 +680,109 @@ test("Gemini audits mission completion when native function output is empty", as
     assert.equal(calls, 2);
     assert.equal(result.toolCalls[0].name, "repo.search");
     assert.equal(result.missionComplete, false);
+});
+
+test("Gemini completion audit is JSON-only and selects one executable follow-up", async () => {
+    const result = await runGeminiSemanticPlanner({
+        input: "Busca los registros y revisa el archivo real sin escribir.",
+        catalog: [{
+            name: "repo.read",
+            description: "Lee un archivo real.",
+            mutates: false,
+            inputSchema: {
+                type: "object",
+                required: ["file"],
+                properties: {
+                    file: { type: "string" }
+                },
+                additionalProperties: false
+            }
+        }],
+        missionState: {
+            phase: "COMPLETION_AUDIT",
+            completedTasks: [{
+                name: "repo.search",
+                observation: {
+                    results: [{
+                        file: "gestia-core/jarvis/jarvis.multitool.pack.js"
+                    }]
+                }
+            }],
+            pendingTasks: [],
+            blockedTasks: []
+        },
+        ai: {
+            lastProvider: "vertex-adc",
+            models: {
+                generateContent: async request => {
+                    assert.equal(request.config.responseMimeType, "application/json");
+                    assert.equal(request.config.tools, undefined);
+                    assert.equal(request.toolConfig, undefined);
+                    assert.match(request.contents, /AUDITORIA_DE_CIERRE_CONTROLADA/);
+                    return {
+                        text: JSON.stringify({
+                            toolCalls: [{
+                                name: "repo.read",
+                                args: {
+                                    file: "gestia-core/jarvis/jarvis.multitool.pack.js"
+                                }
+                            }],
+                            missionComplete: false,
+                            completionAssessment: {
+                                missing: ["lectura real"]
+                            }
+                        })
+                    };
+                }
+            }
+        }
+    });
+
+    assert.equal(result.planKind, "COMPLETION_AUDIT");
+    assert.deepEqual(result.toolCalls, [{
+        name: "repo.read",
+        args: {
+            file: "gestia-core/jarvis/jarvis.multitool.pack.js"
+        },
+        reason: "MODEL_SEMANTIC_TOOL_SELECTION",
+        mutates: false,
+        approved: false
+    }]);
+    assert.equal(result.missionComplete, false);
+});
+
+test("Gemini completion audit can close without a forced tool call", async () => {
+    const result = await runGeminiSemanticPlanner({
+        input: "Confirma que el diagnostico ya esta completo.",
+        catalog,
+        missionState: {
+            phase: "COMPLETION_AUDIT",
+            completedTasks: [{ name: "repo.search" }],
+            pendingTasks: [],
+            blockedTasks: []
+        },
+        ai: {
+            lastProvider: "vertex-adc",
+            models: {
+                generateContent: async request => {
+                    assert.equal(request.config.tools, undefined);
+                    return {
+                        text: JSON.stringify({
+                            toolCalls: [],
+                            missionComplete: true,
+                            completionAssessment: {
+                                missing: []
+                            }
+                        })
+                    };
+                }
+            }
+        }
+    });
+
+    assert.equal(result.toolCalls.length, 0);
+    assert.equal(result.missionComplete, true);
+    assert.equal(result.planKind, "COMPLETION_AUDIT");
 });
 
 test("Gemini creates a complete read-only mission contract before execution", async () => {
