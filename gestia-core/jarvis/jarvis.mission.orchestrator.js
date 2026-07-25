@@ -1,4 +1,4 @@
-const VERSION = "1.4.0-verified-complete-artifacts";
+const VERSION = "1.5.0-honest-contract-accounting";
 const STORAGE_KEY = "jarvis.missions.v1";
 
 function text(value = "", maximum = 120000) {
@@ -384,9 +384,13 @@ export async function runJarvisMission({
                 const completedNames = new Set(mission.completedTasks.map(item => item.name));
                 const blockedNames = new Set(mission.blockedTasks.map(item => item.name));
                 mission.contractMissingTools = mission.requiredToolNames.filter(
-                    name => !completedNames.has(name) && !blockedNames.has(name)
+                    name => !completedNames.has(name)
                 );
-                const contractSatisfied = mission.contractMissingTools.length === 0;
+                const contractUnaccountedTools =
+                    mission.contractMissingTools.filter(
+                        name => !blockedNames.has(name)
+                    );
+                const contractSatisfied = contractUnaccountedTools.length === 0;
                 const verifiedContractSatisfied =
                     contractSatisfied &&
                     mission.requiredToolNames.length > 0 &&
@@ -485,14 +489,10 @@ export async function runJarvisMission({
                 const completedNames = new Set(
                     mission.completedTasks.map(item => item.name)
                 );
-                const blockedNames = new Set(
-                    mission.blockedTasks.map(item => item.name)
-                );
                 mission.contractMissingTools =
                     mission.requiredToolNames.filter(
                         name =>
-                            !completedNames.has(name) &&
-                            !blockedNames.has(name)
+                            !completedNames.has(name)
                     );
                 mission.reason = "MISSION_INPUT_REQUIRED";
                 break;
