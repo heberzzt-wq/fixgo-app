@@ -1,5 +1,5 @@
 /**
- * GESTIA RESPONSE COMPOSER - v7.2 (SEMANTIC RUNTIME CONTRACT)
+ * GESTIA RESPONSE COMPOSER - v7.3 (SEMANTIC EXECUTION GUARD)
  * Objetivo: Estandarizar todas las salidas del sistema para Front-end, Terminal y Agent Tool Runtime.
  * Estructura estándar SIA7: { ok, status, type, data, meta, traceId }
  */
@@ -164,6 +164,71 @@ function installSemanticRuntimeEnvelope(runtime = globalThis.window?.JarvisToolR
             writable: false
         }
     );
+    return true;
+}
+
+function shouldHaltToolSequence(result = {}) {
+    return (
+        result?.ok === false ||
+        result?.blocked === true ||
+        result?.requiresInput === true ||
+        result?.requiresApproval === true ||
+        result?.objectiveSatisfied === false ||
+        String(result?.status || "").toUpperCase() === "PENDING_APPROVAL"
+    );
+}
+
+function installSemanticBridgeGuard(bridge = globalThis.window?.ToolsBridge) {
+    if (!bridge || typeof bridge.executeAndCompose !== "function") return false;
+    if (bridge.__semanticSequenceGuardInstalled === true) return true;
+
+    const executeAndCompose = bridge.executeAndCompose.bind(bridge);
+    bridge.executeMany = async function executeManyWithSemanticGuard(
+        toolCalls = [],
+        context = {}
+    ) {
+        const results = [];
+        for (const call of Array.isArray(toolCalls) ? toolCalls : []) {
+            const result = await executeAndCompose(
+                call?.name,
+                call?.args || {},
+                {
+                    ...context,
+                    approved: call?.approved === true
+                }
+            );
+            results.push(result);
+            if (shouldHaltToolSequence(result)) break;
+        }
+        return results;
+    };
+    Object.defineProperty(
+        bridge,
+        "__semanticSequenceGuardInstalled",
+        {
+            value: true,
+            configurable: false,
+            enumerable: false,
+            writable: false
+        }
+    );
+    return true;
+}
+
+function scheduleSemanticBridgeGuard() {
+    if (installSemanticBridgeGuard()) return true;
+    if (typeof document === "undefined") return false;
+
+    let attempts = 0;
+    const timer = setInterval(() => {
+        attempts += 1;
+        if (
+            installSemanticBridgeGuard() ||
+            attempts >= 40
+        ) {
+            clearInterval(timer);
+        }
+    }, 50);
     return true;
 }
 
@@ -410,15 +475,18 @@ export const ResponseComposer = {
 
 export const __test = {
     aggregateObservationSemantics,
+    installSemanticBridgeGuard,
     installSemanticRuntimeEnvelope,
     normalizeToolSemantics,
-    semanticRuntimeEnvelope
+    semanticRuntimeEnvelope,
+    shouldHaltToolSequence
 };
 
 window.ResponseComposer = ResponseComposer;
 window.GestiaResponseComposer = ResponseComposer;
 installSemanticRuntimeEnvelope();
+scheduleSemanticBridgeGuard();
 
 console.info(
-    "📦 [RESPONSE_COMPOSER] ONLINE v7.2 semantic-runtime-contract"
+    "📦 [RESPONSE_COMPOSER] ONLINE v7.3 semantic-execution-guard"
 );
