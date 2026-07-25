@@ -121,9 +121,11 @@ function safeObservation(result = {}) {
         payload?.ok !== false &&
         !failedStatus;
     const missingInputs = [
-        ...(Array.isArray(payload?.missingInputs) ? payload.missingInputs : []),
-        ...(Array.isArray(result?.missingInputs) ? result.missingInputs : [])
-    ].filter(Boolean).slice(0, 20);
+        ...new Set([
+            ...(Array.isArray(payload?.missingInputs) ? payload.missingInputs : []),
+            ...(Array.isArray(result?.missingInputs) ? result.missingInputs : [])
+        ].filter(Boolean))
+    ].slice(0, 20);
     const requiresInput =
         result?.requiresInput === true ||
         payload?.requiresInput === true ||

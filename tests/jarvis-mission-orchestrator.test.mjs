@@ -388,7 +388,7 @@ test("mission blocks writes without retrying an approval requirement", async () 
         maximumRetries: 1
     });
     assert.equal(attempts, 1);
-    assert.equal(mission.reason, "PARTIAL_CAPABILITY_BLOCKED");
+    assert.equal(mission.reason, "MISSION_APPROVAL_REQUIRED");
     assert.equal(mission.blockedTasks.length, 1);
     assert.equal(mission.blockedTasks[0].observation.requiresApproval, true);
     assert.equal(mission.approvalRequiredForWrite, true);
