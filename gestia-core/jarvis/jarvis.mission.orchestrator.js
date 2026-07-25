@@ -1,4 +1,4 @@
-const VERSION = "1.5.0-honest-contract-accounting";
+const VERSION = "1.6.0-failure-status-precedence";
 const STORAGE_KEY = "jarvis.missions.v1";
 
 function text(value = "", maximum = 120000) {
@@ -79,6 +79,18 @@ function compactEvidence(value, depth = 0) {
     );
 }
 
+function isFailureStatus(status = "") {
+    const normalizedStatus = text(status, 120).toUpperCase();
+    return (
+        normalizedStatus === "FAILED" ||
+        normalizedStatus === "TOOL_FAILED" ||
+        normalizedStatus === "ERROR" ||
+        normalizedStatus.endsWith("_FAILED") ||
+        normalizedStatus.endsWith("_FAILURE") ||
+        normalizedStatus.endsWith("_ERROR")
+    );
+}
+
 function safeObservation(result = {}) {
     const payload =
         result?.observations?.[0]?.data ||
@@ -88,60 +100,77 @@ function safeObservation(result = {}) {
         result?.data ||
         result?.response ||
         result;
+    const envelopeStatus = text(result?.status, 120);
+    const payloadStatus = text(payload?.status, 120);
+    const genericEnvelopeStatus =
+        !envelopeStatus ||
+        envelopeStatus.toUpperCase() === "SUCCESS" ||
+        envelopeStatus.toUpperCase() === "COMPLETED";
     const status = text(
-        payload?.status ||
-        result?.status ||
-        (result?.ok === false ? "FAILED" : "COMPLETED"),
+        genericEnvelopeStatus
+            ? payloadStatus || envelopeStatus || (result?.ok === false ? "FAILED" : "COMPLETED")
+            : envelopeStatus || payloadStatus || (result?.ok === false ? "FAILED" : "COMPLETED"),
         120
     );
     const normalizedStatus = status.toUpperCase();
+    const failedStatus = isFailureStatus(normalizedStatus);
     const executionOk =
+        result?.executionOk !== false &&
         result?.ok !== false &&
-        payload?.ok !== false;
-    const missingInputs = Array.isArray(payload?.missingInputs)
-        ? payload.missingInputs.filter(Boolean).slice(0, 20)
-        : [];
+        payload?.executionOk !== false &&
+        payload?.ok !== false &&
+        !failedStatus;
+    const missingInputs = [
+        ...(Array.isArray(payload?.missingInputs) ? payload.missingInputs : []),
+        ...(Array.isArray(result?.missingInputs) ? result.missingInputs : [])
+    ].filter(Boolean).slice(0, 20);
     const requiresInput =
+        result?.requiresInput === true ||
         payload?.requiresInput === true ||
         normalizedStatus.includes("INPUT_REQUIRED") ||
         missingInputs.length > 0;
     const requiresApproval =
+        result?.requiresApproval === true ||
         payload?.requiresApproval === true ||
         normalizedStatus.includes("PENDING_APPROVAL");
-    const failedStatus =
-        normalizedStatus === "FAILED" ||
-        normalizedStatus === "TOOL_FAILED" ||
-        normalizedStatus.endsWith("_FAILED");
     const degraded =
+        result?.degraded === true ||
         payload?.degraded === true ||
         normalizedStatus.includes("DEGRADED") ||
         normalizedStatus === "GROUNDED_LOCAL_FALLBACK" ||
+        Boolean(result?.cloudError) ||
         Boolean(payload?.cloudError);
     const explicitObjectiveSatisfied =
         typeof payload?.objectiveSatisfied === "boolean"
             ? payload.objectiveSatisfied
-            : null;
+            : typeof result?.objectiveSatisfied === "boolean"
+                ? result.objectiveSatisfied
+                : null;
     const objectiveSatisfied =
         executionOk &&
-        !failedStatus &&
         !requiresInput &&
         !requiresApproval &&
         (
             explicitObjectiveSatisfied !== null
                 ? explicitObjectiveSatisfied
-                : payload?.readyForProduction !== false
+                : payload?.readyForProduction !== false &&
+                    result?.readyForProduction !== false
         );
     const blocked =
+        result?.blocked === true ||
         payload?.blocked === true ||
         requiresInput ||
         requiresApproval;
+    const explicitRetryable =
+        typeof payload?.retryable === "boolean"
+            ? payload.retryable
+            : typeof result?.retryable === "boolean"
+                ? result.retryable
+                : null;
     const retryable =
-        payload?.retryable === true ||
-        (
-            !executionOk &&
-            !blocked &&
-            payload?.retryable !== false
-        );
+        explicitRetryable !== null
+            ? explicitRetryable
+            : !executionOk && !blocked;
     const preparedArtifact =
         normalizedStatus === "DOCUMENT_CONTENT_COMPOSED"
             ? {
@@ -220,7 +249,10 @@ function safeObservation(result = {}) {
                 payload?.message,
                 payload?.answer,
                 payload?.summary,
-                payload?.text
+                payload?.text,
+                result?.message,
+                result?.summary,
+                result?.text
             ].find(value =>
                 typeof value === "string" &&
                 value.trim()
@@ -241,6 +273,16 @@ function safeObservation(result = {}) {
         preparedArtifact,
         evidence: compactEvidence({
             ...payload,
+            envelope: {
+                status: result?.status || null,
+                executionOk: result?.executionOk,
+                objectiveSatisfied: result?.objectiveSatisfied,
+                requiresInput: result?.requiresInput,
+                requiresApproval: result?.requiresApproval,
+                blocked: result?.blocked,
+                degraded: result?.degraded,
+                retryable: result?.retryable
+            },
             missingInputs
         })
     };
@@ -541,4 +583,4 @@ export function recoverJarvisMission(missionId, { storage } = {}) {
     return readMissions(storageOrMemory(storage)).find(item => item.missionId === missionId) || null;
 }
 
-export const __test = { callSignature, compactRoutingInstruction, safeObservation, trustedCalls };
+export const __test = { callSignature, compactRoutingInstruction, isFailureStatus, safeObservation, trustedCalls };
