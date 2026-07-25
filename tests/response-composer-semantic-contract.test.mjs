@@ -145,3 +145,43 @@ test("runtime wrapper lifts nested semantic status without losing raw data", asy
     assert.equal(result.data, rawData);
     assert.equal(runtime.__semanticEnvelopeInstalled, true);
 });
+
+test("bridge sequence guard stops dependent calls after semantic input block", async () => {
+    const executed = [];
+    const bridge = {
+        async executeAndCompose(name) {
+            executed.push(name);
+            return name === "marketing.plan"
+                ? {
+                    ok: true,
+                    executionOk: true,
+                    objectiveSatisfied: false,
+                    status: "MARKETING_INPUT_REQUIRED",
+                    requiresInput: true,
+                    blocked: true
+                }
+                : {
+                    ok: true,
+                    executionOk: true,
+                    objectiveSatisfied: true,
+                    status: "SUCCESS"
+                };
+        }
+    };
+
+    assert.equal(__test.installSemanticBridgeGuard(bridge), true);
+    assert.equal(__test.installSemanticBridgeGuard(bridge), true);
+
+    const results = await bridge.executeMany([
+        { name: "web.research", args: {} },
+        { name: "marketing.plan", args: {} },
+        { name: "page.plan", args: {} },
+        { name: "image.plan", args: {} },
+        { name: "reel.plan", args: {} }
+    ]);
+
+    assert.deepEqual(executed, ["web.research", "marketing.plan"]);
+    assert.equal(results.length, 2);
+    assert.equal(results[1].requiresInput, true);
+    assert.equal(bridge.__semanticSequenceGuardInstalled, true);
+});
