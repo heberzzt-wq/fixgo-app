@@ -5,7 +5,7 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-bounded-segmented-docx-v75-20260725";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-recoverable-segmented-docx-v76-20260725";
 import {
     registerJarvisActuatorTools
 } from "./jarvis/jarvis.actuator.pack.js?v=sia7-runtime-truth-v70-20260725";

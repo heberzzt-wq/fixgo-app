@@ -422,7 +422,13 @@ test("document composition continues a cut response and verifies its real ending
         globalThis.fetch = async (_url, options) => {
             requestCount += 1;
             const request = JSON.parse(options.body);
-            assert.equal(request.data.maxOutputTokens, 8000);
+            assert.equal(
+                request.data.maxOutputTokens,
+                requestCount ===
+                    1
+                    ? 8000
+                    : 4500
+            );
             return {
                 ok: true,
                 text: async () => JSON.stringify({
@@ -1039,7 +1045,7 @@ test("capability forensics reports evidence-backed gaps without claiming Codex p
     }
 });
 
-test("large document composition builds verified semantic segments concurrently", async () => {
+test("large document composition repairs one failed semantic segment", async () => {
     const previousAuth = globalThis.auth;
     const previousFetch = globalThis.fetch;
     const runtime = createRuntime();
@@ -1153,6 +1159,8 @@ test("large document composition builds verified semantic segments concurrently"
         segmentTwo,
         segmentThree
     ];
+    let thirdSegmentFailures =
+        0;
 
     try {
         globalThis.auth = {
@@ -1164,6 +1172,8 @@ test("large document composition builds verified semantic segments concurrently"
         globalThis.fetch = async (_url, options) => {
             const request =
                 JSON.parse(options.body);
+            const prompt =
+                request.data.input;
             assert.equal(
                 request.data.maxOutputTokens,
                 4500
@@ -1173,9 +1183,41 @@ test("large document composition builds verified semantic segments concurrently"
                 120000,
                 `Segment prompt too large: ${request.data.input.length}`
             );
-            const message =
-                segments[requestCount];
             requestCount += 1;
+            if (
+                prompt.includes(
+                    "Redacta el segmento 3 de 3"
+                ) &&
+                thirdSegmentFailures <
+                    2
+            ) {
+                thirdSegmentFailures +=
+                    1;
+                return {
+                    ok: true,
+                    text: async () =>
+                        JSON.stringify({
+                            result: {
+                                ok:
+                                    false,
+                                status:
+                                    "SEMANTIC_CONVERSATION_UNAVAILABLE",
+                                error:
+                                    "SEGMENT_TIMEOUT"
+                            }
+                        })
+                };
+            }
+            const message =
+                prompt.includes(
+                    "Redacta el segmento 1 de 3"
+                )
+                    ? segments[0]
+                    : prompt.includes(
+                        "Redacta el segmento 2 de 3"
+                    )
+                        ? segments[1]
+                        : `${segments[2]}\n\n[[JARVIS_DOCUMENT_COMPLETE]]`;
             return {
                 ok: true,
                 text: async () =>
@@ -1211,10 +1253,14 @@ test("large document composition builds verified semantic segments concurrently"
             }
         );
 
-        assert.equal(requestCount, 3);
+        assert.equal(
+            thirdSegmentFailures,
+            2
+        );
+        assert.equal(requestCount, 5);
         assert.equal(result.ok, true, JSON.stringify(result));
         assert.equal(result.segmentedComposition, true);
-        assert.equal(result.continuationCount, 0);
+        assert.equal(result.continuationCount, 1);
         assert.ok(result.wordCount >= 4500);
         assert.ok(result.sectionCount >= 18);
         assert.ok(result.tableBlueprintCount >= 12);
@@ -1257,7 +1303,7 @@ test("system health exposes bridge server version separately from tool pack vers
         );
         assert.equal(
             result.toolPackVersion,
-            "1.35.0-bounded-segmented-document-compose"
+            "1.36.0-recoverable-segmented-document-compose"
         );
         assert.notEqual(
             result.toolPackVersion,
@@ -2547,7 +2593,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-bounded-segmented-docx-v75-20260725/);
+    assert.match(terminal, /sia7-recoverable-segmented-docx-v76-20260725/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
     assert.match(terminal, /jarvis-tools-v7-20260725-deep-artifacts-v65/);

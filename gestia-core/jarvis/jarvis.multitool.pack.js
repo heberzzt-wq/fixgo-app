@@ -32,7 +32,7 @@ import {
     validateDocumentBlueprint
 } from "./jarvis.document.validator.js?v=sia7-runtime-truth-v70-20260725";
 
-const VERSION = "1.35.0-bounded-segmented-document-compose";
+const VERSION = "1.36.0-recoverable-segmented-document-compose";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";
@@ -2514,14 +2514,38 @@ export function registerJarvisMultifunctionTools(runtime) {
                         successfulSegments.length ===
                         segmentPrompts.length;
                     semantic =
-                        completionVerified
+                        successfulSegments.length >
+                        0
                             ? {
                                 ...successfulSegments[
                                     successfulSegments.length -
                                     1
                                 ],
                                 message:
-                                    content
+                                    content,
+                                partialSegmentFailure:
+                                    !completionVerified,
+                                failedSegmentErrors:
+                                    segmentResults
+                                        .filter(
+                                            result =>
+                                                result
+                                                    ?.ok !==
+                                                true
+                                        )
+                                        .map(
+                                            result =>
+                                                clean(
+                                                    result
+                                                        ?.error ||
+                                                    result
+                                                        ?.status ||
+                                                    "DOCUMENT_SEGMENT_COMPOSITION_FAILED"
+                                                )
+                                        )
+                                        .filter(
+                                            Boolean
+                                        )
                             }
                             : segmentResults.find(
                                 result =>
@@ -2608,7 +2632,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                             ].join("\n"),
                             {
                                 maxOutputTokens:
-                                    8000
+                                    4500
                             }
                         );
                     continuationCount += 1;
