@@ -40,7 +40,7 @@ import {
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     buildJarvisMultifunctionToolCalls
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-initial-plan-bounded-contract-v85-20260725';
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-focused-web-query-v87-20260726';
 import {
     runJarvisMission
 } from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-compact-mission-storage-v83-20260725';
@@ -195,14 +195,14 @@ import {
     sincronizarCorralSemantico,
     getSemanticCognitiveState
 } from '/gestia-core/semantic.engine.js?v=sia7-model-context-v8-20260714';
-import '/gestia-core/brain.engine.js?v=sia7-initial-plan-bounded-contract-v85-20260725';
+import '/gestia-core/brain.engine.js?v=sia7-focused-web-query-v87-20260726';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260726-evidence-supervision-v86';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260726-focused-web-evidence-v87';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260725-semantic-envelope-v64';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260725-repair-candidates-v80';
 
 const MISSION_EVIDENCE_CONTRACT_VERSION =
-    "1.0.0-balanced-evidence-receipt";
+    "1.1.0-focused-web-evidence";
 
 // ======================================================================================
 // 🛰️ SECCIÓN 2: GESTIA CORE ORCHESTRATOR (KERNEL V16.0)
@@ -4479,22 +4479,40 @@ function buildMissionEvidenceReceipt(
                     : "no_certificada"}`
             );
         }
-        if (
+        const hasCheckCounts =
             Number.isFinite(
                 Number(
                     evidenceSummary?.total
                 )
-            )
-        ) {
+            ) &&
+            Number.isFinite(
+                Number(
+                    evidenceSummary?.passed
+                )
+            );
+        const hasCapabilityCounts =
+            [
+                "READY",
+                "PARTIAL",
+                "NOT_AVAILABLE"
+            ].some(key =>
+                Number.isFinite(
+                    Number(
+                        evidenceSummary?.[key]
+                    )
+                )
+            );
+        if (hasCheckCounts) {
             details.push(
                 `checks=${Number(
                     evidenceSummary.passed
-                ) || 0}/${Number(
+                )}/${Number(
                     evidenceSummary.total
                 )}`
             );
         }
         if (
+            hasCheckCounts &&
             Number.isFinite(
                 Number(
                     evidenceSummary?.failed
@@ -4505,6 +4523,17 @@ function buildMissionEvidenceReceipt(
                 `fallidos=${Number(
                     evidenceSummary.failed
                 )}`
+            );
+        }
+        if (hasCapabilityCounts) {
+            details.push(
+                `capacidades=READY:${Number(
+                    evidenceSummary.READY
+                ) || 0},PARTIAL:${Number(
+                    evidenceSummary.PARTIAL
+                ) || 0},NOT_AVAILABLE:${Number(
+                    evidenceSummary.NOT_AVAILABLE
+                ) || 0}`
             );
         }
         if (

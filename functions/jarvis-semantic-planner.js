@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "1.16.0-initial-plan-bounded-contract";
+const VERSION = "1.17.0-focused-web-query";
 const DEFAULT_ENDPOINT = "https://text.pollinations.ai/openai";
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -391,6 +391,7 @@ function buildSemanticSystemInstruction(catalog = [], missionState = null) {
         "Para page.plan, image.plan y reel.plan completa una especificacion concreta basada solo en la evidencia disponible. Planear en read-only no equivale a crear, publicar ni desplegar.",
         "En reel.plan la suma exacta de durationSeconds de las escenas debe coincidir con durationSeconds total.",
         "Cuando el usuario limite la investigacion a un dominio, copia ese dominio exacto en allowedDomain de web.research y descarta fuentes externas.",
+        "En web.research, query debe contener solo el objetivo concreto de investigacion y sus terminos distintivos; no copies la mision mixta completa, nombres de archivos ni otras ordenes. Conserva literalmente conceptos tecnicos importantes como custom claims, roles, APIs o normas.",
         "Cuando el usuario pida informacion o costos oficiales, configura allowedDomain con el dominio oficial de la autoridad identificada en la solicitud. No presentes como oficial una cifra respaldada solamente por fuentes secundarias; si falta fuente primaria dilo expresamente.",
         "Cuando el usuario pida hechos sobre una empresa, persona o marca por nombre exacto y no proporcione dominio, copia ese nombre exacto en exactEntity de web.research para impedir atribuciones a entidades parecidas.",
         "No razones sobre rutas futuras desconocidas. repo.search es descubrimiento inicial cuando falta una ruta exacta; no satisface por si sola una solicitud que tambien pide leer, revisar contenido, diagnosticar, explicar hallazgos o calcular riesgos.",
@@ -446,6 +447,7 @@ async function runGeminiSemanticPlanner({
                     "Distingue descubrimiento de inspeccion: repo.search o repo.scan no completan por si solas un entregable que pide revisar archivos, explicar hallazgos o evaluar riesgos; el contrato debe conservar las herramientas de lectura, diagnostico e impacto disponibles.",
                     "Conserva el orden de dependencias. No incluyas herramientas mutantes si la orden prohibe escribir, publicar, generar archivos o producir medios.",
                     "Si las fuentes estan limitadas a un dominio, copia ese dominio exacto en allowedDomain de cada web.research.",
+                    "En cada web.research, query incluye solamente el objetivo de investigacion y sus terminos tecnicos distintivos; no copies toda la mision ni otros entregables.",
                     "Si se investiga una entidad nombrada sin dominio, copia el nombre exacto en exactEntity de web.research.",
                     "Devuelve JSON con toolCalls, explanation, missionComplete=false y completionAssessment que liste los entregables cubiertos por cada herramienta."
                 ].join("\n")
@@ -807,6 +809,7 @@ async function runSimpleSemanticPlanner({
         "Conserva cada sujeto y objetivo independiente. Una herramienta puede aparecer varias veces cuando los argumentos sean distintos.",
         "Devuelve unicamente JSON valido con toolCalls, explanation, missionComplete y completionAssessment. missionComplete solo puede ser true al auditar que todos los entregables de la mision ya estan satisfechos.",
         "Si la instruccion limita fuentes a un dominio, copia el dominio exacto en allowedDomain de web.research.",
+        "En web.research, query debe ser una consulta focalizada con solo el objetivo investigable y sus terminos tecnicos distintivos; no copies la instruccion mixta completa ni sus otros entregables.",
         "Si la instruccion pide hechos de una entidad nombrada sin dominio, copia su nombre exacto en exactEntity de web.research.",
         "Si la instruccion pide referencias, usos o pruebas de un archivo concreto, usa repo.search con la ruta exacta o basename como query, no con una pregunta completa.",
         missionState?.phase === "MISSION_CONTRACT"

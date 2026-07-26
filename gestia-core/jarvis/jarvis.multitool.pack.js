@@ -23,7 +23,7 @@ import {
 
 import {
     completeJarvisPlanningArguments
-} from "./jarvis.multifunction.planner.js?v=sia7-initial-plan-bounded-contract-v85-20260725";
+} from "./jarvis.multifunction.planner.js?v=sia7-focused-web-query-v87-20260726";
 import {
     validateWorkbookFormulaStructure
 } from "./jarvis.workbook.validator.js?v=sia7-deep-artifact-validation-v65-20260725";
@@ -32,9 +32,9 @@ import {
     validateDocumentBlueprint
 } from "./jarvis.document.validator.js?v=sia7-exact-template-contract-v84-20260725";
 
-const VERSION = "1.42.0-balanced-evidence-supervision";
+const VERSION = "1.43.0-focused-web-evidence";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
-const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
+const FORENSICS_SUPERVISION_TIMEOUT_MS = 4500;
 const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";
 const DOCUMENT_MAX_CONTINUATIONS = 6;
 const DOCUMENT_SEGMENT_COUNT = 3;
@@ -499,8 +499,14 @@ async function buildCapabilityForensics(runtime) {
     const persistentCaseHealth = readCapabilityEvidence("persistent_cases") || null;
     const reelVideoHealth = readCapabilityEvidence("reel_video") || null;
     const reelStudioHealth = readCapabilityEvidence("reel_studio") || null;
-    const chiefArchitectHealth = globalThis?.__JARVIS_CHIEF_ARCHITECT_HEALTH__ || null;
-    const oneTimeWriteHealth = globalThis?.__JARVIS_ONE_TIME_WRITE_HEALTH__ || null;
+    const chiefArchitectHealth =
+        globalThis?.__JARVIS_CHIEF_ARCHITECT_HEALTH__ ||
+        readCapabilityEvidence("chief_architect") ||
+        null;
+    const oneTimeWriteHealth =
+        globalThis?.__JARVIS_ONE_TIME_WRITE_HEALTH__ ||
+        readCapabilityEvidence("one_time_write_authorization") ||
+        null;
     const mediaAnalysisHealth = globalThis?.__JARVIS_MEDIA_ANALYSIS_HEALTH__ || readCapabilityEvidence("media_analysis") || null;
     const pageCreationHealth = readCapabilityEvidence("page_creation") || null;
     const marketingProductionHealth = readCapabilityEvidence("marketing_production") || null;
@@ -998,7 +1004,7 @@ const LOCAL_SUPERVISION_PROBES = [
         id: "technical_intent_priority",
         path: "/gestia-core/jarvis/jarvis.multifunction.planner.js",
         markers: [
-            "4.3.0-initial-plan-bounded-contract",
+            "4.4.0-focused-web-query",
             "jarvisSemanticPlan",
             "trustedPlanCalls"
         ]
@@ -1012,7 +1018,7 @@ const LOCAL_SUPERVISION_PROBES = [
         id: "mission_evidence_contract",
         path: "/gestia-core/gestia-core.js",
         markers: [
-            "1.0.0-balanced-evidence-receipt",
+            "1.1.0-focused-web-evidence",
             "buildMissionEvidenceBlocks",
             "buildMissionEvidenceReceipt"
         ]

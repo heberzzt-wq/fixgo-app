@@ -369,6 +369,210 @@ function extractHtmlLinks(html = "", baseUrl = "", domain = "", maximum = 24) {
     return links;
 }
 
+function researchLinkRelevance(
+    {
+        url = "",
+        label = ""
+    } = {},
+    query = ""
+) {
+    const queryTokens =
+        lexicalTokens(query);
+    if (queryTokens.length === 0) {
+        return 0;
+    }
+    const targetText =
+        `${String(url || "")} ${String(label || "")}`;
+    const targetTokens =
+        new Set(
+            lexicalTokens(
+                targetText
+            )
+        );
+    const normalizedTarget =
+        targetText
+            .normalize("NFD")
+            .toLocaleLowerCase();
+    let matched = 0;
+    let score = 0;
+
+    for (const token of queryTokens) {
+        if (targetTokens.has(token)) {
+            matched += 1;
+            score +=
+                100 +
+                Math.min(
+                    token.length,
+                    20
+                );
+            continue;
+        }
+        if (
+            normalizedTarget.includes(
+                token
+            )
+        ) {
+            matched += 1;
+            score +=
+                50 +
+                Math.min(
+                    token.length,
+                    20
+                );
+        }
+    }
+
+    return (
+        score +
+        Math.round(
+            (
+                matched /
+                queryTokens.length
+            ) *
+            100
+        )
+    );
+}
+
+function extractRankedHtmlLinks(
+    html = "",
+    baseUrl = "",
+    domain = "",
+    query = "",
+    maximum = 80
+) {
+    const source =
+        String(html || "");
+    const lower =
+        source.toLowerCase();
+    const candidates =
+        new Map();
+    let cursor = 0;
+    let scanned = 0;
+
+    while (
+        scanned < 600
+    ) {
+        const start =
+            lower.indexOf(
+                "<a",
+                cursor
+            );
+        if (start < 0) break;
+        const openingEnd =
+            lower.indexOf(
+                ">",
+                start
+            );
+        if (openingEnd < 0) break;
+        const closingStart =
+            lower.indexOf(
+                "</a>",
+                openingEnd + 1
+            );
+        const href =
+            readHtmlAttribute(
+                source.slice(
+                    start + 2,
+                    openingEnd
+                ),
+                "href"
+            );
+        const label =
+            closingStart > openingEnd
+                ? visibleText(
+                    source.slice(
+                        openingEnd + 1,
+                        closingStart
+                    ),
+                    500
+                )
+                : "";
+        cursor =
+            closingStart > openingEnd
+                ? closingStart + 4
+                : openingEnd + 1;
+        scanned += 1;
+
+        if (
+            !href ||
+            href.startsWith("#") ||
+            href.startsWith("mailto:") ||
+            href.startsWith("tel:")
+        ) {
+            continue;
+        }
+        try {
+            const url =
+                new URL(
+                    href,
+                    baseUrl
+                );
+            url.hash = "";
+            url.search = "";
+            const candidate = {
+                url:
+                    url.href,
+                label
+            };
+            if (
+                url.protocol !== "https:" ||
+                !sourceMatchesDomain(
+                    candidate,
+                    domain
+                )
+            ) {
+                continue;
+            }
+            const ranked = {
+                ...candidate,
+                score:
+                    researchLinkRelevance(
+                        candidate,
+                        query
+                    ),
+                order:
+                    scanned
+            };
+            const existing =
+                candidates.get(
+                    ranked.url
+                );
+            if (
+                !existing ||
+                ranked.score >
+                    existing.score
+            ) {
+                candidates.set(
+                    ranked.url,
+                    ranked
+                );
+            }
+        }
+        catch {
+            continue;
+        }
+    }
+
+    return [
+        ...candidates.values()
+    ]
+        .sort((left, right) =>
+            right.score -
+                left.score ||
+            left.order -
+                right.order
+        )
+        .slice(
+            0,
+            Math.max(
+                1,
+                Number(maximum) ||
+                80
+            )
+        );
+}
+
 async function runJarvisDirectDomainResearch({
     fetchImpl = globalThis.fetch,
     query = "",
@@ -390,10 +594,79 @@ async function runJarvisDirectDomainResearch({
             allowedDomain
         ).map(host => `https://${host}/`);
     const queue = [];
+    const queued =
+        new Map();
+    const visited =
+        new Set();
+    let queueOrder = 0;
+    const enqueue =
+        function(
+            url,
+            score = 0
+        ) {
+            const normalizedUrl =
+                String(url || "");
+            if (
+                !normalizedUrl ||
+                visited.has(
+                    normalizedUrl
+                )
+            ) {
+                return;
+            }
+            const existing =
+                queued.get(
+                    normalizedUrl
+                );
+            if (
+                existing &&
+                existing.score >= score
+            ) {
+                return;
+            }
+            const item = {
+                url:
+                    normalizedUrl,
+                score:
+                    Number(score) ||
+                    0,
+                order:
+                    existing?.order ??
+                    queueOrder++
+            };
+            queued.set(
+                normalizedUrl,
+                item
+            );
+            const existingIndex =
+                queue.findIndex(
+                    candidate =>
+                        candidate.url ===
+                        normalizedUrl
+                );
+            if (
+                existingIndex >= 0
+            ) {
+                queue.splice(
+                    existingIndex,
+                    1
+                );
+            }
+            queue.push(item);
+            queue.sort(
+                (left, right) =>
+                    right.score -
+                        left.score ||
+                    left.order -
+                        right.order
+            );
+        };
     if (entryUrls.length > 0) {
-        queue.push(entryUrls.shift());
+        enqueue(
+            entryUrls.shift(),
+            Number.MAX_SAFE_INTEGER
+        );
     }
-    const visited = new Set();
     const pages = [];
     while (
         (
@@ -406,20 +679,40 @@ async function runJarvisDirectDomainResearch({
         pages.length < maximumPages
     ) {
         if (queue.length === 0) {
-            queue.push(entryUrls.shift());
+            enqueue(
+                entryUrls.shift(),
+                Number.MAX_SAFE_INTEGER -
+                    1
+            );
         }
-        const url = queue.shift();
+        const next =
+            queue.shift();
+        const url =
+            next?.url ||
+            "";
+        queued.delete(url);
         if (visited.has(url)) continue;
         visited.add(url);
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 12000);
         try {
             const response = await fetchImpl(url, {
-                headers: { "User-Agent": "JarvisReadOnlyResearch/1.0" },
+                headers: {
+                    "User-Agent": "JarvisReadOnlyResearch/1.0",
+                    "Accept-Language": "en-US,en;q=0.9"
+                },
                 redirect: "follow",
                 signal: controller.signal
             });
-            const finalUrl = response?.url || url;
+            const finalUrlObject =
+                new URL(
+                    response?.url ||
+                    url
+                );
+            finalUrlObject.hash = "";
+            finalUrlObject.search = "";
+            const finalUrl =
+                finalUrlObject.href;
             if (!response?.ok || !sourceMatchesDomain({ url: finalUrl }, domain)) continue;
             const contentType = String(response.headers?.get?.("content-type") || "").toLowerCase();
             if (!contentType.includes("text/html")) continue;
@@ -432,11 +725,21 @@ async function runJarvisDirectDomainResearch({
             const paragraphs = extractHtmlElements(html, "p", 12)
                 .filter(item => item.length >= 40)
                 .slice(0, 6);
+            const rankedLinks =
+                extractRankedHtmlLinks(
+                    html,
+                    finalUrl,
+                    domain,
+                    normalizedQuery
+                );
+            for (const link of rankedLinks) {
+                enqueue(
+                    link.url,
+                    link.score
+                );
+            }
             if (headings.length === 0 && paragraphs.length === 0) continue;
             pages.push({ url: finalUrl, title, headings, paragraphs });
-            for (const link of extractHtmlLinks(html, finalUrl, domain)) {
-                if (!visited.has(link) && !queue.includes(link)) queue.push(link);
-            }
         } catch {
             continue;
         } finally {
@@ -820,6 +1123,8 @@ module.exports = {
     visibleText,
     extractHtmlElements,
     extractHtmlLinks,
+    extractRankedHtmlLinks,
+    researchLinkRelevance,
     runJarvisDirectDomainResearch,
     extractGroundingSources,
     extractGroundingSupports,

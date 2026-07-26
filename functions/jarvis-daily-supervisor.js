@@ -79,7 +79,7 @@ const DEFAULT_PROBES = Object.freeze([
         id: "technical_intent_priority",
         path: "/gestia-core/jarvis/jarvis.multifunction.planner.js",
         markers: [
-            "4.3.0-initial-plan-bounded-contract",
+            "4.4.0-focused-web-query",
             "jarvisSemanticPlan",
             "trustedPlanCalls"
         ]
@@ -120,7 +120,7 @@ const DEFAULT_PROBES = Object.freeze([
             "Que puede fallar:",
             "Resultados adicionales:",
             "Estado: analisis read-only",
-            "1.0.0-balanced-evidence-receipt",
+            "1.1.0-focused-web-evidence",
             "buildMissionEvidenceBlocks",
             "buildMissionEvidenceReceipt"
         ]

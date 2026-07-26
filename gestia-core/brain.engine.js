@@ -37,7 +37,7 @@ import {
   buildJarvisMultifunctionToolCalls,
   mergeJarvisToolCalls
 
-} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-initial-plan-bounded-contract-v85-20260725";
+} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-focused-web-query-v87-20260726";
 
 import {
 

@@ -57,6 +57,14 @@ test("semantic planner treats search as discovery rather than completed inspecti
         instruction,
         /devuelve missionComplete=true solamente despues de auditar/
     );
+    assert.match(
+        instruction,
+        /query debe contener solo el objetivo concreto de investigacion/
+    );
+    assert.match(
+        instruction,
+        /no copies la mision mixta completa/
+    );
 });
 
 test("semantic planner rejects calls missing schema-required arguments", () => {

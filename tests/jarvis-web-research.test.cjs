@@ -16,6 +16,8 @@ const {
     requestedHostsFromQuery,
     sourceMatchesDomain,
     sourceMatchesExactEntity,
+    extractRankedHtmlLinks,
+    researchLinkRelevance,
     extractGroundingSources,
     extractGroundingSupports,
     runJarvisDirectDomainResearch,
@@ -456,6 +458,137 @@ test("direct domain fallback crawls only primary pages when Gemini credentials f
     assert.equal(result.discardedSources.length, 0);
     assert.equal(result.inferences.length, 0);
     assert.equal(result.policy.fallbackReason, "GEMINI_CREDENTIAL_UNAVAILABLE");
+});
+
+test("direct domain fallback prioritizes claim-specific official pages over generic navigation", async () => {
+    const rootUrl =
+        "https://firebase.google.com/";
+    const relevantUrl =
+        "https://firebase.google.com/docs/auth/admin/custom-claims";
+    const genericLinks =
+        Array.from(
+            {
+                length: 30
+            },
+            (_, index) =>
+                `<a href="/products/generic-${index}">Producto ${index}</a>`
+        )
+            .join("\n");
+    const pages =
+        new Map([
+            [
+                rootUrl,
+                `
+                    <html>
+                        <head><title>Firebase</title></head>
+                        <body>
+                            <h1>Firebase</h1>
+                            <p>Plataforma oficial para crear y operar aplicaciones modernas con servicios administrados.</p>
+                            ${genericLinks}
+                            <a href="/docs/auth/admin/custom-claims">Control de acceso con custom claims</a>
+                        </body>
+                    </html>
+                `
+            ],
+            [
+                relevantUrl,
+                `
+                    <html>
+                        <head><title>Control Access with Custom Claims</title></head>
+                        <body>
+                            <h1>Define roles via Firebase Auth custom claims</h1>
+                            <p>La documentacion oficial explica como aplicar control de acceso basado en roles mediante custom claims.</p>
+                        </body>
+                    </html>
+                `
+            ]
+        ]);
+    const fetched =
+        [];
+    const result =
+        await runJarvisDirectDomainResearch({
+            query:
+                "Firebase Auth custom claims control de acceso por roles",
+            allowedDomain:
+                "firebase.google.com",
+            maximumPages:
+                2,
+            fetchImpl:
+                async url => {
+                    const normalized =
+                        String(url);
+                    fetched.push(
+                        normalized
+                    );
+                    const html =
+                        pages.get(
+                            normalized
+                        );
+                    return {
+                        ok:
+                            Boolean(html),
+                        url:
+                            normalized,
+                        headers: {
+                            get:
+                                name =>
+                                    name ===
+                                    "content-type"
+                                        ? "text/html; charset=utf-8"
+                                        : ""
+                        },
+                        text:
+                            async () =>
+                                html ||
+                                ""
+                    };
+                }
+        });
+    const ranked =
+        extractRankedHtmlLinks(
+            pages.get(rootUrl),
+            rootUrl,
+            "firebase.google.com",
+            "Firebase Auth custom claims control de acceso por roles"
+        );
+
+    assert.equal(
+        fetched[0],
+        rootUrl
+    );
+    assert.equal(
+        fetched[1],
+        relevantUrl
+    );
+    assert.equal(
+        ranked[0].url,
+        relevantUrl
+    );
+    assert.ok(
+        researchLinkRelevance(
+            ranked[0],
+            "Firebase Auth custom claims control de acceso por roles"
+        ) >
+        researchLinkRelevance(
+            {
+                url:
+                    "https://firebase.google.com/products/generic-1",
+                label:
+                    "Producto 1"
+            },
+            "Firebase Auth custom claims control de acceso por roles"
+        )
+    );
+    assert.deepEqual(
+        result.sources.map(
+            source =>
+                source.url
+        ),
+        [
+            rootUrl,
+            relevantUrl
+        ]
+    );
 });
 
 test("Firebase deploys grounded web research on the supported Node runtime", () => {

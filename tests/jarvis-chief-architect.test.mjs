@@ -73,6 +73,11 @@ test("Chief Architect is registered as a real read-only tool and reported honest
     const forensic = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.multitool.pack.js", import.meta.url), "utf8");
     assert.match(runtime, /name: "repo\.architectReview"/);
     assert.match(runtime, /reviewChiefArchitectPlan/);
+    assert.match(runtime, /recordCapabilityEvidence\(\s*"chief_architect"/);
+    assert.match(runtime, /recordCapabilityEvidence\(\s*"one_time_write_authorization"/);
+    assert.match(runtime, /required:\s*\[\s*"instruction",\s*"plan"\s*\]/);
     assert.match(forensic, /id: "chief_architect"/);
+    assert.match(forensic, /readCapabilityEvidence\("chief_architect"\)/);
+    assert.match(forensic, /readCapabilityEvidence\("one_time_write_authorization"\)/);
     assert.match(forensic, /falta verificar un plan real completo/i);
 });

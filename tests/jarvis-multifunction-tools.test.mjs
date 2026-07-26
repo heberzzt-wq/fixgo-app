@@ -1350,7 +1350,7 @@ test("system health exposes bridge server version separately from tool pack vers
         );
         assert.equal(
             result.toolPackVersion,
-            "1.42.0-balanced-evidence-supervision"
+            "1.43.0-focused-web-evidence"
         );
         assert.notEqual(
             result.toolPackVersion,
@@ -2627,7 +2627,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /jarvis-tools-v7-20260726-evidence-supervision-v86/);
+    assert.match(terminal, /jarvis-tools-v7-20260726-focused-web-evidence-v87/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
         "utf8"
@@ -2641,10 +2641,10 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-balanced-evidence-receipt-v86-20260726/);
+    assert.match(terminal, /sia7-focused-web-evidence-v87-20260726/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
-    assert.match(terminal, /jarvis-tools-v7-20260726-evidence-supervision-v86/);
+    assert.match(terminal, /jarvis-tools-v7-20260726-focused-web-evidence-v87/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -2818,14 +2818,14 @@ test("daily supervision cloud lookup has a bounded browser deadline", () => {
     );
 
     assert.match(source, /SUPERVISION_CLOUD_TIMEOUT_MS\s*=\s*4500/);
-    assert.match(source, /FORENSICS_SUPERVISION_TIMEOUT_MS\s*=\s*1500/);
+    assert.match(source, /FORENSICS_SUPERVISION_TIMEOUT_MS\s*=\s*4500/);
     assert.match(source, /timeoutMs:\s*FORENSICS_SUPERVISION_TIMEOUT_MS/);
     assert.match(source, /Math\.min\(\s*10000,[\s\S]{0,180}Math\.max\(\s*1000/);
     assert.match(source, /controller\?\.abort\(\)/);
     assert.match(source, /signal:\s*controller\.signal/);
     assert.match(source, /SUPERVISION_STATUS_TIMEOUT_/);
     assert.match(source, /clearTimeout\(timeoutId\)/);
-    assert.match(source, /4\.3\.0-initial-plan-bounded-contract/);
+    assert.match(source, /4\.4\.0-focused-web-query/);
     assert.doesNotMatch(source, /3\.0\.0-model-semantic-planner/);
 });
 
@@ -2844,7 +2844,7 @@ test("multifunction descriptor remains approval-bound", () => {
     assert.equal(planner.mutates, false);
     assert.equal(
         planner.version,
-        "4.3.0-initial-plan-bounded-contract"
+        "4.4.0-focused-web-query"
     );
     assert.equal(planner.maximumToolCalls, 12);
     assert.equal(planner.architecture, "model_selected_runtime_catalog");
@@ -2893,7 +2893,7 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260726-evidence-supervision-v86/);
+    assert.match(core, /jarvis-tools-v7-20260726-focused-web-evidence-v87/);
     assert.match(
         terminal,
         /jarvis-tools-v7-20260725-semantic-envelope-v64/

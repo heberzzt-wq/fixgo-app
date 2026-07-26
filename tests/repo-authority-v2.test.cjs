@@ -1943,7 +1943,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /sia7-balanced-evidence-receipt-v86-20260726/);
+    assert.match(terminal, /sia7-focused-web-evidence-v87-20260726/);
     assert.match(terminal, /jarvis-tools-v7-20260725-repair-candidates-v80/);
     assert.match(terminal, /jarvis-runtime-macro-v2-20260707-4190/);
     assert.match(terminal, /isTerminalBrainRuntimeReady/);
@@ -2171,7 +2171,7 @@ test("brain delegates natural intent to the bounded semantic model planner", () 
         );
 
     assert.match(brain, /buildJarvisMultifunctionToolCalls/);
-    assert.match(brain, /sia7-initial-plan-bounded-contract-v85-20260725/);
+    assert.match(brain, /sia7-focused-web-query-v87-20260726/);
     assert.equal(
         (brain.match(/function initJarvisCodexV2BrainRouter/g) || []).length,
         1
@@ -2201,9 +2201,9 @@ test("brain delegates natural intent to the bounded semantic model planner", () 
     );
 
     assert.match(core, /patchPreviewAllowedByPlan/);
-    assert.match(core, /brain\.engine\.js\?v=sia7-initial-plan-bounded-contract-v85-20260725/);
+    assert.match(core, /brain\.engine\.js\?v=sia7-focused-web-query-v87-20260726/);
     assert.match(core, /jarvis\.mission\.orchestrator\.js\?v=sia7-compact-mission-storage-v83-20260725/);
-    assert.match(core, /tools\.runtime\.js\?v=jarvis-tools-v7-20260726-evidence-supervision-v86/);
+    assert.match(core, /tools\.runtime\.js\?v=jarvis-tools-v7-20260726-focused-web-evidence-v87/);
     assert.doesNotMatch(core, /brain\.engine\.js\?v=cloud-planner-fail-fast-41-62/);
     assert.match(core, /async analizarIntencionLigera/);
     assert.match(core, /sincronizarCorralSemantico/);
@@ -2217,7 +2217,7 @@ test("brain delegates natural intent to the bounded semantic model planner", () 
     assert.match(core, /BRAIN_AUTHORITY_NO_LEGACY_FALLBACK/);
     assert.match(core, /brainAuthorityMode[\s\S]{0,500}atomicState\.isHalted/);
     assert.doesNotMatch(core, /semantic-tool-fallback-41-32/);
-    assert.match(core, /jarvis-tools-v7-20260726-evidence-supervision-v86/);
+    assert.match(core, /jarvis-tools-v7-20260726-focused-web-evidence-v87/);
     assert.match(core, /\[JARVIS_MISSION_OUTCOME\]/);
     assert.match(core, /Artefacto Jarvis verificado; cierre de mision parcial/);
 
@@ -2551,6 +2551,16 @@ test("mission evidence packing preserves late tool results instead of starving t
                         canClaimParity:
                             false
                     },
+                    summary: {
+                        total:
+                            21,
+                        READY:
+                            10,
+                        PARTIAL:
+                            11,
+                        NOT_AVAILABLE:
+                            0
+                    },
                     gaps: [{
                         id:
                             "browser_control"
@@ -2671,7 +2681,11 @@ test("mission evidence packing preserves late tool results instead of starving t
     );
     assert.match(
         receipt,
-        /system\.forensics: estado=FORENSICS_READY; readiness=96; paridad=no_certificada; brechas=browser_control/
+        /system\.forensics: estado=FORENSICS_READY; readiness=96; paridad=no_certificada; capacidades=READY:10,PARTIAL:11,NOT_AVAILABLE:0; brechas=browser_control/
+    );
+    assert.doesNotMatch(
+        receipt,
+        /system\.forensics:[^\n]*checks=0\/21/
     );
     assert.match(
         receipt,

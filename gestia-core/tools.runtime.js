@@ -5,7 +5,7 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-balanced-evidence-supervision-v86-20260726";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-focused-web-evidence-v87-20260726";
 import {
     registerJarvisActuatorTools
 } from "./jarvis/jarvis.actuator.pack.js?v=sia7-runtime-truth-v70-20260725";
@@ -17,6 +17,9 @@ import {
     buildExecutableSourceView,
     extractQualifiedSourceIdentifiers
 } from "./repo/repo.source.structure.js?v=sia7-explicit-repo-targets-v3-20260724";
+import {
+    recordCapabilityEvidence
+} from "./jarvis/jarvis.capability.evidence.js?v=sia7-persistent-runtime-evidence-v87-20260726";
 
 export const JarvisToolRuntime = {
     _registry: new Map(),
@@ -6436,15 +6439,28 @@ JarvisToolRuntime.register({
             source: "repo_write_runtime_v7_one_time"
         });
         if (result?.ok === true && result?.verified === true && result?.consumedAt) {
-            globalThis.__JARVIS_ONE_TIME_WRITE_HEALTH__ = {
-                ok: true,
-                status: result.status,
-                fingerprint: result.fingerprint,
-                objectiveId: result.objectiveId,
-                caseId: result.caseId,
-                consumedAt: result.consumedAt,
-                verified: true
-            };
+            globalThis.__JARVIS_ONE_TIME_WRITE_HEALTH__ =
+                recordCapabilityEvidence(
+                    "one_time_write_authorization",
+                    {
+                        ok:
+                            true,
+                        status:
+                            result.status,
+                        fingerprint:
+                            result.fingerprint,
+                        objectiveId:
+                            result.objectiveId,
+                        caseId:
+                            result.caseId,
+                        consumedAt:
+                            result.consumedAt,
+                        checkedAt:
+                            result.consumedAt,
+                        verified:
+                            true
+                    }
+                );
         }
         return { ...result, source: "repo_write_runtime_v7_one_time" };
     }
@@ -6500,6 +6516,32 @@ JarvisToolRuntime.register({
     mutates: false,
     requiresApproval: false,
     output: "CHIEF_ARCHITECT_REVIEW",
+    inputSchema: {
+        type: "object",
+        required: [
+            "instruction",
+            "plan"
+        ],
+        properties: {
+            instruction: {
+                type: "string",
+                description: "Instruccion original inmutable que el plan debe conservar."
+            },
+            plan: {
+                type: "object",
+                description: "Plan completo sustentado, con archivos objetivo, causa raiz, evidencia, alcance, pruebas y llamadas gobernadas.",
+                additionalProperties: true
+            },
+            refresh: {
+                type: "boolean"
+            },
+            authority: {
+                type: "object",
+                additionalProperties: true
+            }
+        },
+        additionalProperties: false
+    },
     execute: async (args = {}, context = {}) => {
         const instruction = String(args.instruction || args.originalInstruction || context.rawInput || "").trim();
         const plan = args.plan && typeof args.plan === "object" && !Array.isArray(args.plan) ? args.plan : {};
@@ -6520,13 +6562,23 @@ JarvisToolRuntime.register({
             ranking,
             authority: args.authority || context.authority || { authorityId: context.authorityId, role: context.role }
         });
-        globalThis.__JARVIS_CHIEF_ARCHITECT_HEALTH__ = {
-            ok: review.decision === "READY_FOR_HUMAN_APPROVAL",
-            status: review.status,
-            checkedAt: review.reviewedAt,
-            targetFiles: review.targetFiles,
-            blockers: review.blockers.length
-        };
+        globalThis.__JARVIS_CHIEF_ARCHITECT_HEALTH__ =
+            recordCapabilityEvidence(
+                "chief_architect",
+                {
+                    ok:
+                        review.decision ===
+                        "READY_FOR_HUMAN_APPROVAL",
+                    status:
+                        review.status,
+                    checkedAt:
+                        review.reviewedAt,
+                    targetFiles:
+                        review.targetFiles,
+                    blockers:
+                        review.blockers.length
+                }
+            );
         return { ...review, success: review.ok === true, tool: "repo.architectReview" };
     }
 });
