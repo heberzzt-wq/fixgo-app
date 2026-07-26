@@ -49,7 +49,7 @@ function validContent() {
 test("DOCX artifact gate describes post-write OOXML validation", () => {
     const result = describeDocxArtifactGate();
     assert.equal(result.ok, true);
-    assert.equal(result.version, "1.1.0-docx-quantitative-gate");
+    assert.equal(result.version, "1.2.0-docx-ooxml-contract-gate");
     assert.ok(result.checks.includes("real-word-tables"));
 });
 
@@ -76,6 +76,63 @@ test("DOCX builder converts markdown tables into real Word tables and passes the
         assert.equal(validation.actual.answerKeyCount, 2);
     } finally {
         fs.rmSync(fixture.directory, { recursive: true, force: true });
+    }
+});
+
+test("DOCX gate does not promote incidental blueprint counts into new requirements", async () => {
+    const fixture =
+        await writeArtifact(
+            validContent()
+        );
+    try {
+        const validation =
+            await validateDocxArtifactFile({
+                file:
+                    fixture.file,
+                contract,
+                expectedValidation: {
+                    validationPassed:
+                        true,
+                    sectionCount:
+                        200,
+                    tableBlueprintCount:
+                        100,
+                    templateCount:
+                        50,
+                    questionCount:
+                        90,
+                    answerKeyCount:
+                        90
+                }
+            });
+        assert.equal(
+            validation.ok,
+            true,
+            JSON.stringify(
+                validation.failures
+            )
+        );
+        assert.equal(
+            validation.required
+                .minSections,
+            contract.minSections
+        );
+        assert.equal(
+            validation.required
+                .minTables,
+            contract.minTables
+        );
+    }
+    finally {
+        fs.rmSync(
+            fixture.directory,
+            {
+                recursive:
+                    true,
+                force:
+                    true
+            }
+        );
     }
 });
 

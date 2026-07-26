@@ -199,7 +199,7 @@ import '/gestia-core/brain.engine.js?v=sia7-deep-artifact-validation-v65-2026072
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
 import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260725-targeted-document-repair-v77';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260725-semantic-envelope-v64';
-import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260725-deep-artifacts-v65';
+import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260725-ooxml-contract-v78';
 
 // ======================================================================================
 // 🛰️ SECCIÓN 2: GESTIA CORE ORCHESTRATOR (KERNEL V16.0)

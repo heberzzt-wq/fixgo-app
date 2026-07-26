@@ -1941,13 +1941,13 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /sia7-targeted-document-repair-v77-20260725/);
-    assert.match(terminal, /jarvis-tools-v7-20260725-deep-artifacts-v65/);
+    assert.match(terminal, /sia7-ooxml-contract-v78-20260725/);
+    assert.match(terminal, /jarvis-tools-v7-20260725-ooxml-contract-v78/);
     assert.match(terminal, /jarvis-runtime-macro-v2-20260707-4190/);
     assert.match(terminal, /isTerminalBrainRuntimeReady/);
     assert.doesNotMatch(terminal, /function isKernelSessionReady/);
     assert.doesNotMatch(terminal, /window\.KernelHeberto\?\.execute/);
-    assert.match(terminal, /jarvis-tools-v7-20260725-deep-artifacts-v65/);
+    assert.match(terminal, /jarvis-tools-v7-20260725-ooxml-contract-v78/);
     assert.match(terminal, /terminalBrainRoute\?\.mode\s*===\s*"PATCH_PROPOSAL"/);
     assert.match(terminal, /terminalBrainRoute\?\.useLastPatchPreview\s*===\s*true/);
     assert.doesNotMatch(terminal, /if\s*\(\s*isNaturalPatchPreviewFollowUp\(comando\)\s*\)/);
@@ -2214,7 +2214,7 @@ test("brain delegates natural intent to the bounded semantic model planner", () 
     assert.match(core, /BRAIN_AUTHORITY_NO_LEGACY_FALLBACK/);
     assert.match(core, /brainAuthorityMode[\s\S]{0,500}atomicState\.isHalted/);
     assert.doesNotMatch(core, /semantic-tool-fallback-41-32/);
-    assert.match(core, /jarvis-tools-v7-20260725-deep-artifacts-v65/);
+    assert.match(core, /jarvis-tools-v7-20260725-ooxml-contract-v78/);
 
     const legacyKernel =
         fs.readFileSync(

@@ -407,14 +407,49 @@ function composeActuatorFailure(
         toolName === "system.supervision.runNow"
     ) {
         const validationFailures =
-            Array.isArray(
-                result
-                    ?.validationFailures
-            )
-                ? result
-                    .validationFailures
-                    .slice(0, 30)
-                : [];
+            [
+                ...(
+                    Array.isArray(
+                        result
+                            ?.validationFailures
+                    )
+                        ? result
+                            .validationFailures
+                        : []
+                ),
+                ...(
+                    Array.isArray(
+                        result
+                            ?.validation
+                            ?.failures
+                    )
+                        ? result
+                            .validation
+                            .failures
+                        : []
+                )
+            ]
+                .filter(
+                    (
+                        value,
+                        index,
+                        items
+                    ) =>
+                        value &&
+                        items.indexOf(
+                            value
+                        ) ===
+                        index
+                )
+                .slice(
+                    0,
+                    30
+                );
+        const validationActual =
+            result
+                ?.validation
+                ?.actual ||
+            {};
         return window.ResponseComposer.composeJarvis(
             [
                 "Actuador no completado",
@@ -430,54 +465,74 @@ function composeActuatorFailure(
                 validationFailures,
                 wordCount:
                     Number(
-                        result?.wordCount
+                        result?.wordCount ||
+                        validationActual
+                            .wordCount
                     ) ||
                     0,
                 sectionCount:
                     Number(
-                        result?.sectionCount
+                        result?.sectionCount ||
+                        validationActual
+                            .sectionCount
                     ) ||
                     0,
                 tableBlueprintCount:
                     Number(
                         result
-                            ?.tableBlueprintCount
+                            ?.tableBlueprintCount ||
+                        validationActual
+                            .tableCount
                     ) ||
                     0,
                 templateCount:
                     Number(
-                        result?.templateCount
+                        result?.templateCount ||
+                        validationActual
+                            .templateCount
                     ) ||
                     0,
                 questionCount:
                     Number(
-                        result?.questionCount
+                        result?.questionCount ||
+                        validationActual
+                            .questionCount
                     ) ||
                     0,
                 answerKeyCount:
                     Number(
-                        result?.answerKeyCount
+                        result?.answerKeyCount ||
+                        validationActual
+                            .answerKeyCount
                     ) ||
                     0,
                 vehicleCount:
                     Number(
-                        result?.vehicleCount
+                        result?.vehicleCount ||
+                        validationActual
+                            .vehicleCount
                     ) ||
                     0,
                 partCount:
                     Number(
-                        result?.partCount
+                        result?.partCount ||
+                        validationActual
+                            .partCount
                     ) ||
                     0,
                 kpiCount:
                     Number(
-                        result?.kpiCount
+                        result?.kpiCount ||
+                        validationActual
+                            .kpiCount
                     ) ||
                     0,
                 implementationDayCoverage:
                     Number(
                         result
-                            ?.implementationDayCoverage
+                            ?.implementationDayCoverage ||
+                        validationActual
+                            .implementationDayCoverage
                     ) ||
                     0,
                 continuationCount:

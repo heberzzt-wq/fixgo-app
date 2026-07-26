@@ -1,6 +1,6 @@
 import fs from "node:fs";
 
-const VERSION = "1.1.0-docx-quantitative-gate";
+const VERSION = "1.2.0-docx-ooxml-contract-gate";
 
 function text(value = "") {
     return String(value ?? "").replace(/\r\n/g, "\n");
@@ -568,43 +568,68 @@ export async function validateDocxArtifactFile({
     };
     const required = {
         minWords: Number(contract?.minWords || 0),
-        minSections: Math.max(
-            Number(contract?.minSections || 0),
-            Number(expectedValidation?.sectionCount || 0)
-        ),
-        minTables: Math.max(
-            Number(contract?.minTables || 0),
-            Number(expectedValidation?.tableBlueprintCount || 0)
-        ),
-        minTemplates: Math.max(
-            Number(contract?.minTemplates || 0),
-            Number(expectedValidation?.templateCount || 0)
-        ),
-        minQuestions: Math.max(
-            Number(contract?.minQuestions || 0),
-            Number(expectedValidation?.questionCount || 0)
-        ),
-        minAnswers: Math.max(
-            contract?.requireAnswerKey ? Number(contract?.minQuestions || 0) : 0,
-            Number(expectedValidation?.answerKeyCount || 0)
-        ),
-        minVehicles: Math.max(
-            Number(contract?.minVehicles || 0),
-            Number(expectedValidation?.vehicleCount || 0)
-        ),
-        minParts: Math.max(
-            Number(contract?.minParts || 0),
-            Number(expectedValidation?.partCount || 0)
-        ),
-        minKpis: Math.max(
-            Number(contract?.minKpis || 0),
-            Number(expectedValidation?.kpiCount || 0)
-        ),
-        implementationDays: Math.max(
-            Number(contract?.implementationDays || 0),
-            Number(expectedValidation?.implementationDayCoverage || 0)
-        ),
-        requireAnswerKey: contract?.requireAnswerKey === true || Number(expectedValidation?.answerKeyCount || 0) > 0
+        minSections:
+            Number(
+                contract
+                    ?.minSections
+            ) ||
+            0,
+        minTables:
+            Number(
+                contract
+                    ?.minTables
+            ) ||
+            0,
+        minTemplates:
+            Number(
+                contract
+                    ?.minTemplates
+            ) ||
+            0,
+        minQuestions:
+            Number(
+                contract
+                    ?.minQuestions
+            ) ||
+            0,
+        minAnswers:
+            contract
+                ?.requireAnswerKey ===
+            true
+                ? Number(
+                    contract
+                        ?.minQuestions
+                ) ||
+                0
+                : 0,
+        minVehicles:
+            Number(
+                contract
+                    ?.minVehicles
+            ) ||
+            0,
+        minParts:
+            Number(
+                contract
+                    ?.minParts
+            ) ||
+            0,
+        minKpis:
+            Number(
+                contract
+                    ?.minKpis
+            ) ||
+            0,
+        implementationDays:
+            Number(
+                contract
+                    ?.implementationDays
+            ) ||
+            0,
+        requireAnswerKey:
+            contract
+                ?.requireAnswerKey ===
+            true
     };
     const failures = [];
     if (actual.bytes < 1000) failures.push(`DOCX_BYTES_SUSPICIOUSLY_SMALL:${actual.bytes}`);
