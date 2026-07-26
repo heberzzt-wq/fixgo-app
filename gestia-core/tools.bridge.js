@@ -268,6 +268,52 @@ function delegatedResultLine(
     ].join("");
 }
 
+function reviewEvidenceLine(
+    evidence = {}
+) {
+    if (
+        !evidence ||
+        typeof evidence !==
+            "object" ||
+        Array.isArray(evidence)
+    ) {
+        return "";
+    }
+
+    return Object
+        .entries(evidence)
+        .map(([name, value]) => {
+            const rendered =
+                Array.isArray(value)
+                    ? value
+                        .map(item =>
+                            typeof item ===
+                                "object"
+                                ? Object
+                                    .entries(item || {})
+                                    .map(([key, entry]) =>
+                                        `${key}=${String(entry)}`
+                                    )
+                                    .join(", ")
+                                : String(item)
+                        )
+                        .join(" | ")
+                    : value &&
+                        typeof value ===
+                            "object"
+                        ? Object
+                            .entries(value)
+                            .map(([key, entry]) =>
+                                `${key}=${String(entry)}`
+                            )
+                            .join(", ")
+                        : String(value);
+
+            return `${name}=${rendered || "ninguno"}`;
+        })
+        .join("; ");
+}
+
 function composeActuatorResponse(
     toolName = "",
     data = {},
@@ -278,6 +324,119 @@ function composeActuatorResponse(
 
     if (!composer?.composeJarvis) {
         return null;
+    }
+
+    if (
+        toolName ===
+        "repo.architectReview"
+    ) {
+        const checks =
+            Array.isArray(
+                data?.checks
+            )
+                ? data.checks
+                : [];
+        const blockers =
+            Array.isArray(
+                data?.blockers
+            )
+                ? data.blockers
+                : [];
+        const warnings =
+            Array.isArray(
+                data?.warnings
+            )
+                ? data.warnings
+                : [];
+        const checkLines =
+            checks.map((check, index) => {
+                const evidence =
+                    reviewEvidenceLine(
+                        check?.evidence
+                    );
+                return [
+                    `${index + 1}. ${check?.id || "control"}: **${check?.status || "UNKNOWN"}**.`,
+                    evidence
+                        ? ` Evidencia: ${evidence}.`
+                        : "",
+                    check?.remediation
+                        ? ` Remediación: ${check.remediation}`
+                        : ""
+                ].join("");
+            });
+
+        return composer.composeJarvis(
+            [
+                "Revisión Chief Architect",
+                "",
+                `Decisión: **${data?.decision || data?.status || "UNKNOWN"}**.`,
+                `Estado: **${data?.status || "UNKNOWN"}**.`,
+                data?.instruction
+                    ? `Instrucción conservada: ${data.instruction}`
+                    : "",
+                Array.isArray(data?.targetFiles) &&
+                data.targetFiles.length > 0
+                    ? `Archivos objetivo: ${data.targetFiles.join(", ")}.`
+                    : "Archivos objetivo: ninguno.",
+                "",
+                `Controles ejecutados: **${checks.length}**.`,
+                ...checkLines,
+                "",
+                blockers.length > 0
+                    ? `Bloqueos: ${blockers.map(item => item?.id || "control").join(", ")}.`
+                    : "Bloqueos: ninguno.",
+                warnings.length > 0
+                    ? `Advertencias: ${warnings.map(item => item?.id || "control").join(", ")}.`
+                    : "Advertencias: ninguna.",
+                "",
+                `Puede ejecutar cambios: **${data?.canExecute === true ? "sí" : "no"}**.`,
+                `Concede aprobación: **${data?.grantsApproval === true ? "sí" : "no"}**.`,
+                data?.requiresHumanApproval === true
+                    ? "La ejecución del plan todavía requiere aprobación humana explícita."
+                    : "La revisión no solicita una mutación.",
+                "No se modificó ni publicó ningún archivo."
+            ].filter(Boolean).join("\n"),
+            {
+                decision:
+                    data?.decision ||
+                    null,
+                status:
+                    data?.status ||
+                    null,
+                instruction:
+                    data?.instruction ||
+                    null,
+                targetFiles:
+                    data?.targetFiles ||
+                    [],
+                checkCount:
+                    checks.length,
+                blockers:
+                    blockers.map(item =>
+                        item?.id ||
+                        "control"
+                    ),
+                warnings:
+                    warnings.map(item =>
+                        item?.id ||
+                        "control"
+                    ),
+                canExecute:
+                    data?.canExecute ===
+                    true,
+                grantsApproval:
+                    data?.grantsApproval ===
+                    true
+            },
+            {
+                type:
+                    "CHIEF_ARCHITECT_RESPONSE",
+                analysisId:
+                    context.analysisId,
+                exposeRaw:
+                    false
+            }
+        );
     }
 
     if (toolName === "browser.inspect") {

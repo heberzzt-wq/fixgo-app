@@ -202,7 +202,7 @@ import '/gestia-core/brain.engine.js?v=sia7-mission-isolation-v92-20260726';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
 import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260726-mission-isolation-v92';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260725-semantic-envelope-v64';
-import '/gestia-core/tools.bridge.js?v=jarvis-tools-bridge-v7-20260726-evidence-rich-delegation-v90';
+import '/gestia-core/tools.bridge.js?v=jarvis-tools-bridge-v7-20260726-chief-review-response-v93';
 
 const MISSION_EVIDENCE_CONTRACT_VERSION =
     "1.2.0-stable-research-objectives";

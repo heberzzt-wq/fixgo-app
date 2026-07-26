@@ -3054,6 +3054,11 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(bridge, /segmentedComposition:/);
     assert.match(bridge, /function delegatedResultLine/);
     assert.match(bridge, /Resultados verificados:/);
+    assert.match(bridge, /toolName ===\s*"repo\.architectReview"/);
+    assert.match(bridge, /Revisión Chief Architect/);
+    assert.match(bridge, /Controles ejecutados/);
+    assert.match(bridge, /Bloqueos: ninguno/);
+    assert.match(bridge, /No se modificó ni publicó ningún archivo/);
     const toolPack = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/jarvis/jarvis.multitool.pack.js"),
         "utf8"
@@ -3061,6 +3066,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
     assert.match(terminal, /jarvis-tools-v7-20260726-mission-isolation-v92/);
+    assert.match(terminal, /jarvis-tools-bridge-v7-20260726-chief-review-response-v93/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
         "utf8"
@@ -3074,7 +3080,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-mission-isolation-v92-20260726/);
+    assert.match(terminal, /sia7-chief-review-response-v93-20260726/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
     assert.match(terminal, /jarvis-tools-v7-20260726-mission-isolation-v92/);
