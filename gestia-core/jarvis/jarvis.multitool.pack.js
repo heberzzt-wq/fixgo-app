@@ -23,7 +23,7 @@ import {
 
 import {
     completeJarvisPlanningArguments
-} from "./jarvis.multifunction.planner.js?v=sia7-full-runtime-catalog-v89-20260726";
+} from "./jarvis.multifunction.planner.js?v=sia7-explicit-delegation-v90-20260726";
 import {
     validateWorkbookFormulaStructure
 } from "./jarvis.workbook.validator.js?v=sia7-deep-artifact-validation-v65-20260725";
@@ -32,7 +32,7 @@ import {
     validateDocumentBlueprint
 } from "./jarvis.document.validator.js?v=sia7-exact-template-contract-v84-20260725";
 
-const VERSION = "1.45.0-full-runtime-catalog";
+const VERSION = "1.46.0-explicit-delegation";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 4500;
 const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";
@@ -1004,7 +1004,7 @@ const LOCAL_SUPERVISION_PROBES = [
         id: "technical_intent_priority",
         path: "/gestia-core/jarvis/jarvis.multifunction.planner.js",
         markers: [
-            "4.6.0-full-runtime-catalog",
+            "4.7.0-explicit-delegation",
             "jarvisSemanticPlan",
             "trustedPlanCalls"
         ]

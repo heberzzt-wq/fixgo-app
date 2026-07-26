@@ -78,8 +78,17 @@ test("actuator pack registers browser, documents, image, delegation and connecto
             .inputSchema
             .required,
         [
-            "tasks"
+            "tasks",
+            "delegationDirective"
         ]
+    );
+    assert.equal(
+        runtime.get("agent.delegate")
+            .inputSchema
+            .properties
+            .delegationDirective
+            .type,
+        "string"
     );
     assert.equal(
         runtime.get("agent.delegate")
@@ -117,17 +126,42 @@ test("agent delegation runs only read-only tools and rejects recursive delegatio
     registerJarvisActuatorTools(runtime);
 
     const execution = await runtime.get("agent.delegate").execute({
+        delegationDirective:
+            "delega en paralelo",
         tasks: [
             { tool: "system.echo", args: { value: 7 } },
             { tool: "repo.write", args: {} },
             { tool: "agent.delegate", args: {} }
         ]
+    }, {
+        rawInput:
+            "Jarvis, delega en paralelo estas verificaciones"
     });
 
     assert.equal(execution.ok, true);
     assert.equal(execution.parallel, true);
     assert.equal(execution.taskCount, 1);
     assert.equal(execution.results[0].data.value, 7);
+
+    const rejected = await runtime.get("agent.delegate").execute({
+        delegationDirective:
+            "delega tareas",
+        tasks: [{
+            tool:
+                "system.echo",
+            args: {
+                value:
+                    8
+            }
+        }]
+    }, {
+        rawInput:
+            "consulta directamente la salud"
+    });
+    assert.equal(
+        rejected.status,
+        "DELEGATION_EXPLICIT_DIRECTIVE_REQUIRED"
+    );
 });
 
 test("browser actuator fails closed when the verified local bridge is absent", async () => {

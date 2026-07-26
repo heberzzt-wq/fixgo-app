@@ -40,7 +40,7 @@ import {
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     buildJarvisMultifunctionToolCalls
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-full-runtime-catalog-v89-20260726';
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-explicit-delegation-v90-20260726';
 import {
     runJarvisMission
 } from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-compact-mission-storage-v83-20260725';
@@ -195,11 +195,11 @@ import {
     sincronizarCorralSemantico,
     getSemanticCognitiveState
 } from '/gestia-core/semantic.engine.js?v=sia7-model-context-v8-20260714';
-import '/gestia-core/brain.engine.js?v=sia7-full-runtime-catalog-v89-20260726';
+import '/gestia-core/brain.engine.js?v=sia7-explicit-delegation-v90-20260726';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260726-full-runtime-catalog-v89';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260726-explicit-delegation-v90';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260725-semantic-envelope-v64';
-import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260725-repair-candidates-v80';
+import '/gestia-core/tools.bridge.js?v=jarvis-tools-bridge-v7-20260726-evidence-rich-delegation-v90';
 
 const MISSION_EVIDENCE_CONTRACT_VERSION =
     "1.2.0-stable-research-objectives";
@@ -5680,7 +5680,7 @@ if (
         [
             ...registeredMissionTools.filter(tool => operationalMissionToolNames.has(tool.name)),
             ...registeredMissionTools.filter(tool => !operationalMissionToolNames.has(tool.name))
-        ].slice(0, 60);
+        ].slice(0, 80);
     let missionContractToolCalls;
     try {
         missionContractToolCalls =
@@ -5810,7 +5810,7 @@ if (
                     if (missingRequiredToolNames.length === 0) {
                         const completionAuditCatalog =
                             registeredMissionTools
-                                .slice(0, 60);
+                                .slice(0, 80);
 
                         if (completionAuditCatalog.length > 0) {
                             const completionAuditToolCalls =

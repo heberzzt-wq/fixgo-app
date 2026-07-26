@@ -3,7 +3,7 @@ import {
 } from "./jarvis.capability.evidence.js";
 import { adaptImageSource } from "./jarvis.image.adapter.js";
 
-const VERSION = "7.20.0-delegation-contract";
+const VERSION = "7.21.0-explicit-delegation";
 
 export function normalizeImageArtifactOutput(output, mimeType) {
     const extensions = {
@@ -646,13 +646,14 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "agent.delegate",
-            description: "Delega y ejecuta en paralelo hasta cuatro herramientas read-only de Jarvis.",
+            description: "Delega y ejecuta en paralelo hasta cuatro herramientas read-only solamente cuando el usuario lo solicita de forma explícita.",
             output: "AGENT_DELEGATION_RESULT",
             inputSchema: {
                 type:
                     "object",
                 required: [
-                    "tasks"
+                    "tasks",
+                    "delegationDirective"
                 ],
                 properties: {
                     tasks: {
@@ -683,12 +684,46 @@ export function registerJarvisActuatorTools(runtime) {
                             additionalProperties:
                                 false
                         }
+                    },
+                    delegationDirective: {
+                        type:
+                            "string",
+                        description:
+                            "Cita literal de la instrucción original donde el usuario pide delegar, usar agentes o ejecutar en paralelo."
                     }
                 },
                 additionalProperties:
                     false
             },
             execute: async (args = {}, context = {}) => {
+                const delegationDirective =
+                    String(
+                        args
+                            .delegationDirective ||
+                        ""
+                    ).trim();
+                const originalInstruction =
+                    String(
+                        context
+                            .rawInput ||
+                        context
+                            .originalInstruction ||
+                        ""
+                    );
+                if (
+                    !delegationDirective ||
+                    !originalInstruction.includes(
+                        delegationDirective
+                    )
+                ) {
+                    return {
+                        ok: false,
+                        status:
+                            "DELEGATION_EXPLICIT_DIRECTIVE_REQUIRED",
+                        error:
+                            "DELEGATION_EXPLICIT_DIRECTIVE_REQUIRED"
+                    };
+                }
                 const tasks = Array.isArray(args.tasks) ? args.tasks.slice(0, 4) : [];
                 const allowed = tasks.filter(task => {
                     const definition = runtime.get?.(task?.tool);
@@ -716,6 +751,7 @@ export function registerJarvisActuatorTools(runtime) {
                     ok: results.every(result => result?.ok === true),
                     status: "DELEGATION_COMPLETE",
                     parallel: true,
+                    delegationDirective,
                     taskCount: allowed.length,
                     durationMs: Date.now() - startedAt,
                     results

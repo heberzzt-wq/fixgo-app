@@ -444,7 +444,8 @@ test("browser planner rejects malformed delegation and retains the full runtime 
             type:
                 "object",
             required: [
-                "tasks"
+                "tasks",
+                "delegationDirective"
             ],
             properties: {
                 tasks: {
@@ -465,17 +466,26 @@ test("browser planner rejects malformed delegation and retains the full runtime 
                             }
                         }
                     }
+                },
+                delegationDirective: {
+                    type:
+                        "string"
                 }
             }
         }
     };
     const plan =
-        tasks => ({
+        (
+            tasks,
+            delegationDirective =
+                "delega en paralelo"
+        ) => ({
             toolCalls: [{
                 name:
                     "agent.delegate",
                 args: {
-                    tasks
+                    tasks,
+                    delegationDirective
                 }
             }]
         });
@@ -487,7 +497,10 @@ test("browser planner rejects malformed delegation and retains the full runtime 
                 [
                     delegationTool
                 ],
-                {}
+                {
+                    originalInstruction:
+                        "delega en paralelo"
+                }
             )
             .length,
         0
@@ -499,7 +512,10 @@ test("browser planner rejects malformed delegation and retains the full runtime 
                 [
                     delegationTool
                 ],
-                {}
+                {
+                    originalInstruction:
+                        "delega en paralelo"
+                }
             )
             .length,
         0
@@ -514,10 +530,34 @@ test("browser planner rejects malformed delegation and retains the full runtime 
                 [
                     delegationTool
                 ],
-                {}
+                {
+                    originalInstruction:
+                        "delega en paralelo"
+                }
             )
             .length,
         1
+    );
+    assert.equal(
+        plannerTest
+            .trustedPlanCalls(
+                plan(
+                    [{
+                        tool:
+                            "repo.read"
+                    }],
+                    "delega otra tarea"
+                ),
+                [
+                    delegationTool
+                ],
+                {
+                    originalInstruction:
+                        "consulta directamente el repo"
+                }
+            )
+            .length,
+        0
     );
 
     const fullCatalog =
@@ -1570,7 +1610,7 @@ test("system health exposes bridge server version separately from tool pack vers
         );
         assert.equal(
             result.toolPackVersion,
-            "1.45.0-full-runtime-catalog"
+            "1.46.0-explicit-delegation"
         );
         assert.notEqual(
             result.toolPackVersion,
@@ -1920,7 +1960,7 @@ test("semantic model planner replaces phrase gates and preserves terminal speech
     assert.match(core, /MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN/);
     assert.match(core, /allowedMissionTools/);
     assert.match(core, /operationalMissionToolNames/);
-    assert.match(core, /\.slice\(0, 60\)/);
+    assert.match(core, /\.slice\(0, 80\)/);
     assert.doesNotMatch(core, /\.slice\(0, 13\)/);
     assert.doesNotMatch(planner, /\.test\(/);
     assert.doesNotMatch(planner, /new RegExp/);
@@ -2801,6 +2841,8 @@ test("multifunction planner delegates several read-only tasks in parallel", asyn
         [{
             name: "agent.delegate",
             args: {
+                delegationDirective:
+                    "delega en paralelo",
                 tasks: [
                     { tool: "system.health", args: {} },
                     { tool: "connector.list", args: {} },
@@ -2841,13 +2883,15 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(bridge, /validationFailures,/);
     assert.match(bridge, /validationActual/);
     assert.match(bridge, /segmentedComposition:/);
+    assert.match(bridge, /function delegatedResultLine/);
+    assert.match(bridge, /Resultados verificados:/);
     const toolPack = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/jarvis/jarvis.multitool.pack.js"),
         "utf8"
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /jarvis-tools-v7-20260726-full-runtime-catalog-v89/);
+    assert.match(terminal, /jarvis-tools-v7-20260726-explicit-delegation-v90/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
         "utf8"
@@ -2861,10 +2905,10 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-full-runtime-catalog-v89-20260726/);
+    assert.match(terminal, /sia7-explicit-delegation-v90-20260726/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
-    assert.match(terminal, /jarvis-tools-v7-20260726-full-runtime-catalog-v89/);
+    assert.match(terminal, /jarvis-tools-v7-20260726-explicit-delegation-v90/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -3045,7 +3089,7 @@ test("daily supervision cloud lookup has a bounded browser deadline", () => {
     assert.match(source, /signal:\s*controller\.signal/);
     assert.match(source, /SUPERVISION_STATUS_TIMEOUT_/);
     assert.match(source, /clearTimeout\(timeoutId\)/);
-    assert.match(source, /4\.6\.0-full-runtime-catalog/);
+    assert.match(source, /4\.7\.0-explicit-delegation/);
     assert.doesNotMatch(source, /3\.0\.0-model-semantic-planner/);
 });
 
@@ -3064,7 +3108,7 @@ test("multifunction descriptor remains approval-bound", () => {
     assert.equal(planner.mutates, false);
     assert.equal(
         planner.version,
-        "4.6.0-full-runtime-catalog"
+        "4.7.0-explicit-delegation"
     );
     assert.equal(planner.maximumToolCalls, 12);
     assert.equal(planner.architecture, "model_selected_runtime_catalog");
@@ -3113,7 +3157,7 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260726-full-runtime-catalog-v89/);
+    assert.match(core, /jarvis-tools-v7-20260726-explicit-delegation-v90/);
     assert.match(
         terminal,
         /jarvis-tools-v7-20260725-semantic-envelope-v64/

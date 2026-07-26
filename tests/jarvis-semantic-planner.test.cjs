@@ -115,7 +115,8 @@ test("semantic planner rejects empty or malformed delegation tasks before execut
             type:
                 "object",
             required: [
-                "tasks"
+                "tasks",
+                "delegationDirective"
             ],
             properties: {
                 tasks: {
@@ -142,19 +143,28 @@ test("semantic planner rejects empty or malformed delegation tasks before execut
                             }
                         }
                     }
+                },
+                delegationDirective: {
+                    type:
+                        "string"
                 }
             }
         }
     };
     const build =
-        tasks =>
+        (
+            tasks,
+            delegationDirective =
+                "delega pruebas"
+        ) =>
             validatePlan(
                 {
                     toolCalls: [{
                         name:
                             "agent.delegate",
                         args: {
-                            tasks
+                            tasks,
+                            delegationDirective
                         }
                     }]
                 },
@@ -197,6 +207,18 @@ test("semantic planner rejects empty or malformed delegation tasks before execut
             .toolCalls
             .length,
         1
+    );
+    assert.equal(
+        build(
+            [{
+                tool:
+                    "repo.read"
+            }],
+            "ejecuta otras cosas"
+        )
+            .toolCalls
+            .length,
+        0
     );
 });
 

@@ -149,6 +149,125 @@ function queueActuatorArtifact(toolName = "", data = {}) {
     });
 }
 
+function delegatedResultLine(
+    result = {},
+    index = 0
+) {
+    const data =
+        result?.data &&
+        typeof result.data ===
+            "object"
+            ? result.data
+            : result;
+    const tool =
+        String(
+            result?.tool ||
+            data?.tool ||
+            `tarea_${index + 1}`
+        );
+    const status =
+        String(
+            data?.status ||
+            result?.status ||
+            (
+                result?.ok === true
+                    ? "COMPLETED"
+                    : "FAILED"
+            )
+        );
+    const details =
+        [];
+
+    if (data?.source) {
+        details.push(
+            `fuente=${String(data.source).slice(0, 120)}`
+        );
+    }
+    if (
+        data?.connectedCount !=
+            null &&
+        Number.isFinite(
+            Number(
+                data?.connectedCount
+            )
+        )
+    ) {
+        details.push(
+            `conectados=${Number(data.connectedCount)}`
+        );
+    }
+    if (
+        Array.isArray(
+            data?.connectors
+        )
+    ) {
+        details.push(
+            `conectores=${data.connectors
+                .slice(0, 8)
+                .map(connector =>
+                    `${String(connector?.id || "unknown")}:${connector?.connected === true ? "CONECTADO" : "DESCONECTADO"}`
+                )
+                .join(",")}`
+        );
+    }
+    if (
+        data?.counts &&
+        typeof data.counts ===
+            "object"
+    ) {
+        const counts =
+            Object.entries(
+                data.counts
+            )
+                .filter(([, value]) =>
+                    typeof value ===
+                        "number" ||
+                    typeof value ===
+                        "boolean"
+                )
+                .slice(0, 12)
+                .map(([name, value]) =>
+                    `${name}=${value}`
+                );
+        if (counts.length > 0) {
+            details.push(
+                `conteos=${counts.join(",")}`
+            );
+        }
+    }
+    if (
+        data?.averageLatencyMs !=
+            null &&
+        Number.isFinite(
+            Number(
+                data
+                    ?.averageLatencyMs
+            )
+        )
+    ) {
+        details.push(
+            `latenciaPromedioMs=${Number(data.averageLatencyMs)}`
+        );
+    }
+    if (
+        Array.isArray(
+            data?.errors
+        )
+    ) {
+        details.push(
+            `fallos=${data.errors.length}`
+        );
+    }
+
+    return [
+        `- ${tool}: ${status}`,
+        details.length >
+            0
+            ? ` (${details.join("; ")})`
+            : ""
+    ].join("");
+}
+
 function composeActuatorResponse(
     toolName = "",
     data = {},
@@ -317,13 +436,26 @@ function composeActuatorResponse(
     }
 
     if (toolName === "agent.delegate") {
+        const delegatedResults =
+            Array.isArray(
+                data?.results
+            )
+                ? data.results
+                : [];
         return composer.composeJarvis(
             [
                 "Delegacion completada",
                 "",
                 `Tareas ejecutadas en paralelo: **${Number(data?.taskCount || 0)}**.`,
                 `Estado: ${data?.ok === true ? "COMPLETO" : "CON FALLAS"}.`,
-                `Tiempo total: ${Number(data?.durationMs || 0)} ms.`
+                `Tiempo total: ${Number(data?.durationMs || 0)} ms.`,
+                delegatedResults.length >
+                    0
+                    ? "Resultados verificados:"
+                    : "No se recibieron resultados verificables de las subtareas.",
+                ...delegatedResults.map(
+                    delegatedResultLine
+                )
             ].join("\n"),
             data,
             {

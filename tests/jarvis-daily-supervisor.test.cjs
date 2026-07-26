@@ -250,7 +250,7 @@ test("daily supervisor probes current V7 deployment signatures", () => {
         webProbe.markers.includes("1.7.0-sia7-bounded-supervision-forensics"),
         false
     );
-    assert.ok(cognitionProbe.markers.includes("4.6.0-full-runtime-catalog"));
+    assert.ok(cognitionProbe.markers.includes("4.7.0-explicit-delegation"));
 });
 
 test("supervision endpoints stay isolated from optional Stripe and Gemini initialization", () => {

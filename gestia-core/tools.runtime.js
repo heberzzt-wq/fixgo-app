@@ -5,10 +5,10 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-full-runtime-catalog-v89-20260726";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-explicit-delegation-v90-20260726";
 import {
     registerJarvisActuatorTools
-} from "./jarvis/jarvis.actuator.pack.js?v=sia7-delegation-contract-v89-20260726";
+} from "./jarvis/jarvis.actuator.pack.js?v=sia7-explicit-delegation-v90-20260726";
 import {
     reviewChiefArchitectPlan
 } from "./jarvis/jarvis.chief.architect.js?v=sia7-chief-architect-v1-20260714";
