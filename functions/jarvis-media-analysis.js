@@ -1,108 +1,955 @@
 "use strict";
 
-const VERSION = "1.0.0-grounded-multimodal-analysis";
+const crypto = require("crypto");
+
+const VERSION = "1.3.0-provider-json-schema";
 const DEFAULT_MODEL = "gemini-2.5-flash";
 const ALLOWED_TYPES = new Set(["application/pdf", "image/png", "image/jpeg", "image/webp"]);
 const MAX_FILES = 8;
 const MAX_FILE_BYTES = 7 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 9 * 1024 * 1024;
+const MAX_REPAIR_ATTEMPTS = 1;
 
 function normalizeMediaFiles(files = []) {
     if (!Array.isArray(files) || files.length < 1 || files.length > MAX_FILES) {
         throw new Error("MEDIA_FILES_COUNT_INVALID");
     }
+
     let totalBytes = 0;
+
     return files.map((file, index) => {
+        const sourceId = `SOURCE_${index + 1}`;
         const name = String(file?.name || `archivo-${index + 1}`).trim().slice(0, 180);
         const mimeType = String(file?.mimeType || "").toLowerCase().trim();
         const dataBase64 = String(file?.dataBase64 || "").trim();
-        if (!ALLOWED_TYPES.has(mimeType)) throw new Error("MEDIA_TYPE_UNSUPPORTED");
-        if (!dataBase64 || !/^[A-Za-z0-9+/]+={0,2}$/.test(dataBase64)) throw new Error("MEDIA_BASE64_INVALID");
-        const bytes = Buffer.byteLength(dataBase64, "base64");
-        if (bytes < 1 || bytes > MAX_FILE_BYTES) throw new Error("MEDIA_FILE_SIZE_INVALID");
+
+        if (!ALLOWED_TYPES.has(mimeType)) {
+            throw new Error("MEDIA_TYPE_UNSUPPORTED");
+        }
+
+        if (!dataBase64 || !/^[A-Za-z0-9+/]+={0,2}$/.test(dataBase64)) {
+            throw new Error("MEDIA_BASE64_INVALID");
+        }
+
+        const binary = Buffer.from(dataBase64, "base64");
+        const bytes = binary.length;
+
+        if (bytes < 1 || bytes > MAX_FILE_BYTES) {
+            throw new Error("MEDIA_FILE_SIZE_INVALID");
+        }
+
         totalBytes += bytes;
-        if (totalBytes > MAX_TOTAL_BYTES) throw new Error("MEDIA_TOTAL_SIZE_INVALID");
-        return { name, mimeType, dataBase64, bytes };
+
+        if (totalBytes > MAX_TOTAL_BYTES) {
+            throw new Error("MEDIA_TOTAL_SIZE_INVALID");
+        }
+
+        return {
+            sourceId,
+            name,
+            fileName: name,
+            mimeType,
+            dataBase64,
+            bytes,
+            sha256: crypto
+                .createHash("sha256")
+                .update(binary)
+                .digest("hex")
+        };
     });
 }
 
+function sourceManifest(files = []) {
+    return files.map((file, index) => ({
+        sourceId: String(file?.sourceId || `SOURCE_${index + 1}`),
+        fileName: String(file?.fileName || file?.name || `archivo-${index + 1}`),
+        mimeType: String(file?.mimeType || ""),
+        bytes: Number(file?.bytes || 0),
+        sha256: String(file?.sha256 || "")
+    }));
+}
+
+function receivedSourceIdentities(sources = []) {
+    return sources.map(source => ({
+        sourceId: String(source?.sourceId || ""),
+        fileName: String(source?.fileName || source?.name || ""),
+        mimeType: String(source?.mimeType || ""),
+        sha256: String(source?.sha256 || "")
+    }));
+}
+
+function createAnalysisError(code, files = [], sources = []) {
+    const error = new Error(code);
+    error.code = code;
+    error.expectedSources = files.length;
+    error.receivedSources = Array.isArray(sources) ? sources.length : 0;
+    error.expectedSourceIdentities = sourceManifest(files);
+    error.receivedSourceIdentities = receivedSourceIdentities(
+        Array.isArray(sources) ? sources : []
+    );
+    return error;
+}
+
+function resolveSourcesByIdentity(sources, files) {
+    if (sources.length !== files.length) {
+        throw createAnalysisError(
+            "MEDIA_ANALYSIS_SOURCE_COUNT_MISMATCH",
+            files,
+            sources
+        );
+    }
+
+    if (files.length === 1) {
+        const file = files[0];
+        const source = sources[0];
+        const returnedSourceId = String(source?.sourceId || "").trim();
+        const returnedFileName = String(
+            source?.fileName || source?.name || ""
+        ).trim();
+
+        if (
+            (returnedSourceId && returnedSourceId !== file.sourceId) ||
+            (returnedFileName && returnedFileName !== file.name)
+        ) {
+            throw createAnalysisError(
+                "MEDIA_ANALYSIS_SOURCE_IDENTITY_MISMATCH",
+                files,
+                sources
+            );
+        }
+
+        return [source];
+    }
+
+    const expectedById = new Map(
+        files.map(file => [file.sourceId, file])
+    );
+    const receivedById = new Map();
+
+    for (const source of sources) {
+        const sourceId = String(source?.sourceId || "").trim();
+        const fileName = String(
+            source?.fileName || source?.name || ""
+        ).trim();
+
+        if (!sourceId || !fileName) {
+            throw createAnalysisError(
+                "MEDIA_ANALYSIS_SOURCE_IDENTITY_REQUIRED",
+                files,
+                sources
+            );
+        }
+
+        const expected = expectedById.get(sourceId);
+
+        if (!expected || expected.name !== fileName) {
+            throw createAnalysisError(
+                "MEDIA_ANALYSIS_SOURCE_IDENTITY_MISMATCH",
+                files,
+                sources
+            );
+        }
+
+        if (receivedById.has(sourceId)) {
+            throw createAnalysisError(
+                "MEDIA_ANALYSIS_SOURCE_IDENTITY_DUPLICATE",
+                files,
+                sources
+            );
+        }
+
+        const returnedMimeType = String(source?.mimeType || "").trim();
+        const returnedSha256 = String(source?.sha256 || "").trim();
+
+        if (
+            (returnedMimeType && returnedMimeType !== expected.mimeType) ||
+            (returnedSha256 && returnedSha256 !== expected.sha256)
+        ) {
+            throw createAnalysisError(
+                "MEDIA_ANALYSIS_SOURCE_IDENTITY_MISMATCH",
+                files,
+                sources
+            );
+        }
+
+        receivedById.set(sourceId, source);
+    }
+
+    if (receivedById.size !== files.length) {
+        throw createAnalysisError(
+            "MEDIA_ANALYSIS_SOURCE_IDENTITY_MISMATCH",
+            files,
+            sources
+        );
+    }
+
+    return files.map(file => receivedById.get(file.sourceId));
+}
+
 function validateAnalysis(parsed, files) {
-    const sources = Array.isArray(parsed?.sources) ? parsed.sources : [];
-    if (sources.length !== files.length) throw new Error("MEDIA_ANALYSIS_SOURCE_COUNT_MISMATCH");
+    const sources = Array.isArray(parsed?.sources)
+        ? parsed.sources
+        : [];
+
+    const orderedSources =
+        resolveSourcesByIdentity(sources, files);
+
     return {
         ok: true,
         status: "MEDIA_ANALYSIS_GROUNDED",
         engine: "jarvis_gemini_multimodal_analysis",
         version: VERSION,
-        sources: sources.map((source, index) => ({
-            name: files[index].name,
-            mimeType: files[index].mimeType,
-            bytes: files[index].bytes,
-            description: String(source?.description || "").slice(0, 4000),
-            objects: Array.isArray(source?.objects) ? source.objects.slice(0, 60) : [],
-            composition: source?.composition && typeof source.composition === "object" ? source.composition : {},
-            visibleData: Array.isArray(source?.visibleData) ? source.visibleData.slice(0, 100) : [],
-            pages: Array.isArray(source?.pages) ? source.pages.slice(0, 100) : [],
-            marketingUse: Array.isArray(source?.marketingUse) ? source.marketingUse.slice(0, 20) : [],
-            quality: source?.quality && typeof source.quality === "object" ? source.quality : {},
-            uncertainty: Array.isArray(source?.uncertainty) ? source.uncertainty.slice(0, 50) : [],
-            evidence: Array.isArray(source?.evidence) ? source.evidence.slice(0, 120) : []
-        })),
-        comparison: parsed?.comparison && typeof parsed.comparison === "object" ? parsed.comparison : null,
-        recommendations: Array.isArray(parsed?.recommendations) ? parsed.recommendations.slice(0, 50) : [],
+        expectedSources: files.length,
+        receivedSources: sources.length,
+        sources: orderedSources.map((source, index) => {
+            const file = files[index];
+
+            return {
+                sourceId: file.sourceId,
+                fileName: file.name,
+                name: file.name,
+                mimeType: file.mimeType,
+                bytes: file.bytes,
+                sha256: file.sha256,
+                description:
+                    String(source?.description || "")
+                        .slice(0, 4000),
+                observations:
+                    Array.isArray(source?.observations)
+                        ? source.observations.slice(0, 120)
+                        : [],
+                inferences:
+                    Array.isArray(source?.inferences)
+                        ? source.inferences.slice(0, 120)
+                        : [],
+                objects:
+                    Array.isArray(source?.objects)
+                        ? source.objects.slice(0, 60)
+                        : [],
+                composition:
+                    source?.composition &&
+                    typeof source.composition === "object"
+                        ? source.composition
+                        : {},
+                visibleData:
+                    Array.isArray(source?.visibleData)
+                        ? source.visibleData.slice(0, 100)
+                        : [],
+                pages:
+                    Array.isArray(source?.pages)
+                        ? source.pages.slice(0, 100)
+                        : [],
+                marketingUse:
+                    Array.isArray(source?.marketingUse)
+                        ? source.marketingUse.slice(0, 20)
+                        : [],
+                quality:
+                    source?.quality &&
+                    typeof source.quality === "object"
+                        ? source.quality
+                        : {},
+                uncertainty:
+                    Array.isArray(source?.uncertainty)
+                        ? source.uncertainty.slice(0, 50)
+                        : [],
+                evidence:
+                    Array.isArray(source?.evidence)
+                        ? source.evidence.slice(0, 120)
+                        : []
+            };
+        }),
+        comparison:
+            parsed?.comparison &&
+            typeof parsed.comparison === "object"
+                ? parsed.comparison
+                : null,
+        recommendations:
+            Array.isArray(parsed?.recommendations)
+                ? parsed.recommendations.slice(0, 50)
+                : [],
         policy: {
             readOnly: true,
             evidenceRequired: true,
+            identityBindingRequired: true,
+            deterministicSourceOrder: true,
             illegibleContentMustRemainUnknown: true,
             authenticatedAdminOnly: true
         }
     };
 }
 
-async function runJarvisMediaAnalysis({ ai, input = {}, model = DEFAULT_MODEL } = {}) {
-    const modernClient = Boolean(ai?.models?.generateContent);
-    const legacyClient = Boolean(ai?.getGenerativeModel);
-    if (!modernClient && !legacyClient) throw new Error("MEDIA_AI_REQUIRED");
-    const files = normalizeMediaFiles(input.files);
-    const question = String(input.question || input.instruction || "Analiza los materiales entregados.").trim().slice(0, 3000);
-    const prompt = `Eres el analista visual y documental privado de Heberto Mendoza. Analiza exclusivamente los archivos adjuntos. No inventes texto, objetos, cifras ni páginas ilegibles. Distingue observación de inferencia. Devuelve JSON estricto con esta forma: {"sources":[{"description":"","objects":[],"composition":{"framing":"","lighting":"","visualHierarchy":""},"visibleData":[{"value":"","page":null,"confidence":0,"evidence":""}],"pages":[{"page":1,"summary":"","tables":[],"images":[],"evidence":[],"uncertainty":[]}],"marketingUse":[],"quality":{"score":0,"issues":[],"improvements":[]},"uncertainty":[],"evidence":[]}],"comparison":{"beforeAfter":false,"differences":[],"confidence":0},"recommendations":[]}. Debe existir una entrada sources por archivo y en el mismo orden. Para PDF aporta evidencia por página. Para imágenes evalúa hero, galería, servicio, equipo, testimonio y antes/después sólo cuando haya evidencia. Si algo no se lee, colócalo en uncertainty. Pregunta: ${question}`;
-    const parts = [prompt, ...files.map(file => ({ inlineData: { mimeType: file.mimeType, data: file.dataBase64 } }))];
-    let text = "";
+function buildAnalysisPrompt(
+    files,
+    question,
+    {
+        repairAttempt = 0,
+        previousOutput = "",
+        previousError = ""
+    } = {}
+) {
+    const manifest = sourceManifest(files);
+
+    const repairInstruction =
+        repairAttempt > 0
+            ? [
+                "La respuesta anterior incumplió el contrato multimodal.",
+                `ERROR_ANTERIOR=${previousError}`,
+                "Regenera el objeto JSON completo. No rellenes, dupliques, trunques ni mezcles sources.",
+                "Vuelve a analizar todos los archivos adjuntos y vincula cada resultado únicamente mediante sourceId y fileName exactos.",
+                `RESPUESTA_ANTERIOR=${String(previousOutput).slice(0, 12000)}`
+            ].join("\n")
+            : "";
+
+    return [
+        "Eres el analista visual y documental privado de Heberto Mendoza.",
+        "Analiza exclusivamente los archivos adjuntos.",
+        "No inventes texto, objetos, cifras, páginas ni relaciones ilegibles.",
+        "Distingue observaciones directas de inferencias.",
+        "Devuelve solamente JSON estricto.",
+        "Debe existir exactamente una entrada sources por archivo.",
+        "Cada source debe incluir sourceId y fileName copiados literalmente del MANIFEST.",
+        "No dependas de la posición de las imágenes para identificar una source.",
+        "No combines observaciones, evidencia o incertidumbre de archivos diferentes.",
+        "mimeType y sha256 pueden copiarse del MANIFEST y nunca deben modificarse.",
+        `MANIFEST=${JSON.stringify(manifest)}`,
+        'FORMA={"sources":[{"sourceId":"","fileName":"","mimeType":"","sha256":"","description":"","observations":[],"inferences":[],"objects":[],"composition":{"framing":"","lighting":"","visualHierarchy":""},"visibleData":[{"value":"","page":null,"confidence":0,"evidence":""}],"pages":[{"page":1,"summary":"","tables":[],"images":[],"evidence":[],"uncertainty":[]}],"marketingUse":[],"quality":{"score":0,"issues":[],"improvements":[]},"uncertainty":[],"evidence":[]}],"comparison":{"beforeAfter":false,"differences":[],"confidence":0},"recommendations":[]}',
+        "Para PDF aporta evidencia por página.",
+        "Para imágenes evalúa hero, galería, servicio, equipo, testimonio y antes/después solamente cuando exista evidencia.",
+        "Si algo no se lee o no puede vincularse con certeza, colócalo en uncertainty.",
+        `PREGUNTA=${question}`,
+        repairInstruction
+    ]
+        .filter(Boolean)
+        .join("\n");
+}
+
+function buildComparisonResponseJsonSchema() {
+    return {
+        type: "object",
+        additionalProperties: false,
+        required: [
+            "comparison",
+            "recommendations"
+        ],
+        properties: {
+            comparison: {
+                type: "object",
+                additionalProperties: false,
+                required: [
+                    "beforeAfter",
+                    "differences",
+                    "confidence"
+                ],
+                properties: {
+                    beforeAfter: {
+                        type: "boolean"
+                    },
+                    differences: {
+                        type: "array",
+                        items: {
+                            type: "string"
+                        }
+                    },
+                    confidence: {
+                        type: "number"
+                    }
+                }
+            },
+            recommendations: {
+                type: "array",
+                items: {
+                    type: "string"
+                }
+            }
+        }
+    };
+}
+
+function buildAnalysisResponseJsonSchema(files) {
+    const sourceIds =
+        files.map(file => file.sourceId);
+
+    const fileNames =
+        files.map(file => file.name);
+
+    const mimeTypes =
+        Array.from(
+            new Set(
+                files.map(file => file.mimeType)
+            )
+        );
+
+    const schema = {
+        type: "object",
+        additionalProperties: false,
+        required: [
+            "sources"
+        ],
+        properties: {
+            sources: {
+                type: "array",
+                minItems: files.length,
+                maxItems: files.length,
+                items: {
+                    type: "object",
+                    additionalProperties: false,
+                    required: [
+                        "sourceId",
+                        "fileName",
+                        "mimeType",
+                        "description",
+                        "observations",
+                        "inferences",
+                        "evidence",
+                        "uncertainty"
+                    ],
+                    properties: {
+                        sourceId: {
+                            type: "string",
+                            enum: sourceIds
+                        },
+                        fileName: {
+                            type: "string",
+                            enum: fileNames
+                        },
+                        mimeType: {
+                            type: "string",
+                            enum: mimeTypes
+                        },
+                        description: {
+                            type: "string"
+                        },
+                        observations: {
+                            type: "array",
+                            items: {
+                                type: "string"
+                            }
+                        },
+                        inferences: {
+                            type: "array",
+                            items: {
+                                type: "string"
+                            }
+                        },
+                        evidence: {
+                            type: "array",
+                            items: {
+                                type: "string"
+                            }
+                        },
+                        uncertainty: {
+                            type: "array",
+                            items: {
+                                type: "string"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    if (files.length > 1) {
+        const comparisonSchema =
+            buildComparisonResponseJsonSchema();
+
+        schema.required.push(
+            "comparison",
+            "recommendations"
+        );
+
+        schema.properties.comparison =
+            comparisonSchema.properties.comparison;
+
+        schema.properties.recommendations =
+            comparisonSchema.properties.recommendations;
+    }
+
+    return schema;
+}
+
+async function generateAnalysisText({
+    ai,
+    model,
+    files,
+    prompt,
+    responseJsonSchema = null
+}) {
+    const modernClient =
+        Boolean(ai?.models?.generateContent);
+
+    const legacyClient =
+        Boolean(ai?.getGenerativeModel);
+
+    if (!modernClient && !legacyClient) {
+        throw new Error("MEDIA_AI_REQUIRED");
+    }
+
+    const parts = [
+        prompt,
+        ...files.map(file => ({
+            inlineData: {
+                mimeType: file.mimeType,
+                data: file.dataBase64
+            }
+        }))
+    ];
+
+    const effectiveSchema =
+        responseJsonSchema ||
+        (
+            files.length > 0
+                ? buildAnalysisResponseJsonSchema(files)
+                : buildComparisonResponseJsonSchema()
+        );
 
     if (modernClient) {
-        const generated = await ai.models.generateContent({
-            model,
-            contents: [{ role: "user", parts }],
-            config: {
-                temperature: 0.05,
-                maxOutputTokens: 8192,
-                responseMimeType: "application/json"
-            }
-        });
-        text = String(generated?.text || "");
-    }
-    else {
-        const generator = ai.getGenerativeModel({
-            model,
-            generationConfig: { temperature: 0.05, maxOutputTokens: 8192, responseMimeType: "application/json" }
-        });
-        const generated = await generator.generateContent(parts);
-        text = String(generated?.response?.text?.() || "");
+        const generated =
+            await ai.models.generateContent({
+                model,
+                contents: [{
+                    role: "user",
+                    parts
+                }],
+                config: {
+                    temperature: 0.05,
+                    maxOutputTokens: 8192,
+                    responseMimeType:
+                        "application/json",
+                    responseJsonSchema:
+                        effectiveSchema
+                }
+            });
+
+        return String(generated?.text || "");
     }
 
-    if (!text) throw new Error("MEDIA_ANALYSIS_OUTPUT_MISSING");
-    let parsed;
-    try {
-        parsed = JSON.parse(text);
-    } catch (error) {
-        throw new Error("MEDIA_ANALYSIS_JSON_INVALID");
+    const generator =
+        ai.getGenerativeModel({
+            model,
+            generationConfig: {
+                temperature: 0.05,
+                maxOutputTokens: 8192,
+                responseMimeType:
+                    "application/json",
+                responseSchema:
+                    effectiveSchema
+            }
+        });
+
+    const generated =
+        await generator.generateContent(parts);
+
+    return String(
+        generated?.response?.text?.() || ""
+    );
+}
+
+function parseAnalysisJson(text, files) {
+    if (!text) {
+        throw createAnalysisError(
+            "MEDIA_ANALYSIS_OUTPUT_MISSING",
+            files,
+            []
+        );
     }
+
+    try {
+        return JSON.parse(text);
+    }
+    catch {
+        throw createAnalysisError(
+            "MEDIA_ANALYSIS_JSON_INVALID",
+            files,
+            []
+        );
+    }
+}
+
+function isRepairableAnalysisError(error) {
+    return new Set([
+        "MEDIA_ANALYSIS_JSON_INVALID",
+        "MEDIA_ANALYSIS_SOURCE_COUNT_MISMATCH",
+        "MEDIA_ANALYSIS_SOURCE_IDENTITY_REQUIRED",
+        "MEDIA_ANALYSIS_SOURCE_IDENTITY_MISMATCH",
+        "MEDIA_ANALYSIS_SOURCE_IDENTITY_DUPLICATE"
+    ]).has(error?.message);
+}
+
+
+function buildIsolatedAnalysisPrompt(file, question) {
+    return [
+        buildAnalysisPrompt([file], question),
+        "MODO_ANALISIS_AISLADO=TRUE",
+        "Analiza ?nicamente este archivo.",
+        "Devuelve exactamente una source.",
+        "sourceId y fileName son obligatorios y deben coincidir literalmente con el MANIFEST.",
+        "No hagas comparaciones con archivos no adjuntos en esta llamada."
+    ].join("\n");
+}
+
+function validateIsolatedAnalysis(parsed, file) {
+    const sources =
+        Array.isArray(parsed?.sources)
+            ? parsed.sources
+            : [];
+
+    if (sources.length !== 1) {
+        throw createAnalysisError(
+            "MEDIA_ANALYSIS_ISOLATED_SOURCE_COUNT_MISMATCH",
+            [file],
+            sources
+        );
+    }
+
+    const source = sources[0];
+    const sourceId =
+        String(source?.sourceId || "").trim();
+    const fileName =
+        String(source?.fileName || source?.name || "").trim();
+
+    if (
+        sourceId !== file.sourceId ||
+        fileName !== file.name
+    ) {
+        throw createAnalysisError(
+            "MEDIA_ANALYSIS_ISOLATED_SOURCE_IDENTITY_MISMATCH",
+            [file],
+            sources
+        );
+    }
+
+    return validateAnalysis(parsed, [file]);
+}
+
+function buildValidatedComparisonPrompt(sources, question) {
+    const groundedSources =
+        sources.map(source => ({
+            sourceId: source.sourceId,
+            fileName: source.fileName,
+            mimeType: source.mimeType,
+            bytes: source.bytes,
+            sha256: source.sha256,
+            description: source.description,
+            observations: source.observations,
+            inferences: source.inferences,
+            objects: source.objects,
+            visibleData: source.visibleData,
+            pages: source.pages,
+            quality: source.quality,
+            uncertainty: source.uncertainty,
+            evidence: source.evidence
+        }));
+
+    return [
+        "COMPARACION_GLOBAL_VALIDADA",
+        "Compara exclusivamente las fuentes ya analizadas y validadas incluidas en FUENTES_VALIDADAS.",
+        "No inventes contenido visual nuevo.",
+        "No reasignes evidencia, observaciones ni incertidumbre entre archivos.",
+        "Devuelve solamente JSON estricto con esta forma:",
+        '{"comparison":{"beforeAfter":false,"differences":[],"confidence":0},"recommendations":[]}',
+        "beforeAfter s?lo puede ser true cuando exista evidencia inequ?voca.",
+        "Cada diferencia debe ser rastreable a los sourceId y fileName entregados.",
+        `FUENTES_VALIDADAS=${JSON.stringify(groundedSources)}`,
+        `PREGUNTA=${question}`
+    ].join("\n");
+}
+
+async function runIsolatedMediaFallback({
+    ai,
+    model,
+    files,
+    question,
+    repairCount
+}) {
+    const isolatedSources = [];
+
+    for (const file of files) {
+        try {
+            const text =
+                await generateAnalysisText({
+                    ai,
+                    model,
+                    files: [file],
+                    prompt:
+                        buildIsolatedAnalysisPrompt(
+                            file,
+                            question
+                        )
+                });
+
+            const parsed =
+                parseAnalysisJson(text, [file]);
+
+            const validated =
+                validateIsolatedAnalysis(
+                    parsed,
+                    file
+                );
+
+            isolatedSources.push(
+                validated.sources[0]
+            );
+        }
+        catch (error) {
+            const failure =
+                createAnalysisError(
+                    "MEDIA_ANALYSIS_ISOLATED_SOURCE_FAILED",
+                    files,
+                    isolatedSources
+                );
+
+            failure.causeCode =
+                error?.message ||
+                "MEDIA_ANALYSIS_ISOLATED_SOURCE_INVALID";
+            failure.failedSourceId =
+                file.sourceId;
+            failure.failedFileName =
+                file.name;
+            failure.repairCount =
+                repairCount;
+
+            throw failure;
+        }
+    }
+
+    let comparisonPayload;
+
+    try {
+        const comparisonText =
+            await generateAnalysisText({
+                ai,
+                model,
+                files: [],
+                prompt:
+                    buildValidatedComparisonPrompt(
+                        isolatedSources,
+                        question
+                    )
+            });
+
+        comparisonPayload =
+            parseAnalysisJson(
+                comparisonText,
+                files
+            );
+    }
+    catch (error) {
+        const failure =
+            createAnalysisError(
+                "MEDIA_ANALYSIS_COMPARISON_INVALID",
+                files,
+                isolatedSources
+            );
+
+        failure.causeCode =
+            error?.message ||
+            "MEDIA_ANALYSIS_COMPARISON_JSON_INVALID";
+        failure.repairCount =
+            repairCount;
+
+        throw failure;
+    }
+
+    if (
+        !comparisonPayload?.comparison ||
+        typeof comparisonPayload.comparison !== "object" ||
+        Array.isArray(comparisonPayload.comparison)
+    ) {
+        const failure =
+            createAnalysisError(
+                "MEDIA_ANALYSIS_COMPARISON_INVALID",
+                files,
+                isolatedSources
+            );
+
+        failure.repairCount =
+            repairCount;
+        throw failure;
+    }
+
+    const assembled =
+        validateAnalysis(
+            {
+                sources:
+                    isolatedSources,
+                comparison:
+                    comparisonPayload.comparison,
+                recommendations:
+                    Array.isArray(
+                        comparisonPayload.recommendations
+                    )
+                        ? comparisonPayload.recommendations
+                        : []
+            },
+            files
+        );
+
     return {
-        ...validateAnalysis(parsed, files),
-        provider: String(ai.lastProvider || (modernClient ? "gemini-modern" : "gemini-legacy")),
+        ...assembled,
+        analysisMode:
+            "ISOLATED_PER_FILE_FALLBACK",
+        combinedAnalysisFailed:
+            true,
+        repairCount,
+        provider:
+            String(
+                ai.lastProvider ||
+                (
+                    ai?.models?.generateContent
+                        ? "gemini-modern"
+                        : "gemini-legacy"
+                )
+            ),
         model,
-        analyzedAt: new Date().toISOString()
+        analyzedAt:
+            new Date().toISOString()
     };
+}
+
+async function runJarvisMediaAnalysis({
+    ai,
+    input = {},
+    model = DEFAULT_MODEL
+} = {}) {
+    const files =
+        normalizeMediaFiles(input.files);
+
+    const question =
+        String(
+            input.question ||
+            input.instruction ||
+            "Analiza los materiales entregados."
+        )
+            .trim()
+            .slice(0, 3000);
+
+    let repairAttempt = 0;
+    let previousOutput = "";
+    let previousError = "";
+    let terminalError = null;
+
+    while (repairAttempt <= MAX_REPAIR_ATTEMPTS) {
+        const prompt =
+            buildAnalysisPrompt(
+                files,
+                question,
+                {
+                    repairAttempt,
+                    previousOutput,
+                    previousError
+                }
+            );
+
+        const text =
+            await generateAnalysisText({
+                ai,
+                model,
+                files,
+                prompt
+            });
+
+        try {
+            const parsed =
+                parseAnalysisJson(text, files);
+
+            const validated =
+                validateAnalysis(parsed, files);
+
+            return {
+                ...validated,
+                analysisMode: "COMBINED",
+                combinedAnalysisFailed: false,
+                repairCount: repairAttempt,
+                provider:
+                    String(
+                        ai.lastProvider ||
+                        (
+                            ai?.models?.generateContent
+                                ? "gemini-modern"
+                                : "gemini-legacy"
+                        )
+                    ),
+                model,
+                analyzedAt:
+                    new Date().toISOString()
+            };
+        }
+        catch (error) {
+            error.repairCount =
+                repairAttempt;
+            previousOutput =
+                text;
+            previousError =
+                error?.message ||
+                "MEDIA_ANALYSIS_VALIDATION_FAILED";
+
+            if (
+                repairAttempt < MAX_REPAIR_ATTEMPTS &&
+                isRepairableAnalysisError(error)
+            ) {
+                repairAttempt += 1;
+                continue;
+            }
+
+            terminalError = error;
+            break;
+        }
+    }
+
+    const canUseIsolatedFallback =
+        files.length > 1 &&
+        terminalError &&
+        terminalError.receivedSources === 0 &&
+        isRepairableAnalysisError(
+            terminalError
+        );
+
+    if (canUseIsolatedFallback) {
+        return await runIsolatedMediaFallback({
+            ai,
+            model,
+            files,
+            question,
+            repairCount:
+                repairAttempt
+        });
+    }
+
+    if (terminalError) {
+        if (
+            typeof terminalError.expectedSources !==
+            "number"
+        ) {
+            terminalError.expectedSources =
+                files.length;
+        }
+
+        if (
+            typeof terminalError.receivedSources !==
+            "number"
+        ) {
+            terminalError.receivedSources =
+                0;
+        }
+
+        terminalError.repairCount =
+            repairAttempt;
+
+        throw terminalError;
+    }
+
+    const unavailable =
+        createAnalysisError(
+            "MEDIA_ANALYSIS_UNAVAILABLE",
+            files,
+            []
+        );
+
+    unavailable.repairCount =
+        repairAttempt;
+
+    throw unavailable;
 }
 
 module.exports = {
@@ -112,7 +959,16 @@ module.exports = {
     MAX_FILES,
     MAX_FILE_BYTES,
     MAX_TOTAL_BYTES,
+    MAX_REPAIR_ATTEMPTS,
     normalizeMediaFiles,
+    sourceManifest,
     validateAnalysis,
+    buildAnalysisPrompt,
+    buildAnalysisResponseJsonSchema,
+    buildComparisonResponseJsonSchema,
+    buildIsolatedAnalysisPrompt,
+    buildValidatedComparisonPrompt,
+    validateIsolatedAnalysis,
+    runIsolatedMediaFallback,
     runJarvisMediaAnalysis
 };
