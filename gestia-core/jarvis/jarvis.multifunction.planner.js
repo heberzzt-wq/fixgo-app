@@ -1,4 +1,4 @@
-const VERSION = "4.5.0-stable-research-objectives";
+const VERSION = "4.6.0-full-runtime-catalog";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
@@ -228,7 +228,7 @@ function runtimeCatalog(context = {}) {
 
     return source
         .filter(tool => tool?.name && typeof tool.name === "string")
-        .slice(0, 60)
+        .slice(0, 80)
         .map(tool => ({
             name: tool.name,
             description: String(tool.description || "").slice(0, 500),
@@ -399,12 +399,137 @@ function hasRequiredToolArguments(tool = {}, args = {}) {
     return required.every(name => {
         if (!Object.prototype.hasOwnProperty.call(args, name)) return false;
         const value = args[name];
-        if (value == null) return false;
-        if (typeof value === "string") return value.trim().length > 0;
-        if (Array.isArray(value)) return value.length > 0;
-        if (typeof value === "object") return Object.keys(value).length > 0;
-        return true;
+        const fieldSchema =
+            tool?.inputSchema
+                ?.properties
+                ?.[name] ||
+            {};
+        return schemaValueIsExecutable(
+            value,
+            fieldSchema
+        );
     });
+}
+
+function schemaValueIsExecutable(
+    value,
+    schema = {}
+) {
+    if (value == null) {
+        return false;
+    }
+    const type =
+        String(schema?.type || "")
+            .trim()
+            .toLowerCase();
+    if (
+        type ===
+            "string" ||
+        (
+            !type &&
+            typeof value ===
+                "string"
+        )
+    ) {
+        return (
+            typeof value ===
+                "string" &&
+            value.trim().length >
+                0
+        );
+    }
+    if (
+        type ===
+            "array" ||
+        (
+            !type &&
+            Array.isArray(value)
+        )
+    ) {
+        if (!Array.isArray(value)) {
+            return false;
+        }
+        const minimum =
+            Math.max(
+                1,
+                Number(
+                    schema?.minItems
+                ) ||
+                0
+            );
+        if (
+            value.length <
+            minimum
+        ) {
+            return false;
+        }
+        return value.every(item =>
+            schemaValueIsExecutable(
+                item,
+                schema?.items ||
+                {}
+            )
+        );
+    }
+    if (
+        type ===
+            "object" ||
+        (
+            !type &&
+            typeof value ===
+                "object" &&
+            !Array.isArray(value)
+        )
+    ) {
+        if (
+            typeof value !==
+                "object" ||
+            Array.isArray(value) ||
+            Object.keys(value)
+                .length ===
+                0
+        ) {
+            return false;
+        }
+        const required =
+            Array.isArray(
+                schema?.required
+            )
+                ? schema.required
+                : [];
+        return required.every(name =>
+            Object.prototype
+                .hasOwnProperty
+                .call(
+                    value,
+                    name
+                ) &&
+            schemaValueIsExecutable(
+                value[name],
+                schema
+                    ?.properties
+                    ?.[name] ||
+                {}
+            )
+        );
+    }
+    if (
+        type ===
+            "number" ||
+        type ===
+            "integer"
+    ) {
+        return Number.isFinite(
+            Number(value)
+        );
+    }
+    if (type === "boolean") {
+        return (
+            typeof value ===
+            "boolean"
+        );
+    }
+    return true;
 }
 
 function attachPlanMetadata(calls = [], plan = {}) {

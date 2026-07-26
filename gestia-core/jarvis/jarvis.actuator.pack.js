@@ -3,7 +3,7 @@ import {
 } from "./jarvis.capability.evidence.js";
 import { adaptImageSource } from "./jarvis.image.adapter.js";
 
-const VERSION = "7.19.0-verified-complete-artifacts";
+const VERSION = "7.20.0-delegation-contract";
 
 export function normalizeImageArtifactOutput(output, mimeType) {
     const extensions = {
@@ -648,7 +648,46 @@ export function registerJarvisActuatorTools(runtime) {
             name: "agent.delegate",
             description: "Delega y ejecuta en paralelo hasta cuatro herramientas read-only de Jarvis.",
             output: "AGENT_DELEGATION_RESULT",
-            inputSchema: { tasks: "array" },
+            inputSchema: {
+                type:
+                    "object",
+                required: [
+                    "tasks"
+                ],
+                properties: {
+                    tasks: {
+                        type:
+                            "array",
+                        minItems:
+                            1,
+                        maxItems:
+                            4,
+                        items: {
+                            type:
+                                "object",
+                            required: [
+                                "tool"
+                            ],
+                            properties: {
+                                tool: {
+                                    type:
+                                        "string"
+                                },
+                                args: {
+                                    type:
+                                        "object",
+                                    additionalProperties:
+                                        true
+                                }
+                            },
+                            additionalProperties:
+                                false
+                        }
+                    }
+                },
+                additionalProperties:
+                    false
+            },
             execute: async (args = {}, context = {}) => {
                 const tasks = Array.isArray(args.tasks) ? args.tasks.slice(0, 4) : [];
                 const allowed = tasks.filter(task => {

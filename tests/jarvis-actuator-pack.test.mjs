@@ -73,6 +73,33 @@ test("actuator pack registers browser, documents, image, delegation and connecto
     assert.equal(runtime.get("artifact.createJson").requiresApproval, true);
     assert.equal(runtime.get("artifact.list").mutates, false);
     assert.equal(runtime.get("artifact.read").mutates, false);
+    assert.deepEqual(
+        runtime.get("agent.delegate")
+            .inputSchema
+            .required,
+        [
+            "tasks"
+        ]
+    );
+    assert.equal(
+        runtime.get("agent.delegate")
+            .inputSchema
+            .properties
+            .tasks
+            .minItems,
+        1
+    );
+    assert.deepEqual(
+        runtime.get("agent.delegate")
+            .inputSchema
+            .properties
+            .tasks
+            .items
+            .required,
+        [
+            "tool"
+        ]
+    );
 });
 
 test("agent delegation runs only read-only tools and rejects recursive delegation", async () => {

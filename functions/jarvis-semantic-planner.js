@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "1.18.0-stable-research-objectives";
+const VERSION = "1.19.0-full-runtime-catalog";
 const DEFAULT_ENDPOINT = "https://text.pollinations.ai/openai";
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -47,7 +47,7 @@ function normalizeCatalog(catalog = []) {
     if (!Array.isArray(catalog)) return [];
 
     return catalog
-        .slice(0, 60)
+        .slice(0, 80)
         .filter(item => isSafeToolName(item?.name))
         .map(item => ({
             name: String(item.name),
@@ -384,12 +384,135 @@ function hasRequiredToolArguments(tool = {}, args = {}) {
     return required.every(name => {
         if (!Object.prototype.hasOwnProperty.call(args, name)) return false;
         const value = args[name];
-        if (value == null) return false;
-        if (typeof value === "string") return value.trim().length > 0;
-        if (Array.isArray(value)) return value.length > 0;
-        if (typeof value === "object") return Object.keys(value).length > 0;
-        return true;
+        const fieldSchema =
+            schema?.properties?.[name] ||
+            {};
+        return schemaValueIsExecutable(
+            value,
+            fieldSchema
+        );
     });
+}
+
+function schemaValueIsExecutable(
+    value,
+    schema = {}
+) {
+    if (value == null) {
+        return false;
+    }
+    const type =
+        String(schema?.type || "")
+            .trim()
+            .toLowerCase();
+    if (
+        type ===
+            "string" ||
+        (
+            !type &&
+            typeof value ===
+                "string"
+        )
+    ) {
+        return (
+            typeof value ===
+                "string" &&
+            value.trim().length >
+                0
+        );
+    }
+    if (
+        type ===
+            "array" ||
+        (
+            !type &&
+            Array.isArray(value)
+        )
+    ) {
+        if (!Array.isArray(value)) {
+            return false;
+        }
+        const minimum =
+            Math.max(
+                1,
+                Number(
+                    schema?.minItems
+                ) ||
+                0
+            );
+        if (
+            value.length <
+            minimum
+        ) {
+            return false;
+        }
+        return value.every(item =>
+            schemaValueIsExecutable(
+                item,
+                schema?.items ||
+                {}
+            )
+        );
+    }
+    if (
+        type ===
+            "object" ||
+        (
+            !type &&
+            typeof value ===
+                "object" &&
+            !Array.isArray(value)
+        )
+    ) {
+        if (
+            typeof value !==
+                "object" ||
+            Array.isArray(value) ||
+            Object.keys(value)
+                .length ===
+                0
+        ) {
+            return false;
+        }
+        const required =
+            Array.isArray(
+                schema?.required
+            )
+                ? schema.required
+                : [];
+        return required.every(name =>
+            Object.prototype
+                .hasOwnProperty
+                .call(
+                    value,
+                    name
+                ) &&
+            schemaValueIsExecutable(
+                value[name],
+                schema
+                    ?.properties
+                    ?.[name] ||
+                {}
+            )
+        );
+    }
+    if (
+        type ===
+            "number" ||
+        type ===
+            "integer"
+    ) {
+        return Number.isFinite(
+            Number(value)
+        );
+    }
+    if (type === "boolean") {
+        return (
+            typeof value ===
+            "boolean"
+        );
+    }
+    return true;
 }
 
 function buildGeminiModelTools(catalog = []) {

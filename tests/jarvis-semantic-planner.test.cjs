@@ -12,6 +12,7 @@ const {
     extractJsonObject,
     extractToolCallPlan,
     hasRequiredToolArguments,
+    normalizeCatalog,
     requestModel,
     runGeminiSemanticPlanner,
     runSimpleSemanticPlanner,
@@ -101,6 +102,101 @@ test("semantic planner rejects calls missing schema-required arguments", () => {
             "revisa el repo"
         ).toolCalls.length,
         0
+    );
+});
+
+test("semantic planner rejects empty or malformed delegation tasks before execution", () => {
+    const delegationTool = {
+        name:
+            "agent.delegate",
+        mutates:
+            false,
+        inputSchema: {
+            type:
+                "object",
+            required: [
+                "tasks"
+            ],
+            properties: {
+                tasks: {
+                    type:
+                        "array",
+                    minItems:
+                        1,
+                    items: {
+                        type:
+                            "object",
+                        required: [
+                            "tool"
+                        ],
+                        properties: {
+                            tool: {
+                                type:
+                                    "string"
+                            },
+                            args: {
+                                type:
+                                    "object",
+                                additionalProperties:
+                                    true
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    };
+    const build =
+        tasks =>
+            validatePlan(
+                {
+                    toolCalls: [{
+                        name:
+                            "agent.delegate",
+                        args: {
+                            tasks
+                        }
+                    }]
+                },
+                [
+                    delegationTool
+                ],
+                "delega pruebas"
+            );
+
+    assert.equal(
+        build([])
+            .toolCalls
+            .length,
+        0
+    );
+    assert.equal(
+        build([{}])
+            .toolCalls
+            .length,
+        0
+    );
+    assert.equal(
+        build([{
+            tool:
+                ""
+        }])
+            .toolCalls
+            .length,
+        0
+    );
+    assert.equal(
+        build([{
+            tool:
+                "repo.read",
+            args: {
+                file:
+                    "app-login.js"
+            }
+        }])
+            .toolCalls
+            .length,
+        1
     );
 });
 
@@ -702,8 +798,8 @@ test("simple mission contract unions independent semantic coverage samples", asy
     assert.equal(result.planKind, "MISSION_CONTRACT_AUDITED");
 });
 
-test("simple planner keeps a sixty-tool catalog inside a safe URL budget", async () => {
-    const largeCatalog = Array.from({ length: 60 }, (_, index) => ({
+test("simple planner keeps the complete seventy-tool catalog inside a safe URL budget", async () => {
+    const largeCatalog = Array.from({ length: 70 }, (_, index) => ({
         name: `domain${index}.tool${index}`,
         description: "Descripcion operacional extensa ".repeat(30),
         mutates: index % 9 === 0
@@ -723,6 +819,12 @@ test("simple planner keeps a sixty-tool catalog inside a safe URL budget", async
 
     assert.ok(requestedUrl.length < 7000);
     assert.equal(requestedUrl.includes("Descripcion%20operacional%20extensa"), false);
+    assert.equal(
+        normalizeCatalog(
+            largeCatalog
+        ).length,
+        70
+    );
 });
 
 test("simple planner enriches selected specialized tools with grounded schema arguments", async () => {

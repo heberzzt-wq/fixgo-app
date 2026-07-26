@@ -430,6 +430,122 @@ test("browser planner blocks tool calls with missing required arguments", () => 
     assert.equal(deferred[0].deferred, true);
 });
 
+test("browser planner rejects malformed delegation and retains the full runtime catalog", () => {
+    const delegationTool = {
+        name:
+            "agent.delegate",
+        description:
+            "Delega tareas read-only.",
+        mutates:
+            false,
+        requiresApproval:
+            false,
+        inputSchema: {
+            type:
+                "object",
+            required: [
+                "tasks"
+            ],
+            properties: {
+                tasks: {
+                    type:
+                        "array",
+                    minItems:
+                        1,
+                    items: {
+                        type:
+                            "object",
+                        required: [
+                            "tool"
+                        ],
+                        properties: {
+                            tool: {
+                                type:
+                                    "string"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    };
+    const plan =
+        tasks => ({
+            toolCalls: [{
+                name:
+                    "agent.delegate",
+                args: {
+                    tasks
+                }
+            }]
+        });
+
+    assert.equal(
+        plannerTest
+            .trustedPlanCalls(
+                plan([]),
+                [
+                    delegationTool
+                ],
+                {}
+            )
+            .length,
+        0
+    );
+    assert.equal(
+        plannerTest
+            .trustedPlanCalls(
+                plan([{}]),
+                [
+                    delegationTool
+                ],
+                {}
+            )
+            .length,
+        0
+    );
+    assert.equal(
+        plannerTest
+            .trustedPlanCalls(
+                plan([{
+                    tool:
+                        "repo.read"
+                }]),
+                [
+                    delegationTool
+                ],
+                {}
+            )
+            .length,
+        1
+    );
+
+    const fullCatalog =
+        Array.from(
+            {
+                length:
+                    70
+            },
+            (_, index) => ({
+                name:
+                    `domain${index}.tool${index}`,
+                description:
+                    "Herramienta verificada.",
+                mutates:
+                    false
+            })
+        );
+    assert.equal(
+        plannerTest
+            .runtimeCatalog({
+                toolCatalog:
+                    fullCatalog
+            })
+            .length,
+        70
+    );
+});
+
 test("browser planner deduplicates artifact stages by declared mission identity", () => {
     const catalog = [
         {
@@ -1454,7 +1570,7 @@ test("system health exposes bridge server version separately from tool pack vers
         );
         assert.equal(
             result.toolPackVersion,
-            "1.44.0-stable-research-objectives"
+            "1.45.0-full-runtime-catalog"
         );
         assert.notEqual(
             result.toolPackVersion,
@@ -2731,7 +2847,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /jarvis-tools-v7-20260726-stable-research-objectives-v88/);
+    assert.match(terminal, /jarvis-tools-v7-20260726-full-runtime-catalog-v89/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
         "utf8"
@@ -2745,10 +2861,10 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-stable-research-objectives-v88-20260726/);
+    assert.match(terminal, /sia7-full-runtime-catalog-v89-20260726/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
-    assert.match(terminal, /jarvis-tools-v7-20260726-stable-research-objectives-v88/);
+    assert.match(terminal, /jarvis-tools-v7-20260726-full-runtime-catalog-v89/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -2929,7 +3045,7 @@ test("daily supervision cloud lookup has a bounded browser deadline", () => {
     assert.match(source, /signal:\s*controller\.signal/);
     assert.match(source, /SUPERVISION_STATUS_TIMEOUT_/);
     assert.match(source, /clearTimeout\(timeoutId\)/);
-    assert.match(source, /4\.5\.0-stable-research-objectives/);
+    assert.match(source, /4\.6\.0-full-runtime-catalog/);
     assert.doesNotMatch(source, /3\.0\.0-model-semantic-planner/);
 });
 
@@ -2948,7 +3064,7 @@ test("multifunction descriptor remains approval-bound", () => {
     assert.equal(planner.mutates, false);
     assert.equal(
         planner.version,
-        "4.5.0-stable-research-objectives"
+        "4.6.0-full-runtime-catalog"
     );
     assert.equal(planner.maximumToolCalls, 12);
     assert.equal(planner.architecture, "model_selected_runtime_catalog");
@@ -2997,7 +3113,7 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260726-stable-research-objectives-v88/);
+    assert.match(core, /jarvis-tools-v7-20260726-full-runtime-catalog-v89/);
     assert.match(
         terminal,
         /jarvis-tools-v7-20260725-semantic-envelope-v64/
