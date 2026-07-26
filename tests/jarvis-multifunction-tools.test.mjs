@@ -1208,6 +1208,24 @@ test("large document composition repairs one failed semantic segment", async () 
                         })
                 };
             }
+            if (
+                prompt.includes(
+                    "REPARACION ESTRUCTURAL ESTRICTA DE DOCUMENTO"
+                )
+            ) {
+                assert.match(
+                    prompt,
+                    /Formato N/
+                );
+                assert.match(
+                    prompt,
+                    /Examen de 25 preguntas/
+                );
+                assert.match(
+                    prompt,
+                    /Clave completa de respuestas/
+                );
+            }
             const message =
                 prompt.includes(
                     "Redacta el segmento 1 de 3"
@@ -1303,7 +1321,7 @@ test("system health exposes bridge server version separately from tool pack vers
         );
         assert.equal(
             result.toolPackVersion,
-            "1.36.0-recoverable-segmented-document-compose"
+            "1.37.0-targeted-document-repair"
         );
         assert.notEqual(
             result.toolPackVersion,
@@ -2593,7 +2611,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-recoverable-segmented-docx-v76-20260725/);
+    assert.match(terminal, /sia7-targeted-document-repair-v77-20260725/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
     assert.match(terminal, /jarvis-tools-v7-20260725-deep-artifacts-v65/);

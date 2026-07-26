@@ -32,7 +32,7 @@ import {
     validateDocumentBlueprint
 } from "./jarvis.document.validator.js?v=sia7-runtime-truth-v70-20260725";
 
-const VERSION = "1.36.0-recoverable-segmented-document-compose";
+const VERSION = "1.37.0-targeted-document-repair";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";
@@ -1664,6 +1664,123 @@ function compactDocumentContractForModel(
     };
 }
 
+function buildDocumentRepairDirectives({
+    contract = {},
+    failures = []
+} = {}) {
+    const failureList =
+        Array.isArray(failures)
+            ? failures.map(value =>
+                String(value || "")
+            )
+            : [];
+    const hasFailure =
+        prefix =>
+            failureList.some(
+                value =>
+                    value.startsWith(
+                        prefix
+                    )
+            );
+    const directives =
+        [];
+
+    if (
+        hasFailure(
+            "DOCUMENT_VEHICLE_COUNT_BELOW_MINIMUM"
+        )
+    ) {
+        directives.push(
+            `Crea una sola tabla Markdown de inventario con encabezados exactos "Unidad | Kilometraje | Tipo | Estado" y ${Number(contract.minVehicles) || 0} filas distintas.`
+        );
+    }
+    if (
+        hasFailure(
+            "DOCUMENT_PART_COUNT_BELOW_MINIMUM"
+        )
+    ) {
+        directives.push(
+            `Crea una sola tabla Markdown de refacciones con encabezados exactos "Código | Refacción | Existencia | Reorden" y ${Number(contract.minParts) || 0} filas distintas.`
+        );
+    }
+    if (
+        hasFailure(
+            "DOCUMENT_KPI_COUNT_BELOW_MINIMUM"
+        )
+    ) {
+        directives.push(
+            `Crea una sola tabla Markdown de KPI con encabezados exactos "Indicador | Fórmula | Meta | Frecuencia | Responsable" y ${Number(contract.minKpis) || 0} filas de indicadores distintos.`
+        );
+    }
+    if (
+        hasFailure(
+            "DOCUMENT_IMPLEMENTATION_DAY_COVERAGE_BELOW_MINIMUM"
+        )
+    ) {
+        directives.push(
+            `Crea una sola tabla Markdown con encabezados exactos "Día | Actividad | Responsable | Evidencia" y ${Number(contract.implementationDays) || 0} filas; el primer campo debe ser cada número consecutivo desde 1 hasta ${Number(contract.implementationDays) || 0}.`
+        );
+    }
+    if (
+        hasFailure(
+            "DOCUMENT_TEMPLATE_COUNT_BELOW_MINIMUM"
+        )
+    ) {
+        directives.push(
+            `Crea exactamente ${Number(contract.minTemplates) || 0} bloques consecutivos. Cada bloque debe iniciar con "## Formato N. [nombre operativo]" y contener inmediatamente una tabla Markdown propia con encabezados que incluyan al menos "Fecha | Responsable | Acción | Firma".`
+        );
+    }
+    if (
+        hasFailure(
+            "DOCUMENT_QUESTION_COUNT_BELOW_MINIMUM"
+        ) ||
+        hasFailure(
+            "DOCUMENT_ANSWER_KEY_MISSING"
+        ) ||
+        hasFailure(
+            "DOCUMENT_ANSWER_KEY_INCOMPLETE"
+        )
+    ) {
+        directives.push(
+            `Crea el encabezado exacto "## Examen de ${Number(contract.minQuestions) || 0} preguntas", seguido inmediatamente de ${Number(contract.minQuestions) || 0} preguntas consecutivas numeradas "1. ¿...?" hasta "${Number(contract.minQuestions) || 0}. ¿...?". Después crea el encabezado exacto "## Clave completa de respuestas" y ${Number(contract.minQuestions) || 0} respuestas consecutivas numeradas del 1 al ${Number(contract.minQuestions) || 0}.`
+        );
+    }
+    if (
+        hasFailure(
+            "DOCUMENT_TABLE_COUNT_BELOW_MINIMUM"
+        )
+    ) {
+        directives.push(
+            `Añade solamente las tablas Markdown operativas distintas necesarias para alcanzar un total global mínimo de ${Number(contract.minTables) || 0}.`
+        );
+    }
+    if (
+        hasFailure(
+            "DOCUMENT_SECTION_COUNT_BELOW_MINIMUM"
+        )
+    ) {
+        directives.push(
+            `Añade únicamente las secciones principales numeradas distintas necesarias para alcanzar ${Number(contract.minSections) || 0}, sin repetir encabezados existentes.`
+        );
+    }
+    if (
+        hasFailure(
+            "DOCUMENT_WORD_COUNT_BELOW_MINIMUM"
+        )
+    ) {
+        directives.push(
+            `Añade contenido operativo sustantivo y original suficiente para alcanzar al menos ${Number(contract.minWords) || 0} palabras globales, sin texto de relleno ni repeticiones.`
+        );
+    }
+
+    return directives.length >
+        0
+        ? directives
+        : [
+            "No agregues prosa nueva. Entrega únicamente el marcador final solicitado."
+        ];
+}
+
 function buildDocumentSegmentPrompts({
     instruction = "",
     title = "",
@@ -2613,21 +2730,28 @@ export function registerJarvisMultifunctionTools(runtime) {
                     const boundedComposedContext =
                         boundDocumentModelContext(
                             composedSoFar,
-                            60000
+                            8000
                         );
+                    const repairDirectives =
+                        buildDocumentRepairDirectives({
+                            contract,
+                            failures:
+                                validation
+                                    .failures
+                        });
                     const continuation =
                         await fetchSemanticConversation(
                             [
-                                "Continua y termina el documento; la version acumulada aun no satisface el contrato verificable.",
-                                "Entrega solamente el contenido faltante desde el punto exacto donde termino; no repitas el contenido existente.",
-                                "Completa todos los requisitos de la solicitud original que aun falten.",
-                                "No declares que el documento esta completo hasta corregir todas las fallas indicadas.",
+                                "REPARACION ESTRUCTURAL ESTRICTA DE DOCUMENTO.",
+                                "Entrega exclusivamente los bloques faltantes indicados abajo. No agregues introducciones, explicaciones, nuevas secciones narrativas ni contenido ya satisfecho.",
+                                "Respeta literalmente encabezados, numeración, cantidades y sintaxis de tablas Markdown.",
+                                ...repairDirectives,
                                 `Finaliza obligatoriamente con ${DOCUMENT_COMPLETION_MARKER} en una linea independiente.`,
                                 `FALLAS_PENDIENTES=${JSON.stringify(validation.failures)}`,
                                 `CONTRATO_VERIFICABLE=${JSON.stringify(compactDocumentContractForModel(contract))}`,
                                 `TITULO=${title}`,
                                 `FORMATO=${format}`,
-                                `SOLICITUD_ORIGINAL=${instruction}`,
+                                `SOLICITUD_ORIGINAL=${boundedOriginalInstruction}`,
                                 `CONTENIDO_YA_REDACTADO_CONTEXTO_ACOTADO=${boundedComposedContext}`
                             ].join("\n"),
                             {
