@@ -2612,7 +2612,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-repair-candidates-v80-20260725/);
+    assert.match(terminal, /sia7-blueprint-dependency-v82-20260725/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
     assert.match(terminal, /jarvis-tools-v7-20260725-repair-candidates-v80/);
@@ -2870,6 +2870,10 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         /jarvis-tools-v7-20260725-semantic-envelope-v64/
     );
     assert.match(core, /DOCUMENT_BLUEPRINT_REQUIRED/);
+    assert.match(core, /DOCUMENT_BLUEPRINT_PENDING/);
+    assert.match(core, /const blueprintComposerPending\s*=/);
+    assert.match(core, /blocked:\s*!blueprintComposerPending/);
+    assert.match(core, /retryable:\s*Boolean\(\s*blueprintComposerPending/);
     assert.match(core, /PAGE_BLUEPRINT_REQUIRED/);
     assert.match(core, /no se creo un archivo parcial/);
 });

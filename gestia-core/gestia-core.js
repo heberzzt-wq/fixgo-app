@@ -5649,6 +5649,37 @@ if (
                                 ""
                             ).toLocaleLowerCase() ===
                                 "docx";
+                        const requiredBlueprintTool =
+                            documentBlueprintRequired
+                                ? "document.compose"
+                                : spreadsheetBlueprintRequired
+                                    ? "spreadsheet.compose"
+                                    : "";
+                        const blueprintComposerBlocked =
+                            requiredBlueprintTool &&
+                            Array.isArray(
+                                missionContext
+                                    ?.blockedTasks
+                            ) &&
+                            missionContext
+                                .blockedTasks
+                                .some(item =>
+                                    item?.name ===
+                                    requiredBlueprintTool
+                                );
+                        const blueprintComposerPending =
+                            !blueprintTask &&
+                            !blueprintComposerBlocked &&
+                            requiredBlueprintTool &&
+                            Array.isArray(
+                                missionContext
+                                    ?.requiredToolNames
+                            ) &&
+                            missionContext
+                                .requiredToolNames
+                                .includes(
+                                    requiredBlueprintTool
+                                );
                         const directDocumentReady =
                             (
                                 typeof executionCall.args.content === "string" &&
@@ -5674,7 +5705,9 @@ if (
                             return {
                                 ok: false,
                                 status:
-                                    spreadsheetBlueprintRequired
+                                    blueprintComposerPending
+                                        ? "DOCUMENT_BLUEPRINT_PENDING"
+                                        : spreadsheetBlueprintRequired
                                         ? "SPREADSHEET_BLUEPRINT_REQUIRED"
                                         : documentBlueprintRequired
                                             ? "DOCUMENT_BLUEPRINT_REQUIRED"
@@ -5682,11 +5715,15 @@ if (
                                 objectiveSatisfied:
                                     false,
                                 blocked:
-                                    true,
+                                    !blueprintComposerPending,
                                 retryable:
-                                    false,
+                                    Boolean(
+                                        blueprintComposerPending
+                                    ),
                                 error:
-                                    spreadsheetBlueprintRequired
+                                    blueprintComposerPending
+                                        ? "La composicion verificable sigue en reintento; document.create esperara el resultado antes de crear un archivo."
+                                        : spreadsheetBlueprintRequired
                                         ? "La composicion XLSX verificable no termino; no se creo un libro vacio o parcial."
                                         : documentBlueprintRequired
                                             ? "La composicion DOCX verificable no termino; no se creo ni publico un documento vacio, placeholder o parcial."

@@ -119,6 +119,160 @@ test("mission grounds dependent execution arguments with prior evidence", async 
     );
 });
 
+test("mission retries artifact creation while its document blueprint is pending", async () => {
+    let composeAttempts =
+        0;
+    const executed =
+        [];
+    const mission =
+        await runJarvisMission({
+            instruction:
+                "Crea un documento verificable y descargable.",
+            initialToolCalls: [
+                {
+                    name:
+                        "document.compose",
+                    args:
+                        {}
+                },
+                {
+                    name:
+                        "document.create",
+                    args: {
+                        format:
+                            "docx"
+                    }
+                }
+            ],
+            requiredToolNames: [
+                "document.compose",
+                "document.create"
+            ],
+            planner:
+                async () => ({
+                    toolCalls:
+                        [],
+                    missionComplete:
+                        true
+                }),
+            execute:
+                async (call, context) => {
+                    executed.push(
+                        call.name
+                    );
+                    if (
+                        call.name ===
+                        "document.compose"
+                    ) {
+                        composeAttempts +=
+                            1;
+                        if (
+                            composeAttempts ===
+                            1
+                        ) {
+                            return {
+                                ok:
+                                    false,
+                                status:
+                                    "DOCUMENT_CONTENT_COMPOSITION_FAILED",
+                                objectiveSatisfied:
+                                    false,
+                                blocked:
+                                    false,
+                                retryable:
+                                    true
+                            };
+                        }
+                        return {
+                            ok:
+                                true,
+                            status:
+                                "DOCUMENT_CONTENT_COMPOSED",
+                            title:
+                                "Manual",
+                            format:
+                                "docx",
+                            content:
+                                "Contenido operativo completo y verificable.",
+                            wordCount:
+                                80,
+                            completionMarkerPresent:
+                                true,
+                            compositionComplete:
+                                true,
+                            validationPassed:
+                                true,
+                            contract: {
+                                minWords:
+                                    80
+                            }
+                        };
+                    }
+                    const blueprintReady =
+                        context.completedTasks
+                            .some(item =>
+                                item.name ===
+                                "document.compose"
+                            );
+                    return blueprintReady
+                        ? {
+                            ok:
+                                true,
+                            status:
+                                "DOCUMENT_CREATED",
+                            output:
+                                ".jarvis-artifacts/documents/manual.docx"
+                        }
+                        : {
+                            ok:
+                                false,
+                            status:
+                                "DOCUMENT_BLUEPRINT_PENDING",
+                            objectiveSatisfied:
+                                false,
+                            blocked:
+                                false,
+                            retryable:
+                                true
+                        };
+                },
+            storage:
+                memoryStorage()
+        });
+
+    assert.deepEqual(
+        executed,
+        [
+            "document.compose",
+            "document.create",
+            "document.compose",
+            "document.create"
+        ]
+    );
+    assert.equal(
+        mission.status,
+        "COMPLETED"
+    );
+    assert.equal(
+        mission.reason,
+        "ALL_EXECUTABLE_TASKS_COMPLETED"
+    );
+    assert.deepEqual(
+        mission.completedTasks
+            .map(item =>
+                item.name
+            ),
+        [
+            "document.compose",
+            "document.create"
+        ]
+    );
+    assert.equal(
+        mission.blockedTasks.length,
+        0
+    );
+});
+
 test("mission stops dependent deliverables when marketing requires input", async () => {
     const sequence = [
         "web.research",
