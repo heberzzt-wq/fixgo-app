@@ -222,6 +222,72 @@ test("semantic planner rejects empty or malformed delegation tasks before execut
     );
 });
 
+test("semantic planner rejects registered tool identifiers used as repository file paths", () => {
+    const catalog = [{
+        name:
+            "repo.read",
+        mutates:
+            false,
+        inputSchema: {
+            type:
+                "object",
+            required: [
+                "file"
+            ],
+            properties: {
+                file: {
+                    type:
+                        "string"
+                }
+            }
+        }
+    }, {
+        name:
+            "repo.write",
+        mutates:
+            true
+    }];
+
+    assert.equal(
+        validatePlan(
+            {
+                toolCalls: [{
+                    name:
+                        "repo.read",
+                    args: {
+                        file:
+                            "repo.write"
+                    }
+                }]
+            },
+            catalog,
+            "revisa el plan"
+        )
+            .toolCalls
+            .length,
+        0
+    );
+    assert.equal(
+        validatePlan(
+            {
+                toolCalls: [{
+                    name:
+                        "repo.read",
+                    args: {
+                        file:
+                            "app-login.js"
+                    }
+                }]
+            },
+            catalog,
+            "lee app-login.js"
+        )
+            .toolCalls
+            .length,
+        1
+    );
+});
+
 test("semantic planner preserves repeated tools for independent arguments", () => {
     const searchTool = {
         name: "repo.search",

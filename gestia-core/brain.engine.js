@@ -37,7 +37,7 @@ import {
   buildJarvisMultifunctionToolCalls,
   mergeJarvisToolCalls
 
-} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-explicit-delegation-v90-20260726";
+} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-specialized-tool-scope-v91-20260726";
 
 import {
 

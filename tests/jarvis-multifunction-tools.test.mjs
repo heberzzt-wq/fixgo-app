@@ -586,6 +586,69 @@ test("browser planner rejects malformed delegation and retains the full runtime 
     );
 });
 
+test("browser planner rejects registered tool identifiers used as repository file paths", () => {
+    const catalog = [{
+        name:
+            "repo.read",
+        description:
+            "Lee un archivo real.",
+        mutates:
+            false,
+        inputSchema: {
+            type:
+                "object",
+            required: [
+                "file"
+            ],
+            properties: {
+                file: {
+                    type:
+                        "string"
+                }
+            }
+        }
+    }, {
+        name:
+            "repo.write",
+        description:
+            "Escribe un archivo.",
+        mutates:
+            true
+    }];
+    const build =
+        file =>
+            plannerTest
+                .trustedPlanCalls(
+                    {
+                        toolCalls: [{
+                            name:
+                                "repo.read",
+                            args: {
+                                file
+                            }
+                        }]
+                    },
+                    catalog,
+                    {
+                        originalInstruction:
+                            "revisa el plan"
+                    }
+                );
+
+    assert.equal(
+        build(
+            "repo.write"
+        ).length,
+        0
+    );
+    assert.equal(
+        build(
+            "app-login.js"
+        ).length,
+        1
+    );
+});
+
 test("browser planner deduplicates artifact stages by declared mission identity", () => {
     const catalog = [
         {
@@ -1610,7 +1673,7 @@ test("system health exposes bridge server version separately from tool pack vers
         );
         assert.equal(
             result.toolPackVersion,
-            "1.46.0-explicit-delegation"
+            "1.47.0-specialized-tool-scope"
         );
         assert.notEqual(
             result.toolPackVersion,
@@ -1957,6 +2020,8 @@ test("semantic model planner replaces phrase gates and preserves terminal speech
     assert.match(planner, /trustedPlanCalls/);
     assert.match(planner, /callBrowserMissionContract/);
     assert.match(planner, /callBrowserSemanticPlan/);
+    assert.match(planner, /repo\.architectReview es autocontenida/);
+    assert.match(planner, /usesRegisteredToolAsRepositoryFile/);
     assert.match(core, /MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN/);
     assert.match(core, /allowedMissionTools/);
     assert.match(core, /operationalMissionToolNames/);
@@ -2891,7 +2956,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /jarvis-tools-v7-20260726-explicit-delegation-v90/);
+    assert.match(terminal, /jarvis-tools-v7-20260726-specialized-tool-scope-v91/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
         "utf8"
@@ -2905,10 +2970,10 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-explicit-delegation-v90-20260726/);
+    assert.match(terminal, /sia7-specialized-tool-scope-v91-20260726/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
-    assert.match(terminal, /jarvis-tools-v7-20260726-explicit-delegation-v90/);
+    assert.match(terminal, /jarvis-tools-v7-20260726-specialized-tool-scope-v91/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -3089,7 +3154,7 @@ test("daily supervision cloud lookup has a bounded browser deadline", () => {
     assert.match(source, /signal:\s*controller\.signal/);
     assert.match(source, /SUPERVISION_STATUS_TIMEOUT_/);
     assert.match(source, /clearTimeout\(timeoutId\)/);
-    assert.match(source, /4\.7\.0-explicit-delegation/);
+    assert.match(source, /4\.8\.0-specialized-tool-scope/);
     assert.doesNotMatch(source, /3\.0\.0-model-semantic-planner/);
 });
 
@@ -3108,7 +3173,7 @@ test("multifunction descriptor remains approval-bound", () => {
     assert.equal(planner.mutates, false);
     assert.equal(
         planner.version,
-        "4.7.0-explicit-delegation"
+        "4.8.0-specialized-tool-scope"
     );
     assert.equal(planner.maximumToolCalls, 12);
     assert.equal(planner.architecture, "model_selected_runtime_catalog");
@@ -3157,7 +3222,7 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260726-explicit-delegation-v90/);
+    assert.match(core, /jarvis-tools-v7-20260726-specialized-tool-scope-v91/);
     assert.match(
         terminal,
         /jarvis-tools-v7-20260725-semantic-envelope-v64/

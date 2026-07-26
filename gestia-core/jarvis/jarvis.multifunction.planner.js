@@ -1,4 +1,4 @@
-const VERSION = "4.7.0-explicit-delegation";
+const VERSION = "4.8.0-specialized-tool-scope";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
@@ -58,6 +58,7 @@ async function callBrowserMissionContract(
         "Las HERRAMIENTAS_INICIALES son un borrador semantico ya seleccionado para la misma instruccion. Conserva sus entregables y agrega solamente una herramienta que cubra un objetivo independiente pedido de forma explicita y no cubierto por ese borrador. No agregues diagnostico, supervision, forense, repositorio, navegador, conectores, investigacion ni otros artefactos solo porque existan en el catalogo.",
         "No colapses sujetos u objetivos independientes. Repite el mismo nombre de herramienta cuando necesite argumentos distintos para cubrirlos por separado.",
         "agent.delegate no es una optimizacion automatica. Incluyela solamente si la instruccion original pide explicitamente delegar, usar agentes o ejecutar en paralelo, y copia esa frase literal en delegationDirective. En cualquier otra mision conserva las herramientas directas.",
+        "repo.architectReview es autocontenida: construye su grafo y ranking y ejecuta los 11 controles sobre el plan recibido. Para una revision de plan no agregues herramientas repo adyacentes salvo que la instruccion pida por separado inspeccionar fuentes adicionales.",
         "Para web.research usa researchGoal=RESEARCH_1, RESEARCH_2, etc. segun el orden inmutable de objetivos de investigacion en la instruccion. Reutiliza la misma identidad al auditar el mismo objetivo y no dupliques llamadas para simples reformulaciones.",
         `HERRAMIENTAS_INICIALES=${initialToolNames.join(",")}`,
         `CATALOGO=${catalog.map(tool => tool.name).join(",")}`,
@@ -172,6 +173,7 @@ async function callBrowserSemanticPlan(input = "", catalog = [], missionState = 
         "Interpreta significado, typos, negaciones y ordenes mixtas. Selecciona exclusivamente nombres exactos del catalogo.",
         "No autorices escrituras. Las herramientas userArtifact pueden crear solamente entregables locales nuevos cuando el usuario lo pide; no equivalen a editar codigo, publicar o desplegar. Conserva todas las intenciones independientes y usa herramientas especializadas para entregables operativos.",
         "agent.delegate no es una optimizacion automatica. Seleccionala solamente si la instruccion original pide explicitamente delegar, usar agentes o ejecutar en paralelo. En ese caso copia literalmente esa frase en delegationDirective. Si solo hay varias herramientas directas, devuelve esas herramientas sin agent.delegate.",
+        "repo.architectReview es autocontenida: ya construye el grafo y ranking y ejecuta los 11 controles sobre un plan recibido. Cuando se pida esa revision, no agregues repo.search, repo.read, repo.diagnose o repo.impact salvo que la instruccion pida de forma independiente inspeccionar fuentes adicionales.",
         "Si varios objetivos requieren la misma herramienta con argumentos distintos, devuelve una llamada separada para cada uno.",
         "Si piden referencias, usos o pruebas de un archivo concreto, usa repo.search con la ruta exacta o basename como query, no con una pregunta completa.",
         "Si una investigacion limita fuentes a un dominio, copia el dominio exacto en allowedDomain de web.research.",
@@ -339,6 +341,15 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
             continue;
         }
         if (
+            usesRegisteredToolAsRepositoryFile(
+                tool,
+                args,
+                allowed
+            )
+        ) {
+            continue;
+        }
+        if (
             tool.name ===
                 "web.research" &&
             Array.isArray(
@@ -408,6 +419,37 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
     }
 
     return calls;
+}
+
+function usesRegisteredToolAsRepositoryFile(
+    tool = {},
+    args = {},
+    catalogByName =
+        new Map()
+) {
+    if (
+        !String(
+            tool?.name ||
+            ""
+        ).startsWith(
+            "repo."
+        )
+    ) {
+        return false;
+    }
+    const target =
+        String(
+            args?.file ||
+            args?.path ||
+            ""
+        ).trim();
+    return (
+        target.length >
+            0 &&
+        catalogByName.has(
+            target
+        )
+    );
 }
 
 function hasGroundedDelegationDirective(

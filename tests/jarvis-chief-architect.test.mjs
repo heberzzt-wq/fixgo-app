@@ -76,6 +76,15 @@ test("Chief Architect is registered as a real read-only tool and reported honest
     assert.match(runtime, /recordCapabilityEvidence\(\s*"chief_architect"/);
     assert.match(runtime, /recordCapabilityEvidence\(\s*"one_time_write_authorization"/);
     assert.match(runtime, /required:\s*\[\s*"instruction",\s*"plan"\s*\]/);
+    assert.match(runtime, /context\.role\s*\|\|\s*context\.rol/);
+    assert.doesNotMatch(runtime, /args\.authority\s*\|\|/);
+    assert.doesNotMatch(runtime, /context\.authority\s*\|\|/);
+    assert.doesNotMatch(runtime, /authority:\s*\{\s*type:\s*"object"/);
+    const core = fs.readFileSync(new URL("../gestia-core/gestia-core.js", import.meta.url), "utf8");
+    assert.match(core, /GESTIA_MASTER_EMAIL/);
+    assert.match(core, /verifiedAuthorityId/);
+    assert.match(core, /user\.email/);
+    assert.match(core, /authorityId:\s*verifiedAuthorityId/);
     assert.match(forensic, /id: "chief_architect"/);
     assert.match(forensic, /readCapabilityEvidence\("chief_architect"\)/);
     assert.match(forensic, /readCapabilityEvidence\("one_time_write_authorization"\)/);

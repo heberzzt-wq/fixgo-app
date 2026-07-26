@@ -79,7 +79,7 @@ const DEFAULT_PROBES = Object.freeze([
         id: "technical_intent_priority",
         path: "/gestia-core/jarvis/jarvis.multifunction.planner.js",
         markers: [
-            "4.7.0-explicit-delegation",
+            "4.8.0-specialized-tool-scope",
             "jarvisSemanticPlan",
             "trustedPlanCalls"
         ]

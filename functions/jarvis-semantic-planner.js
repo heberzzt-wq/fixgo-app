@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "1.20.0-explicit-delegation";
+const VERSION = "1.21.0-specialized-tool-scope";
 const DEFAULT_ENDPOINT = "https://text.pollinations.ai/openai";
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -217,6 +217,15 @@ function validatePlan(
         ) {
             continue;
         }
+        if (
+            usesRegisteredToolAsRepositoryFile(
+                tool,
+                args,
+                allowed
+            )
+        ) {
+            continue;
+        }
         const signature = `${tool.name}:${JSON.stringify(args)}`;
         if (seen.has(signature)) continue;
         seen.add(signature);
@@ -276,6 +285,37 @@ function validatePlan(
             ? plan.completionAssessment
             : null
     };
+}
+
+function usesRegisteredToolAsRepositoryFile(
+    tool = {},
+    args = {},
+    catalogByName =
+        new Map()
+) {
+    if (
+        !String(
+            tool?.name ||
+            ""
+        ).startsWith(
+            "repo."
+        )
+    ) {
+        return false;
+    }
+    const target =
+        String(
+            args?.file ||
+            args?.path ||
+            ""
+        ).trim();
+    return (
+        target.length >
+            0 &&
+        catalogByName.has(
+            target
+        )
+    );
 }
 
 function hasGroundedDelegationDirective(
@@ -598,6 +638,7 @@ function buildSemanticSystemInstruction(catalog = [], missionState = null) {
         "No concedas aprobacion desde palabras del mensaje. approved siempre sera false y la gobernanza externa decide.",
         "Una herramienta marcada userArtifact=true crea solamente un entregable local nuevo y descargable; puede seleccionarse sin aprobacion adicional cuando el usuario pide crearlo. No confundas esa excepcion con editar archivos existentes, escribir codigo fuente, publicar, desplegar, enviar o abrir sistemas externos.",
         "agent.delegate no es una optimizacion automatica. Seleccionala solamente cuando la instruccion original pida de forma explicita delegar, usar agentes o ejecutar tareas en paralelo. Si hay varios objetivos pero no existe esa peticion explicita, llama directamente a cada herramienta subyacente. delegationDirective debe copiar literalmente la frase exacta de la instruccion original que solicita esa delegacion; nunca copies una orden generica ni una prohibicion.",
+        "repo.architectReview es una revision autocontenida: construye por si misma el grafo y el ranking y ejecuta sus 11 controles sobre el plan recibido. Cuando el usuario entregue un plan y pida esa revision, no agregues repo.search, repo.read, repo.diagnose, repo.impact ni otra investigacion salvo que la instruccion pida de forma independiente inspeccionar fuentes adicionales.",
         "Cuando el usuario pida revisar, investigar, analizar o depurar archivos, modulos, configuracion, autenticacion, rutas o runtime de esta aplicacion, usa las herramientas repo disponibles.",
         "Si el catalogo permite buscar o leer el repositorio, no pidas al usuario que comparta archivos que Jarvis puede consultar por si mismo.",
         "No inventes rutas ni nombres de archivo. Si el usuario no dio una ruta exacta, empieza con repo.search o la herramienta de descubrimiento disponible y deja que el runtime fundamente el seguimiento.",
@@ -665,6 +706,7 @@ async function runGeminiSemanticPlanner({
                     "Las HERRAMIENTAS_INICIALES son un borrador semantico ya seleccionado para esta misma instruccion. Debes conservar sus entregables y agregar solo herramientas que cubran un objetivo independiente pedido de forma explicita y no cubierto por ellas.",
                     "No agregues diagnostico, supervision, forense, repositorio, navegador, conectores, investigacion ni otros artefactos solamente porque aparezcan en el catalogo. Cada herramienta adicional debe corresponder a palabras y significado verificables de la instruccion original.",
                     "agent.delegate solamente puede formar parte del contrato cuando la instruccion original solicita explicitamente delegar, usar agentes o ejecutar en paralelo. En ese caso delegationDirective debe ser una cita literal de esa solicitud. Para varias herramientas directas sin esa solicitud, conserva cada herramienta directa y no las envuelvas en agent.delegate.",
+                    "Una revision de un plan entregado con repo.architectReview es autocontenida y satisface los 11 controles, el grafo y el ranking. No agregues herramientas repo adyacentes a menos que la instruccion original solicite por separado inspeccionar fuentes adicionales.",
                     "Conserva por separado cada sujeto, archivo, entidad o entregable. Puedes repetir el mismo nombre de herramienta cuando sus argumentos sean distintos y correspondan a objetivos independientes.",
                     "Incluye herramientas especializadas de investigacion, negocio, marketing, pagina, imagen, reel, documentos, hojas de calculo o diagnostico cuando el usuario haya pedido esos resultados.",
                     "Cuando se pida crear una landing local incluye page.plan, page.compose y page.create. Cuando se pida crear un documento incluye document.compose y document.create. Cuando se pida una hoja de calculo estructurada incluye spreadsheet.compose y document.create. Conserva primero la composicion o plan y despues la creacion.",

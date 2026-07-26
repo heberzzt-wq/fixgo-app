@@ -5,7 +5,7 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-explicit-delegation-v90-20260726";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-specialized-tool-scope-v91-20260726";
 import {
     registerJarvisActuatorTools
 } from "./jarvis/jarvis.actuator.pack.js?v=sia7-explicit-delegation-v90-20260726";
@@ -6534,10 +6534,6 @@ JarvisToolRuntime.register({
             },
             refresh: {
                 type: "boolean"
-            },
-            authority: {
-                type: "object",
-                additionalProperties: true
             }
         },
         additionalProperties: false
@@ -6560,7 +6556,13 @@ JarvisToolRuntime.register({
             plan,
             graph,
             ranking,
-            authority: args.authority || context.authority || { authorityId: context.authorityId, role: context.role }
+            authority: {
+                authorityId:
+                    context.authorityId,
+                role:
+                    context.role ||
+                    context.rol
+            }
         });
         globalThis.__JARVIS_CHIEF_ARCHITECT_HEALTH__ =
             recordCapabilityEvidence(

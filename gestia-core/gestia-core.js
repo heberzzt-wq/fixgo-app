@@ -40,7 +40,7 @@ import {
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     buildJarvisMultifunctionToolCalls
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-explicit-delegation-v90-20260726';
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-specialized-tool-scope-v91-20260726';
 import {
     runJarvisMission
 } from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-compact-mission-storage-v83-20260725';
@@ -48,6 +48,9 @@ import {
     addRepositoryDiscoveryPreflights,
     resolveExplicitRepositoryTargets
 } from '/gestia-core/repo/repo.source.structure.js?v=sia7-repo-discovery-preflight-v4-20260724';
+import {
+    GESTIA_MASTER_EMAIL
+} from '/gestia-core/auth/role-authority.js?v=role-authority-v3-single-navigation-20260713';
 //import { ejecutarCambios } from '/gestia-core/operations-executor.engine.js';
 
 // ======================================================================================
@@ -195,9 +198,9 @@ import {
     sincronizarCorralSemantico,
     getSemanticCognitiveState
 } from '/gestia-core/semantic.engine.js?v=sia7-model-context-v8-20260714';
-import '/gestia-core/brain.engine.js?v=sia7-explicit-delegation-v90-20260726';
+import '/gestia-core/brain.engine.js?v=sia7-specialized-tool-scope-v91-20260726';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260726-explicit-delegation-v90';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260726-specialized-tool-scope-v91';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260725-semantic-envelope-v64';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-bridge-v7-20260726-evidence-rich-delegation-v90';
 
@@ -5113,6 +5116,16 @@ export const GestiaCore = {
         const ahora = Date.now();
         const rol = context.rol || 'tecnico';
         const esSoberano = ['ceo', 'arquitecto_supremo'].includes(rol);
+        const verifiedAuthorityId =
+            String(
+                user.email ||
+                ""
+            )
+                .trim()
+                .toLowerCase() ===
+            GESTIA_MASTER_EMAIL
+                ? "HEBERTO_MENDOZA"
+                : null;
 
         const terminalPlannerSeed =
             Array.isArray(
@@ -6435,6 +6448,8 @@ if (
                             tenantId,
                             analysisId,
                             rol,
+                            authorityId:
+                                verifiedAuthorityId,
                             learningHints:
                                 agentLearningHints,
                             reasoning:
