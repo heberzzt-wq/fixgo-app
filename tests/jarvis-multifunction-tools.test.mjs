@@ -1168,6 +1168,11 @@ test("large document composition builds verified semantic segments concurrently"
                 request.data.maxOutputTokens,
                 4500
             );
+            assert.ok(
+                request.data.input.length <
+                120000,
+                `Segment prompt too large: ${request.data.input.length}`
+            );
             const message =
                 segments[requestCount];
             requestCount += 1;
@@ -1186,15 +1191,23 @@ test("large document composition builds verified semantic segments concurrently"
             };
         };
 
+        const originalInstructionForSegments = [
+            "Crea un manual de mínimo 4500 palabras con 18 secciones.",
+            "Incluye mínimo 12 tablas reales, inventario de 25 vehículos, catálogo de 15 refacciones, 12 KPI, plan de implementación de 30 días, 7 formatos operativos, examen de 25 preguntas y clave completa de respuestas."
+        ].join(" ");
+        const oversizedPlanningDetail =
+            `${originalInstructionForSegments} ${"Detalle de planeación extenso ".repeat(6000)}`;
         const result = await runtime.execute(
             "document.compose",
             {
                 title: "Manual segmentado",
                 format: "docx",
-                instructions: [
-                    "Crea un manual de mínimo 4500 palabras con 18 secciones.",
-                    "Incluye mínimo 12 tablas reales, inventario de 25 vehículos, catálogo de 15 refacciones, 12 KPI, plan de implementación de 30 días, 7 formatos operativos, examen de 25 preguntas y clave completa de respuestas."
-                ].join(" ")
+                instructions:
+                    oversizedPlanningDetail
+            },
+            {
+                rawInput:
+                    originalInstructionForSegments
             }
         );
 
@@ -1244,7 +1257,7 @@ test("system health exposes bridge server version separately from tool pack vers
         );
         assert.equal(
             result.toolPackVersion,
-            "1.34.0-fast-segmented-document-compose"
+            "1.35.0-bounded-segmented-document-compose"
         );
         assert.notEqual(
             result.toolPackVersion,
@@ -2534,7 +2547,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-fast-segmented-docx-v74-20260725/);
+    assert.match(terminal, /sia7-bounded-segmented-docx-v75-20260725/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
     assert.match(terminal, /jarvis-tools-v7-20260725-deep-artifacts-v65/);

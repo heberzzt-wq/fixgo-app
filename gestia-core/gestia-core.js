@@ -43,7 +43,7 @@ import {
 } from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-deep-artifact-validation-v65-20260725';
 import {
     runJarvisMission
-} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-fast-segmented-docx-v74-20260725';
+} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-bounded-segmented-docx-v75-20260725';
 import {
     addRepositoryDiscoveryPreflights,
     resolveExplicitRepositoryTargets
@@ -197,7 +197,7 @@ import {
 } from '/gestia-core/semantic.engine.js?v=sia7-model-context-v8-20260714';
 import '/gestia-core/brain.engine.js?v=sia7-deep-artifact-validation-v65-20260725';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260725-fast-segmented-docx-v74';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260725-bounded-segmented-docx-v75';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260725-semantic-envelope-v64';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260725-deep-artifacts-v65';
 

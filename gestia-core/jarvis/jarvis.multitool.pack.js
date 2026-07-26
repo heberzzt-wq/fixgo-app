@@ -32,7 +32,7 @@ import {
     validateDocumentBlueprint
 } from "./jarvis.document.validator.js?v=sia7-runtime-truth-v70-20260725";
 
-const VERSION = "1.34.0-fast-segmented-document-compose";
+const VERSION = "1.35.0-bounded-segmented-document-compose";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";
@@ -1570,6 +1570,100 @@ function stripDocumentCompletionMarker(content = "") {
         .trim();
 }
 
+function boundDocumentModelContext(
+    value = "",
+    maximum = 30000
+) {
+    const source =
+        String(value || "");
+    const limit =
+        Math.max(
+            2000,
+            Number(maximum) ||
+            30000
+        );
+    if (
+        source.length <=
+        limit
+    ) {
+        return source;
+    }
+    const headLength =
+        Math.floor(
+            limit *
+            0.4
+        );
+    const tailLength =
+        limit -
+        headLength -
+        80;
+    return [
+        source.slice(
+            0,
+            headLength
+        ),
+        "[CONTEXTO_INTERMEDIO_OMITIDO_POR_LIMITE; EL_CONTRATO_CUANTITATIVO_SE_CONSERVA]",
+        source.slice(
+            -tailLength
+        )
+    ].join("\n");
+}
+
+function compactDocumentContractForModel(
+    contract = {}
+) {
+    return {
+        minWords:
+            Number(contract.minWords) ||
+            0,
+        minSections:
+            Number(contract.minSections) ||
+            0,
+        minQuestions:
+            Number(contract.minQuestions) ||
+            0,
+        minTemplates:
+            Number(contract.minTemplates) ||
+            0,
+        minTables:
+            Number(contract.minTables) ||
+            0,
+        minVehicles:
+            Number(contract.minVehicles) ||
+            0,
+        minParts:
+            Number(contract.minParts) ||
+            0,
+        minKpis:
+            Number(contract.minKpis) ||
+            0,
+        implementationDays:
+            Number(
+                contract
+                    .implementationDays
+            ) ||
+            0,
+        requireAnswerKey:
+            contract
+                .requireAnswerKey ===
+            true,
+        requiredSections:
+            Array.isArray(
+                contract
+                    .requiredSections
+            )
+                ? contract
+                    .requiredSections
+                    .slice(
+                        0,
+                        80
+                    )
+                : [],
+        requireCompletionMarker:
+            true
+    };
+}
+
 function buildDocumentSegmentPrompts({
     instruction = "",
     title = "",
@@ -1735,7 +1829,7 @@ function buildDocumentSegmentPrompts({
             "No repitas secciones de otros segmentos. No resumas ni describas lo que harías: entrega contenido final.",
             "Usa tablas Markdown reales cuando se pidan tablas. No uses placeholders, cercas de código ni JSON.",
             "No incluyas marcadores internos de finalización; el ensamblador verificará el contrato completo.",
-            `CONTRATO_GLOBAL=${JSON.stringify(contract)}`,
+            `CONTRATO_GLOBAL=${JSON.stringify(compactDocumentContractForModel(contract))}`,
             `TITULO=${title}`,
             `FORMATO=${format}`,
             `SOLICITUD_ORIGINAL=${instruction}`
@@ -2316,23 +2410,41 @@ export function registerJarvisMultifunctionTools(runtime) {
                     clean(context.rawInput);
                 const plannedInstruction =
                     clean(args.instructions);
+                const fallbackInstruction =
+                    resolveInstruction(
+                        args,
+                        context
+                    );
+                const boundedOriginalInstruction =
+                    boundDocumentModelContext(
+                        originalInstruction ||
+                        fallbackInstruction,
+                        30000
+                    );
+                const boundedPlannedInstruction =
+                    boundDocumentModelContext(
+                        plannedInstruction,
+                        16000
+                    );
                 const instruction =
                     [
-                        originalInstruction,
-                        plannedInstruction &&
-                        plannedInstruction !==
-                            originalInstruction
-                            ? `DETALLE_DEL_PLAN=${plannedInstruction}`
+                        boundedOriginalInstruction,
+                        boundedPlannedInstruction &&
+                        boundedPlannedInstruction !==
+                            boundedOriginalInstruction
+                            ? `DETALLE_DEL_PLAN=${boundedPlannedInstruction}`
                             : ""
                     ]
                         .filter(Boolean)
                         .join("\n\n") ||
-                    resolveInstruction(args, context);
+                    fallbackInstruction;
                 const title = clean(args.title, "Documento Jarvis");
                 const format = clean(args.format, "docx").toLowerCase();
                 const contract =
                     extractDocumentContract(
-                        instruction
+                        originalInstruction ||
+                        plannedInstruction ||
+                        fallbackInstruction
                     );
                 const segmentedComposition =
                     Number(contract.minWords) >=
@@ -2433,7 +2545,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                                 "Distribuye la extension entre todos los requisitos y prioriza que ninguno quede fuera.",
                                 "No uses cercas de codigo ni JSON. No omitas el final por longitud.",
                                 `Finaliza obligatoriamente con ${DOCUMENT_COMPLETION_MARKER} en una linea independiente.`,
-                                `CONTRATO_VERIFICABLE=${JSON.stringify(contract)}`,
+                                `CONTRATO_VERIFICABLE=${JSON.stringify(compactDocumentContractForModel(contract))}`,
                                 `TITULO=${title}`,
                                 `FORMATO=${format}`,
                                 `SOLICITUD=${instruction}`
@@ -2474,6 +2586,11 @@ export function registerJarvisMultifunctionTools(runtime) {
                         stripDocumentCompletionMarker(
                             content
                         );
+                    const boundedComposedContext =
+                        boundDocumentModelContext(
+                            composedSoFar,
+                            60000
+                        );
                     const continuation =
                         await fetchSemanticConversation(
                             [
@@ -2483,11 +2600,11 @@ export function registerJarvisMultifunctionTools(runtime) {
                                 "No declares que el documento esta completo hasta corregir todas las fallas indicadas.",
                                 `Finaliza obligatoriamente con ${DOCUMENT_COMPLETION_MARKER} en una linea independiente.`,
                                 `FALLAS_PENDIENTES=${JSON.stringify(validation.failures)}`,
-                                `CONTRATO_VERIFICABLE=${JSON.stringify(contract)}`,
+                                `CONTRATO_VERIFICABLE=${JSON.stringify(compactDocumentContractForModel(contract))}`,
                                 `TITULO=${title}`,
                                 `FORMATO=${format}`,
                                 `SOLICITUD_ORIGINAL=${instruction}`,
-                                `CONTENIDO_YA_REDACTADO=${composedSoFar}`
+                                `CONTENIDO_YA_REDACTADO_CONTEXTO_ACOTADO=${boundedComposedContext}`
                             ].join("\n"),
                             {
                                 maxOutputTokens:
