@@ -288,6 +288,106 @@ test("semantic planner rejects registered tool identifiers used as repository fi
     );
 });
 
+test("semantic planner isolates a self-contained mission from adjacent model-selected tools", () => {
+    const catalog = [{
+        name:
+            "repo.architectReview",
+        mutates:
+            false,
+        missionIsolation:
+            "exclusive",
+        inputSchema: {
+            type:
+                "object",
+            required: [
+                "instruction",
+                "plan"
+            ],
+            properties: {
+                instruction: {
+                    type:
+                        "string"
+                },
+                plan: {
+                    type:
+                        "object"
+                }
+            }
+        }
+    }, {
+        name:
+            "repo.read",
+        mutates:
+            false,
+        inputSchema: {
+            type:
+                "object",
+            required: [
+                "file"
+            ],
+            properties: {
+                file: {
+                    type:
+                        "string"
+                }
+            }
+        }
+    }, {
+        name:
+            "repo.diagnose",
+        mutates:
+            false
+    }];
+    const normalized =
+        normalizeCatalog(
+            catalog
+        );
+    const plan =
+        validatePlan(
+            {
+                toolCalls: [{
+                    name:
+                        "repo.architectReview",
+                    args: {
+                        instruction:
+                            "Corrige app-login.js.",
+                        plan: {
+                            originalInstruction:
+                                "Corrige app-login.js."
+                        }
+                    }
+                }, {
+                    name:
+                        "repo.read",
+                    args: {
+                        file:
+                            "app-login.js"
+                    }
+                }, {
+                    name:
+                        "repo.diagnose",
+                    args: {}
+                }]
+            },
+            normalized,
+            "Revisa solamente este plan."
+        );
+
+    assert.equal(
+        normalized[0]
+            .missionIsolation,
+        "exclusive"
+    );
+    assert.deepEqual(
+        plan.toolCalls.map(call =>
+            call.name
+        ),
+        [
+            "repo.architectReview"
+        ]
+    );
+});
+
 test("semantic planner preserves repeated tools for independent arguments", () => {
     const searchTool = {
         name: "repo.search",

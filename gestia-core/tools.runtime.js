@@ -5,13 +5,13 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-specialized-tool-scope-v91-20260726";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-mission-isolation-v92-20260726";
 import {
     registerJarvisActuatorTools
 } from "./jarvis/jarvis.actuator.pack.js?v=sia7-explicit-delegation-v90-20260726";
 import {
     reviewChiefArchitectPlan
-} from "./jarvis/jarvis.chief.architect.js?v=sia7-chief-architect-v1-20260714";
+} from "./jarvis/jarvis.chief.architect.js?v=sia7-chief-architect-v92-20260726";
 import {
     analyzeRepoSourceStructure,
     buildExecutableSourceView,
@@ -40,6 +40,11 @@ export const JarvisToolRuntime = {
                 tool.mutates === true,
             userArtifact:
                 tool.userArtifact === true,
+            missionIsolation:
+                tool.missionIsolation ===
+                    "exclusive"
+                    ? "exclusive"
+                    : null,
             missionDedupeBy:
                 Array.isArray(tool.missionDedupeBy)
                     ? tool.missionDedupeBy.map(String)
@@ -233,6 +238,8 @@ export const JarvisToolRuntime = {
                     t.requiresApproval === true,
                 userArtifact:
                     t.userArtifact === true,
+                missionIsolation:
+                    t.missionIsolation,
                 missionDedupeBy:
                     Array.isArray(t.missionDedupeBy)
                         ? [...t.missionDedupeBy]
@@ -6515,6 +6522,7 @@ JarvisToolRuntime.register({
     description: "Revisa un plan con evidencia del grafo y ranking antes de que pueda solicitar aprobación humana; nunca ejecuta ni concede aprobación.",
     mutates: false,
     requiresApproval: false,
+    missionIsolation: "exclusive",
     output: "CHIEF_ARCHITECT_REVIEW",
     inputSchema: {
         type: "object",
@@ -6539,9 +6547,41 @@ JarvisToolRuntime.register({
         additionalProperties: false
     },
     execute: async (args = {}, context = {}) => {
-        const instruction = String(args.instruction || args.originalInstruction || context.rawInput || "").trim();
         const plan = args.plan && typeof args.plan === "object" && !Array.isArray(args.plan) ? args.plan : {};
-        if (!instruction) return { ok: false, status: "CONTRACT_INVALID", error: "ORIGINAL_INSTRUCTION_REQUIRED", tool: "repo.architectReview" };
+        const preservedInstruction =
+            String(
+                plan.originalInstruction ||
+                plan.instruction ||
+                ""
+            ).trim();
+        const rawInput =
+            String(
+                context.rawInput ||
+                ""
+            );
+        if (!preservedInstruction) {
+            return {
+                ok: false,
+                status: "CONTRACT_INVALID",
+                error: "PLAN_ORIGINAL_INSTRUCTION_REQUIRED",
+                tool: "repo.architectReview"
+            };
+        }
+        if (
+            rawInput &&
+            !rawInput.includes(
+                preservedInstruction
+            )
+        ) {
+            return {
+                ok: false,
+                status: "CONTRACT_INVALID",
+                error: "PLAN_ORIGINAL_INSTRUCTION_NOT_GROUNDED",
+                tool: "repo.architectReview"
+            };
+        }
+        const instruction =
+            preservedInstruction;
         const graph = await window.JarvisLocalBridge?.buildRepoGraph?.({ refresh: args.refresh === true, source: "jarvis_architect_graph_v7" });
         const plannedFiles = Array.isArray(plan.targetFiles) ? plan.targetFiles : [];
         const ranking = await window.JarvisLocalBridge?.rankRepoCandidates?.({
@@ -6581,7 +6621,15 @@ JarvisToolRuntime.register({
                         review.blockers.length
                 }
             );
-        return { ...review, success: review.ok === true, tool: "repo.architectReview" };
+        return {
+            ...review,
+            success:
+                review.ok === true,
+            instructionSource:
+                "verified_plan_literal",
+            tool:
+                "repo.architectReview"
+        };
     }
 });
 

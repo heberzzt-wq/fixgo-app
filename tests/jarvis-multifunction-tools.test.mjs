@@ -85,7 +85,10 @@ function createRuntime() {
                 name: tool.name,
                 mutates: tool.mutates === true,
                 requiresApproval: tool.requiresApproval === true,
-                userArtifact: tool.userArtifact === true
+                userArtifact: tool.userArtifact === true,
+                missionIsolation:
+                    tool.missionIsolation ||
+                    null
             }));
         },
         async execute(name, args = {}, context = {}) {
@@ -646,6 +649,107 @@ test("browser planner rejects registered tool identifiers used as repository fil
             "app-login.js"
         ).length,
         1
+    );
+});
+
+test("browser planner isolates a self-contained mission from adjacent model-selected tools", async () => {
+    const catalog = [{
+        name:
+            "repo.architectReview",
+        description:
+            "Revisa un plan completo.",
+        mutates:
+            false,
+        missionIsolation:
+            "exclusive",
+        inputSchema: {
+            type:
+                "object",
+            required: [
+                "instruction",
+                "plan"
+            ],
+            properties: {
+                instruction: {
+                    type:
+                        "string"
+                },
+                plan: {
+                    type:
+                        "object"
+                }
+            }
+        }
+    }, {
+        name:
+            "repo.read",
+        mutates:
+            false,
+        inputSchema: {
+            type:
+                "object",
+            required: [
+                "file"
+            ],
+            properties: {
+                file: {
+                    type:
+                        "string"
+                }
+            }
+        }
+    }, {
+        name:
+            "repo.diagnose",
+        mutates:
+            false
+    }];
+    const result =
+        await buildJarvisMultifunctionToolCalls(
+            "Revisa solamente este plan.",
+            {
+                toolCatalog:
+                    catalog,
+                semanticPlanner:
+                    async () => ({
+                        ok:
+                            true,
+                        status:
+                            "SEMANTIC_PLAN_READY",
+                        toolCalls: [{
+                            name:
+                                "repo.architectReview",
+                            args: {
+                                instruction:
+                                    "Corrige app-login.js.",
+                                plan: {
+                                    originalInstruction:
+                                        "Corrige app-login.js."
+                                }
+                            }
+                        }, {
+                            name:
+                                "repo.read",
+                            args: {
+                                file:
+                                    "app-login.js"
+                            }
+                        }, {
+                            name:
+                                "repo.diagnose",
+                            args: {}
+                        }]
+                    })
+            }
+        );
+
+    assert.deepEqual(
+        result.map(call =>
+            call.name
+        ),
+        [
+            "repo.architectReview"
+        ]
     );
 });
 
@@ -1673,7 +1777,7 @@ test("system health exposes bridge server version separately from tool pack vers
         );
         assert.equal(
             result.toolPackVersion,
-            "1.47.0-specialized-tool-scope"
+            "1.48.0-mission-isolation"
         );
         assert.notEqual(
             result.toolPackVersion,
@@ -2956,7 +3060,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /jarvis-tools-v7-20260726-specialized-tool-scope-v91/);
+    assert.match(terminal, /jarvis-tools-v7-20260726-mission-isolation-v92/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
         "utf8"
@@ -2970,10 +3074,10 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-specialized-tool-scope-v91-20260726/);
+    assert.match(terminal, /sia7-mission-isolation-v92-20260726/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
-    assert.match(terminal, /jarvis-tools-v7-20260726-specialized-tool-scope-v91/);
+    assert.match(terminal, /jarvis-tools-v7-20260726-mission-isolation-v92/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -3154,7 +3258,7 @@ test("daily supervision cloud lookup has a bounded browser deadline", () => {
     assert.match(source, /signal:\s*controller\.signal/);
     assert.match(source, /SUPERVISION_STATUS_TIMEOUT_/);
     assert.match(source, /clearTimeout\(timeoutId\)/);
-    assert.match(source, /4\.8\.0-specialized-tool-scope/);
+    assert.match(source, /4\.9\.0-mission-isolation/);
     assert.doesNotMatch(source, /3\.0\.0-model-semantic-planner/);
 });
 
@@ -3173,7 +3277,7 @@ test("multifunction descriptor remains approval-bound", () => {
     assert.equal(planner.mutates, false);
     assert.equal(
         planner.version,
-        "4.8.0-specialized-tool-scope"
+        "4.9.0-mission-isolation"
     );
     assert.equal(planner.maximumToolCalls, 12);
     assert.equal(planner.architecture, "model_selected_runtime_catalog");
@@ -3222,7 +3326,7 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260726-specialized-tool-scope-v91/);
+    assert.match(core, /jarvis-tools-v7-20260726-mission-isolation-v92/);
     assert.match(
         terminal,
         /jarvis-tools-v7-20260725-semantic-envelope-v64/

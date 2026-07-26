@@ -1,4 +1,4 @@
-const VERSION = "4.8.0-specialized-tool-scope";
+const VERSION = "4.9.0-mission-isolation";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
@@ -245,6 +245,10 @@ function runtimeCatalog(context = {}) {
             mutates: tool.mutates === true,
             requiresApproval: tool.requiresApproval === true,
             userArtifact: tool.userArtifact === true,
+            missionIsolation:
+                tool.missionIsolation === "exclusive"
+                    ? "exclusive"
+                    : null,
             missionDedupeBy: Array.isArray(tool.missionDedupeBy)
                 ? [...tool.missionDedupeBy]
                 : null,
@@ -418,7 +422,28 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
         });
     }
 
-    return calls;
+    return enforceMissionIsolation(
+        calls,
+        allowed
+    );
+}
+
+function enforceMissionIsolation(
+    calls = [],
+    catalogByName =
+        new Map()
+) {
+    const isolated =
+        calls.filter(call =>
+            catalogByName
+                .get(call?.name)
+                ?.missionIsolation ===
+            "exclusive"
+        );
+
+    return isolated.length > 0
+        ? isolated.slice(0, 1)
+        : calls;
 }
 
 function usesRegisteredToolAsRepositoryFile(
@@ -1006,6 +1031,7 @@ export function describeJarvisMultifunctionPlanner() {
 export const __test = {
     runtimeCatalog,
     trustedPlanCalls,
+    enforceMissionIsolation,
     hasRequiredToolArguments,
     planCacheKey,
     extractJsonObject,

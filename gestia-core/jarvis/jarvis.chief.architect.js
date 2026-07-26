@@ -1,4 +1,4 @@
-const VERSION = "1.0.0-evidence-gated-plan-review";
+const VERSION = "1.1.0-grounded-plan-contract";
 
 function clean(value) {
     return String(value || "").trim();
@@ -45,9 +45,15 @@ export function reviewChiefArchitectPlan({
     const topRankedFiles = rankedFiles.slice(0, 3);
     const rootCause = clean(plan.rootCause);
     const rootCauseEvidence = Array.isArray(plan.rootCauseEvidence) ? plan.rootCauseEvidence.filter(Boolean) : [];
+    const plannedToolCalls =
+        Array.isArray(
+            plan.toolCalls
+        )
+            ? plan.toolCalls
+            : [];
     const plannedTests = unique([
         ...(Array.isArray(plan.tests) ? plan.tests : []),
-        ...(plan.toolCalls || []).filter(call => call?.name === "tests.run").map(call => call?.args?.mode || "tests.run")
+        ...plannedToolCalls.filter(call => call?.name === "tests.run").map(call => call?.args?.mode || "tests.run")
     ]);
     const relatedTests = unique(files.flatMap(file => nodes[file]?.relatedTests || []));
     const ownerAuthority = ["heberto_mendoza", "human_owner", "owner"].includes(clean(authority.authorityId || authority.role).toLowerCase());

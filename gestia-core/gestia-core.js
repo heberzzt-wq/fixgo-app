@@ -40,7 +40,7 @@ import {
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     buildJarvisMultifunctionToolCalls
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-specialized-tool-scope-v91-20260726';
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-mission-isolation-v92-20260726';
 import {
     runJarvisMission
 } from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-compact-mission-storage-v83-20260725';
@@ -198,9 +198,9 @@ import {
     sincronizarCorralSemantico,
     getSemanticCognitiveState
 } from '/gestia-core/semantic.engine.js?v=sia7-model-context-v8-20260714';
-import '/gestia-core/brain.engine.js?v=sia7-specialized-tool-scope-v91-20260726';
+import '/gestia-core/brain.engine.js?v=sia7-mission-isolation-v92-20260726';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260726-specialized-tool-scope-v91';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260726-mission-isolation-v92';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260725-semantic-envelope-v64';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-bridge-v7-20260726-evidence-rich-delegation-v90';
 
@@ -5127,7 +5127,7 @@ export const GestiaCore = {
                 ? "HEBERTO_MENDOZA"
                 : null;
 
-        const terminalPlannerSeed =
+        let terminalPlannerSeed =
             Array.isArray(
                 context?.terminalBrainRoute?.toolCalls
             )
@@ -5154,6 +5154,23 @@ export const GestiaCore = {
                         tool
                     ])
             );
+
+        const isolatedTerminalToolCalls =
+            terminalPlannerSeed.filter(call =>
+                registeredToolsByName
+                    .get(call?.name)
+                    ?.missionIsolation ===
+                "exclusive"
+            );
+
+        if (
+            isolatedTerminalToolCalls.length >
+            0
+        ) {
+            terminalPlannerSeed =
+                isolatedTerminalToolCalls
+                    .slice(0, 1);
+        }
 
         const isVerifiedReadOnlyToolPlan =
             terminalPlannerSeed.length > 0 &&
@@ -5639,7 +5656,7 @@ if (
         );
     }
 
-    const operationalInitialToolCalls =
+    let operationalInitialToolCalls =
         propuesta.toolCalls.some(call => call?.name !== "conversation.respond")
             ? propuesta.toolCalls.filter(call => call?.name !== "conversation.respond")
             : propuesta.toolCalls;
@@ -5669,12 +5686,6 @@ if (
             );
     }
 
-    const operationalMissionToolNames =
-        new Set(
-            operationalInitialToolCalls
-                .map(call => call?.name)
-                .filter(Boolean)
-        );
     const registeredMissionTools =
         globalThis.JarvisToolRuntime
             ?.list?.()
@@ -5689,6 +5700,31 @@ if (
                 )
             ) ||
         [];
+    const isolatedOperationalToolCalls =
+        operationalInitialToolCalls.filter(call =>
+            registeredMissionTools.find(tool =>
+                tool?.name === call?.name
+            )?.missionIsolation ===
+            "exclusive"
+        );
+
+    if (
+        isolatedOperationalToolCalls.length >
+        0
+    ) {
+        operationalInitialToolCalls =
+            isolatedOperationalToolCalls.slice(
+                0,
+                1
+            );
+    }
+
+    const operationalMissionToolNames =
+        new Set(
+            operationalInitialToolCalls
+                .map(call => call?.name)
+                .filter(Boolean)
+        );
     const missionToolCatalog =
         [
             ...registeredMissionTools.filter(tool => operationalMissionToolNames.has(tool.name)),
@@ -5724,8 +5760,29 @@ if (
             String(call?.name || "")
                 .startsWith("repo.")
         );
+    const isolatedMissionToolCalls =
+        missionContractToolCalls.filter(call =>
+            missionToolCatalog.find(tool =>
+                tool?.name ===
+                call?.name
+            )?.missionIsolation ===
+            "exclusive"
+        );
+    const missionIsIsolated =
+        isolatedMissionToolCalls.length >
+        0;
+
+    if (missionIsIsolated) {
+        missionContractToolCalls =
+            isolatedMissionToolCalls.slice(
+                0,
+                1
+            );
+    }
+
     const explicitRepositoryTargets =
-        hasRepositoryMission
+        hasRepositoryMission &&
+        !missionIsIsolated
             ? resolveExplicitRepositoryTargets(
                 inputRaw,
                 {
@@ -5774,17 +5831,19 @@ if (
                     "EXPLICIT_REPOSITORY_TARGET_EVIDENCE"
             }));
     const missionInitialToolCalls =
-        addRepositoryDiscoveryPreflights({
-            toolCalls: [
-                ...missionContractToolCalls,
-                ...explicitRepositoryReadCalls
-            ],
-            catalog:
-                missionToolCatalog,
-            repositoryIndex:
-                window.__REPO_INDEX__ ||
-                {}
-        });
+        missionIsIsolated
+            ? missionContractToolCalls
+            : addRepositoryDiscoveryPreflights({
+                toolCalls: [
+                    ...missionContractToolCalls,
+                    ...explicitRepositoryReadCalls
+                ],
+                catalog:
+                    missionToolCatalog,
+                repositoryIndex:
+                    window.__REPO_INDEX__ ||
+                    {}
+            });
 
     const missionResult =
         await runJarvisMission({
@@ -5821,6 +5880,27 @@ if (
                         name => !resolvedToolNames.has(name)
                     );
                     if (missingRequiredToolNames.length === 0) {
+                        if (missionIsIsolated) {
+                            return {
+                                toolCalls: [],
+                                missionComplete:
+                                    true,
+                                completionAssessment: {
+                                    status:
+                                        "SELF_CONTAINED_MISSION_COMPLETE",
+                                    completed:
+                                        mission.completedTasks.map(item =>
+                                            item.name
+                                        ),
+                                    blocked:
+                                        mission.blockedTasks.map(item =>
+                                            item.name
+                                        ),
+                                    missing: []
+                                }
+                            };
+                        }
+
                         const completionAuditCatalog =
                             registeredMissionTools
                                 .slice(0, 80);

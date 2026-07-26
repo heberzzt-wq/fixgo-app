@@ -37,7 +37,7 @@ import {
   buildJarvisMultifunctionToolCalls,
   mergeJarvisToolCalls
 
-} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-specialized-tool-scope-v91-20260726";
+} from "./jarvis/jarvis.multifunction.planner.js?v=sia7-mission-isolation-v92-20260726";
 
 import {
 
@@ -948,7 +948,7 @@ function sanitizeSemanticToolArgs(args = {}) {
         return;
       }
 
-      if (["plan", "authority"].includes(key) && value && typeof value === "object") {
+      if (key === "plan" && value && typeof value === "object") {
         const serialized = JSON.stringify(value);
         if (serialized.length <= 15000) cleanArgs[key] = JSON.parse(serialized);
       }

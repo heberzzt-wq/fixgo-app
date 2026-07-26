@@ -68,6 +68,36 @@ test("Chief Architect accepts a grounded plan only for later human approval", ()
     assert.equal(review.checks.length, 11);
 });
 
+test("Chief Architect rejects malformed mutation collections without crashing", () => {
+    const malformedPlan =
+        completePlan();
+    malformedPlan.toolCalls = {
+        name:
+            "repo.write"
+    };
+    const review =
+        reviewChiefArchitectPlan({
+            instruction,
+            plan:
+                malformedPlan,
+            graph,
+            ranking,
+            authority: {
+                authorityId:
+                    "heberto_mendoza"
+            }
+        });
+
+    assert.equal(
+        review.ok,
+        true
+    );
+    assert.equal(
+        review.checks.length,
+        11
+    );
+});
+
 test("Chief Architect is registered as a real read-only tool and reported honestly", () => {
     const runtime = fs.readFileSync(new URL("../gestia-core/tools.runtime.js", import.meta.url), "utf8");
     const forensic = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.multitool.pack.js", import.meta.url), "utf8");
@@ -77,6 +107,9 @@ test("Chief Architect is registered as a real read-only tool and reported honest
     assert.match(runtime, /recordCapabilityEvidence\(\s*"one_time_write_authorization"/);
     assert.match(runtime, /required:\s*\[\s*"instruction",\s*"plan"\s*\]/);
     assert.match(runtime, /context\.role\s*\|\|\s*context\.rol/);
+    assert.match(runtime, /missionIsolation:\s*"exclusive"/);
+    assert.match(runtime, /PLAN_ORIGINAL_INSTRUCTION_NOT_GROUNDED/);
+    assert.match(runtime, /instructionSource:\s*"verified_plan_literal"/);
     assert.doesNotMatch(runtime, /args\.authority\s*\|\|/);
     assert.doesNotMatch(runtime, /context\.authority\s*\|\|/);
     assert.doesNotMatch(runtime, /authority:\s*\{\s*type:\s*"object"/);
@@ -85,6 +118,8 @@ test("Chief Architect is registered as a real read-only tool and reported honest
     assert.match(core, /verifiedAuthorityId/);
     assert.match(core, /user\.email/);
     assert.match(core, /authorityId:\s*verifiedAuthorityId/);
+    assert.match(core, /missionIsIsolated/);
+    assert.match(core, /SELF_CONTAINED_MISSION_COMPLETE/);
     assert.match(forensic, /id: "chief_architect"/);
     assert.match(forensic, /readCapabilityEvidence\("chief_architect"\)/);
     assert.match(forensic, /readCapabilityEvidence\("one_time_write_authorization"\)/);

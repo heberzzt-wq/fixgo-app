@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "1.21.0-specialized-tool-scope";
+const VERSION = "1.22.0-mission-isolation";
 const DEFAULT_ENDPOINT = "https://text.pollinations.ai/openai";
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -55,6 +55,10 @@ function normalizeCatalog(catalog = []) {
             mutates: item.mutates === true,
             requiresApproval: item.requiresApproval === true,
             userArtifact: item.userArtifact === true,
+            missionIsolation:
+                item.missionIsolation === "exclusive"
+                    ? "exclusive"
+                    : null,
             missionDedupeBy: Array.isArray(item.missionDedupeBy)
                 ? item.missionDedupeBy.map(String)
                 : null,
@@ -274,17 +278,42 @@ function validatePlan(
         });
     }
 
+    const isolatedToolCalls =
+        enforceMissionIsolation(
+            toolCalls,
+            allowed
+        );
+
     return {
         ok: true,
         status: "SEMANTIC_PLAN_READY",
         version: VERSION,
-        toolCalls,
+        toolCalls:
+            isolatedToolCalls,
         explanation: String(plan?.explanation || "").slice(0, 600),
-        missionComplete: toolCalls.length === 0 && plan?.missionComplete === true,
+        missionComplete: isolatedToolCalls.length === 0 && plan?.missionComplete === true,
         completionAssessment: plan?.completionAssessment && typeof plan.completionAssessment === "object"
             ? plan.completionAssessment
             : null
     };
+}
+
+function enforceMissionIsolation(
+    calls = [],
+    catalogByName =
+        new Map()
+) {
+    const isolated =
+        calls.filter(call =>
+            catalogByName
+                .get(call?.name)
+                ?.missionIsolation ===
+            "exclusive"
+        );
+
+    return isolated.length > 0
+        ? isolated.slice(0, 1)
+        : calls;
 }
 
 function usesRegisteredToolAsRepositoryFile(
