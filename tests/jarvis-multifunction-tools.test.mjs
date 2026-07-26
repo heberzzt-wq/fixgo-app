@@ -1166,7 +1166,7 @@ test("large document composition builds verified semantic segments concurrently"
                 JSON.parse(options.body);
             assert.equal(
                 request.data.maxOutputTokens,
-                6000
+                4500
             );
             const message =
                 segments[requestCount];
@@ -1244,7 +1244,7 @@ test("system health exposes bridge server version separately from tool pack vers
         );
         assert.equal(
             result.toolPackVersion,
-            "1.33.0-segmented-document-compose"
+            "1.34.0-fast-segmented-document-compose"
         );
         assert.notEqual(
             result.toolPackVersion,
@@ -2512,6 +2512,8 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(bridge, /No se genero ni se fingio una imagen/);
     assert.match(bridge, /API key not valid\|API_KEY_INVALID/);
     assert.match(bridge, /Google rechazo la credencial/);
+    assert.match(bridge, /validationFailures,/);
+    assert.match(bridge, /segmentedComposition:/);
     const toolPack = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/jarvis/jarvis.multitool.pack.js"),
         "utf8"
@@ -2532,7 +2534,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-visible-document-failures-v73-20260725/);
+    assert.match(terminal, /sia7-fast-segmented-docx-v74-20260725/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
     assert.match(terminal, /jarvis-tools-v7-20260725-deep-artifacts-v65/);

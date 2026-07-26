@@ -406,6 +406,15 @@ function composeActuatorFailure(
         toolName.startsWith("document.") ||
         toolName === "system.supervision.runNow"
     ) {
+        const validationFailures =
+            Array.isArray(
+                result
+                    ?.validationFailures
+            )
+                ? result
+                    .validationFailures
+                    .slice(0, 30)
+                : [];
         return window.ResponseComposer.composeJarvis(
             [
                 "Actuador no completado",
@@ -416,7 +425,71 @@ function composeActuatorFailure(
             {
                 ok: false,
                 tool: toolName,
-                status: result?.status || "FAILED"
+                status: result?.status || "FAILED",
+                error: errorText,
+                validationFailures,
+                wordCount:
+                    Number(
+                        result?.wordCount
+                    ) ||
+                    0,
+                sectionCount:
+                    Number(
+                        result?.sectionCount
+                    ) ||
+                    0,
+                tableBlueprintCount:
+                    Number(
+                        result
+                            ?.tableBlueprintCount
+                    ) ||
+                    0,
+                templateCount:
+                    Number(
+                        result?.templateCount
+                    ) ||
+                    0,
+                questionCount:
+                    Number(
+                        result?.questionCount
+                    ) ||
+                    0,
+                answerKeyCount:
+                    Number(
+                        result?.answerKeyCount
+                    ) ||
+                    0,
+                vehicleCount:
+                    Number(
+                        result?.vehicleCount
+                    ) ||
+                    0,
+                partCount:
+                    Number(
+                        result?.partCount
+                    ) ||
+                    0,
+                kpiCount:
+                    Number(
+                        result?.kpiCount
+                    ) ||
+                    0,
+                implementationDayCoverage:
+                    Number(
+                        result
+                            ?.implementationDayCoverage
+                    ) ||
+                    0,
+                continuationCount:
+                    Number(
+                        result
+                            ?.continuationCount
+                    ) ||
+                    0,
+                segmentedComposition:
+                    result
+                        ?.segmentedComposition ===
+                    true
             },
             {
                 type: "ACTUATOR_FAILURE_RESPONSE",

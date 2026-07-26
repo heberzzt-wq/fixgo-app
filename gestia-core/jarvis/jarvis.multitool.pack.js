@@ -32,7 +32,7 @@ import {
     validateDocumentBlueprint
 } from "./jarvis.document.validator.js?v=sia7-runtime-truth-v70-20260725";
 
-const VERSION = "1.33.0-segmented-document-compose";
+const VERSION = "1.34.0-fast-segmented-document-compose";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";
@@ -2360,7 +2360,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                                             prompt,
                                             {
                                                 maxOutputTokens:
-                                                    6000
+                                                    4500
                                             }
                                         );
                                     if (
@@ -2372,7 +2372,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                                                 prompt,
                                                 {
                                                     maxOutputTokens:
-                                                        6000
+                                                        4500
                                                 }
                                             );
                                     }
