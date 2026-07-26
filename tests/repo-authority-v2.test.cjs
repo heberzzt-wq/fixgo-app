@@ -114,6 +114,8 @@ module.exports = {
     composeObservationDrivenFinalResponse,
     composeRepoGlobalAnalysisFinalResponse,
     isCompleteMissionCompositionText,
+    buildMissionEvidenceBlocks,
+    buildMissionEvidenceReceipt,
     buildCompactLayoutReplacement,
     validatePatchPreviewRewrite,
     recallAgentLoopLearningHints,
@@ -1941,7 +1943,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /sia7-initial-plan-bounded-contract-v85-20260725/);
+    assert.match(terminal, /sia7-balanced-evidence-receipt-v86-20260726/);
     assert.match(terminal, /jarvis-tools-v7-20260725-repair-candidates-v80/);
     assert.match(terminal, /jarvis-runtime-macro-v2-20260707-4190/);
     assert.match(terminal, /isTerminalBrainRuntimeReady/);
@@ -2201,7 +2203,7 @@ test("brain delegates natural intent to the bounded semantic model planner", () 
     assert.match(core, /patchPreviewAllowedByPlan/);
     assert.match(core, /brain\.engine\.js\?v=sia7-initial-plan-bounded-contract-v85-20260725/);
     assert.match(core, /jarvis\.mission\.orchestrator\.js\?v=sia7-compact-mission-storage-v83-20260725/);
-    assert.match(core, /tools\.runtime\.js\?v=jarvis-tools-v7-20260725-mission-contract-v85/);
+    assert.match(core, /tools\.runtime\.js\?v=jarvis-tools-v7-20260726-evidence-supervision-v86/);
     assert.doesNotMatch(core, /brain\.engine\.js\?v=cloud-planner-fail-fast-41-62/);
     assert.match(core, /async analizarIntencionLigera/);
     assert.match(core, /sincronizarCorralSemantico/);
@@ -2215,7 +2217,7 @@ test("brain delegates natural intent to the bounded semantic model planner", () 
     assert.match(core, /BRAIN_AUTHORITY_NO_LEGACY_FALLBACK/);
     assert.match(core, /brainAuthorityMode[\s\S]{0,500}atomicState\.isHalted/);
     assert.doesNotMatch(core, /semantic-tool-fallback-41-32/);
-    assert.match(core, /jarvis-tools-v7-20260725-mission-contract-v85/);
+    assert.match(core, /jarvis-tools-v7-20260726-evidence-supervision-v86/);
     assert.match(core, /\[JARVIS_MISSION_OUTCOME\]/);
     assert.match(core, /Artefacto Jarvis verificado; cierre de mision parcial/);
 
@@ -2381,11 +2383,19 @@ test("multi-tool missions prefer grounded semantic composition over a generic re
     );
     assert.match(
         core,
-        /const perEvidenceBudget\s*=/
+        /buildMissionEvidenceBlocks/
     );
     assert.match(
         core,
-        /68000\s*\/\s*Math\.max\(\s*missionEvidenceItems\.length/
+        /const missionEvidenceReceipt\s*=/
+    );
+    assert.match(
+        core,
+        /Cada bloque HERRAMIENTA incluido abajo corresponde a una ejecucion real/
+    );
+    assert.doesNotMatch(
+        core,
+        /itemEvidenceBudget\s*=\s*verifiedRepositoryRead\s*\?\s*42000/
     );
     assert.match(
         core,
@@ -2471,6 +2481,201 @@ test("mission composition rejects truncated model headers and accepts complete r
             ].join("\n")
         ),
         false
+    );
+});
+
+test("mission evidence packing preserves late tool results instead of starving them behind repo reads", () => {
+    const helpers =
+        loadGestiaCoreAgentLoopHelpers();
+    const repositoryReads =
+        Array.from(
+            {
+                length:
+                    8
+            },
+            (_value, index) => ({
+                name:
+                    "repo.read",
+                args: {
+                    file:
+                        `gestia-core/example-${index + 1}.js`
+                },
+                status:
+                    "COMPLETED",
+                observation: {
+                    status:
+                        "COMPLETED",
+                    ok:
+                        true,
+                    objectiveSatisfied:
+                        true,
+                    verifiedRead: {
+                        tool:
+                            "repo.read",
+                        path:
+                            `gestia-core/example-${index + 1}.js`,
+                        startLine:
+                            1,
+                        endLine:
+                            600,
+                        totalLines:
+                            600,
+                        numberedContent:
+                            "const verified = true;\n"
+                                .repeat(4000)
+                    }
+                }
+            })
+        );
+    const evidenceItems = [
+        ...repositoryReads,
+        {
+            name:
+                "system.forensics",
+            args: {},
+            status:
+                "COMPLETED",
+            observation: {
+                status:
+                    "COMPLETED",
+                ok:
+                    true,
+                objectiveSatisfied:
+                    true,
+                evidence: {
+                    status:
+                        "FORENSICS_READY",
+                    readinessScore:
+                        96,
+                    parity: {
+                        canClaimParity:
+                            false
+                    },
+                    gaps: [{
+                        id:
+                            "browser_control"
+                    }]
+                }
+            }
+        },
+        {
+            name:
+                "web.research",
+            args: {
+                query:
+                    "Firebase custom claims"
+            },
+            status:
+                "COMPLETED",
+            observation: {
+                status:
+                    "COMPLETED",
+                ok:
+                    true,
+                objectiveSatisfied:
+                    true,
+                summary:
+                    "Investigacion sustentada en documentacion oficial.",
+                sourceCount:
+                    1,
+                validSources: [{
+                    title:
+                        "Firebase custom claims",
+                    url:
+                        "https://firebase.google.com/docs/auth/admin/custom-claims"
+                }]
+            }
+        },
+        {
+            name:
+                "system.supervision",
+            args: {},
+            status:
+                "COMPLETED",
+            observation: {
+                status:
+                    "COMPLETED",
+                ok:
+                    true,
+                objectiveSatisfied:
+                    true,
+                evidence: {
+                    status:
+                        "DEGRADED",
+                    score:
+                        87,
+                    summary: {
+                        total:
+                            15,
+                        passed:
+                            13,
+                        failed:
+                            2
+                    },
+                    findings: [{
+                        id:
+                            "terminal_runtime"
+                    }],
+                    checkedAt:
+                        "2026-07-26T13:14:55.220Z"
+                }
+            }
+        }
+    ];
+
+    const packed =
+        helpers.buildMissionEvidenceBlocks(
+            evidenceItems,
+            {
+                maximumLength:
+                    70000
+            }
+        );
+    const receipt =
+        helpers.buildMissionEvidenceReceipt(
+            evidenceItems
+        );
+
+    assert.ok(
+        packed.length <=
+        70000
+    );
+    assert.ok(
+        packed.includes(
+            "HERRAMIENTA=repo.read"
+        )
+    );
+    assert.ok(
+        packed.includes(
+            "HERRAMIENTA=system.forensics"
+        )
+    );
+    assert.ok(
+        packed.includes(
+            "HERRAMIENTA=web.research"
+        )
+    );
+    assert.ok(
+        packed.includes(
+            "HERRAMIENTA=system.supervision"
+        )
+    );
+    assert.ok(
+        packed.includes(
+            "\"score\":87"
+        )
+    );
+    assert.match(
+        receipt,
+        /system\.supervision: estado=DEGRADED; score=87; checks=13\/15; fallidos=2/
+    );
+    assert.match(
+        receipt,
+        /system\.forensics: estado=FORENSICS_READY; readiness=96; paridad=no_certificada; brechas=browser_control/
+    );
+    assert.match(
+        receipt,
+        /Firebase custom claims/
     );
 });
 

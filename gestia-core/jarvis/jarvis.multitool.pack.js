@@ -32,7 +32,7 @@ import {
     validateDocumentBlueprint
 } from "./jarvis.document.validator.js?v=sia7-exact-template-contract-v84-20260725";
 
-const VERSION = "1.41.0-initial-plan-bounded-contract";
+const VERSION = "1.42.0-balanced-evidence-supervision";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";
@@ -1009,6 +1009,15 @@ const LOCAL_SUPERVISION_PROBES = [
         markers: ["runtimeLatency", "getRuntimeHealthSnapshot"]
     },
     {
+        id: "mission_evidence_contract",
+        path: "/gestia-core/gestia-core.js",
+        markers: [
+            "1.0.0-balanced-evidence-receipt",
+            "buildMissionEvidenceBlocks",
+            "buildMissionEvidenceReceipt"
+        ]
+    },
+    {
         id: "grounded_web_research",
         path: "/gestia-core/jarvis/jarvis.multitool.pack.js",
         markers: [
@@ -1072,6 +1081,7 @@ async function runLocalDailySupervision() {
     const failureDomains = [
         ...(authRoutingFailed ? ["auth_routing"] : []),
         ...(failed.some(check => check.id === "technical_intent_priority") ? ["jarvis_cognition"] : []),
+        ...(failed.some(check => check.id === "mission_evidence_contract") ? ["jarvis_evidence"] : []),
         ...(failed.some(check => check.id === "runtime_health_module") ? ["runtime_health"] : []),
         ...(failed.some(check => check.id === "grounded_web_research") ? ["web_research"] : [])
     ];
@@ -1081,6 +1091,9 @@ async function runLocalDailySupervision() {
             : []),
         ...(failureDomains.includes("jarvis_cognition")
             ? ["Probar una orden real en Terminal y confirmar router, respuesta final y consola sin errores."]
+            : []),
+        ...(failureDomains.includes("jarvis_evidence")
+            ? ["Revisar el reparto de evidencia y el recibo determinista antes de aceptar informes multifuncion."]
             : []),
         ...(failureDomains.includes("runtime_health")
             ? ["Revisar runtime-health y latencia de modulos antes de declarar el sistema estable."]

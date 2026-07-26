@@ -7,8 +7,9 @@ const DEFAULT_PROBES = Object.freeze([
         id: "terminal_runtime",
         path: "/gestia-terminal.html",
         markers: [
-            "parallel-delegation-human-actuator-responses",
-            "gestia-core/gestia-core.js"
+            "gestia-core/gestia-core.js",
+            "const multiToolTitle",
+            "finalResponse?.title"
         ]
     },
     {
@@ -118,16 +119,19 @@ const DEFAULT_PROBES = Object.freeze([
             "Diagnóstico técnico",
             "Que puede fallar:",
             "Resultados adicionales:",
-            "Estado: analisis read-only"
+            "Estado: analisis read-only",
+            "1.0.0-balanced-evidence-receipt",
+            "buildMissionEvidenceBlocks",
+            "buildMissionEvidenceReceipt"
         ]
     },
     {
         id: "grounded_web_research_contract",
         path: "/gestia-core/jarvis/jarvis.multitool.pack.js",
         markers: [
-            "1.7.0-sia7-bounded-supervision-forensics",
             "web.research",
             "JARVIS_GROUNDED_WEB_RESEARCH",
+            "jarvisWebResearch",
             "result.sources.length === 0"
         ]
     },

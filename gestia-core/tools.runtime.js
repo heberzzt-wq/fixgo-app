@@ -5,7 +5,7 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-initial-plan-bounded-contract-v85-20260725";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-balanced-evidence-supervision-v86-20260726";
 import {
     registerJarvisActuatorTools
 } from "./jarvis/jarvis.actuator.pack.js?v=sia7-runtime-truth-v70-20260725";

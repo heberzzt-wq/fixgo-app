@@ -95,6 +95,8 @@ test("repo reads provide bounded numbered source evidence for semantic compositi
 
     assert.match(runtime, /numberedSourceContent/);
     assert.match(runtime, /numberedContent/);
-    assert.match(core, /verifiedRepositoryRead/);
-    assert.match(core, /itemEvidenceBudget/);
+    assert.match(core, /buildMissionEvidenceEnvelope/);
+    assert.match(core, /verifiedRead:/);
+    assert.match(core, /const perItemBudget/);
+    assert.match(core, /const payloadBudget/);
 });

@@ -239,8 +239,17 @@ test("daily supervisor probes current V7 deployment signatures", () => {
     const webProbe = DEFAULT_PROBES.find(probe => probe.id === "grounded_web_research_contract");
     const cognitionProbe = DEFAULT_PROBES.find(probe => probe.id === "technical_intent_priority");
 
-    assert.ok(terminalProbe.markers.includes("parallel-delegation-human-actuator-responses"));
-    assert.ok(webProbe.markers.includes("1.7.0-sia7-bounded-supervision-forensics"));
+    assert.ok(terminalProbe.markers.includes("const multiToolTitle"));
+    assert.ok(terminalProbe.markers.includes("finalResponse?.title"));
+    assert.ok(webProbe.markers.includes("jarvisWebResearch"));
+    assert.equal(
+        terminalProbe.markers.includes("parallel-delegation-human-actuator-responses"),
+        false
+    );
+    assert.equal(
+        webProbe.markers.includes("1.7.0-sia7-bounded-supervision-forensics"),
+        false
+    );
     assert.ok(cognitionProbe.markers.includes("4.3.0-initial-plan-bounded-contract"));
 });
 

@@ -197,9 +197,12 @@ import {
 } from '/gestia-core/semantic.engine.js?v=sia7-model-context-v8-20260714';
 import '/gestia-core/brain.engine.js?v=sia7-initial-plan-bounded-contract-v85-20260725';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260725-mission-contract-v85';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260726-evidence-supervision-v86';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260725-semantic-envelope-v64';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260725-repair-candidates-v80';
+
+const MISSION_EVIDENCE_CONTRACT_VERSION =
+    "1.0.0-balanced-evidence-receipt";
 
 // ======================================================================================
 // 🛰️ SECCIÓN 2: GESTIA CORE ORCHESTRATOR (KERNEL V16.0)
@@ -4119,6 +4122,493 @@ function isCompleteMissionCompositionText(value = "") {
     );
 }
 
+function compactMissionEvidenceText(
+    value = "",
+    maximum = 700
+) {
+    return String(value ?? "")
+        .split("\n")
+        .map(line => line.trim())
+        .filter(Boolean)
+        .join(" ")
+        .slice(0, maximum);
+}
+
+function buildMissionEvidenceEnvelope(
+    item = {}
+) {
+    const observation =
+        item?.observation &&
+        typeof item.observation === "object"
+            ? item.observation
+            : {};
+    const execution = {
+        status:
+            observation.status ||
+            item?.status ||
+            null,
+        ok:
+            observation.ok !== false,
+        objectiveSatisfied:
+            observation.objectiveSatisfied === true,
+        blocked:
+            observation.blocked === true,
+        degraded:
+            observation.degraded === true
+    };
+    const metrics = {
+        wordCount:
+            Number(observation.wordCount) ||
+            0,
+        sectionCount:
+            Number(observation.sectionCount) ||
+            0,
+        tableBlueprintCount:
+            Number(
+                observation.tableBlueprintCount
+            ) ||
+            0,
+        templateCount:
+            Number(observation.templateCount) ||
+            0,
+        questionCount:
+            Number(observation.questionCount) ||
+            0,
+        answerKeyCount:
+            Number(observation.answerKeyCount) ||
+            0
+    };
+    const common = {
+        execution,
+        request:
+            item?.args &&
+            typeof item.args === "object"
+                ? item.args
+                : {},
+        summary:
+            observation.summary ||
+            null,
+        evidence:
+            observation.evidence ||
+            null,
+        validSources:
+            Array.isArray(
+                observation.validSources
+            )
+                ? observation.validSources
+                : [],
+        sourceCount:
+            Number(observation.sourceCount) ||
+            0,
+        artifact:
+            observation.artifact ||
+            null,
+        metrics
+    };
+
+    if (
+        item?.name === "repo.read" ||
+        observation?.verifiedRead
+            ?.tool === "repo.read"
+    ) {
+        return {
+            execution,
+            request:
+                common.request,
+            verifiedRead:
+                observation.verifiedRead ||
+                null,
+            summary:
+                common.summary,
+            validSources:
+                common.validSources,
+            evidence:
+                common.evidence
+        };
+    }
+
+    return common;
+}
+
+function buildMissionEvidenceBlocks(
+    missionEvidenceItems = [],
+    {
+        maximumLength = 110000
+    } = {}
+) {
+    const items =
+        Array.isArray(missionEvidenceItems)
+            ? missionEvidenceItems
+                .filter(item =>
+                    item?.name
+                )
+            : [];
+    if (items.length === 0) {
+        return "";
+    }
+
+    const boundedMaximum =
+        Math.max(
+            12000,
+            Number(maximumLength) ||
+            110000
+        );
+    const separatorLength = 2;
+    const perItemBudget =
+        Math.max(
+            2200,
+            Math.min(
+                14000,
+                Math.floor(
+                    (
+                        boundedMaximum -
+                        (
+                            separatorLength *
+                            Math.max(
+                                items.length - 1,
+                                0
+                            )
+                        )
+                    ) /
+                    items.length
+                )
+            )
+        );
+
+    const blocks =
+        items.map(item => {
+            const header =
+                `HERRAMIENTA=${item.name}\n`;
+            const observationPrefix =
+                "OBSERVACION=";
+            const payloadBudget =
+                Math.max(
+                    900,
+                    perItemBudget -
+                    header.length -
+                    observationPrefix.length
+                );
+            const stringBudget =
+                Math.max(
+                    700,
+                    payloadBudget - 600
+                );
+            let serialized;
+            try {
+                serialized =
+                    JSON.stringify(
+                        buildMissionEvidenceEnvelope(
+                            item
+                        ),
+                        (_key, value) =>
+                            typeof value === "string" &&
+                            value.length > stringBudget
+                                ? `${value.slice(
+                                    0,
+                                    stringBudget
+                                )}\n[VALOR_ACOTADO; LONGITUD=${value.length}]`
+                                : value
+                    );
+            }
+            catch(error) {
+                serialized =
+                    JSON.stringify({
+                        execution: {
+                            status:
+                                item?.observation
+                                    ?.status ||
+                                item?.status ||
+                                "COMPLETED"
+                        },
+                        summary:
+                            item?.observation
+                                ?.summary ||
+                            "Observacion ejecutada; detalle no serializable.",
+                        serializationError:
+                            error?.message ||
+                            "OBSERVATION_NOT_SERIALIZABLE"
+                    });
+            }
+
+            return `${header}${observationPrefix}${serialized.slice(
+                0,
+                payloadBudget
+            )}`;
+        });
+
+    return blocks
+        .join("\n\n")
+        .slice(0, boundedMaximum);
+}
+
+function buildMissionEvidenceReceipt(
+    missionEvidenceItems = []
+) {
+    const items =
+        Array.isArray(missionEvidenceItems)
+            ? missionEvidenceItems
+            : [];
+    const seen =
+        new Set();
+    const lines =
+        [];
+
+    for (const item of items) {
+        const name =
+            String(item?.name || "")
+                .trim();
+        if (!name) continue;
+        let requestKey = "";
+        try {
+            requestKey =
+                JSON.stringify(
+                    item?.args || {}
+                );
+        }
+        catch {
+            requestKey =
+                "UNSERIALIZABLE_REQUEST";
+        }
+        const receiptKey =
+            `${name}:${requestKey}`;
+        if (seen.has(receiptKey)) {
+            continue;
+        }
+        seen.add(receiptKey);
+
+        const observation =
+            item?.observation &&
+            typeof item.observation === "object"
+                ? item.observation
+                : {};
+        const evidence =
+            observation?.evidence &&
+            typeof observation.evidence === "object"
+                ? observation.evidence
+                : {};
+        const verifiedRead =
+            observation?.verifiedRead ||
+            null;
+        const evidenceSummary =
+            evidence?.summary &&
+            typeof evidence.summary === "object"
+                ? evidence.summary
+                : {};
+        const details =
+            [];
+        const path =
+            verifiedRead?.path ||
+            verifiedRead?.file ||
+            item?.args?.file ||
+            item?.args?.path ||
+            "";
+        if (path) {
+            details.push(
+                `archivo=${String(path).slice(0, 500)}`
+            );
+        }
+        if (
+            Number.isFinite(
+                Number(
+                    verifiedRead?.startLine
+                )
+            ) &&
+            Number.isFinite(
+                Number(
+                    verifiedRead?.endLine
+                )
+            )
+        ) {
+            details.push(
+                `lineas=${Number(
+                    verifiedRead.startLine
+                )}-${Number(
+                    verifiedRead.endLine
+                )}${Number.isFinite(
+                    Number(
+                        verifiedRead?.totalLines
+                    )
+                )
+                    ? `/${Number(
+                        verifiedRead.totalLines
+                    )}`
+                    : ""}`
+            );
+        }
+        const status =
+            evidence?.status ||
+            observation?.status ||
+            item?.status ||
+            "";
+        if (status) {
+            details.push(
+                `estado=${String(status).slice(0, 120)}`
+            );
+        }
+        if (
+            Number.isFinite(
+                Number(
+                    evidence?.score
+                )
+            )
+        ) {
+            details.push(
+                `score=${Number(evidence.score)}`
+            );
+        }
+        if (
+            Number.isFinite(
+                Number(
+                    evidence?.readinessScore
+                )
+            )
+        ) {
+            details.push(
+                `readiness=${Number(
+                    evidence.readinessScore
+                )}`
+            );
+        }
+        if (
+            typeof evidence?.parity
+                ?.canClaimParity === "boolean"
+        ) {
+            details.push(
+                `paridad=${evidence.parity.canClaimParity
+                    ? "certificada"
+                    : "no_certificada"}`
+            );
+        }
+        if (
+            Number.isFinite(
+                Number(
+                    evidenceSummary?.total
+                )
+            )
+        ) {
+            details.push(
+                `checks=${Number(
+                    evidenceSummary.passed
+                ) || 0}/${Number(
+                    evidenceSummary.total
+                )}`
+            );
+        }
+        if (
+            Number.isFinite(
+                Number(
+                    evidenceSummary?.failed
+                )
+            )
+        ) {
+            details.push(
+                `fallidos=${Number(
+                    evidenceSummary.failed
+                )}`
+            );
+        }
+        if (
+            Number(observation?.sourceCount) >
+            0
+        ) {
+            details.push(
+                `fuentes=${Number(
+                    observation.sourceCount
+                )}`
+            );
+        }
+        const checkedAt =
+            evidence?.checkedAt ||
+            evidence?.startedAtIso ||
+            "";
+        if (checkedAt) {
+            details.push(
+                `fecha=${String(checkedAt).slice(0, 80)}`
+            );
+        }
+        const findingIds =
+            Array.isArray(evidence?.findings)
+                ? evidence.findings
+                    .map(finding =>
+                        finding?.id ||
+                        finding?.path ||
+                        ""
+                    )
+                    .filter(Boolean)
+                    .slice(0, 8)
+                : [];
+        if (findingIds.length > 0) {
+            details.push(
+                `hallazgos=${findingIds.join(",")}`
+            );
+        }
+        const gapIds =
+            Array.isArray(evidence?.gaps)
+                ? evidence.gaps
+                    .map(gap =>
+                        gap?.id ||
+                        gap?.name ||
+                        ""
+                    )
+                    .filter(Boolean)
+                    .slice(0, 8)
+                : [];
+        if (gapIds.length > 0) {
+            details.push(
+                `brechas=${gapIds.join(",")}`
+            );
+        }
+        lines.push(
+            `- ${name}: ${details.length > 0
+                ? details.join("; ")
+                : "ejecucion verificada sin metricas estructuradas"}`
+        );
+
+        const summary =
+            compactMissionEvidenceText(
+                observation?.summary ||
+                (
+                    typeof evidence?.message === "string"
+                        ? evidence.message
+                        : typeof evidence?.answer === "string"
+                            ? evidence.answer
+                            : ""
+                ),
+                700
+            );
+        if (summary) {
+            lines.push(
+                `  Resultado: ${summary}`
+            );
+        }
+
+        const sources =
+            Array.isArray(
+                observation?.validSources
+            )
+                ? observation.validSources
+                    .filter(source =>
+                        source?.url
+                    )
+                    .slice(0, 4)
+                : [];
+        for (const source of sources) {
+            lines.push(
+                `  Fuente: ${String(
+                    source?.title ||
+                    "Fuente verificada"
+                ).slice(0, 240)} — ${String(
+                    source.url
+                ).slice(0, 700)}`
+            );
+        }
+    }
+
+    return lines
+        .join("\n")
+        .slice(0, 30000);
+}
+
 function composeRepoGlobalAnalysisFinalResponse({
     objective = "",
     toolCalls = [],
@@ -5986,6 +6476,8 @@ if (
             iterations:
                 missionResult
                     .iterations,
+            evidenceContractVersion:
+                MISSION_EVIDENCE_CONTRACT_VERSION,
             verifiedArtifactDelivery
         })
     );
@@ -6117,6 +6609,42 @@ if (
             : "Escrituras y publicaciones automaticas: no ejecutadas.";
 
     let semanticMissionFinalResponse = null;
+    const missionEvidenceItems = [
+        ...conversationalInitialObservations.map(item => ({
+            name:
+                "conversation.respond",
+            observation:
+                item
+        })),
+        ...missionResult.completedTasks,
+        ...missionResult.blockedTasks.map(item => ({
+            name:
+                item.name,
+            observation: {
+                ...(item.observation || {}),
+                blocked:
+                    true,
+                reason:
+                    item.reason ||
+                    item.observation?.status ||
+                    "CAPABILITY_BLOCKED"
+            }
+        })),
+        ...followUpObservations.map(
+            (observation, index) => ({
+                name:
+                    followUpPlan
+                        .followUpToolCalls[index]
+                        ?.name ||
+                    "followup.readonly",
+                observation
+            })
+        )
+    ];
+    const missionEvidenceReceipt =
+        buildMissionEvidenceReceipt(
+            missionEvidenceItems
+        );
 
     if (
         missionResult.executedTools.length > 1 &&
@@ -6125,93 +6653,18 @@ if (
         const boundedInstruction = inputRaw.length <= 40000
             ? inputRaw
             : `${inputRaw.slice(0, 20000)}\n[PARTE_MEDIA_PERSISTIDA_EN_EXPEDIENTE]\n${inputRaw.slice(-20000)}`;
-        const missionEvidenceItems = [
-            ...conversationalInitialObservations.map(item => ({
-                name:
-                    "conversation.respond",
-                observation:
-                    item
-            })),
-            ...missionResult.completedTasks,
-            ...missionResult.blockedTasks.map(item => ({
-                name:
-                    item.name,
-                observation: {
-                    ...(item.observation || {}),
-                    blocked:
-                        true,
-                    reason:
-                        item.reason ||
-                        item.observation?.status ||
-                        "CAPABILITY_BLOCKED"
-                }
-            })),
-            ...followUpObservations.map(
-                (observation, index) => ({
-                    name:
-                        followUpPlan
-                            .followUpToolCalls[index]
-                            ?.name ||
-                        "followup.readonly",
-                    observation
-                })
-            )
-        ];
-        const perEvidenceBudget =
-            Math.max(
-                3500,
-                Math.min(
-                    18000,
-                    Math.floor(
-                        68000 /
-                        Math.max(
-                            missionEvidenceItems.length,
-                            1
-                        )
-                    )
-                )
-            );
         const evidenceBlocks =
-            missionEvidenceItems
-            .map(item => {
-                const verifiedRepositoryRead =
-                    item.name === "repo.read" ||
-                    item.observation
-                        ?.verifiedRead
-                        ?.tool === "repo.read";
-                const stringBudget =
-                    verifiedRepositoryRead
-                        ? 48000
-                        : 12000;
-                const itemEvidenceBudget =
-                    verifiedRepositoryRead
-                        ? 42000
-                        : perEvidenceBudget;
-                let serialized;
-                try {
-                    serialized = JSON.stringify(
-                        item.observation || {},
-                        (_key, value) => typeof value === "string" && value.length > stringBudget
-                            ? `${value.slice(0, stringBudget)}\n[CONTENIDO_COMPLETO_PERSISTIDO_EN_ARTEFACTO; LONGITUD=${value.length}]`
-                            : value
-                    );
+            buildMissionEvidenceBlocks(
+                missionEvidenceItems,
+                {
+                    maximumLength:
+                        110000
                 }
-                catch(error) {
-                    serialized = JSON.stringify({
-                        summary: item.observation?.summary || "Observacion ejecutada; detalle no serializable.",
-                        serializationError: error?.message || "OBSERVATION_NOT_SERIALIZABLE"
-                    });
-                }
-                return [
-                    `HERRAMIENTA=${item.name}`,
-                    `OBSERVACION=${serialized.slice(0, itemEvidenceBudget)}`
-                ].join("\n");
-            })
-            .join("\n\n")
-            .slice(0, 110000);
+            );
         const compositionPrompt = [
             "Compone el informe final de una mision real de Jarvis.",
             "Usa exclusivamente las observaciones verificadas incluidas abajo; no agregues hechos ni ejecuciones.",
+            "Cada bloque HERRAMIENTA incluido abajo corresponde a una ejecucion real. Si su OBSERVACION contiene status, score, summary, evidence, validSources o verifiedRead, su resultado SI esta disponible: debes usarlo y no puedes afirmar que no fue proporcionado.",
             "Distingue explicitamente HECHO VERIFICADO de HIPOTESIS. Una secuencia asincrona, una posibilidad de codigo o una correlacion temporal no demuestra por si sola la causa del comportamiento observado.",
             "Si la instruccion pregunta por que ocurre un fallo y no existen trazas, logs o una rama ejecutable que demuestre la causa, declara CAUSA NO DEMOSTRADA y presenta las posibilidades como hipotesis con la evidencia que falta para confirmarlas.",
             "Cuando se solicite la version del bridge usa exclusivamente system.health.bridgeVersion o system.health.runtime.bridgeVersion; no confundas esa version con system.health.version ni toolPackVersion.",
@@ -6234,6 +6687,7 @@ if (
             `ESTADO=${missionResult.status}`,
             `MOTIVO_CIERRE=${missionResult.reason}`,
             `INSTRUCCION_ORIGINAL=${boundedInstruction}`,
+            `RECIBO_EVIDENCIA_EJECUTADA:\n${missionEvidenceReceipt}`,
             `EVIDENCIA_VERIFICADA:\n${evidenceBlocks}`
         ].join("\n\n");
 
@@ -6302,56 +6756,17 @@ if (
                     "bounded verified evidence"
                 );
                 const focusedEvidenceBlocks =
-                    missionEvidenceItems
-                        .map(item => {
-                            const verifiedRepositoryRead =
-                                item.name === "repo.read" ||
-                                item.observation
-                                    ?.verifiedRead
-                                    ?.tool === "repo.read";
-                            let serialized;
-                            try {
-                                const stringBudget =
-                                    verifiedRepositoryRead
-                                        ? 36000
-                                        : 5000;
-                                serialized =
-                                    JSON.stringify(
-                                        item.observation ||
-                                        {},
-                                        (_key, value) =>
-                                            typeof value === "string" &&
-                                            value.length > stringBudget
-                                                ? value.slice(
-                                                    0,
-                                                    stringBudget
-                                                )
-                                                : value
-                                    );
-                            }
-                            catch {
-                                serialized =
-                                    JSON.stringify({
-                                        summary:
-                                            item.observation?.summary ||
-                                            "Observacion verificada."
-                                    });
-                            }
-                            return [
-                                `HERRAMIENTA=${item.name}`,
-                                `OBSERVACION=${serialized.slice(
-                                    0,
-                                    verifiedRepositoryRead
-                                        ? 40000
-                                        : 6500
-                                )}`
-                            ].join("\n");
-                        })
-                        .join("\n\n")
-                        .slice(0, 70000);
+                    buildMissionEvidenceBlocks(
+                        missionEvidenceItems,
+                        {
+                            maximumLength:
+                                70000
+                        }
+                    );
                 const retryPrompt = [
                     "Recompone el informe final de una mision real de Jarvis usando solamente la evidencia verificada acotada.",
                     "El intento anterior no produjo un cierre estructuralmente completo. Entrega un informe nuevo y autosuficiente.",
+                    "Cada herramienta del recibo fue ejecutada. Cuando su observacion tenga status, score, summary, evidence, validSources o verifiedRead, reporta esos datos y nunca declares que el resultado no fue proporcionado.",
                     "Responde todos los objetivos de la instruccion original con hechos verificables, rutas y lineas cuando existan.",
                     "Distingue HECHO VERIFICADO de HIPOTESIS; no conviertas codigo asincrono o correlacion temporal en causa demostrada sin trazas, logs o una rama ejecutable que la pruebe.",
                     "Cuando se solicite la version del bridge usa system.health.bridgeVersion o system.health.runtime.bridgeVersion, nunca el campo generico version del paquete de herramientas.",
@@ -6360,6 +6775,7 @@ if (
                     "Distingue lo ejecutado de lo planeado y no inventes hechos ausentes.",
                     "No termines a mitad de una seccion. Cierra exactamente con [JARVIS_REPORT_COMPLETE].",
                     `INSTRUCCION_ORIGINAL=${boundedInstruction}`,
+                    `RECIBO_EVIDENCIA_EJECUTADA:\n${missionEvidenceReceipt}`,
                     `EVIDENCIA_VERIFICADA_ACOTADA:\n${focusedEvidenceBlocks}`
                 ].join("\n\n");
 
@@ -6395,6 +6811,9 @@ if (
                     title: missionResponseTitle,
                     text: [
                         compositionText,
+                        "",
+                        "Recibo determinista de evidencia:",
+                        missionEvidenceReceipt,
                         "",
                         `Herramientas ejecutadas verificadas: ${verifiedMissionToolNames.join(", ")}.`,
                         `Compositor semantico: ${compositionPayload?.provider || "proveedor verificado"}${compositionPayload?.model ? ` / ${compositionPayload.model}` : ""}.`,
@@ -6629,6 +7048,14 @@ if (
                         "",
                         "Resultados ejecutados:",
                         ...completed,
+                        missionEvidenceReceipt
+                            ? ""
+                            : null,
+                        missionEvidenceReceipt
+                            ? "Recibo determinista de evidencia:"
+                            : null,
+                        missionEvidenceReceipt ||
+                            null,
                         sources.length > 0 ? "" : null,
                         sources.length > 0 ? "Fuentes validas:" : null,
                         ...sources,

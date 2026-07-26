@@ -1350,7 +1350,7 @@ test("system health exposes bridge server version separately from tool pack vers
         );
         assert.equal(
             result.toolPackVersion,
-            "1.41.0-initial-plan-bounded-contract"
+            "1.42.0-balanced-evidence-supervision"
         );
         assert.notEqual(
             result.toolPackVersion,
@@ -2627,7 +2627,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /jarvis-tools-v7-20260725-mission-contract-v85/);
+    assert.match(terminal, /jarvis-tools-v7-20260726-evidence-supervision-v86/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
         "utf8"
@@ -2641,10 +2641,10 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-initial-plan-bounded-contract-v85-20260725/);
+    assert.match(terminal, /sia7-balanced-evidence-receipt-v86-20260726/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
-    assert.match(terminal, /jarvis-tools-v7-20260725-mission-contract-v85/);
+    assert.match(terminal, /jarvis-tools-v7-20260726-evidence-supervision-v86/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -2893,7 +2893,7 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260725-mission-contract-v85/);
+    assert.match(core, /jarvis-tools-v7-20260726-evidence-supervision-v86/);
     assert.match(
         terminal,
         /jarvis-tools-v7-20260725-semantic-envelope-v64/
