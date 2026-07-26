@@ -1,4 +1,4 @@
-const VERSION = "1.2.0-segmented-document-contract";
+const VERSION = "1.3.0-implementation-day-range-contract";
 
 const SPANISH_NUMBERS = new Map([
     ["un", 1], ["una", 1], ["uno", 1], ["dos", 2], ["tres", 3],
@@ -41,6 +41,31 @@ function matchMinimum(source, patterns = []) {
         if (numeric > 0) return numeric;
     }
     return 0;
+}
+
+function matchImplementationDayRange(
+    source = ""
+) {
+    const match =
+        String(source || "")
+            .match(
+                /plan\s+de\s+implementacion[\s\S]{0,120}?dias?\s+([\d.]+|[a-z]+)\s*(?:al|a|-)\s*([\d.]+|[a-z]+)/iu
+            );
+    if (!match) return 0;
+    const start =
+        numberFromToken(
+            match[1]
+        );
+    const end =
+        numberFromToken(
+            match[2]
+        );
+    return start ===
+        1 &&
+        end >=
+        start
+        ? end
+        : 0;
 }
 
 function significantTokens(value = "") {
@@ -112,9 +137,18 @@ export function extractDocumentContract(instruction = "") {
     const minKpis = matchMinimum(normalizedRequirements, [
         /([\d.]+|[a-z]+)\s+(?:indicadores\s+)?kpi/iu
     ]);
-    const implementationDays = matchMinimum(normalizedRequirements, [
-        /plan\s+de\s+implementacion\s+de\s+([\d.]+|[a-z]+)\s+dias/iu
-    ]);
+    const implementationDays =
+        Math.max(
+            matchMinimum(
+                normalizedRequirements,
+                [
+                    /plan\s+de\s+implementacion\s+de\s+([\d.]+|[a-z]+)\s+dias/iu
+                ]
+            ),
+            matchImplementationDayRange(
+                normalizedRequirements
+            )
+        );
     const requiredSections = extractRequiredSections(source);
     return {
         minWords: minWords || 80,

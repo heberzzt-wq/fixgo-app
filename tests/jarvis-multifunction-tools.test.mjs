@@ -1321,7 +1321,7 @@ test("system health exposes bridge server version separately from tool pack vers
         );
         assert.equal(
             result.toolPackVersion,
-            "1.37.0-targeted-document-repair"
+            "1.38.0-implementation-day-range-contract"
         );
         assert.notEqual(
             result.toolPackVersion,
@@ -2612,7 +2612,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-ooxml-contract-v78-20260725/);
+    assert.match(terminal, /sia7-implementation-day-range-v79-20260725/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
     assert.match(terminal, /jarvis-tools-v7-20260725-ooxml-contract-v78/);

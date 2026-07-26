@@ -79,7 +79,7 @@ function validManualContent() {
 test("document validator describes the V68 structural gate", () => {
     const description = describeDocumentValidator();
     assert.equal(description.ok, true);
-    assert.equal(description.version, "1.2.0-segmented-document-contract");
+    assert.equal(description.version, "1.3.0-implementation-day-range-contract");
     assert.ok(description.checks.includes("placeholder-and-diversity"));
 });
 
@@ -231,6 +231,19 @@ test("document contract enforces vehicles, parts, KPI and implementation-day car
     assert.ok(incomplete.failures.some(item => item.startsWith("DOCUMENT_PART_COUNT_BELOW_MINIMUM")));
     assert.ok(incomplete.failures.some(item => item.startsWith("DOCUMENT_KPI_COUNT_BELOW_MINIMUM")));
     assert.ok(incomplete.failures.some(item => item.startsWith("DOCUMENT_IMPLEMENTATION_DAY_COVERAGE_BELOW_MINIMUM")));
+});
+
+test("document contract understands an implementation range from day 1 through day 30", () => {
+    const contract =
+        extractDocumentContract(
+            "Incluye un plan de implementación que cubra los días 1 al 30."
+        );
+
+    assert.equal(
+        contract
+            .implementationDays,
+        30
+    );
 });
 
 test("index entries and following sections cannot inflate questions or answer keys", () => {
