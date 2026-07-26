@@ -30,9 +30,9 @@ import {
 import {
     extractDocumentContract,
     validateDocumentBlueprint
-} from "./jarvis.document.validator.js?v=sia7-implementation-day-range-v79-20260725";
+} from "./jarvis.document.validator.js?v=sia7-repair-candidates-v80-20260725";
 
-const VERSION = "1.38.0-implementation-day-range-contract";
+const VERSION = "1.39.0-repair-candidate-contract";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";

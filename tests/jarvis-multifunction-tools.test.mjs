@@ -1301,7 +1301,7 @@ test("system health exposes bridge server version separately from tool pack vers
         verifyIdentity: async () => ({
             ok: true,
             status: "BRIDGE_IDENTITY_OK",
-            bridgeVersion: "2.30.0-docx-ooxml-contract-gate",
+            bridgeVersion: "2.31.0-docx-repair-candidate-gate",
             bridgeRoot: "C:/repo"
         })
     };
@@ -1313,15 +1313,15 @@ test("system health exposes bridge server version separately from tool pack vers
 
         assert.equal(
             result.bridgeVersion,
-            "2.30.0-docx-ooxml-contract-gate"
+            "2.31.0-docx-repair-candidate-gate"
         );
         assert.equal(
             result.runtime.bridgeVersion,
-            "2.30.0-docx-ooxml-contract-gate"
+            "2.31.0-docx-repair-candidate-gate"
         );
         assert.equal(
             result.toolPackVersion,
-            "1.38.0-implementation-day-range-contract"
+            "1.39.0-repair-candidate-contract"
         );
         assert.notEqual(
             result.toolPackVersion,
@@ -2598,7 +2598,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /jarvis-tools-v7-20260725-ooxml-contract-v78/);
+    assert.match(terminal, /jarvis-tools-v7-20260725-repair-candidates-v80/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
         "utf8"
@@ -2612,10 +2612,10 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-implementation-day-range-v79-20260725/);
+    assert.match(terminal, /sia7-repair-candidates-v80-20260725/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
-    assert.match(terminal, /jarvis-tools-v7-20260725-ooxml-contract-v78/);
+    assert.match(terminal, /jarvis-tools-v7-20260725-repair-candidates-v80/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -2860,7 +2860,7 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260725-ooxml-contract-v78/);
+    assert.match(core, /jarvis-tools-v7-20260725-repair-candidates-v80/);
     assert.match(
         terminal,
         /jarvis-tools-v7-20260725-semantic-envelope-v64/

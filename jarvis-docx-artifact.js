@@ -1,6 +1,6 @@
 import fs from "node:fs";
 
-const VERSION = "1.2.0-docx-ooxml-contract-gate";
+const VERSION = "1.3.0-repair-candidate-contract";
 
 function text(value = "") {
     return String(value ?? "").replace(/\r\n/g, "\n");
@@ -380,6 +380,76 @@ function questionMetrics(lines = []) {
     };
 }
 
+function questionMetricsAcrossRepairs(lines = []) {
+    const keyIndexes = [];
+    const evaluationIndexes = [];
+
+    for (let index = 0; index < lines.length; index += 1) {
+        const normalizedLine =
+            normalize(
+                lines[index]
+            );
+        if (
+            /clave\s+(?:completa\s+)?de\s+respuestas|respuestas\s+correctas/
+                .test(normalizedLine)
+        ) {
+            keyIndexes.push(index);
+        }
+        if (
+            normalizedLine ===
+                "examen" ||
+            normalizedLine ===
+                "evaluacion" ||
+            /evaluacion\s+final|examen\s+(?:final|simulacro)|examen\s+de\s+\d+\s+preguntas/
+                .test(normalizedLine)
+        ) {
+            evaluationIndexes.push(index);
+        }
+    }
+
+    return {
+        questionCount:
+            Math.max(
+                0,
+                ...evaluationIndexes.map(
+                    evaluationIndex => {
+                        const nextKeyIndex =
+                            keyIndexes.find(
+                                keyIndex =>
+                                    keyIndex >
+                                    evaluationIndex
+                            );
+                        return countConsecutiveItems(
+                            lines.slice(
+                                evaluationIndex + 1,
+                                nextKeyIndex ??
+                                    lines.length
+                            ),
+                            {
+                                requireQuestion:
+                                    true
+                            }
+                        );
+                    }
+                )
+            ),
+        answerKeyCount:
+            Math.max(
+                0,
+                ...keyIndexes.map(
+                    keyIndex =>
+                        countConsecutiveItems(
+                            lines.slice(
+                                keyIndex + 1
+                            )
+                        )
+                )
+            ),
+        answerKeyPresent:
+            keyIndexes.length > 0
+    };
+}
+
 function placeholderDetected(value = "") {
     const normalized = normalize(value);
     return [
@@ -511,6 +581,88 @@ function quantitativeTableMetrics(tables = []) {
     };
 }
 
+function quantitativeTableMetricsAcrossRepairs(tables = []) {
+    const matchingTables =
+        required =>
+            tables.filter(table => {
+                const headers =
+                    normalize(
+                        (table?.headers || [])
+                            .join(" ")
+                    );
+                return required.every(
+                    token =>
+                        headers.includes(
+                            token
+                        )
+                );
+            });
+    const maximumRows =
+        candidates =>
+            Math.max(
+                0,
+                ...candidates.map(
+                    table =>
+                        Array.isArray(
+                            table?.rows
+                        )
+                            ? table.rows.length
+                            : 0
+                )
+            );
+    const vehicleTables =
+        matchingTables(
+            ["unidad", "kilometraje"]
+        );
+    const partsTables =
+        [
+            ...matchingTables(
+                ["codigo", "refaccion"]
+            ),
+            ...matchingTables(
+                ["parte", "cantidad"]
+            )
+        ];
+    const kpiTables =
+        matchingTables(
+            ["indicador", "formula"]
+        );
+    const planTables =
+        [
+            ...matchingTables(
+                ["dias", "fase"]
+            ),
+            ...matchingTables(
+                ["dia", "actividad"]
+            )
+        ];
+
+    return {
+        vehicleCount:
+            maximumRows(
+                vehicleTables
+            ),
+        partCount:
+            maximumRows(
+                partsTables
+            ),
+        kpiCount:
+            maximumRows(
+                kpiTables
+            ),
+        implementationDayCoverage:
+            Math.max(
+                0,
+                ...planTables.map(
+                    table =>
+                        implementationDayCoverage(
+                            table
+                        )
+                )
+            )
+    };
+}
+
 export async function validateDocxArtifactFile({
     file = "",
     contract = {},
@@ -538,9 +690,12 @@ export async function validateDocxArtifactFile({
         headingDescriptor(item.text)
     );
     const headings = headingParagraphs.map(item => item.text);
-    const questions = questionMetrics(lines);
+    const questions =
+        questionMetricsAcrossRepairs(
+            lines
+        );
     const quantitative =
-        quantitativeTableMetrics(
+        quantitativeTableMetricsAcrossRepairs(
             tables
         );
     const actual = {

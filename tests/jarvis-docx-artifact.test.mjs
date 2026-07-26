@@ -49,7 +49,7 @@ function validContent() {
 test("DOCX artifact gate describes post-write OOXML validation", () => {
     const result = describeDocxArtifactGate();
     assert.equal(result.ok, true);
-    assert.equal(result.version, "1.2.0-docx-ooxml-contract-gate");
+    assert.equal(result.version, "1.3.0-repair-candidate-contract");
     assert.ok(result.checks.includes("real-word-tables"));
 });
 
@@ -233,6 +233,145 @@ test("DOCX post-write gate enforces requested table cardinalities", async () => 
     } finally {
         fs.rmSync(validFixture.directory, { recursive: true, force: true });
         fs.rmSync(invalidFixture.directory, { recursive: true, force: true });
+    }
+});
+
+test("DOCX gate accepts complete repair blocks after incomplete candidates", async () => {
+    const questions =
+        Array.from(
+            {
+                length:
+                    25
+            },
+            (_unused, index) =>
+                `${index + 1}. Pregunta operativa ${index + 1}?`
+        );
+    const answers =
+        Array.from(
+            {
+                length:
+                    25
+            },
+            (_unused, index) =>
+                `${index + 1}. Respuesta operativa ${index + 1}`
+        );
+    const content =
+        [
+            "# Plan inicial incompleto",
+            markdownTable(
+                ["Dia", "Actividad", "Responsable", "Evidencia"],
+                Array.from(
+                    {
+                        length:
+                            20
+                    },
+                    (_unused, index) => [
+                        String(index + 1),
+                        `Actividad ${index + 1}`,
+                        "Supervisor",
+                        "Bitacora"
+                    ]
+                )
+            ),
+            "## Examen de 25 preguntas",
+            "Bloque inicial incompleto.",
+            "## Clave completa de respuestas",
+            "1. Respuesta parcial",
+            "# Reparacion del plan",
+            markdownTable(
+                ["Dia", "Actividad", "Responsable", "Evidencia"],
+                Array.from(
+                    {
+                        length:
+                            30
+                    },
+                    (_unused, index) => [
+                        String(index + 1),
+                        `Actividad reparada ${index + 1}`,
+                        "Supervisor",
+                        "Bitacora"
+                    ]
+                )
+            ),
+            "## Examen de 25 preguntas",
+            ...questions,
+            "## Clave completa de respuestas",
+            ...answers,
+            ("Procedimiento verificable con control, responsable y evidencia documental. ")
+                .repeat(25)
+        ].join("\n\n");
+    const fixture =
+        await writeArtifact(
+            content
+        );
+    try {
+        const validation =
+            await validateDocxArtifactFile({
+                file:
+                    fixture.file,
+                contract: {
+                    minWords:
+                        80,
+                    minSections:
+                        0,
+                    minTables:
+                        1,
+                    minTemplates:
+                        0,
+                    minQuestions:
+                        25,
+                    minVehicles:
+                        0,
+                    minParts:
+                        0,
+                    minKpis:
+                        0,
+                    implementationDays:
+                        30,
+                    requireAnswerKey:
+                        true,
+                    requiredSections:
+                        []
+                },
+                expectedValidation: {
+                    validationPassed:
+                        true
+                }
+            });
+
+        assert.equal(
+            validation.ok,
+            true,
+            JSON.stringify(
+                validation.failures
+            )
+        );
+        assert.equal(
+            validation.actual
+                .implementationDayCoverage,
+            30
+        );
+        assert.equal(
+            validation.actual
+                .questionCount,
+            25
+        );
+        assert.equal(
+            validation.actual
+                .answerKeyCount,
+            25
+        );
+    }
+    finally {
+        fs.rmSync(
+            fixture.directory,
+            {
+                recursive:
+                    true,
+                force:
+                    true
+            }
+        );
     }
 });
 

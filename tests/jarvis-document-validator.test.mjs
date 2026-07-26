@@ -79,7 +79,7 @@ function validManualContent() {
 test("document validator describes the V68 structural gate", () => {
     const description = describeDocumentValidator();
     assert.equal(description.ok, true);
-    assert.equal(description.version, "1.3.0-implementation-day-range-contract");
+    assert.equal(description.version, "1.4.0-repair-candidate-contract");
     assert.ok(description.checks.includes("placeholder-and-diversity"));
 });
 
@@ -243,6 +243,100 @@ test("document contract understands an implementation range from day 1 through d
         contract
             .implementationDays,
         30
+    );
+});
+
+test("document repairs can supersede an earlier incomplete plan and exam", () => {
+    const questions =
+        Array.from(
+            {
+                length:
+                    25
+            },
+            (_unused, index) =>
+                `${index + 1}. Pregunta operativa ${index + 1}?`
+        );
+    const answers =
+        Array.from(
+            {
+                length:
+                    25
+            },
+            (_unused, index) =>
+                `${index + 1}. Respuesta operativa ${index + 1}`
+        );
+    const content =
+        [
+            "# Plan inicial incompleto",
+            table(
+                ["Dia", "Actividad", "Responsable", "Evidencia"],
+                Array.from(
+                    {
+                        length:
+                            20
+                    },
+                    (_unused, index) => [
+                        String(index + 1),
+                        `Actividad ${index + 1}`,
+                        "Supervisor",
+                        "Bitacora"
+                    ]
+                )
+            ),
+            "## Examen de 25 preguntas",
+            "Bloque inicial incompleto.",
+            "## Clave completa de respuestas",
+            "1. Respuesta parcial",
+            "# Reparacion del plan",
+            table(
+                ["Dia", "Actividad", "Responsable", "Evidencia"],
+                Array.from(
+                    {
+                        length:
+                            30
+                    },
+                    (_unused, index) => [
+                        String(index + 1),
+                        `Actividad reparada ${index + 1}`,
+                        "Supervisor",
+                        "Bitacora"
+                    ]
+                )
+            ),
+            "## Examen de 25 preguntas",
+            ...questions,
+            "## Clave completa de respuestas",
+            ...answers,
+            ("Procedimiento verificable con control, responsable y evidencia documental. ")
+                .repeat(25)
+        ].join("\n\n");
+    const result =
+        validateDocumentBlueprint({
+            instruction:
+                "Incluye un plan de implementacion de 30 dias, examen de 25 preguntas y clave completa de respuestas.",
+            content,
+            completionMarkerPresent:
+                true
+        });
+
+    assert.equal(
+        result.ok,
+        true,
+        JSON.stringify(
+            result.failures
+        )
+    );
+    assert.equal(
+        result.implementationDayCoverage,
+        30
+    );
+    assert.equal(
+        result.questionCount,
+        25
+    );
+    assert.equal(
+        result.answerKeyCount,
+        25
     );
 });
 
