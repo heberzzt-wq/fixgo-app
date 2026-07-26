@@ -49,7 +49,7 @@ function validContent() {
 test("DOCX artifact gate describes post-write OOXML validation", () => {
     const result = describeDocxArtifactGate();
     assert.equal(result.ok, true);
-    assert.equal(result.version, "1.4.0-discrete-markdown-table-contract");
+    assert.equal(result.version, "1.5.0-exact-template-contract");
     assert.ok(result.checks.includes("real-word-tables"));
 });
 
@@ -76,6 +76,61 @@ test("DOCX builder converts markdown tables into real Word tables and passes the
         assert.equal(validation.actual.answerKeyCount, 2);
     } finally {
         fs.rmSync(fixture.directory, { recursive: true, force: true });
+    }
+});
+
+test("DOCX post-write gate rejects more templates than an exact contract allows", async () => {
+    const extraTemplate = [
+        "## Formato 2. Registro adicional",
+        "| Fecha | Responsable | Acción | Firma |",
+        "|---|---|---|---|",
+        "| 2026-07-25 | Coordinador | Cerrar | Firma |"
+    ].join("\n");
+    const fixture =
+        await writeArtifact(
+            `${validContent()}\n\n${extraTemplate}`
+        );
+    try {
+        const validation =
+            await validateDocxArtifactFile({
+                file:
+                    fixture.file,
+                contract: {
+                    ...contract,
+                    exactTemplates:
+                        1
+                },
+                expectedValidation: {
+                    validationPassed:
+                        true
+                }
+            });
+
+        assert.equal(
+            validation.actual
+                .templateCount,
+            2
+        );
+        assert.equal(
+            validation.ok,
+            false
+        );
+        assert.ok(
+            validation.failures.includes(
+                "DOCX_TEMPLATE_COUNT_MISMATCH:2:1"
+            )
+        );
+    }
+    finally {
+        fs.rmSync(
+            fixture.directory,
+            {
+                recursive:
+                    true,
+                force:
+                    true
+            }
+        );
     }
 });
 

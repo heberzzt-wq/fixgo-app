@@ -30,9 +30,9 @@ import {
 import {
     extractDocumentContract,
     validateDocumentBlueprint
-} from "./jarvis.document.validator.js?v=sia7-repair-candidates-v80-20260725";
+} from "./jarvis.document.validator.js?v=sia7-exact-template-contract-v84-20260725";
 
-const VERSION = "1.39.0-repair-candidate-contract";
+const VERSION = "1.40.0-exact-template-contract";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";
@@ -1625,6 +1625,9 @@ function compactDocumentContractForModel(
         minTemplates:
             Number(contract.minTemplates) ||
             0,
+        exactTemplates:
+            Number(contract.exactTemplates) ||
+            0,
         minTables:
             Number(contract.minTables) ||
             0,
@@ -1684,6 +1687,26 @@ function buildDocumentRepairDirectives({
             );
     const directives =
         [];
+    const exactTemplateMismatch =
+        failureList
+            .map(value =>
+                value.match(
+                    /^DOCUMENT_TEMPLATE_COUNT_MISMATCH:(\d+):(\d+)$/
+                )
+            )
+            .find(Boolean);
+
+    if (
+        exactTemplateMismatch &&
+        Number(
+            exactTemplateMismatch[1]
+        ) >
+        Number(
+            exactTemplateMismatch[2]
+        )
+    ) {
+        return [];
+    }
 
     if (
         hasFailure(
@@ -1722,6 +1745,27 @@ function buildDocumentRepairDirectives({
         );
     }
     if (
+        exactTemplateMismatch &&
+        Number(
+            exactTemplateMismatch[1]
+        ) <
+        Number(
+            exactTemplateMismatch[2]
+        )
+    ) {
+        const current =
+            Number(
+                exactTemplateMismatch[1]
+            );
+        const expected =
+            Number(
+                exactTemplateMismatch[2]
+            );
+        directives.push(
+            `Crea solamente los ${expected - current} formatos faltantes, numerados del ${current + 1} al ${expected}. Cada bloque debe iniciar con "## Formato N. [nombre operativo]" y contener inmediatamente una tabla Markdown propia con encabezados que incluyan al menos "Fecha | Responsable | Acción | Firma". No recrees los formatos 1 al ${current}.`
+        );
+    }
+    else if (
         hasFailure(
             "DOCUMENT_TEMPLATE_COUNT_BELOW_MINIMUM"
         )
@@ -1811,6 +1855,65 @@ function buildDocumentSegmentPrompts({
             DOCUMENT_SEGMENT_COUNT
         ) +
         120;
+    const dedicatedTableCount =
+        (
+            Number(
+                contract.minVehicles
+            ) >
+            0
+                ? 1
+                : 0
+        ) +
+        (
+            Number(
+                contract.minParts
+            ) >
+            0
+                ? 1
+                : 0
+        ) +
+        (
+            Number(
+                contract.minKpis
+            ) >
+            0
+                ? 1
+                : 0
+        ) +
+        (
+            Number(
+                contract
+                    .implementationDays
+            ) >
+            0
+                ? 1
+                : 0
+        ) +
+        (
+            Number(
+                contract.minTemplates
+            ) ||
+            0
+        );
+    const genericTableCount =
+        Math.max(
+            0,
+            (
+                Number(
+                    contract.minTables
+                ) ||
+                0
+            ) -
+            dedicatedTableCount
+        );
+    const genericTableSegments =
+        Number(
+            contract.minTemplates
+        ) >
+        0
+            ? DOCUMENT_SEGMENT_COUNT -
+                1
+            : DOCUMENT_SEGMENT_COUNT;
     let sectionCursor = 1;
 
     return Array.from({
@@ -1851,15 +1954,27 @@ function buildDocumentSegmentPrompts({
                 : [];
         const assignments = [];
 
+        const genericTablesForSegment =
+            index <
+            genericTableSegments
+                ? Math.floor(
+                    genericTableCount /
+                    genericTableSegments
+                ) +
+                (
+                    index <
+                    genericTableCount %
+                    genericTableSegments
+                        ? 1
+                        : 0
+                )
+                : 0;
         if (
-            Number(contract.minTables) >
+            genericTablesForSegment >
             0
         ) {
             assignments.push(
-                `Incluye al menos ${Math.ceil(
-                    Number(contract.minTables) /
-                    DOCUMENT_SEGMENT_COUNT
-                )} tablas Markdown completas en este segmento.`
+                `Incluye exactamente ${genericTablesForSegment} tablas Markdown operativas adicionales en este segmento, distintas de los inventarios, catálogos, KPI, planes y formatos asignados por separado.`
             );
         }
         if (index === 0) {
@@ -1907,6 +2022,9 @@ function buildDocumentSegmentPrompts({
             ) {
                 assignments.push(
                     `Incluye exactamente ${contract.minTemplates} formatos operativos completos; cada uno debe llevar encabezado "Formato N" y una tabla propia con campos operativos.`
+                );
+                assignments.push(
+                    `No incluyas otros encabezados "Formato" o "Plantilla", ni tablas adicionales dentro de este bloque: el total global debe ser exactamente ${contract.minTemplates}.`
                 );
             }
             if (
@@ -2739,6 +2857,12 @@ export function registerJarvisMultifunctionTools(runtime) {
                                 validation
                                     .failures
                         });
+                    if (
+                        repairDirectives.length ===
+                        0
+                    ) {
+                        break;
+                    }
                     const continuation =
                         await fetchSemanticConversation(
                             [

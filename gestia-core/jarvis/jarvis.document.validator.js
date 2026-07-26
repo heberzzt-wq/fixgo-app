@@ -1,4 +1,4 @@
-const VERSION = "1.4.0-repair-candidate-contract";
+const VERSION = "1.5.0-exact-template-contract";
 
 const SPANISH_NUMBERS = new Map([
     ["un", 1], ["una", 1], ["uno", 1], ["dos", 2], ["tres", 3],
@@ -121,9 +121,18 @@ export function extractDocumentContract(instruction = "") {
         /(?:examen\s+de\s+)?([\d.,]+|[\p{L}]+)\s+preguntas/iu,
         /([\d.,]+|[\p{L}]+)\s+reactivos/iu
     ]);
-    const minTemplates = matchMinimum(source, [
+    const requestedTemplates = matchMinimum(source, [
         /([\d.,]+|[\p{L}]+)\s+(?:plantillas|formatos\s+operativos)/iu
     ]);
+    const exactTemplates = matchMinimum(normalizedRequirements, [
+        /exactamente\s+([\d.]+|[a-z]+)\s+(?:plantillas|formatos(?:\s+operativos)?)/iu,
+        /([\d.]+|[a-z]+)\s+(?:plantillas|formatos(?:\s+operativos)?)\s+exact(?:as|os)?/iu
+    ]);
+    const minTemplates =
+        Math.max(
+            requestedTemplates,
+            exactTemplates
+        );
     const minTables = matchMinimum(source, [
         /([\d.,]+|[\p{L}]+)\s+tablas/iu
     ]);
@@ -155,6 +164,7 @@ export function extractDocumentContract(instruction = "") {
         minSections: Math.max(minSections, requiredSections.length),
         minQuestions,
         minTemplates,
+        exactTemplates,
         minTables: minTables || (/tablas?\s+reales?/i.test(source) ? 1 : 0),
         minVehicles,
         minParts,
@@ -669,7 +679,12 @@ export function validateDocumentBlueprint({
     if (contract.minQuestions > 0 && questions.questionCount < contract.minQuestions) failures.push(`DOCUMENT_QUESTION_COUNT_BELOW_MINIMUM:${questions.questionCount}:${contract.minQuestions}`);
     if (contract.requireAnswerKey && !questions.answerKeyPresent) failures.push("DOCUMENT_ANSWER_KEY_MISSING");
     if (contract.requireAnswerKey && contract.minQuestions > 0 && questions.answerKeyCount < contract.minQuestions) failures.push(`DOCUMENT_ANSWER_KEY_INCOMPLETE:${questions.answerKeyCount}:${contract.minQuestions}`);
-    if (contract.minTemplates > 0 && templateCount < contract.minTemplates) failures.push(`DOCUMENT_TEMPLATE_COUNT_BELOW_MINIMUM:${templateCount}:${contract.minTemplates}`);
+    if (contract.exactTemplates > 0 && templateCount !== contract.exactTemplates) {
+        failures.push(`DOCUMENT_TEMPLATE_COUNT_MISMATCH:${templateCount}:${contract.exactTemplates}`);
+    }
+    else if (contract.minTemplates > 0 && templateCount < contract.minTemplates) {
+        failures.push(`DOCUMENT_TEMPLATE_COUNT_BELOW_MINIMUM:${templateCount}:${contract.minTemplates}`);
+    }
     if (contract.minVehicles > 0 && quantitative.vehicleCount < contract.minVehicles) failures.push(`DOCUMENT_VEHICLE_COUNT_BELOW_MINIMUM:${quantitative.vehicleCount}:${contract.minVehicles}`);
     if (contract.minParts > 0 && quantitative.partCount < contract.minParts) failures.push(`DOCUMENT_PART_COUNT_BELOW_MINIMUM:${quantitative.partCount}:${contract.minParts}`);
     if (contract.minKpis > 0 && quantitative.kpiCount < contract.minKpis) failures.push(`DOCUMENT_KPI_COUNT_BELOW_MINIMUM:${quantitative.kpiCount}:${contract.minKpis}`);
@@ -718,6 +733,7 @@ export function describeDocumentValidator() {
             "completion-marker",
             "word-count",
             "required-sections",
+            "exact-template-count",
             "real-table-blueprints",
             "questions-and-answer-key",
             "operational-templates",

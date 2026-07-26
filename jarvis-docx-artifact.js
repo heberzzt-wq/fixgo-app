@@ -1,6 +1,6 @@
 import fs from "node:fs";
 
-const VERSION = "1.4.0-discrete-markdown-table-contract";
+const VERSION = "1.5.0-exact-template-contract";
 
 function text(value = "") {
     return String(value ?? "").replace(/\r\n/g, "\n");
@@ -762,6 +762,12 @@ export async function validateDocxArtifactFile({
                     ?.minTemplates
             ) ||
             0,
+        exactTemplates:
+            Number(
+                contract
+                    ?.exactTemplates
+            ) ||
+            0,
         minQuestions:
             Number(
                 contract
@@ -813,7 +819,12 @@ export async function validateDocxArtifactFile({
     if (actual.wordCount < required.minWords) failures.push(`DOCX_WORD_COUNT_BELOW_MINIMUM:${actual.wordCount}:${required.minWords}`);
     if (actual.sectionCount < required.minSections) failures.push(`DOCX_SECTION_COUNT_BELOW_MINIMUM:${actual.sectionCount}:${required.minSections}`);
     if (actual.tableCount < required.minTables) failures.push(`DOCX_TABLE_COUNT_BELOW_MINIMUM:${actual.tableCount}:${required.minTables}`);
-    if (actual.templateCount < required.minTemplates) failures.push(`DOCX_TEMPLATE_COUNT_BELOW_MINIMUM:${actual.templateCount}:${required.minTemplates}`);
+    if (required.exactTemplates > 0 && actual.templateCount !== required.exactTemplates) {
+        failures.push(`DOCX_TEMPLATE_COUNT_MISMATCH:${actual.templateCount}:${required.exactTemplates}`);
+    }
+    else if (actual.templateCount < required.minTemplates) {
+        failures.push(`DOCX_TEMPLATE_COUNT_BELOW_MINIMUM:${actual.templateCount}:${required.minTemplates}`);
+    }
     if (actual.questionCount < required.minQuestions) failures.push(`DOCX_QUESTION_COUNT_BELOW_MINIMUM:${actual.questionCount}:${required.minQuestions}`);
     if (required.requireAnswerKey && !actual.answerKeyPresent) failures.push("DOCX_ANSWER_KEY_MISSING");
     if (actual.answerKeyCount < required.minAnswers) failures.push(`DOCX_ANSWER_KEY_INCOMPLETE:${actual.answerKeyCount}:${required.minAnswers}`);

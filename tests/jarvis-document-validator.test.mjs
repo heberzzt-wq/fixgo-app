@@ -8,7 +8,7 @@ import {
 } from "../gestia-core/jarvis/jarvis.document.validator.js";
 
 const manualInstruction = [
-    "Crea un manual profesional de mínimo 600 palabras, 18 secciones, 25 preguntas, clave completa de respuestas y siete formatos operativos con tablas reales.",
+    "Crea un manual profesional de mínimo 600 palabras, 18 secciones, 25 preguntas, clave completa de respuestas y exactamente siete formatos operativos con tablas reales.",
     "1. Portada",
     "2. Índice de contenido",
     "3. Objetivo y alcance",
@@ -79,8 +79,9 @@ function validManualContent() {
 test("document validator describes the V68 structural gate", () => {
     const description = describeDocumentValidator();
     assert.equal(description.ok, true);
-    assert.equal(description.version, "1.4.0-repair-candidate-contract");
+    assert.equal(description.version, "1.5.0-exact-template-contract");
     assert.ok(description.checks.includes("placeholder-and-diversity"));
+    assert.ok(description.checks.includes("exact-template-count"));
 });
 
 test("document contract preserves explicit quantitative requirements", () => {
@@ -89,6 +90,7 @@ test("document contract preserves explicit quantitative requirements", () => {
     assert.equal(contract.minSections, 18);
     assert.equal(contract.minQuestions, 25);
     assert.equal(contract.minTemplates, 7);
+    assert.equal(contract.exactTemplates, 7);
     assert.equal(contract.minTables, 1);
     assert.equal(contract.requireAnswerKey, true);
     assert.equal(contract.requiredSections.length, 18);
@@ -141,6 +143,28 @@ test("document validator accepts a complete multi-section blueprint with tables 
     assert.equal(result.answerKeyCount, 25);
     assert.equal(result.missingSections.length, 0);
     assert.equal(result.validationPassed, true);
+});
+
+test("document validator rejects extra templates when the user requests an exact count", () => {
+    const extraTemplate = [
+        "## Formato 8. Registro adicional no solicitado",
+        "| Fecha | Responsable | Acción | Firma |",
+        "|---|---|---|---|",
+        "| 2026-07-25 | Coordinador | Cerrar | Firma |"
+    ].join("\n");
+    const result = validateDocumentBlueprint({
+        instruction: manualInstruction,
+        completionMarkerPresent: true,
+        content: `${validManualContent()}\n\n${extraTemplate}`
+    });
+
+    assert.equal(result.templateCount, 8);
+    assert.equal(result.ok, false);
+    assert.ok(
+        result.failures.includes(
+            "DOCUMENT_TEMPLATE_COUNT_MISMATCH:8:7"
+        )
+    );
 });
 
 function table(headers, rows) {

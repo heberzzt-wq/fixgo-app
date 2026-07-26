@@ -1183,6 +1183,20 @@ test("large document composition repairs one failed semantic segment", async () 
                 120000,
                 `Segment prompt too large: ${request.data.input.length}`
             );
+            if (
+                prompt.includes(
+                    "Redacta el segmento 3 de 3"
+                )
+            ) {
+                assert.match(
+                    prompt,
+                    /total global debe ser exactamente 7/
+                );
+                assert.doesNotMatch(
+                    prompt,
+                    /Incluye exactamente \d+ tablas Markdown operativas adicionales/
+                );
+            }
             requestCount += 1;
             if (
                 prompt.includes(
@@ -1253,7 +1267,7 @@ test("large document composition repairs one failed semantic segment", async () 
 
         const originalInstructionForSegments = [
             "Crea un manual de mínimo 4500 palabras con 18 secciones.",
-            "Incluye mínimo 12 tablas reales, inventario de 25 vehículos, catálogo de 15 refacciones, 12 KPI, plan de implementación de 30 días, 7 formatos operativos, examen de 25 preguntas y clave completa de respuestas."
+            "Incluye mínimo 12 tablas reales, inventario de 25 vehículos, catálogo de 15 refacciones, 12 KPI, plan de implementación de 30 días, exactamente 7 formatos operativos, examen de 25 preguntas y clave completa de respuestas."
         ].join(" ");
         const oversizedPlanningDetail =
             `${originalInstructionForSegments} ${"Detalle de planeación extenso ".repeat(6000)}`;
@@ -1301,7 +1315,7 @@ test("system health exposes bridge server version separately from tool pack vers
         verifyIdentity: async () => ({
             ok: true,
             status: "BRIDGE_IDENTITY_OK",
-            bridgeVersion: "2.32.0-docx-discrete-table-gate",
+            bridgeVersion: "2.33.0-docx-exact-template-gate",
             bridgeRoot: "C:/repo"
         })
     };
@@ -1313,15 +1327,15 @@ test("system health exposes bridge server version separately from tool pack vers
 
         assert.equal(
             result.bridgeVersion,
-            "2.32.0-docx-discrete-table-gate"
+            "2.33.0-docx-exact-template-gate"
         );
         assert.equal(
             result.runtime.bridgeVersion,
-            "2.32.0-docx-discrete-table-gate"
+            "2.33.0-docx-exact-template-gate"
         );
         assert.equal(
             result.toolPackVersion,
-            "1.39.0-repair-candidate-contract"
+            "1.40.0-exact-template-contract"
         );
         assert.notEqual(
             result.toolPackVersion,
@@ -2598,7 +2612,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /jarvis-tools-v7-20260725-repair-candidates-v80/);
+    assert.match(terminal, /jarvis-tools-v7-20260725-exact-template-v84/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
         "utf8"
@@ -2612,10 +2626,10 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-compact-mission-storage-v83-20260725/);
+    assert.match(terminal, /sia7-exact-template-contract-v84-20260725/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
-    assert.match(terminal, /jarvis-tools-v7-20260725-repair-candidates-v80/);
+    assert.match(terminal, /jarvis-tools-v7-20260725-exact-template-v84/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -2860,7 +2874,7 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260725-repair-candidates-v80/);
+    assert.match(core, /jarvis-tools-v7-20260725-exact-template-v84/);
     assert.match(
         terminal,
         /jarvis-tools-v7-20260725-semantic-envelope-v64/
