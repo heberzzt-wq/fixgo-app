@@ -1,4 +1,4 @@
-const VERSION = "1.8.0-verified-source-evidence";
+const VERSION = "1.9.0-compact-mission-persistence";
 const STORAGE_KEY = "jarvis.missions.v1";
 
 function text(value = "", maximum = 120000) {
@@ -54,12 +54,146 @@ function readMissions(storage) {
     }
 }
 
+function compactMissionStorageValue(
+    value,
+    depth = 0
+) {
+    if (
+        value == null ||
+        typeof value ===
+            "number" ||
+        typeof value ===
+            "boolean"
+    ) {
+        return value;
+    }
+    if (
+        typeof value ===
+        "string"
+    ) {
+        return value;
+    }
+    if (
+        depth >
+        10
+    ) {
+        return null;
+    }
+    if (
+        Array.isArray(
+            value
+        )
+    ) {
+        return value.map(item =>
+            compactMissionStorageValue(
+                item,
+                depth + 1
+            )
+        );
+    }
+    if (
+        typeof value !==
+        "object"
+    ) {
+        return null;
+    }
+
+    const compacted =
+        {};
+    for (
+        const [key, item]
+        of Object.entries(
+            value
+        )
+    ) {
+        if (
+            key ===
+                "content" &&
+            typeof item ===
+                "string" &&
+            item.length >
+                4000
+        ) {
+            compacted
+                .contentLength =
+                item.length;
+            compacted
+                .contentPersisted =
+                false;
+            continue;
+        }
+        compacted[key] =
+            compactMissionStorageValue(
+                item,
+                depth + 1
+            );
+    }
+    return compacted;
+}
+
+function compactMissionForStorage(
+    mission
+) {
+    return compactMissionStorageValue(
+        mission
+    );
+}
+
 function saveMission(storage, mission) {
     const missions = readMissions(storage);
     const index = missions.findIndex(item => item.missionId === mission.missionId);
-    if (index >= 0) missions[index] = mission;
-    else missions.push(mission);
-    storage.setItem(STORAGE_KEY, JSON.stringify(missions.slice(-30)));
+    const persistableMission =
+        compactMissionForStorage(
+            mission
+        );
+    if (index >= 0) missions[index] = persistableMission;
+    else missions.push(persistableMission);
+    const compactedMissions =
+        missions
+            .slice(-30)
+            .map(
+                compactMissionForStorage
+            );
+    try {
+        storage.setItem(
+            STORAGE_KEY,
+            JSON.stringify(
+                compactedMissions
+            )
+        );
+    }
+    catch(error) {
+        if (
+            !/quota/i.test(
+                String(
+                    error?.name ||
+                    error?.message ||
+                    error
+                )
+            )
+        ) {
+            throw error;
+        }
+        storage.setItem(
+            STORAGE_KEY,
+            JSON.stringify(
+                compactedMissions
+                    .slice(-5)
+                    .map(item => ({
+                        ...item,
+                        observations:
+                            Array.isArray(
+                                item
+                                    ?.observations
+                            )
+                                ? item
+                                    .observations
+                                    .slice(-20)
+                                : []
+                    }))
+            )
+        );
+    }
     return structuredClone(mission);
 }
 

@@ -10,6 +10,47 @@ function memoryStorage() {
     };
 }
 
+function quotaStorage({
+    initial = "[]",
+    maximum = 60000
+} = {}) {
+    const values =
+        new Map([
+            [
+                "jarvis.missions.v1",
+                initial
+            ]
+        ]);
+    return {
+        getItem:
+            key =>
+                values.has(key)
+                    ? values.get(key)
+                    : null,
+        setItem:
+            (key, value) => {
+                const serialized =
+                    String(value);
+                if (
+                    serialized.length >
+                    maximum
+                ) {
+                    const error =
+                        new Error(
+                            "Storage quota exceeded."
+                        );
+                    error.name =
+                        "QuotaExceededError";
+                    throw error;
+                }
+                values.set(
+                    key,
+                    serialized
+                );
+            }
+    };
+}
+
 test("mission preserves a ten-page instruction while routing with a bounded representation", async () => {
     const instruction = Array.from({ length: 4000 }, (_, index) => `Parrafo ${index}: requisito verificable de la mision.`).join("\n");
     assert.ok(instruction.length > 12000);
@@ -957,6 +998,167 @@ test("spreadsheet observations preserve only validated executable blueprint meta
             .preparedArtifact
             .formulaValidationPassed,
         true
+    );
+});
+
+test("mission persistence strips large document bodies and migrates legacy quota pressure", async () => {
+    const legacyContent =
+        "LEGACY_DOCUMENT_BODY_".repeat(
+            7000
+        );
+    const legacyMission = {
+        missionId:
+            "MISSION-LEGACY",
+        completedTasks: [{
+            name:
+                "document.compose",
+            observation: {
+                preparedArtifact: {
+                    kind:
+                        "document",
+                    content:
+                        legacyContent
+                }
+            }
+        }],
+        observations: []
+    };
+    const storage =
+        quotaStorage({
+            initial:
+                JSON.stringify([
+                    legacyMission
+                ]),
+            maximum:
+                60000
+        });
+    const currentContent =
+        "Contenido operativo verificable con responsables y evidencia. "
+            .repeat(
+                6000
+            );
+    const mission =
+        await runJarvisMission({
+            instruction:
+                "Compone un documento largo sin publicarlo.",
+            initialToolCalls: [{
+                name:
+                    "document.compose",
+                args:
+                    {}
+            }],
+            requiredToolNames: [
+                "document.compose"
+            ],
+            planner:
+                async () => ({
+                    toolCalls:
+                        [],
+                    missionComplete:
+                        true
+                }),
+            execute:
+                async () => ({
+                    ok:
+                        true,
+                    status:
+                        "DOCUMENT_CONTENT_COMPOSED",
+                    title:
+                        "Manual",
+                    format:
+                        "docx",
+                    content:
+                        currentContent,
+                    wordCount:
+                        36000,
+                    completionMarkerPresent:
+                        true,
+                    compositionComplete:
+                        true,
+                    validationPassed:
+                        true,
+                    contract: {
+                        minWords:
+                            4500
+                    }
+                }),
+            storage
+        });
+
+    assert.equal(
+        mission.completedTasks[0]
+            .observation
+            .preparedArtifact
+            .content,
+        currentContent
+    );
+
+    const raw =
+        storage.getItem(
+            "jarvis.missions.v1"
+        );
+    assert.ok(
+        raw.length <
+        60000
+    );
+    assert.equal(
+        raw.includes(
+            legacyContent
+        ),
+        false
+    );
+    assert.equal(
+        raw.includes(
+            currentContent
+        ),
+        false
+    );
+
+    const persisted =
+        JSON.parse(
+            raw
+        );
+    const persistedLegacy =
+        persisted.find(item =>
+            item.missionId ===
+            "MISSION-LEGACY"
+        );
+    const persistedCurrent =
+        persisted.find(item =>
+            item.missionId ===
+            mission.missionId
+        );
+    assert.equal(
+        persistedLegacy
+            .completedTasks[0]
+            .observation
+            .preparedArtifact
+            .contentPersisted,
+        false
+    );
+    assert.equal(
+        persistedLegacy
+            .completedTasks[0]
+            .observation
+            .preparedArtifact
+            .contentLength,
+        legacyContent.length
+    );
+    assert.equal(
+        persistedCurrent
+            .completedTasks[0]
+            .observation
+            .preparedArtifact
+            .contentPersisted,
+        false
+    );
+    assert.equal(
+        persistedCurrent
+            .completedTasks[0]
+            .observation
+            .preparedArtifact
+            .contentLength,
+        currentContent.length
     );
 });
 

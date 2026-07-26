@@ -2612,7 +2612,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-blueprint-dependency-v82-20260725/);
+    assert.match(terminal, /sia7-compact-mission-storage-v83-20260725/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
     assert.match(terminal, /jarvis-tools-v7-20260725-repair-candidates-v80/);
