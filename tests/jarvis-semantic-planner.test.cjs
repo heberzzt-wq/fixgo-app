@@ -146,6 +146,146 @@ test("semantic planner preserves repeated tools for independent arguments", () =
     );
 });
 
+test("mission coverage deduplicates research reformulations while preserving independent goals", async () => {
+    const webCatalog = [{
+        name:
+            "web.research",
+        description:
+            "Investiga un objetivo independiente.",
+        mutates:
+            false,
+        requiresApproval:
+            false,
+        missionDedupeBy: [
+            "researchGoal"
+        ],
+        inputSchema: {
+            type:
+                "object",
+            required: [
+                "query",
+                "researchGoal"
+            ],
+            properties: {
+                query: {
+                    type:
+                        "string"
+                },
+                researchGoal: {
+                    type:
+                        "string"
+                }
+            },
+            additionalProperties:
+                false
+        }
+    }];
+    let requestCount =
+        0;
+    const result =
+        await runGeminiSemanticPlanner({
+            input:
+                "Investiga custom claims y, por separado, App Check.",
+            catalog:
+                webCatalog,
+            missionState: {
+                phase:
+                    "MISSION_CONTRACT",
+                writeAllowed:
+                    false
+            },
+            ai: {
+                lastProvider:
+                    "vertex-adc",
+                models: {
+                    generateContent:
+                        async () => {
+                            requestCount +=
+                                1;
+                            const toolCalls =
+                                requestCount === 1
+                                    ? [
+                                        {
+                                            name:
+                                                "web.research",
+                                            args: {
+                                                query:
+                                                    "Firebase Auth custom claims",
+                                                researchGoal:
+                                                    "RESEARCH_1"
+                                            }
+                                        },
+                                        {
+                                            name:
+                                                "web.research",
+                                            args: {
+                                                query:
+                                                    "Firebase App Check",
+                                                researchGoal:
+                                                    "RESEARCH_2"
+                                            }
+                                        }
+                                    ]
+                                    : requestCount === 2
+                                        ? [{
+                                            name:
+                                                "web.research",
+                                            args: {
+                                                query:
+                                                    "roles con custom claims",
+                                                researchGoal:
+                                                    "RESEARCH_1"
+                                            }
+                                        }]
+                                        : [{
+                                            name:
+                                                "web.research",
+                                            args: {
+                                                query:
+                                                    "proteccion App Check",
+                                                researchGoal:
+                                                    "RESEARCH_2"
+                                            }
+                                        }];
+                            return {
+                                text:
+                                    JSON.stringify({
+                                        toolCalls,
+                                        missionComplete:
+                                            false
+                                    })
+                            };
+                        }
+                }
+            }
+        });
+
+    assert.equal(
+        requestCount,
+        3
+    );
+    assert.deepEqual(
+        result.toolCalls.map(
+            call =>
+                call.args.query
+        ),
+        [
+            "Firebase Auth custom claims",
+            "Firebase App Check"
+        ]
+    );
+    assert.deepEqual(
+        result.toolCalls.map(
+            call =>
+                call.missionDedupeKey
+        ),
+        [
+            'web.research:["RESEARCH_1"]',
+            'web.research:["RESEARCH_2"]'
+        ]
+    );
+});
+
 test("semantic response uses the authenticated provider chain and reports provenance", async () => {
     const result = await runJarvisSemanticResponse({
         input: "Integra solamente la evidencia entregada.",

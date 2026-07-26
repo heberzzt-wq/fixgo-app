@@ -1,4 +1,4 @@
-const VERSION = "4.4.0-focused-web-query";
+const VERSION = "4.5.0-stable-research-objectives";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
@@ -57,6 +57,7 @@ async function callBrowserMissionContract(
         "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only y userArtifact necesarias para TODOS los entregables. Para crear una landing usa page.plan, page.compose y page.create; para crear un documento usa document.compose y document.create; para crear una hoja estructurada usa spreadsheet.compose y document.create. Para cada artefacto usa exactamente una composicion y una creacion salvo que el usuario pida variantes. Conserva el orden y usa missionComplete=false.",
         "Las HERRAMIENTAS_INICIALES son un borrador semantico ya seleccionado para la misma instruccion. Conserva sus entregables y agrega solamente una herramienta que cubra un objetivo independiente pedido de forma explicita y no cubierto por ese borrador. No agregues diagnostico, supervision, forense, repositorio, navegador, conectores, investigacion ni otros artefactos solo porque existan en el catalogo.",
         "No colapses sujetos u objetivos independientes. Repite el mismo nombre de herramienta cuando necesite argumentos distintos para cubrirlos por separado.",
+        "Para web.research usa researchGoal=RESEARCH_1, RESEARCH_2, etc. segun el orden inmutable de objetivos de investigacion en la instruccion. Reutiliza la misma identidad al auditar el mismo objetivo y no dupliques llamadas para simples reformulaciones.",
         `HERRAMIENTAS_INICIALES=${initialToolNames.join(",")}`,
         `CATALOGO=${catalog.map(tool => tool.name).join(",")}`,
         `INSTRUCCION=${boundedInstruction}`
@@ -88,12 +89,34 @@ async function callBrowserMissionContract(
                     if (plan.toolCalls.length === 0) {
                         throw new Error("CLIENT_MISSION_CONTRACT_EMPTY");
                     }
-                    auditedPlan = plan;
+                    auditedPlan = {
+                        ...plan,
+                        toolCalls:
+                            trustedPlanCalls(
+                                {
+                                    ...plan,
+                                    planKind:
+                                        "MISSION_CONTRACT"
+                                },
+                                catalog,
+                                {}
+                            )
+                    };
                     continue;
                 }
+                const coverageCalls =
+                    trustedPlanCalls(
+                        {
+                            ...plan,
+                            planKind:
+                                "MISSION_CONTRACT_AUDIT"
+                        },
+                        catalog,
+                        {}
+                    );
                 const merged = mergeJarvisToolCalls(
                     auditedPlan.toolCalls || [],
-                    plan.toolCalls || []
+                    coverageCalls
                 );
                 return {
                     ...auditedPlan,
@@ -145,6 +168,7 @@ async function callBrowserSemanticPlan(input = "", catalog = [], missionState = 
         "Si piden referencias, usos o pruebas de un archivo concreto, usa repo.search con la ruta exacta o basename como query, no con una pregunta completa.",
         "Si una investigacion limita fuentes a un dominio, copia el dominio exacto en allowedDomain de web.research.",
         "En web.research, query debe contener solo el objetivo concreto y los terminos distintivos de la investigacion; no copies toda la orden mixta, archivos ni otros entregables. Conserva conceptos tecnicos importantes como custom claims, roles, APIs o normas.",
+        "Para web.research usa researchGoal=RESEARCH_1, RESEARCH_2, etc. segun el orden de objetivos independientes en la instruccion y reutiliza exactamente esa identidad para el mismo objetivo.",
         "Si se piden datos oficiales, usa allowedDomain con el dominio oficial de la autoridad identificada y no presentes fuentes secundarias como oficiales.",
         "Si una investigacion pide hechos sobre una entidad nombrada sin dominio, copia el nombre exacto en exactEntity de web.research.",
         missionState?.phase === "COMPLETION_AUDIT"
@@ -231,6 +255,47 @@ function missionDedupeKey(tool = {}, args = {}) {
     )}`;
 }
 
+function stableResearchGoal(
+    value = "",
+    fallbackOrdinal = 1
+) {
+    const candidate =
+        String(value || "")
+            .trim()
+            .toUpperCase();
+    const prefix =
+        "RESEARCH_";
+    const suffix =
+        candidate.startsWith(prefix)
+            ? candidate.slice(
+                prefix.length
+            )
+            : "";
+    const numericSuffix =
+        suffix.length > 0 &&
+        [
+            ...suffix
+        ].every(character => {
+            const code =
+                character.charCodeAt(0);
+            return (
+                code >= 48 &&
+                code <= 57
+            );
+        });
+
+    return numericSuffix
+        ? `${prefix}${Math.max(
+            1,
+            Number(suffix)
+        )}`
+        : `${prefix}${Math.max(
+            1,
+            Number(fallbackOrdinal) ||
+            1
+        )}`;
+}
+
 function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
     const allowed = new Map(catalog.map(tool => [tool.name, tool]));
     const candidates = Array.isArray(plan?.toolCalls) ? plan.toolCalls : [];
@@ -240,16 +305,39 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
     const seen = new Set();
     const seenMissionDedupeKeys = new Set();
     const calls = [];
+    let webResearchOrdinal = 0;
 
     for (const candidate of candidates.slice(0, 12)) {
         const tool = allowed.get(String(candidate?.name || ""));
-        const args =
+        let args =
             (candidate?.args || candidate?.arguments) &&
             typeof (candidate.args || candidate.arguments) === "object" &&
             !Array.isArray(candidate.args || candidate.arguments)
-                ? (candidate.args || candidate.arguments)
+                ? {
+                    ...(candidate.args || candidate.arguments)
+                }
                 : {};
         if (!tool) continue;
+        if (
+            tool.name ===
+                "web.research" &&
+            Array.isArray(
+                tool.missionDedupeBy
+            ) &&
+            tool.missionDedupeBy.includes(
+                "researchGoal"
+            )
+        ) {
+            webResearchOrdinal += 1;
+            args = {
+                ...args,
+                researchGoal:
+                    stableResearchGoal(
+                        args.researchGoal,
+                        webResearchOrdinal
+                    )
+            };
+        }
         const signature =
             `${tool.name}:${JSON.stringify(args)}`;
         if (seen.has(signature)) continue;
@@ -529,12 +617,27 @@ export async function completeJarvisPlanningArguments({
 export function mergeJarvisToolCalls(...groups) {
     const merged = [];
     const seen = new Set();
+    const seenMissionDedupeKeys =
+        new Set();
 
     for (const call of groups.flat()) {
         if (!call?.name) continue;
+        if (
+            call.missionDedupeKey &&
+            seenMissionDedupeKeys.has(
+                call.missionDedupeKey
+            )
+        ) {
+            continue;
+        }
         const key = `${call.name}:${JSON.stringify(call.args || call.arguments || {})}`;
         if (seen.has(key)) continue;
         seen.add(key);
+        if (call.missionDedupeKey) {
+            seenMissionDedupeKeys.add(
+                call.missionDedupeKey
+            );
+        }
         merged.push(call);
     }
 

@@ -40,7 +40,7 @@ import {
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     buildJarvisMultifunctionToolCalls
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-focused-web-query-v87-20260726';
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-stable-research-objectives-v88-20260726';
 import {
     runJarvisMission
 } from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-compact-mission-storage-v83-20260725';
@@ -195,14 +195,14 @@ import {
     sincronizarCorralSemantico,
     getSemanticCognitiveState
 } from '/gestia-core/semantic.engine.js?v=sia7-model-context-v8-20260714';
-import '/gestia-core/brain.engine.js?v=sia7-focused-web-query-v87-20260726';
+import '/gestia-core/brain.engine.js?v=sia7-stable-research-objectives-v88-20260726';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260726-focused-web-evidence-v87';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260726-stable-research-objectives-v88';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260725-semantic-envelope-v64';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260725-repair-candidates-v80';
 
 const MISSION_EVIDENCE_CONTRACT_VERSION =
-    "1.1.0-focused-web-evidence";
+    "1.2.0-stable-research-objectives";
 
 // ======================================================================================
 // 🛰️ SECCIÓN 2: GESTIA CORE ORCHESTRATOR (KERNEL V16.0)
@@ -4405,6 +4405,33 @@ function buildMissionEvidenceReceipt(
         if (path) {
             details.push(
                 `archivo=${String(path).slice(0, 500)}`
+            );
+        }
+        if (
+            name ===
+                "web.research" &&
+            item?.args
+                ?.researchGoal
+        ) {
+            details.push(
+                `objetivo=${String(
+                    item.args.researchGoal
+                ).slice(0, 80)}`
+            );
+        }
+        if (
+            name ===
+                "web.research" &&
+            (
+                item?.args?.query ||
+                item?.args?.prompt
+            )
+        ) {
+            details.push(
+                `consulta=${String(
+                    item.args.query ||
+                    item.args.prompt
+                ).slice(0, 500)}`
             );
         }
         if (

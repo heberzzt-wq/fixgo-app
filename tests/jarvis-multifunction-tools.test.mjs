@@ -261,6 +261,110 @@ test("browser mission contract audits and restores a subject omitted by its firs
     }
 });
 
+test("browser mission coverage keeps one call per stable research objective", async () => {
+    const originalFetch =
+        globalThis.fetch;
+    let requestCount =
+        0;
+    const catalog = [{
+        name:
+            "web.research",
+        description:
+            "Investiga objetivos con fuentes.",
+        mutates:
+            false,
+        requiresApproval:
+            false,
+        missionDedupeBy: [
+            "researchGoal"
+        ],
+        inputSchema: {
+            type:
+                "object",
+            required: [
+                "query",
+                "researchGoal"
+            ],
+            properties: {
+                query: {
+                    type:
+                        "string"
+                },
+                researchGoal: {
+                    type:
+                        "string"
+                }
+            },
+            additionalProperties:
+                false
+        }
+    }];
+    globalThis.fetch =
+        async () => {
+            requestCount +=
+                1;
+            return {
+                ok:
+                    true,
+                text:
+                    async () =>
+                        JSON.stringify({
+                            toolCalls: requestCount === 1
+                                ? [{
+                                    name:
+                                        "web.research",
+                                    arguments: {
+                                        query:
+                                            "Firebase custom claims"
+                                    }
+                                }]
+                                : [{
+                                    name:
+                                        "web.research",
+                                    arguments: {
+                                        query:
+                                            "roles con Firebase claims"
+                                    }
+                                }],
+                            missionComplete:
+                                false
+                        })
+            };
+        };
+
+    try {
+        const result =
+            await plannerTest
+                .callBrowserMissionContract(
+                    "Investiga Firebase custom claims y roles.",
+                    catalog
+                );
+        assert.equal(
+            requestCount,
+            2
+        );
+        assert.equal(
+            result.toolCalls.length,
+            1
+        );
+        assert.equal(
+            result.toolCalls[0]
+                .args
+                .researchGoal,
+            "RESEARCH_1"
+        );
+        assert.equal(
+            result.toolCalls[0]
+                .missionDedupeKey,
+            'web.research:["RESEARCH_1"]'
+        );
+    }
+    finally {
+        globalThis.fetch =
+            originalFetch;
+    }
+});
+
 test("browser planner blocks tool calls with missing required arguments", () => {
     const catalog = [{
         name: "repo.read",
@@ -1350,7 +1454,7 @@ test("system health exposes bridge server version separately from tool pack vers
         );
         assert.equal(
             result.toolPackVersion,
-            "1.43.0-focused-web-evidence"
+            "1.44.0-stable-research-objectives"
         );
         assert.notEqual(
             result.toolPackVersion,
@@ -2627,7 +2731,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /jarvis-tools-v7-20260726-focused-web-evidence-v87/);
+    assert.match(terminal, /jarvis-tools-v7-20260726-stable-research-objectives-v88/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
         "utf8"
@@ -2641,10 +2745,10 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-focused-web-evidence-v87-20260726/);
+    assert.match(terminal, /sia7-stable-research-objectives-v88-20260726/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
-    assert.match(terminal, /jarvis-tools-v7-20260726-focused-web-evidence-v87/);
+    assert.match(terminal, /jarvis-tools-v7-20260726-stable-research-objectives-v88/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -2825,7 +2929,7 @@ test("daily supervision cloud lookup has a bounded browser deadline", () => {
     assert.match(source, /signal:\s*controller\.signal/);
     assert.match(source, /SUPERVISION_STATUS_TIMEOUT_/);
     assert.match(source, /clearTimeout\(timeoutId\)/);
-    assert.match(source, /4\.4\.0-focused-web-query/);
+    assert.match(source, /4\.5\.0-stable-research-objectives/);
     assert.doesNotMatch(source, /3\.0\.0-model-semantic-planner/);
 });
 
@@ -2844,7 +2948,7 @@ test("multifunction descriptor remains approval-bound", () => {
     assert.equal(planner.mutates, false);
     assert.equal(
         planner.version,
-        "4.4.0-focused-web-query"
+        "4.5.0-stable-research-objectives"
     );
     assert.equal(planner.maximumToolCalls, 12);
     assert.equal(planner.architecture, "model_selected_runtime_catalog");
@@ -2893,7 +2997,7 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260726-focused-web-evidence-v87/);
+    assert.match(core, /jarvis-tools-v7-20260726-stable-research-objectives-v88/);
     assert.match(
         terminal,
         /jarvis-tools-v7-20260725-semantic-envelope-v64/

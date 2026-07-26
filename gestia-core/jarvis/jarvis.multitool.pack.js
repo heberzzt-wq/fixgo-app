@@ -23,7 +23,7 @@ import {
 
 import {
     completeJarvisPlanningArguments
-} from "./jarvis.multifunction.planner.js?v=sia7-focused-web-query-v87-20260726";
+} from "./jarvis.multifunction.planner.js?v=sia7-stable-research-objectives-v88-20260726";
 import {
     validateWorkbookFormulaStructure
 } from "./jarvis.workbook.validator.js?v=sia7-deep-artifact-validation-v65-20260725";
@@ -32,7 +32,7 @@ import {
     validateDocumentBlueprint
 } from "./jarvis.document.validator.js?v=sia7-exact-template-contract-v84-20260725";
 
-const VERSION = "1.43.0-focused-web-evidence";
+const VERSION = "1.44.0-stable-research-objectives";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 4500;
 const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";
@@ -1004,7 +1004,7 @@ const LOCAL_SUPERVISION_PROBES = [
         id: "technical_intent_priority",
         path: "/gestia-core/jarvis/jarvis.multifunction.planner.js",
         markers: [
-            "4.4.0-focused-web-query",
+            "4.5.0-stable-research-objectives",
             "jarvisSemanticPlan",
             "trustedPlanCalls"
         ]
@@ -1018,7 +1018,7 @@ const LOCAL_SUPERVISION_PROBES = [
         id: "mission_evidence_contract",
         path: "/gestia-core/gestia-core.js",
         markers: [
-            "1.1.0-focused-web-evidence",
+            "1.2.0-stable-research-objectives",
             "buildMissionEvidenceBlocks",
             "buildMissionEvidenceReceipt"
         ]
@@ -3546,13 +3546,50 @@ export function registerJarvisMultifunctionTools(runtime) {
             name: "web.research",
             description: "Investiga informacion actual en Google Search y devuelve una respuesta sustentada con fuentes estructuradas.",
             output: "SIA7_GROUNDED_WEB_RESEARCH",
+            missionDedupeBy: [
+                "researchGoal"
+            ],
             inputSchema: {
-                query: "string",
-                prompt: "string",
-                objectiveId: "string",
-                caseId: "string",
-                allowedDomain: "string",
-                exactEntity: "string"
+                type:
+                    "object",
+                required: [
+                    "query",
+                    "researchGoal"
+                ],
+                properties: {
+                    query: {
+                        type:
+                            "string"
+                    },
+                    prompt: {
+                        type:
+                            "string"
+                    },
+                    researchGoal: {
+                        type:
+                            "string",
+                        description:
+                            "Identidad estable RESEARCH_1, RESEARCH_2, etc. segun el orden de objetivos independientes en la instruccion original."
+                    },
+                    objectiveId: {
+                        type:
+                            "string"
+                    },
+                    caseId: {
+                        type:
+                            "string"
+                    },
+                    allowedDomain: {
+                        type:
+                            "string"
+                    },
+                    exactEntity: {
+                        type:
+                            "string"
+                    }
+                },
+                additionalProperties:
+                    false
             },
             execute: async (args = {}, context = {}) =>
                 await fetchGroundedWebResearch(

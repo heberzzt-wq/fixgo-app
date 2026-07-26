@@ -5,7 +5,7 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-focused-web-evidence-v87-20260726";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-stable-research-objectives-v88-20260726";
 import {
     registerJarvisActuatorTools
 } from "./jarvis/jarvis.actuator.pack.js?v=sia7-runtime-truth-v70-20260725";
