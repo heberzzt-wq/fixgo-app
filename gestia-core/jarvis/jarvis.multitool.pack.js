@@ -23,7 +23,7 @@ import {
 
 import {
     completeJarvisPlanningArguments
-} from "./jarvis.multifunction.planner.js?v=sia7-deep-artifact-validation-v65-20260725";
+} from "./jarvis.multifunction.planner.js?v=sia7-initial-plan-bounded-contract-v85-20260725";
 import {
     validateWorkbookFormulaStructure
 } from "./jarvis.workbook.validator.js?v=sia7-deep-artifact-validation-v65-20260725";
@@ -32,7 +32,7 @@ import {
     validateDocumentBlueprint
 } from "./jarvis.document.validator.js?v=sia7-exact-template-contract-v84-20260725";
 
-const VERSION = "1.40.0-exact-template-contract";
+const VERSION = "1.41.0-initial-plan-bounded-contract";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 1500;
 const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";
@@ -998,7 +998,7 @@ const LOCAL_SUPERVISION_PROBES = [
         id: "technical_intent_priority",
         path: "/gestia-core/jarvis/jarvis.multifunction.planner.js",
         markers: [
-            "4.2.0-verified-complete-artifacts",
+            "4.3.0-initial-plan-bounded-contract",
             "jarvisSemanticPlan",
             "trustedPlanCalls"
         ]

@@ -445,7 +445,14 @@ test("mission contract uses the dedicated complete simple-model prompt", async (
     const result = await runJarvisSemanticPlanner({
         input: "Investiga, entrega diagnostico y revisa conectores sin escribir.",
         catalog,
-        missionState: { phase: "MISSION_CONTRACT", writeAllowed: false },
+        missionState: {
+            phase: "MISSION_CONTRACT",
+            writeAllowed: false,
+            existingInitialTools: [
+                "repo.search",
+                "connector.list"
+            ]
+        },
         ai: {
             models: {
                 generateContent: async () => {
@@ -913,7 +920,14 @@ test("Gemini creates a complete read-only mission contract before execution", as
     const result = await runGeminiSemanticPlanner({
         input: "Investiga el dominio oficial y revisa conectores sin escribir.",
         catalog,
-        missionState: { phase: "MISSION_CONTRACT", writeAllowed: false },
+        missionState: {
+            phase: "MISSION_CONTRACT",
+            writeAllowed: false,
+            existingInitialTools: [
+                "repo.search",
+                "connector.list"
+            ]
+        },
         ai: {
             lastProvider: "vertex-adc",
             models: {
@@ -921,6 +935,10 @@ test("Gemini creates a complete read-only mission contract before execution", as
                     requestCount += 1;
                     assert.equal(request.config.responseMimeType, "application/json");
                     assert.equal(request.config.tools, undefined);
+                    assert.match(
+                        request.contents,
+                        /HERRAMIENTAS_INICIALES=repo\.search,connector\.list/
+                    );
                     if (requestCount === 1) {
                         assert.equal(request.config.thinkingConfig.thinkingBudget, 0);
                         assert.equal(request.config.maxOutputTokens, 4000);

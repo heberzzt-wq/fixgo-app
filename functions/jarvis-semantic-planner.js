@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "1.15.0-verified-complete-artifacts";
+const VERSION = "1.16.0-initial-plan-bounded-contract";
 const DEFAULT_ENDPOINT = "https://text.pollinations.ai/openai";
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -418,13 +418,27 @@ async function runGeminiSemanticPlanner({
     if (!instruction || safeCatalog.length === 0) throw new Error("SEMANTIC_GEMINI_INPUT_REQUIRED");
 
     if (missionState?.phase === "MISSION_CONTRACT") {
+        const initialToolNames =
+            Array.isArray(
+                missionState
+                    ?.existingInitialTools
+            )
+                ? missionState
+                    .existingInitialTools
+                    .map(String)
+                    .filter(Boolean)
+                    .slice(0, 20)
+                : [];
         const contractResponse = await ai.models.generateContent({
             model,
             contents: [
                 buildSemanticSystemInstruction(safeCatalog, null),
                 `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
+                `HERRAMIENTAS_INICIALES=${initialToolNames.join(",")}`,
                 [
                     "CONTRATO_DE_MISION: enumera en toolCalls todas las herramientas read-only y userArtifact necesarias para satisfacer cada entregable independiente de la instruccion, no solo la primera etapa.",
+                    "Las HERRAMIENTAS_INICIALES son un borrador semantico ya seleccionado para esta misma instruccion. Debes conservar sus entregables y agregar solo herramientas que cubran un objetivo independiente pedido de forma explicita y no cubierto por ellas.",
+                    "No agregues diagnostico, supervision, forense, repositorio, navegador, conectores, investigacion ni otros artefactos solamente porque aparezcan en el catalogo. Cada herramienta adicional debe corresponder a palabras y significado verificables de la instruccion original.",
                     "Conserva por separado cada sujeto, archivo, entidad o entregable. Puedes repetir el mismo nombre de herramienta cuando sus argumentos sean distintos y correspondan a objetivos independientes.",
                     "Incluye herramientas especializadas de investigacion, negocio, marketing, pagina, imagen, reel, documentos, hojas de calculo o diagnostico cuando el usuario haya pedido esos resultados.",
                     "Cuando se pida crear una landing local incluye page.plan, page.compose y page.create. Cuando se pida crear un documento incluye document.compose y document.create. Cuando se pida una hoja de calculo estructurada incluye spreadsheet.compose y document.create. Conserva primero la composicion o plan y despues la creacion.",
@@ -487,6 +501,7 @@ async function runGeminiSemanticPlanner({
                 contents: [
                     buildSemanticSystemInstruction(safeCatalog, null),
                     `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
+                    `HERRAMIENTAS_INICIALES=${initialToolNames.join(",")}`,
                     `BORRADOR_DE_CONTRATO=${JSON.stringify({
                         toolCalls: validatedContract.toolCalls,
                         completionAssessment: validatedContract.completionAssessment
@@ -496,6 +511,7 @@ async function runGeminiSemanticPlanner({
                         "Descompone primero la instruccion por significado en todos sus sujetos, archivos, entidades, preguntas y entregables independientes.",
                         "Compara despues cada objetivo independiente con BORRADOR_DE_CONTRATO.",
                         "Devuelve solamente las toolCalls read-only o userArtifact que falten para cubrir objetivos omitidos. No sustituyas, resumas ni elimines las llamadas del borrador.",
+                        "No agregues capacidades adyacentes ni herramientas que no correspondan a un entregable explicito de la instruccion original.",
                         "Puedes repetir una herramienta si el objetivo omitido necesita argumentos distintos.",
                         "Si el borrador ya cubre todo, devuelve toolCalls=[]; missionComplete debe permanecer false.",
                         "Devuelve JSON valido con toolCalls, explanation, missionComplete=false y completionAssessment."
@@ -547,11 +563,13 @@ async function runGeminiSemanticPlanner({
                 contents: [
                     buildSemanticSystemInstruction(safeCatalog, null),
                     `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
+                    `HERRAMIENTAS_INICIALES=${initialToolNames.join(",")}`,
                     [
                         "MUESTRA_SEMANTICA_INDEPENDIENTE_DE_COBERTURA:",
                         "Construye desde cero un contrato completo con herramientas read-only y userArtifact sin usar ni asumir ningun borrador anterior.",
                         "Enumera por separado todos los sujetos, archivos, entidades, preguntas y entregables de la instruccion.",
                         "Asigna a cada objetivo sus herramientas reales del catalogo, conserva dependencias y permite repetir herramientas con argumentos distintos.",
+                        "Usa HERRAMIENTAS_INICIALES como control contra sobreseleccion: cualquier herramienta adicional debe cubrir un objetivo independiente expresamente pedido, nunca una capacidad adyacente.",
                         "Para un modulo o concepto sin ruta verificada empieza con repo.search; no inventes una ruta para repo.read, repo.diagnose o repo.impact.",
                         "Incluye cada herramienta especializada solicitada de investigacion, marketing, landing, imagen, reel, documentos, medios, navegador, supervision o analisis forense.",
                         "No incluyas mutaciones salvo herramientas userArtifact para entregables locales pedidos expresamente. Devuelve JSON valido con toolCalls, explanation, missionComplete=false y completionAssessment."
@@ -773,6 +791,11 @@ async function runSimpleSemanticPlanner({
         })).filter(item => item.name),
         pendingTasks: (missionState.pendingTasks || []).map(item => item?.name).filter(Boolean),
         blockedTasks: (missionState.blockedTasks || []).map(item => item?.name).filter(Boolean),
+        existingInitialTools:
+            (missionState.existingInitialTools || [])
+                .map(String)
+                .filter(Boolean)
+                .slice(0, 20),
         iterations: Number(missionState.iterations || 0),
         writeAllowed: false
     } : null;
@@ -787,7 +810,7 @@ async function runSimpleSemanticPlanner({
         "Si la instruccion pide hechos de una entidad nombrada sin dominio, copia su nombre exacto en exactEntity de web.research.",
         "Si la instruccion pide referencias, usos o pruebas de un archivo concreto, usa repo.search con la ruta exacta o basename como query, no con una pregunta completa.",
         missionState?.phase === "MISSION_CONTRACT"
-            ? "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only y userArtifact necesarias para TODOS los entregables, no solo la primera etapa. Para una landing creada usa page.plan, page.compose y page.create; para un documento usa document.compose y document.create; para una hoja estructurada usa spreadsheet.compose y document.create. Para cada artefacto usa exactamente una composicion y una creacion salvo que el usuario pida variantes. No omitas imagen, reel, inventario o autoevaluacion cuando se pidan. Conserva el orden de dependencias y usa missionComplete=false."
+            ? "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only y userArtifact necesarias para TODOS los entregables, no solo la primera etapa. HERRAMIENTAS_INICIALES es un borrador semantico ya seleccionado: agrega solo herramientas para objetivos independientes pedidos de forma explicita y no cubiertos por ese borrador; no agregues capacidades adyacentes solo porque existan en el catalogo. Para una landing creada usa page.plan, page.compose y page.create; para un documento usa document.compose y document.create; para una hoja estructurada usa spreadsheet.compose y document.create. Para cada artefacto usa exactamente una composicion y una creacion salvo que el usuario pida variantes. No omitas imagen, reel, inventario o autoevaluacion cuando se pidan. Conserva el orden de dependencias y usa missionComplete=false."
             : "",
         missionState?.phase === "COMPLETION_AUDIT"
             ? "AUDITORIA DE CIERRE: no estas obligado a elegir una herramienta. Compara todos los entregables con la evidencia. Si estan satisfechos usa toolCalls=[] y missionComplete=true; si falta algo usa exactamente una herramienta pertinente con argumentos completos. No explores capacidades no solicitadas. Si repo.search entrego sourceDefinitions o definitionFiles, prioriza esas rutas ejecutables sobre archivos que solo mencionan el simbolo y permite repetir lectura o diagnostico cuando el archivo sea distinto."

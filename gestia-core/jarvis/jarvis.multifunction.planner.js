@@ -1,4 +1,4 @@
-const VERSION = "4.2.0-verified-complete-artifacts";
+const VERSION = "4.3.0-initial-plan-bounded-contract";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
@@ -30,17 +30,34 @@ function extractJsonObject(value = "") {
     throw new Error("CLIENT_MISSION_CONTRACT_JSON_REQUIRED");
 }
 
-async function callBrowserMissionContract(input = "", catalog = []) {
+async function callBrowserMissionContract(
+    input = "",
+    catalog = [],
+    missionState = null
+) {
     if (typeof fetch !== "function") throw new Error("CLIENT_MISSION_CONTRACT_FETCH_REQUIRED");
     const instruction = String(input || "");
     const boundedInstruction = instruction.length <= 12000
         ? instruction
         : `${instruction.slice(0, 8000)}\n[PARTE_MEDIA_PERSISTIDA]\n${instruction.slice(-3500)}`;
+    const initialToolNames =
+        Array.isArray(
+            missionState
+                ?.existingInitialTools
+        )
+            ? missionState
+                .existingInitialTools
+                .map(String)
+                .filter(Boolean)
+                .slice(0, 20)
+            : [];
     const prompt = [
         "Eres el planificador semantico de Jarvis V7.",
         "Devuelve solamente JSON valido.",
         "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only y userArtifact necesarias para TODOS los entregables. Para crear una landing usa page.plan, page.compose y page.create; para crear un documento usa document.compose y document.create; para crear una hoja estructurada usa spreadsheet.compose y document.create. Para cada artefacto usa exactamente una composicion y una creacion salvo que el usuario pida variantes. Conserva el orden y usa missionComplete=false.",
+        "Las HERRAMIENTAS_INICIALES son un borrador semantico ya seleccionado para la misma instruccion. Conserva sus entregables y agrega solamente una herramienta que cubra un objetivo independiente pedido de forma explicita y no cubierto por ese borrador. No agregues diagnostico, supervision, forense, repositorio, navegador, conectores, investigacion ni otros artefactos solo porque existan en el catalogo.",
         "No colapses sujetos u objetivos independientes. Repite el mismo nombre de herramienta cuando necesite argumentos distintos para cubrirlos por separado.",
+        `HERRAMIENTAS_INICIALES=${initialToolNames.join(",")}`,
         `CATALOGO=${catalog.map(tool => tool.name).join(",")}`,
         `INSTRUCCION=${boundedInstruction}`
     ].join("\n");
@@ -572,7 +589,11 @@ export async function buildJarvisMultifunctionToolCalls(input = "", context = {}
                     );
                 } catch (cloudError) {
                     try {
-                        return await callBrowserMissionContract(contractInput, contractCatalog);
+                        return await callBrowserMissionContract(
+                            contractInput,
+                            contractCatalog,
+                            missionState
+                        );
                     } catch (browserError) {
                         throw new Error(
                             `CLOUD_${cloudError?.message || "FAILED"}__BROWSER_${browserError?.message || "FAILED"}`

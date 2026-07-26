@@ -40,7 +40,7 @@ import {
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     buildJarvisMultifunctionToolCalls
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-deep-artifact-validation-v65-20260725';
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-initial-plan-bounded-contract-v85-20260725';
 import {
     runJarvisMission
 } from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-compact-mission-storage-v83-20260725';
@@ -195,9 +195,9 @@ import {
     sincronizarCorralSemantico,
     getSemanticCognitiveState
 } from '/gestia-core/semantic.engine.js?v=sia7-model-context-v8-20260714';
-import '/gestia-core/brain.engine.js?v=sia7-deep-artifact-validation-v65-20260725';
+import '/gestia-core/brain.engine.js?v=sia7-initial-plan-bounded-contract-v85-20260725';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260725-exact-template-v84';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260725-mission-contract-v85';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260725-semantic-envelope-v64';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-v7-20260725-repair-candidates-v80';
 
@@ -5923,9 +5923,77 @@ if (
 
     const toolObservations =
         missionResult.runtimeResults || [];
+    const completedUserArtifactTasksForTitle =
+        missionResult.completedTasks
+            .filter(item =>
+                registeredMissionTools
+                    .find(tool =>
+                        tool?.name ===
+                        item?.name
+                    )
+                    ?.userArtifact ===
+                true
+            );
+    const unresolvedUserArtifactTasksForTitle =
+        [
+            ...missionResult.blockedTasks,
+            ...missionResult.pendingTasks
+        ]
+            .filter(item =>
+                registeredMissionTools
+                    .find(tool =>
+                        tool?.name ===
+                        item?.name
+                    )
+                    ?.userArtifact ===
+                true
+            );
+    const verifiedArtifactDelivery =
+        completedUserArtifactTasksForTitle
+            .length >
+        0 &&
+        unresolvedUserArtifactTasksForTitle
+            .length ===
+        0;
+    console.info(
+        "[JARVIS_MISSION_OUTCOME]",
+        JSON.stringify({
+            status:
+                missionResult.status,
+            reason:
+                missionResult.reason,
+            required:
+                missionResult
+                    .requiredToolNames,
+            completed:
+                missionResult
+                    .completedTasks
+                    .map(item =>
+                        item.name
+                    ),
+            blocked:
+                missionResult
+                    .blockedTasks
+                    .map(item =>
+                        item.name
+                    ),
+            pending:
+                missionResult
+                    .pendingTasks
+                    .map(item =>
+                        item.name
+                    ),
+            iterations:
+                missionResult
+                    .iterations,
+            verifiedArtifactDelivery
+        })
+    );
     const missionResponseTitle =
         missionResult.status === "COMPLETED"
             ? "Mision Jarvis completada"
+            : verifiedArtifactDelivery
+                ? "Artefacto Jarvis verificado; cierre de mision parcial"
             : missionResult.reason === "MISSION_INPUT_REQUIRED"
                 ? "Mision Jarvis requiere informacion"
                 : missionResult.reason === "PARTIAL_CAPABILITY_BLOCKED"

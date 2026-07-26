@@ -164,9 +164,24 @@ test("browser mission contract returns every model-selected high-level tool", as
     try {
         const result = await plannerTest.callBrowserMissionContract(
             "Investiga SUMM y entrega marketing, landing, imagen y reel sin escribir.",
-            semanticPlannerCatalog
+            semanticPlannerCatalog,
+            {
+                existingInitialTools: [
+                    "web.research",
+                    "marketing.plan",
+                    "page.plan",
+                    "image.plan",
+                    "reel.plan"
+                ]
+            }
         );
         assert.ok(requestedUrl.includes("text.pollinations.ai"));
+        assert.match(
+            decodeURIComponent(
+                requestedUrl
+            ),
+            /HERRAMIENTAS_INICIALES=web\.research,marketing\.plan,page\.plan,image\.plan,reel\.plan/
+        );
         assert.equal(result.provider, "pollinations-browser-json");
         assert.deepEqual(result.toolCalls.map(call => call.name), [
             "web.research",
@@ -1335,7 +1350,7 @@ test("system health exposes bridge server version separately from tool pack vers
         );
         assert.equal(
             result.toolPackVersion,
-            "1.40.0-exact-template-contract"
+            "1.41.0-initial-plan-bounded-contract"
         );
         assert.notEqual(
             result.toolPackVersion,
@@ -2612,7 +2627,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /jarvis-tools-v7-20260725-exact-template-v84/);
+    assert.match(terminal, /jarvis-tools-v7-20260725-mission-contract-v85/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
         "utf8"
@@ -2626,10 +2641,10 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-exact-template-contract-v84-20260725/);
+    assert.match(terminal, /sia7-initial-plan-bounded-contract-v85-20260725/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
-    assert.match(terminal, /jarvis-tools-v7-20260725-exact-template-v84/);
+    assert.match(terminal, /jarvis-tools-v7-20260725-mission-contract-v85/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -2810,7 +2825,7 @@ test("daily supervision cloud lookup has a bounded browser deadline", () => {
     assert.match(source, /signal:\s*controller\.signal/);
     assert.match(source, /SUPERVISION_STATUS_TIMEOUT_/);
     assert.match(source, /clearTimeout\(timeoutId\)/);
-    assert.match(source, /4\.2\.0-verified-complete-artifacts/);
+    assert.match(source, /4\.3\.0-initial-plan-bounded-contract/);
     assert.doesNotMatch(source, /3\.0\.0-model-semantic-planner/);
 });
 
@@ -2827,6 +2842,10 @@ test("multifunction descriptor remains approval-bound", () => {
         describeJarvisMultifunctionPlanner();
 
     assert.equal(planner.mutates, false);
+    assert.equal(
+        planner.version,
+        "4.3.0-initial-plan-bounded-contract"
+    );
     assert.equal(planner.maximumToolCalls, 12);
     assert.equal(planner.architecture, "model_selected_runtime_catalog");
     assert.equal(planner.approvalSource, "trusted_runtime_context");
@@ -2874,7 +2893,7 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260725-exact-template-v84/);
+    assert.match(core, /jarvis-tools-v7-20260725-mission-contract-v85/);
     assert.match(
         terminal,
         /jarvis-tools-v7-20260725-semantic-envelope-v64/
