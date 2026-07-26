@@ -1301,7 +1301,7 @@ test("system health exposes bridge server version separately from tool pack vers
         verifyIdentity: async () => ({
             ok: true,
             status: "BRIDGE_IDENTITY_OK",
-            bridgeVersion: "2.31.0-docx-repair-candidate-gate",
+            bridgeVersion: "2.32.0-docx-discrete-table-gate",
             bridgeRoot: "C:/repo"
         })
     };
@@ -1313,11 +1313,11 @@ test("system health exposes bridge server version separately from tool pack vers
 
         assert.equal(
             result.bridgeVersion,
-            "2.31.0-docx-repair-candidate-gate"
+            "2.32.0-docx-discrete-table-gate"
         );
         assert.equal(
             result.runtime.bridgeVersion,
-            "2.31.0-docx-repair-candidate-gate"
+            "2.32.0-docx-discrete-table-gate"
         );
         assert.equal(
             result.toolPackVersion,

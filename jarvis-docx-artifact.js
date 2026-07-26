@@ -1,6 +1,6 @@
 import fs from "node:fs";
 
-const VERSION = "1.3.0-repair-candidate-contract";
+const VERSION = "1.4.0-discrete-markdown-table-contract";
 
 function text(value = "") {
     return String(value ?? "").replace(/\r\n/g, "\n");
@@ -104,19 +104,40 @@ function parseMarkdownBlocks(content = "") {
         ) {
             const headers = splitMarkdownCells(line);
             const rows = [];
-            let rowIndex = nextNonEmptyLine(lines, separatorIndex + 1);
+            let rowIndex =
+                nextNonEmptyLine(
+                    lines,
+                    separatorIndex + 1
+                );
             while (
                 rowIndex >= 0 &&
                 lines[rowIndex].includes("|") &&
                 !isMarkdownSeparator(lines[rowIndex])
             ) {
+                const nextIndex =
+                    nextNonEmptyLine(
+                        lines,
+                        rowIndex + 1
+                    );
+                if (
+                    nextIndex >= 0 &&
+                    isMarkdownSeparator(
+                        lines[nextIndex]
+                    )
+                ) {
+                    break;
+                }
                 const row = splitMarkdownCells(lines[rowIndex]);
                 if (row.length < 2) break;
                 rows.push(row);
-                rowIndex = nextNonEmptyLine(lines, rowIndex + 1);
+                rowIndex =
+                    nextIndex;
             }
             blocks.push({ type: "table", headers, rows });
-            index = rowIndex >= 0 ? rowIndex : lines.length;
+            index =
+                rowIndex >= 0
+                    ? rowIndex
+                    : lines.length;
             continue;
         }
         const heading = headingDescriptor(line);

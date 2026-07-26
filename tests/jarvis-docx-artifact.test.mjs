@@ -49,7 +49,7 @@ function validContent() {
 test("DOCX artifact gate describes post-write OOXML validation", () => {
     const result = describeDocxArtifactGate();
     assert.equal(result.ok, true);
-    assert.equal(result.version, "1.3.0-repair-candidate-contract");
+    assert.equal(result.version, "1.4.0-discrete-markdown-table-contract");
     assert.ok(result.checks.includes("real-word-tables"));
 });
 
@@ -233,6 +233,115 @@ test("DOCX post-write gate enforces requested table cardinalities", async () => 
     } finally {
         fs.rmSync(validFixture.directory, { recursive: true, force: true });
         fs.rmSync(invalidFixture.directory, { recursive: true, force: true });
+    }
+});
+
+test("DOCX builder preserves adjacent tables separated by a blank line", async () => {
+    const fixture =
+        await writeArtifact(
+            [
+                "# Estructuras operativas",
+                markdownTable(
+                    ["Codigo", "Refaccion", "Cantidad"],
+                    Array.from(
+                        {
+                            length:
+                                15
+                        },
+                        (_unused, index) => [
+                            `RF-${index + 1}`,
+                            `Refaccion ${index + 1}`,
+                            "1"
+                        ]
+                    )
+                ),
+                markdownTable(
+                    ["Dia", "Actividad", "Responsable", "Evidencia"],
+                    Array.from(
+                        {
+                            length:
+                                30
+                        },
+                        (_unused, index) => [
+                            String(index + 1),
+                            `Actividad ${index + 1}`,
+                            "Supervisor",
+                            "Bitacora"
+                        ]
+                    )
+                ),
+                ("Procedimiento verificable con control, responsable y evidencia documental. ")
+                    .repeat(25)
+            ].join("\n\n")
+        );
+    try {
+        const validation =
+            await validateDocxArtifactFile({
+                file:
+                    fixture.file,
+                contract: {
+                    minWords:
+                        80,
+                    minSections:
+                        0,
+                    minTables:
+                        2,
+                    minTemplates:
+                        0,
+                    minQuestions:
+                        0,
+                    minVehicles:
+                        0,
+                    minParts:
+                        15,
+                    minKpis:
+                        0,
+                    implementationDays:
+                        30,
+                    requireAnswerKey:
+                        false,
+                    requiredSections:
+                        []
+                },
+                expectedValidation: {
+                    validationPassed:
+                        true
+                }
+            });
+
+        assert.equal(
+            validation.ok,
+            true,
+            JSON.stringify(
+                validation.failures
+            )
+        );
+        assert.equal(
+            validation.actual
+                .tableCount,
+            2
+        );
+        assert.equal(
+            validation.actual
+                .partCount,
+            15
+        );
+        assert.equal(
+            validation.actual
+                .implementationDayCoverage,
+            30
+        );
+    }
+    finally {
+        fs.rmSync(
+            fixture.directory,
+            {
+                recursive:
+                    true,
+                force:
+                    true
+            }
+        );
     }
 });
 
