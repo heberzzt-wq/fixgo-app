@@ -10,6 +10,8 @@ import {
 import {
     mergeJarvisToolCalls
 } from "../gestia-core/jarvis/jarvis.multifunction.planner.js";
+import fs from "node:fs";
+import path from "node:path";
 
 const exactMixedInstruction =
     "Buenos días, dame un resumen de lo que ya puedes hacer y lo que aún no.";
@@ -198,6 +200,23 @@ test("mixed plan merge preserves conversation, capabilities and forensics", () =
             "system.capabilities",
             "system.forensics"
         ]
+    );
+});
+
+test("Gestia core imports the merge helper used by the conversational mission", () => {
+    const core = fs.readFileSync(
+        path.resolve("gestia-core/gestia-core.js"),
+        "utf8"
+    );
+    const plannerImport = core.slice(
+        core.indexOf("buildJarvisMultifunctionToolCalls") - 20,
+        core.indexOf("buildJarvisMultifunctionToolCalls") + 300
+    );
+
+    assert.match(plannerImport, /mergeJarvisToolCalls/);
+    assert.match(
+        core,
+        /mergeJarvisToolCalls\(\s*missionContractToolCalls,\s*operationalInitialToolCalls/
     );
 });
 

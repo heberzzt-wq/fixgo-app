@@ -39,7 +39,8 @@ import {
 // Motores de lógica estratégica (Cerebro) y ejecución mecánica (Brazo)
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
-    buildJarvisMultifunctionToolCalls
+    buildJarvisMultifunctionToolCalls,
+    mergeJarvisToolCalls
 } from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-multimodal-batch-integrity-v95-20260727';
 import {
     composeEvidenceGroundedConversation,
