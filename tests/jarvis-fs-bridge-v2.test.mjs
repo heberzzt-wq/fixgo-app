@@ -486,6 +486,54 @@ test("Jarvis fails closed on chunk offset mismatch and supports individual cance
     }
 });
 
+test("Jarvis persists two real PNG files with exact batch identities", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-two-png-"));
+    const png = Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        "base64"
+    );
+    try {
+        const names = ["evidencia-frontal.png", "evidencia-trasera.png"];
+        const completed = names.map(name => {
+            const started = startChunkedUpload({
+                root,
+                batchId: "batch-two-real-png",
+                name,
+                mimeType: "image/png",
+                expectedBytes: png.length,
+                caseId: "CASE-TWO-PNG",
+                objectiveId: "OBJ-TWO-PNG"
+            });
+            appendChunkedUpload({
+                root,
+                uploadId: started.uploadId,
+                offset: 0,
+                dataBase64: png.toString("base64")
+            });
+            return completeChunkedUpload({
+                root,
+                uploadId: started.uploadId
+            });
+        });
+
+        assert.deepEqual(completed.map(item => item.name), names);
+        assert.equal(new Set(completed.map(item => item.output)).size, 2);
+        assert.ok(completed.every(item => item.status === "UPLOAD_SAVED"));
+        assert.ok(completed.every(item => item.detectedMimeType === "image/png"));
+        assert.ok(completed.every(item =>
+            Buffer.from(
+                readArtifactPayload({
+                    root,
+                    output: item.output
+                }).dataBase64,
+                "base64"
+            ).equals(png)
+        ));
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
+
 test("Jarvis enforces the 30-file limit in the persisted batch ledger", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-batch-limit-"));
     try {

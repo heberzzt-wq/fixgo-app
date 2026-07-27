@@ -4011,6 +4011,17 @@ export function registerJarvisMultifunctionTools(runtime) {
                         ? args.attachments.slice(0, 30)
                         : [];
                 const persistedMedia = attachments.filter(attachment => attachment?.artifact);
+                const boundedMedia = persistedMedia.slice(0, 8);
+                const pendingMedia = persistedMedia.slice(8);
+                const batchAccounting = {
+                    receivedFiles: attachments.length,
+                    boundedFiles: boundedMedia.length,
+                    pendingFiles: pendingMedia.length,
+                    pendingAttachments: pendingMedia.map(item => ({
+                        name: item.name || "archivo",
+                        artifact: item.artifact
+                    }))
+                };
                 if (attachments.length > 0 && persistedMedia.length !== attachments.length) {
                     return {
                         ok: false,
@@ -4018,7 +4029,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                         error: "MEDIA_ANALYSIS_ARTIFACT_SET_INCOMPLETE",
                         message: "El lote adjunto esta incompleto; no se analizara una fraccion ni se inventara contenido.",
                         attachments,
-                        receivedFiles: attachments.length,
+                        ...batchAccounting,
                         persistedArtifacts: persistedMedia.map(item => item.artifact)
                     };
                 }
@@ -4031,7 +4042,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                         return {
                             ...grounded,
                             attachments,
-                            receivedFiles: attachments.length,
+                            ...batchAccounting,
                             analyzedFiles: grounded.sources.length,
                             persistedArtifacts: persistedMedia.map(item => item.artifact)
                         };
@@ -4043,7 +4054,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                             error: grounded?.error || "MEDIA_ANALYSIS_UNAVAILABLE",
                             message: "Los archivos existen, pero no pude obtener evidencia visual/documental verificable; no inventare su contenido.",
                             attachments,
-                            receivedFiles: attachments.length
+                            ...batchAccounting
                         };
                     }
                 }

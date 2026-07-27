@@ -2399,7 +2399,13 @@ test("multifunction media analysis consumes a complete 30-file persisted manifes
 
         assert.equal(analysis.ok, true);
         assert.equal(analysis.receivedFiles, 30);
+        assert.equal(analysis.boundedFiles, 8);
         assert.equal(analysis.analyzedFiles, 8);
+        assert.equal(analysis.pendingFiles, 22);
+        assert.deepEqual(
+            analysis.pendingAttachments.map(item => item.name),
+            attachments.slice(8).map(item => item.name)
+        );
         assert.equal(analysis.persistedArtifacts.length, 30);
         assert.equal(analysis.status, "MEDIA_ANALYSIS_GROUNDED");
     } finally {
@@ -2491,7 +2497,9 @@ test("multifunction media analysis prefers the complete authoritative prompt man
 
         assert.equal(analysis.ok, true);
         assert.equal(analysis.receivedFiles, 2);
+        assert.equal(analysis.boundedFiles, 2);
         assert.equal(analysis.analyzedFiles, 2);
+        assert.equal(analysis.pendingFiles, 0);
         assert.deepEqual(
             analysis.sources.map(source => source.name),
             ["uno.png", "dos.png"]
