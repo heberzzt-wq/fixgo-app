@@ -1,0 +1,22 @@
+{
+  "name": "fixgo-workspace-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "test": "node --test test/*.test.mjs",
+    "check": "node --check src/policy.mjs && node --check src/repo-tools.mjs && node --check src/server.mjs && npm test",
+    "inspector": "npx @modelcontextprotocol/inspector node src/server.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "latest",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/inspector": "latest"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
