@@ -3,8 +3,10 @@ import test from "node:test";
 
 import {
     buildBoundedConversationEvidence,
+    buildCapabilityEvidenceBriefing,
     composeEvidenceGroundedConversation,
     isExplicitJsonResponseRequest,
+    mergeEvidenceGroundedToolCalls,
     prepareEvidenceGroundedConversationPlan
 } from "../gestia-core/jarvis/jarvis.conversation.composer.js";
 import {
@@ -203,20 +205,38 @@ test("mixed plan merge preserves conversation, capabilities and forensics", () =
     );
 });
 
-test("Gestia core imports the merge helper used by the conversational mission", () => {
+test("conversation evidence merge executes singleton diagnostics once", () => {
+    const merged = mergeEvidenceGroundedToolCalls(
+        [
+            { name: "system.capabilities", args: { instruction: "capabilities" } },
+            { name: "system.forensics", args: { instruction: "limits" } }
+        ],
+        [
+            { name: "system.capabilities", args: {} },
+            { name: "system.forensics", args: {} }
+        ]
+    );
+
+    assert.deepEqual(
+        merged.map(call => call.name),
+        ["system.capabilities", "system.forensics"]
+    );
+});
+
+test("Gestia core imports the evidence merge helper used by the conversational mission", () => {
     const core = fs.readFileSync(
         path.resolve("gestia-core/gestia-core.js"),
         "utf8"
     );
-    const plannerImport = core.slice(
-        core.indexOf("buildJarvisMultifunctionToolCalls") - 20,
-        core.indexOf("buildJarvisMultifunctionToolCalls") + 300
+    const composerImport = core.slice(
+        core.indexOf("composeEvidenceGroundedConversation") - 20,
+        core.indexOf("composeEvidenceGroundedConversation") + 400
     );
 
-    assert.match(plannerImport, /mergeJarvisToolCalls/);
+    assert.match(composerImport, /mergeEvidenceGroundedToolCalls/);
     assert.match(
         core,
-        /mergeJarvisToolCalls\(\s*missionContractToolCalls,\s*operationalInitialToolCalls/
+        /mergeEvidenceGroundedToolCalls\(\s*missionContractToolCalls,\s*operationalInitialToolCalls/
     );
 });
 
@@ -232,6 +252,51 @@ test("bounded composition evidence removes raw content fields", () => {
 
     assert.match(evidence, /system\.capabilities/);
     assert.doesNotMatch(evidence, /RAW_RUNTIME_DUMP|AAEC/);
+});
+
+test("capability briefing exposes useful domains and real limitations", () => {
+    const briefing = JSON.parse(
+        buildCapabilityEvidenceBriefing([
+            {
+                name: "system.capabilities",
+                observation: {
+                    evidence: capabilityEvidence
+                }
+            },
+            {
+                name: "system.forensics",
+                observation: {
+                    evidence: limitationEvidence
+                }
+            }
+        ])
+    );
+
+    assert.ok(
+        briefing.capabilityDomains.some(item =>
+            item.domain === "document" &&
+            item.tools.includes("document.compose")
+        )
+    );
+    assert.ok(
+        briefing.capabilityDomains.some(item =>
+            item.domain === "repo" &&
+            item.tools.includes("repo.read")
+        )
+    );
+    assert.match(briefing.limitations.join(" "), /permisos/);
+});
+
+test("Terminal hides technical evidence names for grounded conversation", () => {
+    const terminal = fs.readFileSync(
+        path.resolve("gestia-terminal.html"),
+        "utf8"
+    );
+
+    assert.match(
+        terminal,
+        /finalResponse\?\.source !== "EVIDENCE_GROUNDED_CONVERSATION"/
+    );
 });
 
 test("oversized composition evidence remains valid bounded JSON", () => {

@@ -79,6 +79,36 @@ export function prepareEvidenceGroundedConversationPlan({
     };
 }
 
+export function mergeEvidenceGroundedToolCalls(...groups) {
+    const merged = [];
+    const seenSignatures = new Set();
+    const singletonEvidenceTools = new Set([
+        "system.capabilities",
+        "system.forensics",
+        "system.health"
+    ]);
+    const seenSingletons = new Set();
+
+    for (const call of groups.flat()) {
+        if (!call?.name || call.name === "conversation.respond") continue;
+        if (
+            singletonEvidenceTools.has(call.name) &&
+            seenSingletons.has(call.name)
+        ) {
+            continue;
+        }
+        const signature = `${call.name}:${JSON.stringify(call.args || {})}`;
+        if (seenSignatures.has(signature)) continue;
+        seenSignatures.add(signature);
+        if (singletonEvidenceTools.has(call.name)) {
+            seenSingletons.add(call.name);
+        }
+        merged.push(call);
+    }
+
+    return merged;
+}
+
 function boundedEvidenceValue(value, depth = 0) {
     if (depth > 5 || value == null) return value ?? null;
     if (typeof value === "string") return value.slice(0, 1600);
@@ -164,6 +194,61 @@ export function buildBoundedConversationEvidence(evidenceItems = []) {
     return JSON.stringify(compact);
 }
 
+function findEvidenceField(value, field, depth = 0) {
+    if (!value || typeof value !== "object" || depth > 6) return null;
+    if (Object.prototype.hasOwnProperty.call(value, field)) {
+        return value[field];
+    }
+    for (const nested of Object.values(value)) {
+        const found = findEvidenceField(nested, field, depth + 1);
+        if (found != null) return found;
+    }
+    return null;
+}
+
+export function buildCapabilityEvidenceBriefing(evidenceItems = []) {
+    const items = Array.isArray(evidenceItems) ? evidenceItems : [];
+    const capabilities = items.find(item =>
+        (item?.name || item?.tool) === "system.capabilities"
+    );
+    const forensics = items.find(item =>
+        (item?.name || item?.tool) === "system.forensics"
+    );
+    const groups =
+        findEvidenceField(capabilities, "groups") ||
+        {};
+    const policy =
+        findEvidenceField(capabilities, "policy") ||
+        {};
+    const gaps =
+        findEvidenceField(forensics, "gaps") ||
+        findEvidenceField(capabilities, "gaps") ||
+        [];
+    const readiness =
+        findEvidenceField(forensics, "readinessScore") ??
+        findEvidenceField(capabilities, "readiness") ??
+        null;
+
+    return JSON.stringify({
+        capabilityDomains:
+            Object.entries(groups)
+                .slice(0, 20)
+                .map(([domain, tools]) => ({
+                    domain,
+                    tools:
+                        Array.isArray(tools)
+                            ? tools.slice(0, 20)
+                            : []
+                })),
+        policy: boundedEvidenceValue(policy),
+        limitations:
+            Array.isArray(gaps)
+                ? gaps.slice(0, 20)
+                : [],
+        readiness: boundedEvidenceValue(readiness)
+    });
+}
+
 export async function composeEvidenceGroundedConversation({
     instruction = "",
     evidenceItems = [],
@@ -180,13 +265,18 @@ export async function composeEvidenceGroundedConversation({
     }
 
     const evidence = buildBoundedConversationEvidence(evidenceItems);
+    const capabilityBriefing =
+        buildCapabilityEvidenceBriefing(evidenceItems);
     const prompt = [
         "Responde al usuario como Jarvis en lenguaje natural y directo.",
         "Usa exclusivamente la evidencia estructurada incluida; no inventes capacidades, estados ni ejecuciones.",
         "Conserva saludos y todos los objetivos de la solicitud.",
         "Resume resultados y limitaciones reales. No muestres JSON, nombres de campos internos, telemetria ni payloads de herramientas.",
+        "Cuando existan dominios de capacidades, conviértelos en funciones humanas concretas: conversación, investigación web, análisis de archivos o medios, documentos, hojas de cálculo, páginas, imágenes y trabajo controlado de repositorio, únicamente si aparecen en la evidencia.",
+        "No reduzcas el resumen a decir que puedes verificar capacidades o hacer forensics; esas son fuentes de evidencia, no el alcance útil para el usuario.",
         "Si una herramienta fallo o falta evidencia, dilo una sola vez y no marques la mision como completada.",
         `SOLICITUD_USUARIO=${String(instruction || "").slice(0, 12000)}`,
+        `RESUMEN_CAPACIDADES_Y_LIMITES=${capabilityBriefing}`,
         `EVIDENCIA_ESTRUCTURADA=${evidence}`
     ].join("\n\n");
 

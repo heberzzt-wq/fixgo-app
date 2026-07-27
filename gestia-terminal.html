@@ -4729,7 +4729,8 @@ if (
                         ),
                         "",
                         ...(
-                            finalResponse?.text
+                            finalResponse?.text &&
+                            finalResponse?.source !== "EVIDENCE_GROUNDED_CONVERSATION"
                                 ? [
                                     "Evidencia ejecutada:",
                                     ...agentObservations
