@@ -76,16 +76,11 @@
                 <i class="fa-solid fa-bolt text-white text-sm"></i>
             </div>
             <div class="bg-gestia-panel border border-slate-700 p-5 rounded-2xl rounded-tl-none shadow-md flex-1">
-                <h3 class="font-semibold text-white mb-2 text-lg">¡Sistema Inicializado, Arquitecto!</h3>
+                <h3 class="font-semibold text-white mb-2 text-lg">Jarvis listo</h3>
                 <p class="text-slate-300 text-sm leading-relaxed mb-4">
-                    Soy tu motor generador de módulos. Escribe en lenguaje natural qué parte de GestiaPremium necesitas construir hoy y yo me encargaré de generar la estructura de la base de datos y la interfaz visual.
+                    Soy tu asistente privado para conversar, investigar, analizar archivos y ejecutar misiones verificables con herramientas gobernadas.
                 </p>
-                <div class="bg-slate-900 p-4 rounded-xl border border-slate-700/50">
-                    <p class="text-xs text-slate-500 mb-2 font-semibold uppercase tracking-wider">Última idea analizada:</p>
-                    <p class="text-sm text-gestia-accent font-mono border-l-2 border-gestia-accent pl-3">
-                        "Un nuevo módulo para el área de personal de seguridad, donde puedan vigilar accesos y salidas, revisión de QR de visitantes y trabajadores externos..."
-                    </p>
-                </div>
+                <p class="text-xs text-slate-500">Cada conversación empieza aislada; no reutilizo ideas de otra misión como si fueran parte de la solicitud actual.</p>
             </div>
         </div>
         
@@ -176,7 +171,7 @@ fetch("/gestia-terminal.js")
 type="module"
 src="/gestia-core/gestia.runtime.v7.js?v=role-authority-v4-sw-resilience-20260724">
 </script>
-<script type="module" src="/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260726-mission-isolation-v92"></script>
+<script type="module" src="/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260727-multimodal-batch-integrity-v95"></script>
 <script type="module" src="/gestia-core/response.composer.js?v=jarvis-tools-v7-20260725-semantic-envelope-v64"></script>
 <script type="module" src="/gestia-core/tools.bridge.js?v=jarvis-tools-bridge-v7-20260726-chief-review-response-v93"></script>
 <script type="module" src="/gestia-core/jarvis/jarvis.language.core.v5.js"></script>
@@ -1254,62 +1249,39 @@ window.unlockJarvisVoice = function() {
         Watchdog de Red y Body Timeout en Modo Tacaño.
     ===================================================== */
     window.consultarCerebroIA = async function(mensajeUsuario) {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 8000); 
-
-        try {
-            const PROJECT_ID = "fixgo-44e4d"; 
-            const functionUrl = `https://us-central1-${PROJECT_ID}.cloudfunctions.net/jarvisSemanticRespond`;
-
-            const obtenerTokenSeguro = () => {
-                return new Promise((resolve, reject) => {
-                    const firebaseAuth = window.auth;
-                    if (!firebaseAuth) return reject("NUCLEO_AUTH_DESCONECTADO");
-                    if (firebaseAuth.currentUser) {
-                        return firebaseAuth.currentUser.getIdToken().then(resolve).catch(reject);
-                    }
-                    const unsub = firebaseAuth.onAuthStateChanged(async (user) => {
-                        unsub();
-                        if (user) resolve(await user.getIdToken());
-                        else reject("SESION_NO_DETECTADA");
-                    });
-                });
-            };
-
-            const token = await Promise.race([
-                obtenerTokenSeguro(),
-                new Promise((_, reject) => setTimeout(() => reject("AUTH_TIMEOUT"), 5000))
-            ]);
-
-            const response = await fetch(functionUrl, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token}`
-                },
-                body: JSON.stringify({ data: { prompt: mensajeUsuario } }),
-                signal: controller.signal
-            });
-
-            if (!response.ok) return `Fallo de ráfaga (Status: ${response.status})`;
-
-            // Watchdog adicional para el procesamiento del cuerpo de la respuesta
-            const text = await Promise.race([
-                response.text(),
-                new Promise((_, reject) => setTimeout(() => reject("BODY_TIMEOUT"), 3000))
-            ]);
-
-            const jsonResponse = JSON.parse(text);
-            return jsonResponse.result?.message || "";
-
-        } catch (error) {
-            if (error === "AUTH_TIMEOUT") return "El búnker no respondió a la firma de identidad.";
-            if (error === "BODY_TIMEOUT") return "Ráfaga recibida, pero el cuerpo de datos excedió el tiempo de lectura.";
-            if (error.name === 'AbortError') return "Tiempo de respuesta excedido en el búnker central.";
-            return "Conexión interrumpida con el núcleo central.";
-        } finally {
-            clearTimeout(timeout);
+        if (!window.JarvisToolRuntime?.execute) {
+            throw new Error("JARVIS_CONVERSATION_RUNTIME_REQUIRED");
         }
+
+        const execution =
+            await window.JarvisToolRuntime.execute(
+                "conversation.respond",
+                {
+                    prompt: String(mensajeUsuario || "").trim(),
+                    maxOutputTokens: 3500
+                },
+                {
+                    rawInput: String(mensajeUsuario || "").trim(),
+                    approved: false
+                }
+            );
+        const payload =
+            execution?.data ||
+            execution?.result ||
+            execution;
+        if (
+            execution?.ok === false ||
+            payload?.ok === false ||
+            !String(payload?.message || "").trim()
+        ) {
+            throw new Error(
+                payload?.error ||
+                payload?.status ||
+                execution?.error ||
+                "SEMANTIC_CONVERSATION_UNAVAILABLE"
+            );
+        }
+        return String(payload.message).trim();
     };
 
     /* =====================================================
@@ -2136,6 +2108,46 @@ const isUsableConversationalCloudResponse =
             !/^(Fallo de rafaga|Conexion interrumpida|Tiempo de respuesta excedido|El bunker no respondio|Rafaga recibida|Nucleo en silencio)/i.test(
                 normalizeCasualGateText(text)
             );
+    };
+
+const renderTerminalFailureOnce =
+    function({
+        missionId = "",
+        instruction = "",
+        error = ""
+    } = {}) {
+        const normalizedError =
+            String(error || "CORE_EXECUTION_FAILED")
+                .trim()
+                .slice(0, 1200);
+        const key = [
+            missionId,
+            normalizeCasualGateText(instruction).slice(0, 500),
+            normalizedError
+        ].join("::");
+        const now = Date.now();
+        window.__JARVIS_TERMINAL_OUTCOMES__ =
+            window.__JARVIS_TERMINAL_OUTCOMES__ ||
+            new Map();
+        for (const [storedKey, storedAt] of window.__JARVIS_TERMINAL_OUTCOMES__) {
+            if (now - storedAt > 30000) {
+                window.__JARVIS_TERMINAL_OUTCOMES__.delete(storedKey);
+            }
+        }
+        if (window.__JARVIS_TERMINAL_OUTCOMES__.has(key)) {
+            return false;
+        }
+        window.__JARVIS_TERMINAL_OUTCOMES__.set(key, now);
+        window.renderJarvisResponse?.(
+            "Jarvis no pudo completar la misión",
+            [
+                "El núcleo detuvo la ejecución sin entrar a rutas legacy.",
+                `Causa verificable: ${normalizedError}`,
+                "No se reporta la misión como completada."
+            ].join("\n"),
+            "warning"
+        );
+        return true;
     };
 
 const LAST_PATCH_PREVIEW_STORAGE_KEY =
@@ -5176,15 +5188,14 @@ const summary =
             "⚠️ [TERMINAL_CORE_FIRST_FAIL]",
             coreFirstError
         );
-        window.renderJarvisResponse?.(
-            "Jarvis no pudo completar la misión",
-            [
-                "El núcleo detuvo la ejecución sin entrar a rutas legacy.",
-                `Causa verificable: ${String(coreFirstError?.message || coreFirstError || "CORE_EXECUTION_FAILED").slice(0, 1200)}`,
-                "No se reporta la misión como completada."
-            ].join("\n"),
-            "warning"
-        );
+        renderTerminalFailureOnce({
+            missionId: currentTraceId,
+            instruction: comando,
+            error:
+                coreFirstError?.message ||
+                coreFirstError ||
+                "CORE_EXECUTION_FAILED"
+        });
         handled = true;
     }
 }

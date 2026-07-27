@@ -23,7 +23,7 @@ import {
 
 import {
     completeJarvisPlanningArguments
-} from "./jarvis.multifunction.planner.js?v=sia7-mission-isolation-v92-20260726";
+} from "./jarvis.multifunction.planner.js?v=sia7-multimodal-batch-integrity-v95-20260727";
 import {
     validateWorkbookFormulaStructure
 } from "./jarvis.workbook.validator.js?v=sia7-deep-artifact-validation-v65-20260725";

@@ -104,6 +104,7 @@ const semanticPlannerCatalog = [
     ["system.health", false],
     ["system.supervision", false],
     ["system.supervision.runNow", true],
+    ["system.capabilities", false],
     ["system.forensics", false],
     ["web.research", false],
     ["browser.inspect", false],
@@ -1958,6 +1959,75 @@ test("Jarvis answers casual conversation through the real semantic model", async
     globalThis.fetch = previousFetch;
 });
 
+test("mixed capability conversation preserves greeting, capabilities and limits", async () => {
+    const instruction =
+        "Buenos días, dame un resumen de lo que ya puedes hacer y lo que aún no.";
+    const calls = await planWithModel(
+        instruction,
+        [
+            {
+                name: "conversation.respond",
+                args: { prompt: instruction }
+            },
+            {
+                name: "system.capabilities",
+                args: { instruction }
+            },
+            {
+                name: "system.forensics",
+                args: { instruction }
+            }
+        ]
+    );
+
+    assert.deepEqual(
+        calls.map(call => call.name),
+        [
+            "conversation.respond",
+            "system.capabilities",
+            "system.forensics"
+        ]
+    );
+});
+
+test("Terminal uses one governed conversation route and the V95 tool pack", () => {
+    const terminal = fs.readFileSync(
+        path.join(process.cwd(), "gestia-terminal.html"),
+        "utf8"
+    );
+    const toolRuntime = fs.readFileSync(
+        path.join(process.cwd(), "gestia-core", "tools.runtime.js"),
+        "utf8"
+    );
+    const conversationConnector =
+        terminal.slice(
+            terminal.indexOf("window.consultarCerebroIA"),
+            terminal.indexOf("window.consultarCerebroIA") + 2600
+        );
+
+    assert.match(
+        conversationConnector,
+        /JarvisToolRuntime\.execute\(\s*"conversation\.respond"/
+    );
+    assert.doesNotMatch(conversationConnector, /cloudfunctions\.net/);
+    assert.doesNotMatch(conversationConnector, /setTimeout\(\(\) => controller\.abort\(\), 8000\)/);
+    assert.match(
+        terminal,
+        /jarvis-tools-v7-20260727-multimodal-batch-integrity-v95/
+    );
+    assert.match(
+        toolRuntime,
+        /sia7-multimodal-batch-integrity-v95-20260727/
+    );
+    assert.doesNotMatch(terminal, /Soy tu motor generador de módulos/);
+    assert.doesNotMatch(terminal, /Última idea analizada/);
+    assert.match(terminal, /renderTerminalFailureOnce/);
+    assert.match(
+        terminal,
+        /__JARVIS_TERMINAL_OUTCOMES__\.has\(key\)/
+    );
+});
+
 test("system health reports a real bridge identity mismatch as degraded", async () => {
     const previousBridge =
         globalThis.JarvisLocalBridge;
@@ -2134,7 +2204,7 @@ test("semantic model planner replaces phrase gates and preserves terminal speech
     assert.doesNotMatch(planner, /\.test\(/);
     assert.doesNotMatch(planner, /new RegExp/);
     assert.doesNotMatch(planner, /ACTION_MAP|ENTITY_MAP|STOPWORDS/);
-    assert.match(terminal, /jarvisSemanticRespond/);
+    assert.match(terminal, /JarvisToolRuntime\.execute\(\s*"conversation\.respond"/);
     assert.match(terminal, /Array\.isArray\(semantic\.toolCalls\)/);
     assert.doesNotMatch(terminal, /canAnswerCasualTerminalLocally/);
     assert.doesNotMatch(terminal, /findLocalTerminalExplanation/);
@@ -3194,7 +3264,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /jarvis-tools-v7-20260726-mission-isolation-v92/);
+    assert.match(terminal, /jarvis-tools-v7-20260727-multimodal-batch-integrity-v95/);
     assert.match(terminal, /jarvis-tools-bridge-v7-20260726-chief-review-response-v93/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
@@ -3212,7 +3282,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(terminal, /sia7-chief-review-response-v93-20260726/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
-    assert.match(terminal, /jarvis-tools-v7-20260726-mission-isolation-v92/);
+    assert.match(terminal, /jarvis-tools-v7-20260727-multimodal-batch-integrity-v95/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -3461,7 +3531,7 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260726-mission-isolation-v92/);
+    assert.match(core, /jarvis-tools-v7-20260727-multimodal-batch-integrity-v95/);
     assert.match(
         terminal,
         /jarvis-tools-v7-20260725-semantic-envelope-v64/

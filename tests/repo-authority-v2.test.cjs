@@ -2171,7 +2171,7 @@ test("brain delegates natural intent to the bounded semantic model planner", () 
         );
 
     assert.match(brain, /buildJarvisMultifunctionToolCalls/);
-    assert.match(brain, /sia7-mission-isolation-v92-20260726/);
+    assert.match(brain, /sia7-multimodal-batch-integrity-v95-20260727/);
     assert.equal(
         (brain.match(/function initJarvisCodexV2BrainRouter/g) || []).length,
         1
@@ -2201,9 +2201,9 @@ test("brain delegates natural intent to the bounded semantic model planner", () 
     );
 
     assert.match(core, /patchPreviewAllowedByPlan/);
-    assert.match(core, /brain\.engine\.js\?v=sia7-mission-isolation-v92-20260726/);
+    assert.match(core, /brain\.engine\.js\?v=sia7-multimodal-batch-integrity-v95-20260727/);
     assert.match(core, /jarvis\.mission\.orchestrator\.js\?v=sia7-compact-mission-storage-v83-20260725/);
-    assert.match(core, /tools\.runtime\.js\?v=jarvis-tools-v7-20260726-mission-isolation-v92/);
+    assert.match(core, /tools\.runtime\.js\?v=jarvis-tools-v7-20260727-multimodal-batch-integrity-v95/);
     assert.doesNotMatch(core, /brain\.engine\.js\?v=cloud-planner-fail-fast-41-62/);
     assert.match(core, /async analizarIntencionLigera/);
     assert.match(core, /sincronizarCorralSemantico/);
@@ -2217,7 +2217,7 @@ test("brain delegates natural intent to the bounded semantic model planner", () 
     assert.match(core, /BRAIN_AUTHORITY_NO_LEGACY_FALLBACK/);
     assert.match(core, /brainAuthorityMode[\s\S]{0,500}atomicState\.isHalted/);
     assert.doesNotMatch(core, /semantic-tool-fallback-41-32/);
-    assert.match(core, /jarvis-tools-v7-20260726-mission-isolation-v92/);
+    assert.match(core, /jarvis-tools-v7-20260727-multimodal-batch-integrity-v95/);
     assert.match(core, /\[JARVIS_MISSION_OUTCOME\]/);
     assert.match(core, /Artefacto Jarvis verificado; cierre de mision parcial/);
 
