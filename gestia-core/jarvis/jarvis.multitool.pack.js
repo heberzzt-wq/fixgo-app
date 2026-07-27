@@ -32,7 +32,7 @@ import {
     validateDocumentBlueprint
 } from "./jarvis.document.validator.js?v=sia7-exact-template-contract-v84-20260725";
 
-const VERSION = "1.48.0-mission-isolation";
+const VERSION = "1.49.0-multimodal-batch-integrity";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 4500;
 const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";
@@ -1415,25 +1415,64 @@ async function fetchGroundedMediaAnalysis(attachments = [], question = "") {
     }
     const supported = new Set(["application/pdf", "image/png", "image/jpeg", "image/webp"]);
     const files = [];
+    const boundedAttachments = attachments.slice(0, 8);
     let totalBytes = 0;
-    for (const attachment of attachments.slice(0, 8)) {
-        if (!attachment?.artifact || !supported.has(String(attachment.mimeType || "").toLowerCase())) continue;
-        const payload = await globalThis.JarvisLocalBridge.requestJson(
-            "/artifact/read",
-            { output: attachment.artifact },
-            { timeoutMs: 30000 }
-        );
-        if (payload?.ok !== true || !payload?.dataBase64 || Number(payload.bytes || 0) > 7 * 1024 * 1024) continue;
-        if (totalBytes + Number(payload.bytes || 0) > 9 * 1024 * 1024) break;
-        totalBytes += Number(payload.bytes || 0);
+    if (boundedAttachments.length === 0) {
+        return {
+            ok: false,
+            status: "READABLE_MEDIA_ARTIFACT_REQUIRED",
+            error: "READABLE_MEDIA_ARTIFACT_REQUIRED"
+        };
+    }
+    for (const attachment of boundedAttachments) {
+        const name = attachment?.name || "archivo";
+        const mimeType = String(attachment?.mimeType || "").toLowerCase();
+        if (!attachment?.artifact || !supported.has(mimeType)) {
+            return {
+                ok: false,
+                status: "MEDIA_ANALYSIS_ARTIFACT_SET_INCOMPLETE",
+                error: "MEDIA_ANALYSIS_ARTIFACT_SET_INCOMPLETE",
+                fileName: name
+            };
+        }
+        let payload;
+        try {
+            payload = await globalThis.JarvisLocalBridge.requestJson(
+                "/artifact/read",
+                { output: attachment.artifact },
+                { timeoutMs: 30000 }
+            );
+        } catch (error) {
+            return {
+                ok: false,
+                status: "MEDIA_ANALYSIS_ARTIFACT_UNREADABLE",
+                error: error?.message || "MEDIA_ANALYSIS_ARTIFACT_UNREADABLE",
+                fileName: name
+            };
+        }
+        const bytes = Number(payload?.bytes || 0);
+        if (payload?.ok !== true || !payload?.dataBase64 || bytes < 1 || bytes > 7 * 1024 * 1024) {
+            return {
+                ok: false,
+                status: "MEDIA_ANALYSIS_ARTIFACT_UNREADABLE",
+                error: "MEDIA_ANALYSIS_ARTIFACT_UNREADABLE",
+                fileName: name
+            };
+        }
+        if (totalBytes + bytes > 9 * 1024 * 1024) {
+            return {
+                ok: false,
+                status: "MEDIA_ANALYSIS_BATCH_TOO_LARGE",
+                error: "MEDIA_ANALYSIS_BATCH_TOO_LARGE",
+                fileName: name
+            };
+        }
+        totalBytes += bytes;
         files.push({
-            name: attachment.name || payload.fileName || "archivo",
+            name,
             mimeType: attachment.mimeType || payload.mimeType,
             dataBase64: payload.dataBase64
         });
-    }
-    if (files.length === 0) {
-        return { ok: false, status: "READABLE_MEDIA_ARTIFACT_REQUIRED", error: "READABLE_MEDIA_ARTIFACT_REQUIRED" };
     }
     const token = await user.getIdToken();
     const response = await fetch(
@@ -1448,6 +1487,15 @@ async function fetchGroundedMediaAnalysis(attachments = [], question = "") {
     const result = payload?.result || payload?.data || null;
     if (!response.ok || result?.ok !== true || !Array.isArray(result?.sources)) {
         return { ok: false, status: "MEDIA_ANALYSIS_UNAVAILABLE", error: payload?.error?.message || `HTTP_${response.status}` };
+    }
+    if (result.sources.length !== files.length) {
+        return {
+            ok: false,
+            status: "MEDIA_ANALYSIS_SOURCE_COUNT_MISMATCH",
+            error: "MEDIA_ANALYSIS_SOURCE_COUNT_MISMATCH",
+            expectedSources: files.length,
+            receivedSources: result.sources.length
+        };
     }
     globalThis.__JARVIS_MEDIA_ANALYSIS_HEALTH__ = recordCapabilityEvidence("media_analysis", {
         ok: true,
@@ -3945,16 +3993,39 @@ export function registerJarvisMultifunctionTools(runtime) {
                 questions: "array"
             },
             execute: async (args = {}, context = {}) => {
-                const attachments = Array.isArray(args.attachments)
-                    ? args.attachments.slice(0, 30)
-                    : attachmentsFromInstruction(
-                        args.instruction || args.query || context.rawInput || ""
+                const instruction =
+                    args.instruction ||
+                    args.query ||
+                    context.rawInput ||
+                    "Analiza los archivos entregados.";
+                const authoritativeAttachments =
+                    attachmentsFromInstruction(
+                        context.rawInput ||
+                        args.instruction ||
+                        args.query ||
+                        ""
                     );
+                const attachments = authoritativeAttachments.length > 0
+                    ? authoritativeAttachments
+                    : Array.isArray(args.attachments)
+                        ? args.attachments.slice(0, 30)
+                        : [];
                 const persistedMedia = attachments.filter(attachment => attachment?.artifact);
+                if (attachments.length > 0 && persistedMedia.length !== attachments.length) {
+                    return {
+                        ok: false,
+                        status: "MEDIA_ANALYSIS_ARTIFACT_SET_INCOMPLETE",
+                        error: "MEDIA_ANALYSIS_ARTIFACT_SET_INCOMPLETE",
+                        message: "El lote adjunto esta incompleto; no se analizara una fraccion ni se inventara contenido.",
+                        attachments,
+                        receivedFiles: attachments.length,
+                        persistedArtifacts: persistedMedia.map(item => item.artifact)
+                    };
+                }
                 if (persistedMedia.length > 0) {
                     const grounded = await fetchGroundedMediaAnalysis(
                         persistedMedia,
-                        args.instruction || args.query || context.rawInput || "Analiza los archivos entregados."
+                        instruction
                     );
                     if (grounded?.ok === true) {
                         return {

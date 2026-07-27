@@ -1777,7 +1777,7 @@ test("system health exposes bridge server version separately from tool pack vers
         );
         assert.equal(
             result.toolPackVersion,
-            "1.48.0-mission-isolation"
+            "1.49.0-multimodal-batch-integrity"
         );
         assert.notEqual(
             result.toolPackVersion,
@@ -2407,6 +2407,127 @@ test("multifunction media analysis consumes a complete 30-file persisted manifes
         globalThis.JarvisLocalBridge = previousBridge;
         globalThis.fetch = previousFetch;
     }
+});
+
+test("multifunction media analysis prefers the complete authoritative prompt manifest", async () => {
+    const previousAuth = globalThis.auth;
+    const previousBridge = globalThis.JarvisLocalBridge;
+    const previousFetch = globalThis.fetch;
+    const runtime = createRuntime();
+    registerJarvisMultifunctionTools(runtime);
+    const attachments = [
+        {
+            name: "uno.png",
+            mimeType: "image/png",
+            bytes: 8,
+            artifact: ".jarvis-artifacts/uploads/uno.png",
+            sha256: "1".repeat(64)
+        },
+        {
+            name: "dos.png",
+            mimeType: "image/png",
+            bytes: 8,
+            artifact: ".jarvis-artifacts/uploads/dos.png",
+            sha256: "2".repeat(64)
+        }
+    ];
+    const rawInput = [
+        "Analiza ambas imagenes por separado.",
+        "Archivos adjuntos reales entregados por el usuario:",
+        JSON.stringify(attachments)
+    ].join("\n");
+
+    try {
+        globalThis.auth = {
+            currentUser: {
+                getIdToken: async () => "token"
+            }
+        };
+        globalThis.JarvisLocalBridge = {
+            requestJson: async (_path, request) => ({
+                ok: true,
+                dataBase64: "iVBORw0KGgo=",
+                mimeType: "image/png",
+                bytes: 8,
+                fileName: request.output.endsWith("uno.png")
+                    ? "uno.png"
+                    : "dos.png"
+            })
+        };
+        globalThis.fetch = async (_url, options) => {
+            const request = JSON.parse(options.body);
+            return {
+                ok: true,
+                json: async () => ({
+                    result: {
+                        ok: true,
+                        status: "MEDIA_ANALYSIS_GROUNDED",
+                        sources: request.data.files.map(file => ({
+                            name: file.name,
+                            evidence: [{
+                                observation: `evidencia ${file.name}`
+                            }]
+                        })),
+                        policy: {
+                            readOnly: true,
+                            illegibleContentMustRemainUnknown: true
+                        }
+                    }
+                })
+            };
+        };
+
+        const analysis = await runtime.execute(
+            "media.analyze",
+            {
+                prompt: "argumento parcial del planner",
+                attachments: [attachments[0]]
+            },
+            {
+                analysisId: "MULTI-MEDIA-AUTHORITATIVE",
+                rawInput
+            }
+        );
+
+        assert.equal(analysis.ok, true);
+        assert.equal(analysis.receivedFiles, 2);
+        assert.equal(analysis.analyzedFiles, 2);
+        assert.deepEqual(
+            analysis.sources.map(source => source.name),
+            ["uno.png", "dos.png"]
+        );
+    } finally {
+        globalThis.auth = previousAuth;
+        globalThis.JarvisLocalBridge = previousBridge;
+        globalThis.fetch = previousFetch;
+    }
+});
+
+test("multifunction media analysis rejects partial artifact sets without synthetic success", async () => {
+    const runtime = createRuntime();
+    registerJarvisMultifunctionTools(runtime);
+    const attachments = [
+        {
+            name: "uno.png",
+            mimeType: "image/png",
+            artifact: ".jarvis-artifacts/uploads/uno.png"
+        },
+        {
+            name: "dos.png",
+            mimeType: "image/png",
+            artifact: null
+        }
+    ];
+    const analysis = await runtime.execute(
+        "media.analyze",
+        { attachments },
+        { analysisId: "MULTI-MEDIA-PARTIAL" }
+    );
+
+    assert.equal(analysis.ok, false);
+    assert.equal(analysis.status, "MEDIA_ANALYSIS_ARTIFACT_SET_INCOMPLETE");
+    assert.equal(analysis.receivedFiles, 2);
+    assert.equal(analysis.persistedArtifacts.length, 1);
 });
 
 test("multifunction planner accepts model-selected bounded read-only tools", async () => {

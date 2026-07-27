@@ -5,7 +5,7 @@ import {
     JarvisCaseLedger
 } from "../../gestia-core/jarvis/jarvis.case.ledger.js";
 
-const VERSION = "2.2.0-current-mission-artifacts";
+const VERSION = "2.3.0-complete-batch-fail-closed";
 const MAX_FILES = 30;
 const MAX_FILE_BYTES = 250 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 500 * 1024 * 1024;
@@ -308,9 +308,44 @@ async function acceptFiles(fileList) {
     state.pendingBatch = null;
 }
 
+export function inspectAttachmentBatch(items = state.items) {
+    const selected = Array.isArray(items) ? items : [];
+    const incomplete = selected
+        .filter(item => item?.status !== "ready" || !item?.output)
+        .map(item => ({
+            id: item?.id || null,
+            name: itemName(item),
+            status: item?.status || "unknown",
+            error: item?.error || null,
+            artifact: item?.output || null
+        }));
+    const readyFiles = selected.length - incomplete.length;
+    return {
+        ok: incomplete.length === 0,
+        status: incomplete.length === 0
+            ? "ATTACHMENT_BATCH_COMPLETE"
+            : "ATTACHMENT_BATCH_INCOMPLETE",
+        selectedFiles: selected.length,
+        readyFiles,
+        incompleteFiles: incomplete.length,
+        incomplete
+    };
+}
+
 async function composePrompt(rawPrompt = "") {
     if (state.pendingBatch) await state.pendingBatch;
     await Promise.all(state.items.map(item => item.pending).filter(Boolean));
+    const batch = inspectAttachmentBatch();
+    if (!batch.ok) {
+        setComposerMessage(
+            `No se envio la orden: ${batch.incompleteFiles} archivo(s) no terminaron de persistirse.`,
+            "error"
+        );
+        const error = new Error("ATTACHMENT_BATCH_INCOMPLETE");
+        error.code = "ATTACHMENT_BATCH_INCOMPLETE";
+        error.details = batch;
+        throw error;
+    }
     const ready = state.items.filter(item => item.status === "ready" && item.output);
     const normalizedPrompt = String(rawPrompt || "Analiza los archivos adjuntos").trim();
     if (ready.length === 0) return normalizedPrompt;
@@ -513,6 +548,7 @@ export const JarvisAttachments = {
     version: VERSION,
     acceptFiles,
     composePrompt,
+    inspectAttachmentBatch,
     clear,
     hasFiles: () => state.items.length > 0,
     renderArtifact,

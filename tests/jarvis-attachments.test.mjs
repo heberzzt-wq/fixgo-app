@@ -14,7 +14,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 test("multimodal composer exposes bounded upload capabilities", () => {
     const description = JarvisAttachments.describe();
-    assert.equal(description.version, "2.2.0-current-mission-artifacts");
+    assert.equal(description.version, "2.3.0-complete-batch-fail-closed");
     assert.equal(description.transport, "chunked_progressive");
     assert.equal(description.maxFiles, 30);
     assert.equal(description.maxFileBytes, 250 * 1024 * 1024);
@@ -22,6 +22,33 @@ test("multimodal composer exposes bounded upload capabilities", () => {
     assert.equal(description.chunkBytes, 2 * 1024 * 1024);
     assert.equal(description.concurrency, 3);
     assert.equal(description.recoverableCompletedArtifacts, true);
+});
+
+test("multimodal composer rejects incomplete selected batches", () => {
+    const complete = JarvisAttachments.inspectAttachmentBatch([
+        {
+            id: "ready-1",
+            name: "uno.png",
+            status: "ready",
+            output: ".jarvis-artifacts/uploads/uno.png"
+        }
+    ]);
+    assert.equal(complete.ok, true);
+    assert.equal(complete.status, "ATTACHMENT_BATCH_COMPLETE");
+    assert.equal(complete.readyFiles, 1);
+
+    const incomplete = JarvisAttachments.inspectAttachmentBatch([
+        {
+            id: "failed-1",
+            name: "dos.png",
+            status: "failed",
+            output: null,
+            error: "UPLOAD_FAILED"
+        }
+    ]);
+    assert.equal(incomplete.ok, false);
+    assert.equal(incomplete.status, "ATTACHMENT_BATCH_INCOMPLETE");
+    assert.equal(incomplete.incompleteFiles, 1);
 });
 
 test("verified capability evidence survives independent forensic reads", () => {
