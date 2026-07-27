@@ -3797,6 +3797,9 @@ export function createJarvisFsBridgeApp({
                     objectiveId: req.body?.objectiveId,
                     root
                 }),
+                persisted: false,
+                uploadTransportVersion:
+                    "1.0.0-chunked-upload-routes",
                 version: JARVIS_FS_BRIDGE_VERSION
             });
         } catch (error) {
@@ -3813,6 +3816,9 @@ export function createJarvisFsBridgeApp({
                     dataBase64: req.body?.dataBase64,
                     root
                 }),
+                persisted: false,
+                uploadTransportVersion:
+                    "1.0.0-chunked-upload-routes",
                 version: JARVIS_FS_BRIDGE_VERSION
             });
         } catch (error) {
@@ -3833,6 +3839,13 @@ export function createJarvisFsBridgeApp({
             return res.json({
                 ...saved,
                 artifact,
+                persisted: true,
+                artifactId:
+                    saved.sha256 || saved.output || null,
+                attachmentId:
+                    saved.sha256 || saved.output || null,
+                uploadTransportVersion:
+                    "1.0.0-chunked-upload-routes",
                 version: JARVIS_FS_BRIDGE_VERSION
             });
         } catch (error) {
@@ -3844,6 +3857,9 @@ export function createJarvisFsBridgeApp({
         try {
             return res.json({
                 ...cancelChunkedUpload({ uploadId: req.body?.uploadId, root }),
+                persisted: false,
+                uploadTransportVersion:
+                    "1.0.0-chunked-upload-routes",
                 version: JARVIS_FS_BRIDGE_VERSION
             });
         } catch (error) {
