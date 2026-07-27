@@ -42,6 +42,10 @@ import {
     buildJarvisMultifunctionToolCalls
 } from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-multimodal-batch-integrity-v95-20260727';
 import {
+    composeEvidenceGroundedConversation,
+    prepareEvidenceGroundedConversationPlan
+} from '/gestia-core/jarvis/jarvis.conversation.composer.js?v=sia7-conversation-evidence-v96-20260727';
+import {
     runJarvisMission
 } from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-compact-mission-storage-v83-20260725';
 import {
@@ -5656,36 +5660,6 @@ if (
         );
     }
 
-    let operationalInitialToolCalls =
-        propuesta.toolCalls.some(call => call?.name !== "conversation.respond")
-            ? propuesta.toolCalls.filter(call => call?.name !== "conversation.respond")
-            : propuesta.toolCalls;
-    const conversationalInitialToolCalls =
-        propuesta.toolCalls.some(call => call?.name !== "conversation.respond")
-            ? propuesta.toolCalls.filter(call => call?.name === "conversation.respond")
-            : [];
-    let conversationalInitialObservations =
-        [];
-
-    if (
-        conversationalInitialToolCalls.length > 0
-    ) {
-        conversationalInitialObservations =
-            await window.ToolsBridge.executeMany(
-                conversationalInitialToolCalls,
-                {
-                    ...context,
-                    rawInput:
-                        inputRaw,
-                    tenantId,
-                    analysisId,
-                    rol,
-                    approved:
-                        false
-                }
-            );
-    }
-
     const registeredMissionTools =
         globalThis.JarvisToolRuntime
             ?.list?.()
@@ -5699,6 +5673,23 @@ if (
                     )
                 )
             ) ||
+        [];
+    const conversationalPlan =
+        prepareEvidenceGroundedConversationPlan({
+            instruction:
+                inputRaw,
+            toolCalls:
+                propuesta.toolCalls,
+            toolCatalog:
+                globalThis.JarvisToolRuntime
+                    ?.list?.() ||
+                []
+        });
+    let operationalInitialToolCalls =
+        conversationalPlan.operationalCalls.length > 0
+            ? conversationalPlan.operationalCalls
+            : propuesta.toolCalls;
+    let conversationalFinalObservations =
         [];
     const isolatedOperationalToolCalls =
         operationalInitialToolCalls.filter(call =>
@@ -5754,6 +5745,13 @@ if (
             call => allowedMissionTools.has(call?.name)
         );
         if (missionContractToolCalls.length === 0) throw contractError;
+    }
+    if (conversationalPlan.requiresFinalConversation) {
+        missionContractToolCalls =
+            mergeJarvisToolCalls(
+                missionContractToolCalls,
+                operationalInitialToolCalls
+            );
     }
     const hasRepositoryMission =
         missionContractToolCalls.some(call =>
@@ -6707,7 +6705,6 @@ if (
 
     const allToolObservations =
         [
-            ...conversationalInitialObservations,
             ...toolObservations,
             ...followUpObservations
         ];
@@ -6761,12 +6758,6 @@ if (
 
     let semanticMissionFinalResponse = null;
     const missionEvidenceItems = [
-        ...conversationalInitialObservations.map(item => ({
-            name:
-                "conversation.respond",
-            observation:
-                item
-        })),
         ...missionResult.completedTasks,
         ...missionResult.blockedTasks.map(item => ({
             name:
@@ -6798,6 +6789,101 @@ if (
         );
 
     if (
+        conversationalPlan.requiresFinalConversation &&
+        unresolvedUserArtifactTasks.length === 0
+    ) {
+        const conversationalComposition =
+            await composeEvidenceGroundedConversation({
+                instruction:
+                    inputRaw,
+                evidenceItems:
+                    missionEvidenceItems,
+                executeConversation:
+                    async prompt => {
+                        const observations =
+                            await window.ToolsBridge.executeMany(
+                                [{
+                                    name:
+                                        "conversation.respond",
+                                    args: {
+                                        prompt,
+                                        maxOutputTokens:
+                                            3500
+                                    },
+                                    approved:
+                                        false
+                                }],
+                                {
+                                    ...context,
+                                    rawInput:
+                                        inputRaw,
+                                    tenantId,
+                                    analysisId,
+                                    rol,
+                                    approved:
+                                        false
+                                }
+                            );
+                        return observations[0] || null;
+                    }
+            });
+        conversationalFinalObservations =
+            conversationalComposition.observation
+                ? [conversationalComposition.observation]
+                : [];
+        allToolCalls.push({
+            name:
+                "conversation.respond",
+            args: {
+                prompt:
+                    inputRaw
+            },
+            approved:
+                false
+        });
+        allToolObservations.push(
+            ...conversationalFinalObservations
+        );
+
+        if (conversationalComposition.ok) {
+            semanticMissionFinalResponse = {
+                ok:
+                    missionResult.status === "COMPLETED",
+                title:
+                    "Jarvis",
+                text:
+                    conversationalComposition.text,
+                source:
+                    "EVIDENCE_GROUNDED_CONVERSATION",
+                provider:
+                    conversationalComposition.provider,
+                model:
+                    conversationalComposition.model
+            };
+        }
+        else {
+            missionResult.status =
+                missionResult.completedTasks.length > 0
+                    ? "PARTIAL"
+                    : "FAILED";
+            missionResult.reason =
+                conversationalComposition.status ||
+                "CONVERSATIONAL_COMPOSITION_FAILED";
+            semanticMissionFinalResponse = {
+                ok:
+                    false,
+                title:
+                    "Jarvis no pudo completar la respuesta",
+                text:
+                    "Pude obtener evidencia operativa, pero falló la composición conversacional final. No presento el payload interno como una respuesta completada.",
+                source:
+                    "CONVERSATIONAL_COMPOSITION_FAILED"
+            };
+        }
+    }
+
+    if (
+        !conversationalPlan.requiresFinalConversation &&
         missionResult.executedTools.length > 1 &&
         unresolvedUserArtifactTasks.length === 0
     ) {
