@@ -299,6 +299,22 @@ test("Terminal hides technical evidence names for grounded conversation", () => 
     );
 });
 
+test("Terminal preserves complete capability JSON for explicit structured requests", () => {
+    const terminal = fs.readFileSync(
+        path.resolve("gestia-terminal.html"),
+        "utf8"
+    );
+
+    assert.match(
+        terminal,
+        /if \(toolName === "system\.capabilities"\) \{\s*return JSON\.stringify\(repoData, null, 2\);\s*\}/
+    );
+    assert.doesNotMatch(
+        terminal,
+        /toolName === "system\.capabilities"[\s\S]{0,160}JSON\.stringify\(repoData, null, 2\)\.slice/
+    );
+});
+
 test("oversized composition evidence remains valid bounded JSON", () => {
     const evidence = buildBoundedConversationEvidence(
         Array.from({ length: 12 }, (_, index) => ({
