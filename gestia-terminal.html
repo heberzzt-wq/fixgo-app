@@ -4181,7 +4181,13 @@ if (
                         }
 
                         if (toolName === "system.capabilities") {
-                            return JSON.stringify(repoData, null, 2);
+                            return JSON.stringify({
+                                ok: repoData?.ok === true,
+                                engine: repoData?.engine || null,
+                                version: repoData?.version || null,
+                                totalTools: repoData?.totalTools ?? null,
+                                groups: repoData?.groups || {}
+                            }, null, 2);
                         }
 
                         if (

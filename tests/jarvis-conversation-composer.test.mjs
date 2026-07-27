@@ -307,7 +307,7 @@ test("Terminal preserves complete capability JSON for explicit structured reques
 
     assert.match(
         terminal,
-        /if \(toolName === "system\.capabilities"\) \{\s*return JSON\.stringify\(repoData, null, 2\);\s*\}/
+        /if \(toolName === "system\.capabilities"\) \{[\s\S]*?totalTools: repoData\?\.totalTools \?\? null,[\s\S]*?groups: repoData\?\.groups \|\| \{\}[\s\S]*?\}, null, 2\);/
     );
     assert.doesNotMatch(
         terminal,
