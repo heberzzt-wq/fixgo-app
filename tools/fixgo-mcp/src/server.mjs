@@ -9,6 +9,7 @@ import {
     patchCheck,
     readFile,
     repoStatus,
+    runEngineeringMission,
     runTests,
     searchCode
 } from "./repo-tools.mjs";
@@ -175,6 +176,33 @@ function createServer() {
             }
         },
         guarded(async args => patchApply(args))
+    );
+
+    server.registerTool(
+        "fixgo_engineering_mission",
+        {
+            title: "Run a verified FixGo engineering mission",
+            description: "Runs the complete bounded repository cycle: status, discovery, search, read, patch validation, patch application, allowlisted tests and final diff. Success is returned only when every stage produces verified evidence.",
+            inputSchema: z.object({
+                query: z.string().min(2).max(160),
+                file: z.string().min(1).max(300),
+                patch: z.string().min(1).max(200 * 1024),
+                expectedHead: z.string().min(7).max(64),
+                testProfile: z.enum([
+                    "media",
+                    "multimodal",
+                    "ci",
+                    "diff_check"
+                ]).default("diff_check")
+            }),
+            annotations: {
+                readOnlyHint: false,
+                destructiveHint: false,
+                idempotentHint: false,
+                openWorldHint: false
+            }
+        },
+        guarded(async args => runEngineeringMission(args))
     );
 
     server.registerTool(

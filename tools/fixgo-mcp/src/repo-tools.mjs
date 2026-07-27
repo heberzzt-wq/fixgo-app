@@ -302,3 +302,142 @@ export function runTests({ profile }) {
         truncated: stdout.truncated || stderr.truncated
     };
 }
+
+function failedMission(stage, observations, result) {
+    return {
+        ok: false,
+        status: "ENGINEERING_MISSION_FAILED",
+        stage,
+        observations,
+        error: result?.error || result?.stderr || result?.status ||
+            "ENGINEERING_MISSION_STAGE_FAILED"
+    };
+}
+
+export function runEngineeringMission({
+    query,
+    file,
+    patch,
+    expectedHead,
+    testProfile = "diff_check"
+}) {
+    const observations = [];
+    let activeStage = "repo_status";
+    const record = (stage, result) => {
+        observations.push({
+            stage,
+            ok: result?.ok === true,
+            status: result?.status || null
+        });
+        return result;
+    };
+
+    try {
+    activeStage = "repo_status";
+    const initial = record("repo_status", repoStatus());
+    if (!initial.ok || !initial.branchAllowed) {
+        return failedMission("repo_status", observations, initial);
+    }
+
+    activeStage = "list_files";
+    const discovery = record("list_files", listFiles({
+        pathspec: [file],
+        maxResults: 20
+    }));
+    if (!discovery.ok || !discovery.files.includes(
+        resolveRepoPath(file).relativePath
+    )) {
+        return failedMission("list_files", observations, {
+            status: "MISSION_TARGET_NOT_DISCOVERED"
+        });
+    }
+
+    activeStage = "search_code";
+    const search = record("search_code", searchCode({
+        query,
+        pathspec: [file],
+        maxResults: 20
+    }));
+    if (!search.ok || search.count < 1) {
+        return failedMission("search_code", observations, {
+            status: "MISSION_QUERY_NOT_FOUND"
+        });
+    }
+
+    activeStage = "read_file";
+    const source = record("read_file", readFile({ file }));
+    if (!source.ok || !source.content) {
+        return failedMission("read_file", observations, source);
+    }
+
+    activeStage = "patch_check";
+    const checked = record("patch_check", patchCheck({
+        patch,
+        expectedHead
+    }));
+    if (!checked.ok) {
+        return failedMission("patch_check", observations, checked);
+    }
+
+    activeStage = "patch_apply";
+    const applied = record("patch_apply", patchApply({
+        patch,
+        expectedHead
+    }));
+    if (!applied.ok) {
+        return failedMission("patch_apply", observations, applied);
+    }
+
+    activeStage = "run_tests";
+    const tests = record("run_tests", runTests({
+        profile: testProfile
+    }));
+    if (!tests.ok) {
+        return failedMission("run_tests", observations, tests);
+    }
+
+    activeStage = "final_diff";
+    const finalDiff = record("final_diff", diff({
+        paths: checked.paths
+    }));
+    if (!finalDiff.ok || !finalDiff.diff.trim()) {
+        return failedMission("final_diff", observations, {
+            status: "MISSION_FINAL_DIFF_MISSING"
+        });
+    }
+
+    return {
+        ok: true,
+        status: "ENGINEERING_MISSION_COMPLETED",
+        branch: initial.branch,
+        headBefore: expectedHead,
+        changedFiles: checked.paths,
+        tests: {
+            profile: tests.profile,
+            status: tests.status,
+            exitCode: tests.exitCode
+        },
+        evidence: {
+            discoveredFiles: discovery.files,
+            searchMatches: search.matches,
+            readRange: {
+                file: source.file,
+                startLine: source.startLine,
+                endLine: source.endLine
+            },
+            patchStatus: applied.status,
+            finalDiff: finalDiff.diff
+        },
+        observations
+    };
+    } catch (error) {
+        observations.push({
+            stage: activeStage,
+            ok: false,
+            status: error?.message || "ENGINEERING_MISSION_STAGE_FAILED"
+        });
+        return failedMission(activeStage, observations, {
+            error: error?.message || String(error)
+        });
+    }
+}

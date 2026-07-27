@@ -2,7 +2,11 @@
 
 Adaptador MCP **tool-only**. No crea otro agente. Expone herramientas mínimas para inspeccionar y parchear el repositorio local mediante diffs unificados.
 
-Herramientas: `fixgo_repo_status`, `fixgo_list_files`, `fixgo_read_file`, `fixgo_search_code`, `fixgo_diff`, `fixgo_patch_check`, `fixgo_patch_apply` y `fixgo_run_tests`.
+Herramientas: `fixgo_repo_status`, `fixgo_list_files`, `fixgo_read_file`, `fixgo_search_code`, `fixgo_diff`, `fixgo_patch_check`, `fixgo_patch_apply`, `fixgo_run_tests` y `fixgo_engineering_mission`.
+
+`fixgo_engineering_mission` compone el ciclo completo y sólo devuelve
+`ENGINEERING_MISSION_COMPLETED` si descubrimiento, búsqueda, lectura,
+validación, aplicación, pruebas y diff final terminan con evidencia.
 
 El flujo recomendado para clientes como Codex, Claude Desktop u otros hosts MCP es:
 
