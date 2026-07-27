@@ -123,3 +123,36 @@ test("engineering mission fails closed before applying an invalid patch", () => 
         "export const total = 40 + 1;\n"
     );
 });
+
+test("engineering mission preserves applied evidence when tests fail", () => {
+    const fixture = createFixture();
+    process.env.FIXGO_REPO_ROOT = fixture.root;
+
+    const result = runEngineeringMission({
+        query: "40 + 1",
+        file: "calculator.js",
+        patch: patchFor(),
+        expectedHead: fixture.head,
+        testProfile: "media"
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.status, "ENGINEERING_MISSION_FAILED");
+    assert.equal(result.stage, "run_tests");
+    assert.deepEqual(result.changedFiles, ["calculator.js"]);
+    assert.equal(result.tests.status, "TEST_PROFILE_FAILED");
+    assert.notEqual(result.tests.exitCode, 0);
+    assert.equal(result.evidence.patchStatus, "PATCH_APPLIED");
+    assert.match(result.error, /jarvis-media-analysis|TEST_PROFILE_FAILED/i);
+    assert.equal(
+        fs.readFileSync(
+            path.join(fixture.root, "calculator.js"),
+            "utf8"
+        ).replace(/\r\n/g, "\n"),
+        "export const total = 40 + 2;\n"
+    );
+    assert.equal(
+        result.observations.at(-1).status,
+        "TEST_PROFILE_FAILED"
+    );
+});

@@ -303,14 +303,15 @@ export function runTests({ profile }) {
     };
 }
 
-function failedMission(stage, observations, result) {
+function failedMission(stage, observations, result, partial = {}) {
     return {
         ok: false,
         status: "ENGINEERING_MISSION_FAILED",
         stage,
         observations,
         error: result?.error || result?.stderr || result?.status ||
-            "ENGINEERING_MISSION_STAGE_FAILED"
+            "ENGINEERING_MISSION_STAGE_FAILED",
+        ...partial
     };
 }
 
@@ -393,7 +394,17 @@ export function runEngineeringMission({
         profile: testProfile
     }));
     if (!tests.ok) {
-        return failedMission("run_tests", observations, tests);
+        return failedMission("run_tests", observations, tests, {
+            changedFiles: checked.paths,
+            tests: {
+                profile: tests.profile,
+                status: tests.status,
+                exitCode: tests.exitCode
+            },
+            evidence: {
+                patchStatus: applied.status
+            }
+        });
     }
 
     activeStage = "final_diff";
@@ -403,6 +414,16 @@ export function runEngineeringMission({
     if (!finalDiff.ok || !finalDiff.diff.trim()) {
         return failedMission("final_diff", observations, {
             status: "MISSION_FINAL_DIFF_MISSING"
+        }, {
+            changedFiles: checked.paths,
+            tests: {
+                profile: tests.profile,
+                status: tests.status,
+                exitCode: tests.exitCode
+            },
+            evidence: {
+                patchStatus: applied.status
+            }
         });
     }
 
