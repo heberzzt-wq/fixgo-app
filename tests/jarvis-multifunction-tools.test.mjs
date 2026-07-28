@@ -2516,7 +2516,7 @@ test("Terminal uses one governed conversation route and the current tool pack", 
     assert.doesNotMatch(conversationConnector, /setTimeout\(\(\) => controller\.abort\(\), 8000\)/);
     assert.match(
         terminal,
-        /jarvis-tools-v7-20260727-test-outcome-evidence-v100/
+        /jarvis-tools-v7-20260728-artifact-edit-routing-v101/
     );
     assert.match(
         toolRuntime,
@@ -3767,7 +3767,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /jarvis-tools-v7-20260727-test-outcome-evidence-v100/);
+    assert.match(terminal, /jarvis-tools-v7-20260728-artifact-edit-routing-v101/);
     assert.match(terminal, /jarvis-tools-bridge-v7-20260726-chief-review-response-v93/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
@@ -3782,10 +3782,10 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-chief-review-response-v93-20260726/);
+    assert.match(terminal, /sia7-artifact-edit-routing-v101-20260728/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
-    assert.match(terminal, /jarvis-tools-v7-20260727-test-outcome-evidence-v100/);
+    assert.match(terminal, /jarvis-tools-v7-20260728-artifact-edit-routing-v101/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -3985,7 +3985,7 @@ test("multifunction descriptor remains approval-bound", () => {
     assert.equal(planner.mutates, false);
     assert.equal(
         planner.version,
-        "4.9.0-mission-isolation"
+        "4.10.0-artifact-edit-routing"
     );
     assert.equal(planner.maximumToolCalls, 12);
     assert.equal(planner.architecture, "model_selected_runtime_catalog");
@@ -4034,7 +4034,7 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260727-test-outcome-evidence-v100/);
+    assert.match(core, /jarvis-tools-v7-20260728-artifact-edit-routing-v101/);
     assert.match(
         terminal,
         /jarvis-tools-v7-20260725-semantic-envelope-v64/
@@ -4064,5 +4064,40 @@ test("repo diagnosis accepts synchronous null discovery before loading fallback 
     assert.doesNotMatch(
         source,
         /findRepoFile\([\s\S]{0,350}\)\s*\.catch\(\(\) => null\)/
+    );
+});
+
+
+test("artifact edit missions keep specialized editors and defer certification until completion audit", () => {
+    const plannerSource =
+        fs.readFileSync(
+            path.join(
+                process.cwd(),
+                "gestia-core",
+                "jarvis",
+                "jarvis.multifunction.planner.js"
+            ),
+            "utf8"
+        );
+
+    assert.match(
+        plannerSource,
+        /document\.pdf\.edit/
+    );
+    assert.match(
+        plannerSource,
+        /document\.xlsx\.edit/
+    );
+    assert.match(
+        plannerSource,
+        /image\.edit/
+    );
+    assert.match(
+        plannerSource,
+        /Nunca sustituyas una edicion solicitada/
+    );
+    assert.match(
+        plannerSource,
+        /tool\.name === "system\.certify"[\s\S]{0,160}COMPLETION_AUDIT/
     );
 });

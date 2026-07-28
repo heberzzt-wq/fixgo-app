@@ -3,7 +3,7 @@ import {
 } from "./jarvis.capability.evidence.js";
 import { adaptImageSource } from "./jarvis.image.adapter.js";
 
-const VERSION = "7.21.0-explicit-delegation";
+const VERSION = "7.22.0-artifact-copy-edits";
 
 export function normalizeImageArtifactOutput(output, mimeType) {
     const extensions = {
@@ -332,7 +332,8 @@ export function registerJarvisActuatorTools(runtime) {
                 quote: "{subtotal,discountPercent,taxPercent,currency,fields|fieldAnchors:{discount,taxableSubtotal,tax,total}}"
             },
             mutates: true,
-            requiresApproval: true,
+            requiresApproval: false,
+            userArtifact: true,
             execute: async (args = {}, context = {}) => {
                 const result = await bridgeRequest("/document/pdf/edit", {
                     sourceOutput: args.sourceOutput,
@@ -368,7 +369,8 @@ export function registerJarvisActuatorTools(runtime) {
                 changes: "array<{sheet|sheetIndex,cell,value|formula,result,numberFormat}>"
             },
             mutates: true,
-            requiresApproval: true,
+            requiresApproval: false,
+            userArtifact: true,
             execute: async (args = {}, context = {}) => {
                 const result = await bridgeRequest("/document/xlsx/edit", {
                     sourceOutput: args.sourceOutput,
@@ -518,7 +520,8 @@ export function registerJarvisActuatorTools(runtime) {
                 preserveApprovedText: "boolean", output: "string", caseId: "string", objectiveId: "string"
             },
             mutates: true,
-            requiresApproval: true,
+            requiresApproval: false,
+            userArtifact: true,
             execute: async (args = {}, context = {}) => {
                 if (!args.sourceOutput) throw new Error("IMAGE_SOURCE_OUTPUT_REQUIRED");
                 const source = await bridgeRequest("/artifact/read", { output: args.sourceOutput }, 30000);

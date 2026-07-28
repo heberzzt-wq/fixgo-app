@@ -1,8 +1,86 @@
-const VERSION = "1.9.0-compact-mission-persistence";
+const VERSION = "1.10.0-diagnostic-error-normalization";
 const STORAGE_KEY = "jarvis.missions.v1";
 
 function text(value = "", maximum = 120000) {
     return String(value ?? "").trim().slice(0, maximum);
+}
+
+function diagnosticErrorText(
+    value,
+    maximum = 1000,
+    depth = 0
+) {
+    if (
+        value == null ||
+        depth > 5
+    ) {
+        return "";
+    }
+
+    if (
+        typeof value === "string" ||
+        typeof value === "number" ||
+        typeof value === "boolean"
+    ) {
+        return text(
+            value,
+            maximum
+        );
+    }
+
+    if (value instanceof Error) {
+        return text(
+            value.message ||
+            value.name ||
+            String(value),
+            maximum
+        );
+    }
+
+    if (
+        typeof value === "object"
+    ) {
+        const candidates = [
+            value.message,
+            value.error,
+            value.details?.message,
+            value.details?.error,
+            value.cause,
+            value.status,
+            value.code
+        ];
+
+        for (
+            const candidate
+            of candidates
+        ) {
+            const resolved =
+                diagnosticErrorText(
+                    candidate,
+                    maximum,
+                    depth + 1
+                );
+
+            if (resolved) {
+                return resolved;
+            }
+        }
+
+        try {
+            return text(
+                JSON.stringify(value),
+                maximum
+            );
+        }
+        catch {
+            return "";
+        }
+    }
+
+    return text(
+        value,
+        maximum
+    );
 }
 
 function storageOrMemory(storage) {
@@ -522,9 +600,11 @@ function safeObservation(result = {}) {
             3000
         ),
         error:
-            text(
+            diagnosticErrorText(
                 payload?.error ||
                 result?.error ||
+                payload?.result?.error ||
+                result?.data?.error ||
                 "",
                 1000
             ) ||

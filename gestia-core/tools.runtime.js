@@ -8,7 +8,7 @@ import {
 } from "./jarvis/jarvis.multitool.pack.js?v=sia7-test-outcome-evidence-v100-20260727";
 import {
     registerJarvisActuatorTools
-} from "./jarvis/jarvis.actuator.pack.js?v=sia7-explicit-delegation-v90-20260726";
+} from "./jarvis/jarvis.actuator.pack.js?v=sia7-artifact-copy-edits-v101-20260728";
 import {
     reviewChiefArchitectPlan
 } from "./jarvis/jarvis.chief.architect.js?v=sia7-chief-architect-v92-20260726";

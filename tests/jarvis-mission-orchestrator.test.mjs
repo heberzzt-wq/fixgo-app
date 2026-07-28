@@ -1168,3 +1168,31 @@ test("routing compaction is deterministic and does not replace the authority ins
     assert.equal(routing.length, 12000);
     assert.notEqual(routing, instruction);
 });
+
+
+test("mission observations preserve nested diagnostic errors instead of object coercion", () => {
+    const observation =
+        __test.safeObservation({
+            ok: false,
+            status: "ERROR",
+            error: {
+                details: {
+                    message:
+                        "SPREADSHEET_SCHEMA_INVALID"
+                }
+            }
+        });
+
+    assert.equal(
+        observation.executionOk,
+        false
+    );
+    assert.equal(
+        observation.error,
+        "SPREADSHEET_SCHEMA_INVALID"
+    );
+    assert.notEqual(
+        observation.error,
+        "[object Object]"
+    );
+});

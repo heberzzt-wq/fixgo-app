@@ -64,11 +64,14 @@ test("actuator pack registers browser, documents, image, delegation and connecto
     assert.equal(runtime.get("document.create").userArtifact, true);
     assert.equal(runtime.get("image.generate").requiresApproval, false);
     assert.equal(runtime.get("image.generate").userArtifact, true);
-    assert.equal(runtime.get("document.pdf.edit").requiresApproval, true);
-    assert.equal(runtime.get("document.xlsx.edit").requiresApproval, true);
+    assert.equal(runtime.get("document.pdf.edit").requiresApproval, false);
+    assert.equal(runtime.get("document.pdf.edit").userArtifact, true);
+    assert.equal(runtime.get("document.xlsx.edit").requiresApproval, false);
+    assert.equal(runtime.get("document.xlsx.edit").userArtifact, true);
     assert.equal(runtime.get("document.docx.edit").requiresApproval, true);
     assert.equal(runtime.get("document.pptx.edit").requiresApproval, true);
-    assert.equal(runtime.get("image.edit").requiresApproval, true);
+    assert.equal(runtime.get("image.edit").requiresApproval, false);
+    assert.equal(runtime.get("image.edit").userArtifact, true);
     assert.equal(runtime.get("image.adapt").requiresApproval, true);
     assert.equal(runtime.get("artifact.createJson").requiresApproval, true);
     assert.equal(runtime.get("artifact.list").mutates, false);
