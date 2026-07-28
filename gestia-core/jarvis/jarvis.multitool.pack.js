@@ -32,7 +32,7 @@ import {
     validateDocumentBlueprint
 } from "./jarvis.document.validator.js?v=sia7-exact-template-contract-v84-20260725";
 
-const VERSION = "1.50.0-certification-outcome-semantics";
+const VERSION = "1.51.0-test-outcome-evidence";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 4500;
 const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";
@@ -3548,9 +3548,23 @@ export function registerJarvisMultifunctionTools(runtime) {
                         source: "system.certify"
                     });
                     const result = unwrapRuntimeResult(execution);
+                    const checkExecutionOk =
+                        execution?.executionOk !== false &&
+                        execution?.ok !== false &&
+                        result?.executionOk !== false &&
+                        result?.ok !== false;
+                    const checkObjectiveSatisfied =
+                        execution?.objectiveSatisfied !== false &&
+                        result?.objectiveSatisfied !== false;
                     checks.push({
                         tool,
-                        ok: execution?.ok !== false && result?.ok !== false,
+                        ok:
+                            checkExecutionOk &&
+                            checkObjectiveSatisfied,
+                        executionOk:
+                            checkExecutionOk,
+                        objectiveSatisfied:
+                            checkObjectiveSatisfied,
                         status: result?.status || execution?.status || "COMPLETED",
                         evidence: {
                             source: result?.source || null,
@@ -3558,7 +3572,47 @@ export function registerJarvisMultifunctionTools(runtime) {
                             passed: result?.passed ?? null,
                             failed: result?.failed ?? null,
                             connectedCount: result?.connectedCount ?? null,
-                            sourceCount: result?.sourceCount ?? result?.sources?.length ?? null
+                            sourceCount:
+                                result?.sourceCount ??
+                                result?.sources?.length ??
+                                null,
+                            exitCode:
+                                result?.exitCode ??
+                                result?.result?.exitCode ??
+                                null,
+                            command:
+                                result?.npmCommand ||
+                                result?.command ||
+                                result?.result?.command ||
+                                null,
+                            cwd:
+                                result?.cwd ||
+                                result?.result?.cwd ||
+                                null,
+                            timeoutMs:
+                                result?.timeoutMs ??
+                                result?.result?.timeoutMs ??
+                                null,
+                            durationMs:
+                                result?.durationMs ??
+                                result?.result?.durationMs ??
+                                null,
+                            error:
+                                result?.error ||
+                                result?.result?.error ||
+                                null,
+                            stdout:
+                                String(
+                                    result?.stdout ||
+                                    result?.result?.stdout ||
+                                    ""
+                                ).slice(0, 6000),
+                            stderr:
+                                String(
+                                    result?.stderr ||
+                                    result?.result?.stderr ||
+                                    ""
+                                ).slice(0, 6000)
                         }
                     });
                 }

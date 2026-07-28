@@ -1720,6 +1720,277 @@ test("system certification preserves an incomplete verdict as a successful diagn
     }
 });
 
+
+test("tests.run exposes failed assertions without misclassifying process execution", () => {
+    const source =
+        fs.readFileSync(
+            path.join(
+                process.cwd(),
+                "gestia-core",
+                "tools.runtime.js"
+            ),
+            "utf8"
+        );
+
+    const nameIndex =
+        source.indexOf(
+            'name: "tests.run"'
+        );
+
+    const start =
+        source.lastIndexOf(
+            "JarvisToolRuntime.register({",
+            nameIndex
+        );
+
+    const end =
+        source.indexOf(
+            "\n});",
+            nameIndex
+        );
+
+    const registration =
+        source.slice(
+            start,
+            end + 4
+        );
+
+    assert.match(
+        registration,
+        /executionOk\s*=\s*passed\s*\|\|\s*exitCode\s*!==\s*null/
+    );
+    assert.match(
+        registration,
+        /objectiveSatisfied:\s*passed/
+    );
+    assert.match(
+        registration,
+        /"TESTS_NOT_PASSING"/
+    );
+    assert.match(
+        registration,
+        /exitCode/
+    );
+    assert.match(
+        registration,
+        /stdout/
+    );
+    assert.match(
+        registration,
+        /stderr/
+    );
+    assert.match(
+        registration,
+        /endpoint:\s*"\/run"/
+    );
+});
+
+test("system certification records failed tests as an unsatisfied check with process evidence", async () => {
+    const previousBridge =
+        globalThis.JarvisLocalBridge;
+    const previousWebHealth =
+        globalThis.__JARVIS_WEB_RESEARCH_HEALTH__;
+
+    globalThis.JarvisLocalBridge = {
+        verifyIdentity: async () => ({
+            ok: true,
+            status: "BRIDGE_IDENTITY_OK",
+            bridgeRoot: "C:/repo"
+        })
+    };
+
+    globalThis.__JARVIS_WEB_RESEARCH_HEALTH__ = {
+        ok: true,
+        grounded: true,
+        status: "GROUNDED",
+        sourceCount: 1,
+        factCount: 1,
+        checkedAt:
+            "2026-07-28T00:00:00.000Z"
+    };
+
+    try {
+        const runtime =
+            createRuntime();
+
+        registerJarvisMultifunctionTools(
+            runtime
+        );
+
+        const controlledChecks = {
+            "system.health": {
+                ok: true,
+                status: "ONLINE"
+            },
+            "conversation.respond": {
+                ok: true,
+                status:
+                    "SEMANTIC_RESPONSE_READY",
+                message:
+                    "CERTIFICACION_CONVERSACION_OK"
+            },
+            "web.research": {
+                ok: true,
+                status: "GROUNDED",
+                source:
+                    "JARVIS_GROUNDED_WEB_RESEARCH",
+                sourceCount: 1,
+                sources: [{
+                    title:
+                        "Fuente oficial",
+                    url:
+                        "https://example.com/"
+                }]
+            },
+            "connector.list": {
+                ok: true,
+                status: "CONNECTED",
+                connectedCount: 2
+            },
+            "system.supervision": {
+                ok: true,
+                status: "HEALTHY",
+                source:
+                    "JARVIS_DAILY_SUPERVISOR",
+                score: 100,
+                reportId:
+                    "2026-07-28",
+                startedAtIso:
+                    "2026-07-28T09:00:00.000Z"
+            },
+            "repo.gitStatus": {
+                ok: true,
+                status: "CLEAN"
+            },
+            "tests.run": {
+                ok: true,
+                executionOk: true,
+                objectiveSatisfied: false,
+                status:
+                    "TESTS_NOT_PASSING",
+                error:
+                    "TESTS_NOT_PASSING",
+                npmCommand:
+                    "npm test",
+                cwd:
+                    ".",
+                timeoutMs:
+                    120000,
+                exitCode:
+                    1,
+                stdout:
+                    "tests 20; pass 19; fail 1",
+                stderr:
+                    "AssertionError: expected true"
+            }
+        };
+
+        for (
+            const [name, result]
+            of Object.entries(
+                controlledChecks
+            )
+        ) {
+            runtime.register({
+                name,
+                mutates: false,
+                requiresApproval: false,
+                execute: async () => result
+            });
+        }
+
+        const result =
+            await runtime.execute(
+                "system.certify",
+                {
+                    deep: true
+                }
+            );
+
+        const testCheck =
+            result.checks.find(
+                check =>
+                    check.tool ===
+                    "tests.run"
+            );
+
+        assert.equal(
+            result.ok,
+            true,
+            JSON.stringify(result)
+        );
+        assert.equal(
+            result.executionOk,
+            true
+        );
+        assert.equal(
+            result.status,
+            "CERTIFICATION_INCOMPLETE"
+        );
+        assert.equal(
+            result.certified,
+            false
+        );
+        assert.equal(
+            testCheck.ok,
+            false
+        );
+        assert.equal(
+            testCheck.executionOk,
+            true
+        );
+        assert.equal(
+            testCheck.objectiveSatisfied,
+            false
+        );
+        assert.equal(
+            testCheck.evidence.exitCode,
+            1
+        );
+        assert.equal(
+            testCheck.evidence.command,
+            "npm test"
+        );
+        assert.match(
+            testCheck.evidence.stdout,
+            /fail 1/
+        );
+        assert.match(
+            testCheck.evidence.stderr,
+            /AssertionError/
+        );
+        assert.ok(
+            result.failedChecks.some(
+                check =>
+                    check.tool ===
+                    "tests.run"
+            )
+        );
+        assert.ok(
+            result.incompleteReasons.includes(
+                "CHECK_FAILURES"
+            )
+        );
+    }
+    finally {
+        globalThis.JarvisLocalBridge =
+            previousBridge;
+
+        if (
+            previousWebHealth ===
+            undefined
+        ) {
+            delete globalThis
+                .__JARVIS_WEB_RESEARCH_HEALTH__;
+        }
+        else {
+            globalThis
+                .__JARVIS_WEB_RESEARCH_HEALTH__ =
+                previousWebHealth;
+        }
+    }
+});
+
 test("large document composition repairs one failed semantic segment", async () => {
     const previousAuth = globalThis.auth;
     const previousFetch = globalThis.fetch;
@@ -2010,7 +2281,7 @@ test("system health exposes bridge server version separately from tool pack vers
         );
         assert.equal(
             result.toolPackVersion,
-            "1.50.0-certification-outcome-semantics"
+            "1.51.0-test-outcome-evidence"
         );
         assert.notEqual(
             result.toolPackVersion,
@@ -2245,11 +2516,11 @@ test("Terminal uses one governed conversation route and the current tool pack", 
     assert.doesNotMatch(conversationConnector, /setTimeout\(\(\) => controller\.abort\(\), 8000\)/);
     assert.match(
         terminal,
-        /jarvis-tools-v7-20260727-certification-outcome-v99/
+        /jarvis-tools-v7-20260727-test-outcome-evidence-v100/
     );
     assert.match(
         toolRuntime,
-        /sia7-certification-outcome-v99-20260727/
+        /sia7-test-outcome-evidence-v100-20260727/
     );
     assert.doesNotMatch(terminal, /Soy tu motor generador de módulos/);
     assert.doesNotMatch(terminal, /Última idea analizada/);
@@ -3496,7 +3767,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /jarvis-tools-v7-20260727-certification-outcome-v99/);
+    assert.match(terminal, /jarvis-tools-v7-20260727-test-outcome-evidence-v100/);
     assert.match(terminal, /jarvis-tools-bridge-v7-20260726-chief-review-response-v93/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
@@ -3514,7 +3785,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(terminal, /sia7-chief-review-response-v93-20260726/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
-    assert.match(terminal, /jarvis-tools-v7-20260727-certification-outcome-v99/);
+    assert.match(terminal, /jarvis-tools-v7-20260727-test-outcome-evidence-v100/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -3763,7 +4034,7 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260727-certification-outcome-v99/);
+    assert.match(core, /jarvis-tools-v7-20260727-test-outcome-evidence-v100/);
     assert.match(
         terminal,
         /jarvis-tools-v7-20260725-semantic-envelope-v64/

@@ -5,7 +5,7 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-certification-outcome-v99-20260727";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-test-outcome-evidence-v100-20260727";
 import {
     registerJarvisActuatorTools
 } from "./jarvis/jarvis.actuator.pack.js?v=sia7-explicit-delegation-v90-20260726";
@@ -7974,11 +7974,11 @@ window.JarvisLocalBridge.writeFile ||= async function(payload = {}) {
 
 JarvisToolRuntime.register({
     name: "tests.run",
-    description: "Ejecuta validaciones del repo: check:syntax, test o ci:test.",
+    description: "Ejecuta validaciones del repo: check:syntax, test o ci:test y conserva evidencia completa del proceso.",
     mutates: false,
     requiresApproval: false,
     output: "TEST_RUN_RESULT",
-    execute: async (args = {}, context = {}) => {
+    execute: async (args = {}) => {
         const command =
             args.command ||
             args.script ||
@@ -7995,6 +7995,8 @@ JarvisToolRuntime.register({
             return {
                 ok: false,
                 success: false,
+                executionOk: false,
+                objectiveSatisfied: false,
                 status: "CONTRACT_INVALID",
                 error: "TEST_COMMAND_NOT_ALLOWED",
                 allowedCommands:
@@ -8011,18 +8013,30 @@ JarvisToolRuntime.register({
                 ? "npm test"
                 : `npm run ${command}`;
 
+        const cwd =
+            args.cwd ||
+            ".";
+
+        const timeoutMs =
+            args.timeoutMs ||
+            120000;
+
         if (!window.JarvisLocalBridge?.runCommand) {
             return {
                 ok: false,
                 success: false,
+                executionOk: false,
+                objectiveSatisfied: false,
                 status: "LOCAL_BRIDGE_REQUIRED",
-                error: "JarvisLocalBridge.runCommand no está disponible.",
+                error: "JarvisLocalBridge.runCommand no est? disponible.",
                 command,
                 npmCommand,
+                cwd,
+                timeoutMs,
+                endpoint:
+                    "/run",
                 tool:
-                    "tests.run",
-                next:
-                    "Conectar tests.run al bridge local o endpoint de ejecución controlada."
+                    "tests.run"
             };
         }
 
@@ -8030,27 +8044,84 @@ JarvisToolRuntime.register({
             await window.JarvisLocalBridge.runCommand({
                 command:
                     npmCommand,
-                cwd:
-                    args.cwd ||
-                    ".",
-                timeoutMs:
-                    args.timeoutMs ||
-                    120000,
+                cwd,
+                timeoutMs,
                 source:
-                    "jarvis_tests_run_v7"
+                    "jarvis_tests_run_v8"
             });
+
+        const exitCode =
+            Number.isInteger(
+                result?.exitCode
+            )
+                ? result.exitCode
+                : null;
+
+        const passed =
+            result?.ok === true &&
+            (
+                exitCode === null ||
+                exitCode === 0
+            );
+
+        const executionOk =
+            passed ||
+            exitCode !== null;
+
+        const status =
+            passed
+                ? "PASSED"
+                : executionOk
+                    ? "TESTS_NOT_PASSING"
+                    : result?.status ||
+                        "TEST_EXECUTION_FAILED";
+
+        const error =
+            passed
+                ? null
+                : result?.error ||
+                    (
+                        executionOk
+                            ? "TESTS_NOT_PASSING"
+                            : status
+                    );
 
         return {
             ok:
-                result?.ok === true,
+                executionOk,
             success:
-                result?.ok === true,
-            status:
-                result?.ok === true
-                    ? "PASSED"
-                    : result?.status || "FAILED",
+                executionOk,
+            executionOk,
+            objectiveSatisfied:
+                passed,
+            blocked:
+                false,
+            retryable:
+                executionOk !== true,
+            status,
+            error,
             command,
             npmCommand,
+            cwd,
+            timeoutMs,
+            endpoint:
+                "/run",
+            httpStatus:
+                result?.httpStatus ||
+                null,
+            exitCode,
+            stdout:
+                result?.stdout ||
+                "",
+            stderr:
+                result?.stderr ||
+                "",
+            durationMs:
+                result?.durationMs ??
+                null,
+            source:
+                result?.source ||
+                "jarvis_tests_run_v8",
             result,
             tool:
                 "tests.run"

@@ -205,7 +205,7 @@ import {
 } from '/gestia-core/semantic.engine.js?v=sia7-model-context-v8-20260714';
 import '/gestia-core/brain.engine.js?v=sia7-multimodal-batch-integrity-v95-20260727';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260727-certification-outcome-v99';
+import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260727-test-outcome-evidence-v100';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260725-semantic-envelope-v64';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-bridge-v7-20260726-chief-review-response-v93';
 
