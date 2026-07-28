@@ -1542,6 +1542,184 @@ test("capability forensics reports evidence-backed gaps without claiming Codex p
     }
 });
 
+
+test("system certification preserves an incomplete verdict as a successful diagnostic outcome", async () => {
+    const previousBridge =
+        globalThis.JarvisLocalBridge;
+    const previousWebHealth =
+        globalThis.__JARVIS_WEB_RESEARCH_HEALTH__;
+
+    globalThis.JarvisLocalBridge = {
+        verifyIdentity: async () => ({
+            ok: true,
+            status: "BRIDGE_IDENTITY_OK",
+            bridgeRoot: "C:/repo"
+        })
+    };
+
+    globalThis.__JARVIS_WEB_RESEARCH_HEALTH__ = {
+        ok: true,
+        grounded: true,
+        status: "GROUNDED",
+        sourceCount: 1,
+        factCount: 1,
+        checkedAt:
+            "2026-07-27T00:00:00.000Z"
+    };
+
+    try {
+        const runtime =
+            createRuntime();
+
+        registerJarvisMultifunctionTools(
+            runtime
+        );
+
+        const controlledChecks = {
+            "system.health": {
+                ok: true,
+                status: "ONLINE"
+            },
+            "conversation.respond": {
+                ok: true,
+                status: "SEMANTIC_RESPONSE_READY",
+                message:
+                    "CERTIFICACION_CONVERSACION_OK"
+            },
+            "web.research": {
+                ok: true,
+                status: "GROUNDED",
+                source:
+                    "JARVIS_GROUNDED_WEB_RESEARCH",
+                sourceCount: 1,
+                sources: [{
+                    title:
+                        "Fuente oficial",
+                    url:
+                        "https://example.com/"
+                }]
+            },
+            "connector.list": {
+                ok: true,
+                status: "CONNECTED",
+                connectedCount: 0
+            },
+            "system.supervision": {
+                ok: true,
+                status: "HEALTHY",
+                source:
+                    "JARVIS_DAILY_SUPERVISOR",
+                reportId:
+                    "2026-07-27",
+                startedAtIso:
+                    "2026-07-27T09:00:00.000Z"
+            },
+            "repo.gitStatus": {
+                ok: true,
+                status: "CLEAN"
+            },
+            "tests.run": {
+                ok: true,
+                status: "PASSED",
+                passed: 10,
+                failed: 0
+            }
+        };
+
+        for (
+            const [name, result]
+            of Object.entries(
+                controlledChecks
+            )
+        ) {
+            runtime.register({
+                name,
+                mutates: false,
+                requiresApproval: false,
+                execute: async () => result
+            });
+        }
+
+        const result =
+            await runtime.execute(
+                "system.certify",
+                {
+                    deep: true
+                }
+            );
+
+        assert.equal(
+            result.ok,
+            true,
+            JSON.stringify(result)
+        );
+        assert.equal(
+            result.executionOk,
+            true
+        );
+        assert.equal(
+            result.objectiveSatisfied,
+            true
+        );
+        assert.equal(
+            result.blocked,
+            false
+        );
+        assert.equal(
+            result.retryable,
+            false
+        );
+        assert.equal(
+            result.status,
+            "CERTIFICATION_INCOMPLETE"
+        );
+        assert.equal(
+            result.certified,
+            false
+        );
+        assert.equal(
+            result.failedChecks.length,
+            0
+        );
+        assert.ok(
+            result.checks.every(
+                check => check.ok === true
+            )
+        );
+        assert.ok(
+            result.incompleteReasons.includes(
+                "PARITY_GAPS"
+            )
+        );
+        assert.ok(
+            result.incompleteReasons.includes(
+                "READINESS_BELOW_100"
+            )
+        );
+        assert.match(
+            result.message,
+            /se ejecuto correctamente/i
+        );
+    }
+    finally {
+        globalThis.JarvisLocalBridge =
+            previousBridge;
+
+        if (
+            previousWebHealth ===
+            undefined
+        ) {
+            delete globalThis
+                .__JARVIS_WEB_RESEARCH_HEALTH__;
+        }
+        else {
+            globalThis
+                .__JARVIS_WEB_RESEARCH_HEALTH__ =
+                previousWebHealth;
+        }
+    }
+});
+
 test("large document composition repairs one failed semantic segment", async () => {
     const previousAuth = globalThis.auth;
     const previousFetch = globalThis.fetch;
@@ -1832,7 +2010,7 @@ test("system health exposes bridge server version separately from tool pack vers
         );
         assert.equal(
             result.toolPackVersion,
-            "1.49.0-multimodal-batch-integrity"
+            "1.50.0-certification-outcome-semantics"
         );
         assert.notEqual(
             result.toolPackVersion,
@@ -2067,11 +2245,11 @@ test("Terminal uses one governed conversation route and the current tool pack", 
     assert.doesNotMatch(conversationConnector, /setTimeout\(\(\) => controller\.abort\(\), 8000\)/);
     assert.match(
         terminal,
-        /jarvis-tools-v7-20260727-multimodal-batch-integrity-v95/
+        /jarvis-tools-v7-20260727-certification-outcome-v99/
     );
     assert.match(
         toolRuntime,
-        /sia7-single-media-analysis-v98-20260727/
+        /sia7-certification-outcome-v99-20260727/
     );
     assert.doesNotMatch(terminal, /Soy tu motor generador de módulos/);
     assert.doesNotMatch(terminal, /Última idea analizada/);
@@ -3318,7 +3496,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /jarvis-tools-v7-20260727-multimodal-batch-integrity-v95/);
+    assert.match(terminal, /jarvis-tools-v7-20260727-certification-outcome-v99/);
     assert.match(terminal, /jarvis-tools-bridge-v7-20260726-chief-review-response-v93/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
@@ -3336,7 +3514,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(terminal, /sia7-chief-review-response-v93-20260726/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
-    assert.match(terminal, /jarvis-tools-v7-20260727-multimodal-batch-integrity-v95/);
+    assert.match(terminal, /jarvis-tools-v7-20260727-certification-outcome-v99/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -3585,7 +3763,7 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260727-multimodal-batch-integrity-v95/);
+    assert.match(core, /jarvis-tools-v7-20260727-certification-outcome-v99/);
     assert.match(
         terminal,
         /jarvis-tools-v7-20260725-semantic-envelope-v64/

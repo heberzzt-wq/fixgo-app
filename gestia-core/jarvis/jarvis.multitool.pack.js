@@ -32,7 +32,7 @@ import {
     validateDocumentBlueprint
 } from "./jarvis.document.validator.js?v=sia7-exact-template-contract-v84-20260725";
 
-const VERSION = "1.49.0-multimodal-batch-integrity";
+const VERSION = "1.50.0-certification-outcome-semantics";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 4500;
 const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";
@@ -3570,14 +3570,36 @@ export function registerJarvisMultifunctionTools(runtime) {
                     forensics.parity.canClaimParity === true &&
                     forensics.readinessScore === 100;
 
+                const incompleteReasons = [
+                    ...(failedChecks.length > 0
+                        ? ["CHECK_FAILURES"]
+                        : []),
+                    ...(forensics.parity.canClaimParity !== true
+                        ? ["PARITY_GAPS"]
+                        : []),
+                    ...(forensics.readinessScore !== 100
+                        ? ["READINESS_BELOW_100"]
+                        : [])
+                ];
+
                 return {
-                    ok: certified,
-                    status: certified ? "CODEX_PARITY_CERTIFIED" : "CERTIFICATION_INCOMPLETE",
+                    ok: true,
+                    executionOk: true,
+                    objectiveSatisfied: true,
+                    blocked: false,
+                    retryable: false,
+                    status: certified
+                        ? "CODEX_PARITY_CERTIFIED"
+                        : "CERTIFICATION_INCOMPLETE",
                     certified,
                     deep,
                     checks,
                     failedChecks,
+                    incompleteReasons,
                     forensics,
+                    message: certified
+                        ? "La certificacion se ejecuto y toda la evidencia requerida paso."
+                        : "La certificacion se ejecuto correctamente; el resultado es incompleto porque existen checks fallidos o capacidades sin evidencia suficiente.",
                     policy: "EVIDENCE_ONLY_NO_PLACEHOLDERS",
                     checkedAt: new Date().toISOString()
                 };
