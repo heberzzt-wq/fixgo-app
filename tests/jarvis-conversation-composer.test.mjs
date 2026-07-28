@@ -331,6 +331,93 @@ test("oversized composition evidence remains valid bounded JSON", () => {
     assert.doesNotThrow(() => JSON.parse(evidence));
 });
 
+test("oversized media evidence preserves sources and page-grounded findings", () => {
+    const marker =
+        "PEN\u00CDNSULA TECH | CUD A202607241641376254 | VIGENCIA 180 D\u00CDAS";
+
+    const evidence =
+        buildBoundedConversationEvidence([{
+            name:
+                "media.analyze",
+            observation: {
+                ok:
+                    true,
+                status:
+                    "MEDIA_ANALYSIS_GROUNDED",
+                version:
+                    "1.3.0-provider-json-schema",
+                expectedSources:
+                    1,
+                receivedSources:
+                    1,
+                sources: [{
+                    sourceId:
+                        "SOURCE_1",
+                    fileName:
+                        "A202607241641376254.pdf",
+                    mimeType:
+                        "application/pdf",
+                    description:
+                        marker,
+                    observations:
+                        Array.from(
+                            {
+                                length: 30
+                            },
+                            (_, index) =>
+                                `${index + 1}: ${marker} ${"EVIDENCIA_DOCUMENTAL ".repeat(120)}`
+                        ),
+                    pages: [{
+                        page:
+                            1,
+                        summary:
+                            marker,
+                        evidence: [
+                            marker
+                        ]
+                    }]
+                }]
+            }
+        }]);
+
+    const parsed =
+        JSON.parse(evidence);
+    const observation =
+        parsed[0].observation;
+
+    assert.ok(
+        evidence.length <= 24000
+    );
+    assert.equal(
+        Array.isArray(
+            observation.sources
+        ),
+        true
+    );
+    assert.equal(
+        observation.sources[0]
+            .fileName,
+        "A202607241641376254.pdf"
+    );
+    assert.equal(
+        observation.sources[0]
+            .pages[0].page,
+        1
+    );
+    assert.match(
+        evidence,
+        /PEN\u00CDNSULA TECH/u
+    );
+    assert.match(
+        evidence,
+        /A202607241641376254/
+    );
+    assert.match(
+        evidence,
+        /"pages"/
+    );
+});
+
 test("non-JSON composition rejects a raw tool payload", async () => {
     const result = await composeEvidenceGroundedConversation({
         instruction: exactMixedInstruction,
