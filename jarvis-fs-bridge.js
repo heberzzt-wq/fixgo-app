@@ -40,7 +40,7 @@ import { locatePdfFieldAnchors } from "./jarvis-pdf-layout.js";
 import { verifyPdfVisualChanges } from "./jarvis-pdf-visual.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.33.0-docx-exact-template-gate";
+    "2.34.0-pdf-safe-placement";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -1453,8 +1453,241 @@ function wrapPdfText(text, font, fontSize, maxWidth) {
     return lines.length > 0 ? lines : [""];
 }
 
+function finitePdfNumber(
+    value,
+    fallback = null
+) {
+    const parsed =
+        Number(value);
+
+    return Number.isFinite(parsed)
+        ? parsed
+        : fallback;
+}
+
+function clampPdfNumber(
+    value,
+    minimum,
+    maximum
+) {
+    if (
+        !Number.isFinite(value) ||
+        maximum < minimum
+    ) {
+        return minimum;
+    }
+
+    return Math.min(
+        maximum,
+        Math.max(
+            minimum,
+            value
+        )
+    );
+}
+
+export function normalizePdfEditBox(
+    change = {},
+    pageWidth = 0,
+    pageHeight = 0,
+    {
+        safePlacement = true
+    } = {}
+) {
+    const requested = {
+        x:
+            finitePdfNumber(
+                change?.x
+            ),
+        y:
+            finitePdfNumber(
+                change?.y
+            ),
+        yFromTop:
+            finitePdfNumber(
+                change?.yFromTop
+            ),
+        width:
+            finitePdfNumber(
+                change?.width
+            ),
+        height:
+            finitePdfNumber(
+                change?.height
+            ),
+        fontSize:
+            finitePdfNumber(
+                change?.fontSize
+            )
+    };
+
+    if (safePlacement !== true) {
+        const strictY =
+            requested.yFromTop !== null &&
+            requested.height !== null
+                ? pageHeight -
+                    requested.yFromTop -
+                    requested.height
+                : requested.y;
+
+        return {
+            x:
+                requested.x,
+            y:
+                strictY,
+            width:
+                requested.width,
+            height:
+                requested.height,
+            fontSize:
+                requested.fontSize ??
+                10,
+            requested,
+            placementAdjusted:
+                false,
+            placementPolicy:
+                "strict",
+            safeMargin:
+                null
+        };
+    }
+
+    const safeMargin =
+        clampPdfNumber(
+            finitePdfNumber(
+                change?.safeMargin,
+                18
+            ),
+            0,
+            Math.max(
+                0,
+                Math.min(
+                    pageWidth,
+                    pageHeight
+                ) / 3
+            )
+        );
+
+    const maximumWidth =
+        Math.max(
+            1,
+            pageWidth -
+            safeMargin * 2
+        );
+
+    const maximumHeight =
+        Math.max(
+            1,
+            pageHeight -
+            safeMargin * 2
+        );
+
+    const width =
+        clampPdfNumber(
+            requested.width !== null &&
+            requested.width > 0
+                ? requested.width
+                : Math.min(
+                    280,
+                    maximumWidth
+                ),
+            1,
+            maximumWidth
+        );
+
+    const height =
+        clampPdfNumber(
+            requested.height !== null &&
+            requested.height > 0
+                ? requested.height
+                : Math.min(
+                    18,
+                    maximumHeight
+                ),
+            1,
+            maximumHeight
+        );
+
+    const rawX =
+        requested.x !== null
+            ? requested.x
+            : safeMargin;
+
+    const rawY =
+        requested.yFromTop !== null
+            ? pageHeight -
+                requested.yFromTop -
+                height
+            : requested.y !== null
+                ? requested.y
+                : safeMargin;
+
+    const x =
+        clampPdfNumber(
+            rawX,
+            safeMargin,
+            Math.max(
+                safeMargin,
+                pageWidth -
+                safeMargin -
+                width
+            )
+        );
+
+    const y =
+        clampPdfNumber(
+            rawY,
+            safeMargin,
+            Math.max(
+                safeMargin,
+                pageHeight -
+                safeMargin -
+                height
+            )
+        );
+
+    const fontSize =
+        clampPdfNumber(
+            requested.fontSize !== null &&
+            requested.fontSize > 0
+                ? requested.fontSize
+                : 10,
+            4,
+            72
+        );
+
+    const placementAdjusted =
+        requested.x !== x ||
+        requested.width !== width ||
+        requested.height !== height ||
+        requested.fontSize !== fontSize ||
+        (
+            requested.yFromTop !== null
+                ? rawY !== y
+                : requested.y !== y
+        );
+
+    return {
+        x,
+        y,
+        width,
+        height,
+        fontSize,
+        requested,
+        placementAdjusted,
+        placementPolicy:
+            "safe_margin",
+        safeMargin
+    };
+}
+
 export async function editPdfOverlayArtifact({
-    sourceOutput = "", output = "", changes = [], quote = null, root = DEFAULT_ROOT
+    sourceOutput = "",
+    output = "",
+    changes = [],
+    quote = null,
+    safePlacement = true,
+    root = DEFAULT_ROOT
 } = {}) {
     const source = artifactPath(sourceOutput, root, [".pdf"]);
     if (!fs.existsSync(source) || !fs.statSync(source).isFile()) throw new Error("PDF_SOURCE_NOT_FOUND");
@@ -1482,18 +1715,47 @@ export async function editPdfOverlayArtifact({
         if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > pages.length) throw new Error("PDF_PAGE_OUT_OF_RANGE");
         const page = pages[pageNumber - 1];
         const { width: pageWidth, height: pageHeight } = page.getSize();
-        const x = Number(change?.x);
-        const width = Number(change?.width);
-        const height = Number(change?.height);
-        const fontSize = Number(change?.fontSize || 10);
-        const y = Number.isFinite(Number(change?.yFromTop))
-            ? pageHeight - Number(change.yFromTop) - height
-            : Number(change?.y);
+        const box =
+            normalizePdfEditBox(
+                change,
+                pageWidth,
+                pageHeight,
+                {
+                    safePlacement:
+                        safePlacement !==
+                        false
+                }
+            );
+
+        const {
+            x,
+            y,
+            width,
+            height,
+            fontSize
+        } = box;
         if (![x, y, width, height, fontSize].every(Number.isFinite) || x < 0 || y < 0 || width <= 0 || height <= 0 || fontSize < 4 || fontSize > 72 || x + width > pageWidth || y + height > pageHeight) {
             throw new Error("PDF_EDIT_BOX_OUT_OF_BOUNDS");
         }
         const text = String(change?.text ?? "").slice(0, 2000);
-        const padding = Math.max(1, Number(change?.padding || 2));
+        const padding =
+            clampPdfNumber(
+                Math.max(
+                    1,
+                    Number(
+                        change?.padding ||
+                        2
+                    )
+                ),
+                1,
+                Math.max(
+                    1,
+                    Math.min(
+                        width,
+                        height
+                    ) / 4
+                )
+            );
         const lineHeight = fontSize * 1.2;
         const lines = wrapPdfText(text, font, fontSize, width - padding * 2);
         if (lines.length * lineHeight > height - padding * 2) throw new Error("PDF_TEXT_OVERFLOW");
@@ -1505,7 +1767,27 @@ export async function editPdfOverlayArtifact({
             font,
             color: pdfColor(rgb, change?.color || "#000000")
         }));
-        applied.push({ index, page: pageNumber, x, y, width, height, text, fontSize, overflow: false });
+        applied.push({
+            index,
+            page:
+                pageNumber,
+            x,
+            y,
+            width,
+            height,
+            text,
+            fontSize,
+            overflow:
+                false,
+            requestedBox:
+                box.requested,
+            placementAdjusted:
+                box.placementAdjusted,
+            placementPolicy:
+                box.placementPolicy,
+            safeMargin:
+                box.safeMargin
+        });
     }
 
     const resultBytes = Buffer.from(await document.save({ useObjectStreams: false }));
@@ -1529,6 +1811,15 @@ export async function editPdfOverlayArtifact({
         outputSha256: createHash("sha256").update(resultBytes).digest("hex"),
         bytes: resultBytes.length,
         pages: pages.length,
+        safePlacement:
+            safePlacement !== false,
+        placementAdjustments:
+            applied.filter(
+                item =>
+                    item
+                        .placementAdjusted ===
+                    true
+            ).length,
         changes: applied,
         visualVerification: {
             overflowChecks: applied.length,
@@ -3594,13 +3885,16 @@ export function createJarvisFsBridgeApp({
                 output: req.body?.output,
                 changes: req.body?.changes,
                 quote: req.body?.quote,
+                safePlacement:
+                    req.body?.safePlacement !==
+                    false,
                 root
             });
             const artifact = registerArtifact({ root, output: edited.output, metadata: {
                 type: "pdf_edited", origin: "document.pdf.edit", provider: "pdf-lib",
                 caseId: req.body?.caseId, objectiveId: req.body?.objectiveId, mimeType: "application/pdf",
-                status: edited.status, approvalRequired: true, approved: req.body?.approved === true,
-                approvedBy: req.body?.approvedBy, editable: true, preview: true, downloadable: true,
+                status: edited.status, approvalRequired: false, approved: true,
+                approvedBy: "LOCAL_ARTIFACT_POLICY", editable: true, preview: true, downloadable: true,
                 publishable: false, originalFile: req.body?.sourceOutput, transformations: edited.changes
             } });
             return res.json({

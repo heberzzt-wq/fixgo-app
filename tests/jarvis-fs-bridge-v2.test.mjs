@@ -33,7 +33,7 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.33.0-docx-exact-template-gate");
+    assert.equal(description.version, "2.34.0-pdf-safe-placement");
     assert.equal(description.policy.authority, "full_repo_private_owner");
     assert.equal(description.policy.safeZone, "advisory");
     assert.equal(description.policy.emptyWrites, "blocked");
@@ -850,4 +850,31 @@ test("write bridge requires fingerprinted one-time approval, snapshot and post-v
         await new Promise(resolve => server.close(resolve));
         fs.rmSync(root, { recursive: true, force: true });
     }
+});
+
+
+test("PDF edit route records local artifact approval and safe placement contract", () => {
+    const source =
+        fs.readFileSync(
+            path.join(
+                process.cwd(),
+                "jarvis-fs-bridge.js"
+            ),
+            "utf8"
+        );
+
+    assert.match(
+        source,
+        /safePlacement:\s*req\.body\?\.safePlacement !==\s*false/
+    );
+
+    assert.match(
+        source,
+        /document\/pdf\/edit[\s\S]{0,1600}approvalRequired:\s*false[\s\S]{0,300}LOCAL_ARTIFACT_POLICY/
+    );
+
+    assert.match(
+        source,
+        /placementAdjustments/
+    );
 });

@@ -2516,7 +2516,7 @@ test("Terminal uses one governed conversation route and the current tool pack", 
     assert.doesNotMatch(conversationConnector, /setTimeout\(\(\) => controller\.abort\(\), 8000\)/);
     assert.match(
         terminal,
-        /jarvis-tools-v7-20260728-artifact-edit-routing-v101/
+        /jarvis-tools-v7-20260728-pdf-safe-placement-v102/
     );
     assert.match(
         toolRuntime,
@@ -3767,7 +3767,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /jarvis-tools-v7-20260728-artifact-edit-routing-v101/);
+    assert.match(terminal, /jarvis-tools-v7-20260728-pdf-safe-placement-v102/);
     assert.match(terminal, /jarvis-tools-bridge-v7-20260726-chief-review-response-v93/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
@@ -3782,10 +3782,10 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-artifact-edit-routing-v101-20260728/);
+    assert.match(terminal, /sia7-pdf-safe-placement-v102-20260728/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
-    assert.match(terminal, /jarvis-tools-v7-20260728-artifact-edit-routing-v101/);
+    assert.match(terminal, /jarvis-tools-v7-20260728-pdf-safe-placement-v102/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -4034,7 +4034,7 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260728-artifact-edit-routing-v101/);
+    assert.match(core, /jarvis-tools-v7-20260728-pdf-safe-placement-v102/);
     assert.match(
         terminal,
         /jarvis-tools-v7-20260725-semantic-envelope-v64/

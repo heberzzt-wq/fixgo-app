@@ -66,6 +66,14 @@ test("actuator pack registers browser, documents, image, delegation and connecto
     assert.equal(runtime.get("image.generate").userArtifact, true);
     assert.equal(runtime.get("document.pdf.edit").requiresApproval, false);
     assert.equal(runtime.get("document.pdf.edit").userArtifact, true);
+    assert.deepEqual(
+        runtime.get("document.pdf.edit").missionDedupeBy,
+        ["sourceOutput", "output"]
+    );
+    assert.equal(
+        runtime.get("document.pdf.edit").inputSchema.safePlacement,
+        "boolean"
+    );
     assert.equal(runtime.get("document.xlsx.edit").requiresApproval, false);
     assert.equal(runtime.get("document.xlsx.edit").userArtifact, true);
     assert.equal(runtime.get("document.docx.edit").requiresApproval, true);

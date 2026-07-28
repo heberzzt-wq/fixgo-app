@@ -57,3 +57,218 @@ test("quote PDF edit locates fields automatically before recalculating discount 
         fs.rmSync(root, { recursive: true, force: true });
     }
 });
+
+
+test("PDF safe placement clamps invalid model coordinates and preserves exact evidence", async () => {
+    const root =
+        fs.mkdtempSync(
+            path.join(
+                os.tmpdir(),
+                "jarvis-pdf-safe-placement-"
+            )
+        );
+
+    try {
+        const uploadDir =
+            path.join(
+                root,
+                ".jarvis-artifacts",
+                "uploads"
+            );
+
+        fs.mkdirSync(
+            uploadDir,
+            {
+                recursive: true
+            }
+        );
+
+        fs.writeFileSync(
+            path.join(
+                uploadDir,
+                "source.pdf"
+            ),
+            await quotePdfBytes()
+        );
+
+        const result =
+            await editPdfOverlayArtifact({
+                root,
+                sourceOutput:
+                    ".jarvis-artifacts/uploads/source.pdf",
+                output:
+                    ".jarvis-artifacts/documents/safe.pdf",
+                safePlacement:
+                    true,
+                changes: [
+                    {
+                        page:
+                            1,
+                        x:
+                            9000,
+                        y:
+                            -200,
+                        width:
+                            9000,
+                        height:
+                            18,
+                        text:
+                            "Validacion segura",
+                        fontSize:
+                            8,
+                        padding:
+                            1
+                    }
+                ]
+            });
+
+        const applied =
+            result.changes[0];
+
+        assert.equal(
+            result.ok,
+            true
+        );
+        assert.equal(
+            result.originalPreserved,
+            true
+        );
+        assert.equal(
+            result.safePlacement,
+            true
+        );
+        assert.equal(
+            result.placementAdjustments,
+            1
+        );
+        assert.equal(
+            applied.placementAdjusted,
+            true
+        );
+        assert.equal(
+            applied.placementPolicy,
+            "safe_margin"
+        );
+        assert.ok(
+            applied.x >=
+            applied.safeMargin
+        );
+        assert.ok(
+            applied.y >=
+            applied.safeMargin
+        );
+        assert.ok(
+            applied.x +
+            applied.width <=
+            612
+        );
+        assert.ok(
+            applied.y +
+            applied.height <=
+            792
+        );
+        assert.notEqual(
+            result.sourceSha256,
+            result.outputSha256
+        );
+        assert.equal(
+            result
+                .visualVerification
+                .overflowPassed,
+            true
+        );
+        assert.equal(
+            fs.existsSync(
+                path.join(
+                    root,
+                    result.output
+                )
+            ),
+            true
+        );
+    }
+    finally {
+        fs.rmSync(
+            root,
+            {
+                recursive: true,
+                force: true
+            }
+        );
+    }
+});
+
+test("PDF strict placement still rejects an invalid box", async () => {
+    const root =
+        fs.mkdtempSync(
+            path.join(
+                os.tmpdir(),
+                "jarvis-pdf-strict-placement-"
+            )
+        );
+
+    try {
+        const uploadDir =
+            path.join(
+                root,
+                ".jarvis-artifacts",
+                "uploads"
+            );
+
+        fs.mkdirSync(
+            uploadDir,
+            {
+                recursive: true
+            }
+        );
+
+        fs.writeFileSync(
+            path.join(
+                uploadDir,
+                "source.pdf"
+            ),
+            await quotePdfBytes()
+        );
+
+        await assert.rejects(
+            async () =>
+                await editPdfOverlayArtifact({
+                    root,
+                    sourceOutput:
+                        ".jarvis-artifacts/uploads/source.pdf",
+                    output:
+                        ".jarvis-artifacts/documents/strict.pdf",
+                    safePlacement:
+                        false,
+                    changes: [
+                        {
+                            page:
+                                1,
+                            x:
+                                9000,
+                            y:
+                                -200,
+                            width:
+                                9000,
+                            height:
+                                18,
+                            text:
+                                "Debe fallar",
+                            fontSize:
+                                8
+                        }
+                    ]
+                }),
+            /PDF_EDIT_BOX_OUT_OF_BOUNDS/
+        );
+    }
+    finally {
+        fs.rmSync(
+            root,
+            {
+                recursive: true,
+                force: true
+            }
+        );
+    }
+});

@@ -3,7 +3,7 @@ import {
 } from "./jarvis.capability.evidence.js";
 import { adaptImageSource } from "./jarvis.image.adapter.js";
 
-const VERSION = "7.22.0-artifact-copy-edits";
+const VERSION = "7.23.0-pdf-safe-placement";
 
 export function normalizeImageArtifactOutput(output, mimeType) {
     const extensions = {
@@ -329,17 +329,25 @@ export function registerJarvisActuatorTools(runtime) {
                 sourceOutput: "string",
                 output: "string",
                 changes: "array<{page,x,y|yFromTop,width,height,text,fontSize,color,backgroundColor}>",
-                quote: "{subtotal,discountPercent,taxPercent,currency,fields|fieldAnchors:{discount,taxableSubtotal,tax,total}}"
+                quote: "{subtotal,discountPercent,taxPercent,currency,fields|fieldAnchors:{discount,taxableSubtotal,tax,total}}",
+                safePlacement: "boolean"
             },
             mutates: true,
             requiresApproval: false,
             userArtifact: true,
+            missionDedupeBy: [
+                "sourceOutput",
+                "output"
+            ],
             execute: async (args = {}, context = {}) => {
                 const result = await bridgeRequest("/document/pdf/edit", {
                     sourceOutput: args.sourceOutput,
                     output: args.output,
                     changes: args.changes,
                     quote: args.quote,
+                    safePlacement:
+                        args.safePlacement !==
+                        false,
                     caseId: args.caseId || context.caseId || "",
                     objectiveId: args.objectiveId || context.objectiveId || "",
                     approved: context.approved === true,
@@ -354,6 +362,14 @@ export function registerJarvisActuatorTools(runtime) {
                     originalPreserved: result?.originalPreserved === true,
                     overflowPassed: result?.visualVerification?.overflowPassed === true,
                     renderedComparisonPassed: result?.visualVerification?.renderedComparisonPassed === true,
+                    safePlacement:
+                        result?.safePlacement ===
+                        true,
+                    placementAdjustments:
+                        Number(
+                            result?.placementAdjustments ||
+                            0
+                        ),
                     checkedAt: new Date().toISOString()
                 });
                 return result;
