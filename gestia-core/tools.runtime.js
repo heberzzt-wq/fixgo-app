@@ -5,7 +5,7 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-multimodal-batch-integrity-v95-20260727";
+} from "./jarvis/jarvis.multitool.pack.js?v=sia7-single-media-analysis-v98-20260727";
 import {
     registerJarvisActuatorTools
 } from "./jarvis/jarvis.actuator.pack.js?v=sia7-explicit-delegation-v90-20260726";

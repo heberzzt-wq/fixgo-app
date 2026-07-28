@@ -205,21 +205,47 @@ test("mixed plan merge preserves conversation, capabilities and forensics", () =
     );
 });
 
-test("conversation evidence merge executes singleton diagnostics once", () => {
+test("conversation evidence merge executes diagnostics and media analysis once", () => {
     const merged = mergeEvidenceGroundedToolCalls(
         [
             { name: "system.capabilities", args: { instruction: "capabilities" } },
-            { name: "system.forensics", args: { instruction: "limits" } }
+            { name: "system.forensics", args: { instruction: "limits" } },
+            {
+                name: "media.analyze",
+                args: {
+                    attachments: [{ artifactId: "ATTACHMENT_1" }],
+                    questions: ["tipo de documento"]
+                }
+            }
         ],
         [
             { name: "system.capabilities", args: {} },
-            { name: "system.forensics", args: {} }
+            { name: "system.forensics", args: {} },
+            {
+                name: "media.analyze",
+                args: {
+                    attachments: [{ artifactId: "ATTACHMENT_1" }],
+                    questions: ["autoridad emisora y vigencia"]
+                }
+            }
         ]
     );
 
     assert.deepEqual(
         merged.map(call => call.name),
-        ["system.capabilities", "system.forensics"]
+        [
+            "system.capabilities",
+            "system.forensics",
+            "media.analyze"
+        ]
+    );
+    assert.equal(
+        merged.filter(call => call.name === "media.analyze").length,
+        1
+    );
+    assert.deepEqual(
+        merged.find(call => call.name === "media.analyze").args.questions,
+        ["tipo de documento"]
     );
 });
 

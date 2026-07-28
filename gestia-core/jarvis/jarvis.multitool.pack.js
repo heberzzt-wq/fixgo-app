@@ -3985,6 +3985,7 @@ export function registerJarvisMultifunctionTools(runtime) {
             name: "media.analyze",
             description: "Analiza texto, tablas e imagenes ya extraidas de PDF, PNG, JPEG o WebP con trazabilidad read-only.",
             output: "SIA7_MEDIA_ANALYSIS",
+            missionDedupeBy: [],
             inputSchema: {
                 mimeType: "string",
                 sourceName: "string",

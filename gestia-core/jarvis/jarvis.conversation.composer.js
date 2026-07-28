@@ -85,7 +85,8 @@ export function mergeEvidenceGroundedToolCalls(...groups) {
     const singletonEvidenceTools = new Set([
         "system.capabilities",
         "system.forensics",
-        "system.health"
+        "system.health",
+        "media.analyze"
     ]);
     const seenSingletons = new Set();
 

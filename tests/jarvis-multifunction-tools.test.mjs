@@ -146,6 +146,60 @@ async function planWithModel(input, toolCalls, { approved = false } = {}) {
     });
 }
 
+test("media analysis is a mission-wide singleton despite question variants", () => {
+    const source = fs.readFileSync(
+        path.resolve("gestia-core/jarvis/jarvis.multitool.pack.js"),
+        "utf8"
+    );
+
+    assert.match(
+        source,
+        /name:\s*"media\.analyze"[\s\S]{0,500}?missionDedupeBy:\s*\[\]/
+    );
+
+    const catalog = [{
+        name: "media.analyze",
+        description: "Analiza un lote multimodal completo.",
+        mutates: false,
+        requiresApproval: false,
+        missionDedupeBy: [],
+        inputSchema: {
+            type: "object",
+            properties: {
+                attachments: { type: "array" },
+                questions: { type: "array" }
+            },
+            additionalProperties: false
+        }
+    }];
+
+    const calls = plannerTest.trustedPlanCalls(
+        {
+            toolCalls: [
+                {
+                    name: "media.analyze",
+                    arguments: {
+                        attachments: [{ artifactId: "ATTACHMENT_1" }],
+                        questions: ["tipo de documento"]
+                    }
+                },
+                {
+                    name: "media.analyze",
+                    arguments: {
+                        attachments: [{ artifactId: "ATTACHMENT_1" }],
+                        questions: ["autoridad, CUD y vigencia"]
+                    }
+                }
+            ]
+        },
+        catalog,
+        {}
+    );
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].missionDedupeKey, "media.analyze:[]");
+});
+
 test("browser mission contract returns every model-selected high-level tool", async () => {
     const originalFetch = globalThis.fetch;
     let requestedUrl = "";
@@ -1990,7 +2044,7 @@ test("mixed capability conversation preserves greeting, capabilities and limits"
     );
 });
 
-test("Terminal uses one governed conversation route and the V95 tool pack", () => {
+test("Terminal uses one governed conversation route and the current tool pack", () => {
     const terminal = fs.readFileSync(
         path.join(process.cwd(), "gestia-terminal.html"),
         "utf8"
@@ -2017,7 +2071,7 @@ test("Terminal uses one governed conversation route and the V95 tool pack", () =
     );
     assert.match(
         toolRuntime,
-        /sia7-multimodal-batch-integrity-v95-20260727/
+        /sia7-single-media-analysis-v98-20260727/
     );
     assert.doesNotMatch(terminal, /Soy tu motor generador de módulos/);
     assert.doesNotMatch(terminal, /Última idea analizada/);
