@@ -45,7 +45,7 @@ import {
     composeEvidenceGroundedConversation,
     mergeEvidenceGroundedToolCalls,
     prepareEvidenceGroundedConversationPlan
-} from '/gestia-core/jarvis/jarvis.conversation.composer.js?v=sia7-conversation-evidence-v96-20260727';
+} from '/gestia-core/jarvis/jarvis.conversation.composer.js?v=sia7-conversation-evidence-v97-20260727';
 import {
     runJarvisMission
 } from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-compact-mission-storage-v83-20260725';

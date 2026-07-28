@@ -269,6 +269,17 @@ function compactMediaAnalysisSource(source = {}) {
 }
 
 function compactMediaAnalysisObservation(observation = {}) {
+    const sources =
+        Array.isArray(
+            observation?.sources
+        )
+            ? observation.sources
+            : Array.isArray(
+                observation?.validSources
+            )
+                ? observation.validSources
+                : [];
+
     return {
         ok:
             observation?.ok,
@@ -283,9 +294,7 @@ function compactMediaAnalysisObservation(observation = {}) {
         receivedSources:
             observation?.receivedSources,
         sources:
-            (Array.isArray(observation?.sources)
-                ? observation.sources
-                : [])
+            sources
                 .slice(0, 12)
                 .map(compactMediaAnalysisSource),
         comparison:

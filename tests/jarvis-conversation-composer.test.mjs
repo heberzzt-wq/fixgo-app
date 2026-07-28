@@ -331,7 +331,7 @@ test("oversized composition evidence remains valid bounded JSON", () => {
     assert.doesNotThrow(() => JSON.parse(evidence));
 });
 
-test("oversized media evidence preserves sources and page-grounded findings", () => {
+test("oversized mission media evidence promotes validSources into grounded sources", () => {
     const marker =
         "PEN\u00CDNSULA TECH | CUD A202607241641376254 | VIGENCIA 180 D\u00CDAS";
 
@@ -350,7 +350,7 @@ test("oversized media evidence preserves sources and page-grounded findings", ()
                     1,
                 receivedSources:
                     1,
-                sources: [{
+                validSources: [{
                     sourceId:
                         "SOURCE_1",
                     fileName:
