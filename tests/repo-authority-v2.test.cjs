@@ -1943,7 +1943,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /No tengo una propuesta previa activa/);
     assert.match(terminal, /repo\.patchPreview/);
     assert.match(terminal, /approved:\s*false/);
-    assert.match(terminal, /sia7-pdf-safe-placement-v102-20260728/);
+    assert.match(terminal, /sia7-browser-plan-retry-isolation-v103-20260728/);
     assert.match(terminal, /jarvis-tools-bridge-v7-20260726-chief-review-response-v93/);
     assert.match(terminal, /jarvis-runtime-macro-v2-20260707-4190/);
     assert.match(terminal, /isTerminalBrainRuntimeReady/);

@@ -3782,7 +3782,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-pdf-safe-placement-v102-20260728/);
+    assert.match(terminal, /sia7-browser-plan-retry-isolation-v103-20260728/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
     assert.match(terminal, /jarvis-tools-v7-20260728-pdf-safe-placement-v102/);
@@ -3985,7 +3985,7 @@ test("multifunction descriptor remains approval-bound", () => {
     assert.equal(planner.mutates, false);
     assert.equal(
         planner.version,
-        "4.10.0-artifact-edit-routing"
+        "4.11.0-browser-retry-isolation"
     );
     assert.equal(planner.maximumToolCalls, 12);
     assert.equal(planner.architecture, "model_selected_runtime_catalog");
@@ -4100,4 +4100,182 @@ test("artifact edit missions keep specialized editors and defer certification un
         plannerSource,
         /tool\.name === "system\.certify"[\s\S]{0,160}COMPLETION_AUDIT/
     );
+});
+
+
+test("browser mission fallback retries every semantic sample with an independent AbortSignal", async () => {
+    const previousFetch =
+        globalThis.fetch;
+
+    const signals =
+        [];
+
+    let attempt =
+        0;
+
+    try {
+        globalThis.fetch =
+            async (
+                _url,
+                options = {}
+            ) => {
+                signals.push(
+                    options.signal
+                );
+
+                attempt +=
+                    1;
+
+                if (attempt === 1) {
+                    throw new Error(
+                        "signal is aborted without reason"
+                    );
+                }
+
+                const toolCalls =
+                    attempt === 2
+                        ? [{
+                            name:
+                                "document.pdf.edit",
+                            args: {
+                                sourceOutput:
+                                    ".jarvis-artifacts/documents/source.pdf",
+                                output:
+                                    ".jarvis-artifacts/documents/output.pdf",
+                                safePlacement:
+                                    true,
+                                changes: [{
+                                    page:
+                                        1,
+                                    x:
+                                        9000,
+                                    y:
+                                        -200,
+                                    width:
+                                        9000,
+                                    height:
+                                        18,
+                                    text:
+                                        "Validacion V103",
+                                    fontSize:
+                                        8
+                                }]
+                            }
+                        }]
+                        : [];
+
+                return {
+                    ok:
+                        true,
+                    status:
+                        200,
+                    text:
+                        async () =>
+                            JSON.stringify({
+                                toolCalls,
+                                missionComplete:
+                                    false
+                            })
+                };
+            };
+
+        const plan =
+            await plannerTest
+                .callBrowserMissionContract(
+                    "Ejecuta document.pdf.edit una sola vez.",
+                    [{
+                        name:
+                            "document.pdf.edit",
+                        description:
+                            "Edita una copia local de un PDF.",
+                        mutates:
+                            true,
+                        requiresApproval:
+                            false,
+                        userArtifact:
+                            true,
+                        missionDedupeBy: [
+                            "sourceOutput",
+                            "output"
+                        ],
+                        inputSchema: {
+                            type:
+                                "object",
+                            required: [
+                                "sourceOutput",
+                                "output",
+                                "changes"
+                            ],
+                            properties: {
+                                sourceOutput: {
+                                    type:
+                                        "string"
+                                },
+                                output: {
+                                    type:
+                                        "string"
+                                },
+                                safePlacement: {
+                                    type:
+                                        "boolean"
+                                },
+                                changes: {
+                                    type:
+                                        "array",
+                                    minItems:
+                                        1,
+                                    items: {
+                                        type:
+                                            "object"
+                                    }
+                                }
+                            }
+                        }
+                    }],
+                    {
+                        phase:
+                            "MISSION_CONTRACT",
+                        existingInitialTools: [
+                            "document.pdf.edit"
+                        ]
+                    }
+                );
+
+        assert.equal(
+            signals.length,
+            3
+        );
+
+        assert.equal(
+            new Set(signals).size,
+            3
+        );
+
+        assert.equal(
+            signals.every(signal =>
+                signal &&
+                signal.aborted ===
+                    false
+            ),
+            true
+        );
+
+        assert.deepEqual(
+            plan.toolCalls.map(call =>
+                call.name
+            ),
+            [
+                "document.pdf.edit"
+            ]
+        );
+
+        assert.equal(
+            plan.planKind,
+            "MISSION_CONTRACT_AUDITED"
+        );
+    }
+    finally {
+        globalThis.fetch =
+            previousFetch;
+    }
 });

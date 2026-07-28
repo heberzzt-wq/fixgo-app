@@ -1,8 +1,17 @@
-const VERSION = "4.10.0-artifact-edit-routing";
+const VERSION = "4.11.0-browser-retry-isolation";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
 const pendingPlans = new Map();
+
+const CLOUD_MISSION_CONTRACT_TIMEOUT_MS =
+    45000;
+
+const BROWSER_MISSION_ATTEMPT_TIMEOUT_MS =
+    20000;
+
+const BROWSER_PLAN_ATTEMPT_TIMEOUT_MS =
+    15000;
 
 function extractJsonObject(value = "") {
     const source = String(value || "");
@@ -28,6 +37,65 @@ function extractJsonObject(value = "") {
         }
     }
     throw new Error("CLIENT_MISSION_CONTRACT_JSON_REQUIRED");
+}
+
+async function fetchBrowserPlanText(
+    url = "",
+    timeoutMs =
+        BROWSER_PLAN_ATTEMPT_TIMEOUT_MS
+) {
+    const controller =
+        new AbortController();
+
+    let timedOut =
+        false;
+
+    const timer =
+        setTimeout(
+            () => {
+                timedOut =
+                    true;
+
+                controller.abort();
+            },
+            timeoutMs
+        );
+
+    try {
+        const response =
+            await fetch(
+                url,
+                {
+                    signal:
+                        controller.signal
+                }
+            );
+
+        const responseText =
+            await response.text();
+
+        return {
+            response,
+            responseText
+        };
+    }
+    catch(error) {
+        if (
+            timedOut ||
+            controller.signal.aborted
+        ) {
+            throw new Error(
+                `BROWSER_PLAN_ATTEMPT_TIMEOUT_${timeoutMs}`
+            );
+        }
+
+        throw error;
+    }
+    finally {
+        clearTimeout(
+            timer
+        );
+    }
 }
 
 async function callBrowserMissionContract(
@@ -64,12 +132,10 @@ async function callBrowserMissionContract(
         `CATALOGO=${catalog.map(tool => tool.name).join(",")}`,
         `INSTRUCCION=${boundedInstruction}`
     ].join("\n");
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 60000);
     let lastError = null;
     let auditedPlan = null;
-    try {
-        for (const seed of [84, 85, 86, 87, 88]) {
+
+    for (const seed of [84, 85, 86]) {
             try {
                 const attemptPrompt = auditedPlan
                     ? [
@@ -78,12 +144,24 @@ async function callBrowserMissionContract(
                         "AUDITORIA SEMANTICA DE COBERTURA: descompone la instruccion en todos sus sujetos, archivos, entidades, preguntas y entregables independientes. Devuelve solamente toolCalls read-only o userArtifact faltantes. No elimines ni sustituyas el borrador. Si ya cubre todo devuelve toolCalls=[] y missionComplete=false."
                     ].join("\n")
                     : prompt;
-                const response = await fetch(
+                const {
+                    response,
+                    responseText
+                } = await fetchBrowserPlanText(
                     `https://text.pollinations.ai/${encodeURIComponent(attemptPrompt)}?model=openai-fast&seed=${seed}&json=true`,
-                    { signal: controller.signal }
+                    BROWSER_MISSION_ATTEMPT_TIMEOUT_MS
                 );
-                if (!response.ok) throw new Error(`CLIENT_MISSION_CONTRACT_HTTP_${response.status}`);
-                const plan = extractJsonObject(await response.text());
+
+                if (!response.ok) {
+                    throw new Error(
+                        `CLIENT_MISSION_CONTRACT_HTTP_${response.status}`
+                    );
+                }
+
+                const plan =
+                    extractJsonObject(
+                        responseText
+                    );
                 if (!Array.isArray(plan?.toolCalls)) {
                     throw new Error("CLIENT_MISSION_CONTRACT_EMPTY");
                 }
@@ -144,9 +222,7 @@ async function callBrowserMissionContract(
                 lastError = error;
             }
         }
-    } finally {
-        clearTimeout(timer);
-    }
+
     if (auditedPlan) {
         return {
             ...auditedPlan,
@@ -188,18 +264,28 @@ async function callBrowserSemanticPlan(input = "", catalog = [], missionState = 
         missionState ? `ESTADO_DE_MISION=${JSON.stringify(missionState).slice(0, 12000)}` : "",
         `INSTRUCCION=${boundedInstruction}`
     ].join("\n");
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 45000);
     let lastError = null;
-    try {
-        for (const seed of [42, 43, 44]) {
+
+    for (const seed of [42, 43, 44]) {
             try {
-                const response = await fetch(
+                const {
+                    response,
+                    responseText
+                } = await fetchBrowserPlanText(
                     `https://text.pollinations.ai/${encodeURIComponent(prompt)}?model=openai-fast&seed=${seed}&json=true`,
-                    { signal: controller.signal }
+                    BROWSER_PLAN_ATTEMPT_TIMEOUT_MS
                 );
-                if (!response.ok) throw new Error(`CLIENT_SEMANTIC_PLAN_HTTP_${response.status}`);
-                const plan = extractJsonObject(await response.text());
+
+                if (!response.ok) {
+                    throw new Error(
+                        `CLIENT_SEMANTIC_PLAN_HTTP_${response.status}`
+                    );
+                }
+
+                const plan =
+                    extractJsonObject(
+                        responseText
+                    );
                 if (
                     !Array.isArray(plan?.toolCalls) ||
                     (
@@ -223,10 +309,11 @@ async function callBrowserSemanticPlan(input = "", catalog = [], missionState = 
                 lastError = error;
             }
         }
-    } finally {
-        clearTimeout(timer);
-    }
-    throw lastError || new Error("CLIENT_SEMANTIC_PLAN_UNAVAILABLE");
+
+    throw lastError ||
+        new Error(
+            "CLIENT_SEMANTIC_PLAN_UNAVAILABLE"
+        );
 }
 
 function runtimeCatalog(context = {}) {
@@ -674,9 +761,24 @@ async function callSemanticPlanner(input = "", catalog = [], missionState = null
         throw new Error("SEMANTIC_PLANNER_AUTH_REQUIRED");
     }
 
-    const token = await user.getIdToken();
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 110000);
+    const token =
+        await user.getIdToken();
+
+    const controller =
+        new AbortController();
+
+    const timeoutMs =
+        missionState?.phase ===
+            "MISSION_CONTRACT"
+            ? CLOUD_MISSION_CONTRACT_TIMEOUT_MS
+            : 110000;
+
+    const timer =
+        setTimeout(
+            () =>
+                controller.abort(),
+            timeoutMs
+        );
 
     try {
         const response = await fetch(ENDPOINT, {
@@ -707,8 +809,22 @@ async function callSemanticPlanner(input = "", catalog = [], missionState = null
         }
 
         return result;
-    } finally {
-        clearTimeout(timer);
+    }
+    catch(error) {
+        if (
+            controller.signal.aborted
+        ) {
+            throw new Error(
+                `SEMANTIC_PLANNER_TIMEOUT_${timeoutMs}`
+            );
+        }
+
+        throw error;
+    }
+    finally {
+        clearTimeout(
+            timer
+        );
     }
 }
 
