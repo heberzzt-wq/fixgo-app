@@ -3782,7 +3782,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-browser-plan-retry-isolation-v103-20260728/);
+    assert.match(terminal, /sia7-explicit-tool-envelope-v104-20260728/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
     assert.match(terminal, /jarvis-tools-v7-20260728-pdf-safe-placement-v102/);
@@ -3985,7 +3985,7 @@ test("multifunction descriptor remains approval-bound", () => {
     assert.equal(planner.mutates, false);
     assert.equal(
         planner.version,
-        "4.11.0-browser-retry-isolation"
+        "4.12.0-explicit-tool-envelope"
     );
     assert.equal(planner.maximumToolCalls, 12);
     assert.equal(planner.architecture, "model_selected_runtime_catalog");
@@ -4272,6 +4272,305 @@ test("browser mission fallback retries every semantic sample with an independent
         assert.equal(
             plan.planKind,
             "MISSION_CONTRACT_AUDITED"
+        );
+    }
+    finally {
+        globalThis.fetch =
+            previousFetch;
+    }
+});
+
+
+test("governed explicit tool envelope runs without semantic providers and defers certification", async () => {
+    const previousFetch =
+        globalThis.fetch;
+
+    let fetchCalls =
+        0;
+
+    const pdfArgs = {
+        sourceOutput:
+            ".jarvis-artifacts/documents/source.pdf",
+        output:
+            ".jarvis-artifacts/documents/output.pdf",
+        safePlacement:
+            true,
+        changes: [{
+            page:
+                1,
+            x:
+                9000,
+            y:
+                -200,
+            width:
+                9000,
+            height:
+                18,
+            text:
+                "Validacion V104",
+            fontSize:
+                8,
+            padding:
+                1,
+            color:
+                "#000000",
+            backgroundColor:
+                "#ffffff"
+        }]
+    };
+
+    const certificationArgs = {
+        deep:
+            true
+    };
+
+    const instruction = [
+        "Prueba determinista de herramienta local.",
+        "[[JARVIS_TOOL_PLAN]]",
+        JSON.stringify({
+            toolCalls: [{
+                name:
+                    "document.pdf.edit",
+                args:
+                    pdfArgs
+            }, {
+                name:
+                    "system.certify",
+                args:
+                    certificationArgs,
+                terminal:
+                    true
+            }]
+        }),
+        "[[/JARVIS_TOOL_PLAN]]"
+    ].join("\n");
+
+    const toolCatalog = [{
+        name:
+            "document.pdf.edit",
+        description:
+            "Edita una copia local de un PDF.",
+        mutates:
+            true,
+        requiresApproval:
+            false,
+        userArtifact:
+            true,
+        missionDedupeBy: [
+            "sourceOutput",
+            "output"
+        ],
+        inputSchema: {
+            sourceOutput:
+                "string",
+            output:
+                "string",
+            changes:
+                "array",
+            safePlacement:
+                "boolean"
+        }
+    }, {
+        name:
+            "system.certify",
+        description:
+            "Certifica evidencia terminal.",
+        mutates:
+            false,
+        requiresApproval:
+            false,
+        userArtifact:
+            false,
+        inputSchema: {
+            deep:
+                "boolean"
+        }
+    }];
+
+    try {
+        globalThis.fetch =
+            async () => {
+                fetchCalls +=
+                    1;
+
+                throw new Error(
+                    "NETWORK_MUST_NOT_BE_USED"
+                );
+            };
+
+        const initial =
+            await buildJarvisMultifunctionToolCalls(
+                instruction,
+                {
+                    toolCatalog,
+                    throwOnUnavailable:
+                        true
+                }
+            );
+
+        assert.deepEqual(
+            initial.map(call =>
+                call.name
+            ),
+            [
+                "document.pdf.edit"
+            ]
+        );
+
+        assert.equal(
+            initial[0]
+                .args
+                .safePlacement,
+            true
+        );
+
+        const contract =
+            await buildJarvisMultifunctionToolCalls(
+                instruction,
+                {
+                    toolCatalog,
+                    throwOnUnavailable:
+                        true,
+                    missionState: {
+                        phase:
+                            "MISSION_CONTRACT",
+                        existingInitialTools: [
+                            "document.pdf.edit"
+                        ]
+                    }
+                }
+            );
+
+        assert.deepEqual(
+            contract.map(call =>
+                call.name
+            ),
+            [
+                "document.pdf.edit"
+            ]
+        );
+
+        const audit =
+            await buildJarvisMultifunctionToolCalls(
+                instruction,
+                {
+                    toolCatalog,
+                    throwOnUnavailable:
+                        true,
+                    missionState: {
+                        phase:
+                            "COMPLETION_AUDIT",
+                        completedTasks: [{
+                            name:
+                                "document.pdf.edit",
+                            args:
+                                pdfArgs
+                        }],
+                        blockedTasks:
+                            []
+                    }
+                }
+            );
+
+        assert.deepEqual(
+            audit.map(call =>
+                call.name
+            ),
+            [
+                "system.certify"
+            ]
+        );
+
+        assert.equal(
+            audit[0]
+                .args
+                .deep,
+            true
+        );
+
+        const closed =
+            await buildJarvisMultifunctionToolCalls(
+                instruction,
+                {
+                    toolCatalog,
+                    throwOnUnavailable:
+                        true,
+                    missionState: {
+                        phase:
+                            "COMPLETION_AUDIT",
+                        completedTasks: [{
+                            name:
+                                "document.pdf.edit",
+                            args:
+                                pdfArgs
+                        }, {
+                            name:
+                                "system.certify",
+                            args:
+                                certificationArgs
+                        }],
+                        blockedTasks:
+                            []
+                    }
+                }
+            );
+
+        assert.equal(
+            closed.length,
+            0
+        );
+
+        assert.equal(
+            closed.missionComplete,
+            true
+        );
+
+        assert.equal(
+            fetchCalls,
+            0
+        );
+
+        const unsafe =
+            plannerTest
+                .extractExplicitGovernedToolPlan(
+                    [
+                        "[[JARVIS_TOOL_PLAN]]",
+                        JSON.stringify({
+                            toolCalls: [{
+                                name:
+                                    "repo.write",
+                                args: {
+                                    file:
+                                        "app-main.js",
+                                    content:
+                                        "unsafe"
+                                }
+                            }]
+                        }),
+                        "[[/JARVIS_TOOL_PLAN]]"
+                    ].join("\n"),
+                    [{
+                        name:
+                            "repo.write",
+                        mutates:
+                            true,
+                        requiresApproval:
+                            true,
+                        userArtifact:
+                            false,
+                        inputSchema: {
+                            file:
+                                "string",
+                            content:
+                                "string"
+                        }
+                    }],
+                    null
+                );
+
+        assert.equal(
+            unsafe,
+            null
         );
     }
     finally {

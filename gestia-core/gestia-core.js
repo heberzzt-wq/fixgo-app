@@ -40,7 +40,7 @@ import {
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     buildJarvisMultifunctionToolCalls
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-browser-plan-retry-isolation-v103-20260728';
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-explicit-tool-envelope-v104-20260728';
 import {
     composeEvidenceGroundedConversation,
     mergeEvidenceGroundedToolCalls,

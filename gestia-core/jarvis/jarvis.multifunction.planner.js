@@ -1,4 +1,4 @@
-const VERSION = "4.11.0-browser-retry-isolation";
+const VERSION = "4.12.0-explicit-tool-envelope";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
@@ -37,6 +37,362 @@ function extractJsonObject(value = "") {
         }
     }
     throw new Error("CLIENT_MISSION_CONTRACT_JSON_REQUIRED");
+}
+
+const EXPLICIT_TOOL_PLAN_START =
+    "[[JARVIS_TOOL_PLAN]]";
+
+const EXPLICIT_TOOL_PLAN_END =
+    "[[/JARVIS_TOOL_PLAN]]";
+
+function explicitGovernedCallKey(
+    name = "",
+    args = {}
+) {
+    return `${String(name || "")}:${JSON.stringify(
+        args &&
+        typeof args ===
+            "object" &&
+        !Array.isArray(args)
+            ? args
+            : {}
+    )}`;
+}
+
+function explicitGovernedHistoryKeys(
+    missionState = null
+) {
+    const entries = [
+        ...(
+            Array.isArray(
+                missionState
+                    ?.completedTasks
+            )
+                ? missionState
+                    .completedTasks
+                : []
+        ),
+        ...(
+            Array.isArray(
+                missionState
+                    ?.blockedTasks
+            )
+                ? missionState
+                    .blockedTasks
+                : []
+        )
+    ];
+
+    return new Set(
+        entries.map(item =>
+            explicitGovernedCallKey(
+                item?.name,
+                item?.args
+            )
+        )
+    );
+}
+
+function extractExplicitGovernedToolPlan(
+    input = "",
+    catalog = [],
+    missionState = null
+) {
+    const source =
+        String(
+            input ||
+            ""
+        );
+
+    const start =
+        source.indexOf(
+            EXPLICIT_TOOL_PLAN_START
+        );
+
+    if (start < 0) {
+        return null;
+    }
+
+    if (
+        source.indexOf(
+            EXPLICIT_TOOL_PLAN_START,
+            start +
+            EXPLICIT_TOOL_PLAN_START
+                .length
+        ) >= 0
+    ) {
+        return null;
+    }
+
+    const payloadStart =
+        start +
+        EXPLICIT_TOOL_PLAN_START
+            .length;
+
+    const end =
+        source.indexOf(
+            EXPLICIT_TOOL_PLAN_END,
+            payloadStart
+        );
+
+    if (end < payloadStart) {
+        return null;
+    }
+
+    if (
+        source.indexOf(
+            EXPLICIT_TOOL_PLAN_END,
+            end +
+            EXPLICIT_TOOL_PLAN_END
+                .length
+        ) >= 0
+    ) {
+        return null;
+    }
+
+    let envelope;
+
+    try {
+        envelope =
+            JSON.parse(
+                source
+                    .slice(
+                        payloadStart,
+                        end
+                    )
+                    .trim()
+            );
+    }
+    catch {
+        return null;
+    }
+
+    const requestedCalls =
+        Array.isArray(
+            envelope
+                ?.toolCalls
+        )
+            ? envelope
+                .toolCalls
+                .slice(
+                    0,
+                    6
+                )
+            : [];
+
+    const catalogByName =
+        new Map(
+            catalog.map(tool => [
+                String(
+                    tool?.name ||
+                    ""
+                ),
+                tool
+            ])
+        );
+
+    const validated =
+        [];
+
+    for (
+        const candidate
+        of requestedCalls
+    ) {
+        const name =
+            String(
+                candidate?.name ||
+                ""
+            ).trim();
+
+        const tool =
+            catalogByName.get(
+                name
+            );
+
+        if (!tool) {
+            continue;
+        }
+
+        const isTerminalCertification =
+            name ===
+                "system.certify" &&
+            candidate
+                ?.terminal ===
+                true;
+
+        const isGovernedArtifact =
+            tool
+                ?.userArtifact ===
+                true &&
+            tool
+                ?.requiresApproval !==
+                true &&
+            !name.startsWith(
+                "repo."
+            ) &&
+            !name.startsWith(
+                "codex."
+            );
+
+        if (
+            !isTerminalCertification &&
+            !isGovernedArtifact
+        ) {
+            continue;
+        }
+
+        const rawArgs =
+            candidate?.args &&
+            typeof candidate.args ===
+                "object" &&
+            !Array.isArray(
+                candidate.args
+            )
+                ? candidate.args
+                : {};
+
+        const args =
+            filterSemanticArguments(
+                rawArgs,
+                tool.inputSchema
+            );
+
+        if (
+            Object.keys(
+                args
+            ).length === 0
+        ) {
+            continue;
+        }
+
+        validated.push({
+            name,
+            args,
+            reason:
+                "EXPLICIT_GOVERNED_TOOL_ENVELOPE",
+            terminal:
+                isTerminalCertification
+        });
+    }
+
+    const artifactCalls =
+        validated.filter(call =>
+            call.terminal !==
+            true
+        );
+
+    if (
+        artifactCalls.length ===
+        0
+    ) {
+        return null;
+    }
+
+    const phase =
+        String(
+            missionState
+                ?.phase ||
+            ""
+        );
+
+    const history =
+        explicitGovernedHistoryKeys(
+            missionState
+        );
+
+    if (
+        phase ===
+        "COMPLETION_AUDIT"
+    ) {
+        const certification =
+            validated.find(call =>
+                call.terminal ===
+                    true &&
+                !history.has(
+                    explicitGovernedCallKey(
+                        call.name,
+                        call.args
+                    )
+                )
+            ) ||
+            null;
+
+        if (certification) {
+            return {
+                ok:
+                    true,
+                status:
+                    "EXPLICIT_TOOL_PLAN_READY",
+                provider:
+                    "local-explicit-envelope",
+                model:
+                    null,
+                planKind:
+                    "EXPLICIT_COMPLETION_AUDIT",
+                missionComplete:
+                    false,
+                toolCalls: [
+                    certification
+                ]
+            };
+        }
+
+        return {
+            ok:
+                true,
+            status:
+                "EXPLICIT_TOOL_PLAN_READY",
+            provider:
+                "local-explicit-envelope",
+            model:
+                null,
+            planKind:
+                "EXPLICIT_COMPLETION_AUDIT",
+            missionComplete:
+                true,
+            toolCalls:
+                [],
+            completionAssessment: {
+                explicitEnvelope:
+                    true,
+                terminalCertificationAccounted:
+                    validated.some(call =>
+                        call.terminal ===
+                        true
+                    )
+            }
+        };
+    }
+
+    const outstandingArtifacts =
+        artifactCalls.filter(call =>
+            !history.has(
+                explicitGovernedCallKey(
+                    call.name,
+                    call.args
+                )
+            )
+        );
+
+    return {
+        ok:
+            true,
+        status:
+            "EXPLICIT_TOOL_PLAN_READY",
+        provider:
+            "local-explicit-envelope",
+        model:
+            null,
+        planKind:
+            phase ===
+                "MISSION_CONTRACT"
+                ? "MISSION_CONTRACT_EXPLICIT"
+                : "EXPLICIT_GOVERNED_TOOL_PLAN",
+        missionComplete:
+            false,
+        toolCalls:
+            outstandingArtifacts
+    };
 }
 
 async function fetchBrowserPlanText(
@@ -1044,6 +1400,56 @@ export async function buildJarvisMultifunctionToolCalls(input = "", context = {}
         return [];
     }
 
+    const explicitPlan =
+        extractExplicitGovernedToolPlan(
+            instruction,
+            catalog,
+            context.missionState ||
+            null
+        );
+
+    if (explicitPlan) {
+        const explicitCalls =
+            trustedPlanCalls(
+                explicitPlan,
+                catalog,
+                {
+                    ...context,
+                    originalInstruction:
+                        instruction
+                }
+            );
+
+        globalThis
+            .__JARVIS_SEMANTIC_PLANNER_HEALTH__ = {
+                ok:
+                    true,
+                status:
+                    explicitPlan.status,
+                provider:
+                    explicitPlan.provider,
+                model:
+                    null,
+                toolCount:
+                    explicitCalls.length,
+                toolNames:
+                    explicitCalls.map(
+                        call =>
+                            call.name
+                    ),
+                deterministic:
+                    true,
+                checkedAt:
+                    new Date()
+                        .toISOString()
+            };
+
+        return attachPlanMetadata(
+            explicitCalls,
+            explicitPlan
+        );
+    }
+
     try {
         const contractPlanner = context?.missionState?.phase === "MISSION_CONTRACT" &&
             typeof context.semanticPlanner !== "function"
@@ -1163,5 +1569,6 @@ export const __test = {
     planCacheKey,
     extractJsonObject,
     callBrowserMissionContract,
-    callBrowserSemanticPlan
+    callBrowserSemanticPlan,
+    extractExplicitGovernedToolPlan
 };
