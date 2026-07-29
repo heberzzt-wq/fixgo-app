@@ -32,5 +32,5 @@ requestForm.addEventListener('submit', event => {
     data.get('details')
   ].join('\n');
   formStatus.textContent = 'Se abrirá tu aplicación de correo para revisar y enviar la solicitud.';
-  window.location.href = `mailto:multisercancun@multiserviciospeninsulareshmh.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.location.href = `mailto:heberzzt@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 });

@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "fixgo-44e4d"
-  }
+  },
+  "targets": {
+    "fixgo-44e4d": {
+      "hosting": {
+        "multiservicios": [
+          "multiserviciospeninsulareshmh"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
