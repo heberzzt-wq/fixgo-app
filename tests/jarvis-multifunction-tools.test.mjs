@@ -2516,7 +2516,7 @@ test("Terminal uses one governed conversation route and the current tool pack", 
     assert.doesNotMatch(conversationConnector, /setTimeout\(\(\) => controller\.abort\(\), 8000\)/);
     assert.match(
         terminal,
-        /jarvis-tools-v7-20260728-pdf-safe-placement-v102/
+        /jarvis-tools-v7-20260728-grounded-image-reference-v105/
     );
     assert.match(
         toolRuntime,
@@ -3767,7 +3767,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /jarvis-tools-v7-20260728-pdf-safe-placement-v102/);
+    assert.match(terminal, /jarvis-tools-v7-20260728-grounded-image-reference-v105/);
     assert.match(terminal, /jarvis-tools-bridge-v7-20260726-chief-review-response-v93/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
@@ -3782,10 +3782,10 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-explicit-tool-envelope-v104-20260728/);
+    assert.match(terminal, /sia7-grounded-image-reference-v105-20260728/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
-    assert.match(terminal, /jarvis-tools-v7-20260728-pdf-safe-placement-v102/);
+    assert.match(terminal, /jarvis-tools-v7-20260728-grounded-image-reference-v105/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -3985,7 +3985,7 @@ test("multifunction descriptor remains approval-bound", () => {
     assert.equal(planner.mutates, false);
     assert.equal(
         planner.version,
-        "4.12.0-explicit-tool-envelope"
+        "4.13.0-grounded-image-reference"
     );
     assert.equal(planner.maximumToolCalls, 12);
     assert.equal(planner.architecture, "model_selected_runtime_catalog");
@@ -4034,7 +4034,7 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260728-pdf-safe-placement-v102/);
+    assert.match(core, /jarvis-tools-v7-20260728-grounded-image-reference-v105/);
     assert.match(
         terminal,
         /jarvis-tools-v7-20260725-semantic-envelope-v64/
@@ -4577,4 +4577,306 @@ test("governed explicit tool envelope runs without semantic providers and defers
         globalThis.fetch =
             previousFetch;
     }
+});
+
+
+test("uploaded identity image routes once through image.edit with the real artifact source", () => {
+    const manifest = [{
+        name:
+            "Screenshot_20260422-192007.png",
+        mimeType:
+            "image/png",
+        bytes:
+            2740762,
+        artifact:
+            ".jarvis-artifacts/uploads/Screenshot_20260422-192007.png",
+        sha256:
+            "ef595bc333a47814eb17fe2b10bced77135efc0532ff14680304ee7b2aec7d52"
+    }];
+
+    const instruction = [
+        "Genera una imagen profesional mia en la playa usando mi foto adjunta.",
+        "",
+        "Archivos adjuntos reales entregados por el usuario:",
+        JSON.stringify(
+            manifest
+        )
+    ].join("\n");
+
+    const catalog = [{
+        name:
+            "image.generate",
+        description:
+            "Genera una imagen nueva sin fuente visual.",
+        mutates:
+            true,
+        requiresApproval:
+            false,
+        userArtifact:
+            true,
+        missionDedupeBy: [
+            "output"
+        ],
+        inputSchema: {
+            prompt:
+                "string",
+            output:
+                "string"
+        }
+    }, {
+        name:
+            "image.edit",
+        description:
+            "Edita una imagen persistida usando sus bytes reales.",
+        mutates:
+            true,
+        requiresApproval:
+            false,
+        userArtifact:
+            true,
+        missionDedupeBy: [
+            "sourceOutput",
+            "output"
+        ],
+        inputSchema: {
+            sourceOutput:
+                "string",
+            prompt:
+                "string",
+            transformations:
+                "array",
+            output:
+                "string",
+            preserveLogos:
+                "boolean",
+            preserveApprovedText:
+                "boolean"
+        }
+    }, {
+        name:
+            "media.analyze",
+        description:
+            "Analiza adjuntos.",
+        mutates:
+            false,
+        requiresApproval:
+            false,
+        userArtifact:
+            false,
+        missionDedupeBy:
+            [],
+        inputSchema: {
+            attachments:
+                "array"
+        }
+    }];
+
+    const calls =
+        plannerTest.trustedPlanCalls(
+            {
+                toolCalls: [{
+                    name:
+                        "image.generate",
+                    args: {
+                        prompt:
+                            "Retrato profesional de Heberto en la playa"
+                    }
+                }, {
+                    name:
+                        "media.analyze",
+                    args: {
+                        attachments:
+                            manifest
+                    }
+                }, {
+                    name:
+                        "image.generate",
+                    args: {
+                        prompt:
+                            "Heberto en la playa con ropa profesional"
+                    }
+                }]
+            },
+            catalog,
+            {
+                originalInstruction:
+                    instruction
+            }
+        );
+
+    assert.deepEqual(
+        calls.map(call =>
+            call.name
+        ),
+        [
+            "image.edit"
+        ]
+    );
+
+    assert.equal(
+        calls[0]
+            .args
+            .sourceOutput,
+        manifest[0]
+            .artifact
+    );
+
+    assert.equal(
+        calls[0]
+            .args
+            .transformations
+            .some(item =>
+                item.includes(
+                    "identidad"
+                )
+            ),
+        true
+    );
+
+    assert.equal(
+        calls[0]
+            .missionDedupeKey,
+        'image.edit:[".jarvis-artifacts/uploads/Screenshot_20260422-192007.png",null]'
+    );
+});
+
+test("independent generation remains image.generate when the attachment is explicitly excluded as a reference", () => {
+    const manifest = [{
+        name:
+            "selfie.png",
+        mimeType:
+            "image/png",
+        artifact:
+            ".jarvis-artifacts/uploads/selfie.png"
+    }];
+
+    const instruction = [
+        "Analiza mi foto adjunta y genera un paisaje abstracto independiente sin usar mi foto como referencia.",
+        "",
+        "Archivos adjuntos reales entregados por el usuario:",
+        JSON.stringify(
+            manifest
+        )
+    ].join("\n");
+
+    const catalog = [{
+        name:
+            "image.generate",
+        mutates:
+            true,
+        requiresApproval:
+            false,
+        userArtifact:
+            true,
+        missionDedupeBy: [
+            "output"
+        ],
+        inputSchema: {
+            prompt:
+                "string",
+            output:
+                "string"
+        }
+    }, {
+        name:
+            "image.edit",
+        mutates:
+            true,
+        requiresApproval:
+            false,
+        userArtifact:
+            true,
+        missionDedupeBy: [
+            "sourceOutput",
+            "output"
+        ],
+        inputSchema: {
+            sourceOutput:
+                "string",
+            prompt:
+                "string",
+            transformations:
+                "array"
+        }
+    }, {
+        name:
+            "media.analyze",
+        mutates:
+            false,
+        requiresApproval:
+            false,
+        missionDedupeBy:
+            [],
+        inputSchema: {
+            attachments:
+                "array"
+        }
+    }];
+
+    const calls =
+        plannerTest.trustedPlanCalls(
+            {
+                toolCalls: [{
+                    name:
+                        "media.analyze",
+                    args: {
+                        attachments:
+                            manifest
+                    }
+                }, {
+                    name:
+                        "image.generate",
+                    args: {
+                        prompt:
+                            "Paisaje abstracto sin personas"
+                    }
+                }]
+            },
+            catalog,
+            {
+                originalInstruction:
+                    instruction
+            }
+        );
+
+    assert.deepEqual(
+        calls.map(call =>
+            call.name
+        ),
+        [
+            "media.analyze",
+            "image.generate"
+        ]
+    );
+});
+
+test("image actuators expose mission dedupe and mandatory grounded-reference instructions", () => {
+    const actuatorSource =
+        fs.readFileSync(
+            path.resolve(
+                __dirname,
+                "../gestia-core/jarvis/jarvis.actuator.pack.js"
+            ),
+            "utf8"
+        );
+
+    assert.match(
+        actuatorSource,
+        /name:\s*"image\.generate"[\s\S]{0,900}?missionDedupeBy:\s*\[\s*"output"\s*\]/
+    );
+
+    assert.match(
+        actuatorSource,
+        /name:\s*"image\.edit"[\s\S]{0,1200}?missionDedupeBy:\s*\[\s*"sourceOutput",\s*"output"\s*\]/
+    );
+
+    assert.match(
+        actuatorSource,
+        /Usa la imagen fuente como referencia visual obligatoria/
+    );
+
+    assert.match(
+        actuatorSource,
+        /referenceGrounded/
+    );
 });

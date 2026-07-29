@@ -1,4 +1,4 @@
-const VERSION = "4.12.0-explicit-tool-envelope";
+const VERSION = "4.13.0-grounded-image-reference";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
@@ -395,6 +395,656 @@ function extractExplicitGovernedToolPlan(
     };
 }
 
+
+const ATTACHMENT_MANIFEST_MARKER =
+    "Archivos adjuntos reales entregados por el usuario:";
+
+function normalizeRoutingText(
+    value = ""
+) {
+    return String(
+        value ||
+        ""
+    )
+        .normalize(
+            "NFD"
+        )
+        .replace(
+            /[\u0300-\u036f]/g,
+            ""
+        )
+        .toLowerCase()
+        .replace(
+            /\s+/g,
+            " "
+        )
+        .trim();
+}
+
+function instructionBeforeAttachmentManifest(
+    input = ""
+) {
+    const source =
+        String(
+            input ||
+            ""
+        );
+
+    const markerIndex =
+        source.lastIndexOf(
+            ATTACHMENT_MANIFEST_MARKER
+        );
+
+    const instruction =
+        markerIndex >=
+            0
+            ? source.slice(
+                0,
+                markerIndex
+            )
+            : source;
+
+    return instruction
+        .replace(
+            /\nExpediente soberano:[^\n]*/gi,
+            ""
+        )
+        .trim();
+}
+
+function extractGroundedAttachments(
+    input = ""
+) {
+    const source =
+        String(
+            input ||
+            ""
+        );
+
+    const markerIndex =
+        source.lastIndexOf(
+            ATTACHMENT_MANIFEST_MARKER
+        );
+
+    if (markerIndex < 0) {
+        return [];
+    }
+
+    const payload =
+        source
+            .slice(
+                markerIndex +
+                ATTACHMENT_MANIFEST_MARKER
+                    .length
+            )
+            .trim();
+
+    let manifest;
+
+    try {
+        manifest =
+            JSON.parse(
+                payload
+            );
+    }
+    catch {
+        return [];
+    }
+
+    return (
+        Array.isArray(
+            manifest
+        )
+            ? manifest
+            : []
+    )
+        .filter(item =>
+            item &&
+            typeof item ===
+                "object" &&
+            typeof item.artifact ===
+                "string" &&
+            item.artifact.startsWith(
+                ".jarvis-artifacts/"
+            )
+        )
+        .slice(
+            0,
+            30
+        )
+        .map(item => ({
+            name:
+                String(
+                    item.name ||
+                    ""
+                ),
+            mimeType:
+                String(
+                    item.mimeType ||
+                    ""
+                )
+                    .trim()
+                    .toLowerCase(),
+            artifact:
+                String(
+                    item.artifact ||
+                    ""
+                ),
+            sha256:
+                String(
+                    item.sha256 ||
+                    ""
+                )
+        }));
+}
+
+function selectGroundedImageAttachment(
+    attachments = [],
+    instruction = ""
+) {
+    const images =
+        attachments.filter(item =>
+            item.mimeType.startsWith(
+                "image/"
+            )
+        );
+
+    if (images.length === 1) {
+        return images[0];
+    }
+
+    if (images.length === 0) {
+        return null;
+    }
+
+    const normalizedInstruction =
+        normalizeRoutingText(
+            instruction
+        );
+
+    const mentioned =
+        images.filter(item => {
+            const normalizedName =
+                normalizeRoutingText(
+                    item.name
+                );
+
+            const stem =
+                normalizedName.replace(
+                    /\.[a-z0-9]+$/,
+                    ""
+                );
+
+            return (
+                (
+                    normalizedName &&
+                    normalizedInstruction.includes(
+                        normalizedName
+                    )
+                ) ||
+                (
+                    stem.length >= 5 &&
+                    normalizedInstruction.includes(
+                        stem
+                    )
+                )
+            );
+        });
+
+    return mentioned.length === 1
+        ? mentioned[0]
+        : null;
+}
+
+function requestsGroundedVisualReference(
+    instruction = "",
+    candidates = []
+) {
+    const text =
+        normalizeRoutingText(
+            instructionBeforeAttachmentManifest(
+                instruction
+            )
+        );
+
+    const negativeSignals = [
+        "sin usar mi foto",
+        "sin usar la foto",
+        "sin usar esta foto",
+        "sin usar mi imagen",
+        "no uses mi foto",
+        "no uses la foto",
+        "no uses esta imagen",
+        "no tomar la foto como referencia",
+        "no tomes la foto como referencia",
+        "persona ficticia",
+        "rostro distinto",
+        "sin mi cara",
+        "independiente de la foto"
+    ];
+
+    if (
+        negativeSignals.some(signal =>
+            text.includes(
+                signal
+            )
+        )
+    ) {
+        return false;
+    }
+
+    if (
+        candidates.some(candidate =>
+            candidate?.name ===
+            "image.edit"
+        )
+    ) {
+        return true;
+    }
+
+    const referenceSignals = [
+        "mi foto",
+        "mi imagen",
+        "foto mia",
+        "imagen mia",
+        "con mi cara",
+        "con mi rostro",
+        "mis rasgos",
+        "mi identidad",
+        "misma persona",
+        "hazme ",
+        "creame ",
+        "generame ",
+        "ponme ",
+        "yo en ",
+        "a mi en ",
+        "esta foto",
+        "esta imagen",
+        "esa foto",
+        "esa imagen",
+        "foto adjunta",
+        "imagen adjunta",
+        "foto que subi",
+        "imagen que subi",
+        "foto que envie",
+        "imagen que envie",
+        "usa mi foto",
+        "usa esta foto",
+        "usa esta imagen",
+        "usando mi foto",
+        "usando esta foto",
+        "usando esta imagen",
+        "a partir de mi foto",
+        "a partir de esta foto",
+        "preserva mi identidad",
+        "conserva mi identidad",
+        "conserva la cara",
+        "conserva el rostro",
+        "use my photo",
+        "using my photo",
+        "same person",
+        "preserve my identity",
+        "keep my face"
+    ];
+
+    if (
+        referenceSignals.some(signal =>
+            text.includes(
+                signal
+            )
+        )
+    ) {
+        return true;
+    }
+
+    const hasGeneration =
+        candidates.some(candidate =>
+            candidate?.name ===
+            "image.generate"
+        );
+
+    const hasMediaAnalysis =
+        candidates.some(candidate =>
+            candidate?.name ===
+            "media.analyze"
+        );
+
+    const hasReferenceNoun =
+        /\b(mi|mio|mia|me|yo|esta|este|esa|ese|adjunta|adjunto|subi|envie)\b/
+            .exec(
+                text
+            );
+
+    const hasPortraitObjective =
+        /\b(retrato|persona|hombre|mujer|rostro|cara|identidad|vestuario|fondo|escenario|playa)\b/
+            .exec(
+                text
+            );
+
+    return (
+        hasGeneration &&
+        hasMediaAnalysis &&
+        hasReferenceNoun &&
+        hasPortraitObjective
+    );
+}
+
+function requestsAttachmentAnalysis(
+    instruction = ""
+) {
+    const text =
+        normalizeRoutingText(
+            instructionBeforeAttachmentManifest(
+                instruction
+            )
+        );
+
+    const signals = [
+        "analiza",
+        "analice",
+        "describe",
+        "describeme",
+        "compara",
+        "identifica",
+        "extrae",
+        "lee la imagen",
+        "lee la foto",
+        "revisa la imagen",
+        "revisa la foto",
+        "que ves",
+        "dime que hay",
+        "analyze",
+        "describe",
+        "compare",
+        "identify"
+    ];
+
+    return signals.some(signal =>
+        text.includes(
+            signal
+        )
+    );
+}
+
+function requestsMultipleImageVariants(
+    instruction = ""
+) {
+    const text =
+        normalizeRoutingText(
+            instructionBeforeAttachmentManifest(
+                instruction
+            )
+        );
+
+    return (
+        /\b(variantes|versiones|opciones|alternativas|varias imagenes|varias fotos|multiple images|variants|versions)\b/
+            .exec(
+                text
+            ) ||
+        /\b(2|3|4|5|6|7|8|9|dos|tres|cuatro|cinco|seis)\s+(imagenes|fotos|retratos|versiones|variantes)\b/
+            .exec(
+                text
+            )
+    );
+}
+
+function groundedReferenceTransformations(
+    value = []
+) {
+    const transformations =
+        Array.isArray(
+            value
+        )
+            ? value
+                .map(item =>
+                    String(
+                        item ||
+                        ""
+                    ).trim()
+                )
+                .filter(Boolean)
+            : [];
+
+    const identityGuard =
+        "Conservar la identidad, estructura facial, tono de piel, cabello, proporciones y rasgos distintivos del sujeto u objeto de la imagen fuente.";
+
+    const changeGuard =
+        "Modificar ?nicamente el escenario, vestuario, iluminaci?n, encuadre y estilo solicitados; no sustituir el sujeto por una persona u objeto gen?rico.";
+
+    const normalized =
+        transformations.map(
+            normalizeRoutingText
+        );
+
+    if (
+        !normalized.some(item =>
+            item.includes(
+                "identidad"
+            ) ||
+            item.includes(
+                "rasgos"
+            )
+        )
+    ) {
+        transformations.push(
+            identityGuard
+        );
+    }
+
+    if (
+        !normalized.some(item =>
+            item.includes(
+                "no sustituir"
+            ) ||
+            item.includes(
+                "sujeto generico"
+            )
+        )
+    ) {
+        transformations.push(
+            changeGuard
+        );
+    }
+
+    return [
+        ...new Set(
+            transformations
+        )
+    ].slice(
+        0,
+        20
+    );
+}
+
+function normalizeGroundedImageReferenceCandidates(
+    candidates = [],
+    catalog = [],
+    context = {}
+) {
+    const sourceCandidates =
+        Array.isArray(
+            candidates
+        )
+            ? candidates
+            : [];
+
+    const instruction =
+        String(
+            context
+                ?.originalInstruction ||
+            ""
+        );
+
+    const attachments =
+        extractGroundedAttachments(
+            instruction
+        );
+
+    const source =
+        selectGroundedImageAttachment(
+            attachments,
+            instructionBeforeAttachmentManifest(
+                instruction
+            )
+        );
+
+    if (!source) {
+        return sourceCandidates;
+    }
+
+    const imageEditAvailable =
+        catalog.some(tool =>
+            tool?.name ===
+            "image.edit"
+        );
+
+    const referenceRequested =
+        requestsGroundedVisualReference(
+            instruction,
+            sourceCandidates
+        );
+
+    const analysisRequested =
+        requestsAttachmentAnalysis(
+            instruction
+        );
+
+    const multipleVariants =
+        requestsMultipleImageVariants(
+            instruction
+        );
+
+    const userInstruction =
+        instructionBeforeAttachmentManifest(
+            instruction
+        );
+
+    const normalized =
+        [];
+
+    let groundedVisualCalls =
+        0;
+
+    for (
+        const candidate
+        of sourceCandidates
+    ) {
+        if (!candidate?.name) {
+            continue;
+        }
+
+        if (
+            candidate.name ===
+                "media.analyze" &&
+            referenceRequested &&
+            !analysisRequested
+        ) {
+            continue;
+        }
+
+        const isImageEdit =
+            candidate.name ===
+            "image.edit";
+
+        const shouldConvertGeneration =
+            candidate.name ===
+                "image.generate" &&
+            referenceRequested &&
+            imageEditAvailable;
+
+        if (
+            !isImageEdit &&
+            !shouldConvertGeneration
+        ) {
+            normalized.push(
+                candidate
+            );
+
+            continue;
+        }
+
+        if (
+            !multipleVariants &&
+            groundedVisualCalls >
+                0
+        ) {
+            continue;
+        }
+
+        const baseArgs =
+            candidate?.args &&
+            typeof candidate.args ===
+                "object" &&
+            !Array.isArray(
+                candidate.args
+            )
+                ? {
+                    ...candidate.args
+                }
+                : candidate?.arguments &&
+                    typeof candidate.arguments ===
+                        "object" &&
+                    !Array.isArray(
+                        candidate.arguments
+                    )
+                    ? {
+                        ...candidate.arguments
+                    }
+                    : {};
+
+        const prompt =
+            String(
+                baseArgs.prompt ||
+                userInstruction ||
+                "Edita la imagen fuente respetando la identidad visual."
+            )
+                .trim()
+                .slice(
+                    0,
+                    3000
+                );
+
+        normalized.push({
+            ...candidate,
+            name:
+                "image.edit",
+            args: {
+                ...baseArgs,
+                sourceOutput:
+                    source.artifact,
+                prompt,
+                transformations:
+                    groundedReferenceTransformations(
+                        baseArgs
+                            .transformations
+                    ),
+                preserveLogos:
+                    baseArgs
+                        .preserveLogos !==
+                    false,
+                preserveApprovedText:
+                    Object.prototype
+                        .hasOwnProperty
+                        .call(
+                            baseArgs,
+                            "preserveApprovedText"
+                        )
+                        ? baseArgs
+                            .preserveApprovedText !==
+                            false
+                        : false
+            },
+            reason:
+                "ATTACHMENT_GROUNDED_IMAGE_REFERENCE_ROUTE"
+        });
+
+        groundedVisualCalls +=
+            1;
+    }
+
+    return normalized;
+}
+
 async function fetchBrowserPlanText(
     url = "",
     timeoutMs =
@@ -478,7 +1128,7 @@ async function callBrowserMissionContract(
     const prompt = [
         "Eres el planificador semantico de Jarvis V7.",
         "Devuelve solamente JSON valido.",
-        "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only y userArtifact necesarias para TODOS los entregables. Para crear una landing usa page.plan, page.compose y page.create; para crear un documento usa document.compose y document.create; para crear una hoja estructurada usa spreadsheet.compose y document.create. Para EDITAR un PDF existente usa document.pdf.edit; para EDITAR un XLSX existente usa document.xlsx.edit; para EDITAR una imagen existente usa image.edit. Nunca sustituyas una edicion solicitada por document.create, spreadsheet.compose o image.generate. Las ediciones crean una copia nueva y deben preservar el original. system.certify es terminal: no lo incluyas en el contrato inicial; seleccionalo solamente durante COMPLETION_AUDIT cuando los demas objetivos est?n completados o bloqueados. Para cada artefacto usa exactamente una composicion y una creacion salvo que el usuario pida variantes. Conserva el orden y usa missionComplete=false.",
+        "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only y userArtifact necesarias para TODOS los entregables. Para crear una landing usa page.plan, page.compose y page.create; para crear un documento usa document.compose y document.create; para crear una hoja estructurada usa spreadsheet.compose y document.create. Para EDITAR un PDF existente usa document.pdf.edit; para EDITAR un XLSX existente usa document.xlsx.edit; para EDITAR una imagen existente usa image.edit. Nunca sustituyas una edicion solicitada por document.create, spreadsheet.compose o image.generate. Si una imagen adjunta representa a la persona, producto u objeto que debe aparecer en el resultado, usa image.edit con sourceOutput igual al artifact real del manifiesto; media.analyze no transmite identidad visual ni sustituye los bytes de la fuente. Las ediciones crean una copia nueva y deben preservar el original. system.certify es terminal: no lo incluyas en el contrato inicial; seleccionalo solamente durante COMPLETION_AUDIT cuando los demas objetivos est?n completados o bloqueados. Para cada artefacto usa exactamente una composicion y una creacion salvo que el usuario pida variantes. Conserva el orden y usa missionComplete=false.",
         "Las HERRAMIENTAS_INICIALES son un borrador semantico ya seleccionado para la misma instruccion. Conserva sus entregables y agrega solamente una herramienta que cubra un objetivo independiente pedido de forma explicita y no cubierto por ese borrador. No agregues diagnostico, supervision, forense, repositorio, navegador, conectores, investigacion ni otros artefactos solo porque existan en el catalogo.",
         "No colapses sujetos u objetivos independientes. Repite el mismo nombre de herramienta cuando necesite argumentos distintos para cubrirlos por separado.",
         "agent.delegate no es una optimizacion automatica. Incluyela solamente si la instruccion original pide explicitamente delegar, usar agentes o ejecutar en paralelo, y copia esa frase literal en delegationDirective. En cualquier otra mision conserva las herramientas directas.",
@@ -603,7 +1253,7 @@ async function callBrowserSemanticPlan(input = "", catalog = [], missionState = 
     const prompt = [
         "Eres el planificador semantico de herramientas de Jarvis V7.",
         "Interpreta significado, typos, negaciones y ordenes mixtas. Selecciona exclusivamente nombres exactos del catalogo.",
-        "No autorices escrituras de repositorio, publicacion ni despliegue. Las herramientas userArtifact pueden crear entregables locales y editar copias de artefactos existentes cuando el usuario lo pide explicitamente; deben conservar el original y no equivalen a editar codigo, publicar o desplegar. Para editar PDF, XLSX o imagen usa respectivamente document.pdf.edit, document.xlsx.edit o image.edit y nunca los sustituyas por herramientas de creacion. Conserva todas las intenciones independientes y usa herramientas especializadas para entregables operativos.",
+        "No autorices escrituras de repositorio, publicacion ni despliegue. Las herramientas userArtifact pueden crear entregables locales y editar copias de artefactos existentes cuando el usuario lo pide explicitamente; deben conservar el original y no equivalen a editar codigo, publicar o desplegar. Para editar PDF, XLSX o imagen usa respectivamente document.pdf.edit, document.xlsx.edit o image.edit y nunca los sustituyas por herramientas de creacion. Si una persona, producto u objeto debe conservarse desde una imagen adjunta, selecciona image.edit y copia el artifact real del manifiesto en sourceOutput; no uses image.generate ni una descripcion de media.analyze como reemplazo de la fuente visual. Conserva todas las intenciones independientes y usa herramientas especializadas para entregables operativos.",
         "agent.delegate no es una optimizacion automatica. Seleccionala solamente si la instruccion original pide explicitamente delegar, usar agentes o ejecutar en paralelo. En ese caso copia literalmente esa frase en delegationDirective. Si solo hay varias herramientas directas, devuelve esas herramientas sin agent.delegate.",
         "repo.architectReview es autocontenida: ya construye el grafo y ranking y ejecuta los 11 controles sobre un plan recibido. Cuando se pida esa revision, no agregues repo.search, repo.read, repo.diagnose o repo.impact salvo que la instruccion pida de forma independiente inspeccionar fuentes adicionales.",
         "Si varios objetivos requieren la misma herramienta con argumentos distintos, devuelve una llamada separada para cada uno.",
@@ -755,7 +1405,16 @@ function stableResearchGoal(
 
 function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
     const allowed = new Map(catalog.map(tool => [tool.name, tool]));
-    const candidates = Array.isArray(plan?.toolCalls) ? plan.toolCalls : [];
+    const candidates =
+        normalizeGroundedImageReferenceCandidates(
+            Array.isArray(
+                plan?.toolCalls
+            )
+                ? plan.toolCalls
+                : [],
+            catalog,
+            context
+        );
     const allowDeferred =
         String(plan?.planKind || "")
             .startsWith("MISSION_CONTRACT");
@@ -1570,5 +2229,8 @@ export const __test = {
     extractJsonObject,
     callBrowserMissionContract,
     callBrowserSemanticPlan,
-    extractExplicitGovernedToolPlan
+    extractExplicitGovernedToolPlan,
+    extractGroundedAttachments,
+    requestsGroundedVisualReference,
+    normalizeGroundedImageReferenceCandidates
 };

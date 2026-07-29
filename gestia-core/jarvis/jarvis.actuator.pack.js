@@ -3,7 +3,7 @@ import {
 } from "./jarvis.capability.evidence.js";
 import { adaptImageSource } from "./jarvis.image.adapter.js";
 
-const VERSION = "7.23.0-pdf-safe-placement";
+const VERSION = "7.24.0-grounded-image-reference";
 
 export function normalizeImageArtifactOutput(output, mimeType) {
     const extensions = {
@@ -483,6 +483,9 @@ export function registerJarvisActuatorTools(runtime) {
             mutates: true,
             requiresApproval: false,
             userArtifact: true,
+            missionDedupeBy: [
+                "output"
+            ],
             execute: async (args = {}, context = {}) => {
                 const result = await callAdminFunction("jarvisImageGenerate", {
                     prompt: args.prompt || context.rawInput || "",
@@ -538,22 +541,77 @@ export function registerJarvisActuatorTools(runtime) {
             mutates: true,
             requiresApproval: false,
             userArtifact: true,
+            missionDedupeBy: [
+                "sourceOutput",
+                "output"
+            ],
             execute: async (args = {}, context = {}) => {
                 if (!args.sourceOutput) throw new Error("IMAGE_SOURCE_OUTPUT_REQUIRED");
                 const source = await bridgeRequest("/artifact/read", { output: args.sourceOutput }, 30000);
                 if (source?.ok !== true || !String(source.mimeType || "").startsWith("image/") || !source.dataBase64) {
                     throw new Error("IMAGE_SOURCE_ARTIFACT_INVALID");
                 }
+                const requestedTransformations =
+                    Array.isArray(
+                        args.transformations
+                    )
+                        ? args.transformations
+                            .map(item =>
+                                String(
+                                    item ||
+                                    ""
+                                ).trim()
+                            )
+                            .filter(Boolean)
+                        : [];
+
+                const identityGuard =
+                    "Conservar la identidad, estructura facial, tono de piel, cabello, proporciones y rasgos distintivos del sujeto u objeto de la imagen fuente.";
+
+                const replacementGuard =
+                    "No sustituir el sujeto por una persona u objeto gen?rico; cambiar ?nicamente el escenario, vestuario, iluminaci?n, encuadre y estilo solicitados.";
+
+                const transformations =
+                    [
+                        ...new Set([
+                            ...requestedTransformations,
+                            identityGuard,
+                            replacementGuard
+                        ])
+                    ].slice(
+                        0,
+                        20
+                    );
+
+                const groundedPrompt =
+                    [
+                        String(
+                            args.prompt ||
+                            context.rawInput ||
+                            ""
+                        ).trim(),
+                        "Usa la imagen fuente como referencia visual obligatoria. El resultado debe conservar al mismo sujeto u objeto reconocible."
+                    ]
+                        .filter(Boolean)
+                        .join(" ")
+                        .slice(
+                            0,
+                            3000
+                        );
+
                 const result = await callAdminFunction("jarvisImageGenerate", {
-                    prompt: args.prompt || context.rawInput || "",
-                    transformations: Array.isArray(args.transformations) ? args.transformations : [],
+                    prompt:
+                        groundedPrompt,
+                    transformations,
                     aspectRatio: args.aspectRatio || "1:1",
                     imageSize: args.imageSize || "1K",
                     sourceImageBase64: source.dataBase64,
                     sourceMimeType: source.mimeType,
                     sourceOutput: source.output,
                     preserveLogos: args.preserveLogos !== false,
-                    preserveApprovedText: args.preserveApprovedText !== false,
+                    preserveApprovedText:
+                        args.preserveApprovedText ===
+                        true,
                     objectiveId: args.objectiveId || context.objectiveId || ""
                 });
                 let artifact = null;
@@ -577,8 +635,22 @@ export function registerJarvisActuatorTools(runtime) {
                     output: artifact?.output || null,
                     outputBytes: artifact?.bytes || null,
                     originalPreserved: true,
-                    sourceOutput: source.output,
-                    sourceBytes: source.bytes
+                    sourceOutput:
+                        source.output,
+                    sourceBytes:
+                        source.bytes,
+                    sourceSha256:
+                        result?.sourceSha256 ||
+                        source?.sha256 ||
+                        null,
+                    referenceGrounded:
+                        Boolean(
+                            source.output &&
+                            (
+                                result?.sourceSha256 ||
+                                source?.sha256
+                            )
+                        )
                 };
                 recordCapabilityEvidence("image_editing", {
                     ok: finalResult.ok === true && finalResult.persisted === true && finalResult.sourceSha256,
@@ -591,6 +663,10 @@ export function registerJarvisActuatorTools(runtime) {
                     transformations: finalResult.transformations || [],
                     objectiveId: finalResult.objectiveId || null,
                     originalPreserved: true,
+                    referenceGrounded:
+                        finalResult
+                            .referenceGrounded ===
+                        true,
                     checkedAt: new Date().toISOString()
                 });
                 return finalResult;
