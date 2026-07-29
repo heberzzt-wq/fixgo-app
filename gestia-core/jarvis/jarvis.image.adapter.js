@@ -1,4 +1,4 @@
-export const JARVIS_IMAGE_ADAPTER_VERSION = "1.0.0-source-only-browser-canvas";
+export const JARVIS_IMAGE_ADAPTER_VERSION = "1.1.0-identity-reference-sheet";
 
 const DEFAULT_VARIANTS = Object.freeze([
     { id: "hero", width: 1920, height: 1080, mimeType: "image/webp", quality: 0.86 },
@@ -73,6 +73,436 @@ function canvasFor(width, height) {
 async function canvasBlob(canvas, mimeType, quality) {
     if (typeof canvas.convertToBlob === "function") return await canvas.convertToBlob({ type: mimeType, quality });
     return await new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("IMAGE_CANVAS_EXPORT_FAILED")), mimeType, quality));
+}
+
+
+function base64ImageBlob(
+    dataBase64 = "",
+    mimeType = ""
+) {
+    const normalizedMimeType =
+        String(
+            mimeType ||
+            ""
+        )
+            .trim()
+            .toLowerCase();
+
+    if (
+        !normalizedMimeType.startsWith(
+            "image/"
+        )
+    ) {
+        throw new Error(
+            "IDENTITY_REFERENCE_MIME_INVALID"
+        );
+    }
+
+    let binary;
+
+    try {
+        binary =
+            atob(
+                String(
+                    dataBase64 ||
+                    ""
+                )
+            );
+    }
+    catch {
+        throw new Error(
+            "IDENTITY_REFERENCE_BASE64_INVALID"
+        );
+    }
+
+    if (!binary.length) {
+        throw new Error(
+            "IDENTITY_REFERENCE_EMPTY"
+        );
+    }
+
+    const bytes =
+        new Uint8Array(
+            binary.length
+        );
+
+    for (
+        let index = 0;
+        index < binary.length;
+        index += 1
+    ) {
+        bytes[index] =
+            binary.charCodeAt(
+                index
+            );
+    }
+
+    return new Blob(
+        [
+            bytes
+        ],
+        {
+            type:
+                normalizedMimeType
+        }
+    );
+}
+
+function drawContainedImage(
+    context,
+    bitmap,
+    {
+        x,
+        y,
+        width,
+        height
+    }
+) {
+    const scale =
+        Math.min(
+            width /
+                bitmap.width,
+            height /
+                bitmap.height
+        );
+
+    const drawWidth =
+        bitmap.width *
+        scale;
+
+    const drawHeight =
+        bitmap.height *
+        scale;
+
+    context.drawImage(
+        bitmap,
+        0,
+        0,
+        bitmap.width,
+        bitmap.height,
+        x +
+            (
+                width -
+                drawWidth
+            ) /
+            2,
+        y +
+            (
+                height -
+                drawHeight
+            ) /
+            2,
+        drawWidth,
+        drawHeight
+    );
+}
+
+export async function buildIdentityReferenceSheet(
+    input = {}
+) {
+    const supplied =
+        Array.isArray(
+            input.references
+        )
+            ? input.references
+            : [];
+
+    const unique =
+        [];
+
+    const seen =
+        new Set();
+
+    for (
+        const reference
+        of supplied
+    ) {
+        const sourceOutput =
+            String(
+                reference
+                    ?.sourceOutput ||
+                ""
+            )
+                .trim();
+
+        if (
+            !sourceOutput ||
+            seen.has(
+                sourceOutput
+            )
+        ) {
+            continue;
+        }
+
+        const dataBase64 =
+            String(
+                reference
+                    ?.dataBase64 ||
+                ""
+            )
+                .trim();
+
+        const mimeType =
+            String(
+                reference
+                    ?.mimeType ||
+                ""
+            )
+                .trim()
+                .toLowerCase();
+
+        if (
+            !dataBase64 ||
+            !mimeType.startsWith(
+                "image/"
+            )
+        ) {
+            continue;
+        }
+
+        seen.add(
+            sourceOutput
+        );
+
+        unique.push({
+            sourceOutput,
+            dataBase64,
+            mimeType
+        });
+
+        if (
+            unique.length >=
+            4
+        ) {
+            break;
+        }
+    }
+
+    if (
+        unique.length <
+        2
+    ) {
+        throw new Error(
+            "IDENTITY_REFERENCE_MULTIPLE_REQUIRED"
+        );
+    }
+
+    const primaryOutput =
+        String(
+            input
+                .primarySourceOutput ||
+            unique[0]
+                .sourceOutput
+        )
+            .trim();
+
+    const primary =
+        unique.find(item =>
+            item.sourceOutput ===
+            primaryOutput
+        ) ||
+        unique[0];
+
+    const ordered = [
+        primary,
+        ...unique.filter(item =>
+            item !==
+            primary
+        )
+    ];
+
+    const bitmaps =
+        [];
+
+    try {
+        for (
+            const reference
+            of ordered
+        ) {
+            const bitmap =
+                await createImageBitmap(
+                    base64ImageBlob(
+                        reference
+                            .dataBase64,
+                        reference
+                            .mimeType
+                    )
+                );
+
+            if (
+                !bitmap.width ||
+                !bitmap.height
+            ) {
+                throw new Error(
+                    "IDENTITY_REFERENCE_DIMENSIONS_INVALID"
+                );
+            }
+
+            bitmaps.push(
+                bitmap
+            );
+        }
+
+        const width =
+            1024;
+
+        const height =
+            1024;
+
+        const gap =
+            12;
+
+        const primaryWidth =
+            650;
+
+        const canvas =
+            canvasFor(
+                width,
+                height
+            );
+
+        const context =
+            canvas.getContext(
+                "2d",
+                {
+                    alpha:
+                        false
+                }
+            );
+
+        if (!context) {
+            throw new Error(
+                "IDENTITY_REFERENCE_CANVAS_UNAVAILABLE"
+            );
+        }
+
+        if (
+            typeof context.fillRect ===
+            "function"
+        ) {
+            context.fillStyle =
+                "#ffffff";
+
+            context.fillRect(
+                0,
+                0,
+                width,
+                height
+            );
+        }
+
+        drawContainedImage(
+            context,
+            bitmaps[0],
+            {
+                x:
+                    gap,
+                y:
+                    gap,
+                width:
+                    primaryWidth -
+                    gap * 2,
+                height:
+                    height -
+                    gap * 2
+            }
+        );
+
+        const secondaryCount =
+            bitmaps.length -
+            1;
+
+        const secondaryWidth =
+            width -
+            primaryWidth -
+            gap * 2;
+
+        const secondaryHeight =
+            (
+                height -
+                gap *
+                (
+                    secondaryCount +
+                    1
+                )
+            ) /
+            secondaryCount;
+
+        for (
+            let index = 1;
+            index < bitmaps.length;
+            index += 1
+        ) {
+            drawContainedImage(
+                context,
+                bitmaps[index],
+                {
+                    x:
+                        primaryWidth +
+                        gap,
+                    y:
+                        gap +
+                        (
+                            index -
+                            1
+                        ) *
+                        (
+                            secondaryHeight +
+                            gap
+                        ),
+                    width:
+                        secondaryWidth,
+                    height:
+                        secondaryHeight
+                }
+            );
+        }
+
+        const blob =
+            await canvasBlob(
+                canvas,
+                "image/png",
+                1
+            );
+
+        if (!blob.size) {
+            throw new Error(
+                "IDENTITY_REFERENCE_EXPORT_EMPTY"
+            );
+        }
+
+        return {
+            ok:
+                true,
+            status:
+                "IDENTITY_REFERENCE_SHEET_READY",
+            composite:
+                true,
+            referenceCount:
+                ordered.length,
+            primarySourceOutput:
+                primary.sourceOutput,
+            referenceOutputs:
+                ordered.map(item =>
+                    item.sourceOutput
+                ),
+            mimeType:
+                "image/png",
+            bytes:
+                blob.size,
+            width,
+            height,
+            dataBase64:
+                await blobToBase64(
+                    blob
+                )
+        };
+    }
+    finally {
+        bitmaps.forEach(bitmap =>
+            bitmap.close?.()
+        );
+    }
 }
 
 export async function adaptImageSource(input = {}) {

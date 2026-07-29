@@ -2516,7 +2516,7 @@ test("Terminal uses one governed conversation route and the current tool pack", 
     assert.doesNotMatch(conversationConnector, /setTimeout\(\(\) => controller\.abort\(\), 8000\)/);
     assert.match(
         terminal,
-        /jarvis-tools-v7-20260728-grounded-image-reference-v105/
+        /jarvis-tools-v7-20260728-identity-fidelity-v106/
     );
     assert.match(
         toolRuntime,
@@ -3767,7 +3767,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /jarvis-tools-v7-20260728-grounded-image-reference-v105/);
+    assert.match(terminal, /jarvis-tools-v7-20260728-identity-fidelity-v106/);
     assert.match(terminal, /jarvis-tools-bridge-v7-20260726-chief-review-response-v93/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
@@ -3782,10 +3782,10 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-grounded-image-reference-v105-20260728/);
+    assert.match(terminal, /sia7-identity-fidelity-v106-20260728/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
-    assert.match(terminal, /jarvis-tools-v7-20260728-grounded-image-reference-v105/);
+    assert.match(terminal, /jarvis-tools-v7-20260728-identity-fidelity-v106/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -3985,7 +3985,7 @@ test("multifunction descriptor remains approval-bound", () => {
     assert.equal(planner.mutates, false);
     assert.equal(
         planner.version,
-        "4.13.0-grounded-image-reference"
+        "4.14.0-identity-fidelity"
     );
     assert.equal(planner.maximumToolCalls, 12);
     assert.equal(planner.architecture, "model_selected_runtime_catalog");
@@ -4034,7 +4034,7 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260728-grounded-image-reference-v105/);
+    assert.match(core, /jarvis-tools-v7-20260728-identity-fidelity-v106/);
     assert.match(
         terminal,
         /jarvis-tools-v7-20260725-semantic-envelope-v64/
@@ -4636,10 +4636,18 @@ test("uploaded identity image routes once through image.edit with the real artif
             true,
         missionDedupeBy: [
             "sourceOutput",
-            "output"
+            "variantId"
         ],
         inputSchema: {
             sourceOutput:
+                "string",
+            referenceOutputs:
+                "array",
+            variantId:
+                "string",
+            identityMode:
+                "string",
+            ageMode:
                 "string",
             prompt:
                 "string",
@@ -4736,7 +4744,7 @@ test("uploaded identity image routes once through image.edit with the real artif
     assert.equal(
         calls[0]
             .missionDedupeKey,
-        'image.edit:[".jarvis-artifacts/uploads/Screenshot_20260422-192007.png",null]'
+        'image.edit:[".jarvis-artifacts/uploads/Screenshot_20260422-192007.png","PRIMARY"]'
     );
 });
 
@@ -4788,10 +4796,14 @@ test("independent generation remains image.generate when the attachment is expli
             true,
         missionDedupeBy: [
             "sourceOutput",
-            "output"
+            "variantId"
         ],
         inputSchema: {
             sourceOutput:
+                "string",
+            referenceOutputs:
+                "array",
+            variantId:
                 "string",
             prompt:
                 "string",
@@ -4867,7 +4879,7 @@ test("image actuators expose mission dedupe and mandatory grounded-reference ins
 
     assert.match(
         actuatorSource,
-        /name:\s*"image\.edit"[\s\S]{0,1200}?missionDedupeBy:\s*\[\s*"sourceOutput",\s*"output"\s*\]/
+        /name:\s*"image\.edit"[\s\S]{0,1600}?missionDedupeBy:\s*\[\s*"sourceOutput",\s*"variantId"\s*\]/
     );
 
     assert.match(
@@ -4878,5 +4890,170 @@ test("image actuators expose mission dedupe and mandatory grounded-reference ins
     assert.match(
         actuatorSource,
         /referenceGrounded/
+    );
+});
+
+
+test("reference photo count never becomes output variant count and newest dated identity is primary", () => {
+    const manifest = [{
+        name:
+            "IMG_20211225_012522-2.jpg",
+        mimeType:
+            "image/jpeg",
+        artifact:
+            ".jarvis-artifacts/uploads/old-reference.jpg",
+        sha256:
+            "old-sha"
+    }, {
+        name:
+            "IMG_20241216_111350981_HDR.jpg",
+        mimeType:
+            "image/jpeg",
+        artifact:
+            ".jarvis-artifacts/uploads/current-reference.jpg",
+        sha256:
+            "current-sha"
+    }];
+
+    const instruction = [
+        "Usa mis mejores 2 o 3 fotos adjuntas como referencias de identidad y crea una sola imagen profesional sin envejecerme.",
+        "",
+        "Archivos adjuntos reales entregados por el usuario:",
+        JSON.stringify(
+            manifest
+        )
+    ].join("\n");
+
+    const catalog = [{
+        name:
+            "image.generate",
+        mutates:
+            true,
+        requiresApproval:
+            false,
+        userArtifact:
+            true,
+        missionDedupeBy: [
+            "output"
+        ],
+        inputSchema: {
+            prompt:
+                "string",
+            output:
+                "string"
+        }
+    }, {
+        name:
+            "image.edit",
+        mutates:
+            true,
+        requiresApproval:
+            false,
+        userArtifact:
+            true,
+        missionDedupeBy: [
+            "sourceOutput",
+            "variantId"
+        ],
+        inputSchema: {
+            sourceOutput:
+                "string",
+            referenceOutputs:
+                "array",
+            variantId:
+                "string",
+            identityMode:
+                "string",
+            ageMode:
+                "string",
+            prompt:
+                "string",
+            transformations:
+                "array",
+            output:
+                "string"
+        }
+    }];
+
+    const calls =
+        plannerTest
+            .trustedPlanCalls(
+                {
+                    toolCalls: [{
+                        name:
+                            "image.edit",
+                        args: {
+                            sourceOutput:
+                                manifest[0].artifact,
+                            prompt:
+                                "Retrato en playa"
+                        }
+                    }, {
+                        name:
+                            "image.edit",
+                        args: {
+                            sourceOutput:
+                                manifest[0].artifact,
+                            prompt:
+                                "Otra formulacion del mismo retrato"
+                        }
+                    }]
+                },
+                catalog,
+                {
+                    originalInstruction:
+                        instruction
+                }
+            );
+
+    assert.equal(
+        calls.length,
+        1
+    );
+
+    assert.equal(
+        calls[0]
+            .name,
+        "image.edit"
+    );
+
+    assert.equal(
+        calls[0]
+            .args
+            .sourceOutput,
+        manifest[1]
+            .artifact
+    );
+
+    assert.deepEqual(
+        calls[0]
+            .args
+            .referenceOutputs,
+        [
+            manifest[1]
+                .artifact,
+            manifest[0]
+                .artifact
+        ]
+    );
+
+    assert.equal(
+        calls[0]
+            .args
+            .variantId,
+        "PRIMARY"
+    );
+
+    assert.equal(
+        calls[0]
+            .args
+            .ageMode,
+        "preserve"
+    );
+
+    assert.equal(
+        calls[0]
+            .missionDedupeKey,
+        'image.edit:[".jarvis-artifacts/uploads/current-reference.jpg","PRIMARY"]'
     );
 });

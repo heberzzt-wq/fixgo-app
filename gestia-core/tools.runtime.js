@@ -8,7 +8,7 @@ import {
 } from "./jarvis/jarvis.multitool.pack.js?v=sia7-test-outcome-evidence-v100-20260727";
 import {
     registerJarvisActuatorTools
-} from "./jarvis/jarvis.actuator.pack.js?v=sia7-grounded-image-reference-v105-20260728";
+} from "./jarvis/jarvis.actuator.pack.js?v=sia7-identity-fidelity-v106-20260728";
 import {
     reviewChiefArchitectPlan
 } from "./jarvis/jarvis.chief.architect.js?v=sia7-chief-architect-v92-20260726";

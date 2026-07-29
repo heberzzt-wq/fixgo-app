@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { test } from "node:test";
 
 import {
@@ -80,6 +81,21 @@ test("actuator pack registers browser, documents, image, delegation and connecto
     assert.equal(runtime.get("document.pptx.edit").requiresApproval, true);
     assert.equal(runtime.get("image.edit").requiresApproval, false);
     assert.equal(runtime.get("image.edit").userArtifact, true);
+    assert.deepEqual(
+        runtime.get("image.edit").missionDedupeBy,
+        [
+            "sourceOutput",
+            "variantId"
+        ]
+    );
+    assert.equal(
+        runtime.get("image.edit").inputSchema.referenceOutputs,
+        "array"
+    );
+    assert.equal(
+        runtime.get("image.edit").inputSchema.ageMode,
+        "string"
+    );
     assert.equal(runtime.get("image.adapt").requiresApproval, true);
     assert.equal(runtime.get("artifact.createJson").requiresApproval, true);
     assert.equal(runtime.get("artifact.list").mutates, false);
@@ -218,5 +234,402 @@ test("connector list reports verified bridge connectors", async () => {
     } finally {
         globalThis.JarvisLocalBridge = previous;
         delete globalThis.__JARVIS_CONNECTOR_HEALTH__;
+    }
+});
+
+
+test("image edit composes identity references once and reports the generated output hash", async () => {
+    const previousAuth =
+        globalThis.auth;
+
+    const previousFetch =
+        globalThis.fetch;
+
+    const previousBridge =
+        globalThis.JarvisLocalBridge;
+
+    const previousBitmap =
+        globalThis.createImageBitmap;
+
+    const PreviousCanvas =
+        globalThis.OffscreenCanvas;
+
+    const primaryBytes =
+        Buffer.from(
+            "primary-current-selfie"
+        );
+
+    const secondaryBytes =
+        Buffer.from(
+            "secondary-old-reference"
+        );
+
+    const generatedBytes =
+        Buffer.from(
+            "generated-edited-output"
+        );
+
+    const primaryBase64 =
+        primaryBytes.toString(
+            "base64"
+        );
+
+    const secondaryBase64 =
+        secondaryBytes.toString(
+            "base64"
+        );
+
+    const generatedBase64 =
+        generatedBytes.toString(
+            "base64"
+        );
+
+    const primarySha256 =
+        createHash(
+            "sha256"
+        )
+            .update(
+                primaryBytes
+            )
+            .digest(
+                "hex"
+            );
+
+    const secondarySha256 =
+        createHash(
+            "sha256"
+        )
+            .update(
+                secondaryBytes
+            )
+            .digest(
+                "hex"
+            );
+
+    const expectedOutputSha256 =
+        createHash(
+            "sha256"
+        )
+            .update(
+                generatedBytes
+            )
+            .digest(
+                "hex"
+            );
+
+    let imageSaveCalls =
+        0;
+
+    let functionPayload =
+        null;
+
+    try {
+        globalThis.auth = {
+            currentUser: {
+                getIdToken:
+                    async () =>
+                        "test-token"
+            }
+        };
+
+        globalThis.createImageBitmap =
+            async () => ({
+                width:
+                    1200,
+                height:
+                    1600,
+                close() {}
+            });
+
+        globalThis.OffscreenCanvas =
+            class {
+                constructor(
+                    width,
+                    height
+                ) {
+                    this.width =
+                        width;
+
+                    this.height =
+                        height;
+                }
+
+                getContext() {
+                    return {
+                        drawImage() {},
+                        fillRect() {},
+                        fillStyle:
+                            "#ffffff"
+                    };
+                }
+
+                async convertToBlob(
+                    {
+                        type
+                    }
+                ) {
+                    return new Blob(
+                        [
+                            "identity-reference-sheet"
+                        ],
+                        {
+                            type
+                        }
+                    );
+                }
+            };
+
+        globalThis.fetch =
+            async (
+                _url,
+                options = {}
+            ) => {
+                functionPayload =
+                    JSON.parse(
+                        options.body
+                    )
+                        .data;
+
+                const providerSourceSha256 =
+                    createHash(
+                        "sha256"
+                    )
+                        .update(
+                            Buffer.from(
+                                functionPayload
+                                    .sourceImageBase64,
+                                "base64"
+                            )
+                        )
+                        .digest(
+                            "hex"
+                        );
+
+                return {
+                    ok:
+                        true,
+                    status:
+                        200,
+                    text:
+                        async () =>
+                            JSON.stringify({
+                                result: {
+                                    ok:
+                                        true,
+                                    status:
+                                        "IMAGE_EDITED",
+                                    action:
+                                        "edit",
+                                    provider:
+                                        "google",
+                                    model:
+                                        "test-image-model",
+                                    mimeType:
+                                        "image/png",
+                                    sourceSha256:
+                                        providerSourceSha256,
+                                    transformations:
+                                        functionPayload
+                                            .transformations,
+                                    imageBase64:
+                                        generatedBase64
+                                }
+                            })
+                };
+            };
+
+        globalThis.JarvisLocalBridge = {
+            requestJson:
+                async (
+                    path,
+                    payload
+                ) => {
+                    if (
+                        path ===
+                        "/artifact/read"
+                    ) {
+                        if (
+                            payload.output ===
+                            ".jarvis-artifacts/uploads/current.jpg"
+                        ) {
+                            return {
+                                ok:
+                                    true,
+                                output:
+                                    payload.output,
+                                mimeType:
+                                    "image/jpeg",
+                                bytes:
+                                    primaryBytes.length,
+                                sha256:
+                                    primarySha256,
+                                dataBase64:
+                                    primaryBase64
+                            };
+                        }
+
+                        return {
+                            ok:
+                                true,
+                            output:
+                                payload.output,
+                            mimeType:
+                                "image/jpeg",
+                            bytes:
+                                secondaryBytes.length,
+                            sha256:
+                                secondarySha256,
+                            dataBase64:
+                                secondaryBase64
+                        };
+                    }
+
+                    if (
+                        path ===
+                        "/image"
+                    ) {
+                        imageSaveCalls +=
+                            1;
+
+                        return {
+                            ok:
+                                true,
+                            status:
+                                "IMAGE_SAVED",
+                            output:
+                                ".jarvis-artifacts/images/identity-result.png",
+                            bytes:
+                                generatedBytes.length,
+                            mimeType:
+                                "image/png"
+                        };
+                    }
+
+                    return {
+                        ok:
+                            false,
+                        status:
+                            "UNEXPECTED_BRIDGE_PATH"
+                    };
+                }
+        };
+
+        const runtime =
+            createRuntime();
+
+        registerJarvisActuatorTools(
+            runtime
+        );
+
+        const result =
+            await runtime
+                .get(
+                    "image.edit"
+                )
+                .execute(
+                    {
+                        sourceOutput:
+                            ".jarvis-artifacts/uploads/current.jpg",
+                        referenceOutputs: [
+                            ".jarvis-artifacts/uploads/current.jpg",
+                            ".jarvis-artifacts/uploads/old.jpg"
+                        ],
+                        variantId:
+                            "PRIMARY",
+                        ageMode:
+                            "preserve",
+                        prompt:
+                            "Retrato profesional actual en la playa",
+                        transformations:
+                            [],
+                        output:
+                            ".jarvis-artifacts/images/identity-result.png"
+                    },
+                    {
+                        objectiveId:
+                            "OBJ_TEST",
+                        caseId:
+                            "CASE_TEST"
+                    }
+                );
+
+        assert.equal(
+            result.ok,
+            true
+        );
+
+        assert.equal(
+            result.persisted,
+            true
+        );
+
+        assert.equal(
+            result.referenceGrounded,
+            true
+        );
+
+        assert.equal(
+            result.referenceCount,
+            2
+        );
+
+        assert.equal(
+            result.identityReferenceComposite,
+            true
+        );
+
+        assert.equal(
+            result.sourceSha256,
+            primarySha256
+        );
+
+        assert.equal(
+            result.outputSha256,
+            expectedOutputSha256
+        );
+
+        assert.notEqual(
+            result.outputSha256,
+            result.sourceSha256
+        );
+
+        assert.equal(
+            imageSaveCalls,
+            1
+        );
+
+        assert.notEqual(
+            functionPayload
+                .sourceImageBase64,
+            primaryBase64
+        );
+
+        assert.match(
+            functionPayload
+                .prompt,
+            /panel grande contiene la referencia principal/
+        );
+
+        assert.match(
+            functionPayload
+                .prompt,
+            /sin agregar signos de mayor edad/
+        );
+    }
+    finally {
+        globalThis.auth =
+            previousAuth;
+
+        globalThis.fetch =
+            previousFetch;
+
+        globalThis.JarvisLocalBridge =
+            previousBridge;
+
+        globalThis.createImageBitmap =
+            previousBitmap;
+
+        globalThis.OffscreenCanvas =
+            PreviousCanvas;
     }
 });

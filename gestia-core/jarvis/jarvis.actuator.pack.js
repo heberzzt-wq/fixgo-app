@@ -1,9 +1,12 @@
 import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
-import { adaptImageSource } from "./jarvis.image.adapter.js";
+import {
+    adaptImageSource,
+    buildIdentityReferenceSheet
+} from "./jarvis.image.adapter.js?v=sia7-identity-fidelity-v106-20260728";
 
-const VERSION = "7.24.0-grounded-image-reference";
+const VERSION = "7.25.0-identity-fidelity";
 
 export function normalizeImageArtifactOutput(output, mimeType) {
     const extensions = {
@@ -25,6 +28,90 @@ export function normalizeImageArtifactOutput(output, mimeType) {
     }
 
     return candidate;
+}
+
+
+async function sha256Base64(
+    value = ""
+) {
+    const normalized =
+        String(
+            value ||
+            ""
+        )
+            .replaceAll(
+                "\r",
+                ""
+            )
+            .replaceAll(
+                "\n",
+                ""
+            )
+            .trim();
+
+    if (!normalized) {
+        throw new Error(
+            "IMAGE_BASE64_HASH_INPUT_REQUIRED"
+        );
+    }
+
+    let binary;
+
+    try {
+        binary =
+            atob(
+                normalized
+            );
+    }
+    catch {
+        throw new Error(
+            "IMAGE_BASE64_HASH_INPUT_INVALID"
+        );
+    }
+
+    const bytes =
+        new Uint8Array(
+            binary.length
+        );
+
+    for (
+        let index = 0;
+        index < binary.length;
+        index += 1
+    ) {
+        bytes[index] =
+            binary.charCodeAt(
+                index
+            );
+    }
+
+    const digest =
+        await globalThis
+            .crypto
+            .subtle
+            .digest(
+                "SHA-256",
+                bytes
+            );
+
+    return Array
+        .from(
+            new Uint8Array(
+                digest
+            ),
+            byte =>
+                byte
+                    .toString(
+                        16
+                    )
+                    .padStart(
+                        2,
+                        "0"
+                    )
+        )
+        .join(
+            ""
+        );
 }
 
 function bridgeRequest(path, payload, timeoutMs = 60000) {
@@ -529,54 +616,275 @@ export function registerJarvisActuatorTools(runtime) {
                 return finalResult;
             }
         }),
+
         register(runtime, {
             name: "image.edit",
-            description: "Edita una imagen persistida con transformaciones explícitas, conserva trazabilidad del original y guarda un output descargable nuevo.",
+            description: "Edita una imagen persistida usando una o varias referencias reales de identidad, conserva el original y genera exactamente una salida por variantId.",
             output: "IMAGE_EDIT_RESULT",
             inputSchema: {
-                sourceOutput: "string", prompt: "string", transformations: "array",
-                aspectRatio: "string", imageSize: "string", preserveLogos: "boolean",
-                preserveApprovedText: "boolean", output: "string", caseId: "string", objectiveId: "string"
+                sourceOutput: "string",
+                referenceOutputs: "array",
+                variantId: "string",
+                identityMode: "string",
+                ageMode: "string",
+                prompt: "string",
+                transformations: "array",
+                aspectRatio: "string",
+                imageSize: "string",
+                preserveLogos: "boolean",
+                preserveApprovedText: "boolean",
+                output: "string",
+                caseId: "string",
+                objectiveId: "string"
             },
             mutates: true,
             requiresApproval: false,
             userArtifact: true,
             missionDedupeBy: [
                 "sourceOutput",
-                "output"
+                "variantId"
             ],
             execute: async (args = {}, context = {}) => {
-                if (!args.sourceOutput) throw new Error("IMAGE_SOURCE_OUTPUT_REQUIRED");
-                const source = await bridgeRequest("/artifact/read", { output: args.sourceOutput }, 30000);
-                if (source?.ok !== true || !String(source.mimeType || "").startsWith("image/") || !source.dataBase64) {
-                    throw new Error("IMAGE_SOURCE_ARTIFACT_INVALID");
+                if (!args.sourceOutput) {
+                    throw new Error(
+                        "IMAGE_SOURCE_OUTPUT_REQUIRED"
+                    );
                 }
-                const requestedTransformations =
-                    Array.isArray(
-                        args.transformations
-                    )
-                        ? args.transformations
-                            .map(item =>
-                                String(
-                                    item ||
-                                    ""
-                                ).trim()
+
+                const requestedOutputs =
+                    [
+                        args.sourceOutput,
+                        ...(
+                            Array.isArray(
+                                args.referenceOutputs
                             )
-                            .filter(Boolean)
-                        : [];
+                                ? args.referenceOutputs
+                                : []
+                        )
+                    ]
+                        .map(value =>
+                            String(
+                                value ||
+                                ""
+                            ).trim()
+                        )
+                        .filter(
+                            (
+                                output,
+                                index,
+                                values
+                            ) =>
+                                Boolean(output) &&
+                                values.indexOf(
+                                    output
+                                ) ===
+                                index
+                        )
+                        .slice(
+                            0,
+                            4
+                        );
+
+                const referenceSources =
+                    [];
+
+                for (
+                    const output
+                    of requestedOutputs
+                ) {
+                    const source =
+                        await bridgeRequest(
+                            "/artifact/read",
+                            {
+                                output
+                            },
+                            30000
+                        );
+
+                    const valid =
+                        source?.ok ===
+                            true &&
+                        String(
+                            source.mimeType ||
+                            ""
+                        ).startsWith(
+                            "image/"
+                        ) &&
+                        Boolean(
+                            source.dataBase64
+                        );
+
+                    if (!valid) {
+                        if (
+                            output ===
+                            String(
+                                args.sourceOutput
+                            )
+                        ) {
+                            throw new Error(
+                                "IMAGE_SOURCE_ARTIFACT_INVALID"
+                            );
+                        }
+
+                        continue;
+                    }
+
+                    referenceSources.push({
+                        ...source,
+                        output:
+                            source.output ||
+                            output
+                    });
+                }
+
+                if (
+                    referenceSources.length ===
+                    0
+                ) {
+                    throw new Error(
+                        "IMAGE_SOURCE_ARTIFACT_INVALID"
+                    );
+                }
+
+                const source =
+                    referenceSources[0];
+
+                const referenceSha256s =
+                    [];
+
+                for (
+                    const reference
+                    of referenceSources
+                ) {
+                    referenceSha256s.push(
+                        reference.sha256 ||
+                        await sha256Base64(
+                            reference.dataBase64
+                        )
+                    );
+                }
+
+                const primarySourceSha256 =
+                    referenceSha256s[0];
+
+                const identityReference =
+                    referenceSources.length >
+                        1
+                        ? await buildIdentityReferenceSheet({
+                            primarySourceOutput:
+                                source.output,
+                            references:
+                                referenceSources.map(
+                                    reference => ({
+                                        sourceOutput:
+                                            reference.output,
+                                        dataBase64:
+                                            reference.dataBase64,
+                                        mimeType:
+                                            reference.mimeType
+                                    })
+                                )
+                        })
+                        : {
+                            ok:
+                                true,
+                            status:
+                                "IDENTITY_REFERENCE_SINGLE_READY",
+                            composite:
+                                false,
+                            referenceCount:
+                                1,
+                            primarySourceOutput:
+                                source.output,
+                            referenceOutputs: [
+                                source.output
+                            ],
+                            mimeType:
+                                source.mimeType,
+                            bytes:
+                                source.bytes,
+                            dataBase64:
+                                source.dataBase64
+                        };
+
+                const identityReferenceSha256 =
+                    await sha256Base64(
+                        identityReference
+                            .dataBase64
+                    );
+
+                const requestedTransformations =
+                    (
+                        Array.isArray(
+                            args.transformations
+                        )
+                            ? args.transformations
+                            : []
+                    )
+                        .map(item =>
+                            String(
+                                item ||
+                                ""
+                            ).trim()
+                        )
+                        .filter(Boolean)
+                        .filter(item => {
+                            const normalized =
+                                item
+                                    .normalize(
+                                        "NFD"
+                                    )
+                                    .replace(
+                                        /[\u0300-\u036f]/g,
+                                        ""
+                                    )
+                                    .toLowerCase();
+
+                            return (
+                                !normalized.includes(
+                                    "conservar la identidad"
+                                ) &&
+                                !normalized.includes(
+                                    "no sustituir el sujeto"
+                                ) &&
+                                !normalized.includes(
+                                    "apariencia actual"
+                                )
+                            );
+                        });
 
                 const identityGuard =
-                    "Conservar la identidad, estructura facial, tono de piel, cabello, proporciones y rasgos distintivos del sujeto u objeto de la imagen fuente.";
+                    "Conservar exactamente la identidad y geometria facial de la persona principal: frente, linea del cabello, ojos, separacion ocular, nariz, boca, mandibula, orejas, tono de piel y proporciones.";
 
                 const replacementGuard =
-                    "No sustituir el sujeto por una persona u objeto gen?rico; cambiar ?nicamente el escenario, vestuario, iluminaci?n, encuadre y estilo solicitados.";
+                    "No sustituir, mezclar ni reinterpretar el rostro como una persona generica. La persona objetivo es el adulto que aparece de forma recurrente en las referencias; ignorar a cualquier otra persona.";
+
+                const ageGuard =
+                    "Preservar la edad aparente exacta de la referencia principal. No envejecer ni rejuvenecer; no agregar arrugas, surcos, bolsas, flacidez, textura endurecida, canas ni entradas adicionales.";
+
+                const facialHairGuard =
+                    "Preservar exactamente el estado de barba, bigote, afeitado y color del cabello de la referencia principal. No agregar barba, barba canosa, bigote ni cabello gris que no esten presentes.";
 
                 const transformations =
                     [
                         ...new Set([
                             ...requestedTransformations,
                             identityGuard,
-                            replacementGuard
+                            replacementGuard,
+                            ...(
+                                String(
+                                    args.ageMode ||
+                                    "preserve"
+                                )
+                                    .trim()
+                                    .toLowerCase() ===
+                                "allow-change"
+                                    ? []
+                                    : [
+                                        ageGuard,
+                                        facialHairGuard
+                                    ]
+                            )
                         ])
                     ].slice(
                         0,
@@ -590,7 +898,21 @@ export function registerJarvisActuatorTools(runtime) {
                             context.rawInput ||
                             ""
                         ).trim(),
-                        "Usa la imagen fuente como referencia visual obligatoria. El resultado debe conservar al mismo sujeto u objeto reconocible."
+                        identityReference
+                            .composite ===
+                            true
+                                ? "La imagen fuente es una hoja de referencias de la misma identidad. El panel grande contiene la referencia principal y define rostro, edad aparente y vello facial. Las imagenes pequenas son apoyo. No combines el rostro con otras personas."
+                                : "Usa la imagen fuente como referencia visual obligatoria.",
+                        "El resultado debe mostrar a la misma persona claramente reconocible y no a un parecido aproximado.",
+                        String(
+                            args.ageMode ||
+                            "preserve"
+                        )
+                            .trim()
+                            .toLowerCase() ===
+                        "allow-change"
+                            ? ""
+                            : "Mantener la apariencia actual de la referencia principal sin agregar signos de mayor edad."
                     ]
                         .filter(Boolean)
                         .join(" ")
@@ -599,76 +921,258 @@ export function registerJarvisActuatorTools(runtime) {
                             3000
                         );
 
-                const result = await callAdminFunction("jarvisImageGenerate", {
-                    prompt:
-                        groundedPrompt,
-                    transformations,
-                    aspectRatio: args.aspectRatio || "1:1",
-                    imageSize: args.imageSize || "1K",
-                    sourceImageBase64: source.dataBase64,
-                    sourceMimeType: source.mimeType,
-                    sourceOutput: source.output,
-                    preserveLogos: args.preserveLogos !== false,
-                    preserveApprovedText:
-                        args.preserveApprovedText ===
-                        true,
-                    objectiveId: args.objectiveId || context.objectiveId || ""
-                });
-                let artifact = null;
-                if (result?.ok === true && result?.status === "IMAGE_EDITED" && result?.imageBase64) {
-                    artifact = await bridgeRequest("/image", {
-                        imageBase64: result.imageBase64,
-                        mimeType: result.mimeType,
-                        output: normalizeImageArtifactOutput(args.output, result.mimeType),
-                        origin: "image.edit",
-                        provider: result.provider || "google",
-                        model: result.model,
-                        objectiveId: result.objectiveId || context.objectiveId || "",
-                        caseId: args.caseId || context.caseId || "",
-                        originalFile: source.output,
-                        transformations: result.transformations || []
-                    }, 30000);
+                const result =
+                    await callAdminFunction(
+                        "jarvisImageGenerate",
+                        {
+                            prompt:
+                                groundedPrompt,
+                            transformations,
+                            aspectRatio:
+                                args.aspectRatio ||
+                                "1:1",
+                            imageSize:
+                                args.imageSize ||
+                                "1K",
+                            sourceImageBase64:
+                                identityReference
+                                    .dataBase64,
+                            sourceMimeType:
+                                identityReference
+                                    .mimeType,
+                            sourceOutput:
+                                source.output,
+                            preserveLogos:
+                                args.preserveLogos !==
+                                false,
+                            preserveApprovedText:
+                                args.preserveApprovedText ===
+                                true,
+                            objectiveId:
+                                args.objectiveId ||
+                                context.objectiveId ||
+                                ""
+                        }
+                    );
+
+                if (
+                    result?.ok !==
+                        true ||
+                    result?.status !==
+                        "IMAGE_EDITED" ||
+                    !result?.imageBase64
+                ) {
+                    return result;
                 }
+
+                const referenceGrounded =
+                    result.sourceSha256 ===
+                    identityReferenceSha256;
+
+                if (!referenceGrounded) {
+                    return {
+                        ...result,
+                        ok:
+                            false,
+                        status:
+                            "IMAGE_REFERENCE_GROUNDING_UNVERIFIED",
+                        objectiveSatisfied:
+                            false,
+                        blocked:
+                            true,
+                        retryable:
+                            false,
+                        sourceOutput:
+                            source.output,
+                        sourceSha256:
+                            primarySourceSha256,
+                        identityReferenceSha256,
+                        providerSourceSha256:
+                            result.sourceSha256 ||
+                            null,
+                        referenceGrounded:
+                            false,
+                        originalPreserved:
+                            true
+                    };
+                }
+
+                const outputSha256 =
+                    await sha256Base64(
+                        result.imageBase64
+                    );
+
+                if (
+                    referenceSha256s.includes(
+                        outputSha256
+                    )
+                ) {
+                    return {
+                        ...result,
+                        ok:
+                            false,
+                        status:
+                            "IMAGE_EDIT_OUTPUT_IDENTICAL_TO_REFERENCE",
+                        objectiveSatisfied:
+                            false,
+                        blocked:
+                            true,
+                        retryable:
+                            false,
+                        sourceOutput:
+                            source.output,
+                        sourceSha256:
+                            primarySourceSha256,
+                        outputSha256,
+                        referenceGrounded:
+                            true,
+                        originalPreserved:
+                            true
+                    };
+                }
+
+                const artifact =
+                    await bridgeRequest(
+                        "/image",
+                        {
+                            imageBase64:
+                                result.imageBase64,
+                            mimeType:
+                                result.mimeType,
+                            output:
+                                normalizeImageArtifactOutput(
+                                    args.output,
+                                    result.mimeType
+                                ),
+                            origin:
+                                "image.edit",
+                            provider:
+                                result.provider ||
+                                "google",
+                            model:
+                                result.model,
+                            objectiveId:
+                                result.objectiveId ||
+                                context.objectiveId ||
+                                "",
+                            caseId:
+                                args.caseId ||
+                                context.caseId ||
+                                "",
+                            originalFile:
+                                source.output,
+                            transformations
+                        },
+                        30000
+                    );
+
                 const finalResult = {
                     ...result,
-                    persisted: artifact?.ok === true,
-                    output: artifact?.output || null,
-                    outputBytes: artifact?.bytes || null,
-                    originalPreserved: true,
                     sourceOutput:
                         source.output,
-                    sourceBytes:
-                        source.bytes,
                     sourceSha256:
-                        result?.sourceSha256 ||
-                        source?.sha256 ||
-                        null,
-                    referenceGrounded:
-                        Boolean(
-                            source.output &&
-                            (
-                                result?.sourceSha256 ||
-                                source?.sha256
-                            )
-                        )
-                };
-                recordCapabilityEvidence("image_editing", {
-                    ok: finalResult.ok === true && finalResult.persisted === true && finalResult.sourceSha256,
-                    status: finalResult.persisted ? finalResult.status : "IMAGE_EDIT_ARTIFACT_REQUIRED",
-                    provider: finalResult.provider || null,
-                    model: finalResult.model || null,
-                    sourceOutput: finalResult.sourceOutput,
-                    sourceSha256: finalResult.sourceSha256 || null,
-                    output: finalResult.output,
-                    transformations: finalResult.transformations || [],
-                    objectiveId: finalResult.objectiveId || null,
-                    originalPreserved: true,
-                    referenceGrounded:
-                        finalResult
-                            .referenceGrounded ===
+                        primarySourceSha256,
+                    outputSha256,
+                    identityReferenceSha256,
+                    providerSourceSha256:
+                        result.sourceSha256,
+                    referenceOutputs:
+                        identityReference
+                            .referenceOutputs,
+                    referenceSha256s,
+                    referenceCount:
+                        identityReference
+                            .referenceCount,
+                    identityReferenceComposite:
+                        identityReference
+                            .composite ===
                         true,
-                    checkedAt: new Date().toISOString()
-                });
+                    variantId:
+                        String(
+                            args.variantId ||
+                            "PRIMARY"
+                        ),
+                    persisted:
+                        artifact?.ok ===
+                        true,
+                    output:
+                        artifact?.output ||
+                        null,
+                    outputBytes:
+                        artifact?.bytes ||
+                        null,
+                    originalPreserved:
+                        true,
+                    referenceGrounded:
+                        true,
+                    apparentAgePreservedRequested:
+                        String(
+                            args.ageMode ||
+                            "preserve"
+                        )
+                            .trim()
+                            .toLowerCase() !==
+                        "allow-change"
+                };
+
+                recordCapabilityEvidence(
+                    "image_editing",
+                    {
+                        ok:
+                            finalResult.ok ===
+                                true &&
+                            finalResult.persisted ===
+                                true &&
+                            finalResult.referenceGrounded ===
+                                true &&
+                            Boolean(
+                                finalResult.outputSha256
+                            ),
+                        status:
+                            finalResult.persisted
+                                ? finalResult.status
+                                : "IMAGE_EDIT_ARTIFACT_REQUIRED",
+                        provider:
+                            finalResult.provider ||
+                            null,
+                        model:
+                            finalResult.model ||
+                            null,
+                        sourceOutput:
+                            finalResult.sourceOutput,
+                        sourceSha256:
+                            finalResult.sourceSha256,
+                        output:
+                            finalResult.output,
+                        outputSha256:
+                            finalResult.outputSha256,
+                        referenceOutputs:
+                            finalResult.referenceOutputs,
+                        referenceSha256s:
+                            finalResult.referenceSha256s,
+                        referenceCount:
+                            finalResult.referenceCount,
+                        identityReferenceComposite:
+                            finalResult.identityReferenceComposite,
+                        transformations:
+                            finalResult.transformations ||
+                            transformations,
+                        objectiveId:
+                            finalResult.objectiveId ||
+                            null,
+                        originalPreserved:
+                            true,
+                        referenceGrounded:
+                            true,
+                        apparentAgePreservedRequested:
+                            finalResult
+                                .apparentAgePreservedRequested,
+                        checkedAt:
+                            new Date()
+                                .toISOString()
+                    }
+                );
+
                 return finalResult;
             }
         }),

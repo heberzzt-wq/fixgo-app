@@ -1,4 +1,4 @@
-const VERSION = "4.13.0-grounded-image-reference";
+const VERSION = "4.14.0-identity-fidelity";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
@@ -766,26 +766,202 @@ function requestsAttachmentAnalysis(
     );
 }
 
-function requestsMultipleImageVariants(
-    instruction = ""
+
+function candidateArgumentObject(
+    candidate = {}
 ) {
-    const text =
-        normalizeRoutingText(
-            instructionBeforeAttachmentManifest(
-                instruction
-            )
-        );
+    const value =
+        candidate?.args ||
+        candidate?.arguments;
 
     return (
-        /\b(variantes|versiones|opciones|alternativas|varias imagenes|varias fotos|multiple images|variants|versions)\b/
-            .exec(
-                text
-            ) ||
-        /\b(2|3|4|5|6|7|8|9|dos|tres|cuatro|cinco|seis)\s+(imagenes|fotos|retratos|versiones|variantes)\b/
-            .exec(
-                text
-            )
-    );
+        value &&
+        typeof value ===
+            "object" &&
+        !Array.isArray(
+            value
+        )
+    )
+        ? {
+            ...value
+        }
+        : {};
+}
+
+function imageVariantIdentity(
+    candidate = {}
+) {
+    const args =
+        candidateArgumentObject(
+            candidate
+        );
+
+    const declared =
+        String(
+            args.variantId ||
+            ""
+        )
+            .trim()
+            .slice(
+                0,
+                120
+            );
+
+    return declared ||
+        "PRIMARY";
+}
+
+function attachmentDateScore(
+    value = ""
+) {
+    const source =
+        String(
+            value ||
+            ""
+        );
+
+    let best =
+        0;
+
+    for (
+        let index = 0;
+        index <= source.length - 8;
+        index += 1
+    ) {
+        const candidate =
+            source.slice(
+                index,
+                index + 8
+            );
+
+        let numeric =
+            true;
+
+        for (
+            const character
+            of candidate
+        ) {
+            const code =
+                character.charCodeAt(
+                    0
+                );
+
+            if (
+                code < 48 ||
+                code > 57
+            ) {
+                numeric =
+                    false;
+                break;
+            }
+        }
+
+        if (!numeric) {
+            continue;
+        }
+
+        const year =
+            Number(
+                candidate.slice(
+                    0,
+                    4
+                )
+            );
+
+        const month =
+            Number(
+                candidate.slice(
+                    4,
+                    6
+                )
+            );
+
+        const day =
+            Number(
+                candidate.slice(
+                    6,
+                    8
+                )
+            );
+
+        if (
+            year < 1900 ||
+            year > 2199 ||
+            month < 1 ||
+            month > 12 ||
+            day < 1 ||
+            day > 31
+        ) {
+            continue;
+        }
+
+        best =
+            Math.max(
+                best,
+                Number(candidate)
+            );
+    }
+
+    return best;
+}
+
+function selectPreferredIdentityAttachment(
+    images = [],
+    fallback = null
+) {
+    const candidates =
+        Array.isArray(
+            images
+        )
+            ? images
+            : [];
+
+    if (candidates.length === 0) {
+        return null;
+    }
+
+    const dated =
+        candidates
+            .map((item, index) => ({
+                item,
+                index,
+                score:
+                    attachmentDateScore(
+                        item?.name ||
+                        item?.artifact ||
+                        ""
+                    )
+            }))
+            .sort((left, right) =>
+                right.score -
+                    left.score ||
+                right.index -
+                    left.index
+            );
+
+    if (
+        dated[0]
+            ?.score >
+        0
+    ) {
+        return dated[0]
+            .item;
+    }
+
+    if (
+        fallback &&
+        candidates.some(item =>
+            item?.artifact ===
+            fallback?.artifact
+        )
+    ) {
+        return fallback;
+    }
+
+    return candidates[
+        candidates.length -
+        1
+    ];
 }
 
 function groundedReferenceTransformations(
@@ -856,6 +1032,7 @@ function groundedReferenceTransformations(
     );
 }
 
+
 function normalizeGroundedImageReferenceCandidates(
     candidates = [],
     catalog = [],
@@ -880,15 +1057,38 @@ function normalizeGroundedImageReferenceCandidates(
             instruction
         );
 
-    const source =
-        selectGroundedImageAttachment(
-            attachments,
-            instructionBeforeAttachmentManifest(
-                instruction
+    const imageAttachments =
+        attachments.filter(item =>
+            item.mimeType.startsWith(
+                "image/"
             )
         );
 
-    if (!source) {
+    if (
+        imageAttachments.length ===
+        0
+    ) {
+        return sourceCandidates;
+    }
+
+    const userInstruction =
+        instructionBeforeAttachmentManifest(
+            instruction
+        );
+
+    const mentionedSource =
+        selectGroundedImageAttachment(
+            imageAttachments,
+            userInstruction
+        );
+
+    const preferredSource =
+        mentionedSource ||
+        selectPreferredIdentityAttachment(
+            imageAttachments
+        );
+
+    if (!preferredSource) {
         return sourceCandidates;
     }
 
@@ -909,21 +1109,11 @@ function normalizeGroundedImageReferenceCandidates(
             instruction
         );
 
-    const multipleVariants =
-        requestsMultipleImageVariants(
-            instruction
-        );
-
-    const userInstruction =
-        instructionBeforeAttachmentManifest(
-            instruction
-        );
-
     const normalized =
         [];
 
-    let groundedVisualCalls =
-        0;
+    const groundedKeys =
+        new Set();
 
     for (
         const candidate
@@ -963,34 +1153,113 @@ function normalizeGroundedImageReferenceCandidates(
             continue;
         }
 
+        const baseArgs =
+            candidateArgumentObject(
+                candidate
+            );
+
+        const declaredPrimary =
+            imageAttachments.find(item =>
+                item.artifact ===
+                String(
+                    baseArgs.sourceOutput ||
+                    ""
+                )
+            ) ||
+            null;
+
+        const primarySource =
+            mentionedSource ||
+            selectPreferredIdentityAttachment(
+                imageAttachments,
+                declaredPrimary ||
+                preferredSource
+            );
+
+        if (!primarySource) {
+            continue;
+        }
+
+        const declaredReferences =
+            (
+                Array.isArray(
+                    baseArgs
+                        .referenceOutputs
+                )
+                    ? baseArgs
+                        .referenceOutputs
+                    : []
+            )
+                .map(value =>
+                    String(
+                        value ||
+                        ""
+                    )
+                )
+                .map(output =>
+                    imageAttachments.find(item =>
+                        item.artifact ===
+                        output
+                    )
+                )
+                .filter(Boolean);
+
+        const includeEveryReference =
+            !mentionedSource &&
+            imageAttachments.length >
+                1;
+
+        const referenceOutputs =
+            [
+                primarySource,
+                ...declaredReferences,
+                ...(
+                    includeEveryReference
+                        ? imageAttachments
+                        : []
+                )
+            ]
+                .map(item =>
+                    item.artifact
+                )
+                .filter(
+                    (
+                        output,
+                        index,
+                        values
+                    ) =>
+                        Boolean(output) &&
+                        values.indexOf(
+                            output
+                        ) ===
+                        index
+                )
+                .slice(
+                    0,
+                    4
+                );
+
+        const variantId =
+            imageVariantIdentity(
+                candidate
+            );
+
+        const groundedKey =
+            primarySource.artifact +
+            ":" +
+            variantId;
+
         if (
-            !multipleVariants &&
-            groundedVisualCalls >
-                0
+            groundedKeys.has(
+                groundedKey
+            )
         ) {
             continue;
         }
 
-        const baseArgs =
-            candidate?.args &&
-            typeof candidate.args ===
-                "object" &&
-            !Array.isArray(
-                candidate.args
-            )
-                ? {
-                    ...candidate.args
-                }
-                : candidate?.arguments &&
-                    typeof candidate.arguments ===
-                        "object" &&
-                    !Array.isArray(
-                        candidate.arguments
-                    )
-                    ? {
-                        ...candidate.arguments
-                    }
-                    : {};
+        groundedKeys.add(
+            groundedKey
+        );
 
         const prompt =
             String(
@@ -1011,7 +1280,14 @@ function normalizeGroundedImageReferenceCandidates(
             args: {
                 ...baseArgs,
                 sourceOutput:
-                    source.artifact,
+                    primarySource
+                        .artifact,
+                referenceOutputs,
+                variantId,
+                identityMode:
+                    "strict",
+                ageMode:
+                    "preserve",
                 prompt,
                 transformations:
                     groundedReferenceTransformations(
@@ -1023,23 +1299,13 @@ function normalizeGroundedImageReferenceCandidates(
                         .preserveLogos !==
                     false,
                 preserveApprovedText:
-                    Object.prototype
-                        .hasOwnProperty
-                        .call(
-                            baseArgs,
-                            "preserveApprovedText"
-                        )
-                        ? baseArgs
-                            .preserveApprovedText !==
-                            false
-                        : false
+                    baseArgs
+                        .preserveApprovedText ===
+                    true
             },
             reason:
-                "ATTACHMENT_GROUNDED_IMAGE_REFERENCE_ROUTE"
+                "MULTI_REFERENCE_IDENTITY_ROUTE"
         });
-
-        groundedVisualCalls +=
-            1;
     }
 
     return normalized;
@@ -1128,7 +1394,7 @@ async function callBrowserMissionContract(
     const prompt = [
         "Eres el planificador semantico de Jarvis V7.",
         "Devuelve solamente JSON valido.",
-        "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only y userArtifact necesarias para TODOS los entregables. Para crear una landing usa page.plan, page.compose y page.create; para crear un documento usa document.compose y document.create; para crear una hoja estructurada usa spreadsheet.compose y document.create. Para EDITAR un PDF existente usa document.pdf.edit; para EDITAR un XLSX existente usa document.xlsx.edit; para EDITAR una imagen existente usa image.edit. Nunca sustituyas una edicion solicitada por document.create, spreadsheet.compose o image.generate. Si una imagen adjunta representa a la persona, producto u objeto que debe aparecer en el resultado, usa image.edit con sourceOutput igual al artifact real del manifiesto; media.analyze no transmite identidad visual ni sustituye los bytes de la fuente. Las ediciones crean una copia nueva y deben preservar el original. system.certify es terminal: no lo incluyas en el contrato inicial; seleccionalo solamente durante COMPLETION_AUDIT cuando los demas objetivos est?n completados o bloqueados. Para cada artefacto usa exactamente una composicion y una creacion salvo que el usuario pida variantes. Conserva el orden y usa missionComplete=false.",
+        "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only y userArtifact necesarias para TODOS los entregables. Para crear una landing usa page.plan, page.compose y page.create; para crear un documento usa document.compose y document.create; para crear una hoja estructurada usa spreadsheet.compose y document.create. Para EDITAR un PDF existente usa document.pdf.edit; para EDITAR un XLSX existente usa document.xlsx.edit; para EDITAR una imagen existente usa image.edit. Nunca sustituyas una edicion solicitada por document.create, spreadsheet.compose o image.generate. Si una imagen adjunta representa a la persona, producto u objeto que debe aparecer en el resultado, usa image.edit con sourceOutput igual al artifact real del manifiesto; media.analyze no transmite identidad visual ni sustituye los bytes de la fuente. Las ediciones crean una copia nueva y deben preservar el original. system.certify es terminal: no lo incluyas en el contrato inicial; seleccionalo solamente durante COMPLETION_AUDIT cuando los demas objetivos est?n completados o bloqueados. Para image.edit genera una sola salida por defecto. La cantidad de fotos adjuntas o referencias nunca significa cantidad de variantes. Si el usuario pide varias salidas, asigna un variantId distinto y explicito a cada salida. Cuando haya varias fotos de identidad, usa la imagen mas reciente y limpia como sourceOutput y copia las referencias pertinentes en referenceOutputs. Para cada artefacto usa exactamente una composicion y una creacion salvo que el usuario pida variantes. Conserva el orden y usa missionComplete=false.",
         "Las HERRAMIENTAS_INICIALES son un borrador semantico ya seleccionado para la misma instruccion. Conserva sus entregables y agrega solamente una herramienta que cubra un objetivo independiente pedido de forma explicita y no cubierto por ese borrador. No agregues diagnostico, supervision, forense, repositorio, navegador, conectores, investigacion ni otros artefactos solo porque existan en el catalogo.",
         "No colapses sujetos u objetivos independientes. Repite el mismo nombre de herramienta cuando necesite argumentos distintos para cubrirlos por separado.",
         "agent.delegate no es una optimizacion automatica. Incluyela solamente si la instruccion original pide explicitamente delegar, usar agentes o ejecutar en paralelo, y copia esa frase literal en delegationDirective. En cualquier otra mision conserva las herramientas directas.",
@@ -1256,7 +1522,7 @@ async function callBrowserSemanticPlan(input = "", catalog = [], missionState = 
         "No autorices escrituras de repositorio, publicacion ni despliegue. Las herramientas userArtifact pueden crear entregables locales y editar copias de artefactos existentes cuando el usuario lo pide explicitamente; deben conservar el original y no equivalen a editar codigo, publicar o desplegar. Para editar PDF, XLSX o imagen usa respectivamente document.pdf.edit, document.xlsx.edit o image.edit y nunca los sustituyas por herramientas de creacion. Si una persona, producto u objeto debe conservarse desde una imagen adjunta, selecciona image.edit y copia el artifact real del manifiesto en sourceOutput; no uses image.generate ni una descripcion de media.analyze como reemplazo de la fuente visual. Conserva todas las intenciones independientes y usa herramientas especializadas para entregables operativos.",
         "agent.delegate no es una optimizacion automatica. Seleccionala solamente si la instruccion original pide explicitamente delegar, usar agentes o ejecutar en paralelo. En ese caso copia literalmente esa frase en delegationDirective. Si solo hay varias herramientas directas, devuelve esas herramientas sin agent.delegate.",
         "repo.architectReview es autocontenida: ya construye el grafo y ranking y ejecuta los 11 controles sobre un plan recibido. Cuando se pida esa revision, no agregues repo.search, repo.read, repo.diagnose o repo.impact salvo que la instruccion pida de forma independiente inspeccionar fuentes adicionales.",
-        "Si varios objetivos requieren la misma herramienta con argumentos distintos, devuelve una llamada separada para cada uno.",
+        "Si varios objetivos requieren la misma herramienta con argumentos distintos, devuelve una llamada separada para cada uno. En image.edit, varias fotos de referencia siguen siendo un solo objetivo y una sola salida; usa referenceOutputs. Solo devuelve varias llamadas de image.edit cuando el usuario pida varias imagenes finales y asigna variantId distinto a cada una.",
         "Si piden referencias, usos o pruebas de un archivo concreto, usa repo.search con la ruta exacta o basename como query, no con una pregunta completa.",
         "Si una investigacion limita fuentes a un dominio, copia el dominio exacto en allowedDomain de web.research.",
         "En web.research, query debe contener solo el objetivo concreto y los terminos distintivos de la investigacion; no copies toda la orden mixta, archivos ni otros entregables. Conserva conceptos tecnicos importantes como custom claims, roles, APIs o normas.",
@@ -2232,5 +2498,8 @@ export const __test = {
     extractExplicitGovernedToolPlan,
     extractGroundedAttachments,
     requestsGroundedVisualReference,
+    attachmentDateScore,
+    selectPreferredIdentityAttachment,
+    imageVariantIdentity,
     normalizeGroundedImageReferenceCandidates
 };
