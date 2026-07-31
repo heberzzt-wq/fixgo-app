@@ -32,7 +32,7 @@ test("one page instruction reaches page.create through composition", () => {
     assert.equal(plan.ok, true);
     assert.equal(plan.identity, "NEXO");
     assert.equal(plan.status, "NEXO_LOCAL_MISSION_READY");
-    assert.equal(plan.version, "2.0.0-composition-to-artifact-chain");
+    assert.equal(plan.version, "2.1.0-real-media-evidence-chain");
     assert.deepEqual(names(plan), ["page.plan", "page.compose", "page.create"]);
 
     const compose = plan.toolCalls.find(call => call.name === "page.compose");
