@@ -42,12 +42,31 @@ function b2cIsServiceParty(serviceId) {
     b2cIsOwningCustomer(serviceId);
 }
 
-function b2cEvidenceActorValid(serviceId) {
-  let data = request.resource.data;
-  return data.actor_uid == request.auth.uid &&
+// El orquestador técnico usa camelCase y objeto actor; el flujo cliente service-scoped
+// usa snake_case. Estas funciones normalizan ambos contratos sin relajar identidad.
+function b2cEventServiceId(data) {
+  return "serviceId" in data ? data.serviceId : data.service_id;
+}
+
+function b2cEventType(data) {
+  return "eventType" in data ? data.eventType : data.event_type;
+}
+
+function b2cEventActorUid(data) {
+  return "actor" in data ? data.actor.uid : data.actor_uid;
+}
+
+function b2cEventActorRole(data) {
+  return "actor" in data ? data.actor.role : data.actor_role;
+}
+
+function b2cEvidenceActorValid(serviceId, data) {
+  let actorUid = b2cEventActorUid(data);
+  let actorRole = b2cEventActorRole(data);
+  return actorUid == request.auth.uid &&
     (
-      (data.actor_role == "tecnico" && b2cIsAssignedTechnician(serviceId)) ||
-      (data.actor_role == "cliente" && b2cIsOwningCustomer(serviceId))
+      (actorRole == "tecnico" && b2cIsAssignedTechnician(serviceId)) ||
+      (actorRole == "cliente" && b2cIsOwningCustomer(serviceId))
     );
 }
 
@@ -79,11 +98,12 @@ match /services/{serviceId} {
 
   match /evidence_events/{eventId} {
     allow read: if b2cIsServiceParty(serviceId);
+
     allow create: if b2cIsServiceParty(serviceId) &&
-      request.resource.data.service_id == serviceId &&
-      b2cEvidenceActorValid(serviceId) &&
-      b2cEvidenceEventAllowed(request.resource.data.event_type) &&
-      request.resource.data.review_required is bool;
+      b2cEventServiceId(request.resource.data) == serviceId &&
+      b2cEvidenceActorValid(serviceId, request.resource.data) &&
+      b2cEvidenceEventAllowed(b2cEventType(request.resource.data));
+
     allow update, delete: if isAdmin();
   }
 
@@ -102,6 +122,7 @@ match /services/{serviceId} {
   // Llegada, fallback, ausencia y negativa de acceso usan este consentimiento.
   match /capture_consents/{consentId} {
     allow read: if b2cIsServiceParty(serviceId);
+
     allow create, update: if b2cIsAssignedTechnician(serviceId) &&
       request.resource.data.actor_uid == request.auth.uid &&
       request.resource.data.actor_role == "tecnico" &&
@@ -111,11 +132,13 @@ match /services/{serviceId} {
         "customer_no_show",
         "customer_denied_access"
       ];
+
     allow delete: if isAdmin();
   }
 
   match /video_consents/{consentId} {
     allow read: if b2cIsServiceParty(serviceId);
+
     allow create, update: if b2cIsAssignedTechnician(serviceId) &&
       request.resource.data.actor_uid == request.auth.uid &&
       request.resource.data.actor_role == "tecnico" &&
@@ -123,6 +146,7 @@ match /services/{serviceId} {
         "customer_no_show",
         "customer_denied_access"
       ];
+
     allow delete: if isAdmin();
   }
 
@@ -156,18 +180,22 @@ match /services/{serviceId} {
   // Compatibilidad temporal del guardia de cierre anterior.
   match /work_evidence_consents/{consentId} {
     allow read: if b2cIsServiceParty(serviceId);
+
     allow create, update: if b2cIsAssignedTechnician(serviceId) &&
       request.resource.data.actor_uid == request.auth.uid &&
       request.resource.data.actor_role == "tecnico" &&
       request.resource.data.event_type in ["work_before", "work_after"];
+
     allow delete: if isAdmin();
   }
 
   match /work_evidence_bindings/{bindingId} {
     allow read: if b2cIsServiceParty(serviceId);
+
     allow create, update: if b2cIsAssignedTechnician(serviceId) &&
       request.resource.data.technician_id == request.auth.uid &&
       request.resource.data.service_id == serviceId;
+
     allow delete: if isAdmin();
   }
 
@@ -197,6 +225,7 @@ match /services/{serviceId} {
 // get permite comprobar un SHA exacto conocido; list exige historial propio.
 match /b2c_evidence_hashes/{hashId} {
   allow get: if isAdmin() || isTecnico();
+
   allow list: if isAdmin() ||
     (isTecnico() && resource.data.technicianId == request.auth.uid);
 
@@ -219,6 +248,7 @@ match /b2c_evidence_hashes/{hashId} {
 match /b2c_evidence_fingerprints/{fingerprintId} {
   allow get: if isAdmin() ||
     (isTecnico() && resource.data.technicianId == request.auth.uid);
+
   allow list: if isAdmin() ||
     (isTecnico() && resource.data.technicianId == request.auth.uid);
 
