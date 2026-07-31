@@ -195,6 +195,33 @@ requireIncludes(
     "Reglas aceptan eventType y event_type"
 );
 
+for (const reinforcedVideoEvent of [
+    "customer_no_show_video",
+    "customer_denied_access_video"
+]) {
+    requireIncludes(
+        firestoreFragment,
+        `\"${reinforcedVideoEvent}\"`,
+        `Firestore permite el evento reforzado ${reinforcedVideoEvent}`
+    );
+    requireIncludes(
+        storageFragment,
+        `\"${reinforcedVideoEvent}\"`,
+        `Storage reconoce el evento reforzado ${reinforcedVideoEvent}`
+    );
+}
+
+requireIncludes(
+    storageFragment,
+    "function b2cStorageMediaMatchesEvent(eventType)",
+    "Storage vincula el tipo de archivo con el evento"
+);
+requireIncludes(
+    storageFragment,
+    "request.resource.metadata.eventType == eventType",
+    "Storage compara metadata.eventType contra la ruta"
+);
+
 const forbiddenGlobalCollections = [
     "b2c_evidence_hashes",
     "b2c_evidence_fingerprints",
