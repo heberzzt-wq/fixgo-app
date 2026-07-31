@@ -2,14 +2,15 @@
  * ======================================================================================
  * B2C FINANCIAL EXECUTION GUARD 2026
  * Archivo: b2c-financial-execution-guard.js
- * Rol: Impedir que el cierre legacy mueva dinero mientras exista una incidencia pendiente.
+ * Rol: Impedir que el cierre legacy mueva dinero desde el navegador.
  *
  * PRINCIPIOS:
  * - Se instala antes de los puentes de firma y cronología.
  * - Hace una prevalidación antes de subir nuevos archivos.
- * - Revalida inmediatamente antes de permitir la transacción legacy final.
- * - Falla cerrado si no puede identificar el folio o consultar Firestore.
- * - No cobra, libera, reembolsa ni modifica estados financieros.
+ * - Revalida inmediatamente antes del cierre final.
+ * - El cierre seguro actualiza solo estado y referencias de evidencia.
+ * - Nunca ejecuta el onclick financiero legacy.
+ * - Liquidaciones, saldos, comisiones y reputación quedan reservados al backend.
  * ======================================================================================
  */
 
@@ -17,10 +18,16 @@ import {
     auth,
     db,
     doc,
-    getDoc
+    getDoc,
+    setDoc,
+    serverTimestamp
 } from "./firebase.js";
 
-export const B2C_FINANCIAL_EXECUTION_GUARD_VERSION = "1.0.0";
+import {
+    runTransaction
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+export const B2C_FINANCIAL_EXECUTION_GUARD_VERSION = "1.1.0";
 
 const INSTALL_KEY = "__B2C_FINANCIAL_EXECUTION_GUARD__";
 const BLOCKING_SERVICE_STATES = new Set([
@@ -65,47 +72,39 @@ function razonesBloqueo(serviceData = {}) {
     if (hold?.active === true) {
         reasons.push(`financial_hold:${textoSeguro(hold.reason, 120) || "active"}`);
     }
-
     if (BLOCKING_SERVICE_STATES.has(state)) {
         reasons.push(`service_state:${state}`);
     }
-
     if (
         serviceData.llegada_revision_requerida === true &&
         !revisionCerrada(serviceData, "arrival")
     ) {
         reasons.push("arrival_review_pending");
     }
-
     if (
         serviceData.ausencia_cliente_revision_requerida === true &&
         !revisionCerrada(serviceData, "no_show")
     ) {
         reasons.push("no_show_review_pending");
     }
-
     if (
         serviceData.diagnostico_revision_requerida === true &&
         !revisionCerrada(serviceData, "diagnostic")
     ) {
         reasons.push("diagnostic_review_pending");
     }
-
     if (
         serviceData.trabajo_revision_requerida === true &&
         !revisionCerrada(serviceData, "work")
     ) {
         reasons.push("work_review_pending");
     }
-
     if (serviceData.llegada_resolucion_automatica_bloqueada === true) {
         reasons.push("arrival_automatic_resolution_blocked");
     }
-
     if (serviceData.llegada_cliente_respuesta === "ubicacion_disputada") {
         reasons.push("customer_arrival_dispute");
     }
-
     if (
         textoSeguro(serviceData.ausencia_cliente_estado, 120)
             .includes("pendiente_revision")
@@ -122,12 +121,24 @@ function bindingValido(binding = {}) {
         binding.technician_id &&
         binding.before?.sha256 &&
         binding.before?.storage_path &&
+        binding.before?.download_url &&
         binding.after?.sha256 &&
         binding.after?.storage_path &&
+        binding.after?.download_url &&
         binding.signature?.present === true &&
         binding.signature?.sha256 &&
         binding.signature?.storage_path &&
+        binding.signature?.download_url &&
         binding.signature?.base64_persisted === false
+    );
+}
+
+function tecnicoAsignado(serviceData = {}) {
+    return textoSeguro(
+        serviceData.tecnico_id ||
+        serviceData.technician_id ||
+        serviceData.pro_id,
+        160
     );
 }
 
@@ -157,14 +168,7 @@ export async function evaluarEjecucionFinancieraB2C({
     }
 
     const serviceData = serviceSnapshot.data();
-    const assignedTechnician = textoSeguro(
-        serviceData.tecnico_id ||
-        serviceData.technician_id ||
-        serviceData.pro_id,
-        160
-    );
-
-    if (!assignedTechnician || assignedTechnician !== safeTechnicianId) {
+    if (tecnicoAsignado(serviceData) !== safeTechnicianId) {
         return {
             allowed: false,
             code: "TECHNICIAN_SERVICE_MISMATCH",
@@ -226,13 +230,103 @@ export async function evaluarEjecucionFinancieraB2C({
     };
 }
 
+async function finalizarSoloOperacion({ serviceId, technicianId }) {
+    const serviceRef = doc(db, "services", serviceId);
+    const bindingRef = doc(
+        db,
+        "services",
+        serviceId,
+        "work_evidence_bindings",
+        "current"
+    );
+
+    const result = await runTransaction(db, async (transaction) => {
+        const [serviceSnapshot, bindingSnapshot] = await Promise.all([
+            transaction.get(serviceRef),
+            transaction.get(bindingRef)
+        ]);
+
+        if (!serviceSnapshot.exists()) throw new Error("SERVICE_NOT_FOUND");
+        if (!bindingSnapshot.exists()) {
+            throw new Error("FINAL_EVIDENCE_BINDING_INVALID");
+        }
+
+        const serviceData = serviceSnapshot.data();
+        const binding = bindingSnapshot.data();
+
+        if (serviceData.estado === "finalizado") {
+            return { idempotent: true, binding };
+        }
+        if (serviceData.estado !== "trabajando") {
+            throw new Error("INVALID_FINANCIAL_SERVICE_STATE");
+        }
+        if (tecnicoAsignado(serviceData) !== technicianId) {
+            throw new Error("TECHNICIAN_SERVICE_MISMATCH");
+        }
+
+        const blockReasons = razonesBloqueo(serviceData);
+        if (blockReasons.length > 0) {
+            const error = new Error("FINANCIAL_HOLD_OR_REVIEW_PENDING");
+            error.reasons = blockReasons;
+            throw error;
+        }
+
+        if (
+            !bindingValido(binding) ||
+            textoSeguro(binding.service_id, 160) !== serviceId ||
+            textoSeguro(binding.technician_id, 160) !== technicianId
+        ) {
+            throw new Error("FINAL_EVIDENCE_BINDING_INVALID");
+        }
+
+        transaction.update(serviceRef, {
+            estado: "finalizado",
+            finalizado_at: serverTimestamp(),
+            liquidado: false,
+            cierre_operativo_completado: true,
+            cierre_financiero_pendiente_backend: true,
+            cierre_legacy_financiero_ejecutado: false,
+            cierre_seguro_version: B2C_FINANCIAL_EXECUTION_GUARD_VERSION,
+            work_evidence_binding_path: bindingRef.path,
+            evidencia: {
+                antes1: binding.before.download_url,
+                antes2: null,
+                despues1: binding.after.download_url,
+                despues2: null,
+                firma_cliente: binding.signature.download_url,
+                metadatos: {
+                    almacenamiento: "Firebase Storage",
+                    base64_persistido: false,
+                    cierre_financiero: "backend_required",
+                    binding_document: bindingRef.path
+                }
+            }
+        });
+
+        return { idempotent: false, binding };
+    });
+
+    await setDoc(
+        doc(db, "rastreo", technicianId),
+        {
+            estado: "Disponible",
+            service_id: null,
+            cierre_operativo_at: serverTimestamp(),
+            cierre_seguro_version: B2C_FINANCIAL_EXECUTION_GUARD_VERSION
+        },
+        { merge: true }
+    );
+
+    return result;
+}
+
 function mensajeBloqueo(result) {
     const details = Array.isArray(result?.reasons)
         ? result.reasons.join(", ")
         : "validación no disponible";
 
     return [
-        "El cierre financiero quedó bloqueado para proteger al cliente, al técnico y a Peninsula Tech.",
+        "El cierre quedó bloqueado para proteger al cliente, al técnico y a Peninsula Tech.",
         "No se movió dinero ni se finalizó el servicio.",
         `Motivo técnico: ${details}.`,
         "La incidencia debe resolverse y autorizarse por el flujo administrativo correspondiente."
@@ -252,11 +346,6 @@ export function instalarGuardiaEjecucionFinancieraB2C() {
         const button = event.target?.closest?.("#btnSubirEvidencia");
         const modal = button?.closest?.("#modalEvidencia");
         if (!button || !modal) return;
-
-        if (button.dataset.b2cFinancialFinalBypass === "true") {
-            button.dataset.b2cFinancialFinalBypass = "false";
-            return;
-        }
 
         const finalStage =
             button.dataset.b2cChronologyBypass === "true" &&
@@ -282,35 +371,37 @@ export function instalarGuardiaEjecucionFinancieraB2C() {
         button.dataset.b2cFinancialGateBusy = "true";
         button.disabled = true;
         button.innerHTML = finalStage
-            ? '<i class="fas fa-vault fa-spin"></i> REVALIDANDO CIERRE FINANCIERO...'
+            ? '<i class="fas fa-vault fa-spin"></i> CERRANDO SIN MOVER DINERO...'
             : '<i class="fas fa-shield-halved fa-spin"></i> VALIDANDO INCIDENCIAS...';
 
         evaluarEjecucionFinancieraB2C({
             serviceId,
             technicianId,
             requireFinalBinding: finalStage
-        }).then((result) => {
-            if (!result.allowed) {
+        }).then(async (evaluation) => {
+            if (!evaluation.allowed) {
                 throw Object.assign(
-                    new Error(result.code),
-                    { result }
+                    new Error(evaluation.code),
+                    { result: evaluation }
                 );
             }
 
-            restaurarBoton(button, originalHtml);
-
-            if (finalStage) {
-                button.dataset.b2cFinancialFinalBypass = "true";
-            } else {
+            if (!finalStage) {
+                restaurarBoton(button, originalHtml);
                 button.dataset.b2cFinancialPrecheckPassed = "true";
+                button.click();
+                return;
             }
 
-            button.click();
+            await finalizarSoloOperacion({ serviceId, technicianId });
+            modal.remove();
+            alert(
+                "✅ Cierre operativo registrado con evidencias verificadas. La liquidación quedó reservada al backend y no se movió dinero desde este dispositivo."
+            );
         }).catch((error) => {
             console.error("[B2C_FINANCIAL_EXECUTION_BLOCKED]", error);
             restaurarBoton(button, originalHtml);
             button.dataset.b2cFinancialPrecheckPassed = "false";
-            button.dataset.b2cFinancialFinalBypass = "false";
             alert(`🛑 ${mensajeBloqueo(error?.result)}`);
         });
     };
@@ -332,5 +423,4 @@ export function instalarGuardiaEjecucionFinancieraB2C() {
     return installation;
 }
 
-// Side effect deliberado: debe importarse antes de firma y cronología.
 instalarGuardiaEjecucionFinancieraB2C();
