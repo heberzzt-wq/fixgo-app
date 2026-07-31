@@ -3,7 +3,7 @@
  * GESTIAPREMIUM 2026 - ENRUTADOR MAESTRO (CORE ROUTER)
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.18.16 (AUTH GUARD + COMPLETE B2C EVIDENCE + PREQUOTE DIAGNOSTIC)
+ * Versión: 5.18.17 (AUTH GUARD + CHRONOLOGICAL B2C EVIDENCE)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Julio 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LÓGICA.
@@ -17,7 +17,7 @@ import "./app-utils.js";
 // Corrige la carrera donde el boot recrea el loader después de validar perfil y ruta.
 import "./gestia-loader-race-guard.js";
 
-console.log(" 🚀 GESTIAPREMIUM 5.18.16: AUTH GUARD + COMPLETE B2C EVIDENCE + PREQUOTE DIAGNOSTIC ACTIVATED.");
+console.log(" 🚀 GESTIAPREMIUM 5.18.17: AUTH GUARD + CHRONOLOGICAL B2C EVIDENCE ACTIVATED.");
 
 // 1. Importamos los submódulos especializados desde los nuevos archivos
 import { iniciarPanelAdmin } from "./panel-admin.js";
@@ -33,6 +33,8 @@ import { instalarRecuperacionUIDisputaClienteB2C } from "./b2c-client-dispute-ui
 import { instalarVideoReforzadoB2C } from "./b2c-reinforced-video-bridge.js";
 import { instalarGuardiaEvidenciaTrabajoB2C } from "./b2c-secure-work-evidence-guard.js";
 import { instalarGuardiaDiagnosticoPreCotizacionB2C } from "./b2c-prequote-diagnostic-guard.js";
+import { instalarGuardiaInicioTrabajoB2C } from "./b2c-start-work-evidence-guard.js";
+import { instalarPuenteCronologiaCierreTrabajoB2C } from "./b2c-work-close-chronology-bridge.js";
 
 /**
  * Inicializa el panel técnico legacy y agrega puentes B2C independientes:
@@ -42,7 +44,8 @@ import { instalarGuardiaDiagnosticoPreCotizacionB2C } from "./b2c-prequote-diagn
  * - captura fotográfica asistida 3-2-1 después de consentimiento explícito;
  * - video opcional de 4 segundos sin audio para incidencias reforzadas;
  * - diagnóstico inicial sellado antes de abrir el cotizador;
- * - fotografías antes/después selladas y firma no vacía para cerrar el trabajo.
+ * - work_before capturado al iniciar la reparación, incluso si el cliente cambia el estado;
+ * - work_after y firma válida capturados únicamente durante el cierre.
  */
 function iniciarPanelTecnico(user) {
     const resultado = iniciarPanelTecnicoBase(user);
@@ -58,7 +61,13 @@ function iniciarPanelTecnico(user) {
         actorRole: "tecnico"
     });
     instalarGuardiaDiagnosticoPreCotizacionB2C(user);
+    instalarGuardiaInicioTrabajoB2C(user);
+
+    // El guardia base conserva la compatibilidad legacy y expone su opener original.
     instalarGuardiaEvidenciaTrabajoB2C(user);
+
+    // Este puente se instala encima y corrige la cronología: solo work_after al cierre.
+    instalarPuenteCronologiaCierreTrabajoB2C(user);
     return resultado;
 }
 
