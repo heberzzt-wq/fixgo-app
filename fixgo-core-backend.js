@@ -2,127 +2,247 @@
  * ======================================================================================
  * GESTIAPREMIUM 2026 - CORE FINANCIERO & SEGURIDAD (BACKEND ENGINE)
  * ======================================================================================
- * Este archivo contiene la lógica que NADIE puede tocar desde el navegador.
- * Aquí se definen las reglas de dinero, impuestos y comisiones.
+ * Este módulo es backend-only. Nunca debe incluir secretos en el repositorio ni confiar
+ * en montos, estados o autorizaciones enviados por el navegador.
+ * ======================================================================================
  */
 
-import { db, admin } from "./firebase-admin-config.js"; // Referencia a admin SDK
-import Stripe from 'stripe'; // <-- INYECCIÓN DE LIBRERÍA STRIPE
+import { db, admin } from "./firebase-admin-config.js";
+import Stripe from "stripe";
 
-// 🔐 INYECCIÓN DEL MOTOR STRIPE (NÚCLEO SECRETO - TEST MODE)
-// Esta llave NUNCA debe salir del backend. Tiene el poder de mover fondos.
-const stripe = new Stripe('sk_test_51SuznMFB3c4okYlKjMgZmzFe0ccntTVmfwJDto4W8nzQLpP7FSTFTvVttTHfnvI6rahEj49zfJa0MZlXd4jE1wAe00L2wLH4JC');
+export const FIXGO_CORE_BACKEND_VERSION = "6.0.0";
+
+function textoSeguro(value, maxLength = 180) {
+    return String(value ?? "")
+        .replace(/[\u0000-\u001F\u007F]/g, " ")
+        .trim()
+        .slice(0, maxLength);
+}
+
+function obtenerStripe() {
+    const secretKey = textoSeguro(process.env.STRIPE_SECRET_KEY, 300);
+    if (!secretKey) {
+        throw new Error("STRIPE_SECRET_KEY_MISSING");
+    }
+    return new Stripe(secretKey);
+}
+
+function revisionCerrada(data, key) {
+    const status = textoSeguro(
+        data?.revision_administrativa?.[key]?.status,
+        80
+    ).toLowerCase();
+    return status === "resolved" || status === "dismissed";
+}
+
+function razonesBloqueoFinanciero(data = {}) {
+    const reasons = [];
+
+    if (data.b2c_financial_hold?.active === true) {
+        reasons.push("financial_hold_active");
+    }
+    if (
+        data.llegada_revision_requerida === true &&
+        !revisionCerrada(data, "arrival")
+    ) {
+        reasons.push("arrival_review_pending");
+    }
+    if (
+        data.ausencia_cliente_revision_requerida === true &&
+        !revisionCerrada(data, "no_show")
+    ) {
+        reasons.push("no_show_review_pending");
+    }
+    if (
+        data.diagnostico_revision_requerida === true &&
+        !revisionCerrada(data, "diagnostic")
+    ) {
+        reasons.push("diagnostic_review_pending");
+    }
+    if (
+        data.trabajo_revision_requerida === true &&
+        !revisionCerrada(data, "work")
+    ) {
+        reasons.push("work_review_pending");
+    }
+    if (data.llegada_resolucion_automatica_bloqueada === true) {
+        reasons.push("automatic_resolution_blocked");
+    }
+
+    return reasons;
+}
+
+function numeroPositivo(value, fieldName) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+        throw new Error(`${fieldName}_INVALID`);
+    }
+    return parsed;
+}
 
 /**
- * ENGINE: CIERRE DE SERVICIO Y CÁLCULO FISCAL RESTRICCIONADO
- * Calcula: 32% GestiaPremium, 8% IVA, 10% ISR.
+ * Cierre financiero backend idempotente.
+ * No debe exponerse directamente al navegador sin autenticación y autorización previas.
  */
 export async function procesarCierreServicio(serviceId, tecnicoId) {
-    console.log("🛡️ Iniciando proceso de cierre blindado para:", serviceId);
+    const safeServiceId = textoSeguro(serviceId, 160);
+    const safeTechnicianId = textoSeguro(tecnicoId, 160);
 
-    const servicioRef = db.collection("services").doc(serviceId);
-    const transaccionRef = db.collection("transacciones").doc();
+    if (!safeServiceId || !safeTechnicianId) {
+        throw new Error("FINANCIAL_CONTEXT_MISSING");
+    }
 
-    try {
-        const resultado = await db.runTransaction(async (t) => {
-            const sDoc = await t.get(servicioRef);
-            if (!sDoc.exists) throw "Servicio no encontrado";
+    const servicioRef = db.collection("services").doc(safeServiceId);
+    const transaccionRef = db
+        .collection("transacciones")
+        .doc(`settlement_${safeServiceId}`);
 
-            const data = sDoc.data();
-            const costoTotal = data.costo_final || 0;
+    return db.runTransaction(async (transaction) => {
+        const [serviceSnapshot, existingSettlement] = await Promise.all([
+            transaction.get(servicioRef),
+            transaction.get(transaccionRef)
+        ]);
 
-            // MATEMÁTICA MAESTRA (Protegida)
-            const comisionFixGo = costoTotal * 0.32; // 32% (Mantenemos variable interna por compatibilidad)
-            const retencionIVA = costoTotal * 0.08;  // 8%
-            const retencionISR = costoTotal * 0.10;  // 10%
-            const pagoNetoTecnico = costoTotal - (comisionFixGo + retencionIVA + retencionISR);
+        if (!serviceSnapshot.exists) {
+            throw new Error("SERVICE_NOT_FOUND");
+        }
 
-            // 1. Actualizamos el estado del servicio a FINALIZADO
-            t.update(servicioRef, {
-                estado: "finalizado",
-                finalizado_at: admin.firestore.FieldValue.serverTimestamp(),
-                desglose_real: {
-                    comision_fixgo: comisionFixGo,
-                    retencion_iva: retencionIVA,
-                    retencion_isr: retencionISR,
-                    pago_neto: pagoNetoTecnico
-                }
-            });
+        if (existingSettlement.exists) {
+            return {
+                success: true,
+                idempotent: true,
+                neto: Number(existingSettlement.data().pago_tecnico || 0)
+            };
+        }
 
-            // 2. Creamos la transacción financiera oficial
-            t.set(transaccionRef, {
-                servicio_id: serviceId,
-                tecnico_id: tecnicoId,
-                monto_total: costoTotal,
+        const data = serviceSnapshot.data();
+        const assignedTechnician = textoSeguro(
+            data.tecnico_id || data.technician_id || data.pro_id,
+            160
+        );
+
+        if (!assignedTechnician || assignedTechnician !== safeTechnicianId) {
+            throw new Error("TECHNICIAN_SERVICE_MISMATCH");
+        }
+
+        if (data.estado !== "trabajando") {
+            throw new Error("INVALID_FINANCIAL_SERVICE_STATE");
+        }
+
+        const blockingReasons = razonesBloqueoFinanciero(data);
+        if (blockingReasons.length > 0) {
+            const error = new Error("FINANCIAL_HOLD_OR_REVIEW_PENDING");
+            error.reasons = blockingReasons;
+            throw error;
+        }
+
+        const costoTotal = numeroPositivo(data.costo_final, "SERVICE_TOTAL");
+        const commissionRate = Number.isFinite(Number(data.tasa_comision_aplicada))
+            ? Number(data.tasa_comision_aplicada)
+            : 0.32;
+
+        if (commissionRate < 0 || commissionRate > 1) {
+            throw new Error("COMMISSION_RATE_INVALID");
+        }
+
+        const comisionFixGo = costoTotal * commissionRate;
+        const retencionIVA = costoTotal * 0.08;
+        const retencionISR = costoTotal * 0.10;
+        const pagoNetoTecnico =
+            costoTotal - (comisionFixGo + retencionIVA + retencionISR);
+
+        if (pagoNetoTecnico < 0) {
+            throw new Error("NEGATIVE_TECHNICIAN_SETTLEMENT");
+        }
+
+        transaction.update(servicioRef, {
+            estado: "finalizado",
+            finalizado_at: admin.firestore.FieldValue.serverTimestamp(),
+            financial_settlement_id: transaccionRef.id,
+            financial_settlement_version: FIXGO_CORE_BACKEND_VERSION,
+            financial_settlement_idempotent: true,
+            desglose_real: {
                 comision_fixgo: comisionFixGo,
                 retencion_iva: retencionIVA,
                 retencion_isr: retencionISR,
-                pago_tecnico: pagoNetoTecnico,
-                fecha: admin.firestore.FieldValue.serverTimestamp(),
-                tipo: "ingreso_servicio",
-                verificado: true
-            });
-
-            return { success: true, neto: pagoNetoTecnico };
+                pago_neto: pagoNetoTecnico,
+                tasa_comision: commissionRate
+            }
         });
 
-        console.log("✅ Cierre procesado con éxito. Neto para técnico:", resultado.neto);
-        return resultado;
+        transaction.set(transaccionRef, {
+            servicio_id: safeServiceId,
+            tecnico_id: safeTechnicianId,
+            monto_total: costoTotal,
+            comision_fixgo: comisionFixGo,
+            retencion_iva: retencionIVA,
+            retencion_isr: retencionISR,
+            pago_tecnico: pagoNetoTecnico,
+            fecha: admin.firestore.FieldValue.serverTimestamp(),
+            tipo: "ingreso_servicio",
+            verificado: true,
+            idempotency_key: `settlement_${safeServiceId}`,
+            engine_version: FIXGO_CORE_BACKEND_VERSION
+        });
 
-    } catch (error) {
-        console.error("❌ Error crítico en transacción financiera:", error);
-        throw error;
-    }
+        return {
+            success: true,
+            idempotent: false,
+            neto: pagoNetoTecnico
+        };
+    });
 }
 
 /**
- * ENGINE: SEGURIDAD DE RETIROS SPEI
- * Evita que un técnico retire más de lo que tiene o duplique retiros.
+ * Retiro deliberadamente cerrado hasta implementar saldo autoritativo e idempotencia.
  */
-export async function ejecutarRetiroSeguro(retiroId, tecnicoId, monto) {
-    // Lógica para validar saldo antes de descontar...
-    // (Esto lo desarrollaremos en el siguiente paso)
+export async function ejecutarRetiroSeguro() {
+    throw new Error("WITHDRAWAL_ENGINE_NOT_IMPLEMENTED_FAIL_CLOSED");
 }
 
 /**
- * ======================================================================================
- * 💳 NUEVO ENGINE: INTERCEPTOR DE PAGOS STRIPE Y DISPARADOR CFDI
- * ======================================================================================
- * Escucha los eventos de éxito desde los servidores de Stripe.
+ * Verificación estricta de firma Stripe. Este módulo no mueve fondos por sí solo.
  */
 export async function procesarWebhookStripe(req, res) {
-    console.log("🔔 [Webhook] Llamada entrante de Stripe detectada.");
-    
-    let event = req.body;
-
-    // Manejar el evento de pago exitoso (Payment Link completado)
-    if (event.type === 'checkout.session.completed') {
-        const session = event.data.object;
-        
-        const emailCliente = session.customer_details.email;
-        const montoPagado = session.amount_total / 100; // Stripe maneja centavos, dividimos entre 100
-        const idTransaccionStripe = session.payment_intent;
-
-        console.log(`✅ [Stripe] Pago confirmado: ${montoPagado} MXN del cliente: ${emailCliente}`);
-
-        try {
-            // 1. AQUI ACTUALIZAREMOS LA BASE DE DATOS FIREBASE (Estado: Pagado)
-            // ej: await db.collection("services").where("clienteEmail", "==", emailCliente).update({ estadoPago: "pagado" });
-            console.log("💾 Base de datos actualizada con el pago seguro.");
-
-            // 2. 🚀 MOTOR DE FACTURACIÓN CFDI 4.0 (PISTA DE ATERRIZAJE)
-            // Aquí es donde inyectaremos la API de Facturama o SW Sapien
-            console.log("🧾 Preparando disparo de motor CFDI para:", emailCliente);
-            // await generarFacturaCFDI(session);
-
-        } catch (error) {
-            console.error("❌ Error al procesar el impacto en la base de datos tras el pago:", error);
-            return res.status(500).send("Error interno al registrar el pago");
+    try {
+        const webhookSecret = textoSeguro(
+            process.env.STRIPE_WEBHOOK_SECRET,
+            300
+        );
+        if (!webhookSecret) {
+            throw new Error("STRIPE_WEBHOOK_SECRET_MISSING");
         }
-    } else {
-        console.log(`⚠️ [Stripe] Evento no procesado: ${event.type}`);
-    }
 
-    // Responder a Stripe que recibimos el mensaje correctamente (Vital para que no reintente)
-    res.status(200).json({ received: true });
+        const signature = req.headers?.["stripe-signature"];
+        if (!signature) {
+            return res.status(400).send("Missing Stripe signature");
+        }
+
+        const stripe = obtenerStripe();
+        const rawBody = req.rawBody || req.body;
+        const event = stripe.webhooks.constructEvent(
+            rawBody,
+            signature,
+            webhookSecret
+        );
+
+        await db.collection("stripe_webhook_audit").doc(event.id).set({
+            event_id: event.id,
+            event_type: event.type,
+            livemode: event.livemode === true,
+            verified_signature: true,
+            processed_financially: false,
+            engine_version: FIXGO_CORE_BACKEND_VERSION,
+            received_at: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: false });
+
+        return res.status(200).json({
+            received: true,
+            verified: true,
+            processed_financially: false
+        });
+    } catch (error) {
+        console.error("[STRIPE_WEBHOOK_REJECTED]", error);
+        return res.status(400).send("Invalid Stripe webhook");
+    }
 }
