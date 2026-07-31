@@ -22,12 +22,84 @@ export const JARVIS_UPLOAD_BRIDGE_VERSION =
 const MODULE_FILE =
     fileURLToPath(import.meta.url);
 
+const LEGACY_UPLOAD_ROUTE_PATHS =
+    new Set([
+        "/upload",
+        "/upload/start",
+        "/upload/chunk",
+        "/upload/complete",
+        "/upload/cancel"
+    ]);
+
 function resolveBridgeRoot(root = "") {
     return path.resolve(
         root ||
         process.env.FIXGO_REPO_ROOT ||
         process.cwd()
     );
+}
+
+function routePaths(layer = {}) {
+    const pathValue =
+        layer?.route?.path;
+
+    return (
+        Array.isArray(pathValue)
+            ? pathValue
+            : [pathValue]
+    )
+        .map(value =>
+            String(value || "")
+                .trim()
+        )
+        .filter(Boolean);
+}
+
+export function removeLegacyUploadRoutes(app) {
+    const router =
+        app?.router ||
+        app?._router ||
+        null;
+    const stack =
+        router?.stack;
+
+    if (!Array.isArray(stack)) {
+        throw new Error("EXPRESS_ROUTER_STACK_REQUIRED");
+    }
+
+    let removed =
+        0;
+
+    for (
+        let index = stack.length - 1;
+        index >= 0;
+        index -= 1
+    ) {
+        const paths =
+            routePaths(stack[index]);
+
+        if (
+            paths.some(routePath =>
+                LEGACY_UPLOAD_ROUTE_PATHS.has(
+                    routePath
+                )
+            )
+        ) {
+            stack.splice(index, 1);
+            removed += 1;
+        }
+    }
+
+    return {
+        ok: true,
+        status:
+            removed > 0
+                ? "LEGACY_UPLOAD_ROUTES_REMOVED"
+                : "LEGACY_UPLOAD_ROUTES_NOT_PRESENT",
+        removed,
+        protectedPaths:
+            [...LEGACY_UPLOAD_ROUTE_PATHS]
+    };
 }
 
 function uploadErrorStatus(error = "") {
@@ -294,6 +366,9 @@ export function createJarvisUploadBridgeApp({
                 repoRoot
         });
 
+    const legacyUploadRoutes =
+        removeLegacyUploadRoutes(app);
+
     registerNexoWebMediaRoutes(
         app,
         {
@@ -302,13 +377,22 @@ export function createJarvisUploadBridgeApp({
         }
     );
 
-    return registerJarvisUploadRoutes(
-        app,
-        {
-            root:
-                repoRoot
-        }
-    );
+    const uploadApp =
+        registerJarvisUploadRoutes(
+            app,
+            {
+                root:
+                    repoRoot
+            }
+        );
+
+    uploadApp.locals.nexoUploadBridge = {
+        version:
+            JARVIS_UPLOAD_BRIDGE_VERSION,
+        legacyUploadRoutes
+    };
+
+    return uploadApp;
 }
 
 export function startJarvisUploadBridge({
