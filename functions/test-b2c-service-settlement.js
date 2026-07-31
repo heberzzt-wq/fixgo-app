@@ -5,7 +5,8 @@ const assert = require("node:assert/strict");
 const {
     bindingValid,
     calculateSettlement,
-    assertPaymentCoverage
+    assertPaymentCoverage,
+    existingLedgerValid
 } = require("./b2c-service-settlement");
 
 function expectCode(fn, expectedCode) {
@@ -126,6 +127,39 @@ assert.deepEqual(b2bSettlement, {
     platformAmount: 150
 });
 
+const ledgerContext = {
+    serviceId: "service_1",
+    technicianId: "technician_1",
+    settlement: stripeSettlement,
+    bindingPath: "services/service_1/work_evidence_bindings/current",
+    ledgerId: "txn_split_service_1"
+};
+const validLedger = {
+    servicio_id: "service_1",
+    tecnico_id: "technician_1",
+    idempotency_key: "txn_split_service_1",
+    evidence_binding_path:
+        "services/service_1/work_evidence_bindings/current",
+    monto_total: 1000,
+    pago_tecnico: 700,
+    comision_gestia: 300
+};
+assert.equal(existingLedgerValid(validLedger, ledgerContext), true);
+assert.equal(
+    existingLedgerValid(
+        { ...validLedger, pago_tecnico: 900 },
+        ledgerContext
+    ),
+    false
+);
+assert.equal(
+    existingLedgerValid(
+        { ...validLedger, tecnico_id: "attacker" },
+        ledgerContext
+    ),
+    false
+);
+
 expectCode(
     () => calculateSettlement({
         costo_final: 0,
@@ -136,12 +170,27 @@ expectCode(
 expectCode(
     () => calculateSettlement({
         costo_final: 1000,
+        metodo_pago: "crypto"
+    }),
+    "PAYMENT_METHOD_NOT_ALLOWED"
+);
+expectCode(
+    () => calculateSettlement({
+        costo_final: 1000,
         metodo_pago: "stripe",
         tasa_comision_aplicada: 1.2
     }),
     "COMMISSION_RATE_INVALID"
 );
+expectCode(
+    () => calculateSettlement({
+        costo_final: 1000,
+        metodo_pago: "b2b",
+        monto_tecnico_fijo: 1200
+    }),
+    "B2B_TECHNICIAN_AMOUNT_INVALID"
+);
 
 console.log(
-    "B2C SERVICE SETTLEMENT TEST: PASS — evidencia, Stripe, efectivo y B2B calculados sin confiar en el navegador."
+    "B2C SERVICE SETTLEMENT TEST: PASS — evidencia, métodos permitidos, Stripe, efectivo, B2B e idempotencia protegidos."
 );
