@@ -1,0 +1,86 @@
+{
+  "version": "1.0.0",
+  "captured_at": "2026-07-30T23:07:00-05:00",
+  "status": "current_paths_inventoried_candidate_not_deployed",
+  "current_console_rule": {
+    "snapshot": "security/storage-console-snapshot-2026-07-30.rules.txt",
+    "effective_policy": "any_authenticated_user_can_read_write_update_delete_any_object",
+    "risk": "critical_cross_account_file_access"
+  },
+  "paths": [
+    {
+      "path": "expedientes/{uid}/{fileName}",
+      "modules": ["app-registro.js", "panel-tecnico.js"],
+      "purpose": "technician profile, INE, CSF, license and certificates",
+      "expected_writer": "same uid",
+      "expected_readers": ["same uid", "master admin"],
+      "allowed_types": ["image/jpeg", "image/png", "image/webp", "application/pdf"],
+      "max_bytes": 10485760
+    },
+    {
+      "path": "solicitudes_iniciales/{uid_timestamp}.jpg",
+      "modules": ["panel-cliente.js"],
+      "purpose": "initial customer problem photograph",
+      "expected_writer": "filename uid prefix equals authenticated uid",
+      "expected_readers": ["authenticated service operations"],
+      "allowed_types": ["image/jpeg", "image/png", "image/webp"],
+      "max_bytes": 10485760,
+      "migration_recommended": "solicitudes_iniciales/{uid}/{fileName}"
+    },
+    {
+      "path": "servicios/{serviceId}/{fileName}",
+      "modules": ["panel-tecnico.js", "b2c-work-close-chronology-bridge.js"],
+      "purpose": "legacy B2C before, after and signature close files",
+      "expected_writer": "assigned technician",
+      "expected_readers": ["owning customer", "assigned technician", "master admin"],
+      "allowed_types": ["image/jpeg", "image/png", "image/webp"],
+      "max_bytes": 10485760
+    },
+    {
+      "path": "b2c_evidence/{serviceId}/{actorUid}/{eventType}/{fileName}",
+      "modules": ["b2c-evidence-orchestrator.js", "b2c-consented-video-evidence.js"],
+      "purpose": "sealed technician B2C evidence",
+      "expected_writer": "assigned technician matching actorUid",
+      "expected_readers": ["owning customer", "assigned technician", "master admin"],
+      "allowed_types": ["image/jpeg", "image/png", "image/webp", "video/webm", "video/mp4", "video/quicktime"],
+      "max_bytes": 31457280
+    },
+    {
+      "path": "b2c_customer_evidence/{serviceId}/{customerId}/arrival_dispute/{fileName}",
+      "modules": ["b2c-customer-dispute-service-scope.js"],
+      "purpose": "service-scoped customer arrival dispute photograph",
+      "expected_writer": "owning customer matching customerId",
+      "expected_readers": ["owning customer", "assigned technician", "master admin"],
+      "allowed_types": ["image/jpeg", "image/png", "image/webp"],
+      "max_bytes": 10485760
+    },
+    {
+      "path": "edificios/{edificioId}/reportes/{fileName}",
+      "modules": ["app-inquilino.js"],
+      "purpose": "B2B tenant incident photograph",
+      "expected_writer": "authenticated user whose tenant matches edificioId",
+      "expected_readers": ["same tenant", "master admin"],
+      "allowed_types": ["image/jpeg", "image/png", "image/webp"],
+      "max_bytes": 10485760
+    },
+    {
+      "path": "evidencias/{ordenId}/{fileName}",
+      "modules": ["app-tecnico-b2b.js"],
+      "purpose": "B2B before and after work photographs including offline retries",
+      "expected_writer": "authenticated technician in same building as servicios_b2b/{ordenId}",
+      "expected_readers": ["same tenant", "master admin"],
+      "allowed_types": ["image/jpeg", "image/png", "image/webp"],
+      "max_bytes": 10485760
+    }
+  ],
+  "publication_gate": {
+    "safe_to_deploy": false,
+    "required_before_deploy": [
+      "test candidate with authenticated owner, unrelated authenticated user and master admin",
+      "verify all KYC file MIME types used by production forms",
+      "verify legacy B2B tenant identifiers and technician permissions",
+      "verify existing stored object reads remain compatible",
+      "obtain explicit production publication authorization"
+    ]
+  }
+}
