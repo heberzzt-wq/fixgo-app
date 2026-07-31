@@ -1,21 +1,22 @@
 {
-  "version": "1.1.0",
-  "generated_at": "2026-07-31T03:36:00Z",
-  "status": "firestore_console_recovered_storage_pending_not_deployed",
+  "version": "1.2.0",
+  "generated_at": "2026-07-31T04:20:00Z",
+  "status": "firestore_and_storage_console_recovered_candidates_not_deployed",
   "source": {
     "firestore_rules_supplied_by_user": true,
+    "storage_rules_supplied_by_user_screenshot": true,
     "live_console_export_independently_verified": false,
-    "source_attachment_sha256": "f1c575066adf5b20683d0cdf29b35a95ba324751675b6179ac1e7235fbb058c4",
-    "repository_snapshot": "security/firestore-console-snapshot-2026-07-30.rules.txt",
-    "snapshot_note": "Snapshot normalizado desde el texto pegado por el usuario; conserva la semántica del ruleset, pero no sustituye una exportación API del proyecto."
+    "firestore_source_attachment_sha256": "f1c575066adf5b20683d0cdf29b35a95ba324751675b6179ac1e7235fbb058c4",
+    "firestore_snapshot": "security/firestore-console-snapshot-2026-07-30.rules.txt",
+    "storage_snapshot": "security/storage-console-snapshot-2026-07-30.rules.txt",
+    "snapshot_note": "Snapshots normalizados desde el texto y la consola mostrados por el usuario; conservan la semántica visible, pero no sustituyen una exportación API del proyecto."
   },
   "firebase_configuration": {
     "firebase_json_path": "firebase.json",
     "firestore_rules_declared": false,
     "storage_rules_declared": false,
-    "rules_version_found_in_repository_snapshot": true,
     "authoritative_firestore_rules_recovered_from_user_console": true,
-    "authoritative_storage_rules_recovered": false,
+    "authoritative_storage_rules_recovered_from_user_console": true,
     "safe_to_deploy_firestore_rules": false,
     "safe_to_deploy_storage_rules": false
   },
@@ -46,6 +47,23 @@
       "impact": "Riesgo ajeno al parche B2C que debe tratarse en una migración B2B independiente para evitar romper módulos existentes."
     }
   ],
+  "current_storage_findings": [
+    {
+      "severity": "critical",
+      "finding": "El catch-all /{allPaths=**} concede read y write a cualquier usuario autenticado.",
+      "impact": "Una cuenta autenticada ajena puede leer, subir, sobrescribir o borrar expedientes KYC, firmas, fotografías y videos de otros usuarios o servicios."
+    },
+    {
+      "severity": "critical",
+      "finding": "No existen límites de tamaño, tipo MIME, propietario, folio, actor o tenant.",
+      "impact": "Storage no valida que el archivo corresponda al usuario, servicio o edificio indicado por la ruta."
+    },
+    {
+      "severity": "compatibility_constraint",
+      "finding": "La aplicación utiliza siete familias de rutas legacy y nuevas.",
+      "impact": "Eliminar el catch-all sin una lista blanca probada puede romper registro KYC, solicitudes B2C, cierres, disputas y evidencia B2B."
+    }
+  ],
   "trust_boundaries": {
     "technician_evidence": {
       "scope": "global_registry_client_side_until_backend_migration",
@@ -73,46 +91,29 @@
       "subcollections_inherited": false,
       "field_level_update_hardening": "pending_separate_phase"
     },
-    "required_service_subcollections": [
-      "services/{serviceId}/evidence_events/{eventId}",
-      "services/{serviceId}/time_sync/{actorId}",
-      "services/{serviceId}/capture_consents/{consentId}",
-      "services/{serviceId}/video_consents/{consentId}",
-      "services/{serviceId}/diagnostic_consents/{consentId}",
-      "services/{serviceId}/work_start_consents/{consentId}",
-      "services/{serviceId}/work_after_consents/{consentId}",
-      "services/{serviceId}/work_evidence_consents/{consentId}",
-      "services/{serviceId}/work_evidence_bindings/{bindingId}",
-      "services/{serviceId}/customer_evidence_hashes/{hashId}"
-    ],
-    "required_global_collections": [
-      "b2c_evidence_hashes/{hashId}",
-      "b2c_evidence_fingerprints/{fingerprintId}",
-      "b2c_evidence_audit/{auditId}"
-    ],
     "merge_fragment": "security/b2c-evidence-firestore.fragment.rules.txt",
     "merge_fragment_state": "compatible_with_user_supplied_console_helpers_not_deployed"
   },
   "storage": {
-    "authoritative_rules_recovered": false,
-    "merge_fragment": "security/b2c-evidence-storage.fragment.rules.txt",
-    "required_prefixes": [
-      "b2c_evidence/{serviceId}/{actorUid}/{eventType}/{fileName}",
-      "b2c_customer_evidence/{serviceId}/{customerId}/arrival_dispute/{fileName}",
-      "servicios/{serviceId}/{legacyFileName}"
-    ],
-    "status": "blocked_until_current_storage_rules_are_supplied"
+    "authoritative_rules_recovered": true,
+    "current_snapshot": "security/storage-console-snapshot-2026-07-30.rules.txt",
+    "current_effective_policy": "authenticated_global_read_write",
+    "path_inventory": "security/storage-path-inventory-2026-07-30.json",
+    "b2c_fragment": "security/b2c-evidence-storage.fragment.rules.txt",
+    "complete_hardening_candidate": "security/storage-hardening-candidate.rules.txt",
+    "candidate_state": "complete_allowlist_not_deployed_requires_tests",
+    "inventoried_prefix_count": 7
   },
   "deployment_safety": {
-    "fragments_linked_from_firebase_json": false,
+    "rules_linked_from_firebase_json": false,
     "production_deploy_authorized": false,
     "required_before_any_rules_publish": [
-      "recover_current_production_storage_rules",
-      "paste_firestore_fragment_into_a_copy_of_the_console_snapshot",
-      "merge_storage_fragment_with_current_storage_rules",
-      "run_emulator_authorization_tests_for_master_admin_assigned_technician_owning_customer_unrelated_authenticated_and_unauthenticated_users",
-      "test_legacy_login_services_b2b_finance_tracking_and_packages_flows",
-      "obtain_explicit_production_rules_publish_authorization"
+      "build a merged Firestore candidate from the console snapshot and B2C fragment",
+      "run Firestore emulator authorization tests for master admin assigned technician owning customer unrelated authenticated and unauthenticated users",
+      "run Storage rules tests for every inventoried path and MIME type",
+      "verify existing stored object reads and legacy uploads remain compatible",
+      "test registration client technician B2B tenant offline evidence and service close flows",
+      "obtain explicit production rules publish authorization"
     ]
   }
 }
