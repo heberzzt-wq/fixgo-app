@@ -3,7 +3,7 @@
  * GESTIAPREMIUM 2026 - ENRUTADOR MAESTRO (CORE ROUTER)
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.18.22 (FAIL-CLOSED FINANCIAL EXECUTION GATE)
+ * Versión: 5.18.23 (FAIL-CLOSED PAYMENTS + FINANCIAL EXECUTION GATE)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Julio 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LÓGICA.
@@ -20,13 +20,16 @@ import "./gestia-loader-race-guard.js";
 // Comprime fotos B2C como Blob JPEG antes de Storage; Base64 queda solo para caché local.
 import "./b2c-media-economy-guard.js";
 
+// Si fixgo-bridge.js no cargó, impide que el legacy simule pagos exitosos.
+import "./b2c-stripe-fail-closed-stub.js";
+
 // Debe registrarse antes de firma y cronología: bloquea cualquier cierre con revisión/hold.
 import "./b2c-financial-execution-guard.js";
 
 // Sustituye la firma Base64 del cierre legacy por URL, ruta y SHA-256 de Storage.
 import "./b2c-signature-storage-bridge.js";
 
-console.log(" 🚀 GESTIAPREMIUM 5.18.22: FAIL-CLOSED FINANCIAL EXECUTION GATE ACTIVATED.");
+console.log(" 🚀 GESTIAPREMIUM 5.18.23: FAIL-CLOSED PAYMENTS + FINANCIAL GATE ACTIVATED.");
 
 // 1. Importamos los submódulos especializados desde los nuevos archivos
 import { iniciarPanelAdmin as iniciarPanelAdminBase } from "./panel-admin.js";
@@ -105,7 +108,8 @@ function iniciarPanelTecnico(user) {
  * - disputa con GPS y foto 3-2-1 confinada al mismo folio;
  * - deduplicación global diferida al backend para no exponer historiales de otros servicios;
  * - fallback sin cámara marcado como evidencia débil para revisión;
- * - fotografía de disputa comprimida antes de Storage, sin Base64 persistente.
+ * - fotografía de disputa comprimida antes de Storage, sin Base64 persistente;
+ * - Stripe fail-closed si el bridge no está disponible.
  */
 function iniciarPanelCliente(user) {
     const resultado = iniciarPanelClienteBase(user);
