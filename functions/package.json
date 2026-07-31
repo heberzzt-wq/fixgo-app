@@ -1,17 +1,19 @@
 {
   "name": "functions",
-  "description": "Cloud Functions for Firebase - GestiaPremium V5.19",
+  "description": "Cloud Functions for Firebase - GestiaPremium secure entry",
   "scripts": {
     "serve": "firebase emulators:start --only functions",
     "shell": "firebase functions:shell",
     "start": "npm run serve",
     "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log"
+    "logs": "firebase functions:log",
+    "test:b2c-financial": "node test-b2c-financial-policy.js && node test-b2c-service-settlement.js",
+    "check:b2c-financial": "node --check secure-entry.js && node --check b2c-financial-policy.js && node --check b2c-service-settlement.js && npm run test:b2c-financial"
   },
   "engines": {
     "node": "22"
   },
-  "main": "index.js",
+  "main": "secure-entry.js",
   "dependencies": {
     "@google/genai": "^2.11.0",
     "@google/generative-ai": "^0.21.0",
