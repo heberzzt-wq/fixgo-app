@@ -32,7 +32,15 @@ test("proposal state loads NEXO before the legacy terminal core", () => {
     );
     assert.match(
         bootstrap,
-        /nexo\.semantic-planner-resilience\.js\?v=nexo-terminal-runtime-v2-20260731/
+        /nexo\.semantic-planner-resilience\.js\?v=nexo-terminal-runtime-v3-20260731/
+    );
+    assert.match(
+        bootstrap,
+        /nexo\.real-media\.tools\.js\?v=nexo-real-media-runtime-v1-20260731/
+    );
+    assert.match(
+        bootstrap,
+        /installNexoRealMediaTools\(\)/
     );
     assert.match(
         bootstrap,
