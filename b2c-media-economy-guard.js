@@ -10,11 +10,12 @@
  * - Reduce dimensión, prueba calidades descendentes y conserva el Blob más pequeño.
  * - Solo interviene conversiones JPEG de canvas grandes mientras existe contexto B2C.
  * - PNG de firmas, PDFs, imágenes legacy y otros módulos quedan intactos.
+ * - Si no alcanza el límite duro, bloquea la captura en vez de subir el original pesado.
  * - No sube archivos, no cambia estados, no ejecuta cobros y no publica reglas.
  * ======================================================================================
  */
 
-export const B2C_MEDIA_ECONOMY_GUARD_VERSION = "1.0.0";
+export const B2C_MEDIA_ECONOMY_GUARD_VERSION = "1.0.1";
 
 export const B2C_MEDIA_ECONOMY_POLICY = Object.freeze({
     maxLongEdgePx: 1600,
@@ -97,10 +98,10 @@ function contextoB2CActivo() {
         '[id^="b2cArrivalModal_"]',
         '[id^="b2cNoShowModal_"]',
         '[id^="b2cCustomerDisputeScoped_"]',
-        '[id^="b2cPrequote"]',
-        '[id^="b2cStartWork"]',
+        '[id^="b2cPrequoteDiagnostic_"]',
+        '[id^="b2cStartWorkEvidence_"]',
         '[id^="b2cWorkAfterClose_"]',
-        '[id^="b2cWorkEvidence"]'
+        '#b2cSecureWorkEvidenceModal'
     ].join(",")));
 }
 
@@ -204,6 +205,14 @@ export async function optimizarCanvasEvidenciaB2C(
         throw new Error("MEDIA_ECONOMY_OUTPUT_MISSING");
     }
 
+    if (encoded.blob.size > policy.hardImageBytes) {
+        const error = new Error("MEDIA_ECONOMY_HARD_LIMIT_EXCEEDED");
+        error.code = "MEDIA_ECONOMY_HARD_LIMIT_EXCEEDED";
+        error.outputBytes = encoded.blob.size;
+        error.hardImageBytes = policy.hardImageBytes;
+        throw error;
+    }
+
     return {
         ...encoded,
         originalWidth: sourceCanvas.width,
@@ -279,8 +288,13 @@ export function instalarEconomiaMediaB2C() {
             };
             callback(result.blob);
         }).catch((error) => {
-            console.warn("[B2C_MEDIA_ECONOMY_FALLBACK]", error);
-            nativeToBlob.call(this, callback, type, quality);
+            console.error("[B2C_MEDIA_ECONOMY_BLOCKED]", error);
+            globalThis.__B2C_MEDIA_ECONOMY_LAST_ERROR__ = {
+                code: error?.code || error?.message || "MEDIA_ECONOMY_FAILED",
+                recorded_at: new Date().toISOString(),
+                version: B2C_MEDIA_ECONOMY_GUARD_VERSION
+            };
+            callback(null);
         });
 
         return undefined;
