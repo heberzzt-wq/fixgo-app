@@ -201,6 +201,23 @@ match /services/{serviceId} {
     allow delete: if isAdmin();
   }
 
+  // Revisión humana append-only. Ningún cliente o técnico puede crear, editar o borrar
+  // determinaciones administrativas. El documento debe declarar explícitamente que no
+  // movió fondos y que requiere autorización financiera separada.
+  match /admin_reviews/{reviewId} {
+    allow read: if isAdmin();
+
+    allow create: if isAdmin() &&
+      request.resource.data.review_id == reviewId &&
+      request.resource.data.service_id == serviceId &&
+      request.resource.data.reviewer_uid == request.auth.uid &&
+      request.resource.data.funds_moved == false &&
+      request.resource.data.automatic_financial_action == false &&
+      request.resource.data.requires_separate_financial_authorization == true;
+
+    allow update, delete: if false;
+  }
+
   // Reserva SHA-256 del cliente confinada al mismo folio.
   match /customer_evidence_hashes/{hashId} {
     allow read: if b2cIsOwningCustomer(serviceId) || isAdmin();
