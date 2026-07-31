@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+    compileNexoMission
+} from "../gestia-core/nexo/nexo.mission.compiler.v2.js";
+import {
     __test
 } from "../gestia-core/nexo/nexo.semantic-planner-resilience.js";
 
@@ -104,4 +107,39 @@ test("unrelated missions do not impose an artifact contract on cloud planning", 
         ),
         true
     );
+});
+
+test("503 real media mission is fully recoverable by NEXO local contract", async () => {
+    const catalog = [
+        "web.research",
+        "web.media.collect",
+        "marketing.plan",
+        "marketing.package.real-media",
+        "document.create",
+        "image.generate"
+    ].map(name => ({ name }));
+    const localPlan = compileNexoMission({
+        input: "creame un plan de marketing para multiservicios . https://multiserviciospeninsulareshmh.com/ con fotos y videos reales",
+        catalog
+    });
+    const unavailableCloud = new Response(
+        JSON.stringify({ error: { message: "Service Unavailable" } }),
+        {
+            status: 503,
+            headers: {
+                "Content-Type": "application/json"
+            }
+        }
+    );
+
+    assert.equal(await responseHasUsefulPlan(unavailableCloud, localPlan), false);
+    assert.deepEqual([...requiredToolNames(localPlan)], [
+        "web.research",
+        "web.media.collect",
+        "marketing.plan",
+        "document.create",
+        "marketing.package.real-media"
+    ]);
+    assert.equal(localPlan.provider, "nexo-local-compiler");
+    assert.equal(localPlan.toolCalls.some(call => call.name === "image.generate"), false);
 });
