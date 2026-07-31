@@ -27,6 +27,83 @@ function requireExcludes(content, marker, description) {
     else pass(description);
 }
 
+/**
+ * Retira comentarios JavaScript sin alterar cadenas ni template literals.
+ * Evita falsos positivos cuando una prohibición aparece solo en documentación.
+ */
+function stripJavaScriptComments(source) {
+    let output = "";
+    let index = 0;
+    let state = "code";
+    let quote = null;
+
+    while (index < source.length) {
+        const current = source[index];
+        const next = source[index + 1];
+
+        if (state === "line-comment") {
+            if (current === "\n") {
+                output += current;
+                state = "code";
+            }
+            index += 1;
+            continue;
+        }
+
+        if (state === "block-comment") {
+            if (current === "*" && next === "/") {
+                state = "code";
+                index += 2;
+                continue;
+            }
+            if (current === "\n") output += "\n";
+            index += 1;
+            continue;
+        }
+
+        if (state === "string") {
+            output += current;
+            if (current === "\\") {
+                if (next !== undefined) {
+                    output += next;
+                    index += 2;
+                    continue;
+                }
+            } else if (current === quote) {
+                state = "code";
+                quote = null;
+            }
+            index += 1;
+            continue;
+        }
+
+        if (current === "/" && next === "/") {
+            state = "line-comment";
+            index += 2;
+            continue;
+        }
+
+        if (current === "/" && next === "*") {
+            state = "block-comment";
+            index += 2;
+            continue;
+        }
+
+        if (current === '"' || current === "'" || current === "`") {
+            state = "string";
+            quote = current;
+            output += current;
+            index += 1;
+            continue;
+        }
+
+        output += current;
+        index += 1;
+    }
+
+    return output;
+}
+
 const files = {
     appPanel: "app-panel.js",
     economyGuard: "b2c-media-economy-guard.js",
@@ -60,6 +137,10 @@ const storageCandidate = read(files.storageCandidate);
 const storageFragment = read(files.storageFragment);
 const b2bOffline = read(files.b2bOffline);
 const firebaseConfig = JSON.parse(read(files.firebaseConfig));
+
+const signatureBridgeExecutable = stripJavaScriptComments(signatureBridge);
+const customerDisputeExecutable = stripJavaScriptComments(customerDispute);
+const orchestratorExecutable = stripJavaScriptComments(orchestrator);
 
 // Activación y límites del compresor B2C.
 requireIncludes(
@@ -125,9 +206,9 @@ requireIncludes(
     "Firma usa evento Storage específico"
 );
 requireExcludes(
-    signatureBridge,
+    signatureBridgeExecutable,
     "data:image/",
-    "Puente de firma no construye data URLs"
+    "Puente de firma no construye data URLs en código ejecutable"
 );
 requireIncludes(
     workClose,
@@ -136,13 +217,13 @@ requireIncludes(
 );
 
 // Los flujos B2C activos suben Blob y guardan referencias/metadatos.
-for (const [name, content] of [
-    ["orquestador técnico", orchestrator],
-    ["disputa cliente", customerDispute]
+for (const [name, source, executable] of [
+    ["orquestador técnico", orchestrator, orchestratorExecutable],
+    ["disputa cliente", customerDispute, customerDisputeExecutable]
 ]) {
-    requireIncludes(content, "uploadBytes", `${name} sube binario con uploadBytes`);
-    requireExcludes(content, "readAsDataURL", `${name} no convierte evidencia a Base64`);
-    requireExcludes(content, "data:image/", `${name} no persiste data URLs`);
+    requireIncludes(source, "uploadBytes", `${name} sube binario con uploadBytes`);
+    requireExcludes(executable, "readAsDataURL", `${name} no convierte evidencia a Base64`);
+    requireExcludes(executable, "data:image/", `${name} no persiste data URLs`);
 }
 
 // Reglas candidatas económicas; siguen sin publicación.
