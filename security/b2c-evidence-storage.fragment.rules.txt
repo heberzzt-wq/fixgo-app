@@ -1,0 +1,84 @@
+// =====================================================================================
+// B2C EVIDENCE STORAGE RULES FRAGMENT — DO NOT DEPLOY AS A COMPLETE RULESET
+// =====================================================================================
+// This file is intentionally NOT referenced by firebase.json.
+// Merge manually inside the authoritative Storage ruleset after recovering it.
+// Expected insertion point: inside service firebase.storage { match /b/{bucket}/o { ... } }
+// =====================================================================================
+
+function b2cSignedIn() {
+  return request.auth != null;
+}
+
+function b2cUser() {
+  return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+}
+
+function b2cIsAdmin() {
+  return b2cSignedIn() && b2cUser().rol == "admin";
+}
+
+function b2cService(serviceId) {
+  return firestore.get(/databases/(default)/documents/services/$(serviceId)).data;
+}
+
+function b2cIsAssignedTechnician(serviceId) {
+  return b2cSignedIn() &&
+    b2cService(serviceId).tecnico_id == request.auth.uid;
+}
+
+function b2cIsOwningCustomer(serviceId) {
+  return b2cSignedIn() &&
+    b2cService(serviceId).cliente_id == request.auth.uid;
+}
+
+function b2cImageType() {
+  return request.resource.contentType.matches("image/(jpeg|png|webp)");
+}
+
+function b2cVideoType() {
+  return request.resource.contentType.matches("video/(webm|mp4|quicktime)");
+}
+
+match /b2c_evidence/{serviceId}/{actorUid}/{eventType}/{fileName} {
+  allow read: if b2cIsAdmin() ||
+    b2cIsAssignedTechnician(serviceId) ||
+    b2cIsOwningCustomer(serviceId);
+
+  allow create: if b2cIsAssignedTechnician(serviceId) &&
+    actorUid == request.auth.uid &&
+    request.resource.size > 0 &&
+    request.resource.size <= 30 * 1024 * 1024 &&
+    (b2cImageType() || b2cVideoType()) &&
+    request.resource.metadata.actorUid == request.auth.uid &&
+    request.resource.metadata.serviceId == serviceId;
+
+  allow update: if false;
+  allow delete: if b2cIsAdmin();
+}
+
+match /b2c_customer_evidence/{serviceId}/{customerId}/arrival_dispute/{fileName} {
+  allow read: if b2cIsAdmin() ||
+    b2cIsAssignedTechnician(serviceId) ||
+    b2cIsOwningCustomer(serviceId);
+
+  allow create: if b2cIsOwningCustomer(serviceId) &&
+    customerId == request.auth.uid &&
+    request.resource.size > 0 &&
+    request.resource.size <= 10 * 1024 * 1024 &&
+    b2cImageType() &&
+    request.resource.metadata.actorUid == request.auth.uid &&
+    request.resource.metadata.actorRole == "cliente" &&
+    request.resource.metadata.serviceId == serviceId &&
+    request.resource.metadata.dedupScope == "service_only" &&
+    request.resource.metadata.dedupBackendPending == "true";
+
+  allow update: if false;
+  allow delete: if b2cIsAdmin();
+}
+
+// Legacy compatibility path must be merged with the existing production rule.
+// Do not add a broad allow here without auditing panel-tecnico.js and all historical uploads.
+match /servicios/{serviceId}/{legacyFileName} {
+  // Intentionally no allow statements in this fragment.
+}
