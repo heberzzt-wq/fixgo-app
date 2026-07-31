@@ -3,7 +3,7 @@
  * GESTIAPREMIUM 2026 - ENRUTADOR MAESTRO (CORE ROUTER)
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.18.12 (AUTH GUARD + AUTHORITATIVE TIME + CONSENTED CAPTURE)
+ * Versión: 5.18.13 (AUTH GUARD + B2C EVIDENCE FOR BOTH PARTIES)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Julio 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LÓGICA.
@@ -17,7 +17,7 @@ import "./app-utils.js";
 // Corrige la carrera donde el boot recrea el loader después de validar perfil y ruta.
 import "./gestia-loader-race-guard.js";
 
-console.log(" 🚀 GESTIAPREMIUM 5.18.12: AUTH GUARD + AUTHORITATIVE TIME + CONSENTED CAPTURE ACTIVATED.");
+console.log(" 🚀 GESTIAPREMIUM 5.18.13: AUTH GUARD + B2C EVIDENCE FOR BOTH PARTIES ACTIVATED.");
 
 // 1. Importamos los submódulos especializados desde los nuevos archivos
 import { iniciarPanelAdmin } from "./panel-admin.js";
@@ -28,6 +28,8 @@ import { instalarNotificacionLlegadaClienteB2C } from "./b2c-client-arrival-noti
 import { instalarControlAusenciaTecnicoB2C } from "./b2c-technician-no-show.js";
 import { instalarPuenteTiempoAutoritativoB2C } from "./b2c-authoritative-timer-bridge.js";
 import { instalarCapturaConsentidaTecnicoB2C } from "./b2c-consented-capture-bridge.js";
+import { instalarEvidenciaDisputaLlegadaClienteB2C } from "./b2c-client-arrival-dispute-evidence.js";
+import { instalarRecuperacionUIDisputaClienteB2C } from "./b2c-client-dispute-ui-recovery.js";
 
 /**
  * Inicializa el panel técnico legacy y agrega puentes B2C independientes:
@@ -49,8 +51,11 @@ function iniciarPanelTecnico(user) {
 }
 
 /**
- * Inicializa el panel cliente legacy y agrega el aviso de llegada con evidencia,
- * temporizador visual, acuse, disputa y reloj servidor convertido a la zona del servicio.
+ * Inicializa el panel cliente legacy y agrega:
+ * - aviso de llegada, evidencia visible, temporizador, acuse y disputa;
+ * - reloj servidor convertido a la zona del servicio;
+ * - GPS y foto 3-2-1 para la disputa “el técnico no está aquí”;
+ * - fallback sin cámara marcado como evidencia débil para revisión.
  */
 function iniciarPanelCliente(user) {
     const resultado = iniciarPanelClienteBase(user);
@@ -59,6 +64,8 @@ function iniciarPanelCliente(user) {
         user,
         actorRole: "cliente"
     });
+    instalarEvidenciaDisputaLlegadaClienteB2C(user);
+    instalarRecuperacionUIDisputaClienteB2C();
     return resultado;
 }
 
