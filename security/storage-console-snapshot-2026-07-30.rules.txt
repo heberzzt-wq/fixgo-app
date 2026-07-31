@@ -1,0 +1,12 @@
+rules_version = '2';
+
+// ⚠️ ADVERTENCIA DE SEGURIDAD: Estas reglas son permisivas.
+// Permiten que cualquier usuario autenticado pueda leer y escribir en TODO el bucket.
+// Es un punto de partida para que la app funcione, pero debes refinarlas.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
