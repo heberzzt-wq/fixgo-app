@@ -1,6 +1,7 @@
 "use strict";
 
-const B2C_SERVICE_SETTLEMENT_VERSION = "1.0.0";
+const B2C_SERVICE_SETTLEMENT_VERSION = "1.0.1";
+const ALLOWED_PAYMENT_METHODS = new Set(["stripe", "efectivo", "b2b"]);
 
 function safeText(value, maxLength = 180) {
     return String(value ?? "")
@@ -24,6 +25,10 @@ function positiveMoney(value, code) {
     return Math.round(parsed * 100) / 100;
 }
 
+function sameMoney(left, right) {
+    return Math.abs(Number(left) - Number(right)) <= 0.01;
+}
+
 function bindingValid(binding = {}, serviceId, technicianId) {
     return Boolean(
         safeText(binding.service_id, 160) === safeText(serviceId, 160) &&
@@ -44,10 +49,16 @@ function bindingValid(binding = {}, serviceId, technicianId) {
 
 function calculateSettlement(serviceData = {}) {
     const total = positiveMoney(
-        serviceData.costo_final ?? serviceData.monto_total,
+        serviceData.costo_final,
         "SERVICE_TOTAL_INVALID"
     );
     const method = safeText(serviceData.metodo_pago, 40).toLowerCase();
+    if (!ALLOWED_PAYMENT_METHODS.has(method)) {
+        const error = new Error("PAYMENT_METHOD_NOT_ALLOWED");
+        error.code = "PAYMENT_METHOD_NOT_ALLOWED";
+        throw error;
+    }
+
     const clientType = safeText(
         serviceData.clientType || serviceData.client_type,
         60
@@ -61,7 +72,16 @@ function calculateSettlement(serviceData = {}) {
         technicianAmount = fixed !== null
             ? Math.round(fixed * 100) / 100
             : Math.round(total * 0.85 * 100) / 100;
-        commissionRate = Math.max(0, Math.min(1, (total - technicianAmount) / total));
+
+        if (technicianAmount < 0 || technicianAmount > total) {
+            const error = new Error("B2B_TECHNICIAN_AMOUNT_INVALID");
+            error.code = "B2B_TECHNICIAN_AMOUNT_INVALID";
+            throw error;
+        }
+
+        commissionRate = Math.round(
+            ((total - technicianAmount) / total) * 1000000
+        ) / 1000000;
     } else {
         const configured = finiteNumber(
             serviceData.tasa_comision_aplicada ?? serviceData.comision_asignada
@@ -78,10 +98,6 @@ function calculateSettlement(serviceData = {}) {
             ? -commission
             : Math.round((total - commission) * 100) / 100;
     }
-
-    const platformAmount = Math.round((total - Math.abs(
-        method === "efectivo" ? technicianAmount : technicianAmount
-    )) * 100) / 100;
 
     return {
         total,
@@ -106,6 +122,25 @@ function assertPaymentCoverage(serviceData, settlement) {
     }
 
     return true;
+}
+
+function existingLedgerValid(ledger = {}, {
+    serviceId,
+    technicianId,
+    settlement,
+    bindingPath,
+    ledgerId
+}) {
+    return Boolean(
+        safeText(ledger.servicio_id, 160) === safeText(serviceId, 160) &&
+        safeText(ledger.tecnico_id, 160) === safeText(technicianId, 160) &&
+        safeText(ledger.idempotency_key, 200) === safeText(ledgerId, 200) &&
+        safeText(ledger.evidence_binding_path, 500) ===
+            safeText(bindingPath, 500) &&
+        sameMoney(ledger.monto_total, settlement.total) &&
+        sameMoney(ledger.pago_tecnico, settlement.technicianAmount) &&
+        sameMoney(ledger.comision_gestia, settlement.platformAmount)
+    );
 }
 
 function createB2CServiceSettlementEngine({
@@ -190,12 +225,26 @@ function createB2CServiceSettlementEngine({
                 assertPaymentCoverage(serviceData, settlement);
 
                 if (ledgerSnapshot.exists) {
+                    if (!existingLedgerValid(ledgerSnapshot.data(), {
+                        serviceId: safeServiceId,
+                        technicianId,
+                        settlement,
+                        bindingPath: bindingRef.path,
+                        ledgerId: ledgerRef.id
+                    })) {
+                        const error = new Error("EXISTING_LEDGER_MISMATCH");
+                        error.code = "EXISTING_LEDGER_MISMATCH";
+                        throw error;
+                    }
+
                     transaction.update(serviceRef, {
                         liquidado: true,
                         cierre_financiero_pendiente_backend: false,
                         ledger_transaction_id: ledgerRef.id,
                         fecha_liquidacion: admin.firestore.FieldValue.serverTimestamp(),
                         settlement_reconciled: true,
+                        liquidacion_bloqueada: false,
+                        liquidacion_bloqueo_codigo: null,
                         settlement_version: B2C_SERVICE_SETTLEMENT_VERSION
                     });
 
@@ -276,6 +325,8 @@ function createB2CServiceSettlementEngine({
                     comision_aplicada_tecnico: settlement.technicianAmount,
                     comision_aplicada_plataforma: settlement.platformAmount,
                     settlement_method: settlement.method,
+                    liquidacion_bloqueada: false,
+                    liquidacion_bloqueo_codigo: null,
                     settlement_version: B2C_SERVICE_SETTLEMENT_VERSION
                 });
 
@@ -303,11 +354,14 @@ function createB2CServiceSettlementEngine({
             const serviceSnapshot = await serviceRef.get();
             if (serviceSnapshot.exists) {
                 const current = serviceSnapshot.data();
-                if (current.liquidacion_bloqueada !== true) {
+                const blockCode = safeText(error.code || error.message, 160);
+                if (
+                    current.liquidacion_bloqueada !== true ||
+                    current.liquidacion_bloqueo_codigo !== blockCode
+                ) {
                     await serviceRef.set({
                         liquidacion_bloqueada: true,
-                        liquidacion_bloqueo_codigo:
-                            safeText(error.code || error.message, 160),
+                        liquidacion_bloqueo_codigo: blockCode,
                         liquidacion_bloqueada_at:
                             admin.firestore.FieldValue.serverTimestamp(),
                         settlement_version: B2C_SERVICE_SETTLEMENT_VERSION
@@ -322,10 +376,13 @@ function createB2CServiceSettlementEngine({
 
 module.exports = {
     B2C_SERVICE_SETTLEMENT_VERSION,
+    ALLOWED_PAYMENT_METHODS,
     safeText,
     finiteNumber,
+    sameMoney,
     bindingValid,
     calculateSettlement,
     assertPaymentCoverage,
+    existingLedgerValid,
     createB2CServiceSettlementEngine
 };
