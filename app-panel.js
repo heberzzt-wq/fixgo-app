@@ -3,7 +3,7 @@
  * GESTIAPREMIUM 2026 - ENRUTADOR MAESTRO (CORE ROUTER)
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.18.21 (ADMIN EVIDENCE REVIEW + FINANCIAL HOLD)
+ * Versión: 5.18.22 (FAIL-CLOSED FINANCIAL EXECUTION GATE)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Julio 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LÓGICA.
@@ -20,10 +20,13 @@ import "./gestia-loader-race-guard.js";
 // Comprime fotos B2C como Blob JPEG antes de Storage; Base64 queda solo para caché local.
 import "./b2c-media-economy-guard.js";
 
+// Debe registrarse antes de firma y cronología: bloquea cualquier cierre con revisión/hold.
+import "./b2c-financial-execution-guard.js";
+
 // Sustituye la firma Base64 del cierre legacy por URL, ruta y SHA-256 de Storage.
 import "./b2c-signature-storage-bridge.js";
 
-console.log(" 🚀 GESTIAPREMIUM 5.18.21: ADMIN EVIDENCE REVIEW + FINANCIAL HOLD ACTIVATED.");
+console.log(" 🚀 GESTIAPREMIUM 5.18.22: FAIL-CLOSED FINANCIAL EXECUTION GATE ACTIVATED.");
 
 // 1. Importamos los submódulos especializados desde los nuevos archivos
 import { iniciarPanelAdmin as iniciarPanelAdminBase } from "./panel-admin.js";
@@ -67,6 +70,7 @@ function iniciarPanelAdmin(user) {
  * - diagnóstico inicial sellado antes de abrir el cotizador;
  * - work_before capturado al iniciar la reparación, incluso si el cliente cambia el estado;
  * - work_after y firma válida capturados únicamente durante el cierre;
+ * - doble validación financiera antes de subir y antes de liquidar;
  * - fotografías redimensionadas y comprimidas antes de Storage, sin Base64 persistente;
  * - firma del cliente almacenada como PNG económico en Storage, nunca como data URL.
  */
