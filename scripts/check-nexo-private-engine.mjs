@@ -37,6 +37,7 @@ const runtimeContract = JSON.parse(read("jarvis-runtime-contract.json"));
 const supervisor = read("functions/jarvis-daily-supervisor.js");
 const missionTests = read("tests/nexo-mission-compiler.test.mjs");
 const resilienceTests = read("tests/nexo-semantic-resilience.test.mjs");
+const approvalTests = read("tests/nexo-approval-normalization.test.mjs");
 const marketingTests = read("tests/jarvis-marketing-engine-v2.test.mjs");
 
 ok(
@@ -113,6 +114,23 @@ ok(
 ok(
     branding.includes("conserva ids y APIs Jarvis/SIA7"),
     "branding no rompe ids ni APIs legacy"
+);
+ok(
+    branding.includes("1.1.0-approval-normalization-runtime-stamp") &&
+        branding.includes("__NEXO_RUNTIME_STAMP__"),
+    "terminal expone huella verificable del runtime NEXO cargado"
+);
+ok(
+    branding.includes("isNexoApprovalCommand") &&
+        branding.includes('"aprobacion autorizada"') &&
+        branding.includes('input.value = "proceder"'),
+    "aprobaciones naturales se normalizan para el runtime legacy"
+);
+ok(
+    branding.includes('document.addEventListener(\n        "submit"') &&
+        branding.includes("normalizeApprovalBeforeLegacy") &&
+        branding.includes("true\n    );"),
+    "normalizador de aprobación se instala en fase capture antes del submit legacy"
 );
 
 ok(
@@ -229,11 +247,17 @@ ok(
     "prueba conserva un plan cloud completo"
 );
 ok(
+    approvalTests.includes("aprobación autorizada") &&
+        approvalTests.includes("no autorizo el plan") &&
+        approvalTests.includes("analiza la autorización de pagos"),
+    "prueba reproduce aprobación real y evita falsos positivos"
+);
+ok(
     marketingTests.includes("hazme un programa de marketing") &&
         marketingTests.includes("readyForProduction, true"),
     "prueba mínima reproduce y corrige la falla reportada"
 );
 
 console.log(
-    "\n🧠 NEXO PRIVATE ENGINE CHECK: PASS — identidad, misión, marketing, páginas, medios, documentos, puente y supervisión están contratados."
+    "\n🧠 NEXO PRIVATE ENGINE CHECK: PASS — identidad, misión, aprobación, marketing, páginas, medios, documentos, puente y supervisión están contratados."
 );
