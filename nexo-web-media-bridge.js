@@ -1,0 +1,526 @@
+import fs from "node:fs";
+import path from "node:path";
+import net from "node:net";
+import { lookup } from "node:dns/promises";
+import { createHash } from "node:crypto";
+
+import { registerArtifact } from "./jarvis-artifact-studio.js";
+
+export const NEXO_WEB_MEDIA_BRIDGE_VERSION =
+    "1.0.0-real-media-evidence";
+
+const MAX_HTML_BYTES = 2 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
+const MAX_TOTAL_MEDIA_BYTES = 120 * 1024 * 1024;
+const MAX_REDIRECTS = 5;
+
+const MIME_EXTENSIONS = Object.freeze({
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+    "image/svg+xml": ".svg",
+    "video/mp4": ".mp4",
+    "video/webm": ".webm",
+    "video/quicktime": ".mov"
+});
+
+function safeStem(value = "media", maximum = 80) {
+    return String(value || "media")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, maximum) || "media";
+}
+
+function sha256(bytes) {
+    return createHash("sha256")
+        .update(bytes)
+        .digest("hex");
+}
+
+function normalizeHttpUrl(value = "", base = undefined) {
+    const url = new URL(String(value || "").trim(), base);
+    if (!["http:", "https:"].includes(url.protocol)) {
+        throw new Error("WEB_MEDIA_URL_PROTOCOL_NOT_ALLOWED");
+    }
+    if (url.username || url.password) {
+        throw new Error("WEB_MEDIA_URL_CREDENTIALS_NOT_ALLOWED");
+    }
+    url.hash = "";
+    return url;
+}
+
+function isPrivateIpv4(address = "") {
+    const parts = address.split(".").map(Number);
+    if (parts.length !== 4 || parts.some(value => !Number.isInteger(value) || value < 0 || value > 255)) {
+        return true;
+    }
+    const [a, b] = parts;
+    return (
+        a === 0 ||
+        a === 10 ||
+        a === 127 ||
+        (a === 100 && b >= 64 && b <= 127) ||
+        (a === 169 && b === 254) ||
+        (a === 172 && b >= 16 && b <= 31) ||
+        (a === 192 && b === 0) ||
+        (a === 192 && b === 168) ||
+        (a === 198 && (b === 18 || b === 19)) ||
+        a >= 224
+    );
+}
+
+function isPrivateAddress(address = "") {
+    const normalized = String(address || "").trim().toLowerCase();
+    if (!normalized) return true;
+    if (normalized.startsWith("::ffff:")) {
+        return isPrivateIpv4(normalized.slice(7));
+    }
+    const family = net.isIP(normalized);
+    if (family === 4) return isPrivateIpv4(normalized);
+    if (family !== 6) return true;
+    return (
+        normalized === "::" ||
+        normalized === "::1" ||
+        normalized.startsWith("fc") ||
+        normalized.startsWith("fd") ||
+        /^fe[89ab]/.test(normalized) ||
+        normalized.startsWith("ff") ||
+        normalized.startsWith("2001:db8:")
+    );
+}
+
+async function assertPublicUrl(url, { allowPrivateHostsForTesting = false } = {}) {
+    const hostname = String(url.hostname || "").toLowerCase();
+    if (!hostname) throw new Error("WEB_MEDIA_HOST_REQUIRED");
+    if (
+        hostname === "localhost" ||
+        hostname.endsWith(".localhost") ||
+        hostname.endsWith(".local") ||
+        hostname.endsWith(".internal") ||
+        hostname.endsWith(".lan")
+    ) {
+        if (allowPrivateHostsForTesting) return true;
+        throw new Error("WEB_MEDIA_PRIVATE_HOST_BLOCKED");
+    }
+    if (allowPrivateHostsForTesting) return true;
+    const addresses = await lookup(hostname, { all: true, verbatim: true });
+    if (!Array.isArray(addresses) || addresses.length === 0) {
+        throw new Error("WEB_MEDIA_DNS_EMPTY");
+    }
+    if (addresses.some(item => isPrivateAddress(item.address))) {
+        throw new Error("WEB_MEDIA_PRIVATE_ADDRESS_BLOCKED");
+    }
+    return true;
+}
+
+function hostAllowed(candidate, pageHost, allowedHosts = []) {
+    const host = String(candidate || "").toLowerCase();
+    const root = String(pageHost || "").toLowerCase();
+    const allowed = new Set(
+        [root, ...allowedHosts]
+            .map(value => String(value || "").trim().toLowerCase())
+            .filter(Boolean)
+    );
+    return [...allowed].some(item => host === item || host.endsWith(`.${item}`));
+}
+
+async function fetchBounded(
+    inputUrl,
+    {
+        maxBytes,
+        timeoutMs = 30000,
+        allowedMimePrefixes = [],
+        allowedExactMimes = [],
+        allowPrivateHostsForTesting = false
+    } = {}
+) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), Math.max(1000, Number(timeoutMs) || 30000));
+    let current = normalizeHttpUrl(inputUrl);
+
+    try {
+        for (let redirect = 0; redirect <= MAX_REDIRECTS; redirect += 1) {
+            await assertPublicUrl(current, { allowPrivateHostsForTesting });
+            const response = await fetch(current, {
+                method: "GET",
+                redirect: "manual",
+                signal: controller.signal,
+                headers: {
+                    "User-Agent": "NEXO-Real-Media/1.0 (+Peninsula-Tech)",
+                    "Accept": "text/html,image/*,video/*;q=0.9,*/*;q=0.1"
+                }
+            });
+
+            if ([301, 302, 303, 307, 308].includes(response.status)) {
+                const location = response.headers.get("location");
+                if (!location) throw new Error("WEB_MEDIA_REDIRECT_LOCATION_REQUIRED");
+                current = normalizeHttpUrl(location, current);
+                continue;
+            }
+            if (!response.ok) {
+                throw new Error(`WEB_MEDIA_HTTP_${response.status}`);
+            }
+
+            const mimeType = String(response.headers.get("content-type") || "")
+                .split(";")[0]
+                .trim()
+                .toLowerCase();
+            const mimeAllowed =
+                allowedExactMimes.includes(mimeType) ||
+                allowedMimePrefixes.some(prefix => mimeType.startsWith(prefix));
+            if (!mimeAllowed) {
+                throw new Error(`WEB_MEDIA_MIME_NOT_ALLOWED:${mimeType || "unknown"}`);
+            }
+
+            const declaredLength = Number(response.headers.get("content-length") || 0);
+            if (declaredLength > maxBytes) {
+                throw new Error("WEB_MEDIA_DECLARED_SIZE_EXCEEDED");
+            }
+            if (!response.body) throw new Error("WEB_MEDIA_BODY_REQUIRED");
+
+            const reader = response.body.getReader();
+            const chunks = [];
+            let total = 0;
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                total += value.byteLength;
+                if (total > maxBytes) {
+                    controller.abort();
+                    throw new Error("WEB_MEDIA_SIZE_EXCEEDED");
+                }
+                chunks.push(Buffer.from(value));
+            }
+
+            return {
+                url: current.toString(),
+                mimeType,
+                bytes: Buffer.concat(chunks, total),
+                headers: Object.fromEntries(response.headers.entries())
+            };
+        }
+        throw new Error("WEB_MEDIA_TOO_MANY_REDIRECTS");
+    }
+    catch(error) {
+        if (controller.signal.aborted && error?.name === "AbortError") {
+            throw new Error("WEB_MEDIA_FETCH_TIMEOUT");
+        }
+        throw error;
+    }
+    finally {
+        clearTimeout(timer);
+    }
+}
+
+function decodeHtml(value = "") {
+    return String(value || "")
+        .replace(/&amp;/gi, "&")
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/gi, "'")
+        .replace(/&lt;/gi, "<")
+        .replace(/&gt;/gi, ">");
+}
+
+function attributes(tag = "") {
+    const result = {};
+    const pattern = /([^\s=/>]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g;
+    let match;
+    while ((match = pattern.exec(tag))) {
+        result[String(match[1] || "").toLowerCase()] = decodeHtml(match[2] ?? match[3] ?? match[4] ?? "");
+    }
+    return result;
+}
+
+function bestSrcset(value = "") {
+    const candidates = String(value || "")
+        .split(",")
+        .map(item => item.trim().split(/\s+/)[0])
+        .filter(Boolean);
+    return candidates.at(-1) || "";
+}
+
+function mediaCandidates(html = "", pageUrl = "") {
+    const page = normalizeHttpUrl(pageUrl);
+    const candidates = [];
+    const add = (kind, rawUrl, sourceTag, alt = "") => {
+        const value = String(rawUrl || "").trim();
+        if (!value || /^(data|blob|javascript):/i.test(value)) return;
+        try {
+            const url = normalizeHttpUrl(value, page);
+            candidates.push({ kind, url: url.toString(), sourceTag, alt: String(alt || "").slice(0, 300) });
+        } catch {}
+    };
+
+    for (const tag of html.match(/<img\b[^>]*>/gi) || []) {
+        const attrs = attributes(tag);
+        add("image", attrs.src || attrs["data-src"] || attrs["data-lazy-src"] || bestSrcset(attrs.srcset), "img", attrs.alt);
+    }
+    for (const tag of html.match(/<video\b[^>]*>/gi) || []) {
+        const attrs = attributes(tag);
+        add("video", attrs.src, "video", attrs.title);
+        add("image", attrs.poster, "video-poster", attrs.title);
+    }
+    for (const tag of html.match(/<source\b[^>]*>/gi) || []) {
+        const attrs = attributes(tag);
+        if (String(attrs.type || "").toLowerCase().startsWith("video/") || /\.(mp4|webm|mov)(?:$|[?#])/i.test(attrs.src || "")) {
+            add("video", attrs.src, "source", attrs.title);
+        }
+    }
+    for (const tag of html.match(/<meta\b[^>]*>/gi) || []) {
+        const attrs = attributes(tag);
+        const key = String(attrs.property || attrs.name || "").toLowerCase();
+        if (["og:image", "twitter:image", "twitter:image:src"].includes(key)) {
+            add("image", attrs.content, key);
+        }
+        if (["og:video", "og:video:url", "og:video:secure_url", "twitter:player:stream"].includes(key)) {
+            add("video", attrs.content, key);
+        }
+    }
+
+    const seen = new Set();
+    return candidates.filter(item => {
+        const key = `${item.kind}:${item.url}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
+function detectedMime(bytes, declared = "") {
+    const ascii = bytes.subarray(0, 32).toString("latin1");
+    if (bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return "image/png";
+    if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
+    if (ascii.startsWith("GIF87a") || ascii.startsWith("GIF89a")) return "image/gif";
+    if (ascii.startsWith("RIFF") && ascii.slice(8, 12) === "WEBP") return "image/webp";
+    if (ascii.slice(4, 8) === "ftyp") return declared === "video/quicktime" ? "video/quicktime" : "video/mp4";
+    if (bytes.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))) return "video/webm";
+    if (declared === "image/svg+xml" && bytes.subarray(0, 2048).toString("utf8").toLowerCase().includes("<svg")) return declared;
+    return "";
+}
+
+function chooseOutputName(candidate, mimeType, index) {
+    const sourcePath = new URL(candidate.url).pathname;
+    const sourceStem = safeStem(path.basename(sourcePath, path.extname(sourcePath)) || `${candidate.kind}-${index + 1}`, 60);
+    const extension = MIME_EXTENSIONS[mimeType];
+    return `${String(index + 1).padStart(2, "0")}-${sourceStem}${extension}`;
+}
+
+export async function collectNexoRealWebMedia({
+    url = "",
+    requireImages = false,
+    requireVideos = false,
+    maxImages = 12,
+    maxVideos = 4,
+    allowedHosts = [],
+    timeoutMs = 30000,
+    root = process.cwd(),
+    allowPrivateHostsForTesting = false
+} = {}) {
+    const page = normalizeHttpUrl(url);
+    const pageResponse = await fetchBounded(page, {
+        maxBytes: MAX_HTML_BYTES,
+        timeoutMs,
+        allowedExactMimes: ["text/html", "application/xhtml+xml"],
+        allowPrivateHostsForTesting
+    });
+    const html = pageResponse.bytes.toString("utf8");
+    const discovered = mediaCandidates(html, pageResponse.url)
+        .filter(item => hostAllowed(new URL(item.url).hostname, page.hostname, allowedHosts));
+    const limits = {
+        image: Math.max(0, Math.min(30, Number(maxImages) || 0)),
+        video: Math.max(0, Math.min(10, Number(maxVideos) || 0))
+    };
+    const selected = [];
+    for (const kind of ["image", "video"]) {
+        selected.push(...discovered.filter(item => item.kind === kind).slice(0, limits[kind]));
+    }
+
+    const batchDirectory = path.resolve(
+        root,
+        ".jarvis-artifacts/web-media",
+        safeStem(page.hostname),
+        String(Date.now())
+    );
+    fs.mkdirSync(batchDirectory, { recursive: true });
+
+    const assets = [];
+    const skipped = [];
+    let totalBytes = 0;
+    for (const candidate of selected) {
+        try {
+            const fetched = await fetchBounded(candidate.url, {
+                maxBytes: candidate.kind === "video" ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES,
+                timeoutMs,
+                allowedMimePrefixes: [candidate.kind === "video" ? "video/" : "image/"],
+                allowPrivateHostsForTesting
+            });
+            const actualMimeType = detectedMime(fetched.bytes, fetched.mimeType);
+            if (!actualMimeType || !actualMimeType.startsWith(`${candidate.kind}/`) || !MIME_EXTENSIONS[actualMimeType]) {
+                throw new Error("WEB_MEDIA_MAGIC_MISMATCH");
+            }
+            if (totalBytes + fetched.bytes.length > MAX_TOTAL_MEDIA_BYTES) {
+                throw new Error("WEB_MEDIA_TOTAL_SIZE_EXCEEDED");
+            }
+            totalBytes += fetched.bytes.length;
+            const name = chooseOutputName(candidate, actualMimeType, assets.length);
+            const target = path.join(batchDirectory, name);
+            fs.writeFileSync(target, fetched.bytes);
+            const output = path.relative(path.resolve(root), target).replaceAll("\\", "/");
+            const digest = sha256(fetched.bytes);
+            const artifact = registerArtifact({
+                root,
+                output,
+                metadata: {
+                    type: candidate.kind,
+                    origin: "web.media.collect",
+                    provider: "nexo_real_media_collector",
+                    mimeType: actualMimeType,
+                    status: "WEB_REAL_MEDIA_VERIFIED",
+                    approvalRequired: false,
+                    approved: true,
+                    approvedBy: "OWNER_EXPLICIT_MEDIA_REQUEST",
+                    editable: false,
+                    preview: true,
+                    downloadable: true,
+                    publishable: false,
+                    originalFile: fetched.url,
+                    transformations: [{ type: "verbatim_download", sha256: digest }]
+                }
+            });
+            assets.push({
+                kind: candidate.kind,
+                sourceUrl: fetched.url,
+                sourceTag: candidate.sourceTag,
+                alt: candidate.alt,
+                output,
+                mimeType: actualMimeType,
+                bytes: fetched.bytes.length,
+                sha256: digest,
+                artifactId: artifact?.artifactId || artifact?.id || null
+            });
+        } catch(error) {
+            skipped.push({
+                kind: candidate.kind,
+                sourceUrl: candidate.url,
+                reason: error?.message || String(error)
+            });
+        }
+    }
+
+    const imageCount = assets.filter(item => item.kind === "image").length;
+    const videoCount = assets.filter(item => item.kind === "video").length;
+    const requirementsMet =
+        (!requireImages || imageCount > 0) &&
+        (!requireVideos || videoCount > 0);
+    const manifest = {
+        engine: "NEXO",
+        version: NEXO_WEB_MEDIA_BRIDGE_VERSION,
+        sourceUrl: page.toString(),
+        finalPageUrl: pageResponse.url,
+        capturedAt: new Date().toISOString(),
+        requirements: { requireImages: Boolean(requireImages), requireVideos: Boolean(requireVideos) },
+        counts: { images: imageCount, videos: videoCount, total: assets.length },
+        totalBytes,
+        requirementsMet,
+        assets,
+        skipped
+    };
+    const manifestTarget = path.join(batchDirectory, "manifest.json");
+    fs.writeFileSync(manifestTarget, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+    const manifestOutput = path.relative(path.resolve(root), manifestTarget).replaceAll("\\", "/");
+    registerArtifact({
+        root,
+        output: manifestOutput,
+        metadata: {
+            type: "report",
+            origin: "web.media.collect",
+            provider: "nexo_real_media_collector",
+            mimeType: "application/json",
+            status: requirementsMet ? "WEB_REAL_MEDIA_COLLECTED" : "WEB_REAL_MEDIA_REQUIREMENTS_UNMET",
+            approvalRequired: false,
+            approved: true,
+            approvedBy: "OWNER_EXPLICIT_MEDIA_REQUEST",
+            editable: true,
+            preview: true,
+            downloadable: true,
+            publishable: false,
+            originalFile: page.toString()
+        }
+    });
+
+    return {
+        ok: requirementsMet,
+        executionOk: true,
+        objectiveSatisfied: requirementsMet,
+        blocked: !requirementsMet,
+        requiresInput: false,
+        retryable: false,
+        status: requirementsMet ? "WEB_REAL_MEDIA_COLLECTED" : "WEB_REAL_MEDIA_REQUIREMENTS_UNMET",
+        sourceUrl: page.toString(),
+        finalPageUrl: pageResponse.url,
+        requirementsMet,
+        requirements: manifest.requirements,
+        counts: manifest.counts,
+        totalBytes,
+        mediaAssets: assets,
+        skipped,
+        output: manifestOutput,
+        sources: assets.map((asset, index) => ({
+            id: index + 1,
+            title: `${asset.kind === "image" ? "Imagen" : "Video"} real verificado`,
+            url: asset.sourceUrl,
+            snippet: `${asset.output} · ${asset.mimeType} · SHA-256 ${asset.sha256}`,
+            output: asset.output,
+            sha256: asset.sha256,
+            mimeType: asset.mimeType,
+            kind: asset.kind
+        })),
+        version: NEXO_WEB_MEDIA_BRIDGE_VERSION
+    };
+}
+
+export function registerNexoWebMediaRoutes(app, { root = process.cwd() } = {}) {
+    if (!app || typeof app.post !== "function") {
+        throw new Error("EXPRESS_APP_REQUIRED");
+    }
+    app.post("/web/media/collect", async (req, res) => {
+        try {
+            const result = await collectNexoRealWebMedia({
+                ...(req.body || {}),
+                root,
+                allowPrivateHostsForTesting: false
+            });
+            return res.status(result.ok ? 200 : 422).json(result);
+        } catch(error) {
+            const message = error?.message || String(error);
+            const clientError =
+                message.startsWith("WEB_MEDIA_") ||
+                message === "Invalid URL";
+            return res.status(clientError ? 400 : 500).json({
+                ok: false,
+                executionOk: false,
+                objectiveSatisfied: false,
+                blocked: true,
+                requiresInput: false,
+                retryable: false,
+                status: "WEB_REAL_MEDIA_COLLECTION_FAILED",
+                error: message,
+                version: NEXO_WEB_MEDIA_BRIDGE_VERSION
+            });
+        }
+    });
+    return app;
+}
+
+export const __test = {
+    safeStem,
+    isPrivateAddress,
+    hostAllowed,
+    mediaCandidates,
+    detectedMime
+};
