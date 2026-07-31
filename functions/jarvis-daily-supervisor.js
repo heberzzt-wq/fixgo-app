@@ -1,6 +1,7 @@
 "use strict";
 
 const DEFAULT_BASE_URL = "https://fixgo-44e4d.web.app";
+const PRIVATE_ENGINE_IDENTITY = "NEXO";
 
 const DEFAULT_PROBES = Object.freeze([
     {
@@ -10,6 +11,60 @@ const DEFAULT_PROBES = Object.freeze([
             "gestia-core/gestia-core.js",
             "const multiToolTitle",
             "finalResponse?.title"
+        ]
+    },
+    {
+        id: "nexo_identity",
+        path: "/gestia-core/nexo/nexo.identity.js",
+        markers: [
+            "Núcleo Ejecutivo No-Code de Orquestación",
+            "PENINSULA_NEXO",
+            "one_instruction_one_mission",
+            "legacy_jarvis_compatibility_during_migration"
+        ]
+    },
+    {
+        id: "nexo_mission_compiler",
+        path: "/gestia-core/nexo/nexo.mission.compiler.v2.js",
+        markers: [
+            "2.0.0-composition-to-artifact-chain",
+            "NEXO_PAGE_COMPOSITION_BEFORE_ARTIFACT",
+            "NEXO_DOCX_ARTIFACT_AFTER_VALIDATED_COMPOSITION",
+            "document.create"
+        ]
+    },
+    {
+        id: "nexo_semantic_resilience",
+        path: "/gestia-core/nexo/nexo.semantic-planner-resilience.js",
+        markers: [
+            "1.3.0-complete-artifact-contract",
+            "SEMANTIC_PLAN_INCOMPLETE",
+            "cloudPlanCoversLocalMission",
+            "NEXO_SEMANTIC_RECOVERY"
+        ]
+    },
+    {
+        id: "nexo_marketing_natural_brief",
+        path: "/gestia-core/jarvis/jarvis.marketing.engine.js",
+        markers: [
+            "8.0.0-nexo-natural-brief",
+            "deriveCreativeBrief",
+            "MARKETING_PACKAGE_READY",
+            "USER_CONTEXT_ONLY"
+        ],
+        forbiddenMarkers: [
+            "MARKETING_INPUT_REQUIRED"
+        ]
+    },
+    {
+        id: "nexo_artifact_bridge",
+        path: "/jarvis-fs-bridge.js",
+        markers: [
+            "app.post(\"/page/create\"",
+            "app.post(\"/reel/create\"",
+            "app.post(\"/document\"",
+            "PAGE_ARTIFACT_CREATED_VERIFIED",
+            "DOCUMENT_CREATED"
         ]
     },
     {
@@ -176,7 +231,7 @@ async function fetchWithTimeout(fetchImpl, url, timeoutMs) {
             fetchImpl(url, {
                 method: "GET",
                 headers: {
-                    "User-Agent": "Gestia-Jarvis-Daily-Supervisor/1.0"
+                    "User-Agent": "Peninsula-NEXO-Daily-Supervisor/3.0"
                 }
             }),
             new Promise((_, reject) => {
@@ -264,20 +319,25 @@ function summarizeChecks(checks = []) {
 }
 
 const SUPERVISION_DOMAIN_BY_PROBE = Object.freeze({
-    terminal_runtime: "jarvis_runtime",
+    terminal_runtime: "nexo_runtime",
+    nexo_identity: "nexo_identity",
+    nexo_mission_compiler: "nexo_artifact_execution",
+    nexo_semantic_resilience: "nexo_cognition",
+    nexo_marketing_natural_brief: "nexo_marketing",
+    nexo_artifact_bridge: "nexo_artifact_execution",
     login_central_router: "auth_routing",
     canonical_role_router: "auth_routing",
     role_authority_contract: "auth_routing",
     runtime_role_router: "auth_routing",
     private_surface_gate: "auth_routing",
     semantic_diagnostics_contract: "repo_diagnostics",
-    technical_intent_priority: "jarvis_cognition",
-    technical_read_only_plan: "jarvis_cognition",
-    mixed_investigation_composition: "jarvis_cognition",
-    proposal_state_authority: "jarvis_governance",
-    technical_response_clarity: "jarvis_cognition",
+    technical_intent_priority: "nexo_cognition",
+    technical_read_only_plan: "nexo_cognition",
+    mixed_investigation_composition: "nexo_cognition",
+    proposal_state_authority: "nexo_governance",
+    technical_response_clarity: "nexo_cognition",
     grounded_web_research_contract: "web_research",
-    terminal_response_renderer: "jarvis_cognition",
+    terminal_response_renderer: "nexo_cognition",
     runtime_health_module: "runtime_health"
 });
 
@@ -293,23 +353,30 @@ function buildSupervisionRecommendations(checks = []) {
     if (failedDomains.has("auth_routing")) {
         recommendations.push("Revisar role-authority, app-login y firebase.js antes de validar redirecciones por rol.");
     }
-
-    if (failedDomains.has("jarvis_runtime") || failedDomains.has("jarvis_cognition")) {
-        recommendations.push("Probar una orden real en Terminal y confirmar router, respuesta final y consola sin errores.");
+    if (failedDomains.has("nexo_identity")) {
+        recommendations.push("Restaurar la identidad privada NEXO sin renombrar todavía las APIs legacy de compatibilidad.");
     }
-
+    if (
+        failedDomains.has("nexo_runtime") ||
+        failedDomains.has("nexo_cognition")
+    ) {
+        recommendations.push("Probar una orden real en Terminal y confirmar que NEXO produce una misión completa o activa el compilador local.");
+    }
+    if (failedDomains.has("nexo_artifact_execution")) {
+        recommendations.push("Levantar npm run nexo:bridge y verificar page.create, reel.create y document.create antes de declarar la misión usable.");
+    }
+    if (failedDomains.has("nexo_marketing")) {
+        recommendations.push("Ejecutar 'hazme un programa de marketing' y exigir paquete editable sin MARKETING_INPUT_REQUIRED.");
+    }
     if (failedDomains.has("repo_diagnostics")) {
         recommendations.push("Ejecutar diagnostico read-only con evidencia por archivo y lineas antes de preparar un patch.");
     }
-
     if (failedDomains.has("runtime_health")) {
         recommendations.push("Revisar runtime-health y latencia de modulos antes de declarar el sistema estable.");
     }
-
     if (failedDomains.has("web_research")) {
         recommendations.push("Validar web.research con una consulta real y confirmar respuesta sustentada, fuentes y cero efectos externos.");
     }
-
     if (failedDomains.has("unknown")) {
         recommendations.push("Revisar el probe fallido y su contrato desplegado antes de intentar una reparacion.");
     }
@@ -338,7 +405,7 @@ async function runDailyJarvisSupervision({
     }
 
     const key = dateKey(now);
-    const traceId = `jarvis_supervision_${key}`;
+    const traceId = `nexo_supervision_${key}`;
     const checks = await Promise.all(
         probes.map(probe => runProbe({
             probe,
@@ -353,7 +420,9 @@ async function runDailyJarvisSupervision({
     const report = {
         reportId: key,
         traceId,
-        version: "2.1.0-daily-read-only-contract-regression",
+        version: "3.0.0-nexo-artifact-capability-supervision",
+        engineIdentity: PRIVATE_ENGINE_IDENTITY,
+        legacyReportContract: "jarvis_supervision_reports",
         status: summary.status,
         score: summary.score,
         summary,
@@ -374,7 +443,8 @@ async function runDailyJarvisSupervision({
             readOnlyAudit: true,
             autoPatch: false,
             codeWrite: false,
-            humanApprovalRequired: true
+            humanApprovalRequired: true,
+            externalPublicationAllowed: false
         },
         startedAtIso: now.toISOString(),
         completedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -389,12 +459,17 @@ async function runDailyJarvisSupervision({
         .collection("gestia_system_health")
         .doc(key)
         .set({
-            jarvis_supervision_runs:
-                1,
+            jarvis_supervision_runs: 1,
             jarvis_supervision_last_status: summary.status,
             jarvis_supervision_last_score: summary.score,
             jarvis_supervision_last_trace: traceId,
             jarvis_supervision_last_run:
+                admin.firestore.FieldValue.serverTimestamp(),
+            nexo_supervision_runs: 1,
+            nexo_supervision_last_status: summary.status,
+            nexo_supervision_last_score: summary.score,
+            nexo_supervision_last_trace: traceId,
+            nexo_supervision_last_run:
                 admin.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
 
@@ -412,9 +487,7 @@ async function getLatestJarvisSupervisionReport({ db } = {}) {
         .limit(1)
         .get();
 
-    if (snapshot.empty) {
-        return null;
-    }
+    if (snapshot.empty) return null;
 
     const doc = snapshot.docs[0];
     return {
@@ -423,11 +496,16 @@ async function getLatestJarvisSupervisionReport({ db } = {}) {
     };
 }
 
+const getLatestNexoSupervisionReport = getLatestJarvisSupervisionReport;
+const runDailyNexoSupervision = runDailyJarvisSupervision;
+
 module.exports = {
     DEFAULT_PROBES,
     dateKey,
     summarizeChecks,
     buildSupervisionRecommendations,
     runDailyJarvisSupervision,
-    getLatestJarvisSupervisionReport
+    runDailyNexoSupervision,
+    getLatestJarvisSupervisionReport,
+    getLatestNexoSupervisionReport
 };
