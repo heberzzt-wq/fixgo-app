@@ -39,7 +39,7 @@ import {
     crearEventoAuditoriaDuplicado
 } from "./b2c-evidence-dedup.js";
 
-export const B2C_EVIDENCE_FIRESTORE_VERSION = "1.0.0";
+export const B2C_EVIDENCE_FIRESTORE_VERSION = "1.0.1";
 
 export const B2C_EVIDENCE_COLLECTIONS = Object.freeze({
     exactHashes: "b2c_evidence_hashes",
@@ -75,6 +75,15 @@ function normalizarLimite(value, fallback = 100, max = 200) {
     return Math.min(parsed, max);
 }
 
+function esObjetoPlano(value) {
+    if (!value || Object.prototype.toString.call(value) !== "[object Object]") {
+        return false;
+    }
+
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
+}
+
 function limpiarUndefined(value) {
     if (Array.isArray(value)) {
         return value
@@ -82,7 +91,9 @@ function limpiarUndefined(value) {
             .filter((item) => item !== undefined);
     }
 
-    if (value && typeof value === "object") {
+    // Los FieldValue de Firestore (serverTimestamp, increment, etc.) son objetos
+    // con prototipo propio. Deben conservarse intactos y no convertirse a objetos planos.
+    if (esObjetoPlano(value)) {
         return Object.fromEntries(
             Object.entries(value)
                 .filter(([, item]) => item !== undefined)
