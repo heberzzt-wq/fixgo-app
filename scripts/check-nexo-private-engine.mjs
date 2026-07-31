@@ -28,15 +28,21 @@ const compiler = read("gestia-core/nexo/nexo.mission.compiler.js");
 const compilerV2 = read("gestia-core/nexo/nexo.mission.compiler.v2.js");
 const resilience = read("gestia-core/nexo/nexo.semantic-planner-resilience.js");
 const branding = read("gestia-core/nexo/nexo.ui.branding.js");
+const realMediaTools = read("gestia-core/nexo/nexo.real-media.tools.js");
+const bootstrap = read("modules/terminal/nexo-bootstrap.js");
 const marketing = read("gestia-core/jarvis/jarvis.marketing.engine.js");
 const multitool = read("gestia-core/jarvis/jarvis.multitool.pack.js");
 const actuator = read("gestia-core/jarvis/jarvis.actuator.pack.js");
 const missionOrchestrator = read("gestia-core/jarvis/jarvis.mission.orchestrator.js");
 const bridge = read("jarvis-fs-bridge.js");
 const uploadBridge = read("jarvis-upload-bridge.js");
+const webMediaBridge = read("nexo-web-media-bridge.js");
 const runtimeContract = JSON.parse(read("jarvis-runtime-contract.json"));
 const supervisor = read("functions/jarvis-daily-supervisor.js");
 const missionTests = read("tests/nexo-mission-compiler.test.mjs");
+const realMediaRoutingTests = read("tests/nexo-real-media-routing.test.mjs");
+const realMediaToolTests = read("tests/nexo-real-media-tools.test.mjs");
+const realMediaBridgeTests = read("tests/nexo-web-media-bridge.test.mjs");
 const resilienceTests = read("tests/nexo-semantic-resilience.test.mjs");
 const approvalTests = read("tests/nexo-approval-normalization.test.mjs");
 const marketingTests = read("tests/jarvis-marketing-engine-v2.test.mjs");
@@ -77,13 +83,25 @@ ok(
 );
 
 ok(
-    compilerV2.includes("2.0.0-composition-to-artifact-chain"),
-    "compilador V2 activo"
+    compilerV2.includes("2.1.0-real-media-evidence-chain"),
+    "compilador V2 con evidencia de medios reales activo"
 );
 ok(
     compilerV2.includes("NEXO_PAGE_COMPOSITION_BEFORE_ARTIFACT") &&
         compilerV2.includes("NEXO_DOCX_ARTIFACT_AFTER_VALIDATED_COMPOSITION"),
     "página y Word encadenan composición antes de creación"
+);
+ok(
+    compilerV2.includes('name: "web.media.collect"') &&
+        compilerV2.includes('name: "marketing.package.real-media"') &&
+        compilerV2.includes("sourceBytesRequired: true") &&
+        compilerV2.includes("sha256Required: true"),
+    "misiones con fotos o videos reales exigen bytes y paquete verificable"
+);
+ok(
+    compilerV2.includes('if (call.name === "image.generate") return false') &&
+        compilerV2.includes("syntheticMediaSubstitutionAllowed: false"),
+    "medios reales nunca se sustituyen por generación sintética"
 );
 
 ok(
@@ -131,6 +149,25 @@ ok(
     /document\.addEventListener\(\s*"submit"\s*,\s*normalizeApprovalBeforeLegacy\s*,\s*true\s*\)/s
         .test(branding),
     "normalizador de aprobación se instala en fase capture antes del submit legacy"
+);
+
+ok(
+    bootstrap.includes("1.1.0-real-media-runtime") &&
+        bootstrap.includes("nexo.real-media.tools.js") &&
+        bootstrap.includes("installNexoRealMediaTools"),
+    "bootstrap temprano instala resiliencia y herramientas de medios reales"
+);
+ok(
+    realMediaTools.includes('name: "marketing.plan"') &&
+        realMediaTools.includes('name: "web.media.collect"') &&
+        realMediaTools.includes('name: "marketing.package.real-media"'),
+    "runtime NEXO sustituye marketing viejo y registra cadena real"
+);
+ok(
+    realMediaTools.includes("REAL_MEDIA_PACKAGE_REQUIREMENTS_UNMET") &&
+        realMediaTools.includes("syntheticMediaSubstitutionAllowed: false") &&
+        realMediaTools.includes('controllerId: args.controllerId || context.controllerId || "PENINSULA_NEXO"'),
+    "paquete final falla cerrado y conserva identidad Peninsula NEXO"
 );
 
 ok(
@@ -192,8 +229,22 @@ ok(
 );
 ok(
     uploadBridge.includes("createJarvisFsBridgeApp") &&
-        uploadBridge.includes("startJarvisUploadBridge"),
-    "npm bridge levanta rutas completas de archivos y artefactos"
+        uploadBridge.includes("startJarvisUploadBridge") &&
+        uploadBridge.includes("registerNexoWebMediaRoutes"),
+    "npm bridge levanta cargas, artefactos y recolección de medios reales"
+);
+ok(
+    webMediaBridge.includes('app.post("/web/media/collect"') &&
+        webMediaBridge.includes("WEB_REAL_MEDIA_VERIFIED") &&
+        webMediaBridge.includes("WEB_MEDIA_PRIVATE_ADDRESS_BLOCKED") &&
+        webMediaBridge.includes("sha256(fetched.bytes)"),
+    "recolector valida SSRF, bytes, MIME y SHA-256"
+);
+ok(
+    webMediaBridge.includes("MAX_TOTAL_MEDIA_BYTES") &&
+        webMediaBridge.includes("WEB_MEDIA_MAGIC_MISMATCH") &&
+        webMediaBridge.includes("WEB_REAL_MEDIA_REQUIREMENTS_UNMET"),
+    "recolector aplica límites y falla cerrado ante material faltante"
 );
 ok(
     uploadBridge.includes("3344"),
@@ -238,6 +289,24 @@ ok(
     "pruebas exigen reel temporalmente coherente y programa descargable"
 );
 ok(
+    realMediaRoutingTests.includes("multiserviciospeninsulareshmh.com") &&
+        realMediaRoutingTests.includes('names(plan).includes("image.generate"), false') &&
+        realMediaRoutingTests.includes("requireVideos, true"),
+    "prueba reproduce la orden real de Multiservicios sin sustitución sintética"
+);
+ok(
+    realMediaToolTests.includes("8.0.0-nexo-natural-brief") &&
+        realMediaToolTests.includes("REAL_MEDIA_PACKAGE_REQUIREMENTS_UNMET") &&
+        realMediaToolTests.includes("REAL_MEDIA_MARKETING_PACKAGE_CREATED"),
+    "pruebas cubren override NEXO y paquete real completo/incompleto"
+);
+ok(
+    realMediaBridgeTests.includes("verified real JPEG and MP4 bytes") &&
+        realMediaBridgeTests.includes("WEB_MEDIA_PRIVATE_ADDRESS_BLOCKED") &&
+        realMediaBridgeTests.includes("WEB_REAL_MEDIA_REQUIREMENTS_UNMET"),
+    "pruebas físicas cubren JPEG, MP4, SHA, ausencia y SSRF"
+);
+ok(
     resilienceTests.includes("cloud page plan without page.create") &&
         resilienceTests.includes("cloudPlanCoversLocalMission"),
     "prueba rechaza un plan cloud de página incompleto"
@@ -262,5 +331,5 @@ ok(
 );
 
 console.log(
-    "\n🧠 NEXO PRIVATE ENGINE CHECK: PASS — identidad, misión, aprobación, marketing, páginas, medios, documentos, puente y supervisión están contratados."
+    "\n🧠 NEXO PRIVATE ENGINE CHECK: PASS — identidad, misión, aprobación, marketing, medios reales, páginas, documentos, puente y supervisión están contratados."
 );
