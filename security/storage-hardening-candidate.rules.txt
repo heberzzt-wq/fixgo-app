@@ -70,6 +70,7 @@ service firebase.storage {
       );
     }
 
+    // Evidencia sellada que debe ser procesable por canvas/dHash.
     function validImage(maxBytes) {
       return request.resource != null &&
         request.resource.size > 0 &&
@@ -77,12 +78,20 @@ service firebase.storage {
         request.resource.contentType.matches("image/(jpeg|png|webp)");
     }
 
+    // Formularios legacy usan accept="image/*" y pueden recibir HEIC/HEIF de iPhone.
+    function validLegacyImage(maxBytes) {
+      return request.resource != null &&
+        request.resource.size > 0 &&
+        request.resource.size <= maxBytes &&
+        request.resource.contentType.matches("image/(jpeg|png|webp|heic|heif)");
+    }
+
     function validDocument(maxBytes) {
       return request.resource != null &&
         request.resource.size > 0 &&
         request.resource.size <= maxBytes &&
         request.resource.contentType.matches(
-          "(image/(jpeg|png|webp)|application/pdf)"
+          "(image/(jpeg|png|webp|heic|heif)|application/pdf)"
         );
     }
 
@@ -132,7 +141,7 @@ service firebase.storage {
 
       allow create: if signedIn() &&
         fileName.matches(request.auth.uid + "_.*") &&
-        validImage(10 * 1024 * 1024);
+        validLegacyImage(10 * 1024 * 1024);
 
       allow update: if false;
       allow delete: if masterAdmin();
@@ -192,7 +201,7 @@ service firebase.storage {
       allow read: if masterAdmin() || sameTenant(edificioId);
 
       allow create: if sameTenant(edificioId) &&
-        validImage(10 * 1024 * 1024);
+        validLegacyImage(10 * 1024 * 1024);
 
       allow update: if false;
       allow delete: if masterAdmin();
