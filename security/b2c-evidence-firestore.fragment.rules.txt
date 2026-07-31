@@ -1,21 +1,23 @@
 // =====================================================================================
 // B2C EVIDENCE FIRESTORE RULES FRAGMENT — DO NOT DEPLOY AS A COMPLETE RULESET
 // =====================================================================================
-// This file is intentionally NOT referenced by firebase.json.
-// Merge manually inside the authoritative production ruleset only after recovering it.
-// Expected insertion point: inside match /databases/{database}/documents { ... }
+// Fuente de integración: reglas actuales del panel de Firestore entregadas por Heberto
+// el 30-jul-2026. Este archivo NO sustituye el ruleset completo y NO está enlazado desde
+// firebase.json. Debe insertarse dentro de:
+//
+//   service cloud.firestore {
+//     match /databases/{database}/documents {
+//       ...AQUÍ...
+//     }
+//   }
+//
+// Reutiliza deliberadamente isAuth(), isAdmin() e isTecnico() del ruleset actual.
+// No redefine administración mediante userData().rol, porque el ruleset real protege
+// la administración con correo/UID maestro.
 // =====================================================================================
 
-function b2cSignedIn() {
-  return request.auth != null;
-}
-
-function b2cUser() {
-  return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-}
-
-function b2cIsAdmin() {
-  return b2cSignedIn() && b2cUser().rol == "admin";
+function b2cServiceExists(serviceId) {
+  return exists(/databases/$(database)/documents/services/$(serviceId));
 }
 
 function b2cService(serviceId) {
@@ -23,124 +25,216 @@ function b2cService(serviceId) {
 }
 
 function b2cIsAssignedTechnician(serviceId) {
-  return b2cSignedIn() &&
+  return isAuth() &&
+    b2cServiceExists(serviceId) &&
     b2cService(serviceId).tecnico_id == request.auth.uid;
 }
 
 function b2cIsOwningCustomer(serviceId) {
-  return b2cSignedIn() &&
+  return isAuth() &&
+    b2cServiceExists(serviceId) &&
     b2cService(serviceId).cliente_id == request.auth.uid;
 }
 
 function b2cIsServiceParty(serviceId) {
-  return b2cIsAdmin() ||
+  return isAdmin() ||
     b2cIsAssignedTechnician(serviceId) ||
     b2cIsOwningCustomer(serviceId);
 }
 
-// Merge these permissions into the existing services/{serviceId} match.
-match /services/{serviceId} {
-  allow read: if b2cIsServiceParty(serviceId);
+function b2cEvidenceActorValid(serviceId) {
+  let data = request.resource.data;
+  return data.actor_uid == request.auth.uid &&
+    (
+      (data.actor_role == "tecnico" && b2cIsAssignedTechnician(serviceId)) ||
+      (data.actor_role == "cliente" && b2cIsOwningCustomer(serviceId))
+    );
+}
 
-  // Do not paste a broad service update rule without field-level tests.
-  // Arrival, dispute, diagnostic, work-before and work-after updates must be merged
-  // with the legacy service state machine and validated with emulator tests.
+function b2cEvidenceEventAllowed(eventType) {
+  return eventType in [
+    "arrival",
+    "arrival_fallback",
+    "diagnostic_before",
+    "work_before",
+    "work_after",
+    "customer_no_show",
+    "customer_denied_access",
+    "service_completion",
+    "customer_arrival_dispute"
+  ];
+}
+
+function b2cTechnicianConsentValid(serviceId, expectedEvent) {
+  return b2cIsAssignedTechnician(serviceId) &&
+    request.resource.data.actor_uid == request.auth.uid &&
+    request.resource.data.actor_role == "tecnico" &&
+    request.resource.data.event_type == expectedEvent;
+}
+
+// IMPORTANTE: el match /services/{serviceId} existente NO cubre subcolecciones.
+// Este segundo match con la misma ruta agrega únicamente permisos B2C anidados.
+// No modifica todavía la regla legacy amplia de read/update del documento principal.
+match /services/{serviceId} {
 
   match /evidence_events/{eventId} {
     allow read: if b2cIsServiceParty(serviceId);
     allow create: if b2cIsServiceParty(serviceId) &&
       request.resource.data.service_id == serviceId &&
-      request.resource.data.actor_uid == request.auth.uid;
-    allow update, delete: if b2cIsAdmin();
+      b2cEvidenceActorValid(serviceId) &&
+      b2cEvidenceEventAllowed(request.resource.data.event_type) &&
+      request.resource.data.review_required is bool;
+    allow update, delete: if isAdmin();
   }
 
   match /time_sync/{actorId} {
-    allow read, create, update: if b2cIsAdmin() ||
+    allow read: if isAdmin() ||
       (b2cIsServiceParty(serviceId) && actorId == request.auth.uid);
-    allow delete: if b2cIsAdmin();
+
+    allow create, update: if b2cIsServiceParty(serviceId) &&
+      actorId == request.auth.uid &&
+      request.resource.data.actor_uid == request.auth.uid &&
+      request.resource.data.actor_role in ["tecnico", "cliente"];
+
+    allow delete: if isAdmin();
+  }
+
+  // Llegada, fallback, ausencia y negativa de acceso usan este consentimiento.
+  match /capture_consents/{consentId} {
+    allow read: if b2cIsServiceParty(serviceId);
+    allow create, update: if b2cIsAssignedTechnician(serviceId) &&
+      request.resource.data.actor_uid == request.auth.uid &&
+      request.resource.data.actor_role == "tecnico" &&
+      request.resource.data.event_type in [
+        "arrival",
+        "arrival_fallback",
+        "customer_no_show",
+        "customer_denied_access"
+      ];
+    allow delete: if isAdmin();
+  }
+
+  match /video_consents/{consentId} {
+    allow read: if b2cIsServiceParty(serviceId);
+    allow create, update: if b2cIsAssignedTechnician(serviceId) &&
+      request.resource.data.actor_uid == request.auth.uid &&
+      request.resource.data.actor_role == "tecnico" &&
+      request.resource.data.event_type in [
+        "customer_no_show",
+        "customer_denied_access"
+      ];
+    allow delete: if isAdmin();
   }
 
   match /diagnostic_consents/{consentId} {
     allow read: if b2cIsServiceParty(serviceId);
-    allow create, update: if b2cIsAssignedTechnician(serviceId) &&
-      request.resource.data.actor_uid == request.auth.uid;
-    allow delete: if b2cIsAdmin();
+    allow create, update: if b2cTechnicianConsentValid(
+      serviceId,
+      "diagnostic_before"
+    );
+    allow delete: if isAdmin();
   }
 
   match /work_start_consents/{consentId} {
     allow read: if b2cIsServiceParty(serviceId);
-    allow create, update: if b2cIsAssignedTechnician(serviceId) &&
-      request.resource.data.actor_uid == request.auth.uid;
-    allow delete: if b2cIsAdmin();
+    allow create, update: if b2cTechnicianConsentValid(
+      serviceId,
+      "work_before"
+    );
+    allow delete: if isAdmin();
   }
 
   match /work_after_consents/{consentId} {
     allow read: if b2cIsServiceParty(serviceId);
-    allow create, update: if b2cIsAssignedTechnician(serviceId) &&
-      request.resource.data.actor_uid == request.auth.uid;
-    allow delete: if b2cIsAdmin();
+    allow create, update: if b2cTechnicianConsentValid(
+      serviceId,
+      "work_after"
+    );
+    allow delete: if isAdmin();
   }
 
+  // Compatibilidad temporal del guardia de cierre anterior.
   match /work_evidence_consents/{consentId} {
     allow read: if b2cIsServiceParty(serviceId);
     allow create, update: if b2cIsAssignedTechnician(serviceId) &&
-      request.resource.data.actor_uid == request.auth.uid;
-    allow delete: if b2cIsAdmin();
+      request.resource.data.actor_uid == request.auth.uid &&
+      request.resource.data.actor_role == "tecnico" &&
+      request.resource.data.event_type in ["work_before", "work_after"];
+    allow delete: if isAdmin();
   }
 
   match /work_evidence_bindings/{bindingId} {
     allow read: if b2cIsServiceParty(serviceId);
     allow create, update: if b2cIsAssignedTechnician(serviceId) &&
-      request.resource.data.technician_id == request.auth.uid;
-    allow delete: if b2cIsAdmin();
+      request.resource.data.technician_id == request.auth.uid &&
+      request.resource.data.service_id == serviceId;
+    allow delete: if isAdmin();
   }
 
+  // Reserva SHA-256 del cliente confinada al mismo folio.
   match /customer_evidence_hashes/{hashId} {
-    allow read: if b2cIsOwningCustomer(serviceId) || b2cIsAdmin();
+    allow read: if b2cIsOwningCustomer(serviceId) || isAdmin();
+
     allow create: if b2cIsOwningCustomer(serviceId) &&
       request.resource.data.customer_id == request.auth.uid &&
-      request.resource.data.scope == "service_only";
+      request.resource.data.scope == "service_only" &&
+      request.resource.data.dedup_backend_pending == true &&
+      request.resource.data.sha256 is string;
+
     allow update: if b2cIsOwningCustomer(serviceId) &&
       resource.data.customer_id == request.auth.uid &&
       request.resource.data.customer_id == resource.data.customer_id &&
       request.resource.data.sha256 == resource.data.sha256 &&
-      request.resource.data.scope == "service_only";
-    allow delete: if b2cIsAdmin();
-  }
+      request.resource.data.evidence_id == resource.data.evidence_id &&
+      request.resource.data.scope == "service_only" &&
+      request.resource.data.dedup_backend_pending == true;
 
-  match /client_dispute_consents/{consentId} {
-    allow read: if b2cIsOwningCustomer(serviceId) || b2cIsAdmin();
-    allow create, update: if b2cIsOwningCustomer(serviceId) &&
-      request.resource.data.customer_id == request.auth.uid;
-    allow delete: if b2cIsAdmin();
+    allow delete: if isAdmin();
   }
 }
 
-// Technician global registry. Customer access must remain denied.
+// Registro global del técnico. El cliente nunca obtiene acceso.
+// get permite comprobar un SHA exacto conocido; list exige historial propio.
 match /b2c_evidence_hashes/{hashId} {
-  allow read: if b2cIsAdmin() ||
-    (b2cSignedIn() && resource.data.technicianId == request.auth.uid);
-  allow create: if b2cSignedIn() &&
-    request.resource.data.technicianId == request.auth.uid;
-  allow update: if b2cSignedIn() &&
+  allow get: if isAdmin() || isTecnico();
+  allow list: if isAdmin() ||
+    (isTecnico() && resource.data.technicianId == request.auth.uid);
+
+  allow create: if isTecnico() &&
+    request.resource.data.technicianId == request.auth.uid &&
+    b2cIsAssignedTechnician(request.resource.data.serviceId) &&
+    request.resource.data.sha256 is string;
+
+  allow update: if isTecnico() &&
     resource.data.technicianId == request.auth.uid &&
     request.resource.data.technicianId == resource.data.technicianId &&
     request.resource.data.serviceId == resource.data.serviceId &&
-    request.resource.data.sha256 == resource.data.sha256;
-  allow delete: if b2cIsAdmin();
+    request.resource.data.evidenceId == resource.data.evidenceId &&
+    request.resource.data.sha256 == resource.data.sha256 &&
+    b2cIsAssignedTechnician(resource.data.serviceId);
+
+  allow delete: if isAdmin();
 }
 
 match /b2c_evidence_fingerprints/{fingerprintId} {
-  allow read: if b2cIsAdmin() ||
-    (b2cSignedIn() && resource.data.technicianId == request.auth.uid);
-  allow create: if b2cSignedIn() &&
-    request.resource.data.technicianId == request.auth.uid;
-  allow update, delete: if b2cIsAdmin();
+  allow get: if isAdmin() ||
+    (isTecnico() && resource.data.technicianId == request.auth.uid);
+  allow list: if isAdmin() ||
+    (isTecnico() && resource.data.technicianId == request.auth.uid);
+
+  allow create: if isTecnico() &&
+    request.resource.data.technicianId == request.auth.uid &&
+    b2cIsAssignedTechnician(request.resource.data.serviceId);
+
+  allow update, delete: if isAdmin();
 }
 
 match /b2c_evidence_audit/{auditId} {
-  allow read: if b2cIsAdmin();
-  allow create: if b2cSignedIn() &&
-    request.resource.data.technicianId == request.auth.uid;
+  allow read: if isAdmin();
+
+  allow create: if isTecnico() &&
+    request.resource.data.technicianId == request.auth.uid &&
+    b2cIsAssignedTechnician(request.resource.data.serviceId);
+
   allow update, delete: if false;
 }
