@@ -79,6 +79,8 @@ function b2cEvidenceEventAllowed(eventType) {
     "work_after",
     "customer_no_show",
     "customer_denied_access",
+    "customer_no_show_video",
+    "customer_denied_access_video",
     "service_completion",
     "customer_arrival_dispute"
   ];
@@ -143,8 +145,8 @@ match /services/{serviceId} {
       request.resource.data.actor_uid == request.auth.uid &&
       request.resource.data.actor_role == "tecnico" &&
       request.resource.data.event_type in [
-        "customer_no_show",
-        "customer_denied_access"
+        "customer_no_show_video",
+        "customer_denied_access_video"
       ];
 
     allow delete: if isAdmin();
