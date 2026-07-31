@@ -3,7 +3,7 @@
  * GESTIAPREMIUM 2026 - ENRUTADOR MAESTRO (CORE ROUTER)
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.18.13 (AUTH GUARD + B2C EVIDENCE FOR BOTH PARTIES)
+ * Versión: 5.18.14 (AUTH GUARD + B2C PHOTO/VIDEO EVIDENCE)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Julio 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LÓGICA.
@@ -17,7 +17,7 @@ import "./app-utils.js";
 // Corrige la carrera donde el boot recrea el loader después de validar perfil y ruta.
 import "./gestia-loader-race-guard.js";
 
-console.log(" 🚀 GESTIAPREMIUM 5.18.13: AUTH GUARD + B2C EVIDENCE FOR BOTH PARTIES ACTIVATED.");
+console.log(" 🚀 GESTIAPREMIUM 5.18.14: AUTH GUARD + B2C PHOTO/VIDEO EVIDENCE ACTIVATED.");
 
 // 1. Importamos los submódulos especializados desde los nuevos archivos
 import { iniciarPanelAdmin } from "./panel-admin.js";
@@ -30,13 +30,15 @@ import { instalarPuenteTiempoAutoritativoB2C } from "./b2c-authoritative-timer-b
 import { instalarCapturaConsentidaTecnicoB2C } from "./b2c-consented-capture-bridge.js";
 import { instalarEvidenciaDisputaLlegadaClienteB2C } from "./b2c-client-arrival-dispute-evidence.js";
 import { instalarRecuperacionUIDisputaClienteB2C } from "./b2c-client-dispute-ui-recovery.js";
+import { instalarVideoReforzadoB2C } from "./b2c-reinforced-video-bridge.js";
 
 /**
  * Inicializa el panel técnico legacy y agrega puentes B2C independientes:
  * - llegada robusta con GPS y fotografía sellada;
  * - evidencia de ausencia o negativa de acceso después de cinco minutos;
  * - reloj autoritativo servidor para impedir adelantar el plazo desde el teléfono;
- * - captura asistida 3-2-1 después de consentimiento explícito.
+ * - captura fotográfica asistida 3-2-1 después de consentimiento explícito;
+ * - video opcional de 4 segundos sin audio para incidencias reforzadas.
  */
 function iniciarPanelTecnico(user) {
     const resultado = iniciarPanelTecnicoBase(user);
@@ -47,6 +49,10 @@ function iniciarPanelTecnico(user) {
         actorRole: "tecnico"
     });
     instalarCapturaConsentidaTecnicoB2C(user);
+    instalarVideoReforzadoB2C({
+        user,
+        actorRole: "tecnico"
+    });
     return resultado;
 }
 
@@ -55,7 +61,8 @@ function iniciarPanelTecnico(user) {
  * - aviso de llegada, evidencia visible, temporizador, acuse y disputa;
  * - reloj servidor convertido a la zona del servicio;
  * - GPS y foto 3-2-1 para la disputa “el técnico no está aquí”;
- * - fallback sin cámara marcado como evidencia débil para revisión.
+ * - fallback sin cámara marcado como evidencia débil para revisión;
+ * - video opcional de 4 segundos sin audio como evidencia reforzada.
  */
 function iniciarPanelCliente(user) {
     const resultado = iniciarPanelClienteBase(user);
@@ -66,6 +73,10 @@ function iniciarPanelCliente(user) {
     });
     instalarEvidenciaDisputaLlegadaClienteB2C(user);
     instalarRecuperacionUIDisputaClienteB2C();
+    instalarVideoReforzadoB2C({
+        user,
+        actorRole: "cliente"
+    });
     return resultado;
 }
 
