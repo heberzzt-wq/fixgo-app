@@ -1,0 +1,218 @@
+// =====================================================================================
+// FIREBASE STORAGE HARDENING CANDIDATE — DO NOT PUBLISH YET
+// =====================================================================================
+// Fuente: reglas reales visibles en Firebase Storage el 30-jul-2026 e inventario de
+// rutas activas de FixGo. Este candidato elimina el catch-all autenticado y crea una
+// lista blanca. Debe probarse antes de cualquier publicación productiva.
+// =====================================================================================
+
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function masterAdmin() {
+      return signedIn() && (
+        request.auth.token.email == "hebertoh-m@hotmail.com" ||
+        request.auth.uid == "nNhwy3Mx4pTvc8TZVh1tyTMFwhC2"
+      );
+    }
+
+    function userProfile() {
+      return firestore.get(
+        /databases/(default)/documents/users/$(request.auth.uid)
+      ).data;
+    }
+
+    function sameTenant(tenantId) {
+      return signedIn() && (
+        userProfile().edificioId == tenantId ||
+        userProfile().tenantId == tenantId
+      );
+    }
+
+    function serviceData(serviceId) {
+      return firestore.get(
+        /databases/(default)/documents/services/$(serviceId)
+      ).data;
+    }
+
+    function assignedTechnician(serviceId) {
+      return signedIn() &&
+        serviceData(serviceId).tecnico_id == request.auth.uid;
+    }
+
+    function owningCustomer(serviceId) {
+      return signedIn() &&
+        serviceData(serviceId).cliente_id == request.auth.uid;
+    }
+
+    function serviceParty(serviceId) {
+      return masterAdmin() ||
+        assignedTechnician(serviceId) ||
+        owningCustomer(serviceId);
+    }
+
+    function b2bOrderData(orderId) {
+      return firestore.get(
+        /databases/(default)/documents/servicios_b2b/$(orderId)
+      ).data;
+    }
+
+    function sameB2BOrderTenant(orderId) {
+      return signedIn() && (
+        userProfile().edificioId == b2bOrderData(orderId).edificioId ||
+        userProfile().tenantId == b2bOrderData(orderId).edificioId
+      );
+    }
+
+    function validImage(maxBytes) {
+      return request.resource != null &&
+        request.resource.size > 0 &&
+        request.resource.size <= maxBytes &&
+        request.resource.contentType.matches("image/(jpeg|png|webp)");
+    }
+
+    function validDocument(maxBytes) {
+      return request.resource != null &&
+        request.resource.size > 0 &&
+        request.resource.size <= maxBytes &&
+        request.resource.contentType.matches(
+          "(image/(jpeg|png|webp)|application/pdf)"
+        );
+    }
+
+    function validVideo(maxBytes) {
+      return request.resource != null &&
+        request.resource.size > 0 &&
+        request.resource.size <= maxBytes &&
+        request.resource.contentType.matches("video/(webm|mp4|quicktime)");
+    }
+
+    function technicianPhotoEvent(eventType) {
+      return eventType in [
+        "arrival",
+        "arrival_fallback",
+        "diagnostic_before",
+        "work_before",
+        "work_after",
+        "customer_no_show",
+        "customer_denied_access",
+        "service_completion"
+      ];
+    }
+
+    function technicianVideoEvent(eventType) {
+      return eventType in [
+        "customer_no_show_video",
+        "customer_denied_access_video"
+      ];
+    }
+
+    // Expedientes KYC del técnico.
+    match /expedientes/{uid}/{fileName} {
+      allow read: if masterAdmin() ||
+        (signedIn() && request.auth.uid == uid);
+
+      allow create, update: if (
+        masterAdmin() ||
+        (signedIn() && request.auth.uid == uid)
+      ) && validDocument(10 * 1024 * 1024);
+
+      allow delete: if masterAdmin();
+    }
+
+    // Compatibilidad con la ruta plana vigente del formulario cliente.
+    match /solicitudes_iniciales/{fileName} {
+      allow read: if signedIn();
+
+      allow create: if signedIn() &&
+        fileName.matches(request.auth.uid + "_.*") &&
+        validImage(10 * 1024 * 1024);
+
+      allow update: if false;
+      allow delete: if masterAdmin();
+    }
+
+    // Evidencia de cierre B2C legacy.
+    match /servicios/{serviceId}/{fileName} {
+      allow read: if serviceParty(serviceId);
+
+      allow create: if (
+        masterAdmin() || assignedTechnician(serviceId)
+      ) && validImage(10 * 1024 * 1024);
+
+      allow update: if false;
+      allow delete: if masterAdmin();
+    }
+
+    // Evidencia B2C sellada del técnico.
+    match /b2c_evidence/{serviceId}/{actorUid}/{eventType}/{fileName} {
+      allow read: if serviceParty(serviceId);
+
+      allow create: if assignedTechnician(serviceId) &&
+        actorUid == request.auth.uid &&
+        request.resource.metadata.actorUid == request.auth.uid &&
+        request.resource.metadata.actorRole == "tecnico" &&
+        request.resource.metadata.serviceId == serviceId &&
+        request.resource.metadata.eventType == eventType &&
+        (
+          (technicianPhotoEvent(eventType) && validImage(10 * 1024 * 1024)) ||
+          (technicianVideoEvent(eventType) && validVideo(30 * 1024 * 1024))
+        );
+
+      allow update: if false;
+      allow delete: if masterAdmin();
+    }
+
+    // Disputa del cliente confinada al mismo folio.
+    match /b2c_customer_evidence/{serviceId}/{customerId}/arrival_dispute/{fileName} {
+      allow read: if serviceParty(serviceId);
+
+      allow create: if owningCustomer(serviceId) &&
+        customerId == request.auth.uid &&
+        validImage(10 * 1024 * 1024) &&
+        request.resource.metadata.actorUid == request.auth.uid &&
+        request.resource.metadata.actorRole == "cliente" &&
+        request.resource.metadata.serviceId == serviceId &&
+        request.resource.metadata.eventType == "customer_arrival_dispute" &&
+        request.resource.metadata.dedupScope == "service_only" &&
+        request.resource.metadata.dedupBackendPending == "true";
+
+      allow update: if false;
+      allow delete: if masterAdmin();
+    }
+
+    // Fotografías de reportes B2B del inquilino.
+    match /edificios/{edificioId}/reportes/{fileName} {
+      allow read: if masterAdmin() || sameTenant(edificioId);
+
+      allow create: if sameTenant(edificioId) &&
+        validImage(10 * 1024 * 1024);
+
+      allow update: if false;
+      allow delete: if masterAdmin();
+    }
+
+    // Antes/después B2B, incluyendo reintentos offline.
+    match /evidencias/{orderId}/{fileName} {
+      allow read: if masterAdmin() || sameB2BOrderTenant(orderId);
+
+      allow create: if sameB2BOrderTenant(orderId) &&
+        fileName.matches("(antes|despues)_[0-9]+\\.jpg") &&
+        validImage(10 * 1024 * 1024);
+
+      allow update: if false;
+      allow delete: if masterAdmin();
+    }
+
+    // Cualquier ruta no inventariada queda denegada.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
