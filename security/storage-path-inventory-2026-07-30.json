@@ -1,11 +1,22 @@
 {
-  "version": "1.0.1",
+  "version": "1.1.0",
   "captured_at": "2026-07-30T23:07:00-05:00",
+  "updated_at": "2026-07-30T23:23:00-05:00",
   "status": "current_paths_inventoried_candidate_not_deployed",
   "current_console_rule": {
     "snapshot": "security/storage-console-snapshot-2026-07-30.rules.txt",
     "effective_policy": "any_authenticated_user_can_read_write_update_delete_any_object",
     "risk": "critical_cross_account_file_access"
+  },
+  "media_economy_policy": {
+    "base64_persistence": "forbidden_in_firestore_and_storage_metadata_payloads",
+    "base64_allowed_scope": "temporary_local_indexeddb_offline_cache_only",
+    "b2c_photo_target_bytes": 921600,
+    "b2c_photo_hard_bytes": 1843200,
+    "b2c_storage_rule_max_image_bytes": 2097152,
+    "b2c_storage_rule_max_video_bytes": 6291456,
+    "signature_storage_rule_max_bytes": 524288,
+    "max_photo_long_edge_px": 1600
   },
   "paths": [
     {
@@ -15,7 +26,8 @@
       "expected_writer": "same uid",
       "expected_readers": ["same uid", "master admin"],
       "allowed_types": ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf"],
-      "max_bytes": 10485760
+      "max_bytes": 10485760,
+      "limit_scope": "legacy_compatibility_until_kyc_compressor_patch"
     },
     {
       "path": "solicitudes_iniciales/{uid_timestamp}.jpg",
@@ -25,35 +37,61 @@
       "expected_readers": ["authenticated service operations"],
       "allowed_types": ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"],
       "max_bytes": 10485760,
+      "limit_scope": "legacy_compatibility_until_initial_request_compressor_patch",
       "compatibility_note": "cliente.html uses accept=image/*",
       "migration_recommended": "solicitudes_iniciales/{uid}/{fileName}"
     },
     {
       "path": "servicios/{serviceId}/{fileName}",
-      "modules": ["panel-tecnico.js", "b2c-work-close-chronology-bridge.js"],
-      "purpose": "legacy B2C before, after and signature close files",
+      "modules": [
+        "panel-tecnico.js",
+        "b2c-work-close-chronology-bridge.js",
+        "b2c-signature-storage-bridge.js"
+      ],
+      "purpose": "legacy B2C close files plus Storage-backed customer signature",
       "expected_writer": "assigned technician",
       "expected_readers": ["owning customer", "assigned technician", "master admin"],
       "allowed_types": ["image/jpeg", "image/png", "image/webp"],
-      "max_bytes": 10485760
+      "legacy_image_max_bytes": 10485760,
+      "customer_signature_max_bytes": 524288,
+      "customer_signature_policy": {
+        "filename": "customer_signature_*.png",
+        "base64_persisted": false,
+        "firestore_value": "download_url_only",
+        "required_metadata_event": "customer_signature"
+      }
     },
     {
       "path": "b2c_evidence/{serviceId}/{actorUid}/{eventType}/{fileName}",
-      "modules": ["b2c-evidence-orchestrator.js", "b2c-consented-video-evidence.js"],
+      "modules": [
+        "b2c-evidence-orchestrator.js",
+        "b2c-consented-video-evidence.js",
+        "b2c-media-economy-guard.js"
+      ],
       "purpose": "sealed technician B2C evidence",
       "expected_writer": "assigned technician matching actorUid",
       "expected_readers": ["owning customer", "assigned technician", "master admin"],
       "allowed_types": ["image/jpeg", "image/png", "image/webp", "video/webm", "video/mp4", "video/quicktime"],
-      "max_bytes": 31457280
+      "max_image_bytes": 2097152,
+      "max_video_bytes": 6291456,
+      "client_photo_target_bytes": 921600,
+      "client_photo_hard_bytes": 1843200,
+      "base64_persisted": false
     },
     {
       "path": "b2c_customer_evidence/{serviceId}/{customerId}/arrival_dispute/{fileName}",
-      "modules": ["b2c-customer-dispute-service-scope.js"],
+      "modules": [
+        "b2c-customer-dispute-service-scope.js",
+        "b2c-media-economy-guard.js"
+      ],
       "purpose": "service-scoped customer arrival dispute photograph",
       "expected_writer": "owning customer matching customerId",
       "expected_readers": ["owning customer", "assigned technician", "master admin"],
       "allowed_types": ["image/jpeg", "image/png", "image/webp"],
-      "max_bytes": 10485760
+      "max_bytes": 2097152,
+      "client_photo_target_bytes": 921600,
+      "client_photo_hard_bytes": 1843200,
+      "base64_persisted": false
     },
     {
       "path": "edificios/{edificioId}/reportes/{fileName}",
@@ -62,7 +100,8 @@
       "expected_writer": "authenticated user whose tenant matches edificioId",
       "expected_readers": ["same tenant", "master admin"],
       "allowed_types": ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"],
-      "max_bytes": 10485760
+      "max_bytes": 10485760,
+      "limit_scope": "legacy_compatibility_until_b2b_report_compressor_patch"
     },
     {
       "path": "evidencias/{ordenId}/{fileName}",
@@ -71,7 +110,10 @@
       "expected_writer": "authenticated technician in same building as servicios_b2b/{ordenId}",
       "expected_readers": ["same tenant", "master admin"],
       "allowed_types": ["image/jpeg", "image/png", "image/webp"],
-      "max_bytes": 10485760
+      "max_bytes": 10485760,
+      "base64_scope": "temporary_indexeddb_offline_cache_only",
+      "sync_behavior": "base64_reconverted_to_blob_before_storage_upload",
+      "limit_scope": "legacy_compatibility_until_b2b_evidence_compressor_patch"
     }
   ],
   "publication_gate": {
@@ -81,6 +123,8 @@
       "verify all KYC file MIME types used by production forms",
       "verify legacy B2B tenant identifiers and technician permissions",
       "verify existing stored object reads remain compatible",
+      "run scripts/check-b2c-evidence-authz.mjs",
+      "run scripts/check-b2c-media-economy.mjs",
       "obtain explicit production publication authorization"
     ]
   }
