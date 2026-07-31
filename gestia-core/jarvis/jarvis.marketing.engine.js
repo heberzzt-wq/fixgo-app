@@ -1,13 +1,27 @@
+import "../nexo/nexo.semantic-planner-resilience.js";
+
+import {
+    NEXO_IDENTITY
+} from "../nexo/nexo.identity.js";
+
 /**
- * Marketing Studio V7
- * Produces structured campaigns from explicit semantic fields and traceable evidence.
- * It does not classify free text with keyword lists or regular expressions.
+ * NEXO Marketing Studio
+ * Produce campañas estructuradas desde una instrucción natural y evidencia opcional.
+ * Las propuestas creativas pueden usar contexto del usuario; los hechos comerciales solo
+ * se consideran verificados cuando traen una fuente válida.
  */
 
-const VERSION = "7.0.0-evidence-grounded-marketing";
+const VERSION = "8.0.0-nexo-natural-brief";
 
 function clean(value) {
     return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
+function normalized(value = "") {
+    return clean(value)
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
 }
 
 function strings(value, limit = 20) {
@@ -16,9 +30,8 @@ function strings(value, limit = 20) {
 }
 
 function hashtag(value) {
-    const normalized = clean(value).normalize("NFD");
-    const safe = Array.from(normalized).filter(character => {
-        const code = character.toLowerCase().charCodeAt(0);
+    const safe = Array.from(normalized(value)).filter(character => {
+        const code = character.charCodeAt(0);
         return (code >= 97 && code <= 122) || (code >= 48 && code <= 57);
     }).join("");
     return safe ? `#${safe}` : "";
@@ -61,17 +74,16 @@ function buildGrounding(context) {
         evidenceEntry("photographs", context.photographs),
         evidenceEntry("testimonials", context.testimonials),
         evidenceEntry("services", context.services),
-        evidenceEntry(
-            "web_research",
-            verifiedMissionSources
-        )
+        evidenceEntry("web_research", verifiedMissionSources)
     ];
     const available = sources.filter(source => source.available);
     return {
         status: available.length ? "GROUNDED" : "USER_CONTEXT_ONLY",
         sourceCount: available.reduce((total, source) => total + source.count, 0),
         sources,
-        policy: "NO_INVENTED_FACTS"
+        policy: "NO_INVENTED_FACTS",
+        creativeProposalsAllowed: true,
+        factualClaimsRequireEvidence: true
     };
 }
 
@@ -79,34 +91,79 @@ function buildTrace(context, instruction) {
     return {
         objectiveId: clean(context.objectiveId) || `MKT-${Date.now()}`,
         caseId: clean(context.caseId),
-        authorityId: clean(context.authorityId) || "HEBERTO_MENDOZA",
-        controllerId: clean(context.controllerId) || "CODEX_SIA7",
+        authorityId: clean(context.authorityId) || NEXO_IDENTITY.authorityId,
+        controllerId: clean(context.controllerId) || NEXO_IDENTITY.controllerId,
         instruction,
         generatedAt: Date.now(),
-        source: "semantic_fields_and_evidence",
-        memoryRole: "advisory_only"
+        source: "natural_instruction_semantic_fields_and_evidence",
+        memoryRole: "advisory_only",
+        engineIdentity: NEXO_IDENTITY.name
     };
 }
 
-function resolveBrand(context) {
+function inferBrandName(instruction, context) {
+    if (clean(context.brandName) || clean(context.name)) {
+        return clean(context.brandName) || clean(context.name);
+    }
+    const text = normalized(instruction);
+    if (text.includes("peninsula tech")) return "Peninsula Tech";
+    if (text.includes("gestiapremium") || text.includes("gestia premium")) return "GestiaPremium";
+    if (text.includes("fixgo") || text.includes("fix go")) return "FixGo";
+    return "Peninsula Tech";
+}
+
+function inferAudience(instruction, context) {
+    if (clean(context.audience)) return clean(context.audience);
+    const text = normalized(instruction);
+    if (text.includes("hotel") || text.includes("condominio") || text.includes("empresa")) {
+        return "administradores de inmuebles, hoteles, condominios y empresas";
+    }
+    if (text.includes("hogar") || text.includes("casa") || text.includes("domicilio")) {
+        return "propietarios y residentes que necesitan atención técnica confiable";
+    }
+    return "clientes residenciales y empresariales que valoran seguridad, trazabilidad y respuesta rápida";
+}
+
+function inferSubject(instruction) {
+    const text = normalized(instruction);
+    if (text.includes("aire acondicionado") || text.includes("aires acondicionados")) return "servicios de aire acondicionado";
+    if (text.includes("plomer")) return "servicios de plomería";
+    if (text.includes("electric")) return "servicios eléctricos";
+    if (text.includes("mantenimiento")) return "mantenimiento profesional";
+    if (text.includes("seguridad")) return "servicios de alta confianza";
+    return "servicios técnicos y operativos de confianza";
+}
+
+function deriveCreativeBrief(instruction, context) {
+    const brandName = inferBrandName(instruction, context);
+    const audience = inferAudience(instruction, context);
+    const subject = inferSubject(instruction);
+
     return {
-        name: clean(context.brandName) || clean(context.name),
-        voice: clean(context.tone) || clean(context.voice),
-        market: clean(context.market),
-        owner: clean(context.owner)
+        brandName,
+        audience,
+        offer: clean(context.offer) ||
+            `Programa integral para presentar y convertir la oferta de ${subject} de ${brandName}`,
+        pain: clean(context.pain) ||
+            "la dificultad para encontrar proveedores confiables, transparentes y trazables",
+        promise: clean(context.promise) ||
+            "una experiencia más clara, segura y documentada desde la solicitud hasta el cierre",
+        differentiator: clean(context.differentiator) ||
+            "identidad verificable, evidencia por servicio, seguimiento operativo y revisión humana de incidencias",
+        cta: clean(context.cta) ||
+            `Solicita una evaluación con ${brandName}`,
+        tone: clean(context.tone) || clean(context.voice) ||
+            "directo, confiable y profesional",
+        inferredFields: [
+            ...(!clean(context.brandName) && !clean(context.name) ? ["brandName"] : []),
+            ...(!clean(context.audience) ? ["audience"] : []),
+            ...(!clean(context.offer) ? ["offer"] : []),
+            ...(!clean(context.pain) ? ["pain"] : []),
+            ...(!clean(context.promise) ? ["promise"] : []),
+            ...(!clean(context.differentiator) ? ["differentiator"] : []),
+            ...(!clean(context.cta) ? ["cta"] : [])
+        ]
     };
-}
-
-function missingRequired(brand, context) {
-    const missing = [];
-    if (!brand.name) missing.push("brandName");
-    if (!clean(context.audience)) missing.push("audience");
-    if (!clean(context.offer)) missing.push("offer");
-    if (!clean(context.pain)) missing.push("pain");
-    if (!clean(context.promise)) missing.push("promise");
-    if (!clean(context.differentiator)) missing.push("differentiator");
-    if (!clean(context.cta)) missing.push("cta");
-    return missing;
 }
 
 function buildHooks(brand, pain, promise, differentiator) {
@@ -124,9 +181,9 @@ function buildCopies(channels, campaign) {
         hook: campaign.hooks[0],
         body: `${campaign.offer}. ${campaign.promise} gracias a ${campaign.differentiator}.`,
         cta: campaign.cta,
-        evidencePolicy: "Use only supplied assets and cited sources",
+        evidencePolicy: "Creative proposal; factual claims require supplied evidence",
         editable: true,
-        status: "draft_for_approval"
+        status: "draft_for_owner_review"
     }));
 }
 
@@ -135,7 +192,7 @@ function buildCalendar(channels, brand, campaign) {
         { day: 1, stage: "awareness", format: "reel", topic: campaign.pain, channels },
         { day: 2, stage: "awareness", format: "story", topic: campaign.hooks[2], channels },
         { day: 3, stage: "consideration", format: "carousel", topic: campaign.differentiator, channels },
-        { day: 5, stage: "consideration", format: "testimonial", topic: `Evidencia de ${brand.name}`, channels },
+        { day: 5, stage: "consideration", format: "proof_request", topic: `Evidencia disponible de ${brand.name}`, channels },
         { day: 7, stage: "conversion", format: "landing_or_message", topic: campaign.cta, channels }
     ];
 }
@@ -150,7 +207,7 @@ function buildFunnel(campaign) {
 }
 
 function buildVideoPackage(channels, campaign, durationSeconds) {
-    const duration = Number.isFinite(Number(durationSeconds)) && Number(durationSeconds) >= 30
+    const duration = Number.isFinite(Number(durationSeconds)) && Number(durationSeconds) >= 15
         ? Math.min(Number(durationSeconds), 180)
         : 30;
     return {
@@ -169,13 +226,13 @@ function buildVideoPackage(channels, campaign, durationSeconds) {
             { scene: 1, range: "0-4", purpose: "hook", overlay: campaign.hooks[0] },
             { scene: 2, range: "4-11", purpose: "pain", overlay: campaign.pain },
             { scene: 3, range: "11-20", purpose: "offer", overlay: campaign.offer },
-            { scene: 4, range: `20-${duration - 4}`, purpose: "proof", overlay: campaign.differentiator },
-            { scene: 5, range: `${duration - 4}-${duration}`, purpose: "cta", overlay: campaign.cta }
+            { scene: 4, range: `20-${Math.max(21, duration - 4)}`, purpose: "proof", overlay: campaign.differentiator },
+            { scene: 5, range: `${Math.max(0, duration - 4)}-${duration}`, purpose: "cta", overlay: campaign.cta }
         ],
         subtitles: { required: true, editable: true },
         narration: { scriptReady: true, voiceApprovalRequired: true },
         export: { preview: true, webm: true, mp4: "WHEN_INFRASTRUCTURE_AVAILABLE" },
-        status: "draft_for_approval"
+        status: "draft_for_owner_review"
     };
 }
 
@@ -216,44 +273,71 @@ function buildDeliverables(assets, channels, campaign) {
 
 export function planMarketingRequest(rawInput = "", context = {}) {
     const instruction = clean(rawInput);
-    const brand = resolveBrand(context);
+    const creativeBrief = deriveCreativeBrief(instruction, context);
+    const brand = {
+        name: creativeBrief.brandName,
+        voice: creativeBrief.tone,
+        market: clean(context.market) || "México",
+        owner: clean(context.owner) || NEXO_IDENTITY.owner
+    };
     const channels = strings(context.channels).length
         ? strings(context.channels)
-        : ["instagram", "facebook", "whatsapp"];
-    const assets = strings(context.assets).length ? strings(context.assets) : ["campaign"];
+        : ["instagram", "facebook", "tiktok", "whatsapp"];
+    const assets = strings(context.assets).length
+        ? strings(context.assets)
+        : ["campaign", "reel", "landing_page", "flyer"];
     const grounding = buildGrounding(context);
-    const missingInputs = missingRequired(brand, context);
-    const readyForProduction = missingInputs.length === 0;
-    const campaign = readyForProduction ? {
+    const campaign = {
         name: clean(context.campaignName) || `${brand.name} — campaña de conversión`,
-        objective: clean(context.campaignObjective) || `Convertir interés de ${clean(context.audience)} en conversaciones calificadas`,
-        audience: clean(context.audience),
-        offer: clean(context.offer),
-        pain: clean(context.pain),
-        promise: clean(context.promise),
-        differentiator: clean(context.differentiator),
-        tone: clean(context.tone) || clean(brand.voice) || "directo y profesional",
-        cta: clean(context.cta),
-        hooks: buildHooks(brand, clean(context.pain), clean(context.promise), clean(context.differentiator)),
-        description: `${clean(context.offer)}. ${clean(context.promise)}. ${clean(context.cta)}.`,
+        objective: clean(context.campaignObjective) ||
+            `Convertir interés de ${creativeBrief.audience} en conversaciones calificadas`,
+        audience: creativeBrief.audience,
+        offer: creativeBrief.offer,
+        pain: creativeBrief.pain,
+        promise: creativeBrief.promise,
+        differentiator: creativeBrief.differentiator,
+        tone: creativeBrief.tone,
+        cta: creativeBrief.cta,
+        hooks: buildHooks(
+            brand,
+            creativeBrief.pain,
+            creativeBrief.promise,
+            creativeBrief.differentiator
+        ),
+        description: `${creativeBrief.offer}. ${creativeBrief.promise}. ${creativeBrief.cta}.`,
         hashtags: strings(context.hashtags).length
             ? strings(context.hashtags)
-            : [hashtag(brand.name), hashtag(context.market), "#ServicioProfesional", "#AtencionTecnica"].filter(Boolean),
+            : [
+                hashtag(brand.name),
+                hashtag(context.market || "México"),
+                "#ServicioProfesional",
+                "#SeguridadOperativa"
+            ].filter(Boolean),
         metrics: strings(context.metrics).length
             ? strings(context.metrics)
             : ["qualified_conversations", "landing_conversion", "cost_per_lead", "appointments"],
         variants: [
             { id: "A", angle: "pain_first", hookIndex: 0 },
             { id: "B", angle: "promise_first", hookIndex: 1 }
-        ]
-    } : null;
+        ],
+        assumptions: creativeBrief.inferredFields.map(field => ({
+            field,
+            source: "instruction_inference",
+            editable: true,
+            factualClaim: false
+        }))
+    };
 
-    const plan = {
+    const deliverables = buildDeliverables(assets, channels, campaign);
+    const videoPackage = buildVideoPackage(channels, campaign, context.durationSeconds);
+
+    return {
         ok: true,
-        status: readyForProduction ? "MARKETING_PACKAGE_READY" : "MARKETING_INPUT_REQUIRED",
-        engine: "jarvis_marketing_engine",
+        status: "MARKETING_PACKAGE_READY",
+        engine: "nexo_marketing_engine",
+        legacyEngineAlias: "jarvis_marketing_engine",
         version: VERSION,
-        source: "jarvis_marketing_engine_v7",
+        source: "nexo_natural_brief_and_optional_evidence",
         raw: instruction,
         intent: "MARKETING_PACKAGE",
         domain: "marketing",
@@ -268,25 +352,37 @@ export function planMarketingRequest(rawInput = "", context = {}) {
         assets,
         channels,
         grounding,
-        missingInputs,
-        readyForProduction,
+        missingInputs: [],
+        inferredInputs: creativeBrief.inferredFields,
+        readyForProduction: true,
         campaign,
-        copies: campaign ? buildCopies(channels, campaign) : [],
-        calendar: campaign ? buildCalendar(channels, brand, campaign) : [],
-        funnel: campaign ? buildFunnel(campaign) : [],
-        publications: campaign ? buildCopies(channels, campaign).map(copy => ({ ...copy, publishStatus: "blocked_until_human_approval" })) : [],
-        deliverables: campaign ? buildDeliverables(assets, channels, campaign) : [],
-        videoPackage: campaign ? buildVideoPackage(channels, campaign, context.durationSeconds) : null,
-        pieces: campaign ? assets.map((asset, index) => ({ id: index + 1, asset, variant: index % 2 ? "B" : "A" })) : [],
-        formats: campaign ? buildDeliverables(assets, channels, campaign).map(item => ({ type: item.type, format: item.format, dimensions: item.dimensions })) : [],
-        onScreenTexts: campaign ? buildVideoPackage(channels, campaign, context.durationSeconds).storyboard.map(scene => scene.overlay) : [],
-        publicationPlan: campaign ? buildCalendar(channels, brand, campaign) : [],
-        editable: true
+        copies: buildCopies(channels, campaign),
+        calendar: buildCalendar(channels, brand, campaign),
+        funnel: buildFunnel(campaign),
+        publications: buildCopies(channels, campaign).map(copy => ({
+            ...copy,
+            publishStatus: "blocked_until_owner_approval"
+        })),
+        deliverables,
+        videoPackage,
+        pieces: assets.map((asset, index) => ({
+            id: index + 1,
+            asset,
+            variant: index % 2 ? "B" : "A"
+        })),
+        formats: deliverables.map(item => ({
+            type: item.type,
+            format: item.format,
+            dimensions: item.dimensions
+        })),
+        onScreenTexts: videoPackage.storyboard.map(scene => scene.overlay),
+        publicationPlan: buildCalendar(channels, brand, campaign),
+        editable: true,
+        message:
+            `NEXO preparó una campaña específica para ${brand.name}. ` +
+            `${creativeBrief.inferredFields.length} campos se marcaron como propuestas editables y ` +
+            `${grounding.sourceCount} fuentes respaldan hechos verificables.`
     };
-    plan.message = readyForProduction
-        ? `Marketing V7 preparó una campaña específica para ${brand.name}, sustentada en ${grounding.sourceCount} fuentes de evidencia.`
-        : `Marketing V7 no inventó contenido: faltan ${missingInputs.join(", ")}.`;
-    return plan;
 }
 
 export function isMarketingRequest(input = null) {
@@ -295,11 +391,15 @@ export function isMarketingRequest(input = null) {
 
 export const JarvisMarketingEngine = {
     version: VERSION,
-    routing: "semantic_model_only",
+    identity: NEXO_IDENTITY.name,
+    routing: "natural_instruction_with_semantic_and_local_resilience",
     isMarketingRequest,
     plan: planMarketingRequest
 };
 
+export const NexoMarketingEngine = JarvisMarketingEngine;
+
 if (typeof globalThis !== "undefined") {
+    globalThis.NexoMarketingEngine = NexoMarketingEngine;
     globalThis.JarvisMarketingEngine = JarvisMarketingEngine;
 }
