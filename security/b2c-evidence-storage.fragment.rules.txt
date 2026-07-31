@@ -66,10 +66,12 @@ function b2cStorageVideoEvent(eventType) {
 function b2cStorageMediaMatchesEvent(eventType) {
   return (
     b2cStoragePhotoEvent(eventType) &&
-    b2cStorageImageType()
+    b2cStorageImageType() &&
+    request.resource.size <= 2 * 1024 * 1024
   ) || (
     b2cStorageVideoEvent(eventType) &&
-    b2cStorageVideoType()
+    b2cStorageVideoType() &&
+    request.resource.size <= 6 * 1024 * 1024
   );
 }
 
@@ -81,9 +83,9 @@ match /b2c_evidence/{serviceId}/{actorUid}/{eventType}/{fileName} {
   allow create: if b2cStorageIsAssignedTechnician(serviceId) &&
     actorUid == request.auth.uid &&
     request.resource.size > 0 &&
-    request.resource.size <= 30 * 1024 * 1024 &&
     b2cStorageMediaMatchesEvent(eventType) &&
     request.resource.metadata.actorUid == request.auth.uid &&
+    request.resource.metadata.actorRole == "tecnico" &&
     request.resource.metadata.serviceId == serviceId &&
     request.resource.metadata.eventType == eventType;
 
@@ -99,7 +101,7 @@ match /b2c_customer_evidence/{serviceId}/{customerId}/arrival_dispute/{fileName}
   allow create: if b2cStorageIsOwningCustomer(serviceId) &&
     customerId == request.auth.uid &&
     request.resource.size > 0 &&
-    request.resource.size <= 10 * 1024 * 1024 &&
+    request.resource.size <= 2 * 1024 * 1024 &&
     b2cStorageImageType() &&
     request.resource.metadata.actorUid == request.auth.uid &&
     request.resource.metadata.actorRole == "cliente" &&
@@ -112,7 +114,24 @@ match /b2c_customer_evidence/{serviceId}/{customerId}/arrival_dispute/{fileName}
   allow delete: if b2cStorageIsAdmin();
 }
 
-// Compatibilidad legacy pendiente de revisar contra las reglas reales de Storage.
-match /servicios/{serviceId}/{legacyFileName} {
-  // Intencionalmente sin allow. No abrir este prefijo sin auditar el flujo histórico.
+// Única apertura B2C dentro de la ruta legacy: firma PNG económica.
+match /servicios/{serviceId}/{fileName} {
+  allow read: if b2cStorageIsAdmin() ||
+    b2cStorageIsAssignedTechnician(serviceId) ||
+    b2cStorageIsOwningCustomer(serviceId);
+
+  allow create: if b2cStorageIsAssignedTechnician(serviceId) &&
+    fileName.matches("customer_signature_.*\\.png") &&
+    request.resource.size > 0 &&
+    request.resource.size <= 512 * 1024 &&
+    request.resource.contentType == "image/png" &&
+    request.resource.metadata.serviceId == serviceId &&
+    request.resource.metadata.actorUid == request.auth.uid &&
+    request.resource.metadata.actorRole == "tecnico" &&
+    request.resource.metadata.eventType == "customer_signature" &&
+    request.resource.metadata.base64Persisted == "false";
+
+  // Las fotos legacy de este prefijo deben conservarse en el ruleset completo auditado.
+  allow update: if false;
+  allow delete: if b2cStorageIsAdmin();
 }
