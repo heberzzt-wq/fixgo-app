@@ -122,7 +122,7 @@ service firebase.storage {
       ];
     }
 
-    // Expedientes KYC del técnico.
+    // Expedientes KYC del técnico. Mantiene 10 MB por compatibilidad legacy.
     match /expedientes/{uid}/{fileName} {
       allow read: if masterAdmin() ||
         (signedIn() && request.auth.uid == uid);
@@ -147,19 +147,33 @@ service firebase.storage {
       allow delete: if masterAdmin();
     }
 
-    // Evidencia de cierre B2C legacy.
+    // Evidencia de cierre B2C legacy y firma económica.
     match /servicios/{serviceId}/{fileName} {
       allow read: if serviceParty(serviceId);
 
       allow create: if (
         masterAdmin() || assignedTechnician(serviceId)
-      ) && validImage(10 * 1024 * 1024);
+      ) && (
+        (
+          fileName.matches("customer_signature_.*\\.png") &&
+          validImage(512 * 1024) &&
+          request.resource.metadata.serviceId == serviceId &&
+          request.resource.metadata.actorUid == request.auth.uid &&
+          request.resource.metadata.actorRole == "tecnico" &&
+          request.resource.metadata.eventType == "customer_signature" &&
+          request.resource.metadata.base64Persisted == "false"
+        ) ||
+        (
+          !fileName.matches("customer_signature_.*\\.png") &&
+          validImage(10 * 1024 * 1024)
+        )
+      );
 
       allow update: if false;
       allow delete: if masterAdmin();
     }
 
-    // Evidencia B2C sellada del técnico.
+    // Evidencia B2C sellada del técnico: 2 MB foto, 6 MB video.
     match /b2c_evidence/{serviceId}/{actorUid}/{eventType}/{fileName} {
       allow read: if serviceParty(serviceId);
 
@@ -170,21 +184,21 @@ service firebase.storage {
         request.resource.metadata.serviceId == serviceId &&
         request.resource.metadata.eventType == eventType &&
         (
-          (technicianPhotoEvent(eventType) && validImage(10 * 1024 * 1024)) ||
-          (technicianVideoEvent(eventType) && validVideo(30 * 1024 * 1024))
+          (technicianPhotoEvent(eventType) && validImage(2 * 1024 * 1024)) ||
+          (technicianVideoEvent(eventType) && validVideo(6 * 1024 * 1024))
         );
 
       allow update: if false;
       allow delete: if masterAdmin();
     }
 
-    // Disputa del cliente confinada al mismo folio.
+    // Disputa del cliente confinada al mismo folio: máximo 2 MB.
     match /b2c_customer_evidence/{serviceId}/{customerId}/arrival_dispute/{fileName} {
       allow read: if serviceParty(serviceId);
 
       allow create: if owningCustomer(serviceId) &&
         customerId == request.auth.uid &&
-        validImage(10 * 1024 * 1024) &&
+        validImage(2 * 1024 * 1024) &&
         request.resource.metadata.actorUid == request.auth.uid &&
         request.resource.metadata.actorRole == "cliente" &&
         request.resource.metadata.serviceId == serviceId &&
@@ -196,7 +210,7 @@ service firebase.storage {
       allow delete: if masterAdmin();
     }
 
-    // Fotografías de reportes B2B del inquilino.
+    // Fotografías de reportes B2B del inquilino. Mantiene 10 MB por compatibilidad.
     match /edificios/{edificioId}/reportes/{fileName} {
       allow read: if masterAdmin() || sameTenant(edificioId);
 
@@ -207,7 +221,7 @@ service firebase.storage {
       allow delete: if masterAdmin();
     }
 
-    // Antes/después B2B, incluyendo reintentos offline.
+    // Antes/después B2B, incluyendo reintentos offline. Pendiente compresor B2B propio.
     match /evidencias/{orderId}/{fileName} {
       allow read: if masterAdmin() || sameB2BOrderTenant(orderId);
 
