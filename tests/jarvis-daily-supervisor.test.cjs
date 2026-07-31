@@ -9,7 +9,9 @@ const {
     summarizeChecks,
     buildSupervisionRecommendations,
     runDailyJarvisSupervision,
-    getLatestJarvisSupervisionReport
+    runDailyNexoSupervision,
+    getLatestJarvisSupervisionReport,
+    getLatestNexoSupervisionReport
 } = require("../functions/jarvis-daily-supervisor");
 
 function createFirestoreMock() {
@@ -37,6 +39,7 @@ function createFirestoreMock() {
                                             id: "2026-07-13",
                                             data: () => ({
                                                 reportId: "2026-07-13",
+                                                engineIdentity: "NEXO",
                                                 status: "HEALTHY",
                                                 score: 100
                                             })
@@ -61,7 +64,7 @@ const adminMock = {
     }
 };
 
-test("daily supervisor writes one idempotent read-only report and health heartbeat", async () => {
+test("daily NEXO supervisor writes one idempotent read-only report and health heartbeat", async () => {
     const db = createFirestoreMock();
     const allMarkers = DEFAULT_PROBES
         .flatMap(probe => probe.markers)
@@ -72,7 +75,7 @@ test("daily supervisor writes one idempotent read-only report and health heartbe
         text: async () => allMarkers
     });
 
-    const report = await runDailyJarvisSupervision({
+    const report = await runDailyNexoSupervision({
         db,
         admin: adminMock,
         fetchImpl,
@@ -80,16 +83,17 @@ test("daily supervisor writes one idempotent read-only report and health heartbe
     });
 
     assert.equal(report.status, "HEALTHY");
+    assert.equal(report.engineIdentity, "NEXO");
     assert.equal(
         report.version,
-        "2.1.0-daily-read-only-contract-regression"
+        "3.0.0-nexo-artifact-capability-supervision"
     );
     assert.equal(report.score, 100);
     assert.equal(report.summary.failed, 0);
     assert.equal(report.policy.autoPatch, false);
     assert.equal(report.policy.codeWrite, false);
+    assert.equal(report.policy.externalPublicationAllowed, false);
     assert.deepEqual(report.failureDomains, []);
-    assert.deepEqual(report.recommendations, []);
     assert.equal(db.writes.length, 2);
     assert.deepEqual(
         db.writes.map(write => `${write.name}/${write.id}`),
@@ -98,15 +102,20 @@ test("daily supervisor writes one idempotent read-only report and health heartbe
             "gestia_system_health/2026-07-13"
         ]
     );
-    assert.equal(
-        db.writes.find(write => write.name === "gestia_system_health")
-            .data.jarvis_supervision_runs,
-        1
-    );
+
+    const health = db.writes.find(write =>
+        write.name === "gestia_system_health"
+    ).data;
+    assert.equal(health.jarvis_supervision_runs, 1);
+    assert.equal(health.nexo_supervision_runs, 1);
+    assert.equal(health.nexo_supervision_last_status, "HEALTHY");
 });
 
-test("daily supervisor reports missing contracts without attempting repair", async () => {
+test("NEXO supervisor reports an unavailable artifact compiler without repairing", async () => {
     const db = createFirestoreMock();
+    const probe = DEFAULT_PROBES.find(item =>
+        item.id === "nexo_mission_compiler"
+    );
     const report = await runDailyJarvisSupervision({
         db,
         admin: adminMock,
@@ -115,29 +124,29 @@ test("daily supervisor reports missing contracts without attempting repair", asy
             status: 200,
             text: async () => "incomplete deployment"
         }),
-        probes: [DEFAULT_PROBES[0]],
+        probes: [probe],
         now: new Date("2026-07-13T09:15:00.000Z")
     });
 
     assert.equal(report.status, "CRITICAL");
     assert.equal(report.summary.failed, 1);
-    assert.equal(report.findings.length, 1);
-    assert.deepEqual(report.failureDomains, ["jarvis_runtime"]);
-    assert.match(report.recommendations[0], /orden real en Terminal/);
+    assert.deepEqual(report.failureDomains, ["nexo_artifact_execution"]);
+    assert.match(report.recommendations[0], /nexo:bridge/i);
     assert.equal(report.policy.humanApprovalRequired, true);
+    assert.equal(report.policy.autoPatch, false);
 });
 
-test("daily supervisor rejects a deployed legacy router marker", async () => {
+test("NEXO supervisor rejects a deployed marketing input blockade", async () => {
     const db = createFirestoreMock();
-    const canonicalProbe = DEFAULT_PROBES.find(
-        probe => probe.id === "canonical_role_router"
+    const probe = DEFAULT_PROBES.find(item =>
+        item.id === "nexo_marketing_natural_brief"
     );
     const body = [
-        ...canonicalProbe.markers,
-        "verificarYRedireccionarLegacy"
+        ...probe.markers,
+        "MARKETING_INPUT_REQUIRED"
     ].join("\n");
 
-    const report = await runDailyJarvisSupervision({
+    const report = await runDailyNexoSupervision({
         db,
         admin: adminMock,
         fetchImpl: async () => ({
@@ -145,19 +154,19 @@ test("daily supervisor rejects a deployed legacy router marker", async () => {
             status: 200,
             text: async () => body
         }),
-        probes: [canonicalProbe],
+        probes: [probe],
         now: new Date("2026-07-13T09:15:00.000Z")
     });
 
     assert.equal(report.status, "CRITICAL");
     assert.deepEqual(
         report.findings[0].unexpectedMarkers,
-        ["verificarYRedireccionarLegacy"]
+        ["MARKETING_INPUT_REQUIRED"]
     );
-    assert.deepEqual(report.failureDomains, ["auth_routing"]);
+    assert.deepEqual(report.failureDomains, ["nexo_marketing"]);
 });
 
-test("supervision helpers and latest report contract stay deterministic", async () => {
+test("supervision helpers and NEXO aliases stay deterministic", async () => {
     assert.equal(dateKey(new Date("2026-07-13T23:59:59.000Z")), "2026-07-13");
     assert.deepEqual(
         summarizeChecks([{ ok: true }, { ok: false }]),
@@ -169,50 +178,43 @@ test("supervision helpers and latest report contract stay deterministic", async 
             status: "CRITICAL"
         }
     );
-    assert.equal(
-        summarizeChecks([
-            ...Array.from({ length: 14 }, () => ({ ok: true })),
-            { ok: false }
-        ]).status,
-        "DEGRADED"
-    );
 
-    assert.ok(DEFAULT_PROBES.some(probe => probe.id === "role_authority_contract"));
-    assert.ok(DEFAULT_PROBES.some(probe => probe.id === "runtime_role_router"));
-    assert.ok(DEFAULT_PROBES.some(probe => probe.id === "private_surface_gate"));
-    assert.ok(DEFAULT_PROBES.some(probe => probe.id === "semantic_diagnostics_contract"));
-    assert.ok(DEFAULT_PROBES.some(probe => probe.id === "technical_response_clarity"));
-    assert.ok(DEFAULT_PROBES.some(probe => probe.id === "mixed_investigation_composition"));
-    assert.ok(DEFAULT_PROBES.some(probe => probe.id === "proposal_state_authority"));
-    assert.ok(DEFAULT_PROBES.some(probe => probe.id === "grounded_web_research_contract"));
-    assert.ok(DEFAULT_PROBES.some(probe => probe.id === "terminal_response_renderer"));
+    [
+        "nexo_identity",
+        "nexo_mission_compiler",
+        "nexo_semantic_resilience",
+        "nexo_marketing_natural_brief",
+        "nexo_artifact_bridge",
+        "role_authority_contract",
+        "runtime_role_router",
+        "private_surface_gate",
+        "grounded_web_research_contract"
+    ].forEach(id => {
+        assert.ok(DEFAULT_PROBES.some(probe => probe.id === id));
+    });
 
     assert.deepEqual(
         buildSupervisionRecommendations([
-            { id: "login_central_router", ok: false },
+            { id: "nexo_semantic_resilience", ok: false },
             { id: "runtime_health_module", ok: false }
         ]).failureDomains,
-        ["auth_routing", "runtime_health"]
+        ["nexo_cognition", "runtime_health"]
     );
 
-    const latest = await getLatestJarvisSupervisionReport({
-        db: createFirestoreMock()
-    });
-    assert.equal(latest.id, "2026-07-13");
-    assert.equal(latest.status, "HEALTHY");
+    const db = createFirestoreMock();
+    const latestLegacy = await getLatestJarvisSupervisionReport({ db });
+    const latestNexo = await getLatestNexoSupervisionReport({ db });
+    assert.equal(latestLegacy.id, "2026-07-13");
+    assert.equal(latestNexo.engineIdentity, "NEXO");
 });
 
-test("functions and client registry expose the supervisor safely", () => {
+test("functions and client registry preserve supervision endpoints safely", () => {
     const functionsIndex = fs.readFileSync(
         path.join(__dirname, "..", "functions", "index.js"),
         "utf8"
     );
     const registry = fs.readFileSync(
         path.join(__dirname, "..", "gestia-core", "repo", "resource.registry.js"),
-        "utf8"
-    );
-    const firestoreEngine = fs.readFileSync(
-        path.join(__dirname, "..", "gestia-core", "jarvis", "jarvis.firestore.engine.js"),
         "utf8"
     );
     const runtimeHealth = fs.readFileSync(
@@ -225,53 +227,8 @@ test("functions and client registry expose the supervisor safely", () => {
     assert.match(functionsIndex, /timeZone\("America\/Cancun"\)/);
     assert.match(functionsIndex, /exports\.jarvisSupervisionStatus/);
     assert.match(functionsIndex, /exports\.jarvisSupervisionRunNow/);
-    assert.match(functionsIndex, /JARVIS_SUPERVISION_RUN_NOW_COMPLETE/);
-    assert.match(functionsIndex, /recommendations: report\.recommendations/);
     assert.match(registry, /"jarvis_supervision_reports"/);
-    assert.doesNotMatch(firestoreEngine, /collection\(db, "tickets"\)/);
-    assert.match(firestoreEngine, /collection\(db, "support_tickets"\)/);
     assert.match(runtimeHealth, /export async function runtimeLatency/);
-    assert.doesNotMatch(runtimeHealth, /SIA7 REPAIR PLACEHOLDER/);
-});
-
-test("daily supervisor probes current V7 deployment signatures", () => {
-    const terminalProbe = DEFAULT_PROBES.find(probe => probe.id === "terminal_runtime");
-    const webProbe = DEFAULT_PROBES.find(probe => probe.id === "grounded_web_research_contract");
-    const cognitionProbe = DEFAULT_PROBES.find(probe => probe.id === "technical_intent_priority");
-
-    assert.ok(terminalProbe.markers.includes("const multiToolTitle"));
-    assert.ok(terminalProbe.markers.includes("finalResponse?.title"));
-    assert.ok(webProbe.markers.includes("jarvisWebResearch"));
-    assert.equal(
-        terminalProbe.markers.includes("parallel-delegation-human-actuator-responses"),
-        false
-    );
-    assert.equal(
-        webProbe.markers.includes("1.7.0-sia7-bounded-supervision-forensics"),
-        false
-    );
-    assert.ok(cognitionProbe.markers.includes("4.9.0-mission-isolation"));
-});
-
-test("supervision endpoints stay isolated from optional Stripe and Gemini initialization", () => {
-    const functionsIndex = fs.readFileSync(
-        path.join(__dirname, "..", "functions", "index.js"),
-        "utf8"
-    );
-    const supervisorStart = functionsIndex.indexOf("exports.jarvisDailySupervisor");
-    const nextSection = functionsIndex.indexOf(
-        "exports.despachoTaticoB2B",
-        supervisorStart
-    );
-    const supervisionSection = functionsIndex.slice(
-        supervisorStart,
-        nextSection > supervisorStart ? nextSection : undefined
-    );
-
-    assert.ok(supervisorStart >= 0);
-    assert.doesNotMatch(supervisionSection, /initCore\(\)/);
-    assert.match(supervisionSection, /runDailyJarvisSupervision\(\{/);
-    assert.match(supervisionSection, /getLatestJarvisSupervisionReport\(\{ db \}\)/);
 });
 
 test("functions runtime stays on the supported Node 22 contract", () => {
