@@ -3,7 +3,7 @@
  * GESTIAPREMIUM 2026 - ENRUTADOR MAESTRO (CORE ROUTER)
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.18.19 (AUTH GUARD + LOW-COST B2C MEDIA)
+ * Versión: 5.18.20 (LOW-COST MEDIA + STORAGE SIGNATURES)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Julio 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LÓGICA.
@@ -20,7 +20,10 @@ import "./gestia-loader-race-guard.js";
 // Comprime fotos B2C como Blob JPEG antes de Storage; Base64 queda solo para caché local.
 import "./b2c-media-economy-guard.js";
 
-console.log(" 🚀 GESTIAPREMIUM 5.18.19: AUTH GUARD + LOW-COST B2C MEDIA ACTIVATED.");
+// Sustituye la firma Base64 del cierre legacy por URL, ruta y SHA-256 de Storage.
+import "./b2c-signature-storage-bridge.js";
+
+console.log(" 🚀 GESTIAPREMIUM 5.18.20: LOW-COST MEDIA + STORAGE SIGNATURES ACTIVATED.");
 
 // 1. Importamos los submódulos especializados desde los nuevos archivos
 import { iniciarPanelAdmin } from "./panel-admin.js";
@@ -48,7 +51,8 @@ import { instalarDisputaClienteConfinadaAlServicioB2C } from "./b2c-customer-dis
  * - diagnóstico inicial sellado antes de abrir el cotizador;
  * - work_before capturado al iniciar la reparación, incluso si el cliente cambia el estado;
  * - work_after y firma válida capturados únicamente durante el cierre;
- * - fotografías redimensionadas y comprimidas antes de Storage, sin Base64 persistente.
+ * - fotografías redimensionadas y comprimidas antes de Storage, sin Base64 persistente;
+ * - firma del cliente almacenada como PNG económico en Storage, nunca como data URL.
  */
 function iniciarPanelTecnico(user) {
     const resultado = iniciarPanelTecnicoBase(user);
