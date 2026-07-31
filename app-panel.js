@@ -3,7 +3,7 @@
  * GESTIAPREMIUM 2026 - ENRUTADOR MAESTRO (CORE ROUTER)
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.18.17 (AUTH GUARD + CHRONOLOGICAL B2C EVIDENCE)
+ * Versión: 5.18.18 (AUTH GUARD + SERVICE-SCOPED CUSTOMER EVIDENCE)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Julio 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LÓGICA.
@@ -17,7 +17,7 @@ import "./app-utils.js";
 // Corrige la carrera donde el boot recrea el loader después de validar perfil y ruta.
 import "./gestia-loader-race-guard.js";
 
-console.log(" 🚀 GESTIAPREMIUM 5.18.17: AUTH GUARD + CHRONOLOGICAL B2C EVIDENCE ACTIVATED.");
+console.log(" 🚀 GESTIAPREMIUM 5.18.18: AUTH GUARD + SERVICE-SCOPED CUSTOMER EVIDENCE ACTIVATED.");
 
 // 1. Importamos los submódulos especializados desde los nuevos archivos
 import { iniciarPanelAdmin } from "./panel-admin.js";
@@ -28,13 +28,12 @@ import { instalarNotificacionLlegadaClienteB2C } from "./b2c-client-arrival-noti
 import { instalarControlAusenciaTecnicoB2C } from "./b2c-technician-no-show.js";
 import { instalarPuenteTiempoAutoritativoB2C } from "./b2c-authoritative-timer-bridge.js";
 import { instalarCapturaConsentidaTecnicoB2C } from "./b2c-consented-capture-bridge.js";
-import { instalarEvidenciaDisputaLlegadaClienteB2C } from "./b2c-client-arrival-dispute-evidence.js";
-import { instalarRecuperacionUIDisputaClienteB2C } from "./b2c-client-dispute-ui-recovery.js";
 import { instalarVideoReforzadoB2C } from "./b2c-reinforced-video-bridge.js";
 import { instalarGuardiaEvidenciaTrabajoB2C } from "./b2c-secure-work-evidence-guard.js";
 import { instalarGuardiaDiagnosticoPreCotizacionB2C } from "./b2c-prequote-diagnostic-guard.js";
 import { instalarGuardiaInicioTrabajoB2C } from "./b2c-start-work-evidence-guard.js";
 import { instalarPuenteCronologiaCierreTrabajoB2C } from "./b2c-work-close-chronology-bridge.js";
+import { instalarDisputaClienteConfinadaAlServicioB2C } from "./b2c-customer-dispute-service-scope.js";
 
 /**
  * Inicializa el panel técnico legacy y agrega puentes B2C independientes:
@@ -73,11 +72,11 @@ function iniciarPanelTecnico(user) {
 
 /**
  * Inicializa el panel cliente legacy y agrega:
- * - aviso de llegada, evidencia visible, temporizador, acuse y disputa;
+ * - aviso de llegada, evidencia visible, temporizador y acuse;
  * - reloj servidor convertido a la zona del servicio;
- * - GPS y foto 3-2-1 para la disputa “el técnico no está aquí”;
- * - fallback sin cámara marcado como evidencia débil para revisión;
- * - video opcional de 4 segundos sin audio como evidencia reforzada.
+ * - disputa con GPS y foto 3-2-1 confinada al mismo folio;
+ * - deduplicación global diferida al backend para no exponer historiales de otros servicios;
+ * - fallback sin cámara marcado como evidencia débil para revisión.
  */
 function iniciarPanelCliente(user) {
     const resultado = iniciarPanelClienteBase(user);
@@ -86,12 +85,7 @@ function iniciarPanelCliente(user) {
         user,
         actorRole: "cliente"
     });
-    instalarEvidenciaDisputaLlegadaClienteB2C(user);
-    instalarRecuperacionUIDisputaClienteB2C();
-    instalarVideoReforzadoB2C({
-        user,
-        actorRole: "cliente"
-    });
+    instalarDisputaClienteConfinadaAlServicioB2C(user);
     return resultado;
 }
 
