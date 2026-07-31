@@ -3,7 +3,7 @@
  * GESTIAPREMIUM 2026 - ENRUTADOR MAESTRO (CORE ROUTER)
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.18.10 (B2C AUTHORITATIVE TIME + CONSENTED EVIDENCE)
+ * Versión: 5.18.10 (B2C AUTHORITATIVE TIME)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Julio 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LÓGICA.
@@ -14,7 +14,7 @@
 // Inicializa el Sistema Nervioso Compartido (Audio Unlocker y Utilidades Globales)
 import "./app-utils.js";
 
-console.log(" 🚀 GESTIAPREMIUM 5.18.10: B2C AUTHORITATIVE TIME + CONSENTED EVIDENCE ACTIVATED.");
+console.log(" 🚀 GESTIAPREMIUM 5.18.10: B2C AUTHORITATIVE TIME ACTIVATED.");
 
 // 1. Importamos los submódulos especializados desde los nuevos archivos
 import { iniciarPanelAdmin } from "./panel-admin.js";
