@@ -33,9 +33,20 @@ function requireExcludes(content, marker, description) {
     }
 }
 
-const snapshotPath = "security/firestore-console-snapshot-2026-07-30.rules.txt";
+const firestoreSnapshotPath =
+    "security/firestore-console-snapshot-2026-07-30.rules.txt";
+const storageSnapshotPath =
+    "security/storage-console-snapshot-2026-07-30.rules.txt";
+const storagePathInventoryPath =
+    "security/storage-path-inventory-2026-07-30.json";
+const storageCandidatePath =
+    "security/storage-hardening-candidate.rules.txt";
+
 const requiredFiles = [
-    snapshotPath,
+    firestoreSnapshotPath,
+    storageSnapshotPath,
+    storagePathInventoryPath,
+    storageCandidatePath,
     "security/b2c-evidence-authz-inventory.json",
     "security/b2c-evidence-firestore.fragment.rules.txt",
     "security/b2c-evidence-storage.fragment.rules.txt",
@@ -55,10 +66,19 @@ for (const relativePath of requiredFiles) {
 if (process.exitCode) process.exit(process.exitCode);
 
 const firebaseConfig = JSON.parse(read("firebase.json"));
-const inventory = JSON.parse(read("security/b2c-evidence-authz-inventory.json"));
-const snapshot = read(snapshotPath);
-const firestoreFragment = read("security/b2c-evidence-firestore.fragment.rules.txt");
-const storageFragment = read("security/b2c-evidence-storage.fragment.rules.txt");
+const inventory = JSON.parse(
+    read("security/b2c-evidence-authz-inventory.json")
+);
+const storagePathInventory = JSON.parse(read(storagePathInventoryPath));
+const firestoreSnapshot = read(firestoreSnapshotPath);
+const storageSnapshot = read(storageSnapshotPath);
+const firestoreFragment = read(
+    "security/b2c-evidence-firestore.fragment.rules.txt"
+);
+const storageFragment = read(
+    "security/b2c-evidence-storage.fragment.rules.txt"
+);
+const storageCandidate = read(storageCandidatePath);
 const customerModule = read("b2c-customer-dispute-service-scope.js");
 const appPanel = read("app-panel.js");
 
@@ -69,24 +89,29 @@ if (Object.prototype.hasOwnProperty.call(firebaseConfig, "firestore")) {
 }
 
 if (Object.prototype.hasOwnProperty.call(firebaseConfig, "storage")) {
-    fail("firebase.json enlaza reglas de Storage sin recuperar su ruleset actual.");
+    fail("firebase.json enlaza reglas de Storage sin autorización de publicación.");
 } else {
     pass("firebase.json no enlaza reglas de Storage por accidente.");
 }
 
-if (inventory.status !== "firestore_console_recovered_storage_pending_not_deployed") {
-    fail("El inventario no refleja Firestore recuperado y Storage pendiente.");
+if (
+    inventory.status !==
+    "firestore_and_storage_console_recovered_candidates_not_deployed"
+) {
+    fail("El inventario no refleja Firestore y Storage recuperados.");
 } else {
-    pass("Inventario reconciliado con las reglas de Firestore suministradas.");
+    pass("Inventario reconciliado con ambas consolas Firebase.");
 }
 
 if (
-    inventory.firebase_configuration?.authoritative_firestore_rules_recovered_from_user_console !== true ||
-    inventory.firebase_configuration?.authoritative_storage_rules_recovered !== false
+    inventory.firebase_configuration
+        ?.authoritative_firestore_rules_recovered_from_user_console !== true ||
+    inventory.firebase_configuration
+        ?.authoritative_storage_rules_recovered_from_user_console !== true
 ) {
     fail("Estado de recuperación Firestore/Storage inconsistente.");
 } else {
-    pass("Firestore recuperado; Storage continúa pendiente.");
+    pass("Firestore y Storage fueron recuperados desde la consola mostrada.");
 }
 
 if (
@@ -98,14 +123,40 @@ if (
     pass("Publicación de reglas permanece bloqueada.");
 }
 
-requireIncludes(snapshot, "rules_version = '2';", "Snapshot contiene rules_version 2");
-requireIncludes(snapshot, "match /services/{serviceId}", "Snapshot contiene services/{serviceId}");
-requireIncludes(snapshot, "allow read: if isAuth();", "Snapshot conserva lectura autenticada legacy");
-requireIncludes(snapshot, "request.auth.uid == 'nNhwy3Mx4pTvc8TZVh1tyTMFwhC2'", "Snapshot conserva UID maestro");
-requireIncludes(snapshot, "match /gestia_records/{tenantId}", "Snapshot conserva bloque Gestia Records");
-requireIncludes(snapshot, "match /packages/{tenantId}/{docId}", "Snapshot conserva bloque Packages");
+// -----------------------------------------------------------------------------
+// Snapshot Firestore real.
+// -----------------------------------------------------------------------------
+requireIncludes(
+    firestoreSnapshot,
+    "rules_version = '2';",
+    "Snapshot Firestore contiene rules_version 2"
+);
+requireIncludes(
+    firestoreSnapshot,
+    "match /services/{serviceId}",
+    "Snapshot Firestore contiene services/{serviceId}"
+);
+requireIncludes(
+    firestoreSnapshot,
+    "allow read: if isAuth();",
+    "Snapshot Firestore conserva lectura autenticada legacy"
+);
+requireIncludes(
+    firestoreSnapshot,
+    "request.auth.uid == 'nNhwy3Mx4pTvc8TZVh1tyTMFwhC2'",
+    "Snapshot Firestore conserva UID maestro"
+);
+requireIncludes(
+    firestoreSnapshot,
+    "match /gestia_records/{tenantId}",
+    "Snapshot Firestore conserva Gestia Records"
+);
+requireIncludes(
+    firestoreSnapshot,
+    "match /packages/{tenantId}/{docId}",
+    "Snapshot Firestore conserva Packages"
+);
 
-// Prueba del bloqueo actual: estos matches B2C no existen todavía en las reglas del panel.
 for (const missingCurrentRule of [
     "match /evidence_events/{eventId}",
     "match /time_sync/{actorId}",
@@ -117,12 +168,65 @@ for (const missingCurrentRule of [
     "match /b2c_evidence_audit/{auditId}"
 ]) {
     requireExcludes(
-        snapshot,
+        firestoreSnapshot,
         missingCurrentRule,
-        `Snapshot confirma ausencia actual de ${missingCurrentRule}`
+        `Snapshot Firestore confirma ausencia actual de ${missingCurrentRule}`
     );
 }
 
+// -----------------------------------------------------------------------------
+// Snapshot Storage real: confirma el riesgo actual, no lo normaliza ni lo oculta.
+// -----------------------------------------------------------------------------
+requireIncludes(
+    storageSnapshot,
+    "service firebase.storage",
+    "Snapshot Storage contiene service firebase.storage"
+);
+requireIncludes(
+    storageSnapshot,
+    "match /{allPaths=**}",
+    "Snapshot Storage conserva el catch-all real"
+);
+requireIncludes(
+    storageSnapshot,
+    "allow read, write: if request.auth != null;",
+    "Snapshot Storage confirma acceso global para autenticados"
+);
+
+if (
+    storagePathInventory.status !==
+    "current_paths_inventoried_candidate_not_deployed"
+) {
+    fail("El inventario de rutas Storage tiene estado inesperado.");
+} else {
+    pass("Inventario de rutas Storage marcado como no desplegado.");
+}
+
+if (storagePathInventory.paths?.length !== 7) {
+    fail("El inventario Storage debe contener exactamente siete familias de rutas.");
+} else {
+    pass("Inventario Storage contiene siete familias de rutas activas.");
+}
+
+for (const expectedPath of [
+    "expedientes/{uid}/{fileName}",
+    "solicitudes_iniciales/{uid_timestamp}.jpg",
+    "servicios/{serviceId}/{fileName}",
+    "b2c_evidence/{serviceId}/{actorUid}/{eventType}/{fileName}",
+    "b2c_customer_evidence/{serviceId}/{customerId}/arrival_dispute/{fileName}",
+    "edificios/{edificioId}/reportes/{fileName}",
+    "evidencias/{ordenId}/{fileName}"
+]) {
+    if (!storagePathInventory.paths.some((item) => item.path === expectedPath)) {
+        fail(`Falta la ruta inventariada ${expectedPath}`);
+    } else {
+        pass(`Ruta inventariada: ${expectedPath}`);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Fragmentos B2C.
+// -----------------------------------------------------------------------------
 for (const [name, content] of [
     ["Firestore", firestoreFragment],
     ["Storage", storageFragment]
@@ -134,7 +238,6 @@ for (const [name, content] of [
     );
 }
 
-// El fragmento Firestore debe reutilizar la autoridad maestra real, no un rol editable.
 requireIncludes(
     firestoreFragment,
     "Reutiliza deliberadamente isAuth(), isAdmin() e isTecnico()",
@@ -156,7 +259,6 @@ requireIncludes(
     "Fragmento Storage conserva UID maestro"
 );
 
-// Cobertura de rutas realmente usadas por los módulos activos.
 for (const requiredMatch of [
     "match /evidence_events/{eventId}",
     "match /time_sync/{actorId}",
@@ -202,35 +304,86 @@ for (const reinforcedVideoEvent of [
     requireIncludes(
         firestoreFragment,
         `\"${reinforcedVideoEvent}\"`,
-        `Firestore permite el evento reforzado ${reinforcedVideoEvent}`
+        `Firestore permite ${reinforcedVideoEvent}`
     );
     requireIncludes(
         storageFragment,
         `\"${reinforcedVideoEvent}\"`,
-        `Storage reconoce el evento reforzado ${reinforcedVideoEvent}`
+        `Fragmento Storage reconoce ${reinforcedVideoEvent}`
+    );
+    requireIncludes(
+        storageCandidate,
+        `\"${reinforcedVideoEvent}\"`,
+        `Candidato Storage reconoce ${reinforcedVideoEvent}`
+    );
+}
+
+// -----------------------------------------------------------------------------
+// Candidato completo Storage.
+// -----------------------------------------------------------------------------
+requireIncludes(
+    storageCandidate,
+    "DO NOT PUBLISH YET",
+    "Candidato Storage conserva bloqueo de publicación"
+);
+requireExcludes(
+    storageCandidate,
+    "allow read, write: if request.auth != null;",
+    "Candidato Storage elimina el catch-all autenticado"
+);
+requireIncludes(
+    storageCandidate,
+    "allow read, write: if false;",
+    "Candidato Storage deniega rutas no inventariadas"
+);
+requireIncludes(
+    storageCandidate,
+    'request.auth.uid == "nNhwy3Mx4pTvc8TZVh1tyTMFwhC2"',
+    "Candidato Storage conserva UID maestro"
+);
+
+for (const candidateMatch of [
+    "match /expedientes/{uid}/{fileName}",
+    "match /solicitudes_iniciales/{fileName}",
+    "match /servicios/{serviceId}/{fileName}",
+    "match /b2c_evidence/{serviceId}/{actorUid}/{eventType}/{fileName}",
+    "match /b2c_customer_evidence/{serviceId}/{customerId}/arrival_dispute/{fileName}",
+    "match /edificios/{edificioId}/reportes/{fileName}",
+    "match /evidencias/{orderId}/{fileName}"
+]) {
+    requireIncludes(
+        storageCandidate,
+        candidateMatch,
+        `Candidato Storage cubre ${candidateMatch}`
     );
 }
 
 requireIncludes(
-    storageFragment,
-    "function b2cStorageMediaMatchesEvent(eventType)",
-    "Storage vincula el tipo de archivo con el evento"
+    storageCandidate,
+    "request.resource.metadata.eventType == eventType",
+    "Candidato compara metadata.eventType con la ruta"
 );
 requireIncludes(
-    storageFragment,
-    "request.resource.metadata.eventType == eventType",
-    "Storage compara metadata.eventType contra la ruta"
+    storageCandidate,
+    "technicianPhotoEvent(eventType) && validImage",
+    "Candidato limita eventos fotográficos a imágenes"
+);
+requireIncludes(
+    storageCandidate,
+    "technicianVideoEvent(eventType) && validVideo",
+    "Candidato limita eventos de video a videos"
 );
 
-const forbiddenGlobalCollections = [
+// -----------------------------------------------------------------------------
+// Frontera cliente service-scoped.
+// -----------------------------------------------------------------------------
+for (const collectionName of [
     "b2c_evidence_hashes",
     "b2c_evidence_fingerprints",
     "b2c_evidence_audit"
-];
-
-for (const collectionName of forbiddenGlobalCollections) {
+]) {
     if (customerModule.includes(`\"${collectionName}\"`)) {
-        fail(`El módulo cliente vuelve a tocar la colección global ${collectionName}.`);
+        fail(`El módulo cliente vuelve a tocar ${collectionName}.`);
     }
 }
 
@@ -268,7 +421,7 @@ for (const retiredClientActivation of [
 
 if (!process.exitCode) {
     console.log(
-        "\n🛡️ B2C AUTHZ CHECK: PASS — reglas Firestore recuperadas y conciliadas; " +
-        "fragmentos aún no publicados; Storage pendiente."
+        "\n🛡️ B2C AUTHZ CHECK: PASS — snapshots Firestore/Storage conciliados; " +
+        "riesgo Storage documentado; candidatos completos aún no publicados."
     );
 }
