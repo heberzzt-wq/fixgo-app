@@ -1,72 +1,75 @@
 // =====================================================================================
 // B2C EVIDENCE STORAGE RULES FRAGMENT — DO NOT DEPLOY AS A COMPLETE RULESET
 // =====================================================================================
-// This file is intentionally NOT referenced by firebase.json.
-// Merge manually inside the authoritative Storage ruleset after recovering it.
-// Expected insertion point: inside service firebase.storage { match /b/{bucket}/o { ... } }
+// Este archivo NO está enlazado desde firebase.json.
+// Debe fusionarse dentro del ruleset real de Storage solamente después de recuperarlo.
+// Punto esperado: service firebase.storage { match /b/{bucket}/o { ... } }
 // =====================================================================================
 
-function b2cSignedIn() {
+function b2cStorageSignedIn() {
   return request.auth != null;
 }
 
-function b2cUser() {
-  return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+// Replica la autoridad maestra del ruleset Firestore real. No confía en un campo rol
+// editable dentro de users/{uid}.
+function b2cStorageIsAdmin() {
+  return b2cStorageSignedIn() && (
+    request.auth.token.email == "hebertoh-m@hotmail.com" ||
+    request.auth.uid == "nNhwy3Mx4pTvc8TZVh1tyTMFwhC2"
+  );
 }
 
-function b2cIsAdmin() {
-  return b2cSignedIn() && b2cUser().rol == "admin";
+function b2cStorageService(serviceId) {
+  return firestore.get(
+    /databases/(default)/documents/services/$(serviceId)
+  ).data;
 }
 
-function b2cService(serviceId) {
-  return firestore.get(/databases/(default)/documents/services/$(serviceId)).data;
+function b2cStorageIsAssignedTechnician(serviceId) {
+  return b2cStorageSignedIn() &&
+    b2cStorageService(serviceId).tecnico_id == request.auth.uid;
 }
 
-function b2cIsAssignedTechnician(serviceId) {
-  return b2cSignedIn() &&
-    b2cService(serviceId).tecnico_id == request.auth.uid;
+function b2cStorageIsOwningCustomer(serviceId) {
+  return b2cStorageSignedIn() &&
+    b2cStorageService(serviceId).cliente_id == request.auth.uid;
 }
 
-function b2cIsOwningCustomer(serviceId) {
-  return b2cSignedIn() &&
-    b2cService(serviceId).cliente_id == request.auth.uid;
-}
-
-function b2cImageType() {
+function b2cStorageImageType() {
   return request.resource.contentType.matches("image/(jpeg|png|webp)");
 }
 
-function b2cVideoType() {
+function b2cStorageVideoType() {
   return request.resource.contentType.matches("video/(webm|mp4|quicktime)");
 }
 
 match /b2c_evidence/{serviceId}/{actorUid}/{eventType}/{fileName} {
-  allow read: if b2cIsAdmin() ||
-    b2cIsAssignedTechnician(serviceId) ||
-    b2cIsOwningCustomer(serviceId);
+  allow read: if b2cStorageIsAdmin() ||
+    b2cStorageIsAssignedTechnician(serviceId) ||
+    b2cStorageIsOwningCustomer(serviceId);
 
-  allow create: if b2cIsAssignedTechnician(serviceId) &&
+  allow create: if b2cStorageIsAssignedTechnician(serviceId) &&
     actorUid == request.auth.uid &&
     request.resource.size > 0 &&
     request.resource.size <= 30 * 1024 * 1024 &&
-    (b2cImageType() || b2cVideoType()) &&
+    (b2cStorageImageType() || b2cStorageVideoType()) &&
     request.resource.metadata.actorUid == request.auth.uid &&
     request.resource.metadata.serviceId == serviceId;
 
   allow update: if false;
-  allow delete: if b2cIsAdmin();
+  allow delete: if b2cStorageIsAdmin();
 }
 
 match /b2c_customer_evidence/{serviceId}/{customerId}/arrival_dispute/{fileName} {
-  allow read: if b2cIsAdmin() ||
-    b2cIsAssignedTechnician(serviceId) ||
-    b2cIsOwningCustomer(serviceId);
+  allow read: if b2cStorageIsAdmin() ||
+    b2cStorageIsAssignedTechnician(serviceId) ||
+    b2cStorageIsOwningCustomer(serviceId);
 
-  allow create: if b2cIsOwningCustomer(serviceId) &&
+  allow create: if b2cStorageIsOwningCustomer(serviceId) &&
     customerId == request.auth.uid &&
     request.resource.size > 0 &&
     request.resource.size <= 10 * 1024 * 1024 &&
-    b2cImageType() &&
+    b2cStorageImageType() &&
     request.resource.metadata.actorUid == request.auth.uid &&
     request.resource.metadata.actorRole == "cliente" &&
     request.resource.metadata.serviceId == serviceId &&
@@ -74,11 +77,10 @@ match /b2c_customer_evidence/{serviceId}/{customerId}/arrival_dispute/{fileName}
     request.resource.metadata.dedupBackendPending == "true";
 
   allow update: if false;
-  allow delete: if b2cIsAdmin();
+  allow delete: if b2cStorageIsAdmin();
 }
 
-// Legacy compatibility path must be merged with the existing production rule.
-// Do not add a broad allow here without auditing panel-tecnico.js and all historical uploads.
+// Compatibilidad legacy pendiente de revisar contra las reglas reales de Storage.
 match /servicios/{serviceId}/{legacyFileName} {
-  // Intentionally no allow statements in this fragment.
+  // Intencionalmente sin allow. No abrir este prefijo sin auditar el flujo histórico.
 }
