@@ -3,8 +3,8 @@
  * NEXO SEMANTIC PLANNER RESILIENCE
  * ======================================================================================
  * Intercepta únicamente jarvisSemanticPlan.
- * - Respeta respuestas cloud útiles.
- * - Recupera fallos HTTP, red, JSON o planes vacíos con compilación local.
+ * - Respeta respuestas cloud completas.
+ * - Recupera fallos HTTP, red, JSON, planes vacíos o cadenas de artefacto incompletas.
  * - Nunca intercepta otros endpoints.
  * ======================================================================================
  */
@@ -16,7 +16,7 @@ import {
     NEXO_MISSION_COMPILER_VERSION
 } from "./nexo.mission.compiler.v2.js";
 
-export const NEXO_SEMANTIC_RESILIENCE_VERSION = "1.2.0-visible-private-engine";
+export const NEXO_SEMANTIC_RESILIENCE_VERSION = "1.3.0-complete-artifact-contract";
 
 const INSTALL_KEY = "__NEXO_SEMANTIC_PLANNER_RESILIENCE__";
 const SEMANTIC_ENDPOINT =
@@ -42,19 +42,42 @@ function parseRequestPayload(input, init = {}) {
     }
 }
 
-async function responseHasUsefulPlan(response) {
+function requiredToolNames(localPlan) {
+    return new Set(
+        (Array.isArray(localPlan?.toolCalls) ? localPlan.toolCalls : [])
+            .map(call => String(call?.name || "").trim())
+            .filter(Boolean)
+    );
+}
+
+function cloudPlanCoversLocalMission(result, localPlan) {
+    if (!localPlan) return true;
+    const required = requiredToolNames(localPlan);
+    if (required.size === 0) return true;
+
+    const cloudNames = new Set(
+        (Array.isArray(result?.toolCalls) ? result.toolCalls : [])
+            .map(call => String(call?.name || "").trim())
+            .filter(Boolean)
+    );
+
+    return [...required].every(name => cloudNames.has(name));
+}
+
+async function responseHasUsefulPlan(response, localPlan = null) {
     if (!response?.ok) return false;
     try {
         const text = await response.clone().text();
         const payload = JSON.parse(text);
         const result = payload?.result || payload?.data;
-        return Boolean(
-            result?.ok === true &&
-            (
-                result?.missionComplete === true ||
-                (Array.isArray(result?.toolCalls) && result.toolCalls.length > 0)
-            )
-        );
+        if (result?.ok !== true) return false;
+        if (result?.missionComplete === true) {
+            return !localPlan || requiredToolNames(localPlan).size === 0;
+        }
+        if (!Array.isArray(result?.toolCalls) || result.toolCalls.length === 0) {
+            return false;
+        }
+        return cloudPlanCoversLocalMission(result, localPlan);
     } catch (_) {
         return false;
     }
@@ -114,20 +137,7 @@ export function instalarResilienciaSemanticaNexo() {
         }
 
         const requestPayload = parseRequestPayload(input, init || {});
-        let cloudResponse = null;
-        let cloudFailure = null;
-
-        try {
-            cloudResponse = await nativeFetch(input, init);
-            if (await responseHasUsefulPlan(cloudResponse)) {
-                return cloudResponse;
-            }
-            cloudFailure = `SEMANTIC_PLAN_NOT_EXECUTABLE_HTTP_${cloudResponse.status}`;
-        } catch (error) {
-            cloudFailure = error?.message || String(error);
-        }
-
-        const plan = compileNexoMission({
+        const localPlan = compileNexoMission({
             input: requestPayload?.input || "",
             catalog: requestPayload?.catalog || [],
             missionState: requestPayload?.missionState || null,
@@ -137,21 +147,36 @@ export function instalarResilienciaSemanticaNexo() {
             }
         });
 
-        if (!plan) {
+        let cloudResponse = null;
+        let cloudFailure = null;
+
+        try {
+            cloudResponse = await nativeFetch(input, init);
+            if (await responseHasUsefulPlan(cloudResponse, localPlan)) {
+                return cloudResponse;
+            }
+            cloudFailure = localPlan
+                ? `SEMANTIC_PLAN_INCOMPLETE_HTTP_${cloudResponse.status}`
+                : `SEMANTIC_PLAN_NOT_EXECUTABLE_HTTP_${cloudResponse.status}`;
+        } catch (error) {
+            cloudFailure = error?.message || String(error);
+        }
+
+        if (!localPlan) {
             if (cloudResponse) return cloudResponse;
             throw new Error(
                 `NEXO_LOCAL_PLAN_NOT_APPLICABLE__${cloudFailure || "CLOUD_UNAVAILABLE"}`
             );
         }
 
-        recordHealth(plan, cloudFailure);
+        recordHealth(localPlan, cloudFailure);
         console.warn("[NEXO_SEMANTIC_RECOVERY]", {
             recoveredFrom: cloudFailure,
-            status: plan.status,
-            tools: plan.toolCalls?.map(call => call.name) || []
+            status: localPlan.status,
+            tools: localPlan.toolCalls?.map(call => call.name) || []
         });
 
-        return fallbackResponse(plan, cloudFailure);
+        return fallbackResponse(localPlan, cloudFailure);
     };
 
     Object.defineProperty(resilientFetch, "__nexoSemanticResilience", {
@@ -179,3 +204,9 @@ export function instalarResilienciaSemanticaNexo() {
 }
 
 instalarResilienciaSemanticaNexo();
+
+export const __test = {
+    requiredToolNames,
+    cloudPlanCoversLocalMission,
+    responseHasUsefulPlan
+};
