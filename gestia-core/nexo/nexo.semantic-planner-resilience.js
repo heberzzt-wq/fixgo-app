@@ -9,12 +9,14 @@
  * ======================================================================================
  */
 
+import "./nexo.ui.branding.js";
+
 import {
     compileNexoMission,
     NEXO_MISSION_COMPILER_VERSION
 } from "./nexo.mission.compiler.v2.js";
 
-export const NEXO_SEMANTIC_RESILIENCE_VERSION = "1.1.0-composition-aware-recovery";
+export const NEXO_SEMANTIC_RESILIENCE_VERSION = "1.2.0-visible-private-engine";
 
 const INSTALL_KEY = "__NEXO_SEMANTIC_PLANNER_RESILIENCE__";
 const SEMANTIC_ENDPOINT =
