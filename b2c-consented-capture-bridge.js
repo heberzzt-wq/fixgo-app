@@ -29,12 +29,13 @@ import {
     B2C_CONSENTED_AUTO_CAPTURE_VERSION
 } from "./b2c-consented-auto-capture.js";
 
-export const B2C_CONSENTED_CAPTURE_BRIDGE_VERSION = "1.0.0";
+export const B2C_CONSENTED_CAPTURE_BRIDGE_VERSION = "1.0.1";
 
 const instalaciones = new Map();
-const SELECTOR_MODAL = [
-    '[id^="b2cArrivalModal_"]',
-    '[id^="b2cNoShowModal_"]'
+const MODAL_SELECTOR = ':is([id^="b2cArrivalModal_"], [id^="b2cNoShowModal_"])';
+const CAPTURE_BUTTON_SELECTOR = [
+    '[id^="b2cArrivalModal_"] [data-action="capture"]',
+    '[id^="b2cNoShowModal_"] [data-action="capture"]'
 ].join(",");
 
 function textoSeguro(value, maxLength = 180) {
@@ -96,10 +97,9 @@ function crearOverlayCuentaRegresiva(videoElement) {
     const container = videoElement?.parentElement;
     if (!container) return null;
 
-    const existing = container.querySelector(
+    container.querySelector(
         '[data-role="b2c-consented-countdown"]'
-    );
-    existing?.remove();
+    )?.remove();
 
     const overlay = document.createElement("div");
     overlay.dataset.role = "b2c-consented-countdown";
@@ -129,10 +129,6 @@ function crearOverlayCuentaRegresiva(videoElement) {
     };
 }
 
-function eliminarOverlay(overlayState) {
-    overlayState?.overlay?.remove();
-}
-
 function restaurarBoton(button, htmlOriginal) {
     if (!button) return;
 
@@ -142,19 +138,15 @@ function restaurarBoton(button, htmlOriginal) {
 }
 
 function marcarBotonesCaptura(root = document) {
-    root.querySelectorAll?.(
-        `${SELECTOR_MODAL} [data-action="capture"]`
-    ).forEach((button) => {
+    root.querySelectorAll?.(CAPTURE_BUTTON_SELECTOR).forEach((button) => {
         if (button.dataset.b2cConsentedBridgeReady === "true") return;
 
         button.dataset.b2cConsentedBridgeReady = "true";
         button.dataset.b2cCaptureBusy = "false";
 
-        if (button.closest('[id^="b2cArrivalModal_"]')) {
-            button.innerHTML = '<i class="fas fa-camera"></i> AUTORIZAR CAPTURA 3-2-1';
-        } else {
-            button.innerHTML = '<i class="fas fa-camera"></i> AUTORIZAR FOTO 3-2-1';
-        }
+        button.innerHTML = button.closest('[id^="b2cArrivalModal_"]')
+            ? '<i class="fas fa-camera"></i> AUTORIZAR CAPTURA 3-2-1'
+            : '<i class="fas fa-camera"></i> AUTORIZAR FOTO 3-2-1';
     });
 }
 
@@ -196,10 +188,7 @@ async function guardarConsentimiento({
 
         return true;
     } catch (error) {
-        console.warn(
-            "[B2C_CAPTURE_CONSENT_AUDIT_WARNING]",
-            error
-        );
+        console.warn("[B2C_CAPTURE_CONSENT_AUDIT_WARNING]", error);
         return false;
     }
 }
@@ -214,18 +203,13 @@ async function ejecutarCapturaConsentida({
     const videoElement = modal.querySelector('video[data-role="video"]');
     const originalHtml = button.innerHTML;
 
-    if (!serviceId) {
-        throw new Error("CAPTURE_SERVICE_ID_MISSING");
-    }
-
+    if (!serviceId) throw new Error("CAPTURE_SERVICE_ID_MISSING");
     if (!(videoElement instanceof HTMLVideoElement)) {
         throw new Error("CAPTURE_VIDEO_ELEMENT_MISSING");
     }
-
     if (!streamCamaraActivo(videoElement)) {
         throw new Error("CAMERA_STREAM_NOT_ACTIVE");
     }
-
     if (document.visibilityState !== "visible") {
         throw new Error("DOCUMENT_NOT_VISIBLE");
     }
@@ -276,8 +260,6 @@ async function ejecutarCapturaConsentida({
             }
         });
 
-        // El frame temporal solo verifica que la cámara seguía visible y operativa.
-        // La evidencia persistida la toma inmediatamente el capturador sellado existente.
         const consentMetadata = crearMetadatosConsentimientoCaptura(
             assistedResult
         );
@@ -300,17 +282,17 @@ async function ejecutarCapturaConsentida({
             }
         });
 
-        eliminarOverlay(overlayState);
+        overlayState?.overlay?.remove();
 
         button.dataset.b2cCaptureBusy = "false";
         button.dataset.b2cCaptureBypass = "true";
         button.disabled = false;
         button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROCESANDO EVIDENCIA...';
 
-        // El listener original del módulo de llegada/ausencia se ejecuta en este segundo click.
+        // El segundo click invoca el capturador sellado y antifraude existente.
         button.click();
     } catch (error) {
-        eliminarOverlay(overlayState);
+        overlayState?.overlay?.remove();
 
         await guardarConsentimiento({
             serviceId,
@@ -345,7 +327,7 @@ export function instalarCapturaConsentidaTecnicoB2C(user = null) {
 
     const clickListener = (event) => {
         const button = event.target?.closest?.('[data-action="capture"]');
-        const modal = button?.closest?.(SELECTOR_MODAL);
+        const modal = button?.closest?.(MODAL_SELECTOR);
 
         if (!button || !modal) return;
 
@@ -379,18 +361,8 @@ export function instalarCapturaConsentidaTecnicoB2C(user = null) {
 
     document.addEventListener("click", clickListener, true);
 
-    const observer = new MutationObserver((mutations) => {
-        for (const mutation of mutations) {
-            mutation.addedNodes.forEach((node) => {
-                if (!(node instanceof Element)) return;
-
-                if (node.matches?.(SELECTOR_MODAL)) {
-                    marcarBotonesCaptura(node.parentElement || document);
-                } else if (node.querySelector?.(SELECTOR_MODAL)) {
-                    marcarBotonesCaptura(node);
-                }
-            });
-        }
+    const observer = new MutationObserver(() => {
+        marcarBotonesCaptura(document);
     });
 
     observer.observe(document.body, {
