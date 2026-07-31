@@ -24,7 +24,7 @@ import {
     getDocFromServer
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-export const B2C_TIME_AUTHORITY_VERSION = "1.0.0";
+export const B2C_TIME_AUTHORITY_VERSION = "1.0.1";
 
 const MAX_CACHE_AGE_MS = 5 * 60 * 1000;
 const DEFAULT_LOCALE = "es-MX";
@@ -452,8 +452,12 @@ export function formatearInstanteServicio(timestamp, serviceData = {}, options =
         options.locale || DEFAULT_LOCALE,
         {
             timeZone: zone.timezone,
-            dateStyle: options.dateStyle || "medium",
-            timeStyle: options.timeStyle || "medium",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
             hour12: options.hour12 ?? false,
             timeZoneName: options.timeZoneName || "short"
         }
