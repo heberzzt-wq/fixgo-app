@@ -43,6 +43,36 @@ function b2cStorageVideoType() {
   return request.resource.contentType.matches("video/(webm|mp4|quicktime)");
 }
 
+function b2cStoragePhotoEvent(eventType) {
+  return eventType in [
+    "arrival",
+    "arrival_fallback",
+    "diagnostic_before",
+    "work_before",
+    "work_after",
+    "customer_no_show",
+    "customer_denied_access",
+    "service_completion"
+  ];
+}
+
+function b2cStorageVideoEvent(eventType) {
+  return eventType in [
+    "customer_no_show_video",
+    "customer_denied_access_video"
+  ];
+}
+
+function b2cStorageMediaMatchesEvent(eventType) {
+  return (
+    b2cStoragePhotoEvent(eventType) &&
+    b2cStorageImageType()
+  ) || (
+    b2cStorageVideoEvent(eventType) &&
+    b2cStorageVideoType()
+  );
+}
+
 match /b2c_evidence/{serviceId}/{actorUid}/{eventType}/{fileName} {
   allow read: if b2cStorageIsAdmin() ||
     b2cStorageIsAssignedTechnician(serviceId) ||
@@ -52,9 +82,10 @@ match /b2c_evidence/{serviceId}/{actorUid}/{eventType}/{fileName} {
     actorUid == request.auth.uid &&
     request.resource.size > 0 &&
     request.resource.size <= 30 * 1024 * 1024 &&
-    (b2cStorageImageType() || b2cStorageVideoType()) &&
+    b2cStorageMediaMatchesEvent(eventType) &&
     request.resource.metadata.actorUid == request.auth.uid &&
-    request.resource.metadata.serviceId == serviceId;
+    request.resource.metadata.serviceId == serviceId &&
+    request.resource.metadata.eventType == eventType;
 
   allow update: if false;
   allow delete: if b2cStorageIsAdmin();
@@ -73,6 +104,7 @@ match /b2c_customer_evidence/{serviceId}/{customerId}/arrival_dispute/{fileName}
     request.resource.metadata.actorUid == request.auth.uid &&
     request.resource.metadata.actorRole == "cliente" &&
     request.resource.metadata.serviceId == serviceId &&
+    request.resource.metadata.eventType == "customer_arrival_dispute" &&
     request.resource.metadata.dedupScope == "service_only" &&
     request.resource.metadata.dedupBackendPending == "true";
 
