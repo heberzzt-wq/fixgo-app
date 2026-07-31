@@ -4,7 +4,7 @@ import { test } from "node:test";
 import {
     compileNexoMission,
     __test
-} from "../gestia-core/nexo/nexo.mission.compiler.js";
+} from "../gestia-core/nexo/nexo.mission.compiler.v2.js";
 
 const catalog = [
     "marketing.plan",
@@ -23,7 +23,7 @@ function names(plan) {
     return plan.toolCalls.map(call => call.name);
 }
 
-test("one page instruction reaches page.create with executable content", () => {
+test("one page instruction reaches page.create through composition", () => {
     const plan = compileNexoMission({
         input: "Crea una página web para Peninsula Tech sobre servicios técnicos seguros",
         catalog
@@ -32,9 +32,12 @@ test("one page instruction reaches page.create with executable content", () => {
     assert.equal(plan.ok, true);
     assert.equal(plan.identity, "NEXO");
     assert.equal(plan.status, "NEXO_LOCAL_MISSION_READY");
-    assert.deepEqual(names(plan), ["page.plan", "page.create"]);
+    assert.equal(plan.version, "2.0.0-composition-to-artifact-chain");
+    assert.deepEqual(names(plan), ["page.plan", "page.compose", "page.create"]);
 
+    const compose = plan.toolCalls.find(call => call.name === "page.compose");
     const create = plan.toolCalls.find(call => call.name === "page.create");
+    assert.equal(compose.args.brandName, "Peninsula Tech");
     assert.equal(create.args.brandName, "Peninsula Tech");
     assert.equal(create.args.services.length, 3);
     assert.equal(create.args.description.length >= 20, true);
@@ -103,14 +106,16 @@ test("one document instruction selects directly executable PDF XLSX and PPTX", (
     );
 });
 
-test("Word instruction uses validated composition before artifact creation", () => {
+test("Word instruction composes and creates a validated DOCX", () => {
     const plan = compileNexoMission({
         input: "Crea un documento Word sobre la seguridad de Peninsula Tech",
         catalog
     });
 
-    assert.deepEqual(names(plan), ["document.compose"]);
+    assert.deepEqual(names(plan), ["document.compose", "document.create"]);
     assert.equal(plan.toolCalls[0].args.format, "docx");
+    assert.equal(plan.toolCalls[1].args.format, "docx");
+    assert.equal(plan.toolCalls[1].args.requireDocumentValidation, true);
 });
 
 test("grounded argument completion recovers a complete marketing brief without sources", () => {
