@@ -1,15 +1,51 @@
 {
-  "version": "1.0.0",
-  "generated_at": "2026-07-31T03:30:00Z",
-  "status": "draft_only_not_deployed",
+  "version": "1.1.0",
+  "generated_at": "2026-07-31T03:36:00Z",
+  "status": "firestore_console_recovered_storage_pending_not_deployed",
+  "source": {
+    "firestore_rules_supplied_by_user": true,
+    "live_console_export_independently_verified": false,
+    "source_attachment_sha256": "f1c575066adf5b20683d0cdf29b35a95ba324751675b6179ac1e7235fbb058c4",
+    "repository_snapshot": "security/firestore-console-snapshot-2026-07-30.rules.txt",
+    "snapshot_note": "Snapshot normalizado desde el texto pegado por el usuario; conserva la semántica del ruleset, pero no sustituye una exportación API del proyecto."
+  },
   "firebase_configuration": {
     "firebase_json_path": "firebase.json",
     "firestore_rules_declared": false,
     "storage_rules_declared": false,
-    "rules_version_found_in_repository": false,
-    "authoritative_deployed_rules_recovered": false,
-    "safe_to_deploy_rules": false
+    "rules_version_found_in_repository_snapshot": true,
+    "authoritative_firestore_rules_recovered_from_user_console": true,
+    "authoritative_storage_rules_recovered": false,
+    "safe_to_deploy_firestore_rules": false,
+    "safe_to_deploy_storage_rules": false
   },
+  "current_firestore_findings": [
+    {
+      "severity": "blocking_for_b2c_evidence",
+      "finding": "El match services/{serviceId} no hereda permisos a subcolecciones.",
+      "impact": "evidence_events, time_sync, consentimientos y customer_evidence_hashes son denegados para técnico/cliente normales; solo el UID maestro entra por el match global."
+    },
+    {
+      "severity": "blocking_for_b2c_evidence",
+      "finding": "No existen matches para b2c_evidence_hashes, b2c_evidence_fingerprints o b2c_evidence_audit.",
+      "impact": "El registro antifraude técnico falla para cualquier técnico que no sea el UID maestro."
+    },
+    {
+      "severity": "critical_legacy_risk_not_changed_here",
+      "finding": "users/{userId} permite al propietario actualizar su documento sin proteger rol, status, tipo_cuenta o tenant.",
+      "impact": "Los helpers basados en userRole/userTipo pueden recibir datos autoeditados. El parche B2C reutiliza isAdmin() por UID/correo y no confía en rol para administración."
+    },
+    {
+      "severity": "critical_legacy_risk_not_changed_here",
+      "finding": "services/{serviceId} permite lectura a cualquier autenticado y actualización amplia al cliente o técnico relacionados sin lista de campos.",
+      "impact": "La evidencia puede funcionar, pero el estado y campos financieros siguen requiriendo una fase separada de hardening con pruebas de regresión."
+    },
+    {
+      "severity": "critical_legacy_risk_not_changed_here",
+      "finding": "gestia_records y packages contienen permisos públicos de lectura/escritura.",
+      "impact": "Riesgo ajeno al parche B2C que debe tratarse en una migración B2B independiente para evitar romper módulos existentes."
+    }
+  ],
   "trust_boundaries": {
     "technician_evidence": {
       "scope": "global_registry_client_side_until_backend_migration",
@@ -18,7 +54,9 @@
         "b2c_evidence_fingerprints",
         "b2c_evidence_audit"
       ],
-      "required_actor_relationship": "request.auth.uid equals services/{serviceId}.tecnico_id"
+      "required_actor_relationship": "request.auth.uid equals services/{serviceId}.tecnico_id",
+      "customer_access": false,
+      "backend_migration_recommended": true
     },
     "customer_dispute_evidence": {
       "scope": "service_only",
@@ -29,115 +67,52 @@
     }
   },
   "firestore": {
-    "service_document": {
+    "current_parent_service_rule": {
       "path": "services/{serviceId}",
-      "actors": ["assigned_technician", "owning_customer", "admin"],
-      "b2c_field_groups": [
-        "arrival_validation",
-        "arrival_customer_acknowledgement",
-        "arrival_customer_dispute",
-        "technician_no_show_or_denied_access",
-        "prequote_diagnostic",
-        "work_before",
-        "work_after",
-        "signature_binding",
-        "review_flags",
-        "authoritative_time_metadata"
-      ]
+      "status": "present_in_console_snapshot",
+      "subcollections_inherited": false,
+      "field_level_update_hardening": "pending_separate_phase"
     },
-    "service_subcollections": [
-      {
-        "path": "services/{serviceId}/evidence_events/{eventId}",
-        "actors": ["assigned_technician", "owning_customer", "admin"],
-        "immutability": "create_only_for_clients_after_server_seal"
-      },
-      {
-        "path": "services/{serviceId}/time_sync/{actorId}",
-        "actors": ["same_actor", "admin"],
-        "purpose": "server timestamp probe"
-      },
-      {
-        "path": "services/{serviceId}/diagnostic_consents/{consentId}",
-        "actors": ["assigned_technician", "admin"]
-      },
-      {
-        "path": "services/{serviceId}/work_start_consents/{consentId}",
-        "actors": ["assigned_technician", "admin"]
-      },
-      {
-        "path": "services/{serviceId}/work_after_consents/{consentId}",
-        "actors": ["assigned_technician", "admin"]
-      },
-      {
-        "path": "services/{serviceId}/work_evidence_consents/{consentId}",
-        "actors": ["assigned_technician", "admin"],
-        "status": "compatibility_guard"
-      },
-      {
-        "path": "services/{serviceId}/work_evidence_bindings/current",
-        "actors": ["assigned_technician", "admin"]
-      },
-      {
-        "path": "services/{serviceId}/customer_evidence_hashes/{hashId}",
-        "actors": ["owning_customer", "admin"],
-        "scope": "same_service_only"
-      },
-      {
-        "path": "services/{serviceId}/client_dispute_consents/{consentId}",
-        "actors": ["owning_customer", "admin"],
-        "status": "legacy_module_not_activated"
-      }
+    "required_service_subcollections": [
+      "services/{serviceId}/evidence_events/{eventId}",
+      "services/{serviceId}/time_sync/{actorId}",
+      "services/{serviceId}/capture_consents/{consentId}",
+      "services/{serviceId}/video_consents/{consentId}",
+      "services/{serviceId}/diagnostic_consents/{consentId}",
+      "services/{serviceId}/work_start_consents/{consentId}",
+      "services/{serviceId}/work_after_consents/{consentId}",
+      "services/{serviceId}/work_evidence_consents/{consentId}",
+      "services/{serviceId}/work_evidence_bindings/{bindingId}",
+      "services/{serviceId}/customer_evidence_hashes/{hashId}"
     ],
-    "global_collections": [
-      {
-        "path": "b2c_evidence_hashes/{hashId}",
-        "actors": ["assigned_technician", "admin"],
-        "customer_access": false,
-        "backend_migration_recommended": true
-      },
-      {
-        "path": "b2c_evidence_fingerprints/{fingerprintId}",
-        "actors": ["assigned_technician_for_own_history", "admin"],
-        "customer_access": false,
-        "backend_migration_recommended": true
-      },
-      {
-        "path": "b2c_evidence_audit/{auditId}",
-        "actors": ["assigned_technician_create_only", "admin"],
-        "customer_access": false,
-        "backend_migration_recommended": true
-      }
-    ]
+    "required_global_collections": [
+      "b2c_evidence_hashes/{hashId}",
+      "b2c_evidence_fingerprints/{fingerprintId}",
+      "b2c_evidence_audit/{auditId}"
+    ],
+    "merge_fragment": "security/b2c-evidence-firestore.fragment.rules.txt",
+    "merge_fragment_state": "compatible_with_user_supplied_console_helpers_not_deployed"
   },
   "storage": {
-    "prefixes": [
-      {
-        "path": "b2c_evidence/{serviceId}/{actorUid}/{eventType}/{fileName}",
-        "actors": ["assigned_technician", "admin"],
-        "content_types": ["image/jpeg", "image/png", "image/webp", "video/webm", "video/mp4", "video/quicktime"],
-        "maximum_bytes": 31457280
-      },
-      {
-        "path": "b2c_customer_evidence/{serviceId}/{customerId}/arrival_dispute/{fileName}",
-        "actors": ["owning_customer", "admin"],
-        "content_types": ["image/jpeg", "image/png", "image/webp"],
-        "maximum_bytes": 10485760
-      },
-      {
-        "path": "servicios/{serviceId}/{legacyFileName}",
-        "actors": ["assigned_technician", "admin"],
-        "status": "legacy_close_compatibility_requires_existing_rules_merge"
-      }
-    ]
+    "authoritative_rules_recovered": false,
+    "merge_fragment": "security/b2c-evidence-storage.fragment.rules.txt",
+    "required_prefixes": [
+      "b2c_evidence/{serviceId}/{actorUid}/{eventType}/{fileName}",
+      "b2c_customer_evidence/{serviceId}/{customerId}/arrival_dispute/{fileName}",
+      "servicios/{serviceId}/{legacyFileName}"
+    ],
+    "status": "blocked_until_current_storage_rules_are_supplied"
   },
   "deployment_safety": {
-    "fragments_must_not_be_linked_from_firebase_json": true,
-    "required_before_rules_deploy": [
-      "export_or_recover_current_production_firestore_rules",
-      "export_or_recover_current_production_storage_rules",
-      "merge_fragments_with_legacy_rules",
-      "run_emulator_authorization_tests_for_admin_technician_customer_and_unauthenticated_users",
-      "obtain_explicit_production_deploy_authorization"
+    "fragments_linked_from_firebase_json": false,
+    "production_deploy_authorized": false,
+    "required_before_any_rules_publish": [
+      "recover_current_production_storage_rules",
+      "paste_firestore_fragment_into_a_copy_of_the_console_snapshot",
+      "merge_storage_fragment_with_current_storage_rules",
+      "run_emulator_authorization_tests_for_master_admin_assigned_technician_owning_customer_unrelated_authenticated_and_unauthenticated_users",
+      "test_legacy_login_services_b2b_finance_tracking_and_packages_flows",
+      "obtain_explicit_production_rules_publish_authorization"
     ]
   }
 }
