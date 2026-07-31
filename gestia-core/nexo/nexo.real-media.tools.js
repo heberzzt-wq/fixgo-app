@@ -1,0 +1,354 @@
+import {
+    planMarketingRequest
+} from "../jarvis/jarvis.marketing.engine.js?v=nexo-marketing-runtime-v8-20260731";
+
+export const NEXO_REAL_MEDIA_TOOLS_VERSION =
+    "1.0.0-real-media-mission-tools";
+
+const INSTALL_KEY = "__NEXO_REAL_MEDIA_TOOLS__";
+
+function runtimeCandidate() {
+    return (
+        globalThis.JarvisToolRuntime ||
+        globalThis.window?.JarvisToolRuntime ||
+        null
+    );
+}
+
+function bridgeRequest(path, payload, timeoutMs = 120000) {
+    const bridge =
+        globalThis.JarvisLocalBridge ||
+        globalThis.window?.JarvisLocalBridge ||
+        null;
+    if (typeof bridge?.requestJson !== "function") {
+        return Promise.resolve({
+            ok: false,
+            executionOk: false,
+            objectiveSatisfied: false,
+            blocked: true,
+            requiresInput: false,
+            retryable: true,
+            status: "LOCAL_BRIDGE_REQUIRED",
+            error: "LOCAL_BRIDGE_REQUIRED"
+        });
+    }
+    return bridge.requestJson(path, payload, { timeoutMs });
+}
+
+function instructionFrom(args = {}, context = {}) {
+    return String(
+        args.prompt ||
+        args.instruction ||
+        context.rawInput ||
+        ""
+    ).trim();
+}
+
+function completedTask(context = {}, name = "") {
+    return (Array.isArray(context.completedTasks) ? context.completedTasks : [])
+        .find(task => String(task?.name || "") === name) ||
+        null;
+}
+
+function collectorEvidence(context = {}) {
+    const task = completedTask(context, "web.media.collect");
+    const evidence =
+        task?.observation?.evidence ||
+        task?.observation ||
+        null;
+    const assets = Array.isArray(evidence?.mediaAssets)
+        ? evidence.mediaAssets
+        : [];
+    return {
+        task,
+        evidence,
+        assets,
+        images: assets.filter(asset => asset?.kind === "image"),
+        videos: assets.filter(asset => asset?.kind === "video")
+    };
+}
+
+function marketingEvidence(context = {}) {
+    const task = completedTask(context, "marketing.plan");
+    return task?.observation?.evidence || task?.observation || null;
+}
+
+function slug(value = "nexo-campaign") {
+    return String(value || "nexo-campaign")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 70) || "nexo-campaign";
+}
+
+function registerOrReplace(runtime, definition) {
+    return runtime.register({
+        version: NEXO_REAL_MEDIA_TOOLS_VERSION,
+        mutates: false,
+        requiresApproval: false,
+        ...definition
+    });
+}
+
+export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
+    if (!runtime || typeof runtime.register !== "function") {
+        throw new Error("NEXO_TOOL_RUNTIME_REQUIRED");
+    }
+
+    registerOrReplace(runtime, {
+        name: "marketing.plan",
+        description:
+            "NEXO produce una campaña específica desde una instrucción natural y evidencia opcional; completa propuestas editables sin inventar hechos.",
+        output: "NEXO_MARKETING_PLAN",
+        inputSchema: {
+            type: "object",
+            properties: {
+                prompt: { type: "string" },
+                brandName: { type: "string" },
+                audience: { type: "string" },
+                offer: { type: "string" },
+                pain: { type: "string" },
+                promise: { type: "string" },
+                differentiator: { type: "string" },
+                tone: { type: "string" },
+                cta: { type: "string" },
+                assets: { type: "array", items: { type: "string" } },
+                channels: { type: "array", items: { type: "string" } },
+                market: { type: "string" },
+                durationSeconds: { type: "number" },
+                objectiveId: { type: "string" },
+                caseId: { type: "string" }
+            },
+            additionalProperties: true
+        },
+        execute: async (args = {}, context = {}) => {
+            const instruction = instructionFrom(args, context);
+            const result = planMarketingRequest(instruction, {
+                ...context,
+                ...args,
+                authorityId: args.authorityId || context.authorityId || "HEBERTO_MENDOZA",
+                controllerId: args.controllerId || context.controllerId || "PENINSULA_NEXO"
+            });
+            return {
+                ...result,
+                objectiveSatisfied: result?.readyForProduction === true,
+                requiresInput: false,
+                blocked: false,
+                retryable: false,
+                runtimeOverride: NEXO_REAL_MEDIA_TOOLS_VERSION
+            };
+        }
+    });
+
+    registerOrReplace(runtime, {
+        name: "web.media.collect",
+        description:
+            "Descarga fotos y videos reales desde una URL explícita, valida host, MIME, firma de bytes, tamaño y SHA-256, y conserva un manifiesto local. Nunca genera material sintético.",
+        output: "NEXO_REAL_WEB_MEDIA",
+        mutates: true,
+        requiresApproval: false,
+        userArtifact: true,
+        missionDedupeBy: ["url"],
+        inputSchema: {
+            type: "object",
+            required: ["url"],
+            properties: {
+                url: { type: "string" },
+                requireImages: { type: "boolean" },
+                requireVideos: { type: "boolean" },
+                maxImages: { type: "number" },
+                maxVideos: { type: "number" },
+                allowedHosts: { type: "array", items: { type: "string" } },
+                timeoutMs: { type: "number" },
+                objectiveId: { type: "string" },
+                caseId: { type: "string" }
+            },
+            additionalProperties: false
+        },
+        execute: async (args = {}, context = {}) => {
+            const result = await bridgeRequest("/web/media/collect", {
+                ...args,
+                objectiveId: args.objectiveId || context.objectiveId || "",
+                caseId: args.caseId || context.caseId || ""
+            }, Math.max(60000, Number(args.timeoutMs) || 120000));
+            return {
+                ...result,
+                objectiveSatisfied: result?.ok === true && result?.requirementsMet === true,
+                blocked: result?.ok !== true || result?.requirementsMet !== true,
+                requiresInput: false,
+                retryable: result?.status === "LOCAL_BRIDGE_REQUIRED"
+            };
+        }
+    });
+
+    registerOrReplace(runtime, {
+        name: "marketing.package.real-media",
+        description:
+            "Crea un manifiesto de campaña que enlaza el plan de marketing con los archivos reales verificados por web.media.collect. Falla cerrado si faltan los bytes solicitados.",
+        output: "NEXO_REAL_MEDIA_MARKETING_PACKAGE",
+        mutates: true,
+        requiresApproval: false,
+        userArtifact: true,
+        missionDedupeBy: ["sourceUrl"],
+        inputSchema: {
+            type: "object",
+            required: ["sourceUrl"],
+            properties: {
+                sourceUrl: { type: "string" },
+                title: { type: "string" },
+                requireImages: { type: "boolean" },
+                requireVideos: { type: "boolean" },
+                output: { type: "string" },
+                objectiveId: { type: "string" },
+                caseId: { type: "string" }
+            },
+            additionalProperties: false
+        },
+        execute: async (args = {}, context = {}) => {
+            const media = collectorEvidence(context);
+            const hasImages = media.images.length > 0;
+            const hasVideos = media.videos.length > 0;
+            const requirementsMet =
+                (args.requireImages !== true || hasImages) &&
+                (args.requireVideos !== true || hasVideos);
+
+            if (!requirementsMet) {
+                return {
+                    ok: false,
+                    executionOk: true,
+                    objectiveSatisfied: false,
+                    blocked: true,
+                    requiresInput: false,
+                    retryable: false,
+                    status: "REAL_MEDIA_PACKAGE_REQUIREMENTS_UNMET",
+                    sourceUrl: args.sourceUrl,
+                    requirements: {
+                        requireImages: args.requireImages === true,
+                        requireVideos: args.requireVideos === true
+                    },
+                    counts: {
+                        images: media.images.length,
+                        videos: media.videos.length
+                    }
+                };
+            }
+
+            const title = String(args.title || "NEXO - Paquete de marketing con medios reales").trim();
+            const packageData = {
+                engine: "NEXO",
+                version: NEXO_REAL_MEDIA_TOOLS_VERSION,
+                sourceUrl: args.sourceUrl,
+                generatedAt: new Date().toISOString(),
+                requirements: {
+                    requireImages: args.requireImages === true,
+                    requireVideos: args.requireVideos === true
+                },
+                counts: {
+                    images: media.images.length,
+                    videos: media.videos.length,
+                    total: media.assets.length
+                },
+                mediaAssets: media.assets,
+                marketingPlan: marketingEvidence(context),
+                policy: {
+                    syntheticMediaSubstitutionAllowed: false,
+                    sourceBytesRequired: true,
+                    sha256Required: true,
+                    publicationAllowed: false,
+                    ownerApprovalRequiredForPublication: true
+                }
+            };
+            const result = await bridgeRequest("/artifact/json/create", {
+                type: "campaign",
+                slug: slug(title),
+                output: args.output,
+                data: packageData,
+                origin: "marketing.package.real-media",
+                provider: "nexo",
+                caseId: args.caseId || context.caseId || "",
+                objectiveId: args.objectiveId || context.objectiveId || "",
+                approved: true,
+                approvedBy: "LOCAL_ARTIFACT_POLICY",
+                publishable: false,
+                originalFile: args.sourceUrl
+            }, 60000);
+
+            return {
+                ...result,
+                status: result?.ok === true
+                    ? "REAL_MEDIA_MARKETING_PACKAGE_CREATED"
+                    : result?.status || "REAL_MEDIA_MARKETING_PACKAGE_FAILED",
+                objectiveSatisfied: result?.ok === true,
+                blocked: result?.ok !== true,
+                requiresInput: false,
+                retryable: result?.status === "LOCAL_BRIDGE_REQUIRED",
+                sourceUrl: args.sourceUrl,
+                counts: packageData.counts,
+                mediaAssets: media.assets
+            };
+        }
+    });
+
+    const installation = {
+        ok: true,
+        active: true,
+        version: NEXO_REAL_MEDIA_TOOLS_VERSION,
+        tools: [
+            "marketing.plan",
+            "web.media.collect",
+            "marketing.package.real-media"
+        ],
+        installedAt: new Date().toISOString()
+    };
+    globalThis[INSTALL_KEY] = installation;
+    globalThis.__NEXO_REAL_MEDIA_TOOLS_HEALTH__ = installation;
+    return installation;
+}
+
+export function installNexoRealMediaTools({ maximumAttempts = 120, intervalMs = 100 } = {}) {
+    if (globalThis[INSTALL_KEY]) return Promise.resolve(globalThis[INSTALL_KEY]);
+    if (typeof window === "undefined") {
+        return Promise.resolve({
+            ok: true,
+            active: false,
+            environment: "non_browser",
+            version: NEXO_REAL_MEDIA_TOOLS_VERSION
+        });
+    }
+
+    return new Promise(resolve => {
+        let attempts = 0;
+        const attempt = () => {
+            attempts += 1;
+            const runtime = runtimeCandidate();
+            if (runtime?.has?.("marketing.plan")) {
+                resolve(registerNexoRealMediaTools(runtime));
+                return;
+            }
+            if (attempts >= maximumAttempts) {
+                const failure = {
+                    ok: false,
+                    active: false,
+                    status: "NEXO_TOOL_RUNTIME_TIMEOUT",
+                    version: NEXO_REAL_MEDIA_TOOLS_VERSION,
+                    attempts
+                };
+                globalThis.__NEXO_REAL_MEDIA_TOOLS_HEALTH__ = failure;
+                resolve(failure);
+                return;
+            }
+            setTimeout(attempt, intervalMs);
+        };
+        attempt();
+    });
+}
+
+export const __test = {
+    instructionFrom,
+    completedTask,
+    collectorEvidence,
+    marketingEvidence,
+    slug
+};
