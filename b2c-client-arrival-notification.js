@@ -34,7 +34,7 @@ import {
     lanzarNotificacionPush
 } from "./app-utils.js";
 
-export const B2C_CLIENT_ARRIVAL_NOTIFICATION_VERSION = "1.0.0";
+export const B2C_CLIENT_ARRIVAL_NOTIFICATION_VERSION = "1.0.1";
 export const B2C_CLIENT_ARRIVAL_WAIT_MS = 5 * 60 * 1000;
 
 const instalaciones = new Map();
@@ -45,6 +45,27 @@ function textoSeguro(value, maxLength = 180) {
         .replace(/[\u0000-\u001F\u007F]/g, " ")
         .trim()
         .slice(0, maxLength);
+}
+
+function escaparHTML(value) {
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function normalizarHttpsUrl(value) {
+    const raw = textoSeguro(value, 2048);
+    if (!raw) return null;
+
+    try {
+        const parsed = new URL(raw, window.location.origin);
+        return parsed.protocol === "https:" ? parsed.href : null;
+    } catch (error) {
+        return null;
+    }
 }
 
 function idSeguro(value) {
@@ -83,8 +104,32 @@ function cerrarModal(serviceId) {
         clearInterval(active.intervalId);
     }
 
+    active.reopenButton?.remove();
     active.modal?.remove();
     modalesActivos.delete(serviceId);
+}
+
+function minimizarModal(serviceId) {
+    const active = modalesActivos.get(serviceId);
+    if (!active?.modal) return;
+
+    active.modal.classList.add("hidden");
+
+    if (active.reopenButton?.isConnected) return;
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.id = `b2cClientArrivalReopen_${idSeguro(serviceId)}`;
+    button.className = "fixed bottom-5 right-5 z-[125] bg-blue-600 hover:bg-blue-500 text-white border border-blue-400/50 shadow-2xl rounded-full px-4 py-3 text-xs font-black animate-pulse";
+    button.innerHTML = '<i class="fas fa-location-dot"></i> RESPONDER LLEGADA';
+    button.addEventListener("click", () => {
+        active.modal.classList.remove("hidden");
+        button.remove();
+        active.reopenButton = null;
+    });
+
+    document.body.appendChild(button);
+    active.reopenButton = button;
 }
 
 async function registrarNotificacionMostrada({ serviceId, customerId }) {
@@ -182,21 +227,22 @@ function crearModalLlegada({ serviceId, serviceData, customerId }) {
         serviceData.tecnico_nombre || "Tu técnico",
         80
     );
-    const evidenceUrl = textoSeguro(
-        serviceData.evidencia_llegada?.download_url,
-        2048
+    const technicianNameHtml = escaparHTML(technicianName);
+    const evidenceUrl = normalizarHttpsUrl(
+        serviceData.evidencia_llegada?.download_url
     );
+    const evidenceUrlHtml = evidenceUrl ? escaparHTML(evidenceUrl) : null;
     const arrivalAtMs = timestampAMilisegundos(serviceData.en_sitio_at);
     const deadlineMs = (arrivalAtMs || Date.now()) + B2C_CLIENT_ARRIVAL_WAIT_MS;
     const reviewRequired = serviceData.llegada_revision_requerida === true;
 
     modal.innerHTML = `
-        <div class="bg-zinc-900 w-full max-w-md rounded-3xl border border-blue-500/40 shadow-2xl overflow-hidden">
+        <div class="bg-zinc-900 w-full max-w-md rounded-3xl border border-blue-500/40 shadow-2xl overflow-hidden max-h-[94vh] overflow-y-auto">
             <div class="bg-blue-600/15 border-b border-blue-500/30 p-5">
                 <div class="flex items-center justify-between gap-3">
                     <div>
                         <p class="text-blue-400 text-[10px] font-black uppercase tracking-[0.18em]">Llegada registrada</p>
-                        <h3 class="text-white text-xl font-black mt-1">${technicianName} está en el sitio</h3>
+                        <h3 class="text-white text-xl font-black mt-1">${technicianNameHtml} está en el sitio</h3>
                     </div>
                     <div class="w-12 h-12 rounded-full bg-blue-500/20 border border-blue-500/40 flex items-center justify-center">
                         <i class="fas fa-location-dot text-blue-400 text-xl"></i>
@@ -213,11 +259,11 @@ function crearModalLlegada({ serviceId, serviceData, customerId }) {
                     </p>
                 </div>
 
-                ${evidenceUrl ? `
+                ${evidenceUrlHtml ? `
                     <div class="mt-4">
                         <p class="text-gray-400 text-[10px] uppercase font-bold tracking-widest mb-2">Evidencia de llegada</p>
-                        <a href="${evidenceUrl}" target="_blank" rel="noopener noreferrer" class="block bg-black rounded-2xl overflow-hidden border border-zinc-700">
-                            <img src="${evidenceUrl}" alt="Evidencia de llegada" class="w-full h-44 object-cover">
+                        <a href="${evidenceUrlHtml}" target="_blank" rel="noopener noreferrer" class="block bg-black rounded-2xl overflow-hidden border border-zinc-700">
+                            <img src="${evidenceUrlHtml}" alt="Evidencia de llegada" class="w-full h-44 object-cover">
                             <div class="p-2 text-center text-blue-400 text-[10px] font-bold">
                                 <i class="fas fa-expand"></i> VER CAPTURA COMPLETA
                             </div>
@@ -278,6 +324,13 @@ function crearModalLlegada({ serviceId, serviceData, customerId }) {
 
     updateCountdown();
     const intervalId = setInterval(updateCountdown, 1000);
+
+    modalesActivos.set(serviceId, {
+        modal,
+        intervalId,
+        deadlineMs,
+        reopenButton: null
+    });
 
     const setBusy = (busy) => {
         confirmButton.disabled = busy;
@@ -344,13 +397,7 @@ function crearModalLlegada({ serviceId, serviceData, customerId }) {
     });
 
     minimizeButton.addEventListener("click", () => {
-        modal.classList.add("hidden");
-    });
-
-    modalesActivos.set(serviceId, {
-        modal,
-        intervalId,
-        deadlineMs
+        minimizarModal(serviceId);
     });
 
     return modal;
@@ -401,6 +448,16 @@ export function instalarNotificacionLlegadaClienteB2C(user = null) {
                 });
             });
 
+            const pendingIds = new Set(
+                pendingServices.map((service) => service.id)
+            );
+
+            for (const activeServiceId of [...modalesActivos.keys()]) {
+                if (!pendingIds.has(activeServiceId)) {
+                    cerrarModal(activeServiceId);
+                }
+            }
+
             for (const service of pendingServices) {
                 const arrivalMs = timestampAMilisegundos(service.data.en_sitio_at) || 0;
                 const signature = `${service.id}:${arrivalMs}`;
@@ -420,7 +477,7 @@ export function instalarNotificacionLlegadaClienteB2C(user = null) {
                     console.warn("[B2C_CLIENT_ARRIVAL_SHOWN_WRITE_WARNING]", error);
                 }
 
-                if (!initialLoad || Date.now() - arrivalMs <= B2C_CLIENT_ARRIVAL_WAIT_MS * 2) {
+                if (!initialLoad || (arrivalMs > 0 && Date.now() - arrivalMs <= B2C_CLIENT_ARRIVAL_WAIT_MS * 2)) {
                     sonarAlerta();
                     lanzarNotificacionPush(
                         "📍 Tu técnico llegó",
@@ -447,7 +504,7 @@ export function instalarNotificacionLlegadaClienteB2C(user = null) {
         unsubscribe() {
             unsubscribe();
             instalaciones.delete(customerId);
-            for (const serviceId of modalesActivos.keys()) {
+            for (const serviceId of [...modalesActivos.keys()]) {
                 cerrarModal(serviceId);
             }
         }
