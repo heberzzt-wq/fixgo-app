@@ -3,7 +3,7 @@
  * GESTIAPREMIUM 2026 - ENRUTADOR MAESTRO (CORE ROUTER)
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.18.11 (AUTH LOADER RACE GUARD + B2C AUTHORITATIVE TIME)
+ * Versión: 5.18.12 (AUTH GUARD + AUTHORITATIVE TIME + CONSENTED CAPTURE)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Julio 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LÓGICA.
@@ -17,7 +17,7 @@ import "./app-utils.js";
 // Corrige la carrera donde el boot recrea el loader después de validar perfil y ruta.
 import "./gestia-loader-race-guard.js";
 
-console.log(" 🚀 GESTIAPREMIUM 5.18.11: AUTH LOADER GUARD + B2C AUTHORITATIVE TIME ACTIVATED.");
+console.log(" 🚀 GESTIAPREMIUM 5.18.12: AUTH GUARD + AUTHORITATIVE TIME + CONSENTED CAPTURE ACTIVATED.");
 
 // 1. Importamos los submódulos especializados desde los nuevos archivos
 import { iniciarPanelAdmin } from "./panel-admin.js";
@@ -27,12 +27,14 @@ import { instalarLlegadaSeguraB2C } from "./b2c-arrival-integration.js";
 import { instalarNotificacionLlegadaClienteB2C } from "./b2c-client-arrival-notification.js";
 import { instalarControlAusenciaTecnicoB2C } from "./b2c-technician-no-show.js";
 import { instalarPuenteTiempoAutoritativoB2C } from "./b2c-authoritative-timer-bridge.js";
+import { instalarCapturaConsentidaTecnicoB2C } from "./b2c-consented-capture-bridge.js";
 
 /**
  * Inicializa el panel técnico legacy y agrega puentes B2C independientes:
  * - llegada robusta con GPS y fotografía sellada;
  * - evidencia de ausencia o negativa de acceso después de cinco minutos;
- * - reloj autoritativo servidor para impedir adelantar el plazo desde el teléfono.
+ * - reloj autoritativo servidor para impedir adelantar el plazo desde el teléfono;
+ * - captura asistida 3-2-1 después de consentimiento explícito.
  */
 function iniciarPanelTecnico(user) {
     const resultado = iniciarPanelTecnicoBase(user);
@@ -42,6 +44,7 @@ function iniciarPanelTecnico(user) {
         user,
         actorRole: "tecnico"
     });
+    instalarCapturaConsentidaTecnicoB2C(user);
     return resultado;
 }
 
