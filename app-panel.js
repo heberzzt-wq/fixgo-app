@@ -3,7 +3,7 @@
  * GESTIAPREMIUM 2026 - ENRUTADOR MAESTRO (CORE ROUTER)
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.18.18 (AUTH GUARD + SERVICE-SCOPED CUSTOMER EVIDENCE)
+ * Versión: 5.18.19 (AUTH GUARD + LOW-COST B2C MEDIA)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Julio 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LÓGICA.
@@ -17,7 +17,10 @@ import "./app-utils.js";
 // Corrige la carrera donde el boot recrea el loader después de validar perfil y ruta.
 import "./gestia-loader-race-guard.js";
 
-console.log(" 🚀 GESTIAPREMIUM 5.18.18: AUTH GUARD + SERVICE-SCOPED CUSTOMER EVIDENCE ACTIVATED.");
+// Comprime fotos B2C como Blob JPEG antes de Storage; Base64 queda solo para caché local.
+import "./b2c-media-economy-guard.js";
+
+console.log(" 🚀 GESTIAPREMIUM 5.18.19: AUTH GUARD + LOW-COST B2C MEDIA ACTIVATED.");
 
 // 1. Importamos los submódulos especializados desde los nuevos archivos
 import { iniciarPanelAdmin } from "./panel-admin.js";
@@ -44,7 +47,8 @@ import { instalarDisputaClienteConfinadaAlServicioB2C } from "./b2c-customer-dis
  * - video opcional de 4 segundos sin audio para incidencias reforzadas;
  * - diagnóstico inicial sellado antes de abrir el cotizador;
  * - work_before capturado al iniciar la reparación, incluso si el cliente cambia el estado;
- * - work_after y firma válida capturados únicamente durante el cierre.
+ * - work_after y firma válida capturados únicamente durante el cierre;
+ * - fotografías redimensionadas y comprimidas antes de Storage, sin Base64 persistente.
  */
 function iniciarPanelTecnico(user) {
     const resultado = iniciarPanelTecnicoBase(user);
@@ -76,7 +80,8 @@ function iniciarPanelTecnico(user) {
  * - reloj servidor convertido a la zona del servicio;
  * - disputa con GPS y foto 3-2-1 confinada al mismo folio;
  * - deduplicación global diferida al backend para no exponer historiales de otros servicios;
- * - fallback sin cámara marcado como evidencia débil para revisión.
+ * - fallback sin cámara marcado como evidencia débil para revisión;
+ * - fotografía de disputa comprimida antes de Storage, sin Base64 persistente.
  */
 function iniciarPanelCliente(user) {
     const resultado = iniciarPanelClienteBase(user);
