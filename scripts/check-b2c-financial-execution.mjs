@@ -24,6 +24,7 @@ function no(condition, message) {
 
 const appPanel = read("app-panel.js");
 const guard = read("b2c-financial-execution-guard.js");
+const paymentRedirect = read("b2c-secure-payment-endpoint-redirect.js");
 const stripeStub = read("b2c-stripe-fail-closed-stub.js");
 const bridge = read("fixgo-bridge.js");
 const legacyBackend = read("fixgo-core-backend.js");
@@ -35,6 +36,9 @@ const settlement = read("functions/b2c-service-settlement.js");
 const policyTest = read("functions/test-b2c-financial-policy.js");
 const settlementTest = read("functions/test-b2c-service-settlement.js");
 
+const redirectImportIndex = appPanel.indexOf(
+    'import "./b2c-secure-payment-endpoint-redirect.js";'
+);
 const guardImportIndex = appPanel.indexOf(
     'import "./b2c-financial-execution-guard.js";'
 );
@@ -42,6 +46,7 @@ const signatureImportIndex = appPanel.indexOf(
     'import "./b2c-signature-storage-bridge.js";'
 );
 
+ok(redirectImportIndex >= 0, "app-panel activa ruta de pago autoritativa");
 ok(guardImportIndex >= 0, "app-panel activa guardia financiero B2C");
 ok(
     signatureImportIndex >= 0 && guardImportIndex < signatureImportIndex,
@@ -50,6 +55,23 @@ ok(
 ok(
     appPanel.includes('import "./b2c-stripe-fail-closed-stub.js";'),
     "app-panel activa fallback Stripe fail-closed"
+);
+
+ok(
+    paymentRedirect.includes(
+        "https://stripewebhook-72a7uqnggq-uc.a.run.app/create-checkout-session"
+    ),
+    "redirect reconoce únicamente el endpoint Stripe histórico"
+);
+ok(
+    paymentRedirect.includes(
+        "https://us-central1-fixgo-44e4d.cloudfunctions.net/api/create-checkout-session"
+    ),
+    "redirect apunta al API autoritativo"
+);
+ok(
+    paymentRedirect.includes("if (rawUrl !== LEGACY_CHECKOUT_URL)"),
+    "redirect deja intactas las demás peticiones fetch"
 );
 
 ok(
@@ -170,6 +192,10 @@ ok(
 );
 
 ok(
+    settlement.includes('B2C_SERVICE_SETTLEMENT_VERSION = "1.0.1"'),
+    "motor de liquidación usa política reforzada 1.0.1"
+);
+ok(
     settlement.includes("FINAL_EVIDENCE_BINDING_INVALID"),
     "liquidación exige binding final de evidencia"
 );
@@ -200,8 +226,7 @@ ok(
     "pruebas cubren holds y manipulación de montos"
 );
 ok(
-    settlementTest.includes("EXISTING_LEDGER_MISMATCH") ||
-        settlementTest.includes("existingLedgerValid"),
+    settlementTest.includes("existingLedgerValid"),
     "pruebas cubren ledger determinista"
 );
 ok(
@@ -224,5 +249,5 @@ for (const file of secretScanFiles) {
 }
 
 console.log(
-    "\n🛡️ B2C FINANCIAL EXECUTION CHECK: PASS — el navegador solo cierra operación; backend autoritativo valida Stripe, evidencia, holds e idempotencia."
+    "\n🛡️ B2C FINANCIAL EXECUTION CHECK: PASS — el navegador solo cierra operación; backend autoritativo valida Stripe, evidencia, holds, ruta e idempotencia."
 );
