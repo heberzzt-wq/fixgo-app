@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "captured_at": "2026-07-30T23:07:00-05:00",
   "status": "current_paths_inventoried_candidate_not_deployed",
   "current_console_rule": {
@@ -14,17 +14,18 @@
       "purpose": "technician profile, INE, CSF, license and certificates",
       "expected_writer": "same uid",
       "expected_readers": ["same uid", "master admin"],
-      "allowed_types": ["image/jpeg", "image/png", "image/webp", "application/pdf"],
+      "allowed_types": ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf"],
       "max_bytes": 10485760
     },
     {
       "path": "solicitudes_iniciales/{uid_timestamp}.jpg",
-      "modules": ["panel-cliente.js"],
+      "modules": ["panel-cliente.js", "cliente.html"],
       "purpose": "initial customer problem photograph",
       "expected_writer": "filename uid prefix equals authenticated uid",
       "expected_readers": ["authenticated service operations"],
-      "allowed_types": ["image/jpeg", "image/png", "image/webp"],
+      "allowed_types": ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"],
       "max_bytes": 10485760,
+      "compatibility_note": "cliente.html uses accept=image/*",
       "migration_recommended": "solicitudes_iniciales/{uid}/{fileName}"
     },
     {
@@ -60,7 +61,7 @@
       "purpose": "B2B tenant incident photograph",
       "expected_writer": "authenticated user whose tenant matches edificioId",
       "expected_readers": ["same tenant", "master admin"],
-      "allowed_types": ["image/jpeg", "image/png", "image/webp"],
+      "allowed_types": ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"],
       "max_bytes": 10485760
     },
     {
