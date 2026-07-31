@@ -10,7 +10,8 @@ import {
     isMarketingRequest,
     planMarketingRequest
 } from "../gestia-core/jarvis/jarvis.marketing.engine.js";
-test("marketing V7 builds an evidence-grounded multi-channel production package", () => {
+
+test("NEXO marketing builds an evidence-grounded multi-channel production package", () => {
     const plan = planMarketingRequest(
         "crea una pagina para nuestra empresa, flyer y reel para Instagram y TikTok",
         {
@@ -32,13 +33,16 @@ test("marketing V7 builds an evidence-grounded multi-channel production package"
     assert.equal(plan.domain, "marketing");
     assert.equal(plan.editable, true);
     assert.equal(plan.status, "MARKETING_PACKAGE_READY");
-    assert.equal(plan.source, "jarvis_marketing_engine_v7");
+    assert.equal(plan.source, "nexo_natural_brief_and_optional_evidence");
+    assert.equal(plan.engine, "nexo_marketing_engine");
+    assert.equal(plan.legacyEngineAlias, "jarvis_marketing_engine");
     assert.equal(plan.approval.required, true);
     assert.equal(plan.approval.publishAllowed, false);
     assert.equal(plan.approval.deployAllowed, false);
     assert.equal(plan.trace.objectiveId, "MKT-TEST-1");
     assert.equal(plan.trace.authorityId, "HEBERTO_MENDOZA");
-    assert.equal(plan.trace.controllerId, "CODEX_SIA7");
+    assert.equal(plan.trace.controllerId, "PENINSULA_NEXO");
+    assert.equal(plan.trace.engineIdentity, "NEXO");
     assert.equal(plan.brand.name, "FixGo / GestiaPremium");
     assert.ok(plan.assets.includes("landing_page"));
     assert.ok(plan.assets.includes("flyer"));
@@ -65,7 +69,7 @@ test("marketing V7 builds an evidence-grounded multi-channel production package"
     assert.equal(plan.publicationPlan.length, 5);
 });
 
-test("marketing V7 gives verified mission sources priority over semantic web research arguments", () => {
+test("NEXO marketing gives verified mission sources priority over semantic web research arguments", () => {
     const plan = planMarketingRequest("campaña grounded", {
         brandName: "SUMM",
         audience: "Empresas",
@@ -88,24 +92,31 @@ test("marketing V7 gives verified mission sources priority over semantic web res
     assert.equal(plan.message.includes("2 fuentes"), true);
 });
 
-test("marketing V7 leaves free-text routing to the semantic model", () => {
+test("NEXO marketing leaves free-text routing to the mission planner", () => {
     const source = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.marketing.engine.js", import.meta.url), "utf8");
     assert.doesNotMatch(source, /const CHANNELS|const ASSETS|RegExp|\.test\(/);
     assert.equal(isMarketingRequest("flyer reel tiktok"), false);
     assert.equal(isMarketingRequest({ domain: "marketing" }), true);
 });
 
-test("marketing V7 fails honestly when semantic production fields are absent", () => {
-    const result = planMarketingRequest("hazme marketing", { brandName: "HMH" });
+test("NEXO marketing turns a minimal natural instruction into an editable package", () => {
+    const result = planMarketingRequest("hazme un programa de marketing", {
+        brandName: "HMH"
+    });
+
     assert.equal(result.ok, true);
-    assert.equal(result.readyForProduction, false);
-    assert.equal(result.status, "MARKETING_INPUT_REQUIRED");
-    assert.equal(result.campaign, null);
-    assert.ok(result.missingInputs.includes("audience"));
-    assert.match(result.message, /no inventó contenido/i);
+    assert.equal(result.readyForProduction, true);
+    assert.equal(result.status, "MARKETING_PACKAGE_READY");
+    assert.equal(result.grounding.status, "USER_CONTEXT_ONLY");
+    assert.equal(result.campaign !== null, true);
+    assert.ok(result.inferredInputs.includes("audience"));
+    assert.ok(result.inferredInputs.includes("offer"));
+    assert.ok(result.inferredInputs.includes("cta"));
+    assert.equal(result.campaign.assumptions.length >= 3, true);
+    assert.match(result.message, /propuestas editables/i);
 });
 
-test("company registry exposes marketing context", () => {
+test("company registry remains available during NEXO migration", () => {
     const context = resolveMarketingContext();
 
     assert.equal(COMPANY_REGISTRY_VERSION, "2.0.0-business-marketing");
