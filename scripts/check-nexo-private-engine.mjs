@@ -36,6 +36,7 @@ const uploadBridge = read("jarvis-upload-bridge.js");
 const runtimeContract = JSON.parse(read("jarvis-runtime-contract.json"));
 const supervisor = read("functions/jarvis-daily-supervisor.js");
 const missionTests = read("tests/nexo-mission-compiler.test.mjs");
+const resilienceTests = read("tests/nexo-semantic-resilience.test.mjs");
 const marketingTests = read("tests/jarvis-marketing-engine-v2.test.mjs");
 
 ok(
@@ -201,14 +202,31 @@ ok(
 );
 
 ok(
-    missionTests.includes('"page.plan", "page.compose", "page.create"') &&
-        missionTests.includes('"document.compose", "document.create"'),
-    "pruebas exigen página y Word de punta a punta"
+    missionTests.includes('"page.plan"') &&
+        missionTests.includes('"page.compose"') &&
+        missionTests.includes('"page.create"') &&
+        missionTests.includes("one page instruction reaches page.create through composition"),
+    "pruebas exigen página de punta a punta"
+);
+ok(
+    missionTests.includes('"document.compose"') &&
+        missionTests.includes('"document.create"') &&
+        missionTests.includes("Word instruction composes and creates a validated DOCX"),
+    "pruebas exigen Word de punta a punta"
 );
 ok(
     missionTests.includes("reel.args.scenes.reduce") &&
         missionTests.includes('call.args.format === "json"'),
     "pruebas exigen reel temporalmente coherente y programa descargable"
+);
+ok(
+    resilienceTests.includes("cloud page plan without page.create") &&
+        resilienceTests.includes("cloudPlanCoversLocalMission"),
+    "prueba rechaza un plan cloud de página incompleto"
+);
+ok(
+    resilienceTests.includes("complete cloud artifact contract is accepted"),
+    "prueba conserva un plan cloud completo"
 );
 ok(
     marketingTests.includes("hazme un programa de marketing") &&
