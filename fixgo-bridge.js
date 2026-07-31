@@ -1,261 +1,579 @@
 /**
  * ======================================================================================
- * FIXGO 2026 - BRIDGE DE SEGURIDAD FINANCIERA (CORE UNICORNIO)
+ * FIXGO 2026 - BRIDGE DE SEGURIDAD FINANCIERA
  * ======================================================================================
  * Archivo: fixgo-bridge.js
- * Función: Centralizar cálculos sensibles, impuestos y reglas de negocio.
- * Nivel: Blindaje Backend (Simulado en Bridge).
- * Autor: Heber (CEO & Lead Architect)
- * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.
+ * Rol: Compatibilidad web con validaciones fail-closed antes de operaciones económicas.
+ *
+ * IMPORTANTE:
+ * - El navegador nunca es autoridad final de montos o liquidaciones.
+ * - Todos los montos se recalculan desde el documento del servicio.
+ * - Cualquier incidencia, disputa o financial_hold bloquea la operación.
+ * - El backend debe repetir estas validaciones antes de hablar con Stripe.
  * ======================================================================================
  */
 
-import { 
-    db, 
-    doc, 
-    getDoc, 
-    updateDoc, 
-    addDoc, 
-    serverTimestamp, 
-    collection 
+import {
+    auth,
+    db,
+    doc,
+    getDoc,
+    serverTimestamp,
+    collection
 } from "./firebase.js";
 
-/**
- * MOTOR DE CIERRE FINANCIERO BLINDADO Y DINÁMICO
- * Aquí es donde se definen los porcentajes reales. 
- * Si el técnico intenta manipular el app-panel.js, este archivo ignora sus cambios
- * y aplica la ley de FixGo definida aquí.
- */
-export async function finalizarServicioBlindado(serviceId, tecnicoId, b64_1, b64_2) {
-    console.log("🛡️ BRIDGE: Iniciando protocolo de cierre financiero seguro...");
+import {
+    runTransaction
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    try {
-        // 1. OBTENER DATOS DE LA NUBE (La única verdad)
-        const servicioRef = doc(db, "services", serviceId);
-        const servicioSnap = await getDoc(servicioRef);
+export const FIXGO_FINANCIAL_BRIDGE_VERSION = "6.0.0";
 
-        if (!servicioSnap.exists()) {
-            throw new Error("El servicio no existe en la base de datos.");
-        }
+const CHECKOUT_ENDPOINT =
+    "https://stripewebhook-72a7uqnggq-uc.a.run.app/create-checkout-session";
 
-        const data = servicioSnap.data();
-        const costoTotal = data.costo_final || 0;
+function textoSeguro(value, maxLength = 240) {
+    return String(value ?? "")
+        .replace(/[\u0000-\u001F\u007F]/g, " ")
+        .trim()
+        .slice(0, maxLength);
+}
 
-        if (costoTotal <= 0) {
-            throw new Error("El costo del servicio no ha sido definido o es inválido.");
-        }
+function numeroFinito(value) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+}
 
-        // 2. CONSULTA DINÁMICA DEL PERFIL DEL TÉCNICO (GAMIFICACIÓN)
-        const tecnicoRef = doc(db, "users", tecnicoId);
-        const tecnicoSnap = await getDoc(tecnicoRef);
-        
-        let TASA_COMISION_DINAMICA = 0.32; // Default (Bronce / Penalizado)
-        let nivelTecnico = "BRONCE";
-
-        if (tecnicoSnap.exists()) {
-            const tecnicoData = tecnicoSnap.data();
-            // Si el motor de BI le asignó una comisión mejor (Oro 0.27 o Plata 0.30), la respetamos
-            if (tecnicoData.comision_asignada && !isNaN(tecnicoData.comision_asignada)) {
-                TASA_COMISION_DINAMICA = parseFloat(tecnicoData.comision_asignada);
-            }
-            nivelTecnico = tecnicoData.nivel || "BRONCE";
-        }
-
-        console.log(`🎖️ Nivel del Técnico: ${nivelTecnico} | Tasa Aplicada: ${(TASA_COMISION_DINAMICA * 100)}%`);
-
-        // 3. REGLAS FISCALES INALTERABLES
-        const RETENCION_IVA_TASA  = 0.08; // 8%
-        const RETENCION_ISR_TASA  = 0.10; // 10%
-
-        // 4. MATEMÁTICA MAESTRA (AHORA DINÁMICA)
-        const montoComisionFixGo = costoTotal * TASA_COMISION_DINAMICA;
-        const montoIVA           = costoTotal * RETENCION_IVA_TASA;
-        const montoISR           = costoTotal * RETENCION_ISR_TASA;
-        
-        // El pago neto real que se le depositará al técnico
-        const pagoNetoTecnico = costoTotal - (montoComisionFixGo + montoIVA + montoISR);
-
-        console.log(`📊 Desglose: Total $${costoTotal} | FixGo: $${montoComisionFixGo.toFixed(2)} | Neto: $${pagoNetoTecnico.toFixed(2)}`);
-
-        // 5. ACTUALIZACIÓN DE SERVICIO (ESTADO FINAL)
-        await updateDoc(servicioRef, {
-            estado: "finalizado",
-            evidencia: { 
-                antes: b64_1, 
-                despues: b64_2 
-            },
-            finalizado_at: serverTimestamp(),
-            protocolo_seguridad: "V5-BLINDADO-DINAMICO",
-            desglose_fiscal: {
-                subtotal: (costoTotal / 1.16).toFixed(2),
-                iva_cliente: (costoTotal - (costoTotal / 1.16)).toFixed(2),
-                total: costoTotal,
-                tasa_comision_aplicada: TASA_COMISION_DINAMICA // Guardamos evidencia para auditoría
-            }
-        });
-
-        // 6. REGISTRO CONTABLE ATÓMICO (TRANSACCIONES)
-        // Este registro es el que lee tu Panel de Admin para las gráficas de dinero.
-        await addDoc(collection(db, "transacciones"), {
-            servicio_id: serviceId,
-            tecnico_id: tecnicoId,
-            monto_total: costoTotal,
-            comision_fixgo: montoComisionFixGo,
-            retencion_iva: montoIVA,
-            retencion_isr: montoISR,
-            pago_tecnico: pagoNetoTecnico,
-            fecha: serverTimestamp(),
-            tipo: "ingreso_servicio",
-            metodo: "AUTOMÁTICO_BRIDGE_DINAMICO"
-        });
-
-        // 7. WATCHDOG DE FACTURACIÓN DUAL (ÓRDENES PARA EL SAT)
-        console.log("🧾 BRIDGE: Generando órdenes de facturación encoladas...");
-        await addDoc(collection(db, "ordenes_facturacion"), {
-            servicio_id: serviceId,
-            tecnico_id: tecnicoId,
-            fecha_orden: serverTimestamp(),
-            // FACTURA 1: Técnico al Cliente (100% del costo)
-            factura_cliente: {
-                monto: costoTotal,
-                // Si el cliente no dejó datos, se va a Público General por defecto
-                receptor: data.datos_facturacion || { rfc: "XAXX010101000", razon_social: "PUBLICO GENERAL", cp: "77500", regimen: "616" },
-                estado: "pendiente_timbrado",
-                requerida_por_cliente: data.factura_requerida === true
-            },
-            // FACTURA 2: Gestia al Técnico (Comisión Variable Dinámica)
-            factura_comision: {
-                monto: montoComisionFixGo,
-                receptor_tecnico_id: tecnicoId, 
-                estado: "pendiente_timbrado",
-                tasa_aplicada: TASA_COMISION_DINAMICA
-            }
-        });
-
-        return { success: true, neto: pagoNetoTecnico };
-
-    } catch (error) {
-        console.error("🚨 ERROR CRÍTICO EN BRIDGE:", error);
+function numeroPositivo(value, code = "AMOUNT_INVALID") {
+    const parsed = numeroFinito(value);
+    if (parsed === null || parsed <= 0) {
+        const error = new Error(code);
+        error.code = code;
         throw error;
+    }
+    return Math.round(parsed * 100) / 100;
+}
+
+function importesIguales(left, right) {
+    return Math.abs(Number(left) - Number(right)) <= 0.01;
+}
+
+function revisionCerrada(serviceData, key) {
+    const status = textoSeguro(
+        serviceData?.revision_administrativa?.[key]?.status,
+        80
+    ).toLowerCase();
+    return status === "resolved" || status === "dismissed";
+}
+
+function razonesBloqueoFinanciero(serviceData = {}) {
+    const reasons = [];
+
+    if (serviceData.b2c_financial_hold?.active === true) {
+        reasons.push("financial_hold_active");
+    }
+    if (
+        serviceData.llegada_revision_requerida === true &&
+        !revisionCerrada(serviceData, "arrival")
+    ) {
+        reasons.push("arrival_review_pending");
+    }
+    if (
+        serviceData.ausencia_cliente_revision_requerida === true &&
+        !revisionCerrada(serviceData, "no_show")
+    ) {
+        reasons.push("no_show_review_pending");
+    }
+    if (
+        serviceData.diagnostico_revision_requerida === true &&
+        !revisionCerrada(serviceData, "diagnostic")
+    ) {
+        reasons.push("diagnostic_review_pending");
+    }
+    if (
+        serviceData.trabajo_revision_requerida === true &&
+        !revisionCerrada(serviceData, "work")
+    ) {
+        reasons.push("work_review_pending");
+    }
+    if (serviceData.llegada_resolucion_automatica_bloqueada === true) {
+        reasons.push("automatic_resolution_blocked");
+    }
+    if (serviceData.llegada_cliente_respuesta === "ubicacion_disputada") {
+        reasons.push("customer_arrival_dispute");
+    }
+
+    return [...new Set(reasons)];
+}
+
+function exigirSinBloqueoFinanciero(serviceData) {
+    const reasons = razonesBloqueoFinanciero(serviceData);
+    if (reasons.length === 0) return;
+
+    const error = new Error("FINANCIAL_HOLD_OR_REVIEW_PENDING");
+    error.code = "FINANCIAL_HOLD_OR_REVIEW_PENDING";
+    error.reasons = reasons;
+    throw error;
+}
+
+function tecnicoAsignado(serviceData = {}) {
+    return textoSeguro(
+        serviceData.tecnico_id ||
+        serviceData.technician_id ||
+        serviceData.pro_id,
+        160
+    );
+}
+
+function clientePropietario(serviceData = {}) {
+    return textoSeguro(
+        serviceData.cliente_id || serviceData.customer_id,
+        160
+    );
+}
+
+async function obtenerServicio(serviceId) {
+    const safeServiceId = textoSeguro(serviceId, 160);
+    if (!safeServiceId) throw new Error("SERVICE_ID_MISSING");
+
+    const snapshot = await getDoc(doc(db, "services", safeServiceId));
+    if (!snapshot.exists()) throw new Error("SERVICE_NOT_FOUND");
+
+    return {
+        serviceId: safeServiceId,
+        data: snapshot.data()
+    };
+}
+
+async function tokenAutenticado() {
+    const user = auth.currentUser;
+    if (!user) throw new Error("AUTH_REQUIRED");
+    return user.getIdToken(false);
+}
+
+async function crearCheckoutSeguro(payload) {
+    const token = await tokenAutenticado();
+    const response = await fetch(CHECKOUT_ENDPOINT, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+    });
+
+    let body = null;
+    try {
+        body = await response.json();
+    } catch (_) {
+        body = null;
+    }
+
+    if (!response.ok) {
+        const error = new Error(
+            textoSeguro(body?.error || body?.message, 240) ||
+            `CHECKOUT_HTTP_${response.status}`
+        );
+        error.code = "CHECKOUT_REQUEST_REJECTED";
+        error.httpStatus = response.status;
+        throw error;
+    }
+
+    const url = textoSeguro(body?.url, 2048);
+    if (!url) throw new Error("CHECKOUT_URL_MISSING");
+
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:") {
+        throw new Error("CHECKOUT_URL_NOT_HTTPS");
+    }
+
+    return parsed.href;
+}
+
+function evidenciaURLValida(value) {
+    const raw = textoSeguro(value, 2048);
+    if (!raw || raw.startsWith("data:")) return false;
+    try {
+        return new URL(raw).protocol === "https:";
+    } catch (_) {
+        return false;
     }
 }
 
 /**
- * MOTOR DE RETIROS SEGUROS (ATÓMICO)
- * Garantiza que si se marca como pagado, se descuenta el dinero SIEMPRE.
+ * Compatibilidad de cierre financiero. El cierre principal del técnico sigue protegido
+ * por b2c-financial-execution-guard.js; esta función también valida de forma independiente.
  */
-export async function ejecutarRetiroSeguro(retiroId, tecnicoId, monto) {
-    console.log("🛡️ BRIDGE: Iniciando protocolo de retiro seguro para:", tecnicoId);
+export async function finalizarServicioBlindado(
+    serviceId,
+    tecnicoId,
+    evidenciaAntesUrl,
+    evidenciaDespuesUrl
+) {
+    const safeServiceId = textoSeguro(serviceId, 160);
+    const safeTechnicianId = textoSeguro(tecnicoId, 160);
 
-    try {
-        const retiroRef = doc(db, "retiros", retiroId);
-        const transaccionRef = collection(db, "transacciones");
+    if (!safeServiceId || !safeTechnicianId) {
+        throw new Error("FINANCIAL_CONTEXT_MISSING");
+    }
+    if (
+        !evidenciaURLValida(evidenciaAntesUrl) ||
+        !evidenciaURLValida(evidenciaDespuesUrl)
+    ) {
+        throw new Error("HTTPS_EVIDENCE_REQUIRED");
+    }
 
-        // 1. VALIDACIÓN DE ESTADO (Anti-Spam / Doble clic)
-        const retiroSnap = await getDoc(retiroRef);
-        if (!retiroSnap.exists()) throw new Error("Registro de retiro no encontrado.");
-        
-        if (retiroSnap.data().estado !== "pendiente") {
-            throw new Error("Este retiro ya fue procesado o cancelado previamente.");
+    const serviceRef = doc(db, "services", safeServiceId);
+    const technicianRef = doc(db, "users", safeTechnicianId);
+    const bindingRef = doc(
+        db,
+        "services",
+        safeServiceId,
+        "work_evidence_bindings",
+        "current"
+    );
+    const settlementRef = doc(
+        db,
+        "transacciones",
+        `settlement_${safeServiceId}`
+    );
+    const invoiceRef = doc(
+        db,
+        "ordenes_facturacion",
+        `settlement_${safeServiceId}`
+    );
+
+    return runTransaction(db, async (transaction) => {
+        const [serviceSnapshot, technicianSnapshot, bindingSnapshot, settlementSnapshot] =
+            await Promise.all([
+                transaction.get(serviceRef),
+                transaction.get(technicianRef),
+                transaction.get(bindingRef),
+                transaction.get(settlementRef)
+            ]);
+
+        if (!serviceSnapshot.exists()) throw new Error("SERVICE_NOT_FOUND");
+
+        if (settlementSnapshot.exists()) {
+            return {
+                success: true,
+                idempotent: true,
+                neto: Number(settlementSnapshot.data().pago_tecnico || 0)
+            };
         }
 
-        // 2. ACTUALIZACIÓN DE ESTADO DE SOLICITUD
-        await updateDoc(retiroRef, {
+        const serviceData = serviceSnapshot.data();
+        if (tecnicoAsignado(serviceData) !== safeTechnicianId) {
+            throw new Error("TECHNICIAN_SERVICE_MISMATCH");
+        }
+        if (serviceData.estado !== "trabajando") {
+            throw new Error("INVALID_FINANCIAL_SERVICE_STATE");
+        }
+
+        exigirSinBloqueoFinanciero(serviceData);
+
+        const binding = bindingSnapshot.exists() ? bindingSnapshot.data() : null;
+        if (
+            !binding ||
+            textoSeguro(binding.service_id, 160) !== safeServiceId ||
+            textoSeguro(binding.technician_id, 160) !== safeTechnicianId ||
+            !binding.before?.sha256 ||
+            !binding.after?.sha256 ||
+            binding.signature?.present !== true ||
+            binding.signature?.base64_persisted !== false
+        ) {
+            throw new Error("FINAL_EVIDENCE_BINDING_INVALID");
+        }
+
+        const costoTotal = numeroPositivo(
+            serviceData.costo_final,
+            "SERVICE_TOTAL_INVALID"
+        );
+
+        let commissionRate = 0.32;
+        let technicianLevel = "BRONCE";
+        if (technicianSnapshot.exists()) {
+            const technicianData = technicianSnapshot.data();
+            const candidateRate = numeroFinito(technicianData.comision_asignada);
+            if (candidateRate !== null) commissionRate = candidateRate;
+            technicianLevel = textoSeguro(technicianData.nivel, 40) || "BRONCE";
+        }
+
+        if (commissionRate < 0 || commissionRate > 1) {
+            throw new Error("COMMISSION_RATE_INVALID");
+        }
+
+        const commission = costoTotal * commissionRate;
+        const vatWithholding = costoTotal * 0.08;
+        const incomeTaxWithholding = costoTotal * 0.10;
+        const technicianNet =
+            costoTotal - commission - vatWithholding - incomeTaxWithholding;
+
+        if (technicianNet < 0) {
+            throw new Error("NEGATIVE_TECHNICIAN_SETTLEMENT");
+        }
+
+        transaction.update(serviceRef, {
+            estado: "finalizado",
+            finalizado_at: serverTimestamp(),
+            financial_settlement_id: settlementRef.id,
+            financial_settlement_version: FIXGO_FINANCIAL_BRIDGE_VERSION,
+            evidencia: {
+                antes: evidenciaAntesUrl,
+                despues: evidenciaDespuesUrl,
+                binding_document: bindingRef.path
+            },
+            desglose_fiscal: {
+                subtotal: Number((costoTotal / 1.16).toFixed(2)),
+                iva_cliente: Number(
+                    (costoTotal - costoTotal / 1.16).toFixed(2)
+                ),
+                total: costoTotal,
+                tasa_comision_aplicada: commissionRate
+            }
+        });
+
+        transaction.set(settlementRef, {
+            servicio_id: safeServiceId,
+            tecnico_id: safeTechnicianId,
+            monto_total: costoTotal,
+            comision_fixgo: commission,
+            retencion_iva: vatWithholding,
+            retencion_isr: incomeTaxWithholding,
+            pago_tecnico: technicianNet,
+            fecha: serverTimestamp(),
+            tipo: "ingreso_servicio",
+            metodo: "BRIDGE_IDEMPOTENT_V6",
+            idempotency_key: settlementRef.id,
+            technician_level: technicianLevel,
+            engine_version: FIXGO_FINANCIAL_BRIDGE_VERSION
+        });
+
+        transaction.set(invoiceRef, {
+            servicio_id: safeServiceId,
+            tecnico_id: safeTechnicianId,
+            fecha_orden: serverTimestamp(),
+            idempotency_key: invoiceRef.id,
+            factura_cliente: {
+                monto: costoTotal,
+                receptor: serviceData.datos_facturacion || {
+                    rfc: "XAXX010101000",
+                    razon_social: "PUBLICO GENERAL",
+                    cp: "77500",
+                    regimen: "616"
+                },
+                estado: "pendiente_timbrado",
+                requerida_por_cliente: serviceData.factura_requerida === true
+            },
+            factura_comision: {
+                monto: commission,
+                receptor_tecnico_id: safeTechnicianId,
+                estado: "pendiente_timbrado",
+                tasa_aplicada: commissionRate
+            },
+            engine_version: FIXGO_FINANCIAL_BRIDGE_VERSION
+        });
+
+        return {
+            success: true,
+            idempotent: false,
+            neto: technicianNet
+        };
+    });
+}
+
+/**
+ * Retiro idempotente: usa técnico y monto almacenados, no confía en el argumento del UI.
+ */
+export async function ejecutarRetiroSeguro(retiroId, tecnicoId, montoSolicitado) {
+    const safeWithdrawalId = textoSeguro(retiroId, 160);
+    const safeTechnicianId = textoSeguro(tecnicoId, 160);
+    if (!safeWithdrawalId || !safeTechnicianId) {
+        throw new Error("WITHDRAWAL_CONTEXT_MISSING");
+    }
+
+    const withdrawalRef = doc(db, "retiros", safeWithdrawalId);
+    const ledgerRef = doc(
+        db,
+        "transacciones",
+        `withdrawal_${safeWithdrawalId}`
+    );
+
+    return runTransaction(db, async (transaction) => {
+        const [withdrawalSnapshot, ledgerSnapshot] = await Promise.all([
+            transaction.get(withdrawalRef),
+            transaction.get(ledgerRef)
+        ]);
+
+        if (!withdrawalSnapshot.exists()) {
+            throw new Error("WITHDRAWAL_NOT_FOUND");
+        }
+
+        if (ledgerSnapshot.exists()) {
+            return { success: true, idempotent: true };
+        }
+
+        const withdrawalData = withdrawalSnapshot.data();
+        if (withdrawalData.estado !== "pendiente") {
+            throw new Error("WITHDRAWAL_ALREADY_PROCESSED");
+        }
+
+        const storedTechnicianId = textoSeguro(
+            withdrawalData.tecnico_id || withdrawalData.technician_id,
+            160
+        );
+        if (storedTechnicianId !== safeTechnicianId) {
+            throw new Error("WITHDRAWAL_TECHNICIAN_MISMATCH");
+        }
+
+        const storedAmount = numeroPositivo(
+            withdrawalData.monto,
+            "WITHDRAWAL_AMOUNT_INVALID"
+        );
+        if (
+            numeroFinito(montoSolicitado) !== null &&
+            !importesIguales(storedAmount, montoSolicitado)
+        ) {
+            throw new Error("WITHDRAWAL_AMOUNT_MISMATCH");
+        }
+
+        transaction.update(withdrawalRef, {
             estado: "aprobado",
             fecha_aprobacion: serverTimestamp(),
             metodo_liquidacion: "SPEI_MANUAL_VERIFICADO",
-            audit_log: "APROBADO_VIA_BRIDGE_V5"
+            audit_log: "APROBADO_VIA_BRIDGE_V6",
+            ledger_transaction_id: ledgerRef.id
         });
 
-        // 3. GENERACIÓN DE TRANSACCIÓN NEGATIVA (DESCUENTO DE WALLET)
-        await addDoc(transaccionRef, {
-            servicio_id: "RET-" + retiroId.substring(0, 5).toUpperCase(),
-            tecnico_id: tecnicoId,
+        transaction.set(ledgerRef, {
+            servicio_id: `RET-${safeWithdrawalId.slice(0, 5).toUpperCase()}`,
+            retiro_id: safeWithdrawalId,
+            tecnico_id: safeTechnicianId,
             monto_total: 0,
             comision_fixgo: 0,
             retencion_iva: 0,
             retencion_isr: 0,
-            pago_tecnico: -Math.abs(monto), 
+            pago_tecnico: -Math.abs(storedAmount),
             fecha: serverTimestamp(),
             tipo: "retiro_fondos",
-            nota: "Liquidación enviada vía SPEI"
+            nota: "Liquidación enviada vía SPEI",
+            idempotency_key: ledgerRef.id,
+            engine_version: FIXGO_FINANCIAL_BRIDGE_VERSION
         });
 
-        console.log("✅ BRIDGE: Retiro de $" + monto + " procesado correctamente.");
-        return { success: true };
+        return { success: true, idempotent: false };
+    });
+}
 
+/**
+ * Pago inicial. El monto debe existir en el servicio y solo admite las políticas vigentes.
+ */
+export async function procesarPagoStripe(serviceId, payloadTicket = {}) {
+    try {
+        const user = auth.currentUser;
+        if (!user) throw new Error("AUTH_REQUIRED");
+
+        const { serviceId: safeServiceId, data } = await obtenerServicio(serviceId);
+        if (clientePropietario(data) !== user.uid) {
+            throw new Error("CUSTOMER_SERVICE_MISMATCH");
+        }
+        if (![
+            "iniciado_stripe",
+            "cotizando"
+        ].includes(textoSeguro(data.estado, 80))) {
+            throw new Error("INVALID_INITIAL_PAYMENT_STATE");
+        }
+
+        const amount = numeroPositivo(
+            data.retencion_inicial ?? payloadTicket.retencion_inicial,
+            "INITIAL_AUTHORIZATION_AMOUNT_INVALID"
+        );
+        if (![350, 550].some((allowed) => importesIguales(amount, allowed))) {
+            throw new Error("INITIAL_AUTHORIZATION_POLICY_MISMATCH");
+        }
+
+        const checkoutUrl = await crearCheckoutSeguro({
+            serviceId: safeServiceId,
+            descripcion: textoSeguro(
+                payloadTicket.descripcion || data.descripcion,
+                180
+            ) || "Servicio GestiaPremium",
+            monto: amount,
+            tipo_pago: "garantia_inicial",
+            clientType: textoSeguro(data.client_type, 40) || "ON_DEMAND",
+            financialBridgeVersion: FIXGO_FINANCIAL_BRIDGE_VERSION
+        });
+
+        window.location.assign(checkoutUrl);
     } catch (error) {
-        console.error("🚨 ERROR EN RETIRO BRIDGE:", error);
+        console.error("[INITIAL_STRIPE_CHECKOUT_BLOCKED]", error);
+        alert(
+            "No fue posible iniciar el pago seguro. El folio, el monto o la sesión no superaron la validación."
+        );
         throw error;
     }
 }
 
-// 🔥 INYECCIÓN: MOTOR DE PAGOS STRIPE (ANTI-DUPLICADOS) - PAGO INICIAL
-export async function procesarPagoStripe(serviceId, payloadTicket) {
-    console.log("💳 BRIDGE: Iniciando conexión con Stripe para el ticket (Garantía):", serviceId);
-
+/**
+ * Saldo final. Se recalcula desde costo_final - monto_pagado/retención.
+ */
+export async function procesarPagoSaldoStripe(serviceId, saldoInformado = null) {
     try {
-        const response = await fetch("https://stripewebhook-72a7uqnggq-uc.a.run.app/create-checkout-session", {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                serviceId: serviceId, 
-                descripcion: payloadTicket.descripcion || "Servicio GestiaPremium",
-                monto: 550, // Retención de garantía
-                tipo_pago: "garantia_inicial" 
-            })
-        });
+        const user = auth.currentUser;
+        if (!user) throw new Error("AUTH_REQUIRED");
 
-        const session = await response.json();
-
-        if (session.url) {
-            window.location.href = session.url;
-        } else {
-            throw new Error("No se recibió URL de Stripe");
+        const { serviceId: safeServiceId, data } = await obtenerServicio(serviceId);
+        if (clientePropietario(data) !== user.uid) {
+            throw new Error("CUSTOMER_SERVICE_MISMATCH");
         }
 
+        exigirSinBloqueoFinanciero(data);
+
+        if (![
+            "cotizando",
+            "procesando_saldo"
+        ].includes(textoSeguro(data.estado, 80))) {
+            throw new Error("INVALID_BALANCE_PAYMENT_STATE");
+        }
+
+        const total = numeroPositivo(
+            data.costo_final,
+            "SERVICE_TOTAL_INVALID"
+        );
+        const credited = Math.max(
+            0,
+            numeroFinito(data.monto_pagado) ??
+            numeroFinito(data.retencion_inicial) ??
+            0
+        );
+        const due = Math.round(Math.max(0, total - credited) * 100) / 100;
+
+        if (due <= 0) throw new Error("NO_BALANCE_DUE");
+        if (
+            numeroFinito(saldoInformado) !== null &&
+            !importesIguales(due, saldoInformado)
+        ) {
+            throw new Error("CLIENT_BALANCE_AMOUNT_MISMATCH");
+        }
+
+        const checkoutUrl = await crearCheckoutSeguro({
+            serviceId: safeServiceId,
+            descripcion: "Liquidación de saldo - Servicio GestiaPremium",
+            monto: due,
+            tipo_pago: "liquidacion_saldo",
+            clientType: textoSeguro(data.client_type, 40) || "ON_DEMAND",
+            financialBridgeVersion: FIXGO_FINANCIAL_BRIDGE_VERSION
+        });
+
+        window.location.assign(checkoutUrl);
     } catch (error) {
-        console.error("🚨 ERROR EN PASARELA STRIPE:", error);
-        alert("Error al conectar con la pasarela segura. Intenta de nuevo.");
+        console.error("[BALANCE_STRIPE_CHECKOUT_BLOCKED]", error);
+        alert(
+            "El pago de saldo quedó bloqueado. Se conservará el estado del servicio para revisión y no se enviará un monto no validado a Stripe."
+        );
+        throw error;
     }
 }
 
-// 🔥 INYECCIÓN: MOTOR DE PAGOS STRIPE - PAGO DE SALDO FINAL
-export async function procesarPagoSaldoStripe(serviceId, saldoPendiente) {
-    console.log("💳 BRIDGE: Iniciando conexión con Stripe para cobrar SALDO:", serviceId, saldoPendiente);
-
-    try {
-        const response = await fetch("https://stripewebhook-72a7uqnggq-uc.a.run.app/create-checkout-session", {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                serviceId: serviceId, 
-                descripcion: "Liquidación de Saldo - Servicio GestiaPremium",
-                monto: saldoPendiente, 
-                tipo_pago: "liquidacion_saldo" 
-            })
-        });
-
-        const session = await response.json();
-
-        if (session.url) {
-            window.location.href = session.url;
-        } else {
-            throw new Error("No se recibió URL de Stripe para el saldo");
-        }
-
-    } catch (error) {
-        console.error("🚨 ERROR EN PASARELA STRIPE (SALDO):", error);
-        alert("Error al conectar con la pasarela segura para liquidar el saldo. Intenta de nuevo.");
-        await updateDoc(doc(db, "services", serviceId), { estado: "cotizando" });
-    }
-}
-
-// Exponemos las funciones al entorno global
 if (typeof window !== "undefined") {
     window.procesarPagoStripe = procesarPagoStripe;
     window.procesarPagoSaldoStripe = procesarPagoSaldoStripe;
