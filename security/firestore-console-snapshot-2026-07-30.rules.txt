@@ -1,0 +1,399 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+   // ======================================================
+    // 👑 FUNCIONES MAESTRAS (NÚCLEO DE SEGURIDAD)
+    // ======================================================
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // MODO DIOS: Reforzado con UID para asegurar soberanía de Heberto
+    function isAdmin() {
+      return isAuth() && (
+        request.auth.token.email == 'hebertoh-m@hotmail.com' ||
+        request.auth.uid == 'nNhwy3Mx4pTvc8TZVh1tyTMFwhC2'
+      );
+    }
+
+    // Lectura segura del documento de usuario
+    function userDoc() {
+      return isAuth() 
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)) 
+        : null;
+    }
+
+    // Datos del usuario con protección contra NULL (Cura el Loop de Login)
+    function userData() {
+      let doc = userDoc();
+      return doc != null && doc.data != null ? doc.data : null;
+    }
+
+    // Getters específicos (Evitan errores de 'null.field')
+    function userRole() {
+      let data = userData();
+      return data != null ? data.rol : null;
+    }
+
+    function userTipo() {
+      let data = userData();
+      return data != null ? data.tipo_cuenta : null;
+    }
+
+    function userStatus() {
+      let data = userData();
+      return data != null ? data.status : null;
+    }
+
+    function isTecnico() {
+      let role = userRole();
+      return role != null && 
+             role in ['tecnico', 'tecnico_gp', 'tecnico_interno'] && 
+             userStatus() == 'activo';
+    }
+
+    // 🔒 REGLA 2: EL CANDADO JONATHAN (Placas)
+    function tienePaseCaseta() {
+      let data = userData();
+      return data != null && 
+             data.tecnico_placas != null && 
+             data.tecnico_placas != "" && 
+             data.tecnico_placas != "000-000";
+    }
+
+    // 🧠 MOTOR NO-CODE: Helper local para normalizar acceso (By-pass de campos)
+    function userTenant() {
+      let data = userData();
+      return data != null ? (data.edificioId != null ? data.edificioId : data.tenantId) : null;
+    }
+
+    // ======================================================
+    // 🔑 ACCESO GLOBAL ADMIN (Blindaje Heberto)
+    // ======================================================
+    match /{document=**} {
+      // Solo tú tienes permiso de ver TODO el mapa de la base de datos
+      allow read, write: if request.auth != null && request.auth.uid == 'nNhwy3Mx4pTvc8TZVh1tyTMFwhC2';
+    }
+
+    // ======================================================
+    // 🔑 VALIDADOR DE LLAVES MAESTRAS (B2B KEYS)
+    // ======================================================
+    match /b2b_keys/{keyId} {
+      allow read: if true; 
+      allow write: if isAdmin();
+    }
+
+    // ======================================================
+    // 👤 GESTIÓN DE USUARIOS (SSoT) - AISLAMIENTO B2B
+    // ======================================================
+    match /users/{userId} {
+      allow read: if isAuth();
+
+      allow create: if isAuth() && (
+          request.auth.uid == userId || 
+          isAdmin() ||
+          (userRole() == "admin_b2b" && request.resource.data.edificioId == userData().edificioId)
+      );
+
+      allow update: if isAuth() && (
+          request.auth.uid == userId || 
+          isAdmin() ||
+          (userRole() == "admin_b2b" && resource.data.edificioId == userData().edificioId)
+      );
+    }
+
+    // ======================================================
+    // ♻️ COLECCIONES ESPEJO (MIGRACIÓN LEGACY)
+    // ======================================================
+    match /tecnicos/{userId} {
+      allow read, write: if isAuth() && request.auth.uid == userId;
+    }
+
+    match /clientes/{userId} {
+      allow read, write: if isAuth() && request.auth.uid == userId;
+    }
+
+    // ======================================================
+    // 🛠️ ECOSISTEMA B2C (ON-DEMAND)
+    // ======================================================
+    match /services/{serviceId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth() && (
+        isAdmin()
+        ||
+        resource.data.cliente_id == request.auth.uid
+        ||
+        resource.data.tecnico_id == request.auth.uid
+        ||
+        (
+          resource.data.estado == "pendiente" &&
+          !("tecnico_id" in resource.data) &&
+          request.resource.data.tecnico_id == request.auth.uid &&
+          request.resource.data.estado == "asignado"
+        )
+      );
+    }
+
+    // ======================================================
+    // 📢 SISTEMA DE NOTIFICACIONES (PUSH ENGINE)
+    // ======================================================
+    match /notificaciones_pendientes/{notiId} {
+      // Permitimos crear si es Admin Maestro o personal autorizado (Megáfono activo para Operación B2B)
+      // Incluye: Jorge (Admin/CEO), Jessica (Asistente), Mari Jo (Recepción), Luis y Laura (Seguridad)
+      allow create: if isAuth() && (
+        isAdmin() || 
+        userRole() in [
+          'admin_b2b', 
+          'ceo', 
+          'admin', 
+          'asistente_admin', 
+          'recepcion', 
+          'seguridad', 
+          'seguridad_interna',
+          'seguridad_24_7'
+        ]
+      );
+      
+      // El acceso de lectura/borrado general queda reservado para el Admin o el Backend
+      allow read: if isAuth();
+      allow update, delete: if isAdmin();
+    }
+    
+    // ======================================================
+    // 📢 COMUNICADOS Y AVISOS OFICIALES (MEGÁFONO B2B)
+    // ======================================================
+    match /anuncios_b2b/{anuncioId} {
+      // Cualquier usuario logueado en el edificio puede leer los anuncios
+      allow read: if isAuth() && (
+        isAdmin() || 
+        userData().edificioId == resource.data.edificioId ||
+        userRole() in ['admin_b2b', 'ceo', 'admin', 'asistente_admin', 'recepcion', 'seguridad', 'seguridad_interna', 'seguridad_24_7']
+      );
+      
+      // Solo el equipo operativo del edificio puede crear anuncios
+      allow create: if isAuth() && (
+        isAdmin() || 
+        userRole() in ['admin_b2b', 'ceo', 'admin', 'asistente_admin', 'recepcion', 'seguridad', 'seguridad_interna', 'seguridad_24_7']
+      );
+      
+      // Edición y borrado reservados para administración y creadores (opcional, para mantener el blindaje)
+      allow update, delete: if isAdmin() || (isAuth() && request.auth.uid == resource.data.autor_uid);
+    }
+
+    // Reglas para Alertas de Seguridad NOC
+    match /alertas_seguridad/{document} {
+      allow read, write: if isAuth();
+    }
+    
+    // ======================================================
+    // 🚀 MOTOR UXMAL 39 (B2B)
+    // ======================================================
+    match /servicios_b2b/{servicioId} {
+      allow read: if isAuth() && (
+        isAdmin() || 
+        isTecnico() || 
+        userRole() == 'admin_b2b' || 
+        userTipo() == 'B2B'
+      );
+      
+      allow create: if isAuth() && (
+        isAdmin() || 
+        isTecnico() || 
+        userTipo() == 'B2B'
+      );
+
+      allow update: if isAuth() && (
+        isAdmin() || 
+        (isTecnico() && 
+         userData().edificioId == resource.data.edificioId && 
+         tienePaseCaseta()) ||
+        (userTipo() == 'B2B' && 
+         resource.data.edificioId == userData().edificioId)
+      );
+    }
+
+    // ======================================================
+    // 📋 RUTINAS PREVENTIVAS Y BITÁCORAS
+    // ======================================================
+    match /config_rutinas/{edificioId} {
+      allow read: if isAuth() && (isTecnico() || isAdmin() || userTipo() == 'B2B');
+      allow write: if isAdmin() || (isAuth() && userTipo() == 'B2B');
+    }
+
+    match /log_rutinas/{logId} {
+      allow read: if isAuth() && (isTecnico() || isAdmin() || userTipo() == 'B2B');
+      allow create: if isAuth() && 
+                    isTecnico() && 
+                    request.resource.data.tecnicoId == request.auth.uid && 
+                    tienePaseCaseta();
+    }
+
+    match /bitacora_edificios/{bitId} {
+      allow read, create: if isAuth() && 
+                          (isTecnico() || isAdmin() || userTipo() == 'B2B');
+    }
+
+    // ======================================================
+    // 💰 FINANZAS Y RASTREO
+    // ======================================================
+    match /transacciones/{txId} {
+      allow read: if isAuth() && 
+                  (resource.data.tecnico_id == request.auth.uid || isAdmin());
+      allow create: if isAuth();
+    }
+
+    match /retiros/{retiroId} {
+      allow read: if isAuth() && 
+                  (resource.data.tecnico_id == request.auth.uid || isAdmin());
+      allow create: if isAuth() && 
+                    request.resource.data.tecnico_id == request.auth.uid;
+    }
+
+    match /rastreo/{userId} {
+      allow read: if isAuth();
+      allow write: if isAuth() && 
+                   (request.auth.uid == userId || isAdmin());
+    }
+
+    // ======================================================
+    // 🏢 ESTRUCTURA EMPRESARIAL B2B
+    // ======================================================
+    match /empresas_b2b/{empresaId} {
+      allow read: if isAuth();
+
+      match /areas/{areaId} {
+        allow read, write: if isAuth();
+      }
+
+      // 🛠️ MÓDULO ACTUALIZADO: ACTIVOS (Catálogo Técnico Enriquecido)
+      match /activos/{activoId} {
+        allow read: if isAuth();
+        
+        // Escritura protegida para Administradores, validando la estructura del JSON nuevo
+        allow create, update: if isAuth() && (
+            isAdmin() || 
+            (userRole() == 'admin_b2b' && userData().edificioId == empresaId)
+        )
+        // Validar que si mandan especificaciones técnicas, sea un objeto y los números sean números
+        && (!('especificaciones_tecnicas' in request.resource.data) || request.resource.data.especificaciones_tecnicas is map)
+        && (!('especificaciones_tecnicas' in request.resource.data) || !('potencia_hp' in request.resource.data.especificaciones_tecnicas) || request.resource.data.especificaciones_tecnicas.potencia_hp is number);
+
+        match /bitacora/{bitId} {
+          allow create, read: if isAuth();
+        }
+      }
+
+      // 🛠️ NUEVO MÓDULO: MANTENIMIENTO (Logística Relacional Uxmal 39)
+      match /mantenimiento/{tareaId} {
+        allow read: if isAuth(); 
+        
+        // Creación reservada para Admins. Blindamos que no metan basura técnica aquí.
+        allow create: if isAuth() && (
+            isAdmin() || 
+            (userRole() == 'admin_b2b' && userData().edificioId == empresaId)
+        )
+        && request.resource.data.keys().hasAll(['id_tarea', 'id_activo', 'sistema', 'frecuencia', 'estado'])
+        && request.resource.data.estado in ['pendiente', 'en_proceso', 'completado']
+        && !('potencia_hp' in request.resource.data)
+        && !('voltaje' in request.resource.data);
+                      
+        // Actualización: Aquí entra el técnico. SOLO puede cambiar si es su edificio y tiene pase.
+        allow update: if isAuth() && (
+            isAdmin() || 
+            (userRole() == 'admin_b2b' && userData().edificioId == empresaId) || 
+            (isTecnico() && userData().edificioId == empresaId && tienePaseCaseta())
+        )
+        // Solo permitimos los estados válidos de la tarea
+        && (!('estado' in request.resource.data) || request.resource.data.estado in ['pendiente', 'en_proceso', 'completado'])
+        && !('potencia_hp' in request.resource.data);
+      }
+    }
+
+    // ======================================================
+    // 🧠 MOTOR NO-CODE: GESTIA TERMINAL (IA BUILDER)
+    // ======================================================
+
+    // ⚠️ IMPORTANTE:
+    // - NO redefinimos userData()
+    // - NO redefinimos userRole()
+    // - Solo usamos las funciones globales ya existentes
+
+    // ======================================================
+    // 1. MÓDULOS (CONFIGURACIÓN)
+    // ======================================================
+    match /gestia_system_modules/{moduloId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // ======================================================
+    // 2. REGISTROS OPERATIVOS (CORE B2B)
+    // ======================================================
+
+    match /gestia_records/{tenantId} {
+
+      // 🔥 acceso base (colección intermedia)
+      allow read: if true;
+
+      // 🔥 subcolección (AQUÍ ENTRA onSnapshot)
+      match /{moduloId} {
+
+        allow read: if true;
+
+        // 🔥 documentos dentro del módulo
+        match /{docId} {
+          allow read, write: if true;
+        }
+      }
+    }
+
+    // ======================================================
+    // 3. CONDOMINIOS (LISTA NEGRA / METADATA)
+    // ======================================================
+    match /condominios/{condoId} {
+
+      function accesoCondominio() {
+        let edificio = userTenant();
+        return edificio != null && edificio == condoId;
+      }
+
+      allow read: if isAuth() && (
+        isAdmin() ||
+        accesoCondominio()
+      );
+
+      allow write: if isAdmin();
+    }
+
+    // ======================================================
+    // CONFIGURACION GLOBAL
+    // ======================================================
+    match /configuracion/{docId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // ======================================================
+    // MODULO FLEET MANAGEMENT (FLOTILLA B2B)
+    // ======================================================
+    match /flotilla_b2b/{tenantId}/{document=**} {
+      allow read, write: if isAuth(); 
+    }
+
+    // ======================================================
+    // 📦 PACKAGES (DEBUG)
+    // ======================================================
+
+    match /packages/{tenantId}/items/{docId} {
+      allow read, write: if true;
+    }
+
+    match /packages/{tenantId}/{docId} {
+      allow read, write: if true;
+    }
+
+  }
+}
