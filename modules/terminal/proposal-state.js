@@ -1,3 +1,5 @@
+import "./nexo-bootstrap.js?v=nexo-terminal-runtime-v2-20260731";
+
 const ACTIVE_STORAGE_KEY =
     "sia7:activePatchProposal:v1";
 
