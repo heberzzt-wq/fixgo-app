@@ -3,7 +3,7 @@
  * GESTIAPREMIUM 2026 - ENRUTADOR MAESTRO (CORE ROUTER)
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.18.20 (LOW-COST MEDIA + STORAGE SIGNATURES)
+ * Versión: 5.18.21 (ADMIN EVIDENCE REVIEW + FINANCIAL HOLD)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Julio 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LÓGICA.
@@ -23,10 +23,10 @@ import "./b2c-media-economy-guard.js";
 // Sustituye la firma Base64 del cierre legacy por URL, ruta y SHA-256 de Storage.
 import "./b2c-signature-storage-bridge.js";
 
-console.log(" 🚀 GESTIAPREMIUM 5.18.20: LOW-COST MEDIA + STORAGE SIGNATURES ACTIVATED.");
+console.log(" 🚀 GESTIAPREMIUM 5.18.21: ADMIN EVIDENCE REVIEW + FINANCIAL HOLD ACTIVATED.");
 
 // 1. Importamos los submódulos especializados desde los nuevos archivos
-import { iniciarPanelAdmin } from "./panel-admin.js";
+import { iniciarPanelAdmin as iniciarPanelAdminBase } from "./panel-admin.js";
 import { iniciarPanelTecnico as iniciarPanelTecnicoBase } from "./panel-tecnico.js";
 import { iniciarPanelCliente as iniciarPanelClienteBase } from "./panel-cliente.js";
 import { instalarLlegadaSeguraB2C } from "./b2c-arrival-integration.js";
@@ -40,6 +40,22 @@ import { instalarGuardiaDiagnosticoPreCotizacionB2C } from "./b2c-prequote-diagn
 import { instalarGuardiaInicioTrabajoB2C } from "./b2c-start-work-evidence-guard.js";
 import { instalarPuenteCronologiaCierreTrabajoB2C } from "./b2c-work-close-chronology-bridge.js";
 import { instalarDisputaClienteConfinadaAlServicioB2C } from "./b2c-customer-dispute-service-scope.js";
+import { instalarRevisionAdministrativaB2C } from "./b2c-admin-evidence-review.js";
+
+/**
+ * Inicializa el panel administrativo legacy y agrega:
+ * - bandeja de llegada disputada o GPS alternativo;
+ * - revisión de ausencia o negativa de acceso;
+ * - revisión de diagnóstico y trabajo con fallback;
+ * - auditoría append-only por folio;
+ * - financial_hold obligatorio sin ejecutar cobros, liberaciones ni transferencias;
+ * - visualización futura de crew_snapshot para cuadrillas autorizadas.
+ */
+function iniciarPanelAdmin(user) {
+    const resultado = iniciarPanelAdminBase(user);
+    instalarRevisionAdministrativaB2C(user);
+    return resultado;
+}
 
 /**
  * Inicializa el panel técnico legacy y agrega puentes B2C independientes:
