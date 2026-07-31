@@ -3,7 +3,7 @@
  * GESTIAPREMIUM 2026 - ENRUTADOR MAESTRO (CORE ROUTER)
  * ======================================================================================
  * Archivo: app-panel.js
- * Versión: 5.18.15 (AUTH GUARD + COMPLETE B2C EVIDENCE)
+ * Versión: 5.18.16 (AUTH GUARD + COMPLETE B2C EVIDENCE + PREQUOTE DIAGNOSTIC)
  * Autor: Heber (CEO & Lead Architect)
  * Fecha: Julio 2026
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LÓGICA.
@@ -17,7 +17,7 @@ import "./app-utils.js";
 // Corrige la carrera donde el boot recrea el loader después de validar perfil y ruta.
 import "./gestia-loader-race-guard.js";
 
-console.log(" 🚀 GESTIAPREMIUM 5.18.15: AUTH GUARD + COMPLETE B2C EVIDENCE ACTIVATED.");
+console.log(" 🚀 GESTIAPREMIUM 5.18.16: AUTH GUARD + COMPLETE B2C EVIDENCE + PREQUOTE DIAGNOSTIC ACTIVATED.");
 
 // 1. Importamos los submódulos especializados desde los nuevos archivos
 import { iniciarPanelAdmin } from "./panel-admin.js";
@@ -32,6 +32,7 @@ import { instalarEvidenciaDisputaLlegadaClienteB2C } from "./b2c-client-arrival-
 import { instalarRecuperacionUIDisputaClienteB2C } from "./b2c-client-dispute-ui-recovery.js";
 import { instalarVideoReforzadoB2C } from "./b2c-reinforced-video-bridge.js";
 import { instalarGuardiaEvidenciaTrabajoB2C } from "./b2c-secure-work-evidence-guard.js";
+import { instalarGuardiaDiagnosticoPreCotizacionB2C } from "./b2c-prequote-diagnostic-guard.js";
 
 /**
  * Inicializa el panel técnico legacy y agrega puentes B2C independientes:
@@ -40,6 +41,7 @@ import { instalarGuardiaEvidenciaTrabajoB2C } from "./b2c-secure-work-evidence-g
  * - reloj autoritativo servidor para impedir adelantar el plazo desde el teléfono;
  * - captura fotográfica asistida 3-2-1 después de consentimiento explícito;
  * - video opcional de 4 segundos sin audio para incidencias reforzadas;
+ * - diagnóstico inicial sellado antes de abrir el cotizador;
  * - fotografías antes/después selladas y firma no vacía para cerrar el trabajo.
  */
 function iniciarPanelTecnico(user) {
@@ -55,6 +57,7 @@ function iniciarPanelTecnico(user) {
         user,
         actorRole: "tecnico"
     });
+    instalarGuardiaDiagnosticoPreCotizacionB2C(user);
     instalarGuardiaEvidenciaTrabajoB2C(user);
     return resultado;
 }
