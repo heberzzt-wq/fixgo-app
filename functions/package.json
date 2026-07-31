@@ -8,7 +8,7 @@
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
     "test:b2c-financial": "node test-b2c-financial-policy.js && node test-b2c-service-settlement.js",
-    "check:b2c-financial": "node --check secure-entry.js && node --check secure-entry-alias.js && node --check b2c-financial-policy.js && node --check b2c-service-settlement.js && npm run test:b2c-financial"
+    "check:b2c-financial": "node --check secure-entry.js && node --check secure-entry-alias.js && node --check b2c-financial-policy.js && node --check b2c-service-settlement.js && node test-b2c-financial-policy.js && node test-b2c-service-settlement.js"
   },
   "engines": {
     "node": "22"
