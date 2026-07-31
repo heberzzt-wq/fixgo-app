@@ -10,7 +10,8 @@ function read(relativePath) {
     if (!fs.existsSync(absolute)) {
         throw new Error(`Falta ${relativePath}`);
     }
-    return fs.readFileSync(absolute, "utf8");
+    return fs.readFileSync(absolute, "utf8")
+        .replace(/\r\n?/g, "\n");
 }
 
 function ok(condition, message) {
@@ -127,9 +128,8 @@ ok(
     "aprobaciones naturales se normalizan para el runtime legacy"
 );
 ok(
-    branding.includes('document.addEventListener(\n        "submit"') &&
-        branding.includes("normalizeApprovalBeforeLegacy") &&
-        branding.includes("true\n    );"),
+    /document\.addEventListener\(\s*"submit"\s*,\s*normalizeApprovalBeforeLegacy\s*,\s*true\s*\)/s
+        .test(branding),
     "normalizador de aprobación se instala en fase capture antes del submit legacy"
 );
 
@@ -249,8 +249,11 @@ ok(
 ok(
     approvalTests.includes("aprobación autorizada") &&
         approvalTests.includes("no autorizo el plan") &&
-        approvalTests.includes("analiza la autorización de pagos"),
-    "prueba reproduce aprobación real y evita falsos positivos"
+        approvalTests.includes("analiza la autorización de pagos") &&
+        approvalTests.includes("capture=true") &&
+        approvalTests.includes("submitListener.options, true") &&
+        approvalTests.includes('assert.equal(input.value, "proceder")'),
+    "prueba reproduce aprobación real, fase capture y evita falsos positivos"
 );
 ok(
     marketingTests.includes("hazme un programa de marketing") &&
