@@ -209,6 +209,14 @@ function animateStroke(elements,duration,done){
   }
   raf=requestAnimationFrame(frame);
 }
+function hideStrokeElements(elements){
+  elements.forEach(element=>{
+    const length=element.getTotalLength();
+    element.style.transition='none';
+    element.style.strokeDasharray=String(length);
+    element.style.strokeDashoffset=String(length);
+  });
+}
 function revealGroup(selector,step){
   document.querySelectorAll(selector).forEach((element,index)=>timers.push(setTimeout(()=>element.classList.add('on'),index*step)));
 }
@@ -253,7 +261,6 @@ function revealWordmark(delay){
 function fullPower(){
   $('scene').classList.add('energized');
   $('stage').classList.remove('powered');
-  ['nucleusWide','nucleusMid','nucleusCore'].forEach(id=>$(id)?.classList.remove('on'));
   void $('stage').offsetWidth;
   $('stage').classList.add('powered');
   document.querySelectorAll('.hud').forEach(element=>element.classList.add('on'));
@@ -273,7 +280,8 @@ function replay(){
   prepareWordmark();
   document.querySelectorAll('.hud').forEach(element=>element.classList.remove('on'));
   document.querySelectorAll('.island,.circuit,.circuit-hot,.circuit-node,.branch-node').forEach(element=>element.style.opacity='0');
-  document.querySelectorAll('.branch-path').forEach(element=>{element.style.transition='none'});
+  hideStrokeElements([$('mapLine'),$('mapWide'),$('mapMid'),$('mapHot'),$('ringLine'),$('ringWide'),$('ringMid'),$('ringHot')]);
+  document.querySelectorAll('.branch-group').forEach(group=>hideStrokeElements([...group.querySelectorAll('.branch-path')]));
 
   timers.push(setTimeout(()=>{
     $('nucleusWide').classList.add('on');
