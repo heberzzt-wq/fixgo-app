@@ -3,17 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Península Tech · Quintana Roo V7</title>
+<title>Península Tech · Quintana Roo V7.2</title>
 <style>
 :root{
   color-scheme:dark;
   --bg:#01050b;
   --panel:#04101d;
-  --cyan:#00d9ff;
-  --blue:#007cff;
-  --ice:#effdff;
-  --muted:#87aec4;
-  --line:rgba(66,210,255,.18);
+  --cyan:#18f0ff;
+  --cyan2:#8ffbff;
+  --blue:#1396ff;
+  --ice:#ffffff;
+  --muted:#8db5cb;
+  --line:rgba(77,224,255,.22);
 }
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -23,7 +24,8 @@ body{
   font-family:Inter,Segoe UI,Arial,sans-serif;
   color:var(--ice);
   background:
-    radial-gradient(circle at 50% 35%,rgba(0,110,255,.16),transparent 34%),
+    radial-gradient(circle at 50% 34%,rgba(0,134,255,.20),transparent 30%),
+    radial-gradient(circle at 50% 52%,rgba(0,238,255,.06),transparent 28%),
     linear-gradient(180deg,#000207 0%,#030a12 58%,#01050b 100%);
 }
 body::before{
@@ -37,18 +39,19 @@ body::before{
 }
 .app{height:100%;display:grid;grid-template-rows:auto 1fr auto;gap:14px;padding:18px}
 .topbar{display:flex;align-items:flex-end;justify-content:space-between;gap:24px}
-.eyebrow{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:#7deaff;font-weight:800}
-.brand{font-size:clamp(28px,3vw,44px);font-weight:900;letter-spacing:.14em;margin-top:4px}
+.eyebrow{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:#8ef4ff;font-weight:800}
+.brand{font-size:clamp(28px,3vw,44px);font-weight:900;letter-spacing:.14em;margin-top:4px;text-shadow:0 0 18px rgba(24,240,255,.10)}
 .sub{margin-top:6px;color:var(--muted);font-size:13px}
 .stats{display:flex;gap:22px;font-size:10px;color:#7fa6bd;text-transform:uppercase;letter-spacing:.12em}
 .stats b{display:block;color:white;font-size:15px;letter-spacing:0;text-transform:none;margin-top:3px}
 .stage{
   position:relative;
   overflow:hidden;
-  border:1px solid rgba(69,215,255,.16);
+  border:1px solid rgba(87,231,255,.18);
   border-radius:28px;
   background:
-    radial-gradient(circle at 50% 50%,rgba(0,145,255,.08),transparent 31%),
+    radial-gradient(circle at 50% 46%,rgba(0,165,255,.12),transparent 29%),
+    radial-gradient(circle at 50% 46%,rgba(26,240,255,.05),transparent 40%),
     linear-gradient(180deg,rgba(3,12,22,.96),rgba(1,6,12,.98));
   box-shadow:0 28px 90px rgba(0,0,0,.48),inset 0 1px rgba(255,255,255,.03);
 }
@@ -76,8 +79,8 @@ body::before{
   opacity:0;
   transform:translateY(18px) scale(.96);
   filter:blur(8px);
-  color:#f8feff;
-  text-shadow:0 0 18px rgba(255,255,255,.10),0 0 30px rgba(0,217,255,.18);
+  color:#fbffff;
+  text-shadow:0 0 22px rgba(255,255,255,.12),0 0 38px rgba(24,240,255,.24),0 0 60px rgba(19,150,255,.14);
 }
 .word i.on{animation:letterIn .42s cubic-bezier(.2,.82,.2,1) forwards}
 .tech{
@@ -86,10 +89,10 @@ body::before{
   font-weight:900;
   letter-spacing:.56em;
   padding-left:.56em;
-  color:#9ff6ff;
+  color:#b4fcff;
   opacity:0;
   transform:translateY(12px);
-  text-shadow:0 0 20px rgba(0,217,255,.30);
+  text-shadow:0 0 24px rgba(24,240,255,.34),0 0 48px rgba(19,150,255,.16);
 }
 .tech.on{animation:fadeUp .5s ease forwards}
 .tag{
@@ -97,37 +100,45 @@ body::before{
   font-size:10px;
   letter-spacing:.24em;
   text-transform:uppercase;
-  color:#7da8c0;
+  color:#86afc6;
   opacity:0;
 }
 .tag.on{animation:fade .55s ease forwards}
 .controls{display:flex;align-items:center;justify-content:space-between;gap:16px;color:#7e9fb4;font-size:11px}
 .controls-left{display:flex;gap:10px}
 button{border:0;border-radius:12px;padding:12px 16px;font-weight:800;cursor:pointer}
-.primary{background:linear-gradient(90deg,#157dff,#38e8ff);color:#00131c}
+.primary{background:linear-gradient(90deg,#1690ff,#3af2ff);color:#00131c}
 .secondary{background:#061523;color:#e9fbff;border:1px solid rgba(78,215,255,.18)}
 .status{display:flex;gap:18px;align-items:center}
 .status b{color:#dffbff}
-.status-dot{width:8px;height:8px;border-radius:50%;background:#22e3ff;box-shadow:0 0 16px #22e3ff}
+.status-dot{width:8px;height:8px;border-radius:50%;background:#22e3ff;box-shadow:0 0 18px #22e3ff,0 0 28px rgba(34,227,255,.55)}
 .loading{position:absolute;z-index:20;inset:0;display:grid;place-items:center;background:#020812f0;text-align:center;color:#9fc8db}
 .loading.hide{opacity:0;visibility:hidden;transition:.35s}
 .spinner{width:44px;height:44px;border-radius:50%;border:2px solid rgba(67,220,255,.15);border-top-color:#36e4ff;margin:0 auto 12px;animation:spin 1s linear infinite}
-.hud-ring{fill:none;stroke:rgba(0,174,255,.20);stroke-width:1.1}
-.hud-ring-soft{fill:none;stroke:rgba(0,217,255,.10);stroke-width:7;filter:url(#softBlur)}
-.hud-tick{stroke:rgba(115,230,255,.42);stroke-width:1.2}
-.hud-tick-hot{stroke:#bafaff;stroke-width:2.2;filter:url(#tinyGlow)}
-.hud-node{fill:#83efff;filter:url(#tinyGlow)}
-.hud-cross{stroke:rgba(43,211,255,.50);stroke-width:1.2}
-.map-ghost{fill:rgba(0,153,255,.025);stroke:rgba(48,187,255,.12);stroke-width:1.1}
-.map-glow{fill:none;stroke:#00cfff;stroke-width:10;opacity:.14;filter:url(#softBlur);stroke-linecap:round;stroke-linejoin:round}
-.map-line{fill:none;stroke:url(#mapStroke);stroke-width:3.1;stroke-linecap:round;stroke-linejoin:round}
-.map-highlight{fill:none;stroke:#f5ffff;stroke-width:1.25;stroke-linecap:round;stroke-linejoin:round;opacity:.85}
-.map-island{fill:rgba(0,194,255,.08);stroke:#83efff;stroke-width:1.2;opacity:0;filter:url(#tinyGlow)}
-.head-tail{fill:none;stroke:#9cf6ff;stroke-width:5.2;stroke-linecap:round;filter:url(#tailGlow)}
+.hud-ring{fill:none;stroke:rgba(0,196,255,.14);stroke-width:1.05}
+.hud-ring-soft{fill:none;stroke:rgba(0,238,255,.08);stroke-width:8;filter:url(#softBlur)}
+.hud-tick{stroke:rgba(128,239,255,.52);stroke-width:1.25}
+.hud-tick-hot{stroke:#d4ffff;stroke-width:2.5;filter:url(#tinyGlow)}
+.hud-node{fill:#a2f7ff;filter:url(#tinyGlow)}
+.hud-cross{stroke:rgba(38,223,255,.56);stroke-width:1.3}
+.map-ghost{fill:rgba(0,153,255,.018);stroke:rgba(70,210,255,.12);stroke-width:1.05}
+.map-glow{fill:none;stroke:#16eaff;stroke-width:18;opacity:.12;filter:url(#softBlur);stroke-linecap:round;stroke-linejoin:round}
+.map-line{fill:none;stroke:url(#mapStroke);stroke-width:2.25;stroke-linecap:round;stroke-linejoin:round;filter:url(#lineSoftGlow)}
+.map-highlight{fill:none;stroke:#f8ffff;stroke-width:.82;stroke-linecap:round;stroke-linejoin:round;opacity:.78}
+.map-island{fill:rgba(0,194,255,.05);stroke:#aef7ff;stroke-width:1.2;opacity:0;filter:url(#tinyGlow)}
+.head-tail{fill:none;stroke:#9df8ff;stroke-width:5.4;stroke-linecap:round;opacity:.55;filter:url(#tailGlow)}
 .head-core{fill:#ffffff;filter:url(#headGlow)}
-.head-halo{fill:#49e8ff;opacity:.22;filter:url(#softBlur)}
+.head-halo{fill:#68f2ff;opacity:.20;filter:url(#softBlur)}
 .final-pulse{fill:none;stroke:#98f7ff;stroke-width:2;opacity:0}
 .final-pulse.run{animation:pulseRing 1.1s ease-out forwards}
+.ring-base{fill:none;stroke:rgba(0,204,255,.16);stroke-width:2.1}
+.ring-glow{fill:none;stroke:#22eaff;stroke-width:16;opacity:.16;filter:url(#softBlur);stroke-linecap:round}
+.ring-line{fill:none;stroke:url(#ringStroke);stroke-width:3.2;stroke-linecap:round;filter:url(#lineSoftGlow)}
+.ring-highlight{fill:none;stroke:#fbffff;stroke-width:.9;opacity:.82;stroke-linecap:round}
+.ring-tail{fill:none;stroke:#aafaff;stroke-width:7;stroke-linecap:round;opacity:.64;filter:url(#tailGlow)}
+.ring-head{fill:#fff;filter:url(#headGlow)}
+.ring-halo{fill:#62efff;opacity:.24;filter:url(#softBlur)}
+.ring-segment{fill:none;stroke:#39dcff;stroke-width:5;stroke-linecap:round;opacity:.72;filter:url(#tinyGlow)}
 @keyframes letterIn{to{opacity:1;transform:none;filter:none}}
 @keyframes fadeUp{to{opacity:1;transform:none}}
 @keyframes fade{to{opacity:1}}
@@ -143,13 +154,13 @@ button{border:0;border-radius:12px;padding:12px 16px;font-weight:800;cursor:poin
 <div class="app">
   <header class="topbar">
     <div>
-      <div class="eyebrow">Península Tech · laboratorio V7</div>
+      <div class="eyebrow">Península Tech · laboratorio V7.2</div>
       <div class="brand">PENÍNSULA TECH</div>
-      <div class="sub">Construcción vectorial limpia inspirada en el lenguaje visual de SIA7.</div>
+      <div class="sub">Aro luminoso tipo SIA7 y contorno de creación más suave.</div>
     </div>
     <div class="stats">
       <div>Mapa<b>Quintana Roo</b></div>
-      <div>Estilo<b>SIA7 limpio</b></div>
+      <div>Estilo<b>SIA7 pulido</b></div>
       <div>Duración<b>5.2 s</b></div>
     </div>
   </header>
@@ -178,7 +189,7 @@ button{border:0;border-radius:12px;padding:12px 16px;font-weight:800;cursor:poin
       <button class="primary" id="replay">↻ Repetir</button>
       <button class="secondary" id="fullscreen">⛶ Pantalla completa</button>
     </div>
-    <div class="status"><span class="status-dot"></span><span>Estado: <b id="source">cargando</b></span><span>Sin chispas · sin relleno pesado · sin rastros</span></div>
+    <div class="status"><span class="status-dot"></span><span>Estado: <b id="source">cargando</b></span><span>Aro activado · trazo suave · glow limpio</span></div>
   </footer>
 </div>
 <script>
@@ -186,9 +197,8 @@ const SOURCES=[
   ['INEGI','https://gaia.inegi.org.mx/wscatgeo/v2/geo/mgee/23'],
   ['GeoJSON de respaldo','https://raw.githubusercontent.com/strotgen/mexico-leaflet/refs/heads/master/states.geojson']
 ];
-const NS='http://www.w3.org/2000/svg';
 const $=id=>document.getElementById(id);
-let polygons=null,mainPath=null,headTail=null,headCore=null,headHalo=null,raf=0,timers=[];
+let polygons=null,mainPath=null,headTail=null,headCore=null,headHalo=null,ringLine=null,ringGlow=null,ringHighlight=null,ringTail=null,ringHead=null,ringHalo=null,raf=0,timers=[];
 
 function polygonArea(ring){
   let sum=0;
@@ -247,7 +257,8 @@ function buildHud(){
   const rings=[196,221,246,270];
   const parts=[];
   parts.push(`<circle class="hud-ring-soft" cx="${cx}" cy="${cy}" r="221"/>`);
-  rings.forEach((r,i)=>parts.push(`<circle class="hud-ring" cx="${cx}" cy="${cy}" r="${r}" stroke-dasharray="${i%2? '8 9':'3 7'}"/>`));
+  parts.push(`<circle class="hud-ring-soft" cx="${cx}" cy="${cy}" r="246" style="opacity:.08"/>`);
+  rings.forEach((r,i)=>parts.push(`<circle class="hud-ring" cx="${cx}" cy="${cy}" r="${r}" stroke-dasharray="${i%2?'8 9':'3 7'}"/>`));
   for(let i=0;i<72;i++){
     const a=(Math.PI*2*i)/72-Math.PI/2;
     const inner=i%9===0?244:252;
@@ -258,7 +269,7 @@ function buildHud(){
   }
   [[0,-270],[270,0],[0,270],[-270,0]].forEach(([dx,dy])=>{
     parts.push(`<line class="hud-cross" x1="${cx+dx-(dy?0:26)}" y1="${cy+dy-(dx?0:26)}" x2="${cx+dx+(dy?0:26)}" y2="${cy+dy+(dx?0:26)}"/>`);
-    parts.push(`<circle class="hud-node" cx="${cx+dx}" cy="${cy+dy}" r="4.5"/>`);
+    parts.push(`<circle class="hud-node" cx="${cx+dx}" cy="${cy+dy}" r="4.8"/>`);
   });
   return parts.join('');
 }
@@ -271,16 +282,32 @@ function buildScene(){
     <defs>
       <linearGradient id="mapStroke" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0" stop-color="#ffffff"/>
-        <stop offset=".18" stop-color="#9ff7ff"/>
-        <stop offset=".55" stop-color="#00d9ff"/>
-        <stop offset="1" stop-color="#007cff"/>
+        <stop offset=".18" stop-color="#d9ffff"/>
+        <stop offset=".52" stop-color="#25ecff"/>
+        <stop offset="1" stop-color="#149bff"/>
+      </linearGradient>
+      <linearGradient id="ringStroke" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#ffffff"/>
+        <stop offset=".12" stop-color="#d8ffff"/>
+        <stop offset=".48" stop-color="#22eaff"/>
+        <stop offset="1" stop-color="#148cff"/>
       </linearGradient>
       <filter id="softBlur"><feGaussianBlur stdDeviation="7"/></filter>
-      <filter id="tinyGlow"><feGaussianBlur stdDeviation="1.6"/></filter>
-      <filter id="tailGlow"><feGaussianBlur stdDeviation="2.2"/></filter>
-      <filter id="headGlow"><feGaussianBlur stdDeviation="2.8"/></filter>
+      <filter id="tinyGlow"><feGaussianBlur stdDeviation="1.8"/></filter>
+      <filter id="lineSoftGlow"><feGaussianBlur stdDeviation=".45"/></filter>
+      <filter id="tailGlow"><feGaussianBlur stdDeviation="2.5"/></filter>
+      <filter id="headGlow"><feGaussianBlur stdDeviation="3.2"/></filter>
     </defs>
     ${buildHud()}
+    <circle class="ring-base" cx="500" cy="315" r="221"/>
+    <circle class="ring-glow" id="ringGlow" cx="500" cy="315" r="221" transform="rotate(-90 500 315)"/>
+    <circle class="ring-line" id="ringLine" cx="500" cy="315" r="221" transform="rotate(-90 500 315)"/>
+    <circle class="ring-highlight" id="ringHighlight" cx="500" cy="315" r="221" transform="rotate(-90 500 315)"/>
+    <path class="ring-tail" id="ringTail"/>
+    <circle class="ring-halo" id="ringHalo" r="18"/>
+    <circle class="ring-head" id="ringHead" r="4.6"/>
+    <circle class="ring-segment" cx="500" cy="315" r="246" stroke-dasharray="118 1428" transform="rotate(16 500 315)"/>
+    <circle class="ring-segment" cx="500" cy="315" r="246" stroke-dasharray="92 1454" transform="rotate(202 500 315)" style="opacity:.46"/>
     <circle class="final-pulse" id="finalPulse" cx="500" cy="315" r="205"/>
     <path class="map-ghost" d="${complete}"/>
     <path class="map-glow" id="mapGlow" d="${main}"/>
@@ -289,12 +316,13 @@ function buildScene(){
     <g id="islands">${islands}</g>
     <path class="head-tail" id="headTail"/>
     <circle class="head-halo" id="headHalo" r="18"/>
-    <circle class="head-core" id="headCore" r="4.8"/>
+    <circle class="head-core" id="headCore" r="5"/>
   `;
   mainPath=$('mapLine');
   headTail=$('headTail');
   headCore=$('headCore');
   headHalo=$('headHalo');
+  ringLine=$('ringLine');ringGlow=$('ringGlow');ringHighlight=$('ringHighlight');ringTail=$('ringTail');ringHead=$('ringHead');ringHalo=$('ringHalo');
   prepareWordmark();
   replay();
 }
@@ -315,42 +343,90 @@ function revealWordmark(delay){
   timers.push(setTimeout(()=>$('tag').classList.add('on'),delay+letters.length*115+390));
 }
 function replay(){
-  if(!polygons){ loadMap(); return; }
+  if(!polygons){loadMap();return;}
   clearAnimation();
   prepareWordmark();
   $('finalPulse').classList.remove('run');
   document.querySelectorAll('.map-island').forEach(el=>el.style.opacity=0);
+
   const glow=$('mapGlow'),highlight=$('mapHighlight');
-  const length=mainPath.getTotalLength();
+  const mapLength=mainPath.getTotalLength();
   [mainPath,glow,highlight].forEach(path=>{
-    path.style.strokeDasharray=String(length);
-    path.style.strokeDashoffset=String(length);
+    path.style.strokeDasharray=String(mapLength);
+    path.style.strokeDashoffset=String(mapLength);
   });
+
+  const ringLength=2*Math.PI*221;
+  [ringLine,ringGlow,ringHighlight].forEach(path=>{
+    path.style.strokeDasharray=String(ringLength);
+    path.style.strokeDashoffset=String(ringLength);
+  });
+  ringTail.setAttribute('d','');
+  ringHead.style.opacity=0;
+  ringHalo.style.opacity=0;
+
   headCore.style.opacity=1;
   headHalo.style.opacity=1;
   headTail.setAttribute('d','');
-  const start=performance.now();
-  const duration=2950;
-  function frame(now){
-    const progress=Math.min(1,(now-start)/duration);
-    const distance=length*progress;
+
+  const mapStart=performance.now();
+  const mapDuration=3300;
+  const smooth=t=>t*t*(3-2*t);
+
+  function drawMap(now){
+    const raw=Math.min(1,(now-mapStart)/mapDuration);
+    const progress=smooth(raw);
+    const distance=mapLength*progress;
     const point=mainPath.getPointAtLength(distance);
-    const tailPoint=mainPath.getPointAtLength(Math.max(0,distance-34));
-    [mainPath,glow,highlight].forEach(path=>path.style.strokeDashoffset=String(length-distance));
-    headTail.setAttribute('d',`M${tailPoint.x.toFixed(2)} ${tailPoint.y.toFixed(2)} L${point.x.toFixed(2)} ${point.y.toFixed(2)}`);
+    const tailPoint=mainPath.getPointAtLength(Math.max(0,distance-26));
+
+    [mainPath,glow,highlight].forEach(path=>path.style.strokeDashoffset=String(mapLength-distance));
+    headTail.setAttribute('d',`M${tailPoint.x.toFixed(2)} ${tailPoint.y.toFixed(2)} Q${((tailPoint.x+point.x)/2).toFixed(2)} ${((tailPoint.y+point.y)/2).toFixed(2)} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`);
     headCore.setAttribute('cx',point.x);headCore.setAttribute('cy',point.y);
     headHalo.setAttribute('cx',point.x);headHalo.setAttribute('cy',point.y);
-    headHalo.setAttribute('r',String(16+Math.sin(now/80)*2));
-    if(progress<1){
-      raf=requestAnimationFrame(frame);
+    headHalo.setAttribute('r',String(15+Math.sin(now/105)*1.4));
+
+    if(raw<1){
+      raf=requestAnimationFrame(drawMap);
     }else{
       headCore.style.opacity=0;headHalo.style.opacity=0;headTail.setAttribute('d','');
-      document.querySelectorAll('.map-island').forEach((el,index)=>timers.push(setTimeout(()=>el.style.opacity=1,index*100)));
-      timers.push(setTimeout(()=>{const pulse=$('finalPulse');pulse.classList.remove('run');void pulse.getBBox();pulse.classList.add('run');},180));
-      revealWordmark(520);
+      document.querySelectorAll('.map-island').forEach((el,index)=>timers.push(setTimeout(()=>el.style.opacity=1,index*85)));
+      timers.push(setTimeout(drawRing,180));
     }
   }
-  raf=requestAnimationFrame(frame);
+
+  function drawRing(){
+    ringHead.style.opacity=1;
+    ringHalo.style.opacity=1;
+    const start=performance.now();
+    const duration=1450;
+    function frame(now){
+      const raw=Math.min(1,(now-start)/duration);
+      const progress=smooth(raw);
+      const distance=ringLength*progress;
+      [ringLine,ringGlow,ringHighlight].forEach(path=>path.style.strokeDashoffset=String(ringLength-distance));
+
+      const angle=-Math.PI/2+Math.PI*2*progress;
+      const tailAngle=-Math.PI/2+Math.PI*2*Math.max(0,progress-.022);
+      const x=500+Math.cos(angle)*221,y=315+Math.sin(angle)*221;
+      const tx=500+Math.cos(tailAngle)*221,ty=315+Math.sin(tailAngle)*221;
+      ringTail.setAttribute('d',`M${tx.toFixed(2)} ${ty.toFixed(2)} A221 221 0 0 1 ${x.toFixed(2)} ${y.toFixed(2)}`);
+      ringHead.setAttribute('cx',x);ringHead.setAttribute('cy',y);
+      ringHalo.setAttribute('cx',x);ringHalo.setAttribute('cy',y);
+      ringHalo.setAttribute('r',String(16+Math.sin(now/95)*1.5));
+
+      if(raw<1){
+        raf=requestAnimationFrame(frame);
+      }else{
+        ringHead.style.opacity=0;ringHalo.style.opacity=0;ringTail.setAttribute('d','');
+        const pulse=$('finalPulse');pulse.classList.remove('run');void pulse.getBBox();pulse.classList.add('run');
+        revealWordmark(320);
+      }
+    }
+    raf=requestAnimationFrame(frame);
+  }
+
+  raf=requestAnimationFrame(drawMap);
 }
 $('replay').onclick=replay;
 $('fullscreen').onclick=()=>document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();
