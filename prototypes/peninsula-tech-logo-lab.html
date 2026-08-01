@@ -1,5 +1,362 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Península Tech · Quintana Roo V6</title><style>
-:root{color-scheme:dark;--c:#25e6ff;--h:#fffef0;--b:#167cff;--s:#ffd16f}*{box-sizing:border-box}html,body{height:100%}body{margin:0;overflow:hidden;font-family:Segoe UI,Arial,sans-serif;color:#effaff;background:radial-gradient(circle at 25% 15%,#113a70 0,transparent 30%),linear-gradient(#02070f,#061321)}.app{height:100%;display:grid;grid-template-columns:285px 1fr}.side{padding:18px;background:#030b14f7;border-right:1px solid #5ee7ff2b;display:flex;flex-direction:column;gap:14px}.ey{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:#8deaff;font-weight:800}.side h1{margin:0;font-size:24px}.side p,.note{margin:0;color:#93b5c9;font-size:13px;line-height:1.48}.note{padding:12px;border:1px solid #65ddff2b;border-radius:15px;background:#081a2dbd}.note b{color:white}.keys{display:grid;gap:9px}.key{padding:12px;border:1px solid #62dcff25;border-radius:15px;background:#071729}.key b{display:block;margin-bottom:4px}.key span{color:#8fb2c8;font-size:12px}.buttons{margin-top:auto;display:grid;grid-template-columns:1fr 1fr;gap:9px}button{border:0;border-radius:12px;padding:13px;font-weight:800;cursor:pointer}.go{background:linear-gradient(90deg,#177cff,#43efff);color:#00121a}.full{background:#091b2e;color:white;border:1px solid #6ad9ff33}.main{padding:16px;display:grid;grid-template-rows:auto 1fr auto;gap:13px}.top{display:flex;justify-content:space-between;align-items:end}.brand{font-size:37px;font-weight:900;letter-spacing:.13em}.top p{margin:4px 0 0;color:#8fb3c8;font-size:12px}.stats{display:flex;gap:18px;color:#8fb9d0;font-size:10px}.stats b{display:block;color:white;font-size:15px}.stage{position:relative;overflow:hidden;border:1px solid #61ddff27;border-radius:25px;background:radial-gradient(circle at 32% 42%,#1677d52d,transparent 37%),linear-gradient(#04111e,#020914);box-shadow:0 20px 70px #0008}.stage:before{content:"";position:absolute;inset:0;opacity:.25;background-image:linear-gradient(#ffffff0a 1px,transparent 1px),linear-gradient(90deg,#ffffff0a 1px,transparent 1px);background-size:44px 44px}.stage-head{position:absolute;z-index:7;top:17px;left:19px;right:19px;display:flex;justify-content:space-between;font-size:11px;letter-spacing:.15em;text-transform:uppercase}.stage-head span{color:#89abc0;letter-spacing:0;text-transform:none}svg{position:absolute;inset:0;width:100%;height:100%}.word{position:absolute;z-index:8;left:56%;top:37%;width:41%}.letters{display:flex;gap:3px}.letters i{font-style:normal;font-size:32px;font-weight:900;letter-spacing:.08em;opacity:0;transform:translateY(18px);filter:blur(8px);transition:.35s;text-shadow:0 0 30px #25e6ff88}.letters i.on{opacity:1;transform:none;filter:none}.tech{margin-top:13px;font-size:21px;font-weight:900;letter-spacing:.5em;color:#c9fbff;opacity:0;transform:translateY(10px);transition:.45s;text-shadow:0 0 22px #25e6ff}.tech.on{opacity:1;transform:none}.tag{margin-top:13px;color:#8fb9cf;font-size:10px;letter-spacing:.18em;text-transform:uppercase;opacity:0;transition:.45s}.tag.on{opacity:1}.loading{position:absolute;z-index:10;inset:0;display:grid;place-items:center;background:#020914ed;color:#c0f3ff;text-align:center}.loading.hide{opacity:0;visibility:hidden;transition:.3s}.spin{width:42px;height:42px;margin:0 auto 11px;border:2px solid #52dfff30;border-top-color:#5cefff;border-radius:50%;animation:rot 1s linear infinite}.bottom{display:flex;justify-content:space-between;color:#83a8bd;font-size:11px;padding:0 5px}.bottom b{color:#dff9ff}.faint{fill:#169bd414;stroke:#65e8ff3f;stroke-width:1}.glow{fill:none;stroke:var(--c);stroke-width:20;opacity:.25;filter:url(#blur)}.trace{fill:url(#grad);fill-opacity:0;stroke:var(--c);stroke-width:4.5;stroke-linecap:round;stroke-linejoin:round}.hotg{fill:none;stroke:var(--c);stroke-width:23;opacity:.72;filter:url(#blur)}.hot{fill:none;stroke:var(--h);stroke-width:5;stroke-linecap:round;filter:url(#hot)}.halo{fill:#4beaff91;filter:url(#blur)}.core{fill:#fffdec;filter:url(#hot)}.spark{stroke:var(--s);stroke-width:2.2;stroke-linecap:round}.island{fill:url(#grad);stroke:#dfffff;stroke-width:1.2;opacity:0}@keyframes rot{to{transform:rotate(360deg)}}@media(max-width:850px){body{overflow:auto}.app{display:block;height:auto}.main{height:780px}.side{min-height:420px}.brand{font-size:29px}.word{left:48%;width:49%}.letters i{font-size:23px}}
-</style></head><body><div class="app"><aside class="side"><div class="ey">Península Tech · laboratorio V6</div><h1>Ahora sí: Quintana Roo real</h1><p>El mapa ya no se dibuja a mano. Se toma de un GeoJSON territorial y se proyecta automáticamente al escenario.</p><div class="note"><b>Soldadura corregida:</b> el núcleo blanco, el halo cian y las chispas viajan exactamente por el extremo de la misma línea que está naciendo.</div><div class="keys"><div class="key"><b>1. Delante</b><span>No hay línea todavía.</span></div><div class="key"><b>2. Frente</b><span>Arco blanco-cian con chispas.</span></div><div class="key"><b>3. Detrás</b><span>Queda el contorno cian soldado.</span></div></div><div class="buttons"><button class="go" id="replay">↻ Repetir</button><button class="full" id="fullscreen">⛶ Pantalla</button></div></aside><main class="main"><header class="top"><div><div class="ey">identidad territorial · prototipo aislado</div><div class="brand">PENÍNSULA TECH</div><p>Soldadura cian sobre la frontera real de Quintana Roo.</p></div><div class="stats"><div>Fuente<b id="source">cargando…</b></div><div>Armado<b>3.6 s</b></div><div>Salida<b>Mapa + letras</b></div></div></header><section class="stage"><div class="stage-head"><strong>Trazado geográfico con soldadura</strong><span>contorno → cierre → PENÍNSULA TECH</span></div><div class="loading" id="loading"><div><div class="spin"></div>Cargando cartografía<br><small id="status">Consultando Quintana Roo…</small></div></div><div class="word"><div class="letters" id="letters"></div><div class="tech" id="tech">TECH</div><div class="tag" id="tag">tecnología · innovación · soluciones</div></div><svg id="scene" viewBox="0 0 1000 540"></svg></section><footer class="bottom"><div><b>Conecta</b> territorio, servicios y tecnología.</div><div>La frontera se convierte en una firma viva.</div></footer></main></div><script>
-const SOURCES=[['INEGI','https://gaia.inegi.org.mx/wscatgeo/v2/geo/mgee/23'],['Respaldo GeoJSON','https://raw.githubusercontent.com/strotgen/mexico-leaflet/refs/heads/master/states.geojson']];let polys,trace,hot,hotg,core,halo,sparks,raf=0,timers=[];const $=x=>document.getElementById(x),NS='http://www.w3.org/2000/svg';function area(r){let a=0;for(let i=0,j=r.length-1;i<r.length;j=i++)a+=r[j][0]*r[i][1]-r[i][0]*r[j][1];return Math.abs(a/2)}function norm(x){let f=x;if(x.type==='FeatureCollection')f=x.features.find(v=>String(v.properties?.state_code)==='23'||/Quintana Roo/i.test(v.properties?.nomgeo||v.properties?.state_name||''))||x.features[0];if(f.type==='Feature')f=f.geometry;const p=f.type==='Polygon'?[f.coordinates]:f.coordinates;if(!p)throw Error('sin geometría');return p.filter(v=>v?.[0]?.length>2).sort((a,b)=>area(b[0])-area(a[0]))}async function get(u){const c=new AbortController(),id=setTimeout(()=>c.abort(),6500);try{const r=await fetch(u,{signal:c.signal,cache:'no-store'});if(!r.ok)throw Error(r.status);return r.json()}finally{clearTimeout(id)}}async function load(){for(const [n,u] of SOURCES)try{$('status').textContent='Probando '+n+'…';polys=norm(await get(u));$('source').textContent=n;build();$('loading').classList.add('hide');return}catch(e){console.warn(n,e)}$('status').textContent='No se pudo cargar. Revisa internet y pulsa Repetir.'}function project(ps,b){const a=ps.flatMap(p=>p.flat()),xs=a.map(p=>p[0]),ys=a.map(p=>p[1]),mnx=Math.min(...xs),mxx=Math.max(...xs),mny=Math.min(...ys),mxy=Math.max(...ys),sc=Math.min(b.w/(mxx-mnx),b.h/(mxy-mny)),ox=b.x+(b.w-(mxx-mnx)*sc)/2,oy=b.y+(b.h-(mxy-mny)*sc)/2;return ps.map(p=>p.map(r=>r.map(([x,y])=>[ox+(x-mnx)*sc,oy+(mxy-y)*sc])))}function rd(r){return r.map((p,i)=>(i?'L':'M')+p[0].toFixed(2)+' '+p[1].toFixed(2)).join(' ')+' Z'}function pd(p){return p.map(rd).join(' ')}function build(){const p=project(polys,{x:85,y:70,w:440,h:400}),d=p.map(pd).join(' '),main=pd(p[0]);$('scene').innerHTML=`<defs><linearGradient id="grad"><stop stop-color="var(--h)"/><stop offset=".45" stop-color="var(--c)"/><stop offset="1" stop-color="var(--b)"/></linearGradient><filter id="blur"><feGaussianBlur stdDeviation="8"/></filter><filter id="hot"><feGaussianBlur stdDeviation="2.7"/></filter></defs><path class="faint" d="${d}"/><path class="glow" d="${main}"/><path class="trace" id="trace" d="${main}"/><g>${p.slice(1).map(v=>`<path class="island" d="${pd(v)}"/>`).join('')}</g><path class="hotg" id="hotg"/><path class="hot" id="hot"/><g id="sparks"></g><circle class="halo" id="halo" r="20"/><circle class="core" id="core" r="6"/>`;trace=$('trace');hot=$('hot');hotg=$('hotg');core=$('core');halo=$('halo');sparks=$('sparks');words();replay()}function words(){$('letters').innerHTML=[...'PENÍNSULA'].map(c=>`<i>${c}</i>`).join('');$('tech').classList.remove('on');$('tag').classList.remove('on')}function clear(){cancelAnimationFrame(raf);timers.forEach(clearTimeout);timers=[]}function reveal(ms){const l=[...document.querySelectorAll('.letters i')];l.forEach((e,i)=>timers.push(setTimeout(()=>e.classList.add('on'),ms+i*135)));timers.push(setTimeout(()=>{$('tech').classList.add('on');$('tag').classList.add('on')},ms+l.length*135+120))}function replay(){if(!polys)return load();clear();words();document.querySelectorAll('.island').forEach(e=>e.style.opacity=0);const L=trace.getTotalLength();trace.style.strokeDasharray=L;trace.style.strokeDashoffset=L;trace.style.fillOpacity=0;hot.setAttribute('d','');hotg.setAttribute('d','');core.style.opacity=halo.style.opacity=1;sparks.innerHTML='';const pool=[];for(let i=0;i<42;i++){const e=document.createElementNS(NS,'line');e.classList.add('spark');e.style.opacity=0;sparks.appendChild(e);pool.push({e,l:0,x:0,y:0,vx:0,vy:0})}let idx=0,start=performance.now();function spawn(pt,t){for(let k=0;k<4;k++){const p=pool[idx++%pool.length],a=Math.atan2(t.y,t.x)+(Math.random()-.5)*2.6+(Math.random()>.5?1:-1)*Math.PI/2,sp=60+Math.random()*135;p.x=pt.x;p.y=pt.y;p.vx=Math.cos(a)*sp;p.vy=Math.sin(a)*sp;p.l=.25+Math.random()*.34;p.e.style.opacity=1}}function frame(now){const pr=Math.min(1,(now-start)/3600),d=L*pr,pt=trace.getPointAtLength(d),pv=trace.getPointAtLength(Math.max(0,d-24)),nx=trace.getPointAtLength(Math.min(L,d+1));trace.style.strokeDashoffset=L-d;hot.setAttribute('d',`M${pv.x} ${pv.y}L${pt.x} ${pt.y}`);hotg.setAttribute('d',`M${pv.x} ${pv.y}L${pt.x} ${pt.y}`);core.setAttribute('cx',pt.x);core.setAttribute('cy',pt.y);halo.setAttribute('cx',pt.x);halo.setAttribute('cy',pt.y);halo.setAttribute('r',17+Math.random()*10);if(pr<.99)spawn(pt,{x:nx.x-pv.x,y:nx.y-pv.y});pool.forEach(p=>{if(p.l<=0)return p.e.style.opacity=0;p.l-=.016;p.vy+=1.7;p.x+=p.vx*.016;p.y+=p.vy*.016;p.e.setAttribute('x1',p.x);p.e.setAttribute('y1',p.y);p.e.setAttribute('x2',p.x-p.vx*.12);p.e.setAttribute('y2',p.y-p.vy*.12);p.e.style.opacity=Math.max(0,p.l*2.8)});if(pr<1)raf=requestAnimationFrame(frame);else{core.style.opacity=halo.style.opacity=0;hot.setAttribute('d','');hotg.setAttribute('d','');trace.style.fillOpacity=.22;document.querySelectorAll('.island').forEach((e,i)=>timers.push(setTimeout(()=>e.style.opacity=1,i*90)));reveal(420)}}raf=requestAnimationFrame(frame)}$('replay').onclick=replay;$('fullscreen').onclick=()=>document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();window.onkeydown=e=>{if(e.key.toLowerCase()==='r')replay()};words();load();
-</script></body></html>
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Península Tech · Quintana Roo V7</title>
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#01050b;
+  --panel:#04101d;
+  --cyan:#00d9ff;
+  --blue:#007cff;
+  --ice:#effdff;
+  --muted:#87aec4;
+  --line:rgba(66,210,255,.18);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  overflow:hidden;
+  font-family:Inter,Segoe UI,Arial,sans-serif;
+  color:var(--ice);
+  background:
+    radial-gradient(circle at 50% 35%,rgba(0,110,255,.16),transparent 34%),
+    linear-gradient(180deg,#000207 0%,#030a12 58%,#01050b 100%);
+}
+body::before{
+  content:"";
+  position:fixed;inset:0;pointer-events:none;
+  background-image:
+    linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);
+  background-size:48px 48px;
+  mask:linear-gradient(to bottom,black,transparent 82%);
+}
+.app{height:100%;display:grid;grid-template-rows:auto 1fr auto;gap:14px;padding:18px}
+.topbar{display:flex;align-items:flex-end;justify-content:space-between;gap:24px}
+.eyebrow{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:#7deaff;font-weight:800}
+.brand{font-size:clamp(28px,3vw,44px);font-weight:900;letter-spacing:.14em;margin-top:4px}
+.sub{margin-top:6px;color:var(--muted);font-size:13px}
+.stats{display:flex;gap:22px;font-size:10px;color:#7fa6bd;text-transform:uppercase;letter-spacing:.12em}
+.stats b{display:block;color:white;font-size:15px;letter-spacing:0;text-transform:none;margin-top:3px}
+.stage{
+  position:relative;
+  overflow:hidden;
+  border:1px solid rgba(69,215,255,.16);
+  border-radius:28px;
+  background:
+    radial-gradient(circle at 50% 50%,rgba(0,145,255,.08),transparent 31%),
+    linear-gradient(180deg,rgba(3,12,22,.96),rgba(1,6,12,.98));
+  box-shadow:0 28px 90px rgba(0,0,0,.48),inset 0 1px rgba(255,255,255,.03);
+}
+.stage::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(120deg,transparent 40%,rgba(255,255,255,.025) 50%,transparent 60%);
+  transform:translateX(-120%);
+  animation:sheen 9s ease-in-out infinite;
+}
+.stage-head{position:absolute;z-index:5;left:22px;right:22px;top:18px;display:flex;justify-content:space-between;gap:20px;font-size:11px}
+.stage-head strong{letter-spacing:.18em;text-transform:uppercase}
+.stage-head span{color:var(--muted)}
+.scene{position:absolute;inset:0;width:100%;height:100%}
+.brand-lockup{
+  position:absolute;z-index:6;left:50%;bottom:7.5%;transform:translateX(-50%);
+  text-align:center;width:min(720px,88%);pointer-events:none;
+}
+.word{display:flex;justify-content:center;gap:.07em;flex-wrap:nowrap}
+.word i{
+  font-style:normal;
+  font-size:clamp(28px,4.3vw,66px);
+  line-height:1;
+  font-weight:900;
+  letter-spacing:.11em;
+  opacity:0;
+  transform:translateY(18px) scale(.96);
+  filter:blur(8px);
+  color:#f8feff;
+  text-shadow:0 0 18px rgba(255,255,255,.10),0 0 30px rgba(0,217,255,.18);
+}
+.word i.on{animation:letterIn .42s cubic-bezier(.2,.82,.2,1) forwards}
+.tech{
+  margin-top:10px;
+  font-size:clamp(16px,2vw,28px);
+  font-weight:900;
+  letter-spacing:.56em;
+  padding-left:.56em;
+  color:#9ff6ff;
+  opacity:0;
+  transform:translateY(12px);
+  text-shadow:0 0 20px rgba(0,217,255,.30);
+}
+.tech.on{animation:fadeUp .5s ease forwards}
+.tag{
+  margin-top:12px;
+  font-size:10px;
+  letter-spacing:.24em;
+  text-transform:uppercase;
+  color:#7da8c0;
+  opacity:0;
+}
+.tag.on{animation:fade .55s ease forwards}
+.controls{display:flex;align-items:center;justify-content:space-between;gap:16px;color:#7e9fb4;font-size:11px}
+.controls-left{display:flex;gap:10px}
+button{border:0;border-radius:12px;padding:12px 16px;font-weight:800;cursor:pointer}
+.primary{background:linear-gradient(90deg,#157dff,#38e8ff);color:#00131c}
+.secondary{background:#061523;color:#e9fbff;border:1px solid rgba(78,215,255,.18)}
+.status{display:flex;gap:18px;align-items:center}
+.status b{color:#dffbff}
+.status-dot{width:8px;height:8px;border-radius:50%;background:#22e3ff;box-shadow:0 0 16px #22e3ff}
+.loading{position:absolute;z-index:20;inset:0;display:grid;place-items:center;background:#020812f0;text-align:center;color:#9fc8db}
+.loading.hide{opacity:0;visibility:hidden;transition:.35s}
+.spinner{width:44px;height:44px;border-radius:50%;border:2px solid rgba(67,220,255,.15);border-top-color:#36e4ff;margin:0 auto 12px;animation:spin 1s linear infinite}
+.hud-ring{fill:none;stroke:rgba(0,174,255,.20);stroke-width:1.1}
+.hud-ring-soft{fill:none;stroke:rgba(0,217,255,.10);stroke-width:7;filter:url(#softBlur)}
+.hud-tick{stroke:rgba(115,230,255,.42);stroke-width:1.2}
+.hud-tick-hot{stroke:#bafaff;stroke-width:2.2;filter:url(#tinyGlow)}
+.hud-node{fill:#83efff;filter:url(#tinyGlow)}
+.hud-cross{stroke:rgba(43,211,255,.50);stroke-width:1.2}
+.map-ghost{fill:rgba(0,153,255,.025);stroke:rgba(48,187,255,.12);stroke-width:1.1}
+.map-glow{fill:none;stroke:#00cfff;stroke-width:10;opacity:.14;filter:url(#softBlur);stroke-linecap:round;stroke-linejoin:round}
+.map-line{fill:none;stroke:url(#mapStroke);stroke-width:3.1;stroke-linecap:round;stroke-linejoin:round}
+.map-highlight{fill:none;stroke:#f5ffff;stroke-width:1.25;stroke-linecap:round;stroke-linejoin:round;opacity:.85}
+.map-island{fill:rgba(0,194,255,.08);stroke:#83efff;stroke-width:1.2;opacity:0;filter:url(#tinyGlow)}
+.head-tail{fill:none;stroke:#9cf6ff;stroke-width:5.2;stroke-linecap:round;filter:url(#tailGlow)}
+.head-core{fill:#ffffff;filter:url(#headGlow)}
+.head-halo{fill:#49e8ff;opacity:.22;filter:url(#softBlur)}
+.final-pulse{fill:none;stroke:#98f7ff;stroke-width:2;opacity:0}
+.final-pulse.run{animation:pulseRing 1.1s ease-out forwards}
+@keyframes letterIn{to{opacity:1;transform:none;filter:none}}
+@keyframes fadeUp{to{opacity:1;transform:none}}
+@keyframes fade{to{opacity:1}}
+@keyframes pulseRing{0%{opacity:.65;transform:scale(.88)}100%{opacity:0;transform:scale(1.14)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes sheen{0%,20%{transform:translateX(-120%)}70%,100%{transform:translateX(120%)}}
+@media(max-width:820px){
+  body{overflow:auto}.app{height:auto;min-height:100%;padding:12px}.topbar{align-items:flex-start}.stats{display:none}.stage{height:720px}.stage-head span{display:none}.brand-lockup{bottom:8%}.word i{font-size:clamp(24px,7vw,42px)}.controls{flex-direction:column;align-items:stretch}.controls-left{justify-content:center}.status{justify-content:center}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">Península Tech · laboratorio V7</div>
+      <div class="brand">PENÍNSULA TECH</div>
+      <div class="sub">Construcción vectorial limpia inspirada en el lenguaje visual de SIA7.</div>
+    </div>
+    <div class="stats">
+      <div>Mapa<b>Quintana Roo</b></div>
+      <div>Estilo<b>SIA7 limpio</b></div>
+      <div>Duración<b>5.2 s</b></div>
+    </div>
+  </header>
+
+  <main class="stage" id="stage">
+    <div class="stage-head">
+      <strong>Construcción territorial</strong>
+      <span>línea limpia → cierre → activación → PENÍNSULA TECH</span>
+    </div>
+
+    <div class="loading" id="loading">
+      <div><div class="spinner"></div><div id="status">Cargando cartografía de Quintana Roo…</div></div>
+    </div>
+
+    <svg class="scene" id="scene" viewBox="0 0 1200 720" aria-label="Animación de construcción del logo"></svg>
+
+    <div class="brand-lockup">
+      <div class="word" id="letters"></div>
+      <div class="tech" id="tech">TECH</div>
+      <div class="tag" id="tag">tecnología · innovación · soluciones</div>
+    </div>
+  </main>
+
+  <footer class="controls">
+    <div class="controls-left">
+      <button class="primary" id="replay">↻ Repetir</button>
+      <button class="secondary" id="fullscreen">⛶ Pantalla completa</button>
+    </div>
+    <div class="status"><span class="status-dot"></span><span>Estado: <b id="source">cargando</b></span><span>Sin chispas · sin relleno pesado · sin rastros</span></div>
+  </footer>
+</div>
+<script>
+const SOURCES=[
+  ['INEGI','https://gaia.inegi.org.mx/wscatgeo/v2/geo/mgee/23'],
+  ['GeoJSON de respaldo','https://raw.githubusercontent.com/strotgen/mexico-leaflet/refs/heads/master/states.geojson']
+];
+const NS='http://www.w3.org/2000/svg';
+const $=id=>document.getElementById(id);
+let polygons=null,mainPath=null,headTail=null,headCore=null,headHalo=null,raf=0,timers=[];
+
+function polygonArea(ring){
+  let sum=0;
+  for(let i=0,j=ring.length-1;i<ring.length;j=i++) sum+=ring[j][0]*ring[i][1]-ring[i][0]*ring[j][1];
+  return Math.abs(sum/2);
+}
+function normalizeGeoJSON(input){
+  let feature=input;
+  if(input.type==='FeatureCollection'){
+    feature=input.features.find(f=>String(f.properties?.state_code)==='23'||/Quintana Roo/i.test(f.properties?.nomgeo||f.properties?.state_name||''));
+  }
+  if(!feature) throw new Error('No se encontró Quintana Roo');
+  const geometry=feature.type==='Feature'?feature.geometry:feature;
+  const raw=geometry.type==='Polygon'?[geometry.coordinates]:geometry.coordinates;
+  if(!raw) throw new Error('Geometría inválida');
+  return raw.filter(p=>p?.[0]?.length>2).sort((a,b)=>polygonArea(b[0])-polygonArea(a[0]));
+}
+async function fetchJSON(url){
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),6500);
+  try{
+    const response=await fetch(url,{signal:controller.signal,cache:'no-store'});
+    if(!response.ok) throw new Error(String(response.status));
+    return await response.json();
+  } finally { clearTimeout(timeout); }
+}
+async function loadMap(){
+  for(const [name,url] of SOURCES){
+    try{
+      $('status').textContent='Consultando '+name+'…';
+      polygons=normalizeGeoJSON(await fetchJSON(url));
+      $('source').textContent=name;
+      buildScene();
+      $('loading').classList.add('hide');
+      return;
+    }catch(error){ console.warn(name,error); }
+  }
+  $('status').textContent='No se pudo cargar la cartografía. Revisa internet y pulsa Repetir.';
+  $('source').textContent='sin conexión';
+}
+function project(source,bounds){
+  const all=source.flatMap(poly=>poly.flat());
+  const xs=all.map(p=>p[0]),ys=all.map(p=>p[1]);
+  const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+  const scale=Math.min(bounds.w/(maxX-minX),bounds.h/(maxY-minY));
+  const offsetX=bounds.x+(bounds.w-(maxX-minX)*scale)/2;
+  const offsetY=bounds.y+(bounds.h-(maxY-minY)*scale)/2;
+  return source.map(poly=>poly.map(ring=>ring.map(([x,y])=>[offsetX+(x-minX)*scale,offsetY+(maxY-y)*scale])));
+}
+function ringPath(ring){
+  return ring.map((point,index)=>(index?'L':'M')+point[0].toFixed(2)+' '+point[1].toFixed(2)).join(' ')+' Z';
+}
+function polygonPath(poly){ return poly.map(ringPath).join(' '); }
+function buildHud(){
+  const cx=500,cy=315;
+  const rings=[196,221,246,270];
+  const parts=[];
+  parts.push(`<circle class="hud-ring-soft" cx="${cx}" cy="${cy}" r="221"/>`);
+  rings.forEach((r,i)=>parts.push(`<circle class="hud-ring" cx="${cx}" cy="${cy}" r="${r}" stroke-dasharray="${i%2? '8 9':'3 7'}"/>`));
+  for(let i=0;i<72;i++){
+    const a=(Math.PI*2*i)/72-Math.PI/2;
+    const inner=i%9===0?244:252;
+    const outer=i%9===0?270:263;
+    const x1=cx+Math.cos(a)*inner,y1=cy+Math.sin(a)*inner;
+    const x2=cx+Math.cos(a)*outer,y2=cy+Math.sin(a)*outer;
+    parts.push(`<line class="${i%9===0?'hud-tick-hot':'hud-tick'}" x1="${x1.toFixed(2)}" y1="${y1.toFixed(2)}" x2="${x2.toFixed(2)}" y2="${y2.toFixed(2)}"/>`);
+  }
+  [[0,-270],[270,0],[0,270],[-270,0]].forEach(([dx,dy])=>{
+    parts.push(`<line class="hud-cross" x1="${cx+dx-(dy?0:26)}" y1="${cy+dy-(dx?0:26)}" x2="${cx+dx+(dy?0:26)}" y2="${cy+dy+(dx?0:26)}"/>`);
+    parts.push(`<circle class="hud-node" cx="${cx+dx}" cy="${cy+dy}" r="4.5"/>`);
+  });
+  return parts.join('');
+}
+function buildScene(){
+  const projected=project(polygons,{x:315,y:95,w:370,h:425});
+  const complete=projected.map(polygonPath).join(' ');
+  const main=polygonPath(projected[0]);
+  const islands=projected.slice(1).map(poly=>`<path class="map-island" d="${polygonPath(poly)}"/>`).join('');
+  $('scene').innerHTML=`
+    <defs>
+      <linearGradient id="mapStroke" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#ffffff"/>
+        <stop offset=".18" stop-color="#9ff7ff"/>
+        <stop offset=".55" stop-color="#00d9ff"/>
+        <stop offset="1" stop-color="#007cff"/>
+      </linearGradient>
+      <filter id="softBlur"><feGaussianBlur stdDeviation="7"/></filter>
+      <filter id="tinyGlow"><feGaussianBlur stdDeviation="1.6"/></filter>
+      <filter id="tailGlow"><feGaussianBlur stdDeviation="2.2"/></filter>
+      <filter id="headGlow"><feGaussianBlur stdDeviation="2.8"/></filter>
+    </defs>
+    ${buildHud()}
+    <circle class="final-pulse" id="finalPulse" cx="500" cy="315" r="205"/>
+    <path class="map-ghost" d="${complete}"/>
+    <path class="map-glow" id="mapGlow" d="${main}"/>
+    <path class="map-line" id="mapLine" d="${main}"/>
+    <path class="map-highlight" id="mapHighlight" d="${main}"/>
+    <g id="islands">${islands}</g>
+    <path class="head-tail" id="headTail"/>
+    <circle class="head-halo" id="headHalo" r="18"/>
+    <circle class="head-core" id="headCore" r="4.8"/>
+  `;
+  mainPath=$('mapLine');
+  headTail=$('headTail');
+  headCore=$('headCore');
+  headHalo=$('headHalo');
+  prepareWordmark();
+  replay();
+}
+function prepareWordmark(){
+  $('letters').innerHTML=[...'PENÍNSULA'].map(letter=>`<i>${letter}</i>`).join('');
+  $('tech').classList.remove('on');
+  $('tag').classList.remove('on');
+}
+function clearAnimation(){
+  cancelAnimationFrame(raf);
+  timers.forEach(clearTimeout);
+  timers=[];
+}
+function revealWordmark(delay){
+  const letters=[...document.querySelectorAll('#letters i')];
+  letters.forEach((letter,index)=>timers.push(setTimeout(()=>letter.classList.add('on'),delay+index*115)));
+  timers.push(setTimeout(()=>$('tech').classList.add('on'),delay+letters.length*115+80));
+  timers.push(setTimeout(()=>$('tag').classList.add('on'),delay+letters.length*115+390));
+}
+function replay(){
+  if(!polygons){ loadMap(); return; }
+  clearAnimation();
+  prepareWordmark();
+  $('finalPulse').classList.remove('run');
+  document.querySelectorAll('.map-island').forEach(el=>el.style.opacity=0);
+  const glow=$('mapGlow'),highlight=$('mapHighlight');
+  const length=mainPath.getTotalLength();
+  [mainPath,glow,highlight].forEach(path=>{
+    path.style.strokeDasharray=String(length);
+    path.style.strokeDashoffset=String(length);
+  });
+  headCore.style.opacity=1;
+  headHalo.style.opacity=1;
+  headTail.setAttribute('d','');
+  const start=performance.now();
+  const duration=2950;
+  function frame(now){
+    const progress=Math.min(1,(now-start)/duration);
+    const distance=length*progress;
+    const point=mainPath.getPointAtLength(distance);
+    const tailPoint=mainPath.getPointAtLength(Math.max(0,distance-34));
+    [mainPath,glow,highlight].forEach(path=>path.style.strokeDashoffset=String(length-distance));
+    headTail.setAttribute('d',`M${tailPoint.x.toFixed(2)} ${tailPoint.y.toFixed(2)} L${point.x.toFixed(2)} ${point.y.toFixed(2)}`);
+    headCore.setAttribute('cx',point.x);headCore.setAttribute('cy',point.y);
+    headHalo.setAttribute('cx',point.x);headHalo.setAttribute('cy',point.y);
+    headHalo.setAttribute('r',String(16+Math.sin(now/80)*2));
+    if(progress<1){
+      raf=requestAnimationFrame(frame);
+    }else{
+      headCore.style.opacity=0;headHalo.style.opacity=0;headTail.setAttribute('d','');
+      document.querySelectorAll('.map-island').forEach((el,index)=>timers.push(setTimeout(()=>el.style.opacity=1,index*100)));
+      timers.push(setTimeout(()=>{const pulse=$('finalPulse');pulse.classList.remove('run');void pulse.getBBox();pulse.classList.add('run');},180));
+      revealWordmark(520);
+    }
+  }
+  raf=requestAnimationFrame(frame);
+}
+$('replay').onclick=replay;
+$('fullscreen').onclick=()=>document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();
+window.addEventListener('keydown',event=>{if(event.key.toLowerCase()==='r')replay();});
+prepareWordmark();
+loadMap();
+</script>
+</body>
+</html>
