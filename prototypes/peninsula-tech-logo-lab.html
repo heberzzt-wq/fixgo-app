@@ -3,484 +3,53 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Península Tech · Laboratorio V11</title>
-<style>
-:root{
-  color-scheme:dark;
-  --cyan:#24f3ff;
-  --cyan-soft:#aefcff;
-  --blue:#168fff;
-  --white:#ffffff;
-  --muted:#8db2c8;
-}
-*{box-sizing:border-box}
-html,body{height:100%}
-body{
-  margin:0;
-  overflow:hidden;
-  font-family:Inter,Segoe UI,Arial,sans-serif;
-  color:#f8feff;
-  background:
-    radial-gradient(circle at 50% 34%,rgba(22,143,255,.22),transparent 28%),
-    radial-gradient(circle at 50% 48%,rgba(36,243,255,.12),transparent 25%),
-    linear-gradient(180deg,#00040a 0%,#03101a 56%,#01060c 100%);
-}
-body::before{
-  content:"";
-  position:fixed;
-  inset:0;
-  pointer-events:none;
-  opacity:.36;
-  background-image:
-    linear-gradient(rgba(255,255,255,.02) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(255,255,255,.02) 1px,transparent 1px);
-  background-size:48px 48px;
-  mask:linear-gradient(to bottom,black,transparent 84%);
-}
-.screen-bloom{
-  position:fixed;
-  inset:-15%;
-  z-index:50;
-  pointer-events:none;
-  opacity:0;
-  mix-blend-mode:screen;
-  background:
-    radial-gradient(circle at 50% 42%,rgba(255,255,255,.34),transparent 13%),
-    radial-gradient(circle at 50% 42%,rgba(36,243,255,.46),transparent 24%),
-    radial-gradient(circle at 50% 42%,rgba(22,143,255,.34),transparent 40%),
-    radial-gradient(circle at 50% 42%,rgba(36,243,255,.18),transparent 58%);
-}
-.screen-bloom.blast{animation:screenBlast 1.55s ease-out forwards}
-.app{height:100%;display:grid;grid-template-rows:auto 1fr auto;gap:14px;padding:18px}
-.topbar{display:flex;align-items:flex-end;justify-content:space-between;gap:24px}
-.eyebrow{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:#99faff;font-weight:800}
-.brand{font-size:clamp(30px,3.5vw,52px);font-weight:900;letter-spacing:.13em;margin-top:5px}
-.sub{margin-top:7px;color:var(--muted);font-size:13px}
-.stats{display:flex;gap:24px;font-size:10px;color:#7fa6bd;text-transform:uppercase;letter-spacing:.12em}
-.stats b{display:block;color:white;font-size:15px;letter-spacing:0;text-transform:none;margin-top:3px}
-.stage{
-  position:relative;
-  overflow:hidden;
-  border:1px solid rgba(91,235,255,.18);
-  border-radius:28px;
-  background:
-    radial-gradient(circle at 50% 38%,rgba(36,243,255,.09),transparent 25%),
-    radial-gradient(circle at 50% 38%,rgba(22,143,255,.09),transparent 40%),
-    linear-gradient(180deg,rgba(3,12,22,.97),rgba(1,6,12,.99));
-  box-shadow:0 30px 90px rgba(0,0,0,.48),inset 0 1px rgba(255,255,255,.03);
-}
-.stage.full-power{
-  animation:stagePower 1.25s ease-out;
-  box-shadow:
-    0 0 38px rgba(36,243,255,.20),
-    0 0 105px rgba(22,143,255,.18),
-    inset 0 0 42px rgba(36,243,255,.08),
-    0 30px 90px rgba(0,0,0,.48);
-}
-.stage::after{
-  content:"";
-  position:absolute;
-  inset:0;
-  pointer-events:none;
-  background:linear-gradient(120deg,transparent 40%,rgba(255,255,255,.04) 50%,transparent 60%);
-  transform:translateX(-120%);
-  animation:sheen 9s ease-in-out infinite;
-}
-.stage-head{position:absolute;z-index:6;left:22px;right:22px;top:18px;display:flex;justify-content:space-between;gap:20px;font-size:11px}
-.stage-head strong{letter-spacing:.18em;text-transform:uppercase}
-.stage-head span{color:var(--muted)}
-.scene{position:absolute;inset:0;width:100%;height:100%}
-.wordmark{
-  position:absolute;
-  z-index:8;
-  left:50%;
-  bottom:4.5%;
-  transform:translateX(-50%);
-  text-align:center;
-  width:min(860px,92%);
-  pointer-events:none;
-}
-.word-row{display:flex;justify-content:center;gap:.055em;flex-wrap:nowrap}
-.word-row i{
-  font-style:normal;
-  font-size:clamp(30px,4.5vw,70px);
-  line-height:1;
-  font-weight:900;
-  letter-spacing:.11em;
-  opacity:0;
-  transform:translateY(18px) scale(.96);
-  filter:blur(8px);
-  color:#fbffff;
-  text-shadow:
-    0 0 20px rgba(255,255,255,.18),
-    0 0 38px rgba(36,243,255,.30),
-    0 0 68px rgba(22,143,255,.20);
-}
-.word-row i.on{animation:letterIn .42s cubic-bezier(.2,.82,.2,1) forwards}
-.tech{
-  margin-top:10px;
-  font-size:clamp(16px,2vw,28px);
-  font-weight:900;
-  letter-spacing:.58em;
-  padding-left:.58em;
-  color:#c2feff;
-  opacity:0;
-  transform:translateY(12px);
-  text-shadow:0 0 24px rgba(36,243,255,.52),0 0 48px rgba(22,143,255,.22);
-}
-.tech.on{animation:fadeUp .5s ease forwards}
-.tag{
-  margin-top:12px;
-  font-size:10px;
-  letter-spacing:.24em;
-  text-transform:uppercase;
-  color:#87aec4;
-  opacity:0;
-}
-.tag.on{animation:fade .55s ease forwards}
-.controls{display:flex;align-items:center;justify-content:space-between;gap:16px;color:#7e9fb4;font-size:11px}
-.controls-left{display:flex;gap:10px}
-button{border:0;border-radius:12px;padding:12px 16px;font-weight:800;cursor:pointer}
-.primary{background:linear-gradient(90deg,#168fff,#42f3ff);color:#00131c}
-.secondary{background:#061523;color:#e9fbff;border:1px solid rgba(78,215,255,.18)}
-.status{display:flex;gap:18px;align-items:center}
-.status b{color:#dffbff}
-.status-dot{width:9px;height:9px;border-radius:50%;background:#28ebff;box-shadow:0 0 18px #28ebff,0 0 32px rgba(40,235,255,.62)}
-.loading{position:absolute;z-index:20;inset:0;display:grid;place-items:center;background:#020812f0;text-align:center;color:#9fc8db}
-.loading.hide{opacity:0;visibility:hidden;transition:.35s}
-.spinner{width:44px;height:44px;border-radius:50%;border:2px solid rgba(67,220,255,.15);border-top-color:#36e4ff;margin:0 auto 12px;animation:spin 1s linear infinite}
-.ring-back{fill:none;stroke:rgba(255,255,255,.13);stroke-width:2}
-.ring-glow-wide{fill:none;stroke:#22f1ff;stroke-width:28;opacity:.13;filter:url(#wideGlow)}
-.ring-glow{fill:none;stroke:#38f5ff;stroke-width:13;opacity:.24;filter:url(#softGlow)}
-.ring-main{fill:none;stroke:url(#ringStroke);stroke-width:4.1;filter:url(#lineGlow)}
-.ring-hot{fill:none;stroke:#ffffff;stroke-width:1.35;opacity:.98}
-.map-fill{fill:rgba(14,167,255,.035);stroke:none}
-.map-glow-wide{fill:none;stroke:#21f1ff;stroke-width:22;opacity:.13;filter:url(#wideGlow);stroke-linecap:round;stroke-linejoin:round}
-.map-glow{fill:none;stroke:#58f7ff;stroke-width:9;opacity:.25;filter:url(#softGlow);stroke-linecap:round;stroke-linejoin:round}
-.map-main{fill:none;stroke:url(#mapStroke);stroke-width:2.7;stroke-linecap:round;stroke-linejoin:round;filter:url(#lineGlow)}
-.map-hot{fill:none;stroke:#ffffff;stroke-width:.96;opacity:.98;stroke-linecap:round;stroke-linejoin:round}
-.island-glow-wide{fill:none;stroke:#22f1ff;stroke-width:15;opacity:0;filter:url(#wideGlow)}
-.island-glow{fill:none;stroke:#64f8ff;stroke-width:6;opacity:0;filter:url(#softGlow)}
-.island-main{fill:rgba(14,167,255,.035);stroke:url(#mapStroke);stroke-width:1.8;opacity:0;filter:url(#lineGlow)}
-.island-hot{fill:none;stroke:#ffffff;stroke-width:.75;opacity:0}
-.hud-piece{opacity:.04;transition:opacity .28s ease}
-.hud-piece.on{opacity:1;filter:url(#hudGlow)}
-.hud-tick{stroke:#8cfaff;stroke-width:1.35}
-.hud-tick-strong{stroke:#ffffff;stroke-width:2.5}
-.hud-node{fill:#d8ffff}
-.hud-cross{stroke:#7df8ff;stroke-width:1.45}
-.hud-spoke{stroke:#75f7ff;stroke-width:1.5;stroke-linecap:round}
-.hud-micro{stroke:#d3ffff;stroke-width:1.35;stroke-linecap:round}
-.hud-dot{fill:#ffffff}
-.arc-core{fill:none;stroke:#c8ffff;stroke-width:2.2;stroke-linecap:round}
-.arc-glow{fill:none;stroke:#2ff2ff;stroke-width:9;opacity:.30;filter:url(#softGlow);stroke-linecap:round}
-.head-tail{fill:none;stroke:#d9ffff;stroke-width:9.5;stroke-linecap:round;opacity:.62;filter:url(#tailGlow)}
-.head-core{fill:#ffffff;filter:url(#headGlow)}
-.head-halo{fill:#64f7ff;opacity:.36;filter:url(#wideGlow)}
-.final-pulse{fill:none;stroke:#b8feff;stroke-width:2;opacity:0}
-.final-pulse.run{animation:pulseRing 1.2s ease-out forwards}
-.scene.energized .ring-glow-wide{opacity:.34}
-.scene.energized .ring-glow{opacity:.50}
-.scene.energized .map-glow-wide{opacity:.30}
-.scene.energized .map-glow{opacity:.54}
-.scene.energized .hud-piece{opacity:1;filter:url(#hudGlowStrong)}
-.scene.energized .island-glow-wide{opacity:.30}
-.scene.energized .island-glow{opacity:.55}
-.scene.energized .island-main,.scene.energized .island-hot{opacity:1}
-@keyframes letterIn{to{opacity:1;transform:none;filter:none}}
-@keyframes fadeUp{to{opacity:1;transform:none}}
-@keyframes fade{to{opacity:1}}
-@keyframes pulseRing{0%{opacity:.8;transform:scale(.90)}100%{opacity:0;transform:scale(1.18)}}
-@keyframes screenBlast{0%{opacity:0}15%{opacity:1}40%{opacity:.82}100%{opacity:0}}
-@keyframes stagePower{0%{filter:brightness(1)}20%{filter:brightness(1.65)}100%{filter:brightness(1)}}
-@keyframes spin{to{transform:rotate(360deg)}}
-@keyframes sheen{0%,20%{transform:translateX(-120%)}70%,100%{transform:translateX(120%)}}
-@media(max-width:820px){
-  body{overflow:auto}.app{height:auto;min-height:100%;padding:12px}.topbar{align-items:flex-start}.stats{display:none}.stage{height:760px}.stage-head span{display:none}.wordmark{bottom:5%}.word-row i{font-size:clamp(25px,7vw,44px)}.controls{flex-direction:column;align-items:stretch}.controls-left{justify-content:center}.status{justify-content:center}
-}
-</style>
+<title>Península Tech · Laboratorio V12</title>
+<link rel="stylesheet" href="peninsula-tech-logo-v12.css">
 </head>
 <body>
-<div class="screen-bloom" id="screenBloom"></div>
+<div class="screen-flash" id="screenFlash"></div>
 <div class="app">
   <header class="topbar">
     <div>
-      <div class="eyebrow">PEN&Iacute;NSULA TECH · LABORATORIO V11</div>
+      <div class="eyebrow">PEN&Iacute;NSULA TECH · LABORATORIO V12</div>
       <div class="brand">PEN&Iacute;NSULA TECH</div>
-      <div class="sub">Mapa real sin deformar, emblema separado y cada microdetalle iluminado.</div>
+      <div class="sub">El sistema se construye, se conecta y enciende toda la pantalla.</div>
     </div>
     <div class="stats">
-      <div>MAPA<b>Quintana Roo real</b></div>
+      <div>EMBLEMA<b>Quintana Roo + ADN SIA7</b></div>
       <div>BRILLO<b>1000%</b></div>
-      <div>SALIDA<b>Logo + wordmark</b></div>
+      <div>SECUENCIA<b>7.2 s</b></div>
     </div>
   </header>
 
   <main class="stage" id="stage">
     <div class="stage-head">
-      <strong>CONSTRUCCI&Oacute;N TOTAL</strong>
-      <span>aro → microdetalles → mapa real → encendido total → wordmark</span>
+      <strong>AUTOCONSTRUCCI&Oacute;N DEL SISTEMA</strong>
+      <span>n&uacute;cleo → mapa → circuitos → aros → extensiones → encendido → marca</span>
     </div>
 
     <div class="loading" id="loading">
       <div><div class="spinner"></div><div id="loadingText">Cargando cartograf&iacute;a real de Quintana Roo…</div></div>
     </div>
 
-    <svg class="scene" id="scene" viewBox="0 0 1200 720" preserveAspectRatio="xMidYMid meet" aria-label="Animación del logo"></svg>
+    <svg class="scene" id="scene" viewBox="0 0 1200 760" preserveAspectRatio="xMidYMid meet" aria-label="Animación Península Tech"></svg>
 
     <div class="wordmark">
       <div class="word-row" id="letters"></div>
       <div class="tech" id="tech">TECH</div>
       <div class="tag" id="tag">TECNOLOG&Iacute;A · INNOVACI&Oacute;N · SOLUCIONES</div>
+      <div class="slogan" id="slogan">EL FUTURO SE CONSTRUYE AQU&Iacute;</div>
     </div>
   </main>
 
   <footer class="controls">
     <div class="controls-left">
-      <button class="primary" id="replay">Repetir</button>
+      <button class="primary" id="replay">Repetir animaci&oacute;n</button>
       <button class="secondary" id="fullscreen">Pantalla completa</button>
     </div>
-    <div class="status"><span class="status-dot"></span><span>Estado: <b id="source">cargando</b></span><span>sin deformar mapa · sin superponer letras · todo iluminado</span></div>
+    <div class="status"><span class="status-dot"></span><span>Estado: <b id="source">cargando</b></span><span>sin 7 · mapa real · emblema separado · iluminaci&oacute;n total</span></div>
   </footer>
 </div>
-<script>
-const SOURCES=[
-  ['INEGI','https://gaia.inegi.org.mx/wscatgeo/v2/geo/mgee/23'],
-  ['GeoJSON de respaldo','https://raw.githubusercontent.com/strotgen/mexico-leaflet/refs/heads/master/states.geojson']
-];
-const $=id=>document.getElementById(id);
-const CX=600;
-const CY=248;
-const R=168;
-let polygons=null;
-let raf=0;
-let timers=[];
-
-function polygonArea(ring){
-  let sum=0;
-  for(let i=0,j=ring.length-1;i<ring.length;j=i++) sum+=ring[j][0]*ring[i][1]-ring[i][0]*ring[j][1];
-  return Math.abs(sum/2);
-}
-function normalizeGeoJSON(input){
-  let feature=input;
-  if(input.type==='FeatureCollection'){
-    feature=input.features.find(f=>String(f.properties?.state_code)==='23'||/Quintana Roo/i.test(f.properties?.nomgeo||f.properties?.state_name||''));
-  }
-  if(!feature) throw new Error('No se encontró Quintana Roo');
-  const geometry=feature.type==='Feature'?feature.geometry:feature;
-  const raw=geometry.type==='Polygon'?[geometry.coordinates]:geometry.coordinates;
-  if(!raw) throw new Error('Geometría inválida');
-  return raw.filter(p=>p?.[0]?.length>2).sort((a,b)=>polygonArea(b[0])-polygonArea(a[0]));
-}
-async function fetchJSON(url){
-  const controller=new AbortController();
-  const timeout=setTimeout(()=>controller.abort(),6500);
-  try{
-    const response=await fetch(url,{signal:controller.signal,cache:'no-store'});
-    if(!response.ok) throw new Error(String(response.status));
-    return await response.json();
-  }finally{clearTimeout(timeout)}
-}
-async function loadMap(){
-  for(const [name,url] of SOURCES){
-    try{
-      $('loadingText').textContent='Consultando '+name+'…';
-      polygons=normalizeGeoJSON(await fetchJSON(url));
-      $('source').textContent=name;
-      buildScene();
-      $('loading').classList.add('hide');
-      return;
-    }catch(error){console.warn(name,error)}
-  }
-  $('loadingText').textContent='No se pudo cargar la cartografía. Revisa internet y pulsa Repetir.';
-  $('source').textContent='sin conexión';
-}
-function project(source,bounds){
-  const all=source.flatMap(poly=>poly.flat());
-  const xs=all.map(p=>p[0]);
-  const ys=all.map(p=>p[1]);
-  const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
-  const scale=Math.min(bounds.w/(maxX-minX),bounds.h/(maxY-minY));
-  const offsetX=bounds.x+(bounds.w-(maxX-minX)*scale)/2;
-  const offsetY=bounds.y+(bounds.h-(maxY-minY)*scale)/2;
-  return source.map(poly=>poly.map(ring=>ring.map(([x,y])=>[offsetX+(x-minX)*scale,offsetY+(maxY-y)*scale])));
-}
-function ringPath(ring){
-  return ring.map((point,index)=>(index?'L':'M')+point[0].toFixed(2)+' '+point[1].toFixed(2)).join(' ')+' Z';
-}
-function polygonPath(poly){return poly.map(ringPath).join(' ')}
-function polar(r,a){return [CX+Math.cos(a)*r,CY+Math.sin(a)*r]}
-function arcPath(radius,start,end){
-  const p1=polar(radius,start);
-  const p2=polar(radius,end);
-  const large=end-start>Math.PI?1:0;
-  return `M${p1[0].toFixed(2)} ${p1[1].toFixed(2)} A${radius} ${radius} 0 ${large} 1 ${p2[0].toFixed(2)} ${p2[1].toFixed(2)}`;
-}
-function buildHud(){
-  const parts=[];
-  for(let i=0;i<112;i++){
-    const a=Math.PI*2*i/112-Math.PI/2;
-    const inner=i%8===0?R+17:R+12;
-    const outer=i%8===0?R+32:R+22;
-    const p1=polar(inner,a),p2=polar(outer,a);
-    parts.push(`<line class="hud-piece ${i%8===0?'hud-tick-strong':'hud-tick'}" x1="${p1[0].toFixed(2)}" y1="${p1[1].toFixed(2)}" x2="${p2[0].toFixed(2)}" y2="${p2[1].toFixed(2)}"/>`);
-  }
-  const spokes=[-150,-120,-88,-56,-24,12,44,78,112,146].map(v=>v*Math.PI/180);
-  spokes.forEach(a=>{
-    const p1=polar(R+34,a),p2=polar(R+76,a);
-    parts.push(`<line class="hud-piece hud-spoke" x1="${p1[0].toFixed(2)}" y1="${p1[1].toFixed(2)}" x2="${p2[0].toFixed(2)}" y2="${p2[1].toFixed(2)}"/>`);
-    parts.push(`<circle class="hud-piece hud-dot" cx="${p2[0].toFixed(2)}" cy="${p2[1].toFixed(2)}" r="2.4"/>`);
-  });
-  [[0,-1],[1,0],[0,1],[-1,0]].forEach(([dx,dy])=>{
-    const x=CX+dx*(R+38),y=CY+dy*(R+38);
-    parts.push(`<line class="hud-piece hud-cross" x1="${x-22}" y1="${y}" x2="${x+22}" y2="${y}"/>`);
-    parts.push(`<line class="hud-piece hud-cross" x1="${x}" y1="${y-22}" x2="${x}" y2="${y+22}"/>`);
-    parts.push(`<circle class="hud-piece hud-node" cx="${x}" cy="${y}" r="4.3"/>`);
-  });
-  const micro=[
-    [-190,-76,-226,-102],[174,-88,214,-116],[-207,24,-244,38],[198,34,240,48],
-    [-118,170,-78,205],[116,166,160,202],[-42,-214,-24,-246],[35,-215,52,-248]
-  ];
-  micro.forEach(([x1,y1,x2,y2])=>{
-    parts.push(`<line class="hud-piece hud-micro" x1="${CX+x1}" y1="${CY+y1}" x2="${CX+x2}" y2="${CY+y2}"/>`);
-    parts.push(`<circle class="hud-piece hud-dot" cx="${CX+x2}" cy="${CY+y2}" r="2.5"/>`);
-  });
-  const arcs=[[-2.82,-2.35],[-2.12,-1.63],[-1.38,-.92],[-.68,-.22],[.04,.43],[.72,1.15],[1.42,1.91],[2.16,2.66]];
-  arcs.forEach(([start,end],index)=>{
-    const d=arcPath(R+48+(index%2)*9,start,end);
-    parts.push(`<path class="hud-piece arc-glow" d="${d}"/>`);
-    parts.push(`<path class="hud-piece arc-core" d="${d}"/>`);
-  });
-  return parts.join('');
-}
-function buildScene(){
-  const projected=project(polygons,{x:536,y:128,w:128,h:236});
-  const complete=projected.map(polygonPath).join(' ');
-  const main=polygonPath(projected[0]);
-  const islands=projected.slice(1).map(poly=>polygonPath(poly));
-  $('scene').innerHTML=`
-    <defs>
-      <linearGradient id="ringStroke" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".15" stop-color="#ddffff"/><stop offset=".52" stop-color="#24f3ff"/><stop offset="1" stop-color="#168fff"/></linearGradient>
-      <linearGradient id="mapStroke" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".18" stop-color="#d8ffff"/><stop offset=".58" stop-color="#24f3ff"/><stop offset="1" stop-color="#168fff"/></linearGradient>
-      <filter id="wideGlow"><feGaussianBlur stdDeviation="10"/></filter>
-      <filter id="softGlow"><feGaussianBlur stdDeviation="4"/></filter>
-      <filter id="lineGlow"><feGaussianBlur stdDeviation="1.6"/></filter>
-      <filter id="hudGlow"><feGaussianBlur stdDeviation="1.8"/></filter>
-      <filter id="hudGlowStrong"><feGaussianBlur stdDeviation="2.7"/></filter>
-      <filter id="tailGlow"><feGaussianBlur stdDeviation="2.4"/></filter>
-      <filter id="headGlow"><feGaussianBlur stdDeviation="3.2"/></filter>
-    </defs>
-    <circle class="final-pulse" id="finalPulse" cx="${CX}" cy="${CY}" r="${R+7}"/>
-    <circle class="ring-back" cx="${CX}" cy="${CY}" r="${R}"/>
-    <circle class="ring-glow-wide" id="ringGlowWide" cx="${CX}" cy="${CY}" r="${R}"/>
-    <circle class="ring-glow" id="ringGlow" cx="${CX}" cy="${CY}" r="${R}"/>
-    <circle class="ring-main" id="ringMain" cx="${CX}" cy="${CY}" r="${R}"/>
-    <circle class="ring-hot" id="ringHot" cx="${CX}" cy="${CY}" r="${R}"/>
-    <g id="hud">${buildHud()}</g>
-    <path class="map-fill" d="${complete}"/>
-    <path class="map-glow-wide" id="mapGlowWide" d="${main}"/>
-    <path class="map-glow" id="mapGlow" d="${main}"/>
-    <path class="map-main" id="mapMain" d="${main}"/>
-    <path class="map-hot" id="mapHot" d="${main}"/>
-    <g id="islands">${islands.map(d=>`<path class="island-glow-wide island" d="${d}"/><path class="island-glow island" d="${d}"/><path class="island-main island" d="${d}"/><path class="island-hot island" d="${d}"/>`).join('')}</g>
-    <path class="head-tail" id="headTail"/>
-    <circle class="head-halo" id="headHalo" r="21"/>
-    <circle class="head-core" id="headCore" r="5.2"/>
-  `;
-  prepareWordmark();
-  replay();
-}
-function prepareWordmark(){
-  $('letters').innerHTML=[...'PEN\u00cdNSULA'].map(letter=>`<i>${letter}</i>`).join('');
-  $('tech').classList.remove('on');
-  $('tag').classList.remove('on');
-}
-function clearAnimation(){
-  cancelAnimationFrame(raf);
-  timers.forEach(clearTimeout);
-  timers=[];
-  $('screenBloom').classList.remove('blast');
-  $('scene').classList.remove('energized');
-  $('stage').classList.remove('full-power');
-}
-function revealHud(){
-  document.querySelectorAll('.hud-piece').forEach((element,index)=>{
-    timers.push(setTimeout(()=>element.classList.add('on'),index*7));
-  });
-}
-function revealIslands(){
-  document.querySelectorAll('.island').forEach((element,index)=>{
-    timers.push(setTimeout(()=>element.style.opacity='1',index*55));
-  });
-}
-function revealWordmark(delay){
-  const letters=[...document.querySelectorAll('#letters i')];
-  letters.forEach((letter,index)=>timers.push(setTimeout(()=>letter.classList.add('on'),delay+index*112)));
-  timers.push(setTimeout(()=>$('tech').classList.add('on'),delay+letters.length*112+90));
-  timers.push(setTimeout(()=>$('tag').classList.add('on'),delay+letters.length*112+390));
-}
-function animatePath(paths,duration,done){
-  const main=paths[0];
-  const length=main.getTotalLength();
-  paths.forEach(path=>{path.style.strokeDasharray=String(length);path.style.strokeDashoffset=String(length)});
-  const tail=$('headTail');
-  const core=$('headCore');
-  const halo=$('headHalo');
-  core.style.opacity=1;
-  halo.style.opacity=1;
-  const start=performance.now();
-  function frame(now){
-    const progress=Math.min(1,(now-start)/duration);
-    const distance=length*progress;
-    const point=main.getPointAtLength(distance);
-    const previous=main.getPointAtLength(Math.max(0,distance-66));
-    paths.forEach(path=>path.style.strokeDashoffset=String(length-distance));
-    tail.setAttribute('d',`M${previous.x.toFixed(2)} ${previous.y.toFixed(2)} L${point.x.toFixed(2)} ${point.y.toFixed(2)}`);
-    core.setAttribute('cx',point.x);core.setAttribute('cy',point.y);
-    halo.setAttribute('cx',point.x);halo.setAttribute('cy',point.y);
-    halo.setAttribute('r',String(20+Math.sin(now/82)*3));
-    if(progress<1){raf=requestAnimationFrame(frame)}else{
-      tail.setAttribute('d','');core.style.opacity=0;halo.style.opacity=0;done&&done();
-    }
-  }
-  raf=requestAnimationFrame(frame);
-}
-function fullPower(){
-  $('scene').classList.add('energized');
-  $('stage').classList.remove('full-power');
-  void $('stage').offsetWidth;
-  $('stage').classList.add('full-power');
-  document.querySelectorAll('.hud-piece').forEach(element=>element.classList.add('on'));
-  document.querySelectorAll('.island').forEach(element=>element.style.opacity='1');
-  const bloom=$('screenBloom');
-  bloom.classList.remove('blast');
-  void bloom.offsetWidth;
-  bloom.classList.add('blast');
-  const pulse=$('finalPulse');
-  pulse.classList.remove('run');
-  void pulse.getBBox();
-  pulse.classList.add('run');
-}
-function replay(){
-  if(!polygons){loadMap();return}
-  clearAnimation();
-  prepareWordmark();
-  document.querySelectorAll('.hud-piece').forEach(element=>element.classList.remove('on'));
-  document.querySelectorAll('.island').forEach(element=>element.style.opacity='0');
-  animatePath([$ ('ringMain'),$('ringGlowWide'),$('ringGlow'),$('ringHot')],1550,()=>{
-    revealHud();
-    timers.push(setTimeout(()=>animatePath([$('mapMain'),$('mapGlowWide'),$('mapGlow'),$('mapHot')],2350,()=>{
-      revealIslands();
-      timers.push(setTimeout(fullPower,160));
-      revealWordmark(430);
-    }),760));
-  });
-}
-$('replay').onclick=replay;
-$('fullscreen').onclick=()=>document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();
-window.addEventListener('keydown',event=>{if(event.key.toLowerCase()==='r')replay()});
-prepareWordmark();
-loadMap();
-</script>
+<script src="peninsula-tech-logo-v12.js"></script>
 </body>
 </html>
