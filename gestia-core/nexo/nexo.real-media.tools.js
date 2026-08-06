@@ -134,9 +134,9 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
             return {
                 ...result,
                 objectiveSatisfied: result?.readyForProduction === true,
-                requiresInput: false,
-                blocked: false,
-                retryable: false,
+                requiresInput: result?.requiresInput === true,
+                blocked: result?.blocked === true || result?.requiresInput === true,
+                retryable: result?.retryable === true,
                 runtimeOverride: NEXO_REAL_MEDIA_TOOLS_VERSION
             };
         }

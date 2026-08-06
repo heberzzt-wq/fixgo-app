@@ -99,21 +99,53 @@ test("NEXO marketing leaves free-text routing to the mission planner", () => {
     assert.equal(isMarketingRequest({ domain: "marketing" }), true);
 });
 
-test("NEXO marketing turns a minimal natural instruction into an editable package", () => {
-    const result = planMarketingRequest("hazme un programa de marketing", {
-        brandName: "HMH"
-    });
+test("NEXO marketing keeps a technically successful request pending when critical context is missing", () => {
+    const result = planMarketingRequest(
+        "Crea un plan de marketing completo para Multiservicios Peninsulares HMH."
+    );
 
     assert.equal(result.ok, true);
-    assert.equal(result.readyForProduction, true);
+    assert.equal(result.executionOk, true);
+    assert.equal(result.objectiveSatisfied, false);
+    assert.equal(result.requiresInput, true);
+    assert.equal(result.readyForProduction, false);
+    assert.equal(result.status, "MARKETING_INPUT_REQUIRED");
+    assert.ok(result.missingInputs.includes("audience"));
+    assert.ok(result.questions.length <= 4);
+    assert.match(result.message, /conservaré lo ya proporcionado/i);
+});
+
+test("NEXO marketing produces the complete 90-day package after receiving sufficient context", () => {
+    const result = planMarketingRequest(
+        "Crea un plan de marketing completo para Multiservicios Peninsulares HMH.",
+        {
+            brandName: "Multiservicios Peninsulares HMH",
+            campaignObjective: "Captar clientes y prestadores durante los primeros 90 días",
+            audience: "Propietarios, administradores, pequeños negocios y personas que necesitan técnicos confiables",
+            market: "Cancún, Quintana Roo",
+            offer: "Plataforma de multiservicios para hogares y negocios",
+            pain: "Dificultad para encontrar profesionales verificados, disponibles y con seguimiento",
+            promise: "Conexión rápida con profesionales y trazabilidad del servicio",
+            differentiator: "Profesionales verificados, seguimiento y experiencia digital",
+            budget: "escenario bajo de MXN 10,000 mensuales",
+            mediumBudget: "escenario medio de MXN 30,000 mensuales",
+            horizon: "90 días",
+            cta: "Solicitar servicio o registrarse como profesional",
+            channels: ["Meta Ads", "Google Ads", "contenido local", "WhatsApp", "referidos"]
+        }
+    );
+
     assert.equal(result.status, "MARKETING_PACKAGE_READY");
-    assert.equal(result.grounding.status, "USER_CONTEXT_ONLY");
-    assert.equal(result.campaign !== null, true);
-    assert.ok(result.inferredInputs.includes("audience"));
-    assert.ok(result.inferredInputs.includes("offer"));
-    assert.ok(result.inferredInputs.includes("cta"));
-    assert.equal(result.campaign.assumptions.length >= 3, true);
-    assert.match(result.message, /propuestas editables/i);
+    assert.equal(result.objectiveSatisfied, true);
+    assert.equal(result.requiresInput, false);
+    assert.equal(result.readyForProduction, true);
+    assert.equal(Object.keys(result.plan).length, 25);
+    for (const key of [
+        "executiveSummary", "smartObjectives", "targetAudience",
+        "contentPillars", "budgetScenarios", "kpisAndMeasurement",
+        "actionPlan306090", "prioritizedNextSteps"
+    ]) assert.ok(result.plan[key], `missing plan section: ${key}`);
+    assert.match(result.plan.executiveSummary, /Multiservicios Peninsulares HMH/);
 });
 
 test("company registry remains available during NEXO migration", () => {

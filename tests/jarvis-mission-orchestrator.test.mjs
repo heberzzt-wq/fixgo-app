@@ -831,6 +831,71 @@ test("mission preserves complete prepared content for a following artifact creat
     );
 });
 
+test("the same marketing mission resumes with supplied context and completes its dependent work", async () => {
+    const storage = memoryStorage();
+    const instruction = "Crea un plan de marketing completo para Multiservicios Peninsulares HMH.";
+    const execute = async (call, context) => {
+        if (call.name !== "marketing.plan") {
+            return { ok: true, status: "READY", objectiveSatisfied: true };
+        }
+        if (!context.marketingContext?.audience) {
+            return {
+                ok: true,
+                executionOk: true,
+                objectiveSatisfied: false,
+                requiresInput: true,
+                status: "MARKETING_INPUT_REQUIRED",
+                missingInputs: ["audience", "market", "offer", "budget", "horizon", "cta"]
+            };
+        }
+        return {
+            ok: true,
+            objectiveSatisfied: true,
+            requiresInput: false,
+            status: "MARKETING_PACKAGE_READY",
+            plan: { executiveSummary: "Plan completo de HMH", actionPlan306090: {} }
+        };
+    };
+    const initial = await runJarvisMission({
+        instruction,
+        initialToolCalls: [
+            { name: "marketing.plan", args: {} },
+            { name: "page.plan", args: {} }
+        ],
+        requiredToolNames: ["marketing.plan", "page.plan"],
+        planner: async () => ({ toolCalls: [], missionComplete: true }),
+        execute,
+        storage
+    });
+    assert.equal(initial.reason, "MISSION_INPUT_REQUIRED");
+    assert.equal(initial.completedTasks.length, 0);
+    assert.deepEqual(initial.pendingTasks.map(item => item.name), ["page.plan"]);
+
+    const resumed = await runJarvisMission({
+        instruction: "Audiencia, mercado, oferta, presupuesto, horizonte y CTA proporcionados.",
+        resumeMissionId: initial.missionId,
+        continuationContext: {
+            audience: "Propietarios y pequeños negocios",
+            market: "Cancún, Quintana Roo",
+            offer: "Multiservicios verificados",
+            budget: "bajo y medio",
+            horizon: "90 días",
+            cta: "Solicitar servicio"
+        },
+        planner: async () => ({ toolCalls: [], missionComplete: true }),
+        execute,
+        storage
+    });
+
+    assert.equal(resumed.missionId, initial.missionId);
+    assert.equal(resumed.resumeCount, 1);
+    assert.equal(resumed.reason, "ALL_EXECUTABLE_TASKS_COMPLETED");
+    assert.equal(resumed.status, "COMPLETED");
+    assert.deepEqual(resumed.completedTasks.map(item => item.name), ["marketing.plan", "page.plan"]);
+    assert.equal(resumed.blockedTasks.length, 0);
+    assert.equal(resumed.runtimeResults[0].status, "MARKETING_PACKAGE_READY");
+});
+
 test("mission refuses a status-only document blueprint without V68 validation evidence", () => {
     const observation = __test.safeObservation({
         ok: true,

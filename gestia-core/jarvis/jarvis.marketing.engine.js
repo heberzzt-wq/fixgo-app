@@ -11,7 +11,15 @@ import {
  * se consideran verificados cuando traen una fuente válida.
  */
 
-const VERSION = "8.0.0-nexo-natural-brief";
+const VERSION = "8.1.0-nexo-complete-marketing-package";
+
+const CRITICAL_INPUT_GROUPS = [
+    { id: "business", fields: ["brandName"], question: "¿Cuál es el negocio, marca o producto?" },
+    { id: "goal", fields: ["campaignObjective"], question: "¿Cuál es el objetivo comercial principal?" },
+    { id: "market", fields: ["audience", "market"], question: "¿A qué público y mercado o ubicación se dirige?" },
+    { id: "value", fields: ["offer", "pain", "differentiator"], question: "¿Cuál es la oferta, qué problema resuelve y cuál es su diferenciador?" },
+    { id: "execution", fields: ["budget", "horizon", "cta"], question: "¿Qué presupuesto o escenario, horizonte y llamada a la acción se usarán?" }
+];
 
 function clean(value) {
     return typeof value === "string" && value.trim() ? value.trim() : "";
@@ -109,7 +117,56 @@ function inferBrandName(instruction, context) {
     if (text.includes("peninsula tech")) return "Peninsula Tech";
     if (text.includes("gestiapremium") || text.includes("gestia premium")) return "GestiaPremium";
     if (text.includes("fixgo") || text.includes("fix go")) return "FixGo";
-    return "Peninsula Tech";
+    const explicit = instruction.match(/\bpara\s+(.+?)(?:[.,;]|$)/i)?.[1]?.trim();
+    return explicit || "";
+}
+
+function availableContext(context = {}) {
+    const memory = context.marketingContext && typeof context.marketingContext === "object"
+        ? context.marketingContext
+        : {};
+    return { ...memory, ...context };
+}
+
+function missingCriticalInputs(context = {}, instruction = "") {
+    const resolved = availableContext(context);
+    const inferredBrand = inferBrandName(instruction, resolved);
+    const missing = CRITICAL_INPUT_GROUPS.filter(group =>
+        group.fields.every(field => {
+            if (field === "brandName") return !inferredBrand;
+            return !clean(resolved[field]);
+        })
+    );
+    const suppliedGroups = CRITICAL_INPUT_GROUPS.length - missing.length;
+    // A concrete brand plus two substantive groups is enough to continue with
+    // explicit, editable assumptions for non-blocking details.
+    return inferredBrand && suppliedGroups >= 3 ? [] : missing;
+}
+
+function inputRequiredResult(instruction, context, groups) {
+    const missingInputs = groups.flatMap(group => group.fields);
+    return {
+        ok: true,
+        executionOk: true,
+        objectiveSatisfied: false,
+        requiresInput: true,
+        blocked: true,
+        retryable: false,
+        readyForProduction: false,
+        status: "MARKETING_INPUT_REQUIRED",
+        intent: "MARKETING_PACKAGE",
+        domain: "marketing",
+        raw: instruction,
+        trace: buildTrace(context, instruction),
+        missingInputs,
+        questions: groups.map(group => group.question),
+        preservedContext: availableContext(context),
+        message: [
+            "Para completar el plan sin inventar datos críticos necesito:",
+            ...groups.map((group, index) => `${index + 1}. ${group.question}`),
+            "Conservaré lo ya proporcionado y continuaré esta misma misión."
+        ].join("\n")
+    };
 }
 
 function inferAudience(instruction, context) {
@@ -271,8 +328,66 @@ function buildDeliverables(assets, channels, campaign) {
     });
 }
 
+function buildCompletePlan({ brand, campaign, channels, context, calendar, funnel, copies }) {
+    const budget = clean(context.budget) || "escenario por definir";
+    const horizon = clean(context.horizon) || "90 días";
+    const segments = strings(context.segments).length
+        ? strings(context.segments)
+        : [campaign.audience];
+    const smartGoal = `${campaign.objective} durante ${horizon}, midiendo conversaciones calificadas, conversión y costo por lead.`;
+    return {
+        executiveSummary: `${brand.name} priorizará ${channels.join(", ")} para convertir ${campaign.audience}. ${campaign.cta}.`,
+        assumptions: campaign.assumptions,
+        businessDiagnosis: `Situación inicial: ${campaign.pain}. Oportunidad: ${campaign.promise}.`,
+        smartObjectives: [smartGoal],
+        targetAudience: { primary: campaign.audience, segments },
+        customerProblem: campaign.pain,
+        valueProposition: campaign.promise,
+        positioningAndMessages: {
+            positioning: `${brand.name} se posiciona por ${campaign.differentiator}.`,
+            keyMessages: campaign.hooks.slice(0, 3)
+        },
+        offerStrategy: { offer: campaign.offer, approach: "entrada clara, prueba de valor y seguimiento" },
+        competitiveAnalysis: {
+            alternatives: strings(context.competitors).length ? strings(context.competitors) : ["proveedores informales", "búsqueda directa", "directorios sin seguimiento"],
+            advantage: campaign.differentiator
+        },
+        customerJourneyAndFunnel: funnel,
+        acquisitionStrategy: `Combinar demanda activa, contenido educativo local y referidos con seguimiento hacia ${campaign.cta}.`,
+        priorityChannels: channels.map((channel, index) => ({ channel, priority: index + 1, rationale: index < 2 ? "captación y alcance medible" : "nutrición, confianza y conversión" })),
+        contentStrategy: `Resolver dudas, demostrar el proceso y convertir con ${campaign.cta}.`,
+        contentPillars: ["problema y educación", "proceso y confianza", "prueba y resultados", "oferta y conversión"],
+        campaignExamples: copies.slice(0, 4),
+        executionCalendar: calendar,
+        conversionAndCta: { primaryCta: campaign.cta, followUp: "respuesta inmediata, calificación y recordatorio en 24 horas" },
+        retentionAndReferrals: ["seguimiento posterior", "solicitud de reseña", "beneficio por recomendación", "recordatorio de recompra"],
+        budgetScenarios: [
+            { scenario: "low", allocation: budget, mix: "60% captación, 25% contenido, 15% pruebas" },
+            { scenario: "medium", allocation: clean(context.mediumBudget) || `Aumentar 2-3x ${budget}`, mix: "65% captación, 20% contenido, 15% experimentos" }
+        ],
+        kpisAndMeasurement: campaign.metrics.map(metric => ({ metric, cadence: "semanal", source: "plataforma publicitaria, analítica y CRM" })),
+        experiments: ["mensaje problema vs. promesa", "CTA directo vs. diagnóstico", "audiencia residencial vs. empresarial"],
+        actionPlan306090: {
+            days30: ["instrumentar medición", "publicar activos base", "activar primeras campañas"],
+            days60: ["optimizar costo y conversión", "duplicar mensajes ganadores", "activar referidos"],
+            days90: ["consolidar canales rentables", "documentar aprendizajes", "definir siguiente trimestre"]
+        },
+        risksAndMitigations: [
+            { risk: "mensajes sin evidencia", mitigation: "usar sólo hechos sustentados y marcar propuestas" },
+            { risk: "presupuesto disperso", mitigation: "priorizar dos canales y escalar por resultados" },
+            { risk: "seguimiento lento", mitigation: "SLA y automatización de respuesta" }
+        ],
+        prioritizedNextSteps: ["validar supuestos editables", "confirmar medición y responsables", "producir activos", "lanzar prueba controlada", "revisar resultados semanalmente"]
+    };
+}
+
 export function planMarketingRequest(rawInput = "", context = {}) {
     const instruction = clean(rawInput);
+    context = availableContext(context);
+    const missingGroups = missingCriticalInputs(context, instruction);
+    if (missingGroups.length) {
+        return inputRequiredResult(instruction, context, missingGroups);
+    }
     const creativeBrief = deriveCreativeBrief(instruction, context);
     const brand = {
         name: creativeBrief.brandName,
@@ -330,6 +445,10 @@ export function planMarketingRequest(rawInput = "", context = {}) {
 
     const deliverables = buildDeliverables(assets, channels, campaign);
     const videoPackage = buildVideoPackage(channels, campaign, context.durationSeconds);
+    const copies = buildCopies(channels, campaign);
+    const calendar = buildCalendar(channels, brand, campaign);
+    const funnel = buildFunnel(campaign);
+    const completePlan = buildCompletePlan({ brand, campaign, channels, context, calendar, funnel, copies });
 
     return {
         ok: true,
@@ -355,11 +474,14 @@ export function planMarketingRequest(rawInput = "", context = {}) {
         missingInputs: [],
         inferredInputs: creativeBrief.inferredFields,
         readyForProduction: true,
+        objectiveSatisfied: true,
+        requiresInput: false,
         campaign,
-        copies: buildCopies(channels, campaign),
-        calendar: buildCalendar(channels, brand, campaign),
-        funnel: buildFunnel(campaign),
-        publications: buildCopies(channels, campaign).map(copy => ({
+        plan: completePlan,
+        copies,
+        calendar,
+        funnel,
+        publications: copies.map(copy => ({
             ...copy,
             publishStatus: "blocked_until_owner_approval"
         })),

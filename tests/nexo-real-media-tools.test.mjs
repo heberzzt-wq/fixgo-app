@@ -42,7 +42,7 @@ function marketingTask() {
     };
 }
 
-test("runtime override replaces legacy marketing with NEXO 8 natural brief", async () => {
+test("runtime override preserves NEXO marketing input-required semantics", async () => {
     const runtime = runtimeFixture();
     runtime.register({ name: "marketing.plan", execute: async () => ({ version: "7.0.0" }) });
     const installation = registerNexoRealMediaTools(runtime);
@@ -51,9 +51,11 @@ test("runtime override replaces legacy marketing with NEXO 8 natural brief", asy
     const result = await runtime.registry.get("marketing.plan").execute({
         prompt: "creame un plan de marketing para Multiservicios Peninsulares HMH"
     });
-    assert.equal(result.engine, "nexo_marketing_engine");
-    assert.equal(result.version, "8.0.0-nexo-natural-brief");
-    assert.equal(result.readyForProduction, true);
+    assert.equal(result.status, "MARKETING_INPUT_REQUIRED");
+    assert.equal(result.objectiveSatisfied, false);
+    assert.equal(result.requiresInput, true);
+    assert.equal(result.blocked, true);
+    assert.equal(result.readyForProduction, false);
     assert.equal(result.trace.controllerId, "PENINSULA_NEXO");
 });
 

@@ -5844,6 +5844,15 @@ if (
                     {}
             });
 
+    const pendingMissionId =
+        context.resumeMissionId ||
+        (
+            missionInitialToolCalls.some(call => call?.name === "marketing.plan")
+                ? window.__JARVIS_PENDING_MARKETING_MISSION_ID__ || null
+                : null
+        );
+    const continuationContext =
+        missionInitialToolCalls.find(call => call?.name === "marketing.plan")?.args || {};
     const missionResult =
         await runJarvisMission({
             instruction:
@@ -5856,6 +5865,9 @@ if (
                 context.caseId || null,
             objectiveId:
                 context.objectiveId || null,
+            resumeMissionId:
+                pendingMissionId,
+            continuationContext,
             maximumSteps:
                 20,
             maximumRetries:
@@ -6560,6 +6572,11 @@ if (
                     };
                 }
         });
+    if (missionResult.reason === "MISSION_INPUT_REQUIRED") {
+        window.__JARVIS_PENDING_MARKETING_MISSION_ID__ = missionResult.missionId;
+    } else if (pendingMissionId === missionResult.missionId) {
+        window.__JARVIS_PENDING_MARKETING_MISSION_ID__ = null;
+    }
 
     const toolObservations =
         missionResult.runtimeResults || [];

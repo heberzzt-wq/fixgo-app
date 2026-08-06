@@ -776,7 +776,9 @@ export async function runJarvisMission({
     maximumSteps = 12,
     maximumRetries = 1,
     timeoutMs = 180000,
-    signal
+    signal,
+    resumeMissionId,
+    continuationContext = {}
 } = {}) {
     const originalInstruction = String(instruction ?? "").trim();
     if (!originalInstruction) throw new Error("MISSION_INSTRUCTION_REQUIRED");
@@ -785,7 +787,11 @@ export async function runJarvisMission({
     const persistence = storageOrMemory(storage);
     const startedAt = Date.now();
     const runtimeResults = [];
-    const mission = {
+    const recovered = resumeMissionId
+        ? readMissions(persistence).find(item => item.missionId === resumeMissionId)
+        : null;
+    if (resumeMissionId && !recovered) throw new Error("MISSION_NOT_FOUND");
+    const mission = recovered ? structuredClone(recovered) : {
         schemaVersion: VERSION,
         missionId: identifier("MISSION"),
         caseId: text(caseId, 160) || identifier("CASE"),
@@ -815,7 +821,24 @@ export async function runJarvisMission({
         startedAt: now(),
         updatedAt: now()
     };
-    mission.pendingTasks.push(...trustedCalls(initialToolCalls, mission));
+    if (recovered) {
+        const resumable = mission.blockedTasks.filter(item => item?.observation?.requiresInput === true);
+        mission.blockedTasks = mission.blockedTasks.filter(item => item?.observation?.requiresInput !== true);
+        mission.errors = mission.errors.filter(item => item?.requiresInput !== true);
+        mission.pendingTasks.unshift(...resumable.map(item => ({
+            ...item,
+            args: { ...(item.args || {}), ...(continuationContext || {}) },
+            status: "PENDING",
+            attempts: 0
+        })));
+        mission.status = "RUNNING";
+        mission.reason = null;
+        mission.resumedAt = now();
+        mission.resumeCount = Number(mission.resumeCount || 0) + 1;
+        mission.contractMissingTools = [];
+    } else {
+        mission.pendingTasks.push(...trustedCalls(initialToolCalls, mission));
+    }
     saveMission(persistence, mission);
 
     while (mission.iterations < maximumSteps) {
@@ -906,6 +929,7 @@ export async function runJarvisMission({
                 validSources: mission.completedTasks
                     .flatMap(item => item.observation?.validSources || [])
                     .slice(0, 20),
+                marketingContext: continuationContext,
                 writeAllowed: false,
                 approved: false
             });
