@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { recoverJarvisMission, runJarvisMission, __test } from "../gestia-core/jarvis/jarvis.mission.orchestrator.js";
+import { planMarketingRequest } from "../gestia-core/jarvis/jarvis.marketing.engine.js";
 
 function memoryStorage() {
     const values = new Map();
@@ -831,6 +832,43 @@ test("mission preserves complete prepared content for a following artifact creat
     );
 });
 
+test("marketing planning is a mission singleton even with different planned arguments", async () => {
+    const executed = [];
+    const mission = await runJarvisMission({
+        instruction: "Crea un solo plan de marketing.",
+        initialToolCalls: [
+            { name: "marketing.plan", args: { brandName: "HMH" } },
+            { name: "marketing.plan", args: { brandName: "HMH", audience: "Cancún" } }
+        ],
+        requiredToolNames: ["marketing.plan"],
+        planner: async () => ({ toolCalls: [], missionComplete: true }),
+        execute: async call => {
+            executed.push(call.name);
+            return { ok: true, status: "READY", objectiveSatisfied: true };
+        },
+        storage: memoryStorage()
+    });
+
+    assert.deepEqual(executed, ["marketing.plan"]);
+    assert.deepEqual(mission.executedTools, ["marketing.plan"]);
+    assert.equal(mission.completedTasks.length, 1);
+});
+
+test("MARKETING_PACKAGE_READY cannot satisfy the mission without a visible complete deliverable", () => {
+    const observation = __test.safeObservation({
+        ok: true,
+        status: "MARKETING_PACKAGE_READY",
+        objectiveSatisfied: true,
+        plan: {},
+        userVisible: ""
+    });
+
+    assert.equal(observation.executionOk, true);
+    assert.equal(observation.objectiveSatisfied, false);
+    assert.equal(observation.userVisible, "");
+    assert.equal(observation.deliverable, null);
+});
+
 test("the same marketing mission resumes with supplied context and completes its dependent work", async () => {
     const storage = memoryStorage();
     const instruction = "Crea un plan de marketing completo para Multiservicios Peninsulares HMH.";
@@ -848,13 +886,14 @@ test("the same marketing mission resumes with supplied context and completes its
                 missingInputs: ["audience", "market", "offer", "budget", "horizon", "cta"]
             };
         }
-        return {
-            ok: true,
-            objectiveSatisfied: true,
-            requiresInput: false,
-            status: "MARKETING_PACKAGE_READY",
-            plan: { executiveSummary: "Plan completo de HMH", actionPlan306090: {} }
-        };
+        return planMarketingRequest(instruction, {
+            brandName: "Multiservicios Peninsulares HMH",
+            campaignObjective: "Captar clientes y prestadores durante los primeros 90 días",
+            promise: "Conectar rápidamente con profesionales y brindar trazabilidad",
+            differentiator: "Profesionales verificados, evidencia digital y seguimiento",
+            channels: ["Meta Ads", "Google Ads", "WhatsApp"],
+            ...context.marketingContext
+        });
     };
     const initial = await runJarvisMission({
         instruction,
@@ -894,6 +933,11 @@ test("the same marketing mission resumes with supplied context and completes its
     assert.deepEqual(resumed.completedTasks.map(item => item.name), ["marketing.plan", "page.plan"]);
     assert.equal(resumed.blockedTasks.length, 0);
     assert.equal(resumed.runtimeResults[0].status, "MARKETING_PACKAGE_READY");
+    assert.equal(resumed.runtimeResults.filter(item => item.status === "MARKETING_PACKAGE_READY").length, 1);
+    assert.equal(resumed.executedTools.filter(name => name === "marketing.plan").length, 1);
+    assert.equal(resumed.inputHistory.filter(item => item.name === "marketing.plan").length, 1);
+    assert.match(resumed.completedTasks[0].observation.userVisible, /25\. Próximos pasos priorizados/i);
+    assert.match(resumed.completedTasks[0].observation.userVisible, /Cancún/i);
 });
 
 test("mission refuses a status-only document blueprint without V68 validation evidence", () => {

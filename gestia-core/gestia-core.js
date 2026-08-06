@@ -50,6 +50,9 @@ import {
     runJarvisMission
 } from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-artifact-edit-routing-v101-20260728';
 import {
+    marketingFinalResponseFromMission
+} from '/gestia-core/jarvis/jarvis.marketing.presenter.js?v=sia7-marketing-deliverable-v1-20260805';
+import {
     addRepositoryDiscoveryPreflights,
     resolveExplicitRepositoryTargets
 } from '/gestia-core/repo/repo.source.structure.js?v=sia7-repo-discovery-preflight-v4-20260724';
@@ -6805,8 +6808,13 @@ if (
         buildMissionEvidenceReceipt(
             missionEvidenceItems
         );
+    const marketingDeliverableFinalResponse =
+        marketingFinalResponseFromMission(
+            missionResult
+        );
 
     if (
+        !marketingDeliverableFinalResponse &&
         conversationalPlan.requiresFinalConversation &&
         unresolvedUserArtifactTasks.length === 0
     ) {
@@ -6901,6 +6909,7 @@ if (
     }
 
     if (
+        !marketingDeliverableFinalResponse &&
         !conversationalPlan.requiresFinalConversation &&
         missionResult.executedTools.length > 1 &&
         unresolvedUserArtifactTasks.length === 0
@@ -7334,6 +7343,7 @@ if (
             : null;
 
     const finalResponse =
+        marketingDeliverableFinalResponse ||
         semanticMissionFinalResponse ||
         observationDrivenFinalResponse ||
         globalAnalysisFinalResponse ||

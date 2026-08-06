@@ -1,5 +1,6 @@
 const VERSION = "1.10.0-diagnostic-error-normalization";
 const STORAGE_KEY = "jarvis.missions.v1";
+const SINGLETON_MISSION_TOOLS = new Set(["marketing.plan"]);
 
 function text(value = "", maximum = 120000) {
     return String(value ?? "").trim().slice(0, maximum);
@@ -360,10 +361,21 @@ function safeObservation(result = {}) {
             : typeof result?.objectiveSatisfied === "boolean"
                 ? result.objectiveSatisfied
                 : null;
+    const marketingPackageReady = normalizedStatus === "MARKETING_PACKAGE_READY";
+    const marketingDeliverableReady =
+        !marketingPackageReady ||
+        (
+            payload?.plan &&
+            typeof payload.plan === "object" &&
+            Object.keys(payload.plan).length >= 25 &&
+            typeof payload?.userVisible === "string" &&
+            payload.userVisible.trim().length > 0
+        );
     const objectiveSatisfied =
         executionOk &&
         !requiresInput &&
         !requiresApproval &&
+        marketingDeliverableReady &&
         (
             explicitObjectiveSatisfied !== null
                 ? explicitObjectiveSatisfied
@@ -599,6 +611,14 @@ function safeObservation(result = {}) {
             ) || "",
             3000
         ),
+        userVisible:
+            marketingPackageReady && marketingDeliverableReady
+                ? text(payload.userVisible, 120000)
+                : "",
+        deliverable:
+            marketingPackageReady && marketingDeliverableReady
+                ? payload.plan
+                : null,
         error:
             diagnosticErrorText(
                 payload?.error ||
@@ -731,9 +751,15 @@ function trustedCalls(calls = [], mission) {
             .filter(Boolean)
     );
     const accepted = [];
+    const scheduledNames = new Set([
+        ...mission.completedTasks,
+        ...mission.pendingTasks,
+        ...mission.blockedTasks
+    ].map(item => item?.name).filter(Boolean));
     for (const candidate of Array.isArray(calls) ? calls : []) {
         const name = text(candidate?.name, 100);
         if (!name) continue;
+        if (SINGLETON_MISSION_TOOLS.has(name) && scheduledNames.has(name)) continue;
         const call = { name, args: candidate?.args && typeof candidate.args === "object" ? candidate.args : {}, approved: false };
         const missionDedupeKey =
             text(
@@ -759,6 +785,7 @@ function trustedCalls(calls = [], mission) {
             attempts: 0,
             status: "PENDING"
         });
+        scheduledNames.add(name);
     }
     return accepted;
 }
@@ -823,8 +850,23 @@ export async function runJarvisMission({
     };
     if (recovered) {
         const resumable = mission.blockedTasks.filter(item => item?.observation?.requiresInput === true);
+        const resumableNames = new Set(resumable.map(item => item.name));
+        mission.inputHistory = [
+            ...(Array.isArray(mission.inputHistory) ? mission.inputHistory : []),
+            ...resumable.map(item => ({
+                name: item.name,
+                status: item.observation?.status || item.reason || "INPUT_REQUIRED",
+                missingInputs: item.observation?.evidence?.missingInputs || [],
+                at: item.completedAt || now()
+            }))
+        ];
         mission.blockedTasks = mission.blockedTasks.filter(item => item?.observation?.requiresInput !== true);
         mission.errors = mission.errors.filter(item => item?.requiresInput !== true);
+        mission.executedTools = mission.executedTools.filter(name => !resumableNames.has(name));
+        mission.observations = mission.observations.filter(item =>
+            !(resumableNames.has(item?.tool) && item?.requiresInput === true)
+        );
+        mission.pendingTasks = mission.pendingTasks.filter(item => !resumableNames.has(item?.name));
         mission.pendingTasks.unshift(...resumable.map(item => ({
             ...item,
             args: { ...(item.args || {}), ...(continuationContext || {}) },

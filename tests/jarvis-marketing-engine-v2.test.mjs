@@ -10,6 +10,10 @@ import {
     isMarketingRequest,
     planMarketingRequest
 } from "../gestia-core/jarvis/jarvis.marketing.engine.js";
+import {
+    marketingFinalResponseFromMission,
+    MARKETING_PLAN_SECTIONS
+} from "../gestia-core/jarvis/jarvis.marketing.presenter.js";
 
 test("NEXO marketing builds an evidence-grounded multi-channel production package", () => {
     const plan = planMarketingRequest(
@@ -146,6 +150,45 @@ test("NEXO marketing produces the complete 90-day package after receiving suffic
         "actionPlan306090", "prioritizedNextSteps"
     ]) assert.ok(result.plan[key], `missing plan section: ${key}`);
     assert.match(result.plan.executiveSummary, /Multiservicios Peninsulares HMH/);
+    const visible = marketingFinalResponseFromMission({
+        completedTasks: [{
+            name: "marketing.plan",
+            observation: {
+                status: result.status,
+                objectiveSatisfied: result.objectiveSatisfied,
+                userVisible: result.userVisible
+            }
+        }]
+    });
+    assert.equal(visible.source, "MARKETING_DELIVERABLE_DIRECT");
+    assert.equal(MARKETING_PLAN_SECTIONS.length, 25);
+    for (const { heading } of MARKETING_PLAN_SECTIONS) {
+        assert.match(visible.text, new RegExp(heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
+    }
+    for (const concrete of [
+        "Cancún", "90 días", "Meta Ads", "Google Ads", "WhatsApp",
+        "escenario bajo", "escenario medio"
+    ]) assert.match(visible.text, new RegExp(concrete, "i"));
+    for (const contradiction of [
+        "No dispongo de información sobre el contenido",
+        "No tengo información adicional",
+        "no tengo detalles de la campaña",
+        "Lo ejecutado", "Lo planeado", "Lo bloqueado", "Limitaciones"
+    ]) assert.doesNotMatch(visible.text, new RegExp(contradiction, "i"));
+    assert.equal(marketingFinalResponseFromMission({
+        completedTasks: [{ name: "web.research", observation: { status: "GROUNDED" } }]
+    }), null);
+
+    const core = fs.readFileSync(
+        new URL("../gestia-core/gestia-core.js", import.meta.url),
+        "utf8"
+    );
+    assert.match(core, /marketingFinalResponseFromMission\(\s*missionResult\s*\)/);
+    assert.match(core, /!marketingDeliverableFinalResponse\s*&&\s*conversationalPlan\.requiresFinalConversation/);
+    assert.ok(
+        core.indexOf("marketingDeliverableFinalResponse ||") <
+        core.indexOf("semanticMissionFinalResponse ||")
+    );
 });
 
 test("company registry remains available during NEXO migration", () => {

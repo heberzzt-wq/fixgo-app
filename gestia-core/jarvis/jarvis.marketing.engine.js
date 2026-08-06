@@ -3,6 +3,10 @@ import "../nexo/nexo.semantic-planner-resilience.js";
 import {
     NEXO_IDENTITY
 } from "../nexo/nexo.identity.js";
+import {
+    hasCompleteMarketingPlan,
+    renderCompleteMarketingPlan
+} from "./jarvis.marketing.presenter.js";
 
 /**
  * NEXO Marketing Studio
@@ -336,8 +340,10 @@ function buildCompletePlan({ brand, campaign, channels, context, calendar, funne
         : [campaign.audience];
     const smartGoal = `${campaign.objective} durante ${horizon}, midiendo conversaciones calificadas, conversión y costo por lead.`;
     return {
-        executiveSummary: `${brand.name} priorizará ${channels.join(", ")} para convertir ${campaign.audience}. ${campaign.cta}.`,
-        assumptions: campaign.assumptions,
+        executiveSummary: `${brand.name} operará en ${brand.market} y priorizará ${channels.join(", ")} para convertir ${campaign.audience}. ${campaign.cta}.`,
+        assumptions: campaign.assumptions.length
+            ? campaign.assumptions
+            : [{ field: "none", source: "user_context", editable: true, note: "Los datos críticos fueron proporcionados por el usuario." }],
         businessDiagnosis: `Situación inicial: ${campaign.pain}. Oportunidad: ${campaign.promise}.`,
         smartObjectives: [smartGoal],
         targetAudience: { primary: campaign.audience, segments },
@@ -450,7 +456,7 @@ export function planMarketingRequest(rawInput = "", context = {}) {
     const funnel = buildFunnel(campaign);
     const completePlan = buildCompletePlan({ brand, campaign, channels, context, calendar, funnel, copies });
 
-    return {
+    const result = {
         ok: true,
         status: "MARKETING_PACKAGE_READY",
         engine: "nexo_marketing_engine",
@@ -505,6 +511,13 @@ export function planMarketingRequest(rawInput = "", context = {}) {
             `${creativeBrief.inferredFields.length} campos se marcaron como propuestas editables y ` +
             `${grounding.sourceCount} fuentes respaldan hechos verificables.`
     };
+    result.userVisible = renderCompleteMarketingPlan(result);
+    result.objectiveSatisfied = hasCompleteMarketingPlan(result.plan) && Boolean(result.userVisible);
+    result.readyForProduction = result.objectiveSatisfied;
+    if (!result.objectiveSatisfied) {
+        result.status = "MARKETING_PACKAGE_INCOMPLETE";
+    }
+    return result;
 }
 
 export function isMarketingRequest(input = null) {
