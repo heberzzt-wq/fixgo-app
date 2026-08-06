@@ -463,3 +463,215 @@ test("non-JSON composition rejects a raw tool payload", async () => {
     assert.equal(result.ok, false);
     assert.equal(result.status, "RAW_TOOL_PAYLOAD_REJECTED");
 });
+
+test("precision-audited media response preserves verified literals without semantic rewriting", async () => {
+    const result = await composeEvidenceGroundedConversation({
+        instruction:
+            "Analiza comparativamente estas dos capturas sin inventar texto.",
+        evidenceItems: [{
+            name: "media.analyze",
+            observation: {
+                ok: true,
+                status: "MEDIA_ANALYSIS_GROUNDED",
+                version: "1.4.0-verified-visual-claims",
+                expectedSources: 2,
+                receivedSources: 2,
+                sources: [
+                    {
+                        sourceId: "SOURCE_1",
+                        fileName: "terminal-nueva.png",
+                        sha256: "1".repeat(64),
+                        objects: [
+                            "Una terminal web con campo para instrucciones."
+                        ],
+                        visibleData: [
+                            {
+                                kind: "text",
+                                value: "Motor No-Code",
+                                page: 1,
+                                confidence: 0.99,
+                                evidence: "Subtitulo bajo Terminal Heberto.",
+                                legibility: "VERIFIED"
+                            },
+                            {
+                                kind: "url",
+                                value: "fixgo-44d",
+                                page: 1,
+                                confidence: 0.7,
+                                evidence: "Barra de direcciones parcialmente legible.",
+                                legibility: "UNCERTAIN"
+                            }
+                        ],
+                        uncertainty: [
+                            "La URL completa y el ano no se distinguen con certeza."
+                        ]
+                    },
+                    {
+                        sourceId: "SOURCE_2",
+                        fileName: "menu-chat-nuevo.png",
+                        sha256: "2".repeat(64),
+                        objects: [
+                            "Un menu de adjuntos con varias acciones visibles."
+                        ],
+                        visibleData: [],
+                        uncertainty: [
+                            "No se transcriben detalles pequenos del menu."
+                        ]
+                    }
+                ],
+                comparison: {
+                    differences: [
+                        "La segunda captura presenta un menu de acciones; la primera muestra el campo principal de la Terminal."
+                    ]
+                },
+                recommendations: [
+                    "Mostrar acciones de adjuntos agrupadas junto al boton +."
+                ],
+                precisionAudit: {
+                    ok: true,
+                    status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
+                    providerPasses: 2,
+                    effectiveToolExecutions: 1,
+                    sourceIdentityVerified: true,
+                    exactTextRequiresConfidence: 0.98
+                }
+            }
+        }],
+        executeConversation: async () => {
+            throw new Error("semantic composer must not run");
+        }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.status, "MEDIA_ANALYSIS_RESPONSE_VERIFIED");
+    assert.equal(result.provider, "deterministic-grounded-media");
+    assert.match(result.text, /terminal-nueva\.png/);
+    assert.match(result.text, /menu-chat-nuevo\.png/);
+    assert.match(result.text, /Motor No-Code/);
+    assert.match(result.text, /URL completa y el ano no se distinguen/);
+    assert.match(result.text, /una sola ejecucion efectiva de media\.analyze/);
+    assert.doesNotMatch(result.text, /Motion No-Code|fixgo-44d|2028/);
+    assert.doesNotMatch(result.text, /SOURCE_1|sha256|precisionAudit/);
+});
+
+test("mixed media evidence still uses the semantic composer for the complete objective", async () => {
+    let calls = 0;
+    const result = await composeEvidenceGroundedConversation({
+        instruction: "Analiza la imagen y revisa tambien el estado del sistema.",
+        evidenceItems: [
+            {
+                name: "media.analyze",
+                observation: {
+                    ok: true,
+                    status: "MEDIA_ANALYSIS_GROUNDED",
+                    version: "1.4.0-verified-visual-claims",
+                    expectedSources: 1,
+                    receivedSources: 1,
+                    sources: [{
+                        sourceId: "SOURCE_1",
+                        fileName: "captura.png",
+                        sha256: "a".repeat(64)
+                    }],
+                    precisionAudit: {
+                        ok: true,
+                        status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
+                        effectiveToolExecutions: 1,
+                        sourceIdentityVerified: true
+                    }
+                }
+            },
+            {
+                name: "system.health",
+                observation: {
+                    ok: true,
+                    status: "HEALTHY"
+                }
+            }
+        ],
+        executeConversation: async () => {
+            calls += 1;
+            return {
+                ok: true,
+                data: {
+                    message:
+                        "La imagen fue analizada y el sistema esta saludable."
+                }
+            };
+        }
+    });
+
+    assert.equal(calls, 1);
+    assert.equal(result.status, "CONVERSATIONAL_COMPOSITION_COMPLETED");
+});
+
+test("precision-audited media survives the real mission observation envelope", async () => {
+    const sources = [
+        {
+            sourceId: "SOURCE_1",
+            fileName: "terminal-envuelta.png",
+            sha256: "c".repeat(64),
+            objects: ["Una terminal web."],
+            visibleData: [{
+                kind: "text",
+                value: "Motor No-Code",
+                page: 1,
+                confidence: 0.99,
+                evidence: "Encabezado visible.",
+                legibility: "VERIFIED"
+            }],
+            uncertainty: ["La URL completa no es legible."]
+        },
+        {
+            sourceId: "SOURCE_2",
+            fileName: "menu-envuelto.png",
+            sha256: "d".repeat(64),
+            objects: ["Un menu de acciones."],
+            visibleData: [],
+            uncertainty: []
+        }
+    ];
+    let semanticCalls = 0;
+    const result = await composeEvidenceGroundedConversation({
+        instruction: "Compara las dos capturas.",
+        evidenceItems: [{
+            name: "media.analyze",
+            observation: {
+                ok: true,
+                executionOk: true,
+                objectiveSatisfied: true,
+                status: "MEDIA_ANALYSIS_GROUNDED",
+                version: "1.4.0-verified-visual-claims",
+                sourceCount: 2,
+                validSources: sources,
+                evidence: {
+                    ok: true,
+                    status: "MEDIA_ANALYSIS_GROUNDED",
+                    version: "1.4.0-verified-visual-claims",
+                    expectedSources: 2,
+                    receivedSources: 2,
+                    sources,
+                    precisionAudit: {
+                        ok: true,
+                        status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
+                        providerPasses: 2,
+                        effectiveToolExecutions: 1,
+                        sourceIdentityVerified: true,
+                        exactTextRequiresConfidence: 0.98
+                    }
+                }
+            }
+        }],
+        executeConversation: async () => {
+            semanticCalls += 1;
+            return { ok: true, data: { message: "No debe ejecutarse." } };
+        }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.status, "MEDIA_ANALYSIS_RESPONSE_VERIFIED");
+    assert.equal(semanticCalls, 0);
+    assert.match(result.text, /terminal-envuelta\.png/);
+    assert.match(result.text, /menu-envuelto\.png/);
+    assert.match(result.text, /Motor No-Code/);
+    assert.doesNotMatch(result.text, /Motion No-Code|2028/);
+});

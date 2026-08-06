@@ -8,7 +8,8 @@ import {
 } from "../gestia-core/jarvis/jarvis.company.registry.js";
 import {
     isMarketingRequest,
-    planMarketingRequest
+    planMarketingRequest,
+    NexoMarketingEngine
 } from "../gestia-core/jarvis/jarvis.marketing.engine.js";
 import {
     marketingFinalResponseFromMission,
@@ -40,6 +41,11 @@ test("NEXO marketing builds an evidence-grounded multi-channel production packag
     assert.equal(plan.source, "nexo_natural_brief_and_optional_evidence");
     assert.equal(plan.engine, "nexo_marketing_engine");
     assert.equal(plan.legacyEngineAlias, "jarvis_marketing_engine");
+    assert.equal(plan.version, "8.1.0-nexo-complete-marketing-package");
+    assert.equal(
+        NexoMarketingEngine.routing,
+        "natural_instruction_with_semantic_and_local_resilience"
+    );
     assert.equal(plan.approval.required, true);
     assert.equal(plan.approval.publishAllowed, false);
     assert.equal(plan.approval.deployAllowed, false);

@@ -231,6 +231,11 @@ function compactMediaAnalysisSource(source = {}) {
                 : [])
                 .slice(0, 10)
                 .map(item => ({
+                    kind:
+                        compactEvidenceText(
+                            item?.kind || "text",
+                            40
+                        ),
                     value:
                         compactEvidenceText(
                             item?.value || "",
@@ -246,6 +251,11 @@ function compactMediaAnalysisSource(source = {}) {
                         compactEvidenceText(
                             item?.evidence || "",
                             500
+                        ),
+                    legibility:
+                        compactEvidenceText(
+                            item?.legibility || "",
+                            40
                         )
                 })),
         pages:
@@ -311,8 +321,195 @@ function compactMediaAnalysisObservation(observation = {}) {
         policy:
             boundedEvidenceValue(
                 observation?.policy
+            ),
+        precisionAudit:
+            boundedEvidenceValue(
+                observation?.precisionAudit
             )
     };
+}
+
+function findPrecisionVerifiedMediaObservation(evidenceItems = []) {
+    const operational = (Array.isArray(evidenceItems) ? evidenceItems : [])
+        .filter(item =>
+            String(item?.name || item?.tool || "") !==
+            "conversation.respond"
+        );
+
+    if (operational.length !== 1) return null;
+
+    const item = operational[0];
+    if (String(item?.name || item?.tool || "") !== "media.analyze") {
+        return null;
+    }
+
+    const observation =
+        item?.observation ??
+        item?.response ??
+        item?.data ??
+        null;
+    const nestedEvidence =
+        observation?.evidence &&
+        typeof observation.evidence === "object" &&
+        !Array.isArray(observation.evidence)
+            ? observation.evidence
+            : {};
+    const sources = Array.isArray(observation?.sources)
+        ? observation.sources
+        : Array.isArray(nestedEvidence?.sources)
+            ? nestedEvidence.sources
+            : Array.isArray(observation?.validSources)
+                ? observation.validSources
+                : [];
+    const precisionAudit =
+        observation?.precisionAudit ||
+        nestedEvidence?.precisionAudit ||
+        null;
+    const providerVersion = String(
+        observation?.version ||
+        nestedEvidence?.version ||
+        ""
+    ).trim();
+    const expectedSources = Number(
+        observation?.expectedSources ??
+        nestedEvidence?.expectedSources
+    );
+    const receivedSources = Number(
+        observation?.receivedSources ??
+        nestedEvidence?.receivedSources
+    );
+
+    if (
+        observation?.ok !== true ||
+        observation?.status !== "MEDIA_ANALYSIS_GROUNDED" ||
+        providerVersion !== "1.4.0-verified-visual-claims" ||
+        precisionAudit?.ok !== true ||
+        precisionAudit?.status !==
+            "MEDIA_ANALYSIS_PRECISION_VERIFIED" ||
+        precisionAudit?.sourceIdentityVerified !== true ||
+        precisionAudit?.effectiveToolExecutions !== 1 ||
+        sources.length < 1 ||
+        expectedSources !== sources.length ||
+        receivedSources !== sources.length
+    ) {
+        return null;
+    }
+
+    const identitiesAreComplete = sources.every((source, index) =>
+        String(source?.sourceId || "") === `SOURCE_${index + 1}` &&
+        Boolean(String(source?.fileName || source?.name || "").trim()) &&
+        Boolean(String(source?.sha256 || "").trim())
+    );
+
+    return identitiesAreComplete
+        ? {
+            ...nestedEvidence,
+            ...observation,
+            sources,
+            expectedSources,
+            receivedSources,
+            precisionAudit
+        }
+        : null;
+}
+
+function naturalEvidenceText(item) {
+    if (typeof item === "string") return item.trim();
+    if (!item || typeof item !== "object") return "";
+    return String(
+        item.observation ||
+        item.detail ||
+        item.summary ||
+        item.label ||
+        ""
+    ).trim();
+}
+
+function appendNaturalList(lines, title, items = []) {
+    const values = (Array.isArray(items) ? items : [])
+        .map(naturalEvidenceText)
+        .filter(Boolean);
+    if (values.length === 0) return;
+    lines.push(title);
+    for (const value of values) {
+        lines.push(`- ${value}`);
+    }
+}
+
+function renderPrecisionVerifiedMediaConversation(observation) {
+    const sources = observation.sources;
+    const lines = [
+        `Analisis visual verificado de ${sources.length} archivos, con evidencia separada por fuente.`
+    ];
+    const minimumConfidence = Number(
+        observation?.precisionAudit?.exactTextRequiresConfidence ||
+        0.98
+    );
+
+    sources.forEach((source, index) => {
+        const fileName = String(
+            source?.fileName ||
+            source?.name ||
+            `archivo-${index + 1}`
+        ).trim();
+        const visibleData = (Array.isArray(source?.visibleData)
+            ? source.visibleData
+            : [])
+            .filter(item =>
+                item?.legibility === "VERIFIED" &&
+                Number(item?.confidence) >= minimumConfidence &&
+                Boolean(String(item?.value || "").trim()) &&
+                Boolean(String(item?.evidence || "").trim())
+            );
+        const objects = (Array.isArray(source?.objects)
+            ? source.objects
+            : [])
+            .map(naturalEvidenceText)
+            .filter(Boolean);
+
+        lines.push("", `### Archivo ${index + 1}: ${fileName}`);
+        appendNaturalList(lines, "Elementos visuales confirmados:", objects);
+
+        if (visibleData.length > 0) {
+            lines.push("Lecturas literales verificadas:");
+            for (const item of visibleData) {
+                const kind = String(item?.kind || "text").trim();
+                const value = String(item.value).trim();
+                const evidence = String(item.evidence).trim();
+                const page = Number.isInteger(item?.page) && item.page > 0
+                    ? `, pagina ${item.page}`
+                    : "";
+                lines.push(`- ${kind}: ${value} (${evidence}${page})`);
+            }
+        } else {
+            lines.push(
+                "Lecturas literales verificadas: ninguna con confianza suficiente."
+            );
+        }
+
+        appendNaturalList(
+            lines,
+            "Detalles inciertos o ilegibles:",
+            source?.uncertainty
+        );
+    });
+
+    appendNaturalList(
+        lines,
+        "Diferencias verificadas:",
+        observation?.comparison?.differences
+    );
+    appendNaturalList(
+        lines,
+        "Mejoras sugeridas para la experiencia de adjuntos:",
+        observation?.recommendations
+    );
+    lines.push(
+        "",
+        "La mision uso una sola ejecucion efectiva de media.analyze con dos pases independientes de verificacion."
+    );
+
+    return lines.join("\n").trim();
 }
 
 function constrainCompactEvidence(
@@ -677,6 +874,24 @@ export async function composeEvidenceGroundedConversation({
     evidenceItems = [],
     executeConversation
 } = {}) {
+    const precisionVerifiedMedia =
+        findPrecisionVerifiedMediaObservation(evidenceItems);
+
+    if (precisionVerifiedMedia) {
+        return {
+            ok: true,
+            status: "MEDIA_ANALYSIS_RESPONSE_VERIFIED",
+            text: renderPrecisionVerifiedMediaConversation(
+                precisionVerifiedMedia
+            ),
+            prompt: "",
+            evidence: buildBoundedConversationEvidence(evidenceItems),
+            provider: "deterministic-grounded-media",
+            model: null,
+            observation: null
+        };
+    }
+
     if (typeof executeConversation !== "function") {
         return {
             ok: false,

@@ -2,7 +2,7 @@
 
 const crypto = require("crypto");
 
-const VERSION = "1.3.0-provider-json-schema";
+const VERSION = "1.4.0-verified-visual-claims";
 const DEFAULT_MODEL = "gemini-2.5-flash";
 const ALLOWED_TYPES = new Set(["application/pdf", "image/png", "image/jpeg", "image/webp"]);
 const MAX_FILES = 8;
@@ -186,6 +186,28 @@ function resolveSourcesByIdentity(sources, files) {
     return files.map(file => receivedById.get(file.sourceId));
 }
 
+function normalizeVisibleData(items = []) {
+    return (Array.isArray(items) ? items : [])
+        .slice(0, 100)
+        .map(item => {
+            const confidence = Math.max(0, Math.min(1, Number(item?.confidence) || 0));
+            const evidence = String(item?.evidence || "").trim().slice(0, 1000);
+            const requestedLegibility = String(item?.legibility || "").trim().toUpperCase();
+            const verified =
+                requestedLegibility === "VERIFIED" &&
+                confidence >= 0.98 &&
+                Boolean(evidence);
+            return {
+                kind: String(item?.kind || "text").trim().slice(0, 40),
+                value: verified ? String(item?.value || "").trim().slice(0, 1000) : "",
+                page: Number.isInteger(item?.page) && item.page > 0 ? item.page : 1,
+                confidence,
+                evidence,
+                legibility: verified ? "VERIFIED" : "UNCERTAIN"
+            };
+        });
+}
+
 function validateAnalysis(parsed, files) {
     const sources = Array.isArray(parsed?.sources)
         ? parsed.sources
@@ -203,6 +225,12 @@ function validateAnalysis(parsed, files) {
         receivedSources: sources.length,
         sources: orderedSources.map((source, index) => {
             const file = files[index];
+            const visibleData = normalizeVisibleData(source?.visibleData);
+            const precisionUncertainty = visibleData
+                .filter(item => item.legibility !== "VERIFIED")
+                .map(item =>
+                    `Lectura ${item.kind || "text"} no confirmada; el valor se omitio por precision insuficiente.`
+                );
 
             return {
                 sourceId: file.sourceId,
@@ -232,9 +260,7 @@ function validateAnalysis(parsed, files) {
                         ? source.composition
                         : {},
                 visibleData:
-                    Array.isArray(source?.visibleData)
-                        ? source.visibleData.slice(0, 100)
-                        : [],
+                    visibleData,
                 pages:
                     Array.isArray(source?.pages)
                         ? source.pages.slice(0, 100)
@@ -249,9 +275,10 @@ function validateAnalysis(parsed, files) {
                         ? source.quality
                         : {},
                 uncertainty:
-                    Array.isArray(source?.uncertainty)
-                        ? source.uncertainty.slice(0, 50)
-                        : [],
+                    [...new Set([
+                        ...(Array.isArray(source?.uncertainty) ? source.uncertainty : []),
+                        ...precisionUncertainty
+                    ])].slice(0, 50),
                 evidence:
                     Array.isArray(source?.evidence)
                         ? source.evidence.slice(0, 120)
@@ -273,6 +300,9 @@ function validateAnalysis(parsed, files) {
             identityBindingRequired: true,
             deterministicSourceOrder: true,
             illegibleContentMustRemainUnknown: true,
+            literalReadingsRequireStructuredEvidence: true,
+            exactTextMinimumConfidence: 0.98,
+            unverifiedLiteralValuesAreWithheld: true,
             authenticatedAdminOnly: true
         }
     };
@@ -311,8 +341,16 @@ function buildAnalysisPrompt(
         "No dependas de la posición de las imágenes para identificar una source.",
         "No combines observaciones, evidencia o incertidumbre de archivos diferentes.",
         "mimeType y sha256 pueden copiarse del MANIFEST y nunca deben modificarse.",
+        "Fuera de visibleData, ninguna propiedad de la respuesta debe contener transcripciones literales, URLs, fechas, horas, anos, cifras ni identificadores.",
+        "Toda lectura literal debe aparecer exclusivamente en visibleData y conservar los caracteres visibles sin traducir, autocorregir, completar ni normalizar.",
+        "Cada visibleData requiere kind, value, page, confidence, evidence y legibility.",
+        "Usa legibility=VERIFIED unicamente cuando la lectura este completa, evidence explique su ubicacion y confidence sea igual o mayor a 0.98.",
+        "Si la lectura es parcial o dudosa usa legibility=UNCERTAIN, deja value vacio y explica la limitacion en uncertainty.",
+        "Nunca completes una URL parcial ni emitas una fecha, hora o ano basandote en contexto o sentido comun.",
+        "Responde en espanol cuando la pregunta este en espanol.",
+        "Si la pregunta solicita carencias por comparacion, recommendations debe contener solo carencias concretas comprobables por contraste visual, no tareas genericas de investigar, explorar o documentar.",
         `MANIFEST=${JSON.stringify(manifest)}`,
-        'FORMA={"sources":[{"sourceId":"","fileName":"","mimeType":"","sha256":"","description":"","observations":[],"inferences":[],"objects":[],"composition":{"framing":"","lighting":"","visualHierarchy":""},"visibleData":[{"value":"","page":null,"confidence":0,"evidence":""}],"pages":[{"page":1,"summary":"","tables":[],"images":[],"evidence":[],"uncertainty":[]}],"marketingUse":[],"quality":{"score":0,"issues":[],"improvements":[]},"uncertainty":[],"evidence":[]}],"comparison":{"beforeAfter":false,"differences":[],"confidence":0},"recommendations":[]}',
+        'FORMA={"sources":[{"sourceId":"","fileName":"","mimeType":"","sha256":"","description":"","observations":[],"inferences":[],"objects":[],"composition":{"framing":"","lighting":"","visualHierarchy":""},"visibleData":[{"kind":"text","value":"","page":1,"confidence":0,"evidence":"","legibility":"UNCERTAIN"}],"pages":[{"page":1,"summary":"","tables":[],"images":[],"evidence":[],"uncertainty":[]}],"marketingUse":[],"quality":{"score":0,"issues":[],"improvements":[]},"uncertainty":[],"evidence":[]}],"comparison":{"beforeAfter":false,"differences":[],"confidence":0},"recommendations":[]}',
         "Para PDF aporta evidencia por página.",
         "Para imágenes evalúa hero, galería, servicio, equipo, testimonio y antes/después solamente cuando exista evidencia.",
         "Si algo no se lee o no puede vincularse con certeza, colócalo en uncertainty.",
@@ -400,6 +438,7 @@ function buildAnalysisResponseJsonSchema(files) {
                         "description",
                         "observations",
                         "inferences",
+                        "visibleData",
                         "evidence",
                         "uncertainty"
                     ],
@@ -429,6 +468,46 @@ function buildAnalysisResponseJsonSchema(files) {
                             type: "array",
                             items: {
                                 type: "string"
+                            }
+                        },
+                        visibleData: {
+                            type: "array",
+                            items: {
+                                type: "object",
+                                additionalProperties: false,
+                                required: [
+                                    "kind",
+                                    "value",
+                                    "page",
+                                    "confidence",
+                                    "evidence",
+                                    "legibility"
+                                ],
+                                properties: {
+                                    kind: {
+                                        type: "string",
+                                        enum: ["text", "url", "date", "time", "number", "identifier"]
+                                    },
+                                    value: {
+                                        type: "string"
+                                    },
+                                    page: {
+                                        type: "integer",
+                                        minimum: 1
+                                    },
+                                    confidence: {
+                                        type: "number",
+                                        minimum: 0,
+                                        maximum: 1
+                                    },
+                                    evidence: {
+                                        type: "string"
+                                    },
+                                    legibility: {
+                                        type: "string",
+                                        enum: ["VERIFIED", "UNCERTAIN"]
+                                    }
+                                }
                             }
                         },
                         evidence: {

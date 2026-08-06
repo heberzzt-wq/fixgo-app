@@ -2932,6 +2932,7 @@ test("multifunction media analysis consumes a complete 30-file persisted manifes
     const previousFetch = globalThis.fetch;
     const runtime = createRuntime();
     registerJarvisMultifunctionTools(runtime);
+    let mediaAnalysisCalls = 0;
     const attachments = Array.from({ length: 30 }, (_, index) => ({
         name: `evidencia-${index + 1}.png`,
         mimeType: "image/png",
@@ -2951,6 +2952,7 @@ test("multifunction media analysis consumes a complete 30-file persisted manifes
             })
         };
         globalThis.fetch = async (_url, options) => {
+            mediaAnalysisCalls += 1;
             const request = JSON.parse(options.body);
             const files = request.data.files;
             return {
@@ -2959,8 +2961,21 @@ test("multifunction media analysis consumes a complete 30-file persisted manifes
                     result: {
                         ok: true,
                         status: "MEDIA_ANALYSIS_GROUNDED",
-                        sources: files.map(file => ({ name: file.name, evidence: [{ observation: "byte real" }]})),
-                        policy: { readOnly: true, illegibleContentMustRemainUnknown: true }
+                        version: "1.4.0-verified-visual-claims",
+                        sources: files.map((file, index) => ({
+                            sourceId: `SOURCE_${index + 1}`,
+                            fileName: file.name,
+                            name: file.name,
+                            sha256: file.sha256,
+                            visibleData: [],
+                            evidence: [{ observation: "byte real" }]
+                        })),
+                        policy: {
+                            readOnly: true,
+                            illegibleContentMustRemainUnknown: true,
+                            literalReadingsRequireStructuredEvidence: true,
+                            unverifiedLiteralValuesAreWithheld: true
+                        }
                     }
                 })
             };
@@ -2981,6 +2996,9 @@ test("multifunction media analysis consumes a complete 30-file persisted manifes
         );
         assert.equal(analysis.persistedArtifacts.length, 30);
         assert.equal(analysis.status, "MEDIA_ANALYSIS_GROUNDED");
+        assert.equal(mediaAnalysisCalls, 2);
+        assert.equal(analysis.precisionAudit.status, "MEDIA_ANALYSIS_PRECISION_VERIFIED");
+        assert.equal(analysis.precisionAudit.effectiveToolExecutions, 1);
     } finally {
         globalThis.auth = previousAuth;
         globalThis.JarvisLocalBridge = previousBridge;
@@ -2994,6 +3012,8 @@ test("multifunction media analysis prefers the complete authoritative prompt man
     const previousFetch = globalThis.fetch;
     const runtime = createRuntime();
     registerJarvisMultifunctionTools(runtime);
+    let mediaAnalysisCalls = 0;
+    let precisionAuditQuestion = "";
     const attachments = [
         {
             name: "uno.png",
@@ -3034,22 +3054,31 @@ test("multifunction media analysis prefers the complete authoritative prompt man
             })
         };
         globalThis.fetch = async (_url, options) => {
+            mediaAnalysisCalls += 1;
             const request = JSON.parse(options.body);
+            if (mediaAnalysisCalls === 2) precisionAuditQuestion = request.data.question;
             return {
                 ok: true,
                 json: async () => ({
                     result: {
                         ok: true,
                         status: "MEDIA_ANALYSIS_GROUNDED",
-                        sources: request.data.files.map(file => ({
+                        version: "1.4.0-verified-visual-claims",
+                        sources: request.data.files.map((file, index) => ({
+                            sourceId: `SOURCE_${index + 1}`,
+                            fileName: file.name,
                             name: file.name,
+                            sha256: file.sha256,
+                            visibleData: [],
                             evidence: [{
                                 observation: `evidencia ${file.name}`
                             }]
                         })),
                         policy: {
                             readOnly: true,
-                            illegibleContentMustRemainUnknown: true
+                            illegibleContentMustRemainUnknown: true,
+                            literalReadingsRequireStructuredEvidence: true,
+                            unverifiedLiteralValuesAreWithheld: true
                         }
                     }
                 })
@@ -3077,6 +3106,91 @@ test("multifunction media analysis prefers the complete authoritative prompt man
             analysis.sources.map(source => source.name),
             ["uno.png", "dos.png"]
         );
+        assert.equal(mediaAnalysisCalls, 2);
+        assert.match(precisionAuditQuestion, /AUDITORIA_DE_PRECISION_VISUAL_INDEPENDIENTE/);
+        assert.match(precisionAuditQuestion, /carencias concretas de la experiencia de adjuntos/);
+        assert.match(precisionAuditQuestion, /No uses recommendations para proponer investigar/);
+        assert.equal(analysis.precisionAudit.sourceIdentityVerified, true);
+    } finally {
+        globalThis.auth = previousAuth;
+        globalThis.JarvisLocalBridge = previousBridge;
+        globalThis.fetch = previousFetch;
+    }
+});
+
+test("multifunction media analysis rejects the deployed legacy precision contract without leaking its claims", async () => {
+    const previousAuth = globalThis.auth;
+    const previousBridge = globalThis.JarvisLocalBridge;
+    const previousFetch = globalThis.fetch;
+    const runtime = createRuntime();
+    registerJarvisMultifunctionTools(runtime);
+    let mediaAnalysisCalls = 0;
+    const attachment = {
+        name: "captura.png",
+        mimeType: "image/png",
+        bytes: 8,
+        artifact: ".jarvis-artifacts/uploads/captura.png",
+        sha256: "a".repeat(64)
+    };
+
+    try {
+        globalThis.auth = {
+            currentUser: {
+                getIdToken: async () => "token"
+            }
+        };
+        globalThis.JarvisLocalBridge = {
+            requestJson: async () => ({
+                ok: true,
+                dataBase64: "iVBORw0KGgo=",
+                mimeType: "image/png",
+                bytes: 8,
+                fileName: attachment.name
+            })
+        };
+        globalThis.fetch = async () => {
+            mediaAnalysisCalls += 1;
+            return {
+                ok: true,
+                json: async () => ({
+                    result: {
+                        ok: true,
+                        status: "MEDIA_ANALYSIS_GROUNDED",
+                        version: "1.3.0-provider-json-schema",
+                        sources: [{
+                            sourceId: "SOURCE_1",
+                            fileName: attachment.name,
+                            name: attachment.name,
+                            sha256: attachment.sha256,
+                            description: "Motion No-Code"
+                        }],
+                        policy: {
+                            readOnly: true,
+                            illegibleContentMustRemainUnknown: true
+                        }
+                    }
+                })
+            };
+        };
+
+        const analysis = await runtime.execute(
+            "media.analyze",
+            {
+                prompt: "Describe solamente lo verificable.",
+                attachments: [attachment]
+            },
+            {
+                analysisId: "MULTI-MEDIA-LEGACY-CONTRACT"
+            }
+        );
+
+        assert.equal(analysis.ok, false);
+        assert.equal(
+            analysis.status,
+            "MEDIA_ANALYSIS_PRECISION_CONTRACT_UNAVAILABLE"
+        );
+        assert.equal(mediaAnalysisCalls, 1);
+        assert.doesNotMatch(JSON.stringify(analysis), /Motion No-Code/);
     } finally {
         globalThis.auth = previousAuth;
         globalThis.JarvisLocalBridge = previousBridge;

@@ -1407,6 +1407,152 @@ async function fetchGroundedWebResearch(
     }
 }
 
+async function invokeGroundedMediaAnalysis(files, question, token) {
+    const response = await fetch(
+        "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisMediaAnalyze",
+        {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ data: { files, question: String(question || "").slice(0, 12000) } })
+        }
+    );
+    const payload = await response.json();
+    const result = payload?.result || payload?.data || null;
+    if (!response.ok || result?.ok !== true || !Array.isArray(result?.sources)) {
+        return {
+            ok: false,
+            status: "MEDIA_ANALYSIS_UNAVAILABLE",
+            error: payload?.error?.message || `HTTP_${response.status}`
+        };
+    }
+    return result;
+}
+
+const VERIFIED_VISUAL_CLAIMS_CONTRACT =
+    "1.4.0-verified-visual-claims";
+
+function verifyGroundedMediaPrecisionContract(result, files) {
+    const version = String(result?.version || "").trim();
+    const policy = result?.policy || {};
+    const sources = Array.isArray(result?.sources)
+        ? result.sources
+        : [];
+    const sourceContractIsValid =
+        sources.length === files.length &&
+        sources.every(source =>
+            Array.isArray(source?.visibleData) &&
+            source.visibleData.every(item => {
+                const legibility = String(item?.legibility || "")
+                    .trim()
+                    .toUpperCase();
+                const confidence = Number(item?.confidence || 0);
+                const value = String(item?.value || "").trim();
+                const evidence = String(item?.evidence || "").trim();
+
+                if (legibility === "UNCERTAIN") {
+                    return value.length === 0;
+                }
+
+                return (
+                    legibility === "VERIFIED" &&
+                    confidence >= 0.98 &&
+                    value.length > 0 &&
+                    evidence.length > 0
+                );
+            })
+        );
+
+    if (
+        version !== VERIFIED_VISUAL_CLAIMS_CONTRACT ||
+        policy.literalReadingsRequireStructuredEvidence !== true ||
+        policy.unverifiedLiteralValuesAreWithheld !== true ||
+        sourceContractIsValid !== true
+    ) {
+        return {
+            ok: false,
+            status: "MEDIA_ANALYSIS_PRECISION_CONTRACT_UNAVAILABLE",
+            error: "MEDIA_ANALYSIS_PRECISION_CONTRACT_UNAVAILABLE",
+            requiredVersion: VERIFIED_VISUAL_CLAIMS_CONTRACT,
+            receivedVersion: version || null,
+            expectedSources: files.length,
+            receivedSources: sources.length
+        };
+    }
+
+    return { ok: true };
+}
+
+function verifyGroundedMediaSourceIdentity(result, files) {
+    if (!Array.isArray(result?.sources) || result.sources.length !== files.length) {
+        return {
+            ok: false,
+            status: "MEDIA_ANALYSIS_SOURCE_COUNT_MISMATCH",
+            error: "MEDIA_ANALYSIS_SOURCE_COUNT_MISMATCH",
+            expectedSources: files.length,
+            receivedSources: Array.isArray(result?.sources) ? result.sources.length : 0
+        };
+    }
+
+    for (let index = 0; index < files.length; index += 1) {
+        const file = files[index];
+        const source = result.sources[index];
+        const expectedSourceId = `SOURCE_${index + 1}`;
+        const sourceId = String(source?.sourceId || "").trim();
+        const fileName = String(source?.fileName || source?.name || "").trim();
+        const sha256 = String(source?.sha256 || "").trim().toLowerCase();
+        if (
+            sourceId !== expectedSourceId ||
+            fileName !== file.name ||
+            !sha256 ||
+            sha256 !== String(file.sha256 || "").trim().toLowerCase()
+        ) {
+            return {
+                ok: false,
+                status: "MEDIA_ANALYSIS_SOURCE_IDENTITY_MISMATCH",
+                error: "MEDIA_ANALYSIS_SOURCE_IDENTITY_MISMATCH",
+                expectedSourceId,
+                receivedSourceId: sourceId || null,
+                expectedFileName: file.name,
+                receivedFileName: fileName || null
+            };
+        }
+    }
+
+    return { ok: true };
+}
+
+function buildMediaPrecisionAuditQuestion(question, result) {
+    const candidateSources = (Array.isArray(result?.sources) ? result.sources : [])
+        .map(source => ({
+            sourceId: source?.sourceId,
+            fileName: source?.fileName || source?.name,
+            description: source?.description,
+            observations: source?.observations,
+            inferences: source?.inferences,
+            visibleData: source?.visibleData,
+            uncertainty: source?.uncertainty,
+            evidence: source?.evidence
+        }));
+    return [
+        "AUDITORIA_DE_PRECISION_VISUAL_INDEPENDIENTE",
+        "Vuelve a inspeccionar directamente cada archivo; el borrador anterior no es evidencia y puede contener errores.",
+        "Conserva cada afirmacion en la source del archivo donde sea visible y no mezcles fuentes.",
+        "Separa descripcion visual de transcripcion literal.",
+        "No traduzcas, autocorrijas, completes ni normalices texto visible.",
+        "No emitas una URL, fecha, hora, ano, cifra o identificador si no puedes leerlo completo con certeza alta.",
+        "Todo texto literal debe ir en visibleData con evidencia, confidence y legibility.",
+        "Usa legibility=VERIFIED solamente para una lectura completa y confidence igual o mayor a 0.98.",
+        "Si una lectura no cumple ese umbral, omite su valor y explica la limitacion en uncertainty.",
+        "No repitas una afirmacion del borrador sin comprobarla nuevamente en los pixeles del archivo correspondiente.",
+        "Responde en espanol y conserva los nombres de archivo literalmente.",
+        "En comparison.differences incluye solo diferencias visibles entre las fuentes.",
+        "En recommendations enumera carencias concretas de la experiencia de adjuntos de Jarvis que puedan comprobarse por contraste visual.",
+        "No uses recommendations para proponer investigar, explorar o documentar; si no hay evidencia visual suficiente, dilo expresamente.",
+        `SOLICITUD_ORIGINAL=${String(question || "").slice(0, 3000)}`,
+        `BORRADOR_NO_CONFIABLE=${JSON.stringify(candidateSources).slice(0, 18000)}`
+    ].join("\n");
+}
+
 async function fetchGroundedMediaAnalysis(attachments = [], question = "") {
     const user = await waitForAuthenticatedUser();
     if (!user) return { ok: false, status: "AUTH_REQUIRED", error: "AUTH_REQUIRED" };
@@ -1471,32 +1617,69 @@ async function fetchGroundedMediaAnalysis(attachments = [], question = "") {
         files.push({
             name,
             mimeType: attachment.mimeType || payload.mimeType,
-            dataBase64: payload.dataBase64
+            dataBase64: payload.dataBase64,
+            bytes,
+            sha256: String(attachment?.sha256 || payload?.sha256 || "").trim().toLowerCase()
         });
     }
-    const token = await user.getIdToken();
-    const response = await fetch(
-        "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisMediaAnalyze",
-        {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ data: { files, question: String(question || "").slice(0, 3000) } })
-        }
-    );
-    const payload = await response.json();
-    const result = payload?.result || payload?.data || null;
-    if (!response.ok || result?.ok !== true || !Array.isArray(result?.sources)) {
-        return { ok: false, status: "MEDIA_ANALYSIS_UNAVAILABLE", error: payload?.error?.message || `HTTP_${response.status}` };
-    }
-    if (result.sources.length !== files.length) {
+    if (files.some(file => !file.sha256)) {
         return {
             ok: false,
-            status: "MEDIA_ANALYSIS_SOURCE_COUNT_MISMATCH",
-            error: "MEDIA_ANALYSIS_SOURCE_COUNT_MISMATCH",
-            expectedSources: files.length,
-            receivedSources: result.sources.length
+            status: "MEDIA_ANALYSIS_SOURCE_HASH_REQUIRED",
+            error: "MEDIA_ANALYSIS_SOURCE_HASH_REQUIRED"
         };
     }
+    const token = await user.getIdToken();
+    const initial = await invokeGroundedMediaAnalysis(files, question, token);
+    if (initial?.ok !== true) return initial;
+    const initialIdentity = verifyGroundedMediaSourceIdentity(initial, files);
+    if (!initialIdentity.ok) return initialIdentity;
+    const initialPrecisionContract =
+        verifyGroundedMediaPrecisionContract(initial, files);
+    if (!initialPrecisionContract.ok) return initialPrecisionContract;
+
+    const audited = await invokeGroundedMediaAnalysis(
+        files,
+        buildMediaPrecisionAuditQuestion(question, initial),
+        token
+    );
+    if (audited?.ok !== true) {
+        return {
+            ok: false,
+            status: "MEDIA_ANALYSIS_PRECISION_AUDIT_FAILED",
+            error: audited?.error || "MEDIA_ANALYSIS_PRECISION_AUDIT_FAILED"
+        };
+    }
+    const auditedIdentity = verifyGroundedMediaSourceIdentity(audited, files);
+    if (!auditedIdentity.ok) {
+        return {
+            ...auditedIdentity,
+            status: "MEDIA_ANALYSIS_PRECISION_AUDIT_FAILED",
+            error: auditedIdentity.error
+        };
+    }
+    const auditedPrecisionContract =
+        verifyGroundedMediaPrecisionContract(audited, files);
+    if (!auditedPrecisionContract.ok) {
+        return {
+            ...auditedPrecisionContract,
+            status: "MEDIA_ANALYSIS_PRECISION_AUDIT_FAILED",
+            error: auditedPrecisionContract.error
+        };
+    }
+    const result = {
+        ...audited,
+        precisionAudit: {
+            ok: true,
+            status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
+            providerPasses: 2,
+            effectiveToolExecutions: 1,
+            sourceIdentityVerified: true,
+            exactTextRequiresConfidence: 0.98,
+            initialVersion: initial.version || null,
+            auditedVersion: audited.version || null
+        }
+    };
     globalThis.__JARVIS_MEDIA_ANALYSIS_HEALTH__ = recordCapabilityEvidence("media_analysis", {
         ok: true,
         status: result.status,

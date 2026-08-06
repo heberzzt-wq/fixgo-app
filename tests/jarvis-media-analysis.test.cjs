@@ -844,3 +844,90 @@ test("grounded media analysis enforces schemas through every provider route", as
         ]
     );
 });
+
+test("visual precision policy preserves verified Motor text and withholds uncertain URL and year", async () => {
+    let request = null;
+    const ai = {
+        models: {
+            async generateContent(payload) {
+                request = payload;
+                return {
+                    text: JSON.stringify({
+                        sources: [{
+                            sourceId: "SOURCE_1",
+                            fileName: "terminal.png",
+                            mimeType: "image/png",
+                            description: "Interfaz de una terminal web.",
+                            observations: ["Se observa una interfaz de asistente."],
+                            inferences: [],
+                            visibleData: [
+                                {
+                                    kind: "text",
+                                    value: "Motor No-Code",
+                                    page: 1,
+                                    confidence: 0.99,
+                                    evidence: "Texto completo visible bajo el encabezado Terminal Heberto.",
+                                    legibility: "VERIFIED"
+                                },
+                                {
+                                    kind: "text",
+                                    value: "Motion No-Code",
+                                    page: 1,
+                                    confidence: 0.72,
+                                    evidence: "Lectura alternativa incompatible con el texto del encabezado.",
+                                    legibility: "UNCERTAIN"
+                                },
+                                {
+                                    kind: "url",
+                                    value: "https://fixgo-44d.web.app",
+                                    page: 1,
+                                    confidence: 0.91,
+                                    evidence: "La barra del navegador es pequeña y no se distingue completa.",
+                                    legibility: "UNCERTAIN"
+                                },
+                                {
+                                    kind: "date",
+                                    value: "14/07/2028",
+                                    page: 1,
+                                    confidence: 1,
+                                    evidence: "",
+                                    legibility: "VERIFIED"
+                                }
+                            ],
+                            evidence: ["Interfaz visible en SOURCE_1."],
+                            uncertainty: ["La URL y la fecha no se leen completas."]
+                        }]
+                    })
+                };
+            }
+        }
+    };
+
+    const result = await runJarvisMediaAnalysis({
+        ai,
+        input: {
+            files: [{ name: "terminal.png", mimeType: "image/png", dataBase64: tinyPng }],
+            question: "Transcribe solamente lo que sea verificable."
+        }
+    });
+
+    assert.equal(result.version, "1.4.0-verified-visual-claims");
+    assert.equal(result.sources[0].sourceId, "SOURCE_1");
+    assert.equal(result.sources[0].visibleData[0].value, "Motor No-Code");
+    assert.equal(result.sources[0].visibleData[0].legibility, "VERIFIED");
+    assert.equal(result.sources[0].visibleData[1].value, "");
+    assert.equal(result.sources[0].visibleData[2].value, "");
+    assert.equal(result.sources[0].visibleData[3].value, "");
+    assert.doesNotMatch(JSON.stringify(result), /Motion No-Code|fixgo-44d|2028/);
+    assert.equal(result.policy.exactTextMinimumConfidence, 0.98);
+    assert.equal(result.policy.unverifiedLiteralValuesAreWithheld, true);
+
+    const prompt = request.contents[0].parts[0];
+    assert.match(prompt, /Nunca completes una URL parcial ni emitas una fecha, hora o ano/i);
+    assert.match(prompt, /visibleData/);
+    assert.match(prompt, /Fuera de visibleData, ninguna propiedad/);
+    assert.match(prompt, /carencias concretas comprobables por contraste visual/);
+    assert.ok(
+        request.config.responseJsonSchema.properties.sources.items.required.includes("visibleData")
+    );
+});

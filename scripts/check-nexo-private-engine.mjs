@@ -171,8 +171,10 @@ ok(
 );
 
 ok(
-    marketing.includes("8.0.0-nexo-natural-brief"),
-    "marketing usa motor NEXO natural"
+    marketing.includes('const VERSION = "8.1.0-nexo-complete-marketing-package"') &&
+        marketing.includes('source: "nexo_natural_brief_and_optional_evidence"') &&
+        marketing.includes('routing: "natural_instruction_with_semantic_and_local_resilience"'),
+    "marketing usa el motor NEXO natural vigente"
 );
 ok(
     marketing.includes("deriveCreativeBrief") &&
@@ -184,9 +186,12 @@ ok(
         marketing.includes("readyForProduction: true"),
     "marketing mínimo entrega paquete listo y editable"
 );
-no(
-    marketing.includes('status: "MARKETING_INPUT_REQUIRED"'),
-    "marketing natural ya no se bloquea por formulario incompleto"
+ok(
+    marketing.includes("missingCriticalInputs") &&
+        marketing.includes("inputRequiredResult") &&
+        marketing.includes('status: "MARKETING_INPUT_REQUIRED"') &&
+        marketing.includes("requiresInput: true"),
+    "marketing natural conserva contexto y pide datos criticos sin inventarlos"
 );
 ok(
     marketing.includes("factualClaimsRequireEvidence: true") &&
@@ -295,7 +300,8 @@ ok(
     "prueba reproduce la orden real de Multiservicios sin sustitución sintética"
 );
 ok(
-    realMediaToolTests.includes("8.0.0-nexo-natural-brief") &&
+    realMediaToolTests.includes("runtime override preserves NEXO marketing input-required semantics") &&
+        realMediaToolTests.includes('assert.equal(result.status, "MARKETING_INPUT_REQUIRED")') &&
         realMediaToolTests.includes("REAL_MEDIA_PACKAGE_REQUIREMENTS_UNMET") &&
         realMediaToolTests.includes("REAL_MEDIA_MARKETING_PACKAGE_CREATED"),
     "pruebas cubren override NEXO y paquete real completo/incompleto"
@@ -325,9 +331,10 @@ ok(
     "prueba reproduce aprobación real, fase capture y evita falsos positivos"
 );
 ok(
-    marketingTests.includes("hazme un programa de marketing") &&
+    marketingTests.includes("NEXO marketing produces the complete 90-day package") &&
+        marketingTests.includes("Captar clientes y prestadores durante los primeros 90 días") &&
         marketingTests.includes("readyForProduction, true"),
-    "prueba mínima reproduce y corrige la falla reportada"
+    "prueba funcional reproduce un paquete NEXO completo y listo para produccion"
 );
 
 console.log(
