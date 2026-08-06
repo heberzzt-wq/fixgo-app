@@ -6,6 +6,9 @@ class Storage {
     constructor() { this.values = new Map(); }
     getItem(key) { return this.values.has(key) ? this.values.get(key) : null; }
     setItem(key, value) { this.values.set(key, String(value)); }
+    removeItem(key) { this.values.delete(key); }
+    key(index) { return [...this.values.keys()][index] ?? null; }
+    get length() { return this.values.size; }
 }
 
 const identity = { userId: "owner-a", workspaceId: "fixgo", projectId: "hmh", conversationId: "c-1" };
@@ -27,6 +30,32 @@ test("isolates users and projects", () => {
     assert.equal(createProjectMemory({ storage, identity: { ...identity, projectId: "adjunto" } }).query().length, 0);
 });
 
+test("isolates mission snapshots by conversation and manual data from E2E runs", () => {
+    const storage = new Storage();
+    const manual = createProjectMemory({ storage, identity, namespace: "manual" });
+    const otherConversation = createProjectMemory({ storage, identity: { ...identity, conversationId: "c-2" }, namespace: "manual" });
+    const e2e = createProjectMemory({ storage, identity, namespace: "e2e", runId: "run-17" });
+    manual.missionStorage.setItem("pending", "manual-mission");
+    e2e.remember({ type: "MISSION_STATE", subject: "marketing", content: "fixture residual", missionId: "fixture-mission" });
+    assert.equal(otherConversation.missionStorage.getItem("pending"), null);
+    assert.equal(manual.query().length, 0);
+    assert.equal(e2e.query()[0].dataClass, "E2E_FIXTURE");
+    assert.notEqual(manual.missionKey, otherConversation.missionKey);
+});
+
+test("only an E2E namespace can clean its own fixtures", () => {
+    const storage = new Storage();
+    const manual = createProjectMemory({ storage, identity, namespace: "manual" });
+    const e2e = createProjectMemory({ storage, identity, namespace: "e2e", runId: "cleanup" });
+    manual.remember({ type: "FACT_CONFIRMED", subject: "real", content: "Manual real memory" });
+    e2e.remember({ type: "FACT_CONFIRMED", subject: "fixture", content: "E2E fixture" });
+    e2e.missionStorage.setItem("pending", "fixture-mission");
+    assert.equal(manual.clearTestData().status, "MEMORY_TEST_CLEANUP_FORBIDDEN");
+    assert.equal(e2e.clearTestData().status, "MEMORY_E2E_DATA_CLEARED");
+    assert.equal(createProjectMemory({ storage, identity, namespace: "manual" }).query().length, 1);
+    assert.equal(createProjectMemory({ storage, identity, namespace: "e2e", runId: "cleanup" }).query().length, 0);
+});
+
 test("deduplicates, supersedes, corrects, forgets, and rejects secrets", () => {
     const memory = createProjectMemory({ storage: new Storage(), identity });
     const first = memory.remember({ type: "DECISION_ACTIVE", subject: "channel", content: "Usar Meta Ads" });
@@ -38,4 +67,3 @@ test("deduplicates, supersedes, corrects, forgets, and rejects secrets", () => {
     assert.equal(memory.forget(correction.record.id).status, "MEMORY_FORGOTTEN");
     assert.equal(memory.remember({ type: "FACT_CONFIRMED", content: "api_key=super-secret-value" }).status, "MEMORY_SECRET_REJECTED");
 });
-

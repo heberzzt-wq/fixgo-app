@@ -1,5 +1,5 @@
-const VERSION = "1.0.0-private-project-memory";
-const PREFIX = "jarvis.private.memory.v1";
+const VERSION = "1.1.0-scoped-private-project-memory";
+const PREFIX = "jarvis.private.memory.v2";
 const TYPES = new Set([
     "FACT_CONFIRMED", "DECISION_ACTIVE", "DECISION_SUPERSEDED", "USER_PREFERENCE",
     "CONSTRAINT", "TECHNICAL_RESULT", "PENDING_TASK", "MISSION_STATE", "ASSUMPTION", "CORRECTION"
@@ -19,6 +19,11 @@ function identityKey(identity = {}) {
     return required.map(field => safePart(identity[field])).join("::");
 }
 
+function namespaceKey(namespace = "manual", runId = "") {
+    const kind = namespace === "e2e" ? "e2e" : "manual";
+    return kind === "e2e" ? `${kind}::${safePart(runId || "default-run")}` : kind;
+}
+
 function containsSecret(value = "") {
     const input = clean(value).toLowerCase();
     return /(?:api[_-]?key|secret|password|contrase(?:n|ñ)a|bearer\s+[a-z0-9._-]{12,}|-----begin\s+(?:rsa\s+)?private\s+key)/i.test(input);
@@ -31,11 +36,13 @@ function load(storage, key) {
     } catch { return []; }
 }
 
-export function createProjectMemory({ storage = globalThis.localStorage, identity, now = () => new Date().toISOString() } = {}) {
+export function createProjectMemory({ storage = globalThis.localStorage, identity, namespace = "manual", runId = "", now = () => new Date().toISOString() } = {}) {
     if (!storage?.getItem || !storage?.setItem) throw new Error("MEMORY_STORAGE_REQUIRED");
-    const scope = identityKey(identity);
+    const dataNamespace = namespaceKey(namespace, runId);
+    const scope = `${dataNamespace}::${identityKey(identity)}`;
+    const conversationScope = safePart(identity.conversationId || "conversation-required");
     const memoryKey = `${PREFIX}::${scope}::records`;
-    const missionKey = `${PREFIX}::${scope}::missions`;
+    const missionKey = `${PREFIX}::${scope}::conversation::${conversationScope}::missions`;
     const write = records => storage.setItem(memoryKey, JSON.stringify(records.slice(-1000)));
     const records = () => load(storage, memoryKey);
 
@@ -65,7 +72,8 @@ export function createProjectMemory({ storage = globalThis.localStorage, identit
             missionId: clean(input.missionId, 240), createdAt: timestamp, updatedAt: timestamp,
             effectiveFrom: clean(input.effectiveFrom, 80) || timestamp, supersedes: clean(input.supersedes, 240),
             confidence: Number.isFinite(Number(input.confidence)) ? Number(input.confidence) : 1,
-            tags: Array.isArray(input.tags) ? [...new Set(input.tags.map(tag => clean(tag, 80)).filter(Boolean))].slice(0, 20) : []
+            tags: Array.isArray(input.tags) ? [...new Set(input.tags.map(tag => clean(tag, 80)).filter(Boolean))].slice(0, 20) : [],
+            dataClass: dataNamespace.startsWith("e2e::") ? "E2E_FIXTURE" : "PERSISTENT_REAL"
         };
         current.push(record); write(current);
         return { ok: true, status: "MEMORY_STORED", record };
@@ -100,7 +108,19 @@ export function createProjectMemory({ storage = globalThis.localStorage, identit
         getItem: key => storage.getItem(`${missionKey}::${safePart(key)}`),
         setItem: (key, value) => storage.setItem(`${missionKey}::${safePart(key)}`, String(value))
     };
-    return { version: VERSION, scope, memoryKey, missionKey, remember, query, correct, forget, missionStorage };
+    function clearTestData() {
+        if (!dataNamespace.startsWith("e2e::")) return { ok: false, status: "MEMORY_TEST_CLEANUP_FORBIDDEN" };
+        storage.removeItem(memoryKey);
+        const prefix = `${missionKey}::`;
+        const keys = [];
+        for (let index = 0; index < Number(storage.length || 0); index += 1) {
+            const key = storage.key(index);
+            if (key?.startsWith(prefix)) keys.push(key);
+        }
+        keys.forEach(key => storage.removeItem(key));
+        return { ok: true, status: "MEMORY_E2E_DATA_CLEARED", removed: keys.length + 1 };
+    }
+    return { version: VERSION, namespace: dataNamespace, scope, memoryKey, missionKey, remember, query, correct, forget, clearTestData, missionStorage };
 }
 
 export const PROJECT_MEMORY_VERSION = VERSION;
