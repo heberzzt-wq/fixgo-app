@@ -165,11 +165,12 @@ fetch("/gestia-terminal.js")
 
 <script type="module" src="/modules/terminal/proposal-state.js?v=shared-proposal-state-v1-20260713"></script>
 <script type="module" src="/modules/terminal/jarvis-attachments.js?v=jarvis-artifacts-v71-20260725"></script>
+<script src="/gestia-core/jarvis/jarvis.local.bootstrap.js?v=fixgo-real-runtime-e2e-v1-20260805"></script>
 <script type="module" src="/gestia-core/gestia-core.js?v=sia7-identity-fidelity-v106-20260728"></script>
-<script type="module" src="/gestia-terminal.js?v=jarvis-runtime-macro-v2-20260707-4190"></script>
+<script type="module" src="/gestia-terminal.js?v=fixgo-real-runtime-e2e-v3-20260805"></script>
 <script
 type="module"
-src="/gestia-core/gestia.runtime.v7.js?v=role-authority-v4-sw-resilience-20260724">
+src="/gestia-core/gestia.runtime.v7.js?v=fixgo-real-runtime-e2e-20260805">
 </script>
 <script type="module" src="/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260728-identity-fidelity-v106"></script>
 <script type="module" src="/gestia-core/response.composer.js?v=jarvis-tools-v7-20260725-semantic-envelope-v64"></script>
@@ -1322,6 +1323,26 @@ window.unlockJarvisVoice = function() {
                 if (btnGenerate) {
                     btnGenerate.disabled = true;
                     btnGenerate.classList.add("animate-pulse");
+                }
+
+                const localValidationMode = ["127.0.0.1", "localhost"].includes(location.hostname) && new URLSearchParams(location.search).get("jarvisLocal") === "1";
+                if (localValidationMode) {
+                    if (window.JarvisLocalRuntime?.active !== true) {
+                        await import("/gestia-core/jarvis/jarvis.local.runtime.js?v=fixgo-real-runtime-e2e-submit-v2-20260805");
+                    }
+                    const localResult = await window.JarvisLocalRuntime.handle(comando);
+                    window.renderJarvisResponse?.(
+                        localResult.status || "Jarvis",
+                        [
+                            localResult.text || "",
+                            "",
+                            `Mission ID: ${localResult.missionId || "N/D"}`,
+                            `Ejecuciones efectivas de marketing.plan: ${Number(localResult.executionCount || 0)}`
+                        ].join("\n"),
+                        localResult.status === "MARKETING_INPUT_REQUIRED" ? "warning" : "success"
+                    );
+                    handled = true;
+                    return;
                 }
 
                 // Auditoría vinculada a la traza actual
@@ -6746,5 +6767,11 @@ if (
 })();
 </script>
 
+<script>
+  if (["127.0.0.1", "localhost"].includes(location.hostname) && new URLSearchParams(location.search).get("jarvisLocal") === "1") {
+    setTimeout(() => import("/gestia-core/jarvis/jarvis.local.runtime.js?v=fixgo-real-runtime-e2e-v6-20260805")
+      .catch(error => console.error("[FIXGO_LOCAL_RUNTIME_LOAD_FAILED]", error)), 2500);
+  }
+</script>
 </body>
 </html>

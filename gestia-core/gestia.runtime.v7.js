@@ -1937,9 +1937,12 @@ window.GestiaRuntime.guardSurface =
                PUBLIC ROUTE
             ============================================= */
 
+            const isLocalJarvisValidation =
+                ["127.0.0.1", "localhost"].includes(window.location.hostname) &&
+                new URLSearchParams(window.location.search).get("jarvisLocal") === "1";
             const isPublic =
 
-                window
+                isLocalJarvisValidation || window
                     .GestiaRuntime
                     .isPublicSurface(
                         pathname

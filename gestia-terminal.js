@@ -251,6 +251,13 @@ function resolveIntentsAdapter(input, contextoSemantico) {
     ]);
 }
 
+// Local-only bootstrap for browser E2E against the production terminal entrypoint.
+if (["127.0.0.1", "localhost"].includes(window.location.hostname) && new URLSearchParams(window.location.search).get("jarvisLocal") === "1") {
+    window.__FIXGO_LOCAL_BOOTSTRAP_SEEN__ = true;
+    setTimeout(() => import("./gestia-core/jarvis/jarvis.local.runtime.js?v=fixgo-real-runtime-e2e-v7-20260805")
+        .catch(error => console.error("[FIXGO_LOCAL_RUNTIME_LOAD_FAILED]", error)), 2500);
+}
+
 /* =====================================================================================
    ESTADOS DEL SISTEMA
 ===================================================================================== */
@@ -6581,6 +6588,11 @@ onAuthStateChanged(
 
     if (
         !hydratedUser &&
+
+        !(
+            ["127.0.0.1", "localhost"].includes(window.location.hostname) &&
+            new URLSearchParams(window.location.search).get("jarvisLocal") === "1"
+        ) &&
 
         !window.location.pathname.includes(
             "login.html"

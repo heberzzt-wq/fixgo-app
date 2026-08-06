@@ -1945,7 +1945,7 @@ test("terminal has natural patchPreview follow-up memory gate before core planne
     assert.match(terminal, /approved:\s*false/);
     assert.match(terminal, /sia7-identity-fidelity-v106-20260728/);
     assert.match(terminal, /jarvis-tools-bridge-v7-20260726-chief-review-response-v93/);
-    assert.match(terminal, /jarvis-runtime-macro-v2-20260707-4190/);
+    assert.match(terminal, /fixgo-real-runtime-e2e-v3-20260805/);
     assert.match(terminal, /isTerminalBrainRuntimeReady/);
     assert.doesNotMatch(terminal, /function isKernelSessionReady/);
     assert.doesNotMatch(terminal, /window\.KernelHeberto\?\.execute/);
@@ -2801,7 +2801,7 @@ test("verified read-only missions stay outside retrying Firestore transactions",
     );
     assert.match(
         terminal,
-        /role-authority-v4-sw-resilience-20260724/
+        /fixgo-real-runtime-e2e-20260805/
     );
     assert.match(
         toolsRuntime,
