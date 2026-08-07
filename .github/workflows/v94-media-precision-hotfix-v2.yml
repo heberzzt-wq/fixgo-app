@@ -1,0 +1,78 @@
+name: V94 media precision hotfix v2
+
+on:
+  push:
+    branches:
+      - v94-handoff-ee6d8cfe
+    paths:
+      - .github/workflows/v94-media-precision-hotfix-v2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair-test-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout isolated V94 handoff
+        uses: actions/checkout@v4
+        with:
+          ref: v94-handoff-ee6d8cfe
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Apply production incident repair
+        run: python3 .github/scripts/v94-media-precision-hotfix.py
+
+      - name: Diff integrity
+        run: |
+          git diff --check
+          git status --short
+
+      - name: Focused syntax and tests
+        run: |
+          node --check functions/jarvis-media-analysis.js
+          node --check gestia-core/jarvis/jarvis.conversation.composer.js
+          node --test tests/jarvis-media-analysis.test.cjs tests/jarvis-conversation-composer.test.mjs
+          npm run check:nexo:contracts
+
+      - name: Full CI
+        run: npm run ci:test
+
+      - name: Commit certified repair on handoff branch
+        run: |
+          git config user.name "OpenAI V94 Handoff"
+          git config user.email "actions@users.noreply.github.com"
+          git add functions/jarvis-media-analysis.js gestia-core/jarvis/jarvis.conversation.composer.js tests/jarvis-media-analysis.test.cjs tests/jarvis-conversation-composer.test.mjs
+          git commit -m "[v94-media-precision-hotfix] fix(jarvis): fail closed on visual literal leaks"
+          git push origin HEAD:v94-handoff-ee6d8cfe
+          echo "PATCH_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Install Functions dependencies
+        run: npm --prefix functions ci
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@15.10.1
+
+      - name: Narrow deploy function and primary Hosting only
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy --only functions:jarvisMediaAnalyze,hosting:fixgo-44e4d --project fixgo-44e4d --token "$FIREBASE_TOKEN" --non-interactive
+
+      - name: Verify production composer bytes
+        run: |
+          curl --fail --silent --show-error --location --retry 5 --retry-delay 2 "https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.conversation.composer.js?v=${PATCH_HEAD}" -o /tmp/composer.js
+          grep -q "allowedCompanionTools" /tmp/composer.js
+          grep -q "system.certify" /tmp/composer.js
+          echo "V94_MEDIA_PRECISION_HOTFIX_DEPLOYED=${PATCH_HEAD}"
