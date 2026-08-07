@@ -1328,7 +1328,7 @@ window.unlockJarvisVoice = function() {
                 const localValidationMode = ["127.0.0.1", "localhost"].includes(location.hostname) && new URLSearchParams(location.search).get("jarvisLocal") === "1";
                 if (localValidationMode) {
                     if (window.JarvisLocalRuntime?.active !== true) {
-                        await import("/gestia-core/jarvis/jarvis.local.runtime.js?v=fixgo-memory-isolation-submit-v2-20260806");
+                        await import("/gestia-core/jarvis/jarvis.local.runtime.js?v=fixgo-marketing-memory-transition-v94-20260807");
                     }
                     const localResult = await window.JarvisLocalRuntime.handle(comando);
                     window.renderJarvisResponse?.(
@@ -6769,7 +6769,7 @@ if (
 
 <script>
   if (["127.0.0.1", "localhost"].includes(location.hostname) && new URLSearchParams(location.search).get("jarvisLocal") === "1") {
-    setTimeout(() => import("/gestia-core/jarvis/jarvis.local.runtime.js?v=fixgo-memory-isolation-v2-20260806")
+    setTimeout(() => import("/gestia-core/jarvis/jarvis.local.runtime.js?v=fixgo-marketing-memory-transition-v94-20260807")
       .catch(error => console.error("[FIXGO_LOCAL_RUNTIME_LOAD_FAILED]", error)), 2500);
   }
 </script>

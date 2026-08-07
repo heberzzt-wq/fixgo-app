@@ -8,15 +8,15 @@ const params = new URLSearchParams(location.search);
 const active = ["127.0.0.1", "localhost"].includes(location.hostname) && params.get("jarvisLocal") === "1";
 const STORAGE_CONTRACT_VERSION = "jarvis-local-mission-v2";
 const BUILD = Object.freeze({
-    buildId: "fixgo-v5.9-marketing-memory-20260805",
-    baseCommitId: "f20e18aaa6ea6558265052ee3996227e2b959a40",
+    buildId: "fixgo-v5.9-marketing-memory-transition-20260807",
+    baseCommitId: "588454fc0bbb37647975d0772398cc282fd0f8c0",
     entrypoint: "/gestia-terminal.html",
     core: "gestia-core-v16",
     orchestrator: "1.10.0-diagnostic-error-normalization",
     marketing: "8.1.0-nexo-complete-marketing-package",
     presenter: "1.0.0-marketing-visible",
     memory: PROJECT_MEMORY_VERSION,
-    builtAt: "2026-08-05T23:30:00-05:00"
+    builtAt: "2026-08-06T21:55:00-05:00"
 });
 
 function identity() {
@@ -39,8 +39,11 @@ function extractContext(input = "") {
         if (!field) continue;
         result[field] = field === "channels" ? match[2].split(/,|\sy\s/).map(value => value.trim()).filter(Boolean) : match[2].trim();
     }
-            if (/escenario bajo/i.test(input)) result.budget = "escenario bajo";
-    if (/escenario medio/i.test(input)) result.mediumBudget = "escenario medio";
+    const normalizedInput = String(input).toLocaleLowerCase("es");
+    if (normalizedInput.includes("escenario bajo")) result.budget = "escenario bajo";
+    if (normalizedInput.includes("escenario medio") || normalizedInput.includes("uno medio")) {
+        result.mediumBudget = "escenario medio";
+    }
     return result;
 }
 
@@ -114,11 +117,42 @@ if (active) {
             const visible = marketingFinalResponseFromMission(result);
             if (visible) {
                 localStorage.removeItem(pointerKey);
-                for (const pending of memory.query({ types: ["PENDING_TASK", "MISSION_STATE"], subject: "marketing" })) {
-                    if (pending.missionId === result.missionId && pending.status !== "COMPLETED") memory.forget(pending.id);
+                const pendingMarketingRecords = memory
+                    .query({ types: ["PENDING_TASK", "MISSION_STATE"], subject: "marketing" })
+                    .filter(item => item.missionId === result.missionId && item.status !== "COMPLETED");
+                const pendingTask = pendingMarketingRecords.find(item => item.type === "PENDING_TASK");
+                const pendingMission = pendingMarketingRecords.find(item => item.type === "MISSION_STATE");
+                if (pendingTask) {
+                    memory.remember({
+                        type: "PENDING_TASK",
+                        subject: "marketing",
+                        content: `Misión ${result.missionId}: los datos faltantes fueron proporcionados y la tarea quedó completada.`,
+                        status: "COMPLETED",
+                        missionId: result.missionId,
+                        conversationId: id.conversationId,
+                        sourceId: result.objectiveId,
+                        supersedes: pendingTask.id
+                    });
                 }
                 memory.remember({ type: "TECHNICAL_RESULT", subject: "marketing", content: visible.text, status: "COMPLETED", missionId: result.missionId, conversationId: id.conversationId, sourceId: result.objectiveId, tags: ["marketing", "90-days"] });
-                memory.remember({ type: "MISSION_STATE", subject: "marketing", content: `Misión ${result.missionId} completada con plan visible de 25 secciones`, status: "COMPLETED", missionId: result.missionId, conversationId: id.conversationId, sourceId: result.objectiveId });
+                const completionSummary = [
+                    `Misión ${result.missionId} completada después de solicitar y recibir los datos críticos faltantes.`,
+                    continuationContext.horizon ? `Horizonte: ${continuationContext.horizon}.` : "",
+                    continuationContext.budget && continuationContext.mediumBudget
+                        ? `Presupuesto: ${continuationContext.budget} y ${continuationContext.mediumBudget}.`
+                        : "",
+                    "Existe un entregable completo con 25 secciones visibles."
+                ].filter(Boolean).join(" ");
+                memory.remember({
+                    type: "MISSION_STATE",
+                    subject: "marketing",
+                    content: completionSummary,
+                    status: "COMPLETED",
+                    missionId: result.missionId,
+                    conversationId: id.conversationId,
+                    sourceId: result.objectiveId,
+                    supersedes: pendingMission?.id || ""
+                });
                 return { ...visible, status: "MARKETING_PACKAGE_READY", missionId: result.missionId, executionCount: result.runtimeResults.filter(item => item.status === "MARKETING_PACKAGE_READY").length };
             }
             return { status: latest.status || result.reason, missionId: result.missionId, executionCount: result.runtimeResults.length, text: "La misión no produjo un entregable visible completo." };
