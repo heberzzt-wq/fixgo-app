@@ -1,0 +1,160 @@
+name: V94 marketing final certification
+
+on:
+  push:
+    branches:
+      - v94-handoff-ee6d8cfe
+    paths:
+      - .github/workflows/v94-marketing-final-certification.yml
+
+permissions:
+  contents: read
+
+jobs:
+  certify-marketing:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout isolated V94 handoff
+        uses: actions/checkout@v4
+        with:
+          ref: v94-handoff-ee6d8cfe
+          fetch-depth: 1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix functions ci
+
+      - name: Focused HMH marketing and artifact regressions
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/jarvis-marketing-engine-v2.test.mjs \
+            tests/v94-marketing-artifact-delivery.test.mjs \
+            tests/nexo-mission-compiler.test.mjs \
+            tests/jarvis-attachments.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs
+          npm run check:nexo:contracts
+
+      - name: Prepare isolated bridge identity
+        run: |
+          set -euo pipefail
+          cp jarvis-runtime-contract.json /tmp/v94-marketing-runtime-contract.json
+          node - <<'NODE'
+          import fs from 'node:fs';
+          const file='jarvis-runtime-contract.json';
+          const contract=JSON.parse(fs.readFileSync(file,'utf8'));
+          contract.branch='v94-handoff-ee6d8cfe';
+          fs.writeFileSync(file,JSON.stringify(contract,null,2)+'\n');
+          NODE
+
+      - name: Real HMH plan creates and rereads Markdown and PDF through bridge
+        run: |
+          set -euo pipefail
+          rm -rf .jarvis-artifacts
+          node jarvis-upload-bridge.js >/tmp/v94-marketing-bridge.log 2>&1 &
+          BRIDGE_PID=$!
+          echo "$BRIDGE_PID" >/tmp/v94-marketing-bridge.pid
+          trap 'kill $BRIDGE_PID 2>/dev/null || true' EXIT
+          for i in $(seq 1 40); do
+            curl -fsS http://127.0.0.1:3344/health >/tmp/v94-marketing-health.json 2>/dev/null && break
+            sleep 0.25
+          done
+          node - <<'NODE'
+          import fs from 'node:fs';
+          import { planMarketingRequest } from './gestia-core/jarvis/jarvis.marketing.engine.js';
+
+          const health=await fetch('http://127.0.0.1:3344/health').then(r=>r.json());
+          const releaseId=String(health?.identity?.contract?.releaseId||'');
+          if(health?.identity?.ok!==true||!releaseId) throw new Error('BRIDGE_IDENTITY_RELEASE_ID_REQUIRED');
+
+          const first=planMarketingRequest('Crea un plan de marketing completo para Multiservicios Peninsulares HMH.', {});
+          if(first.status!=='MARKETING_INPUT_REQUIRED') throw new Error(`EXPECTED_INPUT_REQUIRED:${first.status}`);
+          const missing=new Set(first.missingInputs||[]);
+          for(const required of ['objective','audience','offer','budget']) {
+            if(!missing.has(required)) throw new Error(`MISSING_REQUIRED_INPUT_NOT_REPORTED:${required}`);
+          }
+          if(JSON.stringify(first).includes('Península Tech')) throw new Error('STALE_PENINSULA_CONTEXT_LEAK');
+
+          const plan=planMarketingRequest('Crea un plan de marketing completo para Multiservicios Peninsulares HMH.', {
+            brandName:'Multiservicios Peninsulares HMH',
+            campaignObjective:'Captar clientes y prestadores durante los primeros 90 días',
+            audience:'Propietarios, administradores, pequeños negocios y personas que necesitan técnicos confiables',
+            market:'Cancún, Quintana Roo',
+            offer:'Plataforma de multiservicios para hogares y negocios',
+            pain:'Dificultad para encontrar profesionales verificados, disponibles y con seguimiento',
+            promise:'Conexión rápida con profesionales y trazabilidad del servicio',
+            differentiator:'Profesionales verificados, seguimiento y experiencia digital',
+            budget:'escenario bajo',
+            mediumBudget:'escenario medio',
+            horizon:'90 días',
+            cta:'Solicitar servicio o registrarse como profesional',
+            channels:['Meta Ads','Google Ads','contenido local','WhatsApp','referidos']
+          });
+          if(plan.status!=='MARKETING_PACKAGE_READY') throw new Error(`MARKETING_PACKAGE_NOT_READY:${plan.status}`);
+          if(Object.keys(plan.plan||{}).length!==25) throw new Error(`MARKETING_SECTION_COUNT:${Object.keys(plan.plan||{}).length}`);
+
+          async function post(route, body) {
+            const r=await fetch('http://127.0.0.1:3344'+route,{method:'POST',headers:{'content-type':'application/json','X-Jarvis-Release-Id':releaseId},body:JSON.stringify(body)});
+            const j=await r.json();
+            if(!r.ok||j.ok!==true) throw new Error(`${route}:${r.status}:${j.status||j.error}`);
+            return j;
+          }
+
+          const outputs=[];
+          for(const format of ['md','pdf']) {
+            const created=await post('/document',{format,title:'Plan de marketing completo — Multiservicios Peninsulares HMH',content:plan.userVisible,caseId:'CASE-V94-HMH-FINAL',objectiveId:'OBJ-V94-HMH-FINAL'});
+            const read=await post('/artifact/read',{output:created.output});
+            if(!read.dataBase64||Number(read.bytes)<=0) throw new Error(`EMPTY_ARTIFACT:${format}`);
+            outputs.push({format,output:created.output,bytes:Number(read.bytes),mimeType:read.mimeType});
+          }
+          fs.writeFileSync('/tmp/v94-marketing-outputs.json',JSON.stringify(outputs));
+          console.log(JSON.stringify({status:'V94_HMH_MARKETING_ARTIFACTS_OK',sections:25,artifacts:outputs}));
+          NODE
+
+      - name: Real Chrome renders two artifact cards and PDF preview
+        run: |
+          set -euo pipefail
+          python3 -m http.server 5500 --bind 127.0.0.1 >/tmp/v94-marketing-http.log 2>&1 &
+          HTTP_PID=$!
+          echo "$HTTP_PID" >/tmp/v94-marketing-http.pid
+          node - <<'NODE'
+          import fs from 'node:fs';
+          const outputs=JSON.parse(fs.readFileSync('/tmp/v94-marketing-outputs.json','utf8'));
+          const payload=JSON.stringify(outputs).replaceAll('<','\\u003c');
+          fs.writeFileSync('/tmp/v94-marketing-ui.html',`<!doctype html><html><body><div id="gestia-output"><div><div class="bg-gestia-panel"></div></div></div><script>window.__OUT__=${payload}</script><script type="module">const health=await fetch('http://127.0.0.1:3344/health').then(r=>r.json());const releaseId=health?.identity?.contract?.releaseId||'';window.JarvisLocalBridge={requestJson:async(route,payload)=>{const r=await fetch('http://127.0.0.1:3344'+route,{method:'POST',headers:{'content-type':'application/json','X-Jarvis-Release-Id':releaseId},body:JSON.stringify(payload)});return await r.json();}};const {JarvisAttachments}=await import('http://127.0.0.1:5500/modules/terminal/jarvis-attachments.js?v=v94-final-marketing');for(const x of window.__OUT__) await JarvisAttachments.renderArtifact(x.output,x.mimeType,'document.create');const c=document.querySelectorAll('[data-testid="jarvis-artifact-card"]').length,d=document.querySelectorAll('[data-testid="jarvis-artifact-download"]').length,o=document.querySelectorAll('[data-testid="jarvis-artifact-open"]').length,p=document.querySelectorAll('[data-testid="jarvis-pdf-preview"]').length;document.body.insertAdjacentHTML('beforeend','<pre id="e2e">E2E:'+c+':'+d+':'+o+':'+p+'</pre>');</script></body></html>`);
+          NODE
+          cp /tmp/v94-marketing-ui.html .tmp-v94-marketing-ui.html
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME"
+          "$CHROME" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --virtual-time-budget=8000 --dump-dom http://127.0.0.1:5500/.tmp-v94-marketing-ui.html >/tmp/v94-marketing-dom.html
+          grep -q 'E2E:2:2:2:1' /tmp/v94-marketing-dom.html
+          echo 'V94_HMH_MARKETING_CHROME_ARTIFACT_UI=PASS'
+
+      - name: Verify deployed marketing source markers
+        run: |
+          set -euo pipefail
+          curl -fsS 'https://fixgo-44e4d.web.app/gestia-core/nexo/nexo.mission.compiler.js?v=v94-marketing-final' >/tmp/v94-compiler.js
+          curl -fsS 'https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.marketing.presenter.js?v=v94-marketing-final' >/tmp/v94-presenter.js
+          curl -fsS 'https://fixgo-44e4d.web.app/modules/terminal/jarvis-attachments.js?v=v94-marketing-final' >/tmp/v94-attachments.js
+          grep -q '1.1.0-downloadable-marketing-artifacts' /tmp/v94-compiler.js
+          grep -q 'NEXO_MARKETING_MARKDOWN_ARTIFACT' /tmp/v94-compiler.js
+          grep -q 'NEXO_MARKETING_PDF_ARTIFACT' /tmp/v94-compiler.js
+          grep -q 'marketingArtifactArgsFromCompletedTasks' /tmp/v94-presenter.js
+          grep -q '2.4.0-user-artifact-preview-download' /tmp/v94-attachments.js
+          echo 'V94_PRODUCTION_MARKETING_SOURCE_MARKERS=PASS'
+
+      - name: Cleanup
+        if: always()
+        run: |
+          if test -f /tmp/v94-marketing-bridge.pid; then kill "$(cat /tmp/v94-marketing-bridge.pid)" 2>/dev/null || true; fi
+          if test -f /tmp/v94-marketing-http.pid; then kill "$(cat /tmp/v94-marketing-http.pid)" 2>/dev/null || true; fi
+          rm -rf .jarvis-artifacts .tmp-v94-marketing-ui.html
+          if test -f /tmp/v94-marketing-runtime-contract.json; then cp /tmp/v94-marketing-runtime-contract.json jarvis-runtime-contract.json; fi
