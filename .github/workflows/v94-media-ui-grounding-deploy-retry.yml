@@ -31,6 +31,9 @@ jobs:
           test "$(git rev-parse HEAD)" = "5cb8901b3de3a5084a4289106f3fbd5c0c1ba005"
           node --check functions/jarvis-media-analysis.js
 
+      - name: Install function dependencies
+        run: npm --prefix functions ci
+
       - name: Install Firebase CLI
         run: npm install --global firebase-tools@15.10.1
 
