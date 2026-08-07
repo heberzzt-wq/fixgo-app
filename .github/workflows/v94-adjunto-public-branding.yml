@@ -1,0 +1,77 @@
+name: V94 ADJUNTO public branding
+
+on:
+  push:
+    branches:
+      - v94-handoff-ee6d8cfe
+    paths:
+      - .github/workflows/v94-adjunto-public-branding.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair-test-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout isolated V94 handoff
+        uses: actions/checkout@v4
+        with:
+          ref: v94-handoff-ee6d8cfe
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply targeted public branding repair
+        run: python3 .github/scripts/v94-adjunto-public-branding.py
+
+      - name: Branding focused regression
+        run: |
+          node --check gestia-core/nexo/nexo.ui.branding.js
+          node --test tests/v94-adjunto-public-branding.test.mjs tests/nexo-terminal-bootstrap.test.mjs
+          git diff --check
+
+      - name: Full CI
+        run: npm run ci:test
+
+      - name: Commit public branding source
+        run: |
+          git config user.name "OpenAI V94 Handoff"
+          git config user.email "actions@users.noreply.github.com"
+          git add gestia-terminal.html gestia-core/nexo/nexo.ui.branding.js tests/v94-adjunto-public-branding.test.mjs
+          git diff --cached --quiet && { echo 'Expected branding source diff missing'; exit 1; }
+          git commit -m "[v94-branding] feat(adjunto): publish ADJUNTO terminal identity"
+          git push origin HEAD:v94-handoff-ee6d8cfe
+          echo "BRANDING_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@15.10.1
+
+      - name: Deploy primary Hosting only
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy --only hosting --project fixgo-44e4d --token "$FIREBASE_TOKEN" --non-interactive
+
+      - name: Verify production branding bytes and text
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 4 --retry-all-errors \
+            "https://fixgo-44e4d.web.app/gestia-terminal.html?v=v94-adjunto-${BRANDING_HEAD}" \
+            --output /tmp/gestia-terminal-prod.html
+          cmp gestia-terminal.html /tmp/gestia-terminal-prod.html
+          grep -q 'ADJUNTO listo' /tmp/gestia-terminal-prod.html
+          grep -q 'ADJUNTO | Tecnología privada de Península Tech' /tmp/gestia-terminal-prod.html
+          grep -q 'Tu asistente privado de Península Tech para conversar, analizar archivos y ejecutar misiones verificables.' /tmp/gestia-terminal-prod.html
+          ! grep -q '>Jarvis listo<' /tmp/gestia-terminal-prod.html
+          ! grep -q '>NEXO listo<' /tmp/gestia-terminal-prod.html
+          echo "PRODUCTION_ADJUNTO_BRANDING_BYTES_MATCH=${BRANDING_HEAD}"
