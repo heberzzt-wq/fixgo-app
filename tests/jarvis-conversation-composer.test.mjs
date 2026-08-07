@@ -758,3 +758,142 @@ test("system certification companion cannot force semantic rewriting of verified
     assert.match(result.text, /NEXO listo/);
     assert.doesNotMatch(result.text, /07\/08\/2023|2023/);
 });
+
+
+
+test("precision renderer suppresses ungrounded standalone UI labels from provider comparison", async () => {
+    const result = await composeEvidenceGroundedConversation({
+        instruction: "Compara dos capturas sin inventar etiquetas.",
+        evidenceItems: [{
+            name: "media.analyze",
+            observation: {
+                ok: true,
+                status: "MEDIA_ANALYSIS_GROUNDED",
+                version: "1.4.0-verified-visual-claims",
+                expectedSources: 2,
+                receivedSources: 2,
+                sources: [
+                    {
+                        sourceId: "SOURCE_1",
+                        fileName: "chat.png",
+                        sha256: "a".repeat(64),
+                        objects: [],
+                        visibleData: [],
+                        uncertainty: []
+                    },
+                    {
+                        sourceId: "SOURCE_2",
+                        fileName: "terminal.png",
+                        sha256: "b".repeat(64),
+                        objects: [],
+                        visibleData: [],
+                        uncertainty: []
+                    }
+                ],
+                comparison: {
+                    differences: [
+                        "The first menu includes Canva, Gmail, GitHub and Google Drive while Terminal Heberto has fewer options."
+                    ]
+                },
+                recommendations: [
+                    "Add Canva and Gmail integrations to Terminal Heberto."
+                ],
+                precisionAudit: {
+                    ok: true,
+                    status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
+                    effectiveToolExecutions: 1,
+                    sourceIdentityVerified: true,
+                    exactTextRequiresConfidence: 0.98
+                }
+            }
+        }],
+        executeConversation: async () => {
+            throw new Error("semantic composer must not run");
+        }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.status, "MEDIA_ANALYSIS_RESPONSE_VERIFIED");
+    assert.doesNotMatch(
+        result.text,
+        /Canva|Gmail|GitHub|Google Drive|Terminal Heberto/
+    );
+    assert.match(
+        result.text,
+        /se omitieron comparaciones con etiquetas literales/i
+    );
+    assert.match(
+        result.text,
+        /no se muestran propuestas/i
+    );
+});
+
+
+test("precision renderer keeps UI labels when final visibleData verifies them", async () => {
+    const result = await composeEvidenceGroundedConversation({
+        instruction: "Compara dos capturas.",
+        evidenceItems: [{
+            name: "media.analyze",
+            observation: {
+                ok: true,
+                status: "MEDIA_ANALYSIS_GROUNDED",
+                version: "1.4.0-verified-visual-claims",
+                expectedSources: 2,
+                receivedSources: 2,
+                sources: [
+                    {
+                        sourceId: "SOURCE_1",
+                        fileName: "chat.png",
+                        sha256: "c".repeat(64),
+                        objects: [],
+                        visibleData: [{
+                            kind: "text",
+                            value: "ChatGPT Plus",
+                            page: 1,
+                            confidence: 0.99,
+                            evidence: "Etiqueta superior visible.",
+                            legibility: "VERIFIED"
+                        }],
+                        uncertainty: []
+                    },
+                    {
+                        sourceId: "SOURCE_2",
+                        fileName: "terminal.png",
+                        sha256: "d".repeat(64),
+                        objects: [],
+                        visibleData: [{
+                            kind: "text",
+                            value: "Terminal Heberto",
+                            page: 1,
+                            confidence: 0.99,
+                            evidence: "Encabezado visible.",
+                            legibility: "VERIFIED"
+                        }],
+                        uncertainty: []
+                    }
+                ],
+                comparison: {
+                    differences: [
+                        "ChatGPT Plus y Terminal Heberto muestran encabezados distintos."
+                    ]
+                },
+                recommendations: [],
+                precisionAudit: {
+                    ok: true,
+                    status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
+                    effectiveToolExecutions: 1,
+                    sourceIdentityVerified: true,
+                    exactTextRequiresConfidence: 0.98
+                }
+            }
+        }],
+        executeConversation: async () => {
+            throw new Error("semantic composer must not run");
+        }
+    });
+
+    assert.equal(result.ok, true);
+    assert.match(result.text, /ChatGPT Plus/);
+    assert.match(result.text, /Terminal Heberto/);
+    assert.match(result.text, /encabezados distintos/);
+});

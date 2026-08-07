@@ -12,6 +12,11 @@ const MAX_REPAIR_ATTEMPTS = 1;
 const SENSITIVE_NARRATIVE_LITERAL_PATTERN = /(?:https?:\/\/[^\s"'<>]+|www\.[^\s"'<>]+|\b(?:[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?\.)+(?:com|net|org|app|dev|io|mx|ai|co|es|tech|cloud|web)\b|\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b|\b(?:19|20)\d{2}\b|\b\d{1,2}:\d{2}(?::\d{2})?\b)/i;
 const QUOTED_NARRATIVE_LITERAL_PATTERN = /["'`“”‘’]([^"'`“”‘’\n]{2,160})["'`“”‘’]/g;
 const PROPER_UI_LITERAL_PATTERN = /\b(?:[A-ZÁÉÍÓÚÑ][a-záéíóúüñ0-9-]+[A-Z][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*|[A-ZÁÉÍÓÚÑ][a-záéíóúüñ0-9-]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*[a-záéíóúüñ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*)+)\b/g;
+const STANDALONE_UI_LITERAL_PATTERN = /\b[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]{2,}\b/g;
+const STANDALONE_UI_LITERAL_STOPWORDS = new Set([
+    "The", "This", "That", "These", "Those", "Screenshot", "Interface", "Menu", "Source", "File", "Both", "One", "Another", "Primary", "Application", "Differences", "Recommendations", "Analysis", "Verified", "Visual", "If", "No", "Yes", "While", "Based", "For", "With", "From", "And", "Or",
+    "La", "El", "Los", "Las", "Una", "Un", "Se", "En", "Para", "Con", "Sin", "Esto", "Esta", "Este", "Estas", "Estos", "Archivo", "Fuente", "Interfaz", "Menu", "Menú", "Analisis", "Análisis", "Diferencias", "Mejoras", "Lectura", "Lecturas", "Verificado", "Visual", "Si", "Sí", "No", "Al", "Del"
+]);
 const NON_VISUAL_RECOMMENDATION_PATTERN = /\b(?:investigat(?:e|es|ed|ing|ion)|explor(?:e|es|ed|ing|ation)|document(?:ar|e|es|ed|ing|ation)|investigar|explorar|documentar)\b/i;
 
 function normalizeMediaFiles(files = []) {
@@ -252,11 +257,31 @@ function extractProperUiNarrativeLiterals(value = "") {
     ).filter(Boolean);
 }
 
+function extractStandaloneUiNarrativeLiterals(value = "") {
+    const source = String(value || "");
+    const pattern = new RegExp(
+        STANDALONE_UI_LITERAL_PATTERN.source,
+        "g"
+    );
+    return Array.from(source.matchAll(pattern))
+        .filter(match => {
+            const literal = String(match?.[0] || "").trim();
+            const index = Number(match?.index || 0);
+            if (!literal || index === 0) return false;
+            if (STANDALONE_UI_LITERAL_STOPWORDS.has(literal)) return false;
+            if (/^[A-ZÁÉÍÓÚÑ]{2,}$/.test(literal)) return false;
+            return true;
+        })
+        .map(match => String(match?.[0] || "").trim())
+        .filter(Boolean);
+}
+
 function groundingRequiredNarrativeLiterals(value = "") {
     return [...new Set([
         ...extractSensitiveNarrativeLiterals(value),
         ...extractQuotedNarrativeLiterals(value),
-        ...extractProperUiNarrativeLiterals(value)
+        ...extractProperUiNarrativeLiterals(value),
+        ...extractStandaloneUiNarrativeLiterals(value)
     ].filter(Boolean))];
 }
 
@@ -580,6 +605,7 @@ function validateAnalysis(parsed, files) {
             narrativeUiLiteralsRequireVisibleData: true,
             conversationContentCannotProveUiCapability: true,
             deterministicPrecisionSanitizer: true,
+            standaloneUiLiteralsRequireVisibleData: true,
             authenticatedAdminOnly: true
         }
     };

@@ -1391,3 +1391,76 @@ test("production deterministically sanitizes a second precision leak instead of 
     );
     assert.equal(result.policy.deterministicPrecisionSanitizer, true);
 });
+
+
+
+test("production sanitizes standalone UI brand labels that are absent from verified visibleData", async () => {
+    let calls = 0;
+    const leakingPayload = {
+        sources: [
+            {
+                sourceId: "SOURCE_1",
+                fileName: "chat.png",
+                mimeType: "image/png",
+                description: "Screenshot of a web interface.",
+                observations: ["The open menu includes Canva and Gmail among several options."],
+                inferences: [],
+                objects: [],
+                composition: {},
+                visibleData: [],
+                pages: [],
+                marketingUse: [],
+                quality: {},
+                uncertainty: [],
+                evidence: []
+            },
+            {
+                sourceId: "SOURCE_2",
+                fileName: "terminal.png",
+                mimeType: "image/png",
+                description: "Screenshot of another web interface.",
+                observations: [],
+                inferences: [],
+                objects: [],
+                composition: {},
+                visibleData: [],
+                pages: [],
+                marketingUse: [],
+                quality: {},
+                uncertainty: [],
+                evidence: []
+            }
+        ],
+        comparison: {
+            beforeAfter: false,
+            differences: ["One menu includes Canva and Gmail while the other differs."],
+            confidence: 0.9
+        },
+        recommendations: []
+    };
+
+    const result = await runJarvisMediaAnalysis({
+        ai: {
+            models: {
+                generateContent: async () => {
+                    calls += 1;
+                    return { text: JSON.stringify(leakingPayload) };
+                }
+            }
+        },
+        input: {
+            files: [
+                { name: "chat.png", mimeType: "image/png", dataBase64: Buffer.from("chat-v4e").toString("base64") },
+                { name: "terminal.png", mimeType: "image/png", dataBase64: Buffer.from("terminal-v4e").toString("base64") }
+            ],
+            question: "Compara controles visibles."
+        }
+    });
+
+    assert.equal(calls, 2);
+    assert.equal(result.ok, true);
+    assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
+    assert.equal(result.precisionSanitized, true);
+    assert.equal(result.policy.standaloneUiLiteralsRequireVisibleData, true);
+    assert.doesNotMatch(JSON.stringify(result), /Canva|Gmail/);
+});

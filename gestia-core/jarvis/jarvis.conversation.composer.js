@@ -439,6 +439,96 @@ function naturalEvidenceText(item) {
     ).trim();
 }
 
+const RENDER_SENSITIVE_LITERAL_PATTERN = /(?:https?:\/\/[^\s"'<>]+|www\.[^\s"'<>]+|\b(?:[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?\.)+(?:com|net|org|app|dev|io|mx|ai|co|es|tech|cloud|web)\b|\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b|\b(?:19|20)\d{2}\b|\b\d{1,2}:\d{2}(?::\d{2})?\b)/gi;
+const RENDER_QUOTED_LITERAL_PATTERN = /["'`“”‘’]([^"'`“”‘’\n]{2,160})["'`“”‘’]/g;
+const RENDER_PROPER_UI_LITERAL_PATTERN = /\b(?:[A-ZÁÉÍÓÚÑ][a-záéíóúüñ0-9-]+[A-Z][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*|[A-ZÁÉÍÓÚÑ][a-záéíóúüñ0-9-]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*[a-záéíóúüñ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*)+)\b/g;
+const RENDER_STANDALONE_UI_LITERAL_PATTERN = /\b[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]{2,}\b/g;
+const RENDER_STANDALONE_UI_STOPWORDS = new Set([
+    "The", "This", "That", "These", "Those", "Screenshot", "Interface", "Menu", "Source", "File", "Both", "One", "Another", "Primary", "Application", "Differences", "Recommendations", "Analysis", "Verified", "Visual", "If", "No", "Yes", "While", "Based", "For", "With", "From", "And", "Or",
+    "La", "El", "Los", "Las", "Una", "Un", "Se", "En", "Para", "Con", "Sin", "Esto", "Esta", "Este", "Estas", "Estos", "Archivo", "Fuente", "Interfaz", "Menu", "Menú", "Analisis", "Análisis", "Diferencias", "Mejoras", "Lectura", "Lecturas", "Verificado", "Visual", "Si", "Sí", "No", "Al", "Del"
+]);
+
+function normalizedGroundedLiteral(value = "") {
+    return normalizedText(value)
+        .replace(/[),.;!?]+$/g, "");
+}
+
+function verifiedMediaLiteralValues(observation = {}) {
+    const minimumConfidence = Number(
+        observation?.precisionAudit?.exactTextRequiresConfidence ||
+        0.98
+    );
+    return [...new Set(
+        (Array.isArray(observation?.sources) ? observation.sources : [])
+            .flatMap(source =>
+                (Array.isArray(source?.visibleData) ? source.visibleData : [])
+                    .filter(item =>
+                        String(item?.legibility || "").trim().toUpperCase() === "VERIFIED" &&
+                        Number(item?.confidence || 0) >= minimumConfidence &&
+                        Boolean(String(item?.value || "").trim()) &&
+                        Boolean(String(item?.evidence || "").trim())
+                    )
+                    .map(item => normalizedGroundedLiteral(item.value))
+            )
+            .filter(Boolean)
+    )];
+}
+
+function renderLiteralCandidates(value = "") {
+    const source = String(value || "");
+    const candidates = [];
+    const sensitive = new RegExp(RENDER_SENSITIVE_LITERAL_PATTERN.source, "gi");
+    const quoted = new RegExp(RENDER_QUOTED_LITERAL_PATTERN.source, "g");
+    const proper = new RegExp(RENDER_PROPER_UI_LITERAL_PATTERN.source, "g");
+    const standalone = new RegExp(RENDER_STANDALONE_UI_LITERAL_PATTERN.source, "g");
+
+    for (const match of source.matchAll(sensitive)) {
+        candidates.push(String(match?.[0] || "").trim());
+    }
+    for (const match of source.matchAll(quoted)) {
+        candidates.push(String(match?.[1] || "").trim());
+    }
+    for (const match of source.matchAll(proper)) {
+        candidates.push(String(match?.[0] || "").trim());
+    }
+    for (const match of source.matchAll(standalone)) {
+        const literal = String(match?.[0] || "").trim();
+        const index = Number(match?.index || 0);
+        if (!literal || index === 0) continue;
+        if (RENDER_STANDALONE_UI_STOPWORDS.has(literal)) continue;
+        if (/^[A-ZÁÉÍÓÚÑ]{2,}$/.test(literal)) continue;
+        candidates.push(literal);
+    }
+
+    return [...new Set(candidates.filter(Boolean))];
+}
+
+function isGroundedRenderedNarrative(value, verifiedValues = []) {
+    const candidates = renderLiteralCandidates(value);
+    if (candidates.length === 0) return true;
+    return candidates.every(literal => {
+        const candidate = normalizedGroundedLiteral(literal);
+        return verifiedValues.some(verified =>
+            verified === candidate ||
+            verified.includes(candidate) ||
+            candidate.includes(verified)
+        );
+    });
+}
+
+function groundedNaturalEvidenceTexts(items = [], verifiedValues = []) {
+    return (Array.isArray(items) ? items : [])
+        .map(naturalEvidenceText)
+        .filter(Boolean)
+        .filter(value =>
+            isGroundedRenderedNarrative(
+                value,
+                verifiedValues
+            )
+        );
+}
+
+
 function appendNaturalList(lines, title, items = []) {
     const values = (Array.isArray(items) ? items : [])
         .map(naturalEvidenceText)
@@ -475,11 +565,12 @@ function renderPrecisionVerifiedMediaConversation(observation) {
                 Boolean(String(item?.value || "").trim()) &&
                 Boolean(String(item?.evidence || "").trim())
             );
-        const objects = (Array.isArray(source?.objects)
-            ? source.objects
-            : [])
-            .map(naturalEvidenceText)
-            .filter(Boolean);
+        const verifiedValues =
+            verifiedMediaLiteralValues(observation);
+        const objects = groundedNaturalEvidenceTexts(
+            source?.objects,
+            verifiedValues
+        );
 
         lines.push("", `### Archivo ${index + 1}: ${fileName}`);
         appendNaturalList(lines, "Elementos visuales confirmados:", objects);
@@ -504,20 +595,54 @@ function renderPrecisionVerifiedMediaConversation(observation) {
         appendNaturalList(
             lines,
             "Detalles inciertos o ilegibles:",
-            source?.uncertainty
+            groundedNaturalEvidenceTexts(
+                source?.uncertainty,
+                verifiedMediaLiteralValues(observation)
+            )
         );
     });
+
+    const verifiedValues =
+        verifiedMediaLiteralValues(observation);
+    const groundedDifferences =
+        groundedNaturalEvidenceTexts(
+            observation?.comparison?.differences,
+            verifiedValues
+        );
+    const groundedRecommendations =
+        groundedNaturalEvidenceTexts(
+            observation?.recommendations,
+            verifiedValues
+        );
 
     appendNaturalList(
         lines,
         "Diferencias verificadas:",
-        observation?.comparison?.differences
+        groundedDifferences
     );
+    if (
+        Array.isArray(observation?.comparison?.differences) &&
+        observation.comparison.differences.length > 0 &&
+        groundedDifferences.length === 0
+    ) {
+        lines.push(
+            "Diferencias verificadas: se omitieron comparaciones con etiquetas literales que no quedaron respaldadas por visibleData verificado."
+        );
+    }
     appendNaturalList(
         lines,
         "Mejoras sugeridas para la experiencia de adjuntos:",
-        observation?.recommendations
+        groundedRecommendations
     );
+    if (
+        Array.isArray(observation?.recommendations) &&
+        observation.recommendations.length > 0 &&
+        groundedRecommendations.length === 0
+    ) {
+        lines.push(
+            "Mejoras sugeridas: no se muestran propuestas que dependan de etiquetas o capacidades no verificadas visualmente."
+        );
+    }
     lines.push(
         "",
         "La mision uso una sola ejecucion efectiva de media.analyze con dos pases independientes de verificacion."
