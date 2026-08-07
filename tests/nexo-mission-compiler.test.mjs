@@ -55,12 +55,13 @@ test("one marketing instruction produces plan, program, reel and image artifacts
 
     assert.equal(plan.ok, true);
     assert.deepEqual(names(plan), [
-        "marketing.plan",
-        "document.create",
-        "reel.plan",
-        "reel.create",
-        "image.generate"
-    ]);
+    "marketing.plan",
+    "document.create",
+    "document.create",
+    "reel.plan",
+    "reel.create",
+    "image.generate"
+]);
 
     const campaign = plan.toolCalls.find(call => call.name === "marketing.plan");
     assert.equal(campaign.args.audience.length > 20, true);
@@ -70,12 +71,13 @@ test("one marketing instruction produces plan, program, reel and image artifacts
     assert.equal(campaign.args.differentiator.length > 20, true);
     assert.equal(campaign.args.cta.length > 5, true);
 
-    const program = plan.toolCalls.find(call =>
-        call.name === "document.create" && call.args.format === "json"
-    );
-    const parsedProgram = JSON.parse(program.args.content);
-    assert.equal(parsedProgram.engine, "NEXO");
-    assert.equal(parsedProgram.sevenDayProgram.length, 7);
+    const marketingFiles = plan.toolCalls
+    .filter(call => call.name === "document.create")
+    .map(call => call.args.format);
+assert.deepEqual(marketingFiles, ["md", "pdf"]);
+assert.ok(plan.toolCalls
+    .filter(call => call.name === "document.create")
+    .every(call => /Plan de marketing completo/.test(call.args.title)));
 
     const reel = plan.toolCalls.find(call => call.name === "reel.create");
     assert.equal(reel.args.durationSeconds, 30);
@@ -83,6 +85,19 @@ test("one marketing instruction produces plan, program, reel and image artifacts
         reel.args.scenes.reduce((total, scene) => total + scene.durationSeconds, 0),
         30
     );
+});
+
+test("named marketing target survives into downloadable artifact titles", () => {
+    const plan = compileNexoMission({
+        input: "Crea un plan de marketing completo para Multiservicios Peninsulares HMH.",
+        catalog
+    });
+    const campaign = plan.toolCalls.find(call => call.name === "marketing.plan");
+    const files = plan.toolCalls.filter(call => call.name === "document.create");
+    assert.equal(campaign.args.brandName, "Multiservicios Peninsulares HMH");
+    assert.deepEqual(files.map(call => call.args.format), ["md", "pdf"]);
+    assert.ok(files.every(call => call.args.title.includes("Multiservicios Peninsulares HMH")));
+    assert.ok(files.every(call => call.args.content === undefined));
 });
 
 test("one document instruction selects directly executable PDF XLSX and PPTX", () => {

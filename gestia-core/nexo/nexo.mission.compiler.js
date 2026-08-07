@@ -12,7 +12,7 @@ import {
     NEXO_IDENTITY
 } from "./nexo.identity.js";
 
-export const NEXO_MISSION_COMPILER_VERSION = "1.0.0-one-instruction-artifacts";
+export const NEXO_MISSION_COMPILER_VERSION = "1.1.0-downloadable-marketing-artifacts";
 
 function clean(value, maxLength = 12000) {
     return String(value ?? "")
@@ -73,16 +73,16 @@ function originalInstruction(input = "") {
 }
 
 function inferBrand(instruction = "", context = {}) {
-    const text = normalize(instruction);
-    if (text.includes("peninsula tech") || text.includes("península tech")) {
-        return "Peninsula Tech";
-    }
-    if (text.includes("gestiapremium") || text.includes("gestia premium")) {
-        return "GestiaPremium";
-    }
-    if (text.includes("fixgo") || text.includes("fix go")) {
-        return "FixGo";
-    }
+    const source = clean(instruction, 12000);
+    const namedMarketingTarget = source.match(
+        /\b(?:plan|programa)\s+de\s+marketing\b.{0,160}?\bpara\s+(.+?)(?:[.,;]|$)/i
+    )?.[1]?.trim() || "";
+    if (namedMarketingTarget) return clean(namedMarketingTarget, 120);
+
+    const text = normalize(source);
+    if (text.includes("peninsula tech") || text.includes("península tech")) return "Peninsula Tech";
+    if (text.includes("gestiapremium") || text.includes("gestia premium")) return "GestiaPremium";
+    if (text.includes("fixgo") || text.includes("fix go")) return "FixGo";
     return clean(context.brandName || context.name, 120) || "Peninsula Tech";
 }
 
@@ -501,15 +501,20 @@ export function compileNexoMission({
     const calls = [];
 
     if (deliverables.marketing) {
-        calls.push(buildCall("marketing.plan", campaign));
-        calls.push(buildCall("document.create", {
-            format: "json",
-            title: `${campaign.brandName} - Programa de marketing`,
-            content: marketingDocumentContent(instruction, context),
-            objectiveId: clean(context.objectiveId, 180),
-            caseId: clean(context.caseId, 180)
-        }, "NEXO_MARKETING_PROGRAM_ARTIFACT"));
-    }
+    calls.push(buildCall("marketing.plan", campaign));
+    calls.push(buildCall("document.create", {
+        format: "md",
+        title: `Plan de marketing completo — ${campaign.brandName}`,
+        objectiveId: clean(context.objectiveId, 180),
+        caseId: clean(context.caseId, 180)
+    }, "NEXO_MARKETING_MARKDOWN_ARTIFACT"));
+    calls.push(buildCall("document.create", {
+        format: "pdf",
+        title: `Plan de marketing completo — ${campaign.brandName}`,
+        objectiveId: clean(context.objectiveId, 180),
+        caseId: clean(context.caseId, 180)
+    }, "NEXO_MARKETING_PDF_ARTIFACT"));
+}
 
     if (deliverables.page) {
         calls.push(buildCall("page.plan", argumentsForTool("page.plan", instruction, context)));

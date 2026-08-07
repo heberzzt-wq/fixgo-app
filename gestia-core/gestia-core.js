@@ -50,8 +50,9 @@ import {
     runJarvisMission
 } from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-artifact-edit-routing-v101-20260728';
 import {
+    marketingArtifactArgsFromCompletedTasks,
     marketingFinalResponseFromMission
-} from '/gestia-core/jarvis/jarvis.marketing.presenter.js?v=sia7-marketing-deliverable-v1-20260805';
+} from '/gestia-core/jarvis/jarvis.marketing.presenter.js?v=v94-marketing-artifact-delivery-20260807';
 import {
     addRepositoryDiscoveryPreflights,
     resolveExplicitRepositoryTargets
@@ -6134,7 +6135,17 @@ if (
                         call?.name === "document.create" &&
                         Array.isArray(missionContext?.completedTasks)
                     ) {
-                        const blueprintTask =
+                        const marketingArtifactArgs =
+                        marketingArtifactArgsFromCompletedTasks(
+                            missionContext.completedTasks,
+                            executionCall.args
+                        );
+                    if (marketingArtifactArgs) {
+                        executionCall.args = marketingArtifactArgs;
+                        argumentGrounded = true;
+                    }
+
+                    const blueprintTask =
                             [...missionContext.completedTasks]
                                 .reverse()
                                 .find(item =>
@@ -6148,6 +6159,7 @@ if (
                             {};
 
                         if (
+                            !argumentGrounded &&
                             blueprintTask?.name === "spreadsheet.compose" &&
                             Array.isArray(blueprint?.sheets) &&
                             blueprint.sheets.length > 0 &&
@@ -6175,6 +6187,7 @@ if (
                                 true;
                         }
                         else if (
+                            !argumentGrounded &&
                             blueprintTask?.name === "document.compose" &&
                             typeof blueprint?.content === "string" &&
                             blueprint.content.trim() &&

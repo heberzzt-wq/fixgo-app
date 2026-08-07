@@ -14,7 +14,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 test("multimodal composer exposes bounded upload capabilities", () => {
     const description = JarvisAttachments.describe();
-    assert.equal(description.version, "2.3.0-complete-batch-fail-closed");
+    assert.equal(description.version, "2.4.0-user-artifact-preview-download");
     assert.equal(description.transport, "chunked_progressive");
     assert.equal(description.maxFiles, 30);
     assert.equal(description.maxFileBytes, 250 * 1024 * 1024);
@@ -82,6 +82,8 @@ test("terminal exposes a GPT-style plus menu, file input and artifact renderer",
     assert.match(attachments, /\/upload\/cancel/);
     assert.match(attachments, /\/artifact\/read/);
     assert.match(attachments, /jarvis-artifact-download/);
+    assert.match(attachments, /jarvis-artifact-open/);
+    assert.match(attachments, /jarvis-pdf-preview/);
     assert.match(attachments, /renderingOutputs: new Set\(\)/);
     assert.match(attachments, /renderedOutputs: new Set\(\)/);
     assert.match(attachments, /state\.renderingOutputs\.has\(output\)/);

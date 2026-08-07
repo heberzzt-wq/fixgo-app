@@ -5,7 +5,7 @@ import {
     JarvisCaseLedger
 } from "../../gestia-core/jarvis/jarvis.case.ledger.js";
 
-const VERSION = "2.3.0-complete-batch-fail-closed";
+const VERSION = "2.4.0-user-artifact-preview-download";
 const MAX_FILES = 30;
 const MAX_FILE_BYTES = 250 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 500 * 1024 * 1024;
@@ -471,16 +471,40 @@ async function renderArtifact(output, mimeType = "", toolName = "") {
             frame.dataset.testid = "jarvis-html-preview";
             card.appendChild(frame);
         }
+    else if ((payload.mimeType || mimeType) === "application/pdf") {
+        const frame = document.createElement("iframe");
+        frame.src = objectUrl;
+        frame.title = payload.fileName || "Vista previa del PDF creado por NEXO";
+        frame.className = "w-full h-[32rem] rounded-lg bg-white mb-3 border border-slate-700";
+        frame.dataset.testid = "jarvis-pdf-preview";
+        card.appendChild(frame);
+    }
         const row = createElement("div", "flex items-center justify-between gap-3");
         const details = createElement("div", "min-w-0");
         details.appendChild(createElement("div", "text-sm text-white truncate", payload.fileName || output));
         details.appendChild(createElement("div", "text-xs text-slate-400", `${formatBytes(payload.bytes)} · ${toolName || "artefacto"}`));
         row.appendChild(details);
-        const download = createElement("a", "shrink-0 inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-2 text-xs font-semibold text-white", "Descargar");
-        download.href = objectUrl;
-        download.download = payload.fileName || "jarvis-artifact";
-        download.dataset.testid = "jarvis-artifact-download";
-        row.appendChild(download);
+        const actions = createElement("div", "shrink-0 flex items-center gap-2");
+    const resolvedMimeType = String(payload.mimeType || mimeType || "").toLowerCase();
+    const canOpen =
+        resolvedMimeType === "application/pdf" ||
+        resolvedMimeType === "text/html" ||
+        resolvedMimeType.startsWith("image/") ||
+        resolvedMimeType.startsWith("text/");
+    if (canOpen) {
+        const open = createElement("a", "inline-flex items-center gap-2 rounded-lg border border-slate-500 hover:border-slate-300 px-3 py-2 text-xs font-semibold text-slate-100", "Abrir");
+        open.href = objectUrl;
+        open.target = "_blank";
+        open.rel = "noopener noreferrer";
+        open.dataset.testid = "jarvis-artifact-open";
+        actions.appendChild(open);
+    }
+    const download = createElement("a", "inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-2 text-xs font-semibold text-white", "Descargar");
+    download.href = objectUrl;
+    download.download = payload.fileName || "nexo-artifact";
+    download.dataset.testid = "jarvis-artifact-download";
+    actions.appendChild(download);
+    row.appendChild(actions);
         card.appendChild(row);
         host.appendChild(card);
         state.renderedOutputs.add(output);

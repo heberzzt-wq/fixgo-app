@@ -83,21 +83,73 @@ export function renderCompleteMarketingPlan(result = {}) {
     ].join("\n").trim();
 }
 
-export function marketingFinalResponseFromMission(missionResult = {}) {
-    const completed = Array.isArray(missionResult?.completedTasks)
-        ? missionResult.completedTasks
-        : [];
-    const marketing = [...completed].reverse().find(item =>
+function isMarketingDocumentTask(item = {}) {
+    return item?.name === "document.create" &&
+        /plan de marketing completo/i.test(String(item?.args?.title || "")) &&
+        ["md", "pdf"].includes(String(item?.args?.format || "").trim().toLowerCase());
+}
+
+function completedMarketingTask(tasks = []) {
+    return [...(Array.isArray(tasks) ? tasks : [])].reverse().find(item =>
         item?.name === "marketing.plan" &&
         item?.observation?.status === "MARKETING_PACKAGE_READY" &&
+        item?.observation?.objectiveSatisfied === true &&
         typeof item?.observation?.userVisible === "string" &&
         item.observation.userVisible.trim()
-    );
+    ) || null;
+}
+
+export function marketingArtifactArgsFromCompletedTasks(completedTasks = [], requestedArgs = {}) {
+    const format = String(requestedArgs?.format || "").trim().toLowerCase();
+    const title = String(requestedArgs?.title || "").trim();
+    if (!["md", "pdf"].includes(format) || !/plan de marketing completo/i.test(title)) return null;
+    const marketing = completedMarketingTask(completedTasks);
     if (!marketing) return null;
     return {
-        ok: marketing.observation.objectiveSatisfied === true,
+        ...(requestedArgs || {}),
+        format,
+        title,
+        content: marketing.observation.userVisible
+    };
+}
+
+function artifactOutput(item = {}) {
+    return item?.observation?.artifact ||
+        item?.observation?.evidence?.output ||
+        item?.observation?.evidence?.artifact?.output ||
+        "";
+}
+
+export function marketingFinalResponseFromMission(missionResult = {}) {
+    const completed = Array.isArray(missionResult?.completedTasks) ? missionResult.completedTasks : [];
+    const marketing = completedMarketingTask(completed);
+    if (!marketing) return null;
+    const completedArtifacts = completed.filter(isMarketingDocumentTask);
+    const unresolvedArtifacts = [
+        ...(Array.isArray(missionResult?.blockedTasks) ? missionResult.blockedTasks : []),
+        ...(Array.isArray(missionResult?.pendingTasks) ? missionResult.pendingTasks : [])
+    ].filter(isMarketingDocumentTask);
+    const outputs = completedArtifacts
+        .map(item => ({
+            format: String(item?.args?.format || "archivo").toUpperCase(),
+            output: artifactOutput(item)
+        }))
+        .filter(item => item.output);
+    const artifactLines = unresolvedArtifacts.length
+        ? [
+            "",
+            "## Archivos descargables",
+            "El plan está completo, pero la entrega de archivos todavía no terminó.",
+            `Pendientes: ${unresolvedArtifacts.map(item => String(item?.args?.format || "archivo").toUpperCase()).join(", ")}.`,
+            "No se declara la entrega documental como completada hasta que esos artefactos existan y puedan descargarse."
+        ]
+        : outputs.length
+            ? ["", "## Archivos descargables", ...outputs.map(item => `- ${item.format}: ${item.output}`)]
+            : [];
+    return {
+        ok: marketing.observation.objectiveSatisfied === true && unresolvedArtifacts.length === 0,
         title: "Plan de marketing completo",
-        text: marketing.observation.userVisible,
+        text: [marketing.observation.userVisible, ...artifactLines].join("\n"),
         source: "MARKETING_DELIVERABLE_DIRECT"
     };
 }

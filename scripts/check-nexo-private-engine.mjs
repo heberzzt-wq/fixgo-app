@@ -290,8 +290,9 @@ ok(
 );
 ok(
     missionTests.includes("reel.args.scenes.reduce") &&
-        missionTests.includes('call.args.format === "json"'),
-    "pruebas exigen reel temporalmente coherente y programa descargable"
+        missionTests.includes('assert.deepEqual(marketingFiles, ["md", "pdf"])') &&
+        missionTests.includes("Plan de marketing completo"),
+    "pruebas exigen reel temporalmente coherente y plan descargable en Markdown/PDF"
 );
 ok(
     realMediaRoutingTests.includes("multiserviciospeninsulareshmh.com") &&
