@@ -206,3 +206,40 @@ test("company registry remains available during NEXO migration", () => {
     assert.equal(isMarketingRequest({ domain: "marketing" }), true);
     assert.equal(isMarketingRequest("marketing para redes sociales"), false);
 });
+
+
+test("NEXO marketing isolates an explicitly named plan from stale completed context", () => {
+    const stale = {
+        brandName: "Peninsula Tech",
+        name: "Peninsula Tech",
+        campaignObjective: "Captar clientes anteriores",
+        audience: "Clientes residenciales y empresariales",
+        market: "México",
+        offer: "Oferta anterior",
+        pain: "Problema anterior",
+        promise: "Promesa anterior",
+        differentiator: "Diferenciador anterior",
+        budget: "escenario anterior",
+        horizon: "90 días",
+        cta: "Solicita una evaluación con Peninsula Tech",
+        channels: ["instagram", "facebook", "tiktok", "whatsapp"]
+    };
+    const result = planMarketingRequest(
+        "Crea un plan de marketing completo para Multiservicios Peninsulares HMH.",
+        { ...stale, marketingContext: { ...stale } }
+    );
+
+    assert.equal(result.status, "MARKETING_INPUT_REQUIRED");
+    assert.equal(result.requiresInput, true);
+    assert.equal(result.objectiveSatisfied, false);
+    assert.equal(result.preservedContext.brandName, "Multiservicios Peninsulares HMH");
+    assert.equal(result.preservedContext.name, "Multiservicios Peninsulares HMH");
+    assert.equal(result.preservedContext.contextIsolation, "EXPLICIT_BRAND_MISSION_ISOLATED");
+    assert.equal(result.preservedContext.campaignObjective, undefined);
+    assert.equal(result.preservedContext.audience, undefined);
+    assert.equal(result.preservedContext.cta, undefined);
+    assert.ok(result.missingInputs.includes("campaignObjective"));
+    assert.ok(result.missingInputs.includes("audience"));
+    assert.ok(result.missingInputs.includes("offer"));
+    assert.ok(result.missingInputs.includes("budget"));
+});

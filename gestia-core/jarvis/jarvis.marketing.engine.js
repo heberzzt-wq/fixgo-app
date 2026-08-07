@@ -113,16 +113,27 @@ function buildTrace(context, instruction) {
     };
 }
 
-function inferBrandName(instruction, context) {
-    if (clean(context.brandName) || clean(context.name)) {
-        return clean(context.brandName) || clean(context.name);
-    }
-    const text = normalized(instruction);
+function inferInstructionBrand(instruction = "") {
+    const source = clean(instruction);
+    const namedPlanTarget = source.match(
+        /\bplan\s+de\s+marketing\b.{0,120}?\bpara\s+(.+?)(?:[.,;]|$)/i
+    )?.[1]?.trim() || "";
+    if (namedPlanTarget) return namedPlanTarget;
+
+    const text = normalized(source);
     if (text.includes("peninsula tech")) return "Peninsula Tech";
     if (text.includes("gestiapremium") || text.includes("gestia premium")) return "GestiaPremium";
     if (text.includes("fixgo") || text.includes("fix go")) return "FixGo";
-    const explicit = instruction.match(/\bpara\s+(.+?)(?:[.,;]|$)/i)?.[1]?.trim();
-    return explicit || "";
+    return "";
+}
+
+function inferBrandName(instruction, context) {
+    const explicit = inferInstructionBrand(instruction);
+    if (explicit) return explicit;
+    if (clean(context.brandName) || clean(context.name)) {
+        return clean(context.brandName) || clean(context.name);
+    }
+    return "";
 }
 
 function availableContext(context = {}) {
@@ -130,6 +141,36 @@ function availableContext(context = {}) {
         ? context.marketingContext
         : {};
     return { ...memory, ...context };
+}
+
+function isolateMarketingContext(instruction, context = {}) {
+    const resolved = availableContext(context);
+    const explicitBrand = inferInstructionBrand(instruction);
+    const rememberedBrand = clean(resolved.brandName) || clean(resolved.name);
+    if (
+        !explicitBrand ||
+        !rememberedBrand ||
+        normalized(explicitBrand) === normalized(rememberedBrand)
+    ) {
+        return resolved;
+    }
+
+    const isolated = {};
+    for (const key of [
+        "objectiveId", "caseId", "authorityId", "controllerId",
+        "userId", "workspaceId", "projectId", "conversationId"
+    ]) {
+        if (resolved[key] !== undefined && resolved[key] !== null) {
+            isolated[key] = resolved[key];
+        }
+    }
+    return {
+        ...isolated,
+        brandName: explicitBrand,
+        name: explicitBrand,
+        marketingContext: {},
+        contextIsolation: "EXPLICIT_BRAND_MISSION_ISOLATED"
+    };
 }
 
 function missingCriticalInputs(context = {}, instruction = "") {
@@ -389,7 +430,7 @@ function buildCompletePlan({ brand, campaign, channels, context, calendar, funne
 
 export function planMarketingRequest(rawInput = "", context = {}) {
     const instruction = clean(rawInput);
-    context = availableContext(context);
+    context = isolateMarketingContext(instruction, context);
     const missingGroups = missingCriticalInputs(context, instruction);
     if (missingGroups.length) {
         return inputRequiredResult(instruction, context, missingGroups);
