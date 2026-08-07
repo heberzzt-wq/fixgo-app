@@ -689,6 +689,7 @@ function buildAnalysisPrompt(
         "Analiza exclusivamente los archivos adjuntos.",
         "No inventes texto, objetos, cifras, páginas ni relaciones ilegibles.",
         "Distingue observaciones directas de inferencias.",
+        "Si la PREGUNTA exige solamente evidencia visual, dice no infieras/no inferir o prohíbe inferencias, devuelve inferences=[] para cada source.",
         "Devuelve solamente JSON estricto.",
         "Debe existir exactamente una entrada sources por archivo.",
         "Cada source debe incluir sourceId y fileName copiados literalmente del MANIFEST.",
@@ -1120,7 +1121,10 @@ async function runIsolatedMediaFallback({
                 });
 
             const parsed =
-                parseAnalysisJson(text, [file]);
+                applyQuestionGroundingPolicy(
+                    parseAnalysisJson(text, [file]),
+                    question
+                );
 
             const validated =
                 validateIsolatedAnalysis(
@@ -1248,6 +1252,27 @@ async function runIsolatedMediaFallback({
     };
 }
 
+function strictVisualOnlyRequested(question = "") {
+    const value = String(question || "").toLowerCase();
+    return (
+        /(?:no\s+infier|no\s+infer|sin\s+inferencias?)/i.test(value) ||
+        /(?:solamente|únicamente|unicamente|solo|sólo)[\s\S]{0,120}(?:verific|visible|visual)/i.test(value) ||
+        /(?:describe|compara)[\s\S]{0,180}(?:solamente|únicamente|unicamente)[\s\S]{0,120}(?:verific|visible|visual)/i.test(value)
+    );
+}
+
+function applyQuestionGroundingPolicy(parsed, question = "") {
+    if (!strictVisualOnlyRequested(question)) return parsed;
+    return {
+        ...parsed,
+        sources: (Array.isArray(parsed?.sources) ? parsed.sources : [])
+            .map(source => ({
+                ...source,
+                inferences: []
+            }))
+    };
+}
+
 async function runJarvisMediaAnalysis({
     ai,
     input = {},
@@ -1294,7 +1319,10 @@ async function runJarvisMediaAnalysis({
 
         try {
             parsed =
-                parseAnalysisJson(text, files);
+                applyQuestionGroundingPolicy(
+                    parseAnalysisJson(text, files),
+                    question
+                );
 
             const validated =
                 validateAnalysis(parsed, files);
@@ -1465,5 +1493,7 @@ module.exports = {
     buildValidatedComparisonPrompt,
     validateIsolatedAnalysis,
     runIsolatedMediaFallback,
+    strictVisualOnlyRequested,
+    applyQuestionGroundingPolicy,
     runJarvisMediaAnalysis
 };

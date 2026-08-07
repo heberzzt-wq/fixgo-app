@@ -1544,3 +1544,61 @@ test("production removes capture-context comparisons and speculative recommendat
     assert.deepEqual(result.recommendations, []);
     assert.doesNotMatch(JSON.stringify(result), /same date and time|system tray|ecosystem|user workflow/i);
 });
+
+
+
+test("strict visual-only request deterministically suppresses provider inferences", async () => {
+    const result = await runJarvisMediaAnalysis({
+        ai: {
+            models: {
+                generateContent: async () => ({
+                    text: JSON.stringify({
+                        sources: [
+                            {
+                                sourceId: "SOURCE_1",
+                                fileName: "one.png",
+                                mimeType: "image/png",
+                                description: "Interfaz web con un menu abierto.",
+                                observations: ["Se observa un menu abierto con varias filas."],
+                                inferences: ["The user is likely preparing to attach a file."],
+                                visibleData: [],
+                                evidence: [],
+                                uncertainty: []
+                            },
+                            {
+                                sourceId: "SOURCE_2",
+                                fileName: "two.png",
+                                mimeType: "image/png",
+                                description: "Interfaz web con un menu abierto y un panel lateral.",
+                                observations: ["Se observa un panel lateral junto al contenido principal."],
+                                inferences: ["The user probably uses this interface for development."],
+                                visibleData: [],
+                                evidence: [],
+                                uncertainty: []
+                            }
+                        ],
+                        comparison: {
+                            beforeAfter: false,
+                            differences: ["La segunda fuente muestra un panel lateral que no aparece en la primera."],
+                            confidence: 0.99
+                        },
+                        recommendations: []
+                    })
+                })
+            }
+        },
+        input: {
+            files: [
+                { name: "one.png", mimeType: "image/png", dataBase64: Buffer.from("one").toString("base64") },
+                { name: "two.png", mimeType: "image/png", dataBase64: Buffer.from("two").toString("base64") }
+            ],
+            question: "Describe solamente lo que puedes verificar visualmente. No infieras intenciones del usuario."
+        }
+    });
+
+    assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
+    assert.deepEqual(result.sources[0].inferences, []);
+    assert.deepEqual(result.sources[1].inferences, []);
+    assert.match(result.sources[0].observations[0], /menu abierto/i);
+    assert.match(result.comparison.differences[0], /panel lateral/i);
+});

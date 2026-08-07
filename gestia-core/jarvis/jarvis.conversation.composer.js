@@ -573,9 +573,14 @@ function renderPrecisionVerifiedMediaConversation(observation) {
             source?.objects,
             verifiedValues
         );
+        const observations = groundedNaturalEvidenceTexts(
+            source?.observations,
+            verifiedValues
+        );
 
         lines.push("", `### Archivo ${index + 1}: ${fileName}`);
         appendNaturalList(lines, "Elementos visuales confirmados:", objects);
+        appendNaturalList(lines, "Observaciones visuales verificadas:", observations);
 
         if (visibleData.length > 0) {
             lines.push("Lecturas literales verificadas:");

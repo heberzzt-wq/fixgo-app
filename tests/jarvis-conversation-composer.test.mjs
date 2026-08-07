@@ -956,3 +956,62 @@ test("precision renderer removes capture-context claims and speculative recommen
     assert.match(result.text, /code-like output/);
     assert.doesNotMatch(result.text, /same date|same time|system tray|ecosystem|workflow/i);
 });
+
+
+
+test("precision renderer shows safe nonliteral visual observations when text labels remain unverified", async () => {
+    const result = await composeEvidenceGroundedConversation({
+        instruction: "Compara solamente lo verificable visualmente.",
+        evidenceItems: [{
+            name: "media.analyze",
+            observation: {
+                ok: true,
+                status: "MEDIA_ANALYSIS_GROUNDED",
+                version: "1.4.0-verified-visual-claims",
+                expectedSources: 2,
+                receivedSources: 2,
+                sources: [
+                    {
+                        sourceId: "SOURCE_1",
+                        fileName: "one.png",
+                        sha256: "1".repeat(64),
+                        observations: ["Se observa un menu abierto con varias filas."],
+                        objects: [],
+                        visibleData: [],
+                        uncertainty: []
+                    },
+                    {
+                        sourceId: "SOURCE_2",
+                        fileName: "two.png",
+                        sha256: "2".repeat(64),
+                        observations: ["Se observa un panel lateral junto al contenido principal."],
+                        objects: [],
+                        visibleData: [],
+                        uncertainty: []
+                    }
+                ],
+                comparison: {
+                    differences: ["La segunda fuente muestra un panel lateral que no aparece en la primera."],
+                    confidence: 0.99
+                },
+                recommendations: [],
+                precisionAudit: {
+                    ok: true,
+                    status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
+                    effectiveToolExecutions: 1,
+                    sourceIdentityVerified: true,
+                    exactTextRequiresConfidence: 0.98
+                }
+            }
+        }],
+        executeConversation: async () => {
+            throw new Error("semantic composer must not run");
+        }
+    });
+
+    assert.equal(result.ok, true);
+    assert.match(result.text, /Observaciones visuales verificadas:/);
+    assert.match(result.text, /menu abierto con varias filas/i);
+    assert.match(result.text, /panel lateral junto al contenido principal/i);
+    assert.match(result.text, /segunda fuente muestra un panel lateral/i);
+});
