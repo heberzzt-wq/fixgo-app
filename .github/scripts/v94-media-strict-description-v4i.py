@@ -26,6 +26,21 @@ if old_policy not in media:
     raise SystemExit("v4i policy marker anchor missing")
 media = media.replace(old_policy, new_policy, 1)
 
+old_modern_expectation = '''    assert.equal(result.provider, "vertex-adc");
+    assert.equal(result.sources[0].description, "Imagen tecnica verificable");'''
+new_modern_expectation = '''    assert.equal(result.provider, "vertex-adc");
+    assert.equal(result.sources[0].description, "");
+    assert.equal(result.policy.strictVisualNarrativeDescriptionSuppressed, true);'''
+if old_modern_expectation not in tests:
+    raise SystemExit("v4i modern provider expectation anchor missing")
+tests = tests.replace(old_modern_expectation, new_modern_expectation, 1)
+
+old_count = '''    assert.ok(result.precisionSanitizedCount >= 5);'''
+new_count = '''    assert.ok(result.precisionSanitizedCount >= 1);'''
+if old_count not in tests:
+    raise SystemExit("v4i sanitizer count expectation anchor missing")
+tests = tests.replace(old_count, new_count, 1)
+
 marker = 'test("strict visual-only request suppresses provider description even when it contains a visually verified UI label", async () => {'
 if marker not in tests:
     tests += r'''
