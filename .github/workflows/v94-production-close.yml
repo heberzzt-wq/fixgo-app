@@ -1,0 +1,121 @@
+name: Close V94 Production
+
+on:
+  push:
+    branches:
+      - v94-handoff-ee6d8cfe
+  workflow_dispatch:
+
+concurrency:
+  group: close-v94-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  certify-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      FIREBASE_PROJECT: fixgo-44e4d
+      EXPECTED_HEAD: ee6d8cfe499770e26a1368897c9c8379b521d8c2
+
+    steps:
+      - name: Checkout certified handoff
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify handoff ancestry and protected scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-handoff-ee6d8cfe"
+          git merge-base --is-ancestor "$EXPECTED_HEAD" HEAD
+          test -z "$(git status --porcelain)"
+          if git diff --name-only 2ae85e670505c5d425a5a0334e99c45168054bb8...HEAD | grep -Eq '^(prototypes/|V95-multimodal-batch-integrity\.patch$)'; then
+            echo "Protected prototype or V95 content entered the handoff." >&2
+            exit 1
+          fi
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install application dependencies
+        run: npm ci
+
+      - name: Install Functions dependencies
+        run: npm ci --prefix functions
+
+      - name: Run complete certification suite
+        run: npm run ci:test
+
+      - name: Install pinned Firebase CLI
+        run: npm install --global firebase-tools@15.10.1
+
+      - name: Validate deploy selectors without mutation
+        shell: bash
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          set +x
+          test -n "${FIREBASE_TOKEN:-}" || { echo "FIREBASE_TOKEN secret is missing." >&2; exit 1; }
+          firebase deploy \
+            --only functions:jarvisMediaAnalyze,hosting:fixgo-44e4d \
+            --project "$FIREBASE_PROJECT" \
+            --token "$FIREBASE_TOKEN" \
+            --non-interactive \
+            --dry-run
+
+      - name: Deploy only V94 Function and primary Hosting
+        shell: bash
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          set +x
+          firebase deploy \
+            --only functions:jarvisMediaAnalyze,hosting:fixgo-44e4d \
+            --project "$FIREBASE_PROJECT" \
+            --token "$FIREBASE_TOKEN" \
+            --non-interactive
+
+      - name: Verify production runtime files
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://fixgo-44e4d.web.app"
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+
+          curl --fail --silent --show-error "$base/gestia-terminal.html?v=v94-ee6d8cfe" -o "$tmp/terminal.html"
+          curl --fail --silent --show-error "$base/gestia-core/jarvis/jarvis.local.runtime.js?v=v94-ee6d8cfe" -o "$tmp/local-runtime.js"
+          curl --fail --silent --show-error "$base/gestia-core/jarvis/jarvis.project.memory.js?v=v94-ee6d8cfe" -o "$tmp/project-memory.js"
+          curl --fail --silent --show-error "$base/gestia-core/jarvis/jarvis.marketing.presenter.js?v=v94-ee6d8cfe" -o "$tmp/marketing-presenter.js"
+          curl --fail --silent --show-error "$base/gestia-core/jarvis/jarvis.multitool.pack.js?v=v94-ee6d8cfe" -o "$tmp/multitool.js"
+          curl --fail --silent --show-error "$base/gestia-core/jarvis/jarvis.conversation.composer.js?v=v94-ee6d8cfe" -o "$tmp/composer.js"
+
+          grep -q 'fixgo-v5.9-marketing-memory-transition-20260807' "$tmp/local-runtime.js"
+          grep -q 'MARKETING_DELIVERABLE_DIRECT' "$tmp/marketing-presenter.js"
+          grep -q 'MEDIA_ANALYSIS_PRECISION_CONTRACT_UNAVAILABLE' "$tmp/multitool.js"
+          grep -q '1.4.0-verified-visual-claims' functions/jarvis-media-analysis.js
+
+          sha256sum "$tmp"/*
+
+      - name: Deployment summary
+        shell: bash
+        run: |
+          {
+            echo "## V94 production handoff"
+            echo "- Source branch: v94-handoff-ee6d8cfe"
+            echo "- Certified app commit: ee6d8cfe499770e26a1368897c9c8379b521d8c2"
+            echo "- Deployed Function: jarvisMediaAnalyze"
+            echo "- Deployed Hosting site: fixgo-44e4d"
+            echo "- Other Functions, multiservicios Hosting, databases, rules and V95: untouched"
+            echo "- Manual multimodal browser certification remains required"
+          } >> "$GITHUB_STEP_SUMMARY"
