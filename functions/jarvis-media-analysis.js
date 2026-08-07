@@ -209,20 +209,86 @@ function normalizeVisibleData(items = []) {
         });
 }
 
-function containsSensitiveNarrativeLiteral(value) {
+function normalizeSensitiveLiteral(value = "") {
+    return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[),.;!?]+$/g, "");
+}
+
+function extractSensitiveNarrativeLiterals(value = "") {
+    const pattern = new RegExp(
+        SENSITIVE_NARRATIVE_LITERAL_PATTERN.source,
+        "gi"
+    );
+    return Array.from(
+        String(value || "").matchAll(pattern),
+        match => String(match?.[0] || "").trim()
+    ).filter(Boolean);
+}
+
+function verifiedVisibleLiteralValues(sources = []) {
+    const values = [];
+
+    for (const source of Array.isArray(sources) ? sources : []) {
+        for (const item of Array.isArray(source?.visibleData) ? source.visibleData : []) {
+            const value = String(item?.value || "").trim();
+            const evidence = String(item?.evidence || "").trim();
+            const legibility = String(item?.legibility || "").trim().toUpperCase();
+            const confidence = Number(item?.confidence || 0);
+
+            if (
+                value &&
+                evidence &&
+                legibility === "VERIFIED" &&
+                confidence >= 0.98
+            ) {
+                values.push(normalizeSensitiveLiteral(value));
+            }
+        }
+    }
+
+    return [...new Set(values.filter(Boolean))];
+}
+
+function containsUnverifiedSensitiveNarrativeLiteral(value, verifiedValues = []) {
     if (value == null) return false;
+
     if (typeof value === "string") {
-        return SENSITIVE_NARRATIVE_LITERAL_PATTERN.test(value);
+        const literals = extractSensitiveNarrativeLiterals(value);
+        return literals.some(literal => {
+            const candidate = normalizeSensitiveLiteral(literal);
+            if (!candidate) return false;
+            return !verifiedValues.some(verified =>
+                verified === candidate ||
+                verified.includes(candidate)
+            );
+        });
     }
+
     if (Array.isArray(value)) {
-        return value.some(containsSensitiveNarrativeLiteral);
+        return value.some(item =>
+            containsUnverifiedSensitiveNarrativeLiteral(
+                item,
+                verifiedValues
+            )
+        );
     }
+
     if (typeof value !== "object") return false;
-    return Object.values(value).some(containsSensitiveNarrativeLiteral);
+
+    return Object.values(value).some(item =>
+        containsUnverifiedSensitiveNarrativeLiteral(
+            item,
+            verifiedValues
+        )
+    );
 }
 
 function assertNoSensitiveNarrativeLiteralLeaks(parsed, files, sources) {
     const candidates = [];
+    const verifiedValues =
+        verifiedVisibleLiteralValues(sources);
 
     for (const source of sources) {
         candidates.push(
@@ -244,7 +310,14 @@ function assertNoSensitiveNarrativeLiteralLeaks(parsed, files, sources) {
         parsed?.recommendations
     );
 
-    if (candidates.some(containsSensitiveNarrativeLiteral)) {
+    if (
+        candidates.some(candidate =>
+            containsUnverifiedSensitiveNarrativeLiteral(
+                candidate,
+                verifiedValues
+            )
+        )
+    ) {
         throw createAnalysisError(
             "MEDIA_ANALYSIS_PRECISION_LITERAL_LEAK",
             files,

@@ -1004,3 +1004,71 @@ test("production incident repairs a sensitive literal leaked outside visibleData
     assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
     assert.doesNotMatch(JSON.stringify(result), /07\/08\/2023|2023/);
 });
+
+
+test("production permits sensitive narrative literals only when grounded in verified visibleData", async () => {
+    let calls = 0;
+    const result = await runJarvisMediaAnalysis({
+        ai: {
+            models: {
+                generateContent: async () => {
+                    calls += 1;
+                    return {
+                        text: JSON.stringify({
+                            sources: [{
+                                sourceId: "SOURCE_1",
+                                fileName: "terminal.png",
+                                mimeType: "image/png",
+                                description: "La barra inferior muestra 07/08/2026 y 10:03.",
+                                observations: [
+                                    "La fecha visible es 07/08/2026.",
+                                    "La hora visible es 10:03."
+                                ],
+                                inferences: [],
+                                objects: ["Una interfaz web con barra inferior visible."],
+                                composition: {},
+                                visibleData: [
+                                    {
+                                        kind: "date",
+                                        value: "07/08/2026",
+                                        page: 1,
+                                        confidence: 0.99,
+                                        evidence: "Esquina inferior derecha de la captura.",
+                                        legibility: "VERIFIED"
+                                    },
+                                    {
+                                        kind: "time",
+                                        value: "10:03",
+                                        page: 1,
+                                        confidence: 0.99,
+                                        evidence: "Esquina inferior derecha de la captura.",
+                                        legibility: "VERIFIED"
+                                    }
+                                ],
+                                pages: [],
+                                marketingUse: [],
+                                quality: {},
+                                uncertainty: [],
+                                evidence: []
+                            }]
+                        })
+                    };
+                }
+            }
+        },
+        input: {
+            files: [{
+                name: "terminal.png",
+                mimeType: "image/png",
+                dataBase64: tinyPng
+            }],
+            question: "Describe solamente lo verificable."
+        }
+    });
+
+    assert.equal(calls, 1);
+    assert.equal(result.repairCount, 0);
+    assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
+    assert.equal(result.sources[0].visibleData[0].value, "07/08/2026");
+    assert.equal(result.sources[0].visibleData[1].value, "10:03");
+});
