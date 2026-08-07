@@ -1,0 +1,68 @@
+name: V94 production public probe
+
+on:
+  push:
+    branches:
+      - v94-handoff-ee6d8cfe
+    paths:
+      - .github/workflows/v94-production-public-probe.yml
+
+permissions:
+  contents: read
+
+jobs:
+  probe-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact certified source
+        uses: actions/checkout@v4
+        with:
+          ref: 35621900b0094163d34227cee8073f0007589941
+          fetch-depth: 1
+
+      - name: Fetch deployed terminal and media runtime
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 4 --retry-all-errors \
+            'https://fixgo-44e4d.web.app/gestia-terminal.html?v=v94-prod-probe-35621900' \
+            --output /tmp/gestia-terminal.html
+          curl --fail --silent --show-error --location --retry 4 --retry-all-errors \
+            'https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.multitool.pack.js?v=v94-prod-probe-35621900' \
+            --output /tmp/jarvis.multitool.pack.js
+          test -s /tmp/gestia-terminal.html
+          test -s /tmp/jarvis.multitool.pack.js
+
+      - name: Verify deployed Hosting bytes match certified source
+        run: |
+          set -euo pipefail
+          cmp gestia-terminal.html /tmp/gestia-terminal.html
+          cmp gestia-core/jarvis/jarvis.multitool.pack.js /tmp/jarvis.multitool.pack.js
+          grep -q 'mediaNarrativeContractIsValid' /tmp/jarvis.multitool.pack.js
+          grep -q 'buildMediaPrecisionAuditQuestion' /tmp/jarvis.multitool.pack.js
+          grep -q 'strictVisualOnly' /tmp/jarvis.multitool.pack.js
+          node --check /tmp/jarvis.multitool.pack.js
+          echo 'PRODUCTION_HOSTING_BYTES_MATCH=35621900b0094163d34227cee8073f0007589941'
+
+      - name: Verify media callable fails closed without authentication
+        run: |
+          set -euo pipefail
+          code="$(curl --silent --show-error --location \
+            --output /tmp/jarvis-media-unauth.json \
+            --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' \
+            --data '{"data":{"files":[],"question":"V94_PUBLIC_UNAUTH_PROBE"}}' \
+            'https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisMediaAnalyze')"
+          echo "UNAUTH_HTTP_STATUS=$code"
+          case "$code" in
+            2*)
+              echo 'Unauthenticated production media call unexpectedly returned 2xx.' >&2
+              cat /tmp/jarvis-media-unauth.json >&2
+              exit 1
+              ;;
+          esac
+          if grep -q 'MEDIA_ANALYSIS_GROUNDED' /tmp/jarvis-media-unauth.json; then
+            echo 'Unauthenticated probe unexpectedly reached grounded media success.' >&2
+            exit 1
+          fi
+          echo 'PRODUCTION_MEDIA_AUTH_FAIL_CLOSED=PASS'
