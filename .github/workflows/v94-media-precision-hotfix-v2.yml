@@ -27,8 +27,10 @@ jobs:
           node-version: '20'
           cache: npm
 
-      - name: Install root dependencies
-        run: npm ci
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix functions ci
 
       - name: Apply production incident repair
         run: python3 .github/scripts/v94-media-precision-hotfix.py
@@ -56,9 +58,6 @@ jobs:
           git commit -m "[v94-media-precision-hotfix] fix(jarvis): fail closed on visual literal leaks"
           git push origin HEAD:v94-handoff-ee6d8cfe
           echo "PATCH_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
-
-      - name: Install Functions dependencies
-        run: npm --prefix functions ci
 
       - name: Install Firebase CLI
         run: npm install --global firebase-tools@15.10.1
