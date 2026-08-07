@@ -32,7 +32,7 @@ jobs:
           npm ci
           npm --prefix functions ci
 
-      - name: Apply strict description repair
+      - name: Apply strict description repair v2
         run: python3 .github/scripts/v94-media-strict-description-v4i.py
 
       - name: Diff integrity
