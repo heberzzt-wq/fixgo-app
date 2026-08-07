@@ -9,6 +9,7 @@ const MAX_FILES = 8;
 const MAX_FILE_BYTES = 7 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 9 * 1024 * 1024;
 const MAX_REPAIR_ATTEMPTS = 1;
+const SENSITIVE_NARRATIVE_LITERAL_PATTERN = /(?:https?:\/\/[^\s"'<>]+|www\.[^\s"'<>]+|\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b|\b(?:19|20)\d{2}\b|\b\d{1,2}:\d{2}(?::\d{2})?\b)/i;
 
 function normalizeMediaFiles(files = []) {
     if (!Array.isArray(files) || files.length < 1 || files.length > MAX_FILES) {
@@ -208,6 +209,50 @@ function normalizeVisibleData(items = []) {
         });
 }
 
+function containsSensitiveNarrativeLiteral(value) {
+    if (value == null) return false;
+    if (typeof value === "string") {
+        return SENSITIVE_NARRATIVE_LITERAL_PATTERN.test(value);
+    }
+    if (Array.isArray(value)) {
+        return value.some(containsSensitiveNarrativeLiteral);
+    }
+    if (typeof value !== "object") return false;
+    return Object.values(value).some(containsSensitiveNarrativeLiteral);
+}
+
+function assertNoSensitiveNarrativeLiteralLeaks(parsed, files, sources) {
+    const candidates = [];
+
+    for (const source of sources) {
+        candidates.push(
+            source?.description,
+            source?.observations,
+            source?.inferences,
+            source?.objects,
+            source?.composition,
+            source?.pages,
+            source?.marketingUse,
+            source?.quality,
+            source?.uncertainty,
+            source?.evidence
+        );
+    }
+
+    candidates.push(
+        parsed?.comparison,
+        parsed?.recommendations
+    );
+
+    if (candidates.some(containsSensitiveNarrativeLiteral)) {
+        throw createAnalysisError(
+            "MEDIA_ANALYSIS_PRECISION_LITERAL_LEAK",
+            files,
+            sources
+        );
+    }
+}
+
 function validateAnalysis(parsed, files) {
     const sources = Array.isArray(parsed?.sources)
         ? parsed.sources
@@ -215,6 +260,12 @@ function validateAnalysis(parsed, files) {
 
     const orderedSources =
         resolveSourcesByIdentity(sources, files);
+
+    assertNoSensitiveNarrativeLiteralLeaks(
+        parsed,
+        files,
+        orderedSources
+    );
 
     return {
         ok: true,
@@ -342,6 +393,9 @@ function buildAnalysisPrompt(
         "No combines observaciones, evidencia o incertidumbre de archivos diferentes.",
         "mimeType y sha256 pueden copiarse del MANIFEST y nunca deben modificarse.",
         "Fuera de visibleData, ninguna propiedad de la respuesta debe contener transcripciones literales, URLs, fechas, horas, anos, cifras ni identificadores.",
+        "No uses la instruccion del usuario como evidencia visual; una palabra mencionada en la solicitud no demuestra que ese elemento aparezca en los pixeles.",
+        "Si la solicitud compara un menu, panel, boton o control que no esta abierto o visible en una fuente, declara que esa parte de la comparacion no es verificable y no infieras sus opciones ni funciones.",
+        "Description, observations, inferences, objects, pages, evidence, comparison y recommendations no deben repetir fechas, horas, anos, URLs o identificadores; esas lecturas solo pueden existir en visibleData.",
         "Toda lectura literal debe aparecer exclusivamente en visibleData y conservar los caracteres visibles sin traducir, autocorregir, completar ni normalizar.",
         "Cada visibleData requiere kind, value, page, confidence, evidence y legibility.",
         "Usa legibility=VERIFIED unicamente cuando la lectura este completa, evidence explique su ubicacion y confidence sea igual o mayor a 0.98.",
@@ -651,7 +705,8 @@ function isRepairableAnalysisError(error) {
         "MEDIA_ANALYSIS_SOURCE_COUNT_MISMATCH",
         "MEDIA_ANALYSIS_SOURCE_IDENTITY_REQUIRED",
         "MEDIA_ANALYSIS_SOURCE_IDENTITY_MISMATCH",
-        "MEDIA_ANALYSIS_SOURCE_IDENTITY_DUPLICATE"
+        "MEDIA_ANALYSIS_SOURCE_IDENTITY_DUPLICATE",
+        "MEDIA_ANALYSIS_PRECISION_LITERAL_LEAK"
     ]).has(error?.message);
 }
 

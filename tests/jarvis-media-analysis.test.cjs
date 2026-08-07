@@ -931,3 +931,76 @@ test("visual precision policy preserves verified Motor text and withholds uncert
         request.config.responseJsonSchema.properties.sources.items.required.includes("visibleData")
     );
 });
+
+
+test("production incident repairs a sensitive literal leaked outside visibleData", async () => {
+    let calls = 0;
+    const result = await runJarvisMediaAnalysis({
+        ai: {
+            models: {
+                generateContent: async request => {
+                    calls += 1;
+                    if (calls === 1) {
+                        return {
+                            text: JSON.stringify({
+                                sources: [{
+                                    sourceId: "SOURCE_1",
+                                    fileName: "terminal.png",
+                                    mimeType: "image/png",
+                                    description: "Interfaz de terminal.",
+                                    observations: ["La fecha mostrada es 07/08/2023."],
+                                    inferences: [],
+                                    objects: ["Una interfaz web."],
+                                    composition: {},
+                                    visibleData: [],
+                                    pages: [],
+                                    marketingUse: [],
+                                    quality: {},
+                                    uncertainty: [],
+                                    evidence: []
+                                }]
+                            })
+                        };
+                    }
+                    assert.match(
+                        request.contents[0].parts[0],
+                        /MEDIA_ANALYSIS_PRECISION_LITERAL_LEAK/
+                    );
+                    return {
+                        text: JSON.stringify({
+                            sources: [{
+                                sourceId: "SOURCE_1",
+                                fileName: "terminal.png",
+                                mimeType: "image/png",
+                                description: "Interfaz de terminal.",
+                                observations: ["Se observa una barra inferior, sin transcribir datos sensibles fuera de visibleData."],
+                                inferences: [],
+                                objects: ["Una interfaz web."],
+                                composition: {},
+                                visibleData: [],
+                                pages: [],
+                                marketingUse: [],
+                                quality: {},
+                                uncertainty: ["La fecha visible no se transcribe porque no fue solicitada como lectura literal."],
+                                evidence: []
+                            }]
+                        })
+                    };
+                }
+            }
+        },
+        input: {
+            files: [{
+                name: "terminal.png",
+                mimeType: "image/png",
+                dataBase64: tinyPng
+            }],
+            question: "Describe solamente lo verificable."
+        }
+    });
+
+    assert.equal(calls, 2);
+    assert.equal(result.repairCount, 1);
+    assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
+    assert.doesNotMatch(JSON.stringify(result), /07\/08\/2023|2023/);
+});

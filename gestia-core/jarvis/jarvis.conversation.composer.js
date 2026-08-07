@@ -336,12 +336,26 @@ function findPrecisionVerifiedMediaObservation(evidenceItems = []) {
             "conversation.respond"
         );
 
-    if (operational.length !== 1) return null;
+    const mediaItems = operational.filter(item =>
+        String(item?.name || item?.tool || "") === "media.analyze"
+    );
+    const allowedCompanionTools = new Set([
+        "system.certify"
+    ]);
+    const unsupportedCompanions = operational.filter(item => {
+        const toolName = String(item?.name || item?.tool || "");
+        return toolName !== "media.analyze" &&
+            !allowedCompanionTools.has(toolName);
+    });
 
-    const item = operational[0];
-    if (String(item?.name || item?.tool || "") !== "media.analyze") {
+    if (
+        mediaItems.length !== 1 ||
+        unsupportedCompanions.length > 0
+    ) {
         return null;
     }
+
+    const item = mediaItems[0];
 
     const observation =
         item?.observation ??

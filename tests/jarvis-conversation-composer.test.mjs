@@ -675,3 +675,86 @@ test("precision-audited media survives the real mission observation envelope", a
     assert.match(result.text, /Motor No-Code/);
     assert.doesNotMatch(result.text, /Motion No-Code|2028/);
 });
+
+
+test("system certification companion cannot force semantic rewriting of verified media", async () => {
+    let semanticCalls = 0;
+    const result = await composeEvidenceGroundedConversation({
+        instruction: "Compara estas dos capturas sin inventar texto.",
+        evidenceItems: [
+            {
+                name: "media.analyze",
+                observation: {
+                    ok: true,
+                    status: "MEDIA_ANALYSIS_GROUNDED",
+                    version: "1.4.0-verified-visual-claims",
+                    expectedSources: 2,
+                    receivedSources: 2,
+                    sources: [
+                        {
+                            sourceId: "SOURCE_1",
+                            fileName: "chatgpt.png",
+                            sha256: "1".repeat(64),
+                            objects: ["Una interfaz web."],
+                            visibleData: [],
+                            uncertainty: ["El menu de adjuntos no esta abierto en esta captura."]
+                        },
+                        {
+                            sourceId: "SOURCE_2",
+                            fileName: "terminal.png",
+                            sha256: "2".repeat(64),
+                            objects: ["Una terminal web."],
+                            visibleData: [{
+                                kind: "text",
+                                value: "NEXO listo",
+                                page: 1,
+                                confidence: 0.99,
+                                evidence: "Tarjeta central visible.",
+                                legibility: "VERIFIED"
+                            }],
+                            uncertainty: []
+                        }
+                    ],
+                    comparison: {
+                        differences: [
+                            "No se puede verificar el menu de adjuntos de ChatGPT porque no esta abierto en SOURCE_1."
+                        ]
+                    },
+                    recommendations: [],
+                    precisionAudit: {
+                        ok: true,
+                        status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
+                        providerPasses: 2,
+                        effectiveToolExecutions: 1,
+                        sourceIdentityVerified: true,
+                        exactTextRequiresConfidence: 0.98
+                    }
+                }
+            },
+            {
+                name: "system.certify",
+                observation: {
+                    ok: true,
+                    status: "CERTIFICATION_INCOMPLETE",
+                    certified: false
+                }
+            }
+        ],
+        executeConversation: async () => {
+            semanticCalls += 1;
+            return {
+                ok: true,
+                data: {
+                    message: "La fecha mostrada es 07/08/2023."
+                }
+            };
+        }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.status, "MEDIA_ANALYSIS_RESPONSE_VERIFIED");
+    assert.equal(result.provider, "deterministic-grounded-media");
+    assert.equal(semanticCalls, 0);
+    assert.match(result.text, /NEXO listo/);
+    assert.doesNotMatch(result.text, /07\/08\/2023|2023/);
+});
