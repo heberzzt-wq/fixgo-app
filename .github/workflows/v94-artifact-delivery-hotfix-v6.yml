@@ -1,0 +1,282 @@
+name: V94 Marketing Artifact Delivery Hotfix V6
+
+on:
+  push:
+    branches:
+      - v94-handoff-ee6d8cfe
+    paths:
+      - .github/workflows/v94-artifact-delivery-hotfix-v6.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v94-marketing-artifact-delivery-v6
+  cancel-in-progress: false
+
+jobs:
+  repair-test-deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      FIREBASE_PROJECT: fixgo-44e4d
+
+    steps:
+      - name: Checkout handoff
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: v94-handoff-ee6d8cfe
+
+      - name: Scope gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-handoff-ee6d8cfe"
+          test -z "$(git status --porcelain)"
+          git merge-base --is-ancestor 3943a0fb82e5347f3cac66a3f7ed5052b61157d4 HEAD
+
+      - name: Reapply certified V5 source repair
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def extract_python_step(path, step_name):
+              text = Path(path).read_text(encoding='utf-8')
+              marker = f'      - name: {step_name}\n'
+              start = text.index(marker)
+              run_marker = '        run: |\n'
+              body_start = text.index(run_marker, start) + len(run_marker)
+              next_step = text.find('\n      - name:', body_start)
+              next_uses = text.find('\n      - uses:', body_start)
+              candidates = [x for x in (next_step, next_uses) if x >= 0]
+              body_end = min(candidates) if candidates else len(text)
+              raw = text[body_start:body_end]
+              lines = []
+              for line in raw.splitlines():
+                  if line.startswith('          '):
+                      lines.append(line[10:])
+                  elif not line.strip():
+                      lines.append('')
+                  else:
+                      raise SystemExit(f'UNEXPECTED_PYTHON_INDENT:{step_name}:{line[:100]}')
+              return '\n'.join(lines) + '\n'
+
+          for step in [
+              'Reapply the V4 source repair exactly',
+              'Update NEXO contract checker for Markdown and PDF delivery'
+          ]:
+              source = extract_python_step('.github/workflows/v94-artifact-delivery-hotfix-v5.yml', step)
+              exec(compile(source, f'v5:{step}', 'exec'), {})
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm ci --prefix functions
+
+      - name: Focused certification
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check gestia-core/nexo/nexo.mission.compiler.js
+          node --check gestia-core/jarvis/jarvis.marketing.presenter.js
+          node --check gestia-core/gestia-core.js
+          node --check modules/terminal/jarvis-attachments.js
+          node --check scripts/check-nexo-private-engine.mjs
+          node --test \
+            tests/nexo-mission-compiler.test.mjs \
+            tests/v94-marketing-artifact-delivery.test.mjs \
+            tests/jarvis-marketing-engine-v2.test.mjs \
+            tests/jarvis-attachments.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs \
+            tests/jarvis-multifunction-tools.test.mjs
+          npm run check:nexo:contracts
+          git diff --check
+
+      - name: Complete certification suite
+        run: npm run ci:test
+
+      - name: Real bridge creates and rereads HMH Markdown and PDF
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .jarvis-artifacts
+          node jarvis-upload-bridge.js > /tmp/v94-bridge.log 2>&1 &
+          BRIDGE_PID=$!
+          trap 'kill $BRIDGE_PID 2>/dev/null || true; cat /tmp/v94-bridge.log || true' EXIT
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:3344/health >/dev/null 2>&1 && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3344/health >/dev/null
+          cat > .tmp-v94-artifacts.mjs <<'NODE'
+          import fs from 'node:fs';
+          import { planMarketingRequest } from './gestia-core/jarvis/jarvis.marketing.engine.js';
+
+          const health = await fetch('http://127.0.0.1:3344/health').then(r => r.json());
+          const releaseId = health?.identity?.contract?.releaseId || '';
+          if (!health?.identity?.ok || !releaseId) throw new Error('BRIDGE_IDENTITY_RELEASE_ID_REQUIRED');
+
+          const plan = planMarketingRequest('Crea un plan de marketing completo para Multiservicios Peninsulares HMH.', {
+            brandName:'Multiservicios Peninsulares HMH',
+            campaignObjective:'Captar clientes y prestadores durante los primeros 90 días',
+            audience:'Propietarios, administradores, pequeños negocios y personas que necesitan técnicos confiables',
+            market:'Cancún, Quintana Roo',
+            offer:'Plataforma de multiservicios para hogares y negocios',
+            pain:'Dificultad para encontrar profesionales verificados, disponibles y con seguimiento',
+            promise:'Conexión rápida con profesionales y trazabilidad del servicio',
+            differentiator:'Profesionales verificados, seguimiento y experiencia digital',
+            budget:'escenario bajo', mediumBudget:'escenario medio', horizon:'90 días',
+            cta:'Solicitar servicio o registrarse como profesional',
+            channels:['Meta Ads','Google Ads','contenido local','WhatsApp','referidos']
+          });
+          if (plan.status !== 'MARKETING_PACKAGE_READY' || Object.keys(plan.plan).length !== 25) {
+            throw new Error('MARKETING_PACKAGE_NOT_READY');
+          }
+
+          async function post(route, body) {
+            const response = await fetch('http://127.0.0.1:3344' + route, {
+              method:'POST',
+              headers:{
+                'content-type':'application/json',
+                'X-Jarvis-Release-Id': releaseId
+              },
+              body:JSON.stringify(body)
+            });
+            const payload = await response.json();
+            if (!response.ok || payload.ok !== true) {
+              throw new Error(`${route}:${response.status}:${payload.status || payload.error || 'FAILED'}`);
+            }
+            return payload;
+          }
+
+          const outputs=[];
+          for (const format of ['md','pdf']) {
+            const created = await post('/document', {
+              format,
+              title:'Plan de marketing completo — Multiservicios Peninsulares HMH',
+              content:plan.userVisible,
+              caseId:'CASE-V94-HMH-ARTIFACT',
+              objectiveId:'OBJ-V94-HMH-ARTIFACT'
+            });
+            const read = await post('/artifact/read', {output:created.output});
+            if (!read.dataBase64 || Number(read.bytes) <= 0) throw new Error(`EMPTY_ARTIFACT:${format}`);
+            outputs.push({format,output:created.output,bytes:created.bytes,mimeType:read.mimeType});
+          }
+          fs.writeFileSync('.tmp-v94-artifact-outputs.json',JSON.stringify(outputs));
+          console.log(JSON.stringify({
+            status:'V94_MARKETING_ARTIFACT_ROUNDTRIP_OK',
+            sections:25,
+            artifacts: outputs.map(x => ({format:x.format,bytes:x.bytes,mimeType:x.mimeType}))
+          }));
+          NODE
+          node .tmp-v94-artifacts.mjs
+          kill $BRIDGE_PID
+          wait $BRIDGE_PID 2>/dev/null || true
+          trap - EXIT
+
+      - name: Real Chrome renders two artifact cards with Open Download and PDF preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          node jarvis-upload-bridge.js > /tmp/v94-bridge-chrome.log 2>&1 & BRIDGE_PID=$!
+          python3 -m http.server 5500 --bind 127.0.0.1 > /tmp/v94-http.log 2>&1 & HTTP_PID=$!
+          trap 'kill $BRIDGE_PID $HTTP_PID 2>/dev/null || true; cat /tmp/v94-bridge-chrome.log || true; cat /tmp/v94-http.log || true' EXIT
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:3344/health >/dev/null 2>&1 && break
+            sleep 1
+          done
+          node - <<'NODE'
+          import fs from 'node:fs';
+          const outputs=JSON.parse(fs.readFileSync('.tmp-v94-artifact-outputs.json','utf8'));
+          const payload=JSON.stringify(outputs).replaceAll('<','\\u003c');
+          fs.writeFileSync('.tmp-v94-artifact-ui.html',`<!doctype html><html><body>
+          <div id="gestia-output"><div><div class="bg-gestia-panel"></div></div></div>
+          <script>window.__OUT__=${payload}</script>
+          <script type="module">
+          let releaseId='';
+          window.JarvisLocalBridge={requestJson:async(route,payload)=>{
+            if(!releaseId){
+              const health=await fetch('http://127.0.0.1:3344/health').then(r=>r.json());
+              releaseId=health?.identity?.contract?.releaseId||'';
+              if(!releaseId) throw new Error('BRIDGE_RELEASE_ID_REQUIRED');
+            }
+            const r=await fetch('http://127.0.0.1:3344'+route,{method:'POST',headers:{'content-type':'application/json','X-Jarvis-Release-Id':releaseId},body:JSON.stringify(payload)});
+            return await r.json();
+          }};
+          const {JarvisAttachments}=await import('/modules/terminal/jarvis-attachments.js?v=v94-artifacts-ui');
+          for(const x of window.__OUT__) await JarvisAttachments.renderArtifact(x.output,x.mimeType,'document.create');
+          const c=document.querySelectorAll('[data-testid="jarvis-artifact-card"]').length;
+          const d=document.querySelectorAll('[data-testid="jarvis-artifact-download"]').length;
+          const o=document.querySelectorAll('[data-testid="jarvis-artifact-open"]').length;
+          const p=document.querySelectorAll('[data-testid="jarvis-pdf-preview"]').length;
+          document.body.insertAdjacentHTML('beforeend','<pre id="e2e">E2E:'+c+':'+d+':'+o+':'+p+'</pre>');
+          </script></body></html>`);
+          NODE
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME" || { echo CHROME_EXECUTABLE_NOT_FOUND >&2; exit 1; }
+          "$CHROME" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --virtual-time-budget=10000 --dump-dom http://127.0.0.1:5500/.tmp-v94-artifact-ui.html > /tmp/v94-artifact-dom.html
+          grep -q 'E2E:2:2:2:1' /tmp/v94-artifact-dom.html
+          kill $BRIDGE_PID $HTTP_PID
+          wait $BRIDGE_PID 2>/dev/null || true
+          wait $HTTP_PID 2>/dev/null || true
+          trap - EXIT
+
+      - name: Cleanup generated bytes and verify scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .jarvis-artifacts .tmp-v94-artifacts.mjs .tmp-v94-artifact-outputs.json .tmp-v94-artifact-ui.html
+          git diff --check
+          for path in $(git status --short | awk '{print $2}'); do
+            case "$path" in
+              gestia-core/gestia-core.js|gestia-core/jarvis/jarvis.marketing.presenter.js|gestia-core/nexo/nexo.mission.compiler.js|modules/terminal/jarvis-attachments.js|scripts/check-nexo-private-engine.mjs|tests/jarvis-attachments.test.mjs|tests/nexo-mission-compiler.test.mjs|tests/v94-marketing-artifact-delivery.test.mjs) ;;
+              *) echo "UNEXPECTED_CHANGE:$path" >&2; exit 1;;
+            esac
+          done
+
+      - name: Commit certified source repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "OpenAI V94 Handoff"
+          git config user.email "actions@users.noreply.github.com"
+          git add gestia-core/gestia-core.js gestia-core/jarvis/jarvis.marketing.presenter.js gestia-core/nexo/nexo.mission.compiler.js modules/terminal/jarvis-attachments.js scripts/check-nexo-private-engine.mjs tests/jarvis-attachments.test.mjs tests/nexo-mission-compiler.test.mjs tests/v94-marketing-artifact-delivery.test.mjs
+          git commit -m "fix(nexo): deliver marketing plans as downloadable artifacts"
+          git push origin HEAD:v94-handoff-ee6d8cfe
+
+      - name: Deploy only primary Hosting
+        shell: bash
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          set +x
+          test -n "${FIREBASE_TOKEN:-}" || { echo FIREBASE_TOKEN_MISSING >&2; exit 1; }
+          npm install --global firebase-tools@15.10.1 > /dev/null
+          firebase deploy --only hosting:fixgo-44e4d --project "$FIREBASE_PROJECT" --token "$FIREBASE_TOKEN" --non-interactive
+
+      - name: Verify production source bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          t="$(mktemp -d)"; trap 'rm -rf "$t"' EXIT
+          curl -fsS 'https://fixgo-44e4d.web.app/gestia-core/nexo/nexo.mission.compiler.js?v=v94-artifact-delivery-v6' > "$t/compiler"
+          curl -fsS 'https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.marketing.presenter.js?v=v94-artifact-delivery-v6' > "$t/presenter"
+          curl -fsS 'https://fixgo-44e4d.web.app/modules/terminal/jarvis-attachments.js?v=v94-artifact-delivery-v6' > "$t/attachments"
+          curl -fsS 'https://fixgo-44e4d.web.app/gestia-core/gestia-core.js?v=v94-artifact-delivery-v6' > "$t/core"
+          grep -q '1.1.0-downloadable-marketing-artifacts' "$t/compiler"
+          grep -q 'NEXO_MARKETING_MARKDOWN_ARTIFACT' "$t/compiler"
+          grep -q 'NEXO_MARKETING_PDF_ARTIFACT' "$t/compiler"
+          grep -q 'marketingArtifactArgsFromCompletedTasks' "$t/presenter"
+          grep -q 'marketingArtifactArgsFromCompletedTasks' "$t/core"
+          grep -q '2.4.0-user-artifact-preview-download' "$t/attachments"
+          grep -q 'jarvis-artifact-open' "$t/attachments"
+          grep -q 'jarvis-pdf-preview' "$t/attachments"
+          sha256sum "$t"/*
