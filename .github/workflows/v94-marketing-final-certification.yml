@@ -78,7 +78,7 @@ jobs:
           const first=planMarketingRequest('Crea un plan de marketing completo para Multiservicios Peninsulares HMH.', {});
           if(first.status!=='MARKETING_INPUT_REQUIRED') throw new Error(`EXPECTED_INPUT_REQUIRED:${first.status}`);
           const missing=new Set(first.missingInputs||[]);
-          for(const required of ['objective','audience','offer','budget']) {
+          for(const required of ['campaignObjective','audience','offer','budget']) {
             if(!missing.has(required)) throw new Error(`MISSING_REQUIRED_INPUT_NOT_REPORTED:${required}`);
           }
           if(JSON.stringify(first).includes('Península Tech')) throw new Error('STALE_PENINSULA_CONTEXT_LEAK');
@@ -92,8 +92,8 @@ jobs:
             pain:'Dificultad para encontrar profesionales verificados, disponibles y con seguimiento',
             promise:'Conexión rápida con profesionales y trazabilidad del servicio',
             differentiator:'Profesionales verificados, seguimiento y experiencia digital',
-            budget:'escenario bajo',
-            mediumBudget:'escenario medio',
+            budget:'escenario bajo de MXN 10,000 mensuales',
+            mediumBudget:'escenario medio de MXN 30,000 mensuales',
             horizon:'90 días',
             cta:'Solicitar servicio o registrarse como profesional',
             channels:['Meta Ads','Google Ads','contenido local','WhatsApp','referidos']
