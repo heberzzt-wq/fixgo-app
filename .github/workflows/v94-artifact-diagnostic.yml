@@ -1,0 +1,33 @@
+name: V94 Artifact Diagnostic
+
+on:
+  push:
+    branches:
+      - v94-handoff-ee6d8cfe
+    paths:
+      - .github/workflows/v94-artifact-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-handoff-ee6d8cfe
+          fetch-depth: 1
+      - name: Inspect artifact pipeline
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== BRANCH ==='
+          git rev-parse HEAD
+          echo '=== USER ARTIFACT DEFINITIONS ==='
+          grep -RIn --exclude-dir=node_modules --exclude-dir=.git -E 'userArtifact|DOCUMENT_CREATE_RESULT|document\.create|preparedArtifact' gestia-core gestia-terminal.js gestia-terminal.html tests | head -n 220 || true
+          echo '=== TERMINAL ARTIFACT UI ==='
+          grep -RIn --exclude-dir=node_modules --exclude-dir=.git -E 'artifact|download|descargar|Abrir|openArtifact|artifactCard|render.*artifact|jarvis-artifacts' gestia-terminal.js gestia-terminal.html gestia-core modules tests | head -n 320 || true
+          echo '=== MISSION RESULT PRESENTATION ==='
+          grep -RIn --exclude-dir=node_modules --exclude-dir=.git -E 'runtimeResults|completedTasks|userVisible|renderJarvisResponse|conversation\.respond|mission\.result|missionResult' gestia-terminal.js gestia-terminal.html gestia-core/jarvis tests | head -n 320 || true
