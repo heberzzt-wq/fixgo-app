@@ -1,0 +1,43 @@
+name: V94 media UI grounding deploy retry
+
+on:
+  push:
+    branches:
+      - v94-handoff-ee6d8cfe
+    paths:
+      - .github/workflows/v94-media-ui-grounding-deploy-retry.yml
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact certified media code
+        uses: actions/checkout@v4
+        with:
+          ref: 5cb8901b3de3a5084a4289106f3fbd5c0c1ba005
+          fetch-depth: 1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Verify exact certified commit and function syntax
+        run: |
+          test "$(git rev-parse HEAD)" = "5cb8901b3de3a5084a4289106f3fbd5c0c1ba005"
+          node --check functions/jarvis-media-analysis.js
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@15.10.1
+
+      - name: Deploy only jarvisMediaAnalyze
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy --only functions:jarvisMediaAnalyze --project fixgo-44e4d --token "$FIREBASE_TOKEN" --non-interactive
+          echo "V94_MEDIA_UI_GROUNDING_DEPLOYED=5cb8901b3de3a5084a4289106f3fbd5c0c1ba005"
