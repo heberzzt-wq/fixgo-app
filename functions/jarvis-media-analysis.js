@@ -9,7 +9,10 @@ const MAX_FILES = 8;
 const MAX_FILE_BYTES = 7 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 9 * 1024 * 1024;
 const MAX_REPAIR_ATTEMPTS = 1;
-const SENSITIVE_NARRATIVE_LITERAL_PATTERN = /(?:https?:\/\/[^\s"'<>]+|www\.[^\s"'<>]+|\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b|\b(?:19|20)\d{2}\b|\b\d{1,2}:\d{2}(?::\d{2})?\b)/i;
+const SENSITIVE_NARRATIVE_LITERAL_PATTERN = /(?:https?:\/\/[^\s"'<>]+|www\.[^\s"'<>]+|\b(?:[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?\.)+(?:com|net|org|app|dev|io|mx|ai|co|es|tech|cloud|web)\b|\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b|\b(?:19|20)\d{2}\b|\b\d{1,2}:\d{2}(?::\d{2})?\b)/i;
+const QUOTED_NARRATIVE_LITERAL_PATTERN = /["'`“”‘’]([^"'`“”‘’\n]{2,160})["'`“”‘’]/g;
+const PROPER_UI_LITERAL_PATTERN = /\b(?:[A-ZÁÉÍÓÚÑ][a-záéíóúüñ0-9-]+[A-Z][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*|[A-ZÁÉÍÓÚÑ][a-záéíóúüñ0-9-]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*[a-záéíóúüñ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*)+)\b/g;
+const NON_VISUAL_RECOMMENDATION_PATTERN = /\b(?:investigat(?:e|es|ed|ing|ion)|explor(?:e|es|ed|ing|ation)|document(?:ar|e|es|ed|ing|ation)|investigar|explorar|documentar)\b/i;
 
 function normalizeMediaFiles(files = []) {
     if (!Array.isArray(files) || files.length < 1 || files.length > MAX_FILES) {
@@ -227,6 +230,36 @@ function extractSensitiveNarrativeLiterals(value = "") {
     ).filter(Boolean);
 }
 
+function extractQuotedNarrativeLiterals(value = "") {
+    const pattern = new RegExp(
+        QUOTED_NARRATIVE_LITERAL_PATTERN.source,
+        "g"
+    );
+    return Array.from(
+        String(value || "").matchAll(pattern),
+        match => String(match?.[1] || "").trim()
+    ).filter(Boolean);
+}
+
+function extractProperUiNarrativeLiterals(value = "") {
+    const pattern = new RegExp(
+        PROPER_UI_LITERAL_PATTERN.source,
+        "g"
+    );
+    return Array.from(
+        String(value || "").matchAll(pattern),
+        match => String(match?.[0] || "").trim()
+    ).filter(Boolean);
+}
+
+function groundingRequiredNarrativeLiterals(value = "") {
+    return [...new Set([
+        ...extractSensitiveNarrativeLiterals(value),
+        ...extractQuotedNarrativeLiterals(value),
+        ...extractProperUiNarrativeLiterals(value)
+    ].filter(Boolean))];
+}
+
 function verifiedVisibleLiteralValues(sources = []) {
     const values = [];
 
@@ -255,7 +288,7 @@ function containsUnverifiedSensitiveNarrativeLiteral(value, verifiedValues = [])
     if (value == null) return false;
 
     if (typeof value === "string") {
-        const literals = extractSensitiveNarrativeLiterals(value);
+        const literals = groundingRequiredNarrativeLiterals(value);
         return literals.some(literal => {
             const candidate = normalizeSensitiveLiteral(literal);
             if (!candidate) return false;
@@ -326,6 +359,26 @@ function assertNoSensitiveNarrativeLiteralLeaks(parsed, files, sources) {
     }
 }
 
+function assertConcreteVisualRecommendations(parsed, files, sources) {
+    const recommendations = Array.isArray(parsed?.recommendations)
+        ? parsed.recommendations
+        : [];
+
+    if (
+        recommendations.some(item =>
+            NON_VISUAL_RECOMMENDATION_PATTERN.test(
+                String(item || "")
+            )
+        )
+    ) {
+        throw createAnalysisError(
+            "MEDIA_ANALYSIS_NON_VISUAL_RECOMMENDATION",
+            files,
+            sources
+        );
+    }
+}
+
 function validateAnalysis(parsed, files) {
     const sources = Array.isArray(parsed?.sources)
         ? parsed.sources
@@ -335,6 +388,12 @@ function validateAnalysis(parsed, files) {
         resolveSourcesByIdentity(sources, files);
 
     assertNoSensitiveNarrativeLiteralLeaks(
+        parsed,
+        files,
+        orderedSources
+    );
+
+    assertConcreteVisualRecommendations(
         parsed,
         files,
         orderedSources
@@ -427,6 +486,8 @@ function validateAnalysis(parsed, files) {
             literalReadingsRequireStructuredEvidence: true,
             exactTextMinimumConfidence: 0.98,
             unverifiedLiteralValuesAreWithheld: true,
+            narrativeUiLiteralsRequireVisibleData: true,
+            conversationContentCannotProveUiCapability: true,
             authenticatedAdminOnly: true
         }
     };
@@ -467,6 +528,8 @@ function buildAnalysisPrompt(
         "mimeType y sha256 pueden copiarse del MANIFEST y nunca deben modificarse.",
         "Fuera de visibleData, ninguna propiedad de la respuesta debe contener transcripciones literales, URLs, fechas, horas, anos, cifras ni identificadores.",
         "No uses la instruccion del usuario como evidencia visual; una palabra mencionada en la solicitud no demuestra que ese elemento aparezca en los pixeles.",
+        "En capturas de interfaces conversacionales, el texto dentro del historial de mensajes o respuestas es contenido de conversacion, no evidencia de funcionalidad de la interfaz.",
+        "Nunca uses una afirmacion escrita dentro de un mensaje del asistente como prueba de que un control existe, falta, funciona o no funciona; para eso usa solamente controles, menus, botones, paneles, etiquetas de UI y estados visibles.",
         "Si la solicitud compara un menu, panel, boton o control que no esta abierto o visible en una fuente, declara que esa parte de la comparacion no es verificable y no infieras sus opciones ni funciones.",
         "Description, observations, inferences, objects, pages, evidence, comparison y recommendations no deben repetir fechas, horas, anos, URLs o identificadores; esas lecturas solo pueden existir en visibleData.",
         "Toda lectura literal debe aparecer exclusivamente en visibleData y conservar los caracteres visibles sin traducir, autocorregir, completar ni normalizar.",
@@ -779,7 +842,8 @@ function isRepairableAnalysisError(error) {
         "MEDIA_ANALYSIS_SOURCE_IDENTITY_REQUIRED",
         "MEDIA_ANALYSIS_SOURCE_IDENTITY_MISMATCH",
         "MEDIA_ANALYSIS_SOURCE_IDENTITY_DUPLICATE",
-        "MEDIA_ANALYSIS_PRECISION_LITERAL_LEAK"
+        "MEDIA_ANALYSIS_PRECISION_LITERAL_LEAK",
+        "MEDIA_ANALYSIS_NON_VISUAL_RECOMMENDATION"
     ]).has(error?.message);
 }
 

@@ -866,7 +866,7 @@ test("visual precision policy preserves verified Motor text and withholds uncert
                                     value: "Motor No-Code",
                                     page: 1,
                                     confidence: 0.99,
-                                    evidence: "Texto completo visible bajo el encabezado Terminal Heberto.",
+                                    evidence: "Texto completo visible bajo el encabezado.",
                                     legibility: "VERIFIED"
                                 },
                                 {
@@ -1071,4 +1071,230 @@ test("production permits sensitive narrative literals only when grounded in veri
     assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
     assert.equal(result.sources[0].visibleData[0].value, "07/08/2026");
     assert.equal(result.sources[0].visibleData[1].value, "10:03");
+});
+
+
+
+test("production repairs ungrounded UI labels, bare domains and generic investigation advice", async () => {
+    let calls = 0;
+    const result = await runJarvisMediaAnalysis({
+        ai: {
+            models: {
+                generateContent: async request => {
+                    calls += 1;
+                    if (calls === 1) {
+                        return {
+                            text: JSON.stringify({
+                                sources: [
+                                    {
+                                        sourceId: "SOURCE_1",
+                                        fileName: "chat.png",
+                                        mimeType: "image/png",
+                                        description: "Screenshot of the ChatGPT Plus interface.",
+                                        observations: ["The menu shows 'Añadir fotos y archivos'."],
+                                        inferences: [],
+                                        objects: [],
+                                        composition: {},
+                                        visibleData: [],
+                                        pages: [],
+                                        marketingUse: [],
+                                        quality: {},
+                                        uncertainty: [],
+                                        evidence: []
+                                    },
+                                    {
+                                        sourceId: "SOURCE_2",
+                                        fileName: "terminal.png",
+                                        mimeType: "image/png",
+                                        description: "Screenshot of Terminal Heberto.",
+                                        observations: ["The browser shows fixgo-44d.web.app."],
+                                        inferences: [],
+                                        objects: [],
+                                        composition: {},
+                                        visibleData: [],
+                                        pages: [],
+                                        marketingUse: [],
+                                        quality: {},
+                                        uncertainty: [],
+                                        evidence: []
+                                    }
+                                ],
+                                comparison: {
+                                    beforeAfter: false,
+                                    differences: ["ChatGPT Plus includes GitHub while Terminal Heberto differs."],
+                                    confidence: 0.9
+                                },
+                                recommendations: ["Investigate the purpose and context of the terminal."]
+                            })
+                        };
+                    }
+
+                    assert.match(
+                        request.contents[0].parts[0],
+                        /MEDIA_ANALYSIS_PRECISION_LITERAL_LEAK|MEDIA_ANALYSIS_NON_VISUAL_RECOMMENDATION/
+                    );
+
+                    return {
+                        text: JSON.stringify({
+                            sources: [
+                                {
+                                    sourceId: "SOURCE_1",
+                                    fileName: "chat.png",
+                                    mimeType: "image/png",
+                                    description: "Interfaz conversacional con un menu desplegado.",
+                                    observations: ["Se observan varias entradas de menu sin transcribir etiquetas no verificadas."],
+                                    inferences: [],
+                                    objects: [],
+                                    composition: {},
+                                    visibleData: [],
+                                    pages: [],
+                                    marketingUse: [],
+                                    quality: {},
+                                    uncertainty: ["Las etiquetas literales no alcanzan el umbral de verificacion."],
+                                    evidence: []
+                                },
+                                {
+                                    sourceId: "SOURCE_2",
+                                    fileName: "terminal.png",
+                                    mimeType: "image/png",
+                                    description: "Interfaz conversacional con un menu desplegado.",
+                                    observations: ["Se observan menos entradas visibles en el menu sin transcribir etiquetas no verificadas."],
+                                    inferences: [],
+                                    objects: [],
+                                    composition: {},
+                                    visibleData: [],
+                                    pages: [],
+                                    marketingUse: [],
+                                    quality: {},
+                                    uncertainty: ["Las etiquetas literales no alcanzan el umbral de verificacion."],
+                                    evidence: []
+                                }
+                            ],
+                            comparison: {
+                                beforeAfter: false,
+                                differences: ["Una fuente muestra mas entradas visibles en el menu que la otra."],
+                                confidence: 0.9
+                            },
+                            recommendations: ["Hacer visibles mas opciones de adjuntos cuando exista soporte real para ellas."]
+                        })
+                    };
+                }
+            }
+        },
+        input: {
+            files: [
+                { name: "chat.png", mimeType: "image/png", dataBase64: Buffer.from("chat-ui").toString("base64") },
+                { name: "terminal.png", mimeType: "image/png", dataBase64: Buffer.from("terminal-ui").toString("base64") }
+            ],
+            question: "Compara solamente controles visibles de adjuntos."
+        }
+    });
+
+    assert.equal(calls, 2);
+    assert.equal(result.repairCount, 1);
+    assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
+    assert.doesNotMatch(
+        JSON.stringify(result),
+        /ChatGPT Plus|Terminal Heberto|GitHub|fixgo-44d\.web\.app|Investigate|Añadir fotos y archivos/
+    );
+    assert.equal(result.policy.narrativeUiLiteralsRequireVisibleData, true);
+    assert.equal(result.policy.conversationContentCannotProveUiCapability, true);
+});
+
+
+test("production permits UI labels in narrative only when verified visibleData grounds them", async () => {
+    let calls = 0;
+    const result = await runJarvisMediaAnalysis({
+        ai: {
+            models: {
+                generateContent: async () => {
+                    calls += 1;
+                    return {
+                        text: JSON.stringify({
+                            sources: [
+                                {
+                                    sourceId: "SOURCE_1",
+                                    fileName: "chat.png",
+                                    mimeType: "image/png",
+                                    description: "La interfaz muestra ChatGPT Plus.",
+                                    observations: ["El control 'Añadir fotos y archivos' esta visible."],
+                                    inferences: [],
+                                    objects: [],
+                                    composition: {},
+                                    visibleData: [
+                                        {
+                                            kind: "text",
+                                            value: "ChatGPT Plus",
+                                            page: 1,
+                                            confidence: 0.99,
+                                            evidence: "Etiqueta visible en la parte superior.",
+                                            legibility: "VERIFIED"
+                                        },
+                                        {
+                                            kind: "text",
+                                            value: "Añadir fotos y archivos",
+                                            page: 1,
+                                            confidence: 0.99,
+                                            evidence: "Entrada visible del menu abierto.",
+                                            legibility: "VERIFIED"
+                                        }
+                                    ],
+                                    pages: [],
+                                    marketingUse: [],
+                                    quality: {},
+                                    uncertainty: [],
+                                    evidence: []
+                                },
+                                {
+                                    sourceId: "SOURCE_2",
+                                    fileName: "terminal.png",
+                                    mimeType: "image/png",
+                                    description: "La interfaz muestra Terminal Heberto.",
+                                    observations: [],
+                                    inferences: [],
+                                    objects: [],
+                                    composition: {},
+                                    visibleData: [
+                                        {
+                                            kind: "text",
+                                            value: "Terminal Heberto",
+                                            page: 1,
+                                            confidence: 0.99,
+                                            evidence: "Encabezado visible de la interfaz.",
+                                            legibility: "VERIFIED"
+                                        }
+                                    ],
+                                    pages: [],
+                                    marketingUse: [],
+                                    quality: {},
+                                    uncertainty: [],
+                                    evidence: []
+                                }
+                            ],
+                            comparison: {
+                                beforeAfter: false,
+                                differences: ["ChatGPT Plus y Terminal Heberto muestran encabezados distintos."],
+                                confidence: 0.99
+                            },
+                            recommendations: []
+                        })
+                    };
+                }
+            }
+        },
+        input: {
+            files: [
+                { name: "chat.png", mimeType: "image/png", dataBase64: Buffer.from("chat-ui-verified").toString("base64") },
+                { name: "terminal.png", mimeType: "image/png", dataBase64: Buffer.from("terminal-ui-verified").toString("base64") }
+            ],
+            question: "Compara controles visibles."
+        }
+    });
+
+    assert.equal(calls, 1);
+    assert.equal(result.repairCount, 0);
+    assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
+    assert.equal(result.sources[0].visibleData[0].value, "ChatGPT Plus");
+    assert.equal(result.sources[0].visibleData[1].value, "Añadir fotos y archivos");
+    assert.equal(result.sources[1].visibleData[0].value, "Terminal Heberto");
 });
