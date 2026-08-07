@@ -1,0 +1,244 @@
+name: V94 Marketing Isolation Hotfix V3
+
+on:
+  push:
+    branches:
+      - v94-handoff-ee6d8cfe
+    paths:
+      - .github/workflows/v94-marketing-isolation-hotfix-v3.yml
+
+concurrency:
+  group: v94-marketing-isolation-hotfix-v3
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  repair-test-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      FIREBASE_PROJECT: fixgo-44e4d
+
+    steps:
+      - name: Checkout handoff
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: v94-handoff-ee6d8cfe
+
+      - name: Verify protected scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-handoff-ee6d8cfe"
+          test -z "$(git status --porcelain)"
+          git merge-base --is-ancestor ee6d8cfe499770e26a1368897c9c8379b521d8c2 HEAD
+
+      - name: Apply named-plan mission isolation
+        shell: python
+        run: |
+          from pathlib import Path
+
+          engine_path = Path("gestia-core/jarvis/jarvis.marketing.engine.js")
+          engine = engine_path.read_text(encoding="utf-8")
+
+          old = r'''function inferBrandName(instruction, context) {
+              if (clean(context.brandName) || clean(context.name)) {
+                  return clean(context.brandName) || clean(context.name);
+              }
+              const text = normalized(instruction);
+              if (text.includes("peninsula tech")) return "Peninsula Tech";
+              if (text.includes("gestiapremium") || text.includes("gestia premium")) return "GestiaPremium";
+              if (text.includes("fixgo") || text.includes("fix go")) return "FixGo";
+              const explicit = instruction.match(/\bpara\s+(.+?)(?:[.,;]|$)/i)?.[1]?.trim();
+              return explicit || "";
+          }
+
+          function availableContext(context = {}) {
+              const memory = context.marketingContext && typeof context.marketingContext === "object"
+                  ? context.marketingContext
+                  : {};
+              return { ...memory, ...context };
+          }
+          '''
+
+          new = r'''function inferInstructionBrand(instruction = "") {
+              const source = clean(instruction);
+              const namedPlanTarget = source.match(
+                  /\bplan\s+de\s+marketing\b.{0,120}?\bpara\s+(.+?)(?:[.,;]|$)/i
+              )?.[1]?.trim() || "";
+              if (namedPlanTarget) return namedPlanTarget;
+
+              const text = normalized(source);
+              if (text.includes("peninsula tech")) return "Peninsula Tech";
+              if (text.includes("gestiapremium") || text.includes("gestia premium")) return "GestiaPremium";
+              if (text.includes("fixgo") || text.includes("fix go")) return "FixGo";
+              return "";
+          }
+
+          function inferBrandName(instruction, context) {
+              const explicit = inferInstructionBrand(instruction);
+              if (explicit) return explicit;
+              if (clean(context.brandName) || clean(context.name)) {
+                  return clean(context.brandName) || clean(context.name);
+              }
+              return "";
+          }
+
+          function availableContext(context = {}) {
+              const memory = context.marketingContext && typeof context.marketingContext === "object"
+                  ? context.marketingContext
+                  : {};
+              return { ...memory, ...context };
+          }
+
+          function isolateMarketingContext(instruction, context = {}) {
+              const resolved = availableContext(context);
+              const explicitBrand = inferInstructionBrand(instruction);
+              const rememberedBrand = clean(resolved.brandName) || clean(resolved.name);
+              if (
+                  !explicitBrand ||
+                  !rememberedBrand ||
+                  normalized(explicitBrand) === normalized(rememberedBrand)
+              ) {
+                  return resolved;
+              }
+
+              const isolated = {};
+              for (const key of [
+                  "objectiveId", "caseId", "authorityId", "controllerId",
+                  "userId", "workspaceId", "projectId", "conversationId"
+              ]) {
+                  if (resolved[key] !== undefined && resolved[key] !== null) {
+                      isolated[key] = resolved[key];
+                  }
+              }
+              return {
+                  ...isolated,
+                  brandName: explicitBrand,
+                  name: explicitBrand,
+                  marketingContext: {},
+                  contextIsolation: "EXPLICIT_BRAND_MISSION_ISOLATED"
+              };
+          }
+          '''
+
+          if old not in engine:
+              raise SystemExit("Expected marketing identity block was not found")
+          engine = engine.replace(old, new, 1)
+
+          old_plan = '''export function planMarketingRequest(rawInput = "", context = {}) {
+              const instruction = clean(rawInput);
+              context = availableContext(context);'''
+          new_plan = '''export function planMarketingRequest(rawInput = "", context = {}) {
+              const instruction = clean(rawInput);
+              context = isolateMarketingContext(instruction, context);'''
+          if old_plan not in engine:
+              raise SystemExit("Expected planMarketingRequest context assignment was not found")
+          engine = engine.replace(old_plan, new_plan, 1)
+          engine_path.write_text(engine, encoding="utf-8")
+
+          test_path = Path("tests/jarvis-marketing-engine-v2.test.mjs")
+          tests = test_path.read_text(encoding="utf-8")
+          marker = 'test("NEXO marketing isolates an explicitly named plan from stale completed context"'
+          if marker not in tests:
+              tests += r'''
+
+          test("NEXO marketing isolates an explicitly named plan from stale completed context", () => {
+              const stale = {
+                  brandName: "Peninsula Tech",
+                  name: "Peninsula Tech",
+                  campaignObjective: "Captar clientes anteriores",
+                  audience: "Clientes residenciales y empresariales",
+                  market: "México",
+                  offer: "Oferta anterior",
+                  pain: "Problema anterior",
+                  promise: "Promesa anterior",
+                  differentiator: "Diferenciador anterior",
+                  budget: "escenario anterior",
+                  horizon: "90 días",
+                  cta: "Solicita una evaluación con Peninsula Tech",
+                  channels: ["instagram", "facebook", "tiktok", "whatsapp"]
+              };
+              const result = planMarketingRequest(
+                  "Crea un plan de marketing completo para Multiservicios Peninsulares HMH.",
+                  { ...stale, marketingContext: { ...stale } }
+              );
+
+              assert.equal(result.status, "MARKETING_INPUT_REQUIRED");
+              assert.equal(result.requiresInput, true);
+              assert.equal(result.objectiveSatisfied, false);
+              assert.equal(result.preservedContext.brandName, "Multiservicios Peninsulares HMH");
+              assert.equal(result.preservedContext.name, "Multiservicios Peninsulares HMH");
+              assert.equal(result.preservedContext.contextIsolation, "EXPLICIT_BRAND_MISSION_ISOLATED");
+              assert.equal(result.preservedContext.campaignObjective, undefined);
+              assert.equal(result.preservedContext.audience, undefined);
+              assert.equal(result.preservedContext.cta, undefined);
+              assert.ok(result.missingInputs.includes("campaignObjective"));
+              assert.ok(result.missingInputs.includes("audience"));
+              assert.ok(result.missingInputs.includes("offer"));
+              assert.ok(result.missingInputs.includes("budget"));
+          });
+          '''
+              test_path.write_text(tests, encoding="utf-8")
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm ci --prefix functions
+
+      - name: Validate focused regression
+        run: |
+          node --test tests/jarvis-marketing-engine-v2.test.mjs tests/jarvis-mission-orchestrator.test.mjs tests/jarvis-multifunction-tools.test.mjs
+          git diff --check
+
+      - name: Run complete certification suite
+        run: npm run ci:test
+
+      - name: Commit hotfix to handoff branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "OpenAI V94 Handoff"
+          git config user.email "actions@users.noreply.github.com"
+          git add gestia-core/jarvis/jarvis.marketing.engine.js tests/jarvis-marketing-engine-v2.test.mjs
+          git commit -m "fix(nexo): isolate named marketing plan context"
+          git push origin HEAD:v94-handoff-ee6d8cfe
+
+      - name: Install pinned Firebase CLI
+        run: npm install --global firebase-tools@15.10.1
+
+      - name: Deploy primary Hosting only
+        shell: bash
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          set +x
+          test -n "${FIREBASE_TOKEN:-}" || { echo "FIREBASE_TOKEN secret is missing." >&2; exit 1; }
+          firebase deploy \
+            --only hosting:fixgo-44e4d \
+            --project "$FIREBASE_PROJECT" \
+            --token "$FIREBASE_TOKEN" \
+            --non-interactive
+
+      - name: Verify production hotfix
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          curl --fail --silent --show-error \
+            "https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.marketing.engine.js?v=v94-marketing-isolation-v3" \
+            -o "$tmp/marketing.engine.js"
+          grep -q 'EXPLICIT_BRAND_MISSION_ISOLATED' "$tmp/marketing.engine.js"
+          grep -q 'namedPlanTarget' "$tmp/marketing.engine.js"
+          sha256sum "$tmp/marketing.engine.js"
