@@ -32,8 +32,8 @@ jobs:
           npm ci
           npm --prefix functions ci
 
-      - name: Apply refined final raw grounding repair
-        run: python3 .github/scripts/v94-media-final-grounding-v4j2.py
+      - name: Apply final raw grounding repair v3
+        run: python3 .github/scripts/v94-media-final-grounding-v4j3.py
 
       - name: Diff integrity
         run: |
