@@ -1,0 +1,730 @@
+name: V94 Marketing Artifact Delivery Hotfix V2
+
+on:
+  push:
+    branches:
+      - v94-handoff-ee6d8cfe
+    paths:
+      - .github/workflows/v94-artifact-delivery-hotfix-v2.yml
+
+concurrency:
+  group: v94-marketing-artifact-delivery-v2
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  repair-test-deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      FIREBASE_PROJECT: fixgo-44e4d
+
+    steps:
+      - name: Checkout handoff
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: v94-handoff-ee6d8cfe
+
+      - name: Verify protected scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-handoff-ee6d8cfe"
+          test -z "$(git status --porcelain)"
+          git merge-base --is-ancestor 3943a0fb82e5347f3cac66a3f7ed5052b61157d4 HEAD
+
+      - name: Apply artifact delivery repair
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          def must_replace(text, old, new, label):
+              if old not in text:
+                  raise SystemExit(f"{label}: expected source not found")
+              return text.replace(old, new, 1)
+
+          # 1) The mission compiler must request user-useful marketing files, not a stale generic JSON draft.
+          compiler_path = Path("gestia-core/nexo/nexo.mission.compiler.js")
+          compiler = compiler_path.read_text(encoding="utf-8")
+          compiler = must_replace(
+              compiler,
+              'export const NEXO_MISSION_COMPILER_VERSION = "1.0.0-one-instruction-artifacts";',
+              'export const NEXO_MISSION_COMPILER_VERSION = "1.1.0-downloadable-marketing-artifacts";',
+              "compiler version"
+          )
+          infer_start = compiler.index('function inferBrand(instruction = "", context = {}) {')
+          infer_end = compiler.index('\n}\n\nfunction inferSubject', infer_start) + 2
+          compiler = (
+              compiler[:infer_start] +
+              '''function inferBrand(instruction = "", context = {}) {
+              const source = clean(instruction, 12000);
+              const namedMarketingTarget = source.match(
+                  /\\b(?:plan|programa)\\s+de\\s+marketing\\b.{0,160}?\\bpara\\s+(.+?)(?:[.,;]|$)/i
+              )?.[1]?.trim() || "";
+              if (namedMarketingTarget) {
+                  return clean(namedMarketingTarget, 120);
+              }
+
+              const text = normalize(source);
+              if (text.includes("peninsula tech") || text.includes("península tech")) {
+                  return "Peninsula Tech";
+              }
+              if (text.includes("gestiapremium") || text.includes("gestia premium")) {
+                  return "GestiaPremium";
+              }
+              if (text.includes("fixgo") || text.includes("fix go")) {
+                  return "FixGo";
+              }
+              return clean(context.brandName || context.name, 120) || "Peninsula Tech";
+          }''' +
+              compiler[infer_end:]
+          )
+          marketing_pattern = re.compile(
+              r'    if \(deliverables\.marketing\) \{\n'
+              r'        calls\.push\(buildCall\("marketing\.plan", campaign\)\);\n'
+              r'        calls\.push\(buildCall\("document\.create", \{\n'
+              r'            format: "json",\n'
+              r'            title: `\$\{campaign\.brandName\} - Programa de marketing`,\n'
+              r'            content: marketingDocumentContent\(instruction, context\),\n'
+              r'            objectiveId: clean\(context\.objectiveId, 180\),\n'
+              r'            caseId: clean\(context\.caseId, 180\)\n'
+              r'        \}, "NEXO_MARKETING_PROGRAM_ARTIFACT"\)\);\n'
+              r'    \}'
+          )
+          marketing_replacement = '''    if (deliverables.marketing) {
+              calls.push(buildCall("marketing.plan", campaign));
+              calls.push(buildCall("document.create", {
+                  format: "md",
+                  title: `Plan de marketing completo — ${campaign.brandName}`,
+                  objectiveId: clean(context.objectiveId, 180),
+                  caseId: clean(context.caseId, 180)
+              }, "NEXO_MARKETING_MARKDOWN_ARTIFACT"));
+              calls.push(buildCall("document.create", {
+                  format: "pdf",
+                  title: `Plan de marketing completo — ${campaign.brandName}`,
+                  objectiveId: clean(context.objectiveId, 180),
+                  caseId: clean(context.caseId, 180)
+              }, "NEXO_MARKETING_PDF_ARTIFACT"));
+          }'''
+          compiler, count = marketing_pattern.subn(marketing_replacement, compiler, count=1)
+          if count != 1:
+              raise SystemExit(f"compiler marketing block replacement count={count}")
+          compiler_path.write_text(compiler, encoding="utf-8")
+
+          # 2) Hydrate the file bytes from the exact completed 25-section marketing deliverable.
+          presenter_path = Path("gestia-core/jarvis/jarvis.marketing.presenter.js")
+          presenter = presenter_path.read_text(encoding="utf-8")
+          presenter_start = presenter.index("export function marketingFinalResponseFromMission")
+          presenter_end = presenter.index("export const MARKETING_PLAN_SECTIONS", presenter_start)
+          presenter_block = '''function isMarketingDocumentTask(item = {}) {
+              return (
+                  item?.name === "document.create" &&
+                  /plan de marketing completo/i.test(String(item?.args?.title || "")) &&
+                  ["md", "pdf"].includes(String(item?.args?.format || "").trim().toLowerCase())
+              );
+          }
+
+          function completedMarketingTask(completedTasks = []) {
+              return [...(Array.isArray(completedTasks) ? completedTasks : [])]
+                  .reverse()
+                  .find(item =>
+                      item?.name === "marketing.plan" &&
+                      item?.observation?.status === "MARKETING_PACKAGE_READY" &&
+                      item?.observation?.objectiveSatisfied === true &&
+                      typeof item?.observation?.userVisible === "string" &&
+                      item.observation.userVisible.trim()
+                  ) || null;
+          }
+
+          export function marketingArtifactArgsFromCompletedTasks(completedTasks = [], requestedArgs = {}) {
+              const format = String(requestedArgs?.format || "").trim().toLowerCase();
+              const title = String(requestedArgs?.title || "").trim();
+              if (!["md", "pdf"].includes(format) || !/plan de marketing completo/i.test(title)) {
+                  return null;
+              }
+              const marketing = completedMarketingTask(completedTasks);
+              if (!marketing) return null;
+              return {
+                  ...(requestedArgs || {}),
+                  format,
+                  title: title || "Plan de marketing completo",
+                  content: marketing.observation.userVisible
+              };
+          }
+
+          function marketingArtifactStatusLines(missionResult = {}) {
+              const completed = Array.isArray(missionResult?.completedTasks)
+                  ? missionResult.completedTasks.filter(isMarketingDocumentTask)
+                  : [];
+              const unresolved = [
+                  ...(Array.isArray(missionResult?.blockedTasks) ? missionResult.blockedTasks : []),
+                  ...(Array.isArray(missionResult?.pendingTasks) ? missionResult.pendingTasks : [])
+              ].filter(isMarketingDocumentTask);
+              const outputs = completed
+                  .map(item => ({
+                      format: String(item?.args?.format || "archivo").toUpperCase(),
+                      output:
+                          item?.observation?.artifact ||
+                          item?.observation?.evidence?.output ||
+                          item?.observation?.evidence?.artifact?.output ||
+                          ""
+                  }))
+                  .filter(item => item.output);
+
+              if (unresolved.length > 0) {
+                  return [
+                      "",
+                      "## Archivos descargables",
+                      "El plan está completo, pero la entrega de archivos todavía no terminó.",
+                      `Pendientes: ${unresolved.map(item => String(item?.args?.format || "archivo").toUpperCase()).join(", ")}.`,
+                      "No se declara la entrega documental como completada hasta que esos artefactos existan y puedan descargarse."
+                  ];
+              }
+              if (outputs.length > 0) {
+                  return [
+                      "",
+                      "## Archivos descargables",
+                      ...outputs.map(item => `- ${item.format}: ${item.output}`)
+                  ];
+              }
+              return [];
+          }
+
+          export function marketingFinalResponseFromMission(missionResult = {}) {
+              const completed = Array.isArray(missionResult?.completedTasks)
+                  ? missionResult.completedTasks
+                  : [];
+              const marketing = completedMarketingTask(completed);
+              if (!marketing) return null;
+              const unresolvedMarketingArtifacts = [
+                  ...(Array.isArray(missionResult?.blockedTasks) ? missionResult.blockedTasks : []),
+                  ...(Array.isArray(missionResult?.pendingTasks) ? missionResult.pendingTasks : [])
+              ].filter(isMarketingDocumentTask);
+              return {
+                  ok:
+                      marketing.observation.objectiveSatisfied === true &&
+                      unresolvedMarketingArtifacts.length === 0,
+                  title: "Plan de marketing completo",
+                  text: [
+                      marketing.observation.userVisible,
+                      ...marketingArtifactStatusLines(missionResult)
+                  ].join("\\n"),
+                  source: "MARKETING_DELIVERABLE_DIRECT"
+              };
+          }
+
+          '''
+          presenter = presenter[:presenter_start] + presenter_block + presenter[presenter_end:]
+          presenter_path.write_text(presenter, encoding="utf-8")
+
+          # 3) Before document.create executes, inject the completed marketing.plan userVisible text.
+          core_path = Path("gestia-core/gestia-core.js")
+          core = core_path.read_text(encoding="utf-8")
+          core = must_replace(
+              core,
+              '''import {
+              marketingFinalResponseFromMission
+          } from '/gestia-core/jarvis/jarvis.marketing.presenter.js?v=sia7-marketing-deliverable-v1-20260805';''',
+              '''import {
+              marketingArtifactArgsFromCompletedTasks,
+              marketingFinalResponseFromMission
+          } from '/gestia-core/jarvis/jarvis.marketing.presenter.js?v=v94-marketing-artifact-delivery-20260807';''',
+              "core presenter import"
+          )
+          doc_guard = '''                    if (
+                              call?.name === "document.create" &&
+                              Array.isArray(missionContext?.completedTasks)
+                          ) {
+                              const blueprintTask ='''
+          doc_guard_new = '''                    if (
+                              call?.name === "document.create" &&
+                              Array.isArray(missionContext?.completedTasks)
+                          ) {
+                              const marketingArtifactArgs =
+                                  marketingArtifactArgsFromCompletedTasks(
+                                      missionContext.completedTasks,
+                                      executionCall.args
+                                  );
+                              if (marketingArtifactArgs) {
+                                  executionCall.args = marketingArtifactArgs;
+                                  argumentGrounded = true;
+                              }
+
+                              const blueprintTask ='''
+          core = must_replace(core, doc_guard, doc_guard_new, "core document hydration entry")
+          core = must_replace(
+              core,
+              '''                        if (
+                              blueprintTask?.name === "spreadsheet.compose" &&''',
+              '''                        if (
+                              !argumentGrounded &&
+                              blueprintTask?.name === "spreadsheet.compose" &&''',
+              "core spreadsheet hydration guard"
+          )
+          core = must_replace(
+              core,
+              '''                        else if (
+                              blueprintTask?.name === "document.compose" &&''',
+              '''                        else if (
+                              !argumentGrounded &&
+                              blueprintTask?.name === "document.compose" &&''',
+              "core document hydration guard"
+          )
+          core_path.write_text(core, encoding="utf-8")
+
+          # 4) Surface verified artifacts as cards with preview/open/download.
+          attachments_path = Path("modules/terminal/jarvis-attachments.js")
+          attachments = attachments_path.read_text(encoding="utf-8")
+          attachments = must_replace(
+              attachments,
+              'const VERSION = "2.3.0-complete-batch-fail-closed";',
+              'const VERSION = "2.4.0-user-artifact-preview-download";',
+              "attachments version"
+          )
+          html_preview = '''        else if ((payload.mimeType || mimeType) === "text/html") {
+              const frame = document.createElement("iframe");
+              frame.src = objectUrl;
+              frame.title = payload.fileName || "Vista previa de página creada por Jarvis";
+              frame.sandbox = "allow-forms allow-scripts allow-popups";
+              frame.className = "w-full h-[32rem] rounded-lg bg-white mb-3 border border-slate-700";
+              frame.dataset.testid = "jarvis-html-preview";
+              card.appendChild(frame);
+          }
+          '''
+          pdf_preview = html_preview + '''        else if ((payload.mimeType || mimeType) === "application/pdf") {
+              const frame = document.createElement("iframe");
+              frame.src = objectUrl;
+              frame.title = payload.fileName || "Vista previa del PDF creado por NEXO";
+              frame.className = "w-full h-[32rem] rounded-lg bg-white mb-3 border border-slate-700";
+              frame.dataset.testid = "jarvis-pdf-preview";
+              card.appendChild(frame);
+          }
+          '''
+          attachments = must_replace(attachments, html_preview, pdf_preview, "PDF preview")
+          download_block = '''        const download = createElement("a", "shrink-0 inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-2 text-xs font-semibold text-white", "Descargar");
+              download.href = objectUrl;
+              download.download = payload.fileName || "jarvis-artifact";
+              download.dataset.testid = "jarvis-artifact-download";
+              row.appendChild(download);
+          '''
+          actions_block = '''        const actions = createElement("div", "shrink-0 flex items-center gap-2");
+              const resolvedMimeType = String(payload.mimeType || mimeType || "").toLowerCase();
+              const canOpen =
+                  resolvedMimeType === "application/pdf" ||
+                  resolvedMimeType === "text/html" ||
+                  resolvedMimeType.startsWith("image/") ||
+                  resolvedMimeType.startsWith("text/");
+              if (canOpen) {
+                  const open = createElement("a", "inline-flex items-center gap-2 rounded-lg border border-slate-500 hover:border-slate-300 px-3 py-2 text-xs font-semibold text-slate-100", "Abrir");
+                  open.href = objectUrl;
+                  open.target = "_blank";
+                  open.rel = "noopener noreferrer";
+                  open.dataset.testid = "jarvis-artifact-open";
+                  actions.appendChild(open);
+              }
+              const download = createElement("a", "inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-2 text-xs font-semibold text-white", "Descargar");
+              download.href = objectUrl;
+              download.download = payload.fileName || "jarvis-artifact";
+              download.dataset.testid = "jarvis-artifact-download";
+              actions.appendChild(download);
+              row.appendChild(actions);
+          '''
+          attachments = must_replace(attachments, download_block, actions_block, "artifact actions")
+          attachments_path.write_text(attachments, encoding="utf-8")
+
+          # 5) Focused regression tests.
+          compiler_test_path = Path("tests/nexo-mission-compiler.test.mjs")
+          compiler_test = compiler_test_path.read_text(encoding="utf-8")
+          compiler_test = must_replace(
+              compiler_test,
+              '''    assert.deepEqual(names(plan), [
+              "marketing.plan",
+              "document.create",
+              "reel.plan",
+              "reel.create",
+              "image.generate"
+          ]);''',
+              '''    assert.deepEqual(names(plan), [
+              "marketing.plan",
+              "document.create",
+              "document.create",
+              "reel.plan",
+              "reel.create",
+              "image.generate"
+          ]);''',
+              "compiler marketing tool list test"
+          )
+          program_start = compiler_test.index('    const program = plan.toolCalls.find(call =>')
+          program_end_marker = '    assert.equal(parsedProgram.sevenDayProgram.length, 7);'
+          program_end = compiler_test.index(program_end_marker, program_start) + len(program_end_marker)
+          compiler_test = (
+              compiler_test[:program_start] +
+              '''    const marketingFiles = plan.toolCalls
+              .filter(call => call.name === "document.create")
+              .map(call => call.args.format);
+          assert.deepEqual(marketingFiles, ["md", "pdf"]);
+          assert.ok(plan.toolCalls
+              .filter(call => call.name === "document.create")
+              .every(call => /Plan de marketing completo/.test(call.args.title)));''' +
+              compiler_test[program_end:]
+          )
+          marker = 'test("one document instruction selects directly executable PDF XLSX and PPTX"'
+          named_test = '''test("named marketing target is preserved in downloadable artifact titles", () => {
+              const plan = compileNexoMission({
+                  input: "Crea un plan de marketing completo para Multiservicios Peninsulares HMH.",
+                  catalog
+              });
+              const campaign = plan.toolCalls.find(call => call.name === "marketing.plan");
+              const files = plan.toolCalls.filter(call => call.name === "document.create");
+              assert.equal(campaign.args.brandName, "Multiservicios Peninsulares HMH");
+              assert.deepEqual(files.map(call => call.args.format), ["md", "pdf"]);
+              assert.ok(files.every(call => call.args.title.includes("Multiservicios Peninsulares HMH")));
+              assert.ok(files.every(call => call.args.content === undefined));
+          });
+
+          '''
+          if marker not in compiler_test:
+              raise SystemExit("compiler test insertion marker missing")
+          compiler_test = compiler_test.replace(marker, named_test + marker, 1)
+          compiler_test_path.write_text(compiler_test, encoding="utf-8")
+
+          attachments_test_path = Path("tests/jarvis-attachments.test.mjs")
+          attachments_test = attachments_test_path.read_text(encoding="utf-8")
+          attachments_test = must_replace(
+              attachments_test,
+              'assert.equal(description.version, "2.3.0-complete-batch-fail-closed");',
+              'assert.equal(description.version, "2.4.0-user-artifact-preview-download");',
+              "attachments version test"
+          )
+          attachments_test = must_replace(
+              attachments_test,
+              '    assert.match(attachments, /jarvis-artifact-download/);',
+              '    assert.match(attachments, /jarvis-artifact-download/);\n    assert.match(attachments, /jarvis-artifact-open/);\n    assert.match(attachments, /jarvis-pdf-preview/);',
+              "artifact UI tests"
+          )
+          attachments_test_path.write_text(attachments_test, encoding="utf-8")
+
+          marketing_test_path = Path("tests/jarvis-marketing-engine-v2.test.mjs")
+          marketing_test = marketing_test_path.read_text(encoding="utf-8")
+          marketing_test = must_replace(
+              marketing_test,
+              '''import {
+              marketingFinalResponseFromMission,
+              MARKETING_PLAN_SECTIONS
+          } from "../gestia-core/jarvis/jarvis.marketing.presenter.js";''',
+              '''import {
+              marketingArtifactArgsFromCompletedTasks,
+              marketingFinalResponseFromMission,
+              MARKETING_PLAN_SECTIONS
+          } from "../gestia-core/jarvis/jarvis.marketing.presenter.js";''',
+              "marketing test import"
+          )
+          marketing_marker = 'test("company registry remains available during NEXO migration"'
+          marketing_artifact_tests = '''test("completed marketing package hydrates MD and PDF artifacts from the exact visible plan", () => {
+              const result = planMarketingRequest(
+                  "Crea un plan de marketing completo para Multiservicios Peninsulares HMH.",
+                  {
+                      brandName: "Multiservicios Peninsulares HMH",
+                      campaignObjective: "Captar clientes y prestadores durante los primeros 90 días",
+                      audience: "Propietarios, administradores, pequeños negocios y personas que necesitan técnicos confiables",
+                      market: "Cancún, Quintana Roo",
+                      offer: "Plataforma de multiservicios para hogares y negocios",
+                      pain: "Dificultad para encontrar profesionales verificados, disponibles y con seguimiento",
+                      promise: "Conexión rápida con profesionales y trazabilidad del servicio",
+                      differentiator: "Profesionales verificados, seguimiento y experiencia digital",
+                      budget: "escenario bajo",
+                      mediumBudget: "escenario medio",
+                      horizon: "90 días",
+                      cta: "Solicitar servicio o registrarse como profesional",
+                      channels: ["Meta Ads", "Google Ads", "contenido local", "WhatsApp", "referidos"]
+                  }
+              );
+              assert.equal(result.status, "MARKETING_PACKAGE_READY");
+              const completedTasks = [{
+                  name: "marketing.plan",
+                  observation: {
+                      status: result.status,
+                      objectiveSatisfied: result.objectiveSatisfied,
+                      userVisible: result.userVisible
+                  }
+              }];
+              for (const format of ["md", "pdf"]) {
+                  const args = marketingArtifactArgsFromCompletedTasks(completedTasks, {
+                      format,
+                      title: "Plan de marketing completo — Multiservicios Peninsulares HMH"
+                  });
+                  assert.equal(args.format, format);
+                  assert.equal(args.content, result.userVisible);
+                  assert.match(args.content, /25\\. Próximos pasos priorizados/i);
+                  assert.match(args.content, /Multiservicios Peninsulares HMH/i);
+              }
+          });
+
+          test("marketing response reports real downloadable outputs or honest pending state", () => {
+              const marketingTask = {
+                  name: "marketing.plan",
+                  observation: {
+                      status: "MARKETING_PACKAGE_READY",
+                      objectiveSatisfied: true,
+                      userVisible: "# Plan de marketing completo — HMH\\n\\n## 1. Resumen ejecutivo\\nListo"
+                  }
+              };
+              const ready = marketingFinalResponseFromMission({
+                  completedTasks: [
+                      marketingTask,
+                      { name: "document.create", args: { format: "md", title: "Plan de marketing completo — HMH" }, observation: { artifact: ".jarvis-artifacts/documents/hmh.md" } },
+                      { name: "document.create", args: { format: "pdf", title: "Plan de marketing completo — HMH" }, observation: { artifact: ".jarvis-artifacts/documents/hmh.pdf" } }
+                  ],
+                  blockedTasks: [],
+                  pendingTasks: []
+              });
+              assert.equal(ready.ok, true);
+              assert.match(ready.text, /Archivos descargables/);
+              assert.match(ready.text, /hmh\\.md/);
+              assert.match(ready.text, /hmh\\.pdf/);
+
+              const pending = marketingFinalResponseFromMission({
+                  completedTasks: [marketingTask],
+                  blockedTasks: [{ name: "document.create", args: { format: "pdf", title: "Plan de marketing completo — HMH" } }],
+                  pendingTasks: []
+              });
+              assert.equal(pending.ok, false);
+              assert.match(pending.text, /entrega de archivos todavía no terminó/i);
+              assert.match(pending.text, /PDF/);
+          });
+
+          '''
+          if marketing_marker not in marketing_test:
+              raise SystemExit("marketing test insertion marker missing")
+          marketing_test = marketing_test.replace(marketing_marker, marketing_artifact_tests + marketing_marker, 1)
+          marketing_test = must_replace(
+              marketing_test,
+              '    assert.match(core, /marketingFinalResponseFromMission\\(\\s*missionResult\\s*\\)/);',
+              '    assert.match(core, /marketingFinalResponseFromMission\\(\\s*missionResult\\s*\\)/);\n    assert.match(core, /marketingArtifactArgsFromCompletedTasks/);',
+              "marketing core contract test"
+          )
+          marketing_test_path.write_text(marketing_test, encoding="utf-8")
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm ci --prefix functions
+
+      - name: Focused artifact and marketing regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check gestia-core/nexo/nexo.mission.compiler.js
+          node --check gestia-core/jarvis/jarvis.marketing.presenter.js
+          node --check gestia-core/gestia-core.js
+          node --check modules/terminal/jarvis-attachments.js
+          node --test \
+            tests/nexo-mission-compiler.test.mjs \
+            tests/jarvis-marketing-engine-v2.test.mjs \
+            tests/jarvis-attachments.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs \
+            tests/jarvis-multifunction-tools.test.mjs
+          git diff --check
+
+      - name: Complete certification suite
+        run: npm run ci:test
+
+      - name: Real bridge artifact roundtrip
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .jarvis-artifacts
+          node jarvis-upload-bridge.js > /tmp/jarvis-bridge.log 2>&1 &
+          BRIDGE_PID=$!
+          trap 'kill $BRIDGE_PID 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:3344/health >/dev/null 2>&1 && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3344/health >/dev/null
+          cat > .tmp-marketing-artifact-e2e.mjs <<'NODE'
+          import { planMarketingRequest } from './gestia-core/jarvis/jarvis.marketing.engine.js';
+          import fs from 'node:fs';
+
+          const result = planMarketingRequest(
+            'Crea un plan de marketing completo para Multiservicios Peninsulares HMH.',
+            {
+              brandName: 'Multiservicios Peninsulares HMH',
+              campaignObjective: 'Captar clientes y prestadores durante los primeros 90 días',
+              audience: 'Propietarios, administradores, pequeños negocios y personas que necesitan técnicos confiables',
+              market: 'Cancún, Quintana Roo',
+              offer: 'Plataforma de multiservicios para hogares y negocios',
+              pain: 'Dificultad para encontrar profesionales verificados, disponibles y con seguimiento',
+              promise: 'Conexión rápida con profesionales y trazabilidad del servicio',
+              differentiator: 'Profesionales verificados, seguimiento y experiencia digital',
+              budget: 'escenario bajo',
+              mediumBudget: 'escenario medio',
+              horizon: '90 días',
+              cta: 'Solicitar servicio o registrarse como profesional',
+              channels: ['Meta Ads', 'Google Ads', 'contenido local', 'WhatsApp', 'referidos']
+            }
+          );
+          if (result.status !== 'MARKETING_PACKAGE_READY') throw new Error(result.status);
+          if (!/25\. Próximos pasos priorizados/i.test(result.userVisible)) throw new Error('MARKETING_25_SECTIONS_MISSING');
+
+          async function create(format) {
+            const response = await fetch('http://127.0.0.1:3344/document', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json', origin: 'http://127.0.0.1:4173' },
+              body: JSON.stringify({
+                format,
+                title: 'Plan de marketing completo — Multiservicios Peninsulares HMH',
+                content: result.userVisible,
+                caseId: 'CASE-HMH-ARTIFACT-E2E',
+                objectiveId: 'OBJ-HMH-ARTIFACT-E2E'
+              })
+            });
+            const json = await response.json();
+            if (!response.ok || json.ok !== true || !json.output || Number(json.bytes) <= 0) {
+              throw new Error(`DOCUMENT_CREATE_FAILED:${format}:${response.status}:${json.status || ''}`);
+            }
+            const read = await fetch('http://127.0.0.1:3344/artifact/read', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json', origin: 'http://127.0.0.1:4173' },
+              body: JSON.stringify({ output: json.output })
+            });
+            const payload = await read.json();
+            if (!read.ok || payload.ok !== true || !payload.dataBase64 || Number(payload.bytes) <= 0) {
+              throw new Error(`ARTIFACT_READ_FAILED:${format}`);
+            }
+            return { format, output: json.output, bytes: json.bytes, mimeType: payload.mimeType };
+          }
+
+          const md = await create('md');
+          const pdf = await create('pdf');
+          fs.writeFileSync('.tmp-artifact-outputs.json', JSON.stringify([md, pdf]));
+          console.log(JSON.stringify({ status: 'MARKETING_ARTIFACT_ROUNDTRIP_OK', planSections: 25, artifacts: [md, pdf] }));
+          NODE
+          node .tmp-marketing-artifact-e2e.mjs
+          kill $BRIDGE_PID
+          wait $BRIDGE_PID 2>/dev/null || true
+          trap - EXIT
+
+      - name: Browser artifact card smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          node jarvis-upload-bridge.js > /tmp/jarvis-bridge-browser.log 2>&1 &
+          BRIDGE_PID=$!
+          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/http-server.log 2>&1 &
+          HTTP_PID=$!
+          trap 'kill $BRIDGE_PID $HTTP_PID 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:3344/health >/dev/null 2>&1 && break
+            sleep 1
+          done
+          node - <<'NODE'
+          import fs from 'node:fs';
+          const outputs = JSON.parse(fs.readFileSync('.tmp-artifact-outputs.json', 'utf8'));
+          const serialized = JSON.stringify(outputs).replaceAll('<', '\\u003c');
+          const html = `<!doctype html><html><body>
+          <div id="gestia-output"><div><div class="bg-gestia-panel"></div></div></div>
+          <script>window.__E2E_OUTPUTS__=${serialized};</script>
+          <script type="module">
+          window.JarvisLocalBridge = { requestJson: async (route, payload) => {
+            const response = await fetch('http://127.0.0.1:3344' + route, {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
+            return await response.json();
+          }};
+          const { JarvisAttachments } = await import('/modules/terminal/jarvis-attachments.js?v=v94-artifact-e2e');
+          for (const item of window.__E2E_OUTPUTS__) await JarvisAttachments.renderArtifact(item.output, item.mimeType || '', 'document.create');
+          const cards = document.querySelectorAll('[data-testid="jarvis-artifact-card"]').length;
+          const downloads = document.querySelectorAll('[data-testid="jarvis-artifact-download"]').length;
+          const opens = document.querySelectorAll('[data-testid="jarvis-artifact-open"]').length;
+          const pdfPreviews = document.querySelectorAll('[data-testid="jarvis-pdf-preview"]').length;
+          document.body.insertAdjacentHTML('beforeend', '<pre id="e2e-result">E2E:' + cards + ':' + downloads + ':' + opens + ':' + pdfPreviews + '</pre>');
+          </script></body></html>`;
+          fs.writeFileSync('.tmp-artifact-render-e2e.html', html);
+          NODE
+          CHROME="$(command -v google-chrome || command -v chromium-browser || command -v chromium || true)"
+          test -n "$CHROME" || { echo "CHROME_EXECUTABLE_NOT_FOUND" >&2; exit 1; }
+          "$CHROME" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --virtual-time-budget=8000 --dump-dom http://127.0.0.1:4173/.tmp-artifact-render-e2e.html > /tmp/artifact-dom.html
+          grep -q 'E2E:2:2:2:1' /tmp/artifact-dom.html
+          grep -q 'jarvis-artifact-download' /tmp/artifact-dom.html
+          grep -q 'jarvis-artifact-open' /tmp/artifact-dom.html
+          grep -q 'jarvis-pdf-preview' /tmp/artifact-dom.html
+          kill $BRIDGE_PID $HTTP_PID
+          wait $BRIDGE_PID 2>/dev/null || true
+          wait $HTTP_PID 2>/dev/null || true
+          trap - EXIT
+
+      - name: Cleanup generated bytes and verify scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .jarvis-artifacts .tmp-marketing-artifact-e2e.mjs .tmp-artifact-outputs.json .tmp-artifact-render-e2e.html
+          git diff --check
+          changed="$(git status --short | awk '{print $2}' | sort -u)"
+          expected="$(printf '%s\n' \
+            gestia-core/gestia-core.js \
+            gestia-core/jarvis/jarvis.marketing.presenter.js \
+            gestia-core/nexo/nexo.mission.compiler.js \
+            modules/terminal/jarvis-attachments.js \
+            tests/jarvis-attachments.test.mjs \
+            tests/jarvis-marketing-engine-v2.test.mjs \
+            tests/nexo-mission-compiler.test.mjs | sort -u)"
+          test "$changed" = "$expected"
+
+      - name: Commit certified source hotfix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "OpenAI V94 Handoff"
+          git config user.email "actions@users.noreply.github.com"
+          git add \
+            gestia-core/gestia-core.js \
+            gestia-core/jarvis/jarvis.marketing.presenter.js \
+            gestia-core/nexo/nexo.mission.compiler.js \
+            modules/terminal/jarvis-attachments.js \
+            tests/jarvis-attachments.test.mjs \
+            tests/jarvis-marketing-engine-v2.test.mjs \
+            tests/nexo-mission-compiler.test.mjs
+          git commit -m "fix(nexo): deliver marketing plans as downloadable artifacts"
+          git push origin HEAD:v94-handoff-ee6d8cfe
+
+      - name: Install pinned Firebase CLI
+        run: npm install --global firebase-tools@15.10.1
+
+      - name: Deploy primary Hosting only
+        shell: bash
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          set +x
+          test -n "${FIREBASE_TOKEN:-}" || { echo "FIREBASE_TOKEN secret is missing." >&2; exit 1; }
+          firebase deploy --only hosting:fixgo-44e4d --project "$FIREBASE_PROJECT" --token "$FIREBASE_TOKEN" --non-interactive
+
+      - name: Verify production static source
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          curl -fsS "https://fixgo-44e4d.web.app/gestia-core/nexo/nexo.mission.compiler.js?v=v94-artifact-delivery-v2" -o "$tmp/compiler.js"
+          curl -fsS "https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.marketing.presenter.js?v=v94-artifact-delivery-v2" -o "$tmp/presenter.js"
+          curl -fsS "https://fixgo-44e4d.web.app/modules/terminal/jarvis-attachments.js?v=v94-artifact-delivery-v2" -o "$tmp/attachments.js"
+          curl -fsS "https://fixgo-44e4d.web.app/gestia-core/gestia-core.js?v=v94-artifact-delivery-v2" -o "$tmp/core.js"
+          grep -q '1.1.0-downloadable-marketing-artifacts' "$tmp/compiler.js"
+          grep -q 'NEXO_MARKETING_MARKDOWN_ARTIFACT' "$tmp/compiler.js"
+          grep -q 'NEXO_MARKETING_PDF_ARTIFACT' "$tmp/compiler.js"
+          grep -q 'marketingArtifactArgsFromCompletedTasks' "$tmp/presenter.js"
+          grep -q '2.4.0-user-artifact-preview-download' "$tmp/attachments.js"
+          grep -q 'jarvis-artifact-open' "$tmp/attachments.js"
+          grep -q 'jarvis-pdf-preview' "$tmp/attachments.js"
+          grep -q 'marketingArtifactArgsFromCompletedTasks' "$tmp/core.js"
+          sha256sum "$tmp"/*.js
