@@ -122,20 +122,32 @@ jobs:
       - name: Real Chrome renders two artifact cards and PDF preview
         run: |
           set -euo pipefail
+          node jarvis-upload-bridge.js >/tmp/v94-marketing-bridge-chrome.log 2>&1 &
+          BRIDGE_PID=$!
+          echo "$BRIDGE_PID" >/tmp/v94-marketing-bridge.pid
           python3 -m http.server 5500 --bind 127.0.0.1 >/tmp/v94-marketing-http.log 2>&1 &
           HTTP_PID=$!
           echo "$HTTP_PID" >/tmp/v94-marketing-http.pid
+          for i in $(seq 1 40); do
+            curl -fsS http://127.0.0.1:3344/health >/dev/null 2>&1 && curl -fsS http://127.0.0.1:5500/modules/terminal/jarvis-attachments.js >/dev/null 2>&1 && break
+            sleep 0.25
+          done
           node - <<'NODE'
           import fs from 'node:fs';
           const outputs=JSON.parse(fs.readFileSync('/tmp/v94-marketing-outputs.json','utf8'));
           const payload=JSON.stringify(outputs).replaceAll('<','\\u003c');
-          fs.writeFileSync('/tmp/v94-marketing-ui.html',`<!doctype html><html><body><div id="gestia-output"><div><div class="bg-gestia-panel"></div></div></div><script>window.__OUT__=${payload}</script><script type="module">const health=await fetch('http://127.0.0.1:3344/health').then(r=>r.json());const releaseId=health?.identity?.contract?.releaseId||'';window.JarvisLocalBridge={requestJson:async(route,payload)=>{const r=await fetch('http://127.0.0.1:3344'+route,{method:'POST',headers:{'content-type':'application/json','X-Jarvis-Release-Id':releaseId},body:JSON.stringify(payload)});return await r.json();}};const {JarvisAttachments}=await import('http://127.0.0.1:5500/modules/terminal/jarvis-attachments.js?v=v94-final-marketing');for(const x of window.__OUT__) await JarvisAttachments.renderArtifact(x.output,x.mimeType,'document.create');const c=document.querySelectorAll('[data-testid="jarvis-artifact-card"]').length,d=document.querySelectorAll('[data-testid="jarvis-artifact-download"]').length,o=document.querySelectorAll('[data-testid="jarvis-artifact-open"]').length,p=document.querySelectorAll('[data-testid="jarvis-pdf-preview"]').length;document.body.insertAdjacentHTML('beforeend','<pre id="e2e">E2E:'+c+':'+d+':'+o+':'+p+'</pre>');</script></body></html>`);
+          fs.writeFileSync('.tmp-v94-marketing-ui.html',`<!doctype html><html><body><div id="gestia-output"><div><div class="bg-gestia-panel"></div></div></div><script>window.__OUT__=${payload}</script><script type="module">const health=await fetch('http://127.0.0.1:3344/health').then(r=>r.json());const releaseId=health?.identity?.contract?.releaseId||'';if(health?.identity?.ok!==true||!releaseId)throw new Error('BRIDGE_IDENTITY_RELEASE_ID_REQUIRED');window.JarvisLocalBridge={requestJson:async(route,payload)=>{const r=await fetch('http://127.0.0.1:3344'+route,{method:'POST',headers:{'content-type':'application/json','X-Jarvis-Release-Id':releaseId},body:JSON.stringify(payload)});return await r.json();}};const {JarvisAttachments}=await import('/modules/terminal/jarvis-attachments.js?v=v94-final-marketing');for(const x of window.__OUT__) await JarvisAttachments.renderArtifact(x.output,x.mimeType,'document.create');const c=document.querySelectorAll('[data-testid="jarvis-artifact-card"]').length,d=document.querySelectorAll('[data-testid="jarvis-artifact-download"]').length,o=document.querySelectorAll('[data-testid="jarvis-artifact-open"]').length,p=document.querySelectorAll('[data-testid="jarvis-pdf-preview"]').length;document.body.insertAdjacentHTML('beforeend','<pre id="e2e">E2E:'+c+':'+d+':'+o+':'+p+'</pre>');</script></body></html>`);
           NODE
-          cp /tmp/v94-marketing-ui.html .tmp-v94-marketing-ui.html
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME"
           "$CHROME" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --virtual-time-budget=8000 --dump-dom http://127.0.0.1:5500/.tmp-v94-marketing-ui.html >/tmp/v94-marketing-dom.html
-          grep -q 'E2E:2:2:2:1' /tmp/v94-marketing-dom.html
+          if ! grep -q 'E2E:2:2:2:1' /tmp/v94-marketing-dom.html; then
+            echo 'MARKETING_ARTIFACT_UI_DOM_MISMATCH' >&2
+            cat /tmp/v94-marketing-dom.html >&2
+            cat /tmp/v94-marketing-bridge-chrome.log >&2 || true
+            cat /tmp/v94-marketing-http.log >&2 || true
+            exit 1
+          fi
           echo 'V94_HMH_MARKETING_CHROME_ARTIFACT_UI=PASS'
 
       - name: Verify deployed marketing source markers
