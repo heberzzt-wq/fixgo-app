@@ -163,15 +163,16 @@ function installApprovalNormalizer() {
 function applyBranding() {
     if (typeof document === "undefined") return;
 
-    if (document.title === "Terminal Heberto | GestiaPremium") {
-        document.title = "NEXO | Terminal privada Peninsula Tech";
+    if (["Terminal Heberto | GestiaPremium", "NEXO | Terminal privada Peninsula Tech"].includes(document.title)) {
+        document.title = "Terminal Heberto | ADJUNTO";
     }
 
-    replaceExactText("h3", "Jarvis listo", "NEXO listo");
+    replaceExactText("h3", "Jarvis listo", "ADJUNTO listo");
+    replaceExactText("h3", "NEXO listo", "ADJUNTO listo");
     replaceExactText(
         "p",
         "Motor No-Code | GestiaPremium V5.18",
-        "NEXO | Motor privado no-code de Peninsula Tech"
+        "ADJUNTO | Tecnología privada de Península Tech"
     );
 
     const root = document.documentElement;
@@ -192,7 +193,7 @@ function applyBranding() {
     if (input && !input.dataset.nexoPlaceholderApplied) {
         input.dataset.nexoPlaceholderApplied = "true";
         input.placeholder =
-            "Dile a NEXO qué debe investigar, crear, analizar o ejecutar...";
+            "Dile a ADJUNTO qué debe investigar, crear, analizar o ejecutar...";
     }
 
     const headerTitle = [...document.querySelectorAll("h1")].find(element =>
