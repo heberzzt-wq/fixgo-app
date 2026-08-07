@@ -1,0 +1,71 @@
+name: V94 media grounded literal precision v3
+
+on:
+  push:
+    branches:
+      - v94-handoff-ee6d8cfe
+    paths:
+      - .github/workflows/v94-media-precision-grounded-literals-v3.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair-test-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout isolated V94 handoff
+        uses: actions/checkout@v4
+        with:
+          ref: v94-handoff-ee6d8cfe
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix functions ci
+
+      - name: Apply grounded literal precision repair
+        run: python3 .github/scripts/v94-media-precision-grounded-literals.py
+
+      - name: Diff integrity
+        run: |
+          git diff --check
+          git status --short
+
+      - name: Focused syntax and tests
+        run: |
+          node --check functions/jarvis-media-analysis.js
+          node --test tests/jarvis-media-analysis.test.cjs tests/jarvis-conversation-composer.test.mjs
+          npm run check:nexo:contracts
+
+      - name: Full CI
+        run: npm run ci:test
+
+      - name: Commit certified repair on handoff branch
+        run: |
+          git config user.name "OpenAI V94 Handoff"
+          git config user.email "actions@users.noreply.github.com"
+          git add functions/jarvis-media-analysis.js tests/jarvis-media-analysis.test.cjs
+          git diff --cached --quiet && { echo "Expected precision repair produced no code diff"; exit 1; }
+          git commit -m "[v94-media-precision-v3] fix(jarvis): allow only visually grounded literal repeats"
+          git push origin HEAD:v94-handoff-ee6d8cfe
+          echo "PATCH_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@15.10.1
+
+      - name: Deploy only media analysis function
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy --only functions:jarvisMediaAnalyze --project fixgo-44e4d --token "$FIREBASE_TOKEN" --non-interactive
+          echo "V94_MEDIA_GROUNDED_LITERALS_DEPLOYED=${PATCH_HEAD}"
