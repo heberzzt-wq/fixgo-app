@@ -6,16 +6,13 @@ test_path = Path("tests/jarvis-media-analysis.test.cjs")
 media = media_path.read_text(encoding="utf-8")
 tests = test_path.read_text(encoding="utf-8")
 
-old = '''            description: sanitizeNarrativeAgainstVerifiedValues(
-                source?.description,
-                sourceVerifiedValues
-            ),'''
-new = '''            description: strictVisual
-                ? ""
-                : sanitizeNarrativeAgainstVerifiedValues(
-                    source?.description,
-                    sourceVerifiedValues
-                ),'''
+old = '''            .map(source => ({
+                ...source,
+                observations: (Array.isArray(source?.observations)'''
+new = '''            .map(source => ({
+                ...source,
+                description: "",
+                observations: (Array.isArray(source?.observations)'''
 if old not in media:
     raise SystemExit("v4i description grounding anchor missing")
 media = media.replace(old, new, 1)
