@@ -646,6 +646,7 @@ function validateAnalysis(parsed, files) {
             sourceScopedNarrativeGrounding: true,
             longQuotedTranscriptGuard: true,
             strictVisualConversationTranscriptSuppressed: true,
+            strictVisualNarrativeDescriptionSuppressed: true,
             authenticatedAdminOnly: true
         }
     };
@@ -1257,6 +1258,7 @@ function applyQuestionGroundingPolicy(parsed, question = "") {
         sources: (Array.isArray(parsed?.sources) ? parsed.sources : [])
             .map(source => ({
                 ...source,
+                description: "",
                 observations: (Array.isArray(source?.observations)
                     ? source.observations
                     : [])

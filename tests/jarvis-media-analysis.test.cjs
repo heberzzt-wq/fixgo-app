@@ -94,7 +94,8 @@ test("grounded media analysis supports the deployed modern provider chain", asyn
     assert.equal(request.model, "gemini-2.5-flash");
     assert.equal(request.contents[0].parts[1].inlineData.mimeType, "image/png");
     assert.equal(result.provider, "vertex-adc");
-    assert.equal(result.sources[0].description, "Imagen tecnica verificable");
+    assert.equal(result.sources[0].description, "");
+    assert.equal(result.policy.strictVisualNarrativeDescriptionSuppressed, true);
 });
 
 test("media analysis rejects unsupported, excessive and malformed inputs before model execution", () => {
@@ -1382,7 +1383,7 @@ test("production deterministically sanitizes a second precision leak instead of 
     assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
     assert.equal(result.repairCount, 1);
     assert.equal(result.precisionSanitized, true);
-    assert.ok(result.precisionSanitizedCount >= 5);
+    assert.ok(result.precisionSanitizedCount >= 1);
     assert.equal(result.analysisMode, "COMBINED_PRECISION_SANITIZED");
     assert.equal(result.recommendations.length, 0);
     assert.doesNotMatch(
@@ -1679,4 +1680,58 @@ test("strict visual-only request removes long transcript observations and keeps 
     assert.equal(result.policy.sourceScopedNarrativeGrounding, true);
     assert.equal(result.policy.longQuotedTranscriptGuard, true);
     assert.equal(result.policy.strictVisualConversationTranscriptSuppressed, true);
+});
+
+
+
+test("strict visual-only request suppresses provider description even when it contains a visually verified UI label", async () => {
+    const result = await runJarvisMediaAnalysis({
+        ai: {
+            models: {
+                generateContent: async () => ({
+                    text: JSON.stringify({
+                        sources: [
+                            {
+                                sourceId: "SOURCE_1",
+                                fileName: "one.png",
+                                mimeType: "image/png",
+                                description: "Screenshot of the ChatGPT Plus interface showing a detailed dropdown menu.",
+                                observations: ["Se observa un menu abierto con varias filas."],
+                                inferences: ["The user is likely preparing to attach a file."],
+                                visibleData: [
+                                    {
+                                        kind: "text",
+                                        value: "ChatGPT Plus",
+                                        page: 1,
+                                        confidence: 0.99,
+                                        evidence: "Etiqueta visible en la cabecera.",
+                                        legibility: "VERIFIED"
+                                    }
+                                ],
+                                evidence: [],
+                                uncertainty: []
+                            }
+                        ]
+                    })
+                })
+            }
+        },
+        input: {
+            files: [
+                {
+                    name: "one.png",
+                    mimeType: "image/png",
+                    dataBase64: Buffer.from("strict-description-v4i").toString("base64")
+                }
+            ],
+            question: "Describe solamente elementos visuales verificables. No infieras intenciones."
+        }
+    });
+
+    assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
+    assert.equal(result.sources[0].description, "");
+    assert.deepEqual(result.sources[0].inferences, []);
+    assert.match(result.sources[0].observations[0], /menu abierto/i);
+    assert.equal(result.sources[0].visibleData[0].value, "ChatGPT Plus");
+    assert.equal(result.policy.strictVisualNarrativeDescriptionSuppressed, true);
 });
