@@ -737,6 +737,34 @@ function safeObservation(result = {}) {
     };
 }
 
+function mediaOnlyRequiredContractSatisfied(mission = {}) {
+    const required = Array.isArray(mission?.requiredToolNames)
+        ? mission.requiredToolNames
+        : [];
+    if (
+        required.length !== 1 ||
+        required[0] !== "media.analyze"
+    ) {
+        return false;
+    }
+    const completed = new Set(
+        (Array.isArray(mission?.completedTasks)
+            ? mission.completedTasks
+            : [])
+            .map(item => item?.name)
+            .filter(Boolean)
+    );
+    const blocked = new Set(
+        (Array.isArray(mission?.blockedTasks)
+            ? mission.blockedTasks
+            : [])
+            .map(item => item?.name)
+            .filter(Boolean)
+    );
+    return completed.has("media.analyze") &&
+        !blocked.has("media.analyze");
+}
+
 function trustedCalls(calls = [], mission) {
     const completed = new Set(mission.completedTasks.map(item => item.signature));
     const pending = new Set(mission.pendingTasks.map(item => item.signature));
@@ -894,6 +922,12 @@ export async function runJarvisMission({
         }
 
         if (mission.pendingTasks.length === 0) {
+            if (mediaOnlyRequiredContractSatisfied(mission)) {
+                mission.contractMissingTools = [];
+                mission.reason = "ALL_EXECUTABLE_TASKS_COMPLETED";
+                break;
+            }
+
             let plan;
             try {
                 plan = await planner({

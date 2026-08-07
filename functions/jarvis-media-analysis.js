@@ -17,7 +17,8 @@ const STANDALONE_UI_LITERAL_STOPWORDS = new Set([
     "The", "This", "That", "These", "Those", "Screenshot", "Interface", "Menu", "Source", "File", "Both", "One", "Another", "Primary", "Application", "Differences", "Recommendations", "Analysis", "Verified", "Visual", "If", "No", "Yes", "While", "Based", "For", "With", "From", "And", "Or",
     "La", "El", "Los", "Las", "Una", "Un", "Se", "En", "Para", "Con", "Sin", "Esto", "Esta", "Este", "Estas", "Estos", "Archivo", "Fuente", "Interfaz", "Menu", "Menú", "Analisis", "Análisis", "Diferencias", "Mejoras", "Lectura", "Lecturas", "Verificado", "Visual", "Si", "Sí", "No", "Al", "Del"
 ]);
-const NON_VISUAL_RECOMMENDATION_PATTERN = /\b(?:investigat(?:e|es|ed|ing|ion)|explor(?:e|es|ed|ing|ation)|document(?:ar|e|es|ed|ing|ation)|investigar|explorar|documentar)\b/i;
+const NON_VISUAL_RECOMMENDATION_PATTERN = /\b(?:investigat(?:e|es|ed|ing|ion)|explor(?:e|es|ed|ing|ation)|document(?:ar|e|es|ed|ing|ation)|clarif(?:y|ies|ied|ying)|evaluat(?:e|es|ed|ing|ion)|confirm(?:s|ed|ing|ation)?|determin(?:e|es|ed|ing|ation)|investigar|explorar|documentar|aclarar|evaluar|confirmar|determinar|ecosystem|workflow|purpose|context)\b/i;
+const CAPTURE_CONTEXT_CLAIM_PATTERN = /\b(?:same date(?: and time)?|same time|system tray|captured (?:at|around) the same time|same user|misma fecha(?: y hora)?|misma hora|bandeja del sistema|capturad[oa]s? (?:a|alrededor de) la misma hora|mismo usuario)\b/i;
 
 function normalizeMediaFiles(files = []) {
     if (!Array.isArray(files) || files.length < 1 || files.length > MAX_FILES) {
@@ -455,19 +456,38 @@ function sanitizePrecisionNarrative(parsed) {
             ? parsed.recommendations
             : [])
             .filter(item => {
+                const text = String(item || "");
                 const rejected =
-                    NON_VISUAL_RECOMMENDATION_PATTERN.test(
-                        String(item || "")
-                    );
+                    NON_VISUAL_RECOMMENDATION_PATTERN.test(text) ||
+                    CAPTURE_CONTEXT_CLAIM_PATTERN.test(text);
                 if (rejected) removedCount += 1;
                 return !rejected;
             });
+    const comparison =
+        parsed?.comparison &&
+        typeof parsed.comparison === "object"
+            ? {
+                ...parsed.comparison,
+                differences:
+                    (Array.isArray(parsed.comparison.differences)
+                        ? parsed.comparison.differences
+                        : [])
+                        .filter(item => {
+                            const rejected =
+                                CAPTURE_CONTEXT_CLAIM_PATTERN.test(
+                                    String(item || "")
+                                );
+                            if (rejected) removedCount += 1;
+                            return !rejected;
+                        })
+            }
+            : parsed?.comparison;
 
     return {
         parsed: {
             ...parsed,
             sources: sanitizedSources,
-            comparison: sanitizeValue(parsed?.comparison),
+            comparison: sanitizeValue(comparison),
             recommendations:
                 sanitizeValue(sanitizedRecommendations)
         },
@@ -495,6 +515,31 @@ function assertConcreteVisualRecommendations(parsed, files, sources) {
     }
 }
 
+function assertNoCaptureContextClaims(parsed, files, sources) {
+    const claims = [
+        ...(Array.isArray(parsed?.comparison?.differences)
+            ? parsed.comparison.differences
+            : []),
+        ...(Array.isArray(parsed?.recommendations)
+            ? parsed.recommendations
+            : [])
+    ];
+
+    if (
+        claims.some(item =>
+            CAPTURE_CONTEXT_CLAIM_PATTERN.test(
+                String(item || "")
+            )
+        )
+    ) {
+        throw createAnalysisError(
+            "MEDIA_ANALYSIS_CAPTURE_CONTEXT_CLAIM",
+            files,
+            sources
+        );
+    }
+}
+
 function validateAnalysis(parsed, files) {
     const sources = Array.isArray(parsed?.sources)
         ? parsed.sources
@@ -510,6 +555,12 @@ function validateAnalysis(parsed, files) {
     );
 
     assertConcreteVisualRecommendations(
+        parsed,
+        files,
+        orderedSources
+    );
+
+    assertNoCaptureContextClaims(
         parsed,
         files,
         orderedSources
@@ -961,7 +1012,8 @@ function isRepairableAnalysisError(error) {
         "MEDIA_ANALYSIS_SOURCE_IDENTITY_MISMATCH",
         "MEDIA_ANALYSIS_SOURCE_IDENTITY_DUPLICATE",
         "MEDIA_ANALYSIS_PRECISION_LITERAL_LEAK",
-        "MEDIA_ANALYSIS_NON_VISUAL_RECOMMENDATION"
+        "MEDIA_ANALYSIS_NON_VISUAL_RECOMMENDATION",
+        "MEDIA_ANALYSIS_CAPTURE_CONTEXT_CLAIM"
     ]).has(error?.message);
 }
 
@@ -1289,7 +1341,8 @@ async function runJarvisMediaAnalysis({
                 parsed &&
                 new Set([
                     "MEDIA_ANALYSIS_PRECISION_LITERAL_LEAK",
-                    "MEDIA_ANALYSIS_NON_VISUAL_RECOMMENDATION"
+                    "MEDIA_ANALYSIS_NON_VISUAL_RECOMMENDATION",
+                    "MEDIA_ANALYSIS_CAPTURE_CONTEXT_CLAIM"
                 ]).has(error?.message);
 
             if (canSanitizePrecisionFailure) {

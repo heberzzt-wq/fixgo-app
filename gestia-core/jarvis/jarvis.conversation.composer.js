@@ -447,6 +447,8 @@ const RENDER_STANDALONE_UI_STOPWORDS = new Set([
     "The", "This", "That", "These", "Those", "Screenshot", "Interface", "Menu", "Source", "File", "Both", "One", "Another", "Primary", "Application", "Differences", "Recommendations", "Analysis", "Verified", "Visual", "If", "No", "Yes", "While", "Based", "For", "With", "From", "And", "Or",
     "La", "El", "Los", "Las", "Una", "Un", "Se", "En", "Para", "Con", "Sin", "Esto", "Esta", "Este", "Estas", "Estos", "Archivo", "Fuente", "Interfaz", "Menu", "Menú", "Analisis", "Análisis", "Diferencias", "Mejoras", "Lectura", "Lecturas", "Verificado", "Visual", "Si", "Sí", "No", "Al", "Del"
 ]);
+const RENDER_CAPTURE_CONTEXT_CLAIM_PATTERN = /\b(?:same date(?: and time)?|same time|system tray|captured (?:at|around) the same time|same user|misma fecha(?: y hora)?|misma hora|bandeja del sistema|capturad[oa]s? (?:a|alrededor de) la misma hora|mismo usuario)\b/i;
+const RENDER_SPECULATIVE_RECOMMENDATION_PATTERN = /\b(?:investigat(?:e|es|ed|ing|ion)|explor(?:e|es|ed|ing|ation)|document(?:ar|e|es|ed|ing|ation)|clarif(?:y|ies|ied|ying)|evaluat(?:e|es|ed|ing|ion)|confirm(?:s|ed|ing|ation)?|determin(?:e|es|ed|ing|ation)|investigar|explorar|documentar|aclarar|evaluar|confirmar|determinar|ecosystem|workflow|purpose|context)\b/i;
 
 function normalizedGroundedLiteral(value = "") {
     return normalizedText(value)
@@ -608,12 +610,19 @@ function renderPrecisionVerifiedMediaConversation(observation) {
         groundedNaturalEvidenceTexts(
             observation?.comparison?.differences,
             verifiedValues
-        );
+        )
+            .filter(value =>
+                !RENDER_CAPTURE_CONTEXT_CLAIM_PATTERN.test(value)
+            );
     const groundedRecommendations =
         groundedNaturalEvidenceTexts(
             observation?.recommendations,
             verifiedValues
-        );
+        )
+            .filter(value =>
+                !RENDER_CAPTURE_CONTEXT_CLAIM_PATTERN.test(value) &&
+                !RENDER_SPECULATIVE_RECOMMENDATION_PATTERN.test(value)
+            );
 
     appendNaturalList(
         lines,

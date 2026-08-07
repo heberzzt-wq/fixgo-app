@@ -1464,3 +1464,83 @@ test("production sanitizes standalone UI brand labels that are absent from verif
     assert.equal(result.policy.standaloneUiLiteralsRequireVisibleData, true);
     assert.doesNotMatch(JSON.stringify(result), /Canva|Gmail/);
 });
+
+
+
+test("production removes capture-context comparisons and speculative recommendations after repair", async () => {
+    let calls = 0;
+    const payload = {
+        sources: [
+            {
+                sourceId: "SOURCE_1",
+                fileName: "one.png",
+                mimeType: "image/png",
+                description: "Interfaz con menu abierto.",
+                observations: [],
+                inferences: [],
+                objects: [],
+                composition: {},
+                visibleData: [],
+                pages: [],
+                marketingUse: [],
+                quality: {},
+                uncertainty: [],
+                evidence: []
+            },
+            {
+                sourceId: "SOURCE_2",
+                fileName: "two.png",
+                mimeType: "image/png",
+                description: "Interfaz con panel lateral visible.",
+                observations: [],
+                inferences: [],
+                objects: [],
+                composition: {},
+                visibleData: [],
+                pages: [],
+                marketingUse: [],
+                quality: {},
+                uncertainty: [],
+                evidence: []
+            }
+        ],
+        comparison: {
+            beforeAfter: false,
+            differences: [
+                "Source 2 contains a code-like output on the right side, which is absent in Source 1.",
+                "Both images show the same date and time in the system tray, suggesting they were captured around the same time."
+            ],
+            confidence: 0.9
+        },
+        recommendations: [
+            "Ensure consistency in UI/UX if these two interfaces are part of a larger ecosystem or user workflow."
+        ]
+    };
+
+    const result = await runJarvisMediaAnalysis({
+        ai: {
+            models: {
+                generateContent: async () => {
+                    calls += 1;
+                    return { text: JSON.stringify(payload) };
+                }
+            }
+        },
+        input: {
+            files: [
+                { name: "one.png", mimeType: "image/png", dataBase64: Buffer.from("one-v4f").toString("base64") },
+                { name: "two.png", mimeType: "image/png", dataBase64: Buffer.from("two-v4f").toString("base64") }
+            ],
+            question: "Compara solamente diferencias visuales relevantes."
+        }
+    });
+
+    assert.equal(calls, 2);
+    assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
+    assert.equal(result.precisionSanitized, true);
+    assert.deepEqual(result.comparison.differences, [
+        "Source 2 contains a code-like output on the right side, which is absent in Source 1."
+    ]);
+    assert.deepEqual(result.recommendations, []);
+    assert.doesNotMatch(JSON.stringify(result), /same date and time|system tray|ecosystem|user workflow/i);
+});

@@ -1305,3 +1305,53 @@ test("mission observations preserve nested diagnostic errors instead of object c
         "[object Object]"
     );
 });
+
+
+
+test("media-only required mission closes immediately after successful media analysis without replanning", async () => {
+    let plannerCalls = 0;
+    const executed = [];
+    const mission = await runJarvisMission({
+        instruction: "Analiza comparativamente estas dos capturas.",
+        initialToolCalls: [{
+            name: "media.analyze",
+            args: { attachments: [{ name: "one.png" }, { name: "two.png" }] }
+        }],
+        requiredToolNames: ["media.analyze"],
+        planner: async () => {
+            plannerCalls += 1;
+            return {
+                toolCalls: [{ name: "system.certify", args: { deep: true } }],
+                missionComplete: false
+            };
+        },
+        execute: async call => {
+            executed.push(call.name);
+            return {
+                ok: true,
+                status: "MEDIA_ANALYSIS_GROUNDED",
+                version: "1.4.0-verified-visual-claims",
+                expectedSources: 2,
+                receivedSources: 2,
+                sources: [
+                    { sourceId: "SOURCE_1", fileName: "one.png", sha256: "1".repeat(64), visibleData: [] },
+                    { sourceId: "SOURCE_2", fileName: "two.png", sha256: "2".repeat(64), visibleData: [] }
+                ],
+                precisionAudit: {
+                    ok: true,
+                    status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
+                    effectiveToolExecutions: 1,
+                    sourceIdentityVerified: true
+                }
+            };
+        },
+        storage: memoryStorage()
+    });
+
+    assert.deepEqual(executed, ["media.analyze"]);
+    assert.equal(plannerCalls, 0);
+    assert.equal(mission.status, "COMPLETED");
+    assert.equal(mission.reason, "ALL_EXECUTABLE_TASKS_COMPLETED");
+    assert.deepEqual(mission.completedTasks.map(item => item.name), ["media.analyze"]);
+    assert.deepEqual(mission.contractMissingTools, []);
+});

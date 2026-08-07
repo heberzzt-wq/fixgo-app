@@ -897,3 +897,62 @@ test("precision renderer keeps UI labels when final visibleData verifies them", 
     assert.match(result.text, /Terminal Heberto/);
     assert.match(result.text, /encabezados distintos/);
 });
+
+
+
+test("precision renderer removes capture-context claims and speculative recommendations with no verified literals", async () => {
+    const result = await composeEvidenceGroundedConversation({
+        instruction: "Compara las dos capturas.",
+        evidenceItems: [{
+            name: "media.analyze",
+            observation: {
+                ok: true,
+                status: "MEDIA_ANALYSIS_GROUNDED",
+                version: "1.4.0-verified-visual-claims",
+                expectedSources: 2,
+                receivedSources: 2,
+                sources: [
+                    {
+                        sourceId: "SOURCE_1",
+                        fileName: "one.png",
+                        sha256: "1".repeat(64),
+                        visibleData: [],
+                        uncertainty: []
+                    },
+                    {
+                        sourceId: "SOURCE_2",
+                        fileName: "two.png",
+                        sha256: "2".repeat(64),
+                        visibleData: [],
+                        uncertainty: []
+                    }
+                ],
+                comparison: {
+                    differences: [
+                        "Source 2 contains a code-like output on the right side, which is absent in Source 1.",
+                        "Both images show the same date and time in the system tray, suggesting they were captured around the same time."
+                    ]
+                },
+                recommendations: [
+                    "Ensure consistency in UI/UX if these two interfaces are part of a larger ecosystem or user workflow."
+                ],
+                precisionAudit: {
+                    ok: true,
+                    status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
+                    providerPasses: 2,
+                    effectiveToolExecutions: 1,
+                    sourceIdentityVerified: true,
+                    exactTextRequiresConfidence: 0.98
+                }
+            }
+        }],
+        executeConversation: async () => {
+            throw new Error("semantic composer must not run");
+        }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.status, "MEDIA_ANALYSIS_RESPONSE_VERIFIED");
+    assert.match(result.text, /code-like output/);
+    assert.doesNotMatch(result.text, /same date|same time|system tray|ecosystem|workflow/i);
+});
