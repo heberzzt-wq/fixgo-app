@@ -359,6 +359,97 @@ function assertNoSensitiveNarrativeLiteralLeaks(parsed, files, sources) {
     }
 }
 
+function sanitizePrecisionNarrative(parsed) {
+    const sources = Array.isArray(parsed?.sources)
+        ? parsed.sources
+        : [];
+    const verifiedValues =
+        verifiedVisibleLiteralValues(sources);
+    let removedCount = 0;
+
+    function sanitizeValue(value) {
+        if (value == null) return value;
+
+        if (typeof value === "string") {
+            if (
+                containsUnverifiedSensitiveNarrativeLiteral(
+                    value,
+                    verifiedValues
+                )
+            ) {
+                removedCount += 1;
+                return "";
+            }
+            return value;
+        }
+
+        if (Array.isArray(value)) {
+            return value
+                .map(item => sanitizeValue(item))
+                .filter(item => {
+                    if (item == null || item === "") return false;
+                    if (Array.isArray(item)) return item.length > 0;
+                    if (typeof item === "object") {
+                        return Object.keys(item).length > 0;
+                    }
+                    return true;
+                });
+        }
+
+        if (typeof value !== "object") return value;
+
+        const sanitized = {};
+        for (const [key, item] of Object.entries(value)) {
+            const clean = sanitizeValue(item);
+            if (clean == null || clean === "") continue;
+            if (Array.isArray(clean) && clean.length === 0) {
+                sanitized[key] = clean;
+                continue;
+            }
+            sanitized[key] = clean;
+        }
+        return sanitized;
+    }
+
+    const sanitizedSources = sources.map(source => ({
+        ...source,
+        description: sanitizeValue(source?.description),
+        observations: sanitizeValue(source?.observations),
+        inferences: sanitizeValue(source?.inferences),
+        objects: sanitizeValue(source?.objects),
+        composition: sanitizeValue(source?.composition),
+        pages: sanitizeValue(source?.pages),
+        marketingUse: sanitizeValue(source?.marketingUse),
+        quality: sanitizeValue(source?.quality),
+        uncertainty: sanitizeValue(source?.uncertainty),
+        evidence: sanitizeValue(source?.evidence)
+    }));
+
+    const sanitizedRecommendations =
+        (Array.isArray(parsed?.recommendations)
+            ? parsed.recommendations
+            : [])
+            .filter(item => {
+                const rejected =
+                    NON_VISUAL_RECOMMENDATION_PATTERN.test(
+                        String(item || "")
+                    );
+                if (rejected) removedCount += 1;
+                return !rejected;
+            });
+
+    return {
+        parsed: {
+            ...parsed,
+            sources: sanitizedSources,
+            comparison: sanitizeValue(parsed?.comparison),
+            recommendations:
+                sanitizeValue(sanitizedRecommendations)
+        },
+        removedCount
+    };
+}
+
 function assertConcreteVisualRecommendations(parsed, files, sources) {
     const recommendations = Array.isArray(parsed?.recommendations)
         ? parsed.recommendations
@@ -488,6 +579,7 @@ function validateAnalysis(parsed, files) {
             unverifiedLiteralValuesAreWithheld: true,
             narrativeUiLiteralsRequireVisibleData: true,
             conversationContentCannotProveUiCapability: true,
+            deterministicPrecisionSanitizer: true,
             authenticatedAdminOnly: true
         }
     };
@@ -1120,8 +1212,10 @@ async function runJarvisMediaAnalysis({
                 prompt
             });
 
+        let parsed = null;
+
         try {
-            const parsed =
+            parsed =
                 parseAnalysisJson(text, files);
 
             const validated =
@@ -1132,6 +1226,8 @@ async function runJarvisMediaAnalysis({
                 analysisMode: "COMBINED",
                 combinedAnalysisFailed: false,
                 repairCount: repairAttempt,
+                precisionSanitized: false,
+                precisionSanitizedCount: 0,
                 provider:
                     String(
                         ai.lastProvider ||
@@ -1161,6 +1257,55 @@ async function runJarvisMediaAnalysis({
             ) {
                 repairAttempt += 1;
                 continue;
+            }
+
+            const canSanitizePrecisionFailure =
+                parsed &&
+                new Set([
+                    "MEDIA_ANALYSIS_PRECISION_LITERAL_LEAK",
+                    "MEDIA_ANALYSIS_NON_VISUAL_RECOMMENDATION"
+                ]).has(error?.message);
+
+            if (canSanitizePrecisionFailure) {
+                try {
+                    const sanitized =
+                        sanitizePrecisionNarrative(parsed);
+                    const validated =
+                        validateAnalysis(
+                            sanitized.parsed,
+                            files
+                        );
+
+                    return {
+                        ...validated,
+                        analysisMode:
+                            "COMBINED_PRECISION_SANITIZED",
+                        combinedAnalysisFailed: false,
+                        repairCount: repairAttempt,
+                        precisionSanitized: true,
+                        precisionSanitizedCount:
+                            sanitized.removedCount,
+                        provider:
+                            String(
+                                ai.lastProvider ||
+                                (
+                                    ai?.models?.generateContent
+                                        ? "gemini-modern"
+                                        : "gemini-legacy"
+                                )
+                            ),
+                        model,
+                        analyzedAt:
+                            new Date().toISOString()
+                    };
+                }
+                catch (sanitizationError) {
+                    sanitizationError.repairCount =
+                        repairAttempt;
+                    terminalError =
+                        sanitizationError;
+                    break;
+                }
             }
 
             terminalError = error;

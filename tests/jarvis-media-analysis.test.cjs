@@ -1298,3 +1298,96 @@ test("production permits UI labels in narrative only when verified visibleData g
     assert.equal(result.sources[0].visibleData[1].value, "Añadir fotos y archivos");
     assert.equal(result.sources[1].visibleData[0].value, "Terminal Heberto");
 });
+
+
+
+test("production deterministically sanitizes a second precision leak instead of returning 500", async () => {
+    let calls = 0;
+    const leakingPayload = {
+        sources: [
+            {
+                sourceId: "SOURCE_1",
+                fileName: "chat.png",
+                mimeType: "image/png",
+                description: "Screenshot of the ChatGPT Plus interface.",
+                observations: ["The menu shows 'Añadir fotos y archivos'."],
+                inferences: [],
+                objects: [],
+                composition: {},
+                visibleData: [],
+                pages: [],
+                marketingUse: [],
+                quality: {},
+                uncertainty: ["La lectura literal no alcanza confianza suficiente."],
+                evidence: []
+            },
+            {
+                sourceId: "SOURCE_2",
+                fileName: "terminal.png",
+                mimeType: "image/png",
+                description: "Screenshot of Terminal Heberto.",
+                observations: ["The browser shows fixgo-44d.web.app."],
+                inferences: [],
+                objects: [],
+                composition: {},
+                visibleData: [],
+                pages: [],
+                marketingUse: [],
+                quality: {},
+                uncertainty: ["La lectura literal no alcanza confianza suficiente."],
+                evidence: []
+            }
+        ],
+        comparison: {
+            beforeAfter: false,
+            differences: [
+                "ChatGPT Plus includes GitHub while Terminal Heberto differs."
+            ],
+            confidence: 0.9
+        },
+        recommendations: [
+            "Investigate the purpose and context of the terminal."
+        ]
+    };
+
+    const result = await runJarvisMediaAnalysis({
+        ai: {
+            models: {
+                generateContent: async () => {
+                    calls += 1;
+                    return {
+                        text: JSON.stringify(leakingPayload)
+                    };
+                }
+            }
+        },
+        input: {
+            files: [
+                {
+                    name: "chat.png",
+                    mimeType: "image/png",
+                    dataBase64: Buffer.from("chat-ui-v4d").toString("base64")
+                },
+                {
+                    name: "terminal.png",
+                    mimeType: "image/png",
+                    dataBase64: Buffer.from("terminal-ui-v4d").toString("base64")
+                }
+            ],
+            question: "Compara solamente controles visibles."
+        }
+    });
+
+    assert.equal(calls, 2);
+    assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
+    assert.equal(result.repairCount, 1);
+    assert.equal(result.precisionSanitized, true);
+    assert.ok(result.precisionSanitizedCount >= 5);
+    assert.equal(result.analysisMode, "COMBINED_PRECISION_SANITIZED");
+    assert.equal(result.recommendations.length, 0);
+    assert.doesNotMatch(
+        JSON.stringify(result),
+        /ChatGPT Plus|Terminal Heberto|GitHub|fixgo-44d\.web\.app|Investigate|Añadir fotos y archivos/
+    );
+    assert.equal(result.policy.deterministicPrecisionSanitizer, true);
+});
