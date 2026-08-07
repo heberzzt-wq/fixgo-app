@@ -1,0 +1,78 @@
+name: V94 media strict visual v4g
+
+on:
+  push:
+    branches:
+      - v94-handoff-ee6d8cfe
+    paths:
+      - .github/workflows/v94-media-strict-visual-v4g.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair-test-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout isolated V94 handoff
+        uses: actions/checkout@v4
+        with:
+          ref: v94-handoff-ee6d8cfe
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix functions ci
+
+      - name: Apply strict visual grounding repair
+        run: python3 .github/scripts/v94-media-strict-visual-v4g.py
+
+      - name: Diff integrity
+        run: |
+          git diff --check
+          git status --short
+
+      - name: Focused syntax and tests
+        run: |
+          node --check functions/jarvis-media-analysis.js
+          node --check gestia-core/jarvis/jarvis.conversation.composer.js
+          node --test tests/jarvis-media-analysis.test.cjs tests/jarvis-conversation-composer.test.mjs tests/jarvis-mission-orchestrator.test.mjs
+          npm run check:nexo:contracts
+
+      - name: Full CI
+        run: npm run ci:test
+
+      - name: Commit certified v4g repair
+        run: |
+          git config user.name "OpenAI V94 Handoff"
+          git config user.email "actions@users.noreply.github.com"
+          git add functions/jarvis-media-analysis.js gestia-core/jarvis/jarvis.conversation.composer.js tests/jarvis-media-analysis.test.cjs tests/jarvis-conversation-composer.test.mjs
+          git diff --cached --quiet && { echo "Expected v4g repair produced no source diff"; exit 1; }
+          git commit -m "[v94-media-v4g] fix(jarvis): suppress visual-only inferences and preserve safe observations"
+          git push origin HEAD:v94-handoff-ee6d8cfe
+          echo "PATCH_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@15.10.1
+
+      - name: Deploy media function and primary Hosting only
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy --only functions:jarvisMediaAnalyze,hosting --project fixgo-44e4d --token "$FIREBASE_TOKEN" --non-interactive
+          echo "V94_MEDIA_STRICT_VISUAL_DEPLOYED=${PATCH_HEAD}"
+
+      - name: Verify production renderer bytes
+        run: |
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 "https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.conversation.composer.js?v=${PATCH_HEAD}" > /tmp/composer.js
+          grep -F "Observaciones visuales verificadas:" /tmp/composer.js
+          grep -F "groundedNaturalEvidenceTexts" /tmp/composer.js
