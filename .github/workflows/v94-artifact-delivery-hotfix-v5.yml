@@ -110,6 +110,25 @@ jobs:
       - name: Complete certification suite
         run: npm run ci:test
 
+      - name: Prepare isolated bridge identity for handoff runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp jarvis-runtime-contract.json /tmp/v94-runtime-contract.json
+          node - <<'NODE'
+          import fs from 'node:fs';
+          const file='jarvis-runtime-contract.json';
+          const contract=JSON.parse(fs.readFileSync(file,'utf8'));
+          contract.branch='v94-handoff-ee6d8cfe';
+          fs.writeFileSync(file,JSON.stringify(contract,null,2)+'\n');
+          NODE
+          node - <<'NODE'
+          import { describeJarvisBridgeIdentity } from './jarvis-fs-bridge.js';
+          const identity=describeJarvisBridgeIdentity(process.cwd());
+          if(identity.ok!==true) throw new Error(`BRIDGE_IDENTITY_PREP_FAILED:${identity.status}`);
+          console.log(JSON.stringify({status:identity.status,branch:identity.contract.branch,releaseIdPresent:Boolean(identity.contract.releaseId)}));
+          NODE
+
       - name: Real bridge creates and rereads HMH Markdown and PDF
         shell: bash
         run: |
@@ -117,12 +136,15 @@ jobs:
           rm -rf .jarvis-artifacts
           node jarvis-upload-bridge.js > /tmp/v94-bridge.log 2>&1 &
           BRIDGE_PID=$!
-          trap 'kill $BRIDGE_PID 2>/dev/null || true' EXIT
+          trap 'kill $BRIDGE_PID 2>/dev/null || true; cat /tmp/v94-bridge.log || true' EXIT
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:3344/health >/dev/null 2>&1 && break; sleep 1; done
           curl -fsS http://127.0.0.1:3344/health >/dev/null
           cat > .tmp-v94-artifacts.mjs <<'NODE'
           import fs from 'node:fs';
           import { planMarketingRequest } from './gestia-core/jarvis/jarvis.marketing.engine.js';
+          const health=await fetch('http://127.0.0.1:3344/health').then(r=>r.json());
+          const releaseId=String(health?.identity?.contract?.releaseId||'');
+          if(health?.identity?.ok!==true||!releaseId) throw new Error('BRIDGE_IDENTITY_RELEASE_ID_REQUIRED');
           const plan = planMarketingRequest('Crea un plan de marketing completo para Multiservicios Peninsulares HMH.', {
             brandName:'Multiservicios Peninsulares HMH',
             campaignObjective:'Captar clientes y prestadores durante los primeros 90 días',
@@ -138,7 +160,7 @@ jobs:
           });
           if (plan.status !== 'MARKETING_PACKAGE_READY' || Object.keys(plan.plan).length !== 25) throw new Error('MARKETING_PACKAGE_NOT_READY');
           async function post(route, body) {
-            const r = await fetch('http://127.0.0.1:3344' + route, {method:'POST',headers:{'content-type':'application/json',origin:'http://127.0.0.1:4173'},body:JSON.stringify(body)});
+            const r = await fetch('http://127.0.0.1:3344' + route, {method:'POST',headers:{'content-type':'application/json','X-Jarvis-Release-Id':releaseId},body:JSON.stringify(body)});
             const j = await r.json();
             if (!r.ok || j.ok !== true) throw new Error(`${route}:${r.status}:${j.status || j.error}`);
             return j;
@@ -151,7 +173,7 @@ jobs:
             outputs.push({format,output:created.output,bytes:created.bytes,mimeType:read.mimeType});
           }
           fs.writeFileSync('.tmp-v94-artifact-outputs.json',JSON.stringify(outputs));
-          console.log(JSON.stringify({status:'V94_MARKETING_ARTIFACT_ROUNDTRIP_OK',sections:25,outputs}));
+          console.log(JSON.stringify({status:'V94_MARKETING_ARTIFACT_ROUNDTRIP_OK',sections:25,artifacts:outputs.map(x=>({format:x.format,bytes:x.bytes,mimeType:x.mimeType}))}));
           NODE
           node .tmp-v94-artifacts.mjs
           kill $BRIDGE_PID
@@ -163,18 +185,18 @@ jobs:
         run: |
           set -euo pipefail
           node jarvis-upload-bridge.js > /tmp/v94-bridge-chrome.log 2>&1 & BRIDGE_PID=$!
-          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/v94-http.log 2>&1 & HTTP_PID=$!
-          trap 'kill $BRIDGE_PID $HTTP_PID 2>/dev/null || true' EXIT
+          python3 -m http.server 5500 --bind 127.0.0.1 > /tmp/v94-http.log 2>&1 & HTTP_PID=$!
+          trap 'kill $BRIDGE_PID $HTTP_PID 2>/dev/null || true; cat /tmp/v94-bridge-chrome.log || true; cat /tmp/v94-http.log || true' EXIT
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:3344/health >/dev/null 2>&1 && break; sleep 1; done
           node - <<'NODE'
           import fs from 'node:fs';
           const outputs=JSON.parse(fs.readFileSync('.tmp-v94-artifact-outputs.json','utf8'));
           const payload=JSON.stringify(outputs).replaceAll('<','\\u003c');
-          fs.writeFileSync('.tmp-v94-artifact-ui.html',`<!doctype html><html><body><div id="gestia-output"><div><div class="bg-gestia-panel"></div></div></div><script>window.__OUT__=${payload}</script><script type="module">window.JarvisLocalBridge={requestJson:async(route,payload)=>{const r=await fetch('http://127.0.0.1:3344'+route,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});return await r.json();}};const {JarvisAttachments}=await import('/modules/terminal/jarvis-attachments.js?v=v94-artifacts-ui');for(const x of window.__OUT__) await JarvisAttachments.renderArtifact(x.output,x.mimeType,'document.create');const c=document.querySelectorAll('[data-testid="jarvis-artifact-card"]').length,d=document.querySelectorAll('[data-testid="jarvis-artifact-download"]').length,o=document.querySelectorAll('[data-testid="jarvis-artifact-open"]').length,p=document.querySelectorAll('[data-testid="jarvis-pdf-preview"]').length;document.body.insertAdjacentHTML('beforeend','<pre id="e2e">E2E:'+c+':'+d+':'+o+':'+p+'</pre>');</script></body></html>`);
+          fs.writeFileSync('.tmp-v94-artifact-ui.html',`<!doctype html><html><body><div id="gestia-output"><div><div class="bg-gestia-panel"></div></div></div><script>window.__OUT__=${payload}</script><script type="module">const health=await fetch('http://127.0.0.1:3344/health').then(r=>r.json());const releaseId=health?.identity?.contract?.releaseId||'';if(health?.identity?.ok!==true||!releaseId)throw new Error('BRIDGE_IDENTITY_RELEASE_ID_REQUIRED');window.JarvisLocalBridge={requestJson:async(route,payload)=>{const r=await fetch('http://127.0.0.1:3344'+route,{method:'POST',headers:{'content-type':'application/json','X-Jarvis-Release-Id':releaseId},body:JSON.stringify(payload)});return await r.json();}};const {JarvisAttachments}=await import('/modules/terminal/jarvis-attachments.js?v=v94-artifacts-ui');for(const x of window.__OUT__) await JarvisAttachments.renderArtifact(x.output,x.mimeType,'document.create');const c=document.querySelectorAll('[data-testid="jarvis-artifact-card"]').length,d=document.querySelectorAll('[data-testid="jarvis-artifact-download"]').length,o=document.querySelectorAll('[data-testid="jarvis-artifact-open"]').length,p=document.querySelectorAll('[data-testid="jarvis-pdf-preview"]').length;document.body.insertAdjacentHTML('beforeend','<pre id="e2e">E2E:'+c+':'+d+':'+o+':'+p+'</pre>');</script></body></html>`);
           NODE
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "$CHROME" || { echo CHROME_EXECUTABLE_NOT_FOUND >&2; exit 1; }
-          "$CHROME" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --virtual-time-budget=8000 --dump-dom http://127.0.0.1:4173/.tmp-v94-artifact-ui.html > /tmp/v94-artifact-dom.html
+          "$CHROME" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --virtual-time-budget=8000 --dump-dom http://127.0.0.1:5500/.tmp-v94-artifact-ui.html > /tmp/v94-artifact-dom.html
           grep -q 'E2E:2:2:2:1' /tmp/v94-artifact-dom.html
           kill $BRIDGE_PID $HTTP_PID
           wait $BRIDGE_PID 2>/dev/null || true
@@ -182,10 +204,12 @@ jobs:
           trap - EXIT
 
       - name: Cleanup and scope proof
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
           rm -rf .jarvis-artifacts .tmp-v94-artifacts.mjs .tmp-v94-artifact-outputs.json .tmp-v94-artifact-ui.html
+          if [ -f /tmp/v94-runtime-contract.json ]; then cp /tmp/v94-runtime-contract.json jarvis-runtime-contract.json; fi
           git diff --check
           for path in $(git status --short | awk '{print $2}'); do
             case "$path" in
