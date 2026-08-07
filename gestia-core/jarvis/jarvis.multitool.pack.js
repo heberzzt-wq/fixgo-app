@@ -1430,8 +1430,109 @@ async function invokeGroundedMediaAnalysis(files, question, token) {
 
 const VERIFIED_VISUAL_CLAIMS_CONTRACT =
     "1.4.0-verified-visual-claims";
+const MEDIA_CONTRACT_SENSITIVE_LITERAL_PATTERN = /(?:https?:\/\/[^\s"'<>]+|www\.[^\s"'<>]+|\b(?:[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?\.)+(?:com|net|org|app|dev|io|mx|ai|co|es|tech|cloud|web)\b|\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b|\b(?:19|20)\d{2}\b|\b\d{1,2}:\d{2}(?::\d{2})?\b)/gi;
+const MEDIA_CONTRACT_QUOTED_LITERAL_PATTERN = /["'`“”‘’]([^"'`“”‘’\n]{2,1000})["'`“”‘’]/g;
+const MEDIA_CONTRACT_PROPER_UI_LITERAL_PATTERN = /\b(?:[A-ZÁÉÍÓÚÑ][a-záéíóúüñ0-9-]+[A-Z][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*|[A-ZÁÉÍÓÚÑ][a-záéíóúüñ0-9-]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*[a-záéíóúüñ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*)+)\b/g;
 
-function verifyGroundedMediaPrecisionContract(result, files) {
+function normalizeMediaContractLiteral(value = "") {
+    return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase()
+        .replace(/[),.;!?]+$/g, "");
+}
+
+function verifiedMediaContractValues(sources = []) {
+    return [...new Set((Array.isArray(sources) ? sources : [])
+        .flatMap(source =>
+            (Array.isArray(source?.visibleData) ? source.visibleData : [])
+                .filter(item =>
+                    String(item?.legibility || "").trim().toUpperCase() === "VERIFIED" &&
+                    Number(item?.confidence || 0) >= 0.98 &&
+                    Boolean(String(item?.value || "").trim()) &&
+                    Boolean(String(item?.evidence || "").trim())
+                )
+                .map(item => normalizeMediaContractLiteral(item.value))
+        )
+        .filter(Boolean))];
+}
+
+function mediaContractNarrativeLiterals(value = "") {
+    const text = String(value || "");
+    const patterns = [
+        MEDIA_CONTRACT_SENSITIVE_LITERAL_PATTERN,
+        MEDIA_CONTRACT_QUOTED_LITERAL_PATTERN,
+        MEDIA_CONTRACT_PROPER_UI_LITERAL_PATTERN
+    ];
+    const literals = [];
+    for (const template of patterns) {
+        const pattern = new RegExp(template.source, template.flags);
+        for (const match of text.matchAll(pattern)) {
+            literals.push(String(match?.[1] || match?.[0] || "").trim());
+        }
+    }
+    return [...new Set(literals.filter(Boolean))];
+}
+
+function mediaContractContainsUngroundedLiteral(value, verifiedValues = []) {
+    if (value == null) return false;
+    if (typeof value === "string") {
+        return mediaContractNarrativeLiterals(value).some(literal => {
+            const candidate = normalizeMediaContractLiteral(literal);
+            return candidate && !verifiedValues.some(verified =>
+                verified === candidate ||
+                verified.includes(candidate)
+            );
+        });
+    }
+    if (Array.isArray(value)) {
+        return value.some(item =>
+            mediaContractContainsUngroundedLiteral(item, verifiedValues)
+        );
+    }
+    if (typeof value !== "object") return false;
+    return Object.values(value).some(item =>
+        mediaContractContainsUngroundedLiteral(item, verifiedValues)
+    );
+}
+
+function mediaNarrativeContractIsValid(result, sources) {
+    for (const source of sources) {
+        const verifiedValues = verifiedMediaContractValues([source]);
+        if (result?.strictVisualOnly === true) {
+            if (String(source?.description || "").trim()) return false;
+            if (Array.isArray(source?.inferences) && source.inferences.length > 0) return false;
+        }
+        const narrative = [
+            source?.description,
+            source?.observations,
+            source?.inferences,
+            source?.objects,
+            source?.composition,
+            source?.pages,
+            source?.marketingUse,
+            source?.quality,
+            source?.uncertainty,
+            source?.evidence
+        ];
+        if (narrative.some(value =>
+            mediaContractContainsUngroundedLiteral(value, verifiedValues)
+        )) {
+            return false;
+        }
+    }
+
+    const globalVerifiedValues = verifiedMediaContractValues(sources);
+    return ![
+        result?.comparison,
+        result?.recommendations
+    ].some(value =>
+        mediaContractContainsUngroundedLiteral(value, globalVerifiedValues)
+    );
+}
+
+export function verifyGroundedMediaPrecisionContract(result, files) {
     const version = String(result?.version || "").trim();
     const policy = result?.policy || {};
     const sources = Array.isArray(result?.sources)
@@ -1466,7 +1567,8 @@ function verifyGroundedMediaPrecisionContract(result, files) {
         version !== VERIFIED_VISUAL_CLAIMS_CONTRACT ||
         policy.literalReadingsRequireStructuredEvidence !== true ||
         policy.unverifiedLiteralValuesAreWithheld !== true ||
-        sourceContractIsValid !== true
+        sourceContractIsValid !== true ||
+        mediaNarrativeContractIsValid(result, sources) !== true
     ) {
         return {
             ok: false,
@@ -1521,17 +1623,19 @@ function verifyGroundedMediaSourceIdentity(result, files) {
     return { ok: true };
 }
 
-function buildMediaPrecisionAuditQuestion(question, result) {
+export function buildMediaPrecisionAuditQuestion(question, result) {
     const candidateSources = (Array.isArray(result?.sources) ? result.sources : [])
         .map(source => ({
             sourceId: source?.sourceId,
             fileName: source?.fileName || source?.name,
-            description: source?.description,
-            observations: source?.observations,
-            inferences: source?.inferences,
-            visibleData: source?.visibleData,
-            uncertainty: source?.uncertainty,
-            evidence: source?.evidence
+            sha256: source?.sha256,
+            visibleData: (Array.isArray(source?.visibleData) ? source.visibleData : [])
+                .filter(item =>
+                    String(item?.legibility || "").trim().toUpperCase() === "VERIFIED" &&
+                    Number(item?.confidence || 0) >= 0.98 &&
+                    Boolean(String(item?.value || "").trim()) &&
+                    Boolean(String(item?.evidence || "").trim())
+                )
         }));
     return [
         "AUDITORIA_DE_PRECISION_VISUAL_INDEPENDIENTE",

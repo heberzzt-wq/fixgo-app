@@ -1226,6 +1226,7 @@ async function runIsolatedMediaFallback({
             "ISOLATED_PER_FILE_FALLBACK",
         combinedAnalysisFailed:
             true,
+        strictVisualOnly: strictVisualOnlyRequested(question),
         repairCount,
         provider:
             String(
@@ -1253,7 +1254,7 @@ function strictVisualOnlyRequested(question = "") {
 
 function applyQuestionGroundingPolicy(parsed, question = "") {
     if (!strictVisualOnlyRequested(question)) return parsed;
-    return {
+    const strictParsed = {
         ...parsed,
         sources: (Array.isArray(parsed?.sources) ? parsed.sources : [])
             .map(source => ({
@@ -1262,11 +1263,17 @@ function applyQuestionGroundingPolicy(parsed, question = "") {
                 observations: (Array.isArray(source?.observations)
                     ? source.observations
                     : [])
-                    .filter(item =>
-                        !CONVERSATION_TRANSCRIPT_OBSERVATION_PATTERN.test(
-                            String(item || "")
-                        )
-                    ),
+                    .filter(item => {
+                        const value = String(item || "");
+                        const verifiedValues = verifiedVisibleLiteralValues([source]);
+                        return (
+                            !CONVERSATION_TRANSCRIPT_OBSERVATION_PATTERN.test(value) &&
+                            !containsUnverifiedSensitiveNarrativeLiteral(
+                                value,
+                                verifiedValues
+                            )
+                        );
+                    }),
                 inferences: []
             })),
         comparison: parsed?.comparison && typeof parsed.comparison === "object"
@@ -1291,6 +1298,8 @@ function applyQuestionGroundingPolicy(parsed, question = "") {
                 )
             )
     };
+
+    return strictParsed;
 }
 
 async function runJarvisMediaAnalysis({
@@ -1351,6 +1360,7 @@ async function runJarvisMediaAnalysis({
                 ...validated,
                 analysisMode: "COMBINED",
                 combinedAnalysisFailed: false,
+                strictVisualOnly: strictVisualOnlyRequested(question),
                 repairCount: repairAttempt,
                 precisionSanitized: false,
                 precisionSanitizedCount: 0,
@@ -1408,6 +1418,7 @@ async function runJarvisMediaAnalysis({
                         analysisMode:
                             "COMBINED_PRECISION_SANITIZED",
                         combinedAnalysisFailed: false,
+                        strictVisualOnly: strictVisualOnlyRequested(question),
                         repairCount: repairAttempt,
                         precisionSanitized: true,
                         precisionSanitizedCount:

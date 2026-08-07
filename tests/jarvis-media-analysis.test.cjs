@@ -1000,8 +1000,9 @@ test("production incident repairs a sensitive literal leaked outside visibleData
         }
     });
 
-    assert.equal(calls, 2);
-    assert.equal(result.repairCount, 1);
+    assert.equal(calls, 1);
+    assert.equal(result.repairCount, 0);
+    assert.equal(result.analysisMode, "COMBINED");
     assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
     assert.doesNotMatch(JSON.stringify(result), /07\/08\/2023|2023/);
 });
@@ -1670,8 +1671,9 @@ test("strict visual-only request removes long transcript observations and keeps 
         }
     });
 
-    assert.equal(calls, 2);
+    assert.equal(calls, 1);
     assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
+    assert.equal(result.analysisMode, "COMBINED");
     assert.deepEqual(result.sources[0].inferences, []);
     assert.deepEqual(result.sources[1].inferences, []);
     assert.equal(result.sources[1].observations.length, 1);
@@ -1734,4 +1736,91 @@ test("strict visual-only request suppresses provider description even when it co
     assert.match(result.sources[0].observations[0], /menu abierto/i);
     assert.equal(result.sources[0].visibleData[0].value, "ChatGPT Plus");
     assert.equal(result.policy.strictVisualNarrativeDescriptionSuppressed, true);
+});
+
+
+
+test("production raw strict-visual result removes the exact 1J literal leak before returning", async () => {
+    const result = await runJarvisMediaAnalysis({
+        ai: {
+            models: {
+                generateContent: async () => ({
+                    text: JSON.stringify({
+                        sources: [
+                            {
+                                sourceId: "SOURCE_1",
+                                fileName: "chat-gpt-aduntos-1.png",
+                                mimeType: "image/png",
+                                description: "Screenshot of the ChatGPT Plus interface showing a detailed dropdown menu.",
+                                observations: [
+                                    "The application is identified as 'ChatGPT Plus'.",
+                                    "An open menu displays options including 'Añadir fotos y archivos'.",
+                                    "Se observa un menu abierto con varias filas."
+                                ],
+                                inferences: ["The user is likely preparing to attach a file."],
+                                objects: [],
+                                composition: {},
+                                visibleData: [],
+                                pages: [],
+                                marketingUse: [],
+                                quality: {},
+                                uncertainty: [],
+                                evidence: []
+                            },
+                            {
+                                sourceId: "SOURCE_2",
+                                fileName: "terminal-adjunto-1.png",
+                                mimeType: "image/png",
+                                description: "Screenshot of Terminal Heberto.",
+                                observations: ["A panel on the right side displays code-like content."],
+                                inferences: [],
+                                objects: [],
+                                composition: {},
+                                visibleData: [],
+                                pages: [],
+                                marketingUse: [],
+                                quality: {},
+                                uncertainty: [],
+                                evidence: []
+                            }
+                        ],
+                        comparison: {
+                            beforeAfter: false,
+                            differences: ["The two layouts are visually distinct."],
+                            confidence: 0.99
+                        },
+                        recommendations: []
+                    })
+                })
+            }
+        },
+        input: {
+            files: [
+                {
+                    name: "chat-gpt-aduntos-1.png",
+                    mimeType: "image/png",
+                    dataBase64: Buffer.from("run-1j-source-one").toString("base64")
+                },
+                {
+                    name: "terminal-adjunto-1.png",
+                    mimeType: "image/png",
+                    dataBase64: Buffer.from("run-1j-source-two").toString("base64")
+                }
+            ],
+            question: "Describe solamente elementos visuales verificables. No infieras intenciones."
+        }
+    });
+
+    assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
+    assert.equal(result.strictVisualOnly, true);
+    assert.equal(result.sources[0].description, "");
+    assert.equal(result.sources[1].description, "");
+    assert.deepEqual(result.sources[0].inferences, []);
+    assert.deepEqual(result.sources[1].inferences, []);
+    assert.deepEqual(result.sources[0].observations, ["Se observa un menu abierto con varias filas."]);
+    assert.deepEqual(result.sources[1].observations, ["A panel on the right side displays code-like content."]);
+    assert.doesNotMatch(
+        JSON.stringify(result),
+        /ChatGPT Plus|Añadir fotos y archivos|Terminal Heberto|preparing to attach/i
+    );
 });
