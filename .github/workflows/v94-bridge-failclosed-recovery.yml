@@ -1,0 +1,106 @@
+name: V94 bridge fail-closed recovery
+
+on:
+  push:
+    branches:
+      - v94-handoff-ee6d8cfe
+    paths:
+      - .github/workflows/v94-bridge-failclosed-recovery.yml
+
+permissions:
+  contents: read
+
+jobs:
+  bridge-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout isolated V94 handoff
+        uses: actions/checkout@v4
+        with:
+          ref: v94-handoff-ee6d8cfe
+          fetch-depth: 1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prepare isolated bridge identity root
+        run: |
+          set -euo pipefail
+          ROOT=/tmp/v94-bridge-recovery-root
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT"
+          git -C "$ROOT" init -b v5.9-polish
+          cat > "$ROOT/jarvis-runtime-contract.json" <<'JSON'
+          {
+            "projectId": "fixgo-test",
+            "branch": "v5.9-polish",
+            "releaseId": "v94-bridge-recovery"
+          }
+          JSON
+          echo "BRIDGE_ROOT=$ROOT" >> "$GITHUB_ENV"
+
+      - name: Start bridge and verify healthy transport
+        run: |
+          set -euo pipefail
+          JARVIS_FS_BRIDGE_PORT=3344 FIXGO_REPO_ROOT="$BRIDGE_ROOT" node jarvis-upload-bridge.js >/tmp/v94-bridge-1.log 2>&1 &
+          echo $! >/tmp/v94-bridge.pid
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail --header 'X-Jarvis-Release-Id: v94-bridge-recovery' http://127.0.0.1:3344/upload/health >/tmp/v94-health-before.json; then
+              break
+            fi
+            sleep 0.2
+          done
+          grep -q 'UPLOAD_TRANSPORT_READY' /tmp/v94-health-before.json
+          grep -q '1.1.0-nexo-real-media-routes' /tmp/v94-health-before.json
+          echo 'BRIDGE_PRE_STOP_HEALTH=PASS'
+
+      - name: Stop bridge and prove fail closed
+        run: |
+          set -euo pipefail
+          kill "$(cat /tmp/v94-bridge.pid)"
+          wait "$(cat /tmp/v94-bridge.pid)" 2>/dev/null || true
+          sleep 0.4
+          if curl --silent --fail --max-time 2 --header 'X-Jarvis-Release-Id: v94-bridge-recovery' http://127.0.0.1:3344/upload/health >/tmp/v94-health-offline.json; then
+            echo 'Bridge unexpectedly remained reachable after stop.' >&2
+            cat /tmp/v94-health-offline.json >&2
+            exit 1
+          fi
+          echo 'BRIDGE_OFFLINE_FAIL_CLOSED=PASS'
+
+      - name: Restart bridge and verify recovery with real artifact persistence
+        run: |
+          set -euo pipefail
+          JARVIS_FS_BRIDGE_PORT=3344 FIXGO_REPO_ROOT="$BRIDGE_ROOT" node jarvis-upload-bridge.js >/tmp/v94-bridge-2.log 2>&1 &
+          echo $! >/tmp/v94-bridge.pid
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail --header 'X-Jarvis-Release-Id: v94-bridge-recovery' http://127.0.0.1:3344/upload/health >/tmp/v94-health-after.json; then
+              break
+            fi
+            sleep 0.2
+          done
+          grep -q 'UPLOAD_TRANSPORT_READY' /tmp/v94-health-after.json
+
+          payload='{"name":"recovery-proof.png","mimeType":"image/png","dataBase64":"iVBORw0KGgo=","caseId":"CASE-V94-BRIDGE-RECOVERY","objectiveId":"OBJ-V94-BRIDGE-RECOVERY"}'
+          curl --silent --fail \
+            --header 'Content-Type: application/json' \
+            --header 'X-Jarvis-Release-Id: v94-bridge-recovery' \
+            --data "$payload" \
+            http://127.0.0.1:3344/upload >/tmp/v94-upload-after.json
+          grep -q '"ok":true' /tmp/v94-upload-after.json
+          grep -q '"persisted":true' /tmp/v94-upload-after.json
+          grep -q 'recovery-proof.png' /tmp/v94-upload-after.json
+          echo 'BRIDGE_RESTART_RECOVERY=PASS'
+
+      - name: Cleanup bridge
+        if: always()
+        run: |
+          if test -f /tmp/v94-bridge.pid; then
+            kill "$(cat /tmp/v94-bridge.pid)" 2>/dev/null || true
+          fi
