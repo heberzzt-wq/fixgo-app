@@ -1602,3 +1602,81 @@ test("strict visual-only request deterministically suppresses provider inference
     assert.match(result.sources[0].observations[0], /menu abierto/i);
     assert.match(result.comparison.differences[0], /panel lateral/i);
 });
+
+
+
+test("strict visual-only request removes long transcript observations and keeps source literal grounding isolated", async () => {
+    let calls = 0;
+    const transcript = "He analizado visualmente las dos imágenes proporcionadas, describiendo su contenido y las diferencias entre ellas. Se ha identificado que la terminal no muestra una interfaz de adjuntos de archivos.";
+    const payload = {
+        sources: [
+            {
+                sourceId: "SOURCE_1",
+                fileName: "one.png",
+                mimeType: "image/png",
+                description: "Interfaz web con un menu abierto.",
+                observations: ["Se observa un menu abierto con varias filas."],
+                inferences: ["The user is likely preparing to attach a file."],
+                visibleData: [{
+                    kind: "text",
+                    value: "ChatGPT Plus",
+                    page: 1,
+                    confidence: 0.99,
+                    evidence: "Etiqueta visible en la parte superior.",
+                    legibility: "VERIFIED"
+                }],
+                evidence: [],
+                uncertainty: []
+            },
+            {
+                sourceId: "SOURCE_2",
+                fileName: "two.png",
+                mimeType: "image/png",
+                description: "Interfaz web con un panel lateral.",
+                observations: [
+                    `A text block within the application states: '${transcript}'`,
+                    "The application is ChatGPT Plus.",
+                    "Se observa un panel lateral junto al contenido principal."
+                ],
+                inferences: ["The user probably uses this interface for development."],
+                visibleData: [],
+                evidence: [],
+                uncertainty: []
+            }
+        ],
+        comparison: {
+            beforeAfter: false,
+            differences: ["La segunda fuente muestra un panel lateral que no aparece en la primera."],
+            confidence: 0.99
+        },
+        recommendations: []
+    };
+    const result = await runJarvisMediaAnalysis({
+        ai: {
+            models: {
+                generateContent: async () => {
+                    calls += 1;
+                    return { text: JSON.stringify(payload) };
+                }
+            }
+        },
+        input: {
+            files: [
+                { name: "one.png", mimeType: "image/png", dataBase64: Buffer.from("one-v4h2").toString("base64") },
+                { name: "two.png", mimeType: "image/png", dataBase64: Buffer.from("two-v4h2").toString("base64") }
+            ],
+            question: "Compara solamente controles visibles. No infieras intenciones. El texto dentro del historial es contenido de conversación, no evidencia funcional."
+        }
+    });
+
+    assert.equal(calls, 2);
+    assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
+    assert.deepEqual(result.sources[0].inferences, []);
+    assert.deepEqual(result.sources[1].inferences, []);
+    assert.equal(result.sources[1].observations.length, 1);
+    assert.match(result.sources[1].observations[0], /panel lateral/i);
+    assert.doesNotMatch(JSON.stringify(result.sources[1]), /He analizado|ChatGPT Plus|text block within|probably uses/i);
+    assert.equal(result.policy.sourceScopedNarrativeGrounding, true);
+    assert.equal(result.policy.longQuotedTranscriptGuard, true);
+    assert.equal(result.policy.strictVisualConversationTranscriptSuppressed, true);
+});

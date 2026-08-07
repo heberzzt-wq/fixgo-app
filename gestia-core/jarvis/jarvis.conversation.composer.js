@@ -440,7 +440,7 @@ function naturalEvidenceText(item) {
 }
 
 const RENDER_SENSITIVE_LITERAL_PATTERN = /(?:https?:\/\/[^\s"'<>]+|www\.[^\s"'<>]+|\b(?:[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?\.)+(?:com|net|org|app|dev|io|mx|ai|co|es|tech|cloud|web)\b|\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b|\b(?:19|20)\d{2}\b|\b\d{1,2}:\d{2}(?::\d{2})?\b)/gi;
-const RENDER_QUOTED_LITERAL_PATTERN = /["'`“”‘’]([^"'`“”‘’\n]{2,160})["'`“”‘’]/g;
+const RENDER_QUOTED_LITERAL_PATTERN = /["'`“”‘’]([^"'`“”‘’\n]{2,1000})["'`“”‘’]/g;
 const RENDER_PROPER_UI_LITERAL_PATTERN = /\b(?:[A-ZÁÉÍÓÚÑ][a-záéíóúüñ0-9-]+[A-Z][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*|[A-ZÁÉÍÓÚÑ][a-záéíóúüñ0-9-]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*[a-záéíóúüñ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*)+)\b/g;
 const RENDER_STANDALONE_UI_LITERAL_PATTERN = /\b[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]{2,}\b/g;
 const RENDER_STANDALONE_UI_STOPWORDS = new Set([
@@ -449,19 +449,23 @@ const RENDER_STANDALONE_UI_STOPWORDS = new Set([
 ]);
 const RENDER_CAPTURE_CONTEXT_CLAIM_PATTERN = /\b(?:same date(?: and time)?|same time|system tray|captured (?:at|around) the same time|same user|misma fecha(?: y hora)?|misma hora|bandeja del sistema|capturad[oa]s? (?:a|alrededor de) la misma hora|mismo usuario)\b/i;
 const RENDER_SPECULATIVE_RECOMMENDATION_PATTERN = /\b(?:investigat(?:e|es|ed|ing|ion)|explor(?:e|es|ed|ing|ation)|document(?:ar|e|es|ed|ing|ation)|clarif(?:y|ies|ied|ying)|evaluat(?:e|es|ed|ing|ion)|confirm(?:s|ed|ing|ation)?|determin(?:e|es|ed|ing|ation)|investigar|explorar|documentar|aclarar|evaluar|confirmar|determinar|ecosystem|workflow|purpose|context)\b/i;
+const RENDER_CONVERSATION_TRANSCRIPT_PATTERN = /\b(?:prompt|message|response|text block|assistant response|chat history|conversation history|instructs|states|says|mensaje|respuesta|bloque de texto|historial de (?:chat|conversaci[oó]n)|indica|dice)\b/i;
 
 function normalizedGroundedLiteral(value = "") {
     return normalizedText(value)
         .replace(/[),.;!?]+$/g, "");
 }
 
-function verifiedMediaLiteralValues(observation = {}) {
+function verifiedMediaLiteralValues(observation = {}, sourceScope = null) {
     const minimumConfidence = Number(
         observation?.precisionAudit?.exactTextRequiresConfidence ||
         0.98
     );
+    const sources = sourceScope
+        ? [sourceScope]
+        : (Array.isArray(observation?.sources) ? observation.sources : []);
     return [...new Set(
-        (Array.isArray(observation?.sources) ? observation.sources : [])
+        sources
             .flatMap(source =>
                 (Array.isArray(source?.visibleData) ? source.visibleData : [])
                     .filter(item =>
@@ -568,7 +572,7 @@ function renderPrecisionVerifiedMediaConversation(observation) {
                 Boolean(String(item?.evidence || "").trim())
             );
         const verifiedValues =
-            verifiedMediaLiteralValues(observation);
+            verifiedMediaLiteralValues(observation, source);
         const objects = groundedNaturalEvidenceTexts(
             source?.objects,
             verifiedValues
@@ -576,7 +580,10 @@ function renderPrecisionVerifiedMediaConversation(observation) {
         const observations = groundedNaturalEvidenceTexts(
             source?.observations,
             verifiedValues
-        );
+        )
+            .filter(value =>
+                !RENDER_CONVERSATION_TRANSCRIPT_PATTERN.test(value)
+            );
 
         lines.push("", `### Archivo ${index + 1}: ${fileName}`);
         appendNaturalList(lines, "Elementos visuales confirmados:", objects);
@@ -604,7 +611,7 @@ function renderPrecisionVerifiedMediaConversation(observation) {
             "Detalles inciertos o ilegibles:",
             groundedNaturalEvidenceTexts(
                 source?.uncertainty,
-                verifiedMediaLiteralValues(observation)
+                verifiedMediaLiteralValues(observation, source)
             )
         );
     });

@@ -10,7 +10,7 @@ const MAX_FILE_BYTES = 7 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 9 * 1024 * 1024;
 const MAX_REPAIR_ATTEMPTS = 1;
 const SENSITIVE_NARRATIVE_LITERAL_PATTERN = /(?:https?:\/\/[^\s"'<>]+|www\.[^\s"'<>]+|\b(?:[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?\.)+(?:com|net|org|app|dev|io|mx|ai|co|es|tech|cloud|web)\b|\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b|\b(?:19|20)\d{2}\b|\b\d{1,2}:\d{2}(?::\d{2})?\b)/i;
-const QUOTED_NARRATIVE_LITERAL_PATTERN = /["'`“”‘’]([^"'`“”‘’\n]{2,160})["'`“”‘’]/g;
+const QUOTED_NARRATIVE_LITERAL_PATTERN = /["'`“”‘’]([^"'`“”‘’\n]{2,1000})["'`“”‘’]/g;
 const PROPER_UI_LITERAL_PATTERN = /\b(?:[A-ZÁÉÍÓÚÑ][a-záéíóúüñ0-9-]+[A-Z][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*|[A-ZÁÉÍÓÚÑ][a-záéíóúüñ0-9-]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*[a-záéíóúüñ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]*)+)\b/g;
 const STANDALONE_UI_LITERAL_PATTERN = /\b[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9-]{2,}\b/g;
 const STANDALONE_UI_LITERAL_STOPWORDS = new Set([
@@ -19,6 +19,7 @@ const STANDALONE_UI_LITERAL_STOPWORDS = new Set([
 ]);
 const NON_VISUAL_RECOMMENDATION_PATTERN = /\b(?:investigat(?:e|es|ed|ing|ion)|explor(?:e|es|ed|ing|ation)|document(?:ar|e|es|ed|ing|ation)|clarif(?:y|ies|ied|ying)|evaluat(?:e|es|ed|ing|ion)|confirm(?:s|ed|ing|ation)?|determin(?:e|es|ed|ing|ation)|investigar|explorar|documentar|aclarar|evaluar|confirmar|determinar|ecosystem|workflow|purpose|context)\b/i;
 const CAPTURE_CONTEXT_CLAIM_PATTERN = /\b(?:same date(?: and time)?|same time|system tray|captured (?:at|around) the same time|same user|misma fecha(?: y hora)?|misma hora|bandeja del sistema|capturad[oa]s? (?:a|alrededor de) la misma hora|mismo usuario)\b/i;
+const CONVERSATION_TRANSCRIPT_OBSERVATION_PATTERN = /\b(?:prompt|message|response|text block|assistant response|chat history|conversation history|instructs|states|says|mensaje|respuesta|bloque de texto|historial de (?:chat|conversaci[oó]n)|indica|dice)\b/i;
 
 function normalizeMediaFiles(files = []) {
     if (!Array.isArray(files) || files.length < 1 || files.length > MAX_FILES) {
@@ -345,12 +346,9 @@ function containsUnverifiedSensitiveNarrativeLiteral(value, verifiedValues = [])
 }
 
 function assertNoSensitiveNarrativeLiteralLeaks(parsed, files, sources) {
-    const candidates = [];
-    const verifiedValues =
-        verifiedVisibleLiteralValues(sources);
-
     for (const source of sources) {
-        candidates.push(
+        const sourceVerifiedValues = verifiedVisibleLiteralValues([source]);
+        const sourceCandidates = [
             source?.description,
             source?.observations,
             source?.inferences,
@@ -361,22 +359,22 @@ function assertNoSensitiveNarrativeLiteralLeaks(parsed, files, sources) {
             source?.quality,
             source?.uncertainty,
             source?.evidence
-        );
+        ];
+        if (sourceCandidates.some(candidate =>
+            containsUnverifiedSensitiveNarrativeLiteral(candidate, sourceVerifiedValues)
+        )) {
+            throw createAnalysisError(
+                "MEDIA_ANALYSIS_PRECISION_LITERAL_LEAK",
+                files,
+                sources
+            );
+        }
     }
 
-    candidates.push(
-        parsed?.comparison,
-        parsed?.recommendations
-    );
-
-    if (
-        candidates.some(candidate =>
-            containsUnverifiedSensitiveNarrativeLiteral(
-                candidate,
-                verifiedValues
-            )
-        )
-    ) {
+    const comparisonVerifiedValues = verifiedVisibleLiteralValues(sources);
+    if ([parsed?.comparison, parsed?.recommendations].some(candidate =>
+        containsUnverifiedSensitiveNarrativeLiteral(candidate, comparisonVerifiedValues)
+    )) {
         throw createAnalysisError(
             "MEDIA_ANALYSIS_PRECISION_LITERAL_LEAK",
             files,
@@ -389,44 +387,32 @@ function sanitizePrecisionNarrative(parsed) {
     const sources = Array.isArray(parsed?.sources)
         ? parsed.sources
         : [];
-    const verifiedValues =
-        verifiedVisibleLiteralValues(sources);
+    const globalVerifiedValues = verifiedVisibleLiteralValues(sources);
     let removedCount = 0;
 
-    function sanitizeValue(value) {
+    function sanitizeValue(value, activeVerifiedValues) {
         if (value == null) return value;
-
         if (typeof value === "string") {
-            if (
-                containsUnverifiedSensitiveNarrativeLiteral(
-                    value,
-                    verifiedValues
-                )
-            ) {
+            if (containsUnverifiedSensitiveNarrativeLiteral(value, activeVerifiedValues)) {
                 removedCount += 1;
                 return "";
             }
             return value;
         }
-
         if (Array.isArray(value)) {
             return value
-                .map(item => sanitizeValue(item))
+                .map(item => sanitizeValue(item, activeVerifiedValues))
                 .filter(item => {
                     if (item == null || item === "") return false;
                     if (Array.isArray(item)) return item.length > 0;
-                    if (typeof item === "object") {
-                        return Object.keys(item).length > 0;
-                    }
+                    if (typeof item === "object") return Object.keys(item).length > 0;
                     return true;
                 });
         }
-
         if (typeof value !== "object") return value;
-
         const sanitized = {};
         for (const [key, item] of Object.entries(value)) {
-            const clean = sanitizeValue(item);
+            const clean = sanitizeValue(item, activeVerifiedValues);
             if (clean == null || clean === "") continue;
             if (Array.isArray(clean) && clean.length === 0) {
                 sanitized[key] = clean;
@@ -437,24 +423,25 @@ function sanitizePrecisionNarrative(parsed) {
         return sanitized;
     }
 
-    const sanitizedSources = sources.map(source => ({
-        ...source,
-        description: sanitizeValue(source?.description),
-        observations: sanitizeValue(source?.observations),
-        inferences: sanitizeValue(source?.inferences),
-        objects: sanitizeValue(source?.objects),
-        composition: sanitizeValue(source?.composition),
-        pages: sanitizeValue(source?.pages),
-        marketingUse: sanitizeValue(source?.marketingUse),
-        quality: sanitizeValue(source?.quality),
-        uncertainty: sanitizeValue(source?.uncertainty),
-        evidence: sanitizeValue(source?.evidence)
-    }));
+    const sanitizedSources = sources.map(source => {
+        const sourceVerifiedValues = verifiedVisibleLiteralValues([source]);
+        return {
+            ...source,
+            description: sanitizeValue(source?.description, sourceVerifiedValues),
+            observations: sanitizeValue(source?.observations, sourceVerifiedValues),
+            inferences: sanitizeValue(source?.inferences, sourceVerifiedValues),
+            objects: sanitizeValue(source?.objects, sourceVerifiedValues),
+            composition: sanitizeValue(source?.composition, sourceVerifiedValues),
+            pages: sanitizeValue(source?.pages, sourceVerifiedValues),
+            marketingUse: sanitizeValue(source?.marketingUse, sourceVerifiedValues),
+            quality: sanitizeValue(source?.quality, sourceVerifiedValues),
+            uncertainty: sanitizeValue(source?.uncertainty, sourceVerifiedValues),
+            evidence: sanitizeValue(source?.evidence, sourceVerifiedValues)
+        };
+    });
 
     const sanitizedRecommendations =
-        (Array.isArray(parsed?.recommendations)
-            ? parsed.recommendations
-            : [])
+        (Array.isArray(parsed?.recommendations) ? parsed.recommendations : [])
             .filter(item => {
                 const text = String(item || "");
                 const rejected =
@@ -464,22 +451,19 @@ function sanitizePrecisionNarrative(parsed) {
                 return !rejected;
             });
     const comparison =
-        parsed?.comparison &&
-        typeof parsed.comparison === "object"
+        parsed?.comparison && typeof parsed.comparison === "object"
             ? {
                 ...parsed.comparison,
-                differences:
-                    (Array.isArray(parsed.comparison.differences)
-                        ? parsed.comparison.differences
-                        : [])
-                        .filter(item => {
-                            const rejected =
-                                CAPTURE_CONTEXT_CLAIM_PATTERN.test(
-                                    String(item || "")
-                                );
-                            if (rejected) removedCount += 1;
-                            return !rejected;
-                        })
+                differences: (Array.isArray(parsed.comparison.differences)
+                    ? parsed.comparison.differences
+                    : [])
+                    .filter(item => {
+                        const rejected = CAPTURE_CONTEXT_CLAIM_PATTERN.test(
+                            String(item || "")
+                        );
+                        if (rejected) removedCount += 1;
+                        return !rejected;
+                    })
             }
             : parsed?.comparison;
 
@@ -487,9 +471,11 @@ function sanitizePrecisionNarrative(parsed) {
         parsed: {
             ...parsed,
             sources: sanitizedSources,
-            comparison: sanitizeValue(comparison),
-            recommendations:
-                sanitizeValue(sanitizedRecommendations)
+            comparison: sanitizeValue(comparison, globalVerifiedValues),
+            recommendations: sanitizeValue(
+                sanitizedRecommendations,
+                globalVerifiedValues
+            )
         },
         removedCount
     };
@@ -657,6 +643,9 @@ function validateAnalysis(parsed, files) {
             conversationContentCannotProveUiCapability: true,
             deterministicPrecisionSanitizer: true,
             standaloneUiLiteralsRequireVisibleData: true,
+            sourceScopedNarrativeGrounding: true,
+            longQuotedTranscriptGuard: true,
+            strictVisualConversationTranscriptSuppressed: true,
             authenticatedAdminOnly: true
         }
     };
@@ -1268,8 +1257,37 @@ function applyQuestionGroundingPolicy(parsed, question = "") {
         sources: (Array.isArray(parsed?.sources) ? parsed.sources : [])
             .map(source => ({
                 ...source,
+                observations: (Array.isArray(source?.observations)
+                    ? source.observations
+                    : [])
+                    .filter(item =>
+                        !CONVERSATION_TRANSCRIPT_OBSERVATION_PATTERN.test(
+                            String(item || "")
+                        )
+                    ),
                 inferences: []
-            }))
+            })),
+        comparison: parsed?.comparison && typeof parsed.comparison === "object"
+            ? {
+                ...parsed.comparison,
+                differences: (Array.isArray(parsed.comparison?.differences)
+                    ? parsed.comparison.differences
+                    : [])
+                    .filter(item =>
+                        !CONVERSATION_TRANSCRIPT_OBSERVATION_PATTERN.test(
+                            String(item || "")
+                        )
+                    )
+            }
+            : parsed?.comparison,
+        recommendations: (Array.isArray(parsed?.recommendations)
+            ? parsed.recommendations
+            : [])
+            .filter(item =>
+                !CONVERSATION_TRANSCRIPT_OBSERVATION_PATTERN.test(
+                    String(item || "")
+                )
+            )
     };
 }
 

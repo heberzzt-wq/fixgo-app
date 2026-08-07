@@ -1015,3 +1015,73 @@ test("precision renderer shows safe nonliteral visual observations when text lab
     assert.match(result.text, /panel lateral junto al contenido principal/i);
     assert.match(result.text, /segunda fuente muestra un panel lateral/i);
 });
+
+
+
+test("precision renderer keeps verified literals scoped to their own source and suppresses transcript content", async () => {
+    const transcript = "He analizado visualmente las dos imágenes proporcionadas, describiendo su contenido y las diferencias entre ellas. Se ha identificado que la terminal no muestra una interfaz de adjuntos de archivos.";
+    const result = await composeEvidenceGroundedConversation({
+        instruction: "Compara solamente controles visibles y no uses el historial como evidencia funcional.",
+        evidenceItems: [{
+            name: "media.analyze",
+            observation: {
+                ok: true,
+                status: "MEDIA_ANALYSIS_GROUNDED",
+                version: "1.4.0-verified-visual-claims",
+                expectedSources: 2,
+                receivedSources: 2,
+                sources: [
+                    {
+                        sourceId: "SOURCE_1",
+                        fileName: "one.png",
+                        sha256: "1".repeat(64),
+                        observations: ["Se observa un menu abierto con varias filas."],
+                        objects: [],
+                        visibleData: [{
+                            kind: "text",
+                            value: "ChatGPT Plus",
+                            page: 1,
+                            confidence: 0.99,
+                            evidence: "Etiqueta visible.",
+                            legibility: "VERIFIED"
+                        }],
+                        uncertainty: []
+                    },
+                    {
+                        sourceId: "SOURCE_2",
+                        fileName: "two.png",
+                        sha256: "2".repeat(64),
+                        observations: [
+                            `A text block within the application states: '${transcript}'`,
+                            "The application is ChatGPT Plus.",
+                            "Se observa un panel lateral junto al contenido principal."
+                        ],
+                        objects: [],
+                        visibleData: [],
+                        uncertainty: []
+                    }
+                ],
+                comparison: {
+                    differences: ["La segunda fuente muestra un panel lateral que no aparece en la primera."],
+                    confidence: 0.99
+                },
+                recommendations: [],
+                precisionAudit: {
+                    ok: true,
+                    status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
+                    effectiveToolExecutions: 1,
+                    sourceIdentityVerified: true,
+                    exactTextRequiresConfidence: 0.98
+                }
+            }
+        }],
+        executeConversation: async () => {
+            throw new Error("semantic composer must not run");
+        }
+    });
+
+    assert.equal(result.ok, true);
+    assert.match(result.text, /menu abierto con varias filas/i);
+    assert.match(result.text, /panel lateral junto al contenido principal/i);
+    assert.doesNotMatch(result.text, /He analizado|text block within|The application is ChatGPT Plus/);
+});
