@@ -1363,3 +1363,59 @@ test("precision renderer suppresses source-local contradiction residue from prod
     assert.match(result.text, /Crear una imagen/);
     assert.doesNotMatch(result.text, /directly contradicts|text stating its absence|notable inconsistency/i);
 });
+
+test("precision renderer hides unrequested recommendations when strict visual policy says so", async () => {
+    const result = await composeEvidenceGroundedConversation({
+        instruction: "Compara solamente lo visible.",
+        evidenceItems: [{
+            name: "media.analyze",
+            observation: {
+                ok: true,
+                status: "MEDIA_ANALYSIS_GROUNDED",
+                version: "1.4.0-verified-visual-claims",
+                expectedSources: 2,
+                receivedSources: 2,
+                sources: [
+                    {
+                        sourceId: "SOURCE_1",
+                        fileName: "one.png",
+                        sha256: "a".repeat(64),
+                        visibleData: [{ kind: "text", value: "ChatGPT Plus", page: 1, confidence: 1, evidence: "header", legibility: "VERIFIED" }],
+                        uncertainty: []
+                    },
+                    {
+                        sourceId: "SOURCE_2",
+                        fileName: "two.png",
+                        sha256: "b".repeat(64),
+                        visibleData: [{ kind: "text", value: "Terminal Heberto", page: 1, confidence: 1, evidence: "header", legibility: "VERIFIED" }],
+                        uncertainty: []
+                    }
+                ],
+                comparison: { differences: [] },
+                recommendations: [
+                    "If the goal is to compare attachment functionalities, a detailed feature matrix could be created.",
+                    "Ensure its attachment capabilities meet the specific needs of its users."
+                ],
+                policy: {
+                    strictVisualUnrequestedRecommendationsSuppressed: true
+                },
+                precisionAudit: {
+                    ok: true,
+                    status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
+                    providerPasses: 2,
+                    effectiveToolExecutions: 1,
+                    sourceIdentityVerified: true,
+                    exactTextRequiresConfidence: 0.98
+                }
+            }
+        }],
+        executeConversation: async () => {
+            throw new Error("semantic composer must not run");
+        }
+    });
+
+    assert.equal(result.ok, true);
+    assert.doesNotMatch(result.text, /feature matrix|attachment capabilities|Mejoras sugeridas/i);
+    assert.match(result.text, /ChatGPT Plus/);
+    assert.match(result.text, /Terminal Heberto/);
+});

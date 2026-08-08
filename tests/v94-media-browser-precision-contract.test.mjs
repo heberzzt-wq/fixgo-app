@@ -263,3 +263,37 @@ test("production A2 removes unsupported source-local contradiction residue", () 
         /directly contradicts|text stating its absence|system tray date and time/i
     );
 });
+
+test("strict visual reconciliation suppresses unrequested recommendations but preserves explicit requests", () => {
+    const initial = baseResult();
+    const audited = baseResult();
+    const source1Label = { kind: "text", value: "ChatGPT Plus", page: 1, confidence: 1, evidence: "header", legibility: "VERIFIED" };
+    const source2Label = { kind: "text", value: "Terminal Heberto", page: 1, confidence: 1, evidence: "header", legibility: "VERIFIED" };
+    initial.sources[0].visibleData = [source1Label];
+    audited.sources[0].visibleData = [source1Label];
+    initial.sources[1].visibleData = [source2Label];
+    audited.sources[1].visibleData = [source2Label];
+    audited.recommendations = [
+        "If the goal is to compare attachment functionalities, a detailed feature matrix could be created to highlight the specific capabilities and integrations of each platform.",
+        "If 'Terminal Heberto' is an internal tool, ensure its attachment capabilities meet the specific needs of its users, potentially by comparing them to widely used external tools like ChatGPT."
+    ];
+
+    const passive = reconcileIndependentMediaAnalysis(
+        initial,
+        audited,
+        files,
+        "Compara solamente lo visible."
+    );
+    assert.deepEqual(passive.result.recommendations, []);
+    assert.equal(passive.suppressedUnrequestedRecommendationCount, 2);
+    assert.equal(passive.result.policy.strictVisualUnrequestedRecommendationsSuppressed, true);
+
+    const requested = reconcileIndependentMediaAnalysis(
+        initial,
+        audited,
+        files,
+        "Compara lo visible y recomienda mejoras concretas."
+    );
+    assert.equal(requested.result.recommendations.length, 2);
+    assert.equal(requested.suppressedUnrequestedRecommendationCount, 0);
+});

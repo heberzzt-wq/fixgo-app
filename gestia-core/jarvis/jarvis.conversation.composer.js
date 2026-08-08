@@ -713,8 +713,11 @@ function renderPrecisionVerifiedMediaConversation(observation) {
                     verifiedValues
                 )
             );
-    const groundedRecommendations =
-        groundedNaturalEvidenceTexts(
+    const suppressUnrequestedRecommendations =
+        observation?.policy?.strictVisualUnrequestedRecommendationsSuppressed === true;
+    const groundedRecommendations = suppressUnrequestedRecommendations
+        ? []
+        : groundedNaturalEvidenceTexts(
             observation?.recommendations,
             verifiedValues
         )
@@ -743,6 +746,7 @@ function renderPrecisionVerifiedMediaConversation(observation) {
         groundedRecommendations
     );
     if (
+        !suppressUnrequestedRecommendations &&
         Array.isArray(observation?.recommendations) &&
         observation.recommendations.length > 0 &&
         groundedRecommendations.length === 0

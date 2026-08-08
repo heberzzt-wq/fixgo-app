@@ -1768,6 +1768,11 @@ function mediaNarrativeContainsUnsupportedContradictionClaim(
     );
 }
 
+function explicitMediaRecommendationRequest(question = "") {
+    return /\b(?:recomienda|recomendar|recomendaci(?:o|ó)n(?:es)?|sugiere|sugerir|sugerencias?|mejoras?|mejorar|proponer|propuestas?|recommend|recommendation|suggest|suggestion|improve|improvement)\b/i
+        .test(String(question || ""));
+}
+
 function mediaNarrativeContainsUnrequestedCaptureContextClaim(
     value,
     question = ""
@@ -1816,6 +1821,7 @@ export function reconcileIndependentMediaAnalysis(
     let suppressedPeripheralLiteralCount = 0;
     let suppressedUnsupportedNegativeVisualClaimCount = 0;
     let suppressedPeripheralNarrativeCount = 0;
+    let suppressedUnrequestedRecommendationCount = 0;
 
     const sources = auditedSources.map((source, index) => {
         const first = initialSources[index] || {};
@@ -1940,10 +1946,19 @@ export function reconcileIndependentMediaAnalysis(
             differences: comparisonDifferences
         }
         : audited?.comparison;
-    const recommendations = sanitizeNarrativeAgainstVerifiedValues(
+    const groundedRecommendations = sanitizeNarrativeAgainstVerifiedValues(
         audited?.recommendations,
         globalVerifiedValues
     );
+    const suppressUnrequestedRecommendations =
+        audited?.strictVisualOnly === true &&
+        !explicitMediaRecommendationRequest(question);
+    if (suppressUnrequestedRecommendations) {
+        suppressedUnrequestedRecommendationCount = groundedRecommendations.length;
+    }
+    const recommendations = suppressUnrequestedRecommendations
+        ? []
+        : groundedRecommendations;
 
     const sourceManifest = files.map((file, index) => ({
         sourceId: `SOURCE_${index + 1}`,
@@ -1977,14 +1992,16 @@ export function reconcileIndependentMediaAnalysis(
                 peripheralSensitiveLiteralSuppression: true,
                 negativeVisualClaimsRequireStructuredEvidence: true,
                 sourceNarrativeClaimsRequireStructuredEvidence: true,
-                peripheralCaptureContextNarrativeSuppression: true
+                peripheralCaptureContextNarrativeSuppression: true,
+                strictVisualUnrequestedRecommendationsSuppressed: true
             }
         },
         consensusVerifiedLiteralCount: verifiedVisualClaims.length,
         disputedLiteralCount,
         suppressedPeripheralLiteralCount,
         suppressedUnsupportedNegativeVisualClaimCount,
-        suppressedPeripheralNarrativeCount
+        suppressedPeripheralNarrativeCount,
+        suppressedUnrequestedRecommendationCount
     };
 }
 
@@ -2011,8 +2028,9 @@ export function buildMediaPrecisionAuditQuestion(question, result) {
         "En comparison.differences incluye solo diferencias visibles entre las fuentes.",
         "No concluyas que un elemento esta ausente, no existe o no esta presente en otra fuente solamente porque no aparecio en visibleData.",
         "Formula las diferencias como afirmaciones positivas verificadas por fuente; sin evidencia negativa estructurada, la ausencia debe permanecer desconocida.",
-        "En recommendations enumera carencias concretas de la experiencia de adjuntos que puedan comprobarse por contraste visual.",
-        "No uses recommendations para proponer investigar, explorar o documentar; si no hay evidencia visual suficiente, dilo expresamente.",
+        explicitMediaRecommendationRequest(question)
+            ? "La solicitud original pide recomendaciones: en recommendations incluye solo mejoras respaldadas directamente por evidencia visual verificada."
+            : "La solicitud original no pide recomendaciones: deja recommendations=[] y no propongas mejoras, matrices, comparativas futuras ni acciones de producto.",
         `FUENTES_PARA_REINSPECCION=${JSON.stringify(auditSources)}`,
         `SOLICITUD_ORIGINAL=${String(question || "").slice(0, 3000)}`
     ].join("\n");
@@ -2173,7 +2191,10 @@ async function fetchGroundedMediaAnalysis(attachments = [], question = "") {
                 reconciled.suppressedUnsupportedNegativeVisualClaimCount,
             suppressedPeripheralNarrativeCount:
                 reconciled.suppressedPeripheralNarrativeCount,
+            suppressedUnrequestedRecommendationCount:
+                reconciled.suppressedUnrequestedRecommendationCount,
             negativeVisualClaimsRequireStructuredEvidence: true,
+            strictVisualUnrequestedRecommendationsSuppressed: true,
             sourceNarrativeClaimsRequireStructuredEvidence: true,
             initialVersion: initial.version || null,
             auditedVersion: audited.version || null
