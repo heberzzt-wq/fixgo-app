@@ -174,3 +174,90 @@ test("independent reconciliation removes an unverified uppercase UI label from p
     assert.doesNotMatch(JSON.stringify(reconciled.result), /NEXO/);
     assert.deepEqual(reconciled.result.comparison.differences, []);
 });
+
+
+
+test("strict visual scope suppresses unrequested recommendations and freeform semantic evidence", () => {
+    const initial = baseResult();
+    const audited = baseResult();
+    const chatLabel = {
+        kind: "text",
+        value: "ChatGPT Plus",
+        page: 1,
+        confidence: 1,
+        evidence: "header",
+        legibility: "VERIFIED"
+    };
+    const terminalLabel = {
+        kind: "text",
+        value: "Terminal Heberto",
+        page: 1,
+        confidence: 1,
+        evidence: "header",
+        legibility: "VERIFIED"
+    };
+    initial.sources[0].visibleData = [chatLabel];
+    audited.sources[0].visibleData = [chatLabel];
+    initial.sources[1].visibleData = [terminalLabel];
+    audited.sources[1].visibleData = [terminalLabel];
+    audited.sources[1].evidence = [
+        "The screenshot clearly shows the Terminal Heberto interface with self-referential text."
+    ];
+    audited.comparison = {
+        differences: [
+            "The first image shows ChatGPT Plus, while the second shows a custom application named 'Terminal Heberto'.",
+            "ChatGPT Plus and 'Terminal Heberto' show different visible headings."
+        ]
+    };
+    audited.recommendations = [
+        "Review the text generation or display logic within 'Terminal Heberto'.",
+        "Consider expanding the capabilities of 'Terminal Heberto'."
+    ];
+
+    const reconciled = reconcileIndependentMediaAnalysis(
+        initial,
+        audited,
+        files,
+        "Analiza solamente lo visible. Al final compara únicamente diferencias visuales demostrables."
+    );
+
+    assert.deepEqual(reconciled.result.sources[1].evidence, []);
+    assert.deepEqual(reconciled.result.recommendations, []);
+    assert.equal(reconciled.result.comparison.differences.length, 1);
+    assert.match(reconciled.result.comparison.differences[0], /different visible headings/i);
+    assert.doesNotMatch(JSON.stringify(reconciled.result), /custom application|self-referential|text generation|expanding the capabilities/i);
+    assert.equal(reconciled.result.policy.strictVisualFreeformEvidenceSuppressed, true);
+    assert.equal(reconciled.result.policy.strictVisualSemanticInferenceSuppressed, true);
+    assert.equal(reconciled.result.policy.strictVisualUnrequestedRecommendationsSuppressed, true);
+});
+
+
+test("strict visual scope keeps grounded recommendations only when the user explicitly requests improvements", () => {
+    const initial = baseResult();
+    const audited = baseResult();
+    const terminalLabel = {
+        kind: "text",
+        value: "Terminal Heberto",
+        page: 1,
+        confidence: 1,
+        evidence: "header",
+        legibility: "VERIFIED"
+    };
+    initial.sources[1].visibleData = [terminalLabel];
+    audited.sources[1].visibleData = [terminalLabel];
+    audited.recommendations = [
+        "Mejora la jerarquia visual alrededor de 'Terminal Heberto'."
+    ];
+
+    const reconciled = reconcileIndependentMediaAnalysis(
+        initial,
+        audited,
+        files,
+        "Compara lo visible y sugiere mejoras visuales concretas."
+    );
+
+    assert.deepEqual(
+        reconciled.result.recommendations,
+        ["Mejora la jerarquia visual alrededor de 'Terminal Heberto'."]
+    );
+});

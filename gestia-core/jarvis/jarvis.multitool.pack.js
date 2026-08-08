@@ -1704,6 +1704,32 @@ function sanitizeNarrativeAgainstVerifiedValues(value, verifiedValues = []) {
     );
 }
 
+const MEDIA_STRICT_VISUAL_SEMANTIC_INFERENCE_PATTERN = /\b(?:custom application|aplicaci[oó]n personalizada|self[- ]referential|autorreferencial|text generation|generation logic|display logic|enhance its utility|capabilities? of|likely|appears to be|seems to be)\b/i;
+
+function sanitizeStrictVisualNarrative(
+    value,
+    verifiedValues = [],
+    strictVisualOnly = false
+) {
+    return sanitizeNarrativeAgainstVerifiedValues(
+        value,
+        verifiedValues
+    ).filter(item =>
+        !strictVisualOnly ||
+        !MEDIA_STRICT_VISUAL_SEMANTIC_INFERENCE_PATTERN.test(
+            String(item || "")
+        )
+    );
+}
+
+function explicitVisualRecommendationRequest(question = "") {
+    const normalized = String(question || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+    return /\b(?:recomienda|recomendacion(?:es)?|sugiere|sugerencia(?:s)?|mejora(?:s)?|propon(?:e|er|ga)|recommend|recommendation(?:s)?|suggest|suggestion(?:s)?|improve|improvement(?:s)?)\b/i.test(normalized);
+}
+
 export function reconcileIndependentMediaAnalysis(
     initial,
     audited,
@@ -1765,42 +1791,54 @@ export function reconcileIndependentMediaAnalysis(
                     ? ""
                     : String(source?.description || ""),
             observations:
-                sanitizeNarrativeAgainstVerifiedValues(
+                sanitizeStrictVisualNarrative(
                     source?.observations,
-                    verifiedValues
+                    verifiedValues,
+                    audited?.strictVisualOnly === true
                 ),
             inferences:
                 audited?.strictVisualOnly === true
                     ? []
-                    : sanitizeNarrativeAgainstVerifiedValues(
+                    : sanitizeStrictVisualNarrative(
                         source?.inferences,
-                        verifiedValues
+                        verifiedValues,
+                        false
                     ),
             visibleData,
             uncertainty: [...new Set(uncertainty)],
             evidence:
-                sanitizeNarrativeAgainstVerifiedValues(
-                    source?.evidence,
-                    verifiedValues
-                )
+                audited?.strictVisualOnly === true
+                    ? []
+                    : sanitizeStrictVisualNarrative(
+                        source?.evidence,
+                        verifiedValues,
+                        false
+                    )
         };
     });
 
     const globalVerifiedValues = verifiedMediaContractValues(sources);
+    const strictVisualOnly = audited?.strictVisualOnly === true;
     const comparison = audited?.comparison && typeof audited.comparison === "object"
         ? {
             ...audited.comparison,
             differences:
-                sanitizeNarrativeAgainstVerifiedValues(
+                sanitizeStrictVisualNarrative(
                     audited.comparison?.differences,
-                    globalVerifiedValues
+                    globalVerifiedValues,
+                    strictVisualOnly
                 )
         }
         : audited?.comparison;
-    const recommendations = sanitizeNarrativeAgainstVerifiedValues(
-        audited?.recommendations,
-        globalVerifiedValues
-    );
+    const recommendations =
+        strictVisualOnly &&
+        !explicitVisualRecommendationRequest(question)
+            ? []
+            : sanitizeStrictVisualNarrative(
+                audited?.recommendations,
+                globalVerifiedValues,
+                strictVisualOnly
+            );
 
     const sourceManifest = files.map((file, index) => ({
         sourceId: `SOURCE_${index + 1}`,
@@ -1831,7 +1869,10 @@ export function reconcileIndependentMediaAnalysis(
             policy: {
                 ...(audited?.policy || {}),
                 independentPassLiteralConsensusRequired: true,
-                peripheralSensitiveLiteralSuppression: true
+                peripheralSensitiveLiteralSuppression: true,
+                strictVisualFreeformEvidenceSuppressed: true,
+                strictVisualSemanticInferenceSuppressed: true,
+                strictVisualUnrequestedRecommendationsSuppressed: true
             }
         },
         consensusVerifiedLiteralCount: verifiedVisualClaims.length,
