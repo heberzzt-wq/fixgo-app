@@ -28,7 +28,9 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm ci
+          npm --prefix functions ci
 
       - name: Apply independent media consensus repair v4m2
         run: python3 .github/scripts/v94-media-independent-consensus-v4m2.py
