@@ -1,4 +1,4 @@
-const VERSION = "4.14.0-identity-fidelity";
+const VERSION = "4.15.0-attachment-analysis-route";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
@@ -766,6 +766,164 @@ function requestsAttachmentAnalysis(
     );
 }
 
+function requestsVisualArtifactCreation(
+    instruction = ""
+) {
+    let text =
+        normalizeRoutingText(
+            instructionBeforeAttachmentManifest(
+                instruction
+            )
+        );
+
+    const negativeSignals = [
+        "no generes imagen",
+        "no generes una imagen",
+        "no genera imagen",
+        "no crear imagen",
+        "no crees imagen",
+        "no crees una imagen",
+        "sin generar imagen",
+        "sin generar una imagen",
+        "sin crear imagen",
+        "sin crear una imagen",
+        "do not generate an image",
+        "do not create an image",
+        "without generating an image",
+        "without creating an image"
+    ];
+
+    for (const signal of negativeSignals) {
+        text = text.replaceAll(signal, "");
+    }
+
+    const positiveSignals = [
+        "genera una imagen",
+        "genera imagen",
+        "generame una imagen",
+        "crea una imagen",
+        "crea imagen",
+        "diseña una imagen",
+        "disena una imagen",
+        "produce una imagen",
+        "renderiza una imagen",
+        "edita esta imagen",
+        "edita la imagen",
+        "modifica esta imagen",
+        "modifica la imagen",
+        "transforma esta imagen",
+        "transforma la imagen",
+        "generate an image",
+        "create an image",
+        "edit this image",
+        "modify this image",
+        "transform this image"
+    ];
+
+    if (positiveSignals.some(signal =>
+        text.includes(signal)
+    )) {
+        return true;
+    }
+
+    const explicitVisualCreation =
+        /\b(genera|generar|generame|crea|crear|creame|diseña|disena|produce|producir|renderiza|generate|create|design|produce|render)\b[\s\S]{0,100}\b(imagen|image|foto|photo|paisaje|landscape|retrato|portrait|ilustracion|ilustración|illustration|grafico|gráfico|graphic|poster|banner|pieza visual|visual)\b/;
+
+    return explicitVisualCreation.exec(text) !== null;
+}
+
+function requestsAdditionalDeliverableBeyondAttachmentAnalysis(
+    instruction = ""
+) {
+    const text =
+        normalizeRoutingText(
+            instructionBeforeAttachmentManifest(
+                instruction
+            )
+        );
+
+    if (requestsVisualArtifactCreation(instruction)) {
+        return true;
+    }
+
+    const creationVerb =
+        /\b(crea|crear|creame|genera|generar|generame|produce|producir|diseña|disena|construye|haz|hacer|prepara|preparar|entrega|entregar|redacta|redactar|edita|editar|modifica|modificar|transforma|transformar|build|create|generate|produce|design|prepare|deliver|write|edit|modify|transform)\b/;
+    const deliverableNoun =
+        /\b(documento|document|pdf|docx|xlsx|hoja|spreadsheet|landing|pagina|page|reel|video|plan de marketing|marketing plan|campana|campaña|campaign|archivo|file|codigo|code|repositorio|repository)\b/;
+
+    if (creationVerb.exec(text) && deliverableNoun.exec(text)) {
+        return true;
+    }
+
+    const externalResearch =
+        /\b(investiga|investigar|busca|buscar|consulta|consultar|research|search)\b[\s\S]{0,80}\b(web|internet|fuentes|sources|sitios|sites|google)\b/;
+
+    return externalResearch.exec(text) !== null;
+}
+
+function normalizeAttachmentAnalysisRouteCandidates(
+    candidates = [],
+    catalog = [],
+    context = {}
+) {
+    const sourceCandidates =
+        Array.isArray(candidates)
+            ? candidates
+            : [];
+    const instruction =
+        String(
+            context?.originalInstruction ||
+            ""
+        );
+    const attachments =
+        extractGroundedAttachments(
+            instruction
+        );
+
+    const pureAttachmentAnalysis =
+        attachments.length > 0 &&
+        requestsAttachmentAnalysis(
+            instruction
+        ) &&
+        !requestsAdditionalDeliverableBeyondAttachmentAnalysis(
+            instruction
+        );
+
+    if (!pureAttachmentAnalysis) {
+        return sourceCandidates;
+    }
+
+    const mediaAvailable =
+        catalog.some(tool =>
+            tool?.name ===
+            "media.analyze"
+        );
+
+    if (!mediaAvailable) {
+        return [];
+    }
+
+    const existingMedia =
+        sourceCandidates.find(candidate =>
+            candidate?.name ===
+            "media.analyze"
+        );
+
+    return [{
+        ...(existingMedia || {}),
+        name:
+            "media.analyze",
+        args:
+            candidateArgumentObject(
+                existingMedia ||
+                {}
+            ),
+        reason:
+            existingMedia?.reason ||
+            "ATTACHMENT_ANALYSIS_ROUTE_ENFORCED"
+    }];
+}
+
 
 function candidateArgumentObject(
     candidate = {}
@@ -1394,7 +1552,7 @@ async function callBrowserMissionContract(
     const prompt = [
         "Eres el planificador semantico de Jarvis V7.",
         "Devuelve solamente JSON valido.",
-        "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only y userArtifact necesarias para TODOS los entregables. Para crear una landing usa page.plan, page.compose y page.create; para crear un documento usa document.compose y document.create; para crear una hoja estructurada usa spreadsheet.compose y document.create. Para EDITAR un PDF existente usa document.pdf.edit; para EDITAR un XLSX existente usa document.xlsx.edit; para EDITAR una imagen existente usa image.edit. Nunca sustituyas una edicion solicitada por document.create, spreadsheet.compose o image.generate. Si una imagen adjunta representa a la persona, producto u objeto que debe aparecer en el resultado, usa image.edit con sourceOutput igual al artifact real del manifiesto; media.analyze no transmite identidad visual ni sustituye los bytes de la fuente. Las ediciones crean una copia nueva y deben preservar el original. system.certify es terminal: no lo incluyas en el contrato inicial; seleccionalo solamente durante COMPLETION_AUDIT cuando los demas objetivos est?n completados o bloqueados. Para image.edit genera una sola salida por defecto. La cantidad de fotos adjuntas o referencias nunca significa cantidad de variantes. Si el usuario pide varias salidas, asigna un variantId distinto y explicito a cada salida. Cuando haya varias fotos de identidad, usa la imagen mas reciente y limpia como sourceOutput y copia las referencias pertinentes en referenceOutputs. Para cada artefacto usa exactamente una composicion y una creacion salvo que el usuario pida variantes. Conserva el orden y usa missionComplete=false.",
+        "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only y userArtifact necesarias para TODOS los entregables. Para crear una landing usa page.plan, page.compose y page.create; para crear un documento usa document.compose y document.create; para crear una hoja estructurada usa spreadsheet.compose y document.create. Para EDITAR un PDF existente usa document.pdf.edit; para EDITAR un XLSX existente usa document.xlsx.edit; para EDITAR una imagen existente usa image.edit. Nunca sustituyas una edicion solicitada por document.create, spreadsheet.compose o image.generate. Si una imagen adjunta representa a la persona, producto u objeto que debe aparecer en el resultado, usa image.edit con sourceOutput igual al artifact real del manifiesto; media.analyze no transmite identidad visual ni sustituye los bytes de la fuente. Las ediciones crean una copia nueva y deben preservar el original. system.certify es terminal: no lo incluyas en el contrato inicial; seleccionalo solamente durante COMPLETION_AUDIT cuando los demas objetivos est?n completados o bloqueados. Para image.edit genera una sola salida por defecto. La cantidad de fotos adjuntas o referencias nunca significa cantidad de variantes. Si el usuario pide varias salidas, asigna un variantId distinto y explicito a cada salida. Cuando haya varias fotos de identidad, usa la imagen mas reciente y limpia como sourceOutput y copia las referencias pertinentes en referenceOutputs. Para cada artefacto usa exactamente una composicion y una creacion salvo que el usuario pida variantes. Cuando existan archivos adjuntos reales y la instruccion pida analizarlos, describirlos, compararlos, identificarlos o leerlos, media.analyze es obligatoria y image.generate/image.edit no pueden sustituirla; usa herramientas de imagen sintetica solamente cuando el usuario pida explicitamente crear, generar, editar, modificar o transformar una imagen nueva o existente. Conserva el orden y usa missionComplete=false.",
         "Las HERRAMIENTAS_INICIALES son un borrador semantico ya seleccionado para la misma instruccion. Conserva sus entregables y agrega solamente una herramienta que cubra un objetivo independiente pedido de forma explicita y no cubierto por ese borrador. No agregues diagnostico, supervision, forense, repositorio, navegador, conectores, investigacion ni otros artefactos solo porque existan en el catalogo.",
         "No colapses sujetos u objetivos independientes. Repite el mismo nombre de herramienta cuando necesite argumentos distintos para cubrirlos por separado.",
         "agent.delegate no es una optimizacion automatica. Incluyela solamente si la instruccion original pide explicitamente delegar, usar agentes o ejecutar en paralelo, y copia esa frase literal en delegationDirective. En cualquier otra mision conserva las herramientas directas.",
@@ -1519,7 +1677,7 @@ async function callBrowserSemanticPlan(input = "", catalog = [], missionState = 
     const prompt = [
         "Eres el planificador semantico de herramientas de Jarvis V7.",
         "Interpreta significado, typos, negaciones y ordenes mixtas. Selecciona exclusivamente nombres exactos del catalogo.",
-        "No autorices escrituras de repositorio, publicacion ni despliegue. Las herramientas userArtifact pueden crear entregables locales y editar copias de artefactos existentes cuando el usuario lo pide explicitamente; deben conservar el original y no equivalen a editar codigo, publicar o desplegar. Para editar PDF, XLSX o imagen usa respectivamente document.pdf.edit, document.xlsx.edit o image.edit y nunca los sustituyas por herramientas de creacion. Si una persona, producto u objeto debe conservarse desde una imagen adjunta, selecciona image.edit y copia el artifact real del manifiesto en sourceOutput; no uses image.generate ni una descripcion de media.analyze como reemplazo de la fuente visual. Conserva todas las intenciones independientes y usa herramientas especializadas para entregables operativos.",
+        "No autorices escrituras de repositorio, publicacion ni despliegue. Las herramientas userArtifact pueden crear entregables locales y editar copias de artefactos existentes cuando el usuario lo pide explicitamente; deben conservar el original y no equivalen a editar codigo, publicar o desplegar. Para editar PDF, XLSX o imagen usa respectivamente document.pdf.edit, document.xlsx.edit o image.edit y nunca los sustituyas por herramientas de creacion. Si una persona, producto u objeto debe conservarse desde una imagen adjunta, selecciona image.edit y copia el artifact real del manifiesto en sourceOutput; no uses image.generate ni una descripcion de media.analyze como reemplazo de la fuente visual. Si hay adjuntos reales y la orden pide analizarlos, describirlos, compararlos, identificarlos o leerlos, selecciona media.analyze; nunca sustituyas ese objetivo por image.generate o image.edit salvo que la orden tambien pida explicitamente crear, generar, editar, modificar o transformar una imagen. Conserva todas las intenciones independientes y usa herramientas especializadas para entregables operativos.",
         "agent.delegate no es una optimizacion automatica. Seleccionala solamente si la instruccion original pide explicitamente delegar, usar agentes o ejecutar en paralelo. En ese caso copia literalmente esa frase en delegationDirective. Si solo hay varias herramientas directas, devuelve esas herramientas sin agent.delegate.",
         "repo.architectReview es autocontenida: ya construye el grafo y ranking y ejecuta los 11 controles sobre un plan recibido. Cuando se pida esa revision, no agregues repo.search, repo.read, repo.diagnose o repo.impact salvo que la instruccion pida de forma independiente inspeccionar fuentes adicionales.",
         "Si varios objetivos requieren la misma herramienta con argumentos distintos, devuelve una llamada separada para cada uno. En image.edit, varias fotos de referencia siguen siendo un solo objetivo y una sola salida; usa referenceOutputs. Solo devuelve varias llamadas de image.edit cuando el usuario pida varias imagenes finales y asigna variantId distinto a cada una.",
@@ -1673,11 +1831,15 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
     const allowed = new Map(catalog.map(tool => [tool.name, tool]));
     const candidates =
         normalizeGroundedImageReferenceCandidates(
-            Array.isArray(
-                plan?.toolCalls
-            )
-                ? plan.toolCalls
-                : [],
+            normalizeAttachmentAnalysisRouteCandidates(
+                Array.isArray(
+                    plan?.toolCalls
+                )
+                    ? plan.toolCalls
+                    : [],
+                catalog,
+                context
+            ),
             catalog,
             context
         );
@@ -2498,6 +2660,10 @@ export const __test = {
     extractExplicitGovernedToolPlan,
     extractGroundedAttachments,
     requestsGroundedVisualReference,
+    requestsAttachmentAnalysis,
+    requestsVisualArtifactCreation,
+    requestsAdditionalDeliverableBeyondAttachmentAnalysis,
+    normalizeAttachmentAnalysisRouteCandidates,
     attachmentDateScore,
     selectPreferredIdentityAttachment,
     imageVariantIdentity,

@@ -200,6 +200,237 @@ test("media analysis is a mission-wide singleton despite question variants", () 
     assert.equal(calls[0].missionDedupeKey, "media.analyze:[]");
 });
 
+
+test("pure attachment analysis deterministically rejects stale marketing, document and image generation routes", async () => {
+    const manifest = JSON.stringify([
+        {
+            name: "source-a.png",
+            mimeType: "image/png",
+            artifact: ".jarvis-artifacts/uploads/source-a.png",
+            sha256: "a".repeat(64)
+        },
+        {
+            name: "source-b.png",
+            mimeType: "image/png",
+            artifact: ".jarvis-artifacts/uploads/source-b.png",
+            sha256: "b".repeat(64)
+        }
+    ]);
+    const instruction = [
+        "CASE-MULTIMODAL-V94-PROD-CERT-A",
+        "Analiza estas dos imágenes como fuentes independientes.",
+        "Describe únicamente elementos visuales directamente verificables en cada archivo.",
+        "Mantén SOURCE_1 y SOURCE_2 estrictamente separadas.",
+        "Al final compara únicamente diferencias visuales demostrables entre ambas fuentes.",
+        `Archivos adjuntos reales entregados por el usuario:${manifest}`
+    ].join("\n");
+    const catalog = [
+        {
+            name: "media.analyze",
+            description: "Analiza adjuntos reales.",
+            mutates: false,
+            requiresApproval: false,
+            missionDedupeBy: [],
+            inputSchema: {
+                mimeType: "string",
+                sourceName: "string",
+                pages: "array",
+                attachments: "array",
+                questions: "array"
+            }
+        },
+        {
+            name: "marketing.plan",
+            description: "Construye marketing.",
+            mutates: false,
+            requiresApproval: false
+        },
+        {
+            name: "document.create",
+            description: "Crea un documento.",
+            mutates: true,
+            requiresApproval: false,
+            userArtifact: true
+        },
+        {
+            name: "image.generate",
+            description: "Genera una imagen nueva.",
+            mutates: true,
+            requiresApproval: false,
+            userArtifact: true,
+            inputSchema: {
+                type: "object",
+                properties: {
+                    prompt: { type: "string" }
+                }
+            }
+        }
+    ];
+
+    const result = await buildJarvisMultifunctionToolCalls(
+        instruction,
+        {
+            toolCatalog: catalog,
+            semanticPlanner: async () => ({
+                ok: true,
+                status: "SEMANTIC_PLAN_READY",
+                provider: "test-model",
+                toolCalls: [
+                    {
+                        name: "marketing.plan",
+                        args: {
+                            brandName: "Peninsula Tech"
+                        }
+                    },
+                    {
+                        name: "document.create",
+                        args: {
+                            format: "pdf",
+                            title: "Plan de marketing completo"
+                        }
+                    },
+                    {
+                        name: "image.generate",
+                        args: {
+                            prompt: "Crea una pieza visual profesional para Peninsula Tech."
+                        }
+                    }
+                ]
+            })
+        }
+    );
+
+    assert.deepEqual(
+        result.map(call => call.name),
+        ["media.analyze"]
+    );
+    assert.equal(
+        result[0].reason,
+        "ATTACHMENT_ANALYSIS_ROUTE_ENFORCED"
+    );
+});
+
+test("pure attachment analysis keeps only one existing media analysis call", () => {
+    const manifest = JSON.stringify([
+        {
+            name: "source.png",
+            mimeType: "image/png",
+            artifact: ".jarvis-artifacts/uploads/source.png"
+        }
+    ]);
+    const instruction = [
+        "Compara y describe solamente esta imagen.",
+        `Archivos adjuntos reales entregados por el usuario:${manifest}`
+    ].join("\n");
+    const catalog = [
+        {
+            name: "media.analyze",
+            description: "Analiza adjuntos.",
+            mutates: false,
+            requiresApproval: false,
+            missionDedupeBy: []
+        },
+        {
+            name: "image.generate",
+            description: "Genera imagen.",
+            mutates: true,
+            requiresApproval: false,
+            userArtifact: true
+        }
+    ];
+    const calls = plannerTest.trustedPlanCalls(
+        {
+            toolCalls: [
+                {
+                    name: "media.analyze",
+                    args: {
+                        questions: ["Compara"]
+                    },
+                    reason: "MODEL_SELECTED_MEDIA"
+                },
+                {
+                    name: "image.generate",
+                    args: {
+                        prompt: "stale"
+                    }
+                }
+            ]
+        },
+        catalog,
+        {
+            originalInstruction: instruction
+        }
+    );
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].name, "media.analyze");
+    assert.deepEqual(calls[0].args.questions, ["Compara"]);
+    assert.equal(calls[0].reason, "MODEL_SELECTED_MEDIA");
+});
+
+test("mixed attachment analysis plus explicit image creation is not collapsed to media only", async () => {
+    const manifest = JSON.stringify([
+        {
+            name: "source.png",
+            mimeType: "image/png",
+            artifact: ".jarvis-artifacts/uploads/source.png"
+        }
+    ]);
+    const instruction = [
+        "Analiza esta imagen y después crea una imagen nueva basada en sus colores.",
+        `Archivos adjuntos reales entregados por el usuario:${manifest}`
+    ].join("\n");
+    const catalog = [
+        {
+            name: "media.analyze",
+            mutates: false,
+            requiresApproval: false,
+            missionDedupeBy: []
+        },
+        {
+            name: "image.generate",
+            mutates: true,
+            requiresApproval: false,
+            userArtifact: true,
+            inputSchema: {
+                type: "object",
+                required: ["prompt"],
+                properties: {
+                    prompt: { type: "string" }
+                }
+            }
+        }
+    ];
+
+    const result = await buildJarvisMultifunctionToolCalls(
+        instruction,
+        {
+            toolCatalog: catalog,
+            semanticPlanner: async () => ({
+                ok: true,
+                status: "SEMANTIC_PLAN_READY",
+                toolCalls: [
+                    {
+                        name: "media.analyze",
+                        args: {}
+                    },
+                    {
+                        name: "image.generate",
+                        args: {
+                            prompt: "Crea una imagen nueva basada en los colores observados."
+                        }
+                    }
+                ]
+            })
+        }
+    );
+
+    assert.deepEqual(
+        result.map(call => call.name),
+        ["media.analyze", "image.generate"]
+    );
+});
+
 test("browser mission contract returns every model-selected high-level tool", async () => {
     const originalFetch = globalThis.fetch;
     let requestedUrl = "";
@@ -4099,7 +4330,7 @@ test("multifunction descriptor remains approval-bound", () => {
     assert.equal(planner.mutates, false);
     assert.equal(
         planner.version,
-        "4.14.0-identity-fidelity"
+        "4.15.0-attachment-analysis-route"
     );
     assert.equal(planner.maximumToolCalls, 12);
     assert.equal(planner.architecture, "model_selected_runtime_catalog");
