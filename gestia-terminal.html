@@ -4119,6 +4119,86 @@ if (
                             payload ||
                             {};
 
+                        if (toolName === "media.analyze") {
+                            const mediaSources =
+                                Array.isArray(repoData?.sources)
+                                    ? repoData.sources
+                                    : [];
+
+                            const mediaEvidence = {
+                                ok:
+                                    repoData?.ok === true,
+                                status:
+                                    repoData?.status || null,
+                                engine:
+                                    repoData?.engine || null,
+                                version:
+                                    repoData?.version || null,
+                                expectedSources:
+                                    repoData?.expectedSources ?? null,
+                                receivedSources:
+                                    repoData?.receivedSources ?? null,
+                                analysisMode:
+                                    repoData?.analysisMode || null,
+                                repairCount:
+                                    repoData?.repairCount ?? null,
+                                sources:
+                                    mediaSources.map(item => ({
+                                        sourceId: item?.sourceId || null,
+                                        fileName: item?.fileName || null,
+                                        name: item?.name || null,
+                                        mimeType: item?.mimeType || null,
+                                        bytes: item?.bytes ?? null,
+                                        sha256: item?.sha256 || null,
+                                        description: item?.description || "",
+                                        observations: Array.isArray(item?.observations)
+                                            ? item.observations
+                                            : [],
+                                        inferences: Array.isArray(item?.inferences)
+                                            ? item.inferences
+                                            : [],
+                                        objects: Array.isArray(item?.objects)
+                                            ? item.objects
+                                            : [],
+                                        composition: item?.composition || {},
+                                        visibleData: Array.isArray(item?.visibleData)
+                                            ? item.visibleData
+                                            : [],
+                                        pages: Array.isArray(item?.pages)
+                                            ? item.pages
+                                            : [],
+                                        marketingUse: Array.isArray(item?.marketingUse)
+                                            ? item.marketingUse
+                                            : [],
+                                        quality: item?.quality || {},
+                                        uncertainty: Array.isArray(item?.uncertainty)
+                                            ? item.uncertainty
+                                            : [],
+                                        evidence: Array.isArray(item?.evidence)
+                                            ? item.evidence
+                                            : []
+                                    })),
+                                sourceManifest:
+                                    repoData?.sourceManifest || null,
+                                comparison:
+                                    repoData?.comparison || null,
+                                recommendations:
+                                    Array.isArray(repoData?.recommendations)
+                                        ? repoData.recommendations
+                                        : [],
+                                verifiedVisualClaims:
+                                    repoData?.verifiedVisualClaims || null,
+                                policy:
+                                    repoData?.policy || null
+                            };
+
+                            return JSON.stringify(
+                                mediaEvidence,
+                                null,
+                                2
+                            );
+                        }
+
                         if (toolName === "repo.grep") {
                             return [
                                 `repo.grep: ${repoData?.term || repoData?.query || "ND"}`,
