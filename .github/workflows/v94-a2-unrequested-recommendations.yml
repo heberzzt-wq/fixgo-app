@@ -36,13 +36,15 @@ jobs:
           npm --prefix functions ci
 
       - name: Apply recommendation guard patch
-        run: python3 scripts/v94-a2-unrequested-recommendations-patch.py
+        run: |
+          python3 scripts/v94-a2-unrequested-recommendations-patch.py
+          python3 scripts/v94-a2-unrequested-recommendations-ci-compat.py
 
       - name: Verify focused syntax and regressions
         run: |
           node --check gestia-core/jarvis/jarvis.multitool.pack.js
           node --check gestia-core/jarvis/jarvis.conversation.composer.js
-          node --test tests/v94-media-browser-precision-contract.test.mjs tests/jarvis-conversation-composer.test.mjs
+          node --test tests/v94-media-browser-precision-contract.test.mjs tests/jarvis-conversation-composer.test.mjs tests/jarvis-multifunction-tools.test.mjs
           git diff --check
 
       - name: Run complete CI contract
@@ -53,7 +55,8 @@ jobs:
           git config user.name "OpenAI V94 Handoff"
           git config user.email "actions@users.noreply.github.com"
           git rm scripts/v94-a2-unrequested-recommendations-patch.py
+          git rm scripts/v94-a2-unrequested-recommendations-ci-compat.py
           git rm .github/workflows/v94-a2-unrequested-recommendations.yml
-          git add gestia-core/jarvis/jarvis.multitool.pack.js gestia-core/jarvis/jarvis.conversation.composer.js tests/v94-media-browser-precision-contract.test.mjs tests/jarvis-conversation-composer.test.mjs
+          git add gestia-core/jarvis/jarvis.multitool.pack.js gestia-core/jarvis/jarvis.conversation.composer.js tests/v94-media-browser-precision-contract.test.mjs tests/jarvis-conversation-composer.test.mjs tests/jarvis-multifunction-tools.test.mjs
           git commit -m "[v94-media-v4n] fix(jarvis): suppress unrequested strict visual recommendations"
           git push origin HEAD:v94-media-v4n-negative-claims
