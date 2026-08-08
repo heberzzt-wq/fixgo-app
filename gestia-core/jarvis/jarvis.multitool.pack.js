@@ -1664,6 +1664,7 @@ const MEDIA_UPPER_UI_LITERAL_STOPWORDS = new Set([
     "UI", "URL", "PDF", "MD", "JSON", "HTML", "HTTP", "HTTPS", "SHA",
     "ID", "API", "GPS", "CI", "DOM"
 ]);
+const MEDIA_UNSUPPORTED_NEGATIVE_VISUAL_CLAIM_PATTERN = /\b(?:absent(?:\s+(?:from|in))?|not\s+present(?:\s+in)?|(?:does|do)\s+not\s+appear(?:\s+in)?|missing\s+from|not\s+shown(?:\s+in)?|ausentes?(?:\s+en)?|no\s+(?:esta|está|estan|están)\s+presentes?(?:\s+en)?|no\s+(?:aparece|aparecen|se\s+muestra|se\s+muestran|existe|existen)(?:\s+en)?|faltan?\s+en|carece\s+de)\b/i;
 
 function mediaNarrativeContainsUngroundedUpperUiLiteral(
     value,
@@ -1696,6 +1697,38 @@ function mediaNarrativeContainsUngroundedUpperUiLiteral(
     );
 }
 
+function mediaNarrativeContainsUnsupportedNegativeVisualClaim(
+    value,
+    verifiedValues = []
+) {
+    if (value == null) return false;
+    if (typeof value === "string") {
+        if (!MEDIA_UNSUPPORTED_NEGATIVE_VISUAL_CLAIM_PATTERN.test(value)) {
+            return false;
+        }
+        const normalizedNarrative = normalizeMediaContractLiteral(value);
+        return verifiedValues.some(verified =>
+            verified.length >= 3 &&
+            normalizedNarrative.includes(verified)
+        );
+    }
+    if (Array.isArray(value)) {
+        return value.some(item =>
+            mediaNarrativeContainsUnsupportedNegativeVisualClaim(
+                item,
+                verifiedValues
+            )
+        );
+    }
+    if (typeof value !== "object") return false;
+    return Object.values(value).some(item =>
+        mediaNarrativeContainsUnsupportedNegativeVisualClaim(
+            item,
+            verifiedValues
+        )
+    );
+}
+
 function sanitizeNarrativeAgainstVerifiedValues(value, verifiedValues = []) {
     if (!Array.isArray(value)) return [];
     return value.filter(item =>
@@ -1714,6 +1747,7 @@ export function reconcileIndependentMediaAnalysis(
     const auditedSources = Array.isArray(audited?.sources) ? audited.sources : [];
     let disputedLiteralCount = 0;
     let suppressedPeripheralLiteralCount = 0;
+    let suppressedUnsupportedNegativeVisualClaimCount = 0;
 
     const sources = auditedSources.map((source, index) => {
         const first = initialSources[index] || {};
@@ -1787,14 +1821,28 @@ export function reconcileIndependentMediaAnalysis(
     });
 
     const globalVerifiedValues = verifiedMediaContractValues(sources);
+    const groundedComparisonDifferences =
+        sanitizeNarrativeAgainstVerifiedValues(
+            audited?.comparison?.differences,
+            globalVerifiedValues
+        );
+    const comparisonDifferences =
+        groundedComparisonDifferences.filter(item => {
+            const unsupportedNegativeClaim =
+                audited?.strictVisualOnly === true &&
+                mediaNarrativeContainsUnsupportedNegativeVisualClaim(
+                    item,
+                    globalVerifiedValues
+                );
+            if (unsupportedNegativeClaim) {
+                suppressedUnsupportedNegativeVisualClaimCount += 1;
+            }
+            return !unsupportedNegativeClaim;
+        });
     const comparison = audited?.comparison && typeof audited.comparison === "object"
         ? {
             ...audited.comparison,
-            differences:
-                sanitizeNarrativeAgainstVerifiedValues(
-                    audited.comparison?.differences,
-                    globalVerifiedValues
-                )
+            differences: comparisonDifferences
         }
         : audited?.comparison;
     const recommendations = sanitizeNarrativeAgainstVerifiedValues(
@@ -1831,12 +1879,14 @@ export function reconcileIndependentMediaAnalysis(
             policy: {
                 ...(audited?.policy || {}),
                 independentPassLiteralConsensusRequired: true,
-                peripheralSensitiveLiteralSuppression: true
+                peripheralSensitiveLiteralSuppression: true,
+                negativeVisualClaimsRequireStructuredEvidence: true
             }
         },
         consensusVerifiedLiteralCount: verifiedVisualClaims.length,
         disputedLiteralCount,
-        suppressedPeripheralLiteralCount
+        suppressedPeripheralLiteralCount,
+        suppressedUnsupportedNegativeVisualClaimCount
     };
 }
 
@@ -1861,6 +1911,8 @@ export function buildMediaPrecisionAuditQuestion(question, result) {
         "Si una lectura no cumple ese umbral, omite su valor y explica la limitacion en uncertainty.",
         "Responde en espanol y conserva los nombres de archivo literalmente.",
         "En comparison.differences incluye solo diferencias visibles entre las fuentes.",
+        "No concluyas que un elemento esta ausente, no existe o no esta presente en otra fuente solamente porque no aparecio en visibleData.",
+        "Formula las diferencias como afirmaciones positivas verificadas por fuente; sin evidencia negativa estructurada, la ausencia debe permanecer desconocida.",
         "En recommendations enumera carencias concretas de la experiencia de adjuntos que puedan comprobarse por contraste visual.",
         "No uses recommendations para proponer investigar, explorar o documentar; si no hay evidencia visual suficiente, dilo expresamente.",
         `FUENTES_PARA_REINSPECCION=${JSON.stringify(auditSources)}`,
@@ -2019,6 +2071,9 @@ async function fetchGroundedMediaAnalysis(attachments = [], question = "") {
                 reconciled.disputedLiteralCount,
             suppressedPeripheralLiteralCount:
                 reconciled.suppressedPeripheralLiteralCount,
+            suppressedUnsupportedNegativeVisualClaimCount:
+                reconciled.suppressedUnsupportedNegativeVisualClaimCount,
+            negativeVisualClaimsRequireStructuredEvidence: true,
             initialVersion: initial.version || null,
             auditedVersion: audited.version || null
         }

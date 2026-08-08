@@ -1235,3 +1235,66 @@ test("precision renderer rejects an unverified uppercase UI label even beside a 
     assert.doesNotMatch(result.text, /NEXO/);
     assert.match(result.text, /se omitieron comparaciones con etiquetas literales/i);
 });
+
+test("precision renderer suppresses unsupported negative visual absence claims", async () => {
+    const result = await composeEvidenceGroundedConversation({
+        instruction: "Compara solamente lo visible.",
+        evidenceItems: [{
+            name: "media.analyze",
+            observation: {
+                ok: true,
+                status: "MEDIA_ANALYSIS_GROUNDED",
+                version: "1.4.0-verified-visual-claims",
+                expectedSources: 2,
+                receivedSources: 2,
+                sources: [
+                    {
+                        sourceId: "SOURCE_1",
+                        fileName: "one.png",
+                        sha256: "a".repeat(64),
+                        visibleData: [
+                            { kind: "text", value: "ChatGPT Plus", page: 1, confidence: 1, evidence: "header", legibility: "VERIFIED" },
+                            { kind: "text", value: "Canva", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" }
+                        ],
+                        uncertainty: []
+                    },
+                    {
+                        sourceId: "SOURCE_2",
+                        fileName: "two.png",
+                        sha256: "b".repeat(64),
+                        visibleData: [
+                            { kind: "text", value: "Terminal Heberto", page: 1, confidence: 1, evidence: "header", legibility: "VERIFIED" },
+                            { kind: "text", value: "Limitaciones reales:", page: 1, confidence: 1, evidence: "section", legibility: "VERIFIED" }
+                        ],
+                        uncertainty: []
+                    }
+                ],
+                comparison: {
+                    differences: [
+                        "The primary application title differs: 'ChatGPT Plus' in SOURCE_1 versus 'Terminal Heberto' in SOURCE_2.",
+                        "SOURCE_1 shows 'Canva', which is absent in SOURCE_2.",
+                        "SOURCE_2 includes 'Limitaciones reales:', which is not present in SOURCE_1."
+                    ]
+                },
+                recommendations: [],
+                precisionAudit: {
+                    ok: true,
+                    status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
+                    providerPasses: 2,
+                    effectiveToolExecutions: 1,
+                    sourceIdentityVerified: true,
+                    exactTextRequiresConfidence: 0.98
+                }
+            }
+        }],
+        executeConversation: async () => {
+            throw new Error("semantic composer must not run");
+        }
+    });
+
+    assert.equal(result.ok, true);
+    assert.match(result.text, /ChatGPT Plus/);
+    assert.match(result.text, /Terminal Heberto/);
+    assert.match(result.text, /primary application title differs/i);
+    assert.doesNotMatch(result.text, /absent in SOURCE_2|not present in SOURCE_1/i);
+});

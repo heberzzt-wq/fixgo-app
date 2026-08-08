@@ -174,3 +174,42 @@ test("independent reconciliation removes an unverified uppercase UI label from p
     assert.doesNotMatch(JSON.stringify(reconciled.result), /NEXO/);
     assert.deepEqual(reconciled.result.comparison.differences, []);
 });
+
+test("independent reconciliation suppresses unsupported negative cross-source absence claims", () => {
+    const initial = baseResult();
+    const audited = baseResult();
+    const source1Items = [
+        { kind: "text", value: "ChatGPT Plus", page: 1, confidence: 1, evidence: "header", legibility: "VERIFIED" },
+        { kind: "text", value: "Canva", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" }
+    ];
+    const source2Items = [
+        { kind: "text", value: "Terminal Heberto", page: 1, confidence: 1, evidence: "header", legibility: "VERIFIED" },
+        { kind: "text", value: "Limitaciones reales:", page: 1, confidence: 1, evidence: "section", legibility: "VERIFIED" }
+    ];
+    initial.sources[0].visibleData = source1Items;
+    audited.sources[0].visibleData = source1Items;
+    initial.sources[1].visibleData = source2Items;
+    audited.sources[1].visibleData = source2Items;
+    audited.comparison = {
+        differences: [
+            "The primary application title differs: 'ChatGPT Plus' in SOURCE_1 versus 'Terminal Heberto' in SOURCE_2.",
+            "SOURCE_1 shows 'Canva', which is absent in SOURCE_2.",
+            "SOURCE_2 includes 'Limitaciones reales:', which is not present in SOURCE_1."
+        ]
+    };
+
+    const reconciled = reconcileIndependentMediaAnalysis(
+        initial,
+        audited,
+        files,
+        "Compara solamente lo visible."
+    );
+
+    assert.deepEqual(
+        reconciled.result.comparison.differences,
+        ["The primary application title differs: 'ChatGPT Plus' in SOURCE_1 versus 'Terminal Heberto' in SOURCE_2."]
+    );
+    assert.equal(reconciled.suppressedUnsupportedNegativeVisualClaimCount, 2);
+    assert.equal(reconciled.result.policy.negativeVisualClaimsRequireStructuredEvidence, true);
+    assert.doesNotMatch(JSON.stringify(reconciled.result), /absent in SOURCE_2|not present in SOURCE_1/i);
+});
