@@ -1,0 +1,63 @@
+name: V94 negative literal claims Hosting deploy
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-negative-claims-hosting-deploy.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v94-negative-claims-hosting-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-hosting-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout certified isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Verify certified A2 patch is present
+        run: |
+          grep -q "negativeVisualClaimsRequireStructuredEvidence" gestia-core/jarvis/jarvis.multitool.pack.js
+          grep -q "renderContainsUnsupportedNegativeLiteralClaim" gestia-core/jarvis/jarvis.conversation.composer.js
+          git merge-base --is-ancestor c8b2694237d2128e6b7ba55f88cb77c8edb9cfa5 HEAD
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@15.10.1
+
+      - name: Deploy primary Hosting only
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy --only hosting:fixgo-44e4d --project fixgo-44e4d --token "$FIREBASE_TOKEN" --non-interactive
+
+      - name: Verify production bytes
+        run: |
+          curl --fail --silent --show-error --location --retry 8 --retry-delay 2 \
+            "https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.multitool.pack.js?v=c8b2694237d2" \
+            -o /tmp/multitool.js
+          curl --fail --silent --show-error --location --retry 8 --retry-delay 2 \
+            "https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.conversation.composer.js?v=c8b2694237d2" \
+            -o /tmp/composer.js
+          grep -q "negativeVisualClaimsRequireStructuredEvidence" /tmp/multitool.js
+          grep -q "renderContainsUnsupportedNegativeLiteralClaim" /tmp/composer.js
+          echo "V94_NEGATIVE_LITERAL_CLAIMS_HOSTING_VERIFIED=c8b2694237d2128e6b7ba55f88cb77c8edb9cfa5"
+
+      - name: Remove temporary deployment workflow
+        run: |
+          rm .github/workflows/v94-negative-claims-hosting-deploy.yml
+          git config user.name "OpenAI V94 Handoff"
+          git config user.email "actions@users.noreply.github.com"
+          git add .github/workflows/v94-negative-claims-hosting-deploy.yml
+          git commit -m "chore(v94): remove temporary Hosting deploy workflow"
+          git push origin HEAD:v94-media-v4n-negative-claims
