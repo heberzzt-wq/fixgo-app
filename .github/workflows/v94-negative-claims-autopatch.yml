@@ -1,0 +1,155 @@
+name: V94 negative visual claims autopatch
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-negative-claims-autopatch.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v94-negative-claims-autopatch
+  cancel-in-progress: false
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Apply fail-closed negative-claim guardrails and regressions
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"ANCHOR_COUNT_MISMATCH {path}: expected 1, got {count}\nANCHOR={old[:180]!r}")
+              p.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          multitool = "gestia-core/jarvis/jarvis.multitool.pack.js"
+          composer = "gestia-core/jarvis/jarvis.conversation.composer.js"
+          browser_test = "tests/v94-media-browser-precision-contract.test.mjs"
+          composer_test = "tests/jarvis-conversation-composer.test.mjs"
+
+          replace_once(
+              multitool,
+              '''const MEDIA_UPPER_UI_LITERAL_STOPWORDS = new Set([\n    "SOURCE", "VERIFIED", "UNCERTAIN", "MEDIA", "ANALYSIS", "GROUNDED",\n    "UI", "URL", "PDF", "MD", "JSON", "HTML", "HTTP", "HTTPS", "SHA",\n    "ID", "API", "GPS", "CI", "DOM"\n]);\n''',
+              '''const MEDIA_UPPER_UI_LITERAL_STOPWORDS = new Set([\n    "SOURCE", "VERIFIED", "UNCERTAIN", "MEDIA", "ANALYSIS", "GROUNDED",\n    "UI", "URL", "PDF", "MD", "JSON", "HTML", "HTTP", "HTTPS", "SHA",\n    "ID", "API", "GPS", "CI", "DOM"\n]);\nconst MEDIA_UNSUPPORTED_NEGATIVE_VISUAL_CLAIM_PATTERN = /\\b(?:absent(?:\\s+(?:from|in))?|not\\s+present(?:\\s+in)?|(?:does|do)\\s+not\\s+appear(?:\\s+in)?|missing\\s+from|not\\s+shown(?:\\s+in)?|ausentes?(?:\\s+en)?|no\\s+(?:esta|está|estan|están)\\s+presentes?(?:\\s+en)?|no\\s+(?:aparece|aparecen|se\\s+muestra|se\\s+muestran|existe|existen)(?:\\s+en)?|faltan?\\s+en|carece\\s+de)\\b/i;\n'''
+          )
+
+          replace_once(
+              multitool,
+              '''function sanitizeNarrativeAgainstVerifiedValues(value, verifiedValues = []) {\n''',
+              '''function mediaNarrativeContainsUnsupportedNegativeVisualClaim(value) {\n    if (value == null) return false;\n    if (typeof value === "string") {\n        return MEDIA_UNSUPPORTED_NEGATIVE_VISUAL_CLAIM_PATTERN.test(value);\n    }\n    if (Array.isArray(value)) {\n        return value.some(item =>\n            mediaNarrativeContainsUnsupportedNegativeVisualClaim(item)\n        );\n    }\n    if (typeof value !== "object") return false;\n    return Object.values(value).some(item =>\n        mediaNarrativeContainsUnsupportedNegativeVisualClaim(item)\n    );\n}\n\nfunction sanitizeNarrativeAgainstVerifiedValues(value, verifiedValues = []) {\n'''
+          )
+
+          replace_once(
+              multitool,
+              '''    let disputedLiteralCount = 0;\n    let suppressedPeripheralLiteralCount = 0;\n''',
+              '''    let disputedLiteralCount = 0;\n    let suppressedPeripheralLiteralCount = 0;\n    let suppressedUnsupportedNegativeVisualClaimCount = 0;\n'''
+          )
+
+          replace_once(
+              multitool,
+              '''    const globalVerifiedValues = verifiedMediaContractValues(sources);\n    const comparison = audited?.comparison && typeof audited.comparison === "object"\n        ? {\n            ...audited.comparison,\n            differences:\n                sanitizeNarrativeAgainstVerifiedValues(\n                    audited.comparison?.differences,\n                    globalVerifiedValues\n                )\n        }\n        : audited?.comparison;\n''',
+              '''    const globalVerifiedValues = verifiedMediaContractValues(sources);\n    const groundedComparisonDifferences =\n        sanitizeNarrativeAgainstVerifiedValues(\n            audited?.comparison?.differences,\n            globalVerifiedValues\n        );\n    const comparisonDifferences =\n        groundedComparisonDifferences.filter(item => {\n            const unsupportedNegativeClaim =\n                audited?.strictVisualOnly === true &&\n                mediaNarrativeContainsUnsupportedNegativeVisualClaim(item);\n            if (unsupportedNegativeClaim) {\n                suppressedUnsupportedNegativeVisualClaimCount += 1;\n            }\n            return !unsupportedNegativeClaim;\n        });\n    const comparison = audited?.comparison && typeof audited.comparison === "object"\n        ? {\n            ...audited.comparison,\n            differences: comparisonDifferences\n        }\n        : audited?.comparison;\n'''
+          )
+
+          replace_once(
+              multitool,
+              '''                independentPassLiteralConsensusRequired: true,\n                peripheralSensitiveLiteralSuppression: true\n''',
+              '''                independentPassLiteralConsensusRequired: true,\n                peripheralSensitiveLiteralSuppression: true,\n                negativeVisualClaimsRequireStructuredEvidence: true\n'''
+          )
+
+          replace_once(
+              multitool,
+              '''        suppressedPeripheralLiteralCount\n    };\n}\n''',
+              '''        suppressedPeripheralLiteralCount,\n        suppressedUnsupportedNegativeVisualClaimCount\n    };\n}\n'''
+          )
+
+          replace_once(
+              multitool,
+              '''        "En comparison.differences incluye solo diferencias visibles entre las fuentes.",\n''',
+              '''        "En comparison.differences incluye solo diferencias visibles entre las fuentes.",\n        "No concluyas que un elemento esta ausente, no existe o no esta presente en otra fuente solamente porque no aparecio en visibleData.",\n        "Formula las diferencias como afirmaciones positivas verificadas por fuente; sin evidencia negativa estructurada, la ausencia debe permanecer desconocida.",\n'''
+          )
+
+          replace_once(
+              multitool,
+              '''            suppressedPeripheralLiteralCount:\n                reconciled.suppressedPeripheralLiteralCount,\n            initialVersion: initial.version || null,\n''',
+              '''            suppressedPeripheralLiteralCount:\n                reconciled.suppressedPeripheralLiteralCount,\n            suppressedUnsupportedNegativeVisualClaimCount:\n                reconciled.suppressedUnsupportedNegativeVisualClaimCount,\n            negativeVisualClaimsRequireStructuredEvidence: true,\n            initialVersion: initial.version || null,\n'''
+          )
+
+          replace_once(
+              composer,
+              '''const RENDER_CAPTURE_CONTEXT_CLAIM_PATTERN = /\\b(?:same date(?: and time)?|same time|system tray|captured (?:at|around) the same time|same user|misma fecha(?: y hora)?|misma hora|bandeja del sistema|capturad[oa]s? (?:a|alrededor de) la misma hora|mismo usuario)\\b/i;\n''',
+              '''const RENDER_CAPTURE_CONTEXT_CLAIM_PATTERN = /\\b(?:same date(?: and time)?|same time|system tray|captured (?:at|around) the same time|same user|misma fecha(?: y hora)?|misma hora|bandeja del sistema|capturad[oa]s? (?:a|alrededor de) la misma hora|mismo usuario)\\b/i;\nconst RENDER_UNSUPPORTED_NEGATIVE_VISUAL_CLAIM_PATTERN = /\\b(?:absent(?:\\s+(?:from|in))?|not\\s+present(?:\\s+in)?|(?:does|do)\\s+not\\s+appear(?:\\s+in)?|missing\\s+from|not\\s+shown(?:\\s+in)?|ausentes?(?:\\s+en)?|no\\s+(?:esta|está|estan|están)\\s+presentes?(?:\\s+en)?|no\\s+(?:aparece|aparecen|se\\s+muestra|se\\s+muestran|existe|existen)(?:\\s+en)?|faltan?\\s+en|carece\\s+de)\\b/i;\n'''
+          )
+
+          replace_once(
+              composer,
+              '''            .filter(value =>\n                !RENDER_CAPTURE_CONTEXT_CLAIM_PATTERN.test(value)\n            );\n''',
+              '''            .filter(value =>\n                !RENDER_CAPTURE_CONTEXT_CLAIM_PATTERN.test(value) &&\n                !RENDER_UNSUPPORTED_NEGATIVE_VISUAL_CLAIM_PATTERN.test(value)\n            );\n'''
+          )
+
+          replace_once(
+              composer,
+              '''            "Diferencias verificadas: se omitieron comparaciones con etiquetas literales que no quedaron respaldadas por visibleData verificado."\n''',
+              '''            "Diferencias verificadas: se omitieron comparaciones con etiquetas literales o afirmaciones de ausencia que no quedaron respaldadas por visibleData verificado."\n'''
+          )
+
+          browser_regression = r'''\n\ntest("independent reconciliation suppresses unsupported negative cross-source absence claims", () => {\n    const initial = baseResult();\n    const audited = baseResult();\n    const source1Items = [\n        { kind: "text", value: "ChatGPT Plus", page: 1, confidence: 1, evidence: "header", legibility: "VERIFIED" },\n        { kind: "text", value: "Canva", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" }\n    ];\n    const source2Items = [\n        { kind: "text", value: "Terminal Heberto", page: 1, confidence: 1, evidence: "header", legibility: "VERIFIED" },\n        { kind: "text", value: "Limitaciones reales:", page: 1, confidence: 1, evidence: "section", legibility: "VERIFIED" }\n    ];\n    initial.sources[0].visibleData = source1Items;\n    audited.sources[0].visibleData = source1Items;\n    initial.sources[1].visibleData = source2Items;\n    audited.sources[1].visibleData = source2Items;\n    audited.comparison = {\n        differences: [\n            "The primary application title differs: 'ChatGPT Plus' in SOURCE_1 versus 'Terminal Heberto' in SOURCE_2.",\n            "SOURCE_1 shows 'Canva', which is absent in SOURCE_2.",\n            "SOURCE_2 includes 'Limitaciones reales:', which is not present in SOURCE_1."\n        ]\n    };\n\n    const reconciled = reconcileIndependentMediaAnalysis(\n        initial,\n        audited,\n        files,\n        "Compara solamente lo visible."\n    );\n\n    assert.deepEqual(\n        reconciled.result.comparison.differences,\n        ["The primary application title differs: 'ChatGPT Plus' in SOURCE_1 versus 'Terminal Heberto' in SOURCE_2."]\n    );\n    assert.equal(reconciled.suppressedUnsupportedNegativeVisualClaimCount, 2);\n    assert.equal(reconciled.result.policy.negativeVisualClaimsRequireStructuredEvidence, true);\n    assert.doesNotMatch(JSON.stringify(reconciled.result), /absent in SOURCE_2|not present in SOURCE_1/i);\n});\n'''
+          p = Path(browser_test)
+          text = p.read_text(encoding="utf-8")
+          if 'suppresses unsupported negative cross-source absence claims' in text:
+              raise SystemExit("BROWSER_REGRESSION_ALREADY_PRESENT")
+          p.write_text(text.rstrip() + browser_regression + "\n", encoding="utf-8")
+
+          composer_regression = r'''\n\ntest("precision renderer suppresses unsupported negative visual absence claims", async () => {\n    const result = await composeEvidenceGroundedConversation({\n        instruction: "Compara solamente lo visible.",\n        evidenceItems: [{\n            name: "media.analyze",\n            observation: {\n                ok: true,\n                status: "MEDIA_ANALYSIS_GROUNDED",\n                version: "1.4.0-verified-visual-claims",\n                expectedSources: 2,\n                receivedSources: 2,\n                sources: [\n                    {\n                        sourceId: "SOURCE_1",\n                        fileName: "one.png",\n                        sha256: "a".repeat(64),\n                        visibleData: [\n                            { kind: "text", value: "ChatGPT Plus", page: 1, confidence: 1, evidence: "header", legibility: "VERIFIED" },\n                            { kind: "text", value: "Canva", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" }\n                        ],\n                        uncertainty: []\n                    },\n                    {\n                        sourceId: "SOURCE_2",\n                        fileName: "two.png",\n                        sha256: "b".repeat(64),\n                        visibleData: [\n                            { kind: "text", value: "Terminal Heberto", page: 1, confidence: 1, evidence: "header", legibility: "VERIFIED" },\n                            { kind: "text", value: "Limitaciones reales:", page: 1, confidence: 1, evidence: "section", legibility: "VERIFIED" }\n                        ],\n                        uncertainty: []\n                    }\n                ],\n                comparison: {\n                    differences: [\n                        "The primary application title differs: 'ChatGPT Plus' in SOURCE_1 versus 'Terminal Heberto' in SOURCE_2.",\n                        "SOURCE_1 shows 'Canva', which is absent in SOURCE_2.",\n                        "SOURCE_2 includes 'Limitaciones reales:', which is not present in SOURCE_1."\n                    ]\n                },\n                recommendations: [],\n                precisionAudit: {\n                    ok: true,\n                    status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",\n                    providerPasses: 2,\n                    effectiveToolExecutions: 1,\n                    sourceIdentityVerified: true,\n                    exactTextRequiresConfidence: 0.98\n                }\n            }\n        }],\n        executeConversation: async () => {\n            throw new Error("semantic composer must not run");\n        }\n    });\n\n    assert.equal(result.ok, true);\n    assert.match(result.text, /ChatGPT Plus/);\n    assert.match(result.text, /Terminal Heberto/);\n    assert.match(result.text, /primary application title differs/i);\n    assert.doesNotMatch(result.text, /absent in SOURCE_2|not present in SOURCE_1/i);\n});\n'''
+          p = Path(composer_test)
+          text = p.read_text(encoding="utf-8")
+          if 'precision renderer suppresses unsupported negative visual absence claims' in text:
+              raise SystemExit("COMPOSER_REGRESSION_ALREADY_PRESENT")
+          p.write_text(text.rstrip() + composer_regression + "\n", encoding="utf-8")
+          PY
+
+      - name: Verify focused syntax and regressions
+        run: |
+          node --check gestia-core/jarvis/jarvis.multitool.pack.js
+          node --check gestia-core/jarvis/jarvis.conversation.composer.js
+          node --test tests/v94-media-browser-precision-contract.test.mjs tests/jarvis-conversation-composer.test.mjs
+          git diff --check
+
+      - name: Run complete CI contract
+        run: npm run ci:test
+
+      - name: Commit verified patch and remove temporary workflow
+        shell: bash
+        run: |
+          rm .github/workflows/v94-negative-claims-autopatch.yml
+          git config user.name "OpenAI V94 Handoff"
+          git config user.email "actions@users.noreply.github.com"
+          git add gestia-core/jarvis/jarvis.multitool.pack.js gestia-core/jarvis/jarvis.conversation.composer.js tests/v94-media-browser-precision-contract.test.mjs tests/jarvis-conversation-composer.test.mjs .github/workflows/v94-negative-claims-autopatch.yml
+          git commit -m "[v94-media-v4n] fix(jarvis): fail closed on unsupported visual absence claims"
+          git push origin HEAD:v94-media-v4n-negative-claims
