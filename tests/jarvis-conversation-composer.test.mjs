@@ -1298,3 +1298,68 @@ test("precision renderer suppresses unsupported negative visual absence claims",
     assert.match(result.text, /primary application title differs/i);
     assert.doesNotMatch(result.text, /absent in SOURCE_2|not present in SOURCE_1/i);
 });
+
+
+test("precision renderer suppresses source-local contradiction residue from production A2", async () => {
+    const result = await composeEvidenceGroundedConversation({
+        instruction: "Compara los menus de adjuntos visibles.",
+        evidenceItems: [{
+            name: "media.analyze",
+            observation: {
+                ok: true,
+                status: "MEDIA_ANALYSIS_GROUNDED",
+                version: "1.4.0-verified-visual-claims",
+                expectedSources: 2,
+                receivedSources: 2,
+                sources: [
+                    {
+                        sourceId: "SOURCE_1",
+                        fileName: "chat-gpt-aduntos-1.png",
+                        sha256: "a".repeat(64),
+                        observations: ["An attachment menu is actively open and expanded, revealing multiple options."],
+                        visibleData: [
+                            { kind: "text", value: "Añadir fotos y archivos", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" },
+                            { kind: "text", value: "Canva", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" }
+                        ],
+                        uncertainty: []
+                    },
+                    {
+                        sourceId: "SOURCE_2",
+                        fileName: "terminal-adjunto-1.png",
+                        sha256: "b".repeat(64),
+                        observations: [
+                            "An attachment-like menu is open, displaying options: 'Añadir fotos y archivos', 'Crear una imagen', and 'Búsqueda en Internet'.",
+                            "This statement directly contradicts the visible attachment menu in the same image."
+                        ],
+                        visibleData: [
+                            { kind: "text", value: "Añadir fotos y archivos", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" },
+                            { kind: "text", value: "Crear una imagen", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" },
+                            { kind: "text", value: "Búsqueda en Internet", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" }
+                        ],
+                        uncertainty: [
+                            "The contradiction between the visible attachment menu and the text stating its absence is a notable inconsistency."
+                        ]
+                    }
+                ],
+                comparison: { differences: [], confidence: 1 },
+                recommendations: [],
+                precisionAudit: {
+                    ok: true,
+                    status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
+                    providerPasses: 2,
+                    effectiveToolExecutions: 1,
+                    sourceIdentityVerified: true,
+                    exactTextRequiresConfidence: 0.98
+                }
+            }
+        }],
+        executeConversation: async () => {
+            throw new Error("semantic composer must not run");
+        }
+    });
+
+    assert.equal(result.ok, true);
+    assert.match(result.text, /attachment-like menu is open/i);
+    assert.match(result.text, /Crear una imagen/);
+    assert.doesNotMatch(result.text, /directly contradicts|text stating its absence|notable inconsistency/i);
+});

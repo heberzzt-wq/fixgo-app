@@ -1666,6 +1666,10 @@ const MEDIA_UPPER_UI_LITERAL_STOPWORDS = new Set([
 ]);
 const MEDIA_UNSUPPORTED_NEGATIVE_VISUAL_CLAIM_PATTERN = /\b(?:absent(?:\s+(?:from|in))?|not\s+present(?:\s+in)?|(?:does|do)\s+not\s+appear(?:\s+in)?|missing\s+from|not\s+shown(?:\s+in)?|ausentes?(?:\s+en)?|no\s+(?:esta|está|estan|están)\s+presentes?(?:\s+en)?|no\s+(?:aparece|aparecen|se\s+muestra|se\s+muestran|existe|existen)(?:\s+en)?|faltan?\s+en|carece\s+de)\b/i;
 
+const MEDIA_UNSUPPORTED_CONTRADICTION_META_PATTERN = /\b(?:contradict(?:s|ed|ing)?|contradiction|inconsisten(?:cy|t))\b/i;
+const MEDIA_CAPTURE_CONTEXT_CLAIM_PATTERN = /\b(?:same date(?: and time)?|same time|system tray|captured (?:at|around) the same time|same user|misma fecha(?: y hora)?|misma hora|bandeja del sistema|capturad[oa]s? (?:a|alrededor de) la misma hora|mismo usuario)\b/i;
+const MEDIA_CAPTURE_CONTEXT_REQUEST_PATTERN = /\b(?:system tray|bandeja del sistema|fecha|hora|date|time|reloj|clock|usuario|user)\b/i;
+
 function mediaNarrativeContainsUngroundedUpperUiLiteral(
     value,
     verifiedValues = []
@@ -1729,6 +1733,69 @@ function mediaNarrativeContainsUnsupportedNegativeVisualClaim(
     );
 }
 
+function mediaNarrativeContainsUnsupportedContradictionClaim(
+    value,
+    verifiedValues = []
+) {
+    if (value == null) return false;
+    if (typeof value === "string") {
+        if (!MEDIA_UNSUPPORTED_CONTRADICTION_META_PATTERN.test(value)) {
+            return false;
+        }
+        const normalizedNarrative = normalizeMediaContractLiteral(value);
+        const groundedMentions = new Set(
+            verifiedValues.filter(verified =>
+                verified.length >= 3 &&
+                normalizedNarrative.includes(verified)
+            )
+        );
+        return groundedMentions.size < 2;
+    }
+    if (Array.isArray(value)) {
+        return value.some(item =>
+            mediaNarrativeContainsUnsupportedContradictionClaim(
+                item,
+                verifiedValues
+            )
+        );
+    }
+    if (typeof value !== "object") return false;
+    return Object.values(value).some(item =>
+        mediaNarrativeContainsUnsupportedContradictionClaim(
+            item,
+            verifiedValues
+        )
+    );
+}
+
+function mediaNarrativeContainsUnrequestedCaptureContextClaim(
+    value,
+    question = ""
+) {
+    if (value == null) return false;
+    if (MEDIA_CAPTURE_CONTEXT_REQUEST_PATTERN.test(String(question || ""))) {
+        return false;
+    }
+    if (typeof value === "string") {
+        return MEDIA_CAPTURE_CONTEXT_CLAIM_PATTERN.test(value);
+    }
+    if (Array.isArray(value)) {
+        return value.some(item =>
+            mediaNarrativeContainsUnrequestedCaptureContextClaim(
+                item,
+                question
+            )
+        );
+    }
+    if (typeof value !== "object") return false;
+    return Object.values(value).some(item =>
+        mediaNarrativeContainsUnrequestedCaptureContextClaim(
+            item,
+            question
+        )
+    );
+}
+
 function sanitizeNarrativeAgainstVerifiedValues(value, verifiedValues = []) {
     if (!Array.isArray(value)) return [];
     return value.filter(item =>
@@ -1748,6 +1815,7 @@ export function reconcileIndependentMediaAnalysis(
     let disputedLiteralCount = 0;
     let suppressedPeripheralLiteralCount = 0;
     let suppressedUnsupportedNegativeVisualClaimCount = 0;
+    let suppressedPeripheralNarrativeCount = 0;
 
     const sources = auditedSources.map((source, index) => {
         const first = initialSources[index] || {};
@@ -1782,10 +1850,40 @@ export function reconcileIndependentMediaAnalysis(
         });
 
         const verifiedValues = verifiedMediaContractValues([{ visibleData }]);
-        const uncertainty = sanitizeNarrativeAgainstVerifiedValues(
-            source?.uncertainty,
-            verifiedValues
-        );
+        const sanitizeSourceNarrative = value =>
+            sanitizeNarrativeAgainstVerifiedValues(
+                value,
+                verifiedValues
+            ).filter(item => {
+                const unsupportedNarrativeClaim =
+                    audited?.strictVisualOnly === true &&
+                    (
+                        mediaNarrativeContainsUnsupportedNegativeVisualClaim(
+                            item,
+                            verifiedValues
+                        ) ||
+                        mediaNarrativeContainsUnsupportedContradictionClaim(
+                            item,
+                            verifiedValues
+                        )
+                    );
+                if (unsupportedNarrativeClaim) {
+                    suppressedUnsupportedNegativeVisualClaimCount += 1;
+                    return false;
+                }
+                const peripheralCaptureContext =
+                    audited?.strictVisualOnly === true &&
+                    mediaNarrativeContainsUnrequestedCaptureContextClaim(
+                        item,
+                        question
+                    );
+                if (peripheralCaptureContext) {
+                    suppressedPeripheralNarrativeCount += 1;
+                    return false;
+                }
+                return true;
+            });
+        const uncertainty = sanitizeSourceNarrative(source?.uncertainty);
         if (firstKeys.size !== secondKeys.size || [...firstKeys].some(key => !secondKeys.has(key))) {
             uncertainty.push(
                 "Una o mas lecturas literales difirieron entre pases independientes y se omitieron."
@@ -1799,24 +1897,21 @@ export function reconcileIndependentMediaAnalysis(
                     ? ""
                     : String(source?.description || ""),
             observations:
-                sanitizeNarrativeAgainstVerifiedValues(
-                    source?.observations,
-                    verifiedValues
-                ),
+                sanitizeSourceNarrative(source?.observations),
+            objects:
+                sanitizeSourceNarrative(source?.objects),
             inferences:
                 audited?.strictVisualOnly === true
                     ? []
-                    : sanitizeNarrativeAgainstVerifiedValues(
-                        source?.inferences,
-                        verifiedValues
-                    ),
+                    : sanitizeSourceNarrative(source?.inferences),
             visibleData,
+            pages:
+                sanitizeSourceNarrative(source?.pages),
+            marketingUse:
+                sanitizeSourceNarrative(source?.marketingUse),
             uncertainty: [...new Set(uncertainty)],
             evidence:
-                sanitizeNarrativeAgainstVerifiedValues(
-                    source?.evidence,
-                    verifiedValues
-                )
+                sanitizeSourceNarrative(source?.evidence)
         };
     });
 
@@ -1880,13 +1975,16 @@ export function reconcileIndependentMediaAnalysis(
                 ...(audited?.policy || {}),
                 independentPassLiteralConsensusRequired: true,
                 peripheralSensitiveLiteralSuppression: true,
-                negativeVisualClaimsRequireStructuredEvidence: true
+                negativeVisualClaimsRequireStructuredEvidence: true,
+                sourceNarrativeClaimsRequireStructuredEvidence: true,
+                peripheralCaptureContextNarrativeSuppression: true
             }
         },
         consensusVerifiedLiteralCount: verifiedVisualClaims.length,
         disputedLiteralCount,
         suppressedPeripheralLiteralCount,
-        suppressedUnsupportedNegativeVisualClaimCount
+        suppressedUnsupportedNegativeVisualClaimCount,
+        suppressedPeripheralNarrativeCount
     };
 }
 
@@ -2073,7 +2171,10 @@ async function fetchGroundedMediaAnalysis(attachments = [], question = "") {
                 reconciled.suppressedPeripheralLiteralCount,
             suppressedUnsupportedNegativeVisualClaimCount:
                 reconciled.suppressedUnsupportedNegativeVisualClaimCount,
+            suppressedPeripheralNarrativeCount:
+                reconciled.suppressedPeripheralNarrativeCount,
             negativeVisualClaimsRequireStructuredEvidence: true,
+            sourceNarrativeClaimsRequireStructuredEvidence: true,
             initialVersion: initial.version || null,
             auditedVersion: audited.version || null
         }

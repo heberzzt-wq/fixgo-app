@@ -213,3 +213,53 @@ test("independent reconciliation suppresses unsupported negative cross-source ab
     assert.equal(reconciled.result.policy.negativeVisualClaimsRequireStructuredEvidence, true);
     assert.doesNotMatch(JSON.stringify(reconciled.result), /absent in SOURCE_2|not present in SOURCE_1/i);
 });
+
+
+test("production A2 removes unsupported source-local contradiction residue", () => {
+    const initial = baseResult();
+    const audited = baseResult();
+    const source1Items = [
+        { kind: "text", value: "Añadir fotos y archivos", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" },
+        { kind: "text", value: "Canva", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" }
+    ];
+    const source2Items = [
+        { kind: "text", value: "Añadir fotos y archivos", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" },
+        { kind: "text", value: "Crear una imagen", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" },
+        { kind: "text", value: "Búsqueda en Internet", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" }
+    ];
+    initial.sources[0].visibleData = source1Items;
+    audited.sources[0].visibleData = source1Items;
+    initial.sources[1].visibleData = source2Items;
+    audited.sources[1].visibleData = source2Items;
+    audited.sources[1].observations = [
+        "An attachment-like menu is open, displaying options: 'Añadir fotos y archivos', 'Crear una imagen', and 'Búsqueda en Internet'.",
+        "This statement directly contradicts the visible attachment menu in the same image."
+    ];
+    audited.sources[1].uncertainty = [
+        "The contradiction between the visible attachment menu and the text stating its absence is a notable inconsistency."
+    ];
+    audited.sources[1].evidence = [
+        "The system tray date and time are clearly visible and match the other image."
+    ];
+
+    const reconciled = reconcileIndependentMediaAnalysis(
+        initial,
+        audited,
+        files,
+        "Compara los menus de adjuntos visibles."
+    );
+
+    assert.deepEqual(
+        reconciled.result.sources[1].observations,
+        ["An attachment-like menu is open, displaying options: 'Añadir fotos y archivos', 'Crear una imagen', and 'Búsqueda en Internet'."]
+    );
+    assert.deepEqual(reconciled.result.sources[1].uncertainty, []);
+    assert.deepEqual(reconciled.result.sources[1].evidence, []);
+    assert.equal(reconciled.suppressedUnsupportedNegativeVisualClaimCount, 2);
+    assert.equal(reconciled.suppressedPeripheralNarrativeCount, 1);
+    assert.equal(reconciled.result.policy.sourceNarrativeClaimsRequireStructuredEvidence, true);
+    assert.doesNotMatch(
+        JSON.stringify(reconciled.result),
+        /directly contradicts|text stating its absence|system tray date and time/i
+    );
+});
