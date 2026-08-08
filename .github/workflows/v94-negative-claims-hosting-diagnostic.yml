@@ -1,0 +1,45 @@
+name: V94 Hosting byte diagnostic
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-negative-claims-hosting-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  compare-live-bytes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+
+      - name: Compare local and production files
+        shell: bash
+        run: |
+          set -u
+          curl --fail --silent --show-error --location \
+            "https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.multitool.pack.js?diag=$(date +%s)" \
+            -o /tmp/live-multitool.js
+          curl --fail --silent --show-error --location \
+            "https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.conversation.composer.js?diag=$(date +%s)" \
+            -o /tmp/live-composer.js
+
+          echo '=== MULTITOOL ==='
+          sha256sum gestia-core/jarvis/jarvis.multitool.pack.js /tmp/live-multitool.js
+          wc -c gestia-core/jarvis/jarvis.multitool.pack.js /tmp/live-multitool.js
+          grep -n -m 2 "negativeVisualClaimsRequireStructuredEvidence" gestia-core/jarvis/jarvis.multitool.pack.js || true
+          grep -n -m 2 "negativeVisualClaimsRequireStructuredEvidence" /tmp/live-multitool.js || true
+          cmp -s gestia-core/jarvis/jarvis.multitool.pack.js /tmp/live-multitool.js && echo 'MULTITOOL_EXACT_MATCH=true' || echo 'MULTITOOL_EXACT_MATCH=false'
+
+          echo '=== COMPOSER ==='
+          sha256sum gestia-core/jarvis/jarvis.conversation.composer.js /tmp/live-composer.js
+          wc -c gestia-core/jarvis/jarvis.conversation.composer.js /tmp/live-composer.js
+          grep -n -m 2 "renderContainsUnsupportedNegativeLiteralClaim" gestia-core/jarvis/jarvis.conversation.composer.js || true
+          grep -n -m 2 "renderContainsUnsupportedNegativeLiteralClaim" /tmp/live-composer.js || true
+          cmp -s gestia-core/jarvis/jarvis.conversation.composer.js /tmp/live-composer.js && echo 'COMPOSER_EXACT_MATCH=true' || echo 'COMPOSER_EXACT_MATCH=false'
