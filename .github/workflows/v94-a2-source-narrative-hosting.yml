@@ -1,0 +1,64 @@
+name: V94 A2 source narrative Hosting deploy
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-a2-source-narrative-hosting.yml
+
+permissions:
+  contents: write
+
+jobs:
+  deploy-hosting-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout certified isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Verify certified patch ancestry and markers
+        run: |
+          git merge-base --is-ancestor ff5f9973934007e75265cc317d5df0a7809a6914 HEAD
+          grep -q "sourceNarrativeClaimsRequireStructuredEvidence" gestia-core/jarvis/jarvis.multitool.pack.js
+          grep -q "renderContainsUnsupportedSourceNarrativeClaim" gestia-core/jarvis/jarvis.conversation.composer.js
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@15.10.1
+
+      - name: Deploy primary Hosting only
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy --only hosting:fixgo-44e4d --project fixgo-44e4d --token "$FIREBASE_TOKEN" --non-interactive
+
+      - name: Verify production bytes exactly
+        run: |
+          ok=0
+          for attempt in $(seq 1 12); do
+            curl --fail --silent --show-error --location "https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.multitool.pack.js?v=ff5f99739340-$attempt" -o /tmp/live-multitool.js
+            curl --fail --silent --show-error --location "https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.conversation.composer.js?v=ff5f99739340-$attempt" -o /tmp/live-composer.js
+            if cmp -s gestia-core/jarvis/jarvis.multitool.pack.js /tmp/live-multitool.js && cmp -s gestia-core/jarvis/jarvis.conversation.composer.js /tmp/live-composer.js; then
+              ok=1
+              break
+            fi
+            sleep 5
+          done
+          test "$ok" -eq 1
+          sha256sum gestia-core/jarvis/jarvis.multitool.pack.js /tmp/live-multitool.js
+          sha256sum gestia-core/jarvis/jarvis.conversation.composer.js /tmp/live-composer.js
+          grep -q "sourceNarrativeClaimsRequireStructuredEvidence" /tmp/live-multitool.js
+          grep -q "renderContainsUnsupportedSourceNarrativeClaim" /tmp/live-composer.js
+
+      - name: Remove temporary deployment workflow
+        run: |
+          git config user.name "OpenAI V94 Handoff"
+          git config user.email "actions@users.noreply.github.com"
+          git rm .github/workflows/v94-a2-source-narrative-hosting.yml
+          git commit -m "chore(v94): remove temporary A2 Hosting deploy workflow"
+          git push origin HEAD:v94-media-v4n-negative-claims
