@@ -1,0 +1,78 @@
+name: V94 media strict scope v4o
+
+on:
+  push:
+    branches:
+      - v94-handoff-ee6d8cfe
+    paths:
+      - .github/workflows/v94-media-strict-scope-v4o.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair-test-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout isolated V94 handoff
+        uses: actions/checkout@v4
+        with:
+          ref: v94-handoff-ee6d8cfe
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix functions ci
+
+      - name: Apply strict visual scope repair v4o
+        run: python3 .github/scripts/v94-media-strict-scope-v4o.py
+
+      - name: Diff integrity
+        run: |
+          git diff --check
+          git status --short
+
+      - name: Focused strict visual regressions
+        run: |
+          node --check gestia-core/jarvis/jarvis.multitool.pack.js
+          node --test tests/v94-media-browser-precision-contract.test.mjs tests/jarvis-conversation-composer.test.mjs tests/v94-media-evidence-render.test.cjs
+
+      - name: Full CI
+        run: npm run ci:test
+
+      - name: Commit certified strict scope repair
+        run: |
+          git config user.name "OpenAI V94 Handoff"
+          git config user.email "actions@users.noreply.github.com"
+          git add gestia-core/jarvis/jarvis.multitool.pack.js tests/v94-media-browser-precision-contract.test.mjs
+          git diff --cached --quiet && { echo "Expected strict visual scope repair produced no code diff"; exit 1; }
+          git commit -m "[v94-media-v4o] fix(jarvis): enforce strict visual mission scope end to end"
+          git push origin HEAD:v94-handoff-ee6d8cfe
+          echo "PATCH_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@15.10.1
+
+      - name: Deploy only primary Hosting
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy --only hosting:fixgo-44e4d --project fixgo-44e4d --token "$FIREBASE_TOKEN" --non-interactive
+
+      - name: Verify deployed strict scope markers
+        run: |
+          curl -fsSL "https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.multitool.pack.js?v=${PATCH_HEAD}" > /tmp/pack.js
+          grep -q "strictVisualFreeformEvidenceSuppressed" /tmp/pack.js
+          grep -q "strictVisualSemanticInferenceSuppressed" /tmp/pack.js
+          grep -q "strictVisualUnrequestedRecommendationsSuppressed" /tmp/pack.js
+          grep -q "explicitVisualRecommendationRequest" /tmp/pack.js
+          echo "V94_MEDIA_STRICT_SCOPE_V4O_DEPLOYED=${PATCH_HEAD}"
