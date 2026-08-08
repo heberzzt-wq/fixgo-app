@@ -1,0 +1,75 @@
+name: V94 media evidence renderer v4l
+
+on:
+  push:
+    branches:
+      - v94-handoff-ee6d8cfe
+    paths:
+      - .github/workflows/v94-media-evidence-render-v4l.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair-test-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout isolated V94 handoff
+        uses: actions/checkout@v4
+        with:
+          ref: v94-handoff-ee6d8cfe
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix functions ci
+
+      - name: Apply complete media evidence renderer repair
+        run: python3 .github/scripts/v94-media-evidence-render-v4l.py
+
+      - name: Diff integrity
+        run: |
+          git diff --check
+          git status --short
+
+      - name: Focused renderer regression
+        run: node --test tests/v94-media-evidence-render.test.cjs
+
+      - name: Full CI
+        run: npm run ci:test
+
+      - name: Commit certified renderer repair
+        run: |
+          git config user.name "OpenAI V94 Handoff"
+          git config user.email "actions@users.noreply.github.com"
+          git add gestia-terminal.html tests/v94-media-evidence-render.test.cjs
+          git diff --cached --quiet && { echo "Expected media evidence renderer diff was empty"; exit 1; }
+          git commit -m "[v94-media-v4l] fix(terminal): render complete media certification evidence"
+          git push origin HEAD:v94-handoff-ee6d8cfe
+          echo "PATCH_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@15.10.1
+
+      - name: Deploy only primary Hosting
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy --only hosting:fixgo-44e4d --project fixgo-44e4d --token "$FIREBASE_TOKEN" --non-interactive
+
+      - name: Verify deployed media evidence renderer
+        run: |
+          curl -fsSL "https://fixgo-44e4d.web.app/gestia-terminal.html?v=v94-media-v4l-${PATCH_HEAD}" > /tmp/gestia-terminal-prod.html
+          grep -F 'if (toolName === "media.analyze")' /tmp/gestia-terminal-prod.html
+          grep -F 'verifiedVisualClaims:' /tmp/gestia-terminal-prod.html
+          grep -F 'sourceManifest:' /tmp/gestia-terminal-prod.html
+          echo "V94_MEDIA_EVIDENCE_RENDER_DEPLOYED=${PATCH_HEAD}"
