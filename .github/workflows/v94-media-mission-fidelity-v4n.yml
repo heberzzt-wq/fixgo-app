@@ -1,0 +1,80 @@
+name: V94 media mission fidelity v4n
+
+on:
+  push:
+    branches:
+      - v94-handoff-ee6d8cfe
+    paths:
+      - .github/workflows/v94-media-mission-fidelity-v4n.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair-test-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout isolated V94 handoff
+        uses: actions/checkout@v4
+        with:
+          ref: v94-handoff-ee6d8cfe
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix functions ci
+
+      - name: Apply media mission fidelity repair v4n
+        run: python3 .github/scripts/v94-media-mission-fidelity-v4n.py
+
+      - name: Diff integrity
+        run: |
+          git diff --check
+          git status --short
+
+      - name: Focused mission fidelity regressions
+        run: |
+          node --check gestia-core/jarvis/jarvis.multitool.pack.js
+          node --check gestia-core/jarvis/jarvis.conversation.composer.js
+          node --test tests/v94-media-browser-precision-contract.test.mjs tests/jarvis-conversation-composer.test.mjs tests/v94-media-evidence-render.test.cjs
+
+      - name: Full CI
+        run: npm run ci:test
+
+      - name: Commit certified mission fidelity repair
+        run: |
+          git config user.name "OpenAI V94 Handoff"
+          git config user.email "actions@users.noreply.github.com"
+          git add gestia-core/jarvis/jarvis.multitool.pack.js gestia-core/jarvis/jarvis.conversation.composer.js tests/v94-media-browser-precision-contract.test.mjs tests/jarvis-conversation-composer.test.mjs
+          git diff --cached --quiet && { echo "Expected media mission fidelity repair produced no code diff"; exit 1; }
+          git commit -m "[v94-media-v4n] fix(jarvis): preserve verified mission evidence end to end"
+          git push origin HEAD:v94-handoff-ee6d8cfe
+          echo "PATCH_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@15.10.1
+
+      - name: Deploy only primary Hosting
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy --only hosting:fixgo-44e4d --project fixgo-44e4d --token "$FIREBASE_TOKEN" --non-interactive
+
+      - name: Verify deployed fidelity markers
+        run: |
+          curl -fsSL "https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.multitool.pack.js?v=${PATCH_HEAD}" > /tmp/pack.js
+          curl -fsSL "https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.conversation.composer.js?v=${PATCH_HEAD}" > /tmp/composer.js
+          grep -q "MEDIA_UPPER_UI_LITERAL_STOPWORDS" /tmp/pack.js
+          grep -q "mediaNarrativeContainsUngroundedUpperUiLiteral" /tmp/pack.js
+          grep -q "RENDER_UPPER_UI_LITERAL_STOPWORDS" /tmp/composer.js
+          grep -q "observation?.validSources" /tmp/composer.js
+          echo "V94_MEDIA_MISSION_FIDELITY_V4N_DEPLOYED=${PATCH_HEAD}"
