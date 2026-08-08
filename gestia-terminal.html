@@ -4142,6 +4142,14 @@ if (
                                     repoData?.analysisMode || null,
                                 repairCount:
                                     repoData?.repairCount ?? null,
+                                strictVisualOnly:
+                                    repoData?.strictVisualOnly === true,
+                                precisionAudit:
+                                    repoData?.precisionAudit || null,
+                                precisionSanitized:
+                                    repoData?.precisionSanitized === true,
+                                precisionSanitizedCount:
+                                    repoData?.precisionSanitizedCount ?? null,
                                 sources:
                                     mediaSources.map(item => ({
                                         sourceId: item?.sourceId || null,

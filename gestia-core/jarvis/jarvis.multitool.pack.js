@@ -1623,23 +1623,196 @@ function verifyGroundedMediaSourceIdentity(result, files) {
     return { ok: true };
 }
 
+
+function verifiedMediaContractItems(source = {}) {
+    return (Array.isArray(source?.visibleData) ? source.visibleData : [])
+        .filter(item =>
+            String(item?.legibility || "").trim().toUpperCase() === "VERIFIED" &&
+            Number(item?.confidence || 0) >= 0.98 &&
+            Boolean(String(item?.value || "").trim()) &&
+            Boolean(String(item?.evidence || "").trim())
+        );
+}
+
+function mediaVisibleDataConsensusKey(item = {}) {
+    const kind = String(item?.kind || "text").trim().toLowerCase();
+    const value = normalizeMediaContractLiteral(item?.value || "");
+    return kind && value ? `${kind}::${value}` : "";
+}
+
+function explicitSensitiveLiteralRequest(question = "", kind = "") {
+    const text = String(question || "").toLowerCase();
+    const verbs = "(?:lee|leer|extrae|extraer|identifica|identificar|reporta|reportar|dime|indica|indicar|cual|cuál|read|extract|identify|report|tell|what)";
+    const terms = {
+        date: "(?:fecha|date|dia|día)",
+        time: "(?:hora|time|reloj|clock)",
+        url: "(?:url|enlace|link|dominio|domain|direccion web|dirección web)",
+        number: "(?:numero|número|cifra|cantidad|number|amount|count)",
+        identifier: "(?:identificador|identifier|folio|expediente|hash|sha|id)"
+    };
+    const term = terms[String(kind || "").toLowerCase()];
+    if (!term) return true;
+    return new RegExp(
+        `${verbs}[\\s\\S]{0,80}${term}|${term}[\\s\\S]{0,80}${verbs}`,
+        "i"
+    ).test(text);
+}
+
+function sanitizeNarrativeAgainstVerifiedValues(value, verifiedValues = []) {
+    if (!Array.isArray(value)) return [];
+    return value.filter(item =>
+        !mediaContractContainsUngroundedLiteral(item, verifiedValues)
+    );
+}
+
+export function reconcileIndependentMediaAnalysis(
+    initial,
+    audited,
+    files,
+    question = ""
+) {
+    const initialSources = Array.isArray(initial?.sources) ? initial.sources : [];
+    const auditedSources = Array.isArray(audited?.sources) ? audited.sources : [];
+    let disputedLiteralCount = 0;
+    let suppressedPeripheralLiteralCount = 0;
+
+    const sources = auditedSources.map((source, index) => {
+        const first = initialSources[index] || {};
+        const firstItems = verifiedMediaContractItems(first);
+        const secondItems = verifiedMediaContractItems(source);
+        const firstKeys = new Set(
+            firstItems.map(mediaVisibleDataConsensusKey).filter(Boolean)
+        );
+        const secondKeys = new Set(
+            secondItems.map(mediaVisibleDataConsensusKey).filter(Boolean)
+        );
+
+        for (const key of firstKeys) {
+            if (!secondKeys.has(key)) disputedLiteralCount += 1;
+        }
+        for (const key of secondKeys) {
+            if (!firstKeys.has(key)) disputedLiteralCount += 1;
+        }
+
+        const visibleData = secondItems.filter(item => {
+            const key = mediaVisibleDataConsensusKey(item);
+            if (!key || !firstKeys.has(key)) return false;
+            const kind = String(item?.kind || "text").trim().toLowerCase();
+            if (
+                ["date", "time", "url", "number", "identifier"].includes(kind) &&
+                !explicitSensitiveLiteralRequest(question, kind)
+            ) {
+                suppressedPeripheralLiteralCount += 1;
+                return false;
+            }
+            return true;
+        });
+
+        const verifiedValues = verifiedMediaContractValues([{ visibleData }]);
+        const uncertainty = sanitizeNarrativeAgainstVerifiedValues(
+            source?.uncertainty,
+            verifiedValues
+        );
+        if (firstKeys.size !== secondKeys.size || [...firstKeys].some(key => !secondKeys.has(key))) {
+            uncertainty.push(
+                "Una o mas lecturas literales difirieron entre pases independientes y se omitieron."
+            );
+        }
+
+        return {
+            ...source,
+            description:
+                audited?.strictVisualOnly === true
+                    ? ""
+                    : String(source?.description || ""),
+            observations:
+                sanitizeNarrativeAgainstVerifiedValues(
+                    source?.observations,
+                    verifiedValues
+                ),
+            inferences:
+                audited?.strictVisualOnly === true
+                    ? []
+                    : sanitizeNarrativeAgainstVerifiedValues(
+                        source?.inferences,
+                        verifiedValues
+                    ),
+            visibleData,
+            uncertainty: [...new Set(uncertainty)],
+            evidence:
+                sanitizeNarrativeAgainstVerifiedValues(
+                    source?.evidence,
+                    verifiedValues
+                )
+        };
+    });
+
+    const globalVerifiedValues = verifiedMediaContractValues(sources);
+    const comparison = audited?.comparison && typeof audited.comparison === "object"
+        ? {
+            ...audited.comparison,
+            differences:
+                sanitizeNarrativeAgainstVerifiedValues(
+                    audited.comparison?.differences,
+                    globalVerifiedValues
+                )
+        }
+        : audited?.comparison;
+    const recommendations = sanitizeNarrativeAgainstVerifiedValues(
+        audited?.recommendations,
+        globalVerifiedValues
+    );
+
+    const sourceManifest = files.map((file, index) => ({
+        sourceId: `SOURCE_${index + 1}`,
+        fileName: file.name,
+        sha256: String(file.sha256 || "").trim().toLowerCase()
+    }));
+    const verifiedVisualClaims = sources.flatMap(source =>
+        verifiedMediaContractItems(source).map(item => ({
+            sourceId: source?.sourceId || null,
+            fileName: source?.fileName || source?.name || null,
+            kind: item?.kind || "text",
+            value: item?.value || "",
+            page: item?.page || 1,
+            confidence: Number(item?.confidence || 0),
+            evidence: item?.evidence || "",
+            legibility: "VERIFIED"
+        }))
+    );
+
+    return {
+        result: {
+            ...audited,
+            sources,
+            sourceManifest,
+            comparison,
+            recommendations,
+            verifiedVisualClaims,
+            policy: {
+                ...(audited?.policy || {}),
+                independentPassLiteralConsensusRequired: true,
+                peripheralSensitiveLiteralSuppression: true
+            }
+        },
+        consensusVerifiedLiteralCount: verifiedVisualClaims.length,
+        disputedLiteralCount,
+        suppressedPeripheralLiteralCount
+    };
+}
+
 export function buildMediaPrecisionAuditQuestion(question, result) {
-    const candidateSources = (Array.isArray(result?.sources) ? result.sources : [])
+    const auditSources = (Array.isArray(result?.sources) ? result.sources : [])
         .map(source => ({
             sourceId: source?.sourceId,
             fileName: source?.fileName || source?.name,
-            sha256: source?.sha256,
-            visibleData: (Array.isArray(source?.visibleData) ? source.visibleData : [])
-                .filter(item =>
-                    String(item?.legibility || "").trim().toUpperCase() === "VERIFIED" &&
-                    Number(item?.confidence || 0) >= 0.98 &&
-                    Boolean(String(item?.value || "").trim()) &&
-                    Boolean(String(item?.evidence || "").trim())
-                )
+            sha256: source?.sha256
         }));
     return [
         "AUDITORIA_DE_PRECISION_VISUAL_INDEPENDIENTE",
-        "Vuelve a inspeccionar directamente cada archivo; el borrador anterior no es evidencia y puede contener errores.",
+        "Vuelve a inspeccionar directamente cada archivo desde cero.",
+        "El segundo pase NO recibe ningun literal, transcripcion ni lectura del primer pase.",
+        "No intentes confirmar el borrador anterior: produce una lectura independiente basada solo en los pixeles.",
         "Conserva cada afirmacion en la source del archivo donde sea visible y no mezcles fuentes.",
         "Separa descripcion visual de transcripcion literal.",
         "No traduzcas, autocorrijas, completes ni normalices texto visible.",
@@ -1647,13 +1820,12 @@ export function buildMediaPrecisionAuditQuestion(question, result) {
         "Todo texto literal debe ir en visibleData con evidencia, confidence y legibility.",
         "Usa legibility=VERIFIED solamente para una lectura completa y confidence igual o mayor a 0.98.",
         "Si una lectura no cumple ese umbral, omite su valor y explica la limitacion en uncertainty.",
-        "No repitas una afirmacion del borrador sin comprobarla nuevamente en los pixeles del archivo correspondiente.",
         "Responde en espanol y conserva los nombres de archivo literalmente.",
         "En comparison.differences incluye solo diferencias visibles entre las fuentes.",
-        "En recommendations enumera carencias concretas de la experiencia de adjuntos de Jarvis que puedan comprobarse por contraste visual.",
+        "En recommendations enumera carencias concretas de la experiencia de adjuntos que puedan comprobarse por contraste visual.",
         "No uses recommendations para proponer investigar, explorar o documentar; si no hay evidencia visual suficiente, dilo expresamente.",
-        `SOLICITUD_ORIGINAL=${String(question || "").slice(0, 3000)}`,
-        `BORRADOR_NO_CONFIABLE=${JSON.stringify(candidateSources).slice(0, 18000)}`
+        `FUENTES_PARA_REINSPECCION=${JSON.stringify(auditSources)}`,
+        `SOLICITUD_ORIGINAL=${String(question || "").slice(0, 3000)}`
     ].join("\n");
 }
 
@@ -1771,15 +1943,43 @@ async function fetchGroundedMediaAnalysis(attachments = [], question = "") {
             error: auditedPrecisionContract.error
         };
     }
+
+    const reconciled =
+        reconcileIndependentMediaAnalysis(
+            initial,
+            audited,
+            files,
+            question
+        );
+    const reconciledPrecisionContract =
+        verifyGroundedMediaPrecisionContract(
+            reconciled.result,
+            files
+        );
+    if (!reconciledPrecisionContract.ok) {
+        return {
+            ...reconciledPrecisionContract,
+            status: "MEDIA_ANALYSIS_PRECISION_AUDIT_FAILED",
+            error: reconciledPrecisionContract.error
+        };
+    }
+
     const result = {
-        ...audited,
+        ...reconciled.result,
         precisionAudit: {
             ok: true,
             status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
             providerPasses: 2,
             effectiveToolExecutions: 1,
             sourceIdentityVerified: true,
+            independentPassLiteralConsensusRequired: true,
             exactTextRequiresConfidence: 0.98,
+            consensusVerifiedLiteralCount:
+                reconciled.consensusVerifiedLiteralCount,
+            disputedLiteralCount:
+                reconciled.disputedLiteralCount,
+            suppressedPeripheralLiteralCount:
+                reconciled.suppressedPeripheralLiteralCount,
             initialVersion: initial.version || null,
             auditedVersion: audited.version || null
         }

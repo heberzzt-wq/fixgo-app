@@ -16,6 +16,8 @@ test("media.analyze evidence renderer preserves certification fields instead of 
     assert.match(terminal, /sourceManifest:/);
     assert.match(terminal, /verifiedVisualClaims:/);
     assert.match(terminal, /policy:/);
+    assert.match(terminal, /precisionAudit:/);
+    assert.match(terminal, /strictVisualOnly:/);
 
     const mediaBranch = terminal.slice(
         terminal.indexOf('if (toolName === "media.analyze")'),
