@@ -1085,3 +1085,153 @@ test("precision renderer keeps verified literals scoped to their own source and 
     assert.match(result.text, /panel lateral junto al contenido principal/i);
     assert.doesNotMatch(result.text, /He analizado|text block within|The application is ChatGPT Plus/);
 });
+
+
+
+test("production mission envelope prefers intact validSources over compact nested evidence", async () => {
+    const intactSources = [
+        {
+            sourceId: "SOURCE_1",
+            fileName: "chat-gpt-aduntos-1.png",
+            sha256: "a".repeat(64),
+            description: "",
+            observations: [],
+            inferences: [],
+            visibleData: [{
+                kind: "text",
+                value: "ChatGPT Plus",
+                page: 1,
+                confidence: 1,
+                evidence: "Text at the top left of the main panel.",
+                legibility: "VERIFIED"
+            }],
+            uncertainty: []
+        },
+        {
+            sourceId: "SOURCE_2",
+            fileName: "terminal-adjunto-1.png",
+            sha256: "b".repeat(64),
+            description: "",
+            observations: [],
+            inferences: [],
+            visibleData: [{
+                kind: "text",
+                value: "Terminal Heberto",
+                page: 1,
+                confidence: 1,
+                evidence: "Text at the top left of the main panel.",
+                legibility: "VERIFIED"
+            }],
+            uncertainty: []
+        }
+    ];
+
+    let semanticCalls = 0;
+    const result = await composeEvidenceGroundedConversation({
+        instruction: "Compara solamente lo visible.",
+        evidenceItems: [{
+            name: "media.analyze",
+            observation: {
+                ok: true,
+                executionOk: true,
+                objectiveSatisfied: true,
+                status: "MEDIA_ANALYSIS_GROUNDED",
+                version: "1.4.0-verified-visual-claims",
+                sourceCount: 2,
+                validSources: intactSources,
+                evidence: {
+                    ok: true,
+                    status: "MEDIA_ANALYSIS_GROUNDED",
+                    version: "1.4.0-verified-visual-claims",
+                    expectedSources: 2,
+                    receivedSources: 2,
+                    sources: intactSources.map(source => ({
+                        ...source,
+                        visibleData: []
+                    })),
+                    precisionAudit: {
+                        ok: true,
+                        status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
+                        providerPasses: 2,
+                        effectiveToolExecutions: 1,
+                        sourceIdentityVerified: true,
+                        exactTextRequiresConfidence: 0.98
+                    }
+                }
+            }
+        }],
+        executeConversation: async () => {
+            semanticCalls += 1;
+            return { ok: true, data: { message: "No debe ejecutarse." } };
+        }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.status, "MEDIA_ANALYSIS_RESPONSE_VERIFIED");
+    assert.equal(semanticCalls, 0);
+    assert.match(result.text, /ChatGPT Plus/);
+    assert.match(result.text, /Terminal Heberto/);
+    assert.doesNotMatch(result.text, /ninguna con confianza suficiente/);
+});
+
+
+test("precision renderer rejects an unverified uppercase UI label even beside a grounded label", async () => {
+    const result = await composeEvidenceGroundedConversation({
+        instruction: "Compara dos capturas sin inventar etiquetas.",
+        evidenceItems: [{
+            name: "media.analyze",
+            observation: {
+                ok: true,
+                status: "MEDIA_ANALYSIS_GROUNDED",
+                version: "1.4.0-verified-visual-claims",
+                expectedSources: 2,
+                receivedSources: 2,
+                sources: [
+                    {
+                        sourceId: "SOURCE_1",
+                        fileName: "one.png",
+                        sha256: "c".repeat(64),
+                        visibleData: [],
+                        uncertainty: []
+                    },
+                    {
+                        sourceId: "SOURCE_2",
+                        fileName: "two.png",
+                        sha256: "d".repeat(64),
+                        visibleData: [{
+                            kind: "text",
+                            value: "Terminal Heberto",
+                            page: 1,
+                            confidence: 1,
+                            evidence: "Encabezado visible.",
+                            legibility: "VERIFIED"
+                        }],
+                        uncertainty: []
+                    }
+                ],
+                comparison: {
+                    differences: [
+                        "SOURCE_2 shows 'Terminal Heberto' (NEXO)."
+                    ]
+                },
+                recommendations: [],
+                precisionAudit: {
+                    ok: true,
+                    status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
+                    providerPasses: 2,
+                    effectiveToolExecutions: 1,
+                    sourceIdentityVerified: true,
+                    exactTextRequiresConfidence: 0.98
+                }
+            }
+        }],
+        executeConversation: async () => {
+            throw new Error("semantic composer must not run");
+        }
+    });
+
+    assert.equal(result.ok, true);
+    assert.match(result.text, /Terminal Heberto/);
+    assert.doesNotMatch(result.text, /NEXO/);
+    assert.match(result.text, /se omitieron comparaciones con etiquetas literales/i);
+});

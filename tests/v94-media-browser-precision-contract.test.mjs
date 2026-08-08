@@ -138,3 +138,39 @@ test("peripheral date is suppressed even when both passes agree unless the user 
     );
     assert.equal(explicitDate.result.sources[0].visibleData[0].value, "07/08/2024");
 });
+
+
+
+test("independent reconciliation removes an unverified uppercase UI label from provider narrative", () => {
+    const initial = baseResult();
+    const audited = baseResult();
+    const terminalLabel = {
+        kind: "text",
+        value: "Terminal Heberto",
+        page: 1,
+        confidence: 1,
+        evidence: "header",
+        legibility: "VERIFIED"
+    };
+    initial.sources[1].visibleData = [terminalLabel];
+    audited.sources[1].visibleData = [terminalLabel];
+    audited.comparison = {
+        differences: [
+            "SOURCE_2 shows 'Terminal Heberto' (NEXO)."
+        ]
+    };
+
+    const reconciled = reconcileIndependentMediaAnalysis(
+        initial,
+        audited,
+        files,
+        "Compara solamente lo visible."
+    );
+
+    assert.deepEqual(
+        reconciled.result.sources[1].visibleData.map(item => item.value),
+        ["Terminal Heberto"]
+    );
+    assert.doesNotMatch(JSON.stringify(reconciled.result), /NEXO/);
+    assert.deepEqual(reconciled.result.comparison.differences, []);
+});

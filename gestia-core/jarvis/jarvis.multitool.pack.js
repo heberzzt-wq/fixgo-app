@@ -1658,10 +1658,49 @@ function explicitSensitiveLiteralRequest(question = "", kind = "") {
     ).test(text);
 }
 
+const MEDIA_UPPER_UI_LITERAL_PATTERN = /\b[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ0-9-]{2,}\b/g;
+const MEDIA_UPPER_UI_LITERAL_STOPWORDS = new Set([
+    "SOURCE", "VERIFIED", "UNCERTAIN", "MEDIA", "ANALYSIS", "GROUNDED",
+    "UI", "URL", "PDF", "MD", "JSON", "HTML", "HTTP", "HTTPS", "SHA",
+    "ID", "API", "GPS", "CI", "DOM"
+]);
+
+function mediaNarrativeContainsUngroundedUpperUiLiteral(
+    value,
+    verifiedValues = []
+) {
+    if (value == null) return false;
+    if (typeof value === "string") {
+        const pattern = new RegExp(MEDIA_UPPER_UI_LITERAL_PATTERN.source, "g");
+        for (const match of value.matchAll(pattern)) {
+            const literal = String(match?.[0] || "").trim();
+            if (!literal || MEDIA_UPPER_UI_LITERAL_STOPWORDS.has(literal)) continue;
+            const candidate = normalizeMediaContractLiteral(literal);
+            const grounded = verifiedValues.some(verified =>
+                verified === candidate ||
+                verified.includes(candidate) ||
+                candidate.includes(verified)
+            );
+            if (!grounded) return true;
+        }
+        return false;
+    }
+    if (Array.isArray(value)) {
+        return value.some(item =>
+            mediaNarrativeContainsUngroundedUpperUiLiteral(item, verifiedValues)
+        );
+    }
+    if (typeof value !== "object") return false;
+    return Object.values(value).some(item =>
+        mediaNarrativeContainsUngroundedUpperUiLiteral(item, verifiedValues)
+    );
+}
+
 function sanitizeNarrativeAgainstVerifiedValues(value, verifiedValues = []) {
     if (!Array.isArray(value)) return [];
     return value.filter(item =>
-        !mediaContractContainsUngroundedLiteral(item, verifiedValues)
+        !mediaContractContainsUngroundedLiteral(item, verifiedValues) &&
+        !mediaNarrativeContainsUngroundedUpperUiLiteral(item, verifiedValues)
     );
 }
 

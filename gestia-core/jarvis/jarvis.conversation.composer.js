@@ -368,13 +368,16 @@ function findPrecisionVerifiedMediaObservation(evidenceItems = []) {
         !Array.isArray(observation.evidence)
             ? observation.evidence
             : {};
-    const sources = Array.isArray(observation?.sources)
-        ? observation.sources
-        : Array.isArray(nestedEvidence?.sources)
-            ? nestedEvidence.sources
-            : Array.isArray(observation?.validSources)
-                ? observation.validSources
-                : [];
+    const sources =
+        Array.isArray(observation?.validSources) &&
+        observation.validSources.length > 0
+            ? observation.validSources
+            : Array.isArray(observation?.sources) &&
+                observation.sources.length > 0
+                ? observation.sources
+                : Array.isArray(nestedEvidence?.sources)
+                    ? nestedEvidence.sources
+                    : [];
     const precisionAudit =
         observation?.precisionAudit ||
         nestedEvidence?.precisionAudit ||
@@ -447,6 +450,11 @@ const RENDER_STANDALONE_UI_STOPWORDS = new Set([
     "The", "This", "That", "These", "Those", "Screenshot", "Interface", "Menu", "Source", "File", "Both", "One", "Another", "Primary", "Application", "Differences", "Recommendations", "Analysis", "Verified", "Visual", "If", "No", "Yes", "While", "Based", "For", "With", "From", "And", "Or",
     "La", "El", "Los", "Las", "Una", "Un", "Se", "En", "Para", "Con", "Sin", "Esto", "Esta", "Este", "Estas", "Estos", "Archivo", "Fuente", "Interfaz", "Menu", "Menú", "Analisis", "Análisis", "Diferencias", "Mejoras", "Lectura", "Lecturas", "Verificado", "Visual", "Si", "Sí", "No", "Al", "Del"
 ]);
+const RENDER_UPPER_UI_LITERAL_STOPWORDS = new Set([
+    "SOURCE", "VERIFIED", "UNCERTAIN", "MEDIA", "ANALYSIS", "GROUNDED",
+    "UI", "URL", "PDF", "MD", "JSON", "HTML", "HTTP", "HTTPS", "SHA",
+    "ID", "API", "GPS", "CI", "DOM"
+]);
 const RENDER_CAPTURE_CONTEXT_CLAIM_PATTERN = /\b(?:same date(?: and time)?|same time|system tray|captured (?:at|around) the same time|same user|misma fecha(?: y hora)?|misma hora|bandeja del sistema|capturad[oa]s? (?:a|alrededor de) la misma hora|mismo usuario)\b/i;
 const RENDER_SPECULATIVE_RECOMMENDATION_PATTERN = /\b(?:investigat(?:e|es|ed|ing|ion)|explor(?:e|es|ed|ing|ation)|document(?:ar|e|es|ed|ing|ation)|clarif(?:y|ies|ied|ying)|evaluat(?:e|es|ed|ing|ion)|confirm(?:s|ed|ing|ation)?|determin(?:e|es|ed|ing|ation)|investigar|explorar|documentar|aclarar|evaluar|confirmar|determinar|ecosystem|workflow|purpose|context)\b/i;
 const RENDER_CONVERSATION_TRANSCRIPT_PATTERN = /\b(?:prompt|message|response|text block|assistant response|chat history|conversation history|instructs|states|says|mensaje|respuesta|bloque de texto|historial de (?:chat|conversaci[oó]n)|indica|dice)\b/i;
@@ -502,7 +510,12 @@ function renderLiteralCandidates(value = "") {
         const index = Number(match?.index || 0);
         if (!literal || index === 0) continue;
         if (RENDER_STANDALONE_UI_STOPWORDS.has(literal)) continue;
-        if (/^[A-ZÁÉÍÓÚÑ]{2,}$/.test(literal)) continue;
+        if (
+            /^[A-ZÁÉÍÓÚÑ]{2,}$/.test(literal) &&
+            RENDER_UPPER_UI_LITERAL_STOPWORDS.has(literal)
+        ) {
+            continue;
+        }
         candidates.push(literal);
     }
 
