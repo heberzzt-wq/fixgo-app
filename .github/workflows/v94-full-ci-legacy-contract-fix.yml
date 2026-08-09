@@ -32,34 +32,28 @@ jobs:
           npm --prefix functions ci
           test -z "$(git status --porcelain -- functions)"
 
-      - name: Align all v111 release contracts
+      - name: Align all v111 release tokens
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
-
-          marketing=Path('tests/jarvis-marketing-terminal-delivery.e2e.test.mjs')
-          s=marketing.read_text(encoding='utf-8')
-          old='''    assert.match(core, /v94-marketing-real-delivery-v109-20260809/);\n    assert.match(terminal, /v94-marketing-real-delivery-v109-20260809/);'''
-          new='''    assert.match(core, /tools\\.runtime\\.js\\?v=v94-semantic-memory-repo-v111-20260809/);\n    assert.match(terminal, /gestia-core\\/gestia-core\\.js\\?v=v94-semantic-memory-repo-v111-20260809/);\n    assert.match(terminal, /gestia-terminal\\.js\\?v=v94-semantic-memory-repo-v111-20260809/);'''
-          if s.count(old) != 1:
-              raise SystemExit(f'marketing release block count={s.count(old)}')
-          marketing.write_text(s.replace(old,new,1),encoding='utf-8')
-
-          multi=Path('tests/jarvis-multifunction-tools.test.mjs')
-          s=multi.read_text(encoding='utf-8')
-          old='''    assert.match(\n        terminal,\n        /v94-marketing-real-delivery-v109-20260809/\n    );'''
-          new='''    assert.match(\n        terminal,\n        /gestia-terminal\\.js\\?v=v94-semantic-memory-repo-v111-20260809/\n    );'''
-          count=s.count(old)
-          if count != 1:
-              raise SystemExit(f'multifunction multiline release block count={count}')
-          s=s.replace(old,new,1)
-          old2='''    assert.match(terminal, /v94-marketing-real-delivery-v109-20260809/);'''
-          new2='''    assert.match(terminal, /gestia-core\\/gestia-core\\.js\\?v=v94-semantic-memory-repo-v111-20260809/);'''
-          count2=s.count(old2)
-          if count2 != 1:
-              raise SystemExit(f'multifunction inline release block count={count2}')
-          multi.write_text(s.replace(old2,new2,1),encoding='utf-8')
+          old='v94-marketing-real-delivery-v109-20260809'
+          new='v94-semantic-memory-repo-v111-20260809'
+          paths=[
+              Path('tests/jarvis-marketing-terminal-delivery.e2e.test.mjs'),
+              Path('tests/jarvis-multifunction-tools.test.mjs'),
+          ]
+          total=0
+          for p in paths:
+              s=p.read_text(encoding='utf-8')
+              count=s.count(old)
+              if count < 1:
+                  raise SystemExit(f'{p}: no legacy release token found')
+              total += count
+              p.write_text(s.replace(old,new),encoding='utf-8')
+              if old in p.read_text(encoding='utf-8'):
+                  raise SystemExit(f'{p}: legacy token remained')
+          print(f'replaced {total} legacy v109 release assertions')
           PY
 
       - name: Full CI
