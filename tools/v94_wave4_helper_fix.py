@@ -10,7 +10,7 @@ if start < 0:
 end = text.find(end_marker, start)
 if end < 0:
     raise SystemExit('WAVE4_BOOTSTRAP_SECTION_END_NOT_FOUND')
-replacement = r'''# NEXO bootstrap regression is rewritten as a single-authority source contract.
+replacement = r"""# NEXO bootstrap regression is rewritten as a single-authority source contract.
 bootstrap_test = r'''import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -29,13 +29,13 @@ test("NEXO bootstrap keeps tools but installs no alternate semantic authority", 
     assert.doesNotMatch(bootstrap, /resilienceVersion/);
 });
 
-test("NEXO bootstrap remains inert outside the browser", async () => {
+test("NEXO bootstrap remains inert outside the browser", () => {
     assert.match(bootstrap, /environment:\s*"non_browser"/);
     assert.match(bootstrap, /active:\s*false/);
 });
 '''
 write('tests/nexo-terminal-bootstrap.test.mjs', bootstrap_test)
-'''
+"""
 text = text[:start] + replacement + text[end:]
 path.write_text(text, encoding='utf-8')
 print('V94_WAVE4_BOOTSTRAP_HELPER_FIXED')
