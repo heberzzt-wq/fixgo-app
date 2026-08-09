@@ -40,14 +40,17 @@ jobs:
         run: |
           python3 tools/v94_generalist_semantic_authority_patch.py
           python3 tools/v94_generalist_semantic_contract_fix.py
+          python3 tools/v94_generalist_nexo_contract_fix.py
           node --check gestia-core/nexo/nexo.semantic-planner-resilience.js
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          node --check scripts/check-nexo-private-engine.mjs
           git diff --check
           test -z "$(git diff --name-only -- functions)"
 
       - name: Run focused generalist regressions
         run: |
           set -o pipefail
+          node scripts/check-nexo-private-engine.mjs
           node --test \
             tests/nexo-semantic-resilience.test.mjs \
             tests/jarvis-generalist-current-turn.test.mjs \
@@ -76,6 +79,7 @@ jobs:
         run: |
           rm -f tools/v94_generalist_semantic_authority_patch.py
           rm -f tools/v94_generalist_semantic_contract_fix.py
+          rm -f tools/v94_generalist_nexo_contract_fix.py
           rm -f .github/workflows/v94-generalist-semantic-authority.yml
           find . -type d -name __pycache__ -prune -exec rm -rf {} +
           find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
@@ -86,11 +90,13 @@ jobs:
           git add \
             gestia-core/nexo/nexo.semantic-planner-resilience.js \
             gestia-core/jarvis/jarvis.multifunction.planner.js \
+            scripts/check-nexo-private-engine.mjs \
             tests/nexo-semantic-resilience.test.mjs \
             tests/jarvis-generalist-current-turn.test.mjs \
             tests/jarvis-multifunction-tools.test.mjs \
             tools/v94_generalist_semantic_authority_patch.py \
             tools/v94_generalist_semantic_contract_fix.py \
+            tools/v94_generalist_nexo_contract_fix.py \
             .github/workflows/v94-generalist-semantic-authority.yml
           git diff --cached --check
           test -z "$(git diff --cached --name-only | grep '^functions/' || true)"
@@ -101,6 +107,7 @@ jobs:
         run: |
           test ! -e tools/v94_generalist_semantic_authority_patch.py
           test ! -e tools/v94_generalist_semantic_contract_fix.py
+          test ! -e tools/v94_generalist_nexo_contract_fix.py
           test ! -e .github/workflows/v94-generalist-semantic-authority.yml
           test -z "$(git status --porcelain)"
           test -z "$(git diff --name-only "$PRODUCT_BASE_SHA"..HEAD -- functions)"
