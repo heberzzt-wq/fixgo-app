@@ -13,7 +13,7 @@ permissions:
 jobs:
   certify-real-delivery:
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 45
     steps:
       - name: Checkout isolated branch
         uses: actions/checkout@v4
@@ -32,11 +32,12 @@ jobs:
           npm ci
           npm --prefix functions ci
 
-      - name: Apply real delivery repair
+      - name: Apply real delivery repair and deterministic closure
         run: |
           set -euo pipefail
           python3 tools/v94_marketing_real_delivery_patch.py | tee /tmp/v94-marketing-patch.log
           python3 tools/v94_marketing_real_delivery_testfix.py | tee -a /tmp/v94-marketing-patch.log
+          python3 tools/v94_marketing_real_delivery_closure.py | tee -a /tmp/v94-marketing-patch.log
 
       - name: Verify syntax isolation and semantic architecture
         run: |
@@ -50,6 +51,7 @@ jobs:
           node --check gestia-core/gestia-core.js
           node --check gestia-core/tools.runtime.js
           node --check tests/jarvis-marketing-real-delivery.test.mjs
+          node --check tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
           git diff --check
           test -z "$(git diff --name-only -- functions)"
           python3 - <<'PY' | tee /tmp/v94-marketing-semantic-audit.log
@@ -73,11 +75,12 @@ jobs:
           print('MARKETING_LEXICAL_ROUTER_RESIDUE=0')
           PY
 
-      - name: Reproduce real user failure and verify focused flow
+      - name: Reproduce real user failure and verify complete delivery flow
         run: |
           set -o pipefail
           node --test \
             tests/jarvis-marketing-real-delivery.test.mjs \
+            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs \
             tests/jarvis-marketing-engine-v2.test.mjs \
             tests/jarvis-mission-orchestrator.test.mjs \
             tests/single-semantic-authority.test.mjs \
@@ -96,12 +99,15 @@ jobs:
           git rm .github/workflows/v94-marketing-real-delivery-certify.yml
           git rm tools/v94_marketing_real_delivery_patch.py
           git rm tools/v94_marketing_real_delivery_testfix.py
+          git rm tools/v94_marketing_real_delivery_closure.py
+          rm -rf tools/__pycache__ .pytest_cache
+          find . -type f -name '*.pyc' -delete
           git add -A
           test -z "$(git diff --cached --name-only -- functions)"
           git diff --cached --name-status | tee /tmp/v94-marketing-final-files.log
           git config user.name "OpenAI V94 Handoff"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "[v94] fix(jarvis): require real marketing deliverables"
+          git commit -m "[v94] fix(jarvis): deliver complete marketing artifacts"
           git rev-parse HEAD | tee /tmp/v94-marketing-final-commit.log
           git push origin HEAD:v94-media-v4n-negative-claims
 
@@ -141,6 +147,9 @@ jobs:
             printf '%s\tlocal=%s\tlive=%s\n' "$file" "$local_hash" "$live_hash" | tee -a /tmp/v94-marketing-production-hashes.log
             test "$local_hash" = "$live_hash"
           done
+          grep -q 'v94-marketing-real-delivery-v109-20260809' /tmp/live-gestia-terminal.html
+          grep -q 'marketingDeliverableFinalResponse' /tmp/live-gestia-core_gestia-core.js
+          grep -q 'unresolvedMarketingProductionRequirements' /tmp/live-gestia-core_jarvis_jarvis.mission.orchestrator.js
 
       - name: Upload certification evidence
         if: always()
