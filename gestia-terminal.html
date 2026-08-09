@@ -190,6 +190,211 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const btnGenerate = document.getElementById("btn-generate");
 
+
+    /* =====================================================
+       ADJUNTO LIVE WORK TRACE V94
+       Superficie humana de actividad verificable.
+       No muestra prompts internos, argumentos, resultados crudos ni razonamiento.
+    ===================================================== */
+    window.JarvisWorkTrace = (() => {
+        let activeTracker = null;
+
+        const toolLabels = {
+            "media.analyze": "Analizando imágenes y archivos",
+            "web.research": "Consultando información en Internet",
+            "repo.scan": "Revisando la estructura del repositorio",
+            "repo.search": "Buscando evidencia en el repositorio",
+            "repo.grep": "Buscando coincidencias en el código",
+            "repo.read": "Leyendo archivos relevantes",
+            "repo.diagnose": "Diagnosticando el archivo objetivo",
+            "repo.impact": "Calculando impacto del cambio",
+            "repo.patchPreview": "Preparando una vista previa segura",
+            "tests.run": "Ejecutando pruebas",
+            "system.health": "Verificando el estado del sistema",
+            "system.forensics": "Verificando capacidades y límites",
+            "system.capabilities": "Revisando capacidades disponibles",
+            "system.certify": "Certificando el resultado",
+            "conversation.respond": "Preparando la respuesta",
+            "business.assist": "Preparando el análisis de negocio",
+            "marketing.plan": "Preparando el plan de marketing",
+            "page.plan": "Preparando la propuesta de página"
+        };
+
+        const safeText = value =>
+            String(value || "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/\"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+
+        const scrollToLatest = () => {
+            if (!output) return;
+            requestAnimationFrame(() => {
+                output.scrollTop = output.scrollHeight;
+            });
+        };
+
+        const yieldToPaint = () =>
+            new Promise(resolve => requestAnimationFrame(() => resolve()));
+
+        const toolLabel = name =>
+            toolLabels[String(name || "")] ||
+            (String(name || "").startsWith("repo.")
+                ? "Trabajando con el repositorio"
+                : "Ejecutando una herramienta");
+
+        const start = ({ traceId = "", hasAttachments = false } = {}) => {
+            if (activeTracker && !activeTracker.isFinished()) {
+                activeTracker.finish("Trabajo anterior cerrado");
+            }
+
+            const wrapper = document.createElement("div");
+            wrapper.className = "flex gap-4 animate-fade-in max-w-4xl mx-auto w-full";
+            wrapper.dataset.testid = "jarvis-work-trace";
+            wrapper.innerHTML = `
+                <div class="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
+                    <i class="fa-solid fa-gears text-blue-300 text-sm"></i>
+                </div>
+                <details open class="flex-1 bg-slate-900/70 border border-slate-700 rounded-2xl rounded-tl-none shadow-md overflow-hidden">
+                    <summary class="cursor-pointer select-none px-4 py-3 flex items-center gap-3 text-sm text-slate-200 list-none">
+                        <span data-role="summary-icon" class="text-blue-300"><i class="fa-solid fa-circle-notch fa-spin"></i></span>
+                        <span data-role="summary" class="font-medium">ADJUNTO está trabajando</span>
+                        <span data-role="count" class="ml-auto text-xs text-slate-500">0 pasos</span>
+                    </summary>
+                    <div data-role="steps" aria-live="polite" class="px-4 pb-4 space-y-2"></div>
+                </details>
+            `;
+
+            output?.appendChild(wrapper);
+            scrollToLatest();
+
+            const details = wrapper.querySelector("details");
+            const stepsNode = wrapper.querySelector('[data-role="steps"]');
+            const summaryNode = wrapper.querySelector('[data-role="summary"]');
+            const summaryIcon = wrapper.querySelector('[data-role="summary-icon"]');
+            const countNode = wrapper.querySelector('[data-role="count"]');
+            const rows = new Map();
+            let finished = false;
+            let boundTraceId = String(traceId || "");
+            let sequence = 0;
+
+            const updateCount = () => {
+                if (countNode) {
+                    countNode.textContent = `${rows.size} ${rows.size === 1 ? "paso" : "pasos"}`;
+                }
+            };
+
+            const setRow = (id, label, state = "active") => {
+                if (finished || !stepsNode) return null;
+                const safeId = String(id || `step-${++sequence}`);
+                let row = rows.get(safeId);
+                if (!row) {
+                    row = document.createElement("div");
+                    row.className = "flex items-start gap-2 text-sm leading-5";
+                    row.dataset.workStep = safeId;
+                    stepsNode.appendChild(row);
+                    rows.set(safeId, row);
+                }
+
+                const icon =
+                    state === "completed"
+                        ? '<i class="fa-solid fa-check text-emerald-400"></i>'
+                        : state === "failed"
+                            ? '<i class="fa-solid fa-xmark text-rose-400"></i>'
+                            : '<i class="fa-solid fa-circle-notch fa-spin text-blue-300"></i>';
+                const tone =
+                    state === "failed"
+                        ? "text-rose-300"
+                        : state === "completed"
+                            ? "text-slate-400"
+                            : "text-slate-200";
+
+                row.dataset.state = state;
+                row.innerHTML = `
+                    <span class="w-4 pt-0.5 shrink-0">${icon}</span>
+                    <span class="${tone}">${safeText(label)}</span>
+                `;
+                updateCount();
+                scrollToLatest();
+                return row;
+            };
+
+            const tracker = {
+                wrapper,
+                hasAttachments,
+                bindTrace(nextTraceId = "") {
+                    boundTraceId = String(nextTraceId || "");
+                },
+                acceptsEvent(detail = {}) {
+                    if (finished) return false;
+                    const eventTrace = String(detail.analysisId || "");
+                    return !eventTrace || !boundTraceId || eventTrace === boundTraceId;
+                },
+                activate(id, label) {
+                    return setRow(id, label, "active");
+                },
+                complete(id, label) {
+                    return setRow(id, label, "completed");
+                },
+                failStep(id, label) {
+                    return setRow(id, label, "failed");
+                },
+                toolEvent(detail = {}) {
+                    if (!this.acceptsEvent(detail)) return;
+                    const state = String(detail.state || "");
+                    const name = String(detail.tool || "");
+                    const id = `tool:${String(detail.executionId || name || ++sequence)}`;
+                    const label = toolLabel(name);
+                    if (state === "completed") this.complete(id, label);
+                    else if (state === "failed") this.failStep(id, label);
+                    else this.activate(id, label);
+                },
+                isFinished() {
+                    return finished;
+                },
+                finish(label = "Trabajo completado") {
+                    if (finished) return;
+                    for (const [id, row] of rows) {
+                        if (row?.dataset?.state === "active") {
+                            const text = row.textContent?.trim() || "Paso completado";
+                            setRow(id, text, "completed");
+                        }
+                    }
+                    finished = true;
+                    if (summaryNode) summaryNode.textContent = label;
+                    if (summaryIcon) summaryIcon.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i>';
+                    if (details) details.open = true;
+                    updateCount();
+                    scrollToLatest();
+                },
+                fail(label = "No pude completar la misión") {
+                    if (finished) return;
+                    finished = true;
+                    if (summaryNode) summaryNode.textContent = label;
+                    if (summaryIcon) summaryIcon.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-amber-400"></i>';
+                    if (details) details.open = true;
+                    updateCount();
+                    scrollToLatest();
+                }
+            };
+
+            activeTracker = tracker;
+            return tracker;
+        };
+
+        window.addEventListener("jarvis:work-progress", event => {
+            activeTracker?.toolEvent?.(event?.detail || {});
+        });
+
+        return {
+            start,
+            yieldToPaint,
+            current: () => activeTracker
+        };
+    })();
+
+
 function isTerminalBrainRuntimeReady() {
     try {
         return !!(
@@ -1317,8 +1522,9 @@ window.unlockJarvisVoice = function() {
 
             isProcessing = true;
             const btnGenerate = document.getElementById("btn-generate");
-            let handled = false; 
-            
+            let handled = false;
+            let activeWorkTracker = null;
+
             try {
                 if (btnGenerate) {
                     btnGenerate.disabled = true;
@@ -3130,7 +3336,32 @@ if (
     !["arre", "confirmar", "ok"].includes(cmd)
 ) {
     try {
-                const terminalBrainRoute =
+        activeWorkTracker =
+            window.JarvisWorkTrace?.start?.({
+                traceId: currentTraceId,
+                hasAttachments:
+                    window.JarvisAttachments?.hasFiles?.() === true
+            }) || null;
+
+        activeWorkTracker?.activate(
+            "request",
+            window.JarvisAttachments?.hasFiles?.() === true
+                ? "Preparando la solicitud y los adjuntos"
+                : "Analizando la solicitud"
+        );
+        await window.JarvisWorkTrace?.yieldToPaint?.();
+        activeWorkTracker?.complete(
+            "request",
+            window.JarvisAttachments?.hasFiles?.() === true
+                ? "Solicitud y adjuntos preparados"
+                : "Solicitud recibida"
+        );
+        activeWorkTracker?.activate(
+            "routing",
+            "Entendiendo qué necesita la misión"
+        );
+
+        const terminalBrainRoute =
             await routeTerminalNaturalIntent(
                 comando,
                 {
@@ -3144,6 +3375,11 @@ if (
                         currentTraceId
                 }
             );
+
+        activeWorkTracker?.complete(
+            "routing",
+            "Misión comprendida"
+        );
 
         console.info(
             "[TERMINAL_BRAIN_ROUTER_41_42]",
@@ -3892,6 +4128,14 @@ if (
             );
         }
 
+        activeWorkTracker?.activate(
+            "core",
+            window.JarvisAttachments?.hasFiles?.() === true
+                ? "Analizando adjuntos y ejecutando herramientas"
+                : "Ejecutando la misión"
+        );
+        await window.JarvisWorkTrace?.yieldToPaint?.();
+
         const coreResult =
             await window.GestiaCore.procesarIntencion(
                 coreInput,
@@ -3924,6 +4168,15 @@ if (
                             }
                             : null
                 }
+            );
+
+            activeWorkTracker?.complete(
+                "core",
+                "Ejecución principal completada"
+            );
+            activeWorkTracker?.activate(
+                "evidence",
+                "Integrando la evidencia verificada"
             );
 
             const preferredAgentFinalResponse =
@@ -4361,10 +4614,25 @@ if (
                             "Aquí estoy, pariente."
                         ).trim();
 
+                    activeWorkTracker?.complete(
+                        "evidence",
+                        "Respuesta conversacional verificada"
+                    );
+                    activeWorkTracker?.activate(
+                        "response",
+                        "Preparando la respuesta"
+                    );
                     window.renderJarvisResponse?.(
                         "Jarvis",
                         conversationText,
                         "success"
+                    );
+                    activeWorkTracker?.complete(
+                        "response",
+                        "Respuesta preparada"
+                    );
+                    activeWorkTracker?.finish(
+                        "Trabajo completado"
                     );
                     await window.hablarJarvis?.(conversationText);
 
@@ -4807,6 +5075,15 @@ if (
                         }
                         : null;
 
+                activeWorkTracker?.complete(
+                    "evidence",
+                    "Evidencia integrada"
+                );
+                activeWorkTracker?.activate(
+                    "response",
+                    "Preparando la respuesta final"
+                );
+
                 const multiToolSummarySource =
                     [
                         ...(
@@ -4848,18 +5125,21 @@ if (
                         ),
                         "",
                         ...(
-                            finalResponse?.text &&
-                            finalResponse?.source !== "EVIDENCE_GROUNDED_CONVERSATION"
-                                ? [
-                                    "Evidencia ejecutada:",
-                                    ...agentObservations
-                                        .map((item, index) =>
-                                            `- ${getObservationToolName(item, index)}`
-                                        )
-                                        .filter((name, index, items) =>
-                                            items.indexOf(name) === index
-                                        )
-                                ]
+                            finalResponse?.text
+                                ? (
+                                    finalResponse?.source === "EVIDENCE_GROUNDED_CONVERSATION"
+                                        ? []
+                                        : [
+                                            "Evidencia ejecutada:",
+                                            ...agentObservations
+                                                .map((item, index) =>
+                                                    `- ${getObservationToolName(item, index)}`
+                                                )
+                                                .filter((name, index, items) =>
+                                                    items.indexOf(name) === index
+                                                )
+                                        ]
+                                )
                                 : agentObservations
                                     .map((item, index) =>
                                         [
@@ -4882,12 +5162,14 @@ if (
                 const multiToolTitle =
                     visualPatchProposal
                         ? "Propuesta visual SIA7"
-                        : finalResponse?.title ||
-                            (
-                                isRepoGlobalAnalysis
-                                    ? "Análisis del repositorio"
-                                    : "Resultado de Jarvis"
-                            );
+                        : finalResponse?.source === "EVIDENCE_GROUNDED_CONVERSATION"
+                            ? "Jarvis"
+                            : finalResponse?.title ||
+                                (
+                                    isRepoGlobalAnalysis
+                                        ? "Análisis del repositorio"
+                                        : "Resultado de Jarvis"
+                                );
 
                 window.renderJarvisResponse?.(
                     multiToolTitle,
@@ -4896,6 +5178,14 @@ if (
                     coreResult?.status === "FAILED"
                         ? "warning"
                         : "info"
+                );
+
+                activeWorkTracker?.complete(
+                    "response",
+                    "Respuesta preparada"
+                );
+                activeWorkTracker?.finish(
+                    "Trabajo completado"
                 );
 
                 window.JarvisAttachments
@@ -5342,8 +5632,26 @@ const summary =
                         traceId: currentTraceId 
                     }, "error");
                 }
+                activeWorkTracker?.fail?.(
+                    "No pude completar la misión"
+                );
                 if (window.hablarJarvis) window.hablarJarvis("Error crítico en la ráfaga de comandos.");
             } finally {
+                if (
+                    activeWorkTracker &&
+                    !activeWorkTracker.isFinished?.()
+                ) {
+                    if (handled) {
+                        activeWorkTracker.finish?.(
+                            "Trabajo completado"
+                        );
+                    }
+                    else {
+                        activeWorkTracker.fail?.(
+                            "Trabajo detenido"
+                        );
+                    }
+                }
                 // 🔴 CIERRE DE TRAZA: Finalizamos seguimiento y calculamos latencia
                 if (typeof window.endTrace === "function") window.endTrace();
 

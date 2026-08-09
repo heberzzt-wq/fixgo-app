@@ -321,7 +321,7 @@ test("Terminal hides technical evidence names for grounded conversation", () => 
 
     assert.match(
         terminal,
-        /finalResponse\?\.source !== "EVIDENCE_GROUNDED_CONVERSATION"/
+        /finalResponse\?\.source === "EVIDENCE_GROUNDED_CONVERSATION"\s*\?\s*\[\]/
     );
 });
 
@@ -549,7 +549,7 @@ test("precision-audited media response preserves verified literals without seman
     assert.match(result.text, /menu-chat-nuevo\.png/);
     assert.match(result.text, /Motor No-Code/);
     assert.match(result.text, /URL completa y el ano no se distinguen/);
-    assert.match(result.text, /una sola ejecucion efectiva de media\.analyze/);
+    assert.match(result.text, /Me quedé sólo con lo que pude verificar/i);
     assert.doesNotMatch(result.text, /Motion No-Code|fixgo-44d|2028/);
     assert.doesNotMatch(result.text, /SOURCE_1|sha256|precisionAudit/);
 });
@@ -820,11 +820,11 @@ test("precision renderer suppresses ungrounded standalone UI labels from provide
     );
     assert.match(
         result.text,
-        /se omitieron comparaciones con etiquetas literales/i
+        /preferí dejarlas fuera en vez de asumir/i
     );
     assert.match(
         result.text,
-        /no se muestran propuestas/i
+        /Dejé fuera sugerencias/i
     );
 });
 
@@ -1010,7 +1010,7 @@ test("precision renderer shows safe nonliteral visual observations when text lab
     });
 
     assert.equal(result.ok, true);
-    assert.match(result.text, /Observaciones visuales verificadas:/);
+    assert.match(result.text, /Lo que pude confirmar:/);
     assert.match(result.text, /menu abierto con varias filas/i);
     assert.match(result.text, /panel lateral junto al contenido principal/i);
     assert.match(result.text, /segunda fuente muestra un panel lateral/i);
@@ -1233,7 +1233,7 @@ test("precision renderer rejects an unverified uppercase UI label even beside a 
     assert.equal(result.ok, true);
     assert.match(result.text, /Terminal Heberto/);
     assert.doesNotMatch(result.text, /NEXO/);
-    assert.match(result.text, /se omitieron comparaciones con etiquetas literales/i);
+    assert.match(result.text, /preferí dejarlas fuera en vez de asumir/i);
 });
 
 test("precision renderer suppresses unsupported negative visual absence claims", async () => {
@@ -1486,4 +1486,68 @@ test("precision renderer suppresses unsupported relative menu scope claims", asy
     assert.doesNotMatch(result.text, /fewer options|more limited menu/i);
     assert.match(result.text, /ChatGPT Plus/);
     assert.match(result.text, /Terminal Heberto/);
+});
+
+test("terminal exposes live operational work trace without raw telemetry", () => {
+    const terminalSource = fs.readFileSync(
+        path.join(process.cwd(), "gestia-terminal.html"),
+        "utf8"
+    );
+    const runtimeSource = fs.readFileSync(
+        path.join(process.cwd(), "gestia-core/tools.runtime.js"),
+        "utf8"
+    );
+
+    assert.match(terminalSource, /ADJUNTO LIVE WORK TRACE V94/);
+    assert.match(
+        terminalSource,
+        /wrapper\.dataset\.testid\s*=\s*"jarvis-work-trace"/
+    );
+    assert.match(terminalSource, /jarvis:work-progress/);
+    assert.match(terminalSource, /Analizando imágenes y archivos/);
+    assert.match(terminalSource, /Entendiendo qué necesita la misión/);
+    assert.match(terminalSource, /Preparando la respuesta final/);
+    assert.match(terminalSource, /Trabajo completado/);
+
+    const progressStart = terminalSource.indexOf("ADJUNTO LIVE WORK TRACE V94");
+    const progressEnd = terminalSource.indexOf(
+        "function isTerminalBrainRuntimeReady",
+        progressStart
+    );
+    assert.ok(progressStart >= 0 && progressEnd > progressStart);
+    const progressBlock = terminalSource.slice(progressStart, progressEnd);
+    assert.doesNotMatch(progressBlock, /JSON\.stringify|args:|result:|prompt:/);
+
+    assert.match(runtimeSource, /function emitJarvisWorkProgress/);
+    assert.match(runtimeSource, /state: "started"/);
+    assert.match(runtimeSource, /state: "completed"/);
+    assert.match(runtimeSource, /state: "failed"/);
+    assert.doesNotMatch(
+        runtimeSource.slice(
+            runtimeSource.indexOf("function emitJarvisWorkProgress"),
+            runtimeSource.indexOf("export const JarvisToolRuntime")
+        ),
+        /args|result|prompt|reasoning/
+    );
+});
+
+
+test("terminal hides grounded multimodal telemetry from the human chat surface", () => {
+    const terminalSource = fs.readFileSync(
+        path.join(process.cwd(), "gestia-terminal.html"),
+        "utf8"
+    );
+    const start = terminalSource.indexOf("const multiToolSummarySource =");
+    const end = terminalSource.indexOf("const multiToolSummary =", start);
+    assert.ok(start >= 0 && end > start);
+    const summaryBlock = terminalSource.slice(start, end);
+
+    assert.match(
+        summaryBlock,
+        /finalResponse\?\.source === "EVIDENCE_GROUNDED_CONVERSATION"\s*\?\s*\[\]/
+    );
+    assert.match(
+        terminalSource,
+        /finalResponse\?\.source === "EVIDENCE_GROUNDED_CONVERSATION"\s*\?\s*"Jarvis"/
+    );
 });

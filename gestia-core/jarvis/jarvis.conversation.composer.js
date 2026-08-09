@@ -617,7 +617,7 @@ function appendNaturalList(lines, title, items = []) {
 function renderPrecisionVerifiedMediaConversation(observation) {
     const sources = observation.sources;
     const lines = [
-        `Analisis visual verificado de ${sources.length} archivos, con evidencia separada por fuente.`
+        `Pariente, revisé visualmente ${sources.length} archivos y esto es lo que sí pude confirmar.`
     ];
     const minimumConfidence = Number(
         observation?.precisionAudit?.exactTextRequiresConfidence ||
@@ -666,11 +666,11 @@ function renderPrecisionVerifiedMediaConversation(observation) {
             );
 
         lines.push("", `### Archivo ${index + 1}: ${fileName}`);
-        appendNaturalList(lines, "Elementos visuales confirmados:", objects);
-        appendNaturalList(lines, "Observaciones visuales verificadas:", observations);
+        appendNaturalList(lines, "Lo que se ve con claridad:", objects);
+        appendNaturalList(lines, "Lo que pude confirmar:", observations);
 
         if (visibleData.length > 0) {
-            lines.push("Lecturas literales verificadas:");
+            lines.push("Texto que pude leer con certeza:");
             for (const item of visibleData) {
                 const kind = String(item?.kind || "text").trim();
                 const value = String(item.value).trim();
@@ -682,13 +682,13 @@ function renderPrecisionVerifiedMediaConversation(observation) {
             }
         } else {
             lines.push(
-                "Lecturas literales verificadas: ninguna con confianza suficiente."
+                "No pude leer texto con suficiente claridad como para asegurarlo."
             );
         }
 
         appendNaturalList(
             lines,
-            "Detalles inciertos o ilegibles:",
+            "Lo que prefiero dejar como incierto:",
             groundedNaturalEvidenceTexts(
                 source?.uncertainty,
                 verifiedValues
@@ -732,7 +732,7 @@ function renderPrecisionVerifiedMediaConversation(observation) {
 
     appendNaturalList(
         lines,
-        "Diferencias verificadas:",
+        "Diferencias que sí pude comprobar:",
         groundedDifferences
     );
     if (
@@ -741,12 +741,12 @@ function renderPrecisionVerifiedMediaConversation(observation) {
         groundedDifferences.length === 0
     ) {
         lines.push(
-            "Diferencias verificadas: se omitieron comparaciones con etiquetas literales o afirmaciones de ausencia que no quedaron respaldadas por visibleData verificado."
+            "Había comparaciones que no quedaron suficientemente respaldadas, así que preferí dejarlas fuera en vez de asumir."
         );
     }
     appendNaturalList(
         lines,
-        "Mejoras sugeridas para la experiencia de adjuntos:",
+        "Si quieres mejorar esta experiencia:",
         groundedRecommendations
     );
     if (
@@ -756,12 +756,12 @@ function renderPrecisionVerifiedMediaConversation(observation) {
         groundedRecommendations.length === 0
     ) {
         lines.push(
-            "Mejoras sugeridas: no se muestran propuestas que dependan de etiquetas o capacidades no verificadas visualmente."
+            "Dejé fuera sugerencias que dependían de datos o capacidades que no pude comprobar visualmente."
         );
     }
     lines.push(
         "",
-        "La mision uso una sola ejecucion efectiva de media.analyze con dos pases independientes de verificacion."
+        "Me quedé sólo con lo que pude verificar en las imágenes; lo dudoso lo dejé fuera."
     );
 
     return lines.join("\n").trim();

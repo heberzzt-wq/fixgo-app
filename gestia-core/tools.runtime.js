@@ -21,6 +21,34 @@ import {
     recordCapabilityEvidence
 } from "./jarvis/jarvis.capability.evidence.js?v=sia7-persistent-runtime-evidence-v87-20260726";
 
+function emitJarvisWorkProgress(detail = {}) {
+    if (
+        typeof window === "undefined" ||
+        typeof window.dispatchEvent !== "function" ||
+        typeof CustomEvent !== "function"
+    ) {
+        return;
+    }
+
+    try {
+        window.dispatchEvent(
+            new CustomEvent("jarvis:work-progress", {
+                detail: {
+                    phase: "tool",
+                    state: String(detail.state || ""),
+                    tool: String(detail.tool || ""),
+                    executionId: String(detail.executionId || ""),
+                    analysisId: String(detail.analysisId || ""),
+                    timestamp: Number(detail.timestamp || Date.now())
+                }
+            })
+        );
+    }
+    catch(error) {
+        console.warn("[JARVIS_WORK_PROGRESS_EVENT_FAILED]", error);
+    }
+}
+
 export const JarvisToolRuntime = {
     _registry: new Map(),
     _middleware: [],
@@ -149,6 +177,17 @@ export const JarvisToolRuntime = {
                     .slice(2)}`
         };
 
+        emitJarvisWorkProgress({
+            state: "started",
+            tool: name,
+            executionId: executionContext.executionId,
+            analysisId:
+                context.analysisId ||
+                context.traceId ||
+                "",
+            timestamp: Date.now()
+        });
+
         try {
             for (const mw of this._middleware) {
                 await mw(
@@ -170,6 +209,17 @@ export const JarvisToolRuntime = {
 
             // Propagación de fallos de contrato desde la herramienta
             if (result && result.ok === false) {
+                emitJarvisWorkProgress({
+                    state: "failed",
+                    tool: name,
+                    executionId: executionContext.executionId,
+                    analysisId:
+                        context.analysisId ||
+                        context.traceId ||
+                        "",
+                    timestamp: Date.now()
+                });
+
                 return {
                     ...result,
                     tool: name,
@@ -177,6 +227,17 @@ export const JarvisToolRuntime = {
                     timestamp: Date.now()
                 };
             }
+
+            emitJarvisWorkProgress({
+                state: "completed",
+                tool: name,
+                executionId: executionContext.executionId,
+                analysisId:
+                    context.analysisId ||
+                    context.traceId ||
+                    "",
+                timestamp: Date.now()
+            });
 
             return {
                 ok: true,
@@ -195,6 +256,17 @@ export const JarvisToolRuntime = {
                 `[RUNTIME_CRITICAL] Fallo en ${name}:`,
                 error
             );
+
+            emitJarvisWorkProgress({
+                state: "failed",
+                tool: name,
+                executionId: executionContext.executionId,
+                analysisId:
+                    context.analysisId ||
+                    context.traceId ||
+                    "",
+                timestamp: Date.now()
+            });
 
             return {
                 ok: false,
