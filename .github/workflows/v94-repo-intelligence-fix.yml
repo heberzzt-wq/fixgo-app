@@ -1,0 +1,75 @@
+name: V94 repo intelligence fix
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-repo-intelligence-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Assert isolation
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-media-v4n-negative-claims"
+          test -z "$(git status --porcelain)"
+
+      - name: Apply repair
+        run: |
+          set -euo pipefail
+          python scripts/v94-repo-intelligence-fix.py
+
+      - name: Syntax and focused regressions
+        run: |
+          set -euo pipefail
+          node --check gestia-core/repo/repo.target.js
+          node --check jarvis-fs-bridge.js
+          node --check gestia-core/tools.runtime.js
+          node --check gestia-core/hubs/repo.hub.js
+          node --check gestia-core/jarvis.kernel.js
+          node --check gestia-terminal.js
+          node --check modules/terminal/repo-bootstrap-index.js
+          node --test tests/jarvis-repo-target-runtime.test.mjs tests/jarvis-repo-intelligence.test.mjs tests/jarvis-fs-bridge-v2.test.mjs tests/repo-authority-v2.test.cjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs tests/single-semantic-authority.test.mjs
+
+      - name: Verify real slash-branch resolution in local checkout
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin codex/jarvis-v8-runtime-foundation
+          node --input-type=module <<'NODE'
+          import { parseRepositoryTarget, resolveRepositorySelector } from './gestia-core/repo/repo.target.js';
+          import { execFileSync } from 'node:child_process';
+          const refs = execFileSync('git', ['for-each-ref','--format=%(refname:short)','refs/heads','refs/remotes/origin'], {encoding:'utf8'})
+            .split(/\r?\n/).filter(Boolean);
+          const url = 'https://github.com/heberzzt-wq/fixgo-app/blob/codex/jarvis-v8-runtime-foundation';
+          const resolved = resolveRepositorySelector(parseRepositoryTarget(url), refs);
+          console.log(JSON.stringify(resolved, null, 2));
+          if (!resolved.ok || resolved.ref !== 'codex/jarvis-v8-runtime-foundation' || resolved.path !== '') process.exit(1);
+          NODE
+
+      - name: Assert Functions untouched
+        run: |
+          set -euo pipefail
+          test -z "$(git diff --name-only HEAD -- functions)"
+
+      - name: Commit product repair
+        run: |
+          set -euo pipefail
+          rm scripts/v94-repo-intelligence-fix.py
+          git config user.name "heberzzt-wq"
+          git config user.email "heberzzt@gmail.com"
+          git add -A
+          test -z "$(git diff --cached --name-only -- functions)"
+          git commit -m "[v94] feat(repo): analyze live repository refs structurally"
+          git push origin HEAD:v94-media-v4n-negative-claims
