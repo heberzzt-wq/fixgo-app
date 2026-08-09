@@ -1,4 +1,4 @@
-name: V94 repo intelligence fix
+name: V94 terminal release cache bust
 
 on:
   push:
@@ -13,7 +13,7 @@ permissions:
 jobs:
   fix:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,48 +31,38 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Install test dependencies
-        run: |
-          set -euo pipefail
-          npm ci
-          npm --prefix functions ci
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Apply remote identity guard
+      - name: Apply cache bust
         run: |
           set -euo pipefail
-          python scripts/v94-repo-remote-guard.py
+          python scripts/v94-terminal-cache-bust.py
 
-      - name: Focused repo regressions
+      - name: Certify startup freshness
         run: |
           set -euo pipefail
-          node --check jarvis-fs-bridge.js
-          node --test tests/jarvis-repo-target-runtime.test.mjs tests/jarvis-repo-intelligence.test.mjs tests/jarvis-fs-bridge-v2.test.mjs tests/repo-authority-v2.test.cjs tests/jarvis-semantic-memory-integrity.test.mjs
-
-      - name: Verify real and foreign repository identities
-        run: |
-          set -euo pipefail
-          git fetch --quiet origin codex/jarvis-v8-runtime-foundation
-          node --input-type=module <<'NODE'
-          import { resolveBridgeRepositoryTarget } from './jarvis-fs-bridge.js';
-          const good = resolveBridgeRepositoryTarget({ target: 'https://github.com/heberzzt-wq/fixgo-app/blob/codex/jarvis-v8-runtime-foundation' }, process.cwd());
-          const bad = resolveBridgeRepositoryTarget({ target: 'https://github.com/openai/not-the-local-repo/tree/main' }, process.cwd());
-          console.log(JSON.stringify({ good, bad }, null, 2));
-          if (!good.ok || good.ref !== 'codex/jarvis-v8-runtime-foundation' || good.path !== '' || !good.commit) process.exit(1);
-          if (bad.ok || bad.status !== 'REPOSITORY_REMOTE_MISMATCH') process.exit(1);
-          NODE
+          node --check gestia-core/gestia-core.js
+          node --check gestia-terminal.js
+          node --test tests/jarvis-semantic-memory-integrity.test.mjs tests/jarvis-repo-target-runtime.test.mjs tests/single-semantic-authority.test.mjs
+          grep -q 'gestia-terminal.js?v=v94-semantic-memory-repo-v111-20260809' gestia-terminal.html
+          grep -q 'gestia-core/gestia-core.js?v=v94-semantic-memory-repo-v111-20260809' gestia-terminal.html
+          grep -q 'tools.runtime.js?v=v94-semantic-memory-repo-v111-20260809' gestia-core/gestia-core.js
+          ! grep -q 'fixgo-real-runtime-e2e-v3-20260805' gestia-terminal.html
+          ! grep -q 'tools.runtime.js?v=v94-semantic-only-v108-20260809' gestia-core/gestia-core.js
 
       - name: Assert Functions untouched
         run: |
           set -euo pipefail
           test -z "$(git diff --name-only HEAD -- functions)"
 
-      - name: Commit remote guard
+      - name: Commit cache bust
         run: |
           set -euo pipefail
-          rm scripts/v94-repo-remote-guard.py
+          rm scripts/v94-terminal-cache-bust.py
           git config user.name "heberzzt-wq"
           git config user.email "heberzzt@gmail.com"
           git add -A
           test -z "$(git diff --cached --name-only -- functions)"
-          git commit -m "[v94] fix(repo): bind GitHub targets to local remote"
+          git commit -m "[v94] fix(terminal): force fresh semantic repo runtime"
           git push origin HEAD:v94-media-v4n-negative-claims
