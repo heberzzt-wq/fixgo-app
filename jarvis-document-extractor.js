@@ -422,7 +422,7 @@ async function extractPdf(buffer) {
             logicalParts: pages.length,
             physicalPageCountKnown: true,
             extractionScope: "pdf-text-layer",
-            scannedPagesRemainUnverifiedWithout-visual-analysis": true
+            scannedPagesRemainUnverifiedWithoutVisualAnalysis: true
         }
     };
 }
@@ -493,7 +493,8 @@ export async function extractJarvisDocumentArtifact({
     else if (extension === ".pptx") extraction = await extractPptx(buffer);
     else extraction = await extractPdf(buffer);
 
-    const canonicalMimeType = MIME_BY_EXTENSION[extension] || String(mimeType || "application/octet-stream");
+    const canonicalMimeType = MIME_BY_EXTENSION[extension] ||
+        (TEXT_EXTENSIONS.has(extension) ? "text/plain" : String(mimeType || "application/octet-stream"));
     const pages = Array.isArray(extraction.pages) ? extraction.pages : [];
     const analyzableParts = pages.filter(page =>
         String(page?.text || "").trim() ||
