@@ -28,6 +28,33 @@ ok(
 count = text.count(old)
 if count != 1:
     raise SystemExit(f'NEXO_CONTRACT_PATCH_ANCHOR_FAILED:{count}')
+text = text.replace(old, new, 1)
 
-path.write_text(text.replace(old, new, 1), encoding='utf-8')
+old_tests = '''ok(
+    resilienceTests.includes("cloud page plan without page.create") &&
+        resilienceTests.includes("cloudPlanCoversLocalMission"),
+    "prueba rechaza un plan cloud de página incompleto"
+);
+ok(
+    resilienceTests.includes("complete cloud artifact contract is accepted"),
+    "prueba conserva un plan cloud completo"
+);'''
+
+new_tests = '''ok(
+    resilienceTests.includes("local compiler never owns initial or contract intent") &&
+        resilienceTests.includes("semantic cloud plan is authoritative when no grounded tool requires completion"),
+    "pruebas exigen autoridad semántica del turno inicial"
+);
+ok(
+    resilienceTests.includes("grounded argument completion still requires the semantically selected tool") &&
+        resilienceTests.includes("local compiler may assist only an already selected grounded tool"),
+    "pruebas conservan recuperación local sólo para argumentos ya seleccionados"
+);'''
+
+count = text.count(old_tests)
+if count != 1:
+    raise SystemExit(f'NEXO_TEST_CONTRACT_PATCH_ANCHOR_FAILED:{count}')
+text = text.replace(old_tests, new_tests, 1)
+
+path.write_text(text, encoding='utf-8')
 print('V94_GENERALIST_NEXO_CONTRACT_FIX_APPLIED')
