@@ -21,6 +21,10 @@ jobs:
           ref: v94-media-v4n-negative-claims
           fetch-depth: 0
 
+      - name: Inventory legacy brain consumers
+        run: |
+          python3 tools/v94_single_brain_inventory.py | tee /tmp/v94-single-brain-inventory.log
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -91,11 +95,13 @@ jobs:
           PY
 
       - name: Run complete CI diagnostic
-        continue-on-error: true
         run: |
-          set -o pipefail
-          npm run ci:test 2>&1 | tee /tmp/v94-semantic-ci.log
-          echo ${PIPESTATUS[0]} > /tmp/v94-semantic-ci-exit.txt
+          set +e
+          npm run ci:test > /tmp/v94-semantic-ci.log 2>&1
+          status=$?
+          echo "$status" > /tmp/v94-semantic-ci-exit.txt
+          cat /tmp/v94-semantic-ci.log
+          exit 0
 
       - name: Summarize diagnostic exit
         run: |
@@ -108,6 +114,7 @@ jobs:
         with:
           name: v94-semantic-only-diagnostic
           path: |
+            /tmp/v94-single-brain-inventory.log
             /tmp/v94-semantic-patch.log
             /tmp/v94-semantic-inventory.log
             /tmp/v94-semantic-ci.log
