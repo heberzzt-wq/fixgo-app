@@ -1,5 +1,5 @@
 name: V94 semantic-only diagnostic
-# retry-wave2-real-bridge-anchor
+# retry-wave2-package-anchor
 
 on:
   push:
