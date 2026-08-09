@@ -1,0 +1,188 @@
+name: V94 source-scoped document analysis certification
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-document-analysis-certify.yml
+
+permissions:
+  contents: write
+
+jobs:
+  certify-hosting:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install locked dependencies
+        run: |
+          npm ci
+          npm --prefix functions ci
+
+      - name: Apply verified document-analysis integration patch
+        run: |
+          python3 tools/v94_document_analysis_patch.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('package.json')
+          package = json.loads(path.read_text(encoding='utf-8'))
+          script = package['scripts']['test:multifunction']
+          anchor = 'tests/jarvis-document-analysis-routing.test.mjs'
+          bridge = 'tests/jarvis-document-extraction-bridge.test.mjs'
+          if bridge not in script:
+              if anchor not in script:
+                  raise SystemExit('DOCUMENT_ROUTING_TEST_ANCHOR_MISSING')
+              script = script.replace(anchor, f'{anchor} {bridge}', 1)
+          package['scripts']['test:multifunction'] = script
+          path.write_text(json.dumps(package, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          PY
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('gestia-core/jarvis/jarvis.multitool.pack.js')
+          text = path.read_text(encoding='utf-8')
+          old = '''    return {\n        ok: true,\n        objectiveSatisfied: true,\n        status: "LOCAL_DOCUMENT_ANALYSIS_READY",'''
+          new = '''    const objectiveSatisfied = sortedSources.every(source =>\n        source?.coverage?.exhaustive === true\n    );\n    return {\n        ok: true,\n        objectiveSatisfied,\n        status: objectiveSatisfied\n            ? "LOCAL_DOCUMENT_ANALYSIS_READY"\n            : "LOCAL_DOCUMENT_ANALYSIS_PARTIAL_VERIFIED",'''
+          if text.count(old) != 1:
+              raise SystemExit('LOCAL_OBJECTIVE_GUARD_ANCHOR_MISSING')
+          text = text.replace(old, new, 1)
+          old2 = '''        ok: true,\n        objectiveSatisfied: true,\n        status: "HYBRID_MEDIA_DOCUMENT_ANALYSIS_READY",'''
+          new2 = '''        ok: true,\n        objectiveSatisfied:\n            localResult?.objectiveSatisfied === true &&\n            cloudResult?.ok === true,\n        status:\n            localResult?.objectiveSatisfied === true && cloudResult?.ok === true\n                ? "HYBRID_MEDIA_DOCUMENT_ANALYSIS_READY"\n                : "HYBRID_MEDIA_DOCUMENT_ANALYSIS_PARTIAL_VERIFIED",'''
+          if text.count(old2) != 1:
+              raise SystemExit('HYBRID_OBJECTIVE_GUARD_ANCHOR_MISSING')
+          text = text.replace(old2, new2, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Focused document and multimodal certification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/v94_document_analysis_patch.py
+          node --check jarvis-document-extractor.js
+          node --check jarvis-fs-bridge.js
+          node --check gestia-core/jarvis/jarvis.media.ingestion.js
+          node --check gestia-core/jarvis/jarvis.multitool.pack.js
+          node --test \
+            tests/jarvis-document-extractor.test.mjs \
+            tests/jarvis-document-extraction-bridge.test.mjs \
+            tests/jarvis-document-analysis-routing.test.mjs \
+            tests/jarvis-media-ingestion-precision.test.mjs \
+            tests/v94-media-browser-precision-contract.test.mjs \
+            tests/jarvis-conversation-composer.test.mjs \
+            tests/nexo-mission-compiler.test.mjs \
+            tests/jarvis-marketing-engine-v2.test.mjs \
+            tests/v94-marketing-artifact-delivery.test.mjs \
+            | tee /tmp/v94-document-focused.log
+          git diff --check
+
+      - name: Complete CI contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run ci:test | tee /tmp/v94-document-ci.log
+
+      - name: Upload certification logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v94-document-analysis-certification
+          path: |
+            /tmp/v94-document-focused.log
+            /tmp/v94-document-ci.log
+          if-no-files-found: warn
+          retention-days: 1
+
+      - name: Commit certified source and remove temporary tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "OpenAI V94 Handoff"
+          git config user.email "actions@users.noreply.github.com"
+          git rm \
+            .github/workflows/v94-document-analysis-certify.yml \
+            tools/v94_document_analysis_patch.py
+          git add \
+            jarvis-document-extractor.js \
+            jarvis-fs-bridge.js \
+            gestia-core/jarvis/jarvis.media.ingestion.js \
+            gestia-core/jarvis/jarvis.multitool.pack.js \
+            package.json \
+            tests/jarvis-document-extractor.test.mjs \
+            tests/jarvis-document-extraction-bridge.test.mjs \
+            tests/jarvis-document-analysis-routing.test.mjs
+          git diff --cached --check
+          git commit -m "feat(v94): analyze office and text documents from source bytes"
+          git push origin HEAD:v94-media-v4n-negative-claims
+          echo "CERTIFIED_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Verify temporary tooling is gone
+        run: |
+          test ! -e .github/workflows/v94-document-analysis-certify.yml
+          test ! -e tools/v94_document_analysis_patch.py
+          test -z "$(git status --short)"
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@15.10.1
+
+      - name: Deploy primary Hosting only
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy --only hosting:fixgo-44e4d --project fixgo-44e4d --token "$FIREBASE_TOKEN" --non-interactive
+
+      - name: Verify production bytes exactly
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=0
+          for attempt in $(seq 1 12); do
+            curl -fsSL "https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.multitool.pack.js?v=${CERTIFIED_HEAD}-$attempt" -o /tmp/live-multitool.js
+            curl -fsSL "https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.media.ingestion.js?v=${CERTIFIED_HEAD}-$attempt" -o /tmp/live-ingestion.js
+            curl -fsSL "https://fixgo-44e4d.web.app/jarvis-document-extractor.js?v=${CERTIFIED_HEAD}-$attempt" -o /tmp/live-extractor.js
+            curl -fsSL "https://fixgo-44e4d.web.app/jarvis-fs-bridge.js?v=${CERTIFIED_HEAD}-$attempt" -o /tmp/live-bridge.js
+            if \
+              cmp -s gestia-core/jarvis/jarvis.multitool.pack.js /tmp/live-multitool.js && \
+              cmp -s gestia-core/jarvis/jarvis.media.ingestion.js /tmp/live-ingestion.js && \
+              cmp -s jarvis-document-extractor.js /tmp/live-extractor.js && \
+              cmp -s jarvis-fs-bridge.js /tmp/live-bridge.js; then
+              ok=1
+              break
+            fi
+            sleep 2
+          done
+          test "$ok" = "1"
+          grep -F 'LOCAL_DOCUMENT_ANALYSIS_READY' /tmp/live-multitool.js
+          grep -F 'office_and_text_document_structure' /tmp/live-ingestion.js
+          grep -F 'DOCUMENT_EXTRACTION_READY' /tmp/live-extractor.js
+          grep -F '"/artifact/extract"' /tmp/live-bridge.js
+          sha256sum \
+            gestia-core/jarvis/jarvis.multitool.pack.js /tmp/live-multitool.js \
+            gestia-core/jarvis/jarvis.media.ingestion.js /tmp/live-ingestion.js \
+            jarvis-document-extractor.js /tmp/live-extractor.js \
+            jarvis-fs-bridge.js /tmp/live-bridge.js \
+            | tee /tmp/v94-document-production-hashes.log
+
+      - name: Upload production hashes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v94-document-analysis-production-hashes
+          path: /tmp/v94-document-production-hashes.log
+          if-no-files-found: warn
+          retention-days: 1
