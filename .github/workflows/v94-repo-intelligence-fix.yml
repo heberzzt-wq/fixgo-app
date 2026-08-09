@@ -55,19 +55,22 @@ jobs:
           node --check modules/terminal/repo-bootstrap-index.js
           node --test tests/jarvis-repo-target-runtime.test.mjs tests/jarvis-repo-intelligence.test.mjs tests/jarvis-fs-bridge-v2.test.mjs tests/repo-authority-v2.test.cjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs tests/single-semantic-authority.test.mjs
 
-      - name: Verify real slash-branch resolution in local checkout
+      - name: Verify real slash-branch resolution through bridge
         run: |
           set -euo pipefail
           git fetch --quiet origin codex/jarvis-v8-runtime-foundation
           node --input-type=module <<'NODE'
           import { parseRepositoryTarget, resolveRepositorySelector } from './gestia-core/repo/repo.target.js';
+          import { resolveBridgeRepositoryTarget } from './jarvis-fs-bridge.js';
           import { execFileSync } from 'node:child_process';
           const refs = execFileSync('git', ['for-each-ref','--format=%(refname:short)','refs/heads','refs/remotes/origin'], {encoding:'utf8'})
             .split(/\r?\n/).filter(Boolean);
           const url = 'https://github.com/heberzzt-wq/fixgo-app/blob/codex/jarvis-v8-runtime-foundation';
-          const resolved = resolveRepositorySelector(parseRepositoryTarget(url), refs);
-          console.log(JSON.stringify(resolved, null, 2));
-          if (!resolved.ok || resolved.ref !== 'codex/jarvis-v8-runtime-foundation' || resolved.path !== '') process.exit(1);
+          const structural = resolveRepositorySelector(parseRepositoryTarget(url), refs);
+          const bridge = resolveBridgeRepositoryTarget({ target: url }, process.cwd());
+          console.log(JSON.stringify({ structural, bridge }, null, 2));
+          if (!structural.ok || structural.ref !== 'codex/jarvis-v8-runtime-foundation' || structural.path !== '') process.exit(1);
+          if (!bridge.ok || bridge.ref !== 'codex/jarvis-v8-runtime-foundation' || bridge.path !== '' || !bridge.commit) process.exit(1);
           NODE
 
       - name: Assert Functions untouched
