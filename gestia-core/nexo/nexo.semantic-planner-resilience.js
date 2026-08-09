@@ -16,7 +16,7 @@ import {
     NEXO_MISSION_COMPILER_VERSION
 } from "./nexo.mission.compiler.v2.js";
 
-export const NEXO_SEMANTIC_RESILIENCE_VERSION = "1.3.0-complete-artifact-contract";
+export const NEXO_SEMANTIC_RESILIENCE_VERSION = "1.4.0-semantic-intent-authority";
 
 const INSTALL_KEY = "__NEXO_SEMANTIC_PLANNER_RESILIENCE__";
 const SEMANTIC_ENDPOINT =
@@ -62,6 +62,20 @@ function cloudPlanCoversLocalMission(result, localPlan) {
     );
 
     return [...required].every(name => cloudNames.has(name));
+}
+
+function localCompilerMayAssist(requestPayload = null) {
+    const phase = String(
+        requestPayload?.missionState?.phase || ""
+    ).trim();
+    const toolName = String(
+        requestPayload?.missionState?.toolName || ""
+    ).trim();
+
+    return (
+        phase === "GROUNDED_ARGUMENT_COMPLETION" &&
+        toolName.length > 0
+    );
 }
 
 async function responseHasUsefulPlan(response, localPlan = null) {
@@ -137,15 +151,17 @@ export function instalarResilienciaSemanticaNexo() {
         }
 
         const requestPayload = parseRequestPayload(input, init || {});
-        const localPlan = compileNexoMission({
-            input: requestPayload?.input || "",
-            catalog: requestPayload?.catalog || [],
-            missionState: requestPayload?.missionState || null,
-            context: {
-                objectiveId: requestPayload?.missionState?.objectiveId || "",
-                caseId: requestPayload?.missionState?.caseId || ""
-            }
-        });
+        const localPlan = localCompilerMayAssist(requestPayload)
+            ? compileNexoMission({
+                input: requestPayload?.input || "",
+                catalog: requestPayload?.catalog || [],
+                missionState: requestPayload?.missionState || null,
+                context: {
+                    objectiveId: requestPayload?.missionState?.objectiveId || "",
+                    caseId: requestPayload?.missionState?.caseId || ""
+                }
+            })
+            : null;
 
         let cloudResponse = null;
         let cloudFailure = null;
@@ -208,5 +224,6 @@ instalarResilienciaSemanticaNexo();
 export const __test = {
     requiredToolNames,
     cloudPlanCoversLocalMission,
+    localCompilerMayAssist,
     responseHasUsefulPlan
 };

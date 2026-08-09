@@ -1,4 +1,4 @@
-const VERSION = "4.15.0-attachment-analysis-route";
+const VERSION = "4.16.0-generalist-current-turn";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
@@ -12,6 +12,14 @@ const BROWSER_MISSION_ATTEMPT_TIMEOUT_MS =
 
 const BROWSER_PLAN_ATTEMPT_TIMEOUT_MS =
     15000;
+
+const GENERALIST_CURRENT_TURN_POLICY = [
+    "Actua como un agente generalista: entiende libremente la instruccion actual antes de elegir herramientas.",
+    "La instruccion actual es la autoridad primaria; el historial, el estado previo y los adjuntos aportan contexto, pero no sustituyen ni arrastran una tarea anterior salvo continuidad o referencia inequívoca del usuario.",
+    "Distingue entre objetos de entrada, temas mencionados y resultados realmente solicitados: mencionar una capacidad, formato, archivo o tema no equivale a pedir que se ejecute o produzca.",
+    "Selecciona solamente las herramientas necesarias para satisfacer la intencion actual y conserva cada objetivo independiente pedido por el usuario.",
+    "Si la solicitud se resuelve conversacionalmente, mediante conocimiento o explicacion, no fabriques artefactos ni operaciones no solicitadas; usa la respuesta semantica disponible o declara la mision completa cuando no haga falta una herramienta."
+].join(" ");
 
 function extractJsonObject(value = "") {
     const source = String(value || "");
@@ -1551,8 +1559,9 @@ async function callBrowserMissionContract(
             : [];
     const prompt = [
         "Eres el planificador semantico de Jarvis V7.",
+        GENERALIST_CURRENT_TURN_POLICY,
         "Devuelve solamente JSON valido.",
-        "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only y userArtifact necesarias para TODOS los entregables. Para crear una landing usa page.plan, page.compose y page.create; para crear un documento usa document.compose y document.create; para crear una hoja estructurada usa spreadsheet.compose y document.create. Para EDITAR un PDF existente usa document.pdf.edit; para EDITAR un XLSX existente usa document.xlsx.edit; para EDITAR una imagen existente usa image.edit. Nunca sustituyas una edicion solicitada por document.create, spreadsheet.compose o image.generate. Si una imagen adjunta representa a la persona, producto u objeto que debe aparecer en el resultado, usa image.edit con sourceOutput igual al artifact real del manifiesto; media.analyze no transmite identidad visual ni sustituye los bytes de la fuente. Las ediciones crean una copia nueva y deben preservar el original. system.certify es terminal: no lo incluyas en el contrato inicial; seleccionalo solamente durante COMPLETION_AUDIT cuando los demas objetivos est?n completados o bloqueados. Para image.edit genera una sola salida por defecto. La cantidad de fotos adjuntas o referencias nunca significa cantidad de variantes. Si el usuario pide varias salidas, asigna un variantId distinto y explicito a cada salida. Cuando haya varias fotos de identidad, usa la imagen mas reciente y limpia como sourceOutput y copia las referencias pertinentes en referenceOutputs. Para cada artefacto usa exactamente una composicion y una creacion salvo que el usuario pida variantes. Cuando existan archivos adjuntos reales y la instruccion pida analizarlos, describirlos, compararlos, identificarlos o leerlos, media.analyze es obligatoria y image.generate/image.edit no pueden sustituirla; usa herramientas de imagen sintetica solamente cuando el usuario pida explicitamente crear, generar, editar, modificar o transformar una imagen nueva o existente. Conserva el orden y usa missionComplete=false.",
+        "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only y userArtifact necesarias para TODOS los entregables. Para crear una landing usa page.plan, page.compose y page.create; para crear un documento usa document.compose y document.create; para crear una hoja estructurada usa spreadsheet.compose y document.create. Para EDITAR un PDF existente usa document.pdf.edit; para EDITAR un XLSX existente usa document.xlsx.edit; para EDITAR una imagen existente usa image.edit. Nunca sustituyas una edicion solicitada por document.create, spreadsheet.compose o image.generate. Si una imagen adjunta representa a la persona, producto u objeto que debe aparecer en el resultado, usa image.edit con sourceOutput igual al artifact real del manifiesto; media.analyze no transmite identidad visual ni sustituye los bytes de la fuente. Las ediciones crean una copia nueva y deben preservar el original. system.certify es terminal: no lo incluyas en el contrato inicial; seleccionalo solamente durante COMPLETION_AUDIT cuando los demas objetivos est?n completados o bloqueados. Para image.edit genera una sola salida por defecto. La cantidad de fotos adjuntas o referencias nunca significa cantidad de variantes. Si el usuario pide varias salidas, asigna un variantId distinto y explicito a cada salida. Cuando haya varias fotos de identidad, usa la imagen mas reciente y limpia como sourceOutput y copia las referencias pertinentes en referenceOutputs. Para cada artefacto usa exactamente una composicion y una creacion salvo que el usuario pida variantes. Cuando existan archivos adjuntos reales y la instruccion pida analizarlos, describirlos, compararlos, identificarlos o leerlos, media.analyze es obligatoria y image.generate/image.edit no pueden sustituirla; usa herramientas de imagen sintetica solamente cuando el usuario pida explicitamente crear, generar, editar, modificar o transformar una imagen nueva o existente. Conserva el orden. Si la solicitud no necesita ninguna herramienta, devuelve toolCalls=[] y missionComplete=true; en caso contrario usa missionComplete=false.",
         "Las HERRAMIENTAS_INICIALES son un borrador semantico ya seleccionado para la misma instruccion. Conserva sus entregables y agrega solamente una herramienta que cubra un objetivo independiente pedido de forma explicita y no cubierto por ese borrador. No agregues diagnostico, supervision, forense, repositorio, navegador, conectores, investigacion ni otros artefactos solo porque existan en el catalogo.",
         "No colapses sujetos u objetivos independientes. Repite el mismo nombre de herramienta cuando necesite argumentos distintos para cubrirlos por separado.",
         "agent.delegate no es una optimizacion automatica. Incluyela solamente si la instruccion original pide explicitamente delegar, usar agentes o ejecutar en paralelo, y copia esa frase literal en delegationDirective. En cualquier otra mision conserva las herramientas directas.",
@@ -1597,6 +1606,18 @@ async function callBrowserMissionContract(
                 }
                 if (!auditedPlan) {
                     if (plan.toolCalls.length === 0) {
+                        if (plan?.missionComplete === true) {
+                            return {
+                                ...plan,
+                                toolCalls: [],
+                                missionComplete: true,
+                                ok: true,
+                                status: "SEMANTIC_PLAN_READY",
+                                provider: "pollinations-browser-json",
+                                model: "openai-fast",
+                                planKind: "MISSION_CONTRACT_NO_TOOLS"
+                            };
+                        }
                         throw new Error("CLIENT_MISSION_CONTRACT_EMPTY");
                     }
                     auditedPlan = {
@@ -1676,6 +1697,7 @@ async function callBrowserSemanticPlan(input = "", catalog = [], missionState = 
         : `${instruction.slice(0, 8000)}\n[PARTE_MEDIA_PERSISTIDA]\n${instruction.slice(-3500)}`;
     const prompt = [
         "Eres el planificador semantico de herramientas de Jarvis V7.",
+        GENERALIST_CURRENT_TURN_POLICY,
         "Interpreta significado, typos, negaciones y ordenes mixtas. Selecciona exclusivamente nombres exactos del catalogo.",
         "No autorices escrituras de repositorio, publicacion ni despliegue. Las herramientas userArtifact pueden crear entregables locales y editar copias de artefactos existentes cuando el usuario lo pide explicitamente; deben conservar el original y no equivalen a editar codigo, publicar o desplegar. Para editar PDF, XLSX o imagen usa respectivamente document.pdf.edit, document.xlsx.edit o image.edit y nunca los sustituyas por herramientas de creacion. Si una persona, producto u objeto debe conservarse desde una imagen adjunta, selecciona image.edit y copia el artifact real del manifiesto en sourceOutput; no uses image.generate ni una descripcion de media.analyze como reemplazo de la fuente visual. Si hay adjuntos reales y la orden pide analizarlos, describirlos, compararlos, identificarlos o leerlos, selecciona media.analyze; nunca sustituyas ese objetivo por image.generate o image.edit salvo que la orden tambien pida explicitamente crear, generar, editar, modificar o transformar una imagen. Conserva todas las intenciones independientes y usa herramientas especializadas para entregables operativos.",
         "agent.delegate no es una optimizacion automatica. Seleccionala solamente si la instruccion original pide explicitamente delegar, usar agentes o ejecutar en paralelo. En ese caso copia literalmente esa frase en delegationDirective. Si solo hay varias herramientas directas, devuelve esas herramientas sin agent.delegate.",
@@ -1689,7 +1711,7 @@ async function callBrowserSemanticPlan(input = "", catalog = [], missionState = 
         "Si una investigacion pide hechos sobre una entidad nombrada sin dominio, copia el nombre exacto en exactEntity de web.research.",
         missionState?.phase === "COMPLETION_AUDIT"
             ? "AUDITORIA DE CIERRE: compara cada entregable con la evidencia. Si todo esta satisfecho devuelve toolCalls=[] y missionComplete=true. Si falta algo devuelve exactamente una herramienta pertinente con argumentos completos y missionComplete=false. No explores capacidades no solicitadas. Si repo.search entrego sourceDefinitions o definitionFiles, prioriza esas rutas ejecutables sobre archivos que solo mencionan el simbolo y permite repetir lectura o diagnostico cuando el archivo sea distinto."
-            : "Devuelve solamente JSON valido con toolCalls, missionComplete=false y explanation.",
+            : "Devuelve solamente JSON valido con toolCalls, missionComplete y explanation. Si la intencion actual no necesita herramientas, devuelve toolCalls=[] y missionComplete=true; si necesita una o mas herramientas, missionComplete=false.",
         `CATALOGO=${catalog.map(tool => tool.name).join(",")}`,
         missionState ? `ESTADO_DE_MISION=${JSON.stringify(missionState).slice(0, 12000)}` : "",
         `INSTRUCCION=${boundedInstruction}`
@@ -1720,10 +1742,7 @@ async function callBrowserSemanticPlan(input = "", catalog = [], missionState = 
                     !Array.isArray(plan?.toolCalls) ||
                     (
                         plan.toolCalls.length === 0 &&
-                        !(
-                            missionState?.phase === "COMPLETION_AUDIT" &&
-                            plan?.missionComplete === true
-                        )
+                        plan?.missionComplete !== true
                     )
                 ) {
                     throw new Error("CLIENT_SEMANTIC_PLAN_EMPTY");
@@ -1831,15 +1850,11 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
     const allowed = new Map(catalog.map(tool => [tool.name, tool]));
     const candidates =
         normalizeGroundedImageReferenceCandidates(
-            normalizeAttachmentAnalysisRouteCandidates(
-                Array.isArray(
-                    plan?.toolCalls
-                )
-                    ? plan.toolCalls
-                    : [],
-                catalog,
-                context
-            ),
+            Array.isArray(
+                plan?.toolCalls
+            )
+                ? plan.toolCalls
+                : [],
             catalog,
             context
         );
@@ -2649,6 +2664,7 @@ export function describeJarvisMultifunctionPlanner() {
 }
 
 export const __test = {
+    GENERALIST_CURRENT_TURN_POLICY,
     runtimeCatalog,
     trustedPlanCalls,
     enforceMissionIsolation,

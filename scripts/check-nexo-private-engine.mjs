@@ -105,13 +105,15 @@ ok(
 );
 
 ok(
-    resilience.includes("1.3.0-complete-artifact-contract"),
-    "resiliencia semántica exige contrato completo de artefacto"
+    resilience.includes("1.4.0-semantic-intent-authority") &&
+        resilience.includes("localCompilerMayAssist"),
+    "resiliencia semántica deja la intención inicial al planificador generalista"
 );
 ok(
-    resilience.includes("cloudPlanCoversLocalMission") &&
-        resilience.includes("SEMANTIC_PLAN_INCOMPLETE"),
-    "plan cloud incompleto activa recuperación local"
+    resilience.includes('phase === "GROUNDED_ARGUMENT_COMPLETION"') &&
+        resilience.includes("toolName.length > 0") &&
+        resilience.includes("const localPlan = localCompilerMayAssist(requestPayload)"),
+    "compilador local sólo asiste argumentos de una herramienta ya seleccionada"
 );
 ok(
     resilience.includes(
@@ -314,13 +316,14 @@ ok(
     "pruebas físicas cubren JPEG, MP4, SHA, ausencia y SSRF"
 );
 ok(
-    resilienceTests.includes("cloud page plan without page.create") &&
-        resilienceTests.includes("cloudPlanCoversLocalMission"),
-    "prueba rechaza un plan cloud de página incompleto"
+    resilienceTests.includes("local compiler never owns initial or contract intent") &&
+        resilienceTests.includes("semantic cloud plan is authoritative when no grounded tool requires completion"),
+    "pruebas exigen autoridad semántica del turno inicial"
 );
 ok(
-    resilienceTests.includes("complete cloud artifact contract is accepted"),
-    "prueba conserva un plan cloud completo"
+    resilienceTests.includes("grounded argument completion still requires the semantically selected tool") &&
+        resilienceTests.includes("local compiler may assist only an already selected grounded tool"),
+    "pruebas conservan recuperación local sólo para argumentos ya seleccionados"
 );
 ok(
     approvalTests.includes("aprobación autorizada") &&

@@ -11,135 +11,122 @@ import {
 const {
     requiredToolNames,
     cloudPlanCoversLocalMission,
+    localCompilerMayAssist,
     responseHasUsefulPlan
 } = __test;
 
-const localPageMission = {
-    ok: true,
-    toolCalls: [
-        { name: "page.plan", args: {} },
-        { name: "page.compose", args: {} },
-        { name: "page.create", args: {} }
-    ]
-};
-
-test("cloud page plan without page.create is rejected as incomplete", () => {
-    const cloudPlan = {
-        ok: true,
-        toolCalls: [
-            { name: "page.plan", args: {} },
-            { name: "page.compose", args: {} }
-        ]
-    };
-
-    assert.deepEqual(
-        [...requiredToolNames(localPageMission)],
-        ["page.plan", "page.compose", "page.create"]
-    );
-    assert.equal(
-        cloudPlanCoversLocalMission(cloudPlan, localPageMission),
-        false
-    );
-});
-
-test("complete cloud artifact contract is accepted", async () => {
-    const cloudPlan = {
-        ok: true,
-        toolCalls: [
-            { name: "page.plan", args: {} },
-            { name: "page.compose", args: {} },
-            { name: "page.create", args: {} }
-        ]
-    };
-
-    assert.equal(
-        cloudPlanCoversLocalMission(cloudPlan, localPageMission),
-        true
-    );
-
-    const response = new Response(
-        JSON.stringify({ result: cloudPlan }),
+function responseFor(result, status = 200) {
+    return new Response(
+        JSON.stringify({ result }),
         {
-            status: 200,
+            status,
             headers: {
                 "Content-Type": "application/json"
             }
         }
     );
+}
 
+test("local compiler never owns initial or contract intent", () => {
+    assert.equal(localCompilerMayAssist(null), false);
+    assert.equal(localCompilerMayAssist({ missionState: null }), false);
+    assert.equal(localCompilerMayAssist({
+        missionState: { phase: "MISSION_CONTRACT" }
+    }), false);
+    assert.equal(localCompilerMayAssist({
+        missionState: { phase: "COMPLETION_AUDIT" }
+    }), false);
+});
+
+test("local compiler may assist only an already selected grounded tool", () => {
+    assert.equal(localCompilerMayAssist({
+        missionState: {
+            phase: "GROUNDED_ARGUMENT_COMPLETION",
+            toolName: "marketing.plan"
+        }
+    }), true);
+    assert.equal(localCompilerMayAssist({
+        missionState: {
+            phase: "GROUNDED_ARGUMENT_COMPLETION",
+            toolName: ""
+        }
+    }), false);
+});
+
+test("semantic cloud plan is authoritative when no grounded tool requires completion", async () => {
+    const cloudPlan = {
+        ok: true,
+        missionComplete: false,
+        toolCalls: [{
+            name: "conversation.respond",
+            args: { prompt: "Explica el tema solicitado" }
+        }]
+    };
+
+    assert.equal(cloudPlanCoversLocalMission(cloudPlan, null), true);
     assert.equal(
-        await responseHasUsefulPlan(response, localPageMission),
+        await responseHasUsefulPlan(responseFor(cloudPlan), null),
         true
     );
 });
 
-test("missionComplete cannot erase a required local artifact chain", async () => {
-    const response = new Response(
-        JSON.stringify({
-            result: {
-                ok: true,
-                missionComplete: true,
-                toolCalls: []
-            }
-        }),
-        {
-            status: 200,
-            headers: {
-                "Content-Type": "application/json"
-            }
-        }
-    );
+test("semantic no-tool completion is valid when no local selected-tool contract exists", async () => {
+    const cloudPlan = {
+        ok: true,
+        missionComplete: true,
+        toolCalls: []
+    };
 
     assert.equal(
-        await responseHasUsefulPlan(response, localPageMission),
-        false
+        await responseHasUsefulPlan(responseFor(cloudPlan), null),
+        true
     );
 });
 
-test("unrelated missions do not impose an artifact contract on cloud planning", () => {
+test("grounded argument completion still requires the semantically selected tool", async () => {
+    const catalog = [
+        "marketing.plan",
+        "conversation.respond"
+    ].map(name => ({ name }));
+    const localPlan = compileNexoMission({
+        input: [
+            "Completa los argumentos de la herramienta ya seleccionada.",
+            "INSTRUCCION_ORIGINAL=Haz un plan de marketing para Peninsula Tech"
+        ].join("\n"),
+        catalog,
+        missionState: {
+            phase: "GROUNDED_ARGUMENT_COMPLETION",
+            toolName: "marketing.plan"
+        }
+    });
+
+    assert.deepEqual([...requiredToolNames(localPlan)], ["marketing.plan"]);
     assert.equal(
-        cloudPlanCoversLocalMission(
-            {
+        await responseHasUsefulPlan(
+            responseFor({
                 ok: true,
-                toolCalls: [{ name: "repo.search", args: {} }]
-            },
-            null
+                missionComplete: false,
+                toolCalls: [{
+                    name: "conversation.respond",
+                    args: { prompt: "respuesta generica" }
+                }]
+            }),
+            localPlan
+        ),
+        false
+    );
+    assert.equal(
+        await responseHasUsefulPlan(
+            responseFor({
+                ok: true,
+                missionComplete: false,
+                toolCalls: [{
+                    name: "marketing.plan",
+                    args: { brandName: "Peninsula Tech" }
+                }]
+            }),
+            localPlan
         ),
         true
     );
-});
-
-test("503 real media mission is fully recoverable by NEXO local contract", async () => {
-    const catalog = [
-        "web.research",
-        "web.media.collect",
-        "marketing.plan",
-        "marketing.package.real-media",
-        "document.create",
-        "image.generate"
-    ].map(name => ({ name }));
-    const localPlan = compileNexoMission({
-        input: "creame un plan de marketing para multiservicios . https://multiserviciospeninsulareshmh.com/ con fotos y videos reales",
-        catalog
-    });
-    const unavailableCloud = new Response(
-        JSON.stringify({ error: { message: "Service Unavailable" } }),
-        {
-            status: 503,
-            headers: {
-                "Content-Type": "application/json"
-            }
-        }
-    );
-
-    assert.equal(await responseHasUsefulPlan(unavailableCloud, localPlan), false);
-    assert.deepEqual([...requiredToolNames(localPlan)], [
-        "web.research",
-        "web.media.collect",
-        "marketing.plan",
-        "document.create",
-        "marketing.package.real-media"
-    ]);
-    assert.equal(localPlan.provider, "nexo-local-compiler");
-    assert.equal(localPlan.toolCalls.some(call => call.name === "image.generate"), false);
 });

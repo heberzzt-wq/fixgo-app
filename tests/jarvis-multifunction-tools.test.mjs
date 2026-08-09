@@ -201,7 +201,7 @@ test("media analysis is a mission-wide singleton despite question variants", () 
 });
 
 
-test("pure attachment analysis deterministically rejects stale marketing, document and image generation routes", async () => {
+test("client planner does not override semantic intent with a lexical attachment router", async () => {
     const manifest = JSON.stringify([
         {
             name: "source-a.png",
@@ -302,15 +302,15 @@ test("pure attachment analysis deterministically rejects stale marketing, docume
 
     assert.deepEqual(
         result.map(call => call.name),
-        ["media.analyze"]
+        ["marketing.plan", "document.create", "image.generate"]
     );
     assert.equal(
-        result[0].reason,
-        "ATTACHMENT_ANALYSIS_ROUTE_ENFORCED"
+        result.every(call => call.reason !== "ATTACHMENT_ANALYSIS_ROUTE_ENFORCED"),
+        true
     );
 });
 
-test("pure attachment analysis keeps only one existing media analysis call", () => {
+test("trusted plan keeps model-selected calls instead of lexically collapsing the turn", () => {
     const manifest = JSON.stringify([
         {
             name: "source.png",
@@ -362,8 +362,10 @@ test("pure attachment analysis keeps only one existing media analysis call", () 
         }
     );
 
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0].name, "media.analyze");
+    assert.deepEqual(
+        calls.map(call => call.name),
+        ["media.analyze", "image.generate"]
+    );
     assert.deepEqual(calls[0].args.questions, ["Compara"]);
     assert.equal(calls[0].reason, "MODEL_SELECTED_MEDIA");
 });
@@ -4332,7 +4334,7 @@ test("multifunction descriptor remains approval-bound", () => {
     assert.equal(planner.mutates, false);
     assert.equal(
         planner.version,
-        "4.15.0-attachment-analysis-route"
+        "4.16.0-generalist-current-turn"
     );
     assert.equal(planner.maximumToolCalls, 12);
     assert.equal(planner.architecture, "model_selected_runtime_catalog");
