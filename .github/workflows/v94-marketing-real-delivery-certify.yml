@@ -38,6 +38,7 @@ jobs:
           python3 tools/v94_marketing_real_delivery_patch.py | tee /tmp/v94-marketing-patch.log
           python3 tools/v94_marketing_real_delivery_testfix.py | tee -a /tmp/v94-marketing-patch.log
           python3 tools/v94_marketing_real_delivery_closure.py | tee -a /tmp/v94-marketing-patch.log
+          python3 tools/v94_marketing_presenter_match_fix.py | tee -a /tmp/v94-marketing-patch.log
 
       - name: Verify syntax isolation and semantic architecture
         run: |
@@ -100,6 +101,7 @@ jobs:
           git rm tools/v94_marketing_real_delivery_patch.py
           git rm tools/v94_marketing_real_delivery_testfix.py
           git rm tools/v94_marketing_real_delivery_closure.py
+          git rm tools/v94_marketing_presenter_match_fix.py
           rm -rf tools/__pycache__ .pytest_cache
           find . -type f -name '*.pyc' -delete
           git add -A
