@@ -1,5 +1,5 @@
 name: V94 semantic-only diagnostic
-# single-brain-quality-marker-retry
+# single-brain-quality-eof-safe
 
 on:
   push:
@@ -48,7 +48,7 @@ jobs:
           python3 tools/v94_single_brain_prune_wave3.py 2>&1 | tee -a /tmp/v94-semantic-patch.log
           python3 tools/v94_semantic_only_contract_patch.py 2>&1 | tee -a /tmp/v94-semantic-patch.log
           python3 tools/v94_semantic_only_residue_patch.py 2>&1 | tee -a /tmp/v94-semantic-patch.log
-          sed -i 's/inspection", async () => {/inspection", () => {/' tools/v94_single_brain_quality_patch.py
+          python3 tools/v94_quality_helper_tail_fix.py 2>&1 | tee -a /tmp/v94-semantic-patch.log
           python3 tools/v94_single_brain_quality_patch.py 2>&1 | tee -a /tmp/v94-semantic-patch.log
 
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
