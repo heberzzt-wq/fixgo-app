@@ -1,0 +1,146 @@
+name: V94 single-brain wave8 diagnostic
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-single-brain-wave8-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  certify-wave8:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix functions ci
+
+      - name: Apply single-brain waves 1 through 8
+        run: |
+          set -o pipefail
+          python3 tools/v94_single_brain_prune.py 2>&1 | tee /tmp/v94-wave8-patch.log
+          python3 tools/v94_semantic_only_front_patch.py 2>&1 | tee -a /tmp/v94-wave8-patch.log
+          python3 tools/v94_semantic_only_core_patch.py 2>&1 | tee -a /tmp/v94-wave8-patch.log
+          python3 tools/v94_single_brain_prune_wave2.py 2>&1 | tee -a /tmp/v94-wave8-patch.log
+          python3 tools/v94_single_brain_prune_wave3.py 2>&1 | tee -a /tmp/v94-wave8-patch.log
+          python3 tools/v94_semantic_only_contract_patch.py 2>&1 | tee -a /tmp/v94-wave8-patch.log
+          python3 tools/v94_semantic_only_residue_patch.py 2>&1 | tee -a /tmp/v94-wave8-patch.log
+          python3 tools/v94_quality_helper_tail_fix.py 2>&1 | tee -a /tmp/v94-wave8-patch.log
+          python3 tools/v94_single_brain_quality_patch.py 2>&1 | tee -a /tmp/v94-wave8-patch.log
+          python3 tools/v94_quality_post_patch.py 2>&1 | tee -a /tmp/v94-wave8-patch.log
+          python3 tools/v94_wave4_helper_fix.py 2>&1 | tee -a /tmp/v94-wave8-patch.log
+          python3 tools/v94_single_brain_prune_wave4.py 2>&1 | tee -a /tmp/v94-wave8-patch.log
+          python3 tools/v94_single_brain_prune_wave5.py 2>&1 | tee -a /tmp/v94-wave8-patch.log
+          python3 tools/v94_single_brain_prune_wave6.py 2>&1 | tee -a /tmp/v94-wave8-patch.log
+          python3 tools/v94_wave7_helper_fix.py 2>&1 | tee -a /tmp/v94-wave8-patch.log
+          python3 tools/v94_single_brain_prune_wave7.py 2>&1 | tee -a /tmp/v94-wave8-patch.log
+          python3 tools/v94_single_brain_prune_wave8.py 2>&1 | tee -a /tmp/v94-wave8-patch.log
+
+      - name: Verify syntax and isolation
+        run: |
+          set -o pipefail
+          node --check gestia-terminal.js
+          node --check gestia-core/nexo/nexo.ui.branding.js
+          node --check jarvis-repo-intelligence.js
+          node --check jarvis-fs-bridge.js
+          node --check gestia-core/tools.runtime.js
+          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          node --check gestia-core/jarvis/jarvis.conversation.composer.js
+          node --check gestia-core/gestia-core.js
+          node --check scripts/check-nexo-private-engine.mjs
+          node --check tests/single-semantic-authority.test.mjs
+          node --check tests/nexo-approval-normalization.test.mjs
+          git diff --check
+          test -z "$(git diff --name-only -- functions)"
+
+      - name: Verify focused semantic authority contracts
+        run: |
+          set -o pipefail
+          node scripts/check-nexo-private-engine.mjs 2>&1 | tee /tmp/v94-wave8-contract.log
+          node --test tests/single-semantic-authority.test.mjs tests/nexo-terminal-bootstrap.test.mjs tests/nexo-approval-normalization.test.mjs tests/jarvis-repo-intelligence.test.mjs 2>&1 | tee /tmp/v94-wave8-focused.log
+
+      - name: Require no active lexical language routers
+        run: |
+          python3 - <<'PY' | tee /tmp/v94-wave8-lexical.log
+          from pathlib import Path
+          targets = {
+              'gestia-terminal.js': [
+                  'APPROVAL_WORDS', 'CANCEL_WORDS', 'REPO SEARCH INTERCEPTOR',
+                  'REPO AUDIT INTERCEPTORS', 'QUICK COMMANDS JARVIS',
+                  'APPROVAL DETECTED', 'JarvisIntentRuntimeV7',
+                  'runCognitiveReasoning', 'interpretarIntenciones',
+                  'HYBRID_COGNITION_LINKS', 'runtime_intelligence'
+              ],
+              'gestia-core/nexo/nexo.ui.branding.js': [
+                  'EXACT_APPROVAL_COMMANDS', 'isNexoApprovalCommand',
+                  'normalizeNexoCommand', 'APPROVAL_BRIDGE_KEY',
+                  'nexoApprovalNormalized', 'input.value = "proceder"'
+              ],
+              'jarvis-repo-intelligence.js': [
+                  'function queryTerms', 'lexicalSemantic', 'normalizedQuery',
+                  'matchedTerms', 'pathTermMatches'
+              ],
+              'gestia-core/jarvis/jarvis.multifunction.planner.js': [
+                  'new RegExp(', '.match(', '.matchAll(', '.exec(', '.test('
+              ],
+              'gestia-core/jarvis/jarvis.conversation.composer.js': [
+                  'new RegExp(', '.match(', '.matchAll(', '.exec(', '.test('
+              ]
+          }
+          found = []
+          for file, needles in targets.items():
+              text = Path(file).read_text(encoding='utf-8')
+              for needle in needles:
+                  if needle in text:
+                      found.append((file, needle))
+          if found:
+              print('LEXICAL_LANGUAGE_ROUTER_RESIDUE')
+              for row in found:
+                  print('\t'.join(row))
+              raise SystemExit(1)
+          print('LEXICAL_LANGUAGE_ROUTER_RESIDUE=0')
+          PY
+
+      - name: Inventory remaining candidates
+        run: |
+          python3 tools/v94_single_brain_inventory.py | tee /tmp/v94-wave8-inventory.log
+          python3 tools/v94_single_brain_active_refs.py | tee /tmp/v94-wave8-active-refs.log
+
+      - name: Run complete CI with real exit propagation
+        run: |
+          set -o pipefail
+          npm run ci:test 2>&1 | tee /tmp/v94-wave8-ci.log
+          test -z "$(git diff --name-only -- functions)"
+
+      - name: Upload wave8 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v94-single-brain-wave8-evidence
+          path: |
+            /tmp/v94-wave8-patch.log
+            /tmp/v94-wave8-contract.log
+            /tmp/v94-wave8-focused.log
+            /tmp/v94-wave8-lexical.log
+            /tmp/v94-wave8-inventory.log
+            /tmp/v94-wave8-active-refs.log
+            /tmp/v94-wave8-ci.log
+          if-no-files-found: ignore
+          retention-days: 14
