@@ -26,10 +26,22 @@ jobs:
           test "$(git branch --show-current)" = "v94-media-v4n-negative-claims"
           test -z "$(git status --porcelain)"
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install test dependencies
+        run: |
+          set -euo pipefail
+          npm ci
+          npm --prefix functions ci
+
       - name: Apply repair
         run: |
           set -euo pipefail
           python scripts/v94-repo-intelligence-fix.py
+          python scripts/v94-repo-intelligence-fix2.py
 
       - name: Syntax and focused regressions
         run: |
@@ -67,6 +79,7 @@ jobs:
         run: |
           set -euo pipefail
           rm scripts/v94-repo-intelligence-fix.py
+          rm scripts/v94-repo-intelligence-fix2.py
           git config user.name "heberzzt-wq"
           git config user.email "heberzzt@gmail.com"
           git add -A
