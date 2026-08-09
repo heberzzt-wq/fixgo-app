@@ -1,5 +1,5 @@
 name: V94 source-scoped document analysis certification
-# certification-attempt: 3
+# certification-attempt: 4
 
 on:
   push:
@@ -36,6 +36,7 @@ jobs:
       - name: Apply verified document-analysis integration patch
         run: |
           python3 tools/v94_document_analysis_patch.py
+          python3 tools/v94_bridge_version_contract_patch.py
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -72,7 +73,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m py_compile tools/v94_document_analysis_patch.py
+          python3 -m py_compile tools/v94_document_analysis_patch.py tools/v94_bridge_version_contract_patch.py
           node --check jarvis-document-extractor.js
           node --check jarvis-fs-bridge.js
           node --check gestia-core/jarvis/jarvis.media.ingestion.js
@@ -82,6 +83,7 @@ jobs:
             tests/jarvis-document-extraction-bridge.test.mjs \
             tests/jarvis-document-analysis-routing.test.mjs \
             tests/jarvis-media-ingestion-precision.test.mjs \
+            tests/jarvis-fs-bridge-v2.test.mjs \
             tests/v94-media-browser-precision-contract.test.mjs \
             tests/jarvis-conversation-composer.test.mjs \
             tests/nexo-mission-compiler.test.mjs \
@@ -115,7 +117,8 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git rm \
             .github/workflows/v94-document-analysis-certify.yml \
-            tools/v94_document_analysis_patch.py
+            tools/v94_document_analysis_patch.py \
+            tools/v94_bridge_version_contract_patch.py
           git add \
             jarvis-document-extractor.js \
             jarvis-fs-bridge.js \
@@ -124,7 +127,8 @@ jobs:
             package.json \
             tests/jarvis-document-extractor.test.mjs \
             tests/jarvis-document-extraction-bridge.test.mjs \
-            tests/jarvis-document-analysis-routing.test.mjs
+            tests/jarvis-document-analysis-routing.test.mjs \
+            tests/jarvis-fs-bridge-v2.test.mjs
           git diff --cached --check
           git commit -m "feat(v94): analyze office and text documents from source bytes"
           git push origin HEAD:v94-media-v4n-negative-claims
@@ -134,6 +138,7 @@ jobs:
         run: |
           test ! -e .github/workflows/v94-document-analysis-certify.yml
           test ! -e tools/v94_document_analysis_patch.py
+          test ! -e tools/v94_bridge_version_contract_patch.py
           test -z "$(git status --short)"
 
       - name: Install Firebase CLI
