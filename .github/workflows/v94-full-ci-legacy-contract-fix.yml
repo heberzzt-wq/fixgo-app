@@ -1,0 +1,68 @@
+name: V94 full CI legacy contract fix
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-full-ci-legacy-contract-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          npm ci
+          npm --prefix functions ci
+          test -z "$(git status --porcelain -- functions)"
+
+      - name: Align release contract test
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('tests/jarvis-marketing-terminal-delivery.e2e.test.mjs')
+          s=p.read_text(encoding='utf-8')
+          old='''    assert.match(core, /v94-marketing-real-delivery-v109-20260809/);\n    assert.match(terminal, /v94-marketing-real-delivery-v109-20260809/);'''
+          new='''    assert.match(core, /tools\\.runtime\\.js\\?v=v94-semantic-memory-repo-v111-20260809/);\n    assert.match(terminal, /gestia-core\\/gestia-core\\.js\\?v=v94-semantic-memory-repo-v111-20260809/);\n    assert.match(terminal, /gestia-terminal\\.js\\?v=v94-semantic-memory-repo-v111-20260809/);'''
+          if s.count(old) != 1:
+              raise SystemExit(f'expected one legacy release assertion block, found {s.count(old)}')
+          p.write_text(s.replace(old,new,1),encoding='utf-8')
+          PY
+
+      - name: Full CI
+        run: |
+          set -euo pipefail
+          npm run ci:test
+
+      - name: Guard product boundaries
+        run: |
+          set -euo pipefail
+          test -z "$(git diff --name-only HEAD -- functions)"
+          test "$(git diff --name-only HEAD | tr -d '\r')" = "tests/jarvis-marketing-terminal-delivery.e2e.test.mjs"
+
+      - name: Commit certified contract update
+        run: |
+          set -euo pipefail
+          git config user.name "heberzzt-wq"
+          git config user.email "heberzzt@gmail.com"
+          git add tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
+          test -z "$(git diff --cached --name-only -- functions)"
+          git commit -m "[v94] test(terminal): certify semantic repo release v111"
+          git push origin HEAD:v94-media-v4n-negative-claims
