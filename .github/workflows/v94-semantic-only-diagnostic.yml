@@ -1,5 +1,5 @@
 name: V94 semantic-only diagnostic
-# single-brain-quality-eof-safe
+# single-brain-real-ci-gate
 
 on:
   push:
@@ -50,6 +50,7 @@ jobs:
           python3 tools/v94_semantic_only_residue_patch.py 2>&1 | tee -a /tmp/v94-semantic-patch.log
           python3 tools/v94_quality_helper_tail_fix.py 2>&1 | tee -a /tmp/v94-semantic-patch.log
           python3 tools/v94_single_brain_quality_patch.py 2>&1 | tee -a /tmp/v94-semantic-patch.log
+          python3 tools/v94_quality_post_patch.py 2>&1 | tee -a /tmp/v94-semantic-patch.log
 
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
           node --check gestia-core/jarvis/jarvis.conversation.composer.js
@@ -145,9 +146,11 @@ jobs:
           cat /tmp/v94-semantic-ci.log
           exit 0
 
-      - name: Summarize diagnostic exit
+      - name: Require real CI green
         run: |
-          cat /tmp/v94-semantic-ci-exit.txt
+          status="$(cat /tmp/v94-semantic-ci-exit.txt)"
+          echo "ci_exit=$status"
+          test "$status" = "0"
           test -z "$(git diff --name-only -- functions)"
 
       - name: Upload diagnostic logs
