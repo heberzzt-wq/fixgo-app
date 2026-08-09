@@ -1,0 +1,133 @@
+name: V94 ADJUNTO capability certification
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-adjunto-capability-certify.yml
+
+permissions:
+  contents: write
+
+jobs:
+  certify-hosting:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install locked dependencies
+        run: |
+          npm ci
+          npm --prefix functions ci
+
+      - name: Focused ADJUNTO marketing and media regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check gestia-core/nexo/nexo.mission.compiler.v2.js
+          node --check gestia-core/jarvis/jarvis.marketing.presenter.js
+          node --check gestia-core/jarvis/jarvis.media.ingestion.js
+          node --test \
+            tests/nexo-mission-compiler.test.mjs \
+            tests/jarvis-marketing-engine-v2.test.mjs \
+            tests/v94-marketing-artifact-delivery.test.mjs \
+            tests/jarvis-reel-artifact.test.mjs \
+            tests/jarvis-media-ingestion-precision.test.mjs \
+            tests/v94-media-browser-precision-contract.test.mjs \
+            tests/jarvis-conversation-composer.test.mjs \
+            | tee /tmp/v94-adjunto-focused.log
+          git diff --check
+
+      - name: Complete CI contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run ci:test | tee /tmp/v94-adjunto-ci.log
+
+      - name: Upload certification logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v94-adjunto-capability-certification
+          path: |
+            /tmp/v94-adjunto-focused.log
+            /tmp/v94-adjunto-ci.log
+          if-no-files-found: warn
+          retention-days: 1
+
+      - name: Remove temporary certification workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "OpenAI V94 Handoff"
+          git config user.email "actions@users.noreply.github.com"
+          git rm .github/workflows/v94-adjunto-capability-certify.yml
+          git diff --cached --check
+          git commit -m "ci(v94): remove ADJUNTO capability certification workflow"
+          git push origin HEAD:v94-media-v4n-negative-claims
+          echo "CERTIFIED_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Verify temporary workflow is gone
+        run: |
+          test ! -e .github/workflows/v94-adjunto-capability-certify.yml
+          test -z "$(git status --short)"
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@15.10.1
+
+      - name: Deploy primary Hosting only
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy --only hosting:fixgo-44e4d --project fixgo-44e4d --token "$FIREBASE_TOKEN" --non-interactive
+
+      - name: Verify production bytes exactly
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=0
+          for attempt in $(seq 1 12); do
+            curl -fsSL "https://fixgo-44e4d.web.app/gestia-core/nexo/nexo.mission.compiler.v2.js?v=${CERTIFIED_HEAD}-$attempt" -o /tmp/live-compiler.js
+            curl -fsSL "https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.marketing.presenter.js?v=${CERTIFIED_HEAD}-$attempt" -o /tmp/live-presenter.js
+            curl -fsSL "https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.media.ingestion.js?v=${CERTIFIED_HEAD}-$attempt" -o /tmp/live-media-ingestion.js
+            if \
+              cmp -s gestia-core/nexo/nexo.mission.compiler.v2.js /tmp/live-compiler.js && \
+              cmp -s gestia-core/jarvis/jarvis.marketing.presenter.js /tmp/live-presenter.js && \
+              cmp -s gestia-core/jarvis/jarvis.media.ingestion.js /tmp/live-media-ingestion.js; then
+              ok=1
+              break
+            fi
+            sleep 2
+          done
+          test "$ok" = "1"
+          grep -F "fullMarketingProductionRequired" /tmp/live-compiler.js
+          grep -F "Producción creativa incluida" /tmp/live-presenter.js
+          grep -F "sourceScopedClaimsRequired" /tmp/live-media-ingestion.js
+          sha256sum \
+            gestia-core/nexo/nexo.mission.compiler.v2.js /tmp/live-compiler.js \
+            gestia-core/jarvis/jarvis.marketing.presenter.js /tmp/live-presenter.js \
+            gestia-core/jarvis/jarvis.media.ingestion.js /tmp/live-media-ingestion.js \
+            | tee /tmp/v94-adjunto-production-hashes.log
+
+      - name: Upload production hashes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v94-adjunto-production-hashes
+          path: /tmp/v94-adjunto-production-hashes.log
+          if-no-files-found: warn
+          retention-days: 1
