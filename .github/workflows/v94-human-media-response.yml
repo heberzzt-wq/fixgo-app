@@ -36,26 +36,64 @@ jobs:
           npm --prefix functions ci
 
       - name: Patch live human work trace and multimodal response surface
-        run: python3 tools/v94_human_media_response_patch.py
+        run: |
+          python3 tools/v94_human_media_response_patch.py
+          python3 tools/v94_human_regression_contract_fix.py
 
       - name: Verify focused syntax and regressions
+        shell: bash
         run: |
+          set -o pipefail
           node --check gestia-core/tools.runtime.js
           node --check gestia-core/jarvis/jarvis.conversation.composer.js
-          node --test tests/jarvis-conversation-composer.test.mjs
+          node --test tests/jarvis-conversation-composer.test.mjs | tee /tmp/v94-focused.log
           git diff --check
 
       - name: Run complete CI contract
-        run: npm run ci:test
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run ci:test | tee /tmp/v94-ci.log
+
+      - name: Upload certification logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v94-human-certification-logs
+          path: |
+            /tmp/v94-focused.log
+            /tmp/v94-ci.log
+          if-no-files-found: warn
+          retention-days: 1
 
       - name: Commit certified patch and remove temporary tooling
         run: |
           git config user.name "OpenAI V94 Handoff"
           git config user.email "actions@users.noreply.github.com"
-          git rm .github/workflows/v94-human-media-response.yml tools/v94_human_media_response_patch.py
-          git add gestia-terminal.html gestia-core/tools.runtime.js gestia-core/jarvis/jarvis.conversation.composer.js tests/jarvis-conversation-composer.test.mjs
+          git rm \
+            .github/workflows/v94-human-media-response.yml \
+            .github/workflows/v94-human-regression-diagnostic.yml \
+            .github/workflows/v94-media-precision-hotfix.yml \
+            tools/v94_human_media_response_patch.py \
+            tools/v94_human_regression_contract_fix.py
+          git add \
+            gestia-terminal.html \
+            gestia-core/tools.runtime.js \
+            gestia-core/jarvis/jarvis.conversation.composer.js \
+            tests/jarvis-conversation-composer.test.mjs
+          git diff --cached --check
           git commit -m "[v94-media-v4n] feat(jarvis): show live operational progress and human results"
           git push origin HEAD:v94-media-v4n-negative-claims
+          echo "CERTIFIED_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Verify temporary workflows are gone
+        run: |
+          test ! -e .github/workflows/v94-human-media-response.yml
+          test ! -e .github/workflows/v94-human-regression-diagnostic.yml
+          test ! -e .github/workflows/v94-media-precision-hotfix.yml
+          test ! -e tools/v94_human_media_response_patch.py
+          test ! -e tools/v94_human_regression_contract_fix.py
+          test -z "$(git status --short)"
 
       - name: Install Firebase CLI
         run: npm install --global firebase-tools@15.10.1
@@ -71,9 +109,9 @@ jobs:
         run: |
           ok=0
           for attempt in $(seq 1 12); do
-            curl --fail --silent --show-error --location "https://fixgo-44e4d.web.app/gestia-terminal.html?v=live-work-$attempt" -o /tmp/live-terminal.html
-            curl --fail --silent --show-error --location "https://fixgo-44e4d.web.app/gestia-core/tools.runtime.js?v=live-work-$attempt" -o /tmp/live-tools-runtime.js
-            curl --fail --silent --show-error --location "https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.conversation.composer.js?v=live-work-$attempt" -o /tmp/live-composer.js
+            curl --fail --silent --show-error --location "https://fixgo-44e4d.web.app/gestia-terminal.html?v=${CERTIFIED_HEAD}-$attempt" -o /tmp/live-terminal.html
+            curl --fail --silent --show-error --location "https://fixgo-44e4d.web.app/gestia-core/tools.runtime.js?v=${CERTIFIED_HEAD}-$attempt" -o /tmp/live-tools-runtime.js
+            curl --fail --silent --show-error --location "https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.conversation.composer.js?v=${CERTIFIED_HEAD}-$attempt" -o /tmp/live-composer.js
             if \
               cmp -s gestia-terminal.html /tmp/live-terminal.html && \
               cmp -s gestia-core/tools.runtime.js /tmp/live-tools-runtime.js && \
@@ -91,4 +129,13 @@ jobs:
           sha256sum \
             gestia-terminal.html /tmp/live-terminal.html \
             gestia-core/tools.runtime.js /tmp/live-tools-runtime.js \
-            gestia-core/jarvis/jarvis.conversation.composer.js /tmp/live-composer.js
+            gestia-core/jarvis/jarvis.conversation.composer.js /tmp/live-composer.js | tee /tmp/v94-production-hashes.log
+
+      - name: Upload production hashes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v94-production-hashes
+          path: /tmp/v94-production-hashes.log
+          if-no-files-found: warn
+          retention-days: 1
