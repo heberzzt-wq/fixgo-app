@@ -43,6 +43,32 @@ jobs:
               gestia-core/jarvis/jarvis.multifunction.planner.js | head -n 350 || true
           } | tee /tmp/v94-memory-wiring.log
 
+      - name: Inspect terminal startup and boot logs
+        run: |
+          set -euo pipefail
+          {
+            echo '=== HTML MODULE ORDER ==='
+            grep -nE '<script|gestia-core|gestia-terminal|tools\.runtime|tools\.bridge|response\.composer|context\.memory|firebase\.js|gestia\.runtime' gestia-terminal.html || true
+            echo '=== TERMINAL BOOT / AUTH / MEMORY ==='
+            grep -nE 'JarvisMemory\.boot|DOMContentLoaded|onAuthStateChanged|restore[A-Za-z]*\(|boot\(|ONLINE|READY|INIT|KERNEL|cognitiveDB|PUSH_HISTORY|console\.(log|warn|error)' gestia-terminal.js | head -n 900 || true
+            echo '=== CORE BOOT / RUNTIME REGISTRATION ==='
+            grep -nE '^import |registerJarvis|JarvisToolRuntime|JarvisAutonomyEngine|console\.(log|warn|error)|ONLINE|READY|INIT' gestia-core/gestia-core.js | head -n 700 || true
+            echo '=== DUPLICATE SCRIPT URL BASENAMES ==='
+            python - <<'PY'
+          from pathlib import Path
+          import re
+          text=Path('gestia-terminal.html').read_text(encoding='utf-8')
+          srcs=re.findall(r'src=["\']([^"\']+)["\']', text)
+          by={}
+          for src in srcs:
+              base=src.split('?',1)[0]
+              by.setdefault(base,[]).append(src)
+          for base,items in sorted(by.items()):
+              if len(items)>1:
+                  print(base, '=>', items)
+          PY
+          } | tee /tmp/v94-terminal-startup.log
+
       - name: Locate artifact generation and grounding boundaries
         run: |
           set -euo pipefail
@@ -86,6 +112,7 @@ jobs:
           path: |
             /tmp/v94-branch.log
             /tmp/v94-memory-wiring.log
+            /tmp/v94-terminal-startup.log
             /tmp/v94-artifact-grounding.log
             /tmp/v94-learning.log
             /tmp/v94-baseline-focused.log
