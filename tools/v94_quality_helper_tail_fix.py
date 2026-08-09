@@ -2,6 +2,27 @@ from pathlib import Path
 
 path = Path('tools/v94_single_brain_quality_patch.py')
 text = path.read_text(encoding='utf-8')
+
+composer_marker = '''text = replace_between(
+    text,
+    'function verifiedVisibleData(',
+    'function constrainCompactEvidence(',
+    'function constrainCompactEvidence(',
+    'composer-remove-deterministic-media-mini-brain'
+)
+'''
+composer_replacement = '''text = replace_between(
+    text,
+    'function verifiedVisibleData(',
+    'function constrainCompactEvidence(',
+    '',
+    'composer-remove-deterministic-media-mini-brain'
+)
+'''
+if text.count(composer_marker) != 1:
+    raise SystemExit(f'QUALITY_HELPER_COMPOSER_BOUNDARY_NOT_FOUND:{text.count(composer_marker)}')
+text = text.replace(composer_marker, composer_replacement, 1)
+
 start_marker = '''text = replace_between(
     text,
     old_reference_test_start,
@@ -16,4 +37,4 @@ if start < 0:
 replacement = '''reference_start_index = text.find(old_reference_test_start)\nif reference_start_index < 0:\n    raise SystemExit('QUALITY_START_NOT_FOUND:multifunction-primary-identity-owned-by-semantic-plan')\ntext = text[:reference_start_index] + new_reference_test\n'''
 text = text[:start] + replacement + text[start + len(start_marker):]
 path.write_text(text, encoding='utf-8')
-print('V94_QUALITY_HELPER_TAIL_EOF_SAFE')
+print('V94_QUALITY_HELPER_COMPOSER_AND_TAIL_SAFE')
