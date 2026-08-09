@@ -155,6 +155,8 @@ async function extractDocx(buffer) {
         checkCRC32: true,
         createFolders: false
     });
+    const embeddedImageCount = Object.keys(archive.files)
+        .filter(name => /^word\/media\/[^/]+$/i.test(name)).length;
     const documentEntry = archive.file("word/document.xml");
     if (!documentEntry) throw new Error("DOCX_DOCUMENT_XML_MISSING");
     const xml = await documentEntry.async("string");
@@ -191,6 +193,8 @@ async function extractDocx(buffer) {
             logicalParts: 1,
             physicalPageCountKnown: false,
             secondaryParts: secondaryText.map(item => item.part),
+            embeddedImageCount,
+            embeddedImagesRequireVisualAnalysis: embeddedImageCount > 0,
             extractionScope: "visible-wordprocessingml-body-plus-notes"
         }
     };
@@ -259,6 +263,8 @@ async function extractPptx(buffer) {
         checkCRC32: true,
         createFolders: false
     });
+    const embeddedImageCount = Object.keys(archive.files)
+        .filter(name => /^ppt\/media\/[^/]+$/i.test(name)).length;
     const presentationEntry = archive.file("ppt/presentation.xml");
     const relsEntry = archive.file("ppt/_rels/presentation.xml.rels");
     let slidePaths = [];
@@ -305,6 +311,8 @@ async function extractPptx(buffer) {
         metadata: {
             logicalParts: pages.length,
             physicalPageCountKnown: true,
+            embeddedImageCount,
+            embeddedImagesRequireVisualAnalysis: embeddedImageCount > 0,
             extractionScope: "ordered-visible-slide-text-and-tables"
         }
     };
@@ -341,6 +349,9 @@ async function extractXlsx(buffer) {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(buffer);
     if (!workbook.worksheets.length) throw new Error("XLSX_WORKSHEETS_MISSING");
+    const embeddedImageCount = Array.isArray(workbook.media)
+        ? workbook.media.length
+        : 0;
 
     const pages = workbook.worksheets.map((worksheet, sheetIndex) => {
         const rows = [];
@@ -379,6 +390,8 @@ async function extractXlsx(buffer) {
             logicalParts: pages.length,
             physicalPageCountKnown: false,
             worksheetNames: pages.map(page => page.label),
+            embeddedImageCount,
+            embeddedImagesRequireVisualAnalysis: embeddedImageCount > 0,
             extractionScope: "all-used-worksheet-cells-with-formulas-and-results"
         }
     };
@@ -519,14 +532,19 @@ export async function extractJarvisDocumentArtifact({
             ...(extraction.metadata || {}),
             extractedParts: pages.length,
             analyzableParts,
-            exhaustiveLogicalExtraction: pages.length > 0 && analyzableParts === pages.length
+            exhaustiveLogicalExtraction:
+                pages.length > 0 &&
+                analyzableParts === pages.length &&
+                extraction.metadata?.embeddedImagesRequireVisualAnalysis !== true
         },
         policy: {
             sourceBytesHashed: true,
             sourceScoped: true,
             noSyntheticText: true,
             physicalPageClaimsRequirePhysicalPageCount: true,
-            unreadablePartsRemainUnknown: true
+            unreadablePartsRemainUnknown: true,
+            embeddedImagesRequireVisualAnalysis:
+                extraction.metadata?.embeddedImagesRequireVisualAnalysis === true
         }
     };
 }

@@ -4,7 +4,17 @@ const SUPPORTED_TYPES = new Set([
     "application/pdf",
     "image/png",
     "image/jpeg",
-    "image/webp"
+    "image/webp",
+    "text/plain",
+    "text/markdown",
+    "text/csv",
+    "text/yaml",
+    "application/json",
+    "application/xml",
+    "text/xml",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 ]);
 
 function clean(value, fallback = "") {
@@ -43,6 +53,11 @@ function buildCoverage(record = {}) {
         ? record.extraction.pages
         : [];
     const expectedPages = Number(record?.extraction?.metadata?.pageCount || pages.length || 0);
+    const coverageUnit = clean(record?.extraction?.metadata?.coverageUnit, "page");
+    const physicalPageCountKnown =
+        record?.extraction?.metadata?.physicalPageCountKnown !== false;
+    const embeddedImagesRequireVisualAnalysis =
+        record?.extraction?.metadata?.embeddedImagesRequireVisualAnalysis === true;
     const analyzed = pages.filter(pageHasAnalyzableEvidence);
     const analyzedPageNumbers = analyzed.map(page => page.pageNumber);
     const unreadablePageNumbers = pages
@@ -51,16 +66,27 @@ function buildCoverage(record = {}) {
     const lowConfidencePageNumbers = pages
         .filter(page => page.confidence != null && page.confidence < 0.8)
         .map(page => page.pageNumber);
-    const exhaustive = expectedPages > 0 && analyzed.length === expectedPages;
+    const exhaustive =
+        expectedPages > 0 &&
+        analyzed.length === expectedPages &&
+        embeddedImagesRequireVisualAnalysis !== true;
 
     return {
+        coverageUnit,
         expectedPages,
         analyzedPages: analyzed.length,
         analyzedPageNumbers,
         unreadablePageNumbers,
         lowConfidencePageNumbers,
+        physicalPageCountKnown,
+        embeddedImagesRequireVisualAnalysis,
         exhaustive,
-        mayClaimFullDocumentCoverage: exhaustive && unreadablePageNumbers.length === 0
+        mayClaimFullDocumentCoverage:
+            exhaustive && unreadablePageNumbers.length === 0,
+        mayClaimAllPhysicalPages:
+            physicalPageCountKnown &&
+            exhaustive &&
+            unreadablePageNumbers.length === 0
     };
 }
 
@@ -159,7 +185,11 @@ export function createMediaIngestionRecord(input = {}, authority = {}) {
     if (!SUPPORTED_TYPES.has(mimeType)) throw new Error("UNSUPPORTED_MEDIA_TYPE");
 
     const pages = normalizePages(input.pages);
-    const mediaType = mimeType === "application/pdf" ? "pdf" : "image";
+    const mediaType = mimeType === "application/pdf"
+        ? "pdf"
+        : mimeType.startsWith("image/")
+            ? "image"
+            : "document";
     const sha256 = /^[a-f0-9]{64}$/i.test(clean(input.sha256))
         ? clean(input.sha256).toLowerCase()
         : "";
@@ -189,7 +219,11 @@ export function createMediaIngestionRecord(input = {}, authority = {}) {
             metadata: {
                 pageCount: pages.length,
                 language: clean(input.language, "unknown"),
-                extractor: clean(input.extractor, "external_adapter_required")
+                extractor: clean(input.extractor, "external_adapter_required"),
+                coverageUnit: clean(input.coverageUnit, "page"),
+                physicalPageCountKnown: input.physicalPageCountKnown !== false,
+                embeddedImagesRequireVisualAnalysis:
+                    input.embeddedImagesRequireVisualAnalysis === true
             }
         },
         context: {
@@ -266,6 +300,10 @@ export function buildMediaAnalysis(record, input = {}) {
             unstructuredClaimsAreNotVerified: true,
             exhaustiveCoverageMayOnlyBeClaimedWhenComplete: true,
             mayClaimFullDocumentCoverage: coverage.mayClaimFullDocumentCoverage,
+            mayClaimAllPhysicalPages: coverage.mayClaimAllPhysicalPages,
+            physicalPageCountKnown: coverage.physicalPageCountKnown,
+            embeddedImagesRequireVisualAnalysis:
+                coverage.embeddedImagesRequireVisualAnalysis,
             negativeClaimsRequireExplicitStructuredEvidence: true,
             verifiedClaimCount: claimIntegrity.verifiedClaims,
             unsupportedClaimCount: claimIntegrity.unsupportedClaims
@@ -286,6 +324,9 @@ export function describeMediaIngestion() {
             "source_scoped_claim_provenance",
             "page_coverage_accounting",
             "fail_closed_full_document_claims",
+            "office_and_text_document_structure",
+            "physical_page_claim_guard",
+            "embedded_media_blind_spot_guard",
             "approval_bound_derived_actions"
         ]
     };

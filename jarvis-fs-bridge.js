@@ -38,9 +38,12 @@ import {
 import { buildQuotePdfChanges } from "./jarvis-quote-calculator.js";
 import { locatePdfFieldAnchors } from "./jarvis-pdf-layout.js";
 import { verifyPdfVisualChanges } from "./jarvis-pdf-visual.js";
+import {
+    extractJarvisDocumentArtifact
+} from "./jarvis-document-extractor.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.34.0-pdf-safe-placement";
+    "2.35.0-read-only-document-extraction";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -4175,6 +4178,29 @@ export function createJarvisFsBridgeApp({
                 status: "ARTIFACT_READ_FAILED",
                 error: error.message,
                 version: JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+    });
+
+    app.post("/artifact/extract", async (req, res) => {
+        try {
+            const extracted = await extractJarvisDocumentArtifact({
+                output: req.body?.output,
+                sourceName: req.body?.sourceName,
+                mimeType: req.body?.mimeType,
+                root
+            });
+            return res.status(extracted?.ok === true ? 200 : 415).json({
+                ...extracted,
+                bridgeVersion: JARVIS_FS_BRIDGE_VERSION
+            });
+        } catch (error) {
+            const notFound = error?.message === "ARTIFACT_NOT_FOUND";
+            return res.status(notFound ? 404 : 400).json({
+                ok: false,
+                status: "DOCUMENT_EXTRACTION_FAILED",
+                error: error?.message || String(error),
+                bridgeVersion: JARVIS_FS_BRIDGE_VERSION
             });
         }
     });
