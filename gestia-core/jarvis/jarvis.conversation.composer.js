@@ -457,6 +457,7 @@ const RENDER_UPPER_UI_LITERAL_STOPWORDS = new Set([
 ]);
 const RENDER_CAPTURE_CONTEXT_CLAIM_PATTERN = /\b(?:same date(?: and time)?|same time|system tray|captured (?:at|around) the same time|same user|misma fecha(?: y hora)?|misma hora|bandeja del sistema|capturad[oa]s? (?:a|alrededor de) la misma hora|mismo usuario)\b/i;
 const RENDER_UNSUPPORTED_NEGATIVE_VISUAL_CLAIM_PATTERN = /\b(?:absent(?:\s+(?:from|in))?|not\s+present(?:\s+in)?|(?:does|do)\s+not\s+appear(?:\s+in)?|missing\s+from|not\s+shown(?:\s+in)?|ausentes?(?:\s+en)?|no\s+(?:esta|está|estan|están)\s+presentes?(?:\s+en)?|no\s+(?:aparece|aparecen|se\s+muestra|se\s+muestran|existe|existen)(?:\s+en)?|faltan?\s+en|carece\s+de)\b/i;
+const RENDER_UNSUPPORTED_RELATIVE_UI_SCOPE_PATTERN = /\b(?:fewer\s+(?:menu\s+)?(?:options?|items?|entries?|actions?)|more\s+(?:menu\s+)?(?:options?|items?|entries?|actions?)|more\s+limited\s+(?:menu|options?|interface)|less\s+complete\s+(?:menu|options?|interface)|(?:broader|narrower)\s+(?:menu|set\s+of\s+options)|(?:menos|mas|más)\s+(?:opciones|elementos|acciones)|(?:menu|menú)\s+(?:mas|más)\s+(?:limitado|limitada|amplio|amplia|reducido|reducida))\b/i;
 const RENDER_UNSUPPORTED_CONTRADICTION_META_PATTERN = /\b(?:contradict(?:s|ed|ing)?|contradiction|inconsisten(?:cy|t))\b/i;
 const RENDER_SPECULATIVE_RECOMMENDATION_PATTERN = /\b(?:investigat(?:e|es|ed|ing|ion)|explor(?:e|es|ed|ing|ation)|document(?:ar|e|es|ed|ing|ation)|clarif(?:y|ies|ied|ying)|evaluat(?:e|es|ed|ing|ion)|confirm(?:s|ed|ing|ation)?|determin(?:e|es|ed|ing|ation)|investigar|explorar|documentar|aclarar|evaluar|confirmar|determinar|ecosystem|workflow|purpose|context)\b/i;
 const RENDER_CONVERSATION_TRANSCRIPT_PATTERN = /\b(?:prompt|message|response|text block|assistant response|chat history|conversation history|instructs|states|says|mensaje|respuesta|bloque de texto|historial de (?:chat|conversaci[oó]n)|indica|dice)\b/i;
@@ -542,6 +543,9 @@ function renderContainsUnsupportedNegativeLiteralClaim(
     verifiedValues = []
 ) {
     const narrative = String(value || "");
+    if (RENDER_UNSUPPORTED_RELATIVE_UI_SCOPE_PATTERN.test(narrative)) {
+        return true;
+    }
     if (!RENDER_UNSUPPORTED_NEGATIVE_VISUAL_CLAIM_PATTERN.test(narrative)) {
         return false;
     }

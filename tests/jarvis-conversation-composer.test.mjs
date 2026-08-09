@@ -1419,3 +1419,71 @@ test("precision renderer hides unrequested recommendations when strict visual po
     assert.match(result.text, /ChatGPT Plus/);
     assert.match(result.text, /Terminal Heberto/);
 });
+
+test("precision renderer suppresses unsupported relative menu scope claims", async () => {
+    const result = await composeEvidenceGroundedConversation({
+        instruction: "Compara solamente lo visible.",
+        evidenceItems: [{
+            name: "media.analyze",
+            observation: {
+                ok: true,
+                status: "MEDIA_ANALYSIS_GROUNDED",
+                version: "1.4.0-verified-visual-claims",
+                expectedSources: 2,
+                receivedSources: 2,
+                sources: [
+                    {
+                        sourceId: "SOURCE_1",
+                        fileName: "one.png",
+                        sha256: "a".repeat(64),
+                        observations: ["The interface is branded as 'ChatGPT Plus'."],
+                        visibleData: [
+                            { kind: "text", value: "ChatGPT Plus", page: 1, confidence: 1, evidence: "title", legibility: "VERIFIED" }
+                        ],
+                        uncertainty: []
+                    },
+                    {
+                        sourceId: "SOURCE_2",
+                        fileName: "two.png",
+                        sha256: "b".repeat(64),
+                        observations: [
+                            "An open menu displays fewer options compared to SOURCE_1: 'Añadir fotos y archivos', 'Crear una imagen', and 'Búsqueda en Internet'."
+                        ],
+                        visibleData: [
+                            { kind: "text", value: "Terminal Heberto", page: 1, confidence: 1, evidence: "title", legibility: "VERIFIED" },
+                            { kind: "text", value: "Añadir fotos y archivos", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" },
+                            { kind: "text", value: "Crear una imagen", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" },
+                            { kind: "text", value: "Búsqueda en Internet", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" }
+                        ],
+                        uncertainty: []
+                    }
+                ],
+                comparison: {
+                    differences: [
+                        "SOURCE_2 (Terminal Heberto) has a more limited menu for content input."
+                    ]
+                },
+                recommendations: [],
+                policy: {
+                    negativeVisualClaimsRequireStructuredEvidence: true
+                },
+                precisionAudit: {
+                    ok: true,
+                    status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
+                    providerPasses: 2,
+                    effectiveToolExecutions: 1,
+                    sourceIdentityVerified: true,
+                    exactTextRequiresConfidence: 0.98
+                }
+            }
+        }],
+        executeConversation: async () => {
+            throw new Error("semantic composer must not run");
+        }
+    });
+
+    assert.equal(result.ok, true);
+    assert.doesNotMatch(result.text, /fewer options|more limited menu/i);
+    assert.match(result.text, /ChatGPT Plus/);
+    assert.match(result.text, /Terminal Heberto/);
+});

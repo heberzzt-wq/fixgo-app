@@ -297,3 +297,44 @@ test("strict visual reconciliation suppresses unrequested recommendations but pr
     assert.equal(requested.result.recommendations.length, 2);
     assert.equal(requested.suppressedUnrequestedRecommendationCount, 0);
 });
+
+test("strict visual reconciliation suppresses unsupported relative menu scope claims", () => {
+    const initial = baseResult();
+    const audited = baseResult();
+    const source1Data = [
+        { kind: "text", value: "ChatGPT Plus", page: 1, confidence: 1, evidence: "title", legibility: "VERIFIED" },
+        { kind: "text", value: "Añadir fotos y archivos", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" },
+        { kind: "text", value: "Búsqueda en Internet", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" }
+    ];
+    const source2Data = [
+        { kind: "text", value: "Terminal Heberto", page: 1, confidence: 1, evidence: "title", legibility: "VERIFIED" },
+        { kind: "text", value: "Añadir fotos y archivos", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" },
+        { kind: "text", value: "Crear una imagen", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" },
+        { kind: "text", value: "Búsqueda en Internet", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" }
+    ];
+    initial.sources[0].visibleData = source1Data;
+    audited.sources[0].visibleData = source1Data;
+    initial.sources[1].visibleData = source2Data;
+    audited.sources[1].visibleData = source2Data;
+    audited.sources[1].observations = [
+        "An open menu displays fewer options compared to SOURCE_1: 'Añadir fotos y archivos', 'Crear una imagen', and 'Búsqueda en Internet'."
+    ];
+    audited.comparison = {
+        beforeAfter: false,
+        differences: [
+            "SOURCE_2 (Terminal Heberto) has a more limited menu for content input, primarily 'Añadir fotos y archivos', 'Crear una imagen', and 'Búsqueda en Internet'."
+        ],
+        confidence: 0.95
+    };
+
+    const reconciled = reconcileIndependentMediaAnalysis(
+        initial,
+        audited,
+        files,
+        "Compara solamente lo visible."
+    );
+
+    assert.deepEqual(reconciled.result.sources[1].observations, []);
+    assert.deepEqual(reconciled.result.comparison.differences, []);
+    assert.equal(reconciled.suppressedUnsupportedNegativeVisualClaimCount, 2);
+});

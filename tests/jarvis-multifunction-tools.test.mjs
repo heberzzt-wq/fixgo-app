@@ -3341,6 +3341,7 @@ test("multifunction media analysis prefers the complete authoritative prompt man
         assert.match(precisionAuditQuestion, /AUDITORIA_DE_PRECISION_VISUAL_INDEPENDIENTE/);
         assert.match(precisionAuditQuestion, /solicitud original no pide recomendaciones/i);
         assert.match(precisionAuditQuestion, /recommendations=\[\]/);
+        assert.match(precisionAuditQuestion, /evidencia estructurada y exhaustiva de cardinalidad/i);
         assert.doesNotMatch(precisionAuditQuestion, /carencias concretas de la experiencia de adjuntos/i);
         assert.equal(analysis.precisionAudit.sourceIdentityVerified, true);
     } finally {

@@ -1666,6 +1666,7 @@ const MEDIA_UPPER_UI_LITERAL_STOPWORDS = new Set([
 ]);
 const MEDIA_UNSUPPORTED_NEGATIVE_VISUAL_CLAIM_PATTERN = /\b(?:absent(?:\s+(?:from|in))?|not\s+present(?:\s+in)?|(?:does|do)\s+not\s+appear(?:\s+in)?|missing\s+from|not\s+shown(?:\s+in)?|ausentes?(?:\s+en)?|no\s+(?:esta|está|estan|están)\s+presentes?(?:\s+en)?|no\s+(?:aparece|aparecen|se\s+muestra|se\s+muestran|existe|existen)(?:\s+en)?|faltan?\s+en|carece\s+de)\b/i;
 
+const MEDIA_UNSUPPORTED_RELATIVE_UI_SCOPE_PATTERN = /\b(?:fewer\s+(?:menu\s+)?(?:options?|items?|entries?|actions?)|more\s+(?:menu\s+)?(?:options?|items?|entries?|actions?)|more\s+limited\s+(?:menu|options?|interface)|less\s+complete\s+(?:menu|options?|interface)|(?:broader|narrower)\s+(?:menu|set\s+of\s+options)|(?:menos|mas|más)\s+(?:opciones|elementos|acciones)|(?:menu|menú)\s+(?:mas|más)\s+(?:limitado|limitada|amplio|amplia|reducido|reducida))\b/i;
 const MEDIA_UNSUPPORTED_CONTRADICTION_META_PATTERN = /\b(?:contradict(?:s|ed|ing)?|contradiction|inconsisten(?:cy|t))\b/i;
 const MEDIA_CAPTURE_CONTEXT_CLAIM_PATTERN = /\b(?:same date(?: and time)?|same time|system tray|captured (?:at|around) the same time|same user|misma fecha(?: y hora)?|misma hora|bandeja del sistema|capturad[oa]s? (?:a|alrededor de) la misma hora|mismo usuario)\b/i;
 const MEDIA_CAPTURE_CONTEXT_REQUEST_PATTERN = /\b(?:system tray|bandeja del sistema|fecha|hora|date|time|reloj|clock|usuario|user)\b/i;
@@ -1707,6 +1708,9 @@ function mediaNarrativeContainsUnsupportedNegativeVisualClaim(
 ) {
     if (value == null) return false;
     if (typeof value === "string") {
+        if (MEDIA_UNSUPPORTED_RELATIVE_UI_SCOPE_PATTERN.test(value)) {
+            return true;
+        }
         if (!MEDIA_UNSUPPORTED_NEGATIVE_VISUAL_CLAIM_PATTERN.test(value)) {
             return false;
         }
@@ -2028,6 +2032,7 @@ export function buildMediaPrecisionAuditQuestion(question, result) {
         "En comparison.differences incluye solo diferencias visibles entre las fuentes.",
         "No concluyas que un elemento esta ausente, no existe o no esta presente en otra fuente solamente porque no aparecio en visibleData.",
         "Formula las diferencias como afirmaciones positivas verificadas por fuente; sin evidencia negativa estructurada, la ausencia debe permanecer desconocida.",
+        "No afirmes que un menu tiene mas o menos opciones, es mas limitado o amplio, o cubre mas o menos funciones salvo que exista evidencia estructurada y exhaustiva de cardinalidad para ambas fuentes; si no existe, describe solo lo positivamente verificado en cada fuente.",
         explicitMediaRecommendationRequest(question)
             ? "La solicitud original pide recomendaciones: en recommendations incluye solo mejoras respaldadas directamente por evidencia visual verificada."
             : "La solicitud original no pide recomendaciones: deja recommendations=[] y no propongas mejoras, matrices, comparativas futuras ni acciones de producto.",
