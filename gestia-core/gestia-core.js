@@ -49,7 +49,7 @@ import {
 } from '/gestia-core/jarvis/jarvis.conversation.composer.js?v=v94-semantic-only-evidence-v100-20260809';
 import {
     runJarvisMission
-} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=v94-marketing-real-delivery-v109-20260809';
+} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=v94-semantic-memory-repo-v111-20260809';
 import {
     marketingArtifactArgsFromCompletedTasks,
     marketingFinalResponseFromMission
@@ -208,7 +208,7 @@ import {
     JarvisSemanticMemory
 } from '/gestia-core/jarvis/jarvis.semantic.memory.js?v=v94-semantic-memory-v1-20260809';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=v94-semantic-only-v108-20260809';
+import '/gestia-core/tools.runtime.js?v=v94-semantic-memory-repo-v111-20260809';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260725-semantic-envelope-v64';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-bridge-v7-20260726-chief-review-response-v93';
 
