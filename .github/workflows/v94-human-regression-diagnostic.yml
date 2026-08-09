@@ -1,0 +1,61 @@
+name: V94 human regression diagnostic
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-human-regression-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install locked dependencies
+        run: |
+          npm ci
+          npm --prefix functions ci
+
+      - name: Apply current human presentation patch
+        run: python3 tools/v94_human_media_response_patch.py
+
+      - name: Capture focused regression output
+        shell: bash
+        run: |
+          set +e
+          node --check gestia-core/tools.runtime.js > focused.log 2>&1
+          syntax_runtime=$?
+          node --check gestia-core/jarvis/jarvis.conversation.composer.js >> focused.log 2>&1
+          syntax_composer=$?
+          node --test tests/jarvis-conversation-composer.test.mjs >> focused.log 2>&1
+          tests=$?
+          git diff --check >> focused.log 2>&1
+          diffcheck=$?
+          printf '\nSTATUS syntax_runtime=%s syntax_composer=%s tests=%s diffcheck=%s\n' "$syntax_runtime" "$syntax_composer" "$tests" "$diffcheck" >> focused.log
+          cat focused.log
+          exit "$tests"
+
+      - name: Upload focused log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v94-human-regression-focused-log
+          path: focused.log
+          if-no-files-found: error
+          retention-days: 1
