@@ -2971,6 +2971,8 @@ test("multifunction tools create marketing and page proposals without write auth
                 promise: "operación trazable desde una sola plataforma",
                 differentiator: "seguimiento de cada orden con evidencia",
                 cta: "Solicita una demostración",
+                tone: "directo, confiable y profesional",
+                metrics: ["demostraciones calificadas", "conversión", "costo por lead", "solicitudes"],
                 channels: ["instagram"],
                 market: "México",
                 campaignObjective: "generar demostraciones calificadas",
@@ -3030,6 +3032,8 @@ test("grounded missions complete semantic arguments for marketing, page, image a
                 promise: "Propuesta estratégica para abordar el caso con información verificable",
                 differentiator: "Experiencia documentada desde 2002 en las áreas publicadas por la firma",
                 cta: "Solicitar una reunión",
+                tone: "sobrio, estratégico y profesional",
+                metrics: ["reuniones calificadas", "conversión", "costo por reunión", "formularios completos"],
                 channels: ["linkedin", "facebook", "instagram"],
                 assets: ["landing_page", "image_brief", "reel"],
                 durationSeconds: 45,
@@ -4128,7 +4132,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
     assert.match(terminal, /v94-marketing-real-delivery-v109-20260809/);
-    assert.match(terminal, /gestia-core\/tools\.bridge\.js/);
+    assert.doesNotMatch(terminal, /<script[^>]+gestia-core\/tools\.bridge\.js/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
         "utf8"
@@ -4378,9 +4382,9 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
     );
 
     assert.match(core, /v94-marketing-real-delivery-v109-20260809/);
-    assert.match(
+    assert.doesNotMatch(
         terminal,
-        /jarvis-tools-v7-20260725-semantic-envelope-v64/
+        /<script[^>]+response\.composer\.js/
     );
     assert.match(
         core,

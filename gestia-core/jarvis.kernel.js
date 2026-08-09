@@ -23,11 +23,19 @@ import * as execution
 from "./hubs/execution.hub.js";
 
 /* =====================================================
-   ANALYSIS HUB
+   ANALYSIS CONTRACT — delegated to the single Gestia semantic core
 ===================================================== */
 
-import * as analysis
-from "./hubs/analysis.hub.js";
+const analysis = Object.freeze({
+    describeAnalysisHub() {
+        return {
+            ok: true,
+            status: "SEMANTIC_ANALYSIS_DELEGATED",
+            authority: "gestia-core-single-semantic-brain",
+            alternateBrain: false
+        };
+    }
+});
 
 /* =====================================================
    SECURITY HUB
@@ -168,7 +176,7 @@ try {
         ?.registerAuthorityModule?.({
 
         module:
-            "analysis.hub",
+            "gestia-core.semantic-analysis",
 
         scopes: [
 

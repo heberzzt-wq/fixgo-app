@@ -12,6 +12,11 @@ import {
     rankRepoCandidates
 } from "./jarvis-repo-intelligence.js";
 import {
+    parseRepositoryTarget,
+    resolveRepositorySelector,
+    normalizeRepositoryRefs
+} from "./gestia-core/repo/repo.target.js";
+import {
     buildPageArtifactHtml,
     describePageArtifact
 } from "./jarvis-page-artifact.js";
@@ -43,7 +48,7 @@ import {
 } from "./jarvis-document-extractor.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.35.0-read-only-document-extraction";
+    "2.36.0-structural-repo-targets";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -212,6 +217,149 @@ export function describeJarvisBridgeIdentity(
         contract,
         git
     };
+}
+
+
+function gitText(args = [], root = DEFAULT_ROOT, { allowFailure = false, maxBuffer = 16 * 1024 * 1024, trim = true } = {}) {
+    try {
+        const output = execFileSync("git", args, {
+            cwd: path.resolve(root),
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "pipe"],
+            maxBuffer
+        });
+        return trim ? output.trim() : output;
+    } catch (error) {
+        if (allowFailure) return "";
+        throw error;
+    }
+}
+
+function repositoryRefs(root = DEFAULT_ROOT) {
+    const output = gitText([
+        "for-each-ref",
+        "--format=%(refname:short)",
+        "refs/heads",
+        "refs/remotes/origin"
+    ], root, { allowFailure: true });
+    return normalizeRepositoryRefs(output.split(/\r?\n/).filter(Boolean));
+}
+
+function resolveCommitForRef(ref = "", root = DEFAULT_ROOT) {
+    const cleanRef = String(ref || "").trim().replace(/^refs\/heads\//, "").replace(/^origin\//, "");
+    const candidates = [...new Set([
+        cleanRef,
+        cleanRef ? `origin/${cleanRef}` : ""
+    ].filter(Boolean))];
+    for (const candidate of candidates) {
+        const commit = gitText(["rev-parse", "--verify", `${candidate}^{commit}`], root, { allowFailure: true });
+        if (commit) return { ok: true, ref: cleanRef || candidate, resolvedRef: candidate, commit };
+    }
+    if (cleanRef) {
+        const fetched = gitText(["fetch", "--quiet", "origin", cleanRef], root, { allowFailure: true });
+        void fetched;
+        const commit = gitText(["rev-parse", "--verify", "FETCH_HEAD^{commit}"], root, { allowFailure: true });
+        if (commit) return { ok: true, ref: cleanRef, resolvedRef: "FETCH_HEAD", commit, fetched: true };
+    }
+    return { ok: false, status: "REPOSITORY_REF_NOT_FOUND", error: "REPOSITORY_REF_NOT_FOUND", ref: cleanRef };
+}
+
+export function resolveBridgeRepositoryTarget({ target = "", ref = "", file = "" } = {}, root = DEFAULT_ROOT) {
+    const git = readGitIdentity(root);
+    const refs = repositoryRefs(root);
+    const rawTarget = String(target || "").trim();
+    const explicitRef = String(ref || "").trim().replace(/^origin\//, "");
+    let parsed = rawTarget
+        ? parseRepositoryTarget(rawTarget)
+        : {
+            ok: true,
+            kind: "local_repository",
+            provider: "local",
+            raw: "",
+            ref: explicitRef || git.branch,
+            path: String(file || "").trim().replace(/\\/g, "/").replace(/^\.\//, "").replace(/^\//, "")
+        };
+
+    if (parsed.ok !== true) return parsed;
+    if (parsed.kind === "github_selector") {
+        parsed = resolveRepositorySelector(parsed, refs);
+        if (parsed.ok !== true) return parsed;
+    }
+    if (parsed.provider === "github" && explicitRef && !parsed.ref) {
+        parsed = { ...parsed, ref: explicitRef, kind: parsed.path ? "github_path" : "github_ref" };
+    }
+    const selectedRef = String(parsed.ref || explicitRef || git.branch || "HEAD").trim();
+    const commitResult = selectedRef === "HEAD" && git.head
+        ? { ok: true, ref: selectedRef, resolvedRef: "HEAD", commit: git.head }
+        : resolveCommitForRef(selectedRef, root);
+    if (commitResult.ok !== true) return { ...parsed, ...commitResult };
+
+    const normalizedPath = String(parsed.path || file || "")
+        .trim()
+        .replace(/\\/g, "/")
+        .replace(/^\.\//, "")
+        .replace(/^\//, "");
+    let objectType = normalizedPath ? "" : "tree";
+    if (normalizedPath) {
+        objectType = gitText(
+            ["cat-file", "-t", `${commitResult.commit}:${normalizedPath}`],
+            root,
+            { allowFailure: true }
+        );
+        if (!objectType) {
+            return {
+                ...parsed,
+                ...commitResult,
+                ok: false,
+                status: "REPOSITORY_PATH_NOT_FOUND",
+                error: "REPOSITORY_PATH_NOT_FOUND",
+                path: normalizedPath,
+                refs
+            };
+        }
+    }
+    return {
+        ...parsed,
+        ...commitResult,
+        ok: true,
+        status: "REPOSITORY_TARGET_RESOLVED",
+        ref: commitResult.ref || selectedRef,
+        path: normalizedPath,
+        objectType,
+        repositoryRoot: path.resolve(root),
+        refs
+    };
+}
+
+function buildGraphForResolvedTarget(resolved, { root = DEFAULT_ROOT, maxFiles = 2500, maxFileSizeBytes = 800000 } = {}) {
+    if (!resolved?.ok || !resolved.commit) throw new Error("REPOSITORY_TARGET_NOT_RESOLVED");
+    const currentHead = gitText(["rev-parse", "HEAD"], root, { allowFailure: true });
+    if (resolved.commit === currentHead) {
+        return buildRepoIntelligence({ root, maxFiles, maxFileSizeBytes });
+    }
+    const worktree = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-repo-ref-"));
+    try {
+        gitText(["worktree", "add", "--detach", "--force", worktree, resolved.commit], root);
+        return buildRepoIntelligence({ root: worktree, maxFiles, maxFileSizeBytes });
+    } finally {
+        gitText(["worktree", "remove", "--force", worktree], root, { allowFailure: true });
+        fs.rmSync(worktree, { recursive: true, force: true });
+    }
+}
+
+function readResolvedRepositoryFile(resolved, { root = DEFAULT_ROOT, maxBytes = 300000, lineRange = null } = {}) {
+    if (!resolved?.ok || !resolved.commit || !resolved.path) throw new Error("REPOSITORY_FILE_TARGET_REQUIRED");
+    if (resolved.objectType !== "blob") throw new Error("REPOSITORY_TARGET_NOT_FILE");
+    const content = gitText(
+        ["show", `${resolved.commit}:${resolved.path}`],
+        root,
+        { maxBuffer: Math.max(Number(maxBytes) || 300000, 1024 * 1024) * 2, trim: false }
+    );
+    const size = Buffer.byteLength(content, "utf8");
+    if (size > Number(maxBytes) && !lineRange) throw new Error("FILE_TOO_LARGE");
+    const ranged = applyReadLineRange(content, lineRange);
+    if (Buffer.byteLength(ranged.content, "utf8") > Number(maxBytes)) throw new Error("FILE_TOO_LARGE");
+    return { ...ranged, size: Buffer.byteLength(ranged.content, "utf8"), totalSize: size };
 }
 
 function normalizeRelativePath(file) {
@@ -2667,17 +2815,40 @@ export function createJarvisFsBridgeApp({
                 });
         }
     });
+    app.post("/repo/resolve-target", async (req, res) => {
+        try {
+            const resolved = resolveBridgeRepositoryTarget({
+                target: req.body?.target || req.body?.url || "",
+                ref: req.body?.ref || "",
+                file: req.body?.file || req.body?.path || ""
+            }, root);
+            return res.status(resolved.ok === true ? 200 : 404).json({
+                ...resolved,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        } catch (error) {
+            return res.status(400).json({ ok: false, status: "REPOSITORY_TARGET_RESOLUTION_FAILED", error: error.message, version: JARVIS_FS_BRIDGE_VERSION });
+        }
+    });
 
     app.post("/repo/graph", async (req, res) => {
         try {
             const maxFiles = Math.max(1, Math.min(5000, Number(req.body?.maxFiles) || 2500));
             const maxFileSizeBytes = Math.max(1000, Math.min(2000000, Number(req.body?.maxFileSizeBytes) || 800000));
             const refresh = req.body?.refresh === true;
-            if (!repoGraphCache || refresh || repoGraphCache.maxFiles !== maxFiles || repoGraphCache.maxFileSizeBytes !== maxFileSizeBytes) {
+            const target = req.body?.target || req.body?.url || "";
+            const ref = req.body?.ref || "";
+            const resolved = resolveBridgeRepositoryTarget({ target, ref }, root);
+            if (resolved.ok !== true) {
+                return res.status(404).json({ ...resolved, version: JARVIS_FS_BRIDGE_VERSION });
+            }
+            const cacheKey = `${resolved.commit}:${maxFiles}:${maxFileSizeBytes}`;
+            if (!repoGraphCache || refresh || repoGraphCache.cacheKey !== cacheKey) {
                 repoGraphCache = {
+                    cacheKey,
                     maxFiles,
                     maxFileSizeBytes,
-                    graph: buildRepoIntelligence({ root, maxFiles, maxFileSizeBytes })
+                    graph: buildGraphForResolvedTarget(resolved, { root, maxFiles, maxFileSizeBytes })
                 };
             }
             const transportNodes = Object.fromEntries(
@@ -2689,6 +2860,16 @@ export function createJarvisFsBridgeApp({
             return res.json({
                 ...repoGraphCache.graph,
                 nodes: transportNodes,
+                repositoryTarget: {
+                    kind: resolved.kind,
+                    provider: resolved.provider,
+                    owner: resolved.owner || null,
+                    repository: resolved.repository || null,
+                    ref: resolved.ref,
+                    commit: resolved.commit,
+                    path: resolved.path || "",
+                    objectType: resolved.objectType
+                },
                 cache: refresh ? "REFRESHED" : "READY",
                 version: JARVIS_FS_BRIDGE_VERSION
             });
@@ -2711,16 +2892,22 @@ export function createJarvisFsBridgeApp({
                     error: "PLANNED_FILES_REQUIRED"
                 });
             }
-            if (!repoGraphCache || req.body?.refresh === true) {
+            const maxFiles = Math.max(1, Math.min(5000, Number(req.body?.maxFiles) || 2500));
+            const maxFileSizeBytes = Math.max(1000, Math.min(2000000, Number(req.body?.maxFileSizeBytes) || 800000));
+            const resolved = resolveBridgeRepositoryTarget({
+                target: req.body?.target || req.body?.url || "",
+                ref: req.body?.ref || ""
+            }, root);
+            if (resolved.ok !== true) {
+                return res.status(404).json({ ...resolved, version: JARVIS_FS_BRIDGE_VERSION });
+            }
+            const cacheKey = `${resolved.commit}:${maxFiles}:${maxFileSizeBytes}`;
+            if (!repoGraphCache || req.body?.refresh === true || repoGraphCache.cacheKey !== cacheKey) {
                 repoGraphCache = {
-                    generatedAt: Date.now(),
-                    maxFiles: 2500,
-                    maxFileSizeBytes: 800000,
-                    graph: buildRepoIntelligence({
-                        root,
-                        maxFiles: 2500,
-                        maxFileSizeBytes: 800000
-                    })
+                    cacheKey,
+                    maxFiles,
+                    maxFileSizeBytes,
+                    graph: buildGraphForResolvedTarget(resolved, { root, maxFiles, maxFileSizeBytes })
                 };
             }
             const result = rankRepoCandidates({
@@ -2728,11 +2915,80 @@ export function createJarvisFsBridgeApp({
                 plannedFiles,
                 limit: req.body?.limit || 8
             });
-            return res.json(result);
+            return res.json({
+                ...result,
+                repositoryTarget: {
+                    kind: resolved.kind,
+                    provider: resolved.provider,
+                    owner: resolved.owner || null,
+                    repository: resolved.repository || null,
+                    ref: resolved.ref,
+                    commit: resolved.commit,
+                    path: resolved.path || "",
+                    objectType: resolved.objectType
+                },
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
         } catch (error) {
             return res.status(500).json({
                 ok: false,
                 status: "REPO_CANDIDATE_RANKING_FAILED",
+                error: error.message,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+    });
+
+    app.post("/repo/read-target", async (req, res) => {
+        try {
+            const lineRange = normalizeReadLineRange({
+                startLine: req.body?.startLine,
+                endLine: req.body?.endLine,
+                fromLine: req.body?.fromLine,
+                toLine: req.body?.toLine
+            });
+            const resolved = resolveBridgeRepositoryTarget({
+                target: req.body?.target || req.body?.url || "",
+                ref: req.body?.ref || "",
+                file: req.body?.file || req.body?.path || ""
+            }, root);
+            if (resolved.ok !== true) {
+                return res.status(404).json({ ...resolved, version: JARVIS_FS_BRIDGE_VERSION });
+            }
+            if (!resolved.path || resolved.objectType !== "blob") {
+                return res.status(400).json({
+                    ok: false,
+                    status: "REPOSITORY_TARGET_NOT_FILE",
+                    error: "REPOSITORY_TARGET_NOT_FILE",
+                    repositoryTarget: resolved,
+                    version: JARVIS_FS_BRIDGE_VERSION
+                });
+            }
+            const read = readResolvedRepositoryFile(resolved, {
+                root,
+                maxBytes: req.body?.maxBytes || 300000,
+                lineRange
+            });
+            return res.json({
+                ok: true,
+                status: "REPOSITORY_FILE_READ",
+                file: resolved.path,
+                path: resolved.path,
+                ...read,
+                repositoryTarget: {
+                    kind: resolved.kind,
+                    ref: resolved.ref,
+                    commit: resolved.commit,
+                    path: resolved.path,
+                    objectType: resolved.objectType
+                },
+                source: "jarvis_fs_bridge_git_object_read_v1",
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        } catch (error) {
+            return res.status(error.message === "FILE_TOO_LARGE" ? 413 : 400).json({
+                ok: false,
+                status: "REPOSITORY_FILE_READ_FAILED",
                 error: error.message,
                 version: JARVIS_FS_BRIDGE_VERSION
             });

@@ -1112,8 +1112,13 @@ window.findRepoFile = function(query = "") {
 
     try {
 
+        const lookupValue =
+            query && typeof query === "object"
+                ? (query.file || query.path || query.target || query.query || "")
+                : query;
+
         const q =
-            String(query)
+            String(lookupValue || "")
             .toLowerCase()
             .trim();
 
@@ -3551,85 +3556,51 @@ window.evaluateModuleRisk = function(moduleName = "") {
    REPO SCANNER V2
 ===================================================== */
 
-window.scanRepo = function(filters = {}) {
-
+window.scanRepo = async function(filters = {}) {
     try {
-
-        const {
-            module,
-            type,
-            critical
-        } = filters;
-
-        const entries =
-            Object.entries(
-                window.__REPO_INDEX__ || {}
-            );
-
-        const results = entries.filter(
-            ([key, meta]) => {
-
-                // 🔍 filtro módulo
-                if (
-                    module &&
-                    meta?.module !== module
-                ) {
-                    return false;
-                }
-
-                // 🔍 filtro tipo
-                if (
-                    type &&
-                    meta?.type !== type
-                ) {
-                    return false;
-                }
-
-                // 🔍 filtro criticidad
-                if (
-                    typeof critical === "boolean" &&
-                    meta?.critical !== critical
-                ) {
-                    return false;
-                }
-
-                return true;
-            }
-        );
-
-        console.log(
-            "🧠 [REPO_SCAN]:",
-            results.length,
-            "files"
-        );
-
+        if (!window.JarvisLocalBridge?.buildRepoGraph) {
+            return {
+                ok: false,
+                status: "LOCAL_BRIDGE_REQUIRED",
+                error: "LIVE_REPO_GRAPH_REQUIRED",
+                total: 0,
+                files: [],
+                staticIndexRole: "metadata_only"
+            };
+        }
+        const graph = await window.JarvisLocalBridge.buildRepoGraph({
+            target: filters.target || filters.url || filters.repository || "",
+            ref: filters.ref || "",
+            refresh: filters.refresh === true,
+            maxFiles: filters.maxFiles || 2500,
+            maxFileSizeBytes: filters.maxFileSizeBytes || 800000,
+            source: "terminal_scan_live_repo_graph_v8"
+        });
+        if (graph?.ok !== true) {
+            return { ...graph, ok: false, total: 0, files: [], staticIndexRole: "metadata_only" };
+        }
+        const files = Object.values(graph.nodes || {}).map(node => ({
+            file: node.file,
+            path: node.file,
+            bytes: node.bytes,
+            dependencies: node.dependencies || [],
+            dependents: node.dependents || [],
+            relatedTests: node.relatedTests || [],
+            verified: true
+        }));
         return {
-
             ok: true,
-
-            total:
-                results.length,
-
-            files:
-                results.map(
-                    ([key, meta]) => ({
-                        file: key,
-                        ...meta
-                    })
-                )
+            status: "REPO_SCAN_READY",
+            total: files.length,
+            files,
+            summary: graph.summary,
+            repositoryTarget: graph.repositoryTarget || null,
+            source: "live_repo_ast_graph",
+            staticIndexRole: "metadata_only"
         };
-
     } catch (err) {
-
-        console.warn(
-            "⚠️ REPO_SCAN_FAIL:",
-            err
-        );
-
-        return {
-            ok: false,
-            error: err.message
-        };
+        console.warn("⚠️ REPO_SCAN_FAIL:", err);
+        return { ok: false, status: "REPO_SCAN_FAILED", error: err.message, total: 0, files: [] };
     }
 };
 

@@ -18,6 +18,9 @@ import {
     extractQualifiedSourceIdentifiers
 } from "./repo/repo.source.structure.js?v=sia7-explicit-repo-targets-v3-20260724";
 import {
+    parseRepositoryTarget
+} from "./repo/repo.target.js?v=v94-structural-repo-target-v1-20260809";
+import {
     recordCapabilityEvidence
 } from "./jarvis/jarvis.capability.evidence.js?v=sia7-persistent-runtime-evidence-v87-20260726";
 
@@ -673,32 +676,94 @@ registerJarvisActuatorTools(
 // Registro de herramientas Read-Only iniciales
 JarvisToolRuntime.register({
     name: "repo.audit",
-    description: "Auditoría profunda del repositorio: total de archivos y módulos.",
+    description: "Audita el repositorio real desde el grafo AST del bridge; nunca usa el indice manual como prueba de existencia.",
     mutates: false,
     requiresApproval: false,
-    output: "REPO_AUDIT_RESULT_V7",
-    execute: async (args, context) => {
-        // Importación dinámica del Hub existente para mantener el desacoplamiento
-        const { scanRepo } = await import('/gestia-core/hubs/repo.hub.js');
-        return await scanRepo(args);
+    output: "REPO_AUDIT_RESULT_V8",
+    execute: async (args = {}) => {
+        if (!window.JarvisLocalBridge?.buildRepoGraph) {
+            return { ok: false, status: "LOCAL_BRIDGE_REQUIRED", error: "LIVE_REPO_GRAPH_REQUIRED", tool: "repo.audit" };
+        }
+        const graph = await window.JarvisLocalBridge.buildRepoGraph({
+            target: args.target || args.url || args.repository || "",
+            ref: args.ref || "",
+            refresh: args.refresh === true,
+            maxFiles: args.maxFiles || 2500,
+            maxFileSizeBytes: args.maxFileSizeBytes || 800000,
+            source: "repo_audit_live_graph_v8"
+        });
+        if (graph?.ok !== true || Number(graph?.summary?.filesScanned || 0) < 1) {
+            return { ...graph, ok: false, status: graph?.status || "REPO_EVIDENCE_UNAVAILABLE", error: graph?.error || "REPO_EVIDENCE_UNAVAILABLE", tool: "repo.audit" };
+        }
+        return {
+            ok: true,
+            success: true,
+            status: "REPO_AUDIT_READY",
+            source: "live_repo_ast_graph",
+            repositoryTarget: graph.repositoryTarget || null,
+            total: Number(graph.summary.filesScanned),
+            summary: graph.summary,
+            files: Object.keys(graph.nodes || {}).slice(0, 1000),
+            duplicateEndpoints: graph.duplicateEndpoints || [],
+            tool: "repo.audit"
+        };
     }
 });
-
-// ==========================================
-// REPO TOOL PACK V7
-// ==========================================
 
 JarvisToolRuntime.register({
     name: "repo.scan",
-    description: "Escanea la estructura de un directorio específico y devuelve metadatos.",
+    description: "Escanea archivos reales desde el grafo AST vivo; el indice manual solo puede aportar metadata secundaria.",
     mutates: false,
     requiresApproval: false,
-    output: "REPO_SCAN_RESULT",
-    execute: async (args, context) => {
-        const { scanRepo } = await import('/gestia-core/hubs/repo.hub.js');
-        return await scanRepo(args);
+    output: "REPO_SCAN_RESULT_V8",
+    execute: async (args = {}) => {
+        if (!window.JarvisLocalBridge?.buildRepoGraph) {
+            return { ok: false, status: "LOCAL_BRIDGE_REQUIRED", error: "LIVE_REPO_GRAPH_REQUIRED", tool: "repo.scan" };
+        }
+        const graph = await window.JarvisLocalBridge.buildRepoGraph({
+            target: args.target || args.url || args.repository || "",
+            ref: args.ref || "",
+            refresh: args.refresh === true,
+            maxFiles: args.maxFiles || 2500,
+            maxFileSizeBytes: args.maxFileSizeBytes || 800000,
+            source: "repo_scan_live_graph_v8"
+        });
+        if (graph?.ok !== true) return { ...graph, ok: false, tool: "repo.scan" };
+        const requestedModule = String(args.module || "").trim();
+        const requestedType = String(args.type || "").trim();
+        const files = Object.values(graph.nodes || {}).filter(node => {
+            if (requestedModule && !String(node.file || "").includes(requestedModule)) return false;
+            if (requestedType === "test" && node.isTest !== true) return false;
+            if (requestedType === "runtime" && node.isTest === true) return false;
+            return true;
+        }).map(node => ({
+            file: node.file,
+            path: node.file,
+            bytes: node.bytes,
+            dependencies: node.dependencies || [],
+            dependents: node.dependents || [],
+            relatedTests: node.relatedTests || [],
+            verified: true,
+            source: "live_repo_ast_graph"
+        }));
+        return {
+            ok: true,
+            success: true,
+            status: "REPO_SCAN_READY",
+            source: "live_repo_ast_graph",
+            repositoryTarget: graph.repositoryTarget || null,
+            total: files.length,
+            files,
+            summary: graph.summary,
+            tool: "repo.scan"
+        };
     }
 });
+
+// ==========================================
+// REPO TOOL PACK V8
+// ==========================================
+
 
 JarvisToolRuntime.register({
     name: "repo.read",
@@ -800,6 +865,48 @@ JarvisToolRuntime.register({
                         )
                 }
                 : null;
+
+
+        const structuralTarget = parseRepositoryTarget(file);
+        if (structuralTarget?.ok === true && structuralTarget.provider === "github") {
+            if (!window.JarvisLocalBridge?.resolveRepoTarget || !window.JarvisLocalBridge?.buildRepoGraph) {
+                return { ok: false, status: "LOCAL_BRIDGE_REQUIRED", error: "REPOSITORY_TARGET_BRIDGE_REQUIRED", target: file, tool: "repo.read" };
+            }
+            const resolvedTarget = await window.JarvisLocalBridge.resolveRepoTarget({ target: file, source: "repo_read_structural_target_v8" });
+            if (resolvedTarget?.ok !== true) {
+                return { ...resolvedTarget, ok: false, target: file, tool: "repo.read" };
+            }
+            if (!resolvedTarget.path || resolvedTarget.objectType === "tree") {
+                const graph = await window.JarvisLocalBridge.buildRepoGraph({ target: file, refresh: args.refresh === true, source: "repo_read_repository_reference_v8" });
+                if (graph?.ok !== true) return { ...graph, ok: false, target: file, tool: "repo.read" };
+                return {
+                    ok: true,
+                    success: true,
+                    status: "REPOSITORY_REFERENCE_ANALYZED",
+                    target: file,
+                    repositoryTarget: graph.repositoryTarget || resolvedTarget,
+                    summary: graph.summary,
+                    files: Object.keys(graph.nodes || {}).slice(0, 1000),
+                    note: "La referencia apunta a un repositorio o rama, no a un archivo; se analizó el árbol real en lugar de producir FILE_NOT_FOUND.",
+                    tool: "repo.read"
+                };
+            }
+            const remoteRead = await window.JarvisLocalBridge.readRepoTarget({
+                target: file,
+                maxBytes: args.maxBytes || 300000,
+                ...(requestedLineRange || {}),
+                source: "repo_read_git_object_v8"
+            });
+            if (remoteRead?.ok !== true) return { ...remoteRead, ok: false, target: file, tool: "repo.read" };
+            return {
+                ...remoteRead,
+                ok: true,
+                success: true,
+                sourceStructure: analyzeRepoSourceStructure(remoteRead.content || ""),
+                numberedContent: numberedSourceContent(remoteRead.content || "", remoteRead.startLine || 1),
+                tool: "repo.read"
+            };
+        }
 
         const applyRequestedLineRange =
             function(result = {}) {
@@ -1407,6 +1514,26 @@ window.JarvisLocalBridge.requestJson ||= async function(
     finally {
         clearTimeout(timer);
     }
+};
+
+
+window.JarvisLocalBridge.readFile ||= async function(payload = {}) {
+    return await window.JarvisLocalBridge.requestJson("/read", payload, { timeoutMs: payload.timeoutMs || 30000 });
+};
+window.JarvisLocalBridge.grepRepo ||= async function(payload = {}) {
+    return await window.JarvisLocalBridge.requestJson("/grep", payload, { timeoutMs: payload.timeoutMs || 30000 });
+};
+window.JarvisLocalBridge.buildRepoGraph ||= async function(payload = {}) {
+    return await window.JarvisLocalBridge.requestJson("/repo/graph", payload, { timeoutMs: payload.timeoutMs || 90000 });
+};
+window.JarvisLocalBridge.rankRepoCandidates ||= async function(payload = {}) {
+    return await window.JarvisLocalBridge.requestJson("/repo/candidates", payload, { timeoutMs: payload.timeoutMs || 90000 });
+};
+window.JarvisLocalBridge.resolveRepoTarget ||= async function(payload = {}) {
+    return await window.JarvisLocalBridge.requestJson("/repo/resolve-target", payload, { timeoutMs: payload.timeoutMs || 30000 });
+};
+window.JarvisLocalBridge.readRepoTarget ||= async function(payload = {}) {
+    return await window.JarvisLocalBridge.requestJson("/repo/read-target", payload, { timeoutMs: payload.timeoutMs || 30000 });
 };
 
 window.JarvisLocalBridge.prepareWrite ||= async function(payload = {}) {
@@ -5864,6 +5991,31 @@ JarvisToolRuntime.register({
             };
         }
 
+
+        const structuralSearchTarget = parseRepositoryTarget(query);
+        if (structuralSearchTarget?.ok === true && structuralSearchTarget.provider === "github") {
+            if (!window.JarvisLocalBridge?.buildRepoGraph) {
+                return { ok: false, success: false, status: "LOCAL_BRIDGE_REQUIRED", error: "LIVE_REPO_GRAPH_REQUIRED", query, tool: "repo.search" };
+            }
+            const graph = await window.JarvisLocalBridge.buildRepoGraph({ target: query, refresh: true, source: "repo_search_structural_target_v8" });
+            if (graph?.ok !== true) return { ...graph, ok: false, query, tool: "repo.search" };
+            const files = Object.keys(graph.nodes || {});
+            return {
+                ok: true,
+                success: true,
+                status: "REPOSITORY_REFERENCE_ANALYZED",
+                query,
+                repositoryTarget: graph.repositoryTarget || null,
+                summary: graph.summary,
+                results: files.slice(0, 1000).map(file => ({ file, path: file, verified: true, source: "live_repo_ast_graph" })),
+                totalResults: files.length,
+                totalFilesScanned: Number(graph.summary?.filesScanned || files.length),
+                matches: [],
+                metadataHints: [],
+                tool: "repo.search"
+            };
+        }
+
         const normalizeSearchText =
             value =>
                 String(value || "")
@@ -6763,6 +6915,38 @@ JarvisToolRuntime.register({
                 .replace(/^\/+/, "")
                 .trim();
 
+
+        const structuralImpactTarget = parseRepositoryTarget(cleanFile);
+        if (structuralImpactTarget?.ok === true && structuralImpactTarget.provider === "github") {
+            if (!window.JarvisLocalBridge?.buildRepoGraph) {
+                return { ok: false, status: "LOCAL_BRIDGE_REQUIRED", error: "LIVE_REPO_GRAPH_REQUIRED", requestedFile: cleanFile, tool: "repo.impact" };
+            }
+            const graph = await window.JarvisLocalBridge.buildRepoGraph({ target: cleanFile, refresh: args.refresh === true, source: "repo_impact_structural_target_v8" });
+            if (graph?.ok !== true) return { ...graph, ok: false, requestedFile: cleanFile, tool: "repo.impact" };
+            const targetPath = graph.repositoryTarget?.path || "";
+            const node = targetPath ? graph.nodes?.[targetPath] : null;
+            if (targetPath && !node) return { ok: false, status: "REPOSITORY_PATH_NOT_IN_GRAPH", requestedFile: cleanFile, repositoryTarget: graph.repositoryTarget, tool: "repo.impact" };
+            const hotspots = Object.values(graph.nodes || {})
+                .map(item => ({ file: item.file, dependents: (item.dependents || []).length, dependencies: (item.dependencies || []).length, relatedTests: item.relatedTests || [] }))
+                .sort((left, right) => (right.dependents + right.dependencies) - (left.dependents + left.dependencies))
+                .slice(0, 20);
+            return {
+                ok: true,
+                success: true,
+                status: targetPath ? "IMPACT_READY_LIVE_REF" : "REPOSITORY_IMPACT_READY",
+                requestedFile: cleanFile,
+                resolvedFile: targetPath || null,
+                repositoryTarget: graph.repositoryTarget,
+                summary: graph.summary,
+                dependencies: node?.dependencies || [],
+                dependents: node?.dependents || [],
+                relatedTests: node?.relatedTests || [],
+                hotspots,
+                source: "live_repo_ast_graph",
+                tool: "repo.impact"
+            };
+        }
+
         const basename =
             cleanFile
                 .split("/")
@@ -6932,6 +7116,51 @@ JarvisToolRuntime.register({
                 .replace(/^\/+/, "")
                 .trim();
 
+
+        const structuralDiagnoseTarget = parseRepositoryTarget(normalizedFile);
+        if (structuralDiagnoseTarget?.ok === true && structuralDiagnoseTarget.provider === "github") {
+            if (!window.JarvisLocalBridge?.buildRepoGraph) {
+                return { ok: false, success: false, status: "LOCAL_BRIDGE_REQUIRED", error: "LIVE_REPO_GRAPH_REQUIRED", requestedFile: normalizedFile, tool: "repo.diagnose" };
+            }
+            const graph = await window.JarvisLocalBridge.buildRepoGraph({ target: normalizedFile, refresh: args.refresh === true, source: "repo_diagnose_structural_target_v8" });
+            if (graph?.ok !== true) return { ...graph, ok: false, requestedFile: normalizedFile, tool: "repo.diagnose" };
+            const targetPath = graph.repositoryTarget?.path || "";
+            if (!targetPath) {
+                const hotspots = Object.values(graph.nodes || {})
+                    .map(item => ({ file: item.file, dependencies: (item.dependencies || []).length, dependents: (item.dependents || []).length, tests: (item.relatedTests || []).length }))
+                    .sort((left, right) => (right.dependencies + right.dependents) - (left.dependencies + left.dependents))
+                    .slice(0, 20);
+                return {
+                    ok: true,
+                    success: true,
+                    status: "REPOSITORY_DIAGNOSIS_READY",
+                    requestedFile: normalizedFile,
+                    repositoryTarget: graph.repositoryTarget,
+                    summary: graph.summary,
+                    hotspots,
+                    duplicateEndpoints: graph.duplicateEndpoints || [],
+                    source: "live_repo_ast_graph",
+                    tool: "repo.diagnose"
+                };
+            }
+            if (graph.repositoryTarget?.objectType !== "blob") {
+                return {
+                    ok: true,
+                    success: true,
+                    status: "REPOSITORY_DIRECTORY_DIAGNOSIS_READY",
+                    requestedFile: normalizedFile,
+                    repositoryTarget: graph.repositoryTarget,
+                    summary: graph.summary,
+                    files: Object.keys(graph.nodes || {}).filter(file => file === targetPath || file.startsWith(`${targetPath}/`)).slice(0, 1000),
+                    source: "live_repo_ast_graph",
+                    tool: "repo.diagnose"
+                };
+            }
+            const remoteRead = await window.JarvisLocalBridge.readRepoTarget({ target: normalizedFile, maxBytes: args.maxBytes || 300000, source: "repo_diagnose_git_object_v8" });
+            if (remoteRead?.ok !== true) return { ...remoteRead, ok: false, requestedFile: normalizedFile, tool: "repo.diagnose" };
+            args = { ...args, file: targetPath, path: targetPath, __resolvedRemoteRead: remoteRead };
+        }
+
         const indexedFile =
             window.__REPO_INDEX__?.[normalizedFile] ||
             Object.values(window.__REPO_INDEX__ || {})
@@ -6956,9 +7185,11 @@ JarvisToolRuntime.register({
                 .trim();
 
         let content =
+            args.__resolvedRemoteRead?.content ||
             "";
 
         let readSource =
+            args.__resolvedRemoteRead?.source ||
             "unavailable";
 
         if (

@@ -322,12 +322,6 @@ window.__REPO_INDEX__["jarvis.memory.js"] = {
     critical: true
 };
 
-window.__REPO_INDEX__["jarvis.context.memory.v6.js"] = {
-    path: "gestia-core/jarvis/jarvis.context.memory.v6.js",
-    module: "context_memory",
-    type: "memory_runtime",
-    critical: true
-};
 
 window.__REPO_INDEX__["jarvis.business.engine.js"] = {
     path: "gestia-core/jarvis/jarvis.business.engine.js",
@@ -626,19 +620,6 @@ window.__REPO_INDEX__["jarvis.kernel.js"] = {
     critical: true
 };
 
-window.__REPO_INDEX__["analysis.hub.js"] = {
-
-    path:
-        "gestia-core/hubs/analysis.hub.js",
-
-    module:
-        "analysis_hub",
-
-    type:
-        "cognitive_fabric",
-
-    critical: true
-};
 
 window.__REPO_INDEX__["execution.hub.js"] = {
 
@@ -1078,19 +1059,6 @@ window.__REPO_INDEX__["jarvis.bridge.v4.js"] = {
     critical: true
 };
 
-window.__REPO_INDEX__["jarvis.context.memory.v6.js"] = {
-
-    path:
-        "gestia-core/jarvis/jarvis.context.memory.v6.js",
-
-    module:
-        "context_memory",
-
-    type:
-        "memory_runtime",
-
-    critical: true
-};
 
 window.__REPO_INDEX__["operations.engine.js"] = {
 
@@ -1336,3 +1304,7 @@ window.__REPO_INDEX__["cognitive.bootstrap.js"] = {
             true
     }
 };
+
+
+// Legacy hand-curated catalog: metadata only. Real existence/analysis comes from repo.graph.
+window.__REPO_INDEX_AUTHORITY__ = "LEGACY_METADATA_ONLY";
