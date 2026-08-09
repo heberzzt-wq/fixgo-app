@@ -55,13 +55,13 @@ test("one marketing instruction produces plan, program, reel and image artifacts
 
     assert.equal(plan.ok, true);
     assert.deepEqual(names(plan), [
-    "marketing.plan",
-    "document.create",
-    "document.create",
-    "reel.plan",
-    "reel.create",
-    "image.generate"
-]);
+        "marketing.plan",
+        "document.create",
+        "document.create",
+        "reel.plan",
+        "reel.create",
+        "image.generate"
+    ]);
 
     const campaign = plan.toolCalls.find(call => call.name === "marketing.plan");
     assert.equal(campaign.args.audience.length > 20, true);
@@ -72,12 +72,12 @@ test("one marketing instruction produces plan, program, reel and image artifacts
     assert.equal(campaign.args.cta.length > 5, true);
 
     const marketingFiles = plan.toolCalls
-    .filter(call => call.name === "document.create")
-    .map(call => call.args.format);
-assert.deepEqual(marketingFiles, ["md", "pdf"]);
-assert.ok(plan.toolCalls
-    .filter(call => call.name === "document.create")
-    .every(call => /Plan de marketing completo/.test(call.args.title)));
+        .filter(call => call.name === "document.create")
+        .map(call => call.args.format);
+    assert.deepEqual(marketingFiles, ["md", "pdf"]);
+    assert.ok(plan.toolCalls
+        .filter(call => call.name === "document.create")
+        .every(call => /Plan de marketing completo/.test(call.args.title)));
 
     const reel = plan.toolCalls.find(call => call.name === "reel.create");
     assert.equal(reel.args.durationSeconds, 30);
@@ -87,17 +87,63 @@ assert.ok(plan.toolCalls
     );
 });
 
-test("named marketing target survives into downloadable artifact titles", () => {
+test("a complete marketing request becomes an end-to-end production package", () => {
     const plan = compileNexoMission({
         input: "Crea un plan de marketing completo para Multiservicios Peninsulares HMH.",
-        catalog
+        catalog,
+        context: {
+            objectiveId: "MKT-FULL-PACKAGE",
+            caseId: "CASE-FULL-PACKAGE"
+        }
     });
     const campaign = plan.toolCalls.find(call => call.name === "marketing.plan");
     const files = plan.toolCalls.filter(call => call.name === "document.create");
+
     assert.equal(campaign.args.brandName, "Multiservicios Peninsulares HMH");
-    assert.deepEqual(files.map(call => call.args.format), ["md", "pdf"]);
+    assert.deepEqual(files.map(call => call.args.format), ["md", "pdf", "xlsx", "pptx"]);
     assert.ok(files.every(call => call.args.title.includes("Multiservicios Peninsulares HMH")));
     assert.ok(files.every(call => call.args.content === undefined));
+    assert.deepEqual(names(plan), [
+        "marketing.plan",
+        "document.create",
+        "document.create",
+        "reel.plan",
+        "reel.create",
+        "page.plan",
+        "page.compose",
+        "page.create",
+        "image.generate",
+        "document.create",
+        "document.create"
+    ]);
+    assert.equal(plan.fullMarketingProduction.required, true);
+    assert.equal(plan.fullMarketingProduction.artifacts.length, 7);
+    assert.equal(plan.missionPolicy.fullMarketingProductionRequired, true);
+    assert.equal(plan.missionPolicy.requestedCreativeArtifactsBlockCompletion, true);
+    assert.equal(plan.missionPolicy.marketingPlanOnlyDoesNotSatisfyFullPackage, true);
+
+    const reel = plan.toolCalls.find(call => call.name === "reel.create");
+    assert.equal(reel.args.durationSeconds, 30);
+    assert.equal(reel.args.scenes.reduce((sum, scene) => sum + scene.durationSeconds, 0), 30);
+    const workbook = files.find(call => call.args.format === "xlsx");
+    assert.ok(Array.isArray(workbook.args.sheets));
+    assert.ok(workbook.args.sheets.length >= 2);
+    const presentation = files.find(call => call.args.format === "pptx");
+    assert.equal(presentation.args.slides.length, 5);
+});
+
+test("complete marketing production remains opt-in for non-complete strategy requests", () => {
+    const plan = compileNexoMission({
+        input: "Haz una estrategia de marketing para Peninsula Tech",
+        catalog
+    });
+    assert.equal(plan.ok, true);
+    assert.equal(plan.fullMarketingProduction, undefined);
+    assert.deepEqual(names(plan), [
+        "marketing.plan",
+        "document.create",
+        "document.create"
+    ]);
 });
 
 test("one document instruction selects directly executable PDF XLSX and PPTX", () => {
