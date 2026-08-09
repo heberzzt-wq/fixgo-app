@@ -13,6 +13,8 @@ function initFixture() {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-extract-bridge-"));
     execFileSync("git", ["init"], { cwd: root, stdio: "ignore" });
     execFileSync("git", ["checkout", "-b", "v94-doc-extract-test"], { cwd: root, stdio: "ignore" });
+    execFileSync("git", ["config", "user.name", "Jarvis Bridge Test"], { cwd: root, stdio: "ignore" });
+    execFileSync("git", ["config", "user.email", "jarvis-bridge-test@example.invalid"], { cwd: root, stdio: "ignore" });
     fs.writeFileSync(
         path.join(root, "jarvis-runtime-contract.json"),
         JSON.stringify({
@@ -27,6 +29,9 @@ function initFixture() {
         "Fuente exacta: Península Tech\nMeta: 40 leads verificados\n",
         "utf8"
     );
+    fs.writeFileSync(path.join(root, "fixture.txt"), "bridge identity fixture\n", "utf8");
+    execFileSync("git", ["add", "jarvis-runtime-contract.json", "fixture.txt"], { cwd: root, stdio: "ignore" });
+    execFileSync("git", ["commit", "-m", "test: initialize bridge identity fixture"], { cwd: root, stdio: "ignore" });
     return root;
 }
 
