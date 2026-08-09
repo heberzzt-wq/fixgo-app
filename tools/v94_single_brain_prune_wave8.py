@@ -67,7 +67,7 @@ text = replace_between(
     text,
     router_start,
     router_end,
-    structured_context + router_end,
+    structured_context,
     'terminal-remove-dead-lexical-router'
 )
 write(path, text)
@@ -87,7 +87,7 @@ text = replace_between(
     text,
     approval_start,
     branding_helper,
-    branding_helper,
+    '',
     'branding-remove-natural-approval-parser'
 )
 text = replace_once(
