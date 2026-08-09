@@ -685,6 +685,15 @@ async function callBrowserMissionContract(
                 .filter(Boolean)
                 .slice(0, 20)
             : [];
+    const requiredToolNames =
+        Array.isArray(missionState?.requiredToolNames)
+            ? missionState.requiredToolNames.map(String).filter(Boolean).slice(0, 30)
+            : [];
+    const marketingProductionRequirements =
+        (Array.isArray(missionState?.completedTasks) ? missionState.completedTasks : [])
+            .filter(item => item?.name === "marketing.plan" && item?.observation?.productionRequested === true)
+            .flatMap(item => Array.isArray(item?.observation?.requiredArtifacts) ? item.observation.requiredArtifacts : [])
+            .slice(0, 12);
     const prompt = [
         "Eres el planificador semantico de Jarvis V7.",
         GENERALIST_CURRENT_TURN_POLICY,
@@ -692,12 +701,15 @@ async function callBrowserMissionContract(
         "La comprensión de intención es exclusivamente semántica: no imites ni dependas de listas de palabras, diccionarios locales o patrones de texto del cliente.",
         "Incluye responseFormat=\"json\" solamente cuando el usuario pida explícitamente una salida JSON/machine-readable; en cualquier otro caso usa responseFormat=\"human\".",
         "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only y userArtifact necesarias para TODOS los entregables. Para crear una landing usa page.plan, page.compose y page.create; para crear un documento usa document.compose y document.create; para crear una hoja estructurada usa spreadsheet.compose y document.create. Para EDITAR un PDF existente usa document.pdf.edit; para EDITAR un XLSX existente usa document.xlsx.edit; para EDITAR una imagen existente usa image.edit. Nunca sustituyas una edicion solicitada por document.create, spreadsheet.compose o image.generate. Si una imagen adjunta representa a la persona, producto u objeto que debe aparecer en el resultado, usa image.edit con sourceOutput igual al artifact real del manifiesto; media.analyze no transmite identidad visual ni sustituye los bytes de la fuente. Las ediciones crean una copia nueva y deben preservar el original. system.certify es terminal: no lo incluyas en el contrato inicial; seleccionalo solamente durante COMPLETION_AUDIT cuando los demas objetivos est?n completados o bloqueados. Para image.edit genera una sola salida por defecto. La cantidad de fotos adjuntas o referencias nunca significa cantidad de variantes. Si el usuario pide varias salidas, asigna un variantId distinto y explicito a cada salida. Cuando haya varias fotos de identidad, usa la imagen mas reciente y limpia como sourceOutput y copia las referencias pertinentes en referenceOutputs. Para cada artefacto usa exactamente una composicion y una creacion salvo que el usuario pida variantes. Cuando existan archivos adjuntos reales y la instruccion pida analizarlos, describirlos, compararlos, identificarlos o leerlos, media.analyze es obligatoria y image.generate/image.edit no pueden sustituirla; usa herramientas de imagen sintetica solamente cuando el usuario pida explicitamente crear, generar, editar, modificar o transformar una imagen nueva o existente. Conserva el orden. Si la solicitud no necesita ninguna herramienta, devuelve toolCalls=[] y missionComplete=true; en caso contrario usa missionComplete=false.",
+        "MARKETING: marketing.plan produce estrategia y brief, nunca cuenta como archivo producido. Decide semánticamente la solicitud actual: si el usuario sólo pide plan o asesoría, usa productionRequested=false. Si pide ejecutar, producir, entregar piezas reales o una misión de punta a punta, usa productionRequested=true y productionArtifacts con type, toolName exacto, format cuando corresponda y label humano; además incluye en toolCalls las herramientas reales de creación que satisfacen cada productionArtifact. Si un documento toma el plan como contenido usa document.create con contentSource=marketing.plan. No declares missionComplete mientras falte una salida verificable de cualquiera de los MARKETING_PRODUCTION_REQUIREMENTS.",
         "Las HERRAMIENTAS_INICIALES son un borrador semantico ya seleccionado para la misma instruccion. Conserva sus entregables y agrega solamente una herramienta que cubra un objetivo independiente pedido de forma explicita y no cubierto por ese borrador. No agregues diagnostico, supervision, forense, repositorio, navegador, conectores, investigacion ni otros artefactos solo porque existan en el catalogo.",
         "No colapses sujetos u objetivos independientes. Repite el mismo nombre de herramienta cuando necesite argumentos distintos para cubrirlos por separado.",
         "agent.delegate no es una optimizacion automatica. Incluyela solamente si la instruccion original pide explicitamente delegar, usar agentes o ejecutar en paralelo, y copia esa frase literal en delegationDirective. En cualquier otra mision conserva las herramientas directas.",
         "repo.architectReview es autocontenida: construye su grafo y ranking y ejecuta los 11 controles sobre el plan recibido. Para una revision de plan no agregues herramientas repo adyacentes salvo que la instruccion pida por separado inspeccionar fuentes adicionales.",
         "Para web.research usa researchGoal=RESEARCH_1, RESEARCH_2, etc. segun el orden inmutable de objetivos de investigacion en la instruccion. Reutiliza la misma identidad al auditar el mismo objetivo y no dupliques llamadas para simples reformulaciones.",
         `HERRAMIENTAS_INICIALES=${initialToolNames.join(",")}`,
+        `HERRAMIENTAS_REQUERIDAS=${requiredToolNames.join(",")}`,
+        `MARKETING_PRODUCTION_REQUIREMENTS=${JSON.stringify(marketingProductionRequirements)}`,
         `CATALOGO=${catalog.map(tool => tool.name).join(",")}`,
         `INSTRUCCION=${boundedInstruction}`
     ].join("\n");

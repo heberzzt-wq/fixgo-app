@@ -109,6 +109,51 @@ function callSignature(call = {}) {
     return JSON.stringify(stable({ name: text(call.name, 100), args: call.args || {} }));
 }
 
+function marketingArtifactOutput(task = {}) {
+    return text(
+        task?.observation?.artifact ||
+        task?.observation?.evidence?.output ||
+        task?.observation?.evidence?.artifact?.output ||
+        "",
+        500
+    );
+}
+
+function taskMatchesMarketingRequirement(task = {}, requirement = {}) {
+    const toolName = text(requirement?.toolName, 120);
+    if (!toolName || text(task?.name, 120) !== toolName) return false;
+    const requiredFormat = text(requirement?.format, 40).toLowerCase();
+    if (toolName === "document.create" && requiredFormat) {
+        return text(task?.args?.format, 40).toLowerCase() === requiredFormat;
+    }
+    return true;
+}
+
+function unresolvedMarketingProductionRequirements(mission = {}) {
+    const completed = Array.isArray(mission?.completedTasks)
+        ? mission.completedTasks
+        : [];
+    const marketing = [...completed].reverse().find(item =>
+        item?.name === "marketing.plan" &&
+        item?.observation?.productionRequested === true
+    );
+    const requirements = Array.isArray(marketing?.observation?.requiredArtifacts)
+        ? marketing.observation.requiredArtifacts
+        : [];
+    return requirements.filter(requirement => {
+        const completedTask = completed.find(item =>
+            taskMatchesMarketingRequirement(item, requirement)
+        );
+        return !completedTask || !marketingArtifactOutput(completedTask);
+    }).map((requirement, index) => ({
+        id: text(requirement?.id || `artifact-${index + 1}`, 120),
+        type: text(requirement?.type, 120),
+        toolName: text(requirement?.toolName, 120),
+        format: text(requirement?.format, 40),
+        label: text(requirement?.label, 200)
+    }));
+}
+
 async function sha256(value = "") {
     const bytes = new TextEncoder().encode(String(value));
     const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
@@ -362,6 +407,20 @@ function safeObservation(result = {}) {
                 ? result.objectiveSatisfied
                 : null;
     const marketingPackageReady = normalizedStatus === "MARKETING_PACKAGE_READY";
+    const marketingProductionRequested =
+        marketingPackageReady &&
+        payload?.productionRequested === true;
+    const marketingRequiredArtifacts =
+        marketingPackageReady &&
+        Array.isArray(payload?.requiredArtifacts)
+            ? payload.requiredArtifacts.slice(0, 12).map((item, index) => ({
+                id: text(item?.id || `artifact-${index + 1}`, 120),
+                type: text(item?.type, 120),
+                toolName: text(item?.toolName, 120),
+                format: text(item?.format, 40),
+                label: text(item?.label, 200)
+            })).filter(item => item.toolName)
+            : [];
     const marketingDeliverableReady =
         !marketingPackageReady ||
         (
@@ -615,6 +674,17 @@ function safeObservation(result = {}) {
             marketingPackageReady && marketingDeliverableReady
                 ? text(payload.userVisible, 120000)
                 : "",
+        planReady:
+            marketingPackageReady &&
+            marketingDeliverableReady &&
+            payload?.planReady !== false,
+        readyForProduction:
+            marketingPackageReady &&
+            payload?.readyForProduction === true,
+        productionRequested:
+            marketingProductionRequested,
+        requiredArtifacts:
+            marketingRequiredArtifacts,
         deliverable:
             marketingPackageReady && marketingDeliverableReady
                 ? payload.plan
@@ -960,7 +1030,13 @@ export async function runJarvisMission({
                     mission.contractMissingTools.filter(
                         name => !blockedNames.has(name)
                     );
-                const contractSatisfied = contractUnaccountedTools.length === 0;
+                const unresolvedProductionArtifacts =
+                    unresolvedMarketingProductionRequirements(mission);
+                mission.unresolvedProductionArtifacts =
+                    unresolvedProductionArtifacts;
+                const contractSatisfied =
+                    contractUnaccountedTools.length === 0 &&
+                    unresolvedProductionArtifacts.length === 0;
                 const verifiedContractSatisfied =
                     contractSatisfied &&
                     mission.requiredToolNames.length > 0 &&
@@ -1014,6 +1090,17 @@ export async function runJarvisMission({
         }
 
         const observation = safeObservation(result);
+        if (
+            task.name === "marketing.plan" &&
+            observation.productionRequested === true
+        ) {
+            for (const requirement of observation.requiredArtifacts || []) {
+                const toolName = text(requirement?.toolName, 120);
+                if (toolName && !mission.requiredToolNames.includes(toolName)) {
+                    mission.requiredToolNames.push(toolName);
+                }
+            }
+        }
         const executedArgs =
             result?.missionExecution?.args &&
             typeof result.missionExecution.args === "object" &&

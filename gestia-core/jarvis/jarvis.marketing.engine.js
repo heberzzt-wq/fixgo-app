@@ -13,7 +13,7 @@ import {
  * se consideran verificados cuando traen una fuente válida.
  */
 
-const VERSION = "8.1.0-nexo-complete-marketing-package";
+const VERSION = "8.2.0-semantic-brief-real-delivery-contract";
 
 const REQUIRED_MARKETING_IDENTITY = {
     id: "business",
@@ -44,6 +44,97 @@ function normalized(value = "") {
 function strings(value, limit = 20) {
     if (!Array.isArray(value)) return [];
     return [...new Set(value.map(clean).filter(Boolean))].slice(0, limit);
+}
+
+function missingSemanticBriefFields(context = {}) {
+    const missing = [];
+    for (const field of [
+        "audience",
+        "offer",
+        "pain",
+        "promise",
+        "differentiator",
+        "cta",
+        "market",
+        "campaignObjective",
+        "horizon"
+    ]) {
+        if (!clean(context[field])) missing.push(field);
+    }
+    if (strings(context.channels).length === 0) missing.push("channels");
+    return missing;
+}
+
+function semanticBriefIncompleteResult(instruction, context, missingFields) {
+    return {
+        ok: false,
+        executionOk: false,
+        objectiveSatisfied: false,
+        requiresInput: false,
+        blocked: false,
+        retryable: true,
+        readyForProduction: false,
+        planReady: false,
+        status: "MARKETING_SEMANTIC_BRIEF_INCOMPLETE",
+        intent: "MARKETING_PACKAGE",
+        domain: "marketing",
+        raw: instruction,
+        trace: buildTrace(context, instruction),
+        brandName: inferBrandName(instruction, context),
+        missingSemanticFields: [...missingFields],
+        message: "El brief semántico no quedó suficientemente específico; no se sustituirá por texto genérico ni por supuestos locales."
+    };
+}
+
+function structuredProductionArtifacts(context = {}) {
+    const allowed = new Set([
+        "reel.create",
+        "page.create",
+        "image.generate",
+        "document.create",
+        "marketing.package.real-media"
+    ]);
+    const source = Array.isArray(context.productionArtifacts)
+        ? context.productionArtifacts
+        : [];
+    const normalized = [];
+    for (let index = 0; index < source.length; index += 1) {
+        const item = source[index];
+        if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+        const toolName = clean(item.toolName);
+        if (!allowed.has(toolName)) continue;
+        const entry = {
+            id: clean(item.id) || `artifact-${index + 1}`,
+            type: clean(item.type) || toolName,
+            toolName,
+            label: clean(item.label) || clean(item.type) || toolName
+        };
+        const format = clean(item.format);
+        if (format) entry.format = format.toLowerCase();
+        normalized.push(entry);
+    }
+    return normalized.slice(0, 12);
+}
+
+function productionContractIncompleteResult(instruction, context) {
+    return {
+        ok: false,
+        executionOk: false,
+        objectiveSatisfied: false,
+        requiresInput: false,
+        blocked: false,
+        retryable: true,
+        readyForProduction: false,
+        planReady: false,
+        productionRequested: true,
+        requiredArtifacts: [],
+        status: "MARKETING_PRODUCTION_CONTRACT_INCOMPLETE",
+        intent: "MARKETING_PACKAGE",
+        domain: "marketing",
+        raw: instruction,
+        trace: buildTrace(context, instruction),
+        message: "La misión pidió producción real, pero el contrato semántico no declaró artefactos ejecutables. Se requiere replanificación semántica; no se declarará la misión como completa."
+    };
 }
 
 function hashtag(value) {
@@ -449,6 +540,19 @@ export function planMarketingRequest(rawInput = "", context = {}) {
     if (missingGroups.length) {
         return inputRequiredResult(instruction, context, missingGroups);
     }
+    const missingSemanticFields = missingSemanticBriefFields(context);
+    if (missingSemanticFields.length) {
+        return semanticBriefIncompleteResult(
+            instruction,
+            context,
+            missingSemanticFields
+        );
+    }
+    const productionRequested = context.productionRequested === true;
+    const requiredArtifacts = structuredProductionArtifacts(context);
+    if (productionRequested && requiredArtifacts.length === 0) {
+        return productionContractIncompleteResult(instruction, context);
+    }
     const creativeBrief = deriveCreativeBrief(instruction, context);
     const brand = {
         name: creativeBrief.brandName,
@@ -461,7 +565,9 @@ export function planMarketingRequest(rawInput = "", context = {}) {
         : ["instagram", "facebook", "tiktok", "whatsapp"];
     const assets = strings(context.assets).length
         ? strings(context.assets)
-        : ["campaign", "reel", "landing_page", "flyer"];
+        : productionRequested
+            ? [...new Set(requiredArtifacts.map(item => item.type).filter(Boolean))]
+            : ["campaign"];
     const grounding = buildGrounding(context);
     const inferredPlanningFields = [
         ...(!clean(context.campaignObjective)
@@ -560,6 +666,9 @@ export function planMarketingRequest(rawInput = "", context = {}) {
         grounding,
         missingInputs: [],
         inferredInputs: allInferredFields,
+        productionRequested,
+        requiredArtifacts,
+        planReady: true,
         readyForProduction: true,
         objectiveSatisfied: true,
         requiresInput: false,
@@ -593,9 +702,13 @@ export function planMarketingRequest(rawInput = "", context = {}) {
             `${grounding.sourceCount} fuentes respaldan hechos verificables.`
     };
     result.userVisible = renderCompleteMarketingPlan(result);
-    result.objectiveSatisfied = hasCompleteMarketingPlan(result.plan) && Boolean(result.userVisible);
-    result.readyForProduction = result.objectiveSatisfied;
-    if (!result.objectiveSatisfied) {
+    result.planReady = hasCompleteMarketingPlan(result.plan) && Boolean(result.userVisible);
+    result.objectiveSatisfied = result.planReady;
+    result.readyForProduction = result.planReady && (
+        result.productionRequested !== true ||
+        result.requiredArtifacts.length > 0
+    );
+    if (!result.planReady) {
         result.status = "MARKETING_PACKAGE_INCOMPLETE";
     }
     return result;

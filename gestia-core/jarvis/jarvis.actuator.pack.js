@@ -350,6 +350,7 @@ export function registerJarvisActuatorTools(runtime) {
                 format: "html|md|txt|csv|json|docx|xlsx|pptx|pdf",
                 output: "string",
                 title: "string",
+                contentSource: "string",
                 content: "string",
                 rows: "array",
                 sheets: "array<{name,rows}>",

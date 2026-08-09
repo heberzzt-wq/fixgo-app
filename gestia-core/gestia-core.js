@@ -40,7 +40,7 @@ import {
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     buildJarvisMultifunctionToolCalls
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=sia7-identity-fidelity-v106-20260728';
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=v94-marketing-real-delivery-v109-20260809';
 import {
     composeEvidenceGroundedConversation,
     mergeEvidenceGroundedToolCalls,
@@ -48,11 +48,11 @@ import {
 } from '/gestia-core/jarvis/jarvis.conversation.composer.js?v=v94-semantic-only-evidence-v100-20260809';
 import {
     runJarvisMission
-} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-artifact-edit-routing-v101-20260728';
+} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=v94-marketing-real-delivery-v109-20260809';
 import {
     marketingArtifactArgsFromCompletedTasks,
     marketingFinalResponseFromMission
-} from '/gestia-core/jarvis/jarvis.marketing.presenter.js?v=v94-marketing-artifact-delivery-20260807';
+} from '/gestia-core/jarvis/jarvis.marketing.presenter.js?v=v94-marketing-real-delivery-v109-20260809';
 import {
     addRepositoryDiscoveryPreflights,
     resolveExplicitRepositoryTargets

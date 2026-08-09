@@ -24,6 +24,17 @@ test("NEXO marketing builds an evidence-grounded multi-channel production packag
             objectiveId: "MKT-TEST-1",
             assets: ["landing_page", "flyer", "reel"],
             channels: ["instagram", "tiktok"],
+            audience: "hogares y negocios que necesitan soporte técnico confiable",
+            offer: "servicios técnicos coordinados con seguimiento",
+            market: "Cancún, Quintana Roo",
+            campaignObjective: "generar conversaciones calificadas y solicitudes de servicio",
+            horizon: "90 días",
+            productionRequested: true,
+            productionArtifacts: [
+                { type: "landing_page", toolName: "page.create", label: "Landing HTML" },
+                { type: "flyer", toolName: "image.generate", label: "Imagen publicitaria" },
+                { type: "reel", toolName: "reel.create", label: "Reel 9:16" }
+            ],
             pain: "Las fallas técnicas detienen la operación del negocio",
             promise: "Recuperar la operación con atención técnica trazable",
             differentiator: "diagnóstico documentado y seguimiento directo",
@@ -41,7 +52,7 @@ test("NEXO marketing builds an evidence-grounded multi-channel production packag
     assert.equal(plan.source, "nexo_natural_brief_and_optional_evidence");
     assert.equal(plan.engine, "nexo_marketing_engine");
     assert.equal(plan.legacyEngineAlias, "jarvis_marketing_engine");
-    assert.equal(plan.version, "8.1.0-nexo-complete-marketing-package");
+    assert.equal(plan.version, "8.2.0-semantic-brief-real-delivery-contract");
     assert.equal(
         NexoMarketingEngine.routing,
         "semantic_fields_with_editable_assumptions"
@@ -88,6 +99,11 @@ test("NEXO marketing gives verified mission sources priority over semantic web r
         promise: "Estrategia jurídica verificable",
         differentiator: "Experiencia documentada",
         cta: "Agenda una consulta",
+        market: "México",
+        campaignObjective: "generar consultas calificadas",
+        horizon: "90 días",
+        channels: ["Google", "LinkedIn"],
+        productionRequested: false,
         webResearch: [
             { title: "", url: "https://example.invalid/" }
         ],
@@ -232,13 +248,12 @@ test("NEXO marketing isolates structured current brand identity from stale compl
         }
     );
 
-    assert.equal(result.status, "MARKETING_PACKAGE_READY");
+    assert.equal(result.status, "MARKETING_SEMANTIC_BRIEF_INCOMPLETE");
     assert.equal(result.requiresInput, false);
-    assert.equal(result.objectiveSatisfied, true);
-    assert.equal(result.brand.name, "Multiservicios Peninsulares HMH");
-    assert.notEqual(result.brand.market, "México");
-    assert.equal(result.inferredInputs.includes("audience"), true);
-    assert.equal(result.inferredInputs.includes("offer"), true);
-    assert.equal(result.inferredInputs.includes("budget"), true);
-    assert.equal(result.inferredInputs.includes("campaignObjective"), true);
+    assert.equal(result.objectiveSatisfied, false);
+    assert.equal(result.retryable, true);
+    assert.equal(result.brandName, "Multiservicios Peninsulares HMH");
+    assert.equal(result.missingSemanticFields.includes("audience"), true);
+    assert.equal(result.missingSemanticFields.includes("offer"), true);
+    assert.equal(result.missingSemanticFields.includes("campaignObjective"), true);
 });

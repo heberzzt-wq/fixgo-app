@@ -917,6 +917,7 @@ test("the same marketing mission resumes with supplied context and completes its
             audience: "Propietarios y pequeños negocios",
             market: "Cancún, Quintana Roo",
             offer: "Multiservicios verificados",
+            pain: "Dificultad para encontrar profesionales confiables con seguimiento",
             budget: "bajo y medio",
             horizon: "90 días",
             cta: "Solicitar servicio"

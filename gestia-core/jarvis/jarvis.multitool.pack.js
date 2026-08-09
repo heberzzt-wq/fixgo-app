@@ -1,6 +1,6 @@
 import {
     planMarketingRequest
-} from "./jarvis.marketing.engine.js?v=v94-semantic-only-marketing-v11-20260809";
+} from "./jarvis.marketing.engine.js?v=v94-marketing-real-delivery-v12-20260809";
 
 
 import {
@@ -65,8 +65,38 @@ const MARKETING_ARGUMENT_SCHEMA = {
         budget: { type: "string" },
         mediumBudget: { type: "string" },
         horizon: { type: "string" },
-        durationSeconds: { type: "number" }
+        durationSeconds: { type: "number" },
+        productionRequested: { type: "boolean" },
+        productionArtifacts: {
+            type: "array",
+            items: {
+                type: "object",
+                properties: {
+                    id: { type: "string" },
+                    type: { type: "string" },
+                    toolName: { type: "string" },
+                    format: { type: "string" },
+                    label: { type: "string" }
+                },
+                required: ["type", "toolName"],
+                additionalProperties: false
+            }
+        }
     },
+    required: [
+        "brandName",
+        "audience",
+        "offer",
+        "pain",
+        "promise",
+        "differentiator",
+        "cta",
+        "market",
+        "campaignObjective",
+        "horizon",
+        "channels",
+        "productionRequested"
+    ],
     additionalProperties: false
 };
 
@@ -3232,6 +3262,7 @@ function hasPlanningValue(value) {
     if (typeof value === "string") return Boolean(value.trim());
     if (Array.isArray(value)) return value.length > 0;
     if (typeof value === "number") return Number.isFinite(value);
+    if (typeof value === "boolean") return true;
     return Boolean(value && typeof value === "object" && Object.keys(value).length > 0);
 }
 
@@ -4907,7 +4938,7 @@ export function registerJarvisMultifunctionTools(runtime) {
         }),
         register(runtime, {
             name: "marketing.plan",
-            description: "Produce una campaña específica desde campos semánticos y evidencia real; no clasifica con regex ni inventa datos faltantes.",
+            description: "Produce el plan estratégico desde un brief semántico estructurado y evidencia real. Planear no equivale a producir archivos; productionRequested y productionArtifacts definen el contrato de producción sin interpretar texto localmente.",
             output: "SIA7_MARKETING_PLAN",
             inputSchema: MARKETING_ARGUMENT_SCHEMA,
             execute: async (args = {}, context = {}) => {
@@ -4921,7 +4952,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                 try {
                     semanticEnrichment = await completeGroundedToolArgs({
                         toolName: "marketing.plan",
-                        description: "Completa el brief estratégico de la herramienta ya seleccionada por significado. Los campos no factuales pueden ser propuestas editables.",
+                        description: "Completa el brief estratégico de la herramienta ya seleccionada por significado. Decide semánticamente si el usuario pidió producción real y expresa esa decisión en productionRequested; si es true declara productionArtifacts con toolName exacto. Los campos creativos no factuales pueden ser propuestas editables.",
                         inputSchema: MARKETING_ARGUMENT_SCHEMA,
                         args: planningArgs,
                         context
@@ -4934,6 +4965,21 @@ export function registerJarvisMultifunctionTools(runtime) {
                     semanticEnrichmentError =
                         error?.message ||
                         String(error);
+                }
+
+                if (typeof planningArgs.productionRequested !== "boolean") {
+                    return {
+                        ok: false,
+                        executionOk: false,
+                        objectiveSatisfied: false,
+                        blocked: false,
+                        retryable: true,
+                        requiresInput: false,
+                        readyForProduction: false,
+                        status: "MARKETING_SEMANTIC_SCOPE_INCOMPLETE",
+                        error: "MARKETING_SEMANTIC_SCOPE_INCOMPLETE",
+                        message: "El cerebro semántico no declaró si la misión es sólo planeación o también producción; se requiere replanificación semántica."
+                    };
                 }
 
                 let result = planMarketingRequest(
@@ -4957,7 +5003,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                 }
                 return {
                     ...result,
-                    objectiveSatisfied: result?.readyForProduction === true,
+                    objectiveSatisfied: result?.objectiveSatisfied === true,
                     semanticEnrichment: semanticEnrichment
                         ? {
                             used: true,

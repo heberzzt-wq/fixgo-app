@@ -2749,7 +2749,7 @@ test("Terminal uses one governed conversation route and the current tool pack", 
     assert.doesNotMatch(conversationConnector, /setTimeout\(\(\) => controller\.abort\(\), 8000\)/);
     assert.match(
         terminal,
-        /v94-semantic-only-v108-20260809/
+        /v94-marketing-real-delivery-v109-20260809/
     );
     assert.match(toolRuntime, /registerJarvisMultifunctionTools/);
     assert.doesNotMatch(terminal, /Soy tu motor generador de módulos/);
@@ -2972,6 +2972,10 @@ test("multifunction tools create marketing and page proposals without write auth
                 differentiator: "seguimiento de cada orden con evidencia",
                 cta: "Solicita una demostración",
                 channels: ["instagram"],
+                market: "México",
+                campaignObjective: "generar demostraciones calificadas",
+                horizon: "90 días",
+                productionRequested: false,
                 assets: ["reel", "landing_page"],
                 services: [{ name: "Gestión de órdenes", source: "repo" }]
             },
@@ -3028,7 +3032,11 @@ test("grounded missions complete semantic arguments for marketing, page, image a
                 cta: "Solicitar una reunión",
                 channels: ["linkedin", "facebook", "instagram"],
                 assets: ["landing_page", "image_brief", "reel"],
-                durationSeconds: 45
+                durationSeconds: 45,
+                market: "México",
+                campaignObjective: "generar reuniones calificadas",
+                horizon: "90 días",
+                productionRequested: false
             },
             "page.plan": {
                 pageName: "summit-diagnostico-legal",
@@ -4119,7 +4127,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /v94-semantic-only-v108-20260809/);
+    assert.match(terminal, /v94-marketing-real-delivery-v109-20260809/);
     assert.match(terminal, /gestia-core\/tools\.bridge\.js/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
@@ -4137,7 +4145,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(terminal, /gestia-core\/gestia-core\.js/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
-    assert.match(terminal, /v94-semantic-only-v108-20260809/);
+    assert.match(terminal, /v94-marketing-real-delivery-v109-20260809/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -4369,7 +4377,7 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /v94-semantic-only-v108-20260809/);
+    assert.match(core, /v94-marketing-real-delivery-v109-20260809/);
     assert.match(
         terminal,
         /jarvis-tools-v7-20260725-semantic-envelope-v64/
