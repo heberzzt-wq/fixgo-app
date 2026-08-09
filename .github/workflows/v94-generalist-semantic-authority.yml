@@ -39,6 +39,7 @@ jobs:
       - name: Apply semantic-authority patch
         run: |
           python3 tools/v94_generalist_semantic_authority_patch.py
+          python3 tools/v94_generalist_semantic_contract_fix.py
           node --check gestia-core/nexo/nexo.semantic-planner-resilience.js
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
           git diff --check
@@ -74,6 +75,7 @@ jobs:
       - name: Commit certified product and remove temporary tooling
         run: |
           rm -f tools/v94_generalist_semantic_authority_patch.py
+          rm -f tools/v94_generalist_semantic_contract_fix.py
           rm -f .github/workflows/v94-generalist-semantic-authority.yml
           find . -type d -name __pycache__ -prune -exec rm -rf {} +
           find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
@@ -86,7 +88,9 @@ jobs:
             gestia-core/jarvis/jarvis.multifunction.planner.js \
             tests/nexo-semantic-resilience.test.mjs \
             tests/jarvis-generalist-current-turn.test.mjs \
+            tests/jarvis-multifunction-tools.test.mjs \
             tools/v94_generalist_semantic_authority_patch.py \
+            tools/v94_generalist_semantic_contract_fix.py \
             .github/workflows/v94-generalist-semantic-authority.yml
           git diff --cached --check
           test -z "$(git diff --cached --name-only | grep '^functions/' || true)"
@@ -96,6 +100,7 @@ jobs:
       - name: Verify clean certified tree
         run: |
           test ! -e tools/v94_generalist_semantic_authority_patch.py
+          test ! -e tools/v94_generalist_semantic_contract_fix.py
           test ! -e .github/workflows/v94-generalist-semantic-authority.yml
           test -z "$(git status --porcelain)"
           test -z "$(git diff --name-only "$PRODUCT_BASE_SHA"..HEAD -- functions)"
