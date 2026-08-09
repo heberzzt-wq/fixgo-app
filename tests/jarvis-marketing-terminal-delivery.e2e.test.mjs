@@ -197,8 +197,8 @@ test("Terminal core hydrates marketing documents and gives the direct delivery r
     assert.match(core, /marketingArtifactArgsFromCompletedTasks\(/);
     assert.match(core, /marketingFinalResponseFromMission\(\s*missionResult\s*\)/);
     assert.match(core, /const finalResponse\s*=\s*marketingDeliverableFinalResponse\s*\|\|/);
-    assert.match(core, /v94-marketing-real-delivery-v109-20260809/);
-    assert.match(terminal, /v94-marketing-real-delivery-v109-20260809/);
+    assert.match(core, /v94-semantic-memory-repo-v111-20260809/);
+    assert.match(terminal, /v94-semantic-memory-repo-v111-20260809/);
 });
 
 test("completed marketing plan content is injected into MD and PDF artifact creation", () => {
