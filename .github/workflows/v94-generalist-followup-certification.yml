@@ -1,0 +1,182 @@
+name: V94 generalist follow-up certification
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-generalist-followup-certification.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v94-generalist-followup-certification
+  cancel-in-progress: false
+
+jobs:
+  certify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      PRODUCT_BASE_SHA: 427b88837bd5f7b8f35fe94707e184f2ba936458
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install test dependencies
+        run: |
+          npm ci
+          npm --prefix functions ci
+
+      - name: Apply follow-up generalist patch
+        run: |
+          python3 tools/v94_generalist_followup_anchor_fix.py
+          python3 tools/v94_generalist_followup_patch.py
+          python3 tools/v94_generalist_followup_tests_patch.py
+          python3 tools/v94_generalist_followup_cache_patch.py
+          node --check gestia-core/jarvis/jarvis.conversation.composer.js
+          node --check gestia-core/jarvis/jarvis.multitool.pack.js
+          node --check gestia-core/jarvis/jarvis.marketing.engine.js
+          node --check gestia-core/gestia-core.js
+          node --check gestia-core/tools.runtime.js
+          git diff --check
+          test -z "$(git diff --name-only -- functions)"
+
+      - name: Run focused manual-failure regressions
+        run: |
+          set -o pipefail
+          node scripts/check-nexo-private-engine.mjs
+          node --test \
+            tests/jarvis-generalist-followup.test.mjs \
+            tests/jarvis-conversation-composer.test.mjs \
+            tests/jarvis-marketing-engine-v2.test.mjs \
+            tests/jarvis-generalist-current-turn.test.mjs \
+            tests/jarvis-multifunction-tools.test.mjs \
+            tests/jarvis-page-artifact.test.mjs \
+            2>&1 | tee /tmp/v94-generalist-followup-focused.log
+
+      - name: Run complete CI contract
+        run: |
+          set -o pipefail
+          npm run ci:test 2>&1 | tee /tmp/v94-generalist-followup-ci.log
+
+      - name: Upload certification logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v94-generalist-followup-certification-logs
+          path: |
+            /tmp/v94-generalist-followup-focused.log
+            /tmp/v94-generalist-followup-ci.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Commit certified product and remove temporary tooling
+        run: |
+          rm -f tools/v94_generalist_followup_anchor_fix.py
+          rm -f tools/v94_generalist_followup_patch.py
+          rm -f tools/v94_generalist_followup_tests_patch.py
+          rm -f tools/v94_generalist_followup_cache_patch.py
+          rm -f .github/workflows/v94-generalist-followup-certification.yml
+          find . -type d -name __pycache__ -prune -exec rm -rf {} +
+          find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
+          git diff --check
+          test -z "$(git diff --name-only -- functions)"
+          git config user.name "OpenAI V94 Generalist Follow-up"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            gestia-terminal.html \
+            gestia-core/gestia-core.js \
+            gestia-core/tools.runtime.js \
+            gestia-core/jarvis/jarvis.conversation.composer.js \
+            gestia-core/jarvis/jarvis.multitool.pack.js \
+            gestia-core/jarvis/jarvis.marketing.engine.js \
+            tests/jarvis-marketing-engine-v2.test.mjs \
+            tests/jarvis-generalist-followup.test.mjs \
+            tools/v94_generalist_followup_anchor_fix.py \
+            tools/v94_generalist_followup_patch.py \
+            tools/v94_generalist_followup_tests_patch.py \
+            tools/v94_generalist_followup_cache_patch.py \
+            .github/workflows/v94-generalist-followup-certification.yml
+          git diff --cached --check
+          test -z "$(git diff --cached --name-only | grep '^functions/' || true)"
+          git commit -m "[v94-generalist] fix(jarvis): preserve evidence and infer editable plans"
+          git push origin HEAD:v94-media-v4n-negative-claims
+
+      - name: Verify clean certified tree
+        run: |
+          test ! -e tools/v94_generalist_followup_anchor_fix.py
+          test ! -e tools/v94_generalist_followup_patch.py
+          test ! -e tools/v94_generalist_followup_tests_patch.py
+          test ! -e tools/v94_generalist_followup_cache_patch.py
+          test ! -e .github/workflows/v94-generalist-followup-certification.yml
+          test -z "$(git status --porcelain)"
+          test -z "$(git diff --name-only "$PRODUCT_BASE_SHA"..HEAD -- functions)"
+          grep -F 'compactRepositoryObservation' gestia-core/jarvis/jarvis.conversation.composer.js
+          grep -F 'groundPageContactInput' gestia-core/jarvis/jarvis.multitool.pack.js
+          grep -F 'REQUIRED_MARKETING_IDENTITY' gestia-core/jarvis/jarvis.marketing.engine.js
+          ! grep -F 'CRITICAL_INPUT_GROUPS' gestia-core/jarvis/jarvis.marketing.engine.js
+          ! grep -F 'contacto@tornilloselchato.com' gestia-core/jarvis/jarvis.multitool.pack.js
+          grep -F 'v94-generalist-followup-v107-20260809' gestia-terminal.html
+          git show --stat --oneline --decorate HEAD
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools
+
+      - name: Deploy primary Hosting only
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy \
+            --only hosting:fixgo-44e4d \
+            --project fixgo-44e4d \
+            --token "$FIREBASE_TOKEN" \
+            --non-interactive
+
+      - name: Verify production bytes exactly
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/v94-followup-live
+          : > /tmp/v94-generalist-followup-production-hashes.txt
+          for file in \
+            gestia-terminal.html \
+            gestia-core/gestia-core.js \
+            gestia-core/tools.runtime.js \
+            gestia-core/jarvis/jarvis.conversation.composer.js \
+            gestia-core/jarvis/jarvis.multitool.pack.js \
+            gestia-core/jarvis/jarvis.marketing.engine.js
+          do
+            live="/tmp/v94-followup-live/$(printf '%s' "$file" | tr '/' '_')"
+            curl -fsSL --retry 5 --retry-delay 2 \
+              "https://fixgo-44e4d.web.app/$file?cert=${GITHUB_SHA}" \
+              -o "$live"
+            cmp "$file" "$live"
+            printf '%s\n' "$file" >> /tmp/v94-generalist-followup-production-hashes.txt
+            printf 'local ' >> /tmp/v94-generalist-followup-production-hashes.txt
+            sha256sum "$file" >> /tmp/v94-generalist-followup-production-hashes.txt
+            printf 'live  ' >> /tmp/v94-generalist-followup-production-hashes.txt
+            sha256sum "$live" >> /tmp/v94-generalist-followup-production-hashes.txt
+          done
+          grep -F 'compactRepositoryObservation' /tmp/v94-followup-live/gestia-core_jarvis_jarvis.conversation.composer.js
+          grep -F 'groundPageContactInput' /tmp/v94-followup-live/gestia-core_jarvis_jarvis.multitool.pack.js
+          grep -F 'REQUIRED_MARKETING_IDENTITY' /tmp/v94-followup-live/gestia-core_jarvis_jarvis.marketing.engine.js
+          grep -F 'v94-generalist-followup-v107-20260809' /tmp/v94-followup-live/gestia-terminal.html
+          cat /tmp/v94-generalist-followup-production-hashes.txt
+
+      - name: Upload production hashes
+        uses: actions/upload-artifact@v4
+        with:
+          name: v94-generalist-followup-production-hashes
+          path: /tmp/v94-generalist-followup-production-hashes.txt
+          retention-days: 14
