@@ -1,5 +1,5 @@
 name: V94 semantic-only diagnostic
-# single-brain-real-ci-gate
+# single-brain-wave4
 
 on:
   push:
@@ -51,6 +51,7 @@ jobs:
           python3 tools/v94_quality_helper_tail_fix.py 2>&1 | tee -a /tmp/v94-semantic-patch.log
           python3 tools/v94_single_brain_quality_patch.py 2>&1 | tee -a /tmp/v94-semantic-patch.log
           python3 tools/v94_quality_post_patch.py 2>&1 | tee -a /tmp/v94-semantic-patch.log
+          python3 tools/v94_single_brain_prune_wave4.py 2>&1 | tee -a /tmp/v94-semantic-patch.log
 
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
           node --check gestia-core/jarvis/jarvis.conversation.composer.js
@@ -59,9 +60,15 @@ jobs:
           node --check gestia-core/jarvis/jarvis.business.engine.js
           node --check gestia-core/gestia-core.js
           node --check gestia-core/tools.runtime.js
+          node --check gestia-core/brain.engine.js
+          node --check gestia-core/semantic.engine.js
+          node --check gestia-core/nexo/nexo.mission.compiler.js
+          node --check gestia-core/nexo/nexo.mission.compiler.v2.js
+          node --check gestia-core/nexo/nexo.semantic-planner-resilience.js
           node --check gestia-terminal.js
           node --check app-main.js
           node --check scripts/check-nexo-private-engine.mjs
+          node --check tests/single-semantic-authority.test.mjs
 
           for obsolete in \
             gestia-core/jarvis/jarvis.cognition.engine.js \
@@ -81,9 +88,13 @@ jobs:
             gestia-core/jarvis/jarvis-nlu-bridge.js \
             gestia-core/jarvis/jarvis.dsl.js \
             gestia-core/hubs/analysis.hub.js \
+            modules/terminal/runtime-intelligence.js \
             tests/jarvis-local-runtime.test.mjs \
             tests/jarvis-intent-runtime-v7.test.mjs \
-            tests/jarvis-vision-repo-analysis.test.mjs
+            tests/jarvis-vision-repo-analysis.test.mjs \
+            tests/nexo-mission-compiler.test.mjs \
+            tests/nexo-real-media-routing.test.mjs \
+            tests/nexo-semantic-resilience.test.mjs
           do
             test ! -e "$obsolete"
           done
@@ -129,6 +140,9 @@ jobs:
                   count = text.count(needle)
                   if count:
                       found.append((file, needle, count))
+                      for line_no, line in enumerate(text.splitlines(), 1):
+                          if needle in line:
+                              print(f'RESIDUE_LINE\t{file}\t{line_no}\t{needle}\t{line.strip()}')
           if found:
               print('SEMANTIC_LEXICAL_RESIDUE')
               for row in found:
