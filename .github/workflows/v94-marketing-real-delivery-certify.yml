@@ -36,6 +36,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 tools/v94_marketing_real_delivery_patch.py | tee /tmp/v94-marketing-patch.log
+          python3 tools/v94_marketing_real_delivery_testfix.py | tee -a /tmp/v94-marketing-patch.log
 
       - name: Verify syntax isolation and semantic architecture
         run: |
@@ -94,6 +95,7 @@ jobs:
           test -z "$(git diff --name-only -- functions)"
           git rm .github/workflows/v94-marketing-real-delivery-certify.yml
           git rm tools/v94_marketing_real_delivery_patch.py
+          git rm tools/v94_marketing_real_delivery_testfix.py
           git add -A
           test -z "$(git diff --cached --name-only -- functions)"
           git diff --cached --name-status | tee /tmp/v94-marketing-final-files.log
