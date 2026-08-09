@@ -264,6 +264,21 @@ function resolveCommitForRef(ref = "", root = DEFAULT_ROOT) {
     return { ok: false, status: "REPOSITORY_REF_NOT_FOUND", error: "REPOSITORY_REF_NOT_FOUND", ref: cleanRef };
 }
 
+function localGitHubRepositoryIdentity(root = DEFAULT_ROOT) {
+    const remote = gitText(["remote", "get-url", "origin"], root, { allowFailure: true });
+    if (!remote) return null;
+    let normalized = remote;
+    if (normalized.startsWith("git@github.com:")) {
+        normalized = `https://github.com/${normalized.slice("git@github.com:".length)}`;
+    }
+    const parsed = parseRepositoryTarget(normalized);
+    if (parsed?.ok !== true || parsed.provider !== "github") return null;
+    return {
+        owner: String(parsed.owner || "").toLowerCase(),
+        repository: String(parsed.repository || "").toLowerCase()
+    };
+}
+
 export function resolveBridgeRepositoryTarget({ target = "", ref = "", file = "" } = {}, root = DEFAULT_ROOT) {
     const git = readGitIdentity(root);
     const refs = repositoryRefs(root);
@@ -281,6 +296,35 @@ export function resolveBridgeRepositoryTarget({ target = "", ref = "", file = ""
         };
 
     if (parsed.ok !== true) return parsed;
+    if (parsed.provider === "github") {
+        const localRepository = localGitHubRepositoryIdentity(root);
+        if (!localRepository) {
+            return {
+                ...parsed,
+                ok: false,
+                status: "REPOSITORY_REMOTE_IDENTITY_UNAVAILABLE",
+                error: "REPOSITORY_REMOTE_IDENTITY_UNAVAILABLE"
+            };
+        }
+        const requestedOwner = String(parsed.owner || "").toLowerCase();
+        const requestedRepository = String(parsed.repository || "").toLowerCase();
+        if (
+            localRepository.owner !== requestedOwner ||
+            localRepository.repository !== requestedRepository
+        ) {
+            return {
+                ...parsed,
+                ok: false,
+                status: "REPOSITORY_REMOTE_MISMATCH",
+                error: "REPOSITORY_REMOTE_MISMATCH",
+                localRepository,
+                requestedRepository: {
+                    owner: requestedOwner,
+                    repository: requestedRepository
+                }
+            };
+        }
+    }
     if (parsed.kind === "github_selector") {
         parsed = resolveRepositorySelector(parsed, refs);
         if (parsed.ok !== true) return parsed;

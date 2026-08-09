@@ -62,4 +62,6 @@ test("bridge exposes ref-aware graph and git-object read routes", () => {
     assert.match(bridge, /trim: false/);
     assert.match(bridge, /repoGraphCache\.cacheKey !== cacheKey/);
     assert.match(bridge, /buildGraphForResolvedTarget\(resolved/);
+    assert.match(bridge, /REPOSITORY_REMOTE_MISMATCH/);
+    assert.match(bridge, /localGitHubRepositoryIdentity/);
 });
