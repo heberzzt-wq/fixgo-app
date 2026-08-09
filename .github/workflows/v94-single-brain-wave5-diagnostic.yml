@@ -49,6 +49,7 @@ jobs:
           python3 tools/v94_single_brain_prune_wave4.py 2>&1 | tee -a /tmp/v94-wave7-patch.log
           python3 tools/v94_single_brain_prune_wave5.py 2>&1 | tee -a /tmp/v94-wave7-patch.log
           python3 tools/v94_single_brain_prune_wave6.py 2>&1 | tee -a /tmp/v94-wave7-patch.log
+          python3 tools/v94_wave7_helper_fix.py 2>&1 | tee -a /tmp/v94-wave7-patch.log
           python3 tools/v94_single_brain_prune_wave7.py 2>&1 | tee -a /tmp/v94-wave7-patch.log
 
       - name: Verify syntax isolation and retired authority
