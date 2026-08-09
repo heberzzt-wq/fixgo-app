@@ -32,7 +32,7 @@ jobs:
           npm ci
           npm --prefix functions ci
 
-      - name: Apply real delivery repair and deterministic closure
+      - name: Apply real delivery repair boolean scope and deterministic closure
         run: |
           set -euo pipefail
           python3 tools/v94_marketing_real_delivery_patch.py | tee /tmp/v94-marketing-patch.log
