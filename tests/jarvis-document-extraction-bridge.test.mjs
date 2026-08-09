@@ -36,7 +36,7 @@ function initFixture() {
 }
 
 async function withServer(root, callback) {
-    const app = createJarvisFsBridgeApp(root);
+    const app = createJarvisFsBridgeApp({ root });
     const server = await new Promise(resolve => {
         const instance = app.listen(0, "127.0.0.1", () => resolve(instance));
     });
