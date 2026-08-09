@@ -1,0 +1,91 @@
+name: V94 full CI failure extract
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-full-ci-failure-extract.yml
+
+permissions:
+  contents: read
+
+jobs:
+  extract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          npm ci
+          npm --prefix functions ci
+          test -z "$(git status --porcelain -- functions)"
+
+      - name: Capture full CI
+        run: |
+          set +e
+          set -o pipefail
+          npm run ci:test > /tmp/full-ci.log 2>&1
+          code=$?
+          echo "$code" > /tmp/ci-exit-code.txt
+          exit 0
+
+      - name: Extract precise failures
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          src = Path('/tmp/full-ci.log').read_text(encoding='utf-8', errors='replace').splitlines()
+          markers=[]
+          rx=re.compile(r'(^|\s)(not ok\b|AssertionError\b|ERR_ASSERTION\b|ERR_TEST_FAILURE\b|FAIL\b|Error:)')
+          for i,line in enumerate(src):
+              if rx.search(line): markers.append(i)
+          ranges=[]
+          for i in markers:
+              start=max(0,i-35); end=min(len(src),i+90)
+              if ranges and start <= ranges[-1][1] + 10:
+                  ranges[-1]=(ranges[-1][0],max(ranges[-1][1],end))
+              else:
+                  ranges.append((start,end))
+          out=[]
+          out.append(f'CI_EXIT_CODE={Path("/tmp/ci-exit-code.txt").read_text().strip()}')
+          out.append(f'TOTAL_LINES={len(src)}')
+          out.append(f'FAILURE_MARKERS={len(markers)}')
+          for n,(start,end) in enumerate(ranges,1):
+              out.append(f'\n===== FAILURE_CONTEXT_{n} lines {start+1}-{end} =====')
+              out.extend(f'{j+1}: {src[j]}' for j in range(start,end))
+          out.append('\n===== FINAL_350_LINES =====')
+          tail=max(0,len(src)-350)
+          out.extend(f'{j+1}: {src[j]}' for j in range(tail,len(src)))
+          Path('/tmp/failures.txt').write_text('\n'.join(out),encoding='utf-8')
+          PY
+          cat /tmp/failures.txt
+
+      - name: Assert no product or Functions mutation
+        if: always()
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain -- functions)"
+          test -z "$(git status --porcelain)"
+
+      - name: Upload failure extract
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v94-full-ci-failure-extract
+          path: |
+            /tmp/failures.txt
+            /tmp/ci-exit-code.txt
+          retention-days: 3
