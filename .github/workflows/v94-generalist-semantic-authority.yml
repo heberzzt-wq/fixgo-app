@@ -1,5 +1,5 @@
 name: V94 generalist semantic authority
-# Revision 4: semantic authority checker fully migrated
+# Revision 5: include existing Functions test dependencies
 
 on:
   push:
@@ -35,7 +35,9 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm ci
+          npm --prefix functions ci
 
       - name: Apply semantic-authority patch
         run: |
