@@ -1,4 +1,4 @@
-name: V94 human multimodal response surface
+name: V94 human live work trace and response surface
 
 on:
   push:
@@ -35,11 +35,12 @@ jobs:
           npm ci
           npm --prefix functions ci
 
-      - name: Patch human multimodal response surface
+      - name: Patch live human work trace and multimodal response surface
         run: python3 tools/v94_human_media_response_patch.py
 
       - name: Verify focused syntax and regressions
         run: |
+          node --check gestia-core/tools.runtime.js
           node --check gestia-core/jarvis/jarvis.conversation.composer.js
           node --test tests/jarvis-conversation-composer.test.mjs
           git diff --check
@@ -52,8 +53,8 @@ jobs:
           git config user.name "OpenAI V94 Handoff"
           git config user.email "actions@users.noreply.github.com"
           git rm .github/workflows/v94-human-media-response.yml tools/v94_human_media_response_patch.py
-          git add gestia-terminal.html gestia-core/jarvis/jarvis.conversation.composer.js tests/jarvis-conversation-composer.test.mjs
-          git commit -m "[v94-media-v4n] feat(jarvis): present multimodal results conversationally"
+          git add gestia-terminal.html gestia-core/tools.runtime.js gestia-core/jarvis/jarvis.conversation.composer.js tests/jarvis-conversation-composer.test.mjs
+          git commit -m "[v94-media-v4n] feat(jarvis): show live operational progress and human results"
           git push origin HEAD:v94-media-v4n-negative-claims
 
       - name: Install Firebase CLI
@@ -70,13 +71,24 @@ jobs:
         run: |
           ok=0
           for attempt in $(seq 1 12); do
-            curl --fail --silent --show-error --location "https://fixgo-44e4d.web.app/gestia-terminal.html?v=human-media-$attempt" -o /tmp/live-terminal.html
-            curl --fail --silent --show-error --location "https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.conversation.composer.js?v=human-media-$attempt" -o /tmp/live-composer.js
-            if cmp -s gestia-terminal.html /tmp/live-terminal.html && cmp -s gestia-core/jarvis/jarvis.conversation.composer.js /tmp/live-composer.js; then
+            curl --fail --silent --show-error --location "https://fixgo-44e4d.web.app/gestia-terminal.html?v=live-work-$attempt" -o /tmp/live-terminal.html
+            curl --fail --silent --show-error --location "https://fixgo-44e4d.web.app/gestia-core/tools.runtime.js?v=live-work-$attempt" -o /tmp/live-tools-runtime.js
+            curl --fail --silent --show-error --location "https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.conversation.composer.js?v=live-work-$attempt" -o /tmp/live-composer.js
+            if \
+              cmp -s gestia-terminal.html /tmp/live-terminal.html && \
+              cmp -s gestia-core/tools.runtime.js /tmp/live-tools-runtime.js && \
+              cmp -s gestia-core/jarvis/jarvis.conversation.composer.js /tmp/live-composer.js; then
               ok=1
               break
             fi
             sleep 2
           done
           test "$ok" = "1"
-          sha256sum gestia-terminal.html /tmp/live-terminal.html gestia-core/jarvis/jarvis.conversation.composer.js /tmp/live-composer.js
+          grep -F "ADJUNTO LIVE WORK TRACE V94" /tmp/live-terminal.html
+          grep -F "jarvis:work-progress" /tmp/live-terminal.html
+          grep -F "emitJarvisWorkProgress" /tmp/live-tools-runtime.js
+          grep -F "Pariente, revisé visualmente" /tmp/live-composer.js
+          sha256sum \
+            gestia-terminal.html /tmp/live-terminal.html \
+            gestia-core/tools.runtime.js /tmp/live-tools-runtime.js \
+            gestia-core/jarvis/jarvis.conversation.composer.js /tmp/live-composer.js
