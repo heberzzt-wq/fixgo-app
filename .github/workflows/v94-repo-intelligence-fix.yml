@@ -13,7 +13,7 @@ permissions:
 jobs:
   fix:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,40 +37,28 @@ jobs:
           npm ci
           npm --prefix functions ci
 
-      - name: Apply repair
+      - name: Apply remote identity guard
         run: |
           set -euo pipefail
-          python scripts/v94-repo-intelligence-fix.py
-          python scripts/v94-repo-intelligence-fix2.py
+          python scripts/v94-repo-remote-guard.py
 
-      - name: Syntax and focused regressions
+      - name: Focused repo regressions
         run: |
           set -euo pipefail
-          node --check gestia-core/repo/repo.target.js
           node --check jarvis-fs-bridge.js
-          node --check gestia-core/tools.runtime.js
-          node --check gestia-core/hubs/repo.hub.js
-          node --check gestia-core/jarvis.kernel.js
-          node --check gestia-terminal.js
-          node --check modules/terminal/repo-bootstrap-index.js
-          node --test tests/jarvis-repo-target-runtime.test.mjs tests/jarvis-repo-intelligence.test.mjs tests/jarvis-fs-bridge-v2.test.mjs tests/repo-authority-v2.test.cjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs tests/single-semantic-authority.test.mjs
+          node --test tests/jarvis-repo-target-runtime.test.mjs tests/jarvis-repo-intelligence.test.mjs tests/jarvis-fs-bridge-v2.test.mjs tests/repo-authority-v2.test.cjs tests/jarvis-semantic-memory-integrity.test.mjs
 
-      - name: Verify real slash-branch resolution through bridge
+      - name: Verify real and foreign repository identities
         run: |
           set -euo pipefail
           git fetch --quiet origin codex/jarvis-v8-runtime-foundation
           node --input-type=module <<'NODE'
-          import { parseRepositoryTarget, resolveRepositorySelector } from './gestia-core/repo/repo.target.js';
           import { resolveBridgeRepositoryTarget } from './jarvis-fs-bridge.js';
-          import { execFileSync } from 'node:child_process';
-          const refs = execFileSync('git', ['for-each-ref','--format=%(refname:short)','refs/heads','refs/remotes/origin'], {encoding:'utf8'})
-            .split(/\r?\n/).filter(Boolean);
-          const url = 'https://github.com/heberzzt-wq/fixgo-app/blob/codex/jarvis-v8-runtime-foundation';
-          const structural = resolveRepositorySelector(parseRepositoryTarget(url), refs);
-          const bridge = resolveBridgeRepositoryTarget({ target: url }, process.cwd());
-          console.log(JSON.stringify({ structural, bridge }, null, 2));
-          if (!structural.ok || structural.ref !== 'codex/jarvis-v8-runtime-foundation' || structural.path !== '') process.exit(1);
-          if (!bridge.ok || bridge.ref !== 'codex/jarvis-v8-runtime-foundation' || bridge.path !== '' || !bridge.commit) process.exit(1);
+          const good = resolveBridgeRepositoryTarget({ target: 'https://github.com/heberzzt-wq/fixgo-app/blob/codex/jarvis-v8-runtime-foundation' }, process.cwd());
+          const bad = resolveBridgeRepositoryTarget({ target: 'https://github.com/openai/not-the-local-repo/tree/main' }, process.cwd());
+          console.log(JSON.stringify({ good, bad }, null, 2));
+          if (!good.ok || good.ref !== 'codex/jarvis-v8-runtime-foundation' || good.path !== '' || !good.commit) process.exit(1);
+          if (bad.ok || bad.status !== 'REPOSITORY_REMOTE_MISMATCH') process.exit(1);
           NODE
 
       - name: Assert Functions untouched
@@ -78,14 +66,13 @@ jobs:
           set -euo pipefail
           test -z "$(git diff --name-only HEAD -- functions)"
 
-      - name: Commit product repair
+      - name: Commit remote guard
         run: |
           set -euo pipefail
-          rm scripts/v94-repo-intelligence-fix.py
-          rm scripts/v94-repo-intelligence-fix2.py
+          rm scripts/v94-repo-remote-guard.py
           git config user.name "heberzzt-wq"
           git config user.email "heberzzt@gmail.com"
           git add -A
           test -z "$(git diff --cached --name-only -- functions)"
-          git commit -m "[v94] feat(repo): analyze live repository refs structurally"
+          git commit -m "[v94] fix(repo): bind GitHub targets to local remote"
           git push origin HEAD:v94-media-v4n-negative-claims
