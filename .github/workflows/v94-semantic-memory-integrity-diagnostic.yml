@@ -24,36 +24,42 @@ jobs:
       - name: Establish branch and Functions isolation
         run: |
           set -euo pipefail
-          printf 'HEAD=%s\n' "$(git rev-parse HEAD)"
-          printf 'BRANCH=%s\n' "$(git branch --show-current)"
+          {
+            printf 'HEAD=%s\n' "$(git rev-parse HEAD)"
+            printf 'BRANCH=%s\n' "$(git branch --show-current)"
+            git status --short
+          } | tee /tmp/v94-branch.log
           test "$(git branch --show-current)" = "v94-media-v4n-negative-claims"
-          git status --short
 
       - name: Locate semantic memory wiring
         run: |
           set -euo pipefail
-          echo '=== MEMORY FILES ==='
-          grep -RInE 'createProjectMemory|JarvisContextMemory|resolveReferences|PUSH_HISTORY|jarvis\.missions|longTermPointers|HISTORY_TTL|MAX_HISTORY' \
-            gestia-core gestia-terminal.js gestia-terminal.html modules tests 2>/dev/null | head -n 400 || true
-          echo '=== PLANNER REQUEST / CONTEXT ==='
-          grep -nE 'ENDPOINT|fetch\(|missionState|continuationContext|memory|conversationId|originalInstruction|body:' \
-            gestia-core/jarvis/jarvis.multifunction.planner.js | head -n 350 || true
+          {
+            echo '=== MEMORY FILES ==='
+            grep -RInE 'createProjectMemory|JarvisContextMemory|resolveReferences|PUSH_HISTORY|jarvis\.missions|longTermPointers|HISTORY_TTL|MAX_HISTORY' \
+              gestia-core gestia-terminal.js gestia-terminal.html modules tests 2>/dev/null | head -n 400 || true
+            echo '=== PLANNER REQUEST / CONTEXT ==='
+            grep -nE 'ENDPOINT|fetch\(|missionState|continuationContext|memory|conversationId|originalInstruction|body:' \
+              gestia-core/jarvis/jarvis.multifunction.planner.js | head -n 350 || true
+          } | tee /tmp/v94-memory-wiring.log
 
       - name: Locate artifact generation and grounding boundaries
         run: |
           set -euo pipefail
-          echo '=== ARTIFACT TOOL REGISTRATION ==='
-          grep -RInE 'document\.create|spreadsheet|workbook|presentation|pptx|PptxGenJS|page\.create|image\.generate|reel\.create|contentSource|SPREADSHEET_BLUEPRINT_READY|DOCUMENT_CONTENT_COMPOSED' \
-            gestia-core jarvis-*.js nexo-*.js tests 2>/dev/null | head -n 700 || true
-          echo '=== PLACEHOLDER / GENERIC MARKETING RESIDUE ==='
-          grep -RInE 'placeholder|WHEN_INFRASTRUCTURE_AVAILABLE|instruction_inference|clientes potenciales relevantes|fricción entre una necesidad real|proveedores informales|presupuesto piloto por definir|Google My Business|técnicos certificados|Tecnicos certificados' \
-            gestia-core/jarvis gestia-core/nexo tests 2>/dev/null | head -n 500 || true
+          {
+            echo '=== ARTIFACT TOOL REGISTRATION ==='
+            grep -RInE 'document\.create|spreadsheet|workbook|presentation|pptx|PptxGenJS|page\.create|image\.generate|reel\.create|contentSource|SPREADSHEET_BLUEPRINT_READY|DOCUMENT_CONTENT_COMPOSED' \
+              gestia-core jarvis-*.js nexo-*.js tests 2>/dev/null | head -n 900 || true
+            echo '=== PLACEHOLDER / GENERIC MARKETING RESIDUE ==='
+            grep -RInE 'placeholder|WHEN_INFRASTRUCTURE_AVAILABLE|instruction_inference|clientes potenciales relevantes|fricción entre una necesidad real|proveedores informales|presupuesto piloto por definir|Google My Business|técnicos certificados|Tecnicos certificados' \
+              gestia-core/jarvis gestia-core/nexo tests 2>/dev/null | head -n 600 || true
+          } | tee /tmp/v94-artifact-grounding.log
 
       - name: Locate existing learning persistence
         run: |
           set -euo pipefail
           grep -RInE 'LEARNING_INCIDENT|recordAgentLoopLearningIncident|recallAgentLoopLearningHints|JarvisAutonomyEngine|learning' \
-            gestia-core gestia-terminal.js tests 2>/dev/null | head -n 500 || true
+            gestia-core gestia-terminal.js tests 2>/dev/null | head -n 600 | tee /tmp/v94-learning.log || true
 
       - name: Baseline focused tests
         run: |
@@ -71,3 +77,17 @@ jobs:
           set -euo pipefail
           test -z "$(git status --porcelain)"
           test -z "$(git diff --name-only -- functions)"
+
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v94-semantic-memory-integrity-diagnostic
+          path: |
+            /tmp/v94-branch.log
+            /tmp/v94-memory-wiring.log
+            /tmp/v94-artifact-grounding.log
+            /tmp/v94-learning.log
+            /tmp/v94-baseline-focused.log
+          if-no-files-found: warn
+          retention-days: 7
