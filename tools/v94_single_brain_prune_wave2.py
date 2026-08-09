@@ -24,10 +24,6 @@ def remove_file(path):
         target.unlink()
 
 
-# ---------------------------------------------------------------------------
-# Terminal HTML: the legacy JarvisBridge is a parallel cognition path. The
-# modern terminal already delegates natural language to GestiaCore first.
-# ---------------------------------------------------------------------------
 path = 'gestia-terminal.html'
 text = read(path)
 text = replace_once(
@@ -38,11 +34,6 @@ text = replace_once(
 )
 write(path, text)
 
-
-# ---------------------------------------------------------------------------
-# Terminal module: remove imports/adapters for the unreachable local cognition
-# stack. Natural language has already returned through GestiaCore above it.
-# ---------------------------------------------------------------------------
 path = 'gestia-terminal.js'
 text = read(path)
 for old, label in [
@@ -55,8 +46,6 @@ for old, label in [
 adapter_start = '''// ADAPTER LEGACY → CORE INTENT\n// =====================================================\n\nfunction resolveIntentsAdapter(input, contextoSemantico) {\n\n    const intentInput =\n        typeof input === "object" && input !== null\n            ? `${input.intent || ""}::${input.target || ""}`\n            : input;\n\n    return interpretarIntenciones([\n        {\n            raw: intentInput,\n            context: contextoSemantico\n        }\n    ]);\n}\n\n'''
 text = replace_once(text, adapter_start, '', 'terminal-intent-adapter')
 
-# Remove the unreachable legacy natural-language fallback segment after the
-# authoritative core-first return. Structured commands continue below it.
 legacy_start = '''// 🔥 NORMALIZACIÓN DE COMANDO\n\nconst normalizedCmd = cmd\n    .replace(/^(hola|buenos dias|buenos días|buenas|qué onda|que onda|saludos)[,\\s]*/i, "")\n    .trim();\n\nconst isRepoReadOnlyAudit =\n    !isStructured &&\n    /^(analiza|analisis|análisis|revisa|audita)\\s+(el\\s+)?(repo|repositorio|repository|sistema)$/i.test(normalizedCmd);\n\n// ====================================================================\n// 🧠 [TERMINAL_CORE_FIRST] - GESTIAPREMIUM V16.0 (THE SUPREME SOVEREIGN)\n// ====================================================================\nconst core =\n    window.GestiaCore ||\n    window.SIA7_CORE;\n'''
 legacy_end = '''        return await this.runPlan(\n            opId,\n            intents\n        );\n'''
 first = text.find(legacy_start)
@@ -68,11 +57,6 @@ replacement = '''// Natural-language interpretation already returned through Ges
 text = text[:first] + replacement + text[last:]
 write(path, text)
 
-
-# ---------------------------------------------------------------------------
-# Modern core: remove the old Brain side-effect and its hybrid fallback. The
-# semantic multifunction planner is the sole natural-language authority.
-# ---------------------------------------------------------------------------
 path = 'gestia-core/gestia-core.js'
 text = read(path)
 text = replace_once(
@@ -97,11 +81,6 @@ text = text.replace(
 )
 write(path, text)
 
-
-# ---------------------------------------------------------------------------
-# app-main: old Jarvis orchestration/vision/Brain imports were never called by
-# the controller; smartPreload only kept them alive. Remove the dead wiring.
-# ---------------------------------------------------------------------------
 path = 'app-main.js'
 text = read(path)
 for old, label in [
@@ -116,14 +95,10 @@ new_preload = '''async function smartPreload() {\n  const mods = [\n    "./app-p
 text = replace_once(text, old_preload, new_preload, 'app-main-smart-preload')
 write(path, text)
 
-
-# ---------------------------------------------------------------------------
-# Package syntax/tests: do not certify deleted cognition modules.
-# ---------------------------------------------------------------------------
 path = 'package.json'
 text = read(path)
 for old, label in [
-    (' && node --check gestia-core/jarvis/jarvis.intent.runtime.v7.js', 'package-intent-runtime'),
+    ('node --check gestia-core/jarvis/jarvis.intent.runtime.v7.js && ', 'package-intent-runtime'),
     (' && node --check gestia-core/jarvis/jarvis.bridge.v4.js', 'package-bridge-v4'),
     (' && node --check gestia-core/intent.engine.js', 'package-intent-engine'),
     (' && node --check gestia-core/repo/repo.cognition.index.js', 'package-repo-cognition-index'),
@@ -132,10 +107,6 @@ for old, label in [
     text = replace_once(text, old, '', label)
 write(path, text)
 
-
-# ---------------------------------------------------------------------------
-# Physical deletion: these are cognition layers, not tools/executors.
-# ---------------------------------------------------------------------------
 for obsolete in [
     'gestia-core/cognitive.bootstrap.js',
     'gestia-core/intent.engine.js',
