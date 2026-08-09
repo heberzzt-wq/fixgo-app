@@ -5394,8 +5394,19 @@ onAuthStateChanged(
     user => {
 
         if (user) {
-           /* window.KernelHeberto
-                .inicializarAutoridad();*/
+            if (!window.KernelHeberto.__authorityBootPromise) {
+                window.KernelHeberto.__authorityBootPromise =
+                    Promise.resolve(
+                        window.KernelHeberto.inicializarAutoridad()
+                    ).catch(error => {
+                        window.KernelHeberto.__authorityBootPromise = null;
+                        console.error(
+                            "[TERMINAL_AUTHORITY_BOOT_FAIL]",
+                            error
+                        );
+                        return false;
+                    });
+            }
             return;
         }
 

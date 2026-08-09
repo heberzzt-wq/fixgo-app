@@ -24,6 +24,8 @@ const context = {
     market: "Cancún, Quintana Roo",
     campaignObjective: "generar conversaciones calificadas y solicitudes de servicio",
     horizon: "90 días",
+    tone: "claro, confiable y profesional",
+    metrics: ["conversaciones calificadas", "solicitudes", "conversión", "costo por lead"],
     channels: ["Instagram", "Facebook", "TikTok", "WhatsApp"],
     productionRequested: true,
     productionArtifacts: [

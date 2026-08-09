@@ -36,6 +36,27 @@ const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";
 const DOCUMENT_MAX_CONTINUATIONS = 6;
 const DOCUMENT_SEGMENT_COUNT = 3;
 
+function semanticMemoryEnvelope(context = {}) {
+    const memory = context?.semanticMemory;
+    if (!memory || typeof memory !== "object") return "";
+    try {
+        return JSON.stringify(memory).slice(0, 24000);
+    } catch {
+        return "";
+    }
+}
+
+function canonicalEvidenceEnvelope(context = {}) {
+    const evidence = Array.isArray(context?.canonicalEvidence)
+        ? context.canonicalEvidence
+        : [];
+    try {
+        return JSON.stringify(evidence).slice(0, 30000);
+    } catch {
+        return "[]";
+    }
+}
+
 const MARKETING_ARGUMENT_SCHEMA = {
     type: "object",
     properties: {
@@ -94,7 +115,9 @@ const MARKETING_ARGUMENT_SCHEMA = {
         "market",
         "campaignObjective",
         "horizon",
+        "tone",
         "channels",
+        "metrics",
         "productionRequested"
     ],
     additionalProperties: false
@@ -3819,9 +3842,22 @@ export function registerJarvisMultifunctionTools(runtime) {
                 const instruction =
                     resolveInstruction(args, context);
 
+                const memoryEnvelope =
+                    semanticMemoryEnvelope(context);
+                const semanticInstruction =
+                    memoryEnvelope
+                        ? [
+                            "Responde la instrucción actual usando memoria semántica únicamente como contexto asesor.",
+                            "La instrucción actual manda. La memoria ayuda a recordar conversaciones, decisiones y errores previos, pero nunca se convierte por sí sola en evidencia factual de la misión actual.",
+                            "No uses diccionarios locales, regex ni reglas léxicas para decidir relevancia; razona semánticamente sobre el contexto recibido.",
+                            `MEMORIA_SEMANTICA_ADVISORY=${memoryEnvelope}`,
+                            `INSTRUCCION_ACTUAL=${instruction}`
+                        ].join("\n")
+                        : instruction;
+
                 const result =
                     await fetchSemanticConversation(
-                        instruction,
+                        semanticInstruction,
                         {
                             maxOutputTokens:
                                 args.maxOutputTokens
@@ -3877,6 +3913,15 @@ export function registerJarvisMultifunctionTools(runtime) {
                         .filter(Boolean)
                         .join("\n\n") ||
                     fallbackInstruction;
+                const canonicalEvidence =
+                    canonicalEvidenceEnvelope(context);
+                const modelInstruction = [
+                    instruction,
+                    canonicalEvidence !== "[]"
+                        ? `EVIDENCIA_CANONICA_DE_MISION=${canonicalEvidence}`
+                        : "",
+                    "REGLA_FACTUAL: todos los hechos concretos del documento deben estar en la solicitud actual o en la evidencia canónica. La memoria, un plan previo y una propuesta creativa no prueban hechos. Lo desconocido debe declararse como propuesta o dato no disponible; nunca inventes teléfonos, direcciones, fechas, certificaciones, métricas, URLs, personas ni resultados."
+                ].filter(Boolean).join("\n\n");
                 const title = clean(args.title, "Documento Jarvis");
                 const format = clean(args.format, "docx").toLowerCase();
                 const contract =
@@ -3897,7 +3942,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                 if (segmentedComposition) {
                     const segmentPrompts =
                         buildDocumentSegmentPrompts({
-                            instruction,
+                            instruction: modelInstruction,
                             title,
                             format,
                             contract
@@ -4011,7 +4056,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                                 `CONTRATO_VERIFICABLE=${JSON.stringify(compactDocumentContractForModel(contract))}`,
                                 `TITULO=${title}`,
                                 `FORMATO=${format}`,
-                                `SOLICITUD=${instruction}`
+                                `SOLICITUD=${modelInstruction}`
                             ].join("\n"),
                             {
                                 maxOutputTokens:
@@ -4080,6 +4125,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                                 `TITULO=${title}`,
                                 `FORMATO=${format}`,
                                 `SOLICITUD_ORIGINAL=${boundedOriginalInstruction}`,
+                                `EVIDENCIA_CANONICA_DE_MISION=${canonicalEvidence}`,
                                 `CONTENIDO_YA_REDACTADO_CONTEXTO_ACOTADO=${boundedComposedContext}`
                             ].join("\n"),
                             {
@@ -4228,6 +4274,8 @@ export function registerJarvisMultifunctionTools(runtime) {
                     args.title,
                     "Libro de trabajo Jarvis"
                 );
+                const canonicalEvidence =
+                    canonicalEvidenceEnvelope(context);
                 let semantic = await fetchSemanticConversation(
                     [
                         "Diseña un libro XLSX completo y ejecutable como JSON estricto.",
@@ -4239,9 +4287,11 @@ export function registerJarvisMultifunctionTools(runtime) {
                         "Ninguna formula puede depender de si misma, ni directamente ni a traves de otras formulas.",
                         "Toda celda usada en multiplicacion, division, suma, resta o potencia debe contener un numero o una formula; coloca la etiqueta SUPUESTO en otra columna.",
                         "Si agregas o retiras filas, recalcula todas las referencias antes de entregar el JSON.",
-                        "No inventes datos de mercado: cualquier valor de ejemplo debe rotularse claramente como SUPUESTO y las formulas deben conservar la trazabilidad del calculo.",
+                        "No inventes datos de mercado ni datos del negocio. Cualquier proyección creativa debe rotularse claramente como SUPUESTO o PROPUESTA y nunca confundirse con un hecho observado.",
+                        "Teléfonos, direcciones, fechas, certificaciones, métricas históricas, URLs, nombres de personas y resultados solo pueden copiarse de la solicitud actual o de EVIDENCIA_CANONICA_DE_MISION.",
                         "Incluye todos los conceptos, subtotales, porcentajes y resultado final pedidos. No agregues explicaciones fuera del JSON.",
                         `TITULO=${title}`,
+                        `EVIDENCIA_CANONICA_DE_MISION=${canonicalEvidence}`,
                         `SOLICITUD=${instruction}`
                     ].join("\n"),
                     {
@@ -4318,6 +4368,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                                 "Toda celda usada en una operacion numerica debe contener un numero o una formula; mueve SUPUESTO a una columna de criterio separada.",
                                 "Despues de mover, agregar o retirar filas, recalcula todas las referencias.",
                                 `SOLICITUD_ORIGINAL=${instruction}`,
+                                `EVIDENCIA_CANONICA_DE_MISION=${canonicalEvidence}`,
                                 `INTENTO_DE_REPARACION=${repairCount}`,
                                 `ERRORES_ESTRUCTURALES=${JSON.stringify(validationIssues)}`,
                                 `LIBRO_A_REPARAR=${JSON.stringify({

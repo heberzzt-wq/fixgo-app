@@ -57,11 +57,13 @@ function missingSemanticBriefFields(context = {}) {
         "cta",
         "market",
         "campaignObjective",
-        "horizon"
+        "horizon",
+        "tone"
     ]) {
         if (!clean(context[field])) missing.push(field);
     }
     if (strings(context.channels).length === 0) missing.push("channels");
+    if (strings(context.metrics).length === 0) missing.push("metrics");
     return missing;
 }
 
@@ -316,10 +318,7 @@ function inputRequiredResult(instruction, context, groups) {
 }
 
 function inferAudience(_instruction, context = {}) {
-    return (
-        clean(context.audience) ||
-        "clientes potenciales relevantes para la oferta de la marca"
-    );
+    return clean(context.audience);
 }
 
 function deriveCreativeBrief(instruction, context = {}) {
@@ -331,25 +330,12 @@ function deriveCreativeBrief(instruction, context = {}) {
     return {
         brandName,
         audience,
-        offer:
-            clean(context.offer) ||
-            `Estrategia integral para presentar, posicionar y convertir la oferta de ${brandName}`,
-        pain:
-            clean(context.pain) ||
-            "fricción entre una necesidad real del cliente y una decisión de compra clara",
-        promise:
-            clean(context.promise) ||
-            "una propuesta de valor clara, fácil de entender y orientada a conversión",
-        differentiator:
-            clean(context.differentiator) ||
-            "una experiencia de marca consistente, medible y optimizable",
-        cta:
-            clean(context.cta) ||
-            `Conoce la propuesta de ${brandName}`,
-        tone:
-            clean(context.tone) ||
-            clean(context.voice) ||
-            "directo, confiable y profesional",
+        offer: clean(context.offer),
+        pain: clean(context.pain),
+        promise: clean(context.promise),
+        differentiator: clean(context.differentiator),
+        cta: clean(context.cta),
+        tone: clean(context.tone) || clean(context.voice),
         inferredFields: [
             ...(!clean(context.audience)
                 ? ["audience"]
@@ -438,7 +424,7 @@ function buildVideoPackage(channels, campaign, durationSeconds) {
         ],
         subtitles: { required: true, editable: true },
         narration: { scriptReady: true, voiceApprovalRequired: true },
-        export: { preview: true, webm: true, mp4: "WHEN_INFRASTRUCTURE_AVAILABLE" },
+        export: { preview: true, webm: true, mp4: false, mp4Status: "NOT_PRODUCED_BY_PLANNING" },
         status: "draft_for_owner_review"
     };
 }
@@ -479,8 +465,8 @@ function buildDeliverables(assets, channels, campaign) {
 }
 
 function buildCompletePlan({ brand, campaign, channels, context, calendar, funnel, copies }) {
-    const budget = clean(context.budget) || "presupuesto piloto por definir";
-    const horizon = clean(context.horizon) || "90 días como supuesto inicial de planificación";
+    const budget = clean(context.budget);
+    const horizon = clean(context.horizon);
     const segments = strings(context.segments).length
         ? strings(context.segments)
         : [campaign.audience];
@@ -501,8 +487,11 @@ function buildCompletePlan({ brand, campaign, channels, context, calendar, funne
         },
         offerStrategy: { offer: campaign.offer, approach: "entrada clara, prueba de valor y seguimiento" },
         competitiveAnalysis: {
-            alternatives: strings(context.competitors).length ? strings(context.competitors) : ["proveedores informales", "búsqueda directa", "directorios sin seguimiento"],
-            advantage: campaign.differentiator
+            alternatives: strings(context.competitors),
+            advantage: campaign.differentiator,
+            note: strings(context.competitors).length
+                ? "Competidores proporcionados en el contexto semántico."
+                : "No se proporcionó ni verificó una lista factual de competidores; no se inventan alternativas."
         },
         customerJourneyAndFunnel: funnel,
         acquisitionStrategy: `Combinar demanda activa, contenido educativo local y referidos con seguimiento hacia ${campaign.cta}.`,
@@ -513,10 +502,14 @@ function buildCompletePlan({ brand, campaign, channels, context, calendar, funne
         executionCalendar: calendar,
         conversionAndCta: { primaryCta: campaign.cta, followUp: "respuesta inmediata, calificación y recordatorio en 24 horas" },
         retentionAndReferrals: ["seguimiento posterior", "solicitud de reseña", "beneficio por recomendación", "recordatorio de recompra"],
-        budgetScenarios: [
-            { scenario: "low", allocation: budget, mix: "60% captación, 25% contenido, 15% pruebas" },
-            { scenario: "medium", allocation: clean(context.mediumBudget) || "escenario de escalamiento condicionado a resultados", mix: "65% captación, 20% contenido, 15% experimentos" }
-        ],
+        budgetScenarios: budget
+            ? [
+                { scenario: "base", allocation: budget, note: "Distribución por canal debe decidirse con datos de rendimiento." },
+                ...(clean(context.mediumBudget)
+                    ? [{ scenario: "expanded", allocation: clean(context.mediumBudget), note: "Escalamiento condicionado a resultados medidos." }]
+                    : [])
+            ]
+            : [{ scenario: "pending", note: "No se proporcionó un presupuesto factual; definirlo antes de comprar medios." }],
         kpisAndMeasurement: campaign.metrics.map(metric => ({ metric, cadence: "semanal", source: "plataforma publicitaria, analítica y CRM" })),
         experiments: ["mensaje problema vs. promesa", "CTA directo vs. diagnóstico", "audiencia residencial vs. empresarial"],
         actionPlan306090: {
@@ -615,22 +608,15 @@ export function planMarketingRequest(rawInput = "", context = {}) {
         description: `${creativeBrief.offer}. ${creativeBrief.promise}. ${creativeBrief.cta}.`,
         hashtags: strings(context.hashtags).length
             ? strings(context.hashtags)
-            : [
-                hashtag(brand.name),
-                hashtag(context.market || "México"),
-                "#ServicioProfesional",
-                "#SeguridadOperativa"
-            ].filter(Boolean),
-        metrics: strings(context.metrics).length
-            ? strings(context.metrics)
-            : ["qualified_conversations", "landing_conversion", "cost_per_lead", "appointments"],
+            : [hashtag(brand.name), hashtag(context.market)].filter(Boolean),
+        metrics: strings(context.metrics),
         variants: [
             { id: "A", angle: "pain_first", hookIndex: 0 },
             { id: "B", angle: "promise_first", hookIndex: 1 }
         ],
         assumptions: allInferredFields.map(field => ({
             field,
-            source: "instruction_inference",
+            source: "semantic_proposal",
             editable: true,
             factualClaim: false
         }))

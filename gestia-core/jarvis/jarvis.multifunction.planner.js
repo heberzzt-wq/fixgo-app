@@ -1508,6 +1508,7 @@ export async function completeJarvisPlanningArguments({
     instruction = "",
     currentArgs = {},
     validSources = [],
+    missionEvidence = [],
     semanticPlanner = null
 } = {}) {
     const name = String(toolName || "").trim();
@@ -1538,6 +1539,8 @@ export async function completeJarvisPlanningArguments({
         `INSTRUCCION_ORIGINAL=${originalInstruction.slice(0, 12000)}`,
         `ARGUMENTOS_EXISTENTES=${JSON.stringify(currentArgs || {}).slice(0, 6000)}`,
         `FUENTES_VERIFICADAS=${JSON.stringify(sources).slice(0, 12000)}`,
+        `EVIDENCIA_CANONICA_DE_MISION=${JSON.stringify(Array.isArray(missionEvidence) ? missionEvidence : []).slice(0, 20000)}`,
+        "La evidencia canónica manda sobre memoria, borradores y propuestas. No inventes teléfonos, direcciones, fechas, certificaciones, métricas, URLs, testimonios ni resultados. Si un dato no aparece en la evidencia o en la solicitud actual, debe quedar como propuesta explícita, nunca como hecho.",
         `ESQUEMA_DE_ARGUMENTOS=${JSON.stringify(inputSchema || {}).slice(0, 12000)}`
     ].join("\n");
 

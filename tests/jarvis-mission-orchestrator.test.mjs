@@ -891,6 +891,8 @@ test("the same marketing mission resumes with supplied context and completes its
             campaignObjective: "Captar clientes y prestadores durante los primeros 90 días",
             promise: "Conectar rápidamente con profesionales y brindar trazabilidad",
             differentiator: "Profesionales verificados, evidencia digital y seguimiento",
+            tone: "claro, confiable y profesional",
+            metrics: ["solicitudes", "conversaciones calificadas", "conversión", "costo por lead"],
             channels: ["Meta Ads", "Google Ads", "WhatsApp"],
             ...context.marketingContext
         });

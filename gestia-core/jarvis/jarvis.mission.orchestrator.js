@@ -1,4 +1,4 @@
-const VERSION = "1.10.0-diagnostic-error-normalization";
+const VERSION = "1.11.0-semantic-memory-canonical-evidence";
 const STORAGE_KEY = "jarvis.missions.v1";
 const SINGLETON_MISSION_TOOLS = new Set(["marketing.plan"]);
 
@@ -807,6 +807,31 @@ function safeObservation(result = {}) {
     };
 }
 
+function canonicalMissionEvidence(mission = {}) {
+    const completed = Array.isArray(mission?.completedTasks)
+        ? mission.completedTasks
+        : [];
+    return completed
+        .filter(item => {
+            const name = text(item?.name, 120);
+            const observation = item?.observation || {};
+            return name === "media.analyze" ||
+                name === "web.research" ||
+                name.startsWith("repo.") ||
+                Boolean(observation?.verifiedRead) ||
+                (Array.isArray(observation?.validSources) && observation.validSources.length > 0);
+        })
+        .map(item => ({
+            tool: text(item?.name, 120),
+            status: text(item?.observation?.status, 120),
+            summary: text(item?.observation?.summary, 3000),
+            validSources: compactEvidence(item?.observation?.validSources || []),
+            verifiedRead: compactEvidence(item?.observation?.verifiedRead || null),
+            evidence: compactEvidence(item?.observation?.evidence || null)
+        }))
+        .slice(-20);
+}
+
 function mediaOnlyRequiredContractSatisfied(mission = {}) {
     const required = Array.isArray(mission?.requiredToolNames)
         ? mission.requiredToolNames
@@ -903,7 +928,8 @@ export async function runJarvisMission({
     timeoutMs = 180000,
     signal,
     resumeMissionId,
-    continuationContext = {}
+    continuationContext = {},
+    memoryContext = null
 } = {}) {
     const originalInstruction = String(instruction ?? "").trim();
     if (!originalInstruction) throw new Error("MISSION_INSTRUCTION_REQUIRED");
@@ -1003,7 +1029,10 @@ export async function runJarvisMission({
                 plan = await planner({
                     originalInstruction,
                     routingInstruction: mission.routingInstruction,
-                    mission: structuredClone(mission)
+                    mission: structuredClone(mission),
+                    memoryContext: memoryContext && typeof memoryContext === "object"
+                        ? structuredClone(memoryContext)
+                        : null
                 });
             } catch (error) {
                 mission.reason = "PLANNER_UNAVAILABLE";
@@ -1082,6 +1111,10 @@ export async function runJarvisMission({
                     .flatMap(item => item.observation?.validSources || [])
                     .slice(0, 20),
                 marketingContext: continuationContext,
+                semanticMemory: memoryContext && typeof memoryContext === "object"
+                    ? structuredClone(memoryContext)
+                    : null,
+                canonicalEvidence: canonicalMissionEvidence(mission),
                 writeAllowed: false,
                 approved: false
             });
@@ -1206,4 +1239,4 @@ export function recoverJarvisMission(missionId, { storage } = {}) {
     return readMissions(storageOrMemory(storage)).find(item => item.missionId === missionId) || null;
 }
 
-export const __test = { callSignature, compactRoutingInstruction, isFailureStatus, safeObservation, trustedCalls };
+export const __test = { callSignature, compactRoutingInstruction, isFailureStatus, safeObservation, trustedCalls, canonicalMissionEvidence };

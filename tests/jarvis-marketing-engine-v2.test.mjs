@@ -39,6 +39,9 @@ test("NEXO marketing builds an evidence-grounded multi-channel production packag
             promise: "Recuperar la operación con atención técnica trazable",
             differentiator: "diagnóstico documentado y seguimiento directo",
             cta: "Solicita un diagnóstico",
+            tone: "directo, confiable y profesional",
+            metrics: ["conversaciones calificadas", "conversión de landing", "costo por lead", "solicitudes de servicio"],
+            hashtags: ["#FixGo", "#Cancún", "#ServiciosTécnicos"],
             services: [{ name: "Diagnóstico técnico", source: "landing" }],
             testimonials: [{ quote: "Atención clara", source: "documento-cliente.pdf" }]
         }
@@ -103,6 +106,8 @@ test("NEXO marketing gives verified mission sources priority over semantic web r
         campaignObjective: "generar consultas calificadas",
         horizon: "90 días",
         channels: ["Google", "LinkedIn"],
+        tone: "serio y profesional",
+        metrics: ["consultas calificadas", "conversión", "costo por consulta", "citas"],
         productionRequested: false,
         webResearch: [
             { title: "", url: "https://example.invalid/" }
@@ -156,6 +161,8 @@ test("NEXO marketing produces the complete 90-day package after receiving suffic
             mediumBudget: "escenario medio de MXN 30,000 mensuales",
             horizon: "90 días",
             cta: "Solicitar servicio o registrarse como profesional",
+            tone: "claro, confiable y local",
+            metrics: ["solicitudes de servicio", "registros de profesionales", "conversión", "costo por adquisición"],
             channels: ["Meta Ads", "Google Ads", "contenido local", "WhatsApp", "referidos"]
         }
     );

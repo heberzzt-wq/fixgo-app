@@ -39,8 +39,9 @@ import {
 // Motores de lógica estratégica (Cerebro) y ejecución mecánica (Brazo)
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
-    buildJarvisMultifunctionToolCalls
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=v94-marketing-real-delivery-v109-20260809';
+    buildJarvisMultifunctionToolCalls,
+    completeJarvisPlanningArguments
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=v94-semantic-memory-integrity-v110-20260809';
 import {
     composeEvidenceGroundedConversation,
     mergeEvidenceGroundedToolCalls,
@@ -203,6 +204,9 @@ const CORE_CONFIG = {
         LOCK_TIMEOUT_MS: 45000 // 45 segundos para concurrencia paralela
     }
 };
+import {
+    JarvisSemanticMemory
+} from '/gestia-core/jarvis/jarvis.semantic.memory.js?v=v94-semantic-memory-v1-20260809';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
 import '/gestia-core/tools.runtime.js?v=v94-semantic-only-v108-20260809';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260725-semantic-envelope-v64';
@@ -3784,10 +3788,25 @@ export const GestiaCore = {
             return null;
         }
 
+        const semanticMemory =
+            await JarvisSemanticMemory.recall({
+                identity: {
+                    userId: auth.currentUser?.uid || "anonymous",
+                    workspaceId: state?.tenantId || "UXMAL39",
+                    projectId: "adjunto"
+                }
+            });
         const lightMultifunctionCalls =
             await buildJarvisMultifunctionToolCalls(
                 inputRaw,
-                { state }
+                {
+                    state,
+                    missionState: {
+                        phase: "CURRENT_TURN",
+                        semanticMemory,
+                        writeAllowed: false
+                    }
+                }
             );
 
         if (
@@ -3852,6 +3871,29 @@ export const GestiaCore = {
             GESTIA_MASTER_EMAIL
                 ? "HEBERTO_MENDOZA"
                 : null;
+
+        const semanticMemoryIdentity = {
+            userId: user.uid,
+            workspaceId: tenantId,
+            projectId: "adjunto"
+        };
+        try {
+            await JarvisSemanticMemory.rememberTurn({
+                identity: semanticMemoryIdentity,
+                role: "user",
+                content: inputRaw
+            });
+        }
+        catch(memoryWriteError) {
+            console.warn(
+                "[SEMANTIC_MEMORY_USER_TURN_FAIL]",
+                memoryWriteError?.message || String(memoryWriteError)
+            );
+        }
+        const semanticMemoryContext =
+            await JarvisSemanticMemory.recall({
+                identity: semanticMemoryIdentity
+            });
 
         let terminalPlannerSeed =
             Array.isArray(
@@ -4236,7 +4278,8 @@ if (
                         phase: "MISSION_CONTRACT",
                         writeAllowed: false,
                         userArtifactAllowed: true,
-                        existingInitialTools: operationalInitialToolCalls.map(call => call?.name).filter(Boolean)
+                        existingInitialTools: operationalInitialToolCalls.map(call => call?.name).filter(Boolean),
+                        semanticMemory: semanticMemoryContext
                     }
                 }
             );
@@ -4369,6 +4412,7 @@ if (
             resumeMissionId:
                 pendingMissionId,
             continuationContext,
+            memoryContext: semanticMemoryContext,
             maximumSteps:
                 20,
             maximumRetries:
@@ -4474,7 +4518,9 @@ if (
                                             writeAllowed:
                                                 false,
                                             userArtifactAllowed:
-                                                true
+                                                true,
+                                            semanticMemory:
+                                                semanticMemoryContext
                                         }
                                     }
                                 );
@@ -4599,7 +4645,8 @@ if (
                                     })),
                                     iterations: mission.iterations,
                                     writeAllowed: false,
-                                    userArtifactAllowed: true
+                                    userArtifactAllowed: true,
+                                    semanticMemory: semanticMemoryContext
                                 }
                             }
                         );
@@ -4976,60 +5023,27 @@ if (
                         missionContext.completedTasks.length > 0
                     ) {
                         try {
-                            const groundedCalls =
-                                await buildJarvisMultifunctionToolCalls(
-                                    missionContext.rawInput.slice(0, 120000),
-                                    {
-                                        ...context,
-                                        throwOnUnavailable:
-                                            true,
-                                        toolCatalog:
-                                            [
-                                                toolDefinition
-                                            ],
-                                        missionState: {
-                                            phase:
-                                                "EXECUTION_ARGUMENT_AUDIT",
-                                            missionId:
-                                                missionContext.missionId,
-                                            caseId:
-                                                missionContext.caseId,
-                                            objectiveId:
-                                                missionContext.objectiveId,
-                                            toolName:
-                                                call.name,
-                                            currentArgs:
-                                                call.args || {},
-                                            completedTasks:
-                                                missionContext.completedTasks,
-                                            blockedTasks:
-                                                missionContext.blockedTasks || [],
-                                            writeAllowed:
-                                                false,
-                                            userArtifactAllowed:
-                                                toolDefinition?.userArtifact === true
-                                        }
-                                    }
-                                );
-                            const groundedCall =
-                                groundedCalls.find(candidate =>
-                                    candidate?.name === call.name
-                                ) ||
-                                null;
+                            const grounded =
+                                await completeJarvisPlanningArguments({
+                                    toolName: call.name,
+                                    description: toolDefinition?.description || "",
+                                    inputSchema: toolDefinition?.inputSchema || null,
+                                    instruction: missionContext.rawInput.slice(0, 120000),
+                                    currentArgs: executionCall.args,
+                                    validSources: missionContext.validSources || [],
+                                    missionEvidence: missionContext.canonicalEvidence || []
+                                });
 
-                            if (groundedCall) {
-                                executionCall =
-                                    {
-                                        ...executionCall,
-                                        args: {
-                                            ...executionCall.args,
-                                            ...(groundedCall.args || {})
-                                        },
-                                        approved:
-                                            false
-                                    };
-                                argumentGrounded =
-                                    true;
+                            if (grounded?.ok === true && grounded?.args) {
+                                executionCall = {
+                                    ...executionCall,
+                                    args: {
+                                        ...executionCall.args,
+                                        ...grounded.args
+                                    },
+                                    approved: false
+                                };
+                                argumentGrounded = true;
                             }
                         }
                         catch(error) {
@@ -6339,6 +6353,34 @@ const cambiosFinales =
                         "COMPLETED",
                         analysisId.substring(0, 8)
                     );
+
+                    try {
+                        await JarvisSemanticMemory.rememberMission({
+                            identity: semanticMemoryIdentity,
+                            instruction: inputRaw,
+                            mission: atomicState.agentResult?.mission || null,
+                            finalResponse: atomicState.agentResult?.finalResponse || null
+                        });
+                        const memoryResponseText =
+                            atomicState.agentResult?.finalResponse?.text ||
+                            atomicState.agentResult?.finalResponse?.message ||
+                            "";
+                        if (memoryResponseText) {
+                            await JarvisSemanticMemory.rememberTurn({
+                                identity: semanticMemoryIdentity,
+                                role: "assistant",
+                                content: memoryResponseText,
+                                missionId: atomicState.agentResult?.mission?.missionId || "",
+                                status: atomicState.agentResult?.mission?.reason || ""
+                            });
+                        }
+                    }
+                    catch(memoryCommitError) {
+                        console.warn(
+                            "[SEMANTIC_MEMORY_MISSION_COMMIT_FAIL]",
+                            memoryCommitError?.message || String(memoryCommitError)
+                        );
+                    }
 
                     return {
                         status:
