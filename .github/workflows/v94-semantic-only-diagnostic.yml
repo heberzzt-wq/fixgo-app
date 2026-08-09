@@ -24,6 +24,7 @@ jobs:
       - name: Inventory legacy brain consumers
         run: |
           python3 tools/v94_single_brain_inventory.py | tee /tmp/v94-single-brain-inventory.log
+          python3 tools/v94_single_brain_active_refs.py | tee /tmp/v94-single-brain-active-refs.log
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -118,6 +119,7 @@ jobs:
           name: v94-semantic-only-diagnostic
           path: |
             /tmp/v94-single-brain-inventory.log
+            /tmp/v94-single-brain-active-refs.log
             /tmp/v94-semantic-patch.log
             /tmp/v94-semantic-inventory.log
             /tmp/v94-semantic-ci.log
