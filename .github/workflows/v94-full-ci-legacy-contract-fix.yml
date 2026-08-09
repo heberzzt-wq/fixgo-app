@@ -32,18 +32,34 @@ jobs:
           npm --prefix functions ci
           test -z "$(git status --porcelain -- functions)"
 
-      - name: Align release contract test
+      - name: Align all v111 release contracts
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
-          p=Path('tests/jarvis-marketing-terminal-delivery.e2e.test.mjs')
-          s=p.read_text(encoding='utf-8')
+
+          marketing=Path('tests/jarvis-marketing-terminal-delivery.e2e.test.mjs')
+          s=marketing.read_text(encoding='utf-8')
           old='''    assert.match(core, /v94-marketing-real-delivery-v109-20260809/);\n    assert.match(terminal, /v94-marketing-real-delivery-v109-20260809/);'''
           new='''    assert.match(core, /tools\\.runtime\\.js\\?v=v94-semantic-memory-repo-v111-20260809/);\n    assert.match(terminal, /gestia-core\\/gestia-core\\.js\\?v=v94-semantic-memory-repo-v111-20260809/);\n    assert.match(terminal, /gestia-terminal\\.js\\?v=v94-semantic-memory-repo-v111-20260809/);'''
           if s.count(old) != 1:
-              raise SystemExit(f'expected one legacy release assertion block, found {s.count(old)}')
-          p.write_text(s.replace(old,new,1),encoding='utf-8')
+              raise SystemExit(f'marketing release block count={s.count(old)}')
+          marketing.write_text(s.replace(old,new,1),encoding='utf-8')
+
+          multi=Path('tests/jarvis-multifunction-tools.test.mjs')
+          s=multi.read_text(encoding='utf-8')
+          old='''    assert.match(\n        terminal,\n        /v94-marketing-real-delivery-v109-20260809/\n    );'''
+          new='''    assert.match(\n        terminal,\n        /gestia-terminal\\.js\\?v=v94-semantic-memory-repo-v111-20260809/\n    );'''
+          count=s.count(old)
+          if count != 1:
+              raise SystemExit(f'multifunction multiline release block count={count}')
+          s=s.replace(old,new,1)
+          old2='''    assert.match(terminal, /v94-marketing-real-delivery-v109-20260809/);'''
+          new2='''    assert.match(terminal, /gestia-core\\/gestia-core\\.js\\?v=v94-semantic-memory-repo-v111-20260809/);'''
+          count2=s.count(old2)
+          if count2 != 1:
+              raise SystemExit(f'multifunction inline release block count={count2}')
+          multi.write_text(s.replace(old2,new2,1),encoding='utf-8')
           PY
 
       - name: Full CI
@@ -55,14 +71,16 @@ jobs:
         run: |
           set -euo pipefail
           test -z "$(git diff --name-only HEAD -- functions)"
-          test "$(git diff --name-only HEAD | tr -d '\r')" = "tests/jarvis-marketing-terminal-delivery.e2e.test.mjs"
+          actual="$(git diff --name-only HEAD | sort | tr '\n' ' ')"
+          expected="tests/jarvis-marketing-terminal-delivery.e2e.test.mjs tests/jarvis-multifunction-tools.test.mjs "
+          test "$actual" = "$expected"
 
-      - name: Commit certified contract update
+      - name: Commit certified contract updates
         run: |
           set -euo pipefail
           git config user.name "heberzzt-wq"
           git config user.email "heberzzt@gmail.com"
-          git add tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
+          git add tests/jarvis-marketing-terminal-delivery.e2e.test.mjs tests/jarvis-multifunction-tools.test.mjs
           test -z "$(git diff --cached --name-only -- functions)"
           git commit -m "[v94] test(terminal): certify semantic repo release v111"
           git push origin HEAD:v94-media-v4n-negative-claims
