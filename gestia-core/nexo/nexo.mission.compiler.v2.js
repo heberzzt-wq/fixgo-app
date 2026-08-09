@@ -1,7 +1,7 @@
 /*
  * NEXO Mission Compiler V2
- * Añade dependencias de composición y evidencia de medios reales que el mission
- * orchestrator hidrata con observaciones verificadas.
+ * Añade dependencias de composición, producción integral de marketing y evidencia
+ * de medios reales que el mission orchestrator hidrata con observaciones verificadas.
  */
 
 import {
@@ -65,6 +65,156 @@ function realMediaRequest(value = "") {
         syntheticMediaSubstitutionAllowed: false,
         sourceBytesRequired: true,
         sha256Required: true
+    };
+}
+
+function wantsFullMarketingProduction(instruction = "", calls = []) {
+    const text = normalized(instruction);
+    const hasMarketingPlan = calls.some(call => call?.name === "marketing.plan");
+    if (!hasMarketingPlan) return false;
+
+    return /\b(?:marketing|mercadotecnia)\b/.test(text) && (
+        /\b(?:completo|completa|integral|integrales)\b/.test(text) ||
+        /\bprincipio a fin\b/.test(text) ||
+        /\bpunta a punta\b/.test(text) ||
+        /\bend[ -]?to[ -]?end\b/.test(text) ||
+        /\bllave en mano\b/.test(text) ||
+        /\btodo el paquete\b/.test(text)
+    );
+}
+
+function addUniqueAvailable(target, names, call) {
+    if (!call?.name || !names.has(call.name)) return;
+    const key = `${call.name}:${JSON.stringify(call.args || {})}`;
+    if (target.some(item => `${item.name}:${JSON.stringify(item.args || {})}` === key)) return;
+    target.push(call);
+}
+
+function fullPackagePresentationSlides(marketingArgs = {}) {
+    const brand = String(marketingArgs.brandName || "NEXO").trim();
+    const objective = String(marketingArgs.campaignObjective || "Convertir demanda en oportunidades calificadas").trim();
+    const audience = String(marketingArgs.audience || "Audiencia prioritaria").trim();
+    const offer = String(marketingArgs.offer || "Oferta principal").trim();
+    const differentiator = String(marketingArgs.differentiator || "Diferenciador verificable").trim();
+    const cta = String(marketingArgs.cta || "Solicitar información").trim();
+    return [
+        { title: `Plan de marketing — ${brand}`, body: objective },
+        { title: "Público y problema", body: `${audience}. ${String(marketingArgs.pain || "").trim()}`.trim() },
+        { title: "Oferta y propuesta de valor", body: `${offer}. ${String(marketingArgs.promise || "").trim()}`.trim() },
+        { title: "Diferenciador", body: differentiator },
+        { title: "Conversión", body: cta }
+    ];
+}
+
+function augmentFullMarketingProductionChain(calls = [], names = new Set(), instruction = "", context = {}) {
+    if (!wantsFullMarketingProduction(instruction, calls)) {
+        return {
+            calls,
+            fullPackage: false
+        };
+    }
+
+    const marketing = calls.find(call => call?.name === "marketing.plan");
+    const marketingArgs = {
+        ...(marketing?.args || {})
+    };
+    const objectiveId = String(context.objectiveId || marketingArgs.objectiveId || "");
+    const caseId = String(context.caseId || marketingArgs.caseId || "");
+    const brandName = String(marketingArgs.brandName || context.brandName || context.name || "NEXO").trim();
+    const reelArgs = typeof baseTest?.reelPayload === "function"
+        ? baseTest.reelPayload(instruction, {
+            ...context,
+            ...marketingArgs,
+            brandName
+        })
+        : null;
+    const pageArgs = typeof baseTest?.pagePayload === "function"
+        ? baseTest.pagePayload(instruction, {
+            ...context,
+            ...marketingArgs,
+            brandName
+        })
+        : null;
+    const spreadsheetArgs = typeof baseTest?.spreadsheetPayload === "function"
+        ? baseTest.spreadsheetPayload(instruction, {
+            ...context,
+            ...marketingArgs,
+            brandName
+        })
+        : null;
+    const imageArgs = typeof baseTest?.argumentsForTool === "function"
+        ? baseTest.argumentsForTool("image.generate", instruction, {
+            ...context,
+            ...marketingArgs,
+            brandName
+        })
+        : null;
+
+    const ordered = calls.map(copyCall);
+
+    if (reelArgs) {
+        addUniqueAvailable(ordered, names, {
+            name: "reel.plan",
+            args: reelArgs,
+            reason: "NEXO_COMPLETE_MARKETING_REEL_PLAN"
+        });
+        addUniqueAvailable(ordered, names, {
+            name: "reel.create",
+            args: reelArgs,
+            reason: "NEXO_COMPLETE_MARKETING_REEL_ARTIFACT"
+        });
+    }
+
+    if (pageArgs) {
+        addUniqueAvailable(ordered, names, {
+            name: "page.plan",
+            args: pageArgs,
+            reason: "NEXO_COMPLETE_MARKETING_LANDING_PLAN"
+        });
+        addUniqueAvailable(ordered, names, {
+            name: "page.create",
+            args: pageArgs,
+            reason: "NEXO_COMPLETE_MARKETING_LANDING_ARTIFACT"
+        });
+    }
+
+    if (imageArgs) {
+        addUniqueAvailable(ordered, names, {
+            name: "image.generate",
+            args: imageArgs,
+            reason: "NEXO_COMPLETE_MARKETING_CREATIVE_IMAGE"
+        });
+    }
+
+    if (spreadsheetArgs) {
+        addUniqueAvailable(ordered, names, {
+            name: "document.create",
+            args: {
+                ...spreadsheetArgs,
+                format: "xlsx",
+                title: `Control de marketing — ${brandName}`,
+                objectiveId,
+                caseId
+            },
+            reason: "NEXO_COMPLETE_MARKETING_KPI_WORKBOOK"
+        });
+    }
+
+    addUniqueAvailable(ordered, names, {
+        name: "document.create",
+        args: {
+            format: "pptx",
+            title: `Presentación de marketing — ${brandName}`,
+            slides: fullPackagePresentationSlides(marketingArgs),
+            objectiveId,
+            caseId
+        },
+        reason: "NEXO_COMPLETE_MARKETING_PRESENTATION"
+    });
+
+    return {
+        calls: ordered,
+        fullPackage: true
     };
 }
 
@@ -142,12 +292,7 @@ function augmentRealMediaChain(calls = [], names = new Set(), instruction = "", 
         return true;
     });
     const ordered = [];
-    const add = call => {
-        if (!names.has(call.name)) return;
-        const key = `${call.name}:${JSON.stringify(call.args || {})}`;
-        if (ordered.some(item => `${item.name}:${JSON.stringify(item.args || {})}` === key)) return;
-        ordered.push(call);
-    };
+    const add = call => addUniqueAvailable(ordered, names, call);
 
     add({
         name: "web.research",
@@ -180,7 +325,7 @@ function augmentRealMediaChain(calls = [], names = new Set(), instruction = "", 
         add(call);
     }
 
-    add({
+    const packageCall = {
         name: "marketing.package.real-media",
         args: {
             sourceUrl: contract.sourceUrl,
@@ -191,7 +336,23 @@ function augmentRealMediaChain(calls = [], names = new Set(), instruction = "", 
             caseId
         },
         reason: "NEXO_REAL_MEDIA_PACKAGE_AFTER_VERIFIED_BYTES"
-    });
+    };
+
+    if (names.has(packageCall.name)) {
+        const optionalTailNames = new Set(["document.create", "page.plan", "reel.plan"]);
+        while (ordered.length >= 12) {
+            let dropIndex = -1;
+            for (let index = ordered.length - 1; index >= 2; index -= 1) {
+                if (optionalTailNames.has(ordered[index]?.name)) {
+                    dropIndex = index;
+                    break;
+                }
+            }
+            if (dropIndex < 0) break;
+            ordered.splice(dropIndex, 1);
+        }
+        add(packageCall);
+    }
 
     return {
         calls: ordered,
@@ -213,6 +374,13 @@ export function compileNexoMission(input = {}) {
 
     const names = availableNames(input.catalog);
     let calls = base.toolCalls.map(copyCall);
+    const fullProduction = augmentFullMarketingProductionChain(
+        calls,
+        names,
+        input.input || "",
+        input.context || {}
+    );
+    calls = fullProduction.calls;
 
     if (names.has("page.compose")) {
         calls = augmentPageChain(calls);
@@ -233,20 +401,44 @@ export function compileNexoMission(input = {}) {
         realMediaContract = augmented.contract;
     }
 
+    const missionPolicy = {
+        ...(base?.missionPolicy || {}),
+        ...(fullProduction.fullPackage
+            ? {
+                fullMarketingProductionRequired: true,
+                requestedCreativeArtifactsBlockCompletion: true,
+                marketingPlanOnlyDoesNotSatisfyFullPackage: true
+            }
+            : {}),
+        ...(realMediaContract
+            ? {
+                syntheticMediaSubstitutionAllowed: false,
+                sourceBytesRequired: true,
+                sha256Required: true,
+                missingRequestedMediaBlocksCompletion: true
+            }
+            : {})
+    };
+
     return {
         ...base,
         toolCalls: calls.slice(0, 12),
-        ...(realMediaContract
+        ...(fullProduction.fullPackage
             ? {
-                realMediaContract,
-                missionPolicy: {
-                    syntheticMediaSubstitutionAllowed: false,
-                    sourceBytesRequired: true,
-                    sha256Required: true,
-                    missingRequestedMediaBlocksCompletion: true
+                fullMarketingProduction: {
+                    required: true,
+                    artifacts: calls
+                        .filter(call => ["document.create", "reel.create", "page.create", "image.generate", "marketing.package.real-media"].includes(call.name))
+                        .map(call => ({
+                            name: call.name,
+                            format: call.args?.format || null,
+                            title: call.args?.title || null
+                        }))
                 }
             }
             : {}),
+        ...(realMediaContract ? { realMediaContract } : {}),
+        ...(Object.keys(missionPolicy).length ? { missionPolicy } : {}),
         compilerBaseVersion: BASE_VERSION,
         version: NEXO_MISSION_COMPILER_VERSION
     };
@@ -257,6 +449,8 @@ export const __test = {
     normalized,
     firstHttpUrl,
     realMediaRequest,
+    wantsFullMarketingProduction,
+    augmentFullMarketingProductionChain,
     augmentPageChain,
     augmentWordChain,
     augmentRealMediaChain
