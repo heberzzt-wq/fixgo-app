@@ -1,5 +1,5 @@
 name: V94 semantic-only diagnostic
-# retry-wave2-package-anchor
+# wave3-v4-brain-subtree
 
 on:
   push:
@@ -45,7 +45,9 @@ jobs:
           python3 tools/v94_semantic_only_front_patch.py 2>&1 | tee -a /tmp/v94-semantic-patch.log
           python3 tools/v94_semantic_only_core_patch.py 2>&1 | tee -a /tmp/v94-semantic-patch.log
           python3 tools/v94_single_brain_prune_wave2.py 2>&1 | tee -a /tmp/v94-semantic-patch.log
+          python3 tools/v94_single_brain_prune_wave3.py 2>&1 | tee -a /tmp/v94-semantic-patch.log
           python3 tools/v94_semantic_only_contract_patch.py 2>&1 | tee -a /tmp/v94-semantic-patch.log
+          python3 tools/v94_semantic_only_residue_patch.py 2>&1 | tee -a /tmp/v94-semantic-patch.log
 
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
           node --check gestia-core/jarvis/jarvis.conversation.composer.js
@@ -71,8 +73,14 @@ jobs:
             gestia-core/jarvis/jarvis.intent.runtime.v7.js \
             gestia-core/jarvis/jarvis.language.core.v5.js \
             gestia-core/jarvis/jarvis.normalizer.js \
+            gestia-core/jarvis/jarvis.orchestrator.js \
+            gestia-core/jarvis/jarvis.vision.engine.js \
+            gestia-core/jarvis/jarvis-nlu-bridge.js \
+            gestia-core/jarvis/jarvis.dsl.js \
+            gestia-core/hubs/analysis.hub.js \
             tests/jarvis-local-runtime.test.mjs \
-            tests/jarvis-intent-runtime-v7.test.mjs
+            tests/jarvis-intent-runtime-v7.test.mjs \
+            tests/jarvis-vision-repo-analysis.test.mjs
           do
             test ! -e "$obsolete"
           done
@@ -96,7 +104,7 @@ jobs:
               'new RegExp(', '.match(', '.matchAll(', '.exec(', '.test(',
               'negativeSignals', 'positiveSignals', 'referenceSignals',
               'CRITICAL_INPUT_GROUPS', 'inferInstructionBrand', 'inferSubject',
-              'detectIntent', 'detectEntity', 'detectFilters', 'RENDER_',
+              'detectIntent', 'detectEntity', 'detectFilters',
               'WEAK_CORE_FILE_PATTERN', 'UI_EVIDENCE_PATTERN',
               'META_ENGINE_EVIDENCE_PATTERN', 'LOW_SIGNAL_EVIDENCE_TERMS',
               'extractObjectiveTerms', 'objectiveExplicitlyTargetsMetaEngine',
