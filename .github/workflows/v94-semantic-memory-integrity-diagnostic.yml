@@ -1,0 +1,73 @@
+name: V94 semantic memory and artifact integrity diagnostic
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-semantic-memory-integrity-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Establish branch and Functions isolation
+        run: |
+          set -euo pipefail
+          printf 'HEAD=%s\n' "$(git rev-parse HEAD)"
+          printf 'BRANCH=%s\n' "$(git branch --show-current)"
+          test "$(git branch --show-current)" = "v94-media-v4n-negative-claims"
+          git status --short
+
+      - name: Locate semantic memory wiring
+        run: |
+          set -euo pipefail
+          echo '=== MEMORY FILES ==='
+          grep -RInE 'createProjectMemory|JarvisContextMemory|resolveReferences|PUSH_HISTORY|jarvis\.missions|longTermPointers|HISTORY_TTL|MAX_HISTORY' \
+            gestia-core gestia-terminal.js gestia-terminal.html modules tests 2>/dev/null | head -n 400 || true
+          echo '=== PLANNER REQUEST / CONTEXT ==='
+          grep -nE 'ENDPOINT|fetch\(|missionState|continuationContext|memory|conversationId|originalInstruction|body:' \
+            gestia-core/jarvis/jarvis.multifunction.planner.js | head -n 350 || true
+
+      - name: Locate artifact generation and grounding boundaries
+        run: |
+          set -euo pipefail
+          echo '=== ARTIFACT TOOL REGISTRATION ==='
+          grep -RInE 'document\.create|spreadsheet|workbook|presentation|pptx|PptxGenJS|page\.create|image\.generate|reel\.create|contentSource|SPREADSHEET_BLUEPRINT_READY|DOCUMENT_CONTENT_COMPOSED' \
+            gestia-core jarvis-*.js nexo-*.js tests 2>/dev/null | head -n 700 || true
+          echo '=== PLACEHOLDER / GENERIC MARKETING RESIDUE ==='
+          grep -RInE 'placeholder|WHEN_INFRASTRUCTURE_AVAILABLE|instruction_inference|clientes potenciales relevantes|fricción entre una necesidad real|proveedores informales|presupuesto piloto por definir|Google My Business|técnicos certificados|Tecnicos certificados' \
+            gestia-core/jarvis gestia-core/nexo tests 2>/dev/null | head -n 500 || true
+
+      - name: Locate existing learning persistence
+        run: |
+          set -euo pipefail
+          grep -RInE 'LEARNING_INCIDENT|recordAgentLoopLearningIncident|recallAgentLoopLearningHints|JarvisAutonomyEngine|learning' \
+            gestia-core gestia-terminal.js tests 2>/dev/null | head -n 500 || true
+
+      - name: Baseline focused tests
+        run: |
+          set -o pipefail
+          node --test \
+            tests/jarvis-marketing-real-delivery.test.mjs \
+            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs \
+            tests/jarvis-marketing-engine-v2.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs \
+            tests/single-semantic-authority.test.mjs \
+            2>&1 | tee /tmp/v94-baseline-focused.log
+
+      - name: Verify diagnostic made no product changes
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          test -z "$(git diff --name-only -- functions)"
