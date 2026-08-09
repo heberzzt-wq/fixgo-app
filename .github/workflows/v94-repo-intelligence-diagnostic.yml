@@ -1,0 +1,98 @@
+name: V94 repo intelligence diagnostic
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-repo-intelligence-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Repository truth
+        run: |
+          set -euo pipefail
+          {
+            echo "HEAD=$(git rev-parse HEAD)"
+            echo "BRANCH=$(git branch --show-current)"
+            echo "TRACKED_FILES=$(git ls-files | wc -l)"
+            echo "SOURCE_FILES=$(git ls-files '*.js' '*.mjs' '*.cjs' '*.html' '*.css' '*.json' | wc -l)"
+            echo '=== HUBS ==='
+            find gestia-core/hubs -maxdepth 1 -type f -print | sort
+            echo '=== REPO GLOBAL DEFINITIONS ==='
+            grep -RInE 'window\.(scanRepo|findRepoFile|loadRepoContext|analyzeRepoImpact|diagnoseRepo|buildRepoCognitionIndex)[[:space:]]*=' . --exclude-dir=.git --exclude-dir=node_modules || true
+            echo '=== REPO TOOL DEFINITIONS ==='
+            grep -nE 'name:[[:space:]]*"repo\.(audit|scan|read|impact|diagnose|search|grep|graph|rankCandidates|architectReview)"' gestia-core/tools.runtime.js || true
+            echo '=== STALE BOOT REFERENCES ==='
+            grep -RInE 'analysis\.hub\.js|jarvis\.context\.memory\.v6\.js|tools\.runtime\.js\?v=' gestia-terminal.html gestia-terminal.js gestia-core modules --exclude='jarvis.context.memory.v6.js' || true
+            echo '=== STATIC INDEX PHANTOMS ==='
+            python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('modules/terminal/repo-bootstrap-index.js').read_text(encoding='utf-8')
+          paths=re.findall(r'path:\s*[\n\r ]*["\']([^"\']+)["\']',s)
+          missing=[]
+          for p in paths:
+              p=p.removeprefix('./')
+              if p and not Path(p).exists(): missing.append(p)
+          print('INDEX_PATHS=',len(paths))
+          print('MISSING_INDEX_PATHS=',len(missing))
+          for p in missing[:100]: print('MISSING',p)
+          PY
+          } | tee /tmp/repo-truth.log
+
+      - name: Repo intelligence tests
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          node --test tests/jarvis-repo-intelligence.test.mjs tests/repo-authority-v2.test.cjs tests/repo-source-structure.test.mjs 2>&1 | tee /tmp/repo-tests.log
+
+      - name: Full CI capture
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          npm run ci:test 2>&1 | tee /tmp/full-ci.log
+
+      - name: Extract failures
+        if: always()
+        run: |
+          {
+            echo '=== NOT OK ==='
+            grep -nE '(^|[[:space:]])not ok|FAIL|AssertionError|ERR_ASSERTION|ERR_TEST_FAILURE|Error:' /tmp/full-ci.log | tail -n 250 || true
+            echo '=== CI TAIL ==='
+            tail -n 350 /tmp/full-ci.log || true
+          } | tee /tmp/failures.log
+
+      - name: Assert no Functions changes
+        if: always()
+        run: test -z "$(git status --porcelain -- functions)"
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v94-repo-intelligence-diagnostic
+          path: |
+            /tmp/repo-truth.log
+            /tmp/repo-tests.log
+            /tmp/full-ci.log
+            /tmp/failures.log
+          retention-days: 7
