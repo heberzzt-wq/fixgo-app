@@ -31,6 +31,7 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/v94-semantic-memory-integrity-fix.py
+          python scripts/v94-semantic-memory-test-contract-fix.py
 
       - name: Syntax and focused regression
         run: |
@@ -49,10 +50,11 @@ jobs:
           set -euo pipefail
           test -z "$(git diff --name-only HEAD -- functions)"
 
-      - name: Commit product fix and remove patch script
+      - name: Commit product fix and remove patch scripts
         run: |
           set -euo pipefail
           rm scripts/v94-semantic-memory-integrity-fix.py
+          rm scripts/v94-semantic-memory-test-contract-fix.py
           git config user.name "heberzzt-wq"
           git config user.email "heberzzt@gmail.com"
           git add -A
