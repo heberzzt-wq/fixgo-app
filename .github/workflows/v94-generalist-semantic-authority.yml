@@ -1,0 +1,147 @@
+name: V94 generalist semantic authority
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-generalist-semantic-authority.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v94-generalist-semantic-authority
+  cancel-in-progress: false
+
+jobs:
+  certify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      PRODUCT_BASE_SHA: 2f024f2518ebdad0e8a29bb82e21ac915192cc19
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply semantic-authority patch
+        run: |
+          python3 tools/v94_generalist_semantic_authority_patch.py
+          node --check gestia-core/nexo/nexo.semantic-planner-resilience.js
+          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          git diff --check
+          test -z "$(git diff --name-only -- functions)"
+
+      - name: Run focused generalist regressions
+        run: |
+          set -o pipefail
+          node --test \
+            tests/nexo-semantic-resilience.test.mjs \
+            tests/jarvis-generalist-current-turn.test.mjs \
+            tests/nexo-mission-compiler.test.mjs \
+            tests/jarvis-document-analysis-routing.test.mjs \
+            tests/jarvis-multifunction-tools.test.mjs \
+            2>&1 | tee /tmp/v94-generalist-focused.log
+
+      - name: Run complete CI contract
+        run: |
+          set -o pipefail
+          npm run ci:test 2>&1 | tee /tmp/v94-generalist-ci.log
+
+      - name: Upload certification logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v94-generalist-semantic-certification-logs
+          path: |
+            /tmp/v94-generalist-focused.log
+            /tmp/v94-generalist-ci.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Commit certified product and remove temporary tooling
+        run: |
+          rm -f tools/v94_generalist_semantic_authority_patch.py
+          rm -f .github/workflows/v94-generalist-semantic-authority.yml
+          find . -type d -name __pycache__ -prune -exec rm -rf {} +
+          find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
+          git diff --check
+          test -z "$(git diff --name-only -- functions)"
+          git config user.name "OpenAI V94 Generalist Certification"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            gestia-core/nexo/nexo.semantic-planner-resilience.js \
+            gestia-core/jarvis/jarvis.multifunction.planner.js \
+            tests/nexo-semantic-resilience.test.mjs \
+            tests/jarvis-generalist-current-turn.test.mjs \
+            tools/v94_generalist_semantic_authority_patch.py \
+            .github/workflows/v94-generalist-semantic-authority.yml
+          git diff --cached --check
+          test -z "$(git diff --cached --name-only | grep '^functions/' || true)"
+          git commit -m "[v94-generalist] fix(jarvis): make current semantic turn authoritative"
+          git push origin HEAD:v94-media-v4n-negative-claims
+
+      - name: Verify clean certified tree
+        run: |
+          test ! -e tools/v94_generalist_semantic_authority_patch.py
+          test ! -e .github/workflows/v94-generalist-semantic-authority.yml
+          test -z "$(git status --porcelain)"
+          test -z "$(git diff --name-only "$PRODUCT_BASE_SHA"..HEAD -- functions)"
+          git show --stat --oneline --decorate HEAD
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools
+
+      - name: Deploy primary Hosting only
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy \
+            --only hosting:fixgo-44e4d \
+            --project fixgo-44e4d \
+            --token "$FIREBASE_TOKEN" \
+            --non-interactive
+
+      - name: Verify production bytes exactly
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/v94-live
+          : > /tmp/v94-generalist-production-hashes.txt
+          for file in \
+            gestia-core/nexo/nexo.semantic-planner-resilience.js \
+            gestia-core/jarvis/jarvis.multifunction.planner.js
+          do
+            live="/tmp/v94-live/$(basename "$file")"
+            curl -fsSL --retry 5 --retry-delay 2 \
+              "https://fixgo-44e4d.web.app/$file?cert=${GITHUB_SHA}" \
+              -o "$live"
+            cmp "$file" "$live"
+            printf '%s\n' "$file" >> /tmp/v94-generalist-production-hashes.txt
+            printf 'local ' >> /tmp/v94-generalist-production-hashes.txt
+            sha256sum "$file" >> /tmp/v94-generalist-production-hashes.txt
+            printf 'live  ' >> /tmp/v94-generalist-production-hashes.txt
+            sha256sum "$live" >> /tmp/v94-generalist-production-hashes.txt
+          done
+          grep -F 'semantic-intent-authority' /tmp/v94-live/nexo.semantic-planner-resilience.js
+          grep -F 'generalist-current-turn' /tmp/v94-live/jarvis.multifunction.planner.js
+          cat /tmp/v94-generalist-production-hashes.txt
+
+      - name: Upload production hashes
+        uses: actions/upload-artifact@v4
+        with:
+          name: v94-generalist-production-hashes
+          path: /tmp/v94-generalist-production-hashes.txt
+          retention-days: 14
