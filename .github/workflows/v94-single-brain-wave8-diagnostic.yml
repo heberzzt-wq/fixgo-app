@@ -1,4 +1,4 @@
-name: V94 single-brain wave8 diagnostic
+name: V94 single-brain wave8 certify materialize hosting
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
       - .github/workflows/v94-single-brain-wave8-diagnostic.yml
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   certify-wave8:
@@ -129,6 +129,56 @@ jobs:
           npm run ci:test 2>&1 | tee /tmp/v94-wave8-ci.log
           test -z "$(git diff --name-only -- functions)"
 
+      - name: Commit certified convergence and retire diagnostic workflow
+        run: |
+          set -euo pipefail
+          test -z "$(git diff --name-only -- functions)"
+          git rm .github/workflows/v94-single-brain-wave8-diagnostic.yml
+          git add -A
+          test -z "$(git diff --cached --name-only -- functions)"
+          git diff --cached --name-status | tee /tmp/v94-wave8-final-files.log
+          git config user.name "OpenAI V94 Handoff"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "[v94-wave8] feat(jarvis): converge on single semantic authority"
+          git rev-parse HEAD | tee /tmp/v94-wave8-final-commit.log
+          git push origin HEAD:v94-media-v4n-negative-claims
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools
+
+      - name: Deploy primary Hosting only
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy --only hosting:fixgo-44e4d --project fixgo-44e4d --token "$FIREBASE_TOKEN" --non-interactive
+
+      - name: Verify production bytes exactly
+        run: |
+          set -euo pipefail
+          base="https://fixgo-44e4d.web.app"
+          : > /tmp/v94-wave8-production-hashes.log
+          for file in \
+            gestia-terminal.js \
+            gestia-core/nexo/nexo.ui.branding.js \
+            jarvis-repo-intelligence.js \
+            jarvis-fs-bridge.js \
+            gestia-core/tools.runtime.js \
+            gestia-core/jarvis/jarvis.multifunction.planner.js \
+            gestia-core/jarvis/jarvis.conversation.composer.js \
+            gestia-core/gestia-core.js
+          do
+            test -f "$file"
+            live="/tmp/live-$(printf '%s' "$file" | tr '/' '_')"
+            curl -fsSL --retry 4 --retry-delay 2 "${base}/${file}?wave8=${GITHUB_RUN_ATTEMPT}-${GITHUB_RUN_ID}" -o "$live"
+            cmp "$file" "$live"
+            local_hash="$(sha256sum "$file" | awk '{print $1}')"
+            live_hash="$(sha256sum "$live" | awk '{print $1}')"
+            printf '%s\tlocal=%s\tlive=%s\n' "$file" "$local_hash" "$live_hash" | tee -a /tmp/v94-wave8-production-hashes.log
+            test "$local_hash" = "$live_hash"
+          done
+
       - name: Upload wave8 evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -142,5 +192,8 @@ jobs:
             /tmp/v94-wave8-inventory.log
             /tmp/v94-wave8-active-refs.log
             /tmp/v94-wave8-ci.log
+            /tmp/v94-wave8-final-files.log
+            /tmp/v94-wave8-final-commit.log
+            /tmp/v94-wave8-production-hashes.log
           if-no-files-found: ignore
           retention-days: 14
