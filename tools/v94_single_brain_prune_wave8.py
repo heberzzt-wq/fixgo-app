@@ -60,6 +60,16 @@ text = text.replace(
     'GestiaCore/jarvisSemanticPlan'
 )
 
+approval_words_start = '''/* =====================================================================================\n   FRASES DE APROBACIÓN\n===================================================================================== */\n\n'''
+config_start = '''/* =====================================================================================\n   CONFIG\n===================================================================================== */\n'''
+text = replace_between(
+    text,
+    approval_words_start,
+    config_start,
+    '',
+    'terminal-remove-dead-approval-wordlists'
+)
+
 router_start = '''/* =====================================================\n   🔥 INSERTAR AQUÍ (ANTES DE BLOQUEO)\n===================================================== */\n'''
 router_end = '''    /* =====================================================\n       OPID\n    ===================================================== */\n'''
 structured_context = '''/* =====================================================\n   STRUCTURED EXECUTION CONTEXT — NO LANGUAGE ROUTING\n===================================================== */\n\nconst ctx = {\n    userId: this.session?.uid,\n    tenantId: this.session?.tenantId || "uxmal39",\n    authorized: this.session?.authorized === true,\n    source: "GESTIA_TERMINAL_STRUCTURED_V16",\n    naturalIntentAuthority: "jarvisSemanticPlan",\n    lexicalFallbackAllowed: false\n};\n\n'''
@@ -89,6 +99,15 @@ text = replace_between(
     branding_helper,
     '',
     'branding-remove-natural-approval-parser'
+)
+parser_start = '''export function normalizeNexoCommand(value = "") {\n'''
+branding_apply = '''function applyBranding() {\n'''
+text = replace_between(
+    text,
+    parser_start,
+    branding_apply,
+    '',
+    'branding-remove-natural-approval-functions'
 )
 text = replace_once(
     text,
