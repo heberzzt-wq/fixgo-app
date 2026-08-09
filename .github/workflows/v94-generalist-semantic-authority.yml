@@ -1,4 +1,5 @@
 name: V94 generalist semantic authority
+# Revision 4: semantic authority checker fully migrated
 
 on:
   push:
