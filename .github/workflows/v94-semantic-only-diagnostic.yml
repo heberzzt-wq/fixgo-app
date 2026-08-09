@@ -1,5 +1,5 @@
 name: V94 semantic-only diagnostic
-# wave3-residue-retry
+# single-brain-quality-and-post-inventory
 
 on:
   push:
@@ -22,7 +22,7 @@ jobs:
           ref: v94-media-v4n-negative-claims
           fetch-depth: 0
 
-      - name: Inventory legacy brain consumers
+      - name: Inventory legacy brain consumers before prune
         run: |
           python3 tools/v94_single_brain_inventory.py | tee /tmp/v94-single-brain-inventory.log
           python3 tools/v94_single_brain_active_refs.py | tee /tmp/v94-single-brain-active-refs.log
@@ -48,6 +48,7 @@ jobs:
           python3 tools/v94_single_brain_prune_wave3.py 2>&1 | tee -a /tmp/v94-semantic-patch.log
           python3 tools/v94_semantic_only_contract_patch.py 2>&1 | tee -a /tmp/v94-semantic-patch.log
           python3 tools/v94_semantic_only_residue_patch.py 2>&1 | tee -a /tmp/v94-semantic-patch.log
+          python3 tools/v94_single_brain_quality_patch.py 2>&1 | tee -a /tmp/v94-semantic-patch.log
 
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
           node --check gestia-core/jarvis/jarvis.conversation.composer.js
@@ -87,6 +88,11 @@ jobs:
 
           git diff --check
           test -z "$(git diff --name-only -- functions)"
+
+      - name: Inventory after prune
+        run: |
+          python3 tools/v94_single_brain_inventory.py | tee /tmp/v94-single-brain-post.log
+          python3 tools/v94_single_brain_active_refs.py | tee /tmp/v94-single-brain-active-post.log
 
       - name: Inventory semantic lexical residue
         run: |
@@ -151,6 +157,8 @@ jobs:
           path: |
             /tmp/v94-single-brain-inventory.log
             /tmp/v94-single-brain-active-refs.log
+            /tmp/v94-single-brain-post.log
+            /tmp/v94-single-brain-active-post.log
             /tmp/v94-semantic-patch.log
             /tmp/v94-semantic-inventory.log
             /tmp/v94-semantic-ci.log
