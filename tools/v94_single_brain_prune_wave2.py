@@ -32,7 +32,7 @@ path = 'gestia-terminal.html'
 text = read(path)
 text = replace_once(
     text,
-    '<script type="module" src="gestia-core/jarvis/jarvis.bridge.v4.js?v=sia7-workbook-exec-v65-20260725"></script>\n',
+    '<script type="module" src="/gestia-core/jarvis/jarvis.bridge.v4.js?v=jarvis-runtime-macro-v2-20260618"></script>\n',
     '',
     'terminal-legacy-bridge-script'
 )
