@@ -53,18 +53,19 @@ test("live repo graph discovers syntax, dependencies, listeners, endpoints, coll
     }
 });
 
-test("candidate ranking explains every additive factor and honors a planned owner file", () => {
+test("candidate ranking explains structural evidence only for semantic-selected files", () => {
     const root = makeFixture();
     try {
         const graph = buildRepoIntelligence({ root });
         const result = rankRepoCandidates({
             graph,
-            query: "corrige la sesion admin y su redireccion",
             plannedFiles: ["auth.js"],
             limit: 5
         });
         assert.equal(result.ok, true);
-        assert.equal(result.scoring, "additive_evidence_breakdown_not_percentage");
+        assert.equal(result.source, "semantic_plan_plus_live_repo_graph");
+        assert.equal(result.scoring, "structural_evidence_for_semantic_selection");
+        assert.deepEqual(result.semanticSelection, ["auth.js"]);
         assert.equal(result.candidates[0].file, "auth.js");
         assert.equal(result.candidates[0].breakdown.plannedFile, 120);
         assert.ok(result.candidates[0].breakdown.incomingCalls > 0);
@@ -76,13 +77,35 @@ test("candidate ranking explains every additive factor and honors a planned owne
     }
 });
 
-test("bridge and browser runtime expose the live graph and explainable ranking end to end", () => {
+test("candidate ranking fails closed without semantic-selected files", () => {
+    const root = makeFixture();
+    try {
+        const graph = buildRepoIntelligence({ root });
+        assert.throws(
+            () => rankRepoCandidates({ graph, plannedFiles: [] }),
+            /PLANNED_FILES_REQUIRED/
+        );
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test("bridge exposes structural repo evidence while the semantic brain owns file selection", () => {
     const bridge = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
     const runtime = fs.readFileSync(new URL("../gestia-core/tools.runtime.js", import.meta.url), "utf8");
     const brain = fs.readFileSync(new URL("../gestia-core/brain.engine.js", import.meta.url), "utf8");
+    const intelligence = fs.readFileSync(new URL("../jarvis-repo-intelligence.js", import.meta.url), "utf8");
     assert.match(bridge, /app\.post\("\/repo\/graph"/);
     assert.match(bridge, /app\.post\("\/repo\/candidates"/);
+    assert.match(bridge, /PLANNED_FILES_REQUIRED/);
     assert.match(runtime, /name: "repo\.graph"/);
     assert.match(runtime, /name: "repo\.rankCandidates"/);
-    assert.match(brain, /LOCAL_SEMANTIC_EXPLAINABLE_CANDIDATE_RANKING/);
+    assert.match(runtime, /plannedFiles: "array"/);
+    assert.match(brain, /COMPATIBILITY_CANARY_ONLY/);
+    assert.match(brain, /semanticAuthority:\s*"jarvisSemanticPlan"/);
+    assert.doesNotMatch(brain, /LOCAL_SEMANTIC_EXPLAINABLE_CANDIDATE_RANKING/);
+    assert.doesNotMatch(intelligence, /function queryTerms/);
+    assert.doesNotMatch(intelligence, /lexicalSemantic/);
+    assert.doesNotMatch(intelligence, /normalizedQuery/);
+    assert.match(intelligence, /structural_evidence_for_semantic_selection/);
 });

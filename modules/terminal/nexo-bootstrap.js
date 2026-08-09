@@ -3,7 +3,7 @@
  * NEXO TERMINAL BOOTSTRAP
  * ======================================================================================
  * Se carga antes del core de la Terminal mediante proposal-state.js.
- * Activa identidad visible, normalización de aprobaciones, resiliencia del planificador
+ * Activa identidad visible, normalización de aprobaciones
  * y herramientas de medios reales sin depender de marketing.plan ni del catálogo legacy.
  * ======================================================================================
  */
@@ -29,9 +29,6 @@ export async function instalarBootstrapTerminalNexo() {
         return serverInstallation;
     }
 
-    const resilience = await import(
-        "../../gestia-core/nexo/nexo.semantic-planner-resilience.js?v=nexo-terminal-runtime-v3-20260731"
-    );
     const realMediaTools = await import(
         "../../gestia-core/nexo/nexo.real-media.tools.js?v=nexo-real-media-runtime-v1-20260731"
     );
@@ -44,8 +41,6 @@ export async function instalarBootstrapTerminalNexo() {
         active: true,
         environment: "browser",
         version: NEXO_TERMINAL_BOOTSTRAP_VERSION,
-        resilienceVersion:
-            resilience.NEXO_SEMANTIC_RESILIENCE_VERSION || null,
         realMediaToolsVersion:
             realMediaTools.NEXO_REAL_MEDIA_TOOLS_VERSION || null,
         realMediaToolsInstalling: true,

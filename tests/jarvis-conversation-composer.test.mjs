@@ -131,30 +131,27 @@ test("simple natural question stays conversational without capability evidence",
     assert.equal(prepared.requiresFinalConversation, false);
 });
 
-test("explicit JSON capability request remains the only raw-output exception", () => {
-    const instruction =
-        "Devuélveme en JSON las herramientas disponibles.";
+test("explicit JSON output is accepted only from structured semantic plan metadata", () => {
+    const toolCalls = [{
+        name: "system.capabilities",
+        args: {}
+    }];
+    toolCalls.responseFormat = "json";
     const prepared = prepareEvidenceGroundedConversationPlan({
-        instruction,
-        toolCalls: [{
-            name: "system.capabilities",
-            args: {}
-        }],
+        instruction: "Devuélveme las herramientas disponibles.",
+        toolCalls,
         toolCatalog: [
             { name: "system.capabilities" },
             { name: "system.forensics" }
         ]
     });
 
-    assert.equal(isExplicitJsonResponseRequest(instruction), true);
+    assert.equal(isExplicitJsonResponseRequest(toolCalls), true);
     assert.deepEqual(
         prepared.operationalCalls.map(call => call.name),
         ["system.capabilities"]
     );
     assert.equal(prepared.requiresFinalConversation, false);
-    assert.doesNotThrow(() =>
-        JSON.parse(JSON.stringify(capabilityEvidence))
-    );
 });
 
 test("successful capabilities cannot complete when final composition fails", async () => {
@@ -464,10 +461,11 @@ test("non-JSON composition rejects a raw tool payload", async () => {
     assert.equal(result.status, "RAW_TOOL_PAYLOAD_REJECTED");
 });
 
-test("precision-audited media response preserves verified literals without semantic rewriting", async () => {
+test("precision-audited media is composed once by the single semantic brain", async () => {
+    let semanticCalls = 0;
+    let capturedPrompt = "";
     const result = await composeEvidenceGroundedConversation({
-        instruction:
-            "Analiza comparativamente estas dos capturas sin inventar texto.",
+        instruction: "Compara las dos capturas y dime diferencias reales.",
         evidenceItems: [{
             name: "media.analyze",
             observation: {
@@ -476,659 +474,196 @@ test("precision-audited media response preserves verified literals without seman
                 version: "1.4.0-verified-visual-claims",
                 expectedSources: 2,
                 receivedSources: 2,
-                sources: [
-                    {
-                        sourceId: "SOURCE_1",
-                        fileName: "terminal-nueva.png",
-                        sha256: "1".repeat(64),
-                        objects: [
-                            "Una terminal web con campo para instrucciones."
-                        ],
-                        visibleData: [
-                            {
-                                kind: "text",
-                                value: "Motor No-Code",
-                                page: 1,
-                                confidence: 0.99,
-                                evidence: "Subtitulo bajo Terminal Heberto.",
-                                legibility: "VERIFIED"
-                            },
-                            {
-                                kind: "url",
-                                value: "fixgo-44d",
-                                page: 1,
-                                confidence: 0.7,
-                                evidence: "Barra de direcciones parcialmente legible.",
-                                legibility: "UNCERTAIN"
-                            }
-                        ],
-                        uncertainty: [
-                            "La URL completa y el ano no se distinguen con certeza."
-                        ]
-                    },
-                    {
-                        sourceId: "SOURCE_2",
-                        fileName: "menu-chat-nuevo.png",
-                        sha256: "2".repeat(64),
-                        objects: [
-                            "Un menu de adjuntos con varias acciones visibles."
-                        ],
-                        visibleData: [],
-                        uncertainty: [
-                            "No se transcriben detalles pequenos del menu."
-                        ]
-                    }
-                ],
+                sources: [{
+                    sourceId: "SOURCE_1",
+                    fileName: "chat.png",
+                    sha256: "a".repeat(64),
+                    observations: ["Hay una interfaz de conversación con un encabezado visible."],
+                    visibleData: [{
+                        kind: "text",
+                        value: "ChatGPT Plus",
+                        page: 1,
+                        confidence: 1,
+                        evidence: "Encabezado visible.",
+                        legibility: "VERIFIED"
+                    }],
+                    uncertainty: ["No se puede asegurar el contenido que queda fuera del encuadre."]
+                }, {
+                    sourceId: "SOURCE_2",
+                    fileName: "terminal.png",
+                    sha256: "b".repeat(64),
+                    observations: ["Hay una interfaz de terminal con un encabezado visible."],
+                    visibleData: [{
+                        kind: "text",
+                        value: "Terminal Heberto",
+                        page: 1,
+                        confidence: 1,
+                        evidence: "Encabezado visible.",
+                        legibility: "VERIFIED"
+                    }],
+                    uncertainty: []
+                }],
                 comparison: {
                     differences: [
-                        "La segunda captura presenta un menu de acciones; la primera muestra el campo principal de la Terminal."
+                        "Los encabezados visibles son distintos."
                     ]
                 },
-                recommendations: [
-                    "Mostrar acciones de adjuntos agrupadas junto al boton +."
-                ],
+                recommendations: [],
                 precisionAudit: {
                     ok: true,
                     status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
-                    providerPasses: 2,
                     effectiveToolExecutions: 1,
                     sourceIdentityVerified: true,
                     exactTextRequiresConfidence: 0.98
                 }
             }
         }],
-        executeConversation: async () => {
-            throw new Error("semantic composer must not run");
+        executeConversation: async prompt => {
+            semanticCalls += 1;
+            capturedPrompt = prompt;
+            return {
+                ok: true,
+                data: {
+                    message: [
+                        "Revisé las dos capturas.",
+                        "En la primera se verifica el encabezado ChatGPT Plus y en la segunda Terminal Heberto.",
+                        "La diferencia confirmada es que los encabezados visibles son distintos.",
+                        "No puedo asegurar lo que queda fuera del encuadre de la primera captura."
+                    ].join(" ")
+                }
+            };
         }
     });
 
+    assert.equal(semanticCalls, 1);
     assert.equal(result.ok, true);
-    assert.equal(result.status, "MEDIA_ANALYSIS_RESPONSE_VERIFIED");
-    assert.equal(result.provider, "deterministic-grounded-media");
-    assert.match(result.text, /terminal-nueva\.png/);
-    assert.match(result.text, /menu-chat-nuevo\.png/);
-    assert.match(result.text, /Motor No-Code/);
-    assert.match(result.text, /URL completa y el ano no se distinguen/);
-    assert.match(result.text, /Me quedé sólo con lo que pude verificar/i);
-    assert.doesNotMatch(result.text, /Motion No-Code|fixgo-44d|2028/);
+    assert.equal(result.status, "CONVERSATIONAL_COMPOSITION_COMPLETED");
+    assert.match(result.text, /ChatGPT Plus/);
+    assert.match(result.text, /Terminal Heberto/);
+    assert.match(result.text, /encabezados visibles son distintos/i);
+    assert.match(result.text, /fuera del encuadre/i);
+    assert.match(capturedPrompt, /única autoridad que compone la respuesta final/i);
+    assert.match(capturedPrompt, /visibleData/);
+    assert.match(capturedPrompt, /VERIFIED/);
     assert.doesNotMatch(result.text, /SOURCE_1|sha256|precisionAudit/);
 });
 
-test("mixed media evidence still uses the semantic composer for the complete objective", async () => {
-    let calls = 0;
+
+test("precision media final rejects raw JSON from the semantic brain", async () => {
     const result = await composeEvidenceGroundedConversation({
-        instruction: "Analiza la imagen y revisa tambien el estado del sistema.",
-        evidenceItems: [
-            {
-                name: "media.analyze",
-                observation: {
+        instruction: "Analiza la captura.",
+        evidenceItems: [{
+            name: "media.analyze",
+            observation: {
+                ok: true,
+                status: "MEDIA_ANALYSIS_GROUNDED",
+                version: "1.4.0-verified-visual-claims",
+                expectedSources: 1,
+                receivedSources: 1,
+                sources: [{
+                    sourceId: "SOURCE_1",
+                    fileName: "terminal.png",
+                    sha256: "c".repeat(64),
+                    visibleData: [{
+                        kind: "text",
+                        value: "Motor No-Code",
+                        confidence: 1,
+                        evidence: "Subtítulo visible.",
+                        legibility: "VERIFIED"
+                    }]
+                }],
+                precisionAudit: {
                     ok: true,
-                    status: "MEDIA_ANALYSIS_GROUNDED",
-                    version: "1.4.0-verified-visual-claims",
-                    expectedSources: 1,
-                    receivedSources: 1,
-                    sources: [{
-                        sourceId: "SOURCE_1",
-                        fileName: "captura.png",
-                        sha256: "a".repeat(64)
-                    }],
-                    precisionAudit: {
-                        ok: true,
-                        status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
-                        effectiveToolExecutions: 1,
-                        sourceIdentityVerified: true
-                    }
-                }
-            },
-            {
-                name: "system.health",
-                observation: {
-                    ok: true,
-                    status: "HEALTHY"
+                    status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
+                    effectiveToolExecutions: 1,
+                    sourceIdentityVerified: true,
+                    exactTextRequiresConfidence: 0.98
                 }
             }
-        ],
+        }],
+        executeConversation: async () => ({
+            ok: true,
+            data: { message: '{"raw":"tool-payload"}' }
+        })
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.status, "RAW_TOOL_PAYLOAD_REJECTED");
+});
+
+
+test("mixed media and health evidence share the same semantic final composer", async () => {
+    let semanticCalls = 0;
+    const result = await composeEvidenceGroundedConversation({
+        instruction: "Analiza la imagen y revisa también el estado del sistema.",
+        evidenceItems: [{
+            name: "media.analyze",
+            observation: {
+                ok: true,
+                status: "MEDIA_ANALYSIS_GROUNDED",
+                version: "1.4.0-verified-visual-claims",
+                expectedSources: 1,
+                receivedSources: 1,
+                sources: [{
+                    sourceId: "SOURCE_1",
+                    fileName: "captura.png",
+                    sha256: "d".repeat(64)
+                }],
+                precisionAudit: {
+                    ok: true,
+                    status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
+                    effectiveToolExecutions: 1,
+                    sourceIdentityVerified: true
+                }
+            }
+        }, {
+            name: "system.health",
+            observation: { ok: true, status: "HEALTHY" }
+        }],
         executeConversation: async () => {
-            calls += 1;
+            semanticCalls += 1;
             return {
                 ok: true,
                 data: {
-                    message:
-                        "La imagen fue analizada y el sistema esta saludable."
+                    message: "La imagen fue analizada y el sistema está saludable."
                 }
             };
         }
     });
 
-    assert.equal(calls, 1);
+    assert.equal(semanticCalls, 1);
     assert.equal(result.status, "CONVERSATIONAL_COMPOSITION_COMPLETED");
-});
-
-test("precision-audited media survives the real mission observation envelope", async () => {
-    const sources = [
-        {
-            sourceId: "SOURCE_1",
-            fileName: "terminal-envuelta.png",
-            sha256: "c".repeat(64),
-            objects: ["Una terminal web."],
-            visibleData: [{
-                kind: "text",
-                value: "Motor No-Code",
-                page: 1,
-                confidence: 0.99,
-                evidence: "Encabezado visible.",
-                legibility: "VERIFIED"
-            }],
-            uncertainty: ["La URL completa no es legible."]
-        },
-        {
-            sourceId: "SOURCE_2",
-            fileName: "menu-envuelto.png",
-            sha256: "d".repeat(64),
-            objects: ["Un menu de acciones."],
-            visibleData: [],
-            uncertainty: []
-        }
-    ];
-    let semanticCalls = 0;
-    const result = await composeEvidenceGroundedConversation({
-        instruction: "Compara las dos capturas.",
-        evidenceItems: [{
-            name: "media.analyze",
-            observation: {
-                ok: true,
-                executionOk: true,
-                objectiveSatisfied: true,
-                status: "MEDIA_ANALYSIS_GROUNDED",
-                version: "1.4.0-verified-visual-claims",
-                sourceCount: 2,
-                validSources: sources,
-                evidence: {
-                    ok: true,
-                    status: "MEDIA_ANALYSIS_GROUNDED",
-                    version: "1.4.0-verified-visual-claims",
-                    expectedSources: 2,
-                    receivedSources: 2,
-                    sources,
-                    precisionAudit: {
-                        ok: true,
-                        status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
-                        providerPasses: 2,
-                        effectiveToolExecutions: 1,
-                        sourceIdentityVerified: true,
-                        exactTextRequiresConfidence: 0.98
-                    }
-                }
-            }
-        }],
-        executeConversation: async () => {
-            semanticCalls += 1;
-            return { ok: true, data: { message: "No debe ejecutarse." } };
-        }
-    });
-
-    assert.equal(result.ok, true);
-    assert.equal(result.status, "MEDIA_ANALYSIS_RESPONSE_VERIFIED");
-    assert.equal(semanticCalls, 0);
-    assert.match(result.text, /terminal-envuelta\.png/);
-    assert.match(result.text, /menu-envuelto\.png/);
-    assert.match(result.text, /Motor No-Code/);
-    assert.doesNotMatch(result.text, /Motion No-Code|2028/);
+    assert.match(result.text, /sistema está saludable/i);
 });
 
 
-test("system certification companion cannot force semantic rewriting of verified media", async () => {
-    let semanticCalls = 0;
+test("precision mission envelope preserves intact validSources for the semantic brain", async () => {
+    const intactSources = [{
+        sourceId: "SOURCE_1",
+        fileName: "one.png",
+        sha256: "e".repeat(64),
+        visibleData: [{
+            kind: "text",
+            value: "ChatGPT Plus",
+            confidence: 1,
+            evidence: "header",
+            legibility: "VERIFIED"
+        }]
+    }, {
+        sourceId: "SOURCE_2",
+        fileName: "two.png",
+        sha256: "f".repeat(64),
+        visibleData: [{
+            kind: "text",
+            value: "Terminal Heberto",
+            confidence: 1,
+            evidence: "header",
+            legibility: "VERIFIED"
+        }]
+    }];
+    let capturedPrompt = "";
     const result = await composeEvidenceGroundedConversation({
-        instruction: "Compara estas dos capturas sin inventar texto.",
-        evidenceItems: [
-            {
-                name: "media.analyze",
-                observation: {
-                    ok: true,
-                    status: "MEDIA_ANALYSIS_GROUNDED",
-                    version: "1.4.0-verified-visual-claims",
-                    expectedSources: 2,
-                    receivedSources: 2,
-                    sources: [
-                        {
-                            sourceId: "SOURCE_1",
-                            fileName: "chatgpt.png",
-                            sha256: "1".repeat(64),
-                            objects: ["Una interfaz web."],
-                            visibleData: [],
-                            uncertainty: ["El menu de adjuntos no esta abierto en esta captura."]
-                        },
-                        {
-                            sourceId: "SOURCE_2",
-                            fileName: "terminal.png",
-                            sha256: "2".repeat(64),
-                            objects: ["Una terminal web."],
-                            visibleData: [{
-                                kind: "text",
-                                value: "NEXO listo",
-                                page: 1,
-                                confidence: 0.99,
-                                evidence: "Tarjeta central visible.",
-                                legibility: "VERIFIED"
-                            }],
-                            uncertainty: []
-                        }
-                    ],
-                    comparison: {
-                        differences: [
-                            "No se puede verificar el menu de adjuntos de ChatGPT porque no esta abierto en SOURCE_1."
-                        ]
-                    },
-                    recommendations: [],
-                    precisionAudit: {
-                        ok: true,
-                        status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
-                        providerPasses: 2,
-                        effectiveToolExecutions: 1,
-                        sourceIdentityVerified: true,
-                        exactTextRequiresConfidence: 0.98
-                    }
-                }
-            },
-            {
-                name: "system.certify",
-                observation: {
-                    ok: true,
-                    status: "CERTIFICATION_INCOMPLETE",
-                    certified: false
-                }
-            }
-        ],
-        executeConversation: async () => {
-            semanticCalls += 1;
-            return {
-                ok: true,
-                data: {
-                    message: "La fecha mostrada es 07/08/2023."
-                }
-            };
-        }
-    });
-
-    assert.equal(result.ok, true);
-    assert.equal(result.status, "MEDIA_ANALYSIS_RESPONSE_VERIFIED");
-    assert.equal(result.provider, "deterministic-grounded-media");
-    assert.equal(semanticCalls, 0);
-    assert.match(result.text, /NEXO listo/);
-    assert.doesNotMatch(result.text, /07\/08\/2023|2023/);
-});
-
-
-
-test("precision renderer suppresses ungrounded standalone UI labels from provider comparison", async () => {
-    const result = await composeEvidenceGroundedConversation({
-        instruction: "Compara dos capturas sin inventar etiquetas.",
-        evidenceItems: [{
-            name: "media.analyze",
-            observation: {
-                ok: true,
-                status: "MEDIA_ANALYSIS_GROUNDED",
-                version: "1.4.0-verified-visual-claims",
-                expectedSources: 2,
-                receivedSources: 2,
-                sources: [
-                    {
-                        sourceId: "SOURCE_1",
-                        fileName: "chat.png",
-                        sha256: "a".repeat(64),
-                        objects: [],
-                        visibleData: [],
-                        uncertainty: []
-                    },
-                    {
-                        sourceId: "SOURCE_2",
-                        fileName: "terminal.png",
-                        sha256: "b".repeat(64),
-                        objects: [],
-                        visibleData: [],
-                        uncertainty: []
-                    }
-                ],
-                comparison: {
-                    differences: [
-                        "The first menu includes Canva, Gmail, GitHub and Google Drive while Terminal Heberto has fewer options."
-                    ]
-                },
-                recommendations: [
-                    "Add Canva and Gmail integrations to Terminal Heberto."
-                ],
-                precisionAudit: {
-                    ok: true,
-                    status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
-                    effectiveToolExecutions: 1,
-                    sourceIdentityVerified: true,
-                    exactTextRequiresConfidence: 0.98
-                }
-            }
-        }],
-        executeConversation: async () => {
-            throw new Error("semantic composer must not run");
-        }
-    });
-
-    assert.equal(result.ok, true);
-    assert.equal(result.status, "MEDIA_ANALYSIS_RESPONSE_VERIFIED");
-    assert.doesNotMatch(
-        result.text,
-        /Canva|Gmail|GitHub|Google Drive|Terminal Heberto/
-    );
-    assert.match(
-        result.text,
-        /preferí dejarlas fuera en vez de asumir/i
-    );
-    assert.match(
-        result.text,
-        /Dejé fuera sugerencias/i
-    );
-});
-
-
-test("precision renderer keeps UI labels when final visibleData verifies them", async () => {
-    const result = await composeEvidenceGroundedConversation({
-        instruction: "Compara dos capturas.",
-        evidenceItems: [{
-            name: "media.analyze",
-            observation: {
-                ok: true,
-                status: "MEDIA_ANALYSIS_GROUNDED",
-                version: "1.4.0-verified-visual-claims",
-                expectedSources: 2,
-                receivedSources: 2,
-                sources: [
-                    {
-                        sourceId: "SOURCE_1",
-                        fileName: "chat.png",
-                        sha256: "c".repeat(64),
-                        objects: [],
-                        visibleData: [{
-                            kind: "text",
-                            value: "ChatGPT Plus",
-                            page: 1,
-                            confidence: 0.99,
-                            evidence: "Etiqueta superior visible.",
-                            legibility: "VERIFIED"
-                        }],
-                        uncertainty: []
-                    },
-                    {
-                        sourceId: "SOURCE_2",
-                        fileName: "terminal.png",
-                        sha256: "d".repeat(64),
-                        objects: [],
-                        visibleData: [{
-                            kind: "text",
-                            value: "Terminal Heberto",
-                            page: 1,
-                            confidence: 0.99,
-                            evidence: "Encabezado visible.",
-                            legibility: "VERIFIED"
-                        }],
-                        uncertainty: []
-                    }
-                ],
-                comparison: {
-                    differences: [
-                        "ChatGPT Plus y Terminal Heberto muestran encabezados distintos."
-                    ]
-                },
-                recommendations: [],
-                precisionAudit: {
-                    ok: true,
-                    status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
-                    effectiveToolExecutions: 1,
-                    sourceIdentityVerified: true,
-                    exactTextRequiresConfidence: 0.98
-                }
-            }
-        }],
-        executeConversation: async () => {
-            throw new Error("semantic composer must not run");
-        }
-    });
-
-    assert.equal(result.ok, true);
-    assert.match(result.text, /ChatGPT Plus/);
-    assert.match(result.text, /Terminal Heberto/);
-    assert.match(result.text, /encabezados distintos/);
-});
-
-
-
-test("precision renderer removes capture-context claims and speculative recommendations with no verified literals", async () => {
-    const result = await composeEvidenceGroundedConversation({
-        instruction: "Compara las dos capturas.",
-        evidenceItems: [{
-            name: "media.analyze",
-            observation: {
-                ok: true,
-                status: "MEDIA_ANALYSIS_GROUNDED",
-                version: "1.4.0-verified-visual-claims",
-                expectedSources: 2,
-                receivedSources: 2,
-                sources: [
-                    {
-                        sourceId: "SOURCE_1",
-                        fileName: "one.png",
-                        sha256: "1".repeat(64),
-                        visibleData: [],
-                        uncertainty: []
-                    },
-                    {
-                        sourceId: "SOURCE_2",
-                        fileName: "two.png",
-                        sha256: "2".repeat(64),
-                        visibleData: [],
-                        uncertainty: []
-                    }
-                ],
-                comparison: {
-                    differences: [
-                        "Source 2 contains a code-like output on the right side, which is absent in Source 1.",
-                        "Both images show the same date and time in the system tray, suggesting they were captured around the same time."
-                    ]
-                },
-                recommendations: [
-                    "Ensure consistency in UI/UX if these two interfaces are part of a larger ecosystem or user workflow."
-                ],
-                precisionAudit: {
-                    ok: true,
-                    status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
-                    providerPasses: 2,
-                    effectiveToolExecutions: 1,
-                    sourceIdentityVerified: true,
-                    exactTextRequiresConfidence: 0.98
-                }
-            }
-        }],
-        executeConversation: async () => {
-            throw new Error("semantic composer must not run");
-        }
-    });
-
-    assert.equal(result.ok, true);
-    assert.equal(result.status, "MEDIA_ANALYSIS_RESPONSE_VERIFIED");
-    assert.match(result.text, /code-like output/);
-    assert.doesNotMatch(result.text, /same date|same time|system tray|ecosystem|workflow/i);
-});
-
-
-
-test("precision renderer shows safe nonliteral visual observations when text labels remain unverified", async () => {
-    const result = await composeEvidenceGroundedConversation({
-        instruction: "Compara solamente lo verificable visualmente.",
-        evidenceItems: [{
-            name: "media.analyze",
-            observation: {
-                ok: true,
-                status: "MEDIA_ANALYSIS_GROUNDED",
-                version: "1.4.0-verified-visual-claims",
-                expectedSources: 2,
-                receivedSources: 2,
-                sources: [
-                    {
-                        sourceId: "SOURCE_1",
-                        fileName: "one.png",
-                        sha256: "1".repeat(64),
-                        observations: ["Se observa un menu abierto con varias filas."],
-                        objects: [],
-                        visibleData: [],
-                        uncertainty: []
-                    },
-                    {
-                        sourceId: "SOURCE_2",
-                        fileName: "two.png",
-                        sha256: "2".repeat(64),
-                        observations: ["Se observa un panel lateral junto al contenido principal."],
-                        objects: [],
-                        visibleData: [],
-                        uncertainty: []
-                    }
-                ],
-                comparison: {
-                    differences: ["La segunda fuente muestra un panel lateral que no aparece en la primera."],
-                    confidence: 0.99
-                },
-                recommendations: [],
-                precisionAudit: {
-                    ok: true,
-                    status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
-                    effectiveToolExecutions: 1,
-                    sourceIdentityVerified: true,
-                    exactTextRequiresConfidence: 0.98
-                }
-            }
-        }],
-        executeConversation: async () => {
-            throw new Error("semantic composer must not run");
-        }
-    });
-
-    assert.equal(result.ok, true);
-    assert.match(result.text, /Lo que pude confirmar:/);
-    assert.match(result.text, /menu abierto con varias filas/i);
-    assert.match(result.text, /panel lateral junto al contenido principal/i);
-    assert.match(result.text, /segunda fuente muestra un panel lateral/i);
-});
-
-
-
-test("precision renderer keeps verified literals scoped to their own source and suppresses transcript content", async () => {
-    const transcript = "He analizado visualmente las dos imágenes proporcionadas, describiendo su contenido y las diferencias entre ellas. Se ha identificado que la terminal no muestra una interfaz de adjuntos de archivos.";
-    const result = await composeEvidenceGroundedConversation({
-        instruction: "Compara solamente controles visibles y no uses el historial como evidencia funcional.",
-        evidenceItems: [{
-            name: "media.analyze",
-            observation: {
-                ok: true,
-                status: "MEDIA_ANALYSIS_GROUNDED",
-                version: "1.4.0-verified-visual-claims",
-                expectedSources: 2,
-                receivedSources: 2,
-                sources: [
-                    {
-                        sourceId: "SOURCE_1",
-                        fileName: "one.png",
-                        sha256: "1".repeat(64),
-                        observations: ["Se observa un menu abierto con varias filas."],
-                        objects: [],
-                        visibleData: [{
-                            kind: "text",
-                            value: "ChatGPT Plus",
-                            page: 1,
-                            confidence: 0.99,
-                            evidence: "Etiqueta visible.",
-                            legibility: "VERIFIED"
-                        }],
-                        uncertainty: []
-                    },
-                    {
-                        sourceId: "SOURCE_2",
-                        fileName: "two.png",
-                        sha256: "2".repeat(64),
-                        observations: [
-                            `A text block within the application states: '${transcript}'`,
-                            "The application is ChatGPT Plus.",
-                            "Se observa un panel lateral junto al contenido principal."
-                        ],
-                        objects: [],
-                        visibleData: [],
-                        uncertainty: []
-                    }
-                ],
-                comparison: {
-                    differences: ["La segunda fuente muestra un panel lateral que no aparece en la primera."],
-                    confidence: 0.99
-                },
-                recommendations: [],
-                precisionAudit: {
-                    ok: true,
-                    status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
-                    effectiveToolExecutions: 1,
-                    sourceIdentityVerified: true,
-                    exactTextRequiresConfidence: 0.98
-                }
-            }
-        }],
-        executeConversation: async () => {
-            throw new Error("semantic composer must not run");
-        }
-    });
-
-    assert.equal(result.ok, true);
-    assert.match(result.text, /menu abierto con varias filas/i);
-    assert.match(result.text, /panel lateral junto al contenido principal/i);
-    assert.doesNotMatch(result.text, /He analizado|text block within|The application is ChatGPT Plus/);
-});
-
-
-
-test("production mission envelope prefers intact validSources over compact nested evidence", async () => {
-    const intactSources = [
-        {
-            sourceId: "SOURCE_1",
-            fileName: "chat-gpt-aduntos-1.png",
-            sha256: "a".repeat(64),
-            description: "",
-            observations: [],
-            inferences: [],
-            visibleData: [{
-                kind: "text",
-                value: "ChatGPT Plus",
-                page: 1,
-                confidence: 1,
-                evidence: "Text at the top left of the main panel.",
-                legibility: "VERIFIED"
-            }],
-            uncertainty: []
-        },
-        {
-            sourceId: "SOURCE_2",
-            fileName: "terminal-adjunto-1.png",
-            sha256: "b".repeat(64),
-            description: "",
-            observations: [],
-            inferences: [],
-            visibleData: [{
-                kind: "text",
-                value: "Terminal Heberto",
-                page: 1,
-                confidence: 1,
-                evidence: "Text at the top left of the main panel.",
-                legibility: "VERIFIED"
-            }],
-            uncertainty: []
-        }
-    ];
-
-    let semanticCalls = 0;
-    const result = await composeEvidenceGroundedConversation({
-        instruction: "Compara solamente lo visible.",
+        instruction: "Compara ambas capturas.",
         evidenceItems: [{
             name: "media.analyze",
             observation: {
@@ -1152,7 +687,6 @@ test("production mission envelope prefers intact validSources over compact neste
                     precisionAudit: {
                         ok: true,
                         status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
-                        providerPasses: 2,
                         effectiveToolExecutions: 1,
                         sourceIdentityVerified: true,
                         exactTextRequiresConfidence: 0.98
@@ -1160,333 +694,35 @@ test("production mission envelope prefers intact validSources over compact neste
                 }
             }
         }],
-        executeConversation: async () => {
-            semanticCalls += 1;
-            return { ok: true, data: { message: "No debe ejecutarse." } };
-        }
-    });
-
-    assert.equal(result.ok, true);
-    assert.equal(result.status, "MEDIA_ANALYSIS_RESPONSE_VERIFIED");
-    assert.equal(semanticCalls, 0);
-    assert.match(result.text, /ChatGPT Plus/);
-    assert.match(result.text, /Terminal Heberto/);
-    assert.doesNotMatch(result.text, /ninguna con confianza suficiente/);
-});
-
-
-test("precision renderer rejects an unverified uppercase UI label even beside a grounded label", async () => {
-    const result = await composeEvidenceGroundedConversation({
-        instruction: "Compara dos capturas sin inventar etiquetas.",
-        evidenceItems: [{
-            name: "media.analyze",
-            observation: {
+        executeConversation: async prompt => {
+            capturedPrompt = prompt;
+            return {
                 ok: true,
-                status: "MEDIA_ANALYSIS_GROUNDED",
-                version: "1.4.0-verified-visual-claims",
-                expectedSources: 2,
-                receivedSources: 2,
-                sources: [
-                    {
-                        sourceId: "SOURCE_1",
-                        fileName: "one.png",
-                        sha256: "c".repeat(64),
-                        visibleData: [],
-                        uncertainty: []
-                    },
-                    {
-                        sourceId: "SOURCE_2",
-                        fileName: "two.png",
-                        sha256: "d".repeat(64),
-                        visibleData: [{
-                            kind: "text",
-                            value: "Terminal Heberto",
-                            page: 1,
-                            confidence: 1,
-                            evidence: "Encabezado visible.",
-                            legibility: "VERIFIED"
-                        }],
-                        uncertainty: []
-                    }
-                ],
-                comparison: {
-                    differences: [
-                        "SOURCE_2 shows 'Terminal Heberto' (NEXO)."
-                    ]
-                },
-                recommendations: [],
-                precisionAudit: {
-                    ok: true,
-                    status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
-                    providerPasses: 2,
-                    effectiveToolExecutions: 1,
-                    sourceIdentityVerified: true,
-                    exactTextRequiresConfidence: 0.98
+                data: {
+                    message: "Se verifican ChatGPT Plus y Terminal Heberto en las capturas respectivas."
                 }
-            }
-        }],
-        executeConversation: async () => {
-            throw new Error("semantic composer must not run");
+            };
         }
     });
 
     assert.equal(result.ok, true);
-    assert.match(result.text, /Terminal Heberto/);
-    assert.doesNotMatch(result.text, /NEXO/);
-    assert.match(result.text, /preferí dejarlas fuera en vez de asumir/i);
-});
-
-test("precision renderer suppresses unsupported negative visual absence claims", async () => {
-    const result = await composeEvidenceGroundedConversation({
-        instruction: "Compara solamente lo visible.",
-        evidenceItems: [{
-            name: "media.analyze",
-            observation: {
-                ok: true,
-                status: "MEDIA_ANALYSIS_GROUNDED",
-                version: "1.4.0-verified-visual-claims",
-                expectedSources: 2,
-                receivedSources: 2,
-                sources: [
-                    {
-                        sourceId: "SOURCE_1",
-                        fileName: "one.png",
-                        sha256: "a".repeat(64),
-                        visibleData: [
-                            { kind: "text", value: "ChatGPT Plus", page: 1, confidence: 1, evidence: "header", legibility: "VERIFIED" },
-                            { kind: "text", value: "Canva", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" }
-                        ],
-                        uncertainty: []
-                    },
-                    {
-                        sourceId: "SOURCE_2",
-                        fileName: "two.png",
-                        sha256: "b".repeat(64),
-                        visibleData: [
-                            { kind: "text", value: "Terminal Heberto", page: 1, confidence: 1, evidence: "header", legibility: "VERIFIED" },
-                            { kind: "text", value: "Limitaciones reales:", page: 1, confidence: 1, evidence: "section", legibility: "VERIFIED" }
-                        ],
-                        uncertainty: []
-                    }
-                ],
-                comparison: {
-                    differences: [
-                        "The primary application title differs: 'ChatGPT Plus' in SOURCE_1 versus 'Terminal Heberto' in SOURCE_2.",
-                        "SOURCE_1 shows 'Canva', which is absent in SOURCE_2.",
-                        "SOURCE_2 includes 'Limitaciones reales:', which is not present in SOURCE_1."
-                    ]
-                },
-                recommendations: [],
-                precisionAudit: {
-                    ok: true,
-                    status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
-                    providerPasses: 2,
-                    effectiveToolExecutions: 1,
-                    sourceIdentityVerified: true,
-                    exactTextRequiresConfidence: 0.98
-                }
-            }
-        }],
-        executeConversation: async () => {
-            throw new Error("semantic composer must not run");
-        }
-    });
-
-    assert.equal(result.ok, true);
-    assert.match(result.text, /ChatGPT Plus/);
-    assert.match(result.text, /Terminal Heberto/);
-    assert.match(result.text, /primary application title differs/i);
-    assert.doesNotMatch(result.text, /absent in SOURCE_2|not present in SOURCE_1/i);
-});
-
-
-test("precision renderer suppresses source-local contradiction residue from production A2", async () => {
-    const result = await composeEvidenceGroundedConversation({
-        instruction: "Compara los menus de adjuntos visibles.",
-        evidenceItems: [{
-            name: "media.analyze",
-            observation: {
-                ok: true,
-                status: "MEDIA_ANALYSIS_GROUNDED",
-                version: "1.4.0-verified-visual-claims",
-                expectedSources: 2,
-                receivedSources: 2,
-                sources: [
-                    {
-                        sourceId: "SOURCE_1",
-                        fileName: "chat-gpt-aduntos-1.png",
-                        sha256: "a".repeat(64),
-                        observations: ["An attachment menu is actively open and expanded, revealing multiple options."],
-                        visibleData: [
-                            { kind: "text", value: "Añadir fotos y archivos", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" },
-                            { kind: "text", value: "Canva", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" }
-                        ],
-                        uncertainty: []
-                    },
-                    {
-                        sourceId: "SOURCE_2",
-                        fileName: "terminal-adjunto-1.png",
-                        sha256: "b".repeat(64),
-                        observations: [
-                            "An attachment-like menu is open, displaying options: 'Añadir fotos y archivos', 'Crear una imagen', and 'Búsqueda en Internet'.",
-                            "This statement directly contradicts the visible attachment menu in the same image."
-                        ],
-                        visibleData: [
-                            { kind: "text", value: "Añadir fotos y archivos", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" },
-                            { kind: "text", value: "Crear una imagen", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" },
-                            { kind: "text", value: "Búsqueda en Internet", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" }
-                        ],
-                        uncertainty: [
-                            "The contradiction between the visible attachment menu and the text stating its absence is a notable inconsistency."
-                        ]
-                    }
-                ],
-                comparison: { differences: [], confidence: 1 },
-                recommendations: [],
-                precisionAudit: {
-                    ok: true,
-                    status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
-                    providerPasses: 2,
-                    effectiveToolExecutions: 1,
-                    sourceIdentityVerified: true,
-                    exactTextRequiresConfidence: 0.98
-                }
-            }
-        }],
-        executeConversation: async () => {
-            throw new Error("semantic composer must not run");
-        }
-    });
-
-    assert.equal(result.ok, true);
-    assert.match(result.text, /attachment-like menu is open/i);
-    assert.match(result.text, /Crear una imagen/);
-    assert.doesNotMatch(result.text, /directly contradicts|text stating its absence|notable inconsistency/i);
-});
-
-test("precision renderer hides unrequested recommendations when strict visual policy says so", async () => {
-    const result = await composeEvidenceGroundedConversation({
-        instruction: "Compara solamente lo visible.",
-        evidenceItems: [{
-            name: "media.analyze",
-            observation: {
-                ok: true,
-                status: "MEDIA_ANALYSIS_GROUNDED",
-                version: "1.4.0-verified-visual-claims",
-                expectedSources: 2,
-                receivedSources: 2,
-                sources: [
-                    {
-                        sourceId: "SOURCE_1",
-                        fileName: "one.png",
-                        sha256: "a".repeat(64),
-                        visibleData: [{ kind: "text", value: "ChatGPT Plus", page: 1, confidence: 1, evidence: "header", legibility: "VERIFIED" }],
-                        uncertainty: []
-                    },
-                    {
-                        sourceId: "SOURCE_2",
-                        fileName: "two.png",
-                        sha256: "b".repeat(64),
-                        visibleData: [{ kind: "text", value: "Terminal Heberto", page: 1, confidence: 1, evidence: "header", legibility: "VERIFIED" }],
-                        uncertainty: []
-                    }
-                ],
-                comparison: { differences: [] },
-                recommendations: [
-                    "If the goal is to compare attachment functionalities, a detailed feature matrix could be created.",
-                    "Ensure its attachment capabilities meet the specific needs of its users."
-                ],
-                policy: {
-                    strictVisualUnrequestedRecommendationsSuppressed: true
-                },
-                precisionAudit: {
-                    ok: true,
-                    status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
-                    providerPasses: 2,
-                    effectiveToolExecutions: 1,
-                    sourceIdentityVerified: true,
-                    exactTextRequiresConfidence: 0.98
-                }
-            }
-        }],
-        executeConversation: async () => {
-            throw new Error("semantic composer must not run");
-        }
-    });
-
-    assert.equal(result.ok, true);
-    assert.doesNotMatch(result.text, /feature matrix|attachment capabilities|Mejoras sugeridas/i);
+    assert.match(capturedPrompt, /ChatGPT Plus/);
+    assert.match(capturedPrompt, /Terminal Heberto/);
     assert.match(result.text, /ChatGPT Plus/);
     assert.match(result.text, /Terminal Heberto/);
 });
 
-test("precision renderer suppresses unsupported relative menu scope claims", async () => {
-    const result = await composeEvidenceGroundedConversation({
-        instruction: "Compara solamente lo visible.",
-        evidenceItems: [{
-            name: "media.analyze",
-            observation: {
-                ok: true,
-                status: "MEDIA_ANALYSIS_GROUNDED",
-                version: "1.4.0-verified-visual-claims",
-                expectedSources: 2,
-                receivedSources: 2,
-                sources: [
-                    {
-                        sourceId: "SOURCE_1",
-                        fileName: "one.png",
-                        sha256: "a".repeat(64),
-                        observations: ["The interface is branded as 'ChatGPT Plus'."],
-                        visibleData: [
-                            { kind: "text", value: "ChatGPT Plus", page: 1, confidence: 1, evidence: "title", legibility: "VERIFIED" }
-                        ],
-                        uncertainty: []
-                    },
-                    {
-                        sourceId: "SOURCE_2",
-                        fileName: "two.png",
-                        sha256: "b".repeat(64),
-                        observations: [
-                            "An open menu displays fewer options compared to SOURCE_1: 'Añadir fotos y archivos', 'Crear una imagen', and 'Búsqueda en Internet'."
-                        ],
-                        visibleData: [
-                            { kind: "text", value: "Terminal Heberto", page: 1, confidence: 1, evidence: "title", legibility: "VERIFIED" },
-                            { kind: "text", value: "Añadir fotos y archivos", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" },
-                            { kind: "text", value: "Crear una imagen", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" },
-                            { kind: "text", value: "Búsqueda en Internet", page: 1, confidence: 1, evidence: "menu", legibility: "VERIFIED" }
-                        ],
-                        uncertainty: []
-                    }
-                ],
-                comparison: {
-                    differences: [
-                        "SOURCE_2 (Terminal Heberto) has a more limited menu for content input."
-                    ]
-                },
-                recommendations: [],
-                policy: {
-                    negativeVisualClaimsRequireStructuredEvidence: true
-                },
-                precisionAudit: {
-                    ok: true,
-                    status: "MEDIA_ANALYSIS_PRECISION_VERIFIED",
-                    providerPasses: 2,
-                    effectiveToolExecutions: 1,
-                    sourceIdentityVerified: true,
-                    exactTextRequiresConfidence: 0.98
-                }
-            }
-        }],
-        executeConversation: async () => {
-            throw new Error("semantic composer must not run");
-        }
-    });
 
-    assert.equal(result.ok, true);
-    assert.doesNotMatch(result.text, /fewer options|more limited menu/i);
-    assert.match(result.text, /ChatGPT Plus/);
-    assert.match(result.text, /Terminal Heberto/);
+test("conversation composer contains no local lexical intent or narrative regex brain", () => {
+    const source = fs.readFileSync(
+        path.join(process.cwd(), "gestia-core/jarvis/jarvis.conversation.composer.js"),
+        "utf8"
+    );
+    assert.doesNotMatch(source, /new RegExp|\.match\(|\.matchAll\(|\.exec\(|\.test\(/);
+    assert.doesNotMatch(source, /RENDER_|STOPWORDS|ACTION_MAP|ENTITY_MAP/);
+    assert.match(source, /precisionGroundingInstruction/);
 });
+
 
 test("terminal exposes live operational work trace without raw telemetry", () => {
     const terminalSource = fs.readFileSync(

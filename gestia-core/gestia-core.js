@@ -45,7 +45,7 @@ import {
     composeEvidenceGroundedConversation,
     mergeEvidenceGroundedToolCalls,
     prepareEvidenceGroundedConversationPlan
-} from '/gestia-core/jarvis/jarvis.conversation.composer.js?v=sia7-conversation-evidence-v98-20260727';
+} from '/gestia-core/jarvis/jarvis.conversation.composer.js?v=v94-semantic-only-evidence-v100-20260809';
 import {
     runJarvisMission
 } from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=sia7-artifact-edit-routing-v101-20260728';
@@ -203,13 +203,8 @@ const CORE_CONFIG = {
         LOCK_TIMEOUT_MS: 45000 // 45 segundos para concurrencia paralela
     }
 };
-import {
-    sincronizarCorralSemantico,
-    getSemanticCognitiveState
-} from '/gestia-core/semantic.engine.js?v=sia7-model-context-v8-20260714';
-import '/gestia-core/brain.engine.js?v=sia7-multimodal-batch-integrity-v95-20260727';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=jarvis-tools-v7-20260728-identity-fidelity-v106';
+import '/gestia-core/tools.runtime.js?v=v94-semantic-only-v108-20260809';
 import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260725-semantic-envelope-v64';
 import '/gestia-core/tools.bridge.js?v=jarvis-tools-bridge-v7-20260726-chief-review-response-v93';
 
@@ -227,49 +222,6 @@ const OBSERVATION_FOLLOW_UP_TOOLS =
         "repo.impact"
     ]);
 
-const WEAK_CORE_FILE_PATTERN =
-    /(^|\/)(app-main|brain\.engine|gestia-core|tools\.runtime|tools\.bridge)\.(js|html|css|json|cjs|mjs|txt|md)$/i;
-
-const TEST_FIXTURE_FILE_PATTERN =
-    /(^|\/)(tests|__tests__|fixtures|mocks)\/|(\.test|\.spec)\.(js|cjs|mjs|ts|tsx)$/i;
-
-const INFRASTRUCTURE_FILE_PATTERN =
-    /(^|\/)(gestia-core\/jarvis\/.*|.*bridge.*|.*runtime.*|.*kernel.*|.*executor.*|.*engine.*|tools\..*|brain\.engine|gestia-core|functions\/index)\.(js|html|css|json|cjs|mjs|txt|md)$/i;
-
-const UI_EVIDENCE_PATTERN =
-    /\b(render|ui|layout|card|cards|tarjeta|tarjetas|template|html|class|clase|grid|flex|responsive|mobile|movil|móvil|expandible|expandibles)\b/i;
-
-const UI_LAYOUT_SIGNAL_PATTERN =
-    /\b(max-w-[^\s"'`<>]+|min-h-[^\s"'`<>]+|p[trblxy]?-[^\s"'`<>]+|gap-[^\s"'`<>]+|grid-cols-[^\s"'`<>]+|space-[xy]-[^\s"'`<>]+|rounded[^\s"'`<>]*|shadow[^\s"'`<>]*|w-full|h-full|flex|grid|card|tarjeta|overflow-[^\s"'`<>]+)\b/gi;
-
-const PRODUCT_UI_EVIDENCE_PATTERN =
-    /\b(render|generaci[oó]n\s+din[aá]mica|template|innerhtml|html|dom|document\.createelement|contenedor|appendchild|componente|card\s+wrapper|tarjeta\s+tarea|tareas|class=|classname=|classlist|grid|flex|gap-|p[trblxy]?-|px-|py-|max-w-|min-h-|rounded|w-full|space-y-)\b/i;
-
-const META_ENGINE_EVIDENCE_PATTERN =
-    /\b(generic_ui_card_patch|jarvis\s+code\s+surgeon|unsafegeneratedcontentpatterns|unsafe\s+generated\s+content|guard|policy|planner|executor|runtime|kernel|bridge|tool|tools|tests?|patch\s+engine|autopatch|patchpreview|code_write|sia7_commit|injection|inyecci[oó]n|ui_optimization)\b/i;
-
-const WEAK_NOISE_EVIDENCE_PATTERN =
-    /\b(alert\s*\(|console\.(warn|error|log)|sin\s+espacios|revisa\s+(tu|la|los|las|el)|configuraci[oó]n|consola|conexi[oó]n|comprobante|ticket|servicio\s+terminado)\b/i;
-
-const META_EXPLICIT_OBJECTIVE_PATTERN =
-    /\b(planner|executor|patch\s+engine|guard|policy|runtime|kernel|bridge|tool|tools|codex|autopatch|seguridad|security|write|safe\s+write|aprobaci[oó]n|approval)\b/i;
-
-const LOW_SIGNAL_EVIDENCE_TERMS =
-    new Set([
-        "revisa",
-        "revisar",
-        "revision",
-        "problema",
-        "modificar",
-        "nada",
-        "donde",
-        "mucho",
-        "ocupan",
-        "ocupar",
-        "espacio",
-        "espacios"
-    ]);
-
 const ANCHORED_READ_CONTEXT_BEFORE =
     20;
 
@@ -282,46 +234,68 @@ const ANCHORED_READ_CLUSTER_DISTANCE =
 const ANCHORED_READ_MAX_LINES =
     220;
 
-const PRIMARY_CONFIDENT_MIN_SCORE_GAP =
-    60;
-
-const PRIMARY_CONFIDENT_MIN_SCORE_RATIO =
-    1.3;
-
 const PATCH_PREVIEW_BLOCK_MAX_LINES =
     18;
-
-const TAILWIND_CLASS_END_PATTERN =
-    "(?=$|[\\s\"'`<>;])";
 
 const AGENT_LOOP_LEARNING_COMMIT =
     "41.35";
 
 function normalizeObservationFilePath(value = "") {
-    const clean =
+    let clean =
         String(value || "")
-            .replace(/\\/g, "/")
-            .replace(/^\.\/+/, "")
-            .replace(/^\/+/, "")
+            .split("\\")
+            .join("/")
             .trim();
 
-    if (
-        !clean ||
-        clean.includes("..") ||
-        !/[a-zA-Z0-9_./-]+\.(js|html|css|json|cjs|mjs|txt|md)$/i.test(clean)
-    ) {
+    while (clean.startsWith("./")) {
+        clean = clean.slice(2);
+    }
+    while (clean.startsWith("/")) {
+        clean = clean.slice(1);
+    }
+
+    if (!clean || clean.includes("..")) {
         return "";
     }
 
-    return clean;
+    let hasDot = false;
+    for (const character of clean) {
+        const code = character.charCodeAt(0);
+        const allowed =
+            (code >= 48 && code <= 57) ||
+            (code >= 65 && code <= 90) ||
+            (code >= 97 && code <= 122) ||
+            character === "_" ||
+            character === "." ||
+            character === "/" ||
+            character === "-";
+        if (!allowed) {
+            return "";
+        }
+        if (character === ".") {
+            hasDot = true;
+        }
+    }
+
+    return hasDot
+        ? clean
+        : "";
 }
 
 function normalizeObservationText(value = "") {
-    return String(value || "")
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/^\s*["'`]*\s*(jarvis|heberto|gestia)[,\s:;-]*/i, "")
-        .toLowerCase();
+    const source =
+        String(value || "")
+            .normalize("NFD")
+            .toLowerCase();
+    let result = "";
+    for (const character of source) {
+        const code = character.charCodeAt(0);
+        if (code >= 768 && code <= 879) {
+            continue;
+        }
+        result += character;
+    }
+    return result.trim();
 }
 
 function getJarvisAutonomyEngine() {
@@ -329,12 +303,10 @@ function getJarvisAutonomyEngine() {
         typeof window !== "undefined"
             ? window
             : {};
-
     const globalRoot =
         typeof globalThis !== "undefined"
             ? globalThis
             : {};
-
     return (
         browserRoot.JarvisAutonomyEngine ||
         globalRoot.JarvisAutonomyEngine ||
@@ -343,34 +315,48 @@ function getJarvisAutonomyEngine() {
 }
 
 function learningField(value = "", max = 500) {
-    return String(value || "")
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, max);
+    const source = String(value || "");
+    let normalized = "";
+    let previousWhitespace = false;
+    for (const character of source) {
+        const whitespace =
+            character === " " ||
+            character === "\n" ||
+            character === "\r" ||
+            character === "\t";
+        if (whitespace) {
+            if (!previousWhitespace && normalized) {
+                normalized += " ";
+            }
+            previousWhitespace = true;
+            continue;
+        }
+        previousWhitespace = false;
+        normalized += character;
+        if (normalized.length >= max) {
+            break;
+        }
+    }
+    return normalized.trim().slice(0, max);
 }
 
 function recordAgentLoopLearningIncident(input = {}) {
     const engine =
         getJarvisAutonomyEngine();
-
     if (
         !engine ||
         typeof engine.record !== "function"
     ) {
         return {
-            ok:
-                false,
-            skipped:
-                true,
-            reason:
-                "JARVIS_AUTONOMY_ENGINE_MISSING"
+            ok: false,
+            skipped: true,
+            reason: "JARVIS_AUTONOMY_ENGINE_MISSING"
         };
     }
 
     try {
         return engine.record({
-            type:
-                "LEARNING_INCIDENT",
+            type: "LEARNING_INCIDENT",
             category:
                 input.category ||
                 "REPO_INVESTIGATION",
@@ -384,16 +370,12 @@ function recordAgentLoopLearningIncident(input = {}) {
                 input.operation ||
                 input.category ||
                 "REPO_INVESTIGATION",
-            file:
-                input.file ||
-                "",
+            file: input.file || "",
             reason:
                 input.reason ||
                 input.category ||
                 "AGENT_LOOP_LEARNING",
-            issue:
-                input.issue ||
-                "",
+            issue: input.issue || "",
             symptom:
                 learningField(
                     input.symptom ||
@@ -425,14 +407,10 @@ function recordAgentLoopLearningIncident(input = {}) {
             context: {
                 ...(input.context || {}),
                 learningPolicy: {
-                    proposalAutonomy:
-                        true,
-                    writeAllowed:
-                        false,
-                    writeAuthorization:
-                        false,
-                    approvalRequiredForWrite:
-                        true
+                    proposalAutonomy: true,
+                    writeAllowed: false,
+                    writeAuthorization: false,
+                    approvalRequiredForWrite: true
                 }
             }
         });
@@ -442,10 +420,8 @@ function recordAgentLoopLearningIncident(input = {}) {
             "[AGENT_LOOP_LEARNING_RECORD_FAILED]",
             error
         );
-
         return {
-            ok:
-                false,
+            ok: false,
             error:
                 error?.message ||
                 String(error)
@@ -456,24 +432,15 @@ function recordAgentLoopLearningIncident(input = {}) {
 function recallAgentLoopLearningHints(input = {}) {
     const engine =
         getJarvisAutonomyEngine();
-
     const empty = {
-        ok:
-            false,
-        source:
-            "jarvis_autonomy_learning_v2",
-        total:
-            0,
-        lessons:
-            [],
-        proposalAutonomy:
-            true,
-        writeAllowed:
-            false,
-        writeAuthorization:
-            false,
-        approvalRequiredForWrite:
-            true
+        ok: false,
+        source: "jarvis_autonomy_learning_v3_structured",
+        total: 0,
+        lessons: [],
+        proposalAutonomy: true,
+        writeAllowed: false,
+        writeAuthorization: false,
+        approvalRequiredForWrite: true
     };
 
     if (
@@ -482,135 +449,47 @@ function recallAgentLoopLearningHints(input = {}) {
     ) {
         return {
             ...empty,
-            skipped:
-                true,
-            reason:
-                "JARVIS_AUTONOMY_ENGINE_MISSING"
+            skipped: true,
+            reason: "JARVIS_AUTONOMY_ENGINE_MISSING"
         };
     }
 
     try {
-        const categories =
-            [
-                input.category,
-                input.operation,
+        const recalled = engine.recall({
+            type: "LEARNING_INCIDENT",
+            category:
+                input.category ||
                 "REPO_INVESTIGATION",
-                "FOLLOW_UP_MEMORY",
-                "PATCH_PREVIEW_VALIDATION",
-                "CASUAL_GATE",
-                "CANDIDATE_RANKING",
-                "PATCH_PREVIEW_SAFETY",
-                "TOOL_SELECTION"
-            ]
-                .filter(Boolean)
-                .filter((item, index, list) =>
-                    list.indexOf(item) === index
-                );
-
-        const lessonsByKey =
-            new Map();
-
-        let query =
-            null;
-
-        categories.forEach(category => {
-            const recalled =
-                engine.recall({
-                    type:
-                        "LEARNING_INCIDENT",
-                    category,
-                    status:
-                        "query",
-                    stage:
-                        input.stage ||
-                        "agent_loop_preplan",
-                    operation:
-                        input.operation ||
-                        category ||
-                        "REPO_INVESTIGATION",
-                    file:
-                        input.file ||
-                        "",
-                    reason:
-                        input.reason ||
-                        category ||
-                        "AGENT_LOOP_PREPLAN",
-                    issue:
-                        input.issue ||
-                        "",
-                    symptom:
-                        learningField(
-                            input.rawInput ||
-                            input.objective ||
-                            ""
-                        ),
-                    sourceTraceId:
-                        input.sourceTraceId ||
-                        "",
-                    limit:
-                        input.limit ||
-                        5,
-                    context: {
-                        source:
-                            "agent_loop_learning_41_35"
-                    }
-                });
-
-            query ||=
-                recalled?.query ||
-                null;
-
-            (recalled?.lessons || []).forEach(item => {
-                const key =
-                    item?.signature ||
-                    [
-                        item?.category,
-                        item?.reason,
-                        item?.stage,
-                        item?.operation,
-                        item?.lesson?.diagnosis
-                    ]
-                        .filter(Boolean)
-                        .join(":");
-
-                if (!key) {
-                    return;
-                }
-
-                const current =
-                    lessonsByKey.get(key);
-
-                if (
-                    !current ||
-                    (item?.matchScore || 0) > (current?.matchScore || 0)
-                ) {
-                    lessonsByKey.set(
-                        key,
-                        item
-                    );
-                }
-            });
+            status: "query",
+            stage:
+                input.stage ||
+                "agent_loop_preplan",
+            operation:
+                input.operation ||
+                "REPO_INVESTIGATION",
+            file: input.file || "",
+            reason:
+                input.reason ||
+                "AGENT_LOOP_PREPLAN",
+            issue: input.issue || "",
+            sourceTraceId:
+                input.sourceTraceId ||
+                "",
+            limit: input.limit || 5,
+            context: {
+                source: "agent_loop_learning_structured"
+            }
         });
-
         const lessons =
-            Array.from(
-                lessonsByKey.values()
-            )
-                .sort((a, b) =>
-                    (b?.matchScore || 0) -
-                    (a?.matchScore || 0)
-                )
-                .slice(0, input.limit || 5);
-
+            Array.isArray(recalled?.lessons)
+                ? recalled.lessons.slice(0, input.limit || 5)
+                : [];
         return {
             ...empty,
-            ok:
-                true,
-            total:
-                lessons.length,
+            ok: true,
+            total: lessons.length,
             lessons,
-            query:
-                query
+            query: recalled?.query || null
         };
     }
     catch(error) {
@@ -618,7 +497,6 @@ function recallAgentLoopLearningHints(input = {}) {
             "[AGENT_LOOP_LEARNING_RECALL_FAILED]",
             error
         );
-
         return {
             ...empty,
             error:
@@ -629,467 +507,53 @@ function recallAgentLoopLearningHints(input = {}) {
 }
 
 function learningHintsText(learningHints = {}) {
-    return normalizeObservationText(
-        (learningHints?.lessons || [])
-            .map(item => [
-                item?.category,
-                item?.reason,
-                item?.issue,
-                item?.lesson?.diagnosis,
-                item?.lesson?.nextAction,
-                item?.lesson?.avoid,
-                item?.fixRule
-            ]
-                .filter(Boolean)
-                .join(" "))
-            .join(" ")
-    );
-}
-
-function scoreCandidateWithLearningHints(
-    candidate = {},
-    learningHints = {}
-) {
-    const hints =
-        learningHintsText(
-            learningHints
-        );
-
-    if (!hints) {
-        return 0;
-    }
-
-    let score =
-        0;
-
-    if (
-        candidate.productUiEvidenceHits > 0 &&
-        /product_ui|ui_real|evidencia_de_ui|candidate_ranking/.test(hints)
-    ) {
-        score +=
-            20;
-    }
-
-    if (
-        candidate.metaEngineEvidenceHits > 0 &&
-        /meta_engine|guard|runtime|engine|candidate_ranking/.test(hints)
-    ) {
-        score -=
-            35;
-    }
-
-    if (
-        candidate.isInfrastructure &&
-        /product_ui|meta_engine|candidate_ranking/.test(hints)
-    ) {
-        score -=
-            25;
-    }
-
-    return score;
-}
-
-const SHORT_OBJECTIVE_QUALIFIER_TERMS =
-    new Set([
-        "api",
-        "b2b",
-        "ceo",
-        "gps",
-        "ios",
-        "noc",
-        "pwa",
-        "qr",
-        "saas",
-        "ui",
-        "ux"
-    ]);
-
-function extractObjectiveTerms(objective = "") {
-    const normalized =
-        normalizeObservationText(
-            objective
-        );
-
-    return [
-        ...new Set(
-            normalized.match(/[a-z0-9_./-]{2,}/g) ||
-            []
-        )
-    ]
-        .filter(term =>
-            !["jarvis", "heberto", "gestia"].includes(term) &&
-            (
-                term.length >= 5 ||
-                SHORT_OBJECTIVE_QUALIFIER_TERMS.has(term)
-            )
-        )
-        .slice(0, 12);
-}
-
-function isCandidateExplicitlyMentioned(
-    file = "",
-    objective = ""
-) {
-    const normalizedObjective =
-        normalizeObservationText(
-            objective
-        );
-
-    const normalizedFile =
-        normalizeObservationText(
-            file
-        );
-
-    const basename =
-        normalizedFile
-            .split("/")
-            .filter(Boolean)
-            .pop() ||
-        normalizedFile;
-
-    return (
-        normalizedObjective.includes(normalizedFile) ||
-        normalizedObjective.includes(basename)
-    );
-}
-
-function scoreObservationEvidence({
-    objectiveTerms = [],
-    term = "",
-    snippet = "",
-    sourceTool = "",
-    baseWeight = 0
-} = {}) {
-    const normalizedSnippet =
-        normalizeObservationText(
-            snippet
-        );
-
-    const normalizedTerm =
-        normalizeObservationText(
-            term
-        );
-
-    const lowSignalTerm =
-        isLowSignalEvidenceTerm(
-            normalizedTerm
-        );
-
-    const uiEvidence =
-        UI_EVIDENCE_PATTERN.test(
-            String(snippet || "")
-        );
-
-    const layoutEvidence =
-        hasLayoutSignal(
-            snippet
-        );
-
-    const productUiEvidence =
-        isProductUiEvidence(
-            snippet
-        );
-
-    const metaEngineEvidence =
-        isMetaEngineEvidence(
-            snippet
-        );
-
-    const visualEvidence =
-        uiEvidence ||
-        layoutEvidence ||
-        productUiEvidence;
-
-    const weakNoiseEvidence =
-        isWeakNoiseEvidence(
-            snippet
-        );
-
-    const directMatches =
-        objectiveTerms.filter(objectiveTerm =>
-            normalizedSnippet.includes(
-                objectiveTerm
-            ) &&
-            (
-                !isLowSignalEvidenceTerm(objectiveTerm) ||
-                visualEvidence
-            )
-        );
-
-    const termDirect =
-        normalizedTerm &&
-        normalizedSnippet.includes(normalizedTerm) &&
-        (
-            !lowSignalTerm ||
-            visualEvidence
-        )
-            ? 1
-            : 0;
-
-    const hasSnippet =
-        normalizedSnippet.trim().length > 0;
-
-    const lowSignalPenalty =
-        lowSignalTerm &&
-        !visualEvidence
-            ? 24
-            : 0;
-
-    const metaEnginePenalty =
-        metaEngineEvidence
-            ? 70
-            : 0;
-
-    const weakNoisePenalty =
-        weakNoiseEvidence &&
-        !layoutEvidence
-            ? 95
-            : 0;
-
-    const score =
-        baseWeight +
-        (
-            sourceTool === "repo.grep"
-                ? 8
-                : 0.75
-        ) +
-        (directMatches.length * 12) +
-        (termDirect * 8) +
-        (uiEvidence ? 6 : 0) +
-        (layoutEvidence ? 10 : 0) +
-        (productUiEvidence ? 28 : 0) -
-        metaEnginePenalty +
-        (
-            hasSnippet
-                ? 2
-                : 0
-        ) -
-        lowSignalPenalty -
-        weakNoisePenalty;
-
-    return {
-        score,
-        directMatches:
-            directMatches.length,
-        uiEvidence:
-            uiEvidence === true,
-        layoutEvidence:
-            layoutEvidence === true,
-        productUiEvidence:
-            productUiEvidence === true,
-        metaEngineEvidence:
-            metaEngineEvidence === true,
-        weakNoiseEvidence:
-            weakNoiseEvidence === true,
-        termDirect:
-            termDirect === 1
-    };
-}
-
-function isLowSignalEvidenceTerm(
-    term = ""
-) {
-    return LOW_SIGNAL_EVIDENCE_TERMS.has(
-        normalizeObservationText(term)
-    );
-}
-
-function hasLayoutSignal(
-    value = ""
-) {
-    UI_LAYOUT_SIGNAL_PATTERN.lastIndex =
-        0;
-
-    return UI_LAYOUT_SIGNAL_PATTERN.test(
-        String(value || "")
-    );
-}
-
-function isProductUiEvidence(
-    value = ""
-) {
-    const text =
-        String(value || "");
-
-    if (
-        isWeakNoiseEvidence(text) &&
-        !hasLayoutSignal(text)
-    ) {
-        return false;
-    }
-
-    return PRODUCT_UI_EVIDENCE_PATTERN.test(
-        text
-    );
-}
-
-function isMetaEngineEvidence(
-    value = ""
-) {
-    return META_ENGINE_EVIDENCE_PATTERN.test(
-        normalizeObservationText(value)
-    );
-}
-
-function objectiveExplicitlyTargetsMetaEngine(
-    objective = ""
-) {
-    return META_EXPLICIT_OBJECTIVE_PATTERN.test(
-        normalizeObservationText(objective)
-    );
-}
-
-function isWeakNoiseEvidence(
-    value = ""
-) {
-    return WEAK_NOISE_EVIDENCE_PATTERN.test(
-        normalizeObservationText(value)
-    );
-}
-
-function getCandidateMetaEvidenceHits(
-    candidate = {}
-) {
-    return (candidate.evidence || [])
-        .filter(evidence =>
-            evidence?.metaEngineEvidence === true ||
-            isMetaEngineEvidence(
-                evidence?.snippet ||
-                evidence?.module ||
-                evidence?.term ||
+    return (learningHints?.lessons || [])
+        .map(item =>
+            String(
+                item?.lesson?.diagnosis ||
+                item?.reason ||
                 ""
-            )
+            ).trim()
         )
-        .length;
+        .filter(Boolean)
+        .join(" ");
 }
 
-function getCandidateProductUiEvidenceHits(
-    candidate = {}
-) {
-    return (candidate.evidence || [])
-        .filter(evidence =>
-            evidence?.productUiEvidence === true ||
-            isProductUiEvidence(
-                evidence?.snippet ||
-                evidence?.module ||
-                evidence?.term ||
-                ""
-            )
-        )
-        .length;
+function scoreCandidateWithLearningHints() {
+    return 0;
 }
 
-function getEvidenceAnchorScore(
-    evidence = {}
-) {
-    const snippet =
-        String(
-            evidence?.snippet ||
-            evidence?.module ||
-            ""
-        );
-
-    const term =
-        normalizeObservationText(
-            evidence?.term || ""
-        );
-
-    const uiEvidence =
-        UI_EVIDENCE_PATTERN.test(
-            snippet
-        );
-
-    const layoutEvidence =
-        hasLayoutSignal(
-            snippet
-        );
-
-    const productUiEvidence =
-        evidence?.productUiEvidence === true ||
-        isProductUiEvidence(
-            snippet
-        );
-
-    const metaEngineEvidence =
-        evidence?.metaEngineEvidence === true ||
-        isMetaEngineEvidence(
-            snippet
-        );
-
-    const weakNoiseEvidence =
-        evidence?.weakNoiseEvidence === true ||
-        isWeakNoiseEvidence(
-            snippet
-        );
-
-    const lowSignalTerm =
-        isLowSignalEvidenceTerm(
-            term
-        );
-
+function getEvidenceAnchorScore(evidence = {}) {
     const line =
-        getEvidenceLineNumber(
-            evidence
-        );
-
+        getEvidenceLineNumber(evidence);
     return (
         Number(evidence?.evidenceScore || 0) +
-        (uiEvidence ? 36 : 0) +
-        (layoutEvidence ? 28 : 0) +
-        (productUiEvidence ? 52 : 0) -
-        (metaEngineEvidence ? 140 : 0) +
-        (weakNoiseEvidence && !layoutEvidence ? -130 : 0) +
-        (evidence?.directMatches ? evidence.directMatches * 10 : 0) +
-        (evidence?.termDirect ? 8 : 0) +
-        (line ? 4 : 0) -
-        (
-            lowSignalTerm &&
-            !uiEvidence &&
-            !layoutEvidence
-                ? 80
-                : 0
-        )
+        (evidence?.verified === true ? 100 : 0) +
+        (evidence?.sourceDefinition === true ? 80 : 0) +
+        (evidence?.plannedTarget === true ? 120 : 0) +
+        (line ? 5 : 0)
     );
 }
 
-function prioritizeCandidateEvidence(
-    candidate = {}
-) {
-    const seen =
-        new Set();
-
+function prioritizeCandidateEvidence(candidate = {}) {
+    const seen = new Set();
     return (candidate.evidence || [])
         .map(evidence => ({
             ...evidence,
             anchorScore:
-                getEvidenceAnchorScore(
-                    evidence
-                )
+                getEvidenceAnchorScore(evidence)
         }))
         .filter(evidence => {
-            const line =
-                getEvidenceLineNumber(
-                    evidence
-                );
-
-            const key =
-                [
-                    line || "no-line",
-                    normalizeObservationText(
-                        evidence?.snippet ||
-                        evidence?.module ||
-                        ""
-                    )
-                        .slice(0, 120)
-                ]
-                    .join(":");
-
+            const key = [
+                getEvidenceLineNumber(evidence) || "no-line",
+                String(evidence?.sourceTool || ""),
+                String(evidence?.name || ""),
+                String(evidence?.file || "")
+            ].join(":");
             if (seen.has(key)) {
                 return false;
             }
-
             seen.add(key);
-
             return true;
         })
         .sort((a, b) =>
@@ -1097,51 +561,20 @@ function prioritizeCandidateEvidence(
         );
 }
 
-function selectPrimaryCandidateEvidence(
-    candidate = {}
-) {
-    const prioritized =
-        prioritizeCandidateEvidence(candidate)
-            .filter(evidence =>
-                evidence.anchorScore > 0
-            );
-
-    const productEvidence =
-        prioritized.filter(evidence =>
-            evidence.productUiEvidence === true ||
-            isProductUiEvidence(
-                evidence?.snippet ||
-                evidence?.module ||
-                ""
-            )
+function selectPrimaryCandidateEvidence(candidate = {}) {
+    return prioritizeCandidateEvidence(candidate)
+        .filter(evidence =>
+            evidence.anchorScore > 0
         );
-
-    if (productEvidence.length > 0) {
-        return productEvidence;
-    }
-
-    const cleanEvidence =
-        prioritized.filter(evidence =>
-            evidence.weakNoiseEvidence !== true &&
-            evidence.metaEngineEvidence !== true
-        );
-
-    return cleanEvidence.length > 0
-        ? cleanEvidence
-        : prioritized;
 }
 
-function buildCandidateReadRange(
-    candidate = {}
-) {
+function buildCandidateReadRange(candidate = {}) {
     const anchors =
         selectPrimaryCandidateEvidence(candidate)
             .map(evidence => ({
                 evidence,
                 line:
-                    getEvidenceLineNumber(
-                        evidence
-                    )
+                    getEvidenceLineNumber(evidence)
             }))
             .filter(item =>
                 item.line &&
@@ -1152,46 +585,28 @@ function buildCandidateReadRange(
         return null;
     }
 
-    const primaryLine =
-        anchors[0].line;
-
-    const clustered =
-        anchors
-            .filter(item =>
-                Math.abs(item.line - primaryLine) <=
+    const primaryLine = anchors[0].line;
+    const clustered = anchors
+        .filter(item =>
+            Math.abs(item.line - primaryLine) <=
                 ANCHORED_READ_CLUSTER_DISTANCE
-            )
-            .slice(0, 4);
-
-    const anchorLines =
-        [
-            ...new Set(
-                clustered.map(item =>
-                    item.line
-                )
-            )
-        ]
-            .sort((a, b) =>
-                a - b
-            );
-
-    const minLine =
-        Math.min(...anchorLines);
-
-    const maxLine =
-        Math.max(...anchorLines);
-
-    const startLine =
-        Math.max(
-            1,
-            minLine - ANCHORED_READ_CONTEXT_BEFORE
-        );
-
-    const endLine =
-        Math.min(
-            startLine + ANCHORED_READ_MAX_LINES - 1,
-            maxLine + ANCHORED_READ_CONTEXT_AFTER
-        );
+        )
+        .slice(0, 4);
+    const anchorLines = [
+        ...new Set(
+            clustered.map(item => item.line)
+        )
+    ].sort((a, b) => a - b);
+    const minLine = Math.min(...anchorLines);
+    const maxLine = Math.max(...anchorLines);
+    const startLine = Math.max(
+        1,
+        minLine - ANCHORED_READ_CONTEXT_BEFORE
+    );
+    const endLine = Math.min(
+        startLine + ANCHORED_READ_MAX_LINES - 1,
+        maxLine + ANCHORED_READ_CONTEXT_AFTER
+    );
 
     return {
         startLine,
@@ -1200,96 +615,44 @@ function buildCandidateReadRange(
     };
 }
 
-function getStrongCandidateEvidence(
-    candidate = {}
-) {
+function getStrongCandidateEvidence(candidate = {}) {
     return selectPrimaryCandidateEvidence(candidate)
         .filter(evidence =>
-            getEvidenceLineNumber(evidence) &&
-            getEvidenceAnchorScore(evidence) >= 60 &&
-            (
-                evidence.productUiEvidence === true ||
-                evidence.layoutEvidence === true ||
-                evidence.uiEvidence === true ||
-                isProductUiEvidence(
-                    evidence?.snippet ||
-                    evidence?.module ||
-                    ""
-                )
-            )
+            evidence?.verified === true ||
+            evidence?.sourceDefinition === true ||
+            evidence?.plannedTarget === true ||
+            getEvidenceAnchorScore(evidence) >= 100
         );
 }
 
-function assessPrimaryCandidateConfidence(
-    candidates = []
-) {
-    const primary =
-        candidates[0] ||
-        null;
-
+function assessPrimaryCandidateConfidence(candidates = []) {
+    const primary = candidates[0] || null;
     if (!primary) {
         return {
-            mode:
-                "NO_CANDIDATE",
-            confident:
-                false,
-            primaryFile:
-                null,
-            scoreGap:
-                0,
-            scoreRatio:
-                0,
-            strongEvidenceCount:
-                0
+            mode: "NO_CANDIDATE",
+            confident: false,
+            primaryFile: null,
+            scoreGap: 0,
+            scoreRatio: 0,
+            strongEvidenceCount: 0
         };
     }
 
-    const secondary =
-        candidates[1] ||
-        null;
-
+    const secondary = candidates[1] || null;
+    const primaryScore = Number(primary.score || 0);
+    const secondaryScore = Number(secondary?.score || 0);
+    const scoreGap = primaryScore - secondaryScore;
     const strongEvidence =
-        getStrongCandidateEvidence(
-            primary
-        );
-
-    const primaryScore =
-        Number(primary.score || 0);
-
-    const secondaryScore =
-        Number(secondary?.score || 0);
-
-    const scoreGap =
-        primaryScore - secondaryScore;
-
-    const scoreRatio =
-        secondaryScore > 0
-            ? primaryScore / secondaryScore
-            : Number.POSITIVE_INFINITY;
-
-    const scoreSeparation =
-        !secondary ||
-        scoreGap >= PRIMARY_CONFIDENT_MIN_SCORE_GAP ||
-        scoreRatio >= PRIMARY_CONFIDENT_MIN_SCORE_RATIO ||
-        strongEvidence.length >= 2;
-
-    const productEvidence =
-        primary.productUiEvidenceHits > 0 ||
-        strongEvidence.some(evidence =>
-            evidence.productUiEvidence === true ||
-            isProductUiEvidence(
-                evidence?.snippet ||
-                evidence?.module ||
-                ""
-            )
-        );
-
+        getStrongCandidateEvidence(primary);
+    const structurallyPreferred =
+        primary.plannedTarget === true ||
+        primary.verifiedDefinition === true;
     const confident =
-        !primary.isInfrastructure &&
-        !primary.isTestFixture &&
-        productEvidence &&
-        strongEvidence.length > 0 &&
-        scoreSeparation;
+        structurallyPreferred ||
+        (
+            !secondary &&
+            strongEvidence.length > 0
+        );
 
     return {
         mode:
@@ -1297,13 +660,14 @@ function assessPrimaryCandidateConfidence(
                 ? "PRIMARY_CONFIDENT"
                 : "MULTI_CANDIDATE",
         confident,
-        primaryFile:
-            primary.file ||
-            null,
+        primaryFile: primary.file || null,
         scoreGap,
         scoreRatio:
-            Number.isFinite(scoreRatio)
-                ? Number(scoreRatio.toFixed(2))
+            secondaryScore > 0
+                ? Number(
+                    (primaryScore / secondaryScore)
+                        .toFixed(2)
+                )
                 : "INF",
         primaryScore,
         secondaryScore,
@@ -1330,10 +694,7 @@ function getObservationToolName(
     index = 0
 ) {
     const payload =
-        getObservationPayload(
-            observation
-        );
-
+        getObservationPayload(observation);
     return (
         observation?.meta?.tool ||
         observation?.followUpCall?.name ||
@@ -1346,10 +707,7 @@ function getObservationToolName(
 
 function getObservationRepoData(observation = {}) {
     const payload =
-        getObservationPayload(
-            observation
-        );
-
+        getObservationPayload(observation);
     return (
         payload?.data ||
         payload?.result ||
@@ -1360,140 +718,73 @@ function getObservationRepoData(observation = {}) {
 
 function collectObservationDrivenCandidates(
     observations = [],
-    toolCalls = [],
-    objective = "",
-    learningHints = {}
+    toolCalls = []
 ) {
-    const candidates =
-        new Map();
+    const candidates = new Map();
 
-    const objectiveTerms =
-        extractObjectiveTerms(
-            objective
-        );
+    const addCandidate = function(
+        file,
+        evidence = {},
+        metadata = {}
+    ) {
+        const normalizedFile =
+            normalizeObservationFilePath(file);
+        if (!normalizedFile) {
+            return;
+        }
 
-    const addCandidate =
-        function(file, evidence = {}, scoreMeta = {}) {
-            const normalizedFile =
-                normalizeObservationFilePath(file);
+        const current =
+            candidates.get(normalizedFile) || {
+                file: normalizedFile,
+                score: 0,
+                directScore: 0,
+                uiEvidenceHits: 0,
+                termDirectHits: 0,
+                layoutEvidenceHits: 0,
+                productUiEvidenceHits: 0,
+                metaEngineEvidenceHits: 0,
+                weakNoiseEvidenceHits: 0,
+                plannedTarget: false,
+                plannedOrder: Number.POSITIVE_INFINITY,
+                verifiedDefinition: false,
+                frequency: 0,
+                evidence: []
+            };
 
-            if (!normalizedFile) {
-                return;
-            }
-
-            const current =
-                candidates.get(normalizedFile) || {
-                    file:
-                        normalizedFile,
-                    score:
-                        0,
-                    directScore:
-                        0,
-                    uiEvidenceHits:
-                        0,
-                    termDirectHits:
-                        0,
-                    layoutEvidenceHits:
-                        0,
-                    productUiEvidenceHits:
-                        0,
-                    metaEngineEvidenceHits:
-                        0,
-                    weakNoiseEvidenceHits:
-                        0,
-                    plannedTarget:
-                        false,
-                    plannedOrder:
-                        Number.POSITIVE_INFINITY,
-                    frequency:
-                        0,
-                    evidence:
-                        []
-                };
-
-            current.score +=
-                scoreMeta.score || 0;
-
-            current.directScore +=
-                scoreMeta.directMatches || 0;
-
-            current.uiEvidenceHits +=
-                scoreMeta.uiEvidence
-                    ? 1
-                    : 0;
-
-            current.layoutEvidenceHits +=
-                scoreMeta.layoutEvidence
-                    ? 1
-                    : 0;
-
-            current.productUiEvidenceHits +=
-                scoreMeta.productUiEvidence
-                    ? 1
-                    : 0;
-
-            current.metaEngineEvidenceHits +=
-                scoreMeta.metaEngineEvidence
-                    ? 1
-                    : 0;
-
-            current.weakNoiseEvidenceHits +=
-                scoreMeta.weakNoiseEvidence
-                    ? 1
-                    : 0;
-
-            current.termDirectHits +=
-                scoreMeta.termDirect
-                    ? 1
-                    : 0;
-
-            current.plannedTarget =
-                current.plannedTarget ||
-                scoreMeta.plannedTarget === true;
-
-            if (Number.isFinite(scoreMeta.plannedOrder)) {
-                current.plannedOrder =
-                    Math.min(
-                        current.plannedOrder,
-                        scoreMeta.plannedOrder
-                    );
-            }
-
-            current.frequency +=
-                1;
-
-            if (
-                evidence &&
-                current.evidence.length < 8
-            ) {
-                current.evidence.push({
-                    ...evidence,
-                    evidenceScore:
-                        scoreMeta.score || 0,
-                    directMatches:
-                        scoreMeta.directMatches || 0,
-                    uiEvidence:
-                        scoreMeta.uiEvidence === true,
-                    layoutEvidence:
-                        scoreMeta.layoutEvidence === true,
-                    productUiEvidence:
-                        scoreMeta.productUiEvidence === true,
-                    metaEngineEvidence:
-                        scoreMeta.metaEngineEvidence === true,
-                    weakNoiseEvidence:
-                        scoreMeta.weakNoiseEvidence === true,
-                    termDirect:
-                        scoreMeta.termDirect === true,
-                    file:
-                        normalizedFile
-                });
-            }
-
-            candidates.set(
-                normalizedFile,
-                current
+        current.score += Number(metadata.score || 0);
+        current.directScore += Number(metadata.directScore || 0);
+        current.plannedTarget =
+            current.plannedTarget ||
+            metadata.plannedTarget === true;
+        current.verifiedDefinition =
+            current.verifiedDefinition ||
+            metadata.verifiedDefinition === true;
+        if (Number.isFinite(metadata.plannedOrder)) {
+            current.plannedOrder = Math.min(
+                current.plannedOrder,
+                metadata.plannedOrder
             );
-        };
+        }
+        current.frequency += 1;
+
+        if (current.evidence.length < 12) {
+            current.evidence.push({
+                ...evidence,
+                file: normalizedFile,
+                evidenceScore:
+                    Number(metadata.score || 0),
+                plannedTarget:
+                    metadata.plannedTarget === true,
+                sourceDefinition:
+                    metadata.verifiedDefinition === true,
+                verified:
+                    evidence?.verified === true ||
+                    metadata.verifiedDefinition === true
+            });
+        }
+
+        candidates.set(normalizedFile, current);
+    };
 
     toolCalls
         .filter(call =>
@@ -1505,17 +796,15 @@ function collectObservationDrivenCandidates(
                 call?.args?.file ||
                 call?.args?.path ||
                 "";
-
             addCandidate(
                 file,
                 {
                     sourceTool: call.name,
-                    snippet: "Objetivo seleccionado por el plan tecnico local."
+                    plannedTarget: true
                 },
                 {
-                    score: 45,
-                    directMatches: 2,
-                    termDirect: true,
+                    score: 1000,
+                    directScore: 10,
                     plannedTarget: true,
                     plannedOrder
                 }
@@ -1529,7 +818,6 @@ function collectObservationDrivenCandidates(
                 toolCalls,
                 index
             );
-
         if (
             toolName !== "repo.grep" &&
             toolName !== "repo.search"
@@ -1538,29 +826,95 @@ function collectObservationDrivenCandidates(
         }
 
         const repoData =
-            getObservationRepoData(
-                observation
+            getObservationRepoData(observation);
+        const sourceDefinitions = [
+            ...(Array.isArray(repoData?.sourceDefinitions)
+                ? repoData.sourceDefinitions
+                : []),
+            ...(Array.isArray(repoData?.result?.sourceDefinitions)
+                ? repoData.result.sourceDefinitions
+                : []),
+            ...(Array.isArray(repoData?.data?.sourceDefinitions)
+                ? repoData.data.sourceDefinitions
+                : [])
+        ];
+        sourceDefinitions
+            .filter(definition =>
+                definition?.verified === true &&
+                definition?.file
+            )
+            .forEach(definition => {
+                addCandidate(
+                    definition.file,
+                    {
+                        sourceTool: toolName,
+                        name: definition.name || "",
+                        line: definition.line || null,
+                        description:
+                            definition.description || "",
+                        verified: true
+                    },
+                    {
+                        score: 900,
+                        directScore: 8,
+                        verifiedDefinition: true
+                    }
+                );
+            });
+
+        const definitionFiles = [
+            ...(Array.isArray(repoData?.definitionFiles)
+                ? repoData.definitionFiles
+                : []),
+            ...(Array.isArray(repoData?.result?.definitionFiles)
+                ? repoData.result.definitionFiles
+                : []),
+            ...(Array.isArray(repoData?.data?.definitionFiles)
+                ? repoData.data.definitionFiles
+                : [])
+        ];
+        definitionFiles.forEach(item => {
+            const file =
+                typeof item === "string"
+                    ? item
+                    : item?.file || item?.path || "";
+            addCandidate(
+                file,
+                {
+                    sourceTool: toolName,
+                    line:
+                        typeof item === "object"
+                            ? item?.line || null
+                            : null,
+                    verified:
+                        typeof item === "object"
+                            ? item?.verified === true
+                            : true
+                },
+                {
+                    score: 800,
+                    directScore: 6,
+                    verifiedDefinition: true
+                }
             );
+        });
 
-        const matches =
-            [
-                ...(repoData?.matches || []),
-                ...(repoData?.result?.matches || []),
-                ...(repoData?.data?.matches || [])
-            ];
-
+        const matches = [
+            ...(Array.isArray(repoData?.matches)
+                ? repoData.matches
+                : []),
+            ...(Array.isArray(repoData?.result?.matches)
+                ? repoData.result.matches
+                : []),
+            ...(Array.isArray(repoData?.data?.matches)
+                ? repoData.data.matches
+                : [])
+        ];
         matches.forEach(match => {
             addCandidate(
-                match?.file ||
-                match?.path ||
-                match?.name,
+                match?.file || match?.path || match?.name,
                 {
-                    sourceTool:
-                        toolName,
-                    term:
-                        repoData?.term ||
-                        repoData?.query ||
-                        "",
+                    sourceTool: toolName,
                     line:
                         match?.line ||
                         match?.lineNumber ||
@@ -1570,259 +924,102 @@ function collectObservationDrivenCandidates(
                         match?.text ||
                         ""
                 },
-                scoreObservationEvidence({
-                    objectiveTerms,
-                    term:
-                        repoData?.term ||
-                        repoData?.query ||
-                        "",
-                    snippet:
-                        [
-                            match?.snippet ||
-                            match?.text ||
-                            "",
-                            match?.line ||
-                            ""
-                        ]
-                            .join(" "),
-                    sourceTool:
-                        toolName,
-                    baseWeight:
-                        4
-                })
+                {
+                    score:
+                        400 +
+                        Math.min(
+                            100,
+                            Math.max(
+                                0,
+                                Number(match?.score || 0)
+                            )
+                        ),
+                    directScore: 4
+                }
             );
         });
 
-        const results =
-            [
-                ...(repoData?.results || []),
-                ...(repoData?.result?.results || []),
-                ...(repoData?.data?.results || [])
-            ];
-
+        const results = [
+            ...(Array.isArray(repoData?.results)
+                ? repoData.results
+                : []),
+            ...(Array.isArray(repoData?.result?.results)
+                ? repoData.result.results
+                : []),
+            ...(Array.isArray(repoData?.data?.results)
+                ? repoData.data.results
+                : [])
+        ];
         results.forEach(result => {
             addCandidate(
                 result?.file ||
                 result?.path ||
                 result?.name,
                 {
-                    sourceTool:
-                        toolName,
-                    term:
-                        repoData?.term ||
-                        repoData?.query ||
-                        "",
-                    module:
-                        result?.module ||
-                        null,
-                    type:
-                        result?.type ||
-                        null
+                    sourceTool: toolName,
+                    line: result?.line || null,
+                    module: result?.module || null,
+                    type: result?.type || null
                 },
-                scoreObservationEvidence({
-                    objectiveTerms,
-                    term:
-                        repoData?.term ||
-                        repoData?.query ||
-                        "",
-                    snippet:
-                        [
-                            result?.snippet ||
-                            result?.text ||
-                            "",
-                            result?.file ||
-                            result?.path ||
-                            result?.name ||
-                            "",
-                            result?.module ||
-                            "",
-                            result?.type ||
-                            ""
-                        ]
-                            .join(" "),
-                    sourceTool:
-                        toolName,
-                    baseWeight:
+                {
+                    score:
+                        300 +
                         Math.min(
-                            Number(result?.score) > 0
-                                ? Number(result.score)
-                                : 1,
-                            3
-                        )
-                })
+                            100,
+                            Math.max(
+                                0,
+                                Number(result?.score || 0)
+                            )
+                        ),
+                    directScore: 3
+                }
             );
         });
     });
 
-    const scoredCandidates = [
+    return [
         ...candidates.values()
     ]
-        .map(candidate => {
-            const explicitlyMentioned =
-                isCandidateExplicitlyMentioned(
-                    candidate.file,
-                    objective
-                );
-
-            const isTestFixture =
-                TEST_FIXTURE_FILE_PATTERN.test(
-                    candidate.file
-                );
-
-            const isInfrastructure =
-                INFRASTRUCTURE_FILE_PATTERN.test(
-                    candidate.file
-                ) ||
-                WEAK_CORE_FILE_PATTERN.test(
-                    candidate.file
-                );
-
-            const metaExplicitObjective =
-                objectiveExplicitlyTargetsMetaEngine(
-                    objective
-                );
-
-            const metaEvidenceHits =
-                candidate.metaEngineEvidenceHits ||
-                getCandidateMetaEvidenceHits(
+        .map(candidate => ({
+            ...candidate,
+            evidence:
+                selectPrimaryCandidateEvidence(
                     candidate
-                );
-
-            const productUiEvidenceHits =
-                candidate.productUiEvidenceHits ||
-                getCandidateProductUiEvidenceHits(
-                    candidate
-                );
-
-            if (
-                isTestFixture &&
-                !explicitlyMentioned
-            ) {
-                return null;
+                ).slice(0, 12),
+            explicitlyMentioned: false,
+            isTestFixture: false,
+            isInfrastructure: false,
+            metaExplicitObjective: false,
+            metaEvidenceHits: 0,
+            productUiEvidenceHits: 0,
+            weakCorePenalty: 0,
+            infrastructurePenalty: 0,
+            metaEnginePenalty: 0,
+            productUiBonus: 0,
+            learningScore: 0
+        }))
+        .sort((a, b) => {
+            if (a.plannedTarget !== b.plannedTarget) {
+                return a.plannedTarget ? -1 : 1;
             }
-
-            const weakCorePenalty =
-                WEAK_CORE_FILE_PATTERN.test(
-                    candidate.file
-                ) &&
-                candidate.directScore < 2 &&
-                !candidate.plannedTarget
-                    ? 40
-                    : 0;
-
-            const infrastructurePenalty =
-                isInfrastructure &&
-                !candidate.plannedTarget &&
-                !explicitlyMentioned &&
-                !metaExplicitObjective
-                    ? 120
-                    : 0;
-
-            const metaEnginePenalty =
-                metaEvidenceHits > 0 &&
-                !candidate.plannedTarget &&
-                !explicitlyMentioned &&
-                !metaExplicitObjective
-                    ? 160 + (metaEvidenceHits * 35)
-                    : 0;
-
-            const productUiBonus =
-                productUiEvidenceHits > 0
-                    ? 80 + (productUiEvidenceHits * 30)
-                    : 0;
-
-            const learningScore =
-                scoreCandidateWithLearningHints(
-                    {
-                        ...candidate,
-                        isInfrastructure,
-                        metaEvidenceHits,
-                        productUiEvidenceHits
-                    },
-                    learningHints
-                );
-
-            return {
-                ...candidate,
-                evidence:
-                    selectPrimaryCandidateEvidence(candidate)
-                        .slice(0, 8),
-                score:
-                    candidate.score +
-                    (candidate.frequency * 2) -
-                    weakCorePenalty -
-                    infrastructurePenalty -
-                    metaEnginePenalty +
-                    productUiBonus +
-                    learningScore,
-                explicitlyMentioned,
-                isTestFixture,
-                isInfrastructure,
-                metaExplicitObjective,
-                metaEvidenceHits,
-                productUiEvidenceHits,
-                weakCorePenalty,
-                infrastructurePenalty,
-                metaEnginePenalty,
-                productUiBonus,
-                learningScore
-            };
-        })
-        .filter(Boolean)
-        .filter(candidate =>
-            candidate.score > 0 &&
-            (
-                candidate.directScore > 0 ||
-                candidate.frequency > 1
-            )
-        );
-
-    const productSurfaceCandidates =
-        scoredCandidates.filter(candidate =>
-            !candidate.isInfrastructure &&
-            !candidate.isTestFixture &&
-            (
-                candidate.directScore > 0 ||
-                candidate.termDirectHits > 0 ||
-                candidate.uiEvidenceHits > 0 ||
-                candidate.productUiEvidenceHits > 0
-            )
-        );
-
-    const visualProductCandidates =
-        productSurfaceCandidates.filter(candidate =>
-            candidate.uiEvidenceHits > 0 ||
-            candidate.layoutEvidenceHits > 0 ||
-            candidate.productUiEvidenceHits > 0
-        );
-
-    const plannedCandidates =
-        scoredCandidates.filter(candidate =>
-            candidate.plannedTarget === true
-        )
-            .sort((a, b) =>
-                a.plannedOrder - b.plannedOrder ||
-                b.score - a.score
+            if (
+                a.plannedTarget &&
+                b.plannedTarget &&
+                a.plannedOrder !== b.plannedOrder
+            ) {
+                return a.plannedOrder - b.plannedOrder;
+            }
+            if (
+                a.verifiedDefinition !==
+                b.verifiedDefinition
+            ) {
+                return a.verifiedDefinition ? -1 : 1;
+            }
+            return (
+                b.score - a.score ||
+                b.frequency - a.frequency
             );
-
-    const selectableCandidates =
-        plannedCandidates.length > 0
-            ? plannedCandidates
-            : visualProductCandidates.length > 0
-            ? visualProductCandidates
-            : productSurfaceCandidates.length > 0
-            ? scoredCandidates.filter(candidate =>
-                !candidate.isInfrastructure &&
-                !candidate.isTestFixture
-            )
-            : scoredCandidates;
-
-    return selectableCandidates
-        .sort((a, b) =>
-            a.plannedTarget && b.plannedTarget
-                ? a.plannedOrder - b.plannedOrder || b.score - a.score
-                : b.score - a.score
-        )
+        })
         .slice(0, 3);
 }
 
@@ -1859,39 +1056,9 @@ function buildObservationDrivenFollowUpToolCalls({
                 )
             : collectedCandidates;
     const explicitRepositoryTargets =
-        resolveExplicitRepositoryTargets(
-            rawInput,
-            {
-                registeredToolNames:
-                    toolCalls
-                        .map(call =>
-                            call?.name
-                        )
-                        .filter(Boolean)
-            }
-        )
-            .map(target =>
-                normalizeObservationFilePath(
-                    target
-                )
-            )
-            .filter(Boolean);
-    const explicitTargetSet =
-        new Set(
-            explicitRepositoryTargets
-        );
+        [];
     const relevantCandidates =
-        !lockedAdjustmentFile &&
-        explicitTargetSet.size > 0
-            ? candidates.filter(candidate =>
-                explicitTargetSet.has(
-                    normalizeObservationFilePath(
-                        candidate?.file ||
-                        ""
-                    )
-                )
-            )
-            : candidates;
+        candidates;
 
     if (
         lockedAdjustmentFile &&
@@ -2199,247 +1366,68 @@ function getCandidateReadData(
 }
 
 function composeRequestedSourceStructureResponse({
-    objective = "",
     candidates = [],
     observations = []
 } = {}) {
-    const normalizedObjective =
-        String(objective || "")
-            .toLocaleLowerCase();
+    const observationData =
+        observations
+            .map(observation =>
+                getObservationRepoData(observation)
+            )
+            .filter(Boolean);
 
-    const structuredReads =
-        extractReadData(
-            observations
+    const verifiedDefinitions =
+        observationData.flatMap(data =>
+            Array.isArray(data?.sourceDefinitions)
+                ? data.sourceDefinitions
+                : []
         )
-            .map(readData => ({
-                readData,
-                file:
-                    getReadFile(readData),
-                structure:
-                    readData?.sourceStructure ||
-                    null
-            }))
-            .filter(item =>
-                item.file &&
-                item.structure?.kind ===
-                    "tool_registry" &&
-                Array.isArray(
-                    item.structure.registrations
-                )
+            .filter(definition =>
+                definition?.verified === true &&
+                definition?.name &&
+                definition?.file
             );
 
-    const requestedRegistrationCandidates =
-        structuredReads.flatMap(item =>
-            item.structure.registrations
-                .filter(registration =>
-                    registration?.name &&
-                    normalizedObjective.includes(
-                        String(
-                            registration.name
-                        ).toLocaleLowerCase()
-                    )
-                )
-                .map(registration => ({
-                    ...registration,
-                    file:
-                        item.file
-                }))
-        );
-
-    const searchedRegistrationCandidates =
-        observations.flatMap(observation => {
-            const data =
-                getObservationRepoData(
-                    observation
-                );
-
-            return (
-                Array.isArray(
-                    data?.sourceDefinitions
-                )
-                    ? data.sourceDefinitions
-                    : []
-            )
-                .filter(definition =>
-                    definition?.verified === true &&
-                    definition?.name &&
-                    definition?.file &&
-                    normalizedObjective.includes(
-                        String(
-                            definition.name
-                        )
-                            .toLocaleLowerCase()
-                    )
-                );
-        });
-
-    const requestedRegistrations =
-        [
-            ...new Map(
-                [
-                    ...requestedRegistrationCandidates,
-                    ...searchedRegistrationCandidates
-                ]
-                    .map(registration => [
-                        `${registration.file}::${registration.name}`,
-                        registration
-                    ])
-            ).values()
-        ];
+    const requestedRegistrations = [
+        ...new Map(
+            verifiedDefinitions.map(definition => [
+                `${definition.file}::${definition.name}`,
+                definition
+            ])
+        ).values()
+    ];
 
     if (!requestedRegistrations.length) {
         return null;
     }
 
     const primaryFile =
-        requestedRegistrations[0].file ||
+        requestedRegistrations[0]?.file ||
         candidates[0]?.file ||
         null;
-
     const registrationLines =
-        requestedRegistrations.flatMap(
-            registration => [
-                `- ${registration.name} — ${registration.file}:${registration.line}`,
-                registration.description
-                    ? `  Funcion: ${registration.description}`
-                    : "",
-                registration.inputSchema
-                    ? `  Entrada: ${registration.inputSchema}`
-                    : "",
-                registration.output
-                    ? `  Salida: ${registration.output}`
-                    : ""
-            ]
-                .filter(Boolean)
-        );
-
-    const observationData =
-        observations
-            .map(observation =>
-                getObservationRepoData(
-                    observation
-                )
-            )
-            .filter(Boolean);
-
-    const nestedObservationData = [];
-    const visitedObservationObjects =
-        new Set();
-
-    const collectNestedObservationData =
-        function(value, depth = 0) {
-            if (
-                !value ||
-                typeof value !== "object" ||
-                depth > 6 ||
-                visitedObservationObjects.has(value) ||
-                nestedObservationData.length >= 300
-            ) {
-                return;
-            }
-
-            visitedObservationObjects.add(value);
-
-            if (!Array.isArray(value)) {
-                nestedObservationData.push(value);
-            }
-
-            for (
-                const child
-                of Array.isArray(value)
-                    ? value.slice(0, 40)
-                    : Object.values(value).slice(0, 40)
-            ) {
-                collectNestedObservationData(
-                    child,
-                    depth + 1
-                );
-            }
-        };
-
-    observations.forEach(observation =>
-        collectNestedObservationData(
-            observation
-        )
-    );
-
-    const gitStatus =
-        [
-            ...observationData,
-            ...nestedObservationData
-        ]
-            .find(data =>
-                data?.tool ===
-                    "repo.gitStatus" ||
-                String(
-                    data?.command ||
-                    ""
-                )
-                    .includes(
-                        "git status --short --branch"
-                    ) ||
-                String(
-                    data?.branchLine ||
-                    ""
-                )
-                    .startsWith(
-                        "##"
-                    )
-            ) ||
-        null;
-
-    const gitBranchLine =
-        gitStatus?.branchLine ||
-        String(
-            gitStatus?.stdout ||
-            ""
-        )
-            .split("\n")
-            .map(line =>
-                line.endsWith("\r")
-                    ? line.slice(0, -1)
-                    : line
-            )
-            .find(line =>
-                line.startsWith(
-                    "##"
-                )
-            ) ||
-        null;
-
-    const gitChangedFiles =
-        Array.isArray(
-            gitStatus?.changedFiles
-        )
-            ? gitStatus.changedFiles
-            : String(
-                gitStatus?.stdout ||
-                ""
-            )
-                .split("\n")
-                .map(line =>
-                    line.endsWith("\r")
-                        ? line.slice(0, -1)
-                        : line
-                )
-                .filter(line =>
-                    line &&
-                    !line.startsWith(
-                        "##"
-                    )
-                );
+        requestedRegistrations.flatMap(registration => [
+            `- ${registration.name} — ${registration.file}:${registration.line || "línea no reportada"}`,
+            registration.description
+                ? `  Función: ${registration.description}`
+                : "",
+            registration.inputSchema
+                ? `  Entrada: ${registration.inputSchema}`
+                : "",
+            registration.output
+                ? `  Salida: ${registration.output}`
+                : ""
+        ].filter(Boolean));
 
     const repoSearch =
         observationData.find(data =>
-            data?.tool ===
-                "repo.search"
+            data?.tool === "repo.search" ||
+            data?.tool === "repo.grep"
         ) ||
         null;
-
     const fileDiagnosis =
         observationData.find(data =>
-            data?.tool ===
-                "repo.diagnose" &&
+            data?.tool === "repo.diagnose" &&
             normalizeObservationFilePath(
                 data?.file ||
                 data?.resolvedFile ||
@@ -2448,69 +1436,38 @@ function composeRequestedSourceStructureResponse({
         ) ||
         null;
 
-    const operationalLines =
-        [
-            gitStatus
-                ? `- Git: ${gitBranchLine || "rama no reportada"}; ${gitChangedFiles.length} cambio(s) local(es).`
-                : "",
-            repoSearch
-                ? `- Busqueda repo: ${repoSearch.totalMatches ?? repoSearch.results?.length ?? repoSearch.matches?.length ?? 0} resultado(s) verificado(s).`
-                : "",
-            fileDiagnosis
-                ? `- Riesgo local de ${primaryFile}: ${fileDiagnosis.risk || fileDiagnosis.riskLevel || "ND"}.`
-                : "",
-            ...(
-                fileDiagnosis?.findings ||
-                []
-            )
-                .filter(finding =>
-                    String(
-                        finding?.severity ||
-                        "INFO"
-                    ).toUpperCase() !==
-                        "INFO"
-                )
-                .slice(0, 3)
-                .map(finding =>
-                    `- [${finding.severity || "MEDIUM"}] ${finding.title || finding.id || "Hallazgo"}: ${finding.detail || "Sin detalle adicional."}`
-                )
-        ]
-            .filter(Boolean);
+    const operationalLines = [
+        repoSearch
+            ? `- Búsqueda de repositorio: ${repoSearch.totalMatches ?? repoSearch.results?.length ?? repoSearch.matches?.length ?? 0} resultado(s).`
+            : "",
+        fileDiagnosis
+            ? `- Riesgo reportado de ${primaryFile}: ${fileDiagnosis.risk || fileDiagnosis.riskLevel || "ND"}.`
+            : ""
+    ].filter(Boolean);
 
     return {
-        ok:
-            true,
-        title:
-            "Lectura estructural verificada",
-        text:
-            [
-                `Archivo leido: ${primaryFile}`,
-                `Tipo real: tool_registry`,
-                "",
-                "Registros solicitados:",
-                ...registrationLines,
-                ...(operationalLines.length
-                    ? [
-                        "",
-                        "Estado y riesgos:",
-                        ...operationalLines
-                    ]
-                    : []),
-                "",
-                `Evidencia: indice estructural derivado de contenido real inspeccionado por las herramientas del repositorio; ${requestedRegistrations.length} registro(s) solicitado(s) localizado(s).`,
-                "Estado: lectura read-only; no se modificaron archivos, no se genero patch y no se desplego."
-            ]
-                .join("\n"),
-        file:
-            primaryFile,
-        registrations:
-            requestedRegistrations,
-        source:
-            "REPO_SOURCE_STRUCTURE",
-        writeAllowed:
-            false,
-        patchGenerated:
-            false
+        ok: true,
+        title: "Lectura estructural verificada",
+        text: [
+            `Archivo principal: ${primaryFile}`,
+            "",
+            "Definiciones verificadas devueltas por las herramientas del repositorio:",
+            ...registrationLines,
+            ...(operationalLines.length
+                ? [
+                    "",
+                    "Estado operativo:",
+                    ...operationalLines
+                ]
+                : []),
+            "",
+            "Estado: lectura read-only; no se modificaron archivos, no se generó patch y no se desplegó."
+        ].join("\n"),
+        file: primaryFile,
+        registrations: requestedRegistrations,
+        source: "REPO_SOURCE_STRUCTURE",
+        writeAllowed: false,
+        patchGenerated: false
     };
 }
 
@@ -2555,27 +1512,8 @@ function findSnippetLineNumber(
         : null;
 }
 
-function extractLayoutSignalsFromLines(
-    lines = []
-) {
-    const signals =
-        new Set();
-
-    lines.forEach(line => {
-        const matches =
-            String(line || "")
-                .match(UI_LAYOUT_SIGNAL_PATTERN) ||
-            [];
-
-        matches.forEach(match =>
-            signals.add(match)
-        );
-    });
-
-    return [
-        ...signals
-    ]
-        .slice(0, 12);
+function extractLayoutSignalsFromLines() {
+    return [];
 }
 
 function getReadLineWindow(
@@ -2589,7 +1527,6 @@ function getReadLineWindow(
             1,
             10
         ) || 1;
-
     const endLine =
         Number.parseInt(
             readData?.endLine ||
@@ -2604,155 +1541,19 @@ function getReadLineWindow(
             startLine +
             Math.max(lines.length - 1, 0)
         );
-
-    return {
-        startLine,
-        endLine
-    };
+    return { startLine, endLine };
 }
 
-function lineLooksLikePatchPreviewBlock(
-    line = ""
-) {
-    const text =
-        String(line || "");
-
-    return (
-        /(^|[.\s])className\s*=|\bclass\s*=|\binnerHTML\s*=|\.classList\b/i.test(text) &&
-        hasLayoutSignal(text)
-    );
+function lineLooksLikePatchPreviewBlock() {
+    return false;
 }
 
-function captureExactPatchBlock(
-    entries = [],
-    index = 0
-) {
-    const first =
-        entries[index];
-
-    if (!first) {
-        return null;
-    }
-
-    const blockEntries =
-        [
-            first
-        ];
-
-    const firstText =
-        String(first.text || "");
-
-    if (
-        /[`'"]/.test(firstText) &&
-        !/[;}]\s*$/.test(firstText.trim()) &&
-        !firstText.includes("</")
-    ) {
-        for (
-            let cursor = index + 1;
-            cursor < entries.length &&
-            blockEntries.length < PATCH_PREVIEW_BLOCK_MAX_LINES;
-            cursor += 1
-        ) {
-            blockEntries.push(
-                entries[cursor]
-            );
-
-            if (
-                /;\s*$/.test(
-                    String(entries[cursor]?.text || "")
-                )
-            ) {
-                break;
-            }
-        }
-    }
-
-    const search =
-        blockEntries
-            .map((entry, entryIndex) =>
-                entryIndex === 0
-                    ? String(entry.text || "").trim()
-                    : String(entry.text || "").trimEnd()
-            )
-            .join("\n")
-            .trimEnd();
-
-    if (
-        !search ||
-        !hasLayoutSignal(search)
-    ) {
-        return null;
-    }
-
-    return {
-        search,
-        startLine:
-            first.number,
-        endLine:
-            blockEntries[blockEntries.length - 1]?.number ||
-            first.number
-    };
+function captureExactPatchBlock() {
+    return null;
 }
 
-function buildCompactLayoutReplacement(
-    search = ""
-) {
-    let replacement =
-        String(search || "");
-
-    replacement =
-        replacement.replace(
-            new RegExp(
-                "\\bmax-w-\\[([^\\]]+)\\]" +
-                TAILWIND_CLASS_END_PATTERN,
-                "g"
-            ),
-            "max-w-full sm:max-w-[$1]"
-        );
-
-    replacement =
-        replacement.replace(
-            new RegExp(
-                "\\bpy-1\\.5" +
-                TAILWIND_CLASS_END_PATTERN,
-                "g"
-            ),
-            "py-1"
-        );
-
-    replacement =
-        replacement.replace(
-            new RegExp(
-                "\\bpy-2" +
-                TAILWIND_CLASS_END_PATTERN,
-                "g"
-            ),
-            "py-1.5"
-        );
-
-    replacement =
-        replacement.replace(
-            new RegExp(
-                "\\brounded-lg" +
-                TAILWIND_CLASS_END_PATTERN,
-                "g"
-            ),
-            "rounded-md"
-        );
-
-    replacement =
-        replacement.replace(
-            new RegExp(
-                "\\bactive:scale-95" +
-                TAILWIND_CLASS_END_PATTERN,
-                "g"
-            ),
-            "active:scale-[0.98]"
-        );
-
-    return replacement !== search
-        ? replacement
-        : "";
+function buildCompactLayoutReplacement() {
+    return "";
 }
 
 function countUnescapedCharacter(
@@ -2847,12 +1648,18 @@ function hasClosedTemplatePlaceholders(
 function countTemplatePlaceholders(
     value = ""
 ) {
-    return (
-        String(value || "")
-            .match(/\$\{/g) ||
-        []
-    )
-        .length;
+    const text = String(value || "");
+    let count = 0;
+    for (let index = 0; index < text.length - 1; index += 1) {
+        if (
+            text[index] === "$" &&
+            text[index + 1] === "{"
+        ) {
+            count += 1;
+            index += 1;
+        }
+    }
+    return count;
 }
 
 function validatePatchPreviewRewrite({
@@ -2877,26 +1684,6 @@ function validatePatchPreviewRewrite({
     if (!replaceText.trim()) {
         issues.push(
             "REPLACE_REQUIRED"
-        );
-    }
-
-    if (
-        /\b(?:p[trblxy]?|gap)-\d+(?:\.\d+){2,}(?=$|[\s"'`<>;])/i.test(
-            replaceText
-        )
-    ) {
-        issues.push(
-            "INVALID_TAILWIND_DECIMAL_CLASS"
-        );
-    }
-
-    if (
-        /\b(?:[a-z]+:)*scale-\d+(?:\.\d+)+(?=$|[\s"'`<>;])/i.test(
-            replaceText
-        )
-    ) {
-        issues.push(
-            "INVALID_SCALE_CLASS"
         );
     }
 
@@ -3058,21 +1845,7 @@ function extractPatchPreviewCandidateFromRead({
                         : 0;
 
                 const score =
-                    (signals.length * 12) +
-                    (
-                        /className\s*=/i.test(
-                            block.search
-                        )
-                            ? 70
-                            : 0
-                    ) +
-                    (
-                        /innerHTML\s*=/i.test(
-                            block.search
-                        )
-                            ? 25
-                            : 0
-                    ) -
+                    (signals.length * 12) -
                     Math.min(nearestAnchorDistance, 80);
 
                 return {
@@ -3865,31 +2638,7 @@ function composeObservationDrivenFinalResponse({
 
     const prioritizeCausalFindings =
         findings =>
-            [...(findings || [])]
-                .sort((a, b) => {
-                    const priorityFor =
-                        finding => {
-                            const signal =
-                                `${finding?.id || ""} ${finding?.title || ""}`
-                                    .toUpperCase();
-
-                            if (
-                                /ROLE_AUTHORITY_ROUTER|ROUTER CANONICO|AUTH_PENDING_GUARD|GUARD VISUAL/.test(signal)
-                            ) {
-                                return 0;
-                            }
-
-                            if (
-                                /AUTH_SESSION_OBSERVER|OBSERVER DE SESION|LEGACY_PROFILE_FALLBACK|FALLBACK DE PERFIL/.test(signal)
-                            ) {
-                                return 1;
-                            }
-
-                            return 2;
-                        };
-
-                    return priorityFor(a) - priorityFor(b);
-                });
+            [...(findings || [])];
 
     const executiveFindingLines =
         prioritizeCausalFindings(topDiagnosis?.findings || [])
@@ -4759,39 +3508,7 @@ function composeRepoGlobalAnalysisFinalResponse({
             ...(Array.isArray(searchData?.data?.matches) ? searchData.data.matches : [])
         ];
 
-    const findingCountWords = {
-        uno: 1,
-        una: 1,
-        dos: 2,
-        tres: 3,
-        cuatro: 4,
-        cinco: 5,
-        seis: 6,
-        siete: 7,
-        ocho: 8,
-        nueve: 9,
-        diez: 10
-    };
-
-    const findingCountMatch =
-        String(objective || "")
-            .toLowerCase()
-            .match(/\b(\d{1,2}|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\s+(?:fallas?|errores?|riesgos?|problemas?|hallazgos?)\b/);
-
-    const requestedFindingLimit =
-        Math.min(
-            12,
-            Math.max(
-                1,
-                findingCountMatch
-                    ? (
-                        Number(findingCountMatch[1]) ||
-                        findingCountWords[findingCountMatch[1]] ||
-                        12
-                    )
-                    : 12
-            )
-        );
+    const requestedFindingLimit = 12;
 
     const indexedCriticalFiles =
         files
@@ -5328,7 +4045,7 @@ export const GestiaCore = {
 
                 this.emitirPulso(
                     "COGNITION",
-                    "HYBRID_REASONING"
+                    "SINGLE_SEMANTIC_PLANNER"
                 );
 
                 let propuesta =
@@ -5386,256 +4103,36 @@ export const GestiaCore = {
 
                 /**
                  * =====================================================================================
-                 * V7.5 HYBRID COGNITION
+                 * SINGLE SEMANTIC BRAIN CONTRACT
                  * =====================================================================================
+                 * terminalPlannerSeed is produced by jarvis.multifunction.planner.
+                 * There is deliberately no Brain/Semantic/Intent fallback.
                  */
 
-                if (
-
-                    !propuesta &&
-                    window.runCognitiveReasoning
-
-                ) {
-
-                    try {
-
-                        const cognitiveResult =
-                            await window.runCognitiveReasoning(
-
-                                inputRaw,
-
-                                {
-
-                                    ...context,
-
-                                    tenantId,
-                                    analysisId,
-                                    rol,
-                                    learningHints:
-                                        agentLearningHints,
-                                    learningPolicy: {
-                                        proposalAutonomy:
-                                            true,
-                                        writeAllowed:
-                                            false,
-                                        writeAuthorization:
-                                            false,
-                                        approvalRequiredForWrite:
-                                            true
-                                    }
-                                }
-                            );
-
-                        const reasoning =
-                            cognitiveResult?.reasoning;
-
-                        if (!cognitiveResult?.ok || !reasoning) {
-                            const plannerError =
-                                cognitiveResult?.error ||
-                                "SEMANTIC_PLANNER_UNAVAILABLE";
-
-                            atomicState.isHalted = true;
-                            atomicState.haltReason = "AGENT_TOOL_RESULT";
-                            atomicState.agentResult = {
-                                version: "7.2.1-semantic-fail-visible",
-                                mode: "MODEL_PLANNER_UNAVAILABLE",
-                                toolCalls: [],
-                                observations: [],
-                                mission: null,
-                                verified: false,
-                                finalResponse: {
-                                    ok: false,
-                                    title: "Jarvis no pudo iniciar la mision",
-                                    text: [
-                                        "El planificador semantico no entrego un plan ejecutable.",
-                                        `Causa verificable: ${plannerError}.`,
-                                        "No se ejecuto ninguna herramienta, no se modifico codigo y la mision no se reporta como completada.",
-                                        "Puedes reintentar la misma orden; Jarvis conserva el texto original en la interfaz."
-                                    ].join("\n"),
-                                    source: "SEMANTIC_PLANNER_FAILURE_VISIBLE"
-                                }
-                            };
-                            return;
+                if (!propuesta) {
+                    atomicState.isHalted = true;
+                    atomicState.haltReason =
+                        "SEMANTIC_PLANNER_NO_EXECUTABLE_PLAN";
+                    atomicState.agentResult = {
+                        version: "8.0.0-single-semantic-brain",
+                        mode: "SEMANTIC_PLANNER_NO_EXECUTABLE_PLAN",
+                        toolCalls: [],
+                        observations: [],
+                        mission: null,
+                        verified: false,
+                        finalResponse: {
+                            ok: false,
+                            title: "ADJUNTO no pudo iniciar la misión",
+                            text: [
+                                "El único planificador semántico no entregó un plan ejecutable.",
+                                "No se activó ningún cerebro alterno ni clasificador local.",
+                                "No se ejecutó ninguna herramienta, no se modificó código y la misión no se reporta como completada."
+                            ].join("\n"),
+                            source: "SINGLE_SEMANTIC_BRAIN_FAIL_CLOSED"
                         }
-
-                        propuesta = {
-
-                            analysis_id:
-                                analysisId,
-
-                            cognition:
-                                reasoning,
-
-                            reasoning:
-                                reasoning,
-
-                            strategicMode:
-                                reasoning?.strategicMode ||
-
-                                "PROTECTIVE",
-
-                            semantic:
-                                reasoning?.semantic ||
-
-                                {},
-
-                            inferences:
-                                reasoning?.inferences ||
-
-                                [],
-
-                            executionChain:
-                                reasoning?.executionChain ||
-
-                                [],
-
-                             toolCalls:
-                                reasoning?.toolCalls ||
-                                [],
-
-                            cloudReasoning:
-                                reasoning?.cloudReasoning ||
-
-                                null,
-
-                            changes:
-
-                                reasoning
-                                    ?.executionChain
-                                    ?.map(step => ({
-
-                                        type:
-                                            step.step,
-
-                                        target:
-                                            step.target,
-
-                                        payload: {
-
-                                            reasoningId:
-                                                reasoning?.reasoningId,
-
-                                            mode:
-                                                reasoning?.strategicMode,
-
-                                            cognition:
-                                                true
-                                        }
-
-                                    })) ||
-
-                                []
-                        };
-
-                        this.emitirPulso(
-
-                            "COGNITION",
-
-                            "CONNECTED",
-
-                            reasoning?.strategicMode
-                        );
-
-                    } catch (brainError) {
-
-                        console.error(
-
-                            "🚨 [COGNITIVE_BRIDGE_FAIL]",
-
-                            brainError
-                        );
-
-                        this.emitirPulso(
-
-                            "COGNITION",
-
-                            "FALLBACK_MODE"
-                        );
-                    }
+                    };
+                    return;
                 }
-
-                /**
-                 * =====================================================================================
-                 * FALLBACK LEGACY ENGINE
-                 * =====================================================================================
-                 */
-
-                if (
-
-                    !propuesta
-
-                ) {
-                    const brainAuthorityMode =
-                        context?.naturalIntentAuthority === "brain";
-
-                    if (brainAuthorityMode) {
-                        atomicState.isHalted =
-                            true;
-
-                        atomicState.haltReason =
-                            "BRAIN_AUTHORITY_NO_LEGACY_FALLBACK";
-
-                        propuesta = {
-                            analysis_id:
-                                analysisId,
-                            cognition: {
-                                strategicMode:
-                                    "PROTECTIVE",
-                                reason:
-                                    "BRAIN_AUTHORITY_NO_LEGACY_FALLBACK",
-                                writeAllowed:
-                                    false,
-                                writeAuthorization:
-                                    false,
-                                approvalRequiredForWrite:
-                                    true
-                            },
-                            reasoning: {
-                                strategicMode:
-                                    "PROTECTIVE",
-                                reason:
-                                    "BRAIN_AUTHORITY_NO_LEGACY_FALLBACK",
-                                writeAllowed:
-                                    false,
-                                writeAuthorization:
-                                    false,
-                                approvalRequiredForWrite:
-                                    true
-                            },
-                            strategicMode:
-                                "PROTECTIVE",
-                            semantic:
-                                {},
-                            inferences:
-                                [],
-                            executionChain:
-                                [],
-                            toolCalls:
-                                [],
-                            changes:
-                                []
-                        };
-
-                        return;
-                    }
-
-                    propuesta =
-                        generarPropuesta({
-
-                            analysis_id:
-                                analysisId,
-
-                            input_original:
-                                inputRaw,
-
-                            context: {
-                                ...context,
-                                learningHints:
-                                    agentLearningHints
-                            }
-                        });
-                }
-
 
                 /**
  * =====================================================================================

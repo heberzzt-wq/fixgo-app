@@ -44,7 +44,7 @@ test("NEXO marketing builds an evidence-grounded multi-channel production packag
     assert.equal(plan.version, "8.1.0-nexo-complete-marketing-package");
     assert.equal(
         NexoMarketingEngine.routing,
-        "natural_instruction_with_semantic_and_local_resilience"
+        "semantic_fields_with_editable_assumptions"
     );
     assert.equal(plan.approval.required, true);
     assert.equal(plan.approval.publishAllowed, false);
@@ -109,9 +109,9 @@ test("NEXO marketing leaves free-text routing to the mission planner", () => {
     assert.equal(isMarketingRequest({ domain: "marketing" }), true);
 });
 
-test("NEXO marketing keeps a technically successful request pending when critical context is missing", () => {
+test("NEXO marketing requires only structured factual brand identity", () => {
     const result = planMarketingRequest(
-        "Crea un plan de marketing completo para Multiservicios Peninsulares HMH."
+        "Prepara el plan integral solicitado."
     );
 
     assert.equal(result.ok, true);
@@ -120,9 +120,8 @@ test("NEXO marketing keeps a technically successful request pending when critica
     assert.equal(result.requiresInput, true);
     assert.equal(result.readyForProduction, false);
     assert.equal(result.status, "MARKETING_INPUT_REQUIRED");
-    assert.ok(result.missingInputs.includes("audience"));
-    assert.ok(result.questions.length <= 4);
-    assert.match(result.message, /conservaré lo ya proporcionado/i);
+    assert.deepEqual(result.missingInputs, ["brandName"]);
+    assert.equal(result.questions.length, 1);
 });
 
 test("NEXO marketing produces the complete 90-day package after receiving sufficient context", () => {
@@ -208,7 +207,7 @@ test("company registry remains available during NEXO migration", () => {
 });
 
 
-test("NEXO marketing isolates an explicitly named plan from stale completed context", () => {
+test("NEXO marketing isolates structured current brand identity from stale completed context", () => {
     const stale = {
         brandName: "Peninsula Tech",
         name: "Peninsula Tech",
@@ -225,21 +224,21 @@ test("NEXO marketing isolates an explicitly named plan from stale completed cont
         channels: ["instagram", "facebook", "tiktok", "whatsapp"]
     };
     const result = planMarketingRequest(
-        "Crea un plan de marketing completo para Multiservicios Peninsulares HMH.",
-        { ...stale, marketingContext: { ...stale } }
+        "Prepara el plan integral solicitado.",
+        {
+            brandName: "Multiservicios Peninsulares HMH",
+            name: "Multiservicios Peninsulares HMH",
+            marketingContext: { ...stale }
+        }
     );
 
-    assert.equal(result.status, "MARKETING_INPUT_REQUIRED");
-    assert.equal(result.requiresInput, true);
-    assert.equal(result.objectiveSatisfied, false);
-    assert.equal(result.preservedContext.brandName, "Multiservicios Peninsulares HMH");
-    assert.equal(result.preservedContext.name, "Multiservicios Peninsulares HMH");
-    assert.equal(result.preservedContext.contextIsolation, "EXPLICIT_BRAND_MISSION_ISOLATED");
-    assert.equal(result.preservedContext.campaignObjective, undefined);
-    assert.equal(result.preservedContext.audience, undefined);
-    assert.equal(result.preservedContext.cta, undefined);
-    assert.ok(result.missingInputs.includes("campaignObjective"));
-    assert.ok(result.missingInputs.includes("audience"));
-    assert.ok(result.missingInputs.includes("offer"));
-    assert.ok(result.missingInputs.includes("budget"));
+    assert.equal(result.status, "MARKETING_PACKAGE_READY");
+    assert.equal(result.requiresInput, false);
+    assert.equal(result.objectiveSatisfied, true);
+    assert.equal(result.brand.name, "Multiservicios Peninsulares HMH");
+    assert.notEqual(result.brand.market, "México");
+    assert.equal(result.inferredInputs.includes("audience"), true);
+    assert.equal(result.inferredInputs.includes("offer"), true);
+    assert.equal(result.inferredInputs.includes("budget"), true);
+    assert.equal(result.inferredInputs.includes("campaignObjective"), true);
 });

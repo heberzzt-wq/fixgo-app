@@ -140,9 +140,9 @@ text = read(path)
 route_start = text.find('    app.post("/repo/candidates", async (req, res) => {')
 if route_start < 0:
     raise SystemExit('WAVE7_REPO_CANDIDATES_ROUTE_NOT_FOUND')
-route_end = text.find('\n\n    app.post("', route_start + 20)
+route_end = text.find('\n\n        app.post("/read", async (req, res) => {', route_start + 20)
 if route_end < 0:
-    raise SystemExit('WAVE7_REPO_CANDIDATES_NEXT_ROUTE_NOT_FOUND')
+    raise SystemExit('WAVE7_REPO_READ_BOUNDARY_NOT_FOUND')
 new_route = r'''    app.post("/repo/candidates", async (req, res) => {
         try {
             const plannedFiles = Array.isArray(req.body?.plannedFiles)
@@ -247,7 +247,7 @@ text = replace_between(
     text,
     rank_start,
     rank_end,
-    new_rank_tool + rank_end,
+    new_rank_tool,
     'tools-runtime-structural-ranking'
 )
 write(path, text)

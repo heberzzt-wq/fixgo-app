@@ -5,7 +5,7 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=sia7-test-outcome-evidence-v100-20260727";
+} from "./jarvis/jarvis.multitool.pack.js?v=v94-semantic-only-tools-v102-20260809";
 import {
     registerJarvisActuatorTools
 } from "./jarvis/jarvis.actuator.pack.js?v=sia7-identity-fidelity-v106-20260728";
@@ -6567,25 +6567,46 @@ JarvisToolRuntime.register({
 
 JarvisToolRuntime.register({
     name: "repo.rankCandidates",
-    description: "Clasifica archivos candidatos con puntuación aditiva desglosada, evidencia, dependencias, pruebas, riesgos y justificación.",
+    description: "Evalúa evidencia estructural de archivos ya seleccionados por el plan semántico: dependencias, llamadas, pruebas, riesgos y controles.",
     mutates: false,
     requiresApproval: false,
+    inputSchema: {
+        plannedFiles: "array",
+        limit: "number",
+        refresh: "boolean"
+    },
     output: "REPO_CANDIDATE_RANKING_RESULT",
     execute: async (args = {}) => {
-        const query = String(args.query || args.objective || "").trim();
-        if (!query) return { ok: false, status: "CONTRACT_INVALID", error: "QUERY_REQUIRED", tool: "repo.rankCandidates" };
+        const plannedFiles = Array.isArray(args.plannedFiles)
+            ? args.plannedFiles.map(file => String(file || "").trim()).filter(Boolean)
+            : [];
+        if (plannedFiles.length === 0) {
+            return {
+                ok: false,
+                status: "CONTRACT_INVALID",
+                error: "PLANNED_FILES_REQUIRED",
+                tool: "repo.rankCandidates"
+            };
+        }
         if (!window.JarvisLocalBridge?.rankRepoCandidates) {
-            return { ok: false, status: "LOCAL_BRIDGE_REQUIRED", error: "JarvisLocalBridge.rankRepoCandidates no está disponible.", tool: "repo.rankCandidates" };
+            return {
+                ok: false,
+                status: "LOCAL_BRIDGE_REQUIRED",
+                error: "JarvisLocalBridge.rankRepoCandidates no está disponible.",
+                tool: "repo.rankCandidates"
+            };
         }
         const result = await window.JarvisLocalBridge.rankRepoCandidates({
-            query,
-            objective: query,
-            plannedFiles: Array.isArray(args.plannedFiles) ? args.plannedFiles : [],
+            plannedFiles,
             limit: args.limit || 8,
             refresh: args.refresh === true,
-            source: "jarvis_candidate_ranking_tool_v7"
+            source: "semantic_plan_structural_repo_ranking_v1"
         });
-        return { ...result, success: result?.ok === true, tool: "repo.rankCandidates" };
+        return {
+            ...result,
+            success: result?.ok === true,
+            tool: "repo.rankCandidates"
+        };
     }
 });
 

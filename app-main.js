@@ -75,24 +75,6 @@ import {
 } from "./app-bi.js";
 
 /* =====================================================
-   JARVIS ORCHESTRATION
-===================================================== */
-
-import {
-
-  runJarvis
-
-} from
-"./gestia-core/jarvis/jarvis.orchestrator.js";
-
-import {
-
-  analyzeIntent
-
-} from
-"./gestia-core/jarvis/jarvis.vision.engine.js";
-
-/* =====================================================
    COGNITIVE RUNTIME BOOTSTRAP
 ===================================================== */
 
@@ -111,16 +93,6 @@ import "./gestia-core/jarvis.kernel.js";
 
 import "./gestia-core/operations-executor.engine.js";
 
-/* =====================================================
-   LEGACY BRAIN BRIDGE
-===================================================== */
-
-import {
-
-  invocarArquitectoIA
-
-} from
-"./gestia-core/brain.engine.js?v=mixed-intent-v2-20260713-technical-diagnostics-v1-multifunction-planner-v1.3-supervision-v1";
 // =====================================================
 // 🧠 FORTRESS KERNEL + AUTOHEAL V7.1
 // =====================================================
@@ -147,10 +119,6 @@ const V7 = {
 };
 
 window.V7 = V7;
-
-window.invocarArquitectoIA = invocarArquitectoIA;
-
-console.log("🧠 Brain Engine conectado a app-main");
 
 // =====================================================
 // 🔥 CONSTANTES CORE
@@ -639,8 +607,6 @@ function auditStartup() {
 // =====================================================
 async function smartPreload() {
   const mods = [
-    "./gestia-core/jarvis/jarvis.orchestrator.js",
-    "./gestia-core/jarvis/jarvis.vision.engine.js",
     "./app-panel.js",
     "./app-bi.js"
   ];

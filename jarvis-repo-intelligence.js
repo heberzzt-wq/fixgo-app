@@ -378,72 +378,91 @@ export function buildRepoIntelligence({ root = process.cwd(), maxFiles = 2500, m
     };
 }
 
-function queryTerms(query = "") {
-    return unique(String(query).toLowerCase().split(/[^a-z0-9_./-]+/g)).filter(term => term.length >= 3).slice(0, 20);
+function normalizePlannedFiles(plannedFiles = []) {
+    return [...new Set(
+        (Array.isArray(plannedFiles) ? plannedFiles : [])
+            .map(file => String(file || "").trim().split("\\").join("/"))
+            .filter(Boolean)
+    )].slice(0, 50);
 }
 
-export function rankRepoCandidates({ graph, query = "", plannedFiles = [], limit = 8 } = {}) {
+export function rankRepoCandidates({ graph, plannedFiles = [], limit = 8 } = {}) {
     if (!graph?.ok || !graph.nodes) throw new Error("REPO_GRAPH_REQUIRED");
-    const rawTerms = queryTerms(query);
+
+    const planned = normalizePlannedFiles(plannedFiles);
+    if (planned.length === 0) {
+        throw new Error("PLANNED_FILES_REQUIRED");
+    }
+
     const graphNodes = Object.values(graph.nodes);
-    const termDocumentFrequency = Object.fromEntries(rawTerms.map(term => [
-        term,
-        graphNodes.filter(node => [node.file, ...(node.functions || []), ...(node.exports || []), ...(node.calls || []), ...(node.literals || [])].join(" ").toLowerCase().includes(term)).length
-    ]));
-    const terms = rawTerms.filter(term => termDocumentFrequency[term] <= Math.max(5, Math.ceil(graphNodes.length * 0.3)));
-    const normalizedQuery = String(query).toLowerCase();
-    const planned = new Set(plannedFiles.map(file => String(file).split("\\").join("/")));
-    const ranked = graphNodes.map(node => {
-        const searchable = [node.file, ...node.functions, ...node.exports, ...node.calls, ...(node.literals || []), ...node.endpoints.map(item => item.route), ...node.collections].join(" ").toLowerCase();
-        const matchedTerms = terms.filter(term => searchable.includes(term));
-        const pathTermMatches = terms.filter(term => node.file.toLowerCase().includes(term));
-        const directMention = normalizedQuery.includes(node.file.toLowerCase()) || normalizedQuery.includes(path.posix.basename(node.file).toLowerCase());
+    const selected = graphNodes.filter(node => planned.includes(node.file));
+    const missingPlannedFiles = planned.filter(file => !graph.nodes[file]);
+
+    const ranked = selected.map(node => {
+        const relationCount = node.dependencies.length + node.dependents.length;
         const breakdown = {
-            directInstruction: directMention ? 120 : 0,
-            lexicalSemantic: matchedTerms.length * 12 + pathTermMatches.length * 24,
-            plannedFile: planned.has(node.file) ? 120 : 0,
-            moduleRelation: node.dependencies.length + node.dependents.length > 0 ? Math.min(30, (node.dependencies.length + node.dependents.length) * 3) : 0,
+            plannedFile: 120,
+            moduleRelation: relationCount > 0
+                ? Math.min(30, relationCount * 3)
+                : 0,
             incomingCalls: Math.min(25, node.dependents.length * 5),
             outgoingCalls: Math.min(20, node.calls.length),
             imports: Math.min(20, node.dependencies.length * 4),
             uiContext: node.page || node.file.endsWith(".html") ? 25 : 0,
             executionEvidence: node.endpoints.length || node.listeners.length ? 20 : 0,
             existingTests: Math.min(30, node.relatedTests.length * 10),
-            history: 0,
-            falsePositivePenalty: matchedTerms.length === 0 && !directMention && !planned.has(node.file) ? -80 : 0,
-            metaFilePenalty: node.isMeta && !directMention ? -35 : 0,
+            authoritySensitivity: node.authoritySensitive ? 10 : 0,
             decorativePenalty: node.isDecorative ? -50 : 0,
-            testFilePenalty: node.isTest && !directMention && !planned.has(node.file) ? -100 : 0,
-            generatedFilePenalty: node.isGenerated && !directMention ? -100 : 0,
-            ownerMentionPriority: directMention ? 40 : 0
+            generatedFilePenalty: node.isGenerated ? -100 : 0
         };
-        const score = Object.values(breakdown).reduce((sum, value) => sum + value, 0);
-        const reasons = Object.entries(breakdown).filter(([, value]) => value !== 0).map(([factor, value]) => `${factor}: ${value > 0 ? "+" : ""}${value}`);
+        const score = Object.values(breakdown)
+            .reduce((sum, value) => sum + value, 0);
+        const reasons = Object.entries(breakdown)
+            .filter(([, value]) => value !== 0)
+            .map(([factor, value]) =>
+                `${factor}: ${value > 0 ? "+" : ""}${value}`
+            );
+
         return {
             file: node.file,
             score,
             breakdown,
             reasons,
-            matchedTerms,
-            pathTermMatches,
-            controls: unique([...node.functions, ...node.exports, ...node.endpoints.map(item => `${item.method} ${item.route}`)]).slice(0, 15),
+            controls: unique([
+                ...node.functions,
+                ...node.exports,
+                ...node.endpoints.map(item => `${item.method} ${item.route}`)
+            ]).slice(0, 15),
             dependsOn: node.dependencies,
             dependedOnBy: node.dependents,
             coveredByTests: node.relatedTests,
-            risks: [node.authoritySensitive ? "AUTHORITY_SENSITIVE" : null, node.isGenerated ? "GENERATED_FILE" : null, node.isMeta ? "META_FILE" : null].filter(Boolean)
+            risks: [
+                node.authoritySensitive ? "AUTHORITY_SENSITIVE" : null,
+                node.isGenerated ? "GENERATED_FILE" : null,
+                node.isMeta ? "META_FILE" : null
+            ].filter(Boolean)
         };
-    }).filter(candidate => candidate.score > 0).sort((a, b) => b.score - a.score || a.file.localeCompare(b.file)).slice(0, Math.max(1, Math.min(25, Number(limit) || 8)));
+    })
+        .sort((a, b) => b.score - a.score || a.file.localeCompare(b.file))
+        .slice(0, Math.max(1, Math.min(25, Number(limit) || 8)));
 
     return {
         ok: true,
         status: "CANDIDATE_RANKING_READY",
-        query,
+        source: "semantic_plan_plus_live_repo_graph",
         graphGeneratedAt: graph.generatedAt,
-        scoring: "additive_evidence_breakdown_not_percentage",
-        queryTerms: { accepted: terms, ignoredAsUbiquitous: rawTerms.filter(term => !terms.includes(term)), documentFrequency: termDocumentFrequency },
+        scoring: "structural_evidence_for_semantic_selection",
+        semanticSelection: planned,
+        missingPlannedFiles,
         candidates: ranked,
         recommendation: ranked[0]
-            ? { file: ranked[0].file, why: ranked[0].reasons, doNotTouch: ranked.filter(item => item.risks.includes("GENERATED_FILE")).map(item => item.file) }
+            ? {
+                file: ranked[0].file,
+                why: ranked[0].reasons,
+                doNotTouch: ranked
+                    .filter(item => item.risks.includes("GENERATED_FILE"))
+                    .map(item => item.file)
+            }
             : null
     };
 }

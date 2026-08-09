@@ -2699,24 +2699,43 @@ export function createJarvisFsBridgeApp({
 
     app.post("/repo/candidates", async (req, res) => {
         try {
-            const query = String(req.body?.query || req.body?.objective || "").trim();
-            if (!query) return res.status(400).json({ ok: false, status: "QUERY_REQUIRED", error: "QUERY_REQUIRED" });
+            const plannedFiles = Array.isArray(req.body?.plannedFiles)
+                ? req.body.plannedFiles
+                    .map(file => String(file || "").trim())
+                    .filter(Boolean)
+                : [];
+            if (plannedFiles.length === 0) {
+                return res.status(400).json({
+                    ok: false,
+                    status: "PLANNED_FILES_REQUIRED",
+                    error: "PLANNED_FILES_REQUIRED"
+                });
+            }
             if (!repoGraphCache || req.body?.refresh === true) {
                 repoGraphCache = {
+                    generatedAt: Date.now(),
                     maxFiles: 2500,
                     maxFileSizeBytes: 800000,
-                    graph: buildRepoIntelligence({ root, maxFiles: 2500, maxFileSizeBytes: 800000 })
+                    graph: buildRepoIntelligence({
+                        root,
+                        maxFiles: 2500,
+                        maxFileSizeBytes: 800000
+                    })
                 };
             }
             const result = rankRepoCandidates({
                 graph: repoGraphCache.graph,
-                query,
-                plannedFiles: Array.isArray(req.body?.plannedFiles) ? req.body.plannedFiles : [],
+                plannedFiles,
                 limit: req.body?.limit || 8
             });
-            return res.json({ ...result, version: JARVIS_FS_BRIDGE_VERSION });
+            return res.json(result);
         } catch (error) {
-            return res.status(500).json({ ok: false, status: "CANDIDATE_RANKING_FAILED", error: error.message, version: JARVIS_FS_BRIDGE_VERSION });
+            return res.status(500).json({
+                ok: false,
+                status: "REPO_CANDIDATE_RANKING_FAILED",
+                error: error.message,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
         }
     });
 

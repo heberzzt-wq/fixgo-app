@@ -1,10 +1,7 @@
 import {
     planMarketingRequest
-} from "./jarvis.marketing.engine.js?v=sia7-marketing-v10-runtime-source-authority-20260724";
+} from "./jarvis.marketing.engine.js?v=v94-semantic-only-marketing-v11-20260809";
 
-import {
-    runBusinessIntent
-} from "./jarvis.business.engine.js";
 
 import {
     createOfficialPageSpec
@@ -65,6 +62,9 @@ const MARKETING_ARGUMENT_SCHEMA = {
         market: { type: "string" },
         campaignName: { type: "string" },
         campaignObjective: { type: "string" },
+        budget: { type: "string" },
+        mediumBudget: { type: "string" },
+        horizon: { type: "string" },
         durationSeconds: { type: "number" }
     },
     additionalProperties: false
@@ -3147,6 +3147,66 @@ function normalizeAndValidateWorkbookSheets(value = []) {
     };
 }
 
+function contactDigits(value = "") {
+    let digits = "";
+    for (const character of String(value || "")) {
+        const code = character.charCodeAt(0);
+        if (code >= 48 && code <= 57) {
+            digits += character;
+        }
+    }
+    return digits;
+}
+
+export function groundPageContactInput(
+    value = {},
+    instruction = "",
+    declared = {}
+) {
+    const pageInput =
+        normalizedPageArtifactInput(value);
+    const source =
+        String(instruction || "");
+    const sourceLower =
+        source.toLocaleLowerCase();
+    const declaredEmail =
+        String(
+            declared?.contactEmail ||
+            pageInput.contactEmail ||
+            ""
+        ).trim();
+    const declaredWhatsapp =
+        contactDigits(
+            declared?.whatsapp ||
+            pageInput.whatsapp ||
+            ""
+        );
+    const sourceDigits =
+        contactDigits(source);
+    const emailGrounded =
+        Boolean(declaredEmail) &&
+        sourceLower.includes(
+            declaredEmail.toLocaleLowerCase()
+        );
+    const whatsappGrounded =
+        declaredWhatsapp.length >= 7 &&
+        sourceDigits.includes(declaredWhatsapp);
+
+    return {
+        ...pageInput,
+        contactEmail:
+            emailGrounded
+                ? declaredEmail
+                : "",
+        whatsapp:
+            whatsappGrounded
+                ? declaredWhatsapp
+                : "",
+        whatsappRequested:
+            declared?.whatsappRequested === true
+    };
+}
+
 function normalizedPageArtifactInput(value = {}, fallbackTitle = "") {
     const services = Array.isArray(value?.services)
         ? value.services.slice(0, 12).map(service => ({
@@ -3197,7 +3257,6 @@ async function completeGroundedToolArgs({
     const sources = Array.isArray(context.validSources)
         ? context.validSources.filter(Boolean).slice(0, 12)
         : [];
-    if (sources.length === 0) return null;
     const semantic = await completeJarvisPlanningArguments({
         toolName,
         description,
@@ -4337,7 +4396,10 @@ export function registerJarvisMultifunctionTools(runtime) {
             inputSchema: {
                 brandName: "string",
                 title: "string",
-                instructions: "string"
+                instructions: "string",
+                contactEmail: "string",
+                whatsapp: "string",
+                whatsappRequested: "boolean"
             },
             execute: async (args = {}, context = {}) => {
                 const instruction = resolveInstruction(
@@ -4357,6 +4419,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                         "services debe ser un arreglo de objetos {title,description} con contenido específico y honesto.",
                         "No inventes clientes, certificaciones, testimonios, teléfonos, correos, garantías ni experiencia no proporcionada.",
                         "Si el usuario pide WhatsApp pero no dio número, usa whatsapp vacío y whatsappRequested=true; nunca inventes un número.",
+                        "Si el usuario no dio ningún canal de contacto, deja whatsapp y contactEmail vacíos; una página válida no necesita inventarlos.",
                         "La descripción debe tener al menos 20 caracteres y debe existir por lo menos un servicio.",
                         `MARCA=${clean(args.brandName)}`,
                         `TITULO=${clean(args.title)}`,
@@ -4370,12 +4433,23 @@ export function registerJarvisMultifunctionTools(runtime) {
                 let pageInput = null;
                 try {
                     pageInput =
-                        normalizedPageArtifactInput(
-                            extractSemanticJsonObject(
-                                semantic?.message ||
-                                ""
+                        groundPageContactInput(
+                            normalizedPageArtifactInput(
+                                extractSemanticJsonObject(
+                                    semantic?.message ||
+                                    ""
+                                ),
+                                clean(args.title)
                             ),
-                            clean(args.title)
+                            instruction,
+                            {
+                                contactEmail:
+                                    args.contactEmail,
+                                whatsapp:
+                                    args.whatsapp,
+                                whatsappRequested:
+                                    args.whatsappRequested === true
+                            }
                         );
                 }
                 catch(error) {
@@ -4393,17 +4467,12 @@ export function registerJarvisMultifunctionTools(runtime) {
                             "PAGE_CONTENT_JSON_INVALID"
                     };
                 }
-                const contactReady =
-                    pageInput.whatsapp ||
-                    pageInput.contactEmail.includes("@") ||
-                    pageInput.whatsappRequested;
                 const ok =
                     semantic?.ok === true &&
                     pageInput.brandName &&
                     pageInput.title &&
                     pageInput.description.length >= 20 &&
-                    pageInput.services.length > 0 &&
-                    contactReady;
+                    pageInput.services.length > 0;
                 return {
                     ok:
                         Boolean(ok),
@@ -4425,7 +4494,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                     error:
                         ok
                             ? null
-                            : "PAGE_CONTENT_OR_CONTACT_REQUIRED"
+                            : "PAGE_CONTENT_REQUIRED"
                 };
             }
         }),
@@ -4778,7 +4847,7 @@ export function registerJarvisMultifunctionTools(runtime) {
         }),
         register(runtime, {
             name: "business.assist",
-            description: "Analiza estrategia, operaciones, ventas, costos, riesgos y decisiones empresariales con un modelo semantico; no inventa datos ni modifica sistemas.",
+            description: "Analiza estrategia, operaciones, ventas, costos, riesgos y decisiones empresariales mediante razonamiento semántico; no inventa datos ni modifica sistemas.",
             output: "SIA7_BUSINESS_RESPONSE",
             inputSchema: {
                 prompt: "string"
@@ -4786,65 +4855,53 @@ export function registerJarvisMultifunctionTools(runtime) {
             execute: async (args = {}, context = {}) => {
                 const instruction =
                     resolveInstruction(args, context);
+                const groundedContext =
+                    recentGroundedBusinessContext();
+                const businessPrompt = [
+                    "Actua como asesor empresarial privado del Arqui Heberto Mendoza.",
+                    "Comprende la solicitud por significado; no la reclasifiques con listas de palabras, diccionarios locales ni patrones de texto.",
+                    "Responde la solicitud concreta con diagnostico, recomendacion, riesgos y siguientes acciones.",
+                    "No inventes cifras, clientes, resultados ni hechos; separa hechos proporcionados de supuestos editables.",
+                    "No autorices ni ejecutes cambios. Usa espanol claro y util.",
+                    `SOLICITUD=${instruction}`,
+                    groundedContext
+                        ? `CONTEXTO_VERIFICADO=${groundedContext}`
+                        : "CONTEXTO_VERIFICADO=NO_DISPONIBLE"
+                ].join("\n").slice(0, 2600);
+                const semantic =
+                    await fetchSemanticConversation(
+                        businessPrompt
+                    );
 
-                const result =
-                    runBusinessIntent(instruction);
-
-                const staticMessage =
-                    String(result?.message || "")
-                        .toLowerCase();
-                const genericStaticAnswer =
-                    !result ||
-                    staticMessage.includes("falta objetivo") ||
-                    staticMessage.includes("necesito un objetivo");
-
-                if (genericStaticAnswer) {
-                    const groundedContext = recentGroundedBusinessContext();
-                    const businessPrompt = [
-                        "Actua como asesor empresarial privado del Arqui Heberto Mendoza.",
-                        "Responde la solicitud concreta con diagnostico, recomendacion, riesgos y siguientes acciones.",
-                        "No inventes cifras, clientes, resultados ni hechos; separa hechos proporcionados de supuestos y preguntas pendientes.",
-                        "No autorices ni ejecutes cambios. Usa espanol claro y util.",
-                        "Solicitud:",
-                        instruction,
-                        groundedContext
-                            ? "Contexto factual reciente obtenido por web.research; usalo solo si es relevante y no agregues hechos fuera de estas fuentes:"
-                            : "No hay contexto web reciente disponible; identifica claramente la informacion faltante.",
-                        groundedContext
-                    ].join("\n").slice(0, 1580);
-                    const semantic = await fetchSemanticConversation(businessPrompt);
-
-                    if (semantic?.ok === true && semantic?.message) {
-                        return {
-                            ok: true,
-                            status: "BUSINESS_ADVISORY_READY",
-                            source: "BUSINESS_SEMANTIC_MODEL",
-                            version: VERSION,
-                            message: semantic.message,
-                            provider: semantic.provider || null,
-                            model: semantic.model || null,
-                            instruction,
-                            advisory: true,
-                            factsPolicy: "NO_INVENTED_FACTS"
-                        };
-                    }
-
+                if (
+                    semantic?.ok === true &&
+                    semantic?.message
+                ) {
                     return {
-                        ok: false,
-                        status: "BUSINESS_SEMANTIC_UNAVAILABLE",
+                        ok: true,
+                        status: "BUSINESS_ADVISORY_READY",
                         source: "BUSINESS_SEMANTIC_MODEL",
-                        error: semantic?.error || semantic?.status || "SEMANTIC_MODEL_UNAVAILABLE",
+                        version: VERSION,
+                        message: semantic.message,
+                        provider: semantic.provider || null,
+                        model: semantic.model || null,
                         instruction,
-                        retryable: true,
+                        advisory: true,
                         factsPolicy: "NO_INVENTED_FACTS"
                     };
                 }
 
-                return result || {
-                    ok: true,
-                    source: "BUSINESS_ENGINE_V2",
-                    message: "Solicitud empresarial recibida. Necesito un objetivo mas especifico.",
-                    instruction
+                return {
+                    ok: false,
+                    status: "BUSINESS_SEMANTIC_UNAVAILABLE",
+                    source: "BUSINESS_SEMANTIC_MODEL",
+                    error:
+                        semantic?.error ||
+                        semantic?.status ||
+                        "SEMANTIC_MODEL_UNAVAILABLE",
+                    instruction,
+                    retryable: true,
+                    factsPolicy: "NO_INVENTED_FACTS"
                 };
             }
         }),
@@ -4858,6 +4915,27 @@ export function registerJarvisMultifunctionTools(runtime) {
                     resolveInstruction(args, context);
 
                 let planningArgs = args;
+                let semanticEnrichment = null;
+                let semanticEnrichmentError = null;
+
+                try {
+                    semanticEnrichment = await completeGroundedToolArgs({
+                        toolName: "marketing.plan",
+                        description: "Completa el brief estratégico de la herramienta ya seleccionada por significado. Los campos no factuales pueden ser propuestas editables.",
+                        inputSchema: MARKETING_ARGUMENT_SCHEMA,
+                        args: planningArgs,
+                        context
+                    });
+                    planningArgs =
+                        semanticEnrichment?.args ||
+                        planningArgs;
+                }
+                catch(error) {
+                    semanticEnrichmentError =
+                        error?.message ||
+                        String(error);
+                }
+
                 let result = planMarketingRequest(
                     instruction,
                     {
@@ -4866,41 +4944,6 @@ export function registerJarvisMultifunctionTools(runtime) {
                         ...resolveAuthority(planningArgs, context)
                     }
                 );
-                let semanticEnrichment = null;
-                if (
-                    result?.readyForProduction !== true &&
-                    Array.isArray(context.validSources) &&
-                    context.validSources.length > 0
-                ) {
-                    try {
-                        semanticEnrichment = await completeGroundedToolArgs({
-                            toolName: "marketing.plan",
-                            description: "Completa un brief de campaña específico y sustentado para continuar una misión multifunción.",
-                            inputSchema: MARKETING_ARGUMENT_SCHEMA,
-                            args: planningArgs,
-                            context
-                        });
-                        planningArgs = semanticEnrichment?.args || planningArgs;
-                        result = planMarketingRequest(
-                            instruction,
-                            {
-                                ...context,
-                                ...planningArgs,
-                                ...resolveAuthority(planningArgs, context)
-                            }
-                        );
-                    } catch (error) {
-                        return {
-                            ...result,
-                            ok: false,
-                            status: "MARKETING_ARGUMENT_ENRICHMENT_UNAVAILABLE",
-                            objectiveSatisfied: false,
-                            requiresInput: false,
-                            retryable: true,
-                            error: error?.message || String(error)
-                        };
-                    }
-                }
                 if (result?.readyForProduction === true && result?.grounding?.status === "GROUNDED") {
                     recordCapabilityEvidence("marketing_production", {
                         ok: true,
@@ -4923,7 +4966,10 @@ export function registerJarvisMultifunctionTools(runtime) {
                             sourceCount: semanticEnrichment.sourceCount
                         }
                         : {
-                            used: false
+                            used: false,
+                            error:
+                                semanticEnrichmentError ||
+                                null
                         }
                 };
             }

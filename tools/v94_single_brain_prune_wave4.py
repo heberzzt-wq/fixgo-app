@@ -271,16 +271,31 @@ test("active semantic surfaces contain no lexical regex brain", () => {
 write('tests/single-semantic-authority.test.mjs', single_test)
 
 
-# NEXO bootstrap regression now asserts the absence of local resilience.
-path = 'tests/nexo-terminal-bootstrap.test.mjs'
-text = read(path)
-text = replace_once(
-    text,
-    '''    assert.match(\n        bootstrap,\n        /nexo\\.semantic-planner-resilience\\.js\\?v=nexo-terminal-runtime-v3-20260731/\n    );\n''',
-    '''    assert.doesNotMatch(\n        bootstrap,\n        /nexo\\.semantic-planner-resilience/\n    );\n''',
-    'bootstrap-test-no-resilience'
-)
-write(path, text)
+# NEXO bootstrap regression is rewritten as a single-authority source contract.
+bootstrap_test = r'''import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { test } from "node:test";
+
+const root = process.cwd();
+const bootstrap = fs.readFileSync(
+    path.join(root, "modules/terminal/nexo-bootstrap.js"),
+    "utf8"
+);
+
+test("NEXO bootstrap keeps tools but installs no alternate semantic authority", () => {
+    assert.match(bootstrap, /installNexoRealMediaTools/);
+    assert.match(bootstrap, /nexo\.real-media\.tools\.js/);
+    assert.doesNotMatch(bootstrap, /nexo\.semantic-planner-resilience/);
+    assert.doesNotMatch(bootstrap, /resilienceVersion/);
+});
+
+test("NEXO bootstrap remains inert outside the browser", () => {
+    assert.match(bootstrap, /environment:\s*"non_browser"/);
+    assert.match(bootstrap, /active:\s*false/);
+});
+'''
+write('tests/nexo-terminal-bootstrap.test.mjs', bootstrap_test)
 
 
 # Retire behavior tests for the deleted local language compiler/fallback.

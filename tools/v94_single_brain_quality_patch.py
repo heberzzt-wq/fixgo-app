@@ -40,7 +40,7 @@ text = replace_between(
     text,
     'function verifiedVisibleData(',
     'function constrainCompactEvidence(',
-    'function constrainCompactEvidence(',
+    '',
     'composer-remove-deterministic-media-mini-brain'
 )
 
@@ -353,7 +353,7 @@ test("conversation composer contains no local lexical intent or narrative regex 
 
 
 '''
-text = replace_between(text, start, end, replacement + end, 'conversation-replace-regex-renderer-tests')
+text = replace_between(text, start, end, replacement, 'conversation-replace-regex-renderer-tests')
 write(path, text)
 
 
@@ -412,7 +412,7 @@ text = replace_between(
     text,
     old_brain_test_start,
     old_brain_test_end,
-    new_brain_test + old_brain_test_end,
+    new_brain_test,
     'multifunction-replace-old-brain-contract'
 )
 
@@ -510,7 +510,7 @@ text = replace_between(
     text,
     old_identity_test_start,
     old_identity_test_end,
-    new_identity_test + old_identity_test_end,
+    new_identity_test,
     'multifunction-image-semantic-authority-tests'
 )
 
@@ -578,13 +578,10 @@ new_reference_test = r'''test("semantic image plan owns primary identity choice 
 });
 
 '''
-text = replace_between(
-    text,
-    old_reference_test_start,
-    old_reference_test_end,
-    new_reference_test + old_reference_test_end,
-    'multifunction-primary-identity-owned-by-semantic-plan'
-)
+reference_start_index = text.find(old_reference_test_start)
+if reference_start_index < 0:
+    raise SystemExit('QUALITY_START_NOT_FOUND:multifunction-primary-identity-owned-by-semantic-plan')
+text = text[:reference_start_index] + new_reference_test.rstrip() + "\n"
 write(path, text)
 
 print('V94_SINGLE_BRAIN_QUALITY_PATCH_APPLIED')

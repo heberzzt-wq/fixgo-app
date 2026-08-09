@@ -2749,12 +2749,9 @@ test("Terminal uses one governed conversation route and the current tool pack", 
     assert.doesNotMatch(conversationConnector, /setTimeout\(\(\) => controller\.abort\(\), 8000\)/);
     assert.match(
         terminal,
-        /jarvis-tools-v7-20260728-identity-fidelity-v106/
+        /v94-semantic-only-v108-20260809/
     );
-    assert.match(
-        toolRuntime,
-        /sia7-test-outcome-evidence-v100-20260727/
-    );
+    assert.match(toolRuntime, /registerJarvisMultifunctionTools/);
     assert.doesNotMatch(terminal, /Soy tu motor generador de módulos/);
     assert.doesNotMatch(terminal, /Última idea analizada/);
     assert.match(terminal, /renderTerminalFailureOnce/);
@@ -2860,10 +2857,14 @@ test("browser runtime fails closed on bridge identity and avoids dead cloud plan
         toolsRuntime,
         /args\.script \|\|\s*"test"/
     );
+    assert.match(brain, /COMPATIBILITY_CANARY_ONLY/);
     assert.match(
         brain,
-        /TOOL_PLANNER_ENABLED:\s*false/
+        /semanticAuthority:\s*"jarvisSemanticPlan"/
     );
+    assert.match(brain, /alternateBrains:\s*0/);
+    assert.doesNotMatch(brain, /TOOL_PLANNER_ENABLED/);
+    assert.doesNotMatch(brain, /globalThis\.fetch\s*=/);
     assert.match(
         toolsRuntime,
         /name:\s*\n\s*"repo\.write"[\s\S]{0,260}requiresApproval:\s*\n\s*true/
@@ -2923,7 +2924,9 @@ test("semantic model planner replaces phrase gates and preserves terminal speech
     assert.match(core, /model_selected_multifunction_plan/);
     assert.match(core, /TERMINAL_SEMANTIC_PLAN_SEED/);
     assert.match(core, /terminalPlannerSeed\.length > 0/);
-    assert.match(core, /!propuesta &&\s*window\.runCognitiveReasoning/);
+    assert.doesNotMatch(core, /runCognitiveReasoning/);
+    assert.match(core, /SEMANTIC_PLANNER_NO_EXECUTABLE_PLAN/);
+    assert.match(core, /SINGLE_SEMANTIC_BRAIN_FAIL_CLOSED/);
     assert.doesNotMatch(core, /hasExplicitOperationalRequest/);
     assert.doesNotMatch(core, /isExplicitCasualSocialRequest/);
     assert.match(planner, /jarvisSemanticPlan/);
@@ -4116,8 +4119,8 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /jarvis-tools-v7-20260728-identity-fidelity-v106/);
-    assert.match(terminal, /jarvis-tools-bridge-v7-20260726-chief-review-response-v93/);
+    assert.match(terminal, /v94-semantic-only-v108-20260809/);
+    assert.match(terminal, /gestia-core\/tools\.bridge\.js/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
         "utf8"
@@ -4131,10 +4134,10 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
         terminal,
         /finalResponse\?\.text\s*\?\s*50000\s*:\s*12000/
     );
-    assert.match(terminal, /sia7-identity-fidelity-v106-20260728/);
+    assert.match(terminal, /gestia-core\/gestia-core\.js/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
-    assert.match(terminal, /jarvis-tools-v7-20260728-identity-fidelity-v106/);
+    assert.match(terminal, /v94-semantic-only-v108-20260809/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -4250,48 +4253,31 @@ test("mixed investigations retain technical and multifunction tools", async () =
     );
 });
 
-test("brain awaits the model semantic planner and keeps bounded governance", () => {
-    const brain =
-        fs.readFileSync(
-            path.join(
-                __dirname,
-                "..",
-                "gestia-core",
-                "brain.engine.js"
-            ),
-            "utf8"
-        );
-
-    assert.match(brain, /buildJarvisMultifunctionToolCalls/);
-    assert.match(brain, /plannerSeedToolCalls\s*=\s*await buildJarvisMultifunctionToolCalls/);
-    assert.match(brain, /mergeJarvisToolCalls/);
-    assert.match(brain, /const toolCalls = plannerSeedToolCalls/);
-    assert.match(brain, /cloudReasoning:\s*null/);
-    assert.match(brain, /const semanticToolPlan\s*=\s*\{/);
-    assert.match(brain, /patchPreviewAllowed:\s*false/);
-    assert.match(brain, /renderPatchPreview:\s*false/);
-    assert.match(brain, /cloudToolPlan:\s*semanticToolPlan/);
-    assert.doesNotMatch(brain, /^\s*cloudReasoning,\s*$/m);
-    assert.doesNotMatch(brain, /^\s*cloudToolPlan,\s*$/m);
-    assert.doesNotMatch(brain, /buildLocalTechnicalInvestigationPlan/);
-    assert.doesNotMatch(brain, /REPO_HUB_GLOBAL_FORENSIC_EVIDENCE/);
-    assert.doesNotMatch(brain, /forensicCandidateFiles\.map/);
-    assert.doesNotMatch(brain, /requestedEvidenceCount \+ 3/);
-
-    const analysisHub = fs.readFileSync(
+test("Gestia Core has one semantic brain and no alternate cognition fallback", () => {
+    const core = fs.readFileSync(
         path.join(
             __dirname,
             "..",
             "gestia-core",
-            "hubs",
-            "analysis.hub.js"
+            "gestia-core.js"
         ),
         "utf8"
     );
 
-    assert.match(
-        analysisHub,
-        /brain\.engine\.js\?v=sia7-model-semantic-planner-v3-20260714/
+    assert.match(core, /await buildJarvisMultifunctionToolCalls/);
+    assert.match(core, /SINGLE SEMANTIC BRAIN CONTRACT/);
+    assert.match(core, /SEMANTIC_PLANNER_NO_EXECUTABLE_PLAN/);
+    assert.match(core, /SINGLE_SEMANTIC_BRAIN_FAIL_CLOSED/);
+    assert.doesNotMatch(core, /runCognitiveReasoning/);
+    assert.doesNotMatch(core, /sincronizarCorralSemantico/);
+    assert.doesNotMatch(core, /interpretarIntenciones/);
+    assert.doesNotMatch(core, /brain\.engine\.js/);
+    assert.doesNotMatch(core, /semantic\.engine\.js/);
+    assert.equal(
+        fs.existsSync(
+            path.join(__dirname, "..", "gestia-core", "hubs", "analysis.hub.js")
+        ),
+        false
     );
 });
 
@@ -4383,7 +4369,7 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /jarvis-tools-v7-20260728-identity-fidelity-v106/);
+    assert.match(core, /v94-semantic-only-v108-20260809/);
     assert.match(
         terminal,
         /jarvis-tools-v7-20260725-semantic-envelope-v64/
@@ -4929,172 +4915,91 @@ test("governed explicit tool envelope runs without semantic providers and defers
 });
 
 
-test("uploaded identity image routes once through image.edit with the real artifact source", () => {
+test("semantic image.edit plan is grounded once to the real uploaded artifact", () => {
     const manifest = [{
-        name:
-            "Screenshot_20260422-192007.png",
-        mimeType:
-            "image/png",
-        bytes:
-            2740762,
-        artifact:
-            ".jarvis-artifacts/uploads/Screenshot_20260422-192007.png",
-        sha256:
-            "ef595bc333a47814eb17fe2b10bced77135efc0532ff14680304ee7b2aec7d52"
+        name: "Screenshot_20260422-192007.png",
+        mimeType: "image/png",
+        artifact: ".jarvis-artifacts/uploads/Screenshot_20260422-192007.png",
+        sha256: "ef595bc333a47814eb17fe2b10bced77135efc0532ff14680304ee7b2aec7d52"
     }];
-
     const instruction = [
-        "Genera una imagen profesional mia en la playa usando mi foto adjunta.",
+        "Genera una imagen profesional mía en la playa usando mi foto adjunta.",
         "",
         "Archivos adjuntos reales entregados por el usuario:",
-        JSON.stringify(
-            manifest
-        )
+        JSON.stringify(manifest)
     ].join("\n");
-
     const catalog = [{
-        name:
-            "image.generate",
-        description:
-            "Genera una imagen nueva sin fuente visual.",
-        mutates:
-            true,
-        requiresApproval:
-            false,
-        userArtifact:
-            true,
-        missionDedupeBy: [
-            "output"
-        ],
+        name: "image.edit",
+        mutates: true,
+        requiresApproval: false,
+        userArtifact: true,
+        missionDedupeBy: ["sourceOutput", "variantId"],
         inputSchema: {
-            prompt:
-                "string",
-            output:
-                "string"
-        }
-    }, {
-        name:
-            "image.edit",
-        description:
-            "Edita una imagen persistida usando sus bytes reales.",
-        mutates:
-            true,
-        requiresApproval:
-            false,
-        userArtifact:
-            true,
-        missionDedupeBy: [
-            "sourceOutput",
-            "variantId"
-        ],
-        inputSchema: {
-            sourceOutput:
-                "string",
-            referenceOutputs:
-                "array",
-            variantId:
-                "string",
-            identityMode:
-                "string",
-            ageMode:
-                "string",
-            prompt:
-                "string",
-            transformations:
-                "array",
-            output:
-                "string",
-            preserveLogos:
-                "boolean",
-            preserveApprovedText:
-                "boolean"
-        }
-    }, {
-        name:
-            "media.analyze",
-        description:
-            "Analiza adjuntos.",
-        mutates:
-            false,
-        requiresApproval:
-            false,
-        userArtifact:
-            false,
-        missionDedupeBy:
-            [],
-        inputSchema: {
-            attachments:
-                "array"
+            sourceOutput: "string",
+            referenceOutputs: "array",
+            variantId: "string",
+            identityMode: "string",
+            ageMode: "string",
+            prompt: "string",
+            transformations: "array",
+            output: "string",
+            preserveLogos: "boolean",
+            preserveApprovedText: "boolean"
         }
     }];
 
-    const calls =
-        plannerTest.trustedPlanCalls(
-            {
-                toolCalls: [{
-                    name:
-                        "image.generate",
-                    args: {
-                        prompt:
-                            "Retrato profesional de Heberto en la playa"
-                    }
-                }, {
-                    name:
-                        "media.analyze",
-                    args: {
-                        attachments:
-                            manifest
-                    }
-                }, {
-                    name:
-                        "image.generate",
-                    args: {
-                        prompt:
-                            "Heberto en la playa con ropa profesional"
-                    }
-                }]
-            },
-            catalog,
-            {
-                originalInstruction:
-                    instruction
+    const calls = plannerTest.trustedPlanCalls({
+        toolCalls: [{
+            name: "image.edit",
+            args: {
+                sourceOutput: manifest[0].artifact,
+                prompt: "Retrato profesional de Heberto en la playa",
+                transformations: ["preservar identidad"]
             }
-        );
+        }]
+    }, catalog, { originalInstruction: instruction });
 
-    assert.deepEqual(
-        calls.map(call =>
-            call.name
-        ),
-        [
-            "image.edit"
-        ]
-    );
+    assert.deepEqual(calls.map(call => call.name), ["image.edit"]);
+    assert.equal(calls[0].args.sourceOutput, manifest[0].artifact);
+    assert.equal(calls[0].args.variantId, "PRIMARY");
+    assert.equal(calls[0].args.identityMode, "strict");
+    assert.equal(calls[0].args.ageMode, "preserve");
+});
 
-    assert.equal(
-        calls[0]
-            .args
-            .sourceOutput,
-        manifest[0]
-            .artifact
-    );
 
-    assert.equal(
-        calls[0]
-            .args
-            .transformations
-            .some(item =>
-                item.includes(
-                    "identidad"
-                )
-            ),
-        true
-    );
+test("wrong model tool choice is not reinterpreted by a local language brain", () => {
+    const manifest = [{
+        name: "selfie.png",
+        mimeType: "image/png",
+        artifact: ".jarvis-artifacts/uploads/selfie.png"
+    }];
+    const catalog = [{
+        name: "image.generate",
+        mutates: true,
+        requiresApproval: false,
+        userArtifact: true,
+        missionDedupeBy: ["output"],
+        inputSchema: { prompt: "string", output: "string" }
+    }, {
+        name: "image.edit",
+        mutates: true,
+        requiresApproval: false,
+        userArtifact: true,
+        missionDedupeBy: ["sourceOutput", "variantId"],
+        inputSchema: { sourceOutput: "string", prompt: "string" }
+    }];
+    const instruction = [
+        "Usa mi foto adjunta como referencia.",
+        "",
+        "Archivos adjuntos reales entregados por el usuario:",
+        JSON.stringify(manifest)
+    ].join("\n");
 
-    assert.equal(
-        calls[0]
-            .missionDedupeKey,
-        'image.edit:[".jarvis-artifacts/uploads/Screenshot_20260422-192007.png","PRIMARY"]'
-    );
+    const calls = plannerTest.trustedPlanCalls({
+        toolCalls: [{ name: "image.generate", args: { prompt: "Retrato" } }]
+    }, catalog, { originalInstruction: instruction });
+
+    assert.deepEqual(calls.map(call => call.name), ["image.generate"]);
 });
 
 test("independent generation remains image.generate when the attachment is explicitly excluded as a reference", () => {
@@ -5243,166 +5148,63 @@ test("image actuators expose mission dedupe and mandatory grounded-reference ins
 });
 
 
-test("reference photo count never becomes output variant count and newest dated identity is primary", () => {
+test("semantic image plan owns primary identity choice while local code only grounds and dedupes", () => {
     const manifest = [{
-        name:
-            "IMG_20211225_012522-2.jpg",
-        mimeType:
-            "image/jpeg",
-        artifact:
-            ".jarvis-artifacts/uploads/old-reference.jpg",
-        sha256:
-            "old-sha"
+        name: "IMG_20211225_012522-2.jpg",
+        mimeType: "image/jpeg",
+        artifact: ".jarvis-artifacts/uploads/old-reference.jpg"
     }, {
-        name:
-            "IMG_20241216_111350981_HDR.jpg",
-        mimeType:
-            "image/jpeg",
-        artifact:
-            ".jarvis-artifacts/uploads/current-reference.jpg",
-        sha256:
-            "current-sha"
+        name: "IMG_20241216_111350981_HDR.jpg",
+        mimeType: "image/jpeg",
+        artifact: ".jarvis-artifacts/uploads/current-reference.jpg"
     }];
-
     const instruction = [
-        "Usa mis mejores 2 o 3 fotos adjuntas como referencias de identidad y crea una sola imagen profesional sin envejecerme.",
+        "Usa mis fotos como referencias de identidad y crea una sola imagen profesional.",
         "",
         "Archivos adjuntos reales entregados por el usuario:",
-        JSON.stringify(
-            manifest
-        )
+        JSON.stringify(manifest)
     ].join("\n");
-
     const catalog = [{
-        name:
-            "image.generate",
-        mutates:
-            true,
-        requiresApproval:
-            false,
-        userArtifact:
-            true,
-        missionDedupeBy: [
-            "output"
-        ],
+        name: "image.edit",
+        mutates: true,
+        requiresApproval: false,
+        userArtifact: true,
+        missionDedupeBy: ["sourceOutput", "variantId"],
         inputSchema: {
-            prompt:
-                "string",
-            output:
-                "string"
-        }
-    }, {
-        name:
-            "image.edit",
-        mutates:
-            true,
-        requiresApproval:
-            false,
-        userArtifact:
-            true,
-        missionDedupeBy: [
-            "sourceOutput",
-            "variantId"
-        ],
-        inputSchema: {
-            sourceOutput:
-                "string",
-            referenceOutputs:
-                "array",
-            variantId:
-                "string",
-            identityMode:
-                "string",
-            ageMode:
-                "string",
-            prompt:
-                "string",
-            transformations:
-                "array",
-            output:
-                "string"
+            sourceOutput: "string",
+            referenceOutputs: "array",
+            variantId: "string",
+            identityMode: "string",
+            ageMode: "string",
+            prompt: "string",
+            transformations: "array",
+            output: "string"
         }
     }];
 
-    const calls =
-        plannerTest
-            .trustedPlanCalls(
-                {
-                    toolCalls: [{
-                        name:
-                            "image.edit",
-                        args: {
-                            sourceOutput:
-                                manifest[0].artifact,
-                            prompt:
-                                "Retrato en playa"
-                        }
-                    }, {
-                        name:
-                            "image.edit",
-                        args: {
-                            sourceOutput:
-                                manifest[0].artifact,
-                            prompt:
-                                "Otra formulacion del mismo retrato"
-                        }
-                    }]
-                },
-                catalog,
-                {
-                    originalInstruction:
-                        instruction
-                }
-            );
+    const calls = plannerTest.trustedPlanCalls({
+        toolCalls: [{
+            name: "image.edit",
+            args: {
+                sourceOutput: manifest[1].artifact,
+                referenceOutputs: [manifest[0].artifact],
+                prompt: "Retrato profesional",
+                variantId: "PRIMARY"
+            }
+        }, {
+            name: "image.edit",
+            args: {
+                sourceOutput: manifest[1].artifact,
+                referenceOutputs: [manifest[0].artifact],
+                prompt: "Duplicado semántico",
+                variantId: "PRIMARY"
+            }
+        }]
+    }, catalog, { originalInstruction: instruction });
 
-    assert.equal(
-        calls.length,
-        1
-    );
-
-    assert.equal(
-        calls[0]
-            .name,
-        "image.edit"
-    );
-
-    assert.equal(
-        calls[0]
-            .args
-            .sourceOutput,
-        manifest[1]
-            .artifact
-    );
-
-    assert.deepEqual(
-        calls[0]
-            .args
-            .referenceOutputs,
-        [
-            manifest[1]
-                .artifact,
-            manifest[0]
-                .artifact
-        ]
-    );
-
-    assert.equal(
-        calls[0]
-            .args
-            .variantId,
-        "PRIMARY"
-    );
-
-    assert.equal(
-        calls[0]
-            .args
-            .ageMode,
-        "preserve"
-    );
-
-    assert.equal(
-        calls[0]
-            .missionDedupeKey,
-        'image.edit:[".jarvis-artifacts/uploads/current-reference.jpg","PRIMARY"]'
-    );
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].name, "image.edit");
+    assert.equal(calls[0].args.sourceOutput, manifest[1].artifact);
+    assert.deepEqual(calls[0].args.referenceOutputs, [manifest[0].artifact]);
+    assert.equal(calls[0].args.variantId, "PRIMARY");
 });

@@ -1,5 +1,3 @@
-import "../nexo/nexo.semantic-planner-resilience.js";
-
 import {
     NEXO_IDENTITY
 } from "../nexo/nexo.identity.js";
@@ -17,23 +15,30 @@ import {
 
 const VERSION = "8.1.0-nexo-complete-marketing-package";
 
-const CRITICAL_INPUT_GROUPS = [
-    { id: "business", fields: ["brandName"], question: "¿Cuál es el negocio, marca o producto?" },
-    { id: "goal", fields: ["campaignObjective"], question: "¿Cuál es el objetivo comercial principal?" },
-    { id: "market", fields: ["audience", "market"], question: "¿A qué público y mercado o ubicación se dirige?" },
-    { id: "value", fields: ["offer", "pain", "differentiator"], question: "¿Cuál es la oferta, qué problema resuelve y cuál es su diferenciador?" },
-    { id: "execution", fields: ["budget", "horizon", "cta"], question: "¿Qué presupuesto o escenario, horizonte y llamada a la acción se usarán?" }
-];
+const REQUIRED_MARKETING_IDENTITY = {
+    id: "business",
+    fields: ["brandName"],
+    question: "¿Para qué negocio, marca o producto preparo el plan?"
+};
 
 function clean(value) {
     return typeof value === "string" && value.trim() ? value.trim() : "";
 }
 
 function normalized(value = "") {
-    return clean(value)
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase();
+    const source =
+        clean(value)
+            .normalize("NFD")
+            .toLowerCase();
+    let result = "";
+    for (const character of source) {
+        const code = character.charCodeAt(0);
+        if (code >= 768 && code <= 879) {
+            continue;
+        }
+        result += character;
+    }
+    return result;
 }
 
 function strings(value, limit = 20) {
@@ -113,79 +118,84 @@ function buildTrace(context, instruction) {
     };
 }
 
-function inferInstructionBrand(instruction = "") {
-    const source = clean(instruction);
-    const namedPlanTarget = source.match(
-        /\bplan\s+de\s+marketing\b.{0,120}?\bpara\s+(.+?)(?:[.,;]|$)/i
-    )?.[1]?.trim() || "";
-    if (namedPlanTarget) return namedPlanTarget;
-
-    const text = normalized(source);
-    if (text.includes("peninsula tech")) return "Peninsula Tech";
-    if (text.includes("gestiapremium") || text.includes("gestia premium")) return "GestiaPremium";
-    if (text.includes("fixgo") || text.includes("fix go")) return "FixGo";
-    return "";
-}
-
-function inferBrandName(instruction, context) {
-    const explicit = inferInstructionBrand(instruction);
-    if (explicit) return explicit;
-    if (clean(context.brandName) || clean(context.name)) {
-        return clean(context.brandName) || clean(context.name);
-    }
-    return "";
+function inferBrandName(_instruction, context = {}) {
+    return (
+        clean(context.brandName) ||
+        clean(context.name) ||
+        ""
+    );
 }
 
 function availableContext(context = {}) {
-    const memory = context.marketingContext && typeof context.marketingContext === "object"
-        ? context.marketingContext
-        : {};
+    const memory =
+        context.marketingContext &&
+        typeof context.marketingContext === "object"
+            ? context.marketingContext
+            : {};
     return { ...memory, ...context };
 }
 
-function isolateMarketingContext(instruction, context = {}) {
-    const resolved = availableContext(context);
-    const explicitBrand = inferInstructionBrand(instruction);
-    const rememberedBrand = clean(resolved.brandName) || clean(resolved.name);
+function isolateMarketingContext(_instruction, context = {}) {
+    const memory =
+        context.marketingContext &&
+        typeof context.marketingContext === "object"
+            ? context.marketingContext
+            : {};
+    const currentBrand =
+        clean(context.brandName) ||
+        clean(context.name);
+    const rememberedBrand =
+        clean(memory.brandName) ||
+        clean(memory.name);
+
     if (
-        !explicitBrand ||
+        !currentBrand ||
         !rememberedBrand ||
-        normalized(explicitBrand) === normalized(rememberedBrand)
+        normalized(currentBrand) ===
+            normalized(rememberedBrand)
     ) {
-        return resolved;
+        return availableContext(context);
     }
 
     const isolated = {};
     for (const key of [
-        "objectiveId", "caseId", "authorityId", "controllerId",
-        "userId", "workspaceId", "projectId", "conversationId"
+        "objectiveId",
+        "caseId",
+        "authorityId",
+        "controllerId",
+        "userId",
+        "workspaceId",
+        "projectId",
+        "conversationId"
     ]) {
-        if (resolved[key] !== undefined && resolved[key] !== null) {
-            isolated[key] = resolved[key];
+        if (
+            context[key] !== undefined &&
+            context[key] !== null
+        ) {
+            isolated[key] = context[key];
         }
     }
+
     return {
         ...isolated,
-        brandName: explicitBrand,
-        name: explicitBrand,
+        ...context,
+        brandName: currentBrand,
+        name: currentBrand,
         marketingContext: {},
-        contextIsolation: "EXPLICIT_BRAND_MISSION_ISOLATED"
+        contextIsolation:
+            "CURRENT_SEMANTIC_BRAND_ISOLATED"
     };
 }
 
 function missingCriticalInputs(context = {}, instruction = "") {
-    const resolved = availableContext(context);
-    const inferredBrand = inferBrandName(instruction, resolved);
-    const missing = CRITICAL_INPUT_GROUPS.filter(group =>
-        group.fields.every(field => {
-            if (field === "brandName") return !inferredBrand;
-            return !clean(resolved[field]);
-        })
-    );
-    const suppliedGroups = CRITICAL_INPUT_GROUPS.length - missing.length;
-    // A concrete brand plus two substantive groups is enough to continue with
-    // explicit, editable assumptions for non-blocking details.
-    return inferredBrand && suppliedGroups >= 3 ? [] : missing;
+    const brandName =
+        inferBrandName(
+            instruction,
+            availableContext(context)
+        );
+    return brandName
+        ? []
+        : [REQUIRED_MARKETING_IDENTITY];
 }
 
 function inputRequiredResult(instruction, context, groups) {
@@ -214,56 +224,60 @@ function inputRequiredResult(instruction, context, groups) {
     };
 }
 
-function inferAudience(instruction, context) {
-    if (clean(context.audience)) return clean(context.audience);
-    const text = normalized(instruction);
-    if (text.includes("hotel") || text.includes("condominio") || text.includes("empresa")) {
-        return "administradores de inmuebles, hoteles, condominios y empresas";
-    }
-    if (text.includes("hogar") || text.includes("casa") || text.includes("domicilio")) {
-        return "propietarios y residentes que necesitan atención técnica confiable";
-    }
-    return "clientes residenciales y empresariales que valoran seguridad, trazabilidad y respuesta rápida";
+function inferAudience(_instruction, context = {}) {
+    return (
+        clean(context.audience) ||
+        "clientes potenciales relevantes para la oferta de la marca"
+    );
 }
 
-function inferSubject(instruction) {
-    const text = normalized(instruction);
-    if (text.includes("aire acondicionado") || text.includes("aires acondicionados")) return "servicios de aire acondicionado";
-    if (text.includes("plomer")) return "servicios de plomería";
-    if (text.includes("electric")) return "servicios eléctricos";
-    if (text.includes("mantenimiento")) return "mantenimiento profesional";
-    if (text.includes("seguridad")) return "servicios de alta confianza";
-    return "servicios técnicos y operativos de confianza";
-}
-
-function deriveCreativeBrief(instruction, context) {
-    const brandName = inferBrandName(instruction, context);
-    const audience = inferAudience(instruction, context);
-    const subject = inferSubject(instruction);
+function deriveCreativeBrief(instruction, context = {}) {
+    const brandName =
+        inferBrandName(instruction, context);
+    const audience =
+        inferAudience(instruction, context);
 
     return {
         brandName,
         audience,
-        offer: clean(context.offer) ||
-            `Programa integral para presentar y convertir la oferta de ${subject} de ${brandName}`,
-        pain: clean(context.pain) ||
-            "la dificultad para encontrar proveedores confiables, transparentes y trazables",
-        promise: clean(context.promise) ||
-            "una experiencia más clara, segura y documentada desde la solicitud hasta el cierre",
-        differentiator: clean(context.differentiator) ||
-            "identidad verificable, evidencia por servicio, seguimiento operativo y revisión humana de incidencias",
-        cta: clean(context.cta) ||
-            `Solicita una evaluación con ${brandName}`,
-        tone: clean(context.tone) || clean(context.voice) ||
+        offer:
+            clean(context.offer) ||
+            `Estrategia integral para presentar, posicionar y convertir la oferta de ${brandName}`,
+        pain:
+            clean(context.pain) ||
+            "fricción entre una necesidad real del cliente y una decisión de compra clara",
+        promise:
+            clean(context.promise) ||
+            "una propuesta de valor clara, fácil de entender y orientada a conversión",
+        differentiator:
+            clean(context.differentiator) ||
+            "una experiencia de marca consistente, medible y optimizable",
+        cta:
+            clean(context.cta) ||
+            `Conoce la propuesta de ${brandName}`,
+        tone:
+            clean(context.tone) ||
+            clean(context.voice) ||
             "directo, confiable y profesional",
         inferredFields: [
-            ...(!clean(context.brandName) && !clean(context.name) ? ["brandName"] : []),
-            ...(!clean(context.audience) ? ["audience"] : []),
-            ...(!clean(context.offer) ? ["offer"] : []),
-            ...(!clean(context.pain) ? ["pain"] : []),
-            ...(!clean(context.promise) ? ["promise"] : []),
-            ...(!clean(context.differentiator) ? ["differentiator"] : []),
-            ...(!clean(context.cta) ? ["cta"] : [])
+            ...(!clean(context.audience)
+                ? ["audience"]
+                : []),
+            ...(!clean(context.offer)
+                ? ["offer"]
+                : []),
+            ...(!clean(context.pain)
+                ? ["pain"]
+                : []),
+            ...(!clean(context.promise)
+                ? ["promise"]
+                : []),
+            ...(!clean(context.differentiator)
+                ? ["differentiator"]
+                : []),
+            ...(!clean(context.cta)
+                ? ["cta"]
+                : [])
         ]
     };
 }
@@ -374,8 +388,8 @@ function buildDeliverables(assets, channels, campaign) {
 }
 
 function buildCompletePlan({ brand, campaign, channels, context, calendar, funnel, copies }) {
-    const budget = clean(context.budget) || "escenario por definir";
-    const horizon = clean(context.horizon) || "90 días";
+    const budget = clean(context.budget) || "presupuesto piloto por definir";
+    const horizon = clean(context.horizon) || "90 días como supuesto inicial de planificación";
     const segments = strings(context.segments).length
         ? strings(context.segments)
         : [campaign.audience];
@@ -410,7 +424,7 @@ function buildCompletePlan({ brand, campaign, channels, context, calendar, funne
         retentionAndReferrals: ["seguimiento posterior", "solicitud de reseña", "beneficio por recomendación", "recordatorio de recompra"],
         budgetScenarios: [
             { scenario: "low", allocation: budget, mix: "60% captación, 25% contenido, 15% pruebas" },
-            { scenario: "medium", allocation: clean(context.mediumBudget) || `Aumentar 2-3x ${budget}`, mix: "65% captación, 20% contenido, 15% experimentos" }
+            { scenario: "medium", allocation: clean(context.mediumBudget) || "escenario de escalamiento condicionado a resultados", mix: "65% captación, 20% contenido, 15% experimentos" }
         ],
         kpisAndMeasurement: campaign.metrics.map(metric => ({ metric, cadence: "semanal", source: "plataforma publicitaria, analítica y CRM" })),
         experiments: ["mensaje problema vs. promesa", "CTA directo vs. diagnóstico", "audiencia residencial vs. empresarial"],
@@ -439,7 +453,7 @@ export function planMarketingRequest(rawInput = "", context = {}) {
     const brand = {
         name: creativeBrief.brandName,
         voice: creativeBrief.tone,
-        market: clean(context.market) || "México",
+        market: clean(context.market) || "mercado prioritario por validar",
         owner: clean(context.owner) || NEXO_IDENTITY.owner
     };
     const channels = strings(context.channels).length
@@ -449,6 +463,32 @@ export function planMarketingRequest(rawInput = "", context = {}) {
         ? strings(context.assets)
         : ["campaign", "reel", "landing_page", "flyer"];
     const grounding = buildGrounding(context);
+    const inferredPlanningFields = [
+        ...(!clean(context.campaignObjective)
+            ? ["campaignObjective"]
+            : []),
+        ...(!clean(context.market)
+            ? ["market"]
+            : []),
+        ...(!clean(context.budget)
+            ? ["budget"]
+            : []),
+        ...(!clean(context.horizon)
+            ? ["horizon"]
+            : []),
+        ...(strings(context.channels).length === 0
+            ? ["channels"]
+            : []),
+        ...(strings(context.assets).length === 0
+            ? ["assets"]
+            : [])
+    ];
+    const allInferredFields = [
+        ...new Set([
+            ...creativeBrief.inferredFields,
+            ...inferredPlanningFields
+        ])
+    ];
     const campaign = {
         name: clean(context.campaignName) || `${brand.name} — campaña de conversión`,
         objective: clean(context.campaignObjective) ||
@@ -482,7 +522,7 @@ export function planMarketingRequest(rawInput = "", context = {}) {
             { id: "A", angle: "pain_first", hookIndex: 0 },
             { id: "B", angle: "promise_first", hookIndex: 1 }
         ],
-        assumptions: creativeBrief.inferredFields.map(field => ({
+        assumptions: allInferredFields.map(field => ({
             field,
             source: "instruction_inference",
             editable: true,
@@ -519,7 +559,7 @@ export function planMarketingRequest(rawInput = "", context = {}) {
         channels,
         grounding,
         missingInputs: [],
-        inferredInputs: creativeBrief.inferredFields,
+        inferredInputs: allInferredFields,
         readyForProduction: true,
         objectiveSatisfied: true,
         requiresInput: false,
@@ -549,7 +589,7 @@ export function planMarketingRequest(rawInput = "", context = {}) {
         editable: true,
         message:
             `NEXO preparó una campaña específica para ${brand.name}. ` +
-            `${creativeBrief.inferredFields.length} campos se marcaron como propuestas editables y ` +
+            `${allInferredFields.length} campos se marcaron como propuestas editables y ` +
             `${grounding.sourceCount} fuentes respaldan hechos verificables.`
     };
     result.userVisible = renderCompleteMarketingPlan(result);
@@ -568,7 +608,7 @@ export function isMarketingRequest(input = null) {
 export const JarvisMarketingEngine = {
     version: VERSION,
     identity: NEXO_IDENTITY.name,
-    routing: "natural_instruction_with_semantic_and_local_resilience",
+    routing: "semantic_fields_with_editable_assumptions",
     isMarketingRequest,
     plan: planMarketingRequest
 };
