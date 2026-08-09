@@ -1,0 +1,157 @@
+name: V94 marketing real delivery certification
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-marketing-real-delivery-certify.yml
+
+permissions:
+  contents: write
+
+jobs:
+  certify-real-delivery:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix functions ci
+
+      - name: Apply real delivery repair
+        run: |
+          set -euo pipefail
+          python3 tools/v94_marketing_real_delivery_patch.py | tee /tmp/v94-marketing-patch.log
+
+      - name: Verify syntax isolation and semantic architecture
+        run: |
+          set -euo pipefail
+          node --check gestia-core/jarvis/jarvis.marketing.engine.js
+          node --check gestia-core/jarvis/jarvis.marketing.presenter.js
+          node --check gestia-core/jarvis/jarvis.multitool.pack.js
+          node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
+          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          node --check gestia-core/jarvis/jarvis.actuator.pack.js
+          node --check gestia-core/gestia-core.js
+          node --check gestia-core/tools.runtime.js
+          node --check tests/jarvis-marketing-real-delivery.test.mjs
+          git diff --check
+          test -z "$(git diff --name-only -- functions)"
+          python3 - <<'PY' | tee /tmp/v94-marketing-semantic-audit.log
+          from pathlib import Path
+          targets = [
+              'gestia-core/jarvis/jarvis.marketing.engine.js',
+              'gestia-core/jarvis/jarvis.marketing.presenter.js'
+          ]
+          forbidden = ['new RegExp(', '.match(', '.matchAll(', '.exec(', '.test(']
+          found = []
+          for path in targets:
+              text = Path(path).read_text(encoding='utf-8')
+              for token in forbidden:
+                  if token in text:
+                      found.append((path, token))
+          if found:
+              print('MARKETING_LEXICAL_ROUTER_RESIDUE')
+              for row in found:
+                  print('\t'.join(row))
+              raise SystemExit(1)
+          print('MARKETING_LEXICAL_ROUTER_RESIDUE=0')
+          PY
+
+      - name: Reproduce real user failure and verify focused flow
+        run: |
+          set -o pipefail
+          node --test \
+            tests/jarvis-marketing-real-delivery.test.mjs \
+            tests/jarvis-marketing-engine-v2.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs \
+            tests/single-semantic-authority.test.mjs \
+            2>&1 | tee /tmp/v94-marketing-focused.log
+
+      - name: Run complete CI with real exit propagation
+        run: |
+          set -o pipefail
+          npm run ci:test 2>&1 | tee /tmp/v94-marketing-ci.log
+          test -z "$(git diff --name-only -- functions)"
+
+      - name: Commit certified repair and retire temporary tooling
+        run: |
+          set -euo pipefail
+          test -z "$(git diff --name-only -- functions)"
+          git rm .github/workflows/v94-marketing-real-delivery-certify.yml
+          git rm tools/v94_marketing_real_delivery_patch.py
+          git add -A
+          test -z "$(git diff --cached --name-only -- functions)"
+          git diff --cached --name-status | tee /tmp/v94-marketing-final-files.log
+          git config user.name "OpenAI V94 Handoff"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "[v94] fix(jarvis): require real marketing deliverables"
+          git rev-parse HEAD | tee /tmp/v94-marketing-final-commit.log
+          git push origin HEAD:v94-media-v4n-negative-claims
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools
+
+      - name: Deploy primary Hosting only
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy --only hosting:fixgo-44e4d --project fixgo-44e4d --token "$FIREBASE_TOKEN" --non-interactive
+
+      - name: Verify production bytes exactly
+        run: |
+          set -euo pipefail
+          base="https://fixgo-44e4d.web.app"
+          : > /tmp/v94-marketing-production-hashes.log
+          for file in \
+            gestia-terminal.html \
+            gestia-core/gestia-core.js \
+            gestia-core/tools.runtime.js \
+            gestia-core/jarvis/jarvis.marketing.engine.js \
+            gestia-core/jarvis/jarvis.marketing.presenter.js \
+            gestia-core/jarvis/jarvis.multitool.pack.js \
+            gestia-core/jarvis/jarvis.mission.orchestrator.js \
+            gestia-core/jarvis/jarvis.multifunction.planner.js \
+            gestia-core/jarvis/jarvis.actuator.pack.js
+          do
+            test -f "$file"
+            live="/tmp/live-$(printf '%s' "$file" | tr '/' '_')"
+            curl -fsSL --retry 4 --retry-delay 2 "${base}/${file}?real-delivery=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" -o "$live"
+            cmp "$file" "$live"
+            local_hash="$(sha256sum "$file" | awk '{print $1}')"
+            live_hash="$(sha256sum "$live" | awk '{print $1}')"
+            printf '%s\tlocal=%s\tlive=%s\n' "$file" "$local_hash" "$live_hash" | tee -a /tmp/v94-marketing-production-hashes.log
+            test "$local_hash" = "$live_hash"
+          done
+
+      - name: Upload certification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v94-marketing-real-delivery-evidence
+          path: |
+            /tmp/v94-marketing-patch.log
+            /tmp/v94-marketing-semantic-audit.log
+            /tmp/v94-marketing-focused.log
+            /tmp/v94-marketing-ci.log
+            /tmp/v94-marketing-final-files.log
+            /tmp/v94-marketing-final-commit.log
+            /tmp/v94-marketing-production-hashes.log
+          if-no-files-found: ignore
+          retention-days: 14
