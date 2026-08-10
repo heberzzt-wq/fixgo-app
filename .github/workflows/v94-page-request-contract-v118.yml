@@ -46,6 +46,16 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/v118-page-contract-fix.py
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('tests/jarvis-page-request-contract-v118.test.mjs')
+          source = path.read_text(encoding='utf-8')
+          old = "    assert.match(html, /https:\\/\\/wa\\.me\\/\\?text=/);"
+          new = "    assert.doesNotMatch(html, /https:\\/\\/wa\\.me\\/\\?text=/);\n    assert.match(html, /href=\"#servicios\"/);"
+          if source.count(old) != 1:
+              raise SystemExit(f'expected one obsolete WhatsApp assertion, found {source.count(old)}')
+          path.write_text(source.replace(old, new, 1), encoding='utf-8')
+          PY
           node --check jarvis-page-artifact.js
           node --check gestia-core/jarvis/jarvis.multitool.pack.js
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
@@ -96,6 +106,8 @@ jobs:
           const html = buildPageArtifactHtml(input);
           const report = describePageArtifact(input, html);
           if (!report.ok || !report.checks.requestedSections) throw new Error(JSON.stringify(report));
+          if (html.includes('https://wa.me/?text=')) throw new Error('UNVERIFIED_WHATSAPP_ROUTE_RENDERED');
+          if (!html.includes('href="#servicios"')) throw new Error('SAFE_CONTACT_FALLBACK_MISSING');
           fs.writeFileSync('/tmp/jarvis-v7-v118.html', html);
           fs.writeFileSync('/tmp/jarvis-v7-v118-report.json', JSON.stringify(report, null, 2));
           NODE
@@ -103,7 +115,8 @@ jobs:
           for id in introduccion como-funciona beneficios herramientas-disponibles casos-de-uso contacto; do
             grep -q "data-requested-section=\"$id\"" /tmp/jarvis-v7-v118.html
           done
-          grep -q 'https://wa.me/?text=' /tmp/jarvis-v7-v118.html
+          ! grep -q 'https://wa.me/?text=' /tmp/jarvis-v7-v118.html
+          grep -q 'href="#servicios"' /tmp/jarvis-v7-v118.html
           sha256sum /tmp/jarvis-v7-v118.html
           cat /tmp/jarvis-v7-v118-report.json
 
