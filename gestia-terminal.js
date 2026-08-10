@@ -3619,43 +3619,63 @@ window.scanRepo = async function(filters = {}) {
 
 class CryptoEngine {
 
+    static SESSION_KEY_IMPORT_TIMEOUT_MS = 4000;
+
     constructor() {
         this.sessionKey = null;
     }
 
     /**
-     * Deriva llave efímera desde UID + token sesión.
+     * Construye una llave HMAC efímera desde la identidad autenticada.
+     * El ID token ya es material de alta entropía; no se usa una KDF de contraseña
+     * en el camino crítico de arranque para evitar bloqueos indefinidos del navegador.
      */
     async derivarClaveSesion(uid, token) {
 
         const encoder = new TextEncoder();
+        const tokenTail = String(token || "").slice(-64);
 
-        const seed = String(token || "").slice(-32);
+        if (!uid || tokenTail.length < 32) {
+            throw new Error("SESSION_KEY_MATERIAL_INVALID");
+        }
 
-        const baseKey = await window.crypto.subtle.importKey(
-            "raw",
-            encoder.encode(seed),
-            "PBKDF2",
-            false,
-            ["deriveKey"]
-        );
+        const keyMaterial =
+            encoder.encode(`${uid}:${tokenTail}`);
 
-        this.sessionKey = await window.crypto.subtle.deriveKey(
-            {
-                name: "PBKDF2",
-                salt: encoder.encode(uid),
-                iterations: 100000,
-                hash: "SHA-256"
-            },
-            baseKey,
-            {
-                name: "HMAC",
-                hash: "SHA-256",
-                length: 256
-            },
-            false,
-            ["sign", "verify"]
-        );
+        let timeoutId = null;
+
+        try {
+            const importPromise =
+                window.crypto.subtle.importKey(
+                    "raw",
+                    keyMaterial,
+                    {
+                        name: "HMAC",
+                        hash: "SHA-256"
+                    },
+                    false,
+                    ["sign", "verify"]
+                );
+
+            const timeoutPromise =
+                new Promise((_, reject) => {
+                    timeoutId = setTimeout(() => {
+                        reject(
+                            new Error("SESSION_KEY_IMPORT_TIMEOUT")
+                        );
+                    }, CryptoEngine.SESSION_KEY_IMPORT_TIMEOUT_MS);
+                });
+
+            this.sessionKey =
+                await Promise.race([
+                    importPromise,
+                    timeoutPromise
+                ]);
+        } finally {
+            if (timeoutId !== null) {
+                clearTimeout(timeoutId);
+            }
+        }
 
         logCore("CRYPTO_KEY_READY");
     }

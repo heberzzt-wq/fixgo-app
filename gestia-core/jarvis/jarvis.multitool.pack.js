@@ -11,7 +11,7 @@ import {
     buildMediaAnalysis,
     createMediaIngestionRecord,
     describeMediaIngestion
-} from "./jarvis.media.ingestion.js";
+} from "./jarvis.media.ingestion.js?v=v94-secure-session-v117-20260810";
 
 import {
     readCapabilityEvidence,

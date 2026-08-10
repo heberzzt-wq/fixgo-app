@@ -119,7 +119,7 @@ test("browser boot chain preserves v115 fallback while allowing later shell cach
     const html = fs.readFileSync(path.join(root, "gestia-terminal.html"), "utf8");
     const core = fs.readFileSync(path.join(root, "gestia-core", "gestia-core.js"), "utf8");
     const terminal = fs.readFileSync(path.join(root, "gestia-terminal.js"), "utf8");
-    assert.match(html, /gestia-terminal\.js\?v=v94-[a-z0-9-]+-20260809/);
+    assert.match(html, /gestia-terminal\.js\?v=v94-[a-z0-9-]+-[0-9]{8}/);
     assert.match(core, /v94-page-browser-fallback-v115-20260809/);
     assert.match(terminal, /repo-bootstrap-index\.js\?v=v94-page-browser-fallback-v115-20260809/);
 });

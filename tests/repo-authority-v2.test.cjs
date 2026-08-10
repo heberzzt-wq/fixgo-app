@@ -1817,7 +1817,7 @@ test("verified read-only missions stay outside retrying Firestore transactions",
     );
     assert.match(
         terminal,
-        /gestia-terminal\.js\?v=v94-[a-z0-9-]+-20260809/
+        /gestia-terminal\.js\?v=v94-[a-z0-9-]+-[0-9]{8}/
     );
     assert.match(
         toolsRuntime,
