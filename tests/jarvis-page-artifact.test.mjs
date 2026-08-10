@@ -32,9 +32,17 @@ test("page studio creates a complete responsive accessible SEO HTML artifact", (
     assert.ok(report.bytes > 5000);
 });
 
-test("page studio fails closed instead of filling missing business content", () => {
+test("page studio fails closed on missing business content but allows no-contact informational pages without inventing a route", () => {
     assert.throws(() => buildPageArtifactHtml({ brandName: "Sin contenido" }), /PAGE_CONTENT_REQUIRED/);
-    assert.throws(() => buildPageArtifactHtml({ ...input, whatsapp: "", contactEmail: "" }), /PAGE_CONTACT_ROUTE_REQUIRED/);
+    const html = buildPageArtifactHtml({ ...input, whatsapp: "", contactEmail: "", whatsappRequested: false });
+    const report = describePageArtifact({ ...input, whatsapp: "", contactEmail: "", whatsappRequested: false }, html);
+    assert.match(html, /href="#servicios"/);
+    assert.match(html, /Explorar servicios/);
+    assert.doesNotMatch(html, /id="contacto"/);
+    assert.doesNotMatch(html, /mailto:/);
+    assert.doesNotMatch(html, /wa\.me/);
+    assert.equal(report.hasContactRoute, false);
+    assert.ok(Object.values(report.checks).every(Boolean));
 });
 
 test("page studio supports an honest generic WhatsApp CTA without inventing a number", () => {

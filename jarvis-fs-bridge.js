@@ -48,7 +48,7 @@ import {
 } from "./jarvis-document-extractor.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.37.0-verified-reel-webm";
+    "2.38.0-page-no-contact-route";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -3978,11 +3978,17 @@ export function createJarvisFsBridgeApp({
                 fs.rmSync(target, { force: true });
                 throw new Error("PAGE_POST_VERIFY_FAILED");
             }
+            const written = fs.readFileSync(target);
+            const sha256 = createHash("sha256").update(written).digest("hex");
+            if (written.length !== verification.bytes) {
+                fs.rmSync(target, { force: true });
+                throw new Error("PAGE_BYTE_COUNT_MISMATCH");
+            }
             const artifact = registerArtifact({ root, output: path.relative(root, target).replaceAll("\\", "/"), metadata: {
                 type: "landing", origin: "page.create", provider: "jarvis_page_artifact",
                 caseId: req.body?.caseId, objectiveId: req.body?.objectiveId, mimeType: "text/html",
                 status: "PAGE_ARTIFACT_CREATED_VERIFIED", approvalRequired: false,
-                approved: true, approvedBy: "LOCAL_ARTIFACT_POLICY",
+                approved: true, approvedBy: "LOCAL_ARTIFACT_POLICY", sha256,
                 editable: true, preview: true, downloadable: true, publishable: true,
                 originalFile: materialSources[0]?.output || null,
                 transformations: materialSources.map(source => ({ type: "embedded_source_image", ...source }))
@@ -3993,6 +3999,7 @@ export function createJarvisFsBridgeApp({
                 output: path.relative(root, target).replaceAll("\\", "/"),
                 mimeType: "text/html",
                 bytes: verification.bytes,
+                sha256,
                 embeddedBytes,
                 materialSources,
                 checks: verification.checks,

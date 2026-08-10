@@ -301,6 +301,7 @@ export function registerJarvisActuatorTools(runtime) {
                         status: result.status,
                         output: result.output,
                         bytes: result.bytes,
+                        sha256: result.sha256,
                         checks: result.checks,
                         checkedAt: new Date().toISOString()
                     });

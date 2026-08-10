@@ -1315,7 +1315,7 @@ catch(error) {
     }
 });
 const JARVIS_REQUIRED_LOCAL_BRIDGE_VERSION =
-    "2.37.0-verified-reel-webm";
+    "2.38.0-page-no-contact-route";
 
 function jarvisBridgeVersionTuple(value = "") {
     const core =

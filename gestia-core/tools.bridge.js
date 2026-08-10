@@ -527,8 +527,12 @@ function composeActuatorResponse(
                 "",
                 `Estado: **${data?.status || "COMPLETED"}**.`,
                 `Archivo: **${data?.output || "sin ruta"}**.`,
+                `Formato: **${data?.mimeType || "text/html"}**.`,
                 `Tamano: ${Number(data?.bytes || 0)} bytes.`,
-                "El HTML local quedo disponible para vista previa y descarga; no fue publicado ni desplegado."
+                data?.sha256
+                    ? `SHA-256: **${data.sha256}**.`
+                    : "SHA-256: no informado.",
+                "El HTML fue creado físicamente y verificado antes de reportarse como completado; quedó disponible para vista previa y descarga, sin publicación ni despliegue automático."
             ].join("\n"),
             data,
             {

@@ -104,7 +104,7 @@ test("reel human response reports the physical WebM as primary artifact", () => 
 
 test("browser runtime rejects a pre-v113 local bridge before actuator calls", () => {
     const runtime = fs.readFileSync(path.join(process.cwd(), "gestia-core", "tools.runtime.js"), "utf8");
-    assert.match(runtime, /2\.37\.0-verified-reel-webm/);
+    assert.match(runtime, /2\.38\.0-page-no-contact-route/);
     assert.match(runtime, /jarvisBridgeVersionAtLeast/);
     assert.match(runtime, /LOCAL_BRIDGE_VERSION_MISMATCH/);
     assert.match(runtime, /requiredBridgeVersion/);

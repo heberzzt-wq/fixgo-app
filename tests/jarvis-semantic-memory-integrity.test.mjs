@@ -65,7 +65,7 @@ test("active terminal boot no longer loads lexical context memory or duplicate r
     assert.match(html, /v94-live-human-reds-v113-20260809/);
     const core = fs.readFileSync(new URL("../gestia-core/gestia-core.js", import.meta.url), "utf8");
     assert.doesNotMatch(core, /tools\.runtime\.js\?v=v94-semantic-only-v108-20260809/);
-    assert.match(core, /tools\.runtime\.js\?v=v94-live-human-reds-v113-20260809/);
+    assert.match(core, /tools\.runtime\.js\?v=v94-peninsula-page-v114-20260809/);
 });
 
 test("artifact composers receive canonical mission evidence and semantic memory stays advisory", () => {

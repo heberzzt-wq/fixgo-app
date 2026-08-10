@@ -58,6 +58,9 @@ import {
     reelArtifactArgsFromCompletedTasks
 } from '/gestia-core/jarvis/jarvis.reel.presenter.js?v=v94-live-human-reds-v113-20260809';
 import {
+    ensureExecutableArtifactDependencies
+} from '/gestia-core/jarvis/jarvis.mission.dependencies.js?v=v94-peninsula-page-v114-20260809';
+import {
     addRepositoryDiscoveryPreflights,
     resolveExplicitRepositoryTargets
 } from '/gestia-core/repo/repo.source.structure.js?v=sia7-repo-discovery-preflight-v4-20260724';
@@ -211,9 +214,9 @@ import {
     JarvisSemanticMemory
 } from '/gestia-core/jarvis/jarvis.semantic.memory.js?v=v94-semantic-memory-v1-20260809';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=v94-live-human-reds-v113-20260809';
+import '/gestia-core/tools.runtime.js?v=v94-peninsula-page-v114-20260809';
 import '/gestia-core/response.composer.js?v=v94-live-human-reds-v113-20260809';
-import '/gestia-core/tools.bridge.js?v=v94-live-human-reds-v113-20260809';
+import '/gestia-core/tools.bridge.js?v=v94-peninsula-page-v114-20260809';
 
 const MISSION_EVIDENCE_CONTRACT_VERSION =
     "1.2.0-stable-research-objectives";
@@ -4301,6 +4304,11 @@ if (
                 operationalInitialToolCalls
             );
     }
+    missionContractToolCalls =
+        ensureExecutableArtifactDependencies({
+            toolCalls: missionContractToolCalls,
+            catalog: missionToolCatalog
+        });
     const hasRepositoryMission =
         missionContractToolCalls.some(call =>
             String(call?.name || "")
