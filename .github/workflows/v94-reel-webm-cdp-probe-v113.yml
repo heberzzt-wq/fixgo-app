@@ -1,0 +1,117 @@
+name: V94 reel WebM CDP probe v113
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-reel-webm-cdp-probe-v113.yml
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+      - name: Assert Functions boundary
+        run: |
+          set -euo pipefail
+          test -z "$(git diff --name-only 13cb877ef49fbd2ef19bc2a5da42887b5836e16a HEAD -- functions)"
+      - name: Probe CDP MediaRecorder WebM extraction
+        run: |
+          set -euo pipefail
+          chrome="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$chrome"
+          mkdir -p /tmp/reel-cdp-profile
+          "$chrome" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --remote-debugging-port=9222 --remote-allow-origins='*' --user-data-dir=/tmp/reel-cdp-profile about:blank >/tmp/chrome-cdp.out 2>/tmp/chrome-cdp.err &
+          chrome_pid=$!
+          cleanup(){ kill "$chrome_pid" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:9222/json/version >/tmp/cdp-version.json 2>/dev/null; then break; fi
+            sleep .25
+          done
+          test -s /tmp/cdp-version.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import { createHash } from 'node:crypto';
+          const version = JSON.parse(fs.readFileSync('/tmp/cdp-version.json','utf8'));
+          if (!version.webSocketDebuggerUrl) throw new Error('CDP_BROWSER_WS_REQUIRED');
+          const createdResponse = await fetch('http://127.0.0.1:9222/json/new?about:blank', { method: 'PUT' });
+          if (!createdResponse.ok) throw new Error(`CDP_NEW_PAGE_${createdResponse.status}`);
+          const target = await createdResponse.json();
+          if (!target.webSocketDebuggerUrl) throw new Error('CDP_PAGE_WS_REQUIRED');
+          const socket = new WebSocket(target.webSocketDebuggerUrl);
+          let nextId = 1;
+          const pending = new Map();
+          socket.onmessage = event => {
+            const message = JSON.parse(String(event.data));
+            if (!message.id || !pending.has(message.id)) return;
+            const { resolve, reject } = pending.get(message.id);
+            pending.delete(message.id);
+            message.error ? reject(new Error(message.error.message || 'CDP_ERROR')) : resolve(message.result);
+          };
+          await new Promise((resolve,reject)=>{socket.onopen=resolve;socket.onerror=()=>reject(new Error('CDP_SOCKET_OPEN_FAILED'));});
+          const call = (method, params={}) => new Promise((resolve,reject)=>{
+            const id=nextId++;
+            pending.set(id,{resolve,reject});
+            socket.send(JSON.stringify({id,method,params}));
+          });
+          await call('Runtime.enable');
+          const expression = `(() => new Promise(async (resolve, reject) => {
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = 540; canvas.height = 960;
+              document.body.appendChild(canvas);
+              const ctx = canvas.getContext('2d');
+              const stream = canvas.captureStream(30);
+              const types = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'];
+              const mimeType = types.find(type => MediaRecorder.isTypeSupported(type)) || '';
+              const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+              const chunks=[];
+              recorder.ondataavailable = e => e.data.size && chunks.push(e.data);
+              recorder.onerror = e => reject(new Error(e.error?.message || 'MEDIA_RECORDER_ERROR'));
+              recorder.start(100);
+              const start=performance.now();
+              await new Promise(done => {
+                const frame = now => {
+                  const p=Math.min(1,(now-start)/1800);
+                  ctx.fillStyle='#07111f';ctx.fillRect(0,0,canvas.width,canvas.height);
+                  ctx.fillStyle='#55e6c1';ctx.font='bold 48px sans-serif';ctx.fillText('ADJUNTO REEL',55,300);
+                  ctx.fillStyle='#fff';ctx.font='32px sans-serif';ctx.fillText('CDP WEBM '+Math.round(p*100)+'%',55,390);
+                  if(p<1) requestAnimationFrame(frame); else done();
+                };
+                requestAnimationFrame(frame);
+              });
+              await new Promise(done=>setTimeout(done,250));
+              recorder.stop();
+              await new Promise(done => recorder.onstop = done);
+              const blob = new Blob(chunks, { type: mimeType || 'video/webm' });
+              const bytes = new Uint8Array(await blob.arrayBuffer());
+              let binary='';
+              const step=0x8000;
+              for(let i=0;i<bytes.length;i+=step) binary += String.fromCharCode(...bytes.subarray(i,i+step));
+              resolve(JSON.stringify({ mimeType: blob.type, bytes: blob.size, base64: btoa(binary) }));
+            } catch (error) { reject(error); }
+          }))()`;
+          const evaluated = await call('Runtime.evaluate', { expression, awaitPromise:true, returnByValue:true });
+          if (evaluated.exceptionDetails) throw new Error(`CDP_EVALUATION_EXCEPTION:${evaluated.exceptionDetails.text || 'unknown'}`);
+          const payload = JSON.parse(evaluated.result?.value || '{}');
+          if (!payload.base64 || Number(payload.bytes || 0) < 1000) throw new Error(`WEBM_PAYLOAD_INVALID:${payload.bytes || 0}`);
+          const buffer = Buffer.from(payload.base64,'base64');
+          fs.writeFileSync('/tmp/adjunto-cdp-probe.webm',buffer);
+          const sha256=createHash('sha256').update(buffer).digest('hex');
+          console.log(JSON.stringify({mimeType:payload.mimeType,declaredBytes:payload.bytes,writtenBytes:buffer.length,sha256},null,2));
+          if (buffer.length !== Number(payload.bytes)) throw new Error('WEBM_BYTE_COUNT_MISMATCH');
+          socket.close();
+          NODE
+          test -s /tmp/adjunto-cdp-probe.webm
+          test "$(stat -c%s /tmp/adjunto-cdp-probe.webm)" -gt 1000
+          file /tmp/adjunto-cdp-probe.webm
+          sha256sum /tmp/adjunto-cdp-probe.webm
