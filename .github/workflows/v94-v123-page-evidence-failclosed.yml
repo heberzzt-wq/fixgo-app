@@ -64,7 +64,19 @@ jobs:
         run: npm --prefix functions ci --ignore-scripts
 
       - name: Apply generic v123 fail-closed patch
-        run: python3 scripts/v123-page-evidence-failclosed.py
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 scripts/v123-page-evidence-failclosed.py 2>&1 | tee v123-patch.log
+
+      - name: Upload patch diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v123-patch-diagnostic
+          path: v123-patch.log
+          if-no-files-found: warn
+          retention-days: 1
 
       - name: Prove product patch excludes Functions
         shell: bash
@@ -126,6 +138,7 @@ jobs:
           set -euo pipefail
           rm -f scripts/v123-page-evidence-failclosed.py
           rm -f .github/workflows/v94-v123-page-evidence-failclosed.yml
+          rm -f v123-patch.log
           git config user.name "heberzzt-wq"
           git config user.email "heberzzt@gmail.com"
           git add -A
