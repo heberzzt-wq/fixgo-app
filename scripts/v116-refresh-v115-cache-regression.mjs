@@ -82,30 +82,16 @@ import fs from "node:fs";
     const path = "tests/jarvis-multifunction-tools.test.mjs";
     let source = fs.readFileSync(path, "utf8");
 
-    const testStart = source.indexOf('test("tool bridge composes human actuator answers without dumping browser DOM or image bytes"');
-    if (testStart < 0) {
-        throw new Error("MULTIFUNCTION_TERMINAL_CACHE_TEST_MISSING");
-    }
-    const testEnd = source.indexOf('\n});', testStart);
-    if (testEnd < 0) {
-        throw new Error("MULTIFUNCTION_TERMINAL_CACHE_TEST_END_MISSING");
-    }
-
-    const before = source.slice(0, testStart);
-    let block = source.slice(testStart, testEnd + 4);
-    const after = source.slice(testEnd + 4);
-
     const oldTerminalAssertion = `    assert.match(terminal, /v94-page-browser-fallback-v115-20260809/);`;
     const newTerminalAssertion = `    assert.match(terminal, /gestia-terminal\\.js\\?v=v94-[a-z0-9-]+-20260809/);`;
-    const occurrences = block.split(oldTerminalAssertion).length - 1;
+    const occurrences = source.split(oldTerminalAssertion).length - 1;
 
-    if (occurrences !== 2) {
+    if (occurrences !== 3) {
         throw new Error(`MULTIFUNCTION_TERMINAL_V115_ASSERTION_COUNT_${occurrences}`);
     }
 
-    block = block.split(oldTerminalAssertion).join(newTerminalAssertion);
-    source = before + block + after;
+    source = source.split(oldTerminalAssertion).join(newTerminalAssertion);
     fs.writeFileSync(path, source, "utf8");
 }
 
-console.log("V115_SEMANTIC_MARKETING_AND_MULTIFUNCTION_CACHE_REGRESSIONS_REFRESHED_FOR_V116");
+console.log("V115_SEMANTIC_MARKETING_AND_ALL_MULTIFUNCTION_CACHE_REGRESSIONS_REFRESHED_FOR_V116");
