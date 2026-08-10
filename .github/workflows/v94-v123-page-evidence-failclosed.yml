@@ -43,7 +43,7 @@ jobs:
           test "$(git rev-parse origin/main)" = "$MAIN_SHA"
           test "$(git rev-parse origin/v5.9-polish)" = "$POLISH_SHA"
           test -z "$(git diff --name-only "$BASE_SHA" HEAD -- functions/)"
-          unexpected="$(git diff --name-only "$BASE_SHA" HEAD | grep -Ev '^(scripts/v123-page-evidence-failclosed\.py|\.github/workflows/v94-v123-page-evidence-failclosed\.yml)$' || true)"
+          unexpected="$(git diff --name-only "$BASE_SHA" HEAD | grep -Ev '^(scripts/v123-page-evidence-failclosed(-r2)?\.py|\.github/workflows/v94-v123-page-evidence-failclosed\.yml)$' || true)"
           if test -n "$unexpected"; then
             echo "Unexpected pre-patch files:" >&2
             printf '%s\n' "$unexpected" >&2
@@ -67,7 +67,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          python3 scripts/v123-page-evidence-failclosed.py 2>&1 | tee v123-patch.log
+          python3 scripts/v123-page-evidence-failclosed-r2.py 2>&1 | tee v123-patch.log
 
       - name: Upload patch diagnostic
         if: always()
@@ -137,6 +137,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -f scripts/v123-page-evidence-failclosed.py
+          rm -f scripts/v123-page-evidence-failclosed-r2.py
           rm -f .github/workflows/v94-v123-page-evidence-failclosed.yml
           rm -f v123-patch.log
           git config user.name "heberzzt-wq"
@@ -144,6 +145,7 @@ jobs:
           git add -A
           test -z "$(git diff --cached --name-only | grep -E '^functions/' || true)"
           test ! -e scripts/v123-page-evidence-failclosed.py
+          test ! -e scripts/v123-page-evidence-failclosed-r2.py
           test ! -e .github/workflows/v94-v123-page-evidence-failclosed.yml
           git diff --cached --check
           git commit -m "[v94] fix(page): fail closed on insufficient evidence v123"
@@ -162,6 +164,7 @@ jobs:
           test "$(git rev-parse origin/$BRANCH)" = "$PRODUCT_SHA"
           test -z "$(git diff --name-only "$BASE_SHA" "$PRODUCT_SHA" -- functions/)"
           test ! -e scripts/v123-page-evidence-failclosed.py
+          test ! -e scripts/v123-page-evidence-failclosed-r2.py
           test ! -e .github/workflows/v94-v123-page-evidence-failclosed.yml
           echo "FINAL_PROTECTED_REFS_OK=true"
           echo "FINAL_FUNCTIONS_UNCHANGED=true"
