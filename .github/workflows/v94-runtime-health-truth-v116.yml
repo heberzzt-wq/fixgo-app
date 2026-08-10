@@ -74,8 +74,14 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install root and Functions test dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npm ci --prefix functions --ignore-scripts
+          git diff --quiet "$SEMANTIC_BASE" HEAD -- functions
+          echo "TEST_DEPENDENCIES_READY_WITHOUT_FUNCTIONS_CHANGES"
 
       - name: Focused v116 regression with exact failure capture
         shell: bash
