@@ -1,0 +1,77 @@
+name: V94 v119 step1 memory boundary
+
+on:
+  push:
+    branches: [v94-media-v4n-negative-claims]
+    paths: [.github/workflows/v94-v119-step1-memory-boundary.yml]
+
+permissions:
+  contents: read
+
+env:
+  BASELINE: fc021b3112542dbcdb9d236a17e0b71ee547463b
+
+jobs:
+  certify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Guard isolated branch and Functions boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-media-v4n-negative-claims"
+          git cat-file -e "$BASELINE^{commit}"
+          git diff --quiet "$BASELINE" HEAD -- functions
+          test -f scripts/v119-current-turn-freshness-fix.py
+          test -f tests/jarvis-current-turn-freshness-v119.test.mjs
+
+      - name: Install test dependencies
+        run: npm ci
+
+      - name: Apply v119 memory boundary patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/v119-current-turn-freshness-fix.py
+          node --check gestia-core/gestia-core.js
+          node --check tests/jarvis-current-turn-freshness-v119.test.mjs
+          git diff --check
+          test "$(grep -Ec 'semanticMemory[[:space:]]*:[[:space:]]*semanticMemoryContext' gestia-core/gestia-core.js || true)" = "0"
+          test "$(grep -Fc 'semanticMemoryAvailable: Boolean(semanticMemoryContext)' gestia-core/gestia-core.js)" = "4"
+          grep -Fq 'semanticMemoryAvailable: Boolean(semanticMemory)' gestia-core/gestia-core.js
+          grep -Fq 'memoryContext: semanticMemoryContext' gestia-core/gestia-core.js
+          git diff --quiet "$BASELINE" HEAD -- functions
+
+      - name: Run v119 exact regression
+        run: node --test tests/jarvis-current-turn-freshness-v119.test.mjs
+
+      - name: Run adjacent generalist regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/jarvis-generalist-current-turn.test.mjs \
+            tests/jarvis-semantic-memory-integrity.test.mjs \
+            tests/jarvis-page-request-contract-v118.test.mjs \
+            tests/jarvis-page-artifact.test.mjs \
+            tests/jarvis-page-browser-fallback-v115.test.mjs \
+            tests/jarvis-live-human-reds-v113.test.mjs
+          git diff --quiet "$BASELINE" HEAD -- functions
+
+      - name: Step1 proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "V119_STEP1_MEMORY_BOUNDARY_GREEN"
+          git diff --quiet "$BASELINE" HEAD -- functions
