@@ -1,0 +1,53 @@
+name: V94 reel WebM headless probe v113
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-reel-webm-headless-probe-v113.yml
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+      - name: Assert Functions boundary
+        run: |
+          set -euo pipefail
+          test -z "$(git diff --name-only 13cb877ef49fbd2ef19bc2a5da42887b5836e16a HEAD -- functions)"
+      - name: Probe headless canvas WebM download
+        run: |
+          set -euo pipefail
+          chrome="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$chrome"
+          mkdir -p /tmp/reel-downloads /tmp/reel-profile/Default
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          prefs={"download":{"default_directory":"/tmp/reel-downloads","prompt_for_download":False,"directory_upgrade":True},"safebrowsing":{"enabled":False}}
+          Path('/tmp/reel-profile/Default/Preferences').write_text(json.dumps(prefs),encoding='utf-8')
+          PY
+          cat > /tmp/reel-probe.html <<'HTML'
+          <!doctype html><meta charset="utf-8"><canvas id="c" width="540" height="960"></canvas><script>
+          (async()=>{const c=document.querySelector('#c'),x=c.getContext('2d'),s=c.captureStream(30),types=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'],type=types.find(t=>MediaRecorder.isTypeSupported(t))||'',r=new MediaRecorder(s,type?{mimeType:type}:undefined),chunks=[];r.ondataavailable=e=>e.data.size&&chunks.push(e.data);let start=performance.now();function frame(now){let p=Math.min(1,(now-start)/1800);x.fillStyle='#07111f';x.fillRect(0,0,c.width,c.height);x.fillStyle='#55e6c1';x.font='bold 48px sans-serif';x.fillText('ADJUNTO REEL',55,300);x.fillStyle='#fff';x.font='32px sans-serif';x.fillText('WebM real '+Math.round(p*100)+'%',55,390);if(p<1)requestAnimationFrame(frame)}r.start(100);requestAnimationFrame(frame);await new Promise(q=>setTimeout(q,2000));r.stop();await new Promise(q=>r.onstop=q);const b=new Blob(chunks,{type:type||'video/webm'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='adjunto-probe.webm';document.body.appendChild(a);a.click();document.title='DONE-'+b.size;setTimeout(()=>window.close(),800)})().catch(e=>{document.title='ERR-'+e.message})
+          </script>
+          HTML
+          set +e
+          timeout 12s "$chrome" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --autoplay-policy=no-user-gesture-required --allow-file-access-from-files --user-data-dir=/tmp/reel-profile file:///tmp/reel-probe.html >/tmp/chrome.out 2>/tmp/chrome.err
+          code=$?
+          set -e
+          ls -lah /tmp/reel-downloads
+          test -s /tmp/reel-downloads/adjunto-probe.webm
+          bytes="$(stat -c%s /tmp/reel-downloads/adjunto-probe.webm)"
+          test "$bytes" -gt 1000
+          file /tmp/reel-downloads/adjunto-probe.webm
+          sha256sum /tmp/reel-downloads/adjunto-probe.webm
+          printf 'CHROME_EXIT=%s\nWEBM_BYTES=%s\n' "$code" "$bytes"
