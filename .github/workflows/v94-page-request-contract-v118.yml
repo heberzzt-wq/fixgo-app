@@ -65,6 +65,7 @@ jobs:
           node --check gestia-core/tools.runtime.js
           node --check gestia-core/gestia-core.js
           node --check tests/jarvis-page-request-contract-v118.test.mjs
+          node --check tests/jarvis-page-artifact.test.mjs
           test -z "$(git diff --name-only -- functions)"
 
       - name: Focused 1 - v118 page request contract
@@ -150,6 +151,7 @@ jobs:
           grep -q 'data-requested-section' jarvis-page-artifact.js
           grep -q 'const phoneHref = whatsapp' jarvis-page-artifact.js
           ! grep -q '? "https://wa.me/"' jarvis-page-artifact.js
+          grep -q 'never invents a generic WhatsApp route' tests/jarvis-page-artifact.test.mjs
           grep -q 'PAGE_REQUESTED_SECTION_COVERAGE_INCOMPLETE' gestia-core/jarvis/jarvis.multitool.pack.js
           grep -q 'missionDedupeBy: \["pageName"\]' gestia-core/jarvis/jarvis.multitool.pack.js
           grep -q 'copia en args.sections cada sección de contenido pedida explícitamente' gestia-core/jarvis/jarvis.multifunction.planner.js
@@ -171,6 +173,7 @@ jobs:
             gestia-core/jarvis/jarvis.actuator.pack.js \
             gestia-core/tools.runtime.js \
             gestia-core/gestia-core.js \
+            tests/jarvis-page-artifact.test.mjs \
             tests/jarvis-page-request-contract-v118.test.mjs
           test -z "$(git diff --cached --name-only -- functions)"
           git commit -m "[v94] fix(adj): verify every requested page section"
