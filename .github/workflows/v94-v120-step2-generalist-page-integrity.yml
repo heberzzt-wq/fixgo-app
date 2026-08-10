@@ -35,6 +35,7 @@ jobs:
           git diff --quiet "$BASELINE" HEAD -- functions
           test -f scripts/v119-current-turn-freshness-fix.py
           test -f scripts/v120-generalist-page-integrity-fix.py
+          test -f scripts/v120-neutral-forensics-probe-fix.py
           test -f tests/jarvis-generalist-page-integrity-v120.test.mjs
 
       - name: Install
@@ -46,6 +47,7 @@ jobs:
           set -euo pipefail
           python scripts/v119-current-turn-freshness-fix.py
           python scripts/v120-generalist-page-integrity-fix.py
+          python scripts/v120-neutral-forensics-probe-fix.py
           git diff --quiet "$BASELINE" HEAD -- functions
 
       - name: Syntax and structural invariants
@@ -65,8 +67,10 @@ jobs:
           grep -Fq 'MARCA_CANONICA' gestia-core/jarvis/jarvis.multitool.pack.js
           grep -Fq 'sections: Array.isArray(input.sections)' gestia-core/jarvis/jarvis.page.creator.js
           ! grep -Fq '"como_funciona"' gestia-core/jarvis/jarvis.page.creator.js
+          ! grep -Fq 'Multiservicios Peninsulares HMH' gestia-core/jarvis/jarvis.multitool.pack.js
           ! grep -Fq 'Multiservicios Peninsulares HMH' gestia-core/jarvis/jarvis.identity.integrity.js
           ! grep -Fq 'Multiservicios Peninsulares SMH' gestia-core/jarvis/jarvis.identity.integrity.js
+          grep -Fq 'IANA Example Domains' gestia-core/jarvis/jarvis.multitool.pack.js
           git diff --quiet "$BASELINE" HEAD -- functions
 
       - name: Exact v120 generalist regression
@@ -95,5 +99,3 @@ jobs:
           set -euo pipefail
           echo "V120_STEP2_GENERALIST_PAGE_INTEGRITY_GREEN"
           git diff --quiet "$BASELINE" HEAD -- functions
-
-# rerun after labeled residue diagnostic
