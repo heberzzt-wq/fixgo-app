@@ -21,7 +21,7 @@ core = core.replace(current_turn_old, current_turn_new, 1)
 
 old_context = "semanticMemory: semanticMemoryContext"
 count = core.count(old_context)
-if count != 3:
+if count != 2:
     raise SystemExit(f"V119_PLANNER_MEMORY_CONTEXT_COUNT_{count}")
 core = core.replace(old_context, "semanticMemoryAvailable: Boolean(semanticMemoryContext)")
 
