@@ -22,7 +22,7 @@ core = core.replace(current_turn_old, current_turn_new, 1)
 
 planner_memory_pattern = re.compile(r"semanticMemory\s*:\s*semanticMemoryContext")
 planner_memory_count = len(planner_memory_pattern.findall(core))
-if planner_memory_count != 4:
+if planner_memory_count != 3:
     raise SystemExit(f"V119_PLANNER_MEMORY_CONTEXT_COUNT_{planner_memory_count}")
 core = planner_memory_pattern.sub(
     "semanticMemoryAvailable: Boolean(semanticMemoryContext)",
@@ -31,7 +31,7 @@ core = planner_memory_pattern.sub(
 
 if planner_memory_pattern.search(core):
     raise SystemExit("V119_PLANNER_MEMORY_CONTEXT_STILL_EXPOSED")
-if core.count("semanticMemoryAvailable: Boolean(semanticMemoryContext)") != 4:
+if core.count("semanticMemoryAvailable: Boolean(semanticMemoryContext)") != 3:
     raise SystemExit("V119_PLANNER_MEMORY_AVAILABILITY_COUNT_INVALID")
 if core.count("memoryContext: semanticMemoryContext") != 1:
     raise SystemExit("V119_MISSION_ADVISORY_MEMORY_CONTEXT_NOT_PRESERVED")
