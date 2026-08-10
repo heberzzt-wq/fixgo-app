@@ -1,0 +1,48 @@
+name: V94 v119 failing assertion capture
+
+on:
+  push:
+    branches: [v94-media-v4n-negative-claims]
+    paths: [.github/workflows/v94-v119-failing-test-log.yml]
+
+permissions:
+  contents: read
+
+env:
+  BASELINE: fc021b3112542dbcdb9d236a17e0b71ee547463b
+
+jobs:
+  capture:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply v119
+        run: python scripts/v119-current-turn-freshness-fix.py
+      - name: Capture exact TAP output
+        id: test
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          node --test tests/jarvis-current-turn-freshness-v119.test.mjs > /tmp/v119-test.log 2>&1
+          status=$?
+          cat /tmp/v119-test.log
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v119-failing-test-log
+          path: /tmp/v119-test.log
+          if-no-files-found: error
+      - name: Keep Functions untouched
+        run: git diff --quiet "$BASELINE" HEAD -- functions
+      - name: Fail if test failed
+        shell: bash
+        run: test "${{ steps.test.outputs.exit_code }}" = "0"
