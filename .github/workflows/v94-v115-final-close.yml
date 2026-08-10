@@ -1,0 +1,273 @@
+name: V94 v115 final close
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-v115-final-close.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v94-v115-final-close
+  cancel-in-progress: false
+
+env:
+  SEMANTIC_BASE: e6bec05b93b8f1ad88f44d5665ee2547c468dcec
+  RELEASE_TOKEN: v94-page-browser-fallback-v115-20260809
+
+jobs:
+  certify-deploy-clean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Guard branch and Functions baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-media-v4n-negative-claims"
+          git cat-file -e "$SEMANTIC_BASE^{commit}"
+          git diff --quiet "$SEMANTIC_BASE" -- functions
+          echo "BASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "Functions unchanged since semantic base."
+
+      - name: Apply exact v115 product patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import textwrap
+          src = Path('.github/workflows/v94-page-browser-fallback-v115.yml').read_text(encoding='utf-8')
+          marker = "          cat > /tmp/v115_patch.py <<'PY'\n"
+          start = src.index(marker) + len(marker)
+          end = src.index("\n          PY\n", start)
+          Path('/tmp/v115_patch.py').write_text(textwrap.dedent(src[start:end]), encoding='utf-8')
+          PY
+          python /tmp/v115_patch.py
+
+          python - <<'PY'
+          from pathlib import Path
+          new = 'v94-page-browser-fallback-v115-20260809'
+          old_tokens = (
+              'v94-live-human-reds-v113-20260809',
+              'v94-peninsula-page-v114-20260809',
+          )
+          changed=[]
+          for p in Path('tests').glob('*.mjs'):
+              s=p.read_text(encoding='utf-8')
+              u=s
+              for old in old_tokens:
+                  u=u.replace(old,new)
+              if u != s:
+                  p.write_text(u,encoding='utf-8')
+                  changed.append(str(p))
+          print('Aligned test contracts:', changed)
+          PY
+
+          git diff --quiet "$SEMANTIC_BASE" -- functions
+          echo "--- v115 working changes ---"
+          git status --short
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install Functions test dependencies without source changes
+        run: npm --prefix functions ci
+
+      - name: Focused v115 regression
+        run: |
+          node --test \
+            tests/jarvis-page-artifact.test.mjs \
+            tests/jarvis-peninsula-page-v114.test.mjs \
+            tests/jarvis-page-browser-fallback-v115.test.mjs \
+            tests/jarvis-semantic-memory-integrity.test.mjs \
+            tests/jarvis-repo-target-runtime.test.mjs
+
+      - name: Full CI
+        run: npm run ci:test
+
+      - name: Deep source and boot invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq '2.38.0-page-no-contact-route' gestia-core/tools.runtime.js
+          grep -Fq 'PAGE_ARTIFACT_CREATED_BROWSER_VERIFIED' gestia-core/jarvis/jarvis.actuator.pack.js
+          grep -Fq 'browser_verified_download' gestia-core/tools.bridge.js
+          grep -Fq 'physicallyWritten: false' gestia-core/jarvis/jarvis.actuator.pack.js
+          grep -Fq 'published: false' gestia-core/jarvis/jarvis.actuator.pack.js
+          grep -Fq 'LOCAL_BRIDGE_VERSION_MISMATCH' gestia-core/jarvis/jarvis.actuator.pack.js
+          grep -Fq "$RELEASE_TOKEN" gestia-terminal.html
+          grep -Fq "$RELEASE_TOKEN" gestia-core/gestia-core.js
+          grep -Fq "$RELEASE_TOKEN" gestia-terminal.js
+          ! grep -Fq 'jarvis.context.memory.v6.js' gestia-terminal.html
+          ! grep -Fq 'analysis.hub.js' gestia-core/jarvis.kernel.js
+          grep -Fq 'KernelHeberto.inicializarAutoridad()' gestia-terminal.js
+          grep -Fq 'memoria semántica de sesiones anteriores' gestia-terminal.html
+          ! grep -Fq 'Cada conversación empieza aislada' gestia-terminal.html
+          grep -Fq 'canonicalMissionEvidence' gestia-core/jarvis/jarvis.mission.orchestrator.js
+          grep -Fq 'MEMORIA_SEMANTICA_ADVISORY' gestia-core/jarvis/jarvis.multitool.pack.js
+          grep -Fq 'resolveBridgeRepositoryTarget' jarvis-fs-bridge.js
+          grep -Fq 'REPOSITORY_REMOTE_MISMATCH' jarvis-fs-bridge.js
+          grep -Fq 'trim: false' jarvis-fs-bridge.js
+
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          src=Path('modules/terminal/repo-bootstrap-index.js').read_text(encoding='utf-8')
+          pattern=re.compile(r'window\.__REPO_INDEX__\["([^"]+)"\]\s*=\s*\{([\s\S]*?)\n\};')
+          missing=[]
+          for m in pattern.finditer(src):
+              pm=re.search(r'\bpath\s*:\s*["\']([^"\']+)["\']',m.group(2))
+              if not pm: continue
+              declared=pm.group(1).strip()
+              normalized=declared[2:] if declared.startswith('./') else declared.lstrip('/')
+              if normalized and not Path(normalized).is_file(): missing.append((m.group(1),declared))
+          if missing:
+              raise SystemExit('STALE_REPO_INDEX_PATHS='+repr(missing))
+          print('repo-bootstrap-index literal paths: all exist')
+          PY
+
+          node --input-type=module <<'NODE'
+          import { resolveBridgeRepositoryTarget } from './jarvis-fs-bridge.js';
+          const actual = await resolveBridgeRepositoryTarget('https://github.com/heberzzt-wq/fixgo-app/blob/codex/jarvis-v8-runtime-foundation');
+          if (actual?.ok !== true || actual?.ref !== 'codex/jarvis-v8-runtime-foundation' || String(actual?.path || '') !== '') {
+            throw new Error('ACTUAL_BRANCH_TARGET_RESOLUTION_FAILED:'+JSON.stringify(actual));
+          }
+          const foreign = await resolveBridgeRepositoryTarget('https://github.com/example/other-repo/tree/main');
+          if (foreign?.error !== 'REPOSITORY_REMOTE_MISMATCH' && foreign?.status !== 'REPOSITORY_REMOTE_MISMATCH') {
+            throw new Error('FOREIGN_REPOSITORY_GUARD_FAILED:'+JSON.stringify(foreign));
+          }
+          console.log('Repository target and foreign guard OK');
+          NODE
+
+          git diff --quiet "$SEMANTIC_BASE" -- functions
+
+      - name: Commit certified v115 product changes
+        id: product
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            jarvis-page-artifact.js \
+            gestia-core/jarvis/jarvis.actuator.pack.js \
+            gestia-core/tools.bridge.js \
+            gestia-core/tools.runtime.js \
+            gestia-core/gestia-core.js \
+            gestia-terminal.html \
+            gestia-terminal.js \
+            modules/terminal/repo-bootstrap-index.js \
+            tests
+          if ! git diff --cached --quiet; then
+            git commit -m "[v94] fix(adj): close stale bridge page delivery v115"
+            git push origin HEAD:v94-media-v4n-negative-claims
+          fi
+          sha="$(git rev-parse HEAD)"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          git diff --quiet "$SEMANTIC_BASE" -- functions
+          echo "Certified product SHA=$sha"
+
+      - name: Sovereign Hosting deploy gate
+        env:
+          JARVIS_CI_PASSED: "true"
+          JARVIS_DEPLOY_PROJECT: fixgo-44e4d
+          JARVIS_DEPLOY_CONFIRM_PROJECT: fixgo-44e4d
+          JARVIS_DEPLOY_CONFIRM_BRANCH: v94-media-v4n-negative-claims
+          JARVIS_FIREBASE_PROJECT: fixgo-44e4d
+        run: node scripts/jarvis-deploy-gate.mjs
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Hosting only
+        run: firebase deploy --only hosting --project fixgo-44e4d --token "${{ secrets.FIREBASE_TOKEN }}"
+
+      - name: Verify exact live product bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="${{ steps.product.outputs.sha }}"
+          base="https://fixgo-44e4d.web.app"
+          critical=(
+            gestia-terminal.html
+            gestia-terminal.js
+            gestia-core/gestia-core.js
+            gestia-core/tools.runtime.js
+            gestia-core/tools.bridge.js
+            gestia-core/jarvis.kernel.js
+            gestia-core/hubs/repo.hub.js
+            gestia-core/repo/repo.target.js
+            jarvis-fs-bridge.js
+            modules/terminal/repo-bootstrap-index.js
+            gestia-core/jarvis/jarvis.semantic.memory.js
+            gestia-core/jarvis/jarvis.mission.orchestrator.js
+            gestia-core/jarvis/jarvis.multifunction.planner.js
+            gestia-core/jarvis/jarvis.multitool.pack.js
+            gestia-core/jarvis/jarvis.marketing.engine.js
+            gestia-core/jarvis/jarvis.actuator.pack.js
+            jarvis-page-artifact.js
+          )
+          for p in "${critical[@]}"; do
+            local_sha="$(sha256sum "$p" | awk '{print $1}')"
+            curl -fsSL "$base/$p?v=$sha" -o /tmp/live.bin
+            live_sha="$(sha256sum /tmp/live.bin | awk '{print $1}')"
+            echo "$p local=$local_sha live=$live_sha"
+            test "$local_sha" = "$live_sha"
+          done
+          curl -fsSL "$base/gestia-terminal.html?v=$sha" | grep -Fq "$RELEASE_TOKEN"
+          curl -fsSL "$base/gestia-core/jarvis/jarvis.actuator.pack.js?v=$sha" | grep -Fq 'PAGE_ARTIFACT_CREATED_BROWSER_VERIFIED'
+          if curl -fsSL "$base/modules/terminal/repo-bootstrap-index.js?v=$sha" | grep -Fq 'window.__REPO_INDEX__["jarvis-nlu-bridge.js"]'; then
+            echo 'phantom jarvis-nlu-bridge still live' >&2
+            exit 1
+          fi
+          echo "LIVE_V115_BYTES_OK sha=$sha"
+
+      - name: Verify protected branches and Functions again
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main v5.9-polish --quiet
+          echo "main=$(git rev-parse origin/main)"
+          echo "v5.9-polish=$(git rev-parse origin/v5.9-polish)"
+          git diff --quiet "$SEMANTIC_BASE" -- functions
+          echo "PROTECTED_BRANCHES_OBSERVED_AND_FUNCTIONS_UNCHANGED"
+
+      - name: Cleanup temporary certification artifacts after verified deploy
+        id: cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -f --ignore-unmatch \
+            .github/v115-focused-diagnostic.txt \
+            .github/workflows/v94-semantic-memory-integrity-diagnostic.yml \
+            .github/workflows/v94-semantic-memory-integrity-fix.yml \
+            .github/workflows/v94-semantic-memory-integrity-certify.yml \
+            .github/workflows/v94-repo-intelligence-diagnostic.yml \
+            .github/workflows/v94-repo-intelligence-fix.yml \
+            .github/workflows/v94-full-ci-failure-extract.yml \
+            .github/workflows/v94-full-ci-legacy-contract-fix.yml \
+            .github/workflows/v94-page-browser-fallback-v115.yml \
+            .github/workflows/v94-v115-focused-diagnostic.yml \
+            .github/workflows/v94-v115-final-close.yml
+          git diff --quiet "$SEMANTIC_BASE" -- functions
+          if ! git diff --cached --quiet; then
+            git commit -m "[v94] chore: remove temporary v94 certification workflows"
+            git push origin HEAD:v94-media-v4n-negative-claims
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "FINAL_BRANCH_SHA=$(git rev-parse HEAD)"
