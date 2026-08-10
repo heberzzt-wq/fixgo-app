@@ -6,6 +6,8 @@ on:
       - v94-media-v4n-negative-claims
     paths:
       - .github/workflows/v94-v123-page-evidence-failclosed.yml
+      - scripts/v123-page-evidence-failclosed.py
+      - scripts/v123-page-evidence-failclosed-r2.py
 
 permissions:
   contents: write
