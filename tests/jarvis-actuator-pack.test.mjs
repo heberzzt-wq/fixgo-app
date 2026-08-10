@@ -633,3 +633,40 @@ test("image edit composes identity references once and reports the generated out
             PreviousCanvas;
     }
 });
+
+
+test("document.create rejects an unresolved marketing.plan source before bridge write", async () => {
+    const runtime = createRuntime();
+    registerJarvisActuatorTools(runtime);
+    const previousBridge = globalThis.JarvisLocalBridge;
+    let bridgeCalls = 0;
+    globalThis.JarvisLocalBridge = {
+        async requestJson() {
+            bridgeCalls += 1;
+            return { ok: true, status: "DOCUMENT_ARTIFACT_CREATED_VERIFIED", output: ".jarvis-artifacts/documents/plan.pdf" };
+        }
+    };
+
+    try {
+        const blocked = await runtime.execute(
+            "document.create",
+            { format: "pdf", contentSource: "marketing.plan", title: "Plan" },
+            {}
+        );
+        assert.equal(blocked.data.ok, false);
+        assert.equal(blocked.data.status, "MARKETING_DOCUMENT_SOURCE_UNAVAILABLE");
+        assert.equal(blocked.data.error, "MARKETING_PLAN_CONTENT_REQUIRED");
+        assert.equal(bridgeCalls, 0);
+
+        const created = await runtime.execute(
+            "document.create",
+            { format: "pdf", contentSource: "marketing.plan", title: "Plan", content: "# Plan verificado\nContenido real." },
+            {}
+        );
+        assert.equal(created.data.ok, true);
+        assert.equal(bridgeCalls, 1);
+    }
+    finally {
+        globalThis.JarvisLocalBridge = previousBridge;
+    }
+});

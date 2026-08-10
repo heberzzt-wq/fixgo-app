@@ -2749,7 +2749,7 @@ test("Terminal uses one governed conversation route and the current tool pack", 
     assert.doesNotMatch(conversationConnector, /setTimeout\(\(\) => controller\.abort\(\), 8000\)/);
     assert.match(
         terminal,
-        /v94-semantic-memory-repo-v111-20260809/
+        /v94-repo-marketing-integrity-v112-20260809/
     );
     assert.match(toolRuntime, /registerJarvisMultifunctionTools/);
     assert.doesNotMatch(terminal, /Soy tu motor generador de módulos/);
@@ -4131,7 +4131,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /v94-semantic-memory-repo-v111-20260809/);
+    assert.match(terminal, /v94-repo-marketing-integrity-v112-20260809/);
     assert.doesNotMatch(terminal, /<script[^>]+gestia-core\/tools\.bridge\.js/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
@@ -4149,7 +4149,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(terminal, /gestia-core\/gestia-core\.js/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
-    assert.match(terminal, /v94-semantic-memory-repo-v111-20260809/);
+    assert.match(terminal, /v94-repo-marketing-integrity-v112-20260809/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {
@@ -4381,14 +4381,14 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /v94-semantic-memory-repo-v111-20260809/);
+    assert.match(core, /v94-repo-marketing-integrity-v112-20260809/);
     assert.doesNotMatch(
         terminal,
         /<script[^>]+response\.composer\.js/
     );
     assert.match(
         core,
-        /jarvis-tools-v7-20260725-semantic-envelope-v64/
+        /v94-repo-marketing-integrity-v112-20260809/
     );
     assert.match(core, /DOCUMENT_BLUEPRINT_REQUIRED/);
     assert.match(core, /DOCUMENT_BLUEPRINT_PENDING/);

@@ -265,3 +265,44 @@ test("bridge guard reconciles semantic state into tool memory", async () => {
     assert.equal(memoryEntry.blocked, true);
     assert.deepEqual(memoryEntry.missingInputs, ["audience", "offer"]);
 });
+
+
+test("repo audit fails closed when scan contains zero file evidence", () => {
+    const result = ResponseComposer.composeRepoAuditResult({
+        rawInput: "audita el repo",
+        scan: {
+            ok: true,
+            status: "REPO_AUDIT_READY",
+            total: 0,
+            files: [],
+            modules: []
+        },
+        source: { tool: "repo.audit" }
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.executionOk, false);
+    assert.equal(result.objectiveSatisfied, false);
+    assert.equal(result.error.code, "REPO_AUDIT_EMPTY_EVIDENCE");
+    assert.equal(result.error.context.totalFiles, 0);
+});
+
+test("repo audit only reports completion when file evidence exists", () => {
+    const result = ResponseComposer.composeRepoAuditResult({
+        rawInput: "audita el repo",
+        scan: {
+            ok: true,
+            status: "REPO_AUDIT_READY",
+            total: 2,
+            files: [
+                { file: "gestia-core/gestia-core.js", module: "core" },
+                { file: "gestia-core/tools.runtime.js", module: "runtime" }
+            ],
+            modules: [{ name: "core" }, { name: "runtime" }]
+        },
+        source: { tool: "repo.audit" }
+    });
+
+    assert.equal(result.ok, true);
+    assert.match(result.text, /2 archivos/);
+});

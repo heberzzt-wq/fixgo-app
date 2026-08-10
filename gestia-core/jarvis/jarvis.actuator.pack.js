@@ -366,13 +366,38 @@ export function registerJarvisActuatorTools(runtime) {
             requiresApproval: false,
             userArtifact: true,
             missionDedupeBy: ["format"],
-            execute: async (args = {}, context = {}) =>
-                await bridgeRequest("/document", {
+            execute: async (args = {}, context = {}) => {
+                const contentSource =
+                    String(args.contentSource || "")
+                        .trim();
+                const hasDocumentContent =
+                    typeof args.content === "string" &&
+                    args.content.trim().length > 0;
+
+                if (
+                    contentSource === "marketing.plan" &&
+                    !hasDocumentContent
+                ) {
+                    return {
+                        ok: false,
+                        executionOk: false,
+                        objectiveSatisfied: false,
+                        blocked: true,
+                        retryable: false,
+                        status: "MARKETING_DOCUMENT_SOURCE_UNAVAILABLE",
+                        error: "MARKETING_PLAN_CONTENT_REQUIRED",
+                        contentSource,
+                        format: String(args.format || "").toLowerCase()
+                    };
+                }
+
+                return await bridgeRequest("/document", {
                     format: args.format || "html",
                     output:
                         args.output ||
                         undefined,
                     title: args.title,
+                    contentSource,
                     content: args.content,
                     rows: args.rows,
                     sheets: args.sheets,
@@ -392,7 +417,8 @@ export function registerJarvisActuatorTools(runtime) {
                     slides: args.slides,
                     caseId: args.caseId || context.caseId || "",
                     objectiveId: args.objectiveId || context.objectiveId || ""
-                })
+                });
+            }
         }),
         register(runtime, {
             name: "document.pdf",

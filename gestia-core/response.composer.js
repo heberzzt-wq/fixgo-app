@@ -657,10 +657,33 @@ export const ResponseComposer = {
         meta = {}
     } = {}) {
         const files =
-            scan?.files || [];
+            Array.isArray(scan?.files)
+                ? scan.files
+                : [];
 
         const modules =
-            scan?.modules || [];
+            Array.isArray(scan?.modules)
+                ? scan.modules
+                : [];
+
+        const totalFiles =
+            Number.isFinite(Number(scan?.total))
+                ? Number(scan.total)
+                : files.length;
+
+        if (totalFiles < 1 || files.length < 1) {
+            return this.error(
+                "La auditoría no recibió evidencia verificable de archivos del repositorio. No se declarará completada.",
+                "REPO_AUDIT_EMPTY_EVIDENCE",
+                {
+                    rawInput,
+                    status: scan?.status || null,
+                    source,
+                    totalFiles,
+                    fileEvidenceCount: files.length
+                }
+            );
+        }
 
         const moduleNames =
             modules.length
@@ -678,7 +701,7 @@ export const ResponseComposer = {
             "",
             "Arquitecto, auditoría read-only del repositorio completada.",
             "",
-            `El scanner recorrió **${scan?.total || files.length || 0} archivos** del repositorio.`,
+            `El scanner recorrió **${totalFiles} archivos** del repositorio.`,
             `También tengo **${scan?.modulesTotal || moduleNames.length || 0} módulos** detectados para clasificación arquitectónica.`,
             "",
             "### Módulos",
@@ -709,7 +732,7 @@ export const ResponseComposer = {
                 rawInput,
                 totals: {
                     files:
-                        scan?.total || files.length || 0,
+                        totalFiles,
                     modules:
                         scan?.modulesTotal || moduleNames.length || 0
                 },

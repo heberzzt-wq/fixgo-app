@@ -197,8 +197,8 @@ test("Terminal core hydrates marketing documents and gives the direct delivery r
     assert.match(core, /marketingArtifactArgsFromCompletedTasks\(/);
     assert.match(core, /marketingFinalResponseFromMission\(\s*missionResult\s*\)/);
     assert.match(core, /const finalResponse\s*=\s*marketingDeliverableFinalResponse\s*\|\|/);
-    assert.match(core, /v94-semantic-memory-repo-v111-20260809/);
-    assert.match(terminal, /v94-semantic-memory-repo-v111-20260809/);
+    assert.match(core, /v94-repo-marketing-integrity-v112-20260809/);
+    assert.match(terminal, /v94-repo-marketing-integrity-v112-20260809/);
 });
 
 test("completed marketing plan content is injected into MD and PDF artifact creation", () => {
@@ -227,4 +227,16 @@ test("completed marketing plan content is injected into MD and PDF artifact crea
         assert.equal(args.content, plan.userVisible);
         assert.equal(args.content.length > 1000, true);
     }
+});
+
+
+test("marketing document dependency cannot fall through to generic document composition", () => {
+    const core = fs.readFileSync(path.join(process.cwd(), "gestia-core", "gestia-core.js"), "utf8");
+    const guard = core.indexOf("MARKETING_PLAN_DEPENDENCY_UNSATISFIED");
+    const fallback = core.indexOf("const blueprintTask", guard);
+
+    assert.ok(guard > 0);
+    assert.ok(fallback > guard);
+    assert.match(core, /MARKETING_PLAN_CONTENT_REQUIRED/);
+    assert.match(core, /document\.compose no puede sustituir esa dependencia/);
 });

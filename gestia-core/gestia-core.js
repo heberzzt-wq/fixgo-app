@@ -53,7 +53,7 @@ import {
 import {
     marketingArtifactArgsFromCompletedTasks,
     marketingFinalResponseFromMission
-} from '/gestia-core/jarvis/jarvis.marketing.presenter.js?v=v94-marketing-real-delivery-v109-20260809';
+} from '/gestia-core/jarvis/jarvis.marketing.presenter.js?v=v94-repo-marketing-integrity-v112-20260809';
 import {
     addRepositoryDiscoveryPreflights,
     resolveExplicitRepositoryTargets
@@ -208,9 +208,9 @@ import {
     JarvisSemanticMemory
 } from '/gestia-core/jarvis/jarvis.semantic.memory.js?v=v94-semantic-memory-v1-20260809';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=v94-semantic-memory-repo-v111-20260809';
-import '/gestia-core/response.composer.js?v=jarvis-tools-v7-20260725-semantic-envelope-v64';
-import '/gestia-core/tools.bridge.js?v=jarvis-tools-bridge-v7-20260726-chief-review-response-v93';
+import '/gestia-core/tools.runtime.js?v=v94-repo-marketing-integrity-v112-20260809';
+import '/gestia-core/response.composer.js?v=v94-repo-marketing-integrity-v112-20260809';
+import '/gestia-core/tools.bridge.js?v=v94-repo-marketing-integrity-v112-20260809';
 
 const MISSION_EVIDENCE_CONTRACT_VERSION =
     "1.2.0-stable-research-objectives";
@@ -4687,6 +4687,47 @@ if (
                     if (marketingArtifactArgs) {
                         executionCall.args = marketingArtifactArgs;
                         argumentGrounded = true;
+                    }
+
+                    const marketingDocumentRequiresPlan =
+                        executionCall.args?.contentSource ===
+                        "marketing.plan";
+
+                    if (
+                        marketingDocumentRequiresPlan &&
+                        !marketingArtifactArgs
+                    ) {
+                        const marketingDependencyTask =
+                            [
+                                ...(Array.isArray(missionContext?.blockedTasks)
+                                    ? missionContext.blockedTasks
+                                    : []),
+                                ...(Array.isArray(missionContext?.pendingTasks)
+                                    ? missionContext.pendingTasks
+                                    : [])
+                            ].find(item =>
+                                item?.name === "marketing.plan"
+                            ) || null;
+
+                        return {
+                            ok: false,
+                            executionOk: false,
+                            objectiveSatisfied: false,
+                            blocked: true,
+                            retryable: false,
+                            status: "MARKETING_PLAN_DEPENDENCY_UNSATISFIED",
+                            error: "MARKETING_PLAN_CONTENT_REQUIRED",
+                            message: "No se creó el documento porque marketing.plan no produjo un plan completo y verificado. document.compose no puede sustituir esa dependencia.",
+                            dependency: "marketing.plan",
+                            dependencyStatus:
+                                marketingDependencyTask?.observation?.status ||
+                                marketingDependencyTask?.reason ||
+                                null,
+                            missionExecution: {
+                                name: call.name,
+                                args: executionCall.args
+                            }
+                        };
                     }
 
                     const blueprintTask =
