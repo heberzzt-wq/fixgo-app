@@ -56,6 +56,16 @@ jobs:
           grep -Fq 'jarvis.media.ingestion.js?v=v94-secure-session-v117-20260810' gestia-core/jarvis/jarvis.multitool.pack.js
           test "$(grep -Fo 'gestia-terminal.js?v=v94-secure-session-v117-20260810' gestia-terminal.html | wc -l)" -eq 2
           ! grep -Fq 'gestia-terminal.js?v=v94-runtime-health-truth-v116-20260809' gestia-terminal.html
+          grep -Fq 'V117_SECURE_SESSION_AND_SHELL_CONTRACT_PATCH_APPLIED' scripts/v117-secure-session-patch.mjs
+          for test_file in \
+            tests/jarvis-multifunction-tools.test.mjs \
+            tests/jarvis-page-browser-fallback-v115.test.mjs \
+            tests/repo-authority-v2.test.cjs \
+            tests/jarvis-semantic-memory-integrity.test.mjs \
+            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs; do
+            ! grep -Fq '/gestia-terminal\.js\?v=v94-[a-z0-9-]+-20260809/' "$test_file"
+            grep -Fq '/gestia-terminal\.js\?v=v94-[a-z0-9-]+-[0-9]{8}/' "$test_file"
+          done
           git diff --quiet "$SEMANTIC_BASE" HEAD -- functions
           echo "V117_SOURCE_INVARIANTS_OK"
 
@@ -88,7 +98,7 @@ jobs:
           multi_syntax_code=$?
 
           echo '=== node --test v117 focused ===' >> /tmp/v117-focused.log
-          node --test tests/jarvis-secure-session-v117.test.mjs tests/jarvis-runtime-health-truth-v116.test.mjs tests/jarvis-page-browser-fallback-v115.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/repo-authority-v2.test.cjs >> /tmp/v117-focused.log 2>&1
+          node --test tests/jarvis-secure-session-v117.test.mjs tests/jarvis-runtime-health-truth-v116.test.mjs tests/jarvis-page-browser-fallback-v115.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/repo-authority-v2.test.cjs tests/jarvis-semantic-memory-integrity.test.mjs tests/jarvis-marketing-terminal-delivery.e2e.test.mjs >> /tmp/v117-focused.log 2>&1
           test_code=$?
 
           {
@@ -150,7 +160,7 @@ jobs:
           git rm -f scripts/v117-secure-session-patch.mjs
           git rm -f .github/v117-focused-failure.log 2>/dev/null || true
           git rm -f .github/v117-ci-failure.log 2>/dev/null || true
-          git add gestia-terminal.js gestia-terminal.html gestia-core/jarvis/jarvis.multitool.pack.js tests/jarvis-secure-session-v117.test.mjs
+          git add gestia-terminal.js gestia-terminal.html gestia-core/jarvis/jarvis.multitool.pack.js tests/jarvis-secure-session-v117.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-page-browser-fallback-v115.test.mjs tests/repo-authority-v2.test.cjs tests/jarvis-semantic-memory-integrity.test.mjs tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
           git commit -m "[v94] fix(adj): bound secure session boot and refresh media delivery v117"
           product_sha="$(git rev-parse HEAD)"
           echo "product_sha=$product_sha" >> "$GITHUB_OUTPUT"
