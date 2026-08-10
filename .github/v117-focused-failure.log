@@ -1,194 +1,197 @@
+=== node --check gestia-terminal.js ===
+=== node --check jarvis.multitool.pack.js ===
+=== node --test v117 focused ===
 TAP version 13
 # Subtest: image artifact output accepts only a compatible safe local path
 ok 1 - image artifact output accepts only a compatible safe local path
   ---
-  duration_ms: 2.513134
+  duration_ms: 1.635074
   type: 'test'
   ...
 # Subtest: media analysis is a mission-wide singleton despite question variants
 ok 2 - media analysis is a mission-wide singleton despite question variants
   ---
-  duration_ms: 2.577562
+  duration_ms: 1.705606
   type: 'test'
   ...
 # Subtest: client planner does not override semantic intent with a lexical attachment router
 ok 3 - client planner does not override semantic intent with a lexical attachment router
   ---
-  duration_ms: 2.266639
+  duration_ms: 2.262699
   type: 'test'
   ...
 # Subtest: trusted plan keeps model-selected calls instead of lexically collapsing the turn
 ok 4 - trusted plan keeps model-selected calls instead of lexically collapsing the turn
   ---
-  duration_ms: 0.374253
+  duration_ms: 0.45347
   type: 'test'
   ...
 # Subtest: mixed attachment analysis plus explicit image creation is not collapsed to media only
 ok 5 - mixed attachment analysis plus explicit image creation is not collapsed to media only
   ---
-  duration_ms: 0.668727
+  duration_ms: 0.999503
   type: 'test'
   ...
 # Subtest: browser mission contract returns every model-selected high-level tool
 ok 6 - browser mission contract returns every model-selected high-level tool
   ---
-  duration_ms: 2.053101
+  duration_ms: 2.66354
   type: 'test'
   ...
 # Subtest: browser mission contract audits and restores a subject omitted by its first sample
 ok 7 - browser mission contract audits and restores a subject omitted by its first sample
   ---
-  duration_ms: 0.899955
+  duration_ms: 1.337225
   type: 'test'
   ...
 # Subtest: browser mission coverage keeps one call per stable research objective
 ok 8 - browser mission coverage keeps one call per stable research objective
   ---
-  duration_ms: 0.938373
+  duration_ms: 0.959157
   type: 'test'
   ...
 # Subtest: browser planner blocks tool calls with missing required arguments
 ok 9 - browser planner blocks tool calls with missing required arguments
   ---
-  duration_ms: 0.629187
+  duration_ms: 0.63536
   type: 'test'
   ...
 # Subtest: browser planner rejects malformed delegation and retains the full runtime catalog
 ok 10 - browser planner rejects malformed delegation and retains the full runtime catalog
   ---
-  duration_ms: 1.044582
+  duration_ms: 1.071688
   type: 'test'
   ...
 # Subtest: browser planner rejects registered tool identifiers used as repository file paths
 ok 11 - browser planner rejects registered tool identifiers used as repository file paths
   ---
-  duration_ms: 0.421945
+  duration_ms: 0.461896
   type: 'test'
   ...
 # Subtest: browser planner isolates a self-contained mission from adjacent model-selected tools
 ok 12 - browser planner isolates a self-contained mission from adjacent model-selected tools
   ---
-  duration_ms: 0.630078
+  duration_ms: 0.7096
   type: 'test'
   ...
 # Subtest: browser planner deduplicates artifact stages by declared mission identity
 ok 13 - browser planner deduplicates artifact stages by declared mission identity
   ---
-  duration_ms: 0.392811
+  duration_ms: 0.438992
   type: 'test'
   ...
 # Subtest: multifunction pack registers certification and remains read-only
 ok 14 - multifunction pack registers certification and remains read-only
   ---
-  duration_ms: 1.585457
+  duration_ms: 1.715054
   type: 'test'
   ...
 # Subtest: document composition continues a cut response and verifies its real ending
 ok 15 - document composition continues a cut response and verifies its real ending
   ---
-  duration_ms: 20.510924
+  duration_ms: 21.164685
   type: 'test'
   ...
 # Subtest: document composition continues after a premature marker until the contract passes
 ok 16 - document composition continues after a premature marker until the contract passes
   ---
-  duration_ms: 5.494694
+  duration_ms: 5.411629
   type: 'test'
   ...
 # Subtest: document composition rejects a placeholder even when every response claims completion
 ok 17 - document composition rejects a placeholder even when every response claims completion
   ---
-  duration_ms: 5.687795
+  duration_ms: 5.015897
   type: 'test'
   ...
 # Subtest: spreadsheet composition repairs invalid cross-sheet formulas before creation
 ok 18 - spreadsheet composition repairs invalid cross-sheet formulas before creation
   ---
-  duration_ms: 4.289148
+  duration_ms: 4.683706
   type: 'test'
   ...
 # Subtest: spreadsheet composition rebuilds empty and structurally invalid attempts before creation
 ok 19 - spreadsheet composition rebuilds empty and structurally invalid attempts before creation
   ---
-  duration_ms: 1.340078
+  duration_ms: 1.434057
   type: 'test'
   ...
 # Subtest: campaign visual and reel planning require grounded structured evidence
 ok 20 - campaign visual and reel planning require grounded structured evidence
   ---
-  duration_ms: 1.808704
+  duration_ms: 1.674537
   type: 'test'
   ...
 # Subtest: business assistant uses the semantic model when a real company is outside the static registry
 ok 21 - business assistant uses the semantic model when a real company is outside the static registry
   ---
-  duration_ms: 202.788876
+  duration_ms: 201.634731
   type: 'test'
   ...
 # Subtest: capability forensics reports evidence-backed gaps without claiming Codex parity
 ok 22 - capability forensics reports evidence-backed gaps without claiming Codex parity
   ---
-  duration_ms: 2.716881
+  duration_ms: 2.877091
   type: 'test'
   ...
 # Subtest: system certification preserves an incomplete verdict as a successful diagnostic outcome
 ok 23 - system certification preserves an incomplete verdict as a successful diagnostic outcome
   ---
-  duration_ms: 1.337243
+  duration_ms: 1.349359
   type: 'test'
   ...
 # Subtest: tests.run exposes failed assertions without misclassifying process execution
 ok 24 - tests.run exposes failed assertions without misclassifying process execution
   ---
-  duration_ms: 2.515087
+  duration_ms: 2.467844
   type: 'test'
   ...
 # Subtest: system certification records failed tests as an unsatisfied check with process evidence
 ok 25 - system certification records failed tests as an unsatisfied check with process evidence
   ---
-  duration_ms: 1.397675
+  duration_ms: 1.11037
   type: 'test'
   ...
 # Subtest: large document composition repairs one failed semantic segment
 ok 26 - large document composition repairs one failed semantic segment
   ---
-  duration_ms: 37.525824
+  duration_ms: 36.072146
   type: 'test'
   ...
 # Subtest: system health exposes bridge server version separately from tool pack version
 ok 27 - system health exposes bridge server version separately from tool pack version
   ---
-  duration_ms: 0.612472
+  duration_ms: 0.539351
   type: 'test'
   ...
 # Subtest: capability forensics explains partial repo and test actuators when bridge identity fails
 ok 28 - capability forensics explains partial repo and test actuators when bridge identity fails
   ---
-  duration_ms: 0.612022
+  duration_ms: 0.5336
   type: 'test'
   ...
 # Subtest: capability forensics distinguishes a deployed scheduler from a completed daily run
 ok 29 - capability forensics distinguishes a deployed scheduler from a completed daily run
   ---
-  duration_ms: 1.076411
+  duration_ms: 1.05174
   type: 'test'
   ...
 # Subtest: Jarvis answers casual conversation through the real semantic model
 ok 30 - Jarvis answers casual conversation through the real semantic model
   ---
-  duration_ms: 0.622798
+  duration_ms: 0.640009
   type: 'test'
   ...
 # Subtest: mixed capability conversation preserves greeting, capabilities and limits
 ok 31 - mixed capability conversation preserves greeting, capabilities and limits
   ---
-  duration_ms: 0.258209
+  duration_ms: 0.246342
   type: 'test'
   ...
 # Subtest: Terminal uses one governed conversation route and the current tool pack
 not ok 32 - Terminal uses one governed conversation route and the current tool pack
   ---
-  duration_ms: 3.552509
+  duration_ms: 3.374703
   type: 'test'
   location: '/home/runner/work/fixgo-app/fixgo-app/tests/jarvis-multifunction-tools.test.mjs:2729:1'
   failureType: 'testCodeFailure'
@@ -7572,187 +7575,187 @@ not ok 32 - Terminal uses one governed conversation route and the current tool p
 # Subtest: system health reports a real bridge identity mismatch as degraded
 ok 33 - system health reports a real bridge identity mismatch as degraded
   ---
-  duration_ms: 0.235455
+  duration_ms: 0.188965
   type: 'test'
   ...
 # Subtest: terminal direct router exposes every registered multifunction namespace
 ok 34 - terminal direct router exposes every registered multifunction namespace
   ---
-  duration_ms: 1.17576
+  duration_ms: 1.106413
   type: 'test'
   ...
 # Subtest: browser runtime fails closed on bridge identity and avoids dead cloud planner
 ok 35 - browser runtime fails closed on bridge identity and avoids dead cloud planner
   ---
-  duration_ms: 1.910868
+  duration_ms: 1.827685
   type: 'test'
   ...
 # Subtest: terminal unlocks, queues and recovers Jarvis speech
 ok 36 - terminal unlocks, queues and recovers Jarvis speech
   ---
-  duration_ms: 1.041808
+  duration_ms: 0.973153
   type: 'test'
   ...
 # Subtest: semantic model planner replaces phrase gates and preserves terminal speech
 ok 37 - semantic model planner replaces phrase gates and preserves terminal speech
   ---
-  duration_ms: 3.425398
+  duration_ms: 3.172394
   type: 'test'
   ...
 # Subtest: multifunction tools create marketing and page proposals without write authority
 ok 38 - multifunction tools create marketing and page proposals without write authority
   ---
-  duration_ms: 17056.026764
+  duration_ms: 16974.585708
   type: 'test'
   ...
 # Subtest: grounded missions complete semantic arguments for marketing, page, image and reel
 ok 39 - grounded missions complete semantic arguments for marketing, page, image and reel
   ---
-  duration_ms: 4.713246
+  duration_ms: 3.467269
   type: 'test'
   ...
 # Subtest: multifunction media analysis preserves source trace and stays advisory
 ok 40 - multifunction media analysis preserves source trace and stays advisory
   ---
-  duration_ms: 1.523704
+  duration_ms: 1.28736
   type: 'test'
   ...
 # Subtest: multifunction media analysis consumes a complete 30-file persisted manifest
 ok 41 - multifunction media analysis consumes a complete 30-file persisted manifest
   ---
-  duration_ms: 5.550081
+  duration_ms: 6.046536
   type: 'test'
   ...
 # Subtest: multifunction media analysis prefers the complete authoritative prompt manifest
 ok 42 - multifunction media analysis prefers the complete authoritative prompt manifest
   ---
-  duration_ms: 1.752118
+  duration_ms: 1.309772
   type: 'test'
   ...
 # Subtest: multifunction media analysis rejects the deployed legacy precision contract without leaking its claims
 ok 43 - multifunction media analysis rejects the deployed legacy precision contract without leaking its claims
   ---
-  duration_ms: 0.73764
+  duration_ms: 0.496499
   type: 'test'
   ...
 # Subtest: multifunction media analysis rejects partial artifact sets without synthetic success
 ok 44 - multifunction media analysis rejects partial artifact sets without synthetic success
   ---
-  duration_ms: 0.261765
+  duration_ms: 0.207869
   type: 'test'
   ...
 # Subtest: multifunction planner accepts model-selected bounded read-only tools
 ok 45 - multifunction planner accepts model-selected bounded read-only tools
   ---
-  duration_ms: 0.467644
+  duration_ms: 0.318817
   type: 'test'
   ...
 # Subtest: multifunction planner preserves every mixed command selected by the model
 ok 46 - multifunction planner preserves every mixed command selected by the model
   ---
-  duration_ms: 0.639082
+  duration_ms: 0.466573
   type: 'test'
   ...
 # Subtest: multifunction planner preserves repeated tools for independent targets
 ok 47 - multifunction planner preserves repeated tools for independent targets
   ---
-  duration_ms: 0.320072
+  duration_ms: 0.31512
   type: 'test'
   ...
 # Subtest: terminal preserves operational tools when a mixed command also contains a greeting
 ok 48 - terminal preserves operational tools when a mixed command also contains a greeting
   ---
-  duration_ms: 1.652658
+  duration_ms: 1.474419
   type: 'test'
   ...
 # Subtest: technical final response correlates initial and follow-up observations
 ok 49 - technical final response correlates initial and follow-up observations
   ---
-  duration_ms: 1.028678
+  duration_ms: 0.998498
   type: 'test'
   ...
 # Subtest: runtime role authority never invents a temporary client role
 ok 50 - runtime role authority never invents a temporary client role
   ---
-  duration_ms: 1.993642
+  duration_ms: 1.675415
   type: 'test'
   ...
 # Subtest: private surfaces stay covered until authentication and role settle
 ok 51 - private surfaces stay covered until authentication and role settle
   ---
-  duration_ms: 0.582717
+  duration_ms: 0.599181
   type: 'test'
   ...
 # Subtest: role authority produces deterministic route decisions for every main role
 ok 52 - role authority produces deterministic route decisions for every main role
   ---
-  duration_ms: 1.14913
+  duration_ms: 1.033795
   type: 'test'
   ...
 # Subtest: Terminal uses one premium response renderer and preserves semantic titles
 ok 53 - Terminal uses one premium response renderer and preserves semantic titles
   ---
-  duration_ms: 1.62727
+  duration_ms: 1.520866
   type: 'test'
   ...
 # Subtest: repo diagnosis separates structural file type from secondary capabilities
 ok 54 - repo diagnosis separates structural file type from secondary capabilities
   ---
-  duration_ms: 4.467436
+  duration_ms: 4.005697
   type: 'test'
   ...
 # Subtest: multifunction planner exposes the daily supervision report
 ok 55 - multifunction planner exposes the daily supervision report
   ---
-  duration_ms: 2.084248
+  duration_ms: 2.1101
   type: 'test'
   ...
 # Subtest: multifunction planner accepts approval only from trusted runtime context
 ok 56 - multifunction planner accepts approval only from trusted runtime context
   ---
-  duration_ms: 0.51133
+  duration_ms: 0.501419
   type: 'test'
   ...
 # Subtest: multifunction planner routes model-selected web research without confusing it with forensics
 ok 57 - multifunction planner routes model-selected web research without confusing it with forensics
   ---
-  duration_ms: 1.099976
+  duration_ms: 1.1916
   type: 'test'
   ...
 # Subtest: web research receives the semantic query without phrase stripping
 ok 58 - web research receives the semantic query without phrase stripping
   ---
-  duration_ms: 1.79299
+  duration_ms: 1.733134
   type: 'test'
   ...
 # Subtest: multifunction planner routes capability boundary questions to forensics
 ok 59 - multifunction planner routes capability boundary questions to forensics
   ---
-  duration_ms: 0.68414
+  duration_ms: 0.70566
   type: 'test'
   ...
 # Subtest: multifunction planner routes real browser, image, document and connector actuators
 ok 60 - multifunction planner routes real browser, image, document and connector actuators
   ---
-  duration_ms: 0.742918
+  duration_ms: 0.810577
   type: 'test'
   ...
 # Subtest: document contents do not trigger unrelated capability tools
 ok 61 - document contents do not trigger unrelated capability tools
   ---
-  duration_ms: 0.260903
+  duration_ms: 0.356257
   type: 'test'
   ...
 # Subtest: multifunction planner delegates several read-only tasks in parallel
 ok 62 - multifunction planner delegates several read-only tasks in parallel
   ---
-  duration_ms: 0.3455
+  duration_ms: 0.312545
   type: 'test'
   ...
 # Subtest: tool bridge composes human actuator answers without dumping browser DOM or image bytes
 not ok 63 - tool bridge composes human actuator answers without dumping browser DOM or image bytes
   ---
-  duration_ms: 4.744883
+  duration_ms: 4.508988
   type: 'test'
   location: '/home/runner/work/fixgo-app/fixgo-app/tests/jarvis-multifunction-tools.test.mjs:4099:1'
   failureType: 'testCodeFailure'
@@ -15137,133 +15140,133 @@ not ok 63 - tool bridge composes human actuator answers without dumping browser 
 # Subtest: multifunction planner keeps explanatory questions conversational
 ok 64 - multifunction planner keeps explanatory questions conversational
   ---
-  duration_ms: 0.606984
+  duration_ms: 0.646
   type: 'test'
   ...
 # Subtest: model-selected technical diagnostics outrank business tools
 ok 65 - model-selected technical diagnostics outrank business tools
   ---
-  duration_ms: 0.603719
+  duration_ms: 0.658442
   type: 'test'
   ...
 # Subtest: mixed investigations retain technical and multifunction tools
 ok 66 - mixed investigations retain technical and multifunction tools
   ---
-  duration_ms: 0.317938
+  duration_ms: 0.353512
   type: 'test'
   ...
 # Subtest: Gestia Core has one semantic brain and no alternate cognition fallback
 ok 67 - Gestia Core has one semantic brain and no alternate cognition fallback
   ---
-  duration_ms: 1.558036
+  duration_ms: 1.300253
   type: 'test'
   ...
 # Subtest: daily supervision cloud lookup has a bounded browser deadline
 ok 68 - daily supervision cloud lookup has a bounded browser deadline
   ---
-  duration_ms: 1.32131
+  duration_ms: 1.246332
   type: 'test'
   ...
 # Subtest: multifunction descriptor remains approval-bound
 ok 69 - multifunction descriptor remains approval-bound
   ---
-  duration_ms: 0.166311
+  duration_ms: 0.179957
   type: 'test'
   ...
 # Subtest: terminal ledger stays compact and escapes persisted labels
 ok 70 - terminal ledger stays compact and escapes persisted labels
   ---
-  duration_ms: 0.191779
+  duration_ms: 0.190858
   type: 'test'
   ...
 # Subtest: repo diagnostics resolve indexed basenames to real repository paths
 ok 71 - repo diagnostics resolve indexed basenames to real repository paths
   ---
-  duration_ms: 5.073809
+  duration_ms: 4.629364
   type: 'test'
   ...
 # Subtest: repo diagnosis accepts synchronous null discovery before loading fallback context
 ok 72 - repo diagnosis accepts synchronous null discovery before loading fallback context
   ---
-  duration_ms: 1.666008
+  duration_ms: 1.557284
   type: 'test'
   ...
 # Subtest: artifact edit missions keep specialized editors and defer certification until completion audit
 ok 73 - artifact edit missions keep specialized editors and defer certification until completion audit
   ---
-  duration_ms: 0.36522
+  duration_ms: 0.319167
   type: 'test'
   ...
 # Subtest: browser mission fallback retries every semantic sample with an independent AbortSignal
 ok 74 - browser mission fallback retries every semantic sample with an independent AbortSignal
   ---
-  duration_ms: 0.878703
+  duration_ms: 0.797523
   type: 'test'
   ...
 # Subtest: governed explicit tool envelope runs without semantic providers and defers certification
 ok 75 - governed explicit tool envelope runs without semantic providers and defers certification
   ---
-  duration_ms: 1.123
+  duration_ms: 1.121149
   type: 'test'
   ...
 # Subtest: semantic image.edit plan is grounded once to the real uploaded artifact
 ok 76 - semantic image.edit plan is grounded once to the real uploaded artifact
   ---
-  duration_ms: 0.288645
+  duration_ms: 0.332232
   type: 'test'
   ...
 # Subtest: wrong model tool choice is not reinterpreted by a local language brain
 ok 77 - wrong model tool choice is not reinterpreted by a local language brain
   ---
-  duration_ms: 0.165569
+  duration_ms: 0.173585
   type: 'test'
   ...
 # Subtest: independent generation remains image.generate when the attachment is explicitly excluded as a reference
 ok 78 - independent generation remains image.generate when the attachment is explicitly excluded as a reference
   ---
-  duration_ms: 0.174523
+  duration_ms: 0.18679
   type: 'test'
   ...
 # Subtest: image actuators expose mission dedupe and mandatory grounded-reference instructions
 ok 79 - image actuators expose mission dedupe and mandatory grounded-reference instructions
   ---
-  duration_ms: 0.399712
+  duration_ms: 0.378248
   type: 'test'
   ...
 # Subtest: semantic image plan owns primary identity choice while local code only grounds and dedupes
 ok 80 - semantic image plan owns primary identity choice while local code only grounds and dedupes
   ---
-  duration_ms: 0.281423
+  duration_ms: 0.289391
   type: 'test'
   ...
 # Subtest: page artifact byte verification is browser compatible
 ok 81 - page artifact byte verification is browser compatible
   ---
-  duration_ms: 1.113547
+  duration_ms: 1.145816
   type: 'test'
   ...
 # Subtest: page.create falls back only on exact local bridge version mismatch
 ok 82 - page.create falls back only on exact local bridge version mismatch
   ---
-  duration_ms: 16.205692
+  duration_ms: 15.453955
   type: 'test'
   ...
 # Subtest: bridge requirement remains 2.38 and browser delivery wording is truthful
 ok 83 - bridge requirement remains 2.38 and browser delivery wording is truthful
   ---
-  duration_ms: 1.776164
+  duration_ms: 1.546808
   type: 'test'
   ...
 # Subtest: static repo bootstrap has no literal entries pointing to missing files
 ok 84 - static repo bootstrap has no literal entries pointing to missing files
   ---
-  duration_ms: 2.860768
+  duration_ms: 4.688485
   type: 'test'
   ...
 # Subtest: browser boot chain preserves v115 fallback while allowing later shell cache busts
 not ok 85 - browser boot chain preserves v115 fallback while allowing later shell cache busts
   ---
-  duration_ms: 5.394833
+  duration_ms: 5.829272
   type: 'test'
   location: '/home/runner/work/fixgo-app/fixgo-app/tests/jarvis-page-browser-fallback-v115.test.mjs:118:1'
   failureType: 'testCodeFailure'
@@ -22647,193 +22650,193 @@ not ok 85 - browser boot chain preserves v115 fallback while allowing later shel
 # Subtest: runtime health is evidence-based and boot table is quiet by default
 ok 86 - runtime health is evidence-based and boot table is quiet by default
   ---
-  duration_ms: 7.877331
+  duration_ms: 5.563043
   type: 'test'
   ...
 # Subtest: runtime snapshots calculate health only from observed nodes
 ok 87 - runtime snapshots calculate health only from observed nodes
   ---
-  duration_ms: 0.696839
+  duration_ms: 0.582331
   type: 'test'
   ...
 # Subtest: phantom bootstrap entries remain absent
 ok 88 - phantom bootstrap entries remain absent
   ---
-  duration_ms: 0.459111
+  duration_ms: 0.38975
   type: 'test'
   ...
 # Subtest: secure session v117 removes blocking PBKDF2 from authenticated boot
 ok 89 - secure session v117 removes blocking PBKDF2 from authenticated boot
   ---
-  duration_ms: 1.69991
+  duration_ms: 2.42846
   type: 'test'
   ...
 # Subtest: secure session v117 imports a non-extractable HMAC key and reaches CRYPTO_KEY_READY
 ok 90 - secure session v117 imports a non-extractable HMAC key and reaches CRYPTO_KEY_READY
   ---
-  duration_ms: 2.713666
+  duration_ms: 3.905818
   type: 'test'
   ...
 # Subtest: secure session v117 fails explicitly instead of hanging forever when WebCrypto stalls
 ok 91 - secure session v117 fails explicitly instead of hanging forever when WebCrypto stalls
   ---
-  duration_ms: 7.205169
+  duration_ms: 7.71786
   type: 'test'
   ...
 # Subtest: authority boot transitions from KEY_DERIVATION to IDLE only after the bounded session key is ready
 ok 92 - authority boot transitions from KEY_DERIVATION to IDLE only after the bounded session key is ready
   ---
-  duration_ms: 0.908288
+  duration_ms: 1.283645
   type: 'test'
   ...
 # Subtest: browser shell and media ingestion receive fresh v117 cache identities
 ok 93 - browser shell and media ingestion receive fresh v117 cache identities
   ---
-  duration_ms: 2.93546
+  duration_ms: 4.157139
   type: 'test'
   ...
 # Subtest: repo write auth V2 describes private owner full repo policy
 ok 94 - repo write auth V2 describes private owner full repo policy
   ---
-  duration_ms: 1.949836
+  duration_ms: 2.143115
   type: 'test'
   ...
 # Subtest: repo write auth V2 blocks missing bearer token with contract metadata
 ok 95 - repo write auth V2 blocks missing bearer token with contract metadata
   ---
-  duration_ms: 0.555306
+  duration_ms: 0.590336
   type: 'test'
   ...
 # Subtest: repo write auth V2 allows owner role
 ok 96 - repo write auth V2 allows owner role
   ---
-  duration_ms: 0.485361
+  duration_ms: 0.415809
   type: 'test'
   ...
 # Subtest: repo syntax validator V2 validates JS and blocks empty content
 ok 97 - repo syntax validator V2 validates JS and blocks empty content
   ---
-  duration_ms: 5.783689
+  duration_ms: 5.914532
   type: 'test'
   ...
 # Subtest: semantic tool planner keeps repo plans read-only and filters unsafe tools
 ok 98 - semantic tool planner keeps repo plans read-only and filters unsafe tools
   ---
-  duration_ms: 1.814061
+  duration_ms: 1.60121
   type: 'test'
   ...
 # Subtest: semantic tool planner replaces audit-only plans with focused discovery
 ok 99 - semantic tool planner replaces audit-only plans with focused discovery
   ---
-  duration_ms: 1.001628
+  duration_ms: 0.892902
   type: 'test'
   ...
 # Subtest: semantic tool planner replaces scan-only plans with focused discovery
 ok 100 - semantic tool planner replaces scan-only plans with focused discovery
   ---
-  duration_ms: 0.43796
+  duration_ms: 0.419255
   type: 'test'
   ...
 # Subtest: semantic tool planner falls back to general response without tool calls
 ok 101 - semantic tool planner falls back to general response without tool calls
   ---
-  duration_ms: 0.279741
+  duration_ms: 0.235542
   type: 'test'
   ...
 # Subtest: agent loop does not repeat completed tools for one explicit repository target
 ok 102 - agent loop does not repeat completed tools for one explicit repository target
   ---
-  duration_ms: 10.429704
+  duration_ms: 12.065696
   type: 'test'
   ...
 # Subtest: agent loop keeps planned auth targets ahead of accidental terminal matches
 ok 103 - agent loop keeps planned auth targets ahead of accidental terminal matches
   ---
-  duration_ms: 5.811771
+  duration_ms: 5.611123
   type: 'test'
   ...
 # Subtest: agent loop learning hints are advisory and do not authorize writes
 ok 104 - agent loop learning hints are advisory and do not authorize writes
   ---
-  duration_ms: 4.86145
+  duration_ms: 4.305117
   type: 'test'
   ...
 # Subtest: agent loop does not invent patchPreview when exact block is missing
 ok 105 - agent loop does not invent patchPreview when exact block is missing
   ---
-  duration_ms: 6.177362
+  duration_ms: 5.779929
   type: 'test'
   ...
 # Subtest: read-only technical response leads with findings and hides internal telemetry
 ok 106 - read-only technical response leads with findings and hides internal telemetry
   ---
-  duration_ms: 3.993463
+  duration_ms: 3.617888
   type: 'test'
   ...
 # Subtest: read-only technical response preserves evidence for every diagnosed target
 ok 107 - read-only technical response preserves evidence for every diagnosed target
   ---
-  duration_ms: 4.102608
+  duration_ms: 3.726262
   type: 'test'
   ...
 # Subtest: agent loop composes read-only final response for global repo analysis
 ok 108 - agent loop composes read-only final response for global repo analysis
   ---
-  duration_ms: 4.759757
+  duration_ms: 4.405795
   type: 'test'
   ...
 # Subtest: terminal renders visual patch proposal card without direct write execution
 ok 109 - terminal renders visual patch proposal card without direct write execution
   ---
-  duration_ms: 6.965819
+  duration_ms: 6.309701
   type: 'test'
   ...
 # Subtest: terminal keeps natural repository analysis in the brain route
 ok 110 - terminal keeps natural repository analysis in the brain route
   ---
-  duration_ms: 1.703015
+  duration_ms: 1.534935
   type: 'test'
   ...
 # Subtest: Codex V2 write path fails closed without governed repo.write runtime
 ok 111 - Codex V2 write path fails closed without governed repo.write runtime
   ---
-  duration_ms: 1.984969
+  duration_ms: 1.868511
   type: 'test'
   ...
 # Subtest: gestiaArchitectV5 exposes CORS preflight before firewall
 ok 112 - gestiaArchitectV5 exposes CORS preflight before firewall
   ---
-  duration_ms: 0.750851
+  duration_ms: 0.720259
   type: 'test'
   ...
 # Subtest: SIA7 public diagnostics no longer expose the internal Agent Loop label
 ok 113 - SIA7 public diagnostics no longer expose the internal Agent Loop label
   ---
-  duration_ms: 1.525136
+  duration_ms: 1.415422
   type: 'test'
   ...
 # Subtest: multi-tool missions prefer grounded semantic composition over a generic repo diagnostic
 ok 114 - multi-tool missions prefer grounded semantic composition over a generic repo diagnostic
   ---
-  duration_ms: 3.425107
+  duration_ms: 2.983901
   type: 'test'
   ...
 # Subtest: mission composition rejects truncated model headers and accepts complete reports
 ok 115 - mission composition rejects truncated model headers and accepts complete reports
   ---
-  duration_ms: 3.449494
+  duration_ms: 2.970646
   type: 'test'
   ...
 # Subtest: mission evidence packing preserves late tool results instead of starving them behind repo reads
 ok 116 - mission evidence packing preserves late tool results instead of starving them behind repo reads
   ---
-  duration_ms: 5.228462
+  duration_ms: 4.835009
   type: 'test'
   ...
 # Subtest: verified read-only missions stay outside retrying Firestore transactions
 not ok 117 - verified read-only missions stay outside retrying Firestore transactions
   ---
-  duration_ms: 6.088097
+  duration_ms: 6.007435
   type: 'test'
   location: '/home/runner/work/fixgo-app/fixgo-app/tests/repo-authority-v2.test.cjs:1718:1'
   failureType: 'testCodeFailure'
@@ -30217,13 +30220,13 @@ not ok 117 - verified read-only missions stay outside retrying Firestore transac
 # Subtest: SIA7 GitHub worker commits an applied patch together with its result
 ok 118 - SIA7 GitHub worker commits an applied patch together with its result
   ---
-  duration_ms: 0.260021
+  duration_ms: 0.202159
   type: 'test'
   ...
 # Subtest: repo authority obeys the single semantic brain contract
 ok 119 - repo authority obeys the single semantic brain contract
   ---
-  duration_ms: 1.735083
+  duration_ms: 1.218042
   type: 'test'
   ...
 1..119
@@ -30234,4 +30237,8 @@ ok 119 - repo authority obeys the single semantic brain contract
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 17573.053797
+# duration_ms 17467.872687
+=== exit codes ===
+syntax_code=0
+multi_syntax_code=0
+test_code=1
