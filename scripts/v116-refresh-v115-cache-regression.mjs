@@ -102,4 +102,20 @@ import fs from "node:fs";
     fs.writeFileSync(path, source, "utf8");
 }
 
-console.log("V115_SEMANTIC_MARKETING_AND_ALL_MULTIFUNCTION_CACHE_REGRESSIONS_REFRESHED_FOR_V116");
+{
+    const path = "tests/repo-authority-v2.test.cjs";
+    let source = fs.readFileSync(path, "utf8");
+
+    const oldAssertion = `    assert.match(\n        terminal,\n        /fixgo-real-runtime-e2e-20260805/\n    );`;
+    const newAssertion = `    assert.match(\n        terminal,\n        /gestia-terminal\\.js\\?v=v94-[a-z0-9-]+-20260809/\n    );`;
+    const occurrences = source.split(oldAssertion).length - 1;
+
+    if (occurrences !== 1) {
+        throw new Error(`REPO_AUTHORITY_TERMINAL_SHELL_ASSERTION_COUNT_${occurrences}`);
+    }
+
+    source = source.replace(oldAssertion, newAssertion);
+    fs.writeFileSync(path, source, "utf8");
+}
+
+console.log("V115_SEMANTIC_MARKETING_MULTIFUNCTION_AND_REPO_AUTHORITY_CACHE_REGRESSIONS_REFRESHED_FOR_V116");
