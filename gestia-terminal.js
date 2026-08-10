@@ -67,7 +67,7 @@ import {
 
 import "./modules/terminal/repo-bootstrap-index.js?v=v94-page-browser-fallback-v115-20260809";
 
-import "./modules/terminal/runtime-repair-health.js?v=jarvis-runtime-macro-v2-20260618";
+import "./modules/terminal/runtime-repair-health.js?v=v94-runtime-health-truth-v116-20260809";
 
 const TERMINAL_RUNTIME_V2_VERSION =
     "2.0.0-terminal-runtime-pack";

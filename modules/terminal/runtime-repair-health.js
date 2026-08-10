@@ -232,31 +232,48 @@ window.renderRuntimeBootTable ||= function(meta = {}) {
                 degraded:
                     node.degraded === true,
                 isolated:
-                    node.isolated === true
+                    node.isolated === true,
+                observed:
+                    node.observed === true,
+                evidenceSource:
+                    node.evidenceSource || "unknown"
             }));
 
-    console.table(rows);
+    const summary = {
+        total:
+            rows.length,
+        online:
+            rows.filter(row => row.status === "ONLINE").length,
+        cataloged:
+            rows.filter(row => row.status === "CATALOGED").length,
+        degraded:
+            rows.filter(row => row.degraded).length,
+        isolated:
+            rows.filter(row => row.isolated).length,
+        ...meta
+    };
 
-    console.log(
-        "✅ [RUNTIME_BOOT_TABLE_READY]",
-        {
-            total:
-                rows.length,
-            online:
-                rows.filter(row => row.status === "ONLINE").length,
-            degraded:
-                rows.filter(row => row.degraded).length,
-            isolated:
-                rows.filter(row => row.isolated).length,
-            ...meta
-        }
-    );
+    window.__RUNTIME_BOOT_TABLE__ = {
+        rows,
+        summary,
+        updatedAt:
+            Date.now()
+    };
+
+    if (window.__JARVIS_RUNTIME_HEALTH_DEBUG__ === true) {
+        console.table(rows);
+        console.log(
+            "✅ [RUNTIME_BOOT_TABLE_READY]",
+            summary
+        );
+    }
 
     return {
         ok: true,
         total:
             rows.length,
-        rows
+        rows,
+        summary
     };
 };
 
@@ -323,7 +340,47 @@ function() {
         const previousHealthMap =
             window.__RUNTIME_HEALTH_MAP__ || {};
 
+        const loadedRegistry =
+            window.MODULE_CONTEXT?.loaded ||
+            window.__MODULE_CONTEXT__?.loaded ||
+            {};
+
         const healthMap = {};
+
+        const normalizeLoadEvidence = value => {
+            if (value === true) {
+                return { observed: true, status: "ONLINE" };
+            }
+
+            if (typeof value === "string") {
+                const status = value.trim().toUpperCase();
+                if (["ONLINE", "LOADED", "READY", "RUNNING"].includes(status)) {
+                    return { observed: true, status: "ONLINE" };
+                }
+                if (["DEGRADED", "ISOLATED"].includes(status)) {
+                    return { observed: true, status };
+                }
+                return null;
+            }
+
+            if (value && typeof value === "object") {
+                const status = String(value.status || value.state || "").trim().toUpperCase();
+                if (value.loaded === true || value.online === true || value.ready === true || value.running === true) {
+                    return {
+                        observed: true,
+                        status: ["DEGRADED", "ISOLATED"].includes(status) ? status : "ONLINE"
+                    };
+                }
+                if (["ONLINE", "LOADED", "READY", "RUNNING", "DEGRADED", "ISOLATED"].includes(status)) {
+                    return {
+                        observed: true,
+                        status: ["DEGRADED", "ISOLATED"].includes(status) ? status : "ONLINE"
+                    };
+                }
+            }
+
+            return null;
+        };
 
         Object.entries(
             cognition
@@ -332,32 +389,45 @@ function() {
             const previous =
                 previousHealthMap[file] || {};
 
-            healthMap[file] = {
-
-                ...previous,
-
+            const candidates = [
                 file,
+                meta?.path,
+                meta?.module
+            ].filter(Boolean);
 
+            let loadEvidence = null;
+            for (const candidate of candidates) {
+                loadEvidence = normalizeLoadEvidence(
+                    loadedRegistry?.[candidate]
+                );
+                if (loadEvidence?.observed === true) break;
+            }
+
+            const observed =
+                loadEvidence?.observed === true;
+
+            healthMap[file] = {
+                ...previous,
+                file,
                 status:
-                    previous.status ||
-                    "ONLINE",
-
+                    observed
+                        ? loadEvidence.status
+                        : "CATALOGED",
                 health:
-                    previous.health ??
-                    100,
-
+                    observed
+                        ? (previous.health ?? 100)
+                        : null,
                 degraded:
-                    previous.degraded ??
-                    false,
-
+                    observed && loadEvidence.status === "DEGRADED",
                 isolated:
-                    previous.isolated ??
-                    false,
-
+                    observed && loadEvidence.status === "ISOLATED",
                 blocked:
-                    previous.blocked ??
-                    false,
-
+                    previous.blocked === true,
+                observed,
+                evidenceSource:
+                    observed
+                        ? "runtime_loaded_registry"
+                        : "repo_catalog_only",
                 lastCheck:
                     Date.now()
             };

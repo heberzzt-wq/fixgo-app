@@ -617,60 +617,52 @@ async function() {
                 runtimeModules
             ).length;
 
-        const healthyModules =
+        const observedHealthNodes =
 
             Object.values(
                 runtimeHealthMap
             )
-
             .filter(
-
                 (m) =>
+                    m?.observed === true
+            );
 
-                    m?.status ===
-                    "ONLINE"
+        const observedModuleCount =
+            observedHealthNodes.length;
 
+        const healthyModules =
+
+            observedHealthNodes
+            .filter(
+                (m) =>
+                    m?.status === "ONLINE"
             ).length;
 
         const degradedModules =
 
-            Object.values(
-                runtimeHealthMap
-            )
-
+            observedHealthNodes
             .filter(
-
                 (m) =>
-
-                    m?.status ===
-                    "DEGRADED"
-
+                    m?.status === "DEGRADED"
             ).length;
 
         const isolatedModules =
 
-            Object.values(
-                runtimeHealthMap
-            )
-
+            observedHealthNodes
             .filter(
-
                 (m) =>
-
-                    m?.status ===
-                    "ISOLATED"
-
+                    m?.status === "ISOLATED"
             ).length;
 
         const runtimeHealth =
 
-            moduleCount > 0
+            observedModuleCount > 0
 
                 ? Math.floor(
 
                     (
                         healthyModules /
-                        moduleCount
+                        observedModuleCount
                     ) * 100
                 )
 
@@ -862,6 +854,8 @@ recoverySafe:
     "HARD_FAILURE",
 
 moduleCount,
+
+observedModuleCount,
 
 healthyModules,
 

@@ -115,11 +115,11 @@ test("static repo bootstrap has no literal entries pointing to missing files", (
     }
 });
 
-test("browser boot chain carries v115 cache identity", () => {
+test("browser boot chain preserves v115 fallback while allowing later shell cache busts", () => {
     const html = fs.readFileSync(path.join(root, "gestia-terminal.html"), "utf8");
     const core = fs.readFileSync(path.join(root, "gestia-core", "gestia-core.js"), "utf8");
     const terminal = fs.readFileSync(path.join(root, "gestia-terminal.js"), "utf8");
-    assert.match(html, /v94-page-browser-fallback-v115-20260809/);
+    assert.match(html, /gestia-terminal\.js\?v=v94-[a-z0-9-]+-20260809/);
     assert.match(core, /v94-page-browser-fallback-v115-20260809/);
     assert.match(terminal, /repo-bootstrap-index\.js\?v=v94-page-browser-fallback-v115-20260809/);
 });
