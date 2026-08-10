@@ -1,0 +1,78 @@
+name: V94 v115 focused diagnostic
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-v115-focused-diagnostic.yml
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Reproduce exact v115 patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import textwrap
+          src = Path('.github/workflows/v94-page-browser-fallback-v115.yml').read_text(encoding='utf-8')
+          start = src.index("          cat > /tmp/v115_patch.py <<'PY'\n") + len("          cat > /tmp/v115_patch.py <<'PY'\n")
+          end = src.index("\n          PY\n", start)
+          body = textwrap.dedent(src[start:end])
+          Path('/tmp/v115_patch.py').write_text(body, encoding='utf-8')
+          PY
+          python /tmp/v115_patch.py
+          git diff --quiet HEAD -- functions
+      - name: Install dependencies
+        run: npm ci
+      - name: Capture focused regression
+        shell: bash
+        run: |
+          set +e
+          node --test \
+            tests/jarvis-page-artifact.test.mjs \
+            tests/jarvis-peninsula-page-v114.test.mjs \
+            tests/jarvis-page-browser-fallback-v115.test.mjs \
+            tests/jarvis-semantic-memory-integrity.test.mjs > /tmp/v115-focused.log 2>&1
+          code=$?
+          set -e
+          python - "$code" <<'PY'
+          from pathlib import Path
+          import sys
+          code = int(sys.argv[1])
+          lines = Path('/tmp/v115-focused.log').read_text(encoding='utf-8', errors='replace').splitlines()
+          picks=[]
+          needles=('not ok','AssertionError','ERR_ASSERTION','error:','expected','actual','failure','fail ','pass ','tests ','suites ','duration_ms')
+          for i,line in enumerate(lines):
+              if any(n.lower() in line.lower() for n in needles):
+                  a=max(0,i-4); b=min(len(lines),i+8)
+                  picks.extend(lines[a:b])
+          if not picks:
+              picks=lines[-140:]
+          out=[]
+          seen=set()
+          for line in picks:
+              key=(len(out),line)
+              out.append(line)
+          Path('.github/v115-focused-diagnostic.txt').write_text('EXIT_CODE='+str(code)+'\n'+'\n'.join(out[-220:])+'\n', encoding='utf-8')
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/v115-focused-diagnostic.txt
+          git commit -m "[v94] chore: capture v115 focused failure" || true
+          git push origin HEAD:v94-media-v4n-negative-claims
+          exit "$code"
