@@ -43,7 +43,9 @@ jobs:
           echo "PRE_GUARDS_OK"
 
       - name: Apply v116 product patch
-        run: node scripts/v116-runtime-health-patch.mjs
+        run: |
+          node scripts/v116-runtime-health-patch.mjs
+          node scripts/v116-refresh-v115-cache-regression.mjs
 
       - name: Source invariants
         shell: bash
@@ -56,6 +58,7 @@ jobs:
           grep -Fq '__JARVIS_RUNTIME_HEALTH_DEBUG__ === true' modules/terminal/runtime-repair-health.js
           grep -Fq 'observedModuleCount' modules/terminal/runtime-persistence.js
           grep -Fq "$RELEASE_TOKEN" gestia-terminal.html
+          grep -Fq 'allowing later shell cache busts' tests/jarvis-page-browser-fallback-v115.test.mjs
           ! grep -Fq 'window.__REPO_INDEX__["jarvis-nlu-bridge.js"]' modules/terminal/repo-bootstrap-index.js
           git diff --quiet "$SEMANTIC_BASE" HEAD -- functions
           echo "V116_SOURCE_INVARIANTS_OK"
@@ -108,8 +111,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm -f scripts/v116-runtime-health-patch.mjs
+          git rm -f scripts/v116-refresh-v115-cache-regression.mjs
           git rm -f .github/v116-focused-failure.log 2>/dev/null || true
-          git add modules/terminal/runtime-repair-health.js modules/terminal/runtime-persistence.js gestia-terminal.js gestia-terminal.html gestia-core/gestia.runtime.v7.js tests/jarvis-runtime-health-truth-v116.test.mjs
+          git add modules/terminal/runtime-repair-health.js modules/terminal/runtime-persistence.js gestia-terminal.js gestia-terminal.html gestia-core/gestia.runtime.v7.js tests/jarvis-runtime-health-truth-v116.test.mjs tests/jarvis-page-browser-fallback-v115.test.mjs
           git commit -m "[v94] fix(adj): make runtime health evidence-based and quiet v116"
           product_sha="$(git rev-parse HEAD)"
           echo "product_sha=$product_sha" >> "$GITHUB_OUTPUT"
