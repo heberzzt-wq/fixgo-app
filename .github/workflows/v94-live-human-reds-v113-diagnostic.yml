@@ -1,0 +1,70 @@
+name: V94 live human reds v113 diagnostic
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-live-human-reds-v113-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Assert isolated branch and Functions boundary
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-media-v4n-negative-claims"
+          git merge-base --is-ancestor 13cb877ef49fbd2ef19bc2a5da42887b5836e16a HEAD
+          test -z "$(git diff --name-only 13cb877ef49fbd2ef19bc2a5da42887b5836e16a HEAD -- functions)"
+
+      - name: Capture Brain Router and execution wiring
+        run: |
+          set -euo pipefail
+          {
+            echo '===== BRAIN ROUTER TEXT ====='
+            grep -Rni -C 8 -E 'Brain Router|rutas legacy|reformula el objetivo|GestiaCore|autoridad principal' --exclude-dir=node_modules --exclude-dir=.git . || true
+            echo
+            echo '===== TERMINAL CORE HANDOFF ====='
+            grep -n -C 15 -E 'GestiaCore|KernelHeberto|generarPropuesta|analizar|procesar|submit|Brain' gestia-terminal.js | head -n 900 || true
+            echo
+            echo '===== CORE MARKETING HYDRATION ====='
+            grep -n -C 45 -E 'marketingArtifactArgsFromCompletedTasks|document.create|reel.create|reel.plan|executionCall' gestia-core/gestia-core.js | head -n 1800 || true
+            echo
+            echo '===== REEL PLAN / CREATE DEFINITIONS ====='
+            grep -n -C 35 -E 'name: "reel.plan"|name: "reel.create"|REEL_PLAN_ARGUMENT_SCHEMA|REEL_SCENE_CONTENT_REQUIRED' gestia-core/jarvis/jarvis.multitool.pack.js gestia-core/jarvis/jarvis.actuator.pack.js jarvis-reel-artifact.js | head -n 1400 || true
+            echo
+            echo '===== MARKETING PLAN EXECUTION ====='
+            grep -n -C 45 -E 'name: "marketing.plan"|planMarketingRequest|MARKETING_.*ERROR|missingSemanticBriefFields|readyForProduction' gestia-core/jarvis/jarvis.multitool.pack.js gestia-core/jarvis/jarvis.marketing.engine.js | head -n 1800 || true
+            echo
+            echo '===== REPO AUDIT EXECUTION ====='
+            grep -n -C 40 -E 'repo.audit|composeRepoAuditResult|REPO_AUDIT_EMPTY_EVIDENCE|filesScanned' gestia-core/tools.runtime.js gestia-core/response.composer.js gestia-core/hubs/repo.hub.js gestia-core/gestia-core.js | head -n 1800 || true
+          } > /tmp/v113-diagnostic.txt
+
+      - name: Run current focused regressions
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/response-composer-semantic-contract.test.mjs \
+            tests/jarvis-actuator-pack.test.mjs \
+            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs \
+            tests/jarvis-repo-target-runtime.test.mjs > /tmp/v113-tests.txt 2>&1
+          test -z "$(git status --porcelain -- functions)"
+
+      - name: Upload diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: v94-live-human-reds-v113-diagnostic
+          path: |
+            /tmp/v113-diagnostic.txt
+            /tmp/v113-tests.txt
+          retention-days: 3
