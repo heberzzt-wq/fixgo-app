@@ -58,6 +58,7 @@ jobs:
           grep -Fq '__JARVIS_RUNTIME_HEALTH_DEBUG__ === true' modules/terminal/runtime-repair-health.js
           grep -Fq 'observedModuleCount' modules/terminal/runtime-persistence.js
           grep -Fq 'MULTIFUNCTION_TERMINAL_V115_ASSERTION_COUNT_' scripts/v116-refresh-v115-cache-regression.mjs
+          grep -Fq 'ALL_MULTIFUNCTION_CACHE_REGRESSIONS_REFRESHED_FOR_V116' scripts/v116-refresh-v115-cache-regression.mjs
           grep -Fq "$RELEASE_TOKEN" gestia-terminal.html
           grep -Fq 'allowing later shell cache busts' tests/jarvis-page-browser-fallback-v115.test.mjs
           ! grep -Fq 'assert.match(html, /v94-page-browser-fallback-v115-20260809/);' tests/jarvis-semantic-memory-integrity.test.mjs
