@@ -25,7 +25,10 @@ try {
     const address = server.address();
     const response = await fetch(`http://127.0.0.1:${address.port}/page/create`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+            "content-type": "application/json",
+            "X-Jarvis-Release-Id": String(contract.releaseId || "")
+        },
         body: JSON.stringify({
             brandName: "Península Tech",
             title: "Tecnología para coordinar servicios con claridad",
@@ -46,7 +49,12 @@ try {
         })
     });
     const payload = await response.json();
-    console.log(JSON.stringify({ currentBranch, temporaryContractBranch: contract.branch, payload }, null, 2));
+    console.log(JSON.stringify({
+        currentBranch,
+        temporaryContractBranch: contract.branch,
+        releaseId: contract.releaseId,
+        payload
+    }, null, 2));
 
     if (!response.ok) throw new Error(`PAGE_ROUTE_HTTP_${response.status}:${payload?.error || payload?.status || "unknown"}`);
     if (payload?.ok !== true) throw new Error(payload?.error || "PAGE_ROUTE_NOT_OK");
