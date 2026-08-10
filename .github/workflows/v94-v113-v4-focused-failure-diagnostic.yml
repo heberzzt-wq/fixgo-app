@@ -1,0 +1,113 @@
+name: V94 v113 v4 focused failure diagnostic
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-v113-v4-focused-failure-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Assert isolated branch and Functions boundary
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-media-v4n-negative-claims"
+          test -z "$(git diff --name-only 13cb877ef49fbd2ef19bc2a5da42887b5836e16a HEAD -- functions)"
+
+      - name: Install and reproduce v4 candidate
+        run: |
+          set -euo pipefail
+          npm ci
+          npm --prefix functions ci
+          python scripts/v113-live-human-reds-fix.py
+          python - <<'PY'
+          from pathlib import Path
+          replacements = [
+              ('tests/jarvis-marketing-terminal-delivery.e2e.test.mjs','v94-repo-marketing-integrity-v112-20260809','v94-live-human-reds-v113-20260809',2),
+              ('tests/jarvis-reel-artifact.test.mjs','assert.match(actuator, /REEL_STUDIO_CREATED_VERIFIED/);','assert.match(actuator, /REEL_VIDEO_CREATED_VERIFIED/);\n    assert.match(bridge, /exportReelWebmWithChrome/);\n    assert.match(bridge, /REEL_WEBM_SHA256_MISMATCH/);',1),
+              ('tests/jarvis-fs-bridge-v2.test.mjs','assert.equal(description.version, "2.36.0-structural-repo-targets");','assert.equal(description.version, "2.37.0-verified-reel-webm");',1),
+              ('tests/jarvis-multifunction-tools.test.mjs','v94-repo-marketing-integrity-v112-20260809','v94-live-human-reds-v113-20260809',5),
+              ('tests/jarvis-semantic-memory-integrity.test.mjs','assert.match(html, /v94-semantic-memory-repo-v111-20260809/);','assert.match(html, /v94-live-human-reds-v113-20260809/);',1),
+          ]
+          for file, old, new, expected in replacements:
+              p=Path(file); s=p.read_text(encoding='utf-8'); count=s.count(old)
+              if count != expected:
+                  raise SystemExit(f'{file}: expected {expected} occurrences, got {count}')
+              p.write_text(s.replace(old,new),encoding='utf-8')
+          PY
+          test -z "$(git diff --name-only -- functions)"
+
+      - name: Capture exact v4 focused failure
+        run: |
+          set +e
+          node --test \
+            tests/jarvis-live-human-reds-v113.test.mjs \
+            tests/response-composer-semantic-contract.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs \
+            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs \
+            tests/jarvis-actuator-pack.test.mjs \
+            tests/jarvis-reel-artifact.test.mjs \
+            tests/jarvis-fs-bridge-v2.test.mjs \
+            tests/jarvis-multifunction-tools.test.mjs \
+            tests/jarvis-semantic-memory-integrity.test.mjs \
+            tests/repo-authority-v2.test.cjs \
+            > /tmp/v113-v4-focused.log 2>&1
+          code=$?
+          printf '%s\n' "$code" > /tmp/v113-v4-focused-exit.txt
+          exit 0
+
+      - name: Extract exact assertion and stack
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          log=Path('/tmp/v113-v4-focused.log').read_text(encoding='utf-8',errors='replace').splitlines()
+          code=Path('/tmp/v113-v4-focused-exit.txt').read_text().strip()
+          needles=('not ok ','AssertionError','ERR_ASSERTION','ERR_TEST_FAILURE','# fail ','Error:')
+          marks=[i for i,line in enumerate(log) if any(n in line for n in needles)]
+          ranges=[]
+          for i in marks:
+              a=max(0,i-40); b=min(len(log),i+100)
+              if ranges and a <= ranges[-1][1]+5:
+                  ranges[-1]=(ranges[-1][0],max(ranges[-1][1],b))
+              else:
+                  ranges.append((a,b))
+          out=[f'EXIT={code}',f'LINES={len(log)}',f'MARKERS={len(marks)}']
+          for n,(a,b) in enumerate(ranges,1):
+              out.append(f'\n===== FAILURE_{n} =====')
+              out.extend(f'{j+1}: {log[j]}' for j in range(a,b))
+          out.append('\n===== TAIL =====')
+          start=max(0,len(log)-260)
+          out.extend(f'{j+1}: {log[j]}' for j in range(start,len(log)))
+          text='\n'.join(out)
+          Path('/tmp/v113-v4-focused-failure.txt').write_text(text,encoding='utf-8')
+          print(text[:60000])
+          PY
+          test -z "$(git diff --name-only -- functions)"
+
+      - name: Upload diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: v94-v113-v4-focused-failure
+          path: |
+            /tmp/v113-v4-focused.log
+            /tmp/v113-v4-focused-exit.txt
+            /tmp/v113-v4-focused-failure.txt
+          retention-days: 3
