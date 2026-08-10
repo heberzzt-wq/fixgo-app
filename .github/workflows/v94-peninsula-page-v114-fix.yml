@@ -6,6 +6,7 @@ on:
       - v94-media-v4n-negative-claims
     paths:
       - .github/workflows/v94-peninsula-page-v114-fix.yml
+      - scripts/v114-run-page-fix.py
 
 permissions:
   contents: write
