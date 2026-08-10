@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 RELEASE = "v94-current-turn-freshness-v119-20260810"
 
@@ -19,12 +20,19 @@ if core.count(current_turn_old) != 1:
     raise SystemExit(f"V119_CURRENT_TURN_MEMORY_BLOCK_COUNT_{core.count(current_turn_old)}")
 core = core.replace(current_turn_old, current_turn_new, 1)
 
-old_context = "semanticMemory: semanticMemoryContext"
-count = core.count(old_context)
-if count != 2:
-    raise SystemExit(f"V119_PLANNER_MEMORY_CONTEXT_COUNT_{count}")
-core = core.replace(old_context, "semanticMemoryAvailable: Boolean(semanticMemoryContext)")
+planner_memory_pattern = re.compile(r"semanticMemory\s*:\s*semanticMemoryContext")
+planner_memory_count = len(planner_memory_pattern.findall(core))
+if planner_memory_count != 4:
+    raise SystemExit(f"V119_PLANNER_MEMORY_CONTEXT_COUNT_{planner_memory_count}")
+core = planner_memory_pattern.sub(
+    "semanticMemoryAvailable: Boolean(semanticMemoryContext)",
+    core
+)
 
+if planner_memory_pattern.search(core):
+    raise SystemExit("V119_PLANNER_MEMORY_CONTEXT_STILL_EXPOSED")
+if core.count("semanticMemoryAvailable: Boolean(semanticMemoryContext)") != 4:
+    raise SystemExit("V119_PLANNER_MEMORY_AVAILABILITY_COUNT_INVALID")
 if core.count("memoryContext: semanticMemoryContext") != 1:
     raise SystemExit("V119_MISSION_ADVISORY_MEMORY_CONTEXT_NOT_PRESERVED")
 
