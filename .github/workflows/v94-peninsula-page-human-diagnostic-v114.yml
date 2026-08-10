@@ -1,0 +1,122 @@
+name: V94 Peninsula Tech page human diagnostic v114
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-peninsula-page-human-diagnostic-v114.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Assert isolated branch and Functions boundary
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-media-v4n-negative-claims"
+          test -z "$(git diff --name-only 13cb877ef49fbd2ef19bc2a5da42887b5836e16a HEAD -- functions)"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Capture actual page chain
+        run: |
+          set -euo pipefail
+          {
+            echo '===== PAGE TOOL DEFINITIONS ====='
+            grep -Rni -C 80 -E 'name: "page\.(plan|compose|create)"|PAGE_CONTENT_COMPOSED|PAGE_ARTIFACT_CREATED_VERIFIED|PAGE_CREATE_BLOCKED' \
+              gestia-core jarvis-fs-bridge.js jarvis-page-artifact.js tests \
+              --exclude-dir=node_modules | head -n 5000 || true
+            echo
+            echo '===== CORE EXECUTION ADAPTERS ====='
+            grep -n -C 100 -E 'reelArtifactArgsFromCompletedTasks|marketingArtifactArgsFromCompletedTasks|executionCall|page\.create|page\.compose|preparedArtifact' \
+              gestia-core/gestia-core.js | head -n 4000 || true
+            echo
+            echo '===== PAGE FS ROUTE AND BUILDER ====='
+            grep -n -C 120 -E 'app\.post\("/page/create"|preparePageMaterialInput|buildPageArtifactHtml|describePageArtifact|PAGE_POST_VERIFY_FAILED' \
+              jarvis-fs-bridge.js jarvis-page-artifact.js | head -n 4200 || true
+            echo
+            echo '===== PAGE HUMAN RESPONSE ====='
+            grep -n -C 70 -E 'PAGE_CREATE_RESPONSE|Landing creada|page\.create' gestia-core/tools.bridge.js | head -n 1200 || true
+          } > /tmp/page-chain.txt
+
+      - name: Run existing page regressions
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/jarvis-page-artifact.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs \
+            tests/jarvis-generalist-current-turn.test.mjs \
+            tests/jarvis-actuator-pack.test.mjs \
+            > /tmp/page-tests.txt 2>&1
+          test -z "$(git status --porcelain -- functions)"
+
+      - name: Probe physical Península Tech HTML renderer
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE' > /tmp/page-probe.txt
+          import fs from 'node:fs';
+          import { createHash } from 'node:crypto';
+          import { buildPageArtifactHtml, describePageArtifact } from './jarvis-page-artifact.js';
+          const pageInput = {
+            brandName: 'Península Tech',
+            title: 'Tecnología para coordinar servicios con claridad',
+            description: 'Plataforma para solicitar, coordinar y dar seguimiento a servicios desde una experiencia digital.',
+            services: [
+              { title: 'Solicitud digital', description: 'Inicia y organiza una solicitud de servicio desde una sola experiencia.' },
+              { title: 'Seguimiento', description: 'Consulta el estado operativo y la evidencia disponible del servicio.' },
+              { title: 'Coordinación', description: 'Centraliza la comunicación y los pasos necesarios para atender el servicio.' }
+            ],
+            whatsapp: '',
+            whatsappRequested: false,
+            contactEmail: '',
+            sourceImages: [],
+            gallery: [],
+            testimonials: [],
+            beforeAfter: []
+          };
+          const html = buildPageArtifactHtml(pageInput);
+          const verification = describePageArtifact(pageInput, html);
+          const output = '/tmp/peninsula-tech-page.html';
+          fs.writeFileSync(output, html, 'utf8');
+          const sha256=createHash('sha256').update(html).digest('hex');
+          console.log(JSON.stringify({verification,bytes:Buffer.byteLength(html),sha256,output},null,2));
+          if(!Object.values(verification.checks || {}).every(Boolean)) process.exit(1);
+          if(!html.includes('Península Tech') || !html.includes('Tecnología para coordinar servicios con claridad')) process.exit(1);
+          if(/lorem ipsum|placeholder|undefined|\[\[.*?\]\]/i.test(html)) process.exit(1);
+          NODE
+          chrome="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$chrome"
+          "$chrome" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --dump-dom file:///tmp/peninsula-tech-page.html > /tmp/peninsula-tech-dom.html 2>/tmp/page-chrome.err
+          test -s /tmp/peninsula-tech-dom.html
+          grep -q 'Península Tech' /tmp/peninsula-tech-dom.html
+          grep -q 'Tecnología para coordinar servicios con claridad' /tmp/peninsula-tech-dom.html
+          if grep -Eiq 'lorem ipsum|placeholder|undefined|PAGE_.*ERROR' /tmp/peninsula-tech-dom.html; then exit 1; fi
+          wc -c /tmp/peninsula-tech-page.html /tmp/peninsula-tech-dom.html >> /tmp/page-probe.txt
+          sha256sum /tmp/peninsula-tech-page.html >> /tmp/page-probe.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v94-peninsula-page-human-diagnostic-v114
+          path: |
+            /tmp/page-chain.txt
+            /tmp/page-tests.txt
+            /tmp/page-probe.txt
+            /tmp/peninsula-tech-page.html
+            /tmp/peninsula-tech-dom.html
+          retention-days: 3
