@@ -1,0 +1,100 @@
+name: V94 v121 step3 page factual integrity
+
+on:
+  push:
+    branches: [v94-media-v4n-negative-claims]
+    paths: [.github/workflows/v94-v121-step3-page-factual-integrity.yml]
+
+permissions:
+  contents: read
+
+env:
+  BASELINE: fc021b3112542dbcdb9d236a17e0b71ee547463b
+
+jobs:
+  certify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Guard branch and Functions boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-media-v4n-negative-claims"
+          git cat-file -e "$BASELINE^{commit}"
+          git diff --quiet "$BASELINE" HEAD -- functions
+          for p in \
+            scripts/v119-current-turn-freshness-fix.py \
+            scripts/v120-generalist-page-integrity-fix.py \
+            scripts/v120-neutral-forensics-probe-fix.py \
+            scripts/v121-page-factual-integrity-fix.py \
+            tests/jarvis-page-factual-integrity-v121.test.mjs; do
+            test -f "$p"
+          done
+
+      - name: Install
+        run: npm ci
+
+      - name: Apply step1 step2 step3 staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/v119-current-turn-freshness-fix.py
+          python scripts/v120-generalist-page-integrity-fix.py
+          python scripts/v120-neutral-forensics-probe-fix.py
+          python scripts/v121-page-factual-integrity-fix.py
+          git diff --quiet "$BASELINE" HEAD -- functions
+
+      - name: Syntax and factual invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check gestia-core/jarvis/jarvis.page.factual.integrity.js
+          node --check gestia-core/jarvis/jarvis.identity.integrity.js
+          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          node --check gestia-core/jarvis/jarvis.multitool.pack.js
+          node --check tests/jarvis-page-factual-integrity-v121.test.mjs
+          git diff --check
+          grep -Fq 'AUDITORIA_FACTUAL_DE_PAGINA' gestia-core/jarvis/jarvis.multitool.pack.js
+          grep -Fq 'REGLA_ESTILO_NO_ES_HECHO' gestia-core/jarvis/jarvis.multitool.pack.js
+          grep -Fq 'factualIntegrityPassed' gestia-core/jarvis/jarvis.multitool.pack.js
+          grep -Fq 'PAGE_FACTUAL_INTEGRITY_INCOMPLETE' gestia-core/jarvis/jarvis.multitool.pack.js
+          grep -Fq 'normalizePageFactualAudit' gestia-core/jarvis/jarvis.multitool.pack.js
+          ! grep -Fq 'Multiservicios Peninsulares HMH' gestia-core/jarvis/jarvis.multitool.pack.js
+          git diff --quiet "$BASELINE" HEAD -- functions
+
+      - name: Exact v121 factual regression
+        run: node --test tests/jarvis-page-factual-integrity-v121.test.mjs
+
+      - name: Generalist page regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/jarvis-generalist-page-integrity-v120.test.mjs \
+            tests/jarvis-current-turn-freshness-v119.test.mjs \
+            tests/jarvis-page-request-contract-v118.test.mjs \
+            tests/jarvis-page-artifact.test.mjs \
+            tests/jarvis-page-browser-fallback-v115.test.mjs \
+            tests/jarvis-peninsula-page-v114.test.mjs
+          git diff --quiet "$BASELINE" HEAD -- functions
+
+      - name: Multifunction integration regression
+        run: node --test tests/jarvis-multifunction-tools.test.mjs
+
+      - name: Step3 proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "V121_STEP3_PAGE_FACTUAL_INTEGRITY_GREEN"
+          git diff --quiet "$BASELINE" HEAD -- functions
