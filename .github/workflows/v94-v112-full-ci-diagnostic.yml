@@ -63,7 +63,7 @@ jobs:
           from pathlib import Path
           import re
           lines = Path('/tmp/full-ci.log').read_text(encoding='utf-8', errors='replace').splitlines()
-          rx = re.compile(r'(^|\\s)(not ok\\b|AssertionError\\b|ERR_ASSERTION\\b|ERR_TEST_FAILURE\\b|FAIL\\b|Error:)')
+          rx = re.compile(r'(^|\s)(not ok\b|AssertionError\b|ERR_ASSERTION\b|ERR_TEST_FAILURE\b|FAIL\b|Error:)')
           markers = [i for i, line in enumerate(lines) if rx.search(line)]
           ranges=[]
           for i in markers:
@@ -89,5 +89,6 @@ jobs:
           name: v94-v112-ci-failure
           path: |
             /tmp/failures.txt
+            /tmp/full-ci.log
             /tmp/ci-exit-code.txt
           retention-days: 3
