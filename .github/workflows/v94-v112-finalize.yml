@@ -1,0 +1,225 @@
+name: V94 v112 final certification and hosting
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-v112-finalize.yml
+
+permissions:
+  contents: write
+
+jobs:
+  certify-deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Assert branch and Functions boundary
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-media-v4n-negative-claims"
+          git merge-base --is-ancestor 46c1a4c9a4d69af87b368fe085cc2d7de06243d5 HEAD
+          test -z "$(git status --porcelain -- functions)"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          npm ci
+          npm --prefix functions ci
+          test -z "$(git status --porcelain -- functions)"
+
+      - name: Apply certified v112 candidate
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import textwrap
+          source = Path('.github/workflows/v94-repo-marketing-integrity-v112.yml').read_text(encoding='utf-8')
+          start_marker = "          python - <<'PY'\n"
+          end_marker = "\n          PY\n\n          node --check gestia-core/response.composer.js"
+          if source.count(start_marker) != 1 or source.count(end_marker) != 1:
+              raise SystemExit('V112_PATCH_BLOCK_NOT_UNIQUE')
+          block = source.split(start_marker, 1)[1].split(end_marker, 1)[0]
+          Path('/tmp/apply-v112.py').write_text(textwrap.dedent(block), encoding='utf-8')
+          PY
+          python /tmp/apply-v112.py
+
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('tests/jarvis-multifunction-tools.test.mjs')
+          s = p.read_text(encoding='utf-8')
+          old = 'jarvis-tools-v7-20260725-semantic-envelope-v64'
+          new = 'v94-repo-marketing-integrity-v112-20260809'
+          if old not in s:
+              raise SystemExit('LEGACY_RESPONSE_COMPOSER_ASSERTION_NOT_FOUND')
+          p.write_text(s.replace(old, new), encoding='utf-8')
+          PY
+
+          node --check gestia-core/response.composer.js
+          node --check gestia-core/gestia-core.js
+          node --check gestia-core/tools.runtime.js
+          node --check gestia-core/jarvis/jarvis.actuator.pack.js
+          test -z "$(git diff --name-only -- functions)"
+
+      - name: Focused human regressions
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/response-composer-semantic-contract.test.mjs \
+            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs \
+            tests/jarvis-actuator-pack.test.mjs \
+            tests/jarvis-multifunction-tools.test.mjs \
+            tests/jarvis-repo-target-runtime.test.mjs \
+            tests/jarvis-repo-intelligence.test.mjs \
+            tests/jarvis-semantic-memory-integrity.test.mjs
+
+      - name: Full CI 219-contract gate
+        run: |
+          set -euo pipefail
+          npm run ci:test
+
+      - name: Certify v112 invariants
+        run: |
+          set -euo pipefail
+          grep -q 'REPO_AUDIT_EMPTY_EVIDENCE' gestia-core/response.composer.js
+          grep -q 'MARKETING_PLAN_DEPENDENCY_UNSATISFIED' gestia-core/gestia-core.js
+          grep -q 'MARKETING_DOCUMENT_SOURCE_UNAVAILABLE' gestia-core/jarvis/jarvis.actuator.pack.js
+          grep -q 'v94-repo-marketing-integrity-v112-20260809' gestia-terminal.html
+          grep -q 'response.composer.js?v=v94-repo-marketing-integrity-v112-20260809' gestia-core/gestia-core.js
+          grep -q 'tools.bridge.js?v=v94-repo-marketing-integrity-v112-20260809' gestia-core/gestia-core.js
+          grep -q 'tools.runtime.js?v=v94-repo-marketing-integrity-v112-20260809' gestia-core/gestia-core.js
+          grep -q 'jarvis.actuator.pack.js?v=v94-repo-marketing-integrity-v112-20260809' gestia-core/tools.runtime.js
+          grep -q 'live_repo_ast_graph' gestia-core/tools.runtime.js
+          grep -q 'REPOSITORY_REFERENCE_ANALYZED' gestia-core/tools.runtime.js
+          ! grep -q 'Cada conversación empieza aislada' gestia-terminal.html
+          ! grep -q 'jarvis.context.memory.v6.js' gestia-terminal.html
+          ! grep -q 'from "./hubs/analysis.hub.js"' gestia-core/jarvis.kernel.js
+          test "$(grep -c 'name: "repo.audit"' gestia-core/tools.runtime.js)" -eq 1
+          test "$(grep -c 'name: "repo.scan"' gestia-core/tools.runtime.js)" -eq 1
+          test -z "$(git diff --name-only -- functions)"
+
+      - name: Verify real slash branch target
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin codex/jarvis-v8-runtime-foundation
+          node --input-type=module <<'NODE'
+          import { resolveBridgeRepositoryTarget } from './jarvis-fs-bridge.js';
+          const result = resolveBridgeRepositoryTarget({
+            target: 'https://github.com/heberzzt-wq/fixgo-app/blob/codex/jarvis-v8-runtime-foundation'
+          }, process.cwd());
+          console.log(JSON.stringify(result, null, 2));
+          if (!result.ok || result.ref !== 'codex/jarvis-v8-runtime-foundation' || result.path !== '' || !result.commit) process.exit(1);
+          NODE
+
+      - name: Deploy gate
+        env:
+          JARVIS_CI_PASSED: "true"
+          JARVIS_FIREBASE_PROJECT: fixgo-44e4d
+        run: |
+          set -euo pipefail
+          test -z "$(git diff --name-only -- functions)"
+          node scripts/jarvis-deploy-gate.mjs
+
+      - name: Commit certified repair
+        run: |
+          set -euo pipefail
+          git config user.name "heberzzt-wq"
+          git config user.email "heberzzt@gmail.com"
+          git add \
+            gestia-terminal.html \
+            gestia-core/gestia-core.js \
+            gestia-core/response.composer.js \
+            gestia-core/tools.runtime.js \
+            gestia-core/jarvis/jarvis.actuator.pack.js \
+            tests/response-composer-semantic-contract.test.mjs \
+            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs \
+            tests/jarvis-actuator-pack.test.mjs \
+            tests/jarvis-multifunction-tools.test.mjs
+          test -z "$(git diff --cached --name-only -- functions)"
+          git commit -m "[v94] fix(adj): fail closed repo audit and marketing artifacts"
+          git push origin HEAD:v94-media-v4n-negative-claims
+          echo "PRODUCT_HEAD=$(git rev-parse HEAD)"
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Hosting only
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_TOKEN"
+          test -z "$(git status --porcelain -- functions)"
+          firebase deploy --only hosting --project fixgo-44e4d --token "$FIREBASE_TOKEN"
+
+      - name: Verify exact live bytes and behavior contracts
+        run: |
+          set -euo pipefail
+          paths=(
+            gestia-terminal.html
+            gestia-core/gestia-core.js
+            gestia-core/response.composer.js
+            gestia-core/tools.runtime.js
+            gestia-core/tools.bridge.js
+            gestia-core/jarvis/jarvis.actuator.pack.js
+            gestia-core/jarvis/jarvis.marketing.engine.js
+            gestia-core/jarvis/jarvis.marketing.presenter.js
+            gestia-core/jarvis/jarvis.semantic.memory.js
+            gestia-core/jarvis/jarvis.mission.orchestrator.js
+            gestia-core/jarvis.kernel.js
+            jarvis-fs-bridge.js
+          )
+          for path in "${paths[@]}"; do
+            live="/tmp/live-$(echo "$path" | tr '/' '_')"
+            curl -fsSL "https://fixgo-44e4d.web.app/$path?cert=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" -o "$live"
+            local_sha="$(sha256sum "$path" | awk '{print $1}')"
+            live_sha="$(sha256sum "$live" | awk '{print $1}')"
+            printf '%s local=%s live=%s\n' "$path" "$local_sha" "$live_sha"
+            test "$local_sha" = "$live_sha"
+            cmp -s "$path" "$live"
+          done
+
+          html=/tmp/live-gestia-terminal.html
+          core=/tmp/live-gestia-core_gestia-core.js
+          composer=/tmp/live-gestia-core_response.composer.js
+          runtime=/tmp/live-gestia-core_tools.runtime.js
+          actuator=/tmp/live-gestia-core_jarvis_jarvis.actuator.pack.js
+          kernel=/tmp/live-gestia-core_jarvis.kernel.js
+          grep -q 'v94-repo-marketing-integrity-v112-20260809' "$html"
+          grep -q 'MARKETING_PLAN_DEPENDENCY_UNSATISFIED' "$core"
+          grep -q 'REPO_AUDIT_EMPTY_EVIDENCE' "$composer"
+          grep -q 'MARKETING_DOCUMENT_SOURCE_UNAVAILABLE' "$actuator"
+          grep -q 'live_repo_ast_graph' "$runtime"
+          grep -q 'REPOSITORY_REFERENCE_ANALYZED' "$runtime"
+          ! grep -q 'jarvis.context.memory.v6.js' "$html"
+          ! grep -q 'from "./hubs/analysis.hub.js"' "$kernel"
+
+      - name: Cleanup temporary certification workflows
+        run: |
+          set -euo pipefail
+          git rm -f --ignore-unmatch \
+            .github/workflows/v94-v112-finalize.yml \
+            .github/workflows/v94-v112-full-ci-diagnostic.yml \
+            .github/workflows/v94-repo-marketing-integrity-v112.yml \
+            .github/workflows/v94-full-ci-failure-extract.yml \
+            .github/workflows/v94-full-ci-legacy-contract-fix.yml \
+            .github/workflows/v94-semantic-memory-integrity-certify.yml
+          git add -A
+          test -z "$(git diff --cached --name-only -- functions)"
+          if ! git diff --cached --quiet; then
+            git commit -m "[v94] chore: close v112 certification workflows"
+            git push origin HEAD:v94-media-v4n-negative-claims
+          fi
+          echo "FINAL_HEAD=$(git rev-parse HEAD)"
+          test -z "$(git status --porcelain -- functions)"
