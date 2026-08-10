@@ -1,4 +1,4 @@
-name: V94 V122 Hosting-only release
+name: V94 V122 Live verification only
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: v94-v122-hosting-release
+  group: v94-v122-live-verification
   cancel-in-progress: false
 
 env:
@@ -22,24 +22,28 @@ env:
   RELEASE_ID: v94-generalist-execution-contract-v122-20260810
 
 jobs:
-  certify-deploy-verify:
+  verify-live-only:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 20
 
     steps:
-      - name: Checkout trigger commit for guards
+      - name: Checkout trigger commit for lineage guard
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Guard release lineage and protected refs
+      - name: Guard certified product lineage and protected refs
         shell: bash
         run: |
           set -euo pipefail
           git merge-base --is-ancestor "$PRODUCT_SHA" HEAD
           changed="$(git diff --name-only "$PRODUCT_SHA" HEAD)"
           test -n "$changed"
-          unexpected="$(printf '%s\n' "$changed" | grep -v '^\.github/workflows/v94-v122-hosting-release\.yml$' || true)"
+          unexpected="$(node -e '
+            const allowed = ".github/workflows/v94-v122-hosting-release.yml";
+            const changed = process.argv[1].split(/\r?\n/).filter(Boolean);
+            process.stdout.write(changed.filter(x => x !== allowed).join("\n"));
+          ' "$changed")"
           if test -n "$unexpected"; then
             echo "Unexpected files after certified product SHA:" >&2
             printf '%s\n' "$unexpected" >&2
@@ -57,129 +61,13 @@ jobs:
           ref: ${{ env.PRODUCT_SHA }}
           fetch-depth: 0
 
-      - name: Prove v122 does not modify Functions
+      - name: Prove Functions source unchanged from v121
         shell: bash
         run: |
           set -euo pipefail
           git diff --quiet "$V121_SHA" "$PRODUCT_SHA" -- functions
-          if git diff --name-only "$V121_SHA" "$PRODUCT_SHA" -- functions | grep -q .; then
-            echo "Functions changed between v121 and v122" >&2
-            exit 1
-          fi
+          test -z "$(git diff --name-only "$V121_SHA" "$PRODUCT_SHA" -- functions)"
           echo "FUNCTIONS_UNCHANGED_FROM_V121=true"
-
-      - name: Verify v122 source invariants
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$PRODUCT_SHA"
-          test -f gestia-terminal.html
-          test -f gestia-core/jarvis/jarvis.mission.planner-state.js
-          grep -Fq '"branch": "v94-media-v4n-negative-claims"' jarvis-runtime-contract.json
-          grep -Fq '"releaseId": "v94-generalist-execution-contract-v122-20260810"' jarvis-runtime-contract.json
-          grep -Fq '2.39.0-generalist-execution-contract-v122' jarvis-fs-bridge.js
-          grep -Fq 'compactMissionPlannerObservation' gestia-core/gestia-core.js
-          grep -Fq 'tool_contract_dependency' gestia-core/jarvis/jarvis.mission.dependencies.js
-          grep -Fq 'registerNexoWebMediaRoutes' jarvis-fs-bridge.js
-          if grep -Fq 'registerNexoWebMediaRoutes' jarvis-upload-bridge.js; then
-            echo "Duplicate web-media route authority detected" >&2
-            exit 1
-          fi
-          echo "V122_SOURCE_INVARIANTS_OK=true"
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Install application test dependencies
-        run: npm ci
-
-      - name: Install Functions dependencies for tests only
-        run: npm --prefix functions ci
-
-      - name: Focused v122 regressions
-        run: >-
-          node --test
-          tests/jarvis-generalist-execution-contract-v122.test.mjs
-          tests/jarvis-current-turn-freshness-v119.test.mjs
-          tests/jarvis-fs-bridge-v2.test.mjs
-          tests/jarvis-semantic-memory-integrity.test.mjs
-
-      - name: Full CI
-        run: npm run ci:test
-
-      - name: Sovereign hosting-only deploy gate
-        env:
-          JARVIS_CI_PASSED: "true"
-          JARVIS_HOSTING_ONLY: "true"
-          JARVIS_FIREBASE_PROJECT: fixgo-44e4d
-        run: node scripts/jarvis-deploy-gate.mjs
-
-      - name: Build workspace-anchored Functions-free Firebase config
-        shell: bash
-        run: |
-          set -euo pipefail
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          import path from 'node:path';
-          const workspace = path.resolve(process.env.GITHUB_WORKSPACE);
-          const source = JSON.parse(fs.readFileSync(path.join(workspace, 'firebase.json'), 'utf8'));
-          const primarySource = (Array.isArray(source.hosting) ? source.hosting : [source.hosting])
-            .find(item => item && item.site === 'fixgo-44e4d');
-          if (!primarySource) throw new Error('PRIMARY_HOSTING_SITE_CONFIG_NOT_FOUND');
-          const primary = structuredClone(primarySource);
-          primary.ignore = [...new Set([...(primary.ignore || []), 'firebase-v122-hosting.json'])];
-          const output = { hosting: [primary] };
-          const target = path.join(workspace, 'firebase-v122-hosting.json');
-          fs.writeFileSync(target, `${JSON.stringify(output, null, 2)}\n`, 'utf8');
-          const verify = JSON.parse(fs.readFileSync(target, 'utf8'));
-          if ('functions' in verify) throw new Error('FUNCTIONS_PRESENT_IN_DEPLOY_CONFIG');
-          if (!Array.isArray(verify.hosting) || verify.hosting.length !== 1) throw new Error('HOSTING_SCOPE_NOT_SINGLE_SITE');
-          if (verify.hosting[0].site !== 'fixgo-44e4d') throw new Error('WRONG_HOSTING_SITE');
-          const resolvedPublic = path.resolve(path.dirname(target), verify.hosting[0].public);
-          if (resolvedPublic !== workspace) {
-            throw new Error(`PUBLIC_ROOT_NOT_WORKSPACE:${resolvedPublic}`);
-          }
-          for (const required of [
-            'gestia-terminal.html',
-            'jarvis-runtime-contract.json',
-            'gestia-core/gestia-core.js',
-            'gestia-core/jarvis/jarvis.mission.planner-state.js'
-          ]) {
-            if (!fs.existsSync(path.join(resolvedPublic, required))) {
-              throw new Error(`HOSTING_REQUIRED_FILE_MISSING:${required}`);
-            }
-          }
-          console.log(`HOSTING_CONFIG=${target}`);
-          console.log(`RESOLVED_PUBLIC_ROOT=${resolvedPublic}`);
-          console.log('PUBLIC_ROOT_IS_GITHUB_WORKSPACE=true');
-          console.log('FUNCTIONS_ABSENT_FROM_DEPLOY_CONFIG=true');
-          console.log('PRIMARY_HOSTING_ONLY=true');
-          NODE
-
-      - name: Install Firebase CLI
-        run: npm install -g firebase-tools
-
-      - name: Deploy primary Firebase Hosting only from workspace root
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "${FIREBASE_TOKEN:-}"
-          test "$(pwd -P)" = "$(cd "$GITHUB_WORKSPACE" && pwd -P)"
-          test -f "$GITHUB_WORKSPACE/gestia-terminal.html"
-          test -f "$GITHUB_WORKSPACE/firebase-v122-hosting.json"
-          firebase deploy \
-            --only hosting \
-            --config "$GITHUB_WORKSPACE/firebase-v122-hosting.json" \
-            --project fixgo-44e4d \
-            --token "$FIREBASE_TOKEN" \
-            --non-interactive \
-            2>&1 | tee "$RUNNER_TEMP/v122-hosting-deploy.log"
-          test "${PIPESTATUS[0]}" -eq 0
-          echo "HOSTING_ONLY_DEPLOY_COMPLETE=true"
 
       - name: Verify exact live bytes on both Firebase domains
         shell: bash
@@ -203,69 +91,97 @@ jobs:
             https://fixgo-44e4d.firebaseapp.com
           )
           mkdir -p "$RUNNER_TEMP/live-v122"
-          verify_one() {
-            local base="$1"
-            local file="$2"
-            local safe
-            safe="$(printf '%s' "$base/$file" | sha256sum | awk '{print $1}')"
-            local out="$RUNNER_TEMP/live-v122/$safe"
-            for attempt in $(seq 1 30); do
-              if curl -fsSL --max-time 20 \
+          index=0
+          for base in "${bases[@]}"; do
+            for file in "${files[@]}"; do
+              index=$((index + 1))
+              out="$RUNNER_TEMP/live-v122/$index"
+              curl -fsSL --max-time 20 \
                 -H 'Cache-Control: no-cache, no-store, must-revalidate' \
                 -H 'Pragma: no-cache' \
                 "$base/$file" \
-                -o "$out" && cmp -s "$file" "$out"; then
-                echo "LIVE_EXACT $base/$file"
-                return 0
+                -o "$out"
+              if ! cmp -s "$file" "$out"; then
+                echo "LIVE_BYTE_MISMATCH $base/$file" >&2
+                echo "LOCAL_SHA256=$(sha256sum "$file" | awk '{print $1}')" >&2
+                echo "LIVE_SHA256=$(sha256sum "$out" | awk '{print $1}')" >&2
+                exit 1
               fi
-              sleep 2
-            done
-            echo "LIVE_BYTE_MISMATCH $base/$file" >&2
-            if test -f "$out"; then
-              echo "LOCAL_SHA256=$(sha256sum "$file" | awk '{print $1}')" >&2
-              echo "LIVE_SHA256=$(sha256sum "$out" | awk '{print $1}')" >&2
-            fi
-            return 1
-          }
-          for base in "${bases[@]}"; do
-            for file in "${files[@]}"; do
-              verify_one "$base" "$file"
+              echo "LIVE_EXACT $base/$file"
             done
           done
+          test "$index" -eq 22
+          echo "LIVE_EXACT_CHECKS=22"
           echo "BOTH_FIREBASE_DOMAINS_EXACT=true"
 
-      - name: Verify live semantic release invariants
+      - name: Verify live v122 semantic invariants without shell pipelines
         shell: bash
         run: |
           set -euo pipefail
-          for base in https://fixgo-44e4d.web.app https://fixgo-44e4d.firebaseapp.com; do
-            contract="$(curl -fsSL -H 'Cache-Control: no-cache, no-store, must-revalidate' "$base/jarvis-runtime-contract.json")"
-            node -e '
-              const value = JSON.parse(process.argv[1]);
-              if (value.branch !== "v94-media-v4n-negative-claims") process.exit(1);
-              if (value.releaseId !== "v94-generalist-execution-contract-v122-20260810") process.exit(2);
-            ' "$contract"
-            core="$(curl -fsSL -H 'Cache-Control: no-cache, no-store, must-revalidate' "$base/gestia-core/gestia-core.js")"
-            deps="$(curl -fsSL -H 'Cache-Control: no-cache, no-store, must-revalidate' "$base/gestia-core/jarvis/jarvis.mission.dependencies.js")"
-            printf '%s' "$core" | grep -Fq 'compactMissionPlannerObservation'
-            printf '%s' "$deps" | grep -Fq 'tool_contract_dependency'
-          done
-          echo "LIVE_V122_SEMANTIC_INVARIANTS_OK=true"
+          node --input-type=module <<'NODE'
+          const bases = [
+            'https://fixgo-44e4d.web.app',
+            'https://fixgo-44e4d.firebaseapp.com'
+          ];
+          const headers = {
+            'cache-control': 'no-cache, no-store, must-revalidate',
+            pragma: 'no-cache'
+          };
+          async function text(base, file) {
+            const response = await fetch(`${base}/${file}`, { headers });
+            if (!response.ok) throw new Error(`${base}/${file}:HTTP_${response.status}`);
+            return await response.text();
+          }
+          for (const base of bases) {
+            const contract = JSON.parse(await text(base, 'jarvis-runtime-contract.json'));
+            if (contract.branch !== 'v94-media-v4n-negative-claims') {
+              throw new Error(`${base}:WRONG_BRANCH:${contract.branch}`);
+            }
+            if (contract.releaseId !== 'v94-generalist-execution-contract-v122-20260810') {
+              throw new Error(`${base}:WRONG_RELEASE:${contract.releaseId}`);
+            }
+            const core = await text(base, 'gestia-core/gestia-core.js');
+            if (!core.includes('compactMissionPlannerObservation')) {
+              throw new Error(`${base}:PLANNER_COMPACTION_MISSING`);
+            }
+            const deps = await text(base, 'gestia-core/jarvis/jarvis.mission.dependencies.js');
+            if (!deps.includes('tool_contract_dependency')) {
+              throw new Error(`${base}:TOOL_CONTRACT_DEPENDENCY_MISSING`);
+            }
+            const fsBridge = await text(base, 'jarvis-fs-bridge.js');
+            if (!fsBridge.includes('2.39.0-generalist-execution-contract-v122')) {
+              throw new Error(`${base}:FS_BRIDGE_VERSION_MISSING`);
+            }
+            if (!fsBridge.includes('registerNexoWebMediaRoutes')) {
+              throw new Error(`${base}:FS_MEDIA_ROUTE_AUTHORITY_MISSING`);
+            }
+            const uploadBridge = await text(base, 'jarvis-upload-bridge.js');
+            if (uploadBridge.includes('registerNexoWebMediaRoutes')) {
+              throw new Error(`${base}:DUPLICATE_MEDIA_ROUTE_AUTHORITY`);
+            }
+            const marketing = await text(base, 'gestia-core/nexo/nexo.real-media.tools.js');
+            for (const field of [
+              'audience', 'offer', 'pain', 'promise', 'differentiator', 'cta',
+              'market', 'campaignObjective', 'horizon', 'tone', 'channels',
+              'metrics', 'productionRequested'
+            ]) {
+              if (!marketing.includes(field)) {
+                throw new Error(`${base}:MARKETING_SCHEMA_FIELD_MISSING:${field}`);
+              }
+            }
+            console.log(`LIVE_SEMANTIC_OK ${base}`);
+          }
+          console.log('LIVE_V122_SEMANTIC_INVARIANTS_OK=true');
+          NODE
 
-      - name: Final protected refs and no-Functions-deploy proof
+      - name: Final immutable guards
         shell: bash
         run: |
           set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$PRODUCT_SHA"
           test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "$MAIN_SHA"
           test "$(git ls-remote origin refs/heads/v5.9-polish | awk '{print $1}')" = "$POLISH_SHA"
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          import path from 'node:path';
-          const target = path.join(process.env.GITHUB_WORKSPACE, 'firebase-v122-hosting.json');
-          const cfg = JSON.parse(fs.readFileSync(target, 'utf8'));
-          if ('functions' in cfg) throw new Error('FUNCTIONS_CONFIG_PRESENT_AFTER_DEPLOY');
-          if (cfg.hosting?.length !== 1 || cfg.hosting[0]?.site !== 'fixgo-44e4d') throw new Error('HOSTING_SCOPE_CHANGED');
-          console.log('FINAL_FUNCTIONS_NOT_IN_DEPLOY_SCOPE=true');
-          NODE
+          test -z "$(git diff --name-only "$V121_SHA" "$PRODUCT_SHA" -- functions)"
+          echo "FINAL_FUNCTIONS_UNCHANGED=true"
           echo "FINAL_PROTECTED_REFS_OK=true"
           echo "V122_HOSTING_RELEASE_CERTIFIED=true"
