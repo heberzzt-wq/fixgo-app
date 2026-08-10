@@ -91,8 +91,24 @@ jobs:
           rm -f .github/v116-focused-failure.log
           echo "V116_FOCUSED_GREEN"
 
-      - name: Full CI
-        run: npm run ci:test
+      - name: Full CI with exact failure capture
+        shell: bash
+        run: |
+          set +e
+          npm run ci:test > /tmp/v116-ci.log 2>&1
+          code=$?
+          cat /tmp/v116-ci.log
+          if [ "$code" -ne 0 ]; then
+            cp /tmp/v116-ci.log .github/v116-ci-failure.log
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .github/v116-ci-failure.log
+            git commit -m "[v94] diag: capture v116 full CI failure"
+            git push origin HEAD:v94-media-v4n-negative-claims
+            exit "$code"
+          fi
+          rm -f .github/v116-ci-failure.log
+          echo "V116_FULL_CI_GREEN"
 
       - name: Final precommit guards
         shell: bash
@@ -114,6 +130,7 @@ jobs:
           git rm -f scripts/v116-runtime-health-patch.mjs
           git rm -f scripts/v116-refresh-v115-cache-regression.mjs
           git rm -f .github/v116-focused-failure.log 2>/dev/null || true
+          git rm -f .github/v116-ci-failure.log 2>/dev/null || true
           git add modules/terminal/runtime-repair-health.js modules/terminal/runtime-persistence.js gestia-terminal.js gestia-terminal.html gestia-core/gestia.runtime.v7.js tests/jarvis-runtime-health-truth-v116.test.mjs tests/jarvis-page-browser-fallback-v115.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs
           git commit -m "[v94] fix(adj): make runtime health evidence-based and quiet v116"
           product_sha="$(git rev-parse HEAD)"
