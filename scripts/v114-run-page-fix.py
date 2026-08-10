@@ -1,5 +1,6 @@
 from pathlib import Path
 
+# v114 gate trigger: route integration now supplies a temporary coherent branch identity.
 source_path = Path("scripts/v114-peninsula-page-fix.py")
 source = source_path.read_text(encoding="utf-8")
 label = '    "PAGE_ROUTE_DIGEST"\n)'
