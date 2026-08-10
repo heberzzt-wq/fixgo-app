@@ -91,11 +91,11 @@ test("new page subject remains current-turn authoritative after an older Jarvis 
 test("tool-planning receives only memory availability while mission memory stays advisory", () => {
     const core = fs.readFileSync(new URL("../gestia-core/gestia-core.js", import.meta.url), "utf8");
     assert.doesNotMatch(core, /phase:\s*"CURRENT_TURN"[\s\S]{0,220}semanticMemory\s*,/);
-    assert.doesNotMatch(core, /semanticMemory:\s*semanticMemoryContext/);
+    assert.doesNotMatch(core, /semanticMemory\s*:\s*semanticMemoryContext/);
     assert.match(core, /semanticMemoryAvailable:\s*Boolean\(semanticMemory\)/);
     assert.equal(
         (core.match(/semanticMemoryAvailable:\s*Boolean\(semanticMemoryContext\)/g) || []).length,
-        2
+        4
     );
     assert.match(core, /memoryContext:\s*semanticMemoryContext/);
 });
