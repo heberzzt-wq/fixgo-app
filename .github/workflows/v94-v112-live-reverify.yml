@@ -1,0 +1,131 @@
+name: V94 v112 live propagation reverify
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-v112-live-reverify.yml
+
+permissions:
+  contents: write
+
+jobs:
+  reverify-cleanup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Assert certified product lineage and Functions boundary
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor 13cb877ef49fbd2ef19bc2a5da42887b5836e16a HEAD
+          test -z "$(git diff --name-only 13cb877ef49fbd2ef19bc2a5da42887b5836e16a HEAD -- functions)"
+          test -z "$(git status --porcelain -- functions)"
+
+      - name: Reverify propagated live bytes with retries
+        run: |
+          set -euo pipefail
+          paths=(
+            gestia-terminal.html
+            gestia-core/gestia-core.js
+            gestia-core/response.composer.js
+            gestia-core/tools.runtime.js
+            gestia-core/tools.bridge.js
+            gestia-core/jarvis/jarvis.actuator.pack.js
+            gestia-core/jarvis/jarvis.marketing.engine.js
+            gestia-core/jarvis/jarvis.marketing.presenter.js
+            gestia-core/jarvis/jarvis.semantic.memory.js
+            gestia-core/jarvis/jarvis.mission.orchestrator.js
+            gestia-core/jarvis.kernel.js
+            jarvis-fs-bridge.js
+          )
+
+          : > /tmp/live-sha-report.txt
+          for path in "${paths[@]}"; do
+            local_sha="$(sha256sum "$path" | awk '{print $1}')"
+            matched=false
+            for attempt in $(seq 1 12); do
+              live="/tmp/live-$(echo "$path" | tr '/' '_')"
+              curl -fsSL --retry 2 --retry-delay 1 \
+                "https://fixgo-44e4d.web.app/$path?cert=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${attempt}" \
+                -o "$live"
+              live_sha="$(sha256sum "$live" | awk '{print $1}')"
+              printf '%s attempt=%s local=%s live=%s\n' "$path" "$attempt" "$local_sha" "$live_sha" | tee -a /tmp/live-sha-report.txt
+              if [ "$local_sha" = "$live_sha" ] && cmp -s "$path" "$live"; then
+                matched=true
+                break
+              fi
+              if [ "$attempt" -eq 1 ]; then
+                printf '%s\n' "--- first textual diff for $path ---" | tee -a /tmp/live-sha-report.txt
+                diff -u "$path" "$live" | head -n 80 | tee -a /tmp/live-sha-report.txt || true
+              fi
+              sleep 2
+            done
+            if [ "$matched" != true ]; then
+              echo "LIVE_BYTE_MISMATCH:$path" | tee -a /tmp/live-sha-report.txt
+              exit 1
+            fi
+          done
+
+          cat /tmp/live-sha-report.txt
+
+      - name: Verify live v112 behavior markers
+        run: |
+          set -euo pipefail
+          html=/tmp/live-gestia-terminal.html
+          core=/tmp/live-gestia-core_gestia-core.js
+          composer=/tmp/live-gestia-core_response.composer.js
+          runtime=/tmp/live-gestia-core_tools.runtime.js
+          actuator=/tmp/live-gestia-core_jarvis_jarvis.actuator.pack.js
+          kernel=/tmp/live-gestia-core_jarvis.kernel.js
+
+          grep -q 'v94-repo-marketing-integrity-v112-20260809' "$html"
+          grep -q 'MARKETING_PLAN_DEPENDENCY_UNSATISFIED' "$core"
+          grep -q 'REPO_AUDIT_EMPTY_EVIDENCE' "$composer"
+          grep -q 'MARKETING_DOCUMENT_SOURCE_UNAVAILABLE' "$actuator"
+          grep -q 'live_repo_ast_graph' "$runtime"
+          grep -q 'REPOSITORY_REFERENCE_ANALYZED' "$runtime"
+          ! grep -q 'jarvis.context.memory.v6.js' "$html"
+          ! grep -q 'from "./hubs/analysis.hub.js"' "$kernel"
+          test -z "$(git status --porcelain -- functions)"
+
+      - name: Cleanup temporary V94 workflows and seal branch
+        run: |
+          set -euo pipefail
+          git config user.name "heberzzt-wq"
+          git config user.email "heberzzt@gmail.com"
+          PRODUCT_HEAD=13cb877ef49fbd2ef19bc2a5da42887b5836e16a
+          git rm -f --ignore-unmatch \
+            .github/workflows/v94-v112-live-reverify.yml \
+            .github/workflows/v94-v112-hosting-final.yml \
+            .github/workflows/v94-v112-finalize.yml \
+            .github/workflows/v94-v112-full-ci-diagnostic.yml \
+            .github/workflows/v94-repo-marketing-integrity-v112.yml \
+            .github/workflows/v94-full-ci-failure-extract.yml \
+            .github/workflows/v94-full-ci-legacy-contract-fix.yml \
+            .github/workflows/v94-semantic-memory-integrity-certify.yml
+          git add -A
+          test -z "$(git diff --cached --name-only -- functions)"
+          if ! git diff --cached --quiet; then
+            git commit -m "[v94] chore: close v112 certification workflows"
+            git push origin HEAD:v94-media-v4n-negative-claims
+          fi
+          FINAL_HEAD="$(git rev-parse HEAD)"
+          NON_WORKFLOW_CHANGES="$(git diff --name-only "$PRODUCT_HEAD" "$FINAL_HEAD" | grep -v '^\.github/workflows/' || true)"
+          test -z "$NON_WORKFLOW_CHANGES"
+          echo "PRODUCT_HEAD=$PRODUCT_HEAD"
+          echo "FINAL_HEAD=$FINAL_HEAD"
+          test -z "$(git status --porcelain -- functions)"
+
+      - name: Upload live SHA report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v94-v112-live-sha-report
+          path: /tmp/live-sha-report.txt
+          retention-days: 3
