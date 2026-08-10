@@ -77,19 +77,34 @@ jobs:
         shell: bash
         run: |
           set +e
-          node --check gestia-terminal.js
+          : > /tmp/v117-focused.log
+
+          echo '=== node --check gestia-terminal.js ===' >> /tmp/v117-focused.log
+          node --check gestia-terminal.js >> /tmp/v117-focused.log 2>&1
           syntax_code=$?
-          node --check gestia-core/jarvis/jarvis.multitool.pack.js
+
+          echo '=== node --check jarvis.multitool.pack.js ===' >> /tmp/v117-focused.log
+          node --check gestia-core/jarvis/jarvis.multitool.pack.js >> /tmp/v117-focused.log 2>&1
           multi_syntax_code=$?
-          node --test tests/jarvis-secure-session-v117.test.mjs tests/jarvis-runtime-health-truth-v116.test.mjs tests/jarvis-page-browser-fallback-v115.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/repo-authority-v2.test.cjs > /tmp/v117-focused.log 2>&1
+
+          echo '=== node --test v117 focused ===' >> /tmp/v117-focused.log
+          node --test tests/jarvis-secure-session-v117.test.mjs tests/jarvis-runtime-health-truth-v116.test.mjs tests/jarvis-page-browser-fallback-v115.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/repo-authority-v2.test.cjs >> /tmp/v117-focused.log 2>&1
           test_code=$?
+
+          {
+            echo "=== exit codes ==="
+            echo "syntax_code=$syntax_code"
+            echo "multi_syntax_code=$multi_syntax_code"
+            echo "test_code=$test_code"
+          } >> /tmp/v117-focused.log
+
           cat /tmp/v117-focused.log
           if [ "$syntax_code" -ne 0 ] || [ "$multi_syntax_code" -ne 0 ] || [ "$test_code" -ne 0 ]; then
             cp /tmp/v117-focused.log .github/v117-focused-failure.log
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add .github/v117-focused-failure.log
-            git commit -m "[v94] diag: capture v117 focused failure"
+            git commit -m "[v94] diag: capture complete v117 focal failure"
             git push origin HEAD:v94-media-v4n-negative-claims
             exit 1
           fi
