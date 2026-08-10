@@ -1,0 +1,202 @@
+name: V94 live human reds v113 fix v4
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-live-human-reds-v113-fix-v4.yml
+
+permissions:
+  contents: write
+
+jobs:
+  certify-fix-deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Assert isolated branch and Functions boundary
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-media-v4n-negative-claims"
+          git merge-base --is-ancestor 13cb877ef49fbd2ef19bc2a5da42887b5836e16a HEAD
+          test -z "$(git diff --name-only 13cb877ef49fbd2ef19bc2a5da42887b5836e16a HEAD -- functions)"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          npm ci
+          npm --prefix functions ci
+          test -z "$(git status --porcelain -- functions)"
+
+      - name: Apply v113 product repair and align historical identities
+        run: |
+          set -euo pipefail
+          python scripts/v113-live-human-reds-fix.py
+          python - <<'PY'
+          from pathlib import Path
+          replacements = [
+              ('tests/jarvis-marketing-terminal-delivery.e2e.test.mjs','v94-repo-marketing-integrity-v112-20260809','v94-live-human-reds-v113-20260809',2),
+              ('tests/jarvis-reel-artifact.test.mjs','assert.match(actuator, /REEL_STUDIO_CREATED_VERIFIED/);','assert.match(actuator, /REEL_VIDEO_CREATED_VERIFIED/);\n    assert.match(bridge, /exportReelWebmWithChrome/);\n    assert.match(bridge, /REEL_WEBM_SHA256_MISMATCH/);',1),
+              ('tests/jarvis-fs-bridge-v2.test.mjs','assert.equal(description.version, "2.36.0-structural-repo-targets");','assert.equal(description.version, "2.37.0-verified-reel-webm");',1),
+              ('tests/jarvis-multifunction-tools.test.mjs','v94-repo-marketing-integrity-v112-20260809','v94-live-human-reds-v113-20260809',5),
+              ('tests/jarvis-semantic-memory-integrity.test.mjs','assert.match(html, /v94-semantic-memory-repo-v111-20260809/);','assert.match(html, /v94-live-human-reds-v113-20260809/);',1),
+          ]
+          for file, old, new, expected in replacements:
+              p=Path(file); s=p.read_text(encoding='utf-8'); count=s.count(old)
+              if count != expected:
+                  raise SystemExit(f'{file}: expected {expected} occurrences of {old!r}, got {count}')
+              p.write_text(s.replace(old,new),encoding='utf-8')
+          PY
+          ! grep -R -n 'v94-repo-marketing-integrity-v112-20260809' \
+            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs \
+            tests/jarvis-multifunction-tools.test.mjs
+          node --check gestia-core/gestia-core.js
+          node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
+          node --check gestia-core/jarvis/jarvis.reel.presenter.js
+          node --check gestia-core/jarvis/jarvis.multitool.pack.js
+          node --check gestia-core/jarvis/jarvis.actuator.pack.js
+          node --check jarvis-reel-artifact.js
+          node --check jarvis-fs-bridge.js
+          test -z "$(git diff --name-only -- functions)"
+
+      - name: Focused human regressions plus formerly stale gates
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/jarvis-live-human-reds-v113.test.mjs \
+            tests/response-composer-semantic-contract.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs \
+            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs \
+            tests/jarvis-actuator-pack.test.mjs \
+            tests/jarvis-reel-artifact.test.mjs \
+            tests/jarvis-fs-bridge-v2.test.mjs \
+            tests/jarvis-multifunction-tools.test.mjs \
+            tests/jarvis-semantic-memory-integrity.test.mjs \
+            tests/repo-authority-v2.test.cjs
+          test -z "$(git diff --name-only -- functions)"
+
+      - name: Real 30-second WebM integration
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
+          import { buildReelStudioHtml } from './jarvis-reel-artifact.js';
+          import { exportReelWebmWithChrome } from './jarvis-fs-bridge.js';
+          const input={brandName:'Multiservicios Peninsulares HMH',title:'Mantenimiento que se nota',cta:'Solicita atención',durationSeconds:30,scenes:[
+            {durationSeconds:10,overlay:'Detecta antes',subtitle:'Mantenimiento preventivo',visualDescription:'Inspección técnica'},
+            {durationSeconds:10,overlay:'Resuelve a tiempo',subtitle:'Atención especializada',visualDescription:'Trabajo técnico'},
+            {durationSeconds:10,overlay:'Mantén tu espacio',subtitle:'Soluciones integrales',visualDescription:'Resultado final'}]};
+          const studio=path.join(os.tmpdir(),'v113-reel-studio.html'); fs.writeFileSync(studio,buildReelStudioHtml(input),'utf8');
+          const result=await exportReelWebmWithChrome({studioPath:studio,output:'.jarvis-artifacts/reels/v113-human-regression.webm',durationSeconds:30,root:process.cwd()});
+          console.log(JSON.stringify(result,null,2));
+          if(!result.ok||result.status!=='REEL_VIDEO_CREATED_VERIFIED'||!result.output.endsWith('.webm')||Number(result.bytes||0)<1000||!/^[a-f0-9]{64}$/.test(String(result.sha256||''))||!fs.existsSync(result.output)) process.exit(1);
+          NODE
+          file .jarvis-artifacts/reels/v113-human-regression.webm
+          sha256sum .jarvis-artifacts/reels/v113-human-regression.webm
+          rm -f .jarvis-artifacts/reels/v113-human-regression.webm .jarvis-artifacts/manifest.json
+          git checkout -- .jarvis-artifacts 2>/dev/null || true
+          test -z "$(git status --porcelain -- functions)"
+
+      - name: Full CI
+        run: |
+          set -euo pipefail
+          npm run ci:test
+          test -z "$(git status --porcelain -- functions)"
+
+      - name: Certify v113 invariants
+        run: |
+          set -euo pipefail
+          grep -q 'coreResult?.finalResponse' gestia-terminal.html
+          ! grep -q 'reformula el objetivo tecnico para reentrar por GestiaCore' gestia-terminal.html
+          grep -q 'TERMINAL_CORE_RESPONSE_NOT_PRESENTED' gestia-terminal.html
+          grep -q 'reelArtifactArgsFromCompletedTasks' gestia-core/gestia-core.js
+          grep -q 'REEL_PLAN_READY' gestia-core/jarvis/jarvis.mission.orchestrator.js
+          grep -q 'resolveMarketingMissionProductionScope' gestia-core/jarvis/jarvis.multitool.pack.js
+          grep -q '__JARVIS_LAST_REEL_BLOB__' jarvis-reel-artifact.js
+          grep -q 'exportReelWebmWithChrome' jarvis-fs-bridge.js
+          grep -q 'REEL_VIDEO_CREATED_VERIFIED' jarvis-fs-bridge.js
+          grep -q 'REEL_WEBM_SHA256_MISMATCH' jarvis-fs-bridge.js
+          ! grep -q 'videoExportStatus: "REQUIRES_BROWSER_EXPORT"' jarvis-fs-bridge.js
+          test -z "$(git diff --name-only -- functions)"
+
+      - name: Commit certified v113 product
+        run: |
+          set -euo pipefail
+          git config user.name "heberzzt-wq"
+          git config user.email "heberzzt@gmail.com"
+          git rm -f scripts/v113-live-human-reds-fix.py
+          git add gestia-terminal.html gestia-core/gestia-core.js gestia-core/jarvis/jarvis.mission.orchestrator.js gestia-core/jarvis/jarvis.reel.presenter.js gestia-core/jarvis/jarvis.multitool.pack.js gestia-core/jarvis/jarvis.actuator.pack.js jarvis-reel-artifact.js jarvis-fs-bridge.js tests/jarvis-live-human-reds-v113.test.mjs tests/jarvis-marketing-terminal-delivery.e2e.test.mjs tests/jarvis-reel-artifact.test.mjs tests/jarvis-fs-bridge-v2.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs
+          test -z "$(git diff --cached --name-only -- functions)"
+          git commit -m "[v94] fix(adj): deliver repo results and verified reel video"
+          git push origin HEAD:v94-media-v4n-negative-claims
+          echo "PRODUCT_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Authorize isolated Hosting-only product SHA
+        env:
+          JARVIS_CI_PASSED: "true"
+          JARVIS_FIREBASE_PROJECT: fixgo-44e4d
+          JARVIS_HOSTING_ONLY: "true"
+        run: |
+          set -euo pipefail
+          GITHUB_SHA="$PRODUCT_SHA" node scripts/jarvis-deploy-gate.mjs
+          test -z "$(git diff --name-only 13cb877ef49fbd2ef19bc2a5da42887b5836e16a "$PRODUCT_SHA" -- functions)"
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Hosting only
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy --only hosting --project fixgo-44e4d --token "$FIREBASE_TOKEN"
+
+      - name: Verify propagated live v113 bytes
+        run: |
+          set -euo pipefail
+          paths=(gestia-terminal.html gestia-core/gestia-core.js gestia-core/jarvis/jarvis.mission.orchestrator.js gestia-core/jarvis/jarvis.reel.presenter.js gestia-core/jarvis/jarvis.multitool.pack.js gestia-core/jarvis/jarvis.actuator.pack.js jarvis-reel-artifact.js jarvis-fs-bridge.js)
+          for path in "${paths[@]}"; do
+            live="/tmp/live-$(echo "$path" | tr '/' '_')"; matched=false
+            for attempt in $(seq 1 10); do
+              curl -fsSL "https://fixgo-44e4d.web.app/$path?v=v113-${GITHUB_RUN_ID}-${attempt}" -o "$live"
+              local_sha="$(sha256sum "$path"|awk '{print $1}')"; live_sha="$(sha256sum "$live"|awk '{print $1}')"
+              echo "$path attempt=$attempt local=$local_sha live=$live_sha"
+              if [ "$local_sha" = "$live_sha" ] && cmp -s "$path" "$live"; then matched=true; break; fi
+              sleep 2
+            done
+            test "$matched" = true
+          done
+          grep -q 'v94-live-human-reds-v113-20260809' /tmp/live-gestia-terminal.html
+          grep -q 'reelArtifactArgsFromCompletedTasks' /tmp/live-gestia-core_gestia-core.js
+          grep -q 'REEL_VIDEO_CREATED_VERIFIED' /tmp/live-jarvis-fs-bridge.js
+          test -z "$(git diff --name-only 13cb877ef49fbd2ef19bc2a5da42887b5836e16a "$PRODUCT_SHA" -- functions)"
+
+      - name: Cleanup temporary v113 workflows
+        run: |
+          set -euo pipefail
+          git rm -f --ignore-unmatch \
+            .github/workflows/v94-live-human-reds-v113-diagnostic.yml \
+            .github/workflows/v94-reel-webm-headless-probe-v113.yml \
+            .github/workflows/v94-reel-webm-cdp-probe-v113.yml \
+            .github/workflows/v94-live-human-reds-v113-fix.yml \
+            .github/workflows/v94-v113-focused-failure-diagnostic.yml \
+            .github/workflows/v94-v113-full-ci-failure-diagnostic.yml \
+            .github/workflows/v94-live-human-reds-v113-fix-v2.yml \
+            .github/workflows/v94-live-human-reds-v113-fix-v3.yml \
+            .github/workflows/v94-live-human-reds-v113-fix-v4.yml
+          git add -A
+          test -z "$(git diff --cached --name-only -- functions)"
+          git commit -m "[v94] chore: close v113 live human certification"
+          git push origin HEAD:v94-media-v4n-negative-claims
