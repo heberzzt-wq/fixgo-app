@@ -1,0 +1,162 @@
+name: V94 page request contract v118
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-page-request-contract-v118.yml
+
+permissions:
+  contents: write
+
+jobs:
+  certify:
+    if: ${{ !contains(github.event.head_commit.message, 'remove v118 certification workflow') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Assert isolated branch and Functions boundary
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-media-v4n-negative-claims"
+          BASELINE=32363618f727dc1062d6a218101dfa9918851ca5
+          git merge-base --is-ancestor "$BASELINE" HEAD
+          test -z "$(git diff --name-only "$BASELINE" HEAD -- functions)"
+          test -f scripts/v118-page-contract-fix.py
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          npm ci
+          npm --prefix functions ci
+          test -z "$(git status --porcelain -- functions)"
+
+      - name: Apply v118 page request contract
+        run: |
+          set -euo pipefail
+          python scripts/v118-page-contract-fix.py
+          node --check jarvis-page-artifact.js
+          node --check gestia-core/jarvis/jarvis.multitool.pack.js
+          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          node --check gestia-core/jarvis/jarvis.actuator.pack.js
+          node --check gestia-core/tools.runtime.js
+          node --check gestia-core/gestia-core.js
+          node --check tests/jarvis-page-request-contract-v118.test.mjs
+          test -z "$(git diff --name-only -- functions)"
+
+      - name: Focused v118 regression
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/jarvis-page-request-contract-v118.test.mjs \
+            tests/jarvis-page-artifact.test.mjs \
+            tests/jarvis-page-browser-fallback-v115.test.mjs \
+            tests/jarvis-peninsula-page-v114.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs \
+            tests/jarvis-generalist-current-turn.test.mjs \
+            tests/jarvis-conversation-composer.test.mjs \
+            tests/jarvis-live-human-reds-v113.test.mjs \
+            tests/jarvis-semantic-memory-integrity.test.mjs
+          test -z "$(git diff --name-only -- functions)"
+
+      - name: Physical Jarvis V7 HTML contract probe
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import { buildPageArtifactHtml, describePageArtifact } from './jarvis-page-artifact.js';
+          const requiredSections = ['Introducción','Cómo funciona','Beneficios','Herramientas disponibles','Casos de uso','Contacto'];
+          const input = {
+            brandName: 'Jarvis V7',
+            title: 'Jarvis V7: La Nueva Generación de Asistencia Inteligente',
+            description: 'Jarvis V7 presenta capacidades inteligentes mediante una experiencia premium, mobile-first y accesible.',
+            services: [
+              { title: 'Asistencia personalizada', description: 'Coordina solicitudes y contexto de forma clara.' },
+              { title: 'Artefactos verificables', description: 'Produce entregables verificables cuando la misión lo requiere.' }
+            ],
+            requiredSections,
+            contentSections: requiredSections.map((title, index) => ({
+              title,
+              description: `Contenido específico para ${title}, bloque ${index + 1}.`,
+              items: [{ title: `Detalle ${index + 1}`, description: `Descripción concreta de ${title}.` }]
+            })),
+            whatsappRequested: true
+          };
+          const html = buildPageArtifactHtml(input);
+          const report = describePageArtifact(input, html);
+          if (!report.ok || !report.checks.requestedSections) throw new Error(JSON.stringify(report));
+          fs.writeFileSync('/tmp/jarvis-v7-v118.html', html);
+          fs.writeFileSync('/tmp/jarvis-v7-v118-report.json', JSON.stringify(report, null, 2));
+          NODE
+          test -s /tmp/jarvis-v7-v118.html
+          for id in introduccion como-funciona beneficios herramientas-disponibles casos-de-uso contacto; do
+            grep -q "data-requested-section=\"$id\"" /tmp/jarvis-v7-v118.html
+          done
+          grep -q 'https://wa.me/?text=' /tmp/jarvis-v7-v118.html
+          sha256sum /tmp/jarvis-v7-v118.html
+          cat /tmp/jarvis-v7-v118-report.json
+
+      - name: Full CI
+        run: |
+          set -euo pipefail
+          npm run ci:test
+          test -z "$(git status --porcelain -- functions)"
+
+      - name: Certify v118 invariants
+        run: |
+          set -euo pipefail
+          grep -q 'requestedSections: requestedSectionsSatisfied' jarvis-page-artifact.js
+          grep -q 'data-requested-section' jarvis-page-artifact.js
+          grep -q 'PAGE_REQUESTED_SECTION_COVERAGE_INCOMPLETE' gestia-core/jarvis/jarvis.multitool.pack.js
+          grep -q 'missionDedupeBy: \["pageName"\]' gestia-core/jarvis/jarvis.multitool.pack.js
+          grep -q 'copia en args.sections cada sección de contenido pedida explícitamente' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -q 'requiredSections: "array", contentSections: "array"' gestia-core/jarvis/jarvis.actuator.pack.js
+          grep -q 'v94-page-request-contract-v118-20260810' gestia-core/tools.runtime.js
+          grep -q 'v94-page-request-contract-v118-20260810' gestia-core/gestia-core.js
+          test -z "$(git diff --name-only 32363618f727dc1062d6a218101dfa9918851ca5 HEAD -- functions)"
+
+      - name: Commit certified v118 product
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f scripts/v118-page-contract-fix.py
+          git add \
+            jarvis-page-artifact.js \
+            gestia-core/jarvis/jarvis.multitool.pack.js \
+            gestia-core/jarvis/jarvis.multifunction.planner.js \
+            gestia-core/jarvis/jarvis.actuator.pack.js \
+            gestia-core/tools.runtime.js \
+            gestia-core/gestia-core.js \
+            tests/jarvis-page-request-contract-v118.test.mjs
+          test -z "$(git diff --cached --name-only -- functions)"
+          git commit -m "[v94] fix(adj): verify every requested page section"
+          git push origin HEAD:v94-media-v4n-negative-claims
+          echo "PRODUCT_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Prove product commit and no deployment boundary
+        run: |
+          set -euo pipefail
+          test -n "$PRODUCT_SHA"
+          test -z "$(git diff --name-only 32363618f727dc1062d6a218101dfa9918851ca5 "$PRODUCT_SHA" -- functions)"
+          git show --stat --oneline "$PRODUCT_SHA"
+          echo "V118_CERTIFIED_NO_HOSTING_DEPLOY=1"
+          echo "V118_CERTIFIED_NO_FUNCTIONS_DEPLOY=1"
+
+      - name: Remove temporary certification workflow
+        run: |
+          set -euo pipefail
+          git rm -f .github/workflows/v94-page-request-contract-v118.yml
+          git commit -m "[v94] chore: remove v118 certification workflow"
+          git push origin HEAD:v94-media-v4n-negative-claims
