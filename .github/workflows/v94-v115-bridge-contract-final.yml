@@ -1,0 +1,314 @@
+name: V94 v115 bridge contract final
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-v115-bridge-contract-final.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v94-v115-bridge-contract-final
+  cancel-in-progress: false
+
+env:
+  SEMANTIC_BASE: e6bec05b93b8f1ad88f44d5665ee2547c468dcec
+  RELEASE_TOKEN: v94-page-browser-fallback-v115-20260809
+  EXPECTED_MAIN: f3fa8e1806b681e860875afd4ce8183d27864873
+  EXPECTED_POLISH: 2ae85e670505c5d425a5a0334e99c45168054bb8
+
+jobs:
+  close-certify-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Guard branch protected refs and Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-media-v4n-negative-claims"
+          git fetch origin main v5.9-polish --quiet
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN"
+          test "$(git rev-parse origin/v5.9-polish)" = "$EXPECTED_POLISH"
+          git cat-file -e "$SEMANTIC_BASE^{commit}"
+          git diff --quiet "$SEMANTIC_BASE" -- functions
+          echo "Branch/protected refs/Functions guard OK"
+
+      - name: Apply certified v115 patch plus bridge string contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          workflow = Path('.github/workflows/v94-page-browser-fallback-v115.yml')
+          src = workflow.read_text(encoding='utf-8')
+          marker = "          cat > /tmp/v115_patch.py <<'PY'\n"
+          start = src.index(marker) + len(marker)
+          end = src.index("\n          PY\n", start)
+          Path('/tmp/v115_patch.py').write_text(textwrap.dedent(src[start:end]), encoding='utf-8')
+          PY
+          python /tmp/v115_patch.py
+
+          python - <<'PY'
+          from pathlib import Path
+
+          release='v94-page-browser-fallback-v115-20260809'
+          old_tokens=('v94-live-human-reds-v113-20260809','v94-peninsula-page-v114-20260809')
+          for p in Path('tests').glob('*.mjs'):
+              s=p.read_text(encoding='utf-8')
+              u=s
+              for old in old_tokens:
+                  u=u.replace(old,release)
+              if u != s:
+                  p.write_text(u,encoding='utf-8')
+
+          bridge=Path('jarvis-fs-bridge.js')
+          s=bridge.read_text(encoding='utf-8')
+          old='''export function resolveBridgeRepositoryTarget({ target = "", ref = "", file = "" } = {}, root = DEFAULT_ROOT) {\n    const git = readGitIdentity(root);'''
+          new='''export function resolveBridgeRepositoryTarget(input = {}, root = DEFAULT_ROOT) {\n    const request =\n        typeof input === "string"\n            ? { target: input }\n            : input && typeof input === "object"\n                ? input\n                : {};\n    const { target = "", ref = "", file = "" } = request;\n    const git = readGitIdentity(root);'''
+          if old not in s:
+              raise SystemExit('BRIDGE_TARGET_SIGNATURE_ANCHOR_NOT_FOUND')
+          s=s.replace(old,new,1)
+          bridge.write_text(s,encoding='utf-8')
+
+          test_path=Path('tests/jarvis-repo-target-runtime.test.mjs')
+          t=test_path.read_text(encoding='utf-8')
+          import_anchor='''} from "../gestia-core/repo/repo.target.js";\n'''
+          bridge_import='''import {\n    resolveBridgeRepositoryTarget\n} from "../jarvis-fs-bridge.js";\n'''
+          if bridge_import not in t:
+              if import_anchor not in t:
+                  raise SystemExit('REPO_TEST_IMPORT_ANCHOR_NOT_FOUND')
+              t=t.replace(import_anchor, import_anchor + bridge_import, 1)
+
+          test_anchor='''const BRANCH_URL = `https://github.com/heberzzt-wq/fixgo-app/blob/${BRANCH}`;\n'''
+          direct_tests='''\n\ntest("bridge target resolver accepts the exact GitHub slash-branch URL as a string", () => {\n    const resolved = resolveBridgeRepositoryTarget(BRANCH_URL);\n    assert.equal(resolved.ok, true);\n    assert.equal(resolved.ref, BRANCH);\n    assert.equal(resolved.path, "");\n    assert.equal(resolved.objectType, "tree");\n});\n\ntest("bridge target resolver keeps a file path after a slash branch", () => {\n    const resolved = resolveBridgeRepositoryTarget(`${BRANCH_URL}/gestia-core/tools.runtime.js`);\n    assert.equal(resolved.ok, true);\n    assert.equal(resolved.ref, BRANCH);\n    assert.equal(resolved.path, "gestia-core/tools.runtime.js");\n    assert.equal(resolved.objectType, "blob");\n});\n\ntest("bridge target resolver preserves existing object callers", () => {\n    const resolved = resolveBridgeRepositoryTarget({ target: BRANCH_URL });\n    assert.equal(resolved.ok, true);\n    assert.equal(resolved.ref, BRANCH);\n    assert.equal(resolved.path, "");\n});\n\ntest("bridge target resolver rejects a foreign GitHub repository", () => {\n    const resolved = resolveBridgeRepositoryTarget("https://github.com/example/other-repo/tree/main");\n    assert.equal(resolved.ok, false);\n    assert.equal(resolved.error, "REPOSITORY_REMOTE_MISMATCH");\n});\n'''
+          if 'bridge target resolver accepts the exact GitHub slash-branch URL as a string' not in t:
+              if test_anchor not in t:
+                  raise SystemExit('REPO_TEST_BRANCH_URL_ANCHOR_NOT_FOUND')
+              t=t.replace(test_anchor,test_anchor+direct_tests,1)
+          test_path.write_text(t,encoding='utf-8')
+          PY
+
+          git diff --quiet "$SEMANTIC_BASE" -- functions
+          echo '--- product diff summary ---'
+          git status --short
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix functions ci
+
+      - name: Focused contract and v115 regressions
+        run: |
+          node --test \
+            tests/jarvis-repo-target-runtime.test.mjs \
+            tests/jarvis-page-artifact.test.mjs \
+            tests/jarvis-peninsula-page-v114.test.mjs \
+            tests/jarvis-page-browser-fallback-v115.test.mjs \
+            tests/jarvis-semantic-memory-integrity.test.mjs
+
+      - name: Full CI
+        run: npm run ci:test
+
+      - name: Deep certification invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq '2.38.0-page-no-contact-route' gestia-core/tools.runtime.js
+          grep -Fq 'PAGE_ARTIFACT_CREATED_BROWSER_VERIFIED' gestia-core/jarvis/jarvis.actuator.pack.js
+          grep -Fq 'browser_verified_download' gestia-core/tools.bridge.js
+          grep -Fq 'physicallyWritten: false' gestia-core/jarvis/jarvis.actuator.pack.js
+          grep -Fq 'published: false' gestia-core/jarvis/jarvis.actuator.pack.js
+          grep -Fq 'LOCAL_BRIDGE_VERSION_MISMATCH' gestia-core/jarvis/jarvis.actuator.pack.js
+          grep -Fq 'typeof input === "string"' jarvis-fs-bridge.js
+          grep -Fq "$RELEASE_TOKEN" gestia-terminal.html
+          grep -Fq "$RELEASE_TOKEN" gestia-core/gestia-core.js
+          grep -Fq "$RELEASE_TOKEN" gestia-terminal.js
+          ! grep -Fq 'jarvis.context.memory.v6.js' gestia-terminal.html
+          ! grep -Fq 'analysis.hub.js' gestia-core/jarvis.kernel.js
+          grep -Fq 'KernelHeberto.inicializarAutoridad()' gestia-terminal.js
+          grep -Fq 'memoria semántica de sesiones anteriores' gestia-terminal.html
+          ! grep -Fq 'Cada conversación empieza aislada' gestia-terminal.html
+          grep -Fq 'canonicalMissionEvidence' gestia-core/jarvis/jarvis.mission.orchestrator.js
+          grep -Fq 'MEMORIA_SEMANTICA_ADVISORY' gestia-core/jarvis/jarvis.multitool.pack.js
+          grep -Fq 'resolveBridgeRepositoryTarget' jarvis-fs-bridge.js
+          grep -Fq 'REPOSITORY_REMOTE_MISMATCH' jarvis-fs-bridge.js
+          grep -Fq 'trim: false' jarvis-fs-bridge.js
+
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          src=Path('modules/terminal/repo-bootstrap-index.js').read_text(encoding='utf-8')
+          pattern=re.compile(r'window\.__REPO_INDEX__\["([^"]+)"\]\s*=\s*\{([\s\S]*?)\n\};')
+          missing=[]
+          for m in pattern.finditer(src):
+              pm=re.search(r'\bpath\s*:\s*["\']([^"\']+)["\']',m.group(2))
+              if not pm: continue
+              declared=pm.group(1).strip()
+              normalized=declared[2:] if declared.startswith('./') else declared.lstrip('/')
+              if normalized and not Path(normalized).is_file():
+                  missing.append((m.group(1),declared))
+          if missing:
+              raise SystemExit('STALE_REPO_INDEX_PATHS='+repr(missing))
+          print('repo-bootstrap-index: zero nonexistent literal paths')
+          PY
+
+          node --input-type=module <<'NODE'
+          import { resolveBridgeRepositoryTarget } from './jarvis-fs-bridge.js';
+          const branch='codex/jarvis-v8-runtime-foundation';
+          const url=`https://github.com/heberzzt-wq/fixgo-app/blob/${branch}`;
+          const actual=resolveBridgeRepositoryTarget(url);
+          if (actual?.ok !== true || actual?.ref !== branch || String(actual?.path || '') !== '' || actual?.objectType !== 'tree') {
+            throw new Error('ACTUAL_BRANCH_TARGET_RESOLUTION_FAILED:'+JSON.stringify(actual));
+          }
+          const file=resolveBridgeRepositoryTarget(`${url}/gestia-core/tools.runtime.js`);
+          if (file?.ok !== true || file?.ref !== branch || file?.path !== 'gestia-core/tools.runtime.js' || file?.objectType !== 'blob') {
+            throw new Error('ACTUAL_BRANCH_FILE_RESOLUTION_FAILED:'+JSON.stringify(file));
+          }
+          const objectCaller=resolveBridgeRepositoryTarget({target:url});
+          if (objectCaller?.ok !== true || objectCaller?.ref !== branch) {
+            throw new Error('OBJECT_CALLER_REGRESSION:'+JSON.stringify(objectCaller));
+          }
+          const foreign=resolveBridgeRepositoryTarget('https://github.com/example/other-repo/tree/main');
+          if (foreign?.error !== 'REPOSITORY_REMOTE_MISMATCH') {
+            throw new Error('FOREIGN_REPOSITORY_GUARD_FAILED:'+JSON.stringify(foreign));
+          }
+          console.log('Direct bridge target contract OK');
+          NODE
+
+          git diff --quiet "$SEMANTIC_BASE" -- functions
+          git fetch origin main v5.9-polish --quiet
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN"
+          test "$(git rev-parse origin/v5.9-polish)" = "$EXPECTED_POLISH"
+
+      - name: Commit certified product
+        id: product
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            jarvis-page-artifact.js \
+            jarvis-fs-bridge.js \
+            gestia-core/jarvis/jarvis.actuator.pack.js \
+            gestia-core/tools.bridge.js \
+            gestia-core/tools.runtime.js \
+            gestia-core/gestia-core.js \
+            gestia-terminal.html \
+            gestia-terminal.js \
+            modules/terminal/repo-bootstrap-index.js \
+            tests
+          git diff --cached --quiet && { echo 'NO_PRODUCT_DIFF' >&2; exit 1; }
+          git commit -m "[v94] fix(adj): close browser page fallback and repo target contract v115"
+          git push origin HEAD:v94-media-v4n-negative-claims
+          sha="$(git rev-parse HEAD)"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          git diff --quiet "$SEMANTIC_BASE" -- functions
+          echo "PRODUCT_SHA=$sha"
+
+      - name: Hosting deploy gate
+        env:
+          JARVIS_CI_PASSED: "true"
+          JARVIS_DEPLOY_PROJECT: fixgo-44e4d
+          JARVIS_DEPLOY_CONFIRM_PROJECT: fixgo-44e4d
+          JARVIS_DEPLOY_CONFIRM_BRANCH: v94-media-v4n-negative-claims
+          JARVIS_FIREBASE_PROJECT: fixgo-44e4d
+        run: node scripts/jarvis-deploy-gate.mjs
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Hosting only
+        run: firebase deploy --only hosting --project fixgo-44e4d --token "${{ secrets.FIREBASE_TOKEN }}"
+
+      - name: Verify exact live bytes and release behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="${{ steps.product.outputs.sha }}"
+          base='https://fixgo-44e4d.web.app'
+          critical=(
+            gestia-terminal.html
+            gestia-terminal.js
+            gestia-core/gestia-core.js
+            gestia-core/tools.runtime.js
+            gestia-core/tools.bridge.js
+            gestia-core/jarvis.kernel.js
+            gestia-core/hubs/repo.hub.js
+            gestia-core/repo/repo.target.js
+            jarvis-fs-bridge.js
+            modules/terminal/repo-bootstrap-index.js
+            gestia-core/jarvis/jarvis.semantic.memory.js
+            gestia-core/jarvis/jarvis.mission.orchestrator.js
+            gestia-core/jarvis/jarvis.multifunction.planner.js
+            gestia-core/jarvis/jarvis.multitool.pack.js
+            gestia-core/jarvis/jarvis.marketing.engine.js
+            gestia-core/jarvis/jarvis.actuator.pack.js
+            jarvis-page-artifact.js
+          )
+          for p in "${critical[@]}"; do
+            local_sha="$(sha256sum "$p" | awk '{print $1}')"
+            curl -fsSL "$base/$p?v=$sha" -o /tmp/live.bin
+            live_sha="$(sha256sum /tmp/live.bin | awk '{print $1}')"
+            echo "$p local=$local_sha live=$live_sha"
+            test "$local_sha" = "$live_sha"
+          done
+          curl -fsSL "$base/gestia-terminal.html?v=$sha" | grep -Fq "$RELEASE_TOKEN"
+          curl -fsSL "$base/gestia-core/jarvis/jarvis.actuator.pack.js?v=$sha" | grep -Fq 'PAGE_ARTIFACT_CREATED_BROWSER_VERIFIED'
+          curl -fsSL "$base/jarvis-fs-bridge.js?v=$sha" | grep -Fq 'typeof input === "string"'
+          curl -fsSL "$base/modules/terminal/repo-bootstrap-index.js?v=$sha" > /tmp/live-index.js
+          ! grep -Fq 'window.__REPO_INDEX__["jarvis-nlu-bridge.js"]' /tmp/live-index.js
+          echo "LIVE_V115_BYTES_AND_BEHAVIOR_OK sha=$sha"
+
+      - name: Recheck protected refs and Functions after deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main v5.9-polish --quiet
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN"
+          test "$(git rev-parse origin/v5.9-polish)" = "$EXPECTED_POLISH"
+          git diff --quiet "$SEMANTIC_BASE" -- functions
+          echo 'Protected refs unchanged; Functions unchanged'
+
+      - name: Cleanup all temporary v94 certification artifacts
+        id: cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -f --ignore-unmatch \
+            .github/v115-focused-diagnostic.txt \
+            .github/workflows/v94-semantic-memory-integrity-diagnostic.yml \
+            .github/workflows/v94-semantic-memory-integrity-fix.yml \
+            .github/workflows/v94-semantic-memory-integrity-certify.yml \
+            .github/workflows/v94-repo-intelligence-diagnostic.yml \
+            .github/workflows/v94-repo-intelligence-fix.yml \
+            .github/workflows/v94-full-ci-failure-extract.yml \
+            .github/workflows/v94-full-ci-legacy-contract-fix.yml \
+            .github/workflows/v94-page-browser-fallback-v115.yml \
+            .github/workflows/v94-v115-focused-diagnostic.yml \
+            .github/workflows/v94-v115-final-close.yml \
+            .github/workflows/v94-v115-bridge-contract-final.yml
+          git diff --quiet "$SEMANTIC_BASE" -- functions
+          if ! git diff --cached --quiet; then
+            git commit -m "[v94] chore: remove temporary certification artifacts"
+            git push origin HEAD:v94-media-v4n-negative-claims
+          fi
+          final="$(git rev-parse HEAD)"
+          echo "sha=$final" >> "$GITHUB_OUTPUT"
+          echo "FINAL_BRANCH_SHA=$final"
