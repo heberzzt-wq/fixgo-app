@@ -1,0 +1,60 @@
+name: V94 v122 full CI diagnostic
+
+on:
+  push:
+    branches: [v94-media-v4n-negative-claims]
+    paths:
+      - .github/workflows/v94-v122-full-ci-diagnostic.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply v122 staging
+        run: |
+          python3 scripts/v122-generalist-execution-contract-fix.py
+          python3 scripts/v122-stale-test-expectations.py
+      - name: Run CI stages and capture all output
+        id: diag
+        shell: bash
+        run: |
+          set +e
+          : > v122-ci-diagnostic.log
+          failed=0
+          run_stage() {
+            name="$1"; shift
+            echo "===== STAGE:$name =====" | tee -a v122-ci-diagnostic.log
+            "$@" 2>&1 | tee -a v122-ci-diagnostic.log
+            code=${PIPESTATUS[0]}
+            echo "===== EXIT:$name:$code =====" | tee -a v122-ci-diagnostic.log
+            if [ "$code" -ne 0 ]; then failed=1; fi
+          }
+          run_stage mission_contract node --test tests/response-composer-semantic-contract.test.mjs tests/jarvis-mission-contract-accounting.test.mjs tests/jarvis-mission-failure-precedence.test.mjs tests/jarvis-mission-orchestrator.test.mjs
+          run_stage check_nexo npm run check:nexo
+          run_stage entry_syntax npm run check:entry-syntax
+          run_stage syntax npm run check:syntax
+          run_stage multifunction npm run test:multifunction
+          run_stage general_test npm test
+          echo "failed=$failed" >> "$GITHUB_OUTPUT"
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v122-full-ci-diagnostic
+          path: v122-ci-diagnostic.log
+          if-no-files-found: error
+      - name: Preserve CI result
+        run: test "${{ steps.diag.outputs.failed }}" = "0"
