@@ -1,0 +1,221 @@
+EXIT_CODE=1
+        const buildTerminalBrainRoute =
+        function(overrides = {}) {
+            return {
+                mode:
+                    "CLARIFY",
+                message:
+                    error?.message === "repo.write runtime not available"
+                        ? "Escritura bloqueada: repo.write no está disponible. Levanta el bridge local localhost:3344 para escribir."
+                        : String(error?.message || error),
+                error:
+                    String(error?.message || error)
+            };
+    
+            console.warn(
+                "🛡️ [CODEX_V2_COMMAND_CONTAINED]",
+                blockedWritePayload
+            );
+                                    engine:
+                                        repoData?.engine || null,
+                                    version:
+                                        repoData?.version || null,
+                                    expectedSources:
+                                        repoData?.expectedSources ?? null,
+                                    receivedSources:
+                                        repoData?.receivedSources ?? null,
+                                    analysisMode:
+                                        repoData?.analysisMode || null,
+                                    repairCount:
+                                        repoData?.repairCount ?? null,
+                                        repoData?.engine || null,
+                                    version:
+                                        repoData?.version || null,
+                                    expectedSources:
+                                        repoData?.expectedSources ?? null,
+                                    receivedSources:
+                                        repoData?.receivedSources ?? null,
+                                    analysisMode:
+                                        repoData?.analysisMode || null,
+                                    repairCount:
+                                        repoData?.repairCount ?? null,
+                                    strictVisualOnly:
+                    `Módulo: ${repoData?.metadata?.module || "ND"}`,
+                    `Tipo: ${repoData?.metadata?.type || "ND"}`,
+                    `Crítico: ${repoData?.metadata?.critical === true ? "sí" : "no"}`,
+                    "",
+                    "Contenido no disponible todavía en el índice actual."
+                ].join("\n")
+                : JSON.stringify(repoData, null, 2)
+        ) ||
+        "Sin contenido disponible."
+    )
+        .slice(0, 3000)
+        ]
+        ? errorPayload
+            ? [
+                "La búsqueda repo.search todavía no tiene búsqueda global por texto.",
+                "",
+                `Error: ${
+                    errorPayload?.message ||
+                    runtimeResult?.error ||
+                    "UNKNOWN"
+                }`,
+                `Tool: repo.search`,
+                "",
+                "Siguiente ajuste técnico: conectar repo.search a búsqueda global real o crear repo.grep."
+                    "ND"
+                }`,
+                "Riesgo: no calculado",
+                "",
+                `Error: ${
+                    errorPayload?.message ||
+                    runtimeResult?.error ||
+                    "UNKNOWN"
+                }`,
+                "",
+                runtimeResult?.available
+                    ? `Índice disponible: ${runtimeResult.available.join(", ")}`
+            console.warn(
+                "⚠️ [TERMINAL_CORE_FIRST_FAIL]",
+                coreFirstError
+            );
+            renderTerminalFailureOnce({
+                missionId: currentTraceId,
+                instruction: comando,
+                error:
+                    coreFirstError?.message ||
+                    coreFirstError ||
+                    "CORE_EXECUTION_FAILED"
+            });
+            );
+            renderTerminalFailureOnce({
+                missionId: currentTraceId,
+                instruction: comando,
+                error:
+                    coreFirstError?.message ||
+                    coreFirstError ||
+                    "CORE_EXECUTION_FAILED"
+            });
+            handled = true;
+        }
+    }
+    
+                } catch (error) {
+                    if (typeof window.audit === "function") {
+                        window.audit("MISSION_CRASH", { 
+                            error: error.message, 
+                            traceId: currentTraceId 
+                        }, "error");
+                    }
+                    activeWorkTracker?.fail?.(
+                        "No pude completar la misión"
+                    );
+                    if (window.hablarJarvis) window.hablarJarvis("Error crítico en la ráfaga de comandos.");
+            const config = {
+                info: { icon: 'fa-bolt', color: 'bg-gestia-primary', border: 'border-slate-700' },
+                warning: { icon: 'fa-triangle-exclamation', color: 'bg-amber-500', border: 'border-amber-500/30' },
+                success: { icon: 'fa-check', color: 'bg-gestia-accent', border: 'border-gestia-accent/30' },
+                error: { icon: 'fa-xmark', color: 'bg-red-500', border: 'border-red-500/30' }
+            };
+    
+            const current = config[type] || config.info;
+    
+            const escapeHTML = (str) => {
+                sanitizer.textContent = str || "Sin mensaje.";
+                return sanitizer.innerHTML;
+          ) {
+            console.warn(
+              "[SIA7_CROSS_FILE_ADJUSTMENT_BLOCKED_41_42_4]",
+              {
+                expectedFile:
+                  adjustmentTargetFile,
+                receivedFile:
+                  payload.file,
+                terminalType:
+                  payload.terminalType
+              }
+            );
+  stack: |-
+    TestContext.<anonymous> (file:///home/runner/work/fixgo-app/fixgo-app/tests/jarvis-semantic-memory-integrity.test.mjs:65:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: artifact composers receive canonical mission evidence and semantic memory stays advisory
+ok 18 - artifact composers receive canonical mission evidence and semantic memory stays advisory
+  ---
+  ...
+# Subtest: artifact composers receive canonical mission evidence and semantic memory stays advisory
+ok 18 - artifact composers receive canonical mission evidence and semantic memory stays advisory
+  ---
+  duration_ms: 1.686454
+  type: 'test'
+  ...
+# Subtest: marketing engine cannot fall back to generic false-green phrases
+ok 19 - marketing engine cannot fall back to generic false-green phrases
+  ---
+  duration_ms: 0.672876
+  type: 'test'
+  ...
+# Subtest: marketing engine cannot fall back to generic false-green phrases
+ok 19 - marketing engine cannot fall back to generic false-green phrases
+  ---
+  duration_ms: 0.672876
+  type: 'test'
+  ...
+1..19
+# tests 19
+# suites 0
+# pass 18
+# fail 1
+  duration_ms: 0.672876
+  type: 'test'
+  ...
+1..19
+# tests 19
+# suites 0
+# pass 18
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 172.880509
+  type: 'test'
+  ...
+1..19
+# tests 19
+# suites 0
+# pass 18
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 172.880509
+  ...
+1..19
+# tests 19
+# suites 0
+# pass 18
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 172.880509
+1..19
+# tests 19
+# suites 0
+# pass 18
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 172.880509
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 172.880509
