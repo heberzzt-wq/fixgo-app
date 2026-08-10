@@ -95,3 +95,5 @@ jobs:
           set -euo pipefail
           echo "V120_STEP2_GENERALIST_PAGE_INTEGRITY_GREEN"
           git diff --quiet "$BASELINE" HEAD -- functions
+
+# rerun after labeled residue diagnostic
