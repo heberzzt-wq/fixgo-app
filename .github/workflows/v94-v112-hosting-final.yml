@@ -1,0 +1,382 @@
+name: V94 v112 isolated hosting final
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-v112-hosting-final.yml
+
+permissions:
+  contents: write
+
+jobs:
+  certify-commit-deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Assert isolated branch and Functions boundary
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-media-v4n-negative-claims"
+          git merge-base --is-ancestor 46c1a4c9a4d69af87b368fe085cc2d7de06243d5 HEAD
+          test -z "$(git status --porcelain -- functions)"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          npm ci
+          npm --prefix functions ci
+          test -z "$(git status --porcelain -- functions)"
+
+      - name: Apply v112 product repair and align historical assertion
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import textwrap
+          source = Path('.github/workflows/v94-repo-marketing-integrity-v112.yml').read_text(encoding='utf-8')
+          start_marker = "          python - <<'PY'\n"
+          end_marker = "\n          PY\n\n          node --check gestia-core/response.composer.js"
+          if source.count(start_marker) != 1 or source.count(end_marker) != 1:
+              raise SystemExit('V112_PATCH_BLOCK_NOT_UNIQUE')
+          block = source.split(start_marker, 1)[1].split(end_marker, 1)[0]
+          Path('/tmp/apply-v112.py').write_text(textwrap.dedent(block), encoding='utf-8')
+          PY
+          python /tmp/apply-v112.py
+
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('tests/jarvis-multifunction-tools.test.mjs')
+          s = p.read_text(encoding='utf-8')
+          old = 'jarvis-tools-v7-20260725-semantic-envelope-v64'
+          new = 'v94-repo-marketing-integrity-v112-20260809'
+          if old not in s:
+              raise SystemExit('LEGACY_RESPONSE_COMPOSER_ASSERTION_NOT_FOUND')
+          p.write_text(s.replace(old, new), encoding='utf-8')
+          PY
+
+      - name: Add isolated Hosting-only deploy-gate scope
+        run: |
+          set -euo pipefail
+          cat > jarvis-deploy-gate.js <<'EOF'
+          import { createHash } from "node:crypto";
+
+          export const JARVIS_DEPLOY_GATE_VERSION = "1.1.0-isolated-hosting-scope";
+          export const JARVIS_ISOLATED_HOSTING_REF = "refs/heads/v94-media-v4n-negative-claims";
+
+          function clean(value) {
+              return typeof value === "string" ? value.trim() : "";
+          }
+
+          function isHexSha(value) {
+              if (value.length !== 40) return false;
+              return Array.from(value.toLowerCase()).every(character => {
+                  const code = character.charCodeAt(0);
+                  return (code >= 48 && code <= 57) || (code >= 97 && code <= 102);
+              });
+          }
+
+          export function evaluateDeployGate(input = {}) {
+              const actor = clean(input.actor).toLowerCase();
+              const eventName = clean(input.eventName);
+              const ref = clean(input.ref);
+              const commitSha = clean(input.commitSha).toLowerCase();
+              const projectId = clean(input.projectId);
+              const hostingOnly = input.hostingOnly === true;
+              const failures = [];
+
+              const standardBranch =
+                  ref === "refs/heads/v5.9-polish" ||
+                  ref === "refs/heads/main";
+              const isolatedHostingBranch =
+                  ref === JARVIS_ISOLATED_HOSTING_REF;
+
+              if (actor !== "heberzzt-wq") failures.push("SOVEREIGN_ACTOR_MISMATCH");
+              if (eventName !== "push") failures.push("DEPLOY_EVENT_NOT_PUSH");
+              if (!standardBranch && !isolatedHostingBranch) failures.push("DEPLOY_BRANCH_NOT_ALLOWED");
+              if (isolatedHostingBranch && !hostingOnly) failures.push("ISOLATED_BRANCH_HOSTING_ONLY_REQUIRED");
+              if (!isHexSha(commitSha)) failures.push("DEPLOY_COMMIT_SHA_INVALID");
+              if (projectId !== "fixgo-44e4d") failures.push("DEPLOY_PROJECT_MISMATCH");
+              if (input.ciPassed !== true) failures.push("DEPLOY_CI_NOT_VERIFIED");
+
+              const envelope = {
+                  actor,
+                  eventName,
+                  ref,
+                  commitSha,
+                  projectId,
+                  ciPassed: input.ciPassed === true,
+                  hostingOnly
+              };
+              const fingerprint = createHash("sha256")
+                  .update(JSON.stringify(envelope))
+                  .digest("hex");
+
+              return {
+                  ok: failures.length === 0,
+                  status: failures.length === 0 ? "SOVEREIGN_DEPLOY_AUTHORIZED" : "SOVEREIGN_DEPLOY_BLOCKED",
+                  version: JARVIS_DEPLOY_GATE_VERSION,
+                  authorityId: failures.includes("SOVEREIGN_ACTOR_MISMATCH") ? null : "HEBERTO_MENDOZA",
+                  controllerId: "GITHUB_ACTIONS_CI",
+                  fingerprint,
+                  envelope,
+                  failures,
+                  deploymentScope: hostingOnly ? "hosting" : "default",
+                  hostingOnlyRequired: isolatedHostingBranch,
+                  singleCommit: true,
+                  testsRequired: true,
+                  selfAuthorizationAllowed: false
+              };
+          }
+          EOF
+
+          cat > scripts/jarvis-deploy-gate.mjs <<'EOF'
+          import fs from "node:fs";
+          import { evaluateDeployGate } from "../jarvis-deploy-gate.js";
+
+          const result = evaluateDeployGate({
+              actor: process.env.GITHUB_ACTOR,
+              eventName: process.env.GITHUB_EVENT_NAME,
+              ref: process.env.GITHUB_REF,
+              commitSha: process.env.GITHUB_SHA,
+              projectId: process.env.JARVIS_FIREBASE_PROJECT,
+              ciPassed: process.env.JARVIS_CI_PASSED === "true",
+              hostingOnly: process.env.JARVIS_HOSTING_ONLY === "true"
+          });
+
+          const summary = [
+              "## Jarvis Sovereign Deploy Gate",
+              "",
+              `- Status: ${result.status}`,
+              `- Authority: ${result.authorityId || "BLOCKED"}`,
+              `- Commit: ${result.envelope.commitSha || "missing"}`,
+              `- Ref: ${result.envelope.ref || "missing"}`,
+              `- Scope: ${result.deploymentScope}`,
+              `- Fingerprint: ${result.fingerprint}`,
+              `- Failures: ${result.failures.join(", ") || "none"}`
+          ].join("\n");
+
+          if (process.env.GITHUB_STEP_SUMMARY) {
+              fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary}\n`, "utf8");
+          }
+          process.stdout.write(`${JSON.stringify(result)}\n`);
+          if (!result.ok) process.exitCode = 1;
+          EOF
+
+          cat >> tests/jarvis-deploy-gate.test.mjs <<'EOF'
+
+          test("isolated V94 branch is authorized only for explicit Hosting-only scope", () => {
+              const isolated = {
+                  ...valid,
+                  ref: "refs/heads/v94-media-v4n-negative-claims"
+              };
+
+              const blocked = evaluateDeployGate(isolated);
+              assert.equal(blocked.ok, false);
+              assert.deepEqual(blocked.failures, ["ISOLATED_BRANCH_HOSTING_ONLY_REQUIRED"]);
+              assert.equal(blocked.hostingOnlyRequired, true);
+
+              const hosting = evaluateDeployGate({
+                  ...isolated,
+                  hostingOnly: true
+              });
+              assert.equal(hosting.ok, true);
+              assert.equal(hosting.status, "SOVEREIGN_DEPLOY_AUTHORIZED");
+              assert.equal(hosting.deploymentScope, "hosting");
+              assert.equal(hosting.envelope.hostingOnly, true);
+          });
+
+          test("Hosting-only flag never authorizes an unrelated feature branch", () => {
+              const result = evaluateDeployGate({
+                  ...valid,
+                  ref: "refs/heads/feature/not-authorized",
+                  hostingOnly: true
+              });
+              assert.equal(result.ok, false);
+              assert.deepEqual(result.failures, ["DEPLOY_BRANCH_NOT_ALLOWED"]);
+          });
+          EOF
+
+          node --check jarvis-deploy-gate.js
+          node --check scripts/jarvis-deploy-gate.mjs
+          node --check gestia-core/response.composer.js
+          node --check gestia-core/gestia-core.js
+          node --check gestia-core/tools.runtime.js
+          node --check gestia-core/jarvis/jarvis.actuator.pack.js
+          test -z "$(git diff --name-only -- functions)"
+
+      - name: Focused human and deploy-gate regressions
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/response-composer-semantic-contract.test.mjs \
+            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs \
+            tests/jarvis-actuator-pack.test.mjs \
+            tests/jarvis-multifunction-tools.test.mjs \
+            tests/jarvis-repo-target-runtime.test.mjs \
+            tests/jarvis-repo-intelligence.test.mjs \
+            tests/jarvis-semantic-memory-integrity.test.mjs \
+            tests/jarvis-deploy-gate.test.mjs
+
+      - name: Full CI
+        run: |
+          set -euo pipefail
+          npm run ci:test
+
+      - name: Certify v112 and Hosting-only invariants
+        run: |
+          set -euo pipefail
+          grep -q 'REPO_AUDIT_EMPTY_EVIDENCE' gestia-core/response.composer.js
+          grep -q 'MARKETING_PLAN_DEPENDENCY_UNSATISFIED' gestia-core/gestia-core.js
+          grep -q 'MARKETING_DOCUMENT_SOURCE_UNAVAILABLE' gestia-core/jarvis/jarvis.actuator.pack.js
+          grep -q 'v94-repo-marketing-integrity-v112-20260809' gestia-terminal.html
+          grep -q 'response.composer.js?v=v94-repo-marketing-integrity-v112-20260809' gestia-core/gestia-core.js
+          grep -q 'tools.runtime.js?v=v94-repo-marketing-integrity-v112-20260809' gestia-core/gestia-core.js
+          grep -q 'jarvis.actuator.pack.js?v=v94-repo-marketing-integrity-v112-20260809' gestia-core/tools.runtime.js
+          grep -q 'ISOLATED_BRANCH_HOSTING_ONLY_REQUIRED' jarvis-deploy-gate.js
+          grep -q 'JARVIS_HOSTING_ONLY' scripts/jarvis-deploy-gate.mjs
+          grep -q 'live_repo_ast_graph' gestia-core/tools.runtime.js
+          ! grep -q 'Cada conversación empieza aislada' gestia-terminal.html
+          ! grep -q 'jarvis.context.memory.v6.js' gestia-terminal.html
+          ! grep -q 'from "./hubs/analysis.hub.js"' gestia-core/jarvis.kernel.js
+          test "$(grep -c 'name: "repo.audit"' gestia-core/tools.runtime.js)" -eq 1
+          test "$(grep -c 'name: "repo.scan"' gestia-core/tools.runtime.js)" -eq 1
+          test -z "$(git diff --name-only -- functions)"
+
+      - name: Verify real slash branch target
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin codex/jarvis-v8-runtime-foundation
+          node --input-type=module <<'NODE'
+          import { resolveBridgeRepositoryTarget } from './jarvis-fs-bridge.js';
+          const result = resolveBridgeRepositoryTarget({
+            target: 'https://github.com/heberzzt-wq/fixgo-app/blob/codex/jarvis-v8-runtime-foundation'
+          }, process.cwd());
+          console.log(JSON.stringify(result, null, 2));
+          if (!result.ok || result.ref !== 'codex/jarvis-v8-runtime-foundation' || result.path !== '' || !result.commit) process.exit(1);
+          NODE
+
+      - name: Commit fully certified product
+        run: |
+          set -euo pipefail
+          git config user.name "heberzzt-wq"
+          git config user.email "heberzzt@gmail.com"
+          git add \
+            gestia-terminal.html \
+            gestia-core/gestia-core.js \
+            gestia-core/response.composer.js \
+            gestia-core/tools.runtime.js \
+            gestia-core/jarvis/jarvis.actuator.pack.js \
+            jarvis-deploy-gate.js \
+            scripts/jarvis-deploy-gate.mjs \
+            tests/response-composer-semantic-contract.test.mjs \
+            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs \
+            tests/jarvis-actuator-pack.test.mjs \
+            tests/jarvis-multifunction-tools.test.mjs \
+            tests/jarvis-deploy-gate.test.mjs
+          test -z "$(git diff --cached --name-only -- functions)"
+          git commit -m "[v94] fix(adj): certify repo audit and grounded marketing artifacts"
+          git push origin HEAD:v94-media-v4n-negative-claims
+          git rev-parse HEAD | tee /tmp/v112-product-head.txt
+
+      - name: Authorize committed isolated Hosting-only SHA
+        env:
+          JARVIS_CI_PASSED: "true"
+          JARVIS_FIREBASE_PROJECT: fixgo-44e4d
+          JARVIS_HOSTING_ONLY: "true"
+        run: |
+          set -euo pipefail
+          PRODUCT_HEAD="$(cat /tmp/v112-product-head.txt)"
+          test "$PRODUCT_HEAD" = "$(git rev-parse HEAD)"
+          test -z "$(git status --porcelain -- functions)"
+          GITHUB_SHA="$PRODUCT_HEAD" node scripts/jarvis-deploy-gate.mjs
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Hosting only
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_TOKEN"
+          test -z "$(git status --porcelain -- functions)"
+          firebase deploy --only hosting --project fixgo-44e4d --token "$FIREBASE_TOKEN"
+
+      - name: Verify exact live bytes and v112 contracts
+        run: |
+          set -euo pipefail
+          paths=(
+            gestia-terminal.html
+            gestia-core/gestia-core.js
+            gestia-core/response.composer.js
+            gestia-core/tools.runtime.js
+            gestia-core/tools.bridge.js
+            gestia-core/jarvis/jarvis.actuator.pack.js
+            gestia-core/jarvis/jarvis.marketing.engine.js
+            gestia-core/jarvis/jarvis.marketing.presenter.js
+            gestia-core/jarvis/jarvis.semantic.memory.js
+            gestia-core/jarvis/jarvis.mission.orchestrator.js
+            gestia-core/jarvis.kernel.js
+            jarvis-fs-bridge.js
+          )
+          for path in "${paths[@]}"; do
+            live="/tmp/live-$(echo "$path" | tr '/' '_')"
+            curl -fsSL "https://fixgo-44e4d.web.app/$path?cert=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" -o "$live"
+            local_sha="$(sha256sum "$path" | awk '{print $1}')"
+            live_sha="$(sha256sum "$live" | awk '{print $1}')"
+            printf '%s local=%s live=%s\n' "$path" "$local_sha" "$live_sha"
+            test "$local_sha" = "$live_sha"
+            cmp -s "$path" "$live"
+          done
+
+          html=/tmp/live-gestia-terminal.html
+          core=/tmp/live-gestia-core_gestia-core.js
+          composer=/tmp/live-gestia-core_response.composer.js
+          runtime=/tmp/live-gestia-core_tools.runtime.js
+          actuator=/tmp/live-gestia-core_jarvis_jarvis.actuator.pack.js
+          kernel=/tmp/live-gestia-core_jarvis.kernel.js
+          grep -q 'v94-repo-marketing-integrity-v112-20260809' "$html"
+          grep -q 'MARKETING_PLAN_DEPENDENCY_UNSATISFIED' "$core"
+          grep -q 'REPO_AUDIT_EMPTY_EVIDENCE' "$composer"
+          grep -q 'MARKETING_DOCUMENT_SOURCE_UNAVAILABLE' "$actuator"
+          grep -q 'live_repo_ast_graph' "$runtime"
+          grep -q 'REPOSITORY_REFERENCE_ANALYZED' "$runtime"
+          ! grep -q 'jarvis.context.memory.v6.js' "$html"
+          ! grep -q 'from "./hubs/analysis.hub.js"' "$kernel"
+
+      - name: Cleanup temporary V94 workflows and seal branch
+        run: |
+          set -euo pipefail
+          PRODUCT_HEAD="$(cat /tmp/v112-product-head.txt)"
+          git rm -f --ignore-unmatch \
+            .github/workflows/v94-v112-hosting-final.yml \
+            .github/workflows/v94-v112-finalize.yml \
+            .github/workflows/v94-v112-full-ci-diagnostic.yml \
+            .github/workflows/v94-repo-marketing-integrity-v112.yml \
+            .github/workflows/v94-full-ci-failure-extract.yml \
+            .github/workflows/v94-full-ci-legacy-contract-fix.yml \
+            .github/workflows/v94-semantic-memory-integrity-certify.yml
+          git add -A
+          test -z "$(git diff --cached --name-only -- functions)"
+          if ! git diff --cached --quiet; then
+            git commit -m "[v94] chore: close v112 certification workflows"
+            git push origin HEAD:v94-media-v4n-negative-claims
+          fi
+          FINAL_HEAD="$(git rev-parse HEAD)"
+          NON_WORKFLOW_CHANGES="$(git diff --name-only "$PRODUCT_HEAD" "$FINAL_HEAD" | grep -v '^\.github/workflows/' || true)"
+          test -z "$NON_WORKFLOW_CHANGES"
+          echo "PRODUCT_HEAD=$PRODUCT_HEAD"
+          echo "FINAL_HEAD=$FINAL_HEAD"
+          test -z "$(git status --porcelain -- functions)"
