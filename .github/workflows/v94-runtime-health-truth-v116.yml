@@ -53,6 +53,7 @@ jobs:
           grep -Fq '"CATALOGED"' modules/terminal/runtime-repair-health.js
           grep -Fq 'repo_catalog_only' modules/terminal/runtime-repair-health.js
           grep -Fq 'runtime_loaded_registry' modules/terminal/runtime-repair-health.js
+          grep -Fq '__JARVIS_RUNTIME_HEALTH_DEBUG__ === true' modules/terminal/runtime-repair-health.js
           grep -Fq 'observedModuleCount' modules/terminal/runtime-persistence.js
           grep -Fq "$RELEASE_TOKEN" gestia-terminal.html
           ! grep -Fq 'window.__REPO_INDEX__["jarvis-nlu-bridge.js"]' modules/terminal/repo-bootstrap-index.js
@@ -67,8 +68,24 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Focused v116 regression
-        run: node --test tests/jarvis-runtime-health-truth-v116.test.mjs tests/jarvis-page-browser-fallback-v115.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs
+      - name: Focused v116 regression with exact failure capture
+        shell: bash
+        run: |
+          set +e
+          node --test tests/jarvis-runtime-health-truth-v116.test.mjs tests/jarvis-page-browser-fallback-v115.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs > /tmp/v116-focused.log 2>&1
+          code=$?
+          cat /tmp/v116-focused.log
+          if [ "$code" -ne 0 ]; then
+            cp /tmp/v116-focused.log .github/v116-focused-failure.log
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .github/v116-focused-failure.log
+            git commit -m "[v94] diag: capture v116 focused failure"
+            git push origin HEAD:v94-media-v4n-negative-claims
+            exit "$code"
+          fi
+          rm -f .github/v116-focused-failure.log
+          echo "V116_FOCUSED_GREEN"
 
       - name: Full CI
         run: npm run ci:test
@@ -91,8 +108,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm -f scripts/v116-runtime-health-patch.mjs
+          git rm -f .github/v116-focused-failure.log 2>/dev/null || true
           git add modules/terminal/runtime-repair-health.js modules/terminal/runtime-persistence.js gestia-terminal.js gestia-terminal.html gestia-core/gestia.runtime.v7.js tests/jarvis-runtime-health-truth-v116.test.mjs
-          git commit -m "[v94] fix(adj): make runtime health evidence-based v116"
+          git commit -m "[v94] fix(adj): make runtime health evidence-based and quiet v116"
           product_sha="$(git rev-parse HEAD)"
           echo "product_sha=$product_sha" >> "$GITHUB_OUTPUT"
           git push origin HEAD:v94-media-v4n-negative-claims
@@ -129,7 +147,7 @@ jobs:
       - name: Deploy Hosting only
         run: firebase deploy --only hosting --project fixgo-44e4d --token "${{ secrets.FIREBASE_TOKEN }}"
 
-      - name: Verify exact live v116 bytes
+      - name: Verify exact live v116 bytes and quiet-log markers
         shell: bash
         env:
           PRODUCT_SHA: ${{ steps.product.outputs.product_sha }}
@@ -156,11 +174,12 @@ jobs:
           grep -Fq '"CATALOGED"' /tmp/live-health.js
           grep -Fq 'repo_catalog_only' /tmp/live-health.js
           grep -Fq 'runtime_loaded_registry' /tmp/live-health.js
+          grep -Fq '__JARVIS_RUNTIME_HEALTH_DEBUG__ === true' /tmp/live-health.js
           curl -fsSL "$base/modules/terminal/runtime-persistence.js?v=$PRODUCT_SHA" -o /tmp/live-persistence.js
           grep -Fq 'observedModuleCount' /tmp/live-persistence.js
           curl -fsSL "$base/modules/terminal/repo-bootstrap-index.js?v=$PRODUCT_SHA" -o /tmp/live-index.js
           ! grep -Fq 'window.__REPO_INDEX__["jarvis-nlu-bridge.js"]' /tmp/live-index.js
-          echo "LIVE_V116_TRUTH_OK=$PRODUCT_SHA"
+          echo "LIVE_V116_TRUTH_QUIET_OK=$PRODUCT_SHA"
 
       - name: Final protected refs and Functions guard
         shell: bash
