@@ -590,6 +590,27 @@ function safeObservation(result = {}) {
                             ?.formulaValidationPassed ===
                         true
                 }
+                : normalizedStatus === "REEL_PLAN_READY"
+                    ? {
+                        kind:
+                            "reel",
+                        brandName:
+                            text(payload?.brandName, 300),
+                        title:
+                            text(payload?.title, 500),
+                        cta:
+                            text(payload?.cta, 500),
+                        durationSeconds:
+                            Number(payload?.durationSeconds) || 0,
+                        timelineSeconds:
+                            Number(payload?.timelineSeconds) || 0,
+                        scenes:
+                            compactEvidence(
+                                Array.isArray(payload?.scenes)
+                                    ? payload.scenes.slice(0, 18)
+                                    : []
+                            )
+                    }
                 : normalizedStatus === "PAGE_CONTENT_COMPOSED"
                     ? {
                         kind:

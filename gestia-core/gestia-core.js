@@ -53,7 +53,10 @@ import {
 import {
     marketingArtifactArgsFromCompletedTasks,
     marketingFinalResponseFromMission
-} from '/gestia-core/jarvis/jarvis.marketing.presenter.js?v=v94-repo-marketing-integrity-v112-20260809';
+} from '/gestia-core/jarvis/jarvis.marketing.presenter.js?v=v94-live-human-reds-v113-20260809';
+import {
+    reelArtifactArgsFromCompletedTasks
+} from '/gestia-core/jarvis/jarvis.reel.presenter.js?v=v94-live-human-reds-v113-20260809';
 import {
     addRepositoryDiscoveryPreflights,
     resolveExplicitRepositoryTargets
@@ -208,9 +211,9 @@ import {
     JarvisSemanticMemory
 } from '/gestia-core/jarvis/jarvis.semantic.memory.js?v=v94-semantic-memory-v1-20260809';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=v94-repo-marketing-integrity-v112-20260809';
-import '/gestia-core/response.composer.js?v=v94-repo-marketing-integrity-v112-20260809';
-import '/gestia-core/tools.bridge.js?v=v94-repo-marketing-integrity-v112-20260809';
+import '/gestia-core/tools.runtime.js?v=v94-live-human-reds-v113-20260809';
+import '/gestia-core/response.composer.js?v=v94-live-human-reds-v113-20260809';
+import '/gestia-core/tools.bridge.js?v=v94-live-human-reds-v113-20260809';
 
 const MISSION_EVIDENCE_CONTRACT_VERSION =
     "1.2.0-stable-research-objectives";
@@ -4674,6 +4677,51 @@ if (
                         };
                     let argumentGrounded =
                         false;
+
+                    if (
+                        call?.name === "reel.create" &&
+                        Array.isArray(missionContext?.completedTasks)
+                    ) {
+                        const completedReelPlan =
+                            [...missionContext.completedTasks]
+                                .reverse()
+                                .find(item =>
+                                    item?.name === "reel.plan"
+                                ) ||
+                            null;
+                        const reelArtifactArgs =
+                            reelArtifactArgsFromCompletedTasks(
+                                missionContext.completedTasks,
+                                executionCall.args
+                            );
+
+                        if (reelArtifactArgs) {
+                            executionCall.args =
+                                reelArtifactArgs;
+                            argumentGrounded =
+                                true;
+                        }
+                        else if (completedReelPlan) {
+                            return {
+                                ok: false,
+                                executionOk: false,
+                                objectiveSatisfied: false,
+                                blocked: true,
+                                retryable: false,
+                                status: "REEL_PLAN_DEPENDENCY_INVALID",
+                                error: "REEL_PLAN_CONTENT_REQUIRED",
+                                message: "No se creó el video porque reel.plan terminó sin un storyboard ejecutable compatible con reel.create.",
+                                dependency: "reel.plan",
+                                dependencyStatus:
+                                    completedReelPlan?.observation?.status ||
+                                    null,
+                                missionExecution: {
+                                    name: call.name,
+                                    args: executionCall.args
+                                }
+                            };
+                        }
+                    }
 
                     if (
                         call?.name === "document.create" &&

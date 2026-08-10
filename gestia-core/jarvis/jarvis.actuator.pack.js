@@ -310,11 +310,11 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "reel.create",
-            description: "Crea un estudio de reel 9:16 local nuevo, configurable, descargable y previsualizable, capaz de exportar WebM y verificar SHA-256 en el navegador. No publica.",
-            output: "REEL_STUDIO_ARTIFACT",
+            description: "Crea un reel 9:16 local, genera su estudio editable y exporta automáticamente un WebM físico verificado por SHA-256. No publica.",
+            output: "REEL_VIDEO_ARTIFACT",
             inputSchema: {
                 brandName: "string", title: "string", cta: "string", durationSeconds: "number",
-                scenes: "array", logoOutput: "string", audioOutput: "string", output: "string",
+                scenes: "array", logoOutput: "string", audioOutput: "string", output: "string", videoOutput: "string", studioOutput: "string",
                 caseId: "string", objectiveId: "string"
             },
             mutates: true,
@@ -326,14 +326,22 @@ export function registerJarvisActuatorTools(runtime) {
                     ...args,
                     caseId: args.caseId || context.caseId || "",
                     objectiveId: args.objectiveId || context.objectiveId || ""
-                }, 120000);
-                if (result?.ok === true && result?.status === "REEL_STUDIO_CREATED_VERIFIED") {
-                    recordCapabilityEvidence("reel_studio", {
+                }, Math.max(
+                    120000,
+                    (Number(args.durationSeconds) || 30) * 1000 + 60000
+                ));
+                if (result?.ok === true && result?.status === "REEL_VIDEO_CREATED_VERIFIED") {
+                    recordCapabilityEvidence("reel_video", {
                         ok: true,
                         status: result.status,
-                        output: result.output,
+                        output: result.videoOutput || result.output,
+                        studioOutput: result.studioOutput,
                         bytes: result.bytes,
+                        sha256: result.sha256,
+                        mimeType: result.mimeType,
                         durationSeconds: result.durationSeconds,
+                        width: result.width,
+                        height: result.height,
                         checks: result.checks,
                         videoExportStatus: result.videoExportStatus,
                         checkedAt: new Date().toISOString()

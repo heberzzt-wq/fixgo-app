@@ -1314,6 +1314,44 @@ catch(error) {
         };
     }
 });
+const JARVIS_REQUIRED_LOCAL_BRIDGE_VERSION =
+    "2.37.0-verified-reel-webm";
+
+function jarvisBridgeVersionTuple(value = "") {
+    const core =
+        String(value || "")
+            .trim()
+            .split("-")[0];
+    const parts =
+        core
+            .split(".")
+            .slice(0, 3)
+            .map(part => Number(part));
+    if (
+        parts.length !== 3 ||
+        parts.some(part => !Number.isInteger(part) || part < 0)
+    ) {
+        return null;
+    }
+    return parts;
+}
+
+function jarvisBridgeVersionAtLeast(
+    actual = "",
+    required = JARVIS_REQUIRED_LOCAL_BRIDGE_VERSION
+) {
+    const actualTuple =
+        jarvisBridgeVersionTuple(actual);
+    const requiredTuple =
+        jarvisBridgeVersionTuple(required);
+    if (!actualTuple || !requiredTuple) return false;
+    for (let index = 0; index < 3; index += 1) {
+        if (actualTuple[index] > requiredTuple[index]) return true;
+        if (actualTuple[index] < requiredTuple[index]) return false;
+    }
+    return true;
+}
+
 window.JarvisLocalBridge ||= {};
 window.JarvisLocalBridge.verifyIdentity ||= async function({
     force = false
@@ -1357,8 +1395,14 @@ window.JarvisLocalBridge.verifyIdentity ||= async function({
 
         const actual =
             bridgeHealth?.identity || null;
-
-        const compatible =
+        const bridgeVersion =
+            String(bridgeHealth?.version || "").trim();
+        const bridgeVersionCompatible =
+            jarvisBridgeVersionAtLeast(
+                bridgeVersion,
+                JARVIS_REQUIRED_LOCAL_BRIDGE_VERSION
+            );
+        const identityCompatible =
             expectedResponse.ok === true &&
             bridgeResponse.ok === true &&
             actual?.ok === true &&
@@ -1366,16 +1410,22 @@ window.JarvisLocalBridge.verifyIdentity ||= async function({
             actual?.contract?.releaseId === expected.releaseId &&
             actual?.contract?.branch === expected.branch &&
             actual?.git?.branch === expected.branch;
+        const compatible =
+            identityCompatible &&
+            bridgeVersionCompatible;
 
         const result = {
             ok: compatible,
             status:
                 compatible
                     ? "BRIDGE_IDENTITY_OK"
-                    : "BRIDGE_IDENTITY_MISMATCH",
-            bridgeVersion:
-                bridgeHealth?.version ||
-                null,
+                    : identityCompatible && !bridgeVersionCompatible
+                        ? "LOCAL_BRIDGE_VERSION_MISMATCH"
+                        : "BRIDGE_IDENTITY_MISMATCH",
+            bridgeVersion,
+            requiredBridgeVersion:
+                JARVIS_REQUIRED_LOCAL_BRIDGE_VERSION,
+            bridgeVersionCompatible,
             expected,
             actual,
             bridgeRoot:

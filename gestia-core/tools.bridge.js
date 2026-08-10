@@ -519,31 +519,64 @@ function composeActuatorResponse(
         );
     }
 
-    if (["page.create", "reel.create"].includes(toolName)) {
+    if (toolName === "page.create") {
         queueActuatorArtifact(toolName, data);
-        const isPage =
-            toolName === "page.create";
         return composer.composeJarvis(
             [
-                isPage
-                    ? "Landing creada"
-                    : "Estudio de reel creado",
+                "Landing creada",
                 "",
                 `Estado: **${data?.status || "COMPLETED"}**.`,
                 `Archivo: **${data?.output || "sin ruta"}**.`,
                 `Tamano: ${Number(data?.bytes || 0)} bytes.`,
-                isPage
-                    ? "El HTML local quedo disponible para vista previa y descarga; no fue publicado ni desplegado."
-                    : "El estudio local quedo disponible para vista previa y descarga; la exportacion WebM se realiza desde el navegador."
+                "El HTML local quedo disponible para vista previa y descarga; no fue publicado ni desplegado."
             ].join("\n"),
             data,
             {
-                type:
-                    isPage
-                        ? "PAGE_CREATE_RESPONSE"
-                        : "REEL_CREATE_RESPONSE",
-                analysisId:
-                    context.analysisId
+                type: "PAGE_CREATE_RESPONSE",
+                analysisId: context.analysisId
+            }
+        );
+    }
+
+    if (toolName === "reel.create") {
+        const videoOutput =
+            data?.videoOutput ||
+            data?.output ||
+            "";
+        const reelData = {
+            ...data,
+            output: videoOutput,
+            mimeType:
+                data?.mimeType ||
+                "video/webm"
+        };
+        queueActuatorArtifact(toolName, reelData);
+        return composer.composeJarvis(
+            [
+                "Reel creado",
+                "",
+                `Estado: **${data?.status || "COMPLETED"}**.`,
+                `Video: **${videoOutput || "sin ruta"}**.`,
+                `Formato: **${data?.mimeType || "video/webm"}**.`,
+                `Tamano: ${Number(data?.bytes || 0)} bytes.`,
+                data?.sha256
+                    ? `SHA-256: **${data.sha256}**.`
+                    : "SHA-256: no informado.",
+                Number(data?.durationSeconds || 0) > 0
+                    ? `Duracion: ${Number(data.durationSeconds)} segundos.`
+                    : "",
+                Number(data?.width || 0) > 0 && Number(data?.height || 0) > 0
+                    ? `Resolucion: ${Number(data.width)}x${Number(data.height)}.`
+                    : "",
+                data?.studioOutput
+                    ? `Estudio editable auxiliar: **${data.studioOutput}**.`
+                    : "",
+                "El WebM fue generado fisicamente por el bridge local y verificado antes de reportar la mision como completada; no fue publicado automaticamente."
+            ].filter(Boolean).join("\n"),
+            reelData,
+            {
+                type: "REEL_CREATE_RESPONSE",
+                analysisId: context.analysisId
             }
         );
     }

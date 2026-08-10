@@ -61,5 +61,7 @@ test("reel creation is approval-bound and connected to the local artifact bridge
     const actuator = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.actuator.pack.js", import.meta.url), "utf8");
     assert.match(bridge, /app\.post\("\/reel\/create"/);
     assert.match(actuator, /name: "reel\.create"/);
-    assert.match(actuator, /REEL_STUDIO_CREATED_VERIFIED/);
+    assert.match(actuator, /REEL_VIDEO_CREATED_VERIFIED/);
+    assert.match(bridge, /exportReelWebmWithChrome/);
+    assert.match(bridge, /REEL_WEBM_SHA256_MISMATCH/);
 });

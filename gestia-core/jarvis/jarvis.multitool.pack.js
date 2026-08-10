@@ -57,6 +57,65 @@ function canonicalEvidenceEnvelope(context = {}) {
     }
 }
 
+const MARKETING_PRODUCTION_TOOL_TYPES = Object.freeze({
+    "document.create": "document",
+    "page.create": "page",
+    "image.generate": "image",
+    "image.edit": "image",
+    "reel.create": "reel"
+});
+
+export function resolveMarketingMissionProductionScope(
+    args = {},
+    context = {}
+) {
+    const current =
+        args && typeof args === "object" && !Array.isArray(args)
+            ? { ...args }
+            : {};
+    if (typeof current.productionRequested === "boolean") {
+        return current;
+    }
+
+    const requiredToolNames =
+        Array.isArray(context?.requiredToolNames)
+            ? context.requiredToolNames.map(String).filter(Boolean)
+            : [];
+    if (requiredToolNames.length === 0) {
+        return current;
+    }
+
+    const productionToolNames =
+        [...new Set(
+            requiredToolNames.filter(name =>
+                Object.prototype.hasOwnProperty.call(
+                    MARKETING_PRODUCTION_TOOL_TYPES,
+                    name
+                )
+            )
+        )];
+    const productionRequested =
+        productionToolNames.length > 0;
+
+    return {
+        ...current,
+        productionRequested,
+        ...(productionRequested &&
+        (!Array.isArray(current.productionArtifacts) ||
+            current.productionArtifacts.length === 0)
+            ? {
+                productionArtifacts:
+                    productionToolNames.map(toolName => ({
+                        id: `mission-${toolName.replaceAll(".", "-")}`,
+                        type: MARKETING_PRODUCTION_TOOL_TYPES[toolName],
+                        toolName,
+                        label: toolName
+                    }))
+            }
+            : {})
+    };
+}
+
 const MARKETING_ARGUMENT_SCHEMA = {
     type: "object",
     properties: {
@@ -3794,7 +3853,7 @@ export function buildReelPlanningSpec(args = {}, context = {}) {
         }))
         : [];
     const timelineSeconds = scenes.reduce((sum, item) => sum + (Number.isFinite(item.durationSeconds) ? item.durationSeconds : 0), 0);
-    const valid = Boolean(brandName && title && cta) && Number.isFinite(durationSeconds) && durationSeconds >= 15 && durationSeconds <= 180 &&
+    const valid = Boolean(brandName && title && cta) && Number.isFinite(durationSeconds) && durationSeconds >= 30 && durationSeconds <= 180 &&
         scenes.length >= 3 && Math.abs(timelineSeconds - durationSeconds) <= 0.01 &&
         scenes.every(item => item.durationSeconds > 0 && item.visual && item.overlay && item.voiceover && item.evidence);
     return {
@@ -5017,6 +5076,12 @@ export function registerJarvisMultifunctionTools(runtime) {
                         error?.message ||
                         String(error);
                 }
+
+                planningArgs =
+                    resolveMarketingMissionProductionScope(
+                        planningArgs,
+                        context
+                    );
 
                 if (typeof planningArgs.productionRequested !== "boolean") {
                     return {

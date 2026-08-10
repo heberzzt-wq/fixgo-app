@@ -154,7 +154,7 @@ fetch("/app-main.js")
     window.__APP_MAIN_SOURCE__ = t;
   });
 
-fetch("/gestia-terminal.js?v=v94-repo-marketing-integrity-v112-20260809")
+fetch("/gestia-terminal.js?v=v94-live-human-reds-v113-20260809")
   .then(r => r.text())
   .then(t => {
     window.__GESTIA_TERMINAL_SOURCE__ = t;
@@ -165,8 +165,8 @@ fetch("/gestia-terminal.js?v=v94-repo-marketing-integrity-v112-20260809")
 
 <script type="module" src="/modules/terminal/proposal-state.js?v=shared-proposal-state-v1-20260713"></script>
 <script type="module" src="/modules/terminal/jarvis-attachments.js?v=jarvis-artifacts-v71-20260725"></script>
-<script type="module" src="/gestia-core/gestia-core.js?v=v94-repo-marketing-integrity-v112-20260809"></script>
-<script type="module" src="/gestia-terminal.js?v=v94-repo-marketing-integrity-v112-20260809"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=v94-live-human-reds-v113-20260809"></script>
+<script type="module" src="/gestia-terminal.js?v=v94-live-human-reds-v113-20260809"></script>
 <script
 type="module"
 src="/gestia-core/gestia.runtime.v7.js?v=fixgo-real-runtime-e2e-20260805">
@@ -4172,12 +4172,12 @@ if (
             );
 
             const preferredAgentFinalResponse =
+                coreResult?.finalResponse ||
                 coreResult?.result?.finalResponse ||
                 coreResult?.result?.followUp?.finalResponse ||
                 null;
 
             const shouldPreferAgentFinalResponse =
-                coreResult?.type === "AGENT_TOOL_RESULT" &&
                 typeof preferredAgentFinalResponse?.text === "string" &&
                 preferredAgentFinalResponse.text.trim().length > 0;
 
@@ -5604,14 +5604,27 @@ const summary =
 
                 if (!handled) {
                     window.renderJarvisResponse?.(
-                        "Brain Router SIA7",
+                        "Jarvis",
                         [
-                            "No ejecute rutas legacy de KernelHeberto ni IA conversacional antigua.",
-                            "La orden quedo contenida para que el Brain Router sea la autoridad principal.",
-                            "Pide una aclaracion o reformula el objetivo tecnico para reentrar por GestiaCore."
+                            "GestiaCore no entregó una respuesta presentable para esta ejecución.",
+                            "La solicitud técnica sigue siendo válida y no necesita reformulación.",
+                            "Estado interno: TERMINAL_CORE_RESPONSE_NOT_PRESENTED."
                         ].join("\n"),
-                        "warning"
+                        "error"
                     );
+
+                    recordTerminalLearningIncident?.({
+                        category: "TERMINAL_CORE_PRESENTATION",
+                        status: "error",
+                        stage: "terminal_core_final_response",
+                        operation: "PRESENT_CORE_RESULT",
+                        reason: "TERMINAL_CORE_RESPONSE_NOT_PRESENTED",
+                        symptom: comando,
+                        wrongBehavior: "GestiaCore terminó la ejecución pero Terminal no presentó un resultado útil.",
+                        fixRule: "Present any valid GestiaCore finalResponse regardless of envelope type; never ask the user to reformulate a valid technical objective.",
+                        sourceTraceId: currentTraceId,
+                        confidence: 1
+                    });
 
                     handled =
                         true;
