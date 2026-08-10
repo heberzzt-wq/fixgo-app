@@ -60,6 +60,14 @@ jobs:
           if s.count(old) != 1:
               raise SystemExit(f'REEL_TEST_OLD_STATUS_COUNT_{s.count(old)}')
           p.write_text(s.replace(old,new),encoding='utf-8')
+
+          p=Path('tests/jarvis-fs-bridge-v2.test.mjs')
+          s=p.read_text(encoding='utf-8')
+          old='assert.equal(description.version, "2.36.0-structural-repo-targets");'
+          new='assert.equal(description.version, "2.37.0-verified-reel-webm");'
+          if s.count(old) != 1:
+              raise SystemExit(f'FS_BRIDGE_VERSION_TEST_COUNT_{s.count(old)}')
+          p.write_text(s.replace(old,new),encoding='utf-8')
           PY
           node --check gestia-core/gestia-core.js
           node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
@@ -80,6 +88,7 @@ jobs:
             tests/jarvis-marketing-terminal-delivery.e2e.test.mjs \
             tests/jarvis-actuator-pack.test.mjs \
             tests/jarvis-reel-artifact.test.mjs \
+            tests/jarvis-fs-bridge-v2.test.mjs \
             tests/repo-authority-v2.test.cjs
           test -z "$(git diff --name-only -- functions)"
 
@@ -164,7 +173,8 @@ jobs:
             jarvis-fs-bridge.js \
             tests/jarvis-live-human-reds-v113.test.mjs \
             tests/jarvis-marketing-terminal-delivery.e2e.test.mjs \
-            tests/jarvis-reel-artifact.test.mjs
+            tests/jarvis-reel-artifact.test.mjs \
+            tests/jarvis-fs-bridge-v2.test.mjs
           test -z "$(git diff --cached --name-only -- functions)"
           git commit -m "[v94] fix(adj): deliver repo results and verified reel video"
           git push origin HEAD:v94-media-v4n-negative-claims
