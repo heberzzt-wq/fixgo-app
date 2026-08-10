@@ -82,15 +82,23 @@ import fs from "node:fs";
     const path = "tests/jarvis-multifunction-tools.test.mjs";
     let source = fs.readFileSync(path, "utf8");
 
-    const oldTerminalAssertion = `    assert.match(terminal, /v94-page-browser-fallback-v115-20260809/);`;
-    const newTerminalAssertion = `    assert.match(terminal, /gestia-terminal\\.js\\?v=v94-[a-z0-9-]+-20260809/);`;
-    const occurrences = source.split(oldTerminalAssertion).length - 1;
+    const oldInlineAssertion = `    assert.match(terminal, /v94-page-browser-fallback-v115-20260809/);`;
+    const newInlineAssertion = `    assert.match(terminal, /gestia-terminal\\.js\\?v=v94-[a-z0-9-]+-20260809/);`;
+    const oldGovernedRouteAssertion = `    assert.match(\n        terminal,\n        /v94-page-browser-fallback-v115-20260809/\n    );`;
+    const newGovernedRouteAssertion = `    assert.match(\n        terminal,\n        /gestia-terminal\\.js\\?v=v94-[a-z0-9-]+-20260809/\n    );`;
 
-    if (occurrences !== 3) {
-        throw new Error(`MULTIFUNCTION_TERMINAL_V115_ASSERTION_COUNT_${occurrences}`);
+    const inlineOccurrences = source.split(oldInlineAssertion).length - 1;
+    const governedRouteOccurrences = source.split(oldGovernedRouteAssertion).length - 1;
+
+    if (inlineOccurrences !== 2) {
+        throw new Error(`MULTIFUNCTION_INLINE_TERMINAL_V115_ASSERTION_COUNT_${inlineOccurrences}`);
+    }
+    if (governedRouteOccurrences !== 1) {
+        throw new Error(`MULTIFUNCTION_GOVERNED_ROUTE_V115_ASSERTION_COUNT_${governedRouteOccurrences}`);
     }
 
-    source = source.split(oldTerminalAssertion).join(newTerminalAssertion);
+    source = source.split(oldInlineAssertion).join(newInlineAssertion);
+    source = source.replace(oldGovernedRouteAssertion, newGovernedRouteAssertion);
     fs.writeFileSync(path, source, "utf8");
 }
 
