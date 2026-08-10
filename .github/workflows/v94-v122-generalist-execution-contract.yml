@@ -1,0 +1,129 @@
+name: V94 v122 generalist execution contract
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - scripts/v122-generalist-execution-contract-fix.py
+      - .github/workflows/v94-v122-generalist-execution-contract.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  certify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      BRANCH: v94-media-v4n-negative-claims
+      BASE_PRODUCT: 8fef8730dea7c1d637d22ad5bed94ec89491e764
+      MAIN_SHA: f3fa8e1806b681e860875afd4ce8183d27864873
+      POLISH_SHA: 2ae85e670505c5d425a5a0334e99c45168054bb8
+      RELEASE: v94-generalist-execution-contract-v122-20260810
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Guard isolated branch protected refs and Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "$BRANCH"
+          git fetch origin main v5.9-polish "$BRANCH"
+          test "$(git rev-parse origin/main)" = "$MAIN_SHA"
+          test "$(git rev-parse origin/v5.9-polish)" = "$POLISH_SHA"
+          test -z "$(git diff --name-only "$BASE_PRODUCT"..HEAD -- functions/)"
+          unexpected="$(git diff --name-only "$BASE_PRODUCT"..HEAD | grep -Ev '^(scripts/v122-generalist-execution-contract-fix.py|\.github/workflows/v94-v122-generalist-execution-contract.yml)$' || true)"
+          test -z "$unexpected" || { echo "$unexpected"; exit 1; }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply v122 product patch
+        run: python3 scripts/v122-generalist-execution-contract-fix.py
+
+      - name: Syntax and source invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check gestia-core/gestia-core.js
+          node --check gestia-core/jarvis/jarvis.mission.dependencies.js
+          node --check gestia-core/jarvis/jarvis.mission.planner-state.js
+          node --check gestia-core/nexo/nexo.real-media.tools.js
+          node --check jarvis-fs-bridge.js
+          node --check modules/terminal/nexo-bootstrap.js
+          node --check modules/terminal/proposal-state.js
+          grep -q 'registerNexoWebMediaRoutes(app, { root })' jarvis-fs-bridge.js
+          grep -q 'v94-media-v4n-negative-claims' jarvis-runtime-contract.json
+          grep -q "$RELEASE" jarvis-runtime-contract.json
+          ! grep -Eq 'observation:[[:space:]]*item\.observation' gestia-core/gestia-core.js
+          test "$(grep -o 'compactMissionPlannerObservation(item.observation)' gestia-core/gestia-core.js | wc -l)" -eq 2
+          ! grep -R --line-number --exclude='jarvis-generalist-execution-contract-v122.test.mjs' --exclude='v122-generalist-execution-contract-fix.py' -E 'Multiservicios Peninsulares HMH|taqueria\.eldorado' gestia-core jarvis-fs-bridge.js modules/terminal || true
+          test -z "$(git diff --name-only "$BASE_PRODUCT" -- functions/)"
+
+      - name: Focused human-red regressions
+        run: >-
+          node --test
+          tests/jarvis-generalist-execution-contract-v122.test.mjs
+          tests/nexo-real-media-tools.test.mjs
+          tests/nexo-web-media-bridge.test.mjs
+          tests/jarvis-fs-bridge-v2.test.mjs
+          tests/jarvis-mission-orchestrator.test.mjs
+          tests/jarvis-current-turn-freshness-v119.test.mjs
+          tests/jarvis-generalist-page-integrity-v120.test.mjs
+          tests/jarvis-page-factual-integrity-v121.test.mjs
+          tests/jarvis-page-request-contract-v118.test.mjs
+          tests/jarvis-semantic-memory-integrity.test.mjs
+
+      - name: Full CI
+        run: npm run ci:test
+
+      - name: Product boundary and release-chain proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git diff --name-only "$BASE_PRODUCT" -- functions/)"
+          grep -q "$RELEASE" gestia-terminal.html
+          grep -q "$RELEASE" gestia-core/tools.runtime.js
+          grep -q "$RELEASE" gestia-core/gestia-core.js
+          grep -q "$RELEASE" modules/terminal/nexo-bootstrap.js
+          grep -q "$RELEASE" modules/terminal/proposal-state.js
+          grep -q '2.39.0-generalist-execution-contract-v122' jarvis-fs-bridge.js
+          git diff --check
+
+      - name: Commit certified product and remove temporary certification files
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f scripts/v122-generalist-execution-contract-fix.py
+          rm -f .github/workflows/v94-v122-generalist-execution-contract.yml
+          git config user.name "heberzzt-wq"
+          git config user.email "heberzzt@gmail.com"
+          git add -A
+          test -n "$(git status --porcelain)"
+          test -z "$(git diff --cached --name-only | grep -E '^functions/' || true)"
+          git commit -m "[v94] fix(adj): align generalist execution contracts v122"
+          git push origin HEAD:"$BRANCH"
+          echo "PRODUCT_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Final no-deploy protected-boundary proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main v5.9-polish "$BRANCH"
+          test "$(git rev-parse origin/main)" = "$MAIN_SHA"
+          test "$(git rev-parse origin/v5.9-polish)" = "$POLISH_SHA"
+          test "$(git rev-parse origin/$BRANCH)" = "$PRODUCT_SHA"
+          test -z "$(git diff --name-only "$BASE_PRODUCT" "$PRODUCT_SHA" -- functions/)"
+          test ! -e scripts/v122-generalist-execution-contract-fix.py
+          test ! -e .github/workflows/v94-v122-generalist-execution-contract.yml
+          echo "V122_CERTIFIED_NO_DEPLOY=$PRODUCT_SHA"
