@@ -95,7 +95,7 @@ test("tool-planning receives only memory availability while mission memory stays
     assert.match(core, /semanticMemoryAvailable:\s*Boolean\(semanticMemory\)/);
     assert.equal(
         (core.match(/semanticMemoryAvailable:\s*Boolean\(semanticMemoryContext\)/g) || []).length,
-        4
+        3
     );
     assert.match(core, /memoryContext:\s*semanticMemoryContext/);
 });
