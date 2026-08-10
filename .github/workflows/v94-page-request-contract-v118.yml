@@ -65,19 +65,34 @@ jobs:
           node --check tests/jarvis-page-request-contract-v118.test.mjs
           test -z "$(git diff --name-only -- functions)"
 
-      - name: Focused v118 regression
+      - name: Focused 1 - v118 page request contract
+        run: node --test tests/jarvis-page-request-contract-v118.test.mjs
+
+      - name: Focused 2 - page artifact compatibility
+        run: node --test tests/jarvis-page-artifact.test.mjs
+
+      - name: Focused 3 - browser fallback v115 compatibility
+        run: node --test tests/jarvis-page-browser-fallback-v115.test.mjs
+
+      - name: Focused 4 - Peninsula page v114 compatibility
+        run: node --test tests/jarvis-peninsula-page-v114.test.mjs
+
+      - name: Focused 5 - mission orchestrator
+        run: node --test tests/jarvis-mission-orchestrator.test.mjs
+
+      - name: Focused 6 - generalist current turn
+        run: node --test tests/jarvis-generalist-current-turn.test.mjs
+
+      - name: Focused 7 - conversation composer
+        run: node --test tests/jarvis-conversation-composer.test.mjs
+
+      - name: Focused 8 - live human reds v113
+        run: node --test tests/jarvis-live-human-reds-v113.test.mjs
+
+      - name: Focused 9 - semantic memory integrity
         run: |
           set -euo pipefail
-          node --test \
-            tests/jarvis-page-request-contract-v118.test.mjs \
-            tests/jarvis-page-artifact.test.mjs \
-            tests/jarvis-page-browser-fallback-v115.test.mjs \
-            tests/jarvis-peninsula-page-v114.test.mjs \
-            tests/jarvis-mission-orchestrator.test.mjs \
-            tests/jarvis-generalist-current-turn.test.mjs \
-            tests/jarvis-conversation-composer.test.mjs \
-            tests/jarvis-live-human-reds-v113.test.mjs \
-            tests/jarvis-semantic-memory-integrity.test.mjs
+          node --test tests/jarvis-semantic-memory-integrity.test.mjs
           test -z "$(git diff --name-only -- functions)"
 
       - name: Physical Jarvis V7 HTML contract probe
