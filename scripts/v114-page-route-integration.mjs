@@ -1,15 +1,27 @@
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { createJarvisFsBridgeApp } from "../jarvis-fs-bridge.js";
 
 const root = process.cwd();
-const app = createJarvisFsBridgeApp({ root });
-const server = await new Promise((resolve, reject) => {
-    const current = app.listen(0, "127.0.0.1", () => resolve(current));
-    current.on("error", reject);
-});
+const contractPath = path.join(root, "jarvis-runtime-contract.json");
+const originalContractText = fs.readFileSync(contractPath, "utf8");
+const contract = JSON.parse(originalContractText);
+const currentBranch = execFileSync("git", ["branch", "--show-current"], {
+    cwd: root,
+    encoding: "utf8"
+}).trim();
+contract.branch = currentBranch;
+fs.writeFileSync(contractPath, `${JSON.stringify(contract, null, 2)}\n`, "utf8");
 
+let server = null;
 try {
+    const app = createJarvisFsBridgeApp({ root });
+    server = await new Promise((resolve, reject) => {
+        const current = app.listen(0, "127.0.0.1", () => resolve(current));
+        current.on("error", reject);
+    });
+
     const address = server.address();
     const response = await fetch(`http://127.0.0.1:${address.port}/page/create`, {
         method: "POST",
@@ -19,18 +31,9 @@ try {
             title: "Tecnología para coordinar servicios con claridad",
             description: "Plataforma para solicitar, coordinar y dar seguimiento a servicios desde una experiencia digital.",
             services: [
-                {
-                    title: "Solicitud digital",
-                    description: "Inicia y organiza una solicitud de servicio desde una sola experiencia."
-                },
-                {
-                    title: "Seguimiento",
-                    description: "Consulta el estado operativo y la evidencia disponible del servicio."
-                },
-                {
-                    title: "Coordinación",
-                    description: "Centraliza la comunicación y los pasos necesarios para atender el servicio."
-                }
+                { title: "Solicitud digital", description: "Inicia y organiza una solicitud de servicio desde una sola experiencia." },
+                { title: "Seguimiento", description: "Consulta el estado operativo y la evidencia disponible del servicio." },
+                { title: "Coordinación", description: "Centraliza la comunicación y los pasos necesarios para atender el servicio." }
             ],
             whatsapp: "",
             whatsappRequested: false,
@@ -43,9 +46,9 @@ try {
         })
     });
     const payload = await response.json();
-    console.log(JSON.stringify(payload, null, 2));
+    console.log(JSON.stringify({ currentBranch, temporaryContractBranch: contract.branch, payload }, null, 2));
 
-    if (!response.ok) throw new Error(`PAGE_ROUTE_HTTP_${response.status}`);
+    if (!response.ok) throw new Error(`PAGE_ROUTE_HTTP_${response.status}:${payload?.error || payload?.status || "unknown"}`);
     if (payload?.ok !== true) throw new Error(payload?.error || "PAGE_ROUTE_NOT_OK");
     if (payload?.status !== "PAGE_ARTIFACT_CREATED_VERIFIED") throw new Error("PAGE_ROUTE_STATUS_INVALID");
     if (!String(payload?.output || "").endsWith(".html")) throw new Error("PAGE_HTML_OUTPUT_REQUIRED");
@@ -64,5 +67,6 @@ try {
     fs.writeFileSync("/tmp/v114-page-output-path.txt", output, "utf8");
     fs.writeFileSync("/tmp/v114-page-route-result.json", JSON.stringify(payload, null, 2), "utf8");
 } finally {
-    await new Promise(resolve => server.close(resolve));
+    if (server) await new Promise(resolve => server.close(resolve));
+    fs.writeFileSync(contractPath, originalContractText, "utf8");
 }
