@@ -1,0 +1,665 @@
+name: V94 page browser fallback v115
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-page-browser-fallback-v115.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v94-page-browser-fallback-v115
+  cancel-in-progress: false
+
+jobs:
+  certify-fix-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Verify isolated branch and snapshot base
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-media-v4n-negative-claims"
+          echo "BASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "Base: $(git rev-parse HEAD)"
+
+      - name: Patch v115 browser fallback and remove phantom repo metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/v115_patch.py <<'PY'
+          from pathlib import Path
+          import re
+
+          ROOT = Path.cwd()
+          OLD = "v94-peninsula-page-v114-20260809"
+          NEW = "v94-page-browser-fallback-v115-20260809"
+
+          def read(path):
+              return (ROOT / path).read_text(encoding="utf-8")
+
+          def write(path, text):
+              (ROOT / path).write_text(text, encoding="utf-8")
+
+          def replace_once(path, old, new, label):
+              text = read(path)
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected exactly 1 match, got {count}")
+              write(path, text.replace(old, new, 1))
+
+          # 1) Make page verification byte counting browser-safe without weakening Node behavior.
+          page_path = "jarvis-page-artifact.js"
+          page = read(page_path)
+          list_anchor = '''function list(value, limit = 12) {
+              return Array.isArray(value) ? value.filter(item => item && typeof item === "object").slice(0, limit) : [];
+          }
+          '''
+          byte_helper = '''function list(value, limit = 12) {
+              return Array.isArray(value) ? value.filter(item => item && typeof item === "object").slice(0, limit) : [];
+          }
+
+          function utf8ByteLength(value = "") {
+              const source = String(value || "");
+              if (typeof TextEncoder === "function") {
+                  return new TextEncoder().encode(source).byteLength;
+              }
+              if (typeof Buffer !== "undefined" && typeof Buffer.byteLength === "function") {
+                  return Buffer.byteLength(source, "utf8");
+              }
+              throw new Error("PAGE_UTF8_BYTE_COUNTER_UNAVAILABLE");
+          }
+          '''
+          if list_anchor not in page:
+              raise SystemExit("PAGE_BYTE_HELPER_ANCHOR_MISSING")
+          page = page.replace(list_anchor, byte_helper, 1)
+          if 'bytes: Buffer.byteLength(html, "utf8"),' not in page:
+              raise SystemExit("PAGE_BUFFER_BYTE_COUNT_ANCHOR_MISSING")
+          page = page.replace('bytes: Buffer.byteLength(html, "utf8"),', 'bytes: utf8ByteLength(html),', 1)
+          write(page_path, page)
+
+          # 2) Install an honest browser-only fallback for the exact stale-bridge version mismatch.
+          actuator_path = "gestia-core/jarvis/jarvis.actuator.pack.js"
+          actuator = read(actuator_path)
+          import_anchor = '''import {
+              recordCapabilityEvidence
+          } from "./jarvis.capability.evidence.js";
+          '''
+          import_replacement = import_anchor + '''import {
+              buildPageArtifactHtml,
+              describePageArtifact
+          } from "../../jarvis-page-artifact.js?v=v94-page-browser-fallback-v115-20260809";
+          '''
+          if import_anchor not in actuator:
+              raise SystemExit("ACTUATOR_PAGE_IMPORT_ANCHOR_MISSING")
+          actuator = actuator.replace(import_anchor, import_replacement, 1)
+
+          helper_anchor = '''async function callAdminFunction(name, data = {}) {'''
+          helper = r'''async function sha256Text(value = "") {
+              if (
+                  !globalThis?.crypto?.subtle ||
+                  typeof TextEncoder !== "function"
+              ) {
+                  throw new Error("BROWSER_PAGE_SHA256_UNAVAILABLE");
+              }
+              const bytes = new TextEncoder().encode(String(value || ""));
+              const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+              return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+          }
+
+          function browserPageFilename(args = {}) {
+              const requested = String(args.output || "").trim().replaceAll("\\", "/");
+              const brand = String(args.brandName || "pagina").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+              const source = requested.split("/").filter(Boolean).pop() || `${brand}-adjunto.html`;
+              const safe = source.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "adjunto-pagina.html";
+              return safe.toLowerCase().endsWith(".html") ? safe : `${safe}.html`;
+          }
+
+          async function createBrowserVerifiedPageArtifact(args = {}) {
+              if (
+                  typeof globalThis?.document?.createElement !== "function" ||
+                  !globalThis?.document?.body ||
+                  typeof globalThis?.Blob !== "function" ||
+                  typeof globalThis?.URL?.createObjectURL !== "function" ||
+                  !globalThis?.crypto?.subtle ||
+                  typeof TextEncoder !== "function"
+              ) {
+                  return {
+                      ok: false,
+                      success: false,
+                      status: "BROWSER_PAGE_FALLBACK_UNAVAILABLE",
+                      error: "BROWSER_PAGE_FALLBACK_UNAVAILABLE"
+                  };
+              }
+
+              let html;
+              let verification;
+              try {
+                  html = buildPageArtifactHtml(args);
+                  verification = describePageArtifact(args, html);
+              }
+              catch(error) {
+                  return {
+                      ok: false,
+                      success: false,
+                      status: "BROWSER_PAGE_BUILD_FAILED",
+                      error: error?.message || String(error)
+                  };
+              }
+
+              const checks = verification?.checks || {};
+              if (
+                  verification?.ok !== true ||
+                  Object.keys(checks).length < 1 ||
+                  !Object.values(checks).every(Boolean)
+              ) {
+                  return {
+                      ok: false,
+                      success: false,
+                      status: "BROWSER_PAGE_VERIFY_FAILED",
+                      error: "BROWSER_PAGE_VERIFY_FAILED",
+                      checks
+                  };
+              }
+
+              const encoded = new TextEncoder().encode(html);
+              const blob = new globalThis.Blob([html], { type: "text/html;charset=utf-8" });
+              if (
+                  blob.size !== encoded.byteLength ||
+                  blob.size !== Number(verification.bytes || 0)
+              ) {
+                  return {
+                      ok: false,
+                      success: false,
+                      status: "BROWSER_PAGE_BYTE_COUNT_MISMATCH",
+                      error: "BROWSER_PAGE_BYTE_COUNT_MISMATCH"
+                  };
+              }
+
+              const sha256 = await sha256Text(html);
+              const downloadUrl = globalThis.URL.createObjectURL(blob);
+              const output = browserPageFilename(args);
+              const registry = Array.isArray(globalThis.__JARVIS_BROWSER_PAGE_ARTIFACTS__)
+                  ? globalThis.__JARVIS_BROWSER_PAGE_ARTIFACTS__
+                  : [];
+              registry.push({ output, downloadUrl, sha256, bytes: blob.size, createdAt: Date.now() });
+              while (registry.length > 10) {
+                  const expired = registry.shift();
+                  try { globalThis.URL.revokeObjectURL(expired?.downloadUrl); } catch {}
+              }
+              globalThis.__JARVIS_BROWSER_PAGE_ARTIFACTS__ = registry;
+
+              let downloadTriggered = false;
+              try {
+                  const anchor = globalThis.document.createElement("a");
+                  anchor.href = downloadUrl;
+                  anchor.download = output;
+                  anchor.rel = "noopener";
+                  anchor.style.display = "none";
+                  globalThis.document.body.appendChild(anchor);
+                  anchor.click();
+                  anchor.remove();
+                  downloadTriggered = true;
+              }
+              catch(error) {
+                  console.warn("[BROWSER_PAGE_DOWNLOAD_TRIGGER_FAILED]", error);
+              }
+
+              return {
+                  ok: true,
+                  success: true,
+                  status: "PAGE_ARTIFACT_CREATED_BROWSER_VERIFIED",
+                  output,
+                  requestedOutput: String(args.output || "").trim() || null,
+                  mimeType: "text/html",
+                  bytes: blob.size,
+                  sha256,
+                  checks,
+                  brandName: verification.brandName || String(args.brandName || ""),
+                  title: verification.title || String(args.title || ""),
+                  downloadUrl,
+                  previewUrl: downloadUrl,
+                  downloadTriggered,
+                  browserDownloadPrepared: true,
+                  artifactMode: "browser_verified_download",
+                  physicallyWritten: false,
+                  published: false
+              };
+          }
+
+          async function callAdminFunction(name, data = {}) {'''
+          if helper_anchor not in actuator:
+              raise SystemExit("ACTUATOR_BROWSER_HELPER_ANCHOR_MISSING")
+          actuator = actuator.replace(helper_anchor, helper, 1)
+
+          old_execute = '''            execute: async (args = {}, context = {}) => {
+                          const result = await bridgeRequest("/page/create", {
+                              ...args,
+                              caseId: args.caseId || context.caseId || "",
+                              objectiveId: args.objectiveId || context.objectiveId || "",
+                              approved: context.approved === true,
+                              approvedBy: context.approvedBy || ""
+                          }, 60000);
+                          if (result?.ok === true && result?.status === "PAGE_ARTIFACT_CREATED_VERIFIED") {
+                              recordCapabilityEvidence("page_creation", {
+                                  ok: true,
+                                  status: result.status,
+                                  output: result.output,
+                                  bytes: result.bytes,
+                                  sha256: result.sha256,
+                                  checks: result.checks,
+                                  checkedAt: new Date().toISOString()
+                              });
+                          }
+                          return result;
+                      }
+          '''
+          new_execute = '''            execute: async (args = {}, context = {}) => {
+                          let result = await bridgeRequest("/page/create", {
+                              ...args,
+                              caseId: args.caseId || context.caseId || "",
+                              objectiveId: args.objectiveId || context.objectiveId || "",
+                              approved: context.approved === true,
+                              approvedBy: context.approvedBy || ""
+                          }, 60000);
+
+                          const staleBridgeVersion =
+                              result?.status === "LOCAL_BRIDGE_VERSION_MISMATCH" ||
+                              result?.error === "LOCAL_BRIDGE_VERSION_MISMATCH";
+
+                          if (result?.ok !== true && staleBridgeVersion) {
+                              const browserResult = await createBrowserVerifiedPageArtifact(args);
+                              if (browserResult?.ok === true) {
+                                  result = {
+                                      ...browserResult,
+                                      bridgeFallback: {
+                                          status: "LOCAL_BRIDGE_VERSION_MISMATCH",
+                                          bridgeVersion: result?.bridgeVersion || result?.bridgeIdentity?.bridgeVersion || null,
+                                          requiredBridgeVersion: result?.requiredBridgeVersion || result?.bridgeIdentity?.requiredBridgeVersion || null
+                                      }
+                                  };
+                              }
+                          }
+
+                          if (
+                              result?.ok === true &&
+                              [
+                                  "PAGE_ARTIFACT_CREATED_VERIFIED",
+                                  "PAGE_ARTIFACT_CREATED_BROWSER_VERIFIED"
+                              ].includes(result?.status)
+                          ) {
+                              recordCapabilityEvidence("page_creation", {
+                                  ok: true,
+                                  status: result.status,
+                                  output: result.output,
+                                  bytes: result.bytes,
+                                  sha256: result.sha256,
+                                  checks: result.checks,
+                                  artifactMode: result.artifactMode || "local_bridge_verified",
+                                  physicallyWritten: result.physicallyWritten !== false,
+                                  checkedAt: new Date().toISOString()
+                              });
+                          }
+                          return result;
+                      }
+          '''
+          if old_execute not in actuator:
+              raise SystemExit("ACTUATOR_PAGE_EXECUTE_ANCHOR_MISSING")
+          actuator = actuator.replace(old_execute, new_execute, 1)
+          write(actuator_path, actuator)
+
+          # 3) Keep the human response truthful for browser fallback and avoid feeding it into local artifact readers.
+          bridge_path = "gestia-core/tools.bridge.js"
+          bridge = read(bridge_path)
+          if '    if (!data?.output) return;\n' not in bridge:
+              raise SystemExit("TOOLS_BRIDGE_QUEUE_ANCHOR_MISSING")
+          bridge = bridge.replace(
+              '    if (!data?.output) return;\n',
+              '    if (!data?.output) return;\n    if (data?.artifactMode === "browser_verified_download") return;\n',
+              1
+          )
+          page_response_anchor = '''    if (toolName === "page.create") {
+                  queueActuatorArtifact(toolName, data);
+                  return composer.composeJarvis(
+          '''
+          page_response_replacement = '''    if (toolName === "page.create") {
+                  queueActuatorArtifact(toolName, data);
+                  const pageDeliveryLine =
+                      data?.artifactMode === "browser_verified_download"
+                          ? (
+                              data?.downloadTriggered === true
+                                  ? "El HTML fue generado y verificado en el navegador y la descarga local fue iniciada. El bridge desactualizado no escribió el archivo y no se publicó ni desplegó."
+                                  : "El HTML fue generado y verificado en el navegador y quedó preparado para descarga. El bridge desactualizado no escribió el archivo y no se publicó ni desplegó."
+                          )
+                          : "El HTML fue creado físicamente por el bridge local y verificado antes de reportarse como completado; quedó disponible para vista previa y descarga, sin publicación ni despliegue automático.";
+                  return composer.composeJarvis(
+          '''
+          if page_response_anchor not in bridge:
+              raise SystemExit("TOOLS_BRIDGE_PAGE_RESPONSE_ANCHOR_MISSING")
+          bridge = bridge.replace(page_response_anchor, page_response_replacement, 1)
+          old_line = '                "El HTML fue creado físicamente y verificado antes de reportarse como completado; quedó disponible para vista previa y descarga, sin publicación ni despliegue automático."\n'
+          if old_line not in bridge:
+              raise SystemExit("TOOLS_BRIDGE_PAGE_DELIVERY_LINE_MISSING")
+          bridge = bridge.replace(old_line, '                pageDeliveryLine\n', 1)
+          write(bridge_path, bridge)
+
+          # 4) Cache-bust only the browser boot chain that changed.
+          runtime_path = "gestia-core/tools.runtime.js"
+          runtime = read(runtime_path)
+          runtime = runtime.replace(
+              './jarvis/jarvis.actuator.pack.js?v=v94-repo-marketing-integrity-v112-20260809',
+              './jarvis/jarvis.actuator.pack.js?v=v94-page-browser-fallback-v115-20260809',
+              1
+          )
+          if 'v94-page-browser-fallback-v115-20260809' not in runtime:
+              raise SystemExit("TOOLS_RUNTIME_V115_CACHE_BUST_FAILED")
+          write(runtime_path, runtime)
+
+          core_path = "gestia-core/gestia-core.js"
+          core = read(core_path).replace(OLD, NEW)
+          write(core_path, core)
+
+          html_path = "gestia-terminal.html"
+          html = read(html_path).replace(OLD, NEW)
+          html = html.replace("v94-live-human-reds-v113-20260809", NEW)
+          if html.count(NEW) < 3:
+              raise SystemExit("TERMINAL_HTML_V115_CACHE_BUST_FAILED")
+          write(html_path, html)
+
+          terminal_js_path = "gestia-terminal.js"
+          terminal_js = read(terminal_js_path)
+          old_repo_import = 'import "./modules/terminal/repo-bootstrap-index.js";'
+          new_repo_import = 'import "./modules/terminal/repo-bootstrap-index.js?v=v94-page-browser-fallback-v115-20260809";'
+          if old_repo_import not in terminal_js:
+              raise SystemExit("TERMINAL_REPO_INDEX_IMPORT_ANCHOR_MISSING")
+          terminal_js = terminal_js.replace(old_repo_import, new_repo_import, 1)
+          write(terminal_js_path, terminal_js)
+
+          # 5) Remove every literal static repo-index entry whose declared path is absent.
+          index_path = "modules/terminal/repo-bootstrap-index.js"
+          index_source = read(index_path)
+          block_pattern = re.compile(
+              r'\nwindow\.__REPO_INDEX__\["([^"]+)"\]\s*=\s*\{(.*?)\n\};\n',
+              re.S
+          )
+          stale = []
+          for match in list(block_pattern.finditer(index_source)):
+              body = match.group(2)
+              path_match = re.search(r'\bpath\s*:\s*["\']([^"\']+)["\']', body)
+              if not path_match:
+                  continue
+              declared = path_match.group(1).strip()
+              normalized = declared[2:] if declared.startswith("./") else declared.lstrip("/")
+              if normalized and not (ROOT / normalized).is_file():
+                  stale.append((match.group(1), declared, match.group(0)))
+          if not stale:
+              print("No stale literal repo-index entries found.")
+          else:
+              for name, declared, block in stale:
+                  print(f"Removing stale repo metadata: {name} -> {declared}")
+                  index_source = index_source.replace(block, "\n", 1)
+          write(index_path, index_source)
+
+          # 6) Align tests that only pin the browser cache token.
+          for test_file in (ROOT / "tests").glob("*.mjs"):
+              source = test_file.read_text(encoding="utf-8")
+              updated = source.replace(OLD, NEW)
+              if updated != source:
+                  test_file.write_text(updated, encoding="utf-8")
+
+          # 7) Add focused executable regression test.
+          test_path = ROOT / "tests" / "jarvis-page-browser-fallback-v115.test.mjs"
+          test_path.write_text(r'''import test from "node:test";
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+
+          const root = process.cwd();
+
+          test("page artifact byte verification is browser compatible", async () => {
+              const source = fs.readFileSync(path.join(root, "jarvis-page-artifact.js"), "utf8");
+              assert.match(source, /function utf8ByteLength/);
+              assert.match(source, /new TextEncoder\(\)/);
+              assert.doesNotMatch(source, /bytes:\s*Buffer\.byteLength\(html/);
+          });
+
+          test("page.create falls back only on exact local bridge version mismatch", async () => {
+              globalThis.window = globalThis;
+              let clicks = 0;
+              globalThis.document = {
+                  body: { appendChild() {} },
+                  createElement(name) {
+                      assert.equal(name, "a");
+                      return {
+                          href: "",
+                          download: "",
+                          rel: "",
+                          style: {},
+                          click() { clicks += 1; },
+                          remove() {}
+                      };
+                  }
+              };
+              globalThis.JarvisLocalBridge = {
+                  requestJson: async () => ({
+                      ok: false,
+                      success: false,
+                      status: "LOCAL_BRIDGE_VERSION_MISMATCH",
+                      error: "LOCAL_BRIDGE_VERSION_MISMATCH",
+                      bridgeVersion: "2.37.0-verified-reel-webm",
+                      requiredBridgeVersion: "2.38.0-page-no-contact-route"
+                  })
+              };
+              const registered = new Map();
+              const runtime = {
+                  register(definition) {
+                      registered.set(definition.name, definition);
+                      return { ok: true, tool: definition.name };
+                  }
+              };
+              const module = await import(`../gestia-core/jarvis/jarvis.actuator.pack.js?v115-test=${Date.now()}`);
+              module.registerJarvisActuatorTools(runtime);
+              const pageCreate = registered.get("page.create");
+              assert.ok(pageCreate);
+              const result = await pageCreate.execute({
+                  brandName: "Península Tech",
+                  title: "Tecnología y servicios para resolver",
+                  description: "Servicios tecnológicos y operativos presentados sin inventar información de contacto no verificada.",
+                  services: [
+                      { title: "Soporte técnico", description: "Atención y diagnóstico técnico para necesidades verificadas del proyecto." },
+                      { title: "Soluciones digitales", description: "Implementación de herramientas digitales alineadas con los objetivos del negocio." }
+                  ]
+              }, {});
+              assert.equal(result.ok, true);
+              assert.equal(result.status, "PAGE_ARTIFACT_CREATED_BROWSER_VERIFIED");
+              assert.equal(result.artifactMode, "browser_verified_download");
+              assert.equal(result.physicallyWritten, false);
+              assert.equal(result.published, false);
+              assert.equal(result.bridgeFallback.status, "LOCAL_BRIDGE_VERSION_MISMATCH");
+              assert.equal(result.bridgeFallback.bridgeVersion, "2.37.0-verified-reel-webm");
+              assert.equal(result.bridgeFallback.requiredBridgeVersion, "2.38.0-page-no-contact-route");
+              assert.match(result.sha256, /^[a-f0-9]{64}$/);
+              assert.ok(result.bytes > 1000);
+              assert.equal(clicks, 1);
+          });
+
+          test("bridge requirement remains 2.38 and browser delivery wording is truthful", () => {
+              const runtime = fs.readFileSync(path.join(root, "gestia-core", "tools.runtime.js"), "utf8");
+              const bridge = fs.readFileSync(path.join(root, "gestia-core", "tools.bridge.js"), "utf8");
+              assert.match(runtime, /2\.38\.0-page-no-contact-route/);
+              assert.match(bridge, /browser_verified_download/);
+              assert.match(bridge, /bridge desactualizado no escribió el archivo/);
+              assert.match(bridge, /creado físicamente por el bridge local/);
+          });
+
+          test("static repo bootstrap has no literal entries pointing to missing files", () => {
+              const file = path.join(root, "modules", "terminal", "repo-bootstrap-index.js");
+              const source = fs.readFileSync(file, "utf8");
+              const blockPattern = /window\.__REPO_INDEX__\["([^"]+)"\]\s*=\s*\{([\s\S]*?)\n\};/g;
+              const missing = [];
+              for (const match of source.matchAll(blockPattern)) {
+                  const pathMatch = match[2].match(/\bpath\s*:\s*["']([^"']+)["']/);
+                  if (!pathMatch) continue;
+                  const declared = pathMatch[1].trim();
+                  const normalized = declared.startsWith("./") ? declared.slice(2) : declared.replace(/^\//, "");
+                  if (normalized && !fs.existsSync(path.join(root, normalized))) {
+                      missing.push(`${match[1]} -> ${declared}`);
+                  }
+              }
+              assert.deepEqual(missing, []);
+              for (const phantom of [
+                  "jarvis-nlu-bridge.js",
+                  "jarvis.intent.runtime.v7.js",
+                  "jarvis.language.core.v5.js",
+                  "jarvis.dsl.js",
+                  "jarvis.orchestrator.js",
+                  "jarvis.vision.engine.js",
+                  "jarvis.normalizer.js",
+                  "jarvis.bridge.v4.js",
+                  "intent.engine.v7.js",
+                  "repo.cognition.index.js",
+                  "jarvis.cognition.engine.js",
+                  "intent.engine.js",
+                  "cognitive.bootstrap.js"
+              ]) {
+                  assert.doesNotMatch(source, new RegExp(`__REPO_INDEX__\\["${phantom.replaceAll(".", "\\.")}"\\]`));
+              }
+          });
+
+          test("browser boot chain carries v115 cache identity", () => {
+              const html = fs.readFileSync(path.join(root, "gestia-terminal.html"), "utf8");
+              const core = fs.readFileSync(path.join(root, "gestia-core", "gestia-core.js"), "utf8");
+              const terminal = fs.readFileSync(path.join(root, "gestia-terminal.js"), "utf8");
+              assert.match(html, /v94-page-browser-fallback-v115-20260809/);
+              assert.match(core, /v94-page-browser-fallback-v115-20260809/);
+              assert.match(terminal, /repo-bootstrap-index\.js\?v=v94-page-browser-fallback-v115-20260809/);
+          });
+          ''', encoding="utf-8")
+          PY
+          python /tmp/v115_patch.py
+          echo "--- changed files ---"
+          git status --short
+
+      - name: Prove Functions untouched by patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --quiet "$BASE_SHA" -- functions
+          echo "Functions unchanged from workflow base."
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Focused v115 regression
+        run: |
+          node --test \
+            tests/jarvis-page-artifact.test.mjs \
+            tests/jarvis-peninsula-page-v114.test.mjs \
+            tests/jarvis-page-browser-fallback-v115.test.mjs \
+            tests/jarvis-semantic-memory-integrity.test.mjs
+
+      - name: Full CI
+        run: npm run ci:test
+
+      - name: Final source invariants before commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq '2.38.0-page-no-contact-route' gestia-core/tools.runtime.js
+          grep -Fq 'PAGE_ARTIFACT_CREATED_BROWSER_VERIFIED' gestia-core/jarvis/jarvis.actuator.pack.js
+          grep -Fq 'browser_verified_download' gestia-core/tools.bridge.js
+          grep -Fq 'v94-page-browser-fallback-v115-20260809' gestia-terminal.html
+          grep -Fq 'v94-page-browser-fallback-v115-20260809' gestia-core/gestia-core.js
+          ! grep -Fq 'window.__REPO_INDEX__["jarvis-nlu-bridge.js"]' modules/terminal/repo-bootstrap-index.js
+          git diff --quiet "$BASE_SHA" -- functions
+
+      - name: Commit certified product fix
+        id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            jarvis-page-artifact.js \
+            gestia-core/jarvis/jarvis.actuator.pack.js \
+            gestia-core/tools.bridge.js \
+            gestia-core/tools.runtime.js \
+            gestia-core/gestia-core.js \
+            gestia-terminal.html \
+            gestia-terminal.js \
+            modules/terminal/repo-bootstrap-index.js \
+            tests
+          if git diff --cached --quiet; then
+            echo "No product changes to commit."
+          else
+            git commit -m "[v94] fix(adj): complete page creation with stale bridge"
+            git push origin HEAD:v94-media-v4n-negative-claims
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "Certified SHA: $(git rev-parse HEAD)"
+          git diff HEAD^ --name-only | tee /tmp/changed-after-commit.txt || true
+          if grep -q '^functions/' /tmp/changed-after-commit.txt; then
+            echo "Functions changed unexpectedly" >&2
+            exit 1
+          fi
+
+      - name: Sovereign Hosting deploy gate
+        env:
+          JARVIS_CI_PASSED: "true"
+          JARVIS_DEPLOY_PROJECT: fixgo-44e4d
+          JARVIS_DEPLOY_CONFIRM_PROJECT: fixgo-44e4d
+          JARVIS_DEPLOY_CONFIRM_BRANCH: v94-media-v4n-negative-claims
+          JARVIS_FIREBASE_PROJECT: fixgo-44e4d
+        run: node scripts/jarvis-deploy-gate.mjs
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Hosting only
+        run: firebase deploy --only hosting --project fixgo-44e4d --token "${{ secrets.FIREBASE_TOKEN }}"
+
+      - name: Verify live v115 and exact critical bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="${{ steps.commit.outputs.sha }}"
+          base="https://fixgo-44e4d.web.app"
+          curl -fsSL "$base/gestia-terminal.html?v=$sha" | grep -Fq 'v94-page-browser-fallback-v115-20260809'
+          curl -fsSL "$base/gestia-core/jarvis/jarvis.actuator.pack.js?v=$sha" | grep -Fq 'PAGE_ARTIFACT_CREATED_BROWSER_VERIFIED'
+          curl -fsSL "$base/gestia-core/tools.runtime.js?v=$sha" | grep -Fq '2.38.0-page-no-contact-route'
+          curl -fsSL "$base/modules/terminal/repo-bootstrap-index.js?v=$sha" | grep -Fq 'jarvis-nlu-bridge.js' && exit 1 || true
+
+          files=(
+            gestia-terminal.html
+            gestia-terminal.js
+            gestia-core/gestia-core.js
+            gestia-core/tools.runtime.js
+            gestia-core/tools.bridge.js
+            gestia-core/jarvis/jarvis.actuator.pack.js
+            jarvis-page-artifact.js
+            modules/terminal/repo-bootstrap-index.js
+          )
+          for p in "${files[@]}"; do
+            local_sha="$(sha256sum "$p" | awk '{print $1}')"
+            curl -fsSL "$base/$p?v=$sha" -o /tmp/live.bin
+            live_sha="$(sha256sum /tmp/live.bin | awk '{print $1}')"
+            echo "$p local=$local_sha live=$live_sha"
+            test "$local_sha" = "$live_sha"
+          done
+          echo "LIVE_V115_BYTES_OK sha=$sha"
