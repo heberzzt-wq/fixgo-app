@@ -97,12 +97,13 @@ import fs from "node:fs";
 
     const oldTerminalAssertion = `    assert.match(terminal, /v94-page-browser-fallback-v115-20260809/);`;
     const newTerminalAssertion = `    assert.match(terminal, /gestia-terminal\\.js\\?v=v94-[a-z0-9-]+-20260809/);`;
+    const occurrences = block.split(oldTerminalAssertion).length - 1;
 
-    if (!block.includes(oldTerminalAssertion)) {
-        throw new Error("MULTIFUNCTION_TERMINAL_V115_ASSERTION_MISSING");
+    if (occurrences !== 2) {
+        throw new Error(`MULTIFUNCTION_TERMINAL_V115_ASSERTION_COUNT_${occurrences}`);
     }
 
-    block = block.replace(oldTerminalAssertion, newTerminalAssertion);
+    block = block.split(oldTerminalAssertion).join(newTerminalAssertion);
     source = before + block + after;
     fs.writeFileSync(path, source, "utf8");
 }
