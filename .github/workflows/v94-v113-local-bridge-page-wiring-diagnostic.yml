@@ -1,0 +1,52 @@
+name: V94 v113 local bridge and page wiring diagnostic
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-v113-local-bridge-page-wiring-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+      - name: Assert Functions boundary
+        run: |
+          set -euo pipefail
+          test -z "$(git diff --name-only 13cb877ef49fbd2ef19bc2a5da42887b5836e16a HEAD -- functions)"
+      - name: Capture local bridge and page wiring
+        run: |
+          set -euo pipefail
+          {
+            echo '===== ACTUATOR REEL/PAGE ====='
+            grep -n -C 80 -E 'reel\.create|page\.create|/reel/create|/page/create|requestJson|fetch\(' gestia-core/jarvis/jarvis.actuator.pack.js | head -n 2400 || true
+            echo
+            echo '===== RUNTIME LOCAL BRIDGE CLIENT ====='
+            grep -Rni -C 40 -E 'upload/health|UPLOAD_TRANSPORT_READY|bridgeVersion|127\.0\.0\.1|localhost|reel/create|page/create' \
+              gestia-core modules gestia-terminal.js gestia-terminal.html \
+              --exclude='*.map' | head -n 3000 || true
+            echo
+            echo '===== TOOLS BRIDGE HUMAN RESPONSE ====='
+            grep -n -C 70 -E 'Estudio de reel creado|Landing creada|exportacion WebM|REEL_CREATE_RESPONSE|PAGE_CREATE_RESPONSE' gestia-core/tools.bridge.js | head -n 1000 || true
+            echo
+            echo '===== FS BRIDGE PAGE ROUTES ====='
+            grep -n -C 100 -E 'page/create|PAGE_|buildPage|landing|html' jarvis-fs-bridge.js | head -n 2400 || true
+            echo
+            echo '===== PAGE TESTS ====='
+            grep -Rni -C 25 -E 'page\.create|PAGE_CREATED|PAGE_.*VERIFIED|Landing creada' tests --include='*.test.*' | head -n 3000 || true
+          } > /tmp/v113-local-bridge-page-wiring.txt
+          test -z "$(git status --porcelain -- functions)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v94-v113-local-bridge-page-wiring
+          path: /tmp/v113-local-bridge-page-wiring.txt
+          retention-days: 3
