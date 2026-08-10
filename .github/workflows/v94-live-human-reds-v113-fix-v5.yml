@@ -1,0 +1,461 @@
+name: V94 live human reds v113 fix v5
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-live-human-reds-v113-fix-v5.yml
+
+permissions:
+  contents: write
+
+jobs:
+  certify-fix-deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Assert isolated branch and Functions boundary
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-media-v4n-negative-claims"
+          git merge-base --is-ancestor 13cb877ef49fbd2ef19bc2a5da42887b5836e16a HEAD
+          test -z "$(git diff --name-only 13cb877ef49fbd2ef19bc2a5da42887b5836e16a HEAD -- functions)"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          npm ci
+          npm --prefix functions ci
+          test -z "$(git status --porcelain -- functions)"
+
+      - name: Apply v113 product repair
+        run: |
+          set -euo pipefail
+          python scripts/v113-live-human-reds-fix.py
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_exact(path, old, new, expected=1):
+              p=Path(path)
+              s=p.read_text(encoding='utf-8')
+              count=s.count(old)
+              if count != expected:
+                  raise SystemExit(f'{path}: expected {expected} occurrences of {old!r}, got {count}')
+              p.write_text(s.replace(old,new),encoding='utf-8')
+
+          replace_exact('tests/jarvis-marketing-terminal-delivery.e2e.test.mjs','v94-repo-marketing-integrity-v112-20260809','v94-live-human-reds-v113-20260809',2)
+          replace_exact('tests/jarvis-reel-artifact.test.mjs','assert.match(actuator, /REEL_STUDIO_CREATED_VERIFIED/);','assert.match(actuator, /REEL_VIDEO_CREATED_VERIFIED/);\n    assert.match(bridge, /exportReelWebmWithChrome/);\n    assert.match(bridge, /REEL_WEBM_SHA256_MISMATCH/);')
+          replace_exact('tests/jarvis-fs-bridge-v2.test.mjs','assert.equal(description.version, "2.36.0-structural-repo-targets");','assert.equal(description.version, "2.37.0-verified-reel-webm");')
+          replace_exact('tests/jarvis-multifunction-tools.test.mjs','v94-repo-marketing-integrity-v112-20260809','v94-live-human-reds-v113-20260809',5)
+          replace_exact('tests/jarvis-semantic-memory-integrity.test.mjs','assert.match(html, /v94-semantic-memory-repo-v111-20260809/);','assert.match(html, /v94-live-human-reds-v113-20260809/);')
+          replace_exact('tests/jarvis-semantic-memory-integrity.test.mjs','assert.match(core, /tools\\.runtime\\.js\\?v=v94-semantic-memory-repo-v111-20260809/);','assert.match(core, /tools\\.runtime\\.js\\?v=v94-live-human-reds-v113-20260809/);')
+
+          # Human reel response: video is primary physical artifact; studio is auxiliary.
+          p=Path('gestia-core/tools.bridge.js')
+          s=p.read_text(encoding='utf-8')
+          old='''    if (["page.create", "reel.create"].includes(toolName)) {
+        queueActuatorArtifact(toolName, data);
+        const isPage =
+            toolName === "page.create";
+        return composer.composeJarvis(
+            [
+                isPage
+                    ? "Landing creada"
+                    : "Estudio de reel creado",
+                "",
+                `Estado: **${data?.status || "COMPLETED"}**.`,
+                `Archivo: **${data?.output || "sin ruta"}**.`,
+                `Tamano: ${Number(data?.bytes || 0)} bytes.`,
+                isPage
+                    ? "El HTML local quedo disponible para vista previa y descarga; no fue publicado ni desplegado."
+                    : "El estudio local quedo disponible para vista previa y descarga; la exportacion WebM se realiza desde el navegador."
+            ].join("\\n"),
+            data,
+            {
+                type:
+                    isPage
+                        ? "PAGE_CREATE_RESPONSE"
+                        : "REEL_CREATE_RESPONSE",
+                analysisId:
+                    context.analysisId
+            }
+        );
+    }'''
+          new='''    if (toolName === "page.create") {
+        queueActuatorArtifact(toolName, data);
+        return composer.composeJarvis(
+            [
+                "Landing creada",
+                "",
+                `Estado: **${data?.status || "COMPLETED"}**.`,
+                `Archivo: **${data?.output || "sin ruta"}**.`,
+                `Tamano: ${Number(data?.bytes || 0)} bytes.`,
+                "El HTML local quedo disponible para vista previa y descarga; no fue publicado ni desplegado."
+            ].join("\\n"),
+            data,
+            {
+                type: "PAGE_CREATE_RESPONSE",
+                analysisId: context.analysisId
+            }
+        );
+    }
+
+    if (toolName === "reel.create") {
+        const videoOutput =
+            data?.videoOutput ||
+            data?.output ||
+            "";
+        const reelData = {
+            ...data,
+            output: videoOutput,
+            mimeType:
+                data?.mimeType ||
+                "video/webm"
+        };
+        queueActuatorArtifact(toolName, reelData);
+        return composer.composeJarvis(
+            [
+                "Reel creado",
+                "",
+                `Estado: **${data?.status || "COMPLETED"}**.`,
+                `Video: **${videoOutput || "sin ruta"}**.`,
+                `Formato: **${data?.mimeType || "video/webm"}**.`,
+                `Tamano: ${Number(data?.bytes || 0)} bytes.`,
+                data?.sha256
+                    ? `SHA-256: **${data.sha256}**.`
+                    : "SHA-256: no informado.",
+                Number(data?.durationSeconds || 0) > 0
+                    ? `Duracion: ${Number(data.durationSeconds)} segundos.`
+                    : "",
+                Number(data?.width || 0) > 0 && Number(data?.height || 0) > 0
+                    ? `Resolucion: ${Number(data.width)}x${Number(data.height)}.`
+                    : "",
+                data?.studioOutput
+                    ? `Estudio editable auxiliar: **${data.studioOutput}**.`
+                    : "",
+                "El WebM fue generado fisicamente por el bridge local y verificado antes de reportar la mision como completada; no fue publicado automaticamente."
+            ].filter(Boolean).join("\\n"),
+            reelData,
+            {
+                type: "REEL_CREATE_RESPONSE",
+                analysisId: context.analysisId
+            }
+        );
+    }'''
+          if s.count(old) != 1:
+              raise SystemExit(f'TOOLS_BRIDGE_REEL_PAGE_BLOCK_COUNT_{s.count(old)}')
+          p.write_text(s.replace(old,new),encoding='utf-8')
+
+          # Local browser/runtime must reject an already-running pre-v113 Node bridge.
+          p=Path('gestia-core/tools.runtime.js')
+          s=p.read_text(encoding='utf-8')
+          anchor='''window.JarvisLocalBridge ||= {};
+window.JarvisLocalBridge.verifyIdentity ||= async function({'''
+          inserted='''const JARVIS_REQUIRED_LOCAL_BRIDGE_VERSION =
+    "2.37.0-verified-reel-webm";
+
+function jarvisBridgeVersionTuple(value = "") {
+    const core =
+        String(value || "")
+            .trim()
+            .split("-")[0];
+    const parts =
+        core
+            .split(".")
+            .slice(0, 3)
+            .map(part => Number(part));
+    if (
+        parts.length !== 3 ||
+        parts.some(part => !Number.isInteger(part) || part < 0)
+    ) {
+        return null;
+    }
+    return parts;
+}
+
+function jarvisBridgeVersionAtLeast(
+    actual = "",
+    required = JARVIS_REQUIRED_LOCAL_BRIDGE_VERSION
+) {
+    const actualTuple =
+        jarvisBridgeVersionTuple(actual);
+    const requiredTuple =
+        jarvisBridgeVersionTuple(required);
+    if (!actualTuple || !requiredTuple) return false;
+    for (let index = 0; index < 3; index += 1) {
+        if (actualTuple[index] > requiredTuple[index]) return true;
+        if (actualTuple[index] < requiredTuple[index]) return false;
+    }
+    return true;
+}
+
+window.JarvisLocalBridge ||= {};
+window.JarvisLocalBridge.verifyIdentity ||= async function({'''
+          if s.count(anchor) != 1:
+              raise SystemExit(f'TOOLS_RUNTIME_IDENTITY_ANCHOR_COUNT_{s.count(anchor)}')
+          s=s.replace(anchor,inserted,1)
+          old='''        const actual =
+            bridgeHealth?.identity || null;
+
+        const compatible =
+            expectedResponse.ok === true &&
+            bridgeResponse.ok === true &&
+            actual?.ok === true &&
+            actual?.contract?.projectId === expected.projectId &&
+            actual?.contract?.releaseId === expected.releaseId &&
+            actual?.contract?.branch === expected.branch &&
+            actual?.git?.branch === expected.branch;
+
+        const result = {
+            ok: compatible,
+            status:
+                compatible
+                    ? "BRIDGE_IDENTITY_OK"
+                    : "BRIDGE_IDENTITY_MISMATCH",
+            bridgeVersion:
+                bridgeHealth?.version ||
+                null,
+            expected,'''
+          new='''        const actual =
+            bridgeHealth?.identity || null;
+        const bridgeVersion =
+            String(bridgeHealth?.version || "").trim();
+        const bridgeVersionCompatible =
+            jarvisBridgeVersionAtLeast(
+                bridgeVersion,
+                JARVIS_REQUIRED_LOCAL_BRIDGE_VERSION
+            );
+        const identityCompatible =
+            expectedResponse.ok === true &&
+            bridgeResponse.ok === true &&
+            actual?.ok === true &&
+            actual?.contract?.projectId === expected.projectId &&
+            actual?.contract?.releaseId === expected.releaseId &&
+            actual?.contract?.branch === expected.branch &&
+            actual?.git?.branch === expected.branch;
+        const compatible =
+            identityCompatible &&
+            bridgeVersionCompatible;
+
+        const result = {
+            ok: compatible,
+            status:
+                compatible
+                    ? "BRIDGE_IDENTITY_OK"
+                    : identityCompatible && !bridgeVersionCompatible
+                        ? "LOCAL_BRIDGE_VERSION_MISMATCH"
+                        : "BRIDGE_IDENTITY_MISMATCH",
+            bridgeVersion,
+            requiredBridgeVersion:
+                JARVIS_REQUIRED_LOCAL_BRIDGE_VERSION,
+            bridgeVersionCompatible,
+            expected,'''
+          if s.count(old) != 1:
+              raise SystemExit(f'TOOLS_RUNTIME_COMPATIBILITY_BLOCK_COUNT_{s.count(old)}')
+          p.write_text(s.replace(old,new,1),encoding='utf-8')
+
+          # Extend human-red regression with presentation and stale-local-bridge guarantees.
+          p=Path('tests/jarvis-live-human-reds-v113.test.mjs')
+          s=p.read_text(encoding='utf-8')
+          addition=r'''
+
+test("reel human response reports the physical WebM as primary artifact", () => {
+    const bridge = fs.readFileSync(path.join(process.cwd(), "gestia-core", "tools.bridge.js"), "utf8");
+    assert.match(bridge, /"Reel creado"/);
+    assert.match(bridge, /data\?\.videoOutput/);
+    assert.match(bridge, /SHA-256/);
+    assert.match(bridge, /WebM fue generado fisicamente/);
+    assert.match(bridge, /Estudio editable auxiliar/);
+    assert.doesNotMatch(bridge, /exportacion WebM se realiza desde el navegador/);
+    assert.doesNotMatch(bridge, /"Estudio de reel creado"/);
+});
+
+test("browser runtime rejects a pre-v113 local bridge before actuator calls", () => {
+    const runtime = fs.readFileSync(path.join(process.cwd(), "gestia-core", "tools.runtime.js"), "utf8");
+    assert.match(runtime, /2\.37\.0-verified-reel-webm/);
+    assert.match(runtime, /jarvisBridgeVersionAtLeast/);
+    assert.match(runtime, /LOCAL_BRIDGE_VERSION_MISMATCH/);
+    assert.match(runtime, /requiredBridgeVersion/);
+    assert.match(runtime, /bridgeVersionCompatible/);
+});
+'''
+          if 'reel human response reports the physical WebM as primary artifact' in s:
+              raise SystemExit('V113_HUMAN_RESPONSE_TEST_ALREADY_PRESENT')
+          p.write_text(s+addition,encoding='utf-8')
+          PY
+
+          node --check gestia-core/gestia-core.js
+          node --check gestia-core/tools.runtime.js
+          node --check gestia-core/tools.bridge.js
+          node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
+          node --check gestia-core/jarvis/jarvis.reel.presenter.js
+          node --check gestia-core/jarvis/jarvis.multitool.pack.js
+          node --check gestia-core/jarvis/jarvis.actuator.pack.js
+          node --check jarvis-reel-artifact.js
+          node --check jarvis-fs-bridge.js
+          test -z "$(git diff --name-only -- functions)"
+
+      - name: Focused v113 human and compatibility regressions
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/jarvis-live-human-reds-v113.test.mjs \
+            tests/response-composer-semantic-contract.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs \
+            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs \
+            tests/jarvis-actuator-pack.test.mjs \
+            tests/jarvis-reel-artifact.test.mjs \
+            tests/jarvis-fs-bridge-v2.test.mjs \
+            tests/jarvis-multifunction-tools.test.mjs \
+            tests/jarvis-semantic-memory-integrity.test.mjs \
+            tests/repo-authority-v2.test.cjs
+          test -z "$(git diff --name-only -- functions)"
+
+      - name: Real 30-second WebM integration
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import os from 'node:os';
+          import path from 'node:path';
+          import { buildReelStudioHtml } from './jarvis-reel-artifact.js';
+          import { exportReelWebmWithChrome } from './jarvis-fs-bridge.js';
+          const input={brandName:'Multiservicios Peninsulares HMH',title:'Mantenimiento que se nota',cta:'Solicita atención',durationSeconds:30,scenes:[
+            {durationSeconds:10,overlay:'Detecta antes',subtitle:'Mantenimiento preventivo',visualDescription:'Inspección técnica'},
+            {durationSeconds:10,overlay:'Resuelve a tiempo',subtitle:'Atención especializada',visualDescription:'Trabajo técnico'},
+            {durationSeconds:10,overlay:'Mantén tu espacio',subtitle:'Soluciones integrales',visualDescription:'Resultado final'}]};
+          const studio=path.join(os.tmpdir(),'v113-reel-studio.html');
+          fs.writeFileSync(studio,buildReelStudioHtml(input),'utf8');
+          const result=await exportReelWebmWithChrome({studioPath:studio,output:'.jarvis-artifacts/reels/v113-human-regression.webm',durationSeconds:30,root:process.cwd()});
+          console.log(JSON.stringify(result,null,2));
+          if(!result.ok||result.status!=='REEL_VIDEO_CREATED_VERIFIED') process.exit(1);
+          if(!result.output.endsWith('.webm')||Number(result.bytes||0)<1000) process.exit(1);
+          if(!/^[a-f0-9]{64}$/.test(String(result.sha256||''))) process.exit(1);
+          if(!fs.existsSync(result.output)) process.exit(1);
+          NODE
+          file .jarvis-artifacts/reels/v113-human-regression.webm
+          sha256sum .jarvis-artifacts/reels/v113-human-regression.webm
+          rm -f .jarvis-artifacts/reels/v113-human-regression.webm .jarvis-artifacts/manifest.json
+          git checkout -- .jarvis-artifacts 2>/dev/null || true
+          test -z "$(git status --porcelain -- functions)"
+
+      - name: Full CI
+        run: |
+          set -euo pipefail
+          npm run ci:test
+          test -z "$(git status --porcelain -- functions)"
+
+      - name: Certify v113 invariants
+        run: |
+          set -euo pipefail
+          grep -q 'coreResult?.finalResponse' gestia-terminal.html
+          ! grep -q 'reformula el objetivo tecnico para reentrar por GestiaCore' gestia-terminal.html
+          grep -q 'TERMINAL_CORE_RESPONSE_NOT_PRESENTED' gestia-terminal.html
+          grep -q 'reelArtifactArgsFromCompletedTasks' gestia-core/gestia-core.js
+          grep -q 'REEL_PLAN_READY' gestia-core/jarvis/jarvis.mission.orchestrator.js
+          grep -q 'resolveMarketingMissionProductionScope' gestia-core/jarvis/jarvis.multitool.pack.js
+          grep -q '__JARVIS_LAST_REEL_BLOB__' jarvis-reel-artifact.js
+          grep -q 'exportReelWebmWithChrome' jarvis-fs-bridge.js
+          grep -q 'REEL_VIDEO_CREATED_VERIFIED' jarvis-fs-bridge.js
+          grep -q 'REEL_WEBM_SHA256_MISMATCH' jarvis-fs-bridge.js
+          ! grep -q 'videoExportStatus: "REQUIRES_BROWSER_EXPORT"' jarvis-fs-bridge.js
+          grep -q '"Reel creado"' gestia-core/tools.bridge.js
+          grep -q 'WebM fue generado fisicamente' gestia-core/tools.bridge.js
+          ! grep -q 'exportacion WebM se realiza desde el navegador' gestia-core/tools.bridge.js
+          grep -q 'LOCAL_BRIDGE_VERSION_MISMATCH' gestia-core/tools.runtime.js
+          grep -q '2.37.0-verified-reel-webm' gestia-core/tools.runtime.js
+          test -z "$(git diff --name-only -- functions)"
+
+      - name: Commit certified v113 product
+        run: |
+          set -euo pipefail
+          git config user.name "heberzzt-wq"
+          git config user.email "heberzzt@gmail.com"
+          git rm -f scripts/v113-live-human-reds-fix.py .github/v113-certification-hold.txt
+          git add \
+            gestia-terminal.html \
+            gestia-core/gestia-core.js \
+            gestia-core/tools.runtime.js \
+            gestia-core/tools.bridge.js \
+            gestia-core/jarvis/jarvis.mission.orchestrator.js \
+            gestia-core/jarvis/jarvis.reel.presenter.js \
+            gestia-core/jarvis/jarvis.multitool.pack.js \
+            gestia-core/jarvis/jarvis.actuator.pack.js \
+            jarvis-reel-artifact.js \
+            jarvis-fs-bridge.js \
+            tests/jarvis-live-human-reds-v113.test.mjs \
+            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs \
+            tests/jarvis-reel-artifact.test.mjs \
+            tests/jarvis-fs-bridge-v2.test.mjs \
+            tests/jarvis-multifunction-tools.test.mjs \
+            tests/jarvis-semantic-memory-integrity.test.mjs
+          test -z "$(git diff --cached --name-only -- functions)"
+          git commit -m "[v94] fix(adj): deliver verified reel video and repo results"
+          git push origin HEAD:v94-media-v4n-negative-claims
+          echo "PRODUCT_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Authorize isolated Hosting-only product SHA
+        env:
+          JARVIS_CI_PASSED: "true"
+          JARVIS_FIREBASE_PROJECT: fixgo-44e4d
+          JARVIS_HOSTING_ONLY: "true"
+        run: |
+          set -euo pipefail
+          test -n "$PRODUCT_SHA"
+          GITHUB_SHA="$PRODUCT_SHA" node scripts/jarvis-deploy-gate.mjs
+          test -z "$(git diff --name-only 13cb877ef49fbd2ef19bc2a5da42887b5836e16a "$PRODUCT_SHA" -- functions)"
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Hosting only
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy --only hosting --project fixgo-44e4d --token "$FIREBASE_TOKEN"
+
+      - name: Verify propagated live v113 bytes
+        run: |
+          set -euo pipefail
+          paths=(
+            gestia-terminal.html
+            gestia-core/gestia-core.js
+            gestia-core/tools.runtime.js
+            gestia-core/tools.bridge.js
+            gestia-core/jarvis/jarvis.mission.orchestrator.js
+            gestia-core/jarvis/jarvis.reel.presenter.js
+            gestia-core/jarvis/jarvis.multitool.pack.js
+            gestia-core/jarvis/jarvis.actuator.pack.js
+            jarvis-reel-artifact.js
+            jarvis-fs-bridge.js
+          )
+          for path in "${paths[@]}"; do
+            live="/tmp/live-$(echo "$path" | tr '/' '_')"; matched=false
+            for attempt in $(seq 1 12); do
+              curl -fsSL "https://fixgo-44e4d.web.app/$path?v=v113-${GITHUB_RUN_ID}-${attempt}" -o "$live"
+              local_sha="$(sha256sum "$path"|awk '{print $1}')"; live_sha="$(sha256sum "$live"|awk '{print $1}')"
+              echo "$path attempt=$attempt local=$local_sha live=$live_sha"
+              if [ "$local_sha" = "$live_sha" ] && cmp -s "$path" "$live"; then matched=true; break; fi
+              sleep 2
+            done
+            test "$matched" = true
+          done
+          grep -q 'v94-live-human-reds-v113-20260809' /tmp/live-gestia-terminal.html
+          grep -q 'reelArtifactArgsFromCompletedTasks' /tmp/live-gestia-core_gestia-core.js
+          grep -q 'LOCAL_BRIDGE_VERSION_MISMATCH' /tmp/live-gestia-core_tools.runtime.js
+          grep -q '"Reel creado"' /tmp/live-gestia-core_tools.bridge.js
+          grep -q 'REEL_VIDEO_CREATED_VERIFIED' /tmp/live-jarvis-fs-bridge.js
+          test -z "$(git diff --name-only 13cb877ef49fbd2ef19bc2a5da42887b5836e16a "$PRODUCT_SHA" -- functions)"
