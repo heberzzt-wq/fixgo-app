@@ -1,0 +1,218 @@
+name: V94 current-turn freshness v119 r2
+
+on:
+  push:
+    branches: [v94-media-v4n-negative-claims]
+    paths: [.github/workflows/v94-current-turn-freshness-v119-r2.yml]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v94-current-turn-freshness-v119-r2
+  cancel-in-progress: false
+
+env:
+  BASELINE: fc021b3112542dbcdb9d236a17e0b71ee547463b
+  EXPECTED_MAIN: f3fa8e1806b681e860875afd4ce8183d27864873
+  EXPECTED_POLISH: 2ae85e670505c5d425a5a0334e99c45168054bb8
+  RELEASE_TOKEN: v94-current-turn-freshness-v119-20260810
+
+jobs:
+  certify-deploy:
+    if: ${{ !contains(github.event.head_commit.message, 'remove v119 certification workflows') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Guard branch Functions protected refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-media-v4n-negative-claims"
+          git cat-file -e "$BASELINE^{commit}"
+          git diff --quiet "$BASELINE" HEAD -- functions
+          git fetch origin main v5.9-polish --quiet
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN"
+          test "$(git rev-parse origin/v5.9-polish)" = "$EXPECTED_POLISH"
+          test -f scripts/v119-current-turn-freshness-fix.py
+          test -f tests/jarvis-current-turn-freshness-v119.test.mjs
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install test dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npm ci --prefix functions --ignore-scripts
+          git diff --quiet "$BASELINE" HEAD -- functions
+
+      - name: Apply v119
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/v119-current-turn-freshness-fix.py
+          node --check gestia-core/gestia-core.js
+          node --check gestia-terminal.js
+          node --check jarvis-page-artifact.js
+          node --check tests/jarvis-current-turn-freshness-v119.test.mjs
+          git diff --check
+          grep -Fq 'semanticMemoryAvailable: Boolean(semanticMemory)' gestia-core/gestia-core.js
+          test "$(grep -Fc 'semanticMemoryAvailable: Boolean(semanticMemoryContext)' gestia-core/gestia-core.js)" = "2"
+          ! grep -Fq 'semanticMemory: semanticMemoryContext' gestia-core/gestia-core.js
+          grep -Fq 'memoryContext: semanticMemoryContext' gestia-core/gestia-core.js
+          grep -Fq "$RELEASE_TOKEN" gestia-terminal.html
+          grep -Fq 'v94-page-request-contract-v118-20260810' gestia-core/gestia-core.js
+          grep -Fq 'requestedSections: requestedSectionsSatisfied' jarvis-page-artifact.js
+          grep -Fq 'PAGE_REQUESTED_SECTION_COVERAGE_INCOMPLETE' gestia-core/jarvis/jarvis.multitool.pack.js
+          ! grep -Fq '? "https://wa.me/"' jarvis-page-artifact.js
+          git diff --quiet "$BASELINE" HEAD -- functions
+
+      - name: Focused human regression pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/jarvis-current-turn-freshness-v119.test.mjs \
+            tests/jarvis-page-request-contract-v118.test.mjs \
+            tests/jarvis-generalist-current-turn.test.mjs \
+            tests/jarvis-semantic-memory-integrity.test.mjs \
+            tests/jarvis-page-artifact.test.mjs \
+            tests/jarvis-page-browser-fallback-v115.test.mjs \
+            tests/jarvis-live-human-reds-v113.test.mjs
+          git diff --quiet "$BASELINE" HEAD -- functions
+
+      - name: Physical Multiservicios page probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import { buildPageArtifactHtml, describePageArtifact } from './jarvis-page-artifact.js';
+          const requiredSections = ['Introducción','Cómo funciona','Beneficios','Herramientas disponibles','Casos de uso','Contacto'];
+          const input = {
+            brandName: 'Multiservicios Peninsulares HMH',
+            title: 'Multiservicios Peninsulares HMH',
+            description: 'Soluciones integrales presentadas en una experiencia web verificable, accesible y mobile-first.',
+            services: [{ title: 'Servicios integrales', description: 'Presentación verificable de los servicios solicitados.' }],
+            requiredSections,
+            contentSections: requiredSections.map((title, index) => ({
+              title,
+              description: `Contenido verificable para ${title}.`,
+              items: [{ title: `Detalle ${index + 1}`, description: `Bloque sustantivo de ${title}.` }]
+            })),
+            whatsappRequested: true
+          };
+          const html = buildPageArtifactHtml(input);
+          const report = describePageArtifact(input, html);
+          if (!report.ok || !report.checks.requestedSections) throw new Error(JSON.stringify(report));
+          if (html.includes('https://wa.me/')) throw new Error('UNVERIFIED_WHATSAPP_ROUTE_RENDERED');
+          for (const id of ['introduccion','como-funciona','beneficios','herramientas-disponibles','casos-de-uso','contacto']) {
+            if (!html.includes(`data-requested-section="${id}"`)) throw new Error(`MISSING_${id}`);
+          }
+          fs.writeFileSync('/tmp/v119-multiservicios.html', html);
+          console.log(JSON.stringify(report, null, 2));
+          NODE
+          test -s /tmp/v119-multiservicios.html
+          sha256sum /tmp/v119-multiservicios.html
+
+      - name: Full CI
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run ci:test
+          git diff --quiet "$BASELINE" HEAD -- functions
+
+      - name: Commit certified v119 product
+        id: product
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main v5.9-polish --quiet
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN"
+          test "$(git rev-parse origin/v5.9-polish)" = "$EXPECTED_POLISH"
+          git diff --quiet "$BASELINE" HEAD -- functions
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f scripts/v119-current-turn-freshness-fix.py
+          git add gestia-core/gestia-core.js gestia-terminal.html tests/jarvis-current-turn-freshness-v119.test.mjs
+          test -z "$(git diff --cached --name-only -- functions)"
+          git commit -m "[v94] fix(adj): keep each new turn semantically fresh v119"
+          product_sha="$(git rev-parse HEAD)"
+          echo "product_sha=$product_sha" >> "$GITHUB_OUTPUT"
+          git push origin HEAD:v94-media-v4n-negative-claims
+
+      - name: Bind certified Hosting source
+        shell: bash
+        env:
+          PRODUCT_SHA: ${{ steps.product.outputs.product_sha }}
+        run: |
+          set -euo pipefail
+          critical=(gestia-terminal.html gestia-terminal.js gestia-core/gestia-core.js gestia-core/jarvis/jarvis.multifunction.planner.js gestia-core/jarvis/jarvis.multitool.pack.js gestia-core/tools.runtime.js jarvis-page-artifact.js)
+          git diff --quiet "$PRODUCT_SHA" HEAD -- "${critical[@]}"
+          git diff --quiet "$BASELINE" HEAD -- functions
+
+      - name: Sovereign Hosting-only deploy gate
+        env:
+          JARVIS_CI_PASSED: "true"
+          JARVIS_HOSTING_ONLY: "true"
+          JARVIS_FIREBASE_PROJECT: fixgo-44e4d
+        run: node scripts/jarvis-deploy-gate.mjs
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Hosting only
+        run: firebase deploy --only hosting --project fixgo-44e4d --token "${{ secrets.FIREBASE_TOKEN }}"
+
+      - name: Verify exact live v119 plus v118 bytes
+        shell: bash
+        env:
+          PRODUCT_SHA: ${{ steps.product.outputs.product_sha }}
+        run: |
+          set -euo pipefail
+          base='https://fixgo-44e4d.web.app'
+          critical=(gestia-terminal.html gestia-terminal.js gestia-core/gestia-core.js gestia-core/jarvis/jarvis.multifunction.planner.js gestia-core/jarvis/jarvis.multitool.pack.js gestia-core/tools.runtime.js jarvis-page-artifact.js)
+          for p in "${critical[@]}"; do
+            git show "$PRODUCT_SHA:$p" > /tmp/expected.bin
+            expected="$(sha256sum /tmp/expected.bin | awk '{print $1}')"
+            curl -fsSL --retry 4 --retry-delay 2 "$base/$p?v=$PRODUCT_SHA" -o /tmp/live.bin
+            live="$(sha256sum /tmp/live.bin | awk '{print $1}')"
+            echo "$p expected=$expected live=$live"
+            test "$expected" = "$live"
+          done
+          curl -fsSL "$base/gestia-terminal.html?v=$PRODUCT_SHA" -o /tmp/live-terminal.html
+          grep -Fq "$RELEASE_TOKEN" /tmp/live-terminal.html
+          curl -fsSL "$base/gestia-core/gestia-core.js?v=$PRODUCT_SHA" -o /tmp/live-core.js
+          grep -Fq 'semanticMemoryAvailable: Boolean(semanticMemory)' /tmp/live-core.js
+          test "$(grep -Fc 'semanticMemoryAvailable: Boolean(semanticMemoryContext)' /tmp/live-core.js)" = "2"
+          ! grep -Fq 'semanticMemory: semanticMemoryContext' /tmp/live-core.js
+          grep -Fq 'memoryContext: semanticMemoryContext' /tmp/live-core.js
+          curl -fsSL "$base/jarvis-page-artifact.js?v=$PRODUCT_SHA" -o /tmp/live-page.js
+          grep -Fq 'requestedSections: requestedSectionsSatisfied' /tmp/live-page.js
+          ! grep -Fq '? "https://wa.me/"' /tmp/live-page.js
+          echo "LIVE_V119_CURRENT_TURN_FRESH_AND_V118_ACTIVE=$PRODUCT_SHA"
+
+      - name: Final guards and cleanup certification workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main v5.9-polish --quiet
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN"
+          test "$(git rev-parse origin/v5.9-polish)" = "$EXPECTED_POLISH"
+          git diff --quiet "$BASELINE" HEAD -- functions
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f .github/workflows/v94-current-turn-freshness-v119.yml .github/workflows/v94-current-turn-freshness-v119-r2.yml
+          git commit -m "[v94] chore: remove v119 certification workflows"
+          git push origin HEAD:v94-media-v4n-negative-claims
+          echo "FINAL_BRANCH_SHA=$(git rev-parse HEAD)"
