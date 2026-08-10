@@ -287,33 +287,9 @@ window.__REPO_INDEX__["core_auth_tenant_v1.js"] = {
    JARVIS COGNITIVE SUITE
 ===================================================== */
 
-window.__REPO_INDEX__["jarvis-nlu-bridge.js"] = {
-    path: "gestia-core/jarvis/jarvis-nlu-bridge.js",
-    module: "jarvis_nlu",
-    type: "cognitive_runtime",
-    critical: true
-};
 
-window.__REPO_INDEX__["jarvis.intent.runtime.v7.js"] = {
-    path: "gestia-core/jarvis/jarvis.intent.runtime.v7.js",
-    module: "jarvis_intent_runtime_v7",
-    type: "cognitive_runtime",
-    critical: true
-};
 
-window.__REPO_INDEX__["jarvis.language.core.v5.js"] = {
-    path: "gestia-core/jarvis/jarvis.language.core.v5.js",
-    module: "jarvis_language",
-    type: "language_runtime",
-    critical: true
-};
 
-window.__REPO_INDEX__["jarvis.dsl.js"] = {
-    path: "gestia-core/jarvis/jarvis.dsl.js",
-    module: "jarvis_dsl",
-    type: "command_runtime",
-    critical: true
-};
 
 window.__REPO_INDEX__["jarvis.memory.js"] = {
     path: "gestia-core/jarvis/jarvis.memory.js",
@@ -386,26 +362,8 @@ window.__REPO_INDEX__["jarvis.snapshot.js"] = {
     critical: true
 };
 
-window.__REPO_INDEX__["jarvis.orchestrator.js"] = {
-    path: "gestia-core/jarvis/jarvis.orchestrator.js",
-    module: "jarvis_orchestrator",
-    type: "orchestration_runtime",
-    critical: true
-};
 
-window.__REPO_INDEX__["jarvis.vision.engine.js"] = {
-    path: "gestia-core/jarvis/jarvis.vision.engine.js",
-    module: "jarvis_vision",
-    type: "cognition_runtime",
-    critical: true
-};
 
-window.__REPO_INDEX__["jarvis.normalizer.js"] = {
-    path: "gestia-core/jarvis/jarvis.normalizer.js",
-    module: "jarvis_normalizer",
-    type: "normalization_runtime",
-    critical: true
-};
 
 window.__REPO_INDEX__["jarvis-hud.js"] = {
     path: "gestia-core/jarvis-hud.js",
@@ -421,12 +379,6 @@ window.__REPO_INDEX__["jarvis.bridge.js"] = {
     critical: true
 };
 
-window.__REPO_INDEX__["jarvis.bridge.v4.js"] = {
-    path: "gestia-core/jarvis/jarvis.bridge.v4.js",
-    module: "jarvis_bridge",
-    type: "bridge_runtime",
-    critical: true
-};
 
 window.__REPO_INDEX__["core_tenant_resolver_v2.js"] = {
 
@@ -543,12 +495,6 @@ window.__REPO_INDEX__["history.engine.js"] = {
    INTENT ENGINE V7
 ===================================================== */
 
-window.__REPO_INDEX__["intent.engine.v7.js"] = {
-    path: "gestia-core/intent.engine.v7.js",
-    module: "intent_v7",
-    type: "decision_runtime",
-    critical: true
-};
 
 /* =====================================================
    MEDIA ENGINE
@@ -587,12 +533,6 @@ window.__REPO_INDEX__["propose.engine.js"] = {
    REPO COGNITION INDEX
 ===================================================== */
 
-window.__REPO_INDEX__["repo.cognition.index.js"] = {
-    path: "gestia-core/repo/repo.cognition.index.js",
-    module: "repo_cognition",
-    type: "repository_runtime",
-    critical: true
-};
 
 /* =====================================================
    RESOURCE REGISTRY
@@ -831,19 +771,6 @@ window.__REPO_INDEX__["sw.js"] = {
     critical: true
 };
 
-window.__REPO_INDEX__["jarvis.cognition.engine.js"] = {
-
-    path:
-        "gestia-core/jarvis/jarvis.cognition.engine.js",
-
-    module:
-        "jarvis_cognition",
-
-    type:
-        "cognitive_runtime",
-
-    critical: true
-};
 
 window.__REPO_INDEX__["alert-engine.js"] = {
     path: "alert-engine.js",
@@ -1017,19 +944,6 @@ window.__REPO_INDEX__["semantic.engine.js"] = {
     critical: true
 };
 
-window.__REPO_INDEX__["intent.engine.js"] = {
-
-    path:
-        "gestia-core/intent.engine.js",
-
-    module:
-        "intent",
-
-    type:
-        "decision_runtime",
-
-    critical: true
-};
 
 window.__REPO_INDEX__["self-repair.engine.js"] = {
 
@@ -1045,19 +959,6 @@ window.__REPO_INDEX__["self-repair.engine.js"] = {
     critical: true
 };
 
-window.__REPO_INDEX__["jarvis.bridge.v4.js"] = {
-
-    path:
-        "gestia-core/jarvis/jarvis.bridge.v4.js",
-
-    module:
-        "jarvis_bridge",
-
-    type:
-        "orchestration_runtime",
-
-    critical: true
-};
 
 
 window.__REPO_INDEX__["operations.engine.js"] = {
@@ -1279,31 +1180,6 @@ window.__REPO_INDEX__["gestia-core.js"] = {
    COGNITIVE BRIDGE
 ===================================================== */
 
-window.__REPO_INDEX__["cognitive.bootstrap.js"] = {
-
-    path:
-        "gestia-core/cognitive.bootstrap.js",
-
-    module:
-        "cognitive_bridge",
-
-    type:
-        "runtime_bridge",
-
-    critical: false,
-
-    cognition: {
-
-        layer:
-            "bridge",
-
-        runtime:
-            "integration",
-
-        passive:
-            true
-    }
-};
 
 
 // Legacy hand-curated catalog: metadata only. Real existence/analysis comes from repo.graph.

@@ -65,7 +65,7 @@ import {
     installLedgerModule
 } from "./modules/terminal/ledger.js";
 
-import "./modules/terminal/repo-bootstrap-index.js";
+import "./modules/terminal/repo-bootstrap-index.js?v=v94-page-browser-fallback-v115-20260809";
 
 import "./modules/terminal/runtime-repair-health.js?v=jarvis-runtime-macro-v2-20260618";
 

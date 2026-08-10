@@ -29,6 +29,17 @@ function list(value, limit = 12) {
     return Array.isArray(value) ? value.filter(item => item && typeof item === "object").slice(0, limit) : [];
 }
 
+function utf8ByteLength(value = "") {
+    const source = String(value || "");
+    if (typeof TextEncoder === "function") {
+        return new TextEncoder().encode(source).byteLength;
+    }
+    if (typeof Buffer !== "undefined" && typeof Buffer.byteLength === "function") {
+        return Buffer.byteLength(source, "utf8");
+    }
+    throw new Error("PAGE_UTF8_BYTE_COUNTER_UNAVAILABLE");
+}
+
 function pageContactState(input = {}) {
     const whatsapp = String(input.whatsapp || "").replace(/[^0-9]/g, "");
     const whatsappRequested = input.whatsappRequested === true;
@@ -124,7 +135,7 @@ export function describePageArtifact(input = {}, html = "") {
             html.includes('href="#servicios"');
     return {
         ok: true,
-        bytes: Buffer.byteLength(html, "utf8"),
+        bytes: utf8ByteLength(html),
         checks: {
             responsive: html.includes("@media(max-width:780px)"),
             accessibility: html.includes("Saltar al contenido") && html.includes("aria-label"),

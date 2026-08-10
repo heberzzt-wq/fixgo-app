@@ -502,7 +502,14 @@ function localGitHubRepositoryIdentity(root = DEFAULT_ROOT) {
     };
 }
 
-export function resolveBridgeRepositoryTarget({ target = "", ref = "", file = "" } = {}, root = DEFAULT_ROOT) {
+export function resolveBridgeRepositoryTarget(input = {}, root = DEFAULT_ROOT) {
+    const request =
+        typeof input === "string"
+            ? { target: input }
+            : input && typeof input === "object"
+                ? input
+                : {};
+    const { target = "", ref = "", file = "" } = request;
     const git = readGitIdentity(root);
     const refs = repositoryRefs(root);
     const rawTarget = String(target || "").trim();

@@ -5,9 +5,42 @@ import {
     parseRepositoryTarget,
     resolveRepositorySelector
 } from "../gestia-core/repo/repo.target.js";
+import {
+    resolveBridgeRepositoryTarget
+} from "../jarvis-fs-bridge.js";
 
 const BRANCH = "codex/jarvis-v8-runtime-foundation";
 const BRANCH_URL = `https://github.com/heberzzt-wq/fixgo-app/blob/${BRANCH}`;
+
+
+test("bridge target resolver accepts the exact GitHub slash-branch URL as a string", () => {
+    const resolved = resolveBridgeRepositoryTarget(BRANCH_URL);
+    assert.equal(resolved.ok, true);
+    assert.equal(resolved.ref, BRANCH);
+    assert.equal(resolved.path, "");
+    assert.equal(resolved.objectType, "tree");
+});
+
+test("bridge target resolver keeps a file path after a slash branch", () => {
+    const resolved = resolveBridgeRepositoryTarget(`${BRANCH_URL}/gestia-core/tools.runtime.js`);
+    assert.equal(resolved.ok, true);
+    assert.equal(resolved.ref, BRANCH);
+    assert.equal(resolved.path, "gestia-core/tools.runtime.js");
+    assert.equal(resolved.objectType, "blob");
+});
+
+test("bridge target resolver preserves existing object callers", () => {
+    const resolved = resolveBridgeRepositoryTarget({ target: BRANCH_URL });
+    assert.equal(resolved.ok, true);
+    assert.equal(resolved.ref, BRANCH);
+    assert.equal(resolved.path, "");
+});
+
+test("bridge target resolver rejects a foreign GitHub repository", () => {
+    const resolved = resolveBridgeRepositoryTarget("https://github.com/example/other-repo/tree/main");
+    assert.equal(resolved.ok, false);
+    assert.equal(resolved.error, "REPOSITORY_REMOTE_MISMATCH");
+});
 
 test("GitHub blob URL whose selector is a slash branch resolves as a branch, not a file", () => {
     const parsed = parseRepositoryTarget(BRANCH_URL);

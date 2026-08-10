@@ -125,6 +125,7 @@ window.JarvisToolMemory = {
 
 function queueActuatorArtifact(toolName = "", data = {}) {
     if (!data?.output) return;
+    if (data?.artifactMode === "browser_verified_download") return;
     window.__JARVIS_QUEUED_ARTIFACT_OUTPUTS__ =
         window.__JARVIS_QUEUED_ARTIFACT_OUTPUTS__ instanceof Set
             ? window.__JARVIS_QUEUED_ARTIFACT_OUTPUTS__
@@ -521,6 +522,14 @@ function composeActuatorResponse(
 
     if (toolName === "page.create") {
         queueActuatorArtifact(toolName, data);
+        const pageDeliveryLine =
+            data?.artifactMode === "browser_verified_download"
+                ? (
+                    data?.downloadTriggered === true
+                        ? "El HTML fue generado y verificado en el navegador y la descarga local fue iniciada. El bridge desactualizado no escribió el archivo y no se publicó ni desplegó."
+                        : "El HTML fue generado y verificado en el navegador y quedó preparado para descarga. El bridge desactualizado no escribió el archivo y no se publicó ni desplegó."
+                )
+                : "El HTML fue creado físicamente por el bridge local y verificado antes de reportarse como completado; quedó disponible para vista previa y descarga, sin publicación ni despliegue automático.";
         return composer.composeJarvis(
             [
                 "Landing creada",
@@ -532,7 +541,7 @@ function composeActuatorResponse(
                 data?.sha256
                     ? `SHA-256: **${data.sha256}**.`
                     : "SHA-256: no informado.",
-                "El HTML fue creado físicamente y verificado antes de reportarse como completado; quedó disponible para vista previa y descarga, sin publicación ni despliegue automático."
+                pageDeliveryLine
             ].join("\n"),
             data,
             {

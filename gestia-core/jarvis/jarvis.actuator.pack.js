@@ -2,6 +2,10 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 import {
+    buildPageArtifactHtml,
+    describePageArtifact
+} from "../../jarvis-page-artifact.js?v=v94-page-browser-fallback-v115-20260809";
+import {
     adaptImageSource,
     buildIdentityReferenceSheet
 } from "./jarvis.image.adapter.js?v=sia7-identity-fidelity-v106-20260728";
@@ -128,6 +132,138 @@ function bridgeRequest(path, payload, timeoutMs = 60000) {
         payload,
         { timeoutMs }
     );
+}
+
+async function sha256Text(value = "") {
+    if (
+        !globalThis?.crypto?.subtle ||
+        typeof TextEncoder !== "function"
+    ) {
+        throw new Error("BROWSER_PAGE_SHA256_UNAVAILABLE");
+    }
+    const bytes = new TextEncoder().encode(String(value || ""));
+    const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function browserPageFilename(args = {}) {
+    const requested = String(args.output || "").trim().replaceAll("\\", "/");
+    const brand = String(args.brandName || "pagina").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const source = requested.split("/").filter(Boolean).pop() || `${brand}-adjunto.html`;
+    const safe = source.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "adjunto-pagina.html";
+    return safe.toLowerCase().endsWith(".html") ? safe : `${safe}.html`;
+}
+
+async function createBrowserVerifiedPageArtifact(args = {}) {
+    if (
+        typeof globalThis?.document?.createElement !== "function" ||
+        !globalThis?.document?.body ||
+        typeof globalThis?.Blob !== "function" ||
+        typeof globalThis?.URL?.createObjectURL !== "function" ||
+        !globalThis?.crypto?.subtle ||
+        typeof TextEncoder !== "function"
+    ) {
+        return {
+            ok: false,
+            success: false,
+            status: "BROWSER_PAGE_FALLBACK_UNAVAILABLE",
+            error: "BROWSER_PAGE_FALLBACK_UNAVAILABLE"
+        };
+    }
+
+    let html;
+    let verification;
+    try {
+        html = buildPageArtifactHtml(args);
+        verification = describePageArtifact(args, html);
+    }
+    catch(error) {
+        return {
+            ok: false,
+            success: false,
+            status: "BROWSER_PAGE_BUILD_FAILED",
+            error: error?.message || String(error)
+        };
+    }
+
+    const checks = verification?.checks || {};
+    if (
+        verification?.ok !== true ||
+        Object.keys(checks).length < 1 ||
+        !Object.values(checks).every(Boolean)
+    ) {
+        return {
+            ok: false,
+            success: false,
+            status: "BROWSER_PAGE_VERIFY_FAILED",
+            error: "BROWSER_PAGE_VERIFY_FAILED",
+            checks
+        };
+    }
+
+    const encoded = new TextEncoder().encode(html);
+    const blob = new globalThis.Blob([html], { type: "text/html;charset=utf-8" });
+    if (
+        blob.size !== encoded.byteLength ||
+        blob.size !== Number(verification.bytes || 0)
+    ) {
+        return {
+            ok: false,
+            success: false,
+            status: "BROWSER_PAGE_BYTE_COUNT_MISMATCH",
+            error: "BROWSER_PAGE_BYTE_COUNT_MISMATCH"
+        };
+    }
+
+    const sha256 = await sha256Text(html);
+    const downloadUrl = globalThis.URL.createObjectURL(blob);
+    const output = browserPageFilename(args);
+    const registry = Array.isArray(globalThis.__JARVIS_BROWSER_PAGE_ARTIFACTS__)
+        ? globalThis.__JARVIS_BROWSER_PAGE_ARTIFACTS__
+        : [];
+    registry.push({ output, downloadUrl, sha256, bytes: blob.size, createdAt: Date.now() });
+    while (registry.length > 10) {
+        const expired = registry.shift();
+        try { globalThis.URL.revokeObjectURL(expired?.downloadUrl); } catch {}
+    }
+    globalThis.__JARVIS_BROWSER_PAGE_ARTIFACTS__ = registry;
+
+    let downloadTriggered = false;
+    try {
+        const anchor = globalThis.document.createElement("a");
+        anchor.href = downloadUrl;
+        anchor.download = output;
+        anchor.rel = "noopener";
+        anchor.style.display = "none";
+        globalThis.document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        downloadTriggered = true;
+    }
+    catch(error) {
+        console.warn("[BROWSER_PAGE_DOWNLOAD_TRIGGER_FAILED]", error);
+    }
+
+    return {
+        ok: true,
+        success: true,
+        status: "PAGE_ARTIFACT_CREATED_BROWSER_VERIFIED",
+        output,
+        requestedOutput: String(args.output || "").trim() || null,
+        mimeType: "text/html",
+        bytes: blob.size,
+        sha256,
+        checks,
+        brandName: verification.brandName || String(args.brandName || ""),
+        title: verification.title || String(args.title || ""),
+        downloadUrl,
+        previewUrl: downloadUrl,
+        downloadTriggered,
+        browserDownloadPrepared: true,
+        artifactMode: "browser_verified_download",
+        physicallyWritten: false,
+        published: false
+    };
 }
 
 async function callAdminFunction(name, data = {}) {
@@ -288,14 +424,39 @@ export function registerJarvisActuatorTools(runtime) {
             userArtifact: true,
             missionDedupeBy: [],
             execute: async (args = {}, context = {}) => {
-                const result = await bridgeRequest("/page/create", {
+                let result = await bridgeRequest("/page/create", {
                     ...args,
                     caseId: args.caseId || context.caseId || "",
                     objectiveId: args.objectiveId || context.objectiveId || "",
                     approved: context.approved === true,
                     approvedBy: context.approvedBy || ""
                 }, 60000);
-                if (result?.ok === true && result?.status === "PAGE_ARTIFACT_CREATED_VERIFIED") {
+
+                const staleBridgeVersion =
+                    result?.status === "LOCAL_BRIDGE_VERSION_MISMATCH" ||
+                    result?.error === "LOCAL_BRIDGE_VERSION_MISMATCH";
+
+                if (result?.ok !== true && staleBridgeVersion) {
+                    const browserResult = await createBrowserVerifiedPageArtifact(args);
+                    if (browserResult?.ok === true) {
+                        result = {
+                            ...browserResult,
+                            bridgeFallback: {
+                                status: "LOCAL_BRIDGE_VERSION_MISMATCH",
+                                bridgeVersion: result?.bridgeVersion || result?.bridgeIdentity?.bridgeVersion || null,
+                                requiredBridgeVersion: result?.requiredBridgeVersion || result?.bridgeIdentity?.requiredBridgeVersion || null
+                            }
+                        };
+                    }
+                }
+
+                if (
+                    result?.ok === true &&
+                    [
+                        "PAGE_ARTIFACT_CREATED_VERIFIED",
+                        "PAGE_ARTIFACT_CREATED_BROWSER_VERIFIED"
+                    ].includes(result?.status)
+                ) {
                     recordCapabilityEvidence("page_creation", {
                         ok: true,
                         status: result.status,
@@ -303,6 +464,8 @@ export function registerJarvisActuatorTools(runtime) {
                         bytes: result.bytes,
                         sha256: result.sha256,
                         checks: result.checks,
+                        artifactMode: result.artifactMode || "local_bridge_verified",
+                        physicallyWritten: result.physicallyWritten !== false,
                         checkedAt: new Date().toISOString()
                     });
                 }
