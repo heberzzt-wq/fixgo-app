@@ -137,3 +137,14 @@ if count != 1:
     raise SystemExit(f'R2_RETURN_BLOCK_COUNT:{count}')
 
 exec(compile(source, str(path), 'exec'), {'__name__': '__main__', '__file__': str(path)})
+
+# v121 regression asserted the old policy that could turn unsupported claims into
+# commercial-sounding possibilities. v123 intentionally forbids that behavior.
+test_path = Path('tests/jarvis-page-factual-integrity-v121.test.mjs')
+test_source = test_path.read_text(encoding='utf-8')
+old_expectation = '        "reescríbela como propuesta o posibilidad explícita"\n'
+new_expectation = '        "No conviertas ausencia de evidencia en capacidades plausibles"\n'
+if test_source.count(old_expectation) != 1:
+    raise SystemExit(f'R2_STALE_POLICY_EXPECTATION_COUNT:{test_source.count(old_expectation)}')
+test_path.write_text(test_source.replace(old_expectation, new_expectation, 1), encoding='utf-8')
+print('V123_V121_EXPECTATION_ALIGNED=TRUE')
