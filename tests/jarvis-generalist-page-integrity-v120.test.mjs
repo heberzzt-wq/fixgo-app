@@ -169,29 +169,31 @@ test("page creator preserves arbitrary mission sections instead of imposing a un
     }
 });
 
-test("production page code contains no business-specific HMH patch and canonical compose wins deterministically", () => {
-    const planner = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.multifunction.planner.js", import.meta.url), "utf8");
-    const pack = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.multitool.pack.js", import.meta.url), "utf8");
-    const creator = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.page.creator.js", import.meta.url), "utf8");
-    const identity = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.identity.integrity.js", import.meta.url), "utf8");
+test("production page code uses generic integrity machinery and canonical compose wins deterministically", () => {
+    const sources = {
+        planner: fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.multifunction.planner.js", import.meta.url), "utf8"),
+        pack: fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.multitool.pack.js", import.meta.url), "utf8"),
+        creator: fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.page.creator.js", import.meta.url), "utf8"),
+        identity: fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.identity.integrity.js", import.meta.url), "utf8")
+    };
 
-    for (const source of [planner, pack, creator, identity]) {
-        assert.equal(source.includes("Multiservicios Peninsulares HMH"), false);
-        assert.equal(source.includes("Multiservicios Peninsulares SMH"), false);
+    for (const [name, source] of Object.entries(sources)) {
+        assert.equal(source.includes("Multiservicios Peninsulares HMH"), false, `${name}:HMH`);
+        assert.equal(source.includes("Multiservicios Peninsulares SMH"), false, `${name}:SMH`);
     }
 
-    assert.match(planner, /rejectCorruptedIdentityArgs/);
-    assert.match(pack, /repairCanonicalIdentityValue/);
-    assert.match(pack, /MARCA_CANONICA/);
-    assert.match(pack, /identityPreserved/);
-    assert.match(pack, /brandName:\s*clean\(canonicalBrand,/);
-    assert.match(creator, /sections:\s*Array\.isArray\(input\.sections\)/);
+    assert.match(sources.planner, /rejectCorruptedIdentityArgs/);
+    assert.match(sources.pack, /repairCanonicalIdentityValue/);
+    assert.match(sources.pack, /MARCA_CANONICA/);
+    assert.match(sources.pack, /identityPreserved/);
+    assert.match(sources.pack, /brandName:\s*clean\(canonicalBrand,/);
+    assert.match(sources.creator, /sections:\s*Array\.isArray\(input\.sections\)/);
     for (const residue of [
         '"beneficios"',
         '"servicios"',
         '"como_funciona"',
         '"prueba_social"'
     ]) {
-        assert.equal(creator.includes(residue), false, residue);
+        assert.equal(sources.creator.includes(residue), false, residue);
     }
 });
