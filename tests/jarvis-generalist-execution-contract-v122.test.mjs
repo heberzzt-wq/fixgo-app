@@ -19,6 +19,9 @@ import {
 import {
     createJarvisFsBridgeApp
 } from "../jarvis-fs-bridge.js";
+import {
+    createJarvisUploadBridgeApp
+} from "../jarvis-upload-bridge.js";
 
 const names = calls => calls.map(call => call.name);
 const catalog = [
@@ -166,4 +169,42 @@ test("release source no longer sends raw mission observations back into semantic
     assert.equal((core.match(/compactMissionPlannerObservation\(item\.observation\)/g) || []).length, 2);
     assert.equal(contract.branch, "v94-media-v4n-negative-claims");
     assert.equal(contract.releaseId, "v94-generalist-execution-contract-v122-20260810");
+});
+
+
+test("upload bridge inherits exactly one real-media route authority from the FS bridge", async () => {
+    const uploadSource = fs.readFileSync(path.resolve("jarvis-upload-bridge.js"), "utf8");
+    assert.doesNotMatch(uploadSource, /registerNexoWebMediaRoutes/);
+
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-v122-upload-media-authority-"));
+    execFileSync("git", ["init", "-b", "v94-media-v4n-negative-claims"], { cwd: root, stdio: "ignore" });
+    fs.writeFileSync(path.join(root, "jarvis-runtime-contract.json"), JSON.stringify({
+        projectId: "fixgo-test",
+        branch: "v94-media-v4n-negative-claims",
+        releaseId: "v122-upload-media-test"
+    }));
+
+    const app = createJarvisUploadBridgeApp({ root });
+    const mediaLayers = (app?.router?.stack || app?._router?.stack || [])
+        .filter(layer => layer?.route?.path === "/web/media/collect");
+    assert.equal(mediaLayers.length, 1);
+
+    const server = app.listen(0, "127.0.0.1");
+    await new Promise(resolve => server.once("listening", resolve));
+    try {
+        const response = await fetch(`http://127.0.0.1:${server.address().port}/web/media/collect`, {
+            method: "POST",
+            headers: {
+                "content-type": "application/json",
+                "x-jarvis-release-id": "v122-upload-media-test"
+            },
+            body: JSON.stringify({ url: "not-a-valid-url" })
+        });
+        const payload = await response.json();
+        assert.notEqual(response.status, 404);
+        assert.equal(payload.ok, false);
+    } finally {
+        await new Promise(resolve => server.close(resolve));
+        fs.rmSync(root, { recursive: true, force: true });
+    }
 });

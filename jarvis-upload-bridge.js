@@ -12,12 +12,9 @@ import {
     saveUploadedArtifact,
     startChunkedUpload
 } from "./jarvis-fs-bridge.js";
-import {
-    registerNexoWebMediaRoutes
-} from "./nexo-web-media-bridge.js";
 
 export const JARVIS_UPLOAD_BRIDGE_VERSION =
-    "1.1.0-nexo-real-media-routes";
+    "1.2.0-fs-media-route-authority-v122";
 
 const MODULE_FILE =
     fileURLToPath(import.meta.url);
@@ -368,14 +365,6 @@ export function createJarvisUploadBridgeApp({
 
     const legacyUploadRoutes =
         removeLegacyUploadRoutes(app);
-
-    registerNexoWebMediaRoutes(
-        app,
-        {
-            root:
-                repoRoot
-        }
-    );
 
     const uploadApp =
         registerJarvisUploadRoutes(
