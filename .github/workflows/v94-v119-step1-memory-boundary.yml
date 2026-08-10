@@ -39,18 +39,38 @@ jobs:
       - name: Install test dependencies
         run: npm ci
 
-      - name: Apply v119 memory boundary patch
+      - name: Apply v119 patch only
         shell: bash
         run: |
           set -euo pipefail
           python scripts/v119-current-turn-freshness-fix.py
+
+      - name: Syntax and diff checks
+        shell: bash
+        run: |
+          set -euo pipefail
           node --check gestia-core/gestia-core.js
           node --check tests/jarvis-current-turn-freshness-v119.test.mjs
           git diff --check
-          test "$(grep -Ec 'semanticMemory[[:space:]]*:[[:space:]]*semanticMemoryContext' gestia-core/gestia-core.js || true)" = "0"
-          test "$(grep -Fc 'semanticMemoryAvailable: Boolean(semanticMemoryContext)' gestia-core/gestia-core.js)" = "4"
-          grep -Fq 'semanticMemoryAvailable: Boolean(semanticMemory)' gestia-core/gestia-core.js
-          grep -Fq 'memoryContext: semanticMemoryContext' gestia-core/gestia-core.js
+
+      - name: Assert memory boundary invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          core = Path('gestia-core/gestia-core.js').read_text(encoding='utf-8')
+          exposed = re.findall(r'semanticMemory\s*:\s*semanticMemoryContext', core)
+          available = core.count('semanticMemoryAvailable: Boolean(semanticMemoryContext)')
+          current = core.count('semanticMemoryAvailable: Boolean(semanticMemory)')
+          advisory = core.count('memoryContext: semanticMemoryContext')
+          print({'exposed': len(exposed), 'available': available, 'current': current, 'advisory': advisory})
+          assert len(exposed) == 0
+          assert available == 4
+          assert current >= 1
+          assert advisory == 1
+          PY
           git diff --quiet "$BASELINE" HEAD -- functions
 
       - name: Run v119 exact regression
