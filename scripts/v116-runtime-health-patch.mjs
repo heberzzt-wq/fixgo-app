@@ -27,11 +27,14 @@ const token = "v94-runtime-health-truth-v116-20260809";
 {
     const path = "modules/terminal/runtime-repair-health.js";
     let source = read(path);
-    const replacement = `        const previousHealthMap =
+
+    const healthMapReplacement = `        const previousHealthMap =
             window.__RUNTIME_HEALTH_MAP__ || {};
 
         const loadedRegistry =
-            window.MODULE_CONTEXT?.loaded || {};
+            window.MODULE_CONTEXT?.loaded ||
+            window.__MODULE_CONTEXT__?.loaded ||
+            {};
 
         const healthMap = {};
 
@@ -127,22 +130,75 @@ const token = "v94-runtime-health-truth-v116-20260809";
     source = replaceOnce(
         source,
         /        const previousHealthMap =\n[\s\S]*?        window\.__RUNTIME_HEALTH_MAP__ =\n            healthMap;/,
-        replacement,
+        healthMapReplacement,
         "HEALTH_MAP_PATCH"
     );
 
-    source = replaceOnce(
-        source,
-        `                isolated:\n                    node.isolated === true\n            }));`,
-        `                isolated:\n                    node.isolated === true,\n                observed:\n                    node.observed === true,\n                evidenceSource:\n                    node.evidenceSource || "unknown"\n            }));`,
-        "BOOT_TABLE_ROW_PATCH"
-    );
+    const quietBootTable = `window.renderRuntimeBootTable ||= function(meta = {}) {
+    const rows =
+        Object.values(window.__RUNTIME_HEALTH_MAP__ || {})
+            .map(node => ({
+                file:
+                    node.file || node.id || "unknown",
+                status:
+                    node.status || node.state || "UNKNOWN",
+                health:
+                    node.health ?? null,
+                degraded:
+                    node.degraded === true,
+                isolated:
+                    node.isolated === true,
+                observed:
+                    node.observed === true,
+                evidenceSource:
+                    node.evidenceSource || "unknown"
+            }));
+
+    const summary = {
+        total:
+            rows.length,
+        online:
+            rows.filter(row => row.status === "ONLINE").length,
+        cataloged:
+            rows.filter(row => row.status === "CATALOGED").length,
+        degraded:
+            rows.filter(row => row.degraded).length,
+        isolated:
+            rows.filter(row => row.isolated).length,
+        ...meta
+    };
+
+    window.__RUNTIME_BOOT_TABLE__ = {
+        rows,
+        summary,
+        updatedAt:
+            Date.now()
+    };
+
+    if (window.__JARVIS_RUNTIME_HEALTH_DEBUG__ === true) {
+        console.table(rows);
+        console.log(
+            "✅ [RUNTIME_BOOT_TABLE_READY]",
+            summary
+        );
+    }
+
+    return {
+        ok: true,
+        total:
+            rows.length,
+        rows,
+        summary
+    };
+};
+
+if (!window.__RUNTIME_BOOT_TABLE_EVENT_BOUND__)`;
 
     source = replaceOnce(
         source,
-        `            online:\n                rows.filter(row => row.status === "ONLINE").length,\n            degraded:`,
-        `            online:\n                rows.filter(row => row.status === "ONLINE").length,\n            cataloged:\n                rows.filter(row => row.status === "CATALOGED").length,\n            degraded:`,
-        "BOOT_TABLE_SUMMARY_PATCH"
+        /window\.renderRuntimeBootTable \|\|= function\(meta = \{\}\) \{[\s\S]*?\n\};\n\nif \(!window\.__RUNTIME_BOOT_TABLE_EVENT_BOUND__\)/,
+        quietBootTable,
+        "BOOT_TABLE_QUIET_PATCH"
     );
 
     write(path, source);
@@ -263,8 +319,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
 
-test("runtime health does not call catalog-only nodes ONLINE", () => {
+test("runtime health is evidence-based and boot table is quiet by default", () => {
     const source = fs.readFileSync("modules/terminal/runtime-repair-health.js", "utf8");
+    let tableCalls = 0;
+    let readyLogs = 0;
     const window = {
         __REPO_INDEX__: {},
         __REPO_COGNITION__: {
@@ -283,10 +341,18 @@ test("runtime health does not call catalog-only nodes ONLINE", () => {
     };
     const sandbox = {
         window,
-        console: { log() {}, warn() {}, error() {}, table() {} },
+        console: {
+            log: (...args) => {
+                if (args[0] === "✅ [RUNTIME_BOOT_TABLE_READY]") readyLogs += 1;
+            },
+            warn() {},
+            error() {},
+            table() { tableCalls += 1; }
+        },
         setTimeout() { return 0; },
         Date
     };
+
     vm.runInNewContext(source, sandbox, { filename: "runtime-repair-health.js" });
     const result = window.buildRuntimeHealthMap();
     assert.equal(result.ok, true);
@@ -297,8 +363,18 @@ test("runtime health does not call catalog-only nodes ONLINE", () => {
     assert.equal(window.__RUNTIME_HEALTH_MAP__["ghost.js"].health, null);
     assert.equal(window.__RUNTIME_HEALTH_MAP__["ghost.js"].observed, false);
     assert.equal(window.__RUNTIME_HEALTH_MAP__["ghost.js"].evidenceSource, "repo_catalog_only");
-    const rendered = window.renderRuntimeBootTable({ source: "test" });
-    assert.equal(rendered.rows.find(row => row.file === "ghost.js").status, "CATALOGED");
+
+    const quiet = window.renderRuntimeBootTable({ source: "test" });
+    assert.equal(quiet.rows.find(row => row.file === "ghost.js").status, "CATALOGED");
+    assert.equal(quiet.summary.cataloged, 1);
+    assert.equal(tableCalls, 0);
+    assert.equal(readyLogs, 0);
+
+    window.__JARVIS_RUNTIME_HEALTH_DEBUG__ = true;
+    const debug = window.renderRuntimeBootTable({ source: "debug-test" });
+    assert.equal(debug.ok, true);
+    assert.equal(tableCalls, 1);
+    assert.equal(readyLogs, 1);
 });
 
 test("runtime snapshots calculate health only from observed nodes", () => {
