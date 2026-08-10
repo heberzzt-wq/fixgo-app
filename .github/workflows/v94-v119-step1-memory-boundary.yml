@@ -67,7 +67,7 @@ jobs:
           advisory = core.count('memoryContext: semanticMemoryContext')
           print({'exposed': len(exposed), 'available': available, 'current': current, 'advisory': advisory})
           assert len(exposed) == 0
-          assert available == 4
+          assert available == 3
           assert current >= 1
           assert advisory == 1
           PY
