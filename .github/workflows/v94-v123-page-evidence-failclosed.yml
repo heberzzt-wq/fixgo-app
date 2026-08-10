@@ -1,0 +1,156 @@
+name: V94 V123 Page evidence fail-closed
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-v123-page-evidence-failclosed.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v94-v123-page-evidence-failclosed
+  cancel-in-progress: false
+
+env:
+  BRANCH: v94-media-v4n-negative-claims
+  BASE_SHA: 585ca3fa880bd7aedd8e6fcb94d474ee05efdce4
+  MAIN_SHA: f3fa8e1806b681e860875afd4ce8183d27864873
+  POLISH_SHA: 2ae85e670505c5d425a5a0334e99c45168054bb8
+  RELEASE_ID: v94-page-evidence-failclosed-v123-20260810
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+
+    steps:
+      - name: Checkout isolated v94 branch
+        uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Guard isolated staging and protected refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "$BRANCH"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          git fetch origin main v5.9-polish "$BRANCH"
+          test "$(git rev-parse origin/main)" = "$MAIN_SHA"
+          test "$(git rev-parse origin/v5.9-polish)" = "$POLISH_SHA"
+          test -z "$(git diff --name-only "$BASE_SHA" HEAD -- functions/)"
+          unexpected="$(git diff --name-only "$BASE_SHA" HEAD | grep -Ev '^(scripts/v123-page-evidence-failclosed\.py|\.github/workflows/v94-v123-page-evidence-failclosed\.yml)$' || true)"
+          if test -n "$unexpected"; then
+            echo "Unexpected pre-patch files:" >&2
+            printf '%s\n' "$unexpected" >&2
+            exit 1
+          fi
+          echo "V123_ISOLATED_STAGING_OK=true"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install application dependencies
+        run: npm ci
+
+      - name: Install Functions dependencies for tests only
+        run: npm --prefix functions ci --ignore-scripts
+
+      - name: Apply generic v123 fail-closed patch
+        run: python3 scripts/v123-page-evidence-failclosed.py
+
+      - name: Prove product patch excludes Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git diff --name-only "$BASE_SHA" -- functions/)"
+          git diff --check
+          echo "FUNCTIONS_SOURCE_UNCHANGED=true"
+
+      - name: Syntax and source invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check gestia-core/jarvis/jarvis.multitool.pack.js
+          node --check jarvis-page-artifact.js
+          node --check gestia-core/gestia-core.js
+          node --check gestia-core/jarvis/jarvis.mission.dependencies.js
+          node --check gestia-core/jarvis/jarvis.actuator.pack.js
+          node --check jarvis-fs-bridge.js
+          node --check gestia-core/tools.runtime.js
+          node --check modules/terminal/nexo-bootstrap.js
+          node --check modules/terminal/proposal-state.js
+          grep -Fq 'pageResearchIdentityState' gestia-core/jarvis/jarvis.multitool.pack.js
+          grep -Fq 'PAGE_FACTUAL_INTEGRITY_LIMITED_EVIDENCE' gestia-core/jarvis/jarvis.multitool.pack.js
+          grep -Fq 'evidenceMode === "insufficient"' gestia-core/gestia-core.js
+          grep -Fq '"@type": "WebPage"' jarvis-page-artifact.js
+          grep -Fq '2.40.0-page-evidence-failclosed-v123' jarvis-fs-bridge.js
+          grep -Fq 'v94-page-evidence-failclosed-v123-20260810' jarvis-runtime-contract.json
+          grep -Fq 'v94-media-v4n-negative-claims' jarvis-runtime-contract.json
+          echo "V123_SOURCE_INVARIANTS_OK=true"
+
+      - name: Focused human-red regressions
+        run: >-
+          node --test
+          tests/jarvis-page-insufficient-evidence-v123.test.mjs
+          tests/jarvis-page-artifact.test.mjs
+          tests/jarvis-page-factual-integrity-v121.test.mjs
+          tests/jarvis-generalist-execution-contract-v122.test.mjs
+          tests/jarvis-current-turn-freshness-v119.test.mjs
+          tests/jarvis-fs-bridge-v2.test.mjs
+          tests/jarvis-semantic-memory-integrity.test.mjs
+
+      - name: Full CI
+        run: npm run ci:test
+
+      - name: Final product proof before commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          test -z "$(git diff --name-only "$BASE_SHA" -- functions/)"
+          test -f tests/jarvis-page-insufficient-evidence-v123.test.mjs
+          node -e 'const c=require("fs").readFileSync("jarvis-runtime-contract.json","utf8"); const j=JSON.parse(c); if(j.releaseId!==process.env.RELEASE_ID) process.exit(1);'
+          echo "V123_PRECOMMIT_GREEN=true"
+
+      - name: Commit product and remove temporary staging machinery
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f scripts/v123-page-evidence-failclosed.py
+          rm -f .github/workflows/v94-v123-page-evidence-failclosed.yml
+          git config user.name "heberzzt-wq"
+          git config user.email "heberzzt@gmail.com"
+          git add -A
+          test -z "$(git diff --cached --name-only | grep -E '^functions/' || true)"
+          test ! -e scripts/v123-page-evidence-failclosed.py
+          test ! -e .github/workflows/v94-v123-page-evidence-failclosed.yml
+          git diff --cached --check
+          git commit -m "[v94] fix(page): fail closed on insufficient evidence v123"
+          PRODUCT_SHA="$(git rev-parse HEAD)"
+          echo "PRODUCT_SHA=$PRODUCT_SHA" >> "$GITHUB_ENV"
+          git push origin HEAD:"$BRANCH"
+          echo "V123_PRODUCT_COMMITTED=$PRODUCT_SHA"
+
+      - name: Final protected refs Functions and no-deploy proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main v5.9-polish "$BRANCH"
+          test "$(git rev-parse origin/main)" = "$MAIN_SHA"
+          test "$(git rev-parse origin/v5.9-polish)" = "$POLISH_SHA"
+          test "$(git rev-parse origin/$BRANCH)" = "$PRODUCT_SHA"
+          test -z "$(git diff --name-only "$BASE_SHA" "$PRODUCT_SHA" -- functions/)"
+          test ! -e scripts/v123-page-evidence-failclosed.py
+          test ! -e .github/workflows/v94-v123-page-evidence-failclosed.yml
+          echo "FINAL_PROTECTED_REFS_OK=true"
+          echo "FINAL_FUNCTIONS_UNCHANGED=true"
+          echo "NO_HOSTING_OR_FUNCTIONS_DEPLOY_PERFORMED=true"
+          echo "V123_PAGE_EVIDENCE_FAILCLOSED_CERTIFIED=$PRODUCT_SHA"
