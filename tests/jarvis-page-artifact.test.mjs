@@ -45,15 +45,21 @@ test("page studio fails closed on missing business content but allows no-contact
     assert.ok(Object.values(report.checks).every(Boolean));
 });
 
-test("page studio supports an honest generic WhatsApp CTA without inventing a number", () => {
-    const html = buildPageArtifactHtml({
+test("page studio never invents a generic WhatsApp route when no verified number exists", () => {
+    const pageInput = {
         ...input,
         whatsapp: "",
         contactEmail: "",
         whatsappRequested: true
-    });
-    assert.match(html, /https:\/\/wa\.me\/\?text=/);
+    };
+    const html = buildPageArtifactHtml(pageInput);
+    const report = describePageArtifact(pageInput, html);
+    assert.doesNotMatch(html, /wa\.me/);
     assert.doesNotMatch(html, /529981234567/);
+    assert.match(html, /href="#servicios"/);
+    assert.match(html, /Explorar servicios/);
+    assert.equal(report.hasContactRoute, false);
+    assert.ok(Object.values(report.checks).every(Boolean));
 });
 
 test("page studio accepts natural business field aliases without generic filler", () => {

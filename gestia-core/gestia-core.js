@@ -41,7 +41,7 @@ import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     buildJarvisMultifunctionToolCalls,
     completeJarvisPlanningArguments
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=v94-semantic-memory-integrity-v110-20260809';
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=v94-page-request-contract-v118-20260810';
 import {
     composeEvidenceGroundedConversation,
     mergeEvidenceGroundedToolCalls,
@@ -214,7 +214,7 @@ import {
     JarvisSemanticMemory
 } from '/gestia-core/jarvis/jarvis.semantic.memory.js?v=v94-semantic-memory-v1-20260809';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=v94-page-browser-fallback-v115-20260809';
+import '/gestia-core/tools.runtime.js?v=v94-page-request-contract-v118-20260810';
 import '/gestia-core/response.composer.js?v=v94-live-human-reds-v113-20260809';
 import '/gestia-core/tools.bridge.js?v=v94-page-browser-fallback-v115-20260809';
 

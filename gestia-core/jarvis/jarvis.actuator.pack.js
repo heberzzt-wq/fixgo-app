@@ -4,7 +4,7 @@ import {
 import {
     buildPageArtifactHtml,
     describePageArtifact
-} from "../../jarvis-page-artifact.js?v=v94-page-browser-fallback-v115-20260809";
+} from "../../jarvis-page-artifact.js?v=v94-page-request-contract-v118-20260810";
 import {
     adaptImageSource,
     buildIdentityReferenceSheet
@@ -415,6 +415,7 @@ export function registerJarvisActuatorTools(runtime) {
             output: "PAGE_CREATE_ARTIFACT",
             inputSchema: {
                 brandName: "string", title: "string", description: "string", services: "array",
+                requiredSections: "array", contentSections: "array",
                 heroImage: "string", sourceImages: "array<{output,role:hero|gallery,alt}>", gallery: "array", testimonials: "array", beforeAfter: "array",
                 whatsapp: "string", whatsappRequested: "boolean", contactEmail: "string", mapUrl: "string", output: "string",
                 caseId: "string", objectiveId: "string"

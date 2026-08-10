@@ -5,10 +5,10 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=v94-repo-marketing-integrity-v112-20260809";
+} from "./jarvis/jarvis.multitool.pack.js?v=v94-page-request-contract-v118-20260810";
 import {
     registerJarvisActuatorTools
-} from "./jarvis/jarvis.actuator.pack.js?v=v94-page-browser-fallback-v115-20260809";
+} from "./jarvis/jarvis.actuator.pack.js?v=v94-page-request-contract-v118-20260810";
 import {
     reviewChiefArchitectPlan
 } from "./jarvis/jarvis.chief.architect.js?v=sia7-chief-architect-v92-20260726";

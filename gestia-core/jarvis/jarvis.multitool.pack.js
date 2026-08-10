@@ -3319,7 +3319,52 @@ export function groundPageContactInput(
     };
 }
 
-function normalizedPageArtifactInput(value = {}, fallbackTitle = "") {
+function pageSectionContractKey(value = "") {
+    return clean(value)
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
+}
+
+function normalizePageRequiredSections(value = [], fallback = []) {
+    const primary = Array.isArray(value) && value.length > 0 ? value : fallback;
+    return (Array.isArray(primary) ? primary : [])
+        .slice(0, 16)
+        .map(item => typeof item === "string" ? clean(item) : clean(item?.title || item?.name))
+        .filter(Boolean)
+        .filter((item, index, list) =>
+            list.findIndex(candidate => pageSectionContractKey(candidate) === pageSectionContractKey(item)) === index
+        );
+}
+
+function normalizePageContentSections(value = []) {
+    return (Array.isArray(value) ? value : [])
+        .slice(0, 16)
+        .map(section => {
+            if (!section || typeof section !== "object") return null;
+            const title = clean(section.title || section.name);
+            const description = clean(section.description || section.body);
+            const items = (Array.isArray(section.items) ? section.items : [])
+                .slice(0, 8)
+                .map(item => {
+                    if (typeof item === "string") return { title: clean(item), description: "" };
+                    if (!item || typeof item !== "object") return null;
+                    return {
+                        title: clean(item.title || item.name),
+                        description: clean(item.description || item.body)
+                    };
+                })
+                .filter(item => item && (item.title || item.description));
+            return title && (description || items.length > 0)
+                ? { title, description, items }
+                : null;
+        })
+        .filter(Boolean);
+}
+
+function normalizedPageArtifactInput(value = {}, fallbackTitle = "", fallbackRequiredSections = []) {
     const services = Array.isArray(value?.services)
         ? value.services.slice(0, 12).map(service => ({
             title: clean(service?.title || service?.name),
@@ -3329,11 +3374,18 @@ function normalizedPageArtifactInput(value = {}, fallbackTitle = "") {
             service.description
         )
         : [];
+    const requiredSections = normalizePageRequiredSections(
+        value?.requiredSections,
+        fallbackRequiredSections
+    );
+    const contentSections = normalizePageContentSections(value?.contentSections);
     return {
         brandName: clean(value?.brandName),
         title: clean(value?.title, fallbackTitle),
         description: clean(value?.description),
         services,
+        requiredSections,
+        contentSections,
         whatsapp: clean(value?.whatsapp).replace(/[^0-9]/g, ""),
         contactEmail: clean(value?.contactEmail),
         whatsappRequested: value?.whatsappRequested === true
@@ -4538,6 +4590,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                 brandName: "string",
                 title: "string",
                 instructions: "string",
+                sections: "array",
                 contactEmail: "string",
                 whatsapp: "string",
                 whatsappRequested: "boolean"
@@ -4556,14 +4609,18 @@ export function registerJarvisMultifunctionTools(runtime) {
                 let semantic = await fetchSemanticConversation(
                     [
                         "Redacta el contenido completo de una landing page como JSON estricto.",
-                        "Devuelve solamente un objeto con brandName, title, description, services, whatsapp, contactEmail y whatsappRequested.",
+                        "Devuelve solamente un objeto con brandName, title, description, services, requiredSections, contentSections, whatsapp, contactEmail y whatsappRequested.",
                         "services debe ser un arreglo de objetos {title,description} con contenido específico y honesto.",
+                        "requiredSections debe conservar, en el idioma del usuario, cada sección de contenido pedida explícitamente o recibida en SECCIONES_PLANIFICADAS; no omitas ni fusiones objetivos distintos.",
+                        "contentSections debe contener exactamente una entrada sustantiva por requiredSections con {title,description,items}; title debe corresponder a la sección requerida y cada bloque debe tener copy real, no sólo una etiqueta.",
+                        "Una página no puede considerarse compuesta si falta cualquiera de sus requiredSections.",
                         "No inventes clientes, certificaciones, testimonios, teléfonos, correos, garantías ni experiencia no proporcionada.",
                         "Si el usuario pide WhatsApp pero no dio número, usa whatsapp vacío y whatsappRequested=true; nunca inventes un número.",
                         "Si el usuario no dio ningún canal de contacto, deja whatsapp y contactEmail vacíos; una página válida no necesita inventarlos.",
                         "La descripción debe tener al menos 20 caracteres y debe existir por lo menos un servicio.",
                         `MARCA=${clean(args.brandName)}`,
                         `TITULO=${clean(args.title)}`,
+                        `SECCIONES_PLANIFICADAS=${JSON.stringify(Array.isArray(args.sections) ? args.sections : [])}`,
                         `SOLICITUD=${instruction}`
                     ].join("\n"),
                     {
@@ -4580,7 +4637,8 @@ export function registerJarvisMultifunctionTools(runtime) {
                                     semantic?.message ||
                                     ""
                                 ),
-                                clean(args.title)
+                                clean(args.title),
+                                Array.isArray(args.sections) ? args.sections : []
                             ),
                             instruction,
                             {
@@ -4608,12 +4666,19 @@ export function registerJarvisMultifunctionTools(runtime) {
                             "PAGE_CONTENT_JSON_INVALID"
                     };
                 }
+                const missingSections = pageInput.requiredSections.filter(required =>
+                    !pageInput.contentSections.some(section =>
+                        pageSectionContractKey(section.title) === pageSectionContractKey(required)
+                    )
+                );
+                const requestedSectionsSatisfied = missingSections.length === 0;
                 const ok =
                     semantic?.ok === true &&
                     pageInput.brandName &&
                     pageInput.title &&
                     pageInput.description.length >= 20 &&
-                    pageInput.services.length > 0;
+                    pageInput.services.length > 0 &&
+                    requestedSectionsSatisfied;
                 return {
                     ok:
                         Boolean(ok),
@@ -4622,6 +4687,8 @@ export function registerJarvisMultifunctionTools(runtime) {
                             ? "PAGE_CONTENT_COMPOSED"
                             : "PAGE_CONTENT_COMPOSITION_INCOMPLETE",
                     pageInput,
+                    requestedSectionsSatisfied,
+                    missingSections,
                     provider:
                         semantic?.provider ||
                         null,
@@ -4635,7 +4702,9 @@ export function registerJarvisMultifunctionTools(runtime) {
                     error:
                         ok
                             ? null
-                            : "PAGE_CONTENT_REQUIRED"
+                            : missingSections.length > 0
+                                ? "PAGE_REQUESTED_SECTION_COVERAGE_INCOMPLETE"
+                                : "PAGE_CONTENT_REQUIRED"
                 };
             }
         }),
@@ -5140,6 +5209,7 @@ export function registerJarvisMultifunctionTools(runtime) {
             name: "page.plan",
             description: "Construye una especificacion responsive, editable y accesible de pagina sin escribir ni desplegar.",
             output: "SIA7_PAGE_SPEC",
+            missionDedupeBy: ["pageName"],
             inputSchema: PAGE_ARGUMENT_SCHEMA,
             execute: async (args = {}, context = {}) => {
                 let planningArgs = args;
