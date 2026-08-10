@@ -1,0 +1,369 @@
+name: V94 v121 step5 certify and hosting
+
+on:
+  push:
+    branches: [v94-media-v4n-negative-claims]
+    paths: [.github/workflows/v94-v121-step5-certify-hosting.yml]
+
+permissions:
+  contents: write
+
+env:
+  BASELINE: fc021b3112542dbcdb9d236a17e0b71ee547463b
+  EXPECTED_MAIN: f3fa8e1806b681e860875afd4ce8183d27864873
+  EXPECTED_POLISH: 2ae85e670505c5d425a5a0334e99c45168054bb8
+  RELEASE_TOKEN: v94-generalist-production-integrity-v121-20260810
+
+jobs:
+  certify-deploy:
+    if: ${{ !contains(github.event.head_commit.message, 'remove v119-v121 certification workflows') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Guard branch Functions and protected refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-media-v4n-negative-claims"
+          git cat-file -e "$BASELINE^{commit}"
+          git diff --quiet "$BASELINE" HEAD -- functions
+          git fetch origin main v5.9-polish --quiet
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN"
+          test "$(git rev-parse origin/v5.9-polish)" = "$EXPECTED_POLISH"
+          for p in \
+            scripts/v119-current-turn-freshness-fix.py \
+            scripts/v120-generalist-page-integrity-fix.py \
+            scripts/v120-neutral-forensics-probe-fix.py \
+            scripts/v121-page-factual-integrity-fix.py \
+            scripts/v121-final-cache-chain-fix.py; do
+            test -f "$p"
+          done
+
+      - name: Install certification dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npm ci --prefix functions --ignore-scripts
+          git diff --quiet "$BASELINE" HEAD -- functions
+
+      - name: Apply certified production stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/v119-current-turn-freshness-fix.py
+          python scripts/v120-generalist-page-integrity-fix.py
+          python scripts/v120-neutral-forensics-probe-fix.py
+          python scripts/v121-page-factual-integrity-fix.py
+          python scripts/v121-final-cache-chain-fix.py
+          git diff --check
+          git diff --quiet "$BASELINE" HEAD -- functions
+
+      - name: Syntax and release-chain invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          for p in \
+            gestia-terminal.js \
+            gestia-core/gestia-core.js \
+            gestia-core/tools.runtime.js \
+            gestia-core/jarvis/jarvis.multifunction.planner.js \
+            gestia-core/jarvis/jarvis.multitool.pack.js \
+            gestia-core/jarvis/jarvis.page.creator.js \
+            gestia-core/jarvis/jarvis.identity.integrity.js \
+            gestia-core/jarvis/jarvis.page.factual.integrity.js \
+            gestia-core/jarvis/jarvis.actuator.pack.js \
+            jarvis-page-artifact.js; do
+            node --check "$p"
+          done
+          test "$(grep -Fc "$RELEASE_TOKEN" gestia-terminal.html)" = "4"
+          test "$(grep -Fc "$RELEASE_TOKEN" gestia-core/gestia-core.js)" -ge "2"
+          test "$(grep -Fc "$RELEASE_TOKEN" gestia-core/tools.runtime.js)" -ge "2"
+          test "$(grep -Fc "$RELEASE_TOKEN" gestia-core/jarvis/jarvis.multitool.pack.js)" -ge "4"
+          test "$(grep -Fc "$RELEASE_TOKEN" gestia-core/jarvis/jarvis.actuator.pack.js)" -ge "1"
+          ! grep -Fq 'v94-runtime-health-truth-v116-20260809' gestia-terminal.html
+          ! grep -Fq 'v94-secure-session-v117-20260810' gestia-terminal.html
+          ! grep -Fq 'v94-page-request-contract-v118-20260810' gestia-core/tools.runtime.js
+          ! grep -Fq 'semanticMemory: semanticMemoryContext' gestia-core/gestia-core.js
+          test "$(grep -Fc 'semanticMemoryAvailable: Boolean(semanticMemoryContext)' gestia-core/gestia-core.js)" = "3"
+          grep -Fq 'semanticMemoryAvailable: Boolean(semanticMemory)' gestia-core/gestia-core.js
+          grep -Fq 'memoryContext: semanticMemoryContext' gestia-core/gestia-core.js
+          grep -Fq 'rejectCorruptedIdentityArgs' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -Fq 'identityPreserved' gestia-core/jarvis/jarvis.multitool.pack.js
+          grep -Fq 'AUDITORIA_FACTUAL_DE_PAGINA' gestia-core/jarvis/jarvis.multitool.pack.js
+          grep -Fq 'PAGE_FACTUAL_INTEGRITY_INCOMPLETE' gestia-core/jarvis/jarvis.multitool.pack.js
+          grep -Fq 'sections: Array.isArray(input.sections)' gestia-core/jarvis/jarvis.page.creator.js
+          ! grep -Fq '"como_funciona"' gestia-core/jarvis/jarvis.page.creator.js
+          ! grep -Fq 'Multiservicios Peninsulares HMH' gestia-core/jarvis/jarvis.multitool.pack.js
+          ! grep -Fq 'Multiservicios Peninsulares HMH' gestia-core/jarvis/jarvis.identity.integrity.js
+          ! grep -Fq 'Multiservicios Peninsulares SMH' gestia-core/jarvis/jarvis.identity.integrity.js
+          grep -Fq 'requestedSections: requestedSectionsSatisfied' jarvis-page-artifact.js
+          ! grep -Fq '? "https://wa.me/"' jarvis-page-artifact.js
+          git diff --quiet "$BASELINE" HEAD -- functions
+
+      - name: Focused production regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/jarvis-page-factual-integrity-v121.test.mjs \
+            tests/jarvis-generalist-page-integrity-v120.test.mjs \
+            tests/jarvis-current-turn-freshness-v119.test.mjs \
+            tests/jarvis-page-request-contract-v118.test.mjs \
+            tests/jarvis-page-artifact.test.mjs \
+            tests/jarvis-page-browser-fallback-v115.test.mjs \
+            tests/jarvis-peninsula-page-v114.test.mjs \
+            tests/jarvis-pdf-layout.test.mjs \
+            tests/jarvis-pdf-visual.test.mjs \
+            tests/jarvis-docx-artifact.test.mjs \
+            tests/jarvis-document-analysis-routing.test.mjs \
+            tests/jarvis-attachments.test.mjs \
+            tests/jarvis-media-ingestion-precision.test.mjs \
+            tests/jarvis-web-research.test.cjs \
+            tests/jarvis-repo-intelligence.test.mjs \
+            tests/jarvis-repo-target-runtime.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs \
+            tests/jarvis-generalist-current-turn.test.mjs \
+            tests/jarvis-semantic-memory-integrity.test.mjs \
+            tests/jarvis-multifunction-tools.test.mjs \
+            tests/jarvis-live-human-reds-v113.test.mjs
+          git diff --quiet "$BASELINE" HEAD -- functions
+
+      - name: Physical generalist page contract probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { createOfficialPageSpec } from './gestia-core/jarvis/jarvis.page.creator.js';
+          import { identityNearCopyMismatch, repairCanonicalIdentityCopy } from './gestia-core/jarvis/jarvis.identity.integrity.js';
+          import { normalizePageFactualAudit } from './gestia-core/jarvis/jarvis.page.factual.integrity.js';
+          import { buildPageArtifactHtml, describePageArtifact } from './jarvis-page-artifact.js';
+
+          const architectures = [
+            ['Bistró Nube', ['Menú','Reservas','Ubicación']],
+            ['Vector SaaS', ['Producto','Integraciones','Precios','FAQ']],
+            ['Hotel Marea', ['Habitaciones','Servicios','Galería','Reservas']]
+          ];
+          for (const [brand, sections] of architectures) {
+            const spec = createOfficialPageSpec({
+              pageName: brand,
+              brandName: brand,
+              title: brand,
+              description: `Página específica para ${brand}.`,
+              sections
+            }, { objectiveId: `final-${brand}`, instruction: `Crear ${brand}` });
+            if (JSON.stringify(spec.page.sections) !== JSON.stringify(sections)) throw new Error(`DYNAMIC_SECTIONS_FAILED:${brand}`);
+          }
+
+          const current = 'Crea una página para Multiservicios Peninsulares HMH .com';
+          if (!identityNearCopyMismatch('Multiservicios Peninsulares SMH', current)) throw new Error('NEAR_COPY_NOT_REJECTED');
+          if (repairCanonicalIdentityCopy('Multiservicios Peninsulares SMH', 'Multiservicios Peninsulares HMH') !== 'Multiservicios Peninsulares HMH') throw new Error('CANONICAL_REPAIR_FAILED');
+
+          const requiredSections = ['Introducción','Cómo funciona','Beneficios','Herramientas disponibles','Casos de uso','Contacto'];
+          const input = {
+            brandName: 'Prueba Contrato Generalista',
+            title: 'Prueba Contrato Generalista',
+            description: 'Página verificable generada para probar cobertura dinámica.',
+            services: [{ title: 'Servicio', description: 'Contenido verificable.' }],
+            requiredSections,
+            contentSections: requiredSections.map(title => ({ title, description: `Contenido de ${title}.`, items: [] })),
+            whatsappRequested: true
+          };
+          const html = buildPageArtifactHtml(input);
+          const report = describePageArtifact(input, html);
+          if (!report.ok || !report.checks.requestedSections) throw new Error(`PAGE_CONTRACT_FAILED:${JSON.stringify(report)}`);
+          if (html.includes('https://wa.me/')) throw new Error('UNVERIFIED_WHATSAPP_ROUTE');
+
+          const factual = normalizePageFactualAudit({ ok: true, unsupportedClaims: [], pageInput: input });
+          if (!factual.ok) throw new Error('FACTUAL_PASS_FAILED');
+          const factualBad = normalizePageFactualAudit({ ok: true, unsupportedClaims: ['dato no sustentado'], pageInput: input });
+          if (factualBad.ok) throw new Error('FACTUAL_FAIL_CLOSED_FAILED');
+          console.log('PHYSICAL_GENERALIST_PAGE_CONTRACT_GREEN');
+          NODE
+
+      - name: Full CI final release
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run ci:test
+          git diff --quiet "$BASELINE" HEAD -- functions
+
+      - name: Recheck protected refs before product commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main v5.9-polish --quiet
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN"
+          test "$(git rev-parse origin/v5.9-polish)" = "$EXPECTED_POLISH"
+          git diff --quiet "$BASELINE" HEAD -- functions
+
+      - name: Commit certified v121 product
+        id: product
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f \
+            scripts/v119-current-turn-freshness-fix.py \
+            scripts/v120-generalist-page-integrity-fix.py \
+            scripts/v120-neutral-forensics-probe-fix.py \
+            scripts/v121-page-factual-integrity-fix.py \
+            scripts/v121-final-cache-chain-fix.py
+          git add \
+            gestia-terminal.html \
+            gestia-core/gestia-core.js \
+            gestia-core/tools.runtime.js \
+            gestia-core/jarvis/jarvis.multifunction.planner.js \
+            gestia-core/jarvis/jarvis.multitool.pack.js \
+            gestia-core/jarvis/jarvis.page.creator.js \
+            gestia-core/jarvis/jarvis.identity.integrity.js \
+            gestia-core/jarvis/jarvis.page.factual.integrity.js \
+            gestia-core/jarvis/jarvis.actuator.pack.js \
+            tests/jarvis-current-turn-freshness-v119.test.mjs \
+            tests/jarvis-semantic-memory-integrity.test.mjs \
+            tests/jarvis-generalist-page-integrity-v120.test.mjs \
+            tests/jarvis-page-factual-integrity-v121.test.mjs
+          test -z "$(git diff --cached --name-only -- functions)"
+          git diff --cached --check
+          git commit -m "[v94] fix(adj): generalist production integrity v121"
+          product_sha="$(git rev-parse HEAD)"
+          echo "product_sha=$product_sha" >> "$GITHUB_OUTPUT"
+          git push origin HEAD:v94-media-v4n-negative-claims
+
+      - name: Bind exact certified Hosting source
+        shell: bash
+        env:
+          PRODUCT_SHA: ${{ steps.product.outputs.product_sha }}
+        run: |
+          set -euo pipefail
+          critical=(
+            gestia-terminal.html
+            gestia-terminal.js
+            gestia-core/gestia-core.js
+            gestia-core/gestia.runtime.v7.js
+            gestia-core/tools.runtime.js
+            gestia-core/jarvis/jarvis.multifunction.planner.js
+            gestia-core/jarvis/jarvis.multitool.pack.js
+            gestia-core/jarvis/jarvis.page.creator.js
+            gestia-core/jarvis/jarvis.identity.integrity.js
+            gestia-core/jarvis/jarvis.page.factual.integrity.js
+            gestia-core/jarvis/jarvis.actuator.pack.js
+            jarvis-page-artifact.js
+          )
+          git diff --quiet "$PRODUCT_SHA" HEAD -- "${critical[@]}"
+          git diff --quiet "$BASELINE" HEAD -- functions
+
+      - name: Sovereign Hosting-only deploy gate
+        env:
+          JARVIS_CI_PASSED: "true"
+          JARVIS_HOSTING_ONLY: "true"
+          JARVIS_FIREBASE_PROJECT: fixgo-44e4d
+        run: node scripts/jarvis-deploy-gate.mjs
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Hosting only
+        run: firebase deploy --only hosting --project fixgo-44e4d --token "${{ secrets.FIREBASE_TOKEN }}"
+
+      - name: Verify exact live product bytes and invariants
+        shell: bash
+        env:
+          PRODUCT_SHA: ${{ steps.product.outputs.product_sha }}
+        run: |
+          set -euo pipefail
+          base='https://fixgo-44e4d.web.app'
+          critical=(
+            gestia-terminal.html
+            gestia-terminal.js
+            gestia-core/gestia-core.js
+            gestia-core/gestia.runtime.v7.js
+            gestia-core/tools.runtime.js
+            gestia-core/jarvis/jarvis.multifunction.planner.js
+            gestia-core/jarvis/jarvis.multitool.pack.js
+            gestia-core/jarvis/jarvis.page.creator.js
+            gestia-core/jarvis/jarvis.identity.integrity.js
+            gestia-core/jarvis/jarvis.page.factual.integrity.js
+            gestia-core/jarvis/jarvis.actuator.pack.js
+            jarvis-page-artifact.js
+          )
+          for p in "${critical[@]}"; do
+            git show "$PRODUCT_SHA:$p" > /tmp/expected.bin
+            expected="$(sha256sum /tmp/expected.bin | awk '{print $1}')"
+            curl -fsSL --retry 5 --retry-delay 2 "$base/$p?v=$PRODUCT_SHA" -o /tmp/live.bin
+            live="$(sha256sum /tmp/live.bin | awk '{print $1}')"
+            echo "$p expected=$expected live=$live"
+            test "$expected" = "$live"
+          done
+          curl -fsSL --retry 5 "$base/gestia-terminal.html?v=$PRODUCT_SHA" -o /tmp/live-terminal.html
+          test "$(grep -Fc "$RELEASE_TOKEN" /tmp/live-terminal.html)" = "4"
+          ! grep -Fq 'v94-runtime-health-truth-v116-20260809' /tmp/live-terminal.html
+          ! grep -Fq 'v94-secure-session-v117-20260810' /tmp/live-terminal.html
+
+          curl -fsSL --retry 5 "$base/gestia-core/gestia-core.js?v=$PRODUCT_SHA" -o /tmp/live-core.js
+          ! grep -Fq 'semanticMemory: semanticMemoryContext' /tmp/live-core.js
+          test "$(grep -Fc 'semanticMemoryAvailable: Boolean(semanticMemoryContext)' /tmp/live-core.js)" = "3"
+          grep -Fq 'semanticMemoryAvailable: Boolean(semanticMemory)' /tmp/live-core.js
+          grep -Fq "$RELEASE_TOKEN" /tmp/live-core.js
+
+          curl -fsSL --retry 5 "$base/gestia-core/jarvis/jarvis.multitool.pack.js?v=$PRODUCT_SHA" -o /tmp/live-multitool.js
+          grep -Fq 'identityPreserved' /tmp/live-multitool.js
+          grep -Fq 'AUDITORIA_FACTUAL_DE_PAGINA' /tmp/live-multitool.js
+          grep -Fq 'PAGE_FACTUAL_INTEGRITY_INCOMPLETE' /tmp/live-multitool.js
+          ! grep -Fq 'Multiservicios Peninsulares HMH' /tmp/live-multitool.js
+
+          curl -fsSL --retry 5 "$base/gestia-core/jarvis/jarvis.page.creator.js?v=$PRODUCT_SHA" -o /tmp/live-page-creator.js
+          grep -Fq 'sections: Array.isArray(input.sections)' /tmp/live-page-creator.js
+          ! grep -Fq '"como_funciona"' /tmp/live-page-creator.js
+
+          curl -fsSL --retry 5 "$base/gestia-core/jarvis/jarvis.identity.integrity.js?v=$PRODUCT_SHA" -o /tmp/live-identity.js
+          ! grep -Fq 'Multiservicios Peninsulares HMH' /tmp/live-identity.js
+          ! grep -Fq 'Multiservicios Peninsulares SMH' /tmp/live-identity.js
+
+          curl -fsSL --retry 5 "$base/jarvis-page-artifact.js?v=$PRODUCT_SHA" -o /tmp/live-page-artifact.js
+          grep -Fq 'requestedSections: requestedSectionsSatisfied' /tmp/live-page-artifact.js
+          ! grep -Fq '? "https://wa.me/"' /tmp/live-page-artifact.js
+          echo "LIVE_GENERALIST_PRODUCTION_INTEGRITY_GREEN=$PRODUCT_SHA"
+
+      - name: Final protected-ref and Functions guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main v5.9-polish --quiet
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN"
+          test "$(git rev-parse origin/v5.9-polish)" = "$EXPECTED_POLISH"
+          git diff --quiet "$BASELINE" HEAD -- functions
+
+      - name: Remove temporary v119-v121 certification files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f --ignore-unmatch \
+            .github/workflows/v94-current-turn-freshness-v119.yml \
+            .github/workflows/v94-current-turn-freshness-v119-r2.yml \
+            .github/workflows/v94-v119-diagnostic.yml \
+            .github/workflows/v94-v119-failing-test-log.yml \
+            .github/workflows/v94-v119-step1-memory-boundary.yml \
+            .github/workflows/v94-v120-step2-generalist-page-integrity.yml \
+            .github/workflows/v94-v121-step3-page-factual-integrity.yml \
+            .github/workflows/v94-v121-step4-production-regression.yml \
+            .github/workflows/v94-v121-step5-certify-hosting.yml
+          git diff --cached --check
+          test -z "$(git diff --cached --name-only -- functions)"
+          git commit -m "[v94] chore: remove v119-v121 certification workflows"
+          git push origin HEAD:v94-media-v4n-negative-claims
+          echo "FINAL_BRANCH_SHA=$(git rev-parse HEAD)"
