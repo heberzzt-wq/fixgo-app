@@ -78,4 +78,33 @@ import fs from "node:fs";
     fs.writeFileSync(path, source, "utf8");
 }
 
-console.log("V115_SEMANTIC_AND_MARKETING_CACHE_REGRESSIONS_REFRESHED_FOR_V116");
+{
+    const path = "tests/jarvis-multifunction-tools.test.mjs";
+    let source = fs.readFileSync(path, "utf8");
+
+    const testStart = source.indexOf('test("tool bridge composes human actuator answers without dumping browser DOM or image bytes"');
+    if (testStart < 0) {
+        throw new Error("MULTIFUNCTION_TERMINAL_CACHE_TEST_MISSING");
+    }
+    const testEnd = source.indexOf('\n});', testStart);
+    if (testEnd < 0) {
+        throw new Error("MULTIFUNCTION_TERMINAL_CACHE_TEST_END_MISSING");
+    }
+
+    const before = source.slice(0, testStart);
+    let block = source.slice(testStart, testEnd + 4);
+    const after = source.slice(testEnd + 4);
+
+    const oldTerminalAssertion = `    assert.match(terminal, /v94-page-browser-fallback-v115-20260809/);`;
+    const newTerminalAssertion = `    assert.match(terminal, /gestia-terminal\\.js\\?v=v94-[a-z0-9-]+-20260809/);`;
+
+    if (!block.includes(oldTerminalAssertion)) {
+        throw new Error("MULTIFUNCTION_TERMINAL_V115_ASSERTION_MISSING");
+    }
+
+    block = block.replace(oldTerminalAssertion, newTerminalAssertion);
+    source = before + block + after;
+    fs.writeFileSync(path, source, "utf8");
+}
+
+console.log("V115_SEMANTIC_MARKETING_AND_MULTIFUNCTION_CACHE_REGRESSIONS_REFRESHED_FOR_V116");
