@@ -30,6 +30,7 @@ jobs:
           test -z "$(git diff --name-only "$BASELINE" HEAD -- functions)"
           test -f scripts/v118-page-contract-fix.py
           test -f scripts/v118-contact-route-fix.py
+          test -f scripts/v118-semantic-memory-cache-test-fix.py
 
       - uses: actions/setup-node@v4
         with:
@@ -48,6 +49,7 @@ jobs:
           set -euo pipefail
           python scripts/v118-page-contract-fix.py
           python scripts/v118-contact-route-fix.py
+          python scripts/v118-semantic-memory-cache-test-fix.py
           python - <<'PY'
           from pathlib import Path
           path = Path('tests/jarvis-page-request-contract-v118.test.mjs')
@@ -66,6 +68,7 @@ jobs:
           node --check gestia-core/gestia-core.js
           node --check tests/jarvis-page-request-contract-v118.test.mjs
           node --check tests/jarvis-page-artifact.test.mjs
+          node --check tests/jarvis-semantic-memory-integrity.test.mjs
           test -z "$(git diff --name-only -- functions)"
 
       - name: Focused 1 - v118 page request contract
@@ -158,6 +161,7 @@ jobs:
           grep -q 'requiredSections: "array", contentSections: "array"' gestia-core/jarvis/jarvis.actuator.pack.js
           grep -q 'v94-page-request-contract-v118-20260810' gestia-core/tools.runtime.js
           grep -q 'v94-page-request-contract-v118-20260810' gestia-core/gestia-core.js
+          grep -q 'v94-page-request-contract-v118-20260810' tests/jarvis-semantic-memory-integrity.test.mjs
           test -z "$(git diff --name-only 32363618f727dc1062d6a218101dfa9918851ca5 HEAD -- functions)"
 
       - name: Commit certified v118 product
@@ -165,7 +169,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm -f scripts/v118-page-contract-fix.py scripts/v118-contact-route-fix.py
+          git rm -f scripts/v118-page-contract-fix.py scripts/v118-contact-route-fix.py scripts/v118-semantic-memory-cache-test-fix.py
           git add \
             jarvis-page-artifact.js \
             gestia-core/jarvis/jarvis.multitool.pack.js \
@@ -174,7 +178,8 @@ jobs:
             gestia-core/tools.runtime.js \
             gestia-core/gestia-core.js \
             tests/jarvis-page-artifact.test.mjs \
-            tests/jarvis-page-request-contract-v118.test.mjs
+            tests/jarvis-page-request-contract-v118.test.mjs \
+            tests/jarvis-semantic-memory-integrity.test.mjs
           test -z "$(git diff --cached --name-only -- functions)"
           git commit -m "[v94] fix(adj): verify every requested page section"
           git push origin HEAD:v94-media-v4n-negative-claims
