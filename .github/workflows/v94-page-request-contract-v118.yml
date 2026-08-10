@@ -29,6 +29,7 @@ jobs:
           git merge-base --is-ancestor "$BASELINE" HEAD
           test -z "$(git diff --name-only "$BASELINE" HEAD -- functions)"
           test -f scripts/v118-page-contract-fix.py
+          test -f scripts/v118-contact-route-fix.py
 
       - uses: actions/setup-node@v4
         with:
@@ -46,6 +47,7 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/v118-page-contract-fix.py
+          python scripts/v118-contact-route-fix.py
           python - <<'PY'
           from pathlib import Path
           path = Path('tests/jarvis-page-request-contract-v118.test.mjs')
@@ -121,7 +123,7 @@ jobs:
           const html = buildPageArtifactHtml(input);
           const report = describePageArtifact(input, html);
           if (!report.ok || !report.checks.requestedSections) throw new Error(JSON.stringify(report));
-          if (html.includes('https://wa.me/?text=')) throw new Error('UNVERIFIED_WHATSAPP_ROUTE_RENDERED');
+          if (html.includes('https://wa.me/')) throw new Error('UNVERIFIED_WHATSAPP_ROUTE_RENDERED');
           if (!html.includes('href="#servicios"')) throw new Error('SAFE_CONTACT_FALLBACK_MISSING');
           fs.writeFileSync('/tmp/jarvis-v7-v118.html', html);
           fs.writeFileSync('/tmp/jarvis-v7-v118-report.json', JSON.stringify(report, null, 2));
@@ -130,7 +132,7 @@ jobs:
           for id in introduccion como-funciona beneficios herramientas-disponibles casos-de-uso contacto; do
             grep -q "data-requested-section=\"$id\"" /tmp/jarvis-v7-v118.html
           done
-          ! grep -q 'https://wa.me/?text=' /tmp/jarvis-v7-v118.html
+          ! grep -q 'https://wa.me/' /tmp/jarvis-v7-v118.html
           grep -q 'href="#servicios"' /tmp/jarvis-v7-v118.html
           sha256sum /tmp/jarvis-v7-v118.html
           cat /tmp/jarvis-v7-v118-report.json
@@ -146,6 +148,8 @@ jobs:
           set -euo pipefail
           grep -q 'requestedSections: requestedSectionsSatisfied' jarvis-page-artifact.js
           grep -q 'data-requested-section' jarvis-page-artifact.js
+          grep -q 'const phoneHref = whatsapp' jarvis-page-artifact.js
+          ! grep -q '? "https://wa.me/"' jarvis-page-artifact.js
           grep -q 'PAGE_REQUESTED_SECTION_COVERAGE_INCOMPLETE' gestia-core/jarvis/jarvis.multitool.pack.js
           grep -q 'missionDedupeBy: \["pageName"\]' gestia-core/jarvis/jarvis.multitool.pack.js
           grep -q 'copia en args.sections cada sección de contenido pedida explícitamente' gestia-core/jarvis/jarvis.multifunction.planner.js
@@ -159,7 +163,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm -f scripts/v118-page-contract-fix.py
+          git rm -f scripts/v118-page-contract-fix.py scripts/v118-contact-route-fix.py
           git add \
             jarvis-page-artifact.js \
             gestia-core/jarvis/jarvis.multitool.pack.js \
