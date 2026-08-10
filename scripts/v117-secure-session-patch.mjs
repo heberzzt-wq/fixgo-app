@@ -34,4 +34,24 @@ if (terminalTokenCount !== 2) {
 html = html.split(oldTerminalToken).join(newTerminalToken);
 fs.writeFileSync(htmlPath, html, "utf8");
 
-console.log("V117_SECURE_SESSION_PATCH_APPLIED");
+const oldShellAssertion = "/gestia-terminal\\.js\\?v=v94-[a-z0-9-]+-20260809/";
+const newShellAssertion = "/gestia-terminal\\.js\\?v=v94-[a-z0-9-]+-[0-9]{8}/";
+const shellContractFiles = [
+    ["tests/jarvis-multifunction-tools.test.mjs", 3],
+    ["tests/jarvis-page-browser-fallback-v115.test.mjs", 1],
+    ["tests/repo-authority-v2.test.cjs", 1],
+    ["tests/jarvis-semantic-memory-integrity.test.mjs", 1],
+    ["tests/jarvis-marketing-terminal-delivery.e2e.test.mjs", 1]
+];
+
+for (const [testPath, expectedCount] of shellContractFiles) {
+    let source = fs.readFileSync(testPath, "utf8");
+    const count = source.split(oldShellAssertion).length - 1;
+    if (count !== expectedCount) {
+        throw new Error(`V117_SHELL_ASSERTION_COUNT_${testPath}_${count}`);
+    }
+    source = source.split(oldShellAssertion).join(newShellAssertion);
+    fs.writeFileSync(testPath, source, "utf8");
+}
+
+console.log("V117_SECURE_SESSION_AND_SHELL_CONTRACT_PATCH_APPLIED");
