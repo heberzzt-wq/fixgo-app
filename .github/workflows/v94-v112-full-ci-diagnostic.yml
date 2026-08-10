@@ -1,0 +1,93 @@
+name: V94 v112 full CI diagnostic
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-v112-full-ci-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          npm ci
+          npm --prefix functions ci
+          test -z "$(git status --porcelain -- functions)"
+      - name: Reapply v112 candidate patch from certification workflow
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import textwrap
+          source = Path('.github/workflows/v94-repo-marketing-integrity-v112.yml').read_text(encoding='utf-8')
+          start_marker = "          python - <<'PY'\n"
+          end_marker = "\n          PY\n\n          node --check gestia-core/response.composer.js"
+          if source.count(start_marker) != 1 or source.count(end_marker) != 1:
+              raise SystemExit('V112_PATCH_BLOCK_NOT_UNIQUE')
+          block = source.split(start_marker, 1)[1].split(end_marker, 1)[0]
+          Path('/tmp/apply-v112.py').write_text(textwrap.dedent(block), encoding='utf-8')
+          PY
+          python /tmp/apply-v112.py
+          node --check gestia-core/response.composer.js
+          node --check gestia-core/gestia-core.js
+          node --check gestia-core/jarvis/jarvis.actuator.pack.js
+          test -z "$(git diff --name-only -- functions)"
+      - name: Capture full CI
+        run: |
+          set +e
+          set -o pipefail
+          npm run ci:test > /tmp/full-ci.log 2>&1
+          code=$?
+          echo "$code" > /tmp/ci-exit-code.txt
+          exit 0
+      - name: Extract failures
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          lines = Path('/tmp/full-ci.log').read_text(encoding='utf-8', errors='replace').splitlines()
+          rx = re.compile(r'(^|\\s)(not ok\\b|AssertionError\\b|ERR_ASSERTION\\b|ERR_TEST_FAILURE\\b|FAIL\\b|Error:)')
+          markers = [i for i, line in enumerate(lines) if rx.search(line)]
+          ranges=[]
+          for i in markers:
+              a=max(0,i-35); b=min(len(lines),i+90)
+              if ranges and a <= ranges[-1][1]+10:
+                  ranges[-1]=(ranges[-1][0],max(ranges[-1][1],b))
+              else:
+                  ranges.append((a,b))
+          out=[f'CI_EXIT_CODE={Path("/tmp/ci-exit-code.txt").read_text().strip()}',f'TOTAL_LINES={len(lines)}',f'FAILURE_MARKERS={len(markers)}']
+          for n,(a,b) in enumerate(ranges,1):
+              out.append(f'\n===== FAILURE_CONTEXT_{n} =====')
+              out.extend(f'{j+1}: {lines[j]}' for j in range(a,b))
+          out.append('\n===== FINAL_250_LINES =====')
+          tail=max(0,len(lines)-250)
+          out.extend(f'{j+1}: {lines[j]}' for j in range(tail,len(lines)))
+          Path('/tmp/failures.txt').write_text('\n'.join(out),encoding='utf-8')
+          print('\n'.join(out[:500]))
+          PY
+          test -z "$(git diff --name-only -- functions)"
+      - name: Upload diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: v94-v112-ci-failure
+          path: |
+            /tmp/failures.txt
+            /tmp/ci-exit-code.txt
+          retention-days: 3
