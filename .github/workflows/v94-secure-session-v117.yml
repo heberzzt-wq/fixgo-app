@@ -1,0 +1,240 @@
+name: V94 secure session recovery v117
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-secure-session-v117.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v94-secure-session-v117
+  cancel-in-progress: false
+
+env:
+  SEMANTIC_BASE: e6bec05b93b8f1ad88f44d5665ee2547c468dcec
+  EXPECTED_MAIN: f3fa8e1806b681e860875afd4ce8183d27864873
+  EXPECTED_POLISH: 2ae85e670505c5d425a5a0334e99c45168054bb8
+  RELEASE_TOKEN: v94-secure-session-v117-20260810
+
+jobs:
+  certify-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Guard branch Functions and protected refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-media-v4n-negative-claims"
+          git cat-file -e "$SEMANTIC_BASE^{commit}"
+          git diff --quiet "$SEMANTIC_BASE" HEAD -- functions
+          git fetch origin main v5.9-polish --quiet
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN"
+          test "$(git rev-parse origin/v5.9-polish)" = "$EXPECTED_POLISH"
+          echo "V117_PRE_GUARDS_OK"
+
+      - name: Apply v117 secure-session patch
+        run: node scripts/v117-secure-session-patch.mjs
+
+      - name: Source invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          grep -Fq 'SESSION_KEY_IMPORT_TIMEOUT_MS = 4000' gestia-terminal.js
+          grep -Fq 'SESSION_KEY_MATERIAL_INVALID' gestia-terminal.js
+          grep -Fq 'SESSION_KEY_IMPORT_TIMEOUT' gestia-terminal.js
+          grep -Fq 'jarvis.media.ingestion.js?v=v94-secure-session-v117-20260810' gestia-core/jarvis/jarvis.multitool.pack.js
+          test "$(grep -Fo 'gestia-terminal.js?v=v94-secure-session-v117-20260810' gestia-terminal.html | wc -l)" -eq 2
+          ! grep -Fq 'gestia-terminal.js?v=v94-runtime-health-truth-v116-20260809' gestia-terminal.html
+          git diff --quiet "$SEMANTIC_BASE" HEAD -- functions
+          echo "V117_SOURCE_INVARIANTS_OK"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install root and Functions test dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npm ci --prefix functions --ignore-scripts
+          git diff --quiet "$SEMANTIC_BASE" HEAD -- functions
+          echo "V117_TEST_DEPENDENCIES_READY"
+
+      - name: Focused v117 regression with exact failure capture
+        shell: bash
+        run: |
+          set +e
+          node --check gestia-terminal.js
+          syntax_code=$?
+          node --check gestia-core/jarvis/jarvis.multitool.pack.js
+          multi_syntax_code=$?
+          node --test tests/jarvis-secure-session-v117.test.mjs tests/jarvis-runtime-health-truth-v116.test.mjs tests/jarvis-page-browser-fallback-v115.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/repo-authority-v2.test.cjs > /tmp/v117-focused.log 2>&1
+          test_code=$?
+          cat /tmp/v117-focused.log
+          if [ "$syntax_code" -ne 0 ] || [ "$multi_syntax_code" -ne 0 ] || [ "$test_code" -ne 0 ]; then
+            cp /tmp/v117-focused.log .github/v117-focused-failure.log
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .github/v117-focused-failure.log
+            git commit -m "[v94] diag: capture v117 focused failure"
+            git push origin HEAD:v94-media-v4n-negative-claims
+            exit 1
+          fi
+          rm -f .github/v117-focused-failure.log
+          echo "V117_FOCUSED_GREEN"
+
+      - name: Full CI with exact failure capture
+        shell: bash
+        run: |
+          set +e
+          npm run ci:test > /tmp/v117-ci.log 2>&1
+          code=$?
+          cat /tmp/v117-ci.log
+          if [ "$code" -ne 0 ]; then
+            cp /tmp/v117-ci.log .github/v117-ci-failure.log
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .github/v117-ci-failure.log
+            git commit -m "[v94] diag: capture v117 full CI failure"
+            git push origin HEAD:v94-media-v4n-negative-claims
+            exit "$code"
+          fi
+          rm -f .github/v117-ci-failure.log
+          echo "V117_FULL_CI_GREEN"
+
+      - name: Final precommit guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --quiet "$SEMANTIC_BASE" HEAD -- functions
+          git fetch origin main v5.9-polish --quiet
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN"
+          test "$(git rev-parse origin/v5.9-polish)" = "$EXPECTED_POLISH"
+          echo "V117_PRECOMMIT_GUARDS_OK"
+
+      - name: Commit certified v117 product
+        id: product
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f scripts/v117-secure-session-patch.mjs
+          git rm -f .github/v117-focused-failure.log 2>/dev/null || true
+          git rm -f .github/v117-ci-failure.log 2>/dev/null || true
+          git add gestia-terminal.js gestia-terminal.html gestia-core/jarvis/jarvis.multitool.pack.js tests/jarvis-secure-session-v117.test.mjs
+          git commit -m "[v94] fix(adj): bound secure session boot and refresh media delivery v117"
+          product_sha="$(git rev-parse HEAD)"
+          echo "product_sha=$product_sha" >> "$GITHUB_OUTPUT"
+          git push origin HEAD:v94-media-v4n-negative-claims
+          echo "V117_PRODUCT_SHA=$product_sha"
+
+      - name: Bind deploy source to certified product
+        shell: bash
+        env:
+          PRODUCT_SHA: ${{ steps.product.outputs.product_sha }}
+        run: |
+          set -euo pipefail
+          critical=(
+            gestia-terminal.html
+            gestia-terminal.js
+            gestia-core/jarvis/jarvis.multitool.pack.js
+            gestia-core/jarvis/jarvis.media.ingestion.js
+            modules/terminal/runtime-repair-health.js
+          )
+          git diff --quiet "$PRODUCT_SHA" HEAD -- "${critical[@]}"
+          git diff --quiet "$SEMANTIC_BASE" HEAD -- functions
+          echo "V117_DEPLOY_BOUND=$PRODUCT_SHA"
+
+      - name: Sovereign Hosting-only deploy gate
+        env:
+          JARVIS_CI_PASSED: "true"
+          JARVIS_HOSTING_ONLY: "true"
+          JARVIS_FIREBASE_PROJECT: fixgo-44e4d
+        run: node scripts/jarvis-deploy-gate.mjs
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Hosting only
+        run: firebase deploy --only hosting --project fixgo-44e4d --token "${{ secrets.FIREBASE_TOKEN }}"
+
+      - name: Verify exact live v117 bytes and repeated media delivery
+        shell: bash
+        env:
+          PRODUCT_SHA: ${{ steps.product.outputs.product_sha }}
+        run: |
+          set -euo pipefail
+          base='https://fixgo-44e4d.web.app'
+          critical=(
+            gestia-terminal.html
+            gestia-terminal.js
+            gestia-core/jarvis/jarvis.multitool.pack.js
+            gestia-core/jarvis/jarvis.media.ingestion.js
+            modules/terminal/runtime-repair-health.js
+          )
+          for p in "${critical[@]}"; do
+            git show "$PRODUCT_SHA:$p" > /tmp/expected.bin
+            expected="$(sha256sum /tmp/expected.bin | awk '{print $1}')"
+            curl -fsSL --retry 4 --retry-delay 2 "$base/$p?v=$PRODUCT_SHA" -o /tmp/live.bin
+            live="$(sha256sum /tmp/live.bin | awk '{print $1}')"
+            echo "$p expected=$expected live=$live"
+            test "$expected" = "$live"
+          done
+
+          git show "$PRODUCT_SHA:gestia-core/jarvis/jarvis.media.ingestion.js" > /tmp/media-expected.bin
+          media_expected="$(sha256sum /tmp/media-expected.bin | awk '{print $1}')"
+          http2_args=()
+          if curl --version | grep -q 'HTTP2'; then
+            http2_args=(--http2)
+          fi
+          for probe in 1 2 3; do
+            curl -fsSL --retry 4 --retry-delay 1 "${http2_args[@]}" "$base/gestia-core/jarvis/jarvis.media.ingestion.js?v=$RELEASE_TOKEN&probe=$probe" -o /tmp/media-live.bin
+            media_live="$(sha256sum /tmp/media-live.bin | awk '{print $1}')"
+            echo "media probe=$probe expected=$media_expected live=$media_live"
+            test "$media_expected" = "$media_live"
+          done
+
+          curl -fsSL "$base/gestia-terminal.js?v=$PRODUCT_SHA" -o /tmp/live-terminal.js
+          grep -Fq 'SESSION_KEY_IMPORT_TIMEOUT_MS = 4000' /tmp/live-terminal.js
+          grep -Fq 'SESSION_KEY_MATERIAL_INVALID' /tmp/live-terminal.js
+          grep -Fq 'SESSION_KEY_IMPORT_TIMEOUT' /tmp/live-terminal.js
+          curl -fsSL "$base/gestia-terminal.html?v=$PRODUCT_SHA" -o /tmp/live-terminal.html
+          test "$(grep -Fo 'gestia-terminal.js?v=v94-secure-session-v117-20260810' /tmp/live-terminal.html | wc -l)" -eq 2
+          curl -fsSL "$base/gestia-core/jarvis/jarvis.multitool.pack.js?v=$PRODUCT_SHA" -o /tmp/live-multitool.js
+          grep -Fq 'jarvis.media.ingestion.js?v=v94-secure-session-v117-20260810' /tmp/live-multitool.js
+          echo "LIVE_V117_SECURE_SESSION_AND_MEDIA_OK=$PRODUCT_SHA"
+
+      - name: Final protected refs and Functions guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main v5.9-polish --quiet
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN"
+          test "$(git rev-parse origin/v5.9-polish)" = "$EXPECTED_POLISH"
+          git diff --quiet "$SEMANTIC_BASE" HEAD -- functions
+          echo "V117_FINAL_GUARDS_OK"
+
+      - name: Cleanup certification workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f .github/workflows/v94-secure-session-v117.yml
+          git commit -m "[v94] chore: remove v117 certification workflow"
+          git push origin HEAD:v94-media-v4n-negative-claims
+          echo "V117_FINAL_BRANCH_SHA=$(git rev-parse HEAD)"
