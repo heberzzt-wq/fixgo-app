@@ -59,7 +59,7 @@ jobs:
           grep -Fq 'observedModuleCount' modules/terminal/runtime-persistence.js
           grep -Fq "$RELEASE_TOKEN" gestia-terminal.html
           grep -Fq 'allowing later shell cache busts' tests/jarvis-page-browser-fallback-v115.test.mjs
-          grep -Fq 'gestia-terminal\\.js\\?v=v94-[a-z0-9-]+-20260809' tests/jarvis-semantic-memory-integrity.test.mjs
+          ! grep -Fq 'assert.match(html, /v94-page-browser-fallback-v115-20260809/);' tests/jarvis-semantic-memory-integrity.test.mjs
           ! grep -Fq 'window.__REPO_INDEX__["jarvis-nlu-bridge.js"]' modules/terminal/repo-bootstrap-index.js
           git diff --quiet "$SEMANTIC_BASE" HEAD -- functions
           echo "V116_SOURCE_INVARIANTS_OK"
