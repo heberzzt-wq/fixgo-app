@@ -60,6 +60,7 @@ jobs:
           grep -Fq "$RELEASE_TOKEN" gestia-terminal.html
           grep -Fq 'allowing later shell cache busts' tests/jarvis-page-browser-fallback-v115.test.mjs
           ! grep -Fq 'assert.match(html, /v94-page-browser-fallback-v115-20260809/);' tests/jarvis-semantic-memory-integrity.test.mjs
+          ! grep -Fq 'assert.match(terminal, /v94-page-browser-fallback-v115-20260809/);' tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
           ! grep -Fq 'window.__REPO_INDEX__["jarvis-nlu-bridge.js"]' modules/terminal/repo-bootstrap-index.js
           git diff --quiet "$SEMANTIC_BASE" HEAD -- functions
           echo "V116_SOURCE_INVARIANTS_OK"
@@ -76,7 +77,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          node --test tests/jarvis-runtime-health-truth-v116.test.mjs tests/jarvis-page-browser-fallback-v115.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs > /tmp/v116-focused.log 2>&1
+          node --test tests/jarvis-runtime-health-truth-v116.test.mjs tests/jarvis-page-browser-fallback-v115.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs tests/jarvis-marketing-terminal-delivery.e2e.test.mjs > /tmp/v116-focused.log 2>&1
           code=$?
           cat /tmp/v116-focused.log
           if [ "$code" -ne 0 ]; then
@@ -131,7 +132,7 @@ jobs:
           git rm -f scripts/v116-refresh-v115-cache-regression.mjs
           git rm -f .github/v116-focused-failure.log 2>/dev/null || true
           git rm -f .github/v116-ci-failure.log 2>/dev/null || true
-          git add modules/terminal/runtime-repair-health.js modules/terminal/runtime-persistence.js gestia-terminal.js gestia-terminal.html gestia-core/gestia.runtime.v7.js tests/jarvis-runtime-health-truth-v116.test.mjs tests/jarvis-page-browser-fallback-v115.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs
+          git add modules/terminal/runtime-repair-health.js modules/terminal/runtime-persistence.js gestia-terminal.js gestia-terminal.html gestia-core/gestia.runtime.v7.js tests/jarvis-runtime-health-truth-v116.test.mjs tests/jarvis-page-browser-fallback-v115.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
           git commit -m "[v94] fix(adj): make runtime health evidence-based and quiet v116"
           product_sha="$(git rev-parse HEAD)"
           echo "product_sha=$product_sha" >> "$GITHUB_OUTPUT"
