@@ -1,0 +1,100 @@
+name: V94 v113 focused regression diagnostic
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-v113-focused-failure-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Assert branch and Functions boundary
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-media-v4n-negative-claims"
+          test -z "$(git diff --name-only 13cb877ef49fbd2ef19bc2a5da42887b5836e16a HEAD -- functions)"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          npm ci
+          npm --prefix functions ci
+          test -z "$(git status --porcelain -- functions)"
+
+      - name: Apply v113 candidate
+        run: |
+          set -euo pipefail
+          python scripts/v113-live-human-reds-fix.py
+          test -z "$(git diff --name-only -- functions)"
+
+      - name: Capture focused regressions
+        run: |
+          set +e
+          node --test \
+            tests/jarvis-live-human-reds-v113.test.mjs \
+            tests/response-composer-semantic-contract.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs \
+            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs \
+            tests/jarvis-actuator-pack.test.mjs \
+            tests/jarvis-reel-artifact.test.mjs \
+            tests/repo-authority-v2.test.cjs \
+            > /tmp/v113-focused.log 2>&1
+          code=$?
+          printf '%s\n' "$code" > /tmp/v113-focused-exit.txt
+          exit 0
+
+      - name: Extract exact failures
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          lines=Path('/tmp/v113-focused.log').read_text(encoding='utf-8',errors='replace').splitlines()
+          markers=[]
+          needles=('not ok ','AssertionError','ERR_ASSERTION','ERR_TEST_FAILURE','# fail ','Error:')
+          for i,line in enumerate(lines):
+              if any(n in line for n in needles): markers.append(i)
+          out=[f'EXIT={Path("/tmp/v113-focused-exit.txt").read_text().strip()}',f'LINES={len(lines)}',f'MARKERS={len(markers)}']
+          ranges=[]
+          for i in markers:
+              a=max(0,i-35); b=min(len(lines),i+80)
+              if ranges and a <= ranges[-1][1]+5:
+                  ranges[-1]=(ranges[-1][0],max(ranges[-1][1],b))
+              else:
+                  ranges.append((a,b))
+          for n,(a,b) in enumerate(ranges,1):
+              out.append(f'\n===== FAILURE_{n} =====')
+              out.extend(f'{j+1}: {lines[j]}' for j in range(a,b))
+          out.append('\n===== TAIL =====')
+          start=max(0,len(lines)-220)
+          out.extend(f'{j+1}: {lines[j]}' for j in range(start,len(lines)))
+          Path('/tmp/v113-focused-failure.txt').write_text('\n'.join(out),encoding='utf-8')
+          print('\n'.join(out[:800]))
+          PY
+          test -z "$(git diff --name-only -- functions)"
+
+      - name: Upload diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: v94-v113-focused-failure
+          path: |
+            /tmp/v113-focused.log
+            /tmp/v113-focused-exit.txt
+            /tmp/v113-focused-failure.txt
+          retention-days: 3
