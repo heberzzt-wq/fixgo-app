@@ -168,7 +168,7 @@ test("release source no longer sends raw mission observations back into semantic
     assert.doesNotMatch(core, /observation:\s*item\.observation/);
     assert.equal((core.match(/compactMissionPlannerObservation\(item\.observation\)/g) || []).length, 2);
     assert.equal(contract.branch, "v94-media-v4n-negative-claims");
-    assert.equal(contract.releaseId, "v94-generalist-execution-contract-v122-20260810");
+    assert.equal(contract.releaseId, "v94-page-evidence-failclosed-v123-20260810");
 });
 
 

@@ -1,4 +1,4 @@
-const VERSION = "1.1.0-generalist-execution-contract-v122";
+const VERSION = "1.2.0-page-evidence-failclosed-v123";
 
 const MISSION_STAGE_BY_TOOL = Object.freeze({
     "web.research": 10,
@@ -32,7 +32,10 @@ function directPageReady(args = {}) {
         String(source.title || "").trim() &&
         String(source.description || "").trim().length >= 20 &&
         Array.isArray(source.services) &&
-        source.services.length > 0
+        (
+            source.services.length > 0 ||
+            source.evidenceMode === "insufficient"
+        )
     );
 }
 

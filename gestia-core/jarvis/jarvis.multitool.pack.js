@@ -63,6 +63,105 @@ function canonicalEvidenceEnvelope(context = {}) {
     }
 }
 
+
+function normalizePageIdentityEvidenceText(value = "") {
+    return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim()
+        .replace(/\s+/g, " ");
+}
+
+function collectPageIdentityEvidenceText(value, depth = 0) {
+    if (value === null || value === undefined || depth > 5) return "";
+    if (typeof value === "string" || typeof value === "number") {
+        return String(value);
+    }
+    if (Array.isArray(value)) {
+        return value
+            .map(item => collectPageIdentityEvidenceText(item, depth + 1))
+            .filter(Boolean)
+            .join(" ");
+    }
+    if (typeof value !== "object") return "";
+
+    const ignoredKeyFragments = [
+        "url", "href", "query", "search", "request", "input", "prompt", "instruction"
+    ];
+    return Object.entries(value)
+        .filter(([key]) => {
+            const normalizedKey = String(key || "").toLowerCase();
+            return !ignoredKeyFragments.some(fragment => normalizedKey.includes(fragment));
+        })
+        .map(([, nested]) => collectPageIdentityEvidenceText(nested, depth + 1))
+        .filter(Boolean)
+        .join(" ");
+}
+
+function pageResearchIdentityState(context = {}, canonicalBrandName = "") {
+    const researchItems = Array.isArray(context?.canonicalEvidence)
+        ? context.canonicalEvidence.filter(item => String(item?.tool || "") === "web.research")
+        : [];
+    const validSources = researchItems.flatMap(item =>
+        Array.isArray(item?.validSources)
+            ? item.validSources.filter(source => source && typeof source === "object")
+            : []
+    );
+    const canonicalIdentity = normalizePageIdentityEvidenceText(canonicalBrandName);
+    const identityGrounded = Boolean(canonicalIdentity) && validSources.some(source => {
+        const sourceText = normalizePageIdentityEvidenceText(
+            collectPageIdentityEvidenceText(source)
+        );
+        return Boolean(sourceText) && sourceText.includes(canonicalIdentity);
+    });
+
+    return {
+        researchObserved: researchItems.length > 0,
+        identityGrounded: canonicalIdentity ? identityGrounded : null,
+        validSourceCount: validSources.length
+    };
+}
+
+function limitedEvidencePageInput({
+    brandName = "",
+    title = "",
+    requiredSections = []
+} = {}) {
+    const disclosure =
+        "No hay evidencia suficiente para publicar como hechos la actividad, los servicios o los datos de contacto asociados a este nombre.";
+    const sectionDisclosure =
+        "Esta sección queda pendiente de verificación. No se publica información específica hasta contar con evidencia suficiente y atribuible a la entidad correcta.";
+    const sections = [...new Set(
+        (Array.isArray(requiredSections) ? requiredSections : [])
+            .map(item =>
+                typeof item === "string"
+                    ? item
+                    : String(item?.title || item?.name || item?.label || "")
+            )
+            .map(item => String(item || "").trim())
+            .filter(Boolean)
+    )].slice(0, 24);
+
+    return {
+        brandName: clean(brandName),
+        title: clean(title, clean(brandName, "Página informativa")),
+        description: disclosure,
+        services: [],
+        requiredSections: sections,
+        contentSections: sections.map(sectionTitle => ({
+            title: sectionTitle,
+            description: sectionDisclosure,
+            items: []
+        })),
+        whatsapp: "",
+        contactEmail: "",
+        whatsappRequested: false,
+        evidenceMode: "insufficient"
+    };
+}
+
 const MARKETING_PRODUCTION_TOOL_TYPES = Object.freeze({
     "document.create": "document",
     "page.create": "page",
@@ -3399,7 +3498,11 @@ function normalizedPageArtifactInput(value = {}, fallbackTitle = "", fallbackReq
         contentSections,
         whatsapp: clean(value?.whatsapp).replace(/[^0-9]/g, ""),
         contactEmail: clean(value?.contactEmail),
-        whatsappRequested: value?.whatsappRequested === true
+        whatsappRequested: value?.whatsappRequested === true,
+        evidenceMode:
+            clean(value?.evidenceMode).toLowerCase() === "insufficient"
+                ? "insufficient"
+                : ""
     };
 }
 
@@ -4619,10 +4722,52 @@ export function registerJarvisMultifunctionTools(runtime) {
                 );
                 const canonicalEvidence =
                     canonicalEvidenceEnvelope(context);
+                const identityEvidence =
+                    pageResearchIdentityState(
+                        context,
+                        clean(args.brandName)
+                    );
+                if (
+                    identityEvidence.researchObserved === true &&
+                    identityEvidence.identityGrounded === false
+                ) {
+                    const pageInput =
+                        limitedEvidencePageInput({
+                            brandName: args.brandName,
+                            title: args.title,
+                            requiredSections:
+                                Array.isArray(args.sections)
+                                    ? args.sections
+                                    : []
+                        });
+                    return {
+                        ok: true,
+                        status: "PAGE_CONTENT_COMPOSED",
+                        pageInput,
+                        requestedSectionsSatisfied: true,
+                        identityPreserved: true,
+                        factualIntegrityPassed: true,
+                        factualAudit: {
+                            status: "PAGE_FACTUAL_INTEGRITY_LIMITED_EVIDENCE",
+                            unsupportedClaims: [],
+                            provider: null,
+                            model: null
+                        },
+                        missingSections: [],
+                        provider: null,
+                        model: null,
+                        original: true,
+                        readOnly: true,
+                        objectiveSatisfied: true,
+                        limitedEvidence: true,
+                        evidenceIntegrity: identityEvidence,
+                        error: null
+                    };
+                }
                 let semantic = await fetchSemanticConversation(
                     [
                         "Redacta el contenido completo de una landing page como JSON estricto.",
-                        "Devuelve solamente un objeto con brandName, title, description, services, requiredSections, contentSections, whatsapp, contactEmail y whatsappRequested.",
+                        "Devuelve solamente un objeto con brandName, title, description, services, requiredSections, contentSections, whatsapp, contactEmail, whatsappRequested y evidenceMode.",
                         "MARCA_CANONICA y TITULO_CANONICO son identidad de la misión actual: consérvalos literalmente. Nunca cambies una sigla, palabra, acento o nombre por una aproximación creativa.",
                         "services debe ser un arreglo de objetos {title,description} con contenido específico y honesto.",
                         "requiredSections debe conservar, en el idioma del usuario, cada sección de contenido pedida explícitamente o recibida en SECCIONES_PLANIFICADAS; no omitas ni fusiones objetivos distintos.",
@@ -4633,7 +4778,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                         "REGLA_ESTILO_NO_ES_HECHO: palabras de diseño como premium, tecnológico, minimalista, elegante, mobile-first o accesible describen la presentación solicitada; por sí solas no prueban que el negocio use tecnología, automatización, analítica, software, procesos avanzados ni ninguna capacidad operativa.",
                         "Si el usuario pide WhatsApp pero no dio número, usa whatsapp vacío y whatsappRequested=true; nunca inventes un número.",
                         "Si el usuario no dio ningún canal de contacto, deja whatsapp y contactEmail vacíos; una página válida no necesita inventarlos.",
-                        "La descripción debe tener al menos 20 caracteres y debe existir por lo menos un servicio.",
+                        "No fuerces servicios para completar el esquema. Si la evidencia no sustenta al menos un servicio real atribuible a la entidad correcta, devuelve services=[] y evidenceMode=\"insufficient\"; nunca rellenes el hueco con servicios genéricos.",
                         `MARCA_CANONICA=${clean(args.brandName)}`,
                         `TITULO_CANONICO=${clean(args.title)}`,
                         `SECCIONES_PLANIFICADAS=${JSON.stringify(Array.isArray(args.sections) ? args.sections : [])}`,
@@ -4701,7 +4846,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                                 "Audita y repara el JSON de página propuesto. Devuelve solamente JSON estricto con {ok,unsupportedClaims,pageInput}.",
                                 "pageInput debe conservar la intención, estructura y copy útil, pero no puede afirmar como hecho nada que no esté respaldado por SOLICITUD_ACTUAL o EVIDENCIA_CANONICA_DE_MISION.",
                                 "Las instrucciones de estilo visual no son evidencia de capacidades del negocio. No conviertas premium, tecnológico, mobile-first, accesible, moderno o similares en afirmaciones de automatización, analítica, software, herramientas, procesos o resultados del negocio.",
-                                "Si detectas una afirmación no sustentada, reescríbela como propuesta o posibilidad explícita, o elimínala. Sólo después de repararla devuelve ok=true y unsupportedClaims=[].",
+                                "Si una afirmación no está sustentada, elimínala. No conviertas ausencia de evidencia en capacidades plausibles. Si no queda ningún servicio sustentado, usa services=[] y evidenceMode=\"insufficient\".",
                                 "Conserva literalmente MARCA_CANONICA y TITULO_CANONICO; conserva todas las SECCIONES_REQUERIDAS y no inventes canales de contacto.",
                                 `MARCA_CANONICA=${clean(args.brandName)}`,
                                 `TITULO_CANONICO=${clean(args.title)}`,
@@ -4764,6 +4909,26 @@ export function registerJarvisMultifunctionTools(runtime) {
                             }
                         );
                 }
+                if (
+                    factualAudit.ok === true &&
+                    identityEvidence.researchObserved === true &&
+                    (
+                        pageInput.evidenceMode === "insufficient" ||
+                        !Array.isArray(pageInput.services) ||
+                        pageInput.services.length === 0
+                    )
+                ) {
+                    pageInput =
+                        limitedEvidencePageInput({
+                            brandName: pageInput.brandName || args.brandName,
+                            title: pageInput.title || args.title,
+                            requiredSections:
+                                Array.isArray(pageInput.requiredSections) &&
+                                pageInput.requiredSections.length > 0
+                                    ? pageInput.requiredSections
+                                    : args.sections
+                        });
+                }
                 const factualIntegrityPassed =
                     factualAudit.ok === true;
 
@@ -4778,6 +4943,8 @@ export function registerJarvisMultifunctionTools(runtime) {
                 const identityPreserved =
                     (!canonicalBrandName || pageInput.brandName === canonicalBrandName) &&
                     (!canonicalTitle || pageInput.title === canonicalTitle);
+                const limitedEvidence =
+                    pageInput.evidenceMode === "insufficient";
                 const ok =
                     semantic?.ok === true &&
                     factualIntegrityPassed &&
@@ -4785,7 +4952,8 @@ export function registerJarvisMultifunctionTools(runtime) {
                     pageInput.brandName &&
                     pageInput.title &&
                     pageInput.description.length >= 20 &&
-                    pageInput.services.length > 0 &&
+                    Array.isArray(pageInput.services) &&
+                    (pageInput.services.length > 0 || limitedEvidence) &&
                     requestedSectionsSatisfied;
                 return {
                     ok:
@@ -4817,6 +4985,9 @@ export function registerJarvisMultifunctionTools(runtime) {
                         true,
                     objectiveSatisfied:
                         Boolean(ok),
+                    limitedEvidence,
+                    evidenceIntegrity:
+                        identityEvidence,
                     error:
                         ok
                             ? null

@@ -1,4 +1,4 @@
-import "./nexo-bootstrap.js?v=v94-generalist-execution-contract-v122-20260810";
+import "./nexo-bootstrap.js?v=v94-page-evidence-failclosed-v123-20260810";
 
 const ACTIVE_STORAGE_KEY =
     "sia7:activePatchProposal:v1";

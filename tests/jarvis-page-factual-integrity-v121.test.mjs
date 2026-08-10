@@ -73,7 +73,7 @@ test("factual integrity policy treats design language as design rather than busi
         "palabras de diseño",
         "no son evidencia de capacidades del negocio",
         "no puede afirmar como hecho nada que no esté respaldado",
-        "reescríbela como propuesta o posibilidad explícita"
+        "No conviertas ausencia de evidencia en capacidades plausibles"
     ]) {
         assert.equal(pageSource.includes(required), true, required);
     }

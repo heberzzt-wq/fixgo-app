@@ -51,7 +51,7 @@ import {
 } from "./nexo-web-media-bridge.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.39.0-generalist-execution-contract-v122";
+    "2.40.0-page-evidence-failclosed-v123";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;

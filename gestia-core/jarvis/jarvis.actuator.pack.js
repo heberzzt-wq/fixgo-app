@@ -4,7 +4,7 @@ import {
 import {
     buildPageArtifactHtml,
     describePageArtifact
-} from "../../jarvis-page-artifact.js?v=v94-generalist-production-integrity-v121-20260810";
+} from "../../jarvis-page-artifact.js?v=v94-page-evidence-failclosed-v123-20260810";
 import {
     adaptImageSource,
     buildIdentityReferenceSheet
@@ -414,7 +414,7 @@ export function registerJarvisActuatorTools(runtime) {
             description: "Genera una landing HTML local nueva, responsive, accesible y descargable; puede incrustar como hero o galeria los artefactos de imagen reales recibidos. No publica ni despliega.",
             output: "PAGE_CREATE_ARTIFACT",
             inputSchema: {
-                brandName: "string", title: "string", description: "string", services: "array",
+                brandName: "string", title: "string", description: "string", services: "array", evidenceMode: "verified|insufficient",
                 requiredSections: "array", contentSections: "array",
                 heroImage: "string", sourceImages: "array<{output,role:hero|gallery,alt}>", gallery: "array", testimonials: "array", beforeAfter: "array",
                 whatsapp: "string", whatsappRequested: "boolean", contactEmail: "string", mapUrl: "string", output: "string",

@@ -104,7 +104,40 @@ function pageContactState(input = {}) {
     };
 }
 
+
+function buildInsufficientEvidencePageHtml(input = {}) {
+    const brandName = text(input.brandName);
+    const title = text(input.title, brandName || "Página informativa");
+    if (!brandName || !title) throw new Error("PAGE_IDENTITY_REQUIRED");
+
+    const description =
+        "No hay evidencia suficiente para publicar como hechos la actividad, los servicios o los datos de contacto asociados a este nombre.";
+    const requiredSections = requiredPageSections(input);
+    const sectionMarkup = requiredSections.map(section => `
+<section id="contenido-${escapeHtml(section.key)}" data-requested-section="${escapeHtml(section.key)}">
+  <div class="wrap"><p class="eyebrow">Pendiente de verificación</p><h2>${escapeHtml(section.title)}</h2>
+  <p>Esta sección queda pendiente de verificación. No se publica información específica hasta contar con evidencia suficiente y atribuible a la entidad correcta.</p></div>
+</section>`).join("");
+    const sectionLinks = requiredSections.map(section =>
+        `<a href="#contenido-${escapeHtml(section.key)}">${escapeHtml(section.title)}</a>`
+    ).join("");
+    const structuredData = JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        name: title,
+        description
+    }).replaceAll("<", "\\u003c");
+
+    return `<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} | ${escapeHtml(brandName)}</title><meta name="description" content="${escapeHtml(description)}"><meta property="og:type" content="website"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta name="theme-color" content="#2563eb"><script type="application/ld+json">${structuredData}</script>
+<style>:root{--ink:#0f172a;--muted:#475569;--line:#cbd5e1;--soft:#f8fafc;--primary:#2563eb}*{box-sizing:border-box}body{margin:0;font:16px/1.65 system-ui,-apple-system,Segoe UI,sans-serif;color:var(--ink);background:#fff}.wrap{width:min(980px,calc(100% - 2rem));margin:auto}.skip{position:absolute;left:-999px}.skip:focus{left:1rem;top:1rem;background:#fff;padding:.7rem;z-index:9}header{border-bottom:1px solid var(--line);background:#fff}.nav{min-height:68px;display:flex;align-items:center;justify-content:space-between;gap:1rem}.brand{font-weight:850;text-decoration:none}.links{display:flex;flex-wrap:wrap;gap:1rem}.links a{color:var(--primary)}.hero{padding:6rem 0;background:linear-gradient(135deg,#eff6ff,var(--soft))}.eyebrow{font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--primary);font-size:.78rem}h1{font-size:clamp(2.3rem,7vw,5rem);line-height:1.03;letter-spacing:-.04em;max-width:15ch}h2{font-size:clamp(1.8rem,5vw,3rem);line-height:1.08}p{max-width:72ch;color:var(--muted)}.button{display:inline-block;margin-top:1rem;padding:.8rem 1.1rem;border-radius:999px;background:var(--primary);color:#fff;text-decoration:none;font-weight:750}section{padding:4.5rem 0}section:nth-of-type(even){background:var(--soft)}#verificacion{border-top:1px solid var(--line)}footer{padding:2rem 0;background:#020617;color:#cbd5e1}@media(max-width:780px){.nav{align-items:flex-start;flex-direction:column;padding:1rem 0}.links{flex-direction:column}.hero{padding:4rem 0}section{padding:3.5rem 0}}</style></head>
+<body><a class="skip" href="#contenido">Saltar al contenido</a><header><nav class="nav wrap" aria-label="Principal"><a class="brand" href="#contenido">${escapeHtml(brandName)}</a><div class="links">${sectionLinks}<a href="#verificacion">Estado de verificación</a></div></nav></header><main id="contenido"><section class="hero"><div class="wrap"><p class="eyebrow">Información pendiente de verificación</p><h1>${escapeHtml(title)}</h1><p>${escapeHtml(description)}</p><a class="button" href="#verificacion">Ver estado de verificación</a></div></section>${sectionMarkup}<section id="verificacion"><div class="wrap"><p class="eyebrow">Estado de la evidencia</p><h2>Información pendiente de verificación</h2><p>La investigación realizada no permitió verificar con suficiente certeza la identidad exacta asociada a este nombre. Por esa razón, esta versión no publica servicios, datos de contacto, experiencia, certificaciones, testimonios ni otras afirmaciones operativas.</p></div></section></main><footer><div class="wrap">Página provisional · información pendiente de verificación.</div></footer></body></html>`;
+}
+
 export function buildPageArtifactHtml(input = {}) {
+    if (text(input?.evidenceMode).toLowerCase() === "insufficient") {
+        return buildInsufficientEvidencePageHtml(input);
+    }
     const brandName = text(input.brandName);
     const title = text(input.title);
     const description = text(input.description);
@@ -182,6 +215,50 @@ export function buildPageArtifactHtml(input = {}) {
 }
 
 export function describePageArtifact(input = {}, html = "") {
+    if (text(input?.evidenceMode).toLowerCase() === "insufficient") {
+        const requiredSections = requiredPageSections(input);
+        const renderedSections = requiredSections.map(section => ({
+            title: section.title,
+            key: section.key
+        }));
+        const requestedSectionsSatisfied = requiredSections.every(section =>
+            html.includes(`data-requested-section="${section.key}"`)
+        );
+        const checks = {
+            responsive: html.includes("@media(max-width:780px)"),
+            accessibility: html.includes("Saltar al contenido") && html.includes("aria-label"),
+            seo: html.includes('name="description"') && html.includes('property="og:title"'),
+            structuredData:
+                html.includes("application/ld+json") &&
+                html.includes('"@type":"WebPage"') &&
+                !html.includes('"@type":"Organization"'),
+            verification: html.includes('id="verificacion"'),
+            services:
+                !html.includes('id="servicios"') &&
+                !html.includes("Servicios y capacidades"),
+            requestedSections: requestedSectionsSatisfied,
+            contact:
+                !html.includes('id="contacto"') &&
+                !html.includes('class="contact-form"') &&
+                !html.includes("wa.me") &&
+                !html.includes("mailto:"),
+            noTodoMarkers:
+                !html.includes("TODO") &&
+                !html.includes("Lorem ipsum") &&
+                !html.includes("undefined")
+        };
+        return {
+            ok: Object.values(checks).every(Boolean),
+            bytes: utf8ByteLength(html),
+            checks,
+            brandName: text(input.brandName),
+            title: text(input.title),
+            hasContactRoute: false,
+            requiredSections,
+            renderedSections,
+            evidenceMode: "insufficient"
+        };
+    }
     const { hasContactRoute } = pageContactState(input);
     const requiredSections = requiredPageSections(input);
     const renderedSections = pageContentSections(input).map(section => ({
