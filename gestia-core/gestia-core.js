@@ -41,7 +41,7 @@ import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     buildJarvisMultifunctionToolCalls,
     completeJarvisPlanningArguments
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=v94-generalist-production-integrity-v121-20260810';
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=v94-generalist-execution-contract-v122-20260810';
 import {
     composeEvidenceGroundedConversation,
     mergeEvidenceGroundedToolCalls,
@@ -49,7 +49,7 @@ import {
 } from '/gestia-core/jarvis/jarvis.conversation.composer.js?v=v94-semantic-only-evidence-v100-20260809';
 import {
     runJarvisMission
-} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=v94-semantic-memory-repo-v111-20260809';
+} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=v94-generalist-execution-contract-v122-20260810';
 import {
     marketingArtifactArgsFromCompletedTasks,
     marketingFinalResponseFromMission
@@ -59,7 +59,10 @@ import {
 } from '/gestia-core/jarvis/jarvis.reel.presenter.js?v=v94-live-human-reds-v113-20260809';
 import {
     ensureExecutableArtifactDependencies
-} from '/gestia-core/jarvis/jarvis.mission.dependencies.js?v=v94-page-browser-fallback-v115-20260809';
+} from '/gestia-core/jarvis/jarvis.mission.dependencies.js?v=v94-generalist-execution-contract-v122-20260810';
+import {
+    compactMissionPlannerObservation
+} from '/gestia-core/jarvis/jarvis.mission.planner-state.js?v=v94-generalist-execution-contract-v122-20260810';
 import {
     addRepositoryDiscoveryPreflights,
     resolveExplicitRepositoryTargets
@@ -214,7 +217,7 @@ import {
     JarvisSemanticMemory
 } from '/gestia-core/jarvis/jarvis.semantic.memory.js?v=v94-semantic-memory-v1-20260809';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=v94-generalist-production-integrity-v121-20260810';
+import '/gestia-core/tools.runtime.js?v=v94-generalist-execution-contract-v122-20260810';
 import '/gestia-core/response.composer.js?v=v94-live-human-reds-v113-20260809';
 import '/gestia-core/tools.bridge.js?v=v94-page-browser-fallback-v115-20260809';
 
@@ -4506,7 +4509,7 @@ if (
                                                     args:
                                                         item.args,
                                                     observation:
-                                                        item.observation
+                                                        compactMissionPlannerObservation(item.observation)
                                                 })),
                                             pendingTasks:
                                                 mission.pendingTasks.map(item => ({
@@ -4645,7 +4648,8 @@ if (
                                     completedTasks: mission.completedTasks.map(item => ({
                                         name: item.name,
                                         args: item.args,
-                                        observation: item.observation
+                                        observation:
+                                                        compactMissionPlannerObservation(item.observation)
                                     })),
                                     pendingTasks: mission.pendingTasks.map(item => ({ name: item.name, args: item.args })),
                                     blockedTasks: mission.blockedTasks.map(item => ({

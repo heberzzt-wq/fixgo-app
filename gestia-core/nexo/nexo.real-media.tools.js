@@ -1,11 +1,63 @@
 import {
     planMarketingRequest
-} from "../jarvis/jarvis.marketing.engine.js?v=nexo-marketing-runtime-v8-20260731";
+} from "../jarvis/jarvis.marketing.engine.js?v=v94-generalist-execution-contract-v122-20260810";
 
 export const NEXO_REAL_MEDIA_TOOLS_VERSION =
-    "1.0.0-real-media-mission-tools";
+    "1.1.0-generalist-execution-contract-v122";
 
 const INSTALL_KEY = "__NEXO_REAL_MEDIA_TOOLS__";
+
+
+const MARKETING_REQUIRED_FIELDS = Object.freeze([
+    "audience", "offer", "pain", "promise", "differentiator", "cta",
+    "market", "campaignObjective", "horizon", "tone", "channels",
+    "metrics", "productionRequested"
+]);
+
+const MARKETING_FALLBACK_SCHEMA = Object.freeze({
+    type: "object",
+    required: [...MARKETING_REQUIRED_FIELDS],
+    properties: {
+        prompt: { type: "string" },
+        brandName: { type: "string" },
+        audience: { type: "string" },
+        offer: { type: "string" },
+        pain: { type: "string" },
+        promise: { type: "string" },
+        differentiator: { type: "string" },
+        cta: { type: "string" },
+        market: { type: "string" },
+        campaignObjective: { type: "string" },
+        horizon: { type: "string" },
+        tone: { type: "string" },
+        channels: { type: "array", items: { type: "string" } },
+        metrics: { type: "array", items: { type: "string" } },
+        productionRequested: { type: "boolean" },
+        productionArtifacts: { type: "array", items: { type: "string" } },
+        assets: { type: "array", items: { type: "string" } },
+        durationSeconds: { type: "number" },
+        objectiveId: { type: "string" },
+        caseId: { type: "string" }
+    },
+    additionalProperties: true
+});
+
+function previousDefinition(runtime, name) {
+    if (typeof runtime?.get === "function") return runtime.get(name);
+    return runtime?._registry?.get?.(name) || null;
+}
+
+function marketingInputSchema(runtime) {
+    const existing = previousDefinition(runtime, "marketing.plan")?.inputSchema;
+    const required = Array.isArray(existing?.required) ? existing.required : [];
+    if (
+        existing?.type === "object" &&
+        MARKETING_REQUIRED_FIELDS.every(field => required.includes(field))
+    ) {
+        return existing;
+    }
+    return MARKETING_FALLBACK_SCHEMA;
+}
 
 function runtimeCandidate() {
     return (
@@ -84,11 +136,17 @@ function slug(value = "nexo-campaign") {
 }
 
 function registerOrReplace(runtime, definition) {
+    const previous = previousDefinition(runtime, definition?.name) || {};
     return runtime.register({
+        ...previous,
         version: NEXO_REAL_MEDIA_TOOLS_VERSION,
-        mutates: false,
-        requiresApproval: false,
-        ...definition
+        mutates: definition?.mutates ?? previous?.mutates ?? false,
+        requiresApproval: definition?.requiresApproval ?? previous?.requiresApproval ?? false,
+        ...definition,
+        missionDedupeBy:
+            definition?.missionDedupeBy ?? previous?.missionDedupeBy ?? null,
+        missionIsolation:
+            definition?.missionIsolation ?? previous?.missionIsolation ?? null
     });
 }
 
@@ -102,27 +160,7 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
         description:
             "NEXO produce una campaña específica desde una instrucción natural y evidencia opcional; completa propuestas editables sin inventar hechos.",
         output: "NEXO_MARKETING_PLAN",
-        inputSchema: {
-            type: "object",
-            properties: {
-                prompt: { type: "string" },
-                brandName: { type: "string" },
-                audience: { type: "string" },
-                offer: { type: "string" },
-                pain: { type: "string" },
-                promise: { type: "string" },
-                differentiator: { type: "string" },
-                tone: { type: "string" },
-                cta: { type: "string" },
-                assets: { type: "array", items: { type: "string" } },
-                channels: { type: "array", items: { type: "string" } },
-                market: { type: "string" },
-                durationSeconds: { type: "number" },
-                objectiveId: { type: "string" },
-                caseId: { type: "string" }
-            },
-            additionalProperties: true
-        },
+        inputSchema: marketingInputSchema(runtime),
         execute: async (args = {}, context = {}) => {
             const instruction = instructionFrom(args, context);
             const result = planMarketingRequest(instruction, {
@@ -137,6 +175,10 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
                 requiresInput: result?.requiresInput === true,
                 blocked: result?.blocked === true || result?.requiresInput === true,
                 retryable: result?.retryable === true,
+                error:
+                    result?.ok === false
+                        ? (result?.error || result?.status || "MARKETING_PLAN_FAILED")
+                        : (result?.error || null),
                 runtimeOverride: NEXO_REAL_MEDIA_TOOLS_VERSION
             };
         }

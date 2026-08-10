@@ -33,7 +33,7 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.38.0-page-no-contact-route");
+    assert.equal(description.version, "2.39.0-generalist-execution-contract-v122");
     assert.equal(description.policy.authority, "full_repo_private_owner");
     assert.equal(description.policy.safeZone, "advisory");
     assert.equal(description.policy.emptyWrites, "blocked");
@@ -625,10 +625,10 @@ test("Jarvis FS bridge loads the release identity contract", () => {
 
     assert.equal(contract.ok, true);
     assert.equal(contract.projectId, "fixgo-app");
-    assert.equal(contract.branch, "v5.9-polish");
+    assert.equal(contract.branch, "v94-media-v4n-negative-claims");
     assert.match(
         contract.releaseId,
-        /^v5\.9-polish-forensic-/
+        /^v94-generalist-execution-contract-v122-20260810$/
     );
 });
 

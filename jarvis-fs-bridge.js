@@ -46,9 +46,12 @@ import { verifyPdfVisualChanges } from "./jarvis-pdf-visual.js";
 import {
     extractJarvisDocumentArtifact
 } from "./jarvis-document-extractor.js";
+import {
+    registerNexoWebMediaRoutes
+} from "./nexo-web-media-bridge.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.38.0-page-no-contact-route";
+    "2.39.0-generalist-execution-contract-v122";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -3023,6 +3026,8 @@ export function createJarvisFsBridgeApp({
 
         return next();
     });
+
+    registerNexoWebMediaRoutes(app, { root });
 
     app.post("/observability/snapshot", (req, res) => {
         try {

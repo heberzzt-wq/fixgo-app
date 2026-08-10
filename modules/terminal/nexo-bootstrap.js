@@ -9,7 +9,7 @@
  */
 
 export const NEXO_TERMINAL_BOOTSTRAP_VERSION =
-    "1.1.0-real-media-runtime";
+    "1.2.0-generalist-execution-contract-v122";
 
 const INSTALL_KEY = "__NEXO_TERMINAL_BOOTSTRAP__";
 
@@ -30,7 +30,7 @@ export async function instalarBootstrapTerminalNexo() {
     }
 
     const realMediaTools = await import(
-        "../../gestia-core/nexo/nexo.real-media.tools.js?v=nexo-real-media-runtime-v1-20260731"
+        "../../gestia-core/nexo/nexo.real-media.tools.js?v=v94-generalist-execution-contract-v122-20260810"
     );
 
     const toolsInstallation =

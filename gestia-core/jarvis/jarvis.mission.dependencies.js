@@ -1,4 +1,23 @@
-const VERSION = "1.0.0-page-production-v114";
+const VERSION = "1.1.0-generalist-execution-contract-v122";
+
+const MISSION_STAGE_BY_TOOL = Object.freeze({
+    "web.research": 10,
+    "web.media.collect": 15,
+    "media.analyze": 18,
+    "marketing.plan": 20,
+    "page.plan": 20,
+    "image.plan": 20,
+    "page.compose": 30,
+    "document.compose": 30,
+    "spreadsheet.compose": 30,
+    "reel.plan": 30,
+    "page.create": 40,
+    "reel.create": 40,
+    "document.create": 40,
+    "document.pdf": 40,
+    "image.generate": 40,
+    "marketing.package.real-media": 40
+});
 
 function object(value) {
     return value && typeof value === "object" && !Array.isArray(value)
@@ -15,6 +34,28 @@ function directPageReady(args = {}) {
         Array.isArray(source.services) &&
         source.services.length > 0
     );
+}
+
+function stableSemanticStageSort(calls = []) {
+    const staged = calls
+        .map((call, index) => ({
+            call,
+            index,
+            stage: MISSION_STAGE_BY_TOOL[String(call?.name || "")] ?? null
+        }))
+        .filter(item => item.stage !== null)
+        .sort((a, b) => (a.stage - b.stage) || (a.index - b.index))
+        .map(item => item.call);
+
+    let stagedIndex = 0;
+    return calls.map(call => {
+        if (MISSION_STAGE_BY_TOOL[String(call?.name || "")] === undefined) {
+            return call;
+        }
+        const next = staged[stagedIndex];
+        stagedIndex += 1;
+        return next;
+    });
 }
 
 export function ensureExecutableArtifactDependencies({
@@ -34,14 +75,15 @@ export function ensureExecutableArtifactDependencies({
     );
     const hasPageCreate = calls.some(call => call.name === "page.create");
     const hasPageCompose = calls.some(call => call.name === "page.compose");
+
     if (!hasPageCreate || hasPageCompose || !available.has("page.compose")) {
-        return calls;
+        return stableSemanticStageSort(calls);
     }
 
     const createIndex = calls.findIndex(call => call.name === "page.create");
     const createCall = calls[createIndex];
     if (directPageReady(createCall?.args)) {
-        return calls;
+        return stableSemanticStageSort(calls);
     }
     const pagePlan = [...calls]
         .slice(0, Math.max(0, createIndex))
@@ -65,7 +107,7 @@ export function ensureExecutableArtifactDependencies({
     };
     const expanded = [...calls];
     expanded.splice(createIndex, 0, composeCall);
-    return expanded;
+    return stableSemanticStageSort(expanded);
 }
 
 export function describeMissionDependencies() {
@@ -74,10 +116,13 @@ export function describeMissionDependencies() {
         version: VERSION,
         architecture: "tool_contract_dependency",
         lexicalRouting: false,
-        currentDependency: "page.create -> page.compose when direct page input is incomplete"
+        currentDependency: "evidence -> planning -> composition -> artifact; page.create -> page.compose when direct page input is incomplete",
+        stages: { ...MISSION_STAGE_BY_TOOL }
     };
 }
 
 export const __test = {
-    directPageReady
+    directPageReady,
+    stableSemanticStageSort,
+    MISSION_STAGE_BY_TOOL
 };
