@@ -1,3 +1,7 @@
+import {
+    rejectCorruptedIdentityArgs
+} from "./jarvis.identity.integrity.js?v=v94-generalist-page-integrity-v120-20260810";
+
 const VERSION = "4.16.0-generalist-current-turn";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
@@ -16,6 +20,7 @@ const BROWSER_PLAN_ATTEMPT_TIMEOUT_MS =
 const GENERALIST_CURRENT_TURN_POLICY = [
     "Actua como un agente generalista: entiende libremente la instruccion actual antes de elegir herramientas.",
     "La instruccion actual es la autoridad primaria; el historial, el estado previo y los adjuntos aportan contexto, pero no sustituyen ni arrastran una tarea anterior salvo continuidad o referencia inequívoca del usuario.",
+    "Los nombres propios y las identidades explícitas de la solicitud actual se conservan fielmente: no los abrevies, renombres ni corrijas por aproximación. La creatividad puede producir identidades nuevas cuando esa sea realmente la intención, pero una copia casi igual de una identidad explícita no es una identidad nueva válida.",
     "Distingue entre objetos de entrada, temas mencionados y resultados realmente solicitados: mencionar una capacidad, formato, archivo o tema no equivale a pedir que se ejecute o produzca.",
     "Selecciona solamente las herramientas necesarias para satisfacer la intencion actual y conserva cada objetivo independiente pedido por el usuario.",
     "Si la solicitud se resuelve conversacionalmente, mediante conocimiento o explicacion, no fabriques artefactos ni operaciones no solicitadas; usa la respuesta semantica disponible o declara la mision completa cuando no haga falta una herramienta."
@@ -1025,6 +1030,10 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
                 }
                 : {};
         if (!tool) continue;
+        args = rejectCorruptedIdentityArgs(
+            args,
+            context?.originalInstruction || ""
+        );
         if (
             tool.name === "system.certify" &&
             missionPhase !== "COMPLETION_AUDIT"

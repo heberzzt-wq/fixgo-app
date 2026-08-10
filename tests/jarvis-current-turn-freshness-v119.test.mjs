@@ -102,7 +102,7 @@ test("tool-planning receives only memory availability while mission memory stays
 
 test("terminal shell forces the v119 current-turn runtime instead of cached v116-v117 entrypoints", () => {
     const html = fs.readFileSync(new URL("../gestia-terminal.html", import.meta.url), "utf8");
-    const release = "v94-current-turn-freshness-v119-20260810";
+    const release = "v94-generalist-production-integrity-v121-20260810";
     assert.match(html, new RegExp(`gestia-core\\/gestia-core\\.js\\?v=${release}`));
     assert.equal((html.match(new RegExp(`gestia-terminal\\.js\\?v=${release}`, "g")) || []).length, 2);
     assert.match(html, new RegExp(`gestia-core\\/gestia\\.runtime\\.v7\\.js\\?v=${release}`));

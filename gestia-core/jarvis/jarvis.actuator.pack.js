@@ -4,7 +4,7 @@ import {
 import {
     buildPageArtifactHtml,
     describePageArtifact
-} from "../../jarvis-page-artifact.js?v=v94-page-request-contract-v118-20260810";
+} from "../../jarvis-page-artifact.js?v=v94-generalist-production-integrity-v121-20260810";
 import {
     adaptImageSource,
     buildIdentityReferenceSheet

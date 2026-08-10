@@ -11,8 +11,8 @@ export function createOfficialPageSpec(input = {}, authority = {}) {
     if (!objectiveId) throw new Error("OBJECTIVE_ID_REQUIRED");
     if (!instruction) throw new Error("INSTRUCTION_REQUIRED");
 
-    const brandName = clean(input.brandName, "GestiaPremium");
-    const pageName = clean(input.pageName, "pagina-oficial");
+    const brandName = clean(input.brandName);
+    const pageName = clean(input.pageName, brandName || "pagina-oficial");
     const slug = pageName
         .toLowerCase()
         .normalize("NFD")
@@ -35,19 +35,13 @@ export function createOfficialPageSpec(input = {}, authority = {}) {
             pageName,
             slug,
             fileName: `${slug || "pagina-oficial"}.html`,
-            title: clean(input.title, brandName),
-            description: clean(input.description, "Operacion profesional, trazable y premium."),
+            title: clean(input.title, brandName || pageName),
+            description: clean(input.description, "Página generada a partir de la solicitud actual."),
             responsive: true,
             editable: true,
-            sections: input.sections || [
-                "hero",
-                "beneficios",
-                "servicios",
-                "como_funciona",
-                "prueba_social",
-                "cta",
-                "footer"
-            ],
+            sections: Array.isArray(input.sections)
+                ? input.sections.slice(0, 32)
+                : [],
             design: {
                 style: clean(input.style, "premium technology"),
                 mobileFirst: true,

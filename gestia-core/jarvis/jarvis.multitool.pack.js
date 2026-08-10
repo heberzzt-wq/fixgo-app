@@ -1,11 +1,17 @@
 import {
     planMarketingRequest
 } from "./jarvis.marketing.engine.js?v=v94-marketing-real-delivery-v12-20260809";
+import {
+    repairCanonicalIdentityValue
+} from "./jarvis.identity.integrity.js?v=v94-generalist-production-integrity-v121-20260810";
+import {
+    normalizePageFactualAudit
+} from "./jarvis.page.factual.integrity.js?v=v94-generalist-production-integrity-v121-20260810";
 
 
 import {
     createOfficialPageSpec
-} from "./jarvis.page.creator.js";
+} from "./jarvis.page.creator.js?v=v94-generalist-production-integrity-v121-20260810";
 
 import {
     buildMediaAnalysis,
@@ -20,7 +26,7 @@ import {
 
 import {
     completeJarvisPlanningArguments
-} from "./jarvis.multifunction.planner.js?v=sia7-multimodal-batch-integrity-v95-20260727";
+} from "./jarvis.multifunction.planner.js?v=v94-generalist-production-integrity-v121-20260810";
 import {
     validateWorkbookFormulaStructure
 } from "./jarvis.workbook.validator.js?v=sia7-deep-artifact-validation-v65-20260725";
@@ -3364,9 +3370,14 @@ function normalizePageContentSections(value = []) {
         .filter(Boolean);
 }
 
-function normalizedPageArtifactInput(value = {}, fallbackTitle = "", fallbackRequiredSections = []) {
-    const services = Array.isArray(value?.services)
-        ? value.services.slice(0, 12).map(service => ({
+function normalizedPageArtifactInput(value = {}, fallbackTitle = "", fallbackRequiredSections = [], canonicalBrandName = "", canonicalTitle = "") {
+    const canonicalBrand = clean(canonicalBrandName);
+    const canonicalPageTitle = clean(canonicalTitle, fallbackTitle);
+    const repairedValue = canonicalBrand
+        ? repairCanonicalIdentityValue(value, canonicalBrand)
+        : value;
+    const services = Array.isArray(repairedValue?.services)
+        ? repairedValue.services.slice(0, 12).map(service => ({
             title: clean(service?.title || service?.name),
             description: clean(service?.description)
         })).filter(service =>
@@ -3375,14 +3386,14 @@ function normalizedPageArtifactInput(value = {}, fallbackTitle = "", fallbackReq
         )
         : [];
     const requiredSections = normalizePageRequiredSections(
-        value?.requiredSections,
+        repairedValue?.requiredSections,
         fallbackRequiredSections
     );
-    const contentSections = normalizePageContentSections(value?.contentSections);
+    const contentSections = normalizePageContentSections(repairedValue?.contentSections);
     return {
-        brandName: clean(value?.brandName),
-        title: clean(value?.title, fallbackTitle),
-        description: clean(value?.description),
+        brandName: clean(canonicalBrand, clean(repairedValue?.brandName)),
+        title: clean(canonicalPageTitle, clean(repairedValue?.title)),
+        description: clean(repairedValue?.description),
         services,
         requiredSections,
         contentSections,
@@ -4606,21 +4617,27 @@ export function registerJarvisMultifunctionTools(runtime) {
                     },
                     context
                 );
+                const canonicalEvidence =
+                    canonicalEvidenceEnvelope(context);
                 let semantic = await fetchSemanticConversation(
                     [
                         "Redacta el contenido completo de una landing page como JSON estricto.",
                         "Devuelve solamente un objeto con brandName, title, description, services, requiredSections, contentSections, whatsapp, contactEmail y whatsappRequested.",
+                        "MARCA_CANONICA y TITULO_CANONICO son identidad de la misión actual: consérvalos literalmente. Nunca cambies una sigla, palabra, acento o nombre por una aproximación creativa.",
                         "services debe ser un arreglo de objetos {title,description} con contenido específico y honesto.",
                         "requiredSections debe conservar, en el idioma del usuario, cada sección de contenido pedida explícitamente o recibida en SECCIONES_PLANIFICADAS; no omitas ni fusiones objetivos distintos.",
                         "contentSections debe contener exactamente una entrada sustantiva por requiredSections con {title,description,items}; title debe corresponder a la sección requerida y cada bloque debe tener copy real, no sólo una etiqueta.",
                         "Una página no puede considerarse compuesta si falta cualquiera de sus requiredSections.",
                         "No inventes clientes, certificaciones, testimonios, teléfonos, correos, garantías ni experiencia no proporcionada.",
+                        "REGLA_FACTUAL: cada afirmación concreta sobre el negocio debe derivarse de la solicitud actual o de EVIDENCIA_CANONICA_DE_MISION. Si no está sustentada, conviértela en lenguaje de propuesta/posibilidad o elimínala; nunca la presentes como capacidad, servicio, herramienta, resultado o característica existente.",
+                        "REGLA_ESTILO_NO_ES_HECHO: palabras de diseño como premium, tecnológico, minimalista, elegante, mobile-first o accesible describen la presentación solicitada; por sí solas no prueban que el negocio use tecnología, automatización, analítica, software, procesos avanzados ni ninguna capacidad operativa.",
                         "Si el usuario pide WhatsApp pero no dio número, usa whatsapp vacío y whatsappRequested=true; nunca inventes un número.",
                         "Si el usuario no dio ningún canal de contacto, deja whatsapp y contactEmail vacíos; una página válida no necesita inventarlos.",
                         "La descripción debe tener al menos 20 caracteres y debe existir por lo menos un servicio.",
-                        `MARCA=${clean(args.brandName)}`,
-                        `TITULO=${clean(args.title)}`,
+                        `MARCA_CANONICA=${clean(args.brandName)}`,
+                        `TITULO_CANONICO=${clean(args.title)}`,
                         `SECCIONES_PLANIFICADAS=${JSON.stringify(Array.isArray(args.sections) ? args.sections : [])}`,
+                        `EVIDENCIA_CANONICA_DE_MISION=${canonicalEvidence}`,
                         `SOLICITUD=${instruction}`
                     ].join("\n"),
                     {
@@ -4638,7 +4655,9 @@ export function registerJarvisMultifunctionTools(runtime) {
                                     ""
                                 ),
                                 clean(args.title),
-                                Array.isArray(args.sections) ? args.sections : []
+                                Array.isArray(args.sections) ? args.sections : [],
+                                clean(args.brandName),
+                                clean(args.title)
                             ),
                             instruction,
                             {
@@ -4666,14 +4685,103 @@ export function registerJarvisMultifunctionTools(runtime) {
                             "PAGE_CONTENT_JSON_INVALID"
                     };
                 }
+                let factualAudit = {
+                    ok: false,
+                    status: "PAGE_FACTUAL_INTEGRITY_INCOMPLETE",
+                    pageInput: null,
+                    unsupportedClaims: ["FACTUAL_AUDIT_NOT_RUN"]
+                };
+                let factualAuditProvider = null;
+                let factualAuditModel = null;
+                try {
+                    const factualSemantic =
+                        await fetchSemanticConversation(
+                            [
+                                "AUDITORIA_FACTUAL_DE_PAGINA",
+                                "Audita y repara el JSON de página propuesto. Devuelve solamente JSON estricto con {ok,unsupportedClaims,pageInput}.",
+                                "pageInput debe conservar la intención, estructura y copy útil, pero no puede afirmar como hecho nada que no esté respaldado por SOLICITUD_ACTUAL o EVIDENCIA_CANONICA_DE_MISION.",
+                                "Las instrucciones de estilo visual no son evidencia de capacidades del negocio. No conviertas premium, tecnológico, mobile-first, accesible, moderno o similares en afirmaciones de automatización, analítica, software, herramientas, procesos o resultados del negocio.",
+                                "Si detectas una afirmación no sustentada, reescríbela como propuesta o posibilidad explícita, o elimínala. Sólo después de repararla devuelve ok=true y unsupportedClaims=[].",
+                                "Conserva literalmente MARCA_CANONICA y TITULO_CANONICO; conserva todas las SECCIONES_REQUERIDAS y no inventes canales de contacto.",
+                                `MARCA_CANONICA=${clean(args.brandName)}`,
+                                `TITULO_CANONICO=${clean(args.title)}`,
+                                `SECCIONES_REQUERIDAS=${JSON.stringify(Array.isArray(args.sections) ? args.sections : [])}`,
+                                `SOLICITUD_ACTUAL=${instruction}`,
+                                `EVIDENCIA_CANONICA_DE_MISION=${canonicalEvidence}`,
+                                `PAGINA_PROPUESTA=${JSON.stringify(pageInput).slice(0, 30000)}`
+                            ].join("\n"),
+                            {
+                                maxOutputTokens: 4200
+                            }
+                        );
+                    factualAuditProvider =
+                        factualSemantic?.provider ||
+                        null;
+                    factualAuditModel =
+                        factualSemantic?.model ||
+                        null;
+                    if (factualSemantic?.ok === true) {
+                        factualAudit =
+                            normalizePageFactualAudit(
+                                extractSemanticJsonObject(
+                                    factualSemantic?.message ||
+                                    ""
+                                )
+                            );
+                    }
+                }
+                catch(error) {
+                    factualAudit = {
+                        ok: false,
+                        status: "PAGE_FACTUAL_INTEGRITY_INCOMPLETE",
+                        pageInput: null,
+                        unsupportedClaims: [
+                            error?.message ||
+                            "PAGE_FACTUAL_AUDIT_FAILED"
+                        ]
+                    };
+                }
+
+                if (factualAudit.ok === true) {
+                    pageInput =
+                        groundPageContactInput(
+                            normalizedPageArtifactInput(
+                                factualAudit.pageInput,
+                                clean(args.title),
+                                Array.isArray(args.sections) ? args.sections : [],
+                                clean(args.brandName),
+                                clean(args.title)
+                            ),
+                            instruction,
+                            {
+                                contactEmail:
+                                    args.contactEmail,
+                                whatsapp:
+                                    args.whatsapp,
+                                whatsappRequested:
+                                    args.whatsappRequested ===
+                                    true
+                            }
+                        );
+                }
+                const factualIntegrityPassed =
+                    factualAudit.ok === true;
+
                 const missingSections = pageInput.requiredSections.filter(required =>
                     !pageInput.contentSections.some(section =>
                         pageSectionContractKey(section.title) === pageSectionContractKey(required)
                     )
                 );
                 const requestedSectionsSatisfied = missingSections.length === 0;
+                const canonicalBrandName = clean(args.brandName);
+                const canonicalTitle = clean(args.title);
+                const identityPreserved =
+                    (!canonicalBrandName || pageInput.brandName === canonicalBrandName) &&
+                    (!canonicalTitle || pageInput.title === canonicalTitle);
                 const ok =
                     semantic?.ok === true &&
+                    factualIntegrityPassed &&
+                    identityPreserved &&
                     pageInput.brandName &&
                     pageInput.title &&
                     pageInput.description.length >= 20 &&
@@ -4685,9 +4793,19 @@ export function registerJarvisMultifunctionTools(runtime) {
                     status:
                         ok
                             ? "PAGE_CONTENT_COMPOSED"
-                            : "PAGE_CONTENT_COMPOSITION_INCOMPLETE",
+                            : !factualIntegrityPassed
+                                ? "PAGE_FACTUAL_INTEGRITY_INCOMPLETE"
+                                : "PAGE_CONTENT_COMPOSITION_INCOMPLETE",
                     pageInput,
                     requestedSectionsSatisfied,
+                    identityPreserved,
+                    factualIntegrityPassed,
+                    factualAudit: {
+                        status: factualAudit.status,
+                        unsupportedClaims: factualAudit.unsupportedClaims,
+                        provider: factualAuditProvider,
+                        model: factualAuditModel
+                    },
                     missingSections,
                     provider:
                         semantic?.provider ||
@@ -4851,7 +4969,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                 const requestedChecks = [
                     ["system.health", {}],
                     ["conversation.respond", { prompt: "Responde solamente: CERTIFICACION_CONVERSACION_OK" }],
-                    ["web.research", { query: "Multiservicios Peninsulares HMH sitio oficial" }],
+                    ["web.research", { query: "IANA Example Domains", allowedDomain: "iana.org" }],
                     ["connector.list", {}],
                     ["system.supervision", { timeoutMs: SUPERVISION_CLOUD_TIMEOUT_MS }]
                 ];
