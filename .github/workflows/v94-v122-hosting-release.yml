@@ -32,14 +32,23 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Guard trigger parent and protected refs
+      - name: Guard release lineage and protected refs
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "$PRODUCT_SHA"
+          git merge-base --is-ancestor "$PRODUCT_SHA" HEAD
+          changed="$(git diff --name-only "$PRODUCT_SHA" HEAD)"
+          test -n "$changed"
+          unexpected="$(printf '%s\n' "$changed" | grep -v '^\.github/workflows/v94-v122-hosting-release\.yml$' || true)"
+          if test -n "$unexpected"; then
+            echo "Unexpected files after certified product SHA:" >&2
+            printf '%s\n' "$unexpected" >&2
+            exit 1
+          fi
           test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "$MAIN_SHA"
           test "$(git ls-remote origin refs/heads/v5.9-polish | awk '{print $1}')" = "$POLISH_SHA"
-          echo "TRIGGER_PARENT_PRODUCT_SHA_OK=true"
+          echo "CERTIFIED_PRODUCT_IS_ANCESTOR=true"
+          echo "POST_PRODUCT_CHANGES_CI_ONLY=true"
           echo "PROTECTED_REFS_OK=true"
 
       - name: Checkout exact certified product
@@ -64,6 +73,8 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$PRODUCT_SHA"
+          test -f gestia-terminal.html
+          test -f gestia-core/jarvis/jarvis.mission.planner-state.js
           grep -Fq '"branch": "v94-media-v4n-negative-claims"' jarvis-runtime-contract.json
           grep -Fq '"releaseId": "v94-generalist-execution-contract-v122-20260810"' jarvis-runtime-contract.json
           grep -Fq '2.39.0-generalist-execution-contract-v122' jarvis-fs-bridge.js
@@ -105,24 +116,44 @@ jobs:
           JARVIS_FIREBASE_PROJECT: fixgo-44e4d
         run: node scripts/jarvis-deploy-gate.mjs
 
-      - name: Build Functions-free Firebase deploy config
+      - name: Build workspace-anchored Functions-free Firebase config
         shell: bash
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
-          const source = JSON.parse(fs.readFileSync('firebase.json', 'utf8'));
-          const primary = (Array.isArray(source.hosting) ? source.hosting : [source.hosting])
+          import path from 'node:path';
+          const workspace = path.resolve(process.env.GITHUB_WORKSPACE);
+          const source = JSON.parse(fs.readFileSync(path.join(workspace, 'firebase.json'), 'utf8'));
+          const primarySource = (Array.isArray(source.hosting) ? source.hosting : [source.hosting])
             .find(item => item && item.site === 'fixgo-44e4d');
-          if (!primary) throw new Error('PRIMARY_HOSTING_SITE_CONFIG_NOT_FOUND');
+          if (!primarySource) throw new Error('PRIMARY_HOSTING_SITE_CONFIG_NOT_FOUND');
+          const primary = structuredClone(primarySource);
+          primary.ignore = [...new Set([...(primary.ignore || []), 'firebase-v122-hosting.json'])];
           const output = { hosting: [primary] };
-          const target = `${process.env.RUNNER_TEMP}/firebase-v122-hosting.json`;
+          const target = path.join(workspace, 'firebase-v122-hosting.json');
           fs.writeFileSync(target, `${JSON.stringify(output, null, 2)}\n`, 'utf8');
           const verify = JSON.parse(fs.readFileSync(target, 'utf8'));
           if ('functions' in verify) throw new Error('FUNCTIONS_PRESENT_IN_DEPLOY_CONFIG');
           if (!Array.isArray(verify.hosting) || verify.hosting.length !== 1) throw new Error('HOSTING_SCOPE_NOT_SINGLE_SITE');
           if (verify.hosting[0].site !== 'fixgo-44e4d') throw new Error('WRONG_HOSTING_SITE');
+          const resolvedPublic = path.resolve(path.dirname(target), verify.hosting[0].public);
+          if (resolvedPublic !== workspace) {
+            throw new Error(`PUBLIC_ROOT_NOT_WORKSPACE:${resolvedPublic}`);
+          }
+          for (const required of [
+            'gestia-terminal.html',
+            'jarvis-runtime-contract.json',
+            'gestia-core/gestia-core.js',
+            'gestia-core/jarvis/jarvis.mission.planner-state.js'
+          ]) {
+            if (!fs.existsSync(path.join(resolvedPublic, required))) {
+              throw new Error(`HOSTING_REQUIRED_FILE_MISSING:${required}`);
+            }
+          }
           console.log(`HOSTING_CONFIG=${target}`);
+          console.log(`RESOLVED_PUBLIC_ROOT=${resolvedPublic}`);
+          console.log('PUBLIC_ROOT_IS_GITHUB_WORKSPACE=true');
           console.log('FUNCTIONS_ABSENT_FROM_DEPLOY_CONFIG=true');
           console.log('PRIMARY_HOSTING_ONLY=true');
           NODE
@@ -130,16 +161,19 @@ jobs:
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
-      - name: Deploy primary Firebase Hosting only
+      - name: Deploy primary Firebase Hosting only from workspace root
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
           test -n "${FIREBASE_TOKEN:-}"
+          test "$(pwd -P)" = "$(cd "$GITHUB_WORKSPACE" && pwd -P)"
+          test -f "$GITHUB_WORKSPACE/gestia-terminal.html"
+          test -f "$GITHUB_WORKSPACE/firebase-v122-hosting.json"
           firebase deploy \
             --only hosting \
-            --config "$RUNNER_TEMP/firebase-v122-hosting.json" \
+            --config "$GITHUB_WORKSPACE/firebase-v122-hosting.json" \
             --project fixgo-44e4d \
             --token "$FIREBASE_TOKEN" \
             --non-interactive \
@@ -177,8 +211,9 @@ jobs:
             local out="$RUNNER_TEMP/live-v122/$safe"
             for attempt in $(seq 1 30); do
               if curl -fsSL --max-time 20 \
-                -H 'Cache-Control: no-cache' \
-                "$base/$file?v=${GITHUB_RUN_ID}-${attempt}" \
+                -H 'Cache-Control: no-cache, no-store, must-revalidate' \
+                -H 'Pragma: no-cache' \
+                "$base/$file" \
                 -o "$out" && cmp -s "$file" "$out"; then
                 echo "LIVE_EXACT $base/$file"
                 return 0
@@ -204,14 +239,14 @@ jobs:
         run: |
           set -euo pipefail
           for base in https://fixgo-44e4d.web.app https://fixgo-44e4d.firebaseapp.com; do
-            contract="$(curl -fsSL -H 'Cache-Control: no-cache' "$base/jarvis-runtime-contract.json?v=$GITHUB_RUN_ID")"
+            contract="$(curl -fsSL -H 'Cache-Control: no-cache, no-store, must-revalidate' "$base/jarvis-runtime-contract.json")"
             node -e '
               const value = JSON.parse(process.argv[1]);
               if (value.branch !== "v94-media-v4n-negative-claims") process.exit(1);
               if (value.releaseId !== "v94-generalist-execution-contract-v122-20260810") process.exit(2);
             ' "$contract"
-            core="$(curl -fsSL -H 'Cache-Control: no-cache' "$base/gestia-core/gestia-core.js?v=$GITHUB_RUN_ID")"
-            deps="$(curl -fsSL -H 'Cache-Control: no-cache' "$base/gestia-core/jarvis/jarvis.mission.dependencies.js?v=$GITHUB_RUN_ID")"
+            core="$(curl -fsSL -H 'Cache-Control: no-cache, no-store, must-revalidate' "$base/gestia-core/gestia-core.js")"
+            deps="$(curl -fsSL -H 'Cache-Control: no-cache, no-store, must-revalidate' "$base/gestia-core/jarvis/jarvis.mission.dependencies.js")"
             printf '%s' "$core" | grep -Fq 'compactMissionPlannerObservation'
             printf '%s' "$deps" | grep -Fq 'tool_contract_dependency'
           done
@@ -225,7 +260,9 @@ jobs:
           test "$(git ls-remote origin refs/heads/v5.9-polish | awk '{print $1}')" = "$POLISH_SHA"
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
-          const cfg = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/firebase-v122-hosting.json`, 'utf8'));
+          import path from 'node:path';
+          const target = path.join(process.env.GITHUB_WORKSPACE, 'firebase-v122-hosting.json');
+          const cfg = JSON.parse(fs.readFileSync(target, 'utf8'));
           if ('functions' in cfg) throw new Error('FUNCTIONS_CONFIG_PRESENT_AFTER_DEPLOY');
           if (cfg.hosting?.length !== 1 || cfg.hosting[0]?.site !== 'fixgo-44e4d') throw new Error('HOSTING_SCOPE_CHANGED');
           console.log('FINAL_FUNCTIONS_NOT_IN_DEPLOY_SCOPE=true');
