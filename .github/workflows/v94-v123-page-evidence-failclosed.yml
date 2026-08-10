@@ -109,15 +109,27 @@ jobs:
           echo "V123_SOURCE_INVARIANTS_OK=true"
 
       - name: Focused human-red regressions
-        run: >-
-          node --test
-          tests/jarvis-page-insufficient-evidence-v123.test.mjs
-          tests/jarvis-page-artifact.test.mjs
-          tests/jarvis-page-factual-integrity-v121.test.mjs
-          tests/jarvis-generalist-execution-contract-v122.test.mjs
-          tests/jarvis-current-turn-freshness-v119.test.mjs
-          tests/jarvis-fs-bridge-v2.test.mjs
-          tests/jarvis-semantic-memory-integrity.test.mjs
+        shell: bash
+        run: |
+          set -o pipefail
+          node --test \
+            tests/jarvis-page-insufficient-evidence-v123.test.mjs \
+            tests/jarvis-page-artifact.test.mjs \
+            tests/jarvis-page-factual-integrity-v121.test.mjs \
+            tests/jarvis-generalist-execution-contract-v122.test.mjs \
+            tests/jarvis-current-turn-freshness-v119.test.mjs \
+            tests/jarvis-fs-bridge-v2.test.mjs \
+            tests/jarvis-semantic-memory-integrity.test.mjs \
+            2>&1 | tee v123-focal.log
+
+      - name: Upload focal diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v123-focal-diagnostic
+          path: v123-focal.log
+          if-no-files-found: warn
+          retention-days: 1
 
       - name: Full CI
         run: npm run ci:test
@@ -139,7 +151,7 @@ jobs:
           rm -f scripts/v123-page-evidence-failclosed.py
           rm -f scripts/v123-page-evidence-failclosed-r2.py
           rm -f .github/workflows/v94-v123-page-evidence-failclosed.yml
-          rm -f v123-patch.log
+          rm -f v123-patch.log v123-focal.log
           git config user.name "heberzzt-wq"
           git config user.email "heberzzt@gmail.com"
           git add -A
