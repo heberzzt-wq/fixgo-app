@@ -1,0 +1,88 @@
+name: V94 v113 full CI failure diagnostic
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v94-v113-full-ci-failure-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Assert Functions boundary
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-media-v4n-negative-claims"
+          test -z "$(git diff --name-only 13cb877ef49fbd2ef19bc2a5da42887b5836e16a HEAD -- functions)"
+      - name: Install and apply v113 candidate
+        run: |
+          set -euo pipefail
+          npm ci
+          npm --prefix functions ci
+          python scripts/v113-live-human-reds-fix.py
+          python - <<'PY'
+          from pathlib import Path
+          replacements = [
+              ('tests/jarvis-marketing-terminal-delivery.e2e.test.mjs','v94-repo-marketing-integrity-v112-20260809','v94-live-human-reds-v113-20260809',2),
+              ('tests/jarvis-reel-artifact.test.mjs','assert.match(actuator, /REEL_STUDIO_CREATED_VERIFIED/);','assert.match(actuator, /REEL_VIDEO_CREATED_VERIFIED/);\n    assert.match(bridge, /exportReelWebmWithChrome/);\n    assert.match(bridge, /REEL_WEBM_SHA256_MISMATCH/);',1),
+              ('tests/jarvis-fs-bridge-v2.test.mjs','assert.equal(description.version, "2.36.0-structural-repo-targets");','assert.equal(description.version, "2.37.0-verified-reel-webm");',1),
+          ]
+          for file, old, new, expected in replacements:
+              p=Path(file); s=p.read_text(encoding='utf-8'); c=s.count(old)
+              if c != expected: raise SystemExit(f'{file}: expected {expected} replacements, got {c}')
+              p.write_text(s.replace(old,new),encoding='utf-8')
+          PY
+          test -z "$(git diff --name-only -- functions)"
+      - name: Capture full CI
+        run: |
+          set +e
+          npm run ci:test > /tmp/v113-full-ci.log 2>&1
+          code=$?
+          echo "$code" > /tmp/v113-full-ci-exit.txt
+          exit 0
+      - name: Extract exact failure
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          lines=Path('/tmp/v113-full-ci.log').read_text(encoding='utf-8',errors='replace').splitlines()
+          needles=('not ok ','AssertionError','ERR_ASSERTION','ERR_TEST_FAILURE','# fail ','Error:','ELIFECYCLE','npm error')
+          marks=[i for i,l in enumerate(lines) if any(n in l for n in needles)]
+          ranges=[]
+          for i in marks:
+              a=max(0,i-45); b=min(len(lines),i+100)
+              if ranges and a <= ranges[-1][1]+5: ranges[-1]=(ranges[-1][0],max(ranges[-1][1],b))
+              else: ranges.append((a,b))
+          out=[f'EXIT={Path("/tmp/v113-full-ci-exit.txt").read_text().strip()}',f'LINES={len(lines)}',f'MARKERS={len(marks)}']
+          for n,(a,b) in enumerate(ranges,1):
+              out.append(f'\n===== FAILURE_{n} =====')
+              out.extend(f'{j+1}: {lines[j]}' for j in range(a,b))
+          out.append('\n===== TAIL =====')
+          start=max(0,len(lines)-300)
+          out.extend(f'{j+1}: {lines[j]}' for j in range(start,len(lines)))
+          Path('/tmp/v113-full-ci-failure.txt').write_text('\n'.join(out),encoding='utf-8')
+          print('\n'.join(out[:1200]))
+          PY
+          test -z "$(git diff --name-only -- functions)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v94-v113-full-ci-failure
+          path: |
+            /tmp/v113-full-ci.log
+            /tmp/v113-full-ci-exit.txt
+            /tmp/v113-full-ci-failure.txt
+          retention-days: 3
