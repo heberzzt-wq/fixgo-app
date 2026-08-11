@@ -35,7 +35,7 @@ import {
     validateDocumentBlueprint
 } from "./jarvis.document.validator.js?v=sia7-exact-template-contract-v84-20260725";
 
-const VERSION = "1.51.0-test-outcome-evidence";
+const VERSION = "1.52.0-source-grounded-research-v124";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 4500;
 const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";
@@ -167,7 +167,8 @@ const MARKETING_PRODUCTION_TOOL_TYPES = Object.freeze({
     "page.create": "page",
     "image.generate": "image",
     "image.edit": "image",
-    "reel.create": "reel"
+    "reel.create": "reel",
+    "marketing.package.real-media": "campaign_package"
 });
 
 export function resolveMarketingMissionProductionScope(
@@ -178,10 +179,6 @@ export function resolveMarketingMissionProductionScope(
         args && typeof args === "object" && !Array.isArray(args)
             ? { ...args }
             : {};
-    if (typeof current.productionRequested === "boolean") {
-        return current;
-    }
-
     const requiredToolNames =
         Array.isArray(context?.requiredToolNames)
             ? context.requiredToolNames.map(String).filter(Boolean)
@@ -201,23 +198,32 @@ export function resolveMarketingMissionProductionScope(
         )];
     const productionRequested =
         productionToolNames.length > 0;
+    const declaredArtifacts =
+        (Array.isArray(current.productionArtifacts)
+            ? current.productionArtifacts
+            : [])
+            .filter(item =>
+                item &&
+                typeof item === "object" &&
+                !Array.isArray(item) &&
+                productionToolNames.includes(String(item.toolName || ""))
+            );
+    const productionArtifacts =
+        productionRequested
+            ? (declaredArtifacts.length > 0
+                ? declaredArtifacts
+                : productionToolNames.map(toolName => ({
+                    id: `mission-${toolName.replaceAll(".", "-")}`,
+                    type: MARKETING_PRODUCTION_TOOL_TYPES[toolName],
+                    toolName,
+                    label: toolName
+                })))
+            : [];
 
     return {
         ...current,
         productionRequested,
-        ...(productionRequested &&
-        (!Array.isArray(current.productionArtifacts) ||
-            current.productionArtifacts.length === 0)
-            ? {
-                productionArtifacts:
-                    productionToolNames.map(toolName => ({
-                        id: `mission-${toolName.replaceAll(".", "-")}`,
-                        type: MARKETING_PRODUCTION_TOOL_TYPES[toolName],
-                        toolName,
-                        label: toolName
-                    }))
-            }
-            : {})
+        productionArtifacts
     };
 }
 
@@ -1451,7 +1457,12 @@ async function fetchGroundedWebResearch(
 ) {
     const user = await waitForAuthenticatedUser();
     const normalizedQuery =
-        String(query || "")
+        [query, trace?.seedUrl]
+            .map(value => String(value || "").trim())
+            .filter(Boolean)
+            .filter((value, index, list) => list.indexOf(value) === index)
+            .join(" ")
+            .replace(/\s+/g, " ")
             .trim()
             .slice(0, 600);
 
@@ -1561,7 +1572,10 @@ async function fetchGroundedWebResearch(
                     "/research",
                     {
                         query: normalizedQuery,
-                        timeoutMs: 20000
+                        timeoutMs: 20000,
+                        allowedDomain: trace.allowedDomain || "",
+                        exactEntity: trace.exactEntity || "",
+                        seedUrl: trace.seedUrl || ""
                     },
                     {
                         timeoutMs: 25000
@@ -5325,6 +5339,10 @@ export function registerJarvisMultifunctionTools(runtime) {
                     exactEntity: {
                         type:
                             "string"
+                    },
+                    seedUrl: {
+                        type:
+                            "string"
                     }
                 },
                 additionalProperties:
@@ -5340,7 +5358,8 @@ export function registerJarvisMultifunctionTools(runtime) {
                         objectiveId: args.objectiveId || context.objectiveId || "",
                         caseId: args.caseId || context.caseId || "",
                         allowedDomain: args.allowedDomain || "",
-                        exactEntity: args.exactEntity || ""
+                        exactEntity: args.exactEntity || "",
+                        seedUrl: args.seedUrl || ""
                     }
                 )
         }),

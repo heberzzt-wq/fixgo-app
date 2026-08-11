@@ -9,7 +9,7 @@
  */
 
 export const NEXO_TERMINAL_BOOTSTRAP_VERSION =
-    "1.3.0-page-evidence-failclosed-v123";
+    "1.4.0-source-grounded-research-v124";
 
 const INSTALL_KEY = "__NEXO_TERMINAL_BOOTSTRAP__";
 
@@ -30,7 +30,7 @@ export async function instalarBootstrapTerminalNexo() {
     }
 
     const realMediaTools = await import(
-        "../../gestia-core/nexo/nexo.real-media.tools.js?v=v94-page-evidence-failclosed-v123-20260810"
+        "../../gestia-core/nexo/nexo.real-media.tools.js?v=v94-source-grounded-research-v124-20260810"
     );
 
     const toolsInstallation =

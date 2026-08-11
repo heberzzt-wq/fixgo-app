@@ -2514,7 +2514,7 @@ test("system health exposes bridge server version separately from tool pack vers
         );
         assert.equal(
             result.toolPackVersion,
-            "1.51.0-test-outcome-evidence"
+            "1.52.0-source-grounded-research-v124"
         );
         assert.notEqual(
             result.toolPackVersion,
@@ -4332,7 +4332,7 @@ test("multifunction descriptor remains approval-bound", () => {
     assert.equal(planner.mutates, false);
     assert.equal(
         planner.version,
-        "4.16.0-generalist-current-turn"
+        "4.17.0-source-grounded-research-v124"
     );
     assert.equal(planner.maximumToolCalls, 12);
     assert.equal(planner.architecture, "model_selected_runtime_catalog");

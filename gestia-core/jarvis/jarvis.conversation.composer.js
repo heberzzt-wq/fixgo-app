@@ -962,6 +962,31 @@ export function buildCapabilityEvidenceBriefing(evidenceItems = []) {
     });
 }
 
+
+export function buildAuthoritativeToolOutcomeMatrix(evidenceItems = []) {
+    return (Array.isArray(evidenceItems) ? evidenceItems : [])
+        .filter(item => String(item?.name || item?.tool || "") !== "conversation.respond")
+        .slice(0, 30)
+        .map(item => {
+            const observation =
+                item?.observation ||
+                item?.response ||
+                item?.data ||
+                {};
+            return {
+                tool: String(item?.name || item?.tool || "").slice(0, 120),
+                status: String(observation?.status || "").slice(0, 160),
+                ok: observation?.ok === true,
+                executionOk: observation?.executionOk !== false,
+                objectiveSatisfied: observation?.objectiveSatisfied === true,
+                blocked: observation?.blocked === true,
+                requiresInput: observation?.requiresInput === true,
+                retryable: observation?.retryable === true,
+                error: String(observation?.error || "").slice(0, 500)
+            };
+        });
+}
+
 export async function composeEvidenceGroundedConversation({
     instruction = "",
     evidenceItems = [],
@@ -981,6 +1006,8 @@ export async function composeEvidenceGroundedConversation({
     }
 
     const evidence = buildBoundedConversationEvidence(evidenceItems);
+    const authoritativeOutcomes =
+        buildAuthoritativeToolOutcomeMatrix(evidenceItems);
     const capabilityBriefing =
         buildCapabilityEvidenceBriefing(evidenceItems);
     const precisionGroundingInstruction =
@@ -1003,9 +1030,12 @@ export async function composeEvidenceGroundedConversation({
         "Cuando existan dominios de capacidades, conviértelos en funciones humanas concretas: conversación, investigación web, análisis de archivos o medios, documentos, hojas de cálculo, páginas, imágenes y trabajo controlado de repositorio, únicamente si aparecen en la evidencia.",
         "No reduzcas el resumen a decir que puedes verificar capacidades o hacer forensics; esas son fuentes de evidencia, no el alcance útil para el usuario.",
         "Si una herramienta fallo o falta evidencia, dilo una sola vez y no marques la mision como completada.",
+        "RESULTADOS_HERRAMIENTAS_AUTORITATIVOS es el estado operativo definitivo: nunca describas como bloqueada una herramienta con objectiveSatisfied=true ni como completada una herramienta marcada blocked=true o requiresInput=true.",
+        "La falta de un dato factual no bloquea entregables independientes que si tienen evidencia suficiente. Despues de agotar la investigacion disponible, enumera solamente los datos realmente faltantes que impiden una parte solicitada y pregunta al usuario si puede proporcionarlos o si prefiere continuar sin ellos; conserva todo lo ya verificado.",
         precisionGroundingInstruction,
         `SOLICITUD_USUARIO=${String(instruction || "").slice(0, 12000)}`,
         `RESUMEN_CAPACIDADES_Y_LIMITES=${capabilityBriefing}`,
+        `RESULTADOS_HERRAMIENTAS_AUTORITATIVOS=${JSON.stringify(authoritativeOutcomes)}`,
         `EVIDENCIA_ESTRUCTURADA=${evidence}`
     ].filter(Boolean).join("\n\n");
 

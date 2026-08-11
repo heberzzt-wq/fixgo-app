@@ -235,6 +235,33 @@ function taskMatchesRequirement(item = {}, requirement = {}) {
     return true;
 }
 
+
+function renderCompletedReelPlans(completedTasks = []) {
+    const plans = (Array.isArray(completedTasks) ? completedTasks : [])
+        .filter(item =>
+            item?.name === "reel.plan" &&
+            item?.observation?.objectiveSatisfied === true &&
+            item?.observation?.status === "REEL_PLAN_READY" &&
+            item?.observation?.preparedArtifact?.kind === "reel"
+        )
+        .map(item => item.observation.preparedArtifact);
+    if (plans.length === 0) return [];
+    return [
+        "",
+        "## Propuestas de reels planificadas",
+        ...plans.flatMap((plan, index) => [
+            `### Reel ${index + 1}: ${plan.title || "Propuesta"}`,
+            `- Duración: ${Number(plan.durationSeconds) || 0} segundos`,
+            `- CTA: ${plan.cta || "Pendiente"}`,
+            ...(Array.isArray(plan.scenes)
+                ? plan.scenes.slice(0, 18).map((scene, sceneIndex) =>
+                    `- Escena ${sceneIndex + 1}: ${scene?.overlay || scene?.visual || "Escena planificada"}`
+                )
+                : [])
+        ])
+    ];
+}
+
 export function marketingFinalResponseFromMission(missionResult = {}) {
     const completed = Array.isArray(missionResult?.completedTasks) ? missionResult.completedTasks : [];
     const marketing = completedMarketingTask(completed);
@@ -273,6 +300,9 @@ export function marketingFinalResponseFromMission(missionResult = {}) {
         .map(item => ({ label: String(item.name || "ARTEFACTO").toUpperCase(), output: artifactOutput(item) }))
         .filter(item => item.output);
 
+    const plannedReelLines =
+        renderCompletedReelPlans(completed);
+
     const artifactLines = productionRequested
         ? unresolved.length
             ? [
@@ -292,7 +322,7 @@ export function marketingFinalResponseFromMission(missionResult = {}) {
     return {
         ok: marketing.observation.objectiveSatisfied === true && (!productionRequested || unresolved.length === 0),
         title: productionRequested && unresolved.length ? "Plan de marketing — producción incompleta" : "Plan de marketing",
-        text: [marketing.observation.userVisible, ...artifactLines].join("\n"),
+        text: [marketing.observation.userVisible, ...plannedReelLines, ...artifactLines].join("\n"),
         source: "MARKETING_DELIVERABLE_DIRECT",
         productionRequested,
         requiredArtifacts: requirements,

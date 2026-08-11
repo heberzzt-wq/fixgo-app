@@ -1,9 +1,9 @@
 import {
     planMarketingRequest
-} from "../jarvis/jarvis.marketing.engine.js?v=v94-generalist-execution-contract-v122-20260810";
+} from "../jarvis/jarvis.marketing.engine.js?v=v94-source-grounded-research-v124-20260810";
 
 export const NEXO_REAL_MEDIA_TOOLS_VERSION =
-    "1.1.0-generalist-execution-contract-v122";
+    "1.2.0-source-grounded-research-v124";
 
 const INSTALL_KEY = "__NEXO_REAL_MEDIA_TOOLS__";
 
@@ -155,6 +155,9 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
         throw new Error("NEXO_TOOL_RUNTIME_REQUIRED");
     }
 
+    const canonicalMarketingDefinition =
+        previousDefinition(runtime, "marketing.plan");
+
     registerOrReplace(runtime, {
         name: "marketing.plan",
         description:
@@ -163,15 +166,24 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
         inputSchema: marketingInputSchema(runtime),
         execute: async (args = {}, context = {}) => {
             const instruction = instructionFrom(args, context);
-            const result = planMarketingRequest(instruction, {
-                ...context,
-                ...args,
-                authorityId: args.authorityId || context.authorityId || "HEBERTO_MENDOZA",
-                controllerId: args.controllerId || context.controllerId || "PENINSULA_NEXO"
-            });
+            const canonicalExecute =
+                typeof canonicalMarketingDefinition?.execute === "function"
+                    ? canonicalMarketingDefinition.execute
+                    : null;
+            const result = canonicalExecute
+                ? await canonicalExecute(args, context)
+                : planMarketingRequest(instruction, {
+                    ...context,
+                    ...args,
+                    authorityId: args.authorityId || context.authorityId || "HEBERTO_MENDOZA",
+                    controllerId: args.controllerId || context.controllerId || "PENINSULA_NEXO"
+                });
             return {
                 ...result,
-                objectiveSatisfied: result?.readyForProduction === true,
+                objectiveSatisfied:
+                    typeof result?.objectiveSatisfied === "boolean"
+                        ? result.objectiveSatisfied
+                        : result?.readyForProduction === true,
                 requiresInput: result?.requiresInput === true,
                 blocked: result?.blocked === true || result?.requiresInput === true,
                 retryable: result?.retryable === true,
@@ -179,6 +191,7 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
                     result?.ok === false
                         ? (result?.error || result?.status || "MARKETING_PLAN_FAILED")
                         : (result?.error || null),
+                canonicalExecutorUsed: Boolean(canonicalExecute),
                 runtimeOverride: NEXO_REAL_MEDIA_TOOLS_VERSION
             };
         }

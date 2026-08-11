@@ -51,7 +51,7 @@ import {
 } from "./nexo-web-media-bridge.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.40.0-page-evidence-failclosed-v123";
+    "2.41.0-source-grounded-research-v124";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -2587,11 +2587,69 @@ function ensureSystemCertificates() {
     }
 }
 
-export async function runLocalWebResearch(query = "", timeoutMs = 20000) {
-    const normalizedQuery = String(query || "")
+export function buildLocalResearchQuery(
+    query = "",
+    {
+        allowedDomain = "",
+        exactEntity = "",
+        seedUrl = ""
+    } = {}
+) {
+    const values = [String(query || "").trim()];
+    const entity = String(exactEntity || "").trim();
+    if (entity && !values.join(" ").toLowerCase().includes(entity.toLowerCase())) {
+        values.push(entity);
+    }
+    let domain = String(allowedDomain || "")
+        .trim()
+        .toLowerCase()
+        .replace(/^https?:\/\//, "")
+        .replace(/^www\./, "")
+        .split("/")[0];
+    const sourceUrl = String(seedUrl || "").trim();
+    if (sourceUrl) {
+        try {
+            const url = new URL(sourceUrl);
+            if (!domain) domain = url.hostname.toLowerCase().replace(/^www\./, "");
+            const handle = url.pathname
+                .split("/")
+                .map(value => {
+                    try { return decodeURIComponent(value); }
+                    catch { return value; }
+                })
+                .find(value => value.startsWith("@") && value.length > 1);
+            if (handle && !values.join(" ").toLowerCase().includes(handle.toLowerCase())) {
+                values.push(handle);
+            }
+            for (const key of ["q", "query", "search_query", "keyword", "keywords"]) {
+                const term = String(url.searchParams.get(key) || "")
+                    .replace(/\+/g, " ")
+                    .replace(/\s+/g, " ")
+                    .trim();
+                if (term && !values.join(" ").toLowerCase().includes(term.toLowerCase())) {
+                    values.push(term);
+                }
+            }
+        }
+        catch {}
+    }
+    if (domain && !values.join(" ").toLowerCase().includes(`site:${domain}`)) {
+        values.push(`site:${domain}`);
+    }
+    return values
+        .filter(Boolean)
+        .join(" ")
         .replace(/\s+/g, " ")
         .trim()
         .slice(0, 500);
+}
+
+export async function runLocalWebResearch(
+    query = "",
+    timeoutMs = 20000,
+    options = {}
+) {
+    const normalizedQuery = buildLocalResearchQuery(query, options);
 
     if (normalizedQuery.length < 5) {
         throw new Error("WEB_RESEARCH_QUERY_REQUIRED");
@@ -4586,7 +4644,12 @@ export function createJarvisFsBridgeApp({
         try {
             const result = await runLocalWebResearch(
                 req.body?.query || req.body?.prompt || "",
-                req.body?.timeoutMs || 20000
+                req.body?.timeoutMs || 20000,
+                {
+                    allowedDomain: req.body?.allowedDomain || "",
+                    exactEntity: req.body?.exactEntity || "",
+                    seedUrl: req.body?.seedUrl || ""
+                }
             );
             return res.json({
                 ...result,

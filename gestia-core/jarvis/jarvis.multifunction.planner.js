@@ -2,7 +2,7 @@ import {
     rejectCorruptedIdentityArgs
 } from "./jarvis.identity.integrity.js?v=v94-generalist-page-integrity-v120-20260810";
 
-const VERSION = "4.16.0-generalist-current-turn";
+const VERSION = "4.17.0-source-grounded-research-v124";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
@@ -428,6 +428,349 @@ function instructionBeforeAttachmentManifest(
     ).trim();
 }
 
+
+function explicitHttpSourceUrls(
+    input = ""
+) {
+    const source =
+        instructionBeforeAttachmentManifest(
+            input
+        );
+    const matches = [];
+    let cursor = 0;
+    while (cursor < source.length) {
+        const httpIndex =
+            source.indexOf("http://", cursor);
+        const httpsIndex =
+            source.indexOf("https://", cursor);
+        let start = -1;
+
+        if (httpIndex < 0) start = httpsIndex;
+        else if (httpsIndex < 0) start = httpIndex;
+        else start = Math.min(httpIndex, httpsIndex);
+        if (start < 0) break;
+
+        let end = start;
+        while (end < source.length) {
+            const character = source[end];
+            if (
+                character.charCodeAt(0) <= 32 ||
+                "<>\"'`".includes(character)
+            ) {
+                break;
+            }
+            end += 1;
+        }
+        const candidate =
+            source.slice(start, end);
+        if (candidate) matches.push(candidate);
+        cursor = Math.max(end, start + 1);
+        if (matches.length >= 16) break;
+    }
+    const values = [];
+    const seen = new Set();
+
+    for (const raw of matches) {
+        let candidate =
+            String(raw || "").trim();
+        while (
+            candidate &&
+            ".,;:!?)]}".includes(
+                candidate.at(-1)
+            )
+        ) {
+            candidate =
+                candidate.slice(0, -1);
+        }
+        try {
+            const url = new URL(candidate);
+            if (![
+                "http:",
+                "https:"
+            ].includes(url.protocol)) {
+                continue;
+            }
+            url.hash = "";
+            const normalized = url.toString();
+            if (!seen.has(normalized)) {
+                seen.add(normalized);
+                values.push(normalized);
+            }
+        }
+        catch {
+            // Ignore malformed text that merely resembles a URL.
+        }
+        if (values.length >= 8) break;
+    }
+    return values;
+}
+
+function sourceAnchorDescriptor(
+    value = ""
+) {
+    try {
+        const url = new URL(String(value || ""));
+        const host =
+            String(url.hostname || "")
+                .toLowerCase()
+                .replace(/^www\./, "");
+        const segments =
+            url.pathname
+                .split("/")
+                .map(segment => {
+                    try {
+                        return decodeURIComponent(segment);
+                    }
+                    catch {
+                        return segment;
+                    }
+                })
+                .map(segment => segment.trim())
+                .filter(Boolean);
+        const handle =
+            segments.find(segment =>
+                segment.startsWith("@") &&
+                segment.length > 1
+            ) || "";
+        const searchTerms = [];
+        for (const key of [
+            "q",
+            "query",
+            "search_query",
+            "keyword",
+            "keywords"
+        ]) {
+            const item =
+                String(
+                    url.searchParams.get(key) ||
+                    ""
+                )
+                    .replace(/\+/g, " ")
+                    .replace(/\s+/g, " ")
+                    .trim();
+            if (item) searchTerms.push(item);
+        }
+        return {
+            url: url.toString(),
+            host,
+            handle,
+            searchTerms:
+                [...new Set(searchTerms)]
+                    .slice(0, 4)
+        };
+    }
+    catch {
+        return null;
+    }
+}
+
+function sourceAnchorForCandidate(
+    args = {},
+    anchors = []
+) {
+    const descriptors =
+        anchors
+            .map(sourceAnchorDescriptor)
+            .filter(Boolean);
+    if (descriptors.length === 0) return null;
+
+    const declaredSeed =
+        String(args.seedUrl || args.url || "").trim();
+    if (declaredSeed) {
+        const declared =
+            sourceAnchorDescriptor(declaredSeed);
+        if (declared) {
+            const exact =
+                descriptors.find(item =>
+                    item.url === declared.url
+                );
+            if (exact) return exact;
+            const sameHost =
+                descriptors.find(item =>
+                    item.host === declared.host
+                );
+            if (sameHost) return sameHost;
+        }
+    }
+
+    const candidateText =
+        [
+            args.query,
+            args.prompt,
+            args.exactEntity,
+            args.allowedDomain
+        ]
+            .map(value =>
+                String(value || "")
+                    .toLowerCase()
+            )
+            .join(" ");
+    let best = null;
+    let bestScore = 0;
+    for (const descriptor of descriptors) {
+        let score = 0;
+        if (
+            descriptor.host &&
+            candidateText.includes(
+                descriptor.host
+            )
+        ) {
+            score += 5;
+        }
+        if (
+            descriptor.handle &&
+            candidateText.includes(
+                descriptor.handle.toLowerCase()
+            )
+        ) {
+            score += 5;
+        }
+        for (const term of descriptor.searchTerms) {
+            const normalized =
+                term.toLowerCase();
+            if (
+                normalized.length >= 3 &&
+                candidateText.includes(normalized)
+            ) {
+                score += 3;
+            }
+        }
+        if (score > bestScore) {
+            bestScore = score;
+            best = descriptor;
+        }
+    }
+    return best ||
+        (descriptors.length === 1
+            ? descriptors[0]
+            : null);
+}
+
+function appendSourceAnchorHints(
+    query = "",
+    descriptor = null
+) {
+    const base =
+        String(query || "")
+            .replace(/\s+/g, " ")
+            .trim();
+    if (!descriptor) return base;
+    const pieces = [base];
+    const normalizedBase =
+        base.toLowerCase();
+    if (
+        descriptor.handle &&
+        !normalizedBase.includes(
+            descriptor.handle.toLowerCase()
+        )
+    ) {
+        pieces.push(descriptor.handle);
+    }
+    for (const term of descriptor.searchTerms) {
+        if (
+            term &&
+            !normalizedBase.includes(
+                term.toLowerCase()
+            )
+        ) {
+            pieces.push(term);
+        }
+    }
+    return pieces
+        .filter(Boolean)
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 600);
+}
+
+function normalizeExplicitSourceCandidates(
+    candidates = [],
+    catalog = [],
+    context = {}
+) {
+    const sourceCandidates =
+        Array.isArray(candidates)
+            ? candidates
+            : [];
+    const anchors =
+        explicitHttpSourceUrls(
+            context?.originalInstruction ||
+            ""
+        );
+    if (anchors.length === 0) {
+        return sourceCandidates;
+    }
+    const available =
+        new Set(
+            catalog.map(tool =>
+                String(tool?.name || "")
+            )
+        );
+
+    return sourceCandidates.map(candidate => {
+        const name =
+            String(candidate?.name || "");
+        if (
+            name !== "web.research" &&
+            name !== "web.media.collect"
+        ) {
+            return candidate;
+        }
+        if (!available.has(name)) {
+            return candidate;
+        }
+        const args =
+            candidateArgumentObject(candidate);
+        const anchor =
+            sourceAnchorForCandidate(
+                args,
+                anchors
+            );
+        if (!anchor) return candidate;
+
+        if (name === "web.research") {
+            return {
+                ...candidate,
+                args: {
+                    ...args,
+                    query:
+                        appendSourceAnchorHints(
+                            args.query ||
+                            args.prompt ||
+                            "",
+                            anchor
+                        ),
+                    seedUrl:
+                        anchor.url,
+                    allowedDomain:
+                        String(
+                            args.allowedDomain ||
+                            anchor.host ||
+                            ""
+                        )
+                },
+                reason:
+                    candidate?.reason ||
+                    "SEMANTIC_RESEARCH_EXPLICIT_SOURCE_ANCHORED"
+            };
+        }
+
+        return {
+            ...candidate,
+            args: {
+                ...args,
+                url:
+                    String(args.url || "").trim() ||
+                    anchor.url
+            },
+            reason:
+                candidate?.reason ||
+                "SEMANTIC_MEDIA_EXPLICIT_SOURCE_ANCHORED"
+        };
+    });
+}
+
 function extractGroundedAttachments(
     input = ""
 ) {
@@ -712,6 +1055,9 @@ async function callBrowserMissionContract(
         "agent.delegate no es una optimizacion automatica. Incluyela solamente si la instruccion original pide explicitamente delegar, usar agentes o ejecutar en paralelo, y copia esa frase literal en delegationDirective. En cualquier otra mision conserva las herramientas directas.",
         "repo.architectReview es autocontenida: construye su grafo y ranking y ejecuta los 11 controles sobre el plan recibido. Para una revision de plan no agregues herramientas repo adyacentes salvo que la instruccion pida por separado inspeccionar fuentes adicionales.",
         "Para web.research usa researchGoal=RESEARCH_1, RESEARCH_2, etc. segun el orden inmutable de objetivos de investigacion en la instruccion. Reutiliza la misma identidad al auditar el mismo objetivo y no dupliques llamadas para simples reformulaciones.",
+        "Una URL explicita proporcionada por el usuario es una FUENTE ANCLA del objetivo semantico al que acompana, no un objetivo independiente. Para web.research copia esa URL exacta en seedUrl, deriva allowedDomain de su host cuando corresponda, conserva exactEntity de la entidad nombrada y usa la misma researchGoal para validar la fuente y ampliar la investigacion. Investiga primero desde la fuente ancla y despues cruza otras fuentes; no empieces por homonimos no vinculados a las senales distintivas de esa fuente.",
+        "En web.media.collect usa una URL explicita del usuario como fuente directa. Marca requireImages o requireVideos=true solamente si esa familia de medios es un entregable obligatorio; una busqueda exploratoria u opcional de material no debe convertirse en requisito bloqueante.",
+        `FUENTES_EXPLICITAS_USUARIO=${JSON.stringify(explicitHttpSourceUrls(instruction))}`,
         `HERRAMIENTAS_INICIALES=${initialToolNames.join(",")}`,
         `HERRAMIENTAS_REQUERIDAS=${requiredToolNames.join(",")}`,
         `MARKETING_PRODUCTION_REQUIREMENTS=${JSON.stringify(marketingProductionRequirements)}`,
@@ -855,6 +1201,9 @@ async function callBrowserSemanticPlan(input = "", catalog = [], missionState = 
         "Si una investigacion limita fuentes a un dominio, copia el dominio exacto en allowedDomain de web.research.",
         "En web.research, query debe contener solo el objetivo concreto y los terminos distintivos de la investigacion; no copies toda la orden mixta, archivos ni otros entregables. Conserva conceptos tecnicos importantes como custom claims, roles, APIs o normas.",
         "Para web.research usa researchGoal=RESEARCH_1, RESEARCH_2, etc. segun el orden de objetivos independientes en la instruccion y reutiliza exactamente esa identidad para el mismo objetivo.",
+        "Una URL explicita proporcionada por el usuario es una FUENTE ANCLA del objetivo semantico al que acompana, no un objetivo independiente. Para web.research copia esa URL exacta en seedUrl, deriva allowedDomain de su host cuando corresponda, conserva exactEntity de la entidad nombrada y usa la misma researchGoal para validar la fuente y ampliar la investigacion. Investiga primero desde la fuente ancla y despues cruza otras fuentes; no empieces por homonimos no vinculados a las senales distintivas de esa fuente.",
+        "En web.media.collect usa una URL explicita del usuario como fuente directa. Marca requireImages o requireVideos=true solamente si esa familia de medios es un entregable obligatorio; una busqueda exploratoria u opcional de material no debe convertirse en requisito bloqueante.",
+        `FUENTES_EXPLICITAS_USUARIO=${JSON.stringify(explicitHttpSourceUrls(instruction))}`,
         "Si se piden datos oficiales, usa allowedDomain con el dominio oficial de la autoridad identificada y no presentes fuentes secundarias como oficiales.",
         "Si una investigacion pide hechos sobre una entidad nombrada sin dominio, copia el nombre exacto en exactEntity de web.research.",
         missionState?.phase === "COMPLETION_AUDIT"
@@ -997,12 +1346,16 @@ function stableResearchGoal(
 function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
     const allowed = new Map(catalog.map(tool => [tool.name, tool]));
     const candidates =
-        normalizeGroundedImageReferenceCandidates(
-            Array.isArray(
-                plan?.toolCalls
-            )
-                ? plan.toolCalls
-                : [],
+        normalizeExplicitSourceCandidates(
+            normalizeGroundedImageReferenceCandidates(
+                Array.isArray(
+                    plan?.toolCalls
+                )
+                    ? plan.toolCalls
+                    : [],
+                catalog,
+                context
+            ),
             catalog,
             context
         );
@@ -1841,5 +2194,8 @@ export const __test = {
     instructionBeforeAttachmentManifest,
     normalizeAttachmentAnalysisRouteCandidates,
     imageVariantIdentity,
-    normalizeGroundedImageReferenceCandidates
+    normalizeGroundedImageReferenceCandidates,
+    explicitHttpSourceUrls,
+    sourceAnchorDescriptor,
+    normalizeExplicitSourceCandidates
 };
