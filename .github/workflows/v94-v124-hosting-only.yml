@@ -57,7 +57,7 @@ jobs:
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
-      - name: Build single-site Hosting config
+      - name: Build repo-root single-site Hosting config
         shell: bash
         run: |
           set -euo pipefail
@@ -69,15 +69,16 @@ jobs:
             console.error(`Expected exactly one Hosting site ${process.env.SITE_ID}; found ${hosting.length}`);
             process.exit(1);
           }
-          const output = `${process.env.RUNNER_TEMP}/firebase-v124-hosting.json`;
+          const output = '.firebase-v124-hosting.json';
           fs.writeFileSync(output, JSON.stringify({ hosting }, null, 2));
           console.log(`V124_SINGLE_SITE_CONFIG=${output}`);
           NODE
-          test -z "$(grep -E '"'"'functions'"'"' "$RUNNER_TEMP/firebase-v124-hosting.json" || true)"
-          grep -Fq '"site": "fixgo-44e4d"' "$RUNNER_TEMP/firebase-v124-hosting.json"
+          test -z "$(grep -E '"'"'functions'"'"' .firebase-v124-hosting.json || true)"
+          grep -Fq '"site": "fixgo-44e4d"' .firebase-v124-hosting.json
+          test -f gestia-core/gestia-core.js
           echo "V124_HOSTING_ONLY_CONFIG=true"
 
-      - name: Deploy certified ADJUNTO Hosting only
+      - name: Deploy certified ADJUNTO Hosting only from repo root
         shell: bash
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
@@ -86,7 +87,7 @@ jobs:
           test -n "${FIREBASE_TOKEN:-}"
           firebase deploy \
             --only hosting \
-            --config "$RUNNER_TEMP/firebase-v124-hosting.json" \
+            --config .firebase-v124-hosting.json \
             --project "$PROJECT_ID" \
             --token "$FIREBASE_TOKEN" \
             2>&1 | tee v124-hosting.log
@@ -115,7 +116,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -f v124-hosting.log
+          rm -f v124-hosting.log .firebase-v124-hosting.json
           rm -f .github/workflows/v94-v124-hosting-only.yml
           git config user.name "heberzzt-wq"
           git config user.email "heberzzt@gmail.com"
