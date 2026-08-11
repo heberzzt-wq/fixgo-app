@@ -1,0 +1,80 @@
+name: v134-real-reel-production-gate-cert
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v134-real-reel-production-gate-cert.yml
+      - .github/workflows/v134-real-reel-production-gate-apply.yml
+      - .github/workflows/v134-real-reel-production-gate-apply-v2.yml
+      - .github/scripts/v134-real-reel-production-gate.py
+      - .github/scripts/v134-real-reel-production-gate-fixture.py
+      - gestia-core/jarvis/jarvis.mission.orchestrator.js
+      - gestia-core/nexo/nexo.real-media.tools.js
+      - nexo-web-media-bridge.js
+      - tests/jarvis-reel-real-production-v134.test.mjs
+      - tests/jarvis-reel-mission-fidelity-v133.test.mjs
+      - tests/jarvis-reel-researched-media-v132.test.mjs
+      - tests/jarvis-real-media-reel-hydration-v127.test.mjs
+      - tests/nexo-real-media-tools.test.mjs
+      - tests/single-semantic-authority.test.mjs
+
+permissions:
+  contents: read
+
+jobs:
+  certify-v134:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Functions test dependencies without modifying source
+        run: npm ci --prefix functions
+
+      - name: Guard branch and Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF_NAME}" = "v94-media-v4n-negative-claims"
+          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
+
+      - name: Focal v134
+        run: |
+          node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
+          node --check gestia-core/nexo/nexo.real-media.tools.js
+          node --check nexo-web-media-bridge.js
+          node --test \
+            tests/jarvis-reel-real-production-v134.test.mjs \
+            tests/jarvis-reel-mission-fidelity-v133.test.mjs \
+            tests/jarvis-reel-researched-media-v132.test.mjs \
+            tests/jarvis-real-media-reel-hydration-v127.test.mjs \
+            tests/nexo-real-media-tools.test.mjs \
+            tests/single-semantic-authority.test.mjs
+
+      - name: Full CI
+        run: npm run ci:test
+
+      - name: Reject whitespace errors
+        run: git diff --check
+
+      - name: Certification marker
+        run: |
+          echo "V134_REAL_REEL_PRODUCTION_GATE=true"
+          echo "V134_DUPLICATE_REEL_PLAN_BLOCKED=true"
+          echo "V134_REAL_MEDIA_DEPENDENCY=true"
+          echo "V134_TEXT_ONLY_REEL_CANNOT_COMPLETE=true"
+          echo "V134_FUNCTIONS_UNCHANGED=true"
