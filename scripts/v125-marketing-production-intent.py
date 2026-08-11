@@ -104,8 +104,27 @@ if terminal.count(old_terminal_import) != 1:
 terminal = terminal.replace(old_terminal_import, new_terminal_import, 1)
 terminal_path.write_text(terminal, encoding='utf-8')
 
+multifunction_test_path = ROOT / 'tests/jarvis-multifunction-tools.test.mjs'
+multifunction_test = multifunction_test_path.read_text(encoding='utf-8')
+old_tool_pack_version = '1.52.0-source-grounded-research-v124'
+new_tool_pack_version = '1.53.0-marketing-production-intent-v125'
+if multifunction_test.count(old_tool_pack_version) != 1:
+    raise SystemExit(f'V125_TOOL_PACK_EXPECTATION_COUNT:{multifunction_test.count(old_tool_pack_version)}')
+multifunction_test = multifunction_test.replace(old_tool_pack_version, new_tool_pack_version, 1)
+multifunction_test_path.write_text(multifunction_test, encoding='utf-8')
+
+memory_test_path = ROOT / 'tests/jarvis-semantic-memory-integrity.test.mjs'
+memory_test = memory_test_path.read_text(encoding='utf-8')
+old_runtime_expectation = 'tools\\.runtime\\.js\\?v=v94-source-grounded-research-v124-20260810'
+new_runtime_expectation = 'tools\\.runtime\\.js\\?v=v94-marketing-production-intent-v125-20260810'
+if memory_test.count(old_runtime_expectation) != 1:
+    raise SystemExit(f'V125_RUNTIME_EXPECTATION_COUNT:{memory_test.count(old_runtime_expectation)}')
+memory_test = memory_test.replace(old_runtime_expectation, new_runtime_expectation, 1)
+memory_test_path.write_text(memory_test, encoding='utf-8')
+
 test_path = ROOT / 'tests/jarvis-marketing-production-intent-v125.test.mjs'
 test_path.write_text('''import assert from "node:assert/strict";\nimport { test } from "node:test";\n\nimport {\n    resolveMarketingMissionProductionScope\n} from "../gestia-core/jarvis/jarvis.multitool.pack.js";\n\ntest("semantic marketing production intent survives an initial contract that only contains planning tools", () => {\n    const result = resolveMarketingMissionProductionScope(\n        {\n            productionRequested: true,\n            productionArtifacts: [{\n                id: "reel",\n                type: "reel",\n                toolName: "reel.create",\n                label: "Reel 9:16"\n            }]\n        },\n        {\n            requiredToolNames: [\n                "web.research",\n                "marketing.plan",\n                "reel.plan"\n            ]\n        }\n    );\n\n    assert.equal(result.productionRequested, true);\n    assert.deepEqual(\n        result.productionArtifacts.map(item => item.toolName),\n        ["reel.create"]\n    );\n});\n\ntest("planning-only semantic decision remains planning-only when no production actuator is contracted", () => {\n    const result = resolveMarketingMissionProductionScope(\n        {\n            productionRequested: false,\n            productionArtifacts: []\n        },\n        {\n            requiredToolNames: [\n                "web.research",\n                "marketing.plan",\n                "reel.plan"\n            ]\n        }\n    );\n\n    assert.equal(result.productionRequested, false);\n    assert.deepEqual(result.productionArtifacts, []);\n});\n\ntest("a contracted production actuator still forces production even when the semantic brief arrived incomplete", () => {\n    const result = resolveMarketingMissionProductionScope(\n        { productionRequested: false },\n        {\n            requiredToolNames: [\n                "marketing.plan",\n                "reel.create"\n            ]\n        }\n    );\n\n    assert.equal(result.productionRequested, true);\n    assert.deepEqual(\n        result.productionArtifacts.map(item => item.toolName),\n        ["reel.create"]\n    );\n});\n''', encoding='utf-8')
 
 print('V125_MARKETING_PRODUCTION_INTENT_PATCHED=true')
+print('V125_RUNTIME_EXPECTATIONS_UPDATED=true')
 print('V125_TEST_CREATED=' + str(test_path))
