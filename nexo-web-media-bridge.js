@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 import { registerArtifact } from "./jarvis-artifact-studio.js";
 
 export const NEXO_WEB_MEDIA_BRIDGE_VERSION =
-    "1.0.0-real-media-evidence";
+    "1.1.0-source-declared-cdn-v127";
 
 const MAX_HTML_BYTES = 2 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
@@ -25,6 +25,20 @@ const MIME_EXTENSIONS = Object.freeze({
     "video/webm": ".webm",
     "video/quicktime": ".mov"
 });
+
+const SOURCE_DECLARED_MEDIA_TAGS = new Set([
+    "img",
+    "video",
+    "video-poster",
+    "source",
+    "og:image",
+    "twitter:image",
+    "twitter:image:src",
+    "og:video",
+    "og:video:url",
+    "og:video:secure_url",
+    "twitter:player:stream"
+]);
 
 function safeStem(value = "media", maximum = 80) {
     return String(value || "media")
@@ -127,6 +141,11 @@ function hostAllowed(candidate, pageHost, allowedHosts = []) {
             .filter(Boolean)
     );
     return [...allowed].some(item => host === item || host.endsWith(`.${item}`));
+}
+
+function sourceDeclaredMediaCandidate(candidate = {}) {
+    const sourceTag = String(candidate?.sourceTag || "").trim().toLowerCase();
+    return SOURCE_DECLARED_MEDIA_TAGS.has(sourceTag);
 }
 
 async function fetchBounded(
@@ -330,7 +349,13 @@ export async function collectNexoRealWebMedia({
     });
     const html = pageResponse.bytes.toString("utf8");
     const discovered = mediaCandidates(html, pageResponse.url)
-        .filter(item => hostAllowed(new URL(item.url).hostname, page.hostname, allowedHosts));
+        .filter(item => {
+            const mediaHost = new URL(item.url).hostname;
+            return (
+                hostAllowed(mediaHost, page.hostname, allowedHosts) ||
+                sourceDeclaredMediaCandidate(item)
+            );
+        });
     const limits = {
         image: Math.max(0, Math.min(30, Number(maxImages) || 0)),
         video: Math.max(0, Math.min(10, Number(maxVideos) || 0))
@@ -389,13 +414,18 @@ export async function collectNexoRealWebMedia({
                     downloadable: true,
                     publishable: false,
                     originalFile: fetched.url,
-                    transformations: [{ type: "verbatim_download", sha256: digest }]
+                    transformations: [{
+                        type: "verbatim_download",
+                        sha256: digest,
+                        sourceDeclared: sourceDeclaredMediaCandidate(candidate)
+                    }]
                 }
             });
             assets.push({
                 kind: candidate.kind,
                 sourceUrl: fetched.url,
                 sourceTag: candidate.sourceTag,
+                sourceDeclared: sourceDeclaredMediaCandidate(candidate),
                 alt: candidate.alt,
                 output,
                 mimeType: actualMimeType,
@@ -407,6 +437,8 @@ export async function collectNexoRealWebMedia({
             skipped.push({
                 kind: candidate.kind,
                 sourceUrl: candidate.url,
+                sourceTag: candidate.sourceTag,
+                sourceDeclared: sourceDeclaredMediaCandidate(candidate),
                 reason: error?.message || String(error)
             });
         }
@@ -521,6 +553,7 @@ export const __test = {
     safeStem,
     isPrivateAddress,
     hostAllowed,
+    sourceDeclaredMediaCandidate,
     mediaCandidates,
     detectedMime
 };
