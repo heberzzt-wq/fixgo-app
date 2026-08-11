@@ -403,10 +403,22 @@ function unwrapObservationPayload(
             continue;
         }
 
+        const currentStatus =
+            text(
+                current?.status,
+                120
+            )
+                .toUpperCase();
+        const outerFailureEnvelope =
+            depth === 0 &&
+            isFailureStatus(
+                currentStatus
+            );
         if (
             !genericRuntimeEnvelopeStatus(
-                current?.status
-            )
+                currentStatus
+            ) &&
+            !outerFailureEnvelope
         ) {
             break;
         }
