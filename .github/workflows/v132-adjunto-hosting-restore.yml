@@ -38,6 +38,7 @@ jobs:
           grep -Fq '<title>Terminal Heberto | ADJUNTO</title>' gestia-terminal.html
           echo "ADJUNTO_WEB_ROOT=$(pwd)"
           echo "ADJUNTO_TRACKED_FILES=$(git ls-files | wc -l)"
+          echo "ADJUNTO_LOCAL_HTML_SHA256=$(sha256sum gestia-terminal.html | awk '{print $1}')"
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -78,15 +79,24 @@ jobs:
             --project fixgo-44e4d \
             --token "$FIREBASE_TOKEN"
 
-      - name: Verify live ADJUNTO route
+      - name: Verify live ADJUNTO route and exact HTML
         shell: bash
         run: |
           set -euo pipefail
+          live_file="$RUNNER_TEMP/gestia-terminal-live.html"
           for attempt in 1 2 3 4 5 6; do
-            body="$(curl -fsS --retry 2 --retry-delay 2 'https://fixgo-44e4d.web.app/gestia-terminal.html' || true)"
-            if printf '%s' "$body" | grep -Fq '<title>Terminal Heberto | ADJUNTO</title>'; then
-              echo "ADJUNTO_LIVE_ROUTE_VERIFIED=true"
-              exit 0
+            rm -f "$live_file"
+            if curl -fsS --retry 2 --retry-delay 2 \
+              -H 'Cache-Control: no-cache' \
+              'https://fixgo-44e4d.web.app/gestia-terminal.html' \
+              -o "$live_file"; then
+              if grep -Fq '<title>Terminal Heberto | ADJUNTO</title>' "$live_file" && cmp -s gestia-terminal.html "$live_file"; then
+                echo "ADJUNTO_LIVE_ROUTE_VERIFIED=true"
+                echo "ADJUNTO_LIVE_HTML_EXACT_MATCH=true"
+                echo "ADJUNTO_LIVE_HTML_SHA256=$(sha256sum "$live_file" | awk '{print $1}')"
+                exit 0
+              fi
+              echo "attempt=$attempt live_sha256=$(sha256sum "$live_file" | awk '{print $1}') bytes=$(wc -c < "$live_file")"
             fi
             sleep 5
           done
