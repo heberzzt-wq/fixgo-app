@@ -13,7 +13,7 @@ permissions:
 jobs:
   probe-tiktok-media:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 18
     steps:
       - name: Checkout isolated branch
         uses: actions/checkout@v4
@@ -38,7 +38,7 @@ jobs:
           echo "path=$CHROME" >> "$GITHUB_OUTPUT"
           "$CHROME" --version
 
-      - name: Render exact Taquería El Dorado TikTok source
+      - name: Render exact Taquería El Dorado TikTok profile
         shell: bash
         env:
           CHROME: ${{ steps.chrome.outputs.path }}
@@ -53,40 +53,101 @@ jobs:
             --virtual-time-budget=12000 \
             --dump-dom \
             'https://www.tiktok.com/@taqueria.eldorado' \
-            > "$RUNNER_TEMP/tiktok-rendered.html" 2> "$RUNNER_TEMP/chrome.stderr" || true
-          test -s "$RUNNER_TEMP/tiktok-rendered.html"
-          echo "RENDERED_BYTES=$(wc -c < "$RUNNER_TEMP/tiktok-rendered.html")"
+            > "$RUNNER_TEMP/tiktok-profile.html" 2> "$RUNNER_TEMP/chrome-profile.stderr" || true
+          test -s "$RUNNER_TEMP/tiktok-profile.html"
+          echo "PROFILE_RENDERED_BYTES=$(wc -c < "$RUNNER_TEMP/tiktok-profile.html")"
 
-      - name: Inspect rendered DOM media without downloading it
+      - name: Extract public post links from rendered profile
         shell: bash
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
+          const html = fs.readFileSync(process.env.RUNNER_TEMP + '/tiktok-profile.html', 'utf8');
+          const matches = [...html.matchAll(/href=["']([^"']*\/video\/\d+[^"']*)["']/gi)];
+          const urls = [];
+          const seen = new Set();
+          for (const match of matches) {
+            try {
+              const url = new URL(match[1], 'https://www.tiktok.com/@taqueria.eldorado');
+              url.hash = '';
+              if (url.protocol !== 'https:' || !url.hostname.endsWith('tiktok.com')) continue;
+              if (!url.pathname.includes('/@taqueria.eldorado/video/')) continue;
+              const normalized = url.toString();
+              if (!seen.has(normalized)) {
+                seen.add(normalized);
+                urls.push(normalized);
+              }
+            } catch {}
+            if (urls.length >= 5) break;
+          }
+          fs.writeFileSync(process.env.RUNNER_TEMP + '/tiktok-posts.txt', urls.join('\n') + (urls.length ? '\n' : ''));
+          console.log('TIKTOK_PUBLIC_POST_LINKS', JSON.stringify({ count: urls.length, urls }, null, 2));
+          if (urls.length === 0) process.exitCode = 2;
+          NODE
+
+      - name: Render first public posts
+        shell: bash
+        env:
+          CHROME: ${{ steps.chrome.outputs.path }}
+        run: |
+          set -euo pipefail
+          index=0
+          while IFS= read -r url; do
+            test -n "$url" || continue
+            index=$((index+1))
+            "$CHROME" \
+              --headless=new \
+              --no-sandbox \
+              --disable-gpu \
+              --disable-dev-shm-usage \
+              --autoplay-policy=no-user-gesture-required \
+              --virtual-time-budget=10000 \
+              --dump-dom \
+              "$url" \
+              > "$RUNNER_TEMP/tiktok-post-$index.html" 2> "$RUNNER_TEMP/chrome-post-$index.stderr" || true
+            echo "POST_${index}_BYTES=$(wc -c < "$RUNNER_TEMP/tiktok-post-$index.html")"
+            test "$index" -ge 3 && break
+          done < "$RUNNER_TEMP/tiktok-posts.txt"
+
+      - name: Inspect rendered post media without downloading it
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
           import { __test as webMediaTest } from './nexo-web-media-bridge.js';
-          const html = fs.readFileSync(process.env.RUNNER_TEMP + '/tiktok-rendered.html', 'utf8');
-          const base = 'https://www.tiktok.com/@taqueria.eldorado';
-          const candidates = webMediaTest.mediaCandidates(html, base);
-          const images = candidates.filter(item => item.kind === 'image');
-          const videos = candidates.filter(item => item.kind === 'video');
-          const challengeSignals = [
-            'captcha',
-            'verify to continue',
-            'security verification',
-            'access denied',
-            'unusual traffic'
-          ].filter(term => html.toLowerCase().includes(term));
-          console.log('TIKTOK_RENDERED_DOM_PROBE', JSON.stringify({
-            htmlBytes: Buffer.byteLength(html),
-            counts: { images: images.length, videos: videos.length, total: candidates.length },
-            challengeSignals,
-            samples: candidates.slice(0, 12).map(item => ({
-              kind: item.kind,
-              sourceTag: item.sourceTag,
-              mediaRole: item.mediaRole,
-              host: new URL(item.url).hostname,
-              path: new URL(item.url).pathname.slice(0, 180)
-            }))
+          const postUrls = fs.readFileSync(process.env.RUNNER_TEMP + '/tiktok-posts.txt', 'utf8').split(/\r?\n/).filter(Boolean).slice(0, 3);
+          const results = [];
+          let totalVideos = 0;
+          let totalImages = 0;
+          for (let index = 0; index < postUrls.length; index += 1) {
+            const file = path.join(process.env.RUNNER_TEMP, `tiktok-post-${index + 1}.html`);
+            const html = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+            const candidates = html ? webMediaTest.mediaCandidates(html, postUrls[index]) : [];
+            const videos = candidates.filter(item => item.kind === 'video');
+            const images = candidates.filter(item => item.kind === 'image');
+            totalVideos += videos.length;
+            totalImages += images.length;
+            results.push({
+              postUrl: postUrls[index],
+              htmlBytes: Buffer.byteLength(html),
+              challenge: html.toLowerCase().includes('captcha'),
+              counts: { images: images.length, videos: videos.length, total: candidates.length },
+              samples: candidates.slice(0, 8).map(item => ({
+                kind: item.kind,
+                sourceTag: item.sourceTag,
+                host: new URL(item.url).hostname,
+                path: new URL(item.url).pathname.slice(0, 180)
+              }))
+            });
+          }
+          console.log('TIKTOK_PUBLIC_POST_MEDIA_PROBE', JSON.stringify({
+            postsInspected: results.length,
+            totalImages,
+            totalVideos,
+            results
           }, null, 2));
-          if (candidates.length === 0) process.exitCode = 2;
+          if (totalVideos === 0) process.exitCode = 2;
           NODE
