@@ -31,25 +31,37 @@ jobs:
             exit 1
           fi
 
-      - name: Apply exact certification-only patch
-        run: python .github/scripts/v131-reel-semantic-media-binding-cert-close.py
+      - name: Fix the single stale health-version expectation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('tests/jarvis-multifunction-tools.test.mjs')
+          source = path.read_text(encoding='utf-8')
+          old = '"1.54.0-marketing-actuator-bridge-v126"'
+          new = '"1.55.0-reel-semantic-media-binding-v131"'
+          count = source.count(old)
+          if count != 1:
+              raise SystemExit(f'V131_STALE_HEALTH_VERSION_MATCH_COUNT={count}')
+          path.write_text(source.replace(old, new, 1), encoding='utf-8')
+          print('V131_STALE_HEALTH_VERSION_FIXED=true')
+          PY
 
       - name: Verify exact scope and whitespace
         shell: bash
         run: |
           set -euo pipefail
           git diff --check
-          changed="$(git diff --name-only | sort)"
-          expected="$(printf '%s\n' '.github/workflows/v131-reel-semantic-media-binding-cert.yml' 'tests/jarvis-multifunction-tools.test.mjs' | sort)"
-          test "${changed}" = "${expected}"
+          test "$(git diff --name-only)" = "tests/jarvis-multifunction-tools.test.mjs"
           ! git diff --name-only | grep -E '^functions/'
 
-      - name: Commit and push certification closure
+      - name: Commit and push test-only closure
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/workflows/v131-reel-semantic-media-binding-cert.yml tests/jarvis-multifunction-tools.test.mjs
-          git commit -m "[v131] test: align health version and certification scope"
+          git add tests/jarvis-multifunction-tools.test.mjs
+          git commit -m "[v131] test: align health version expectation"
           git push origin HEAD:v94-media-v4n-negative-claims
