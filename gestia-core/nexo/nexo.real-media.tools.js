@@ -3,10 +3,9 @@ import {
 } from "../jarvis/jarvis.marketing.engine.js?v=v94-source-grounded-research-v124-20260810";
 
 export const NEXO_REAL_MEDIA_TOOLS_VERSION =
-    "1.2.0-source-grounded-research-v124";
+    "1.3.0-real-media-reel-hydration-v127";
 
 const INSTALL_KEY = "__NEXO_REAL_MEDIA_TOOLS__";
-
 
 const MARKETING_REQUIRED_FIELDS = Object.freeze([
     "audience", "offer", "pain", "promise", "differentiator", "cta",
@@ -96,8 +95,16 @@ function instructionFrom(args = {}, context = {}) {
     ).trim();
 }
 
+function missionTasks(context = {}) {
+    return [
+        ...(Array.isArray(context.completedTasks) ? context.completedTasks : []),
+        ...(Array.isArray(context.blockedTasks) ? context.blockedTasks : [])
+    ];
+}
+
 function completedTask(context = {}, name = "") {
-    return (Array.isArray(context.completedTasks) ? context.completedTasks : [])
+    return [...missionTasks(context)]
+        .reverse()
         .find(task => String(task?.name || "") === name) ||
         null;
 }
@@ -110,7 +117,9 @@ function collectorEvidence(context = {}) {
         null;
     const assets = Array.isArray(evidence?.mediaAssets)
         ? evidence.mediaAssets
-        : [];
+        : Array.isArray(task?.observation?.mediaAssets)
+            ? task.observation.mediaAssets
+            : [];
     return {
         task,
         evidence,
@@ -123,6 +132,108 @@ function collectorEvidence(context = {}) {
 function marketingEvidence(context = {}) {
     const task = completedTask(context, "marketing.plan");
     return task?.observation?.evidence || task?.observation || null;
+}
+
+function verifiedCollectorAsset(asset = {}) {
+    const kind = String(asset?.kind || "").trim().toLowerCase();
+    const output = String(asset?.output || "").trim().replaceAll("\\", "/");
+    const mimeType = String(asset?.mimeType || "").trim().toLowerCase();
+    const sha256 = String(asset?.sha256 || "").trim().toLowerCase();
+    const bytes = Number(asset?.bytes || 0);
+    const hashValid =
+        sha256.length === 64 &&
+        [...sha256].every(character =>
+            (character >= "0" && character <= "9") ||
+            (character >= "a" && character <= "f")
+        );
+    return (
+        ["image", "video"].includes(kind) &&
+        output.startsWith(".jarvis-artifacts/web-media/") &&
+        !output.includes("../") &&
+        mimeType.startsWith(`${kind}/`) &&
+        Number.isFinite(bytes) &&
+        bytes > 0 &&
+        hashValid
+    )
+        ? {
+            kind,
+            output,
+            mimeType,
+            bytes,
+            sha256,
+            sourceUrl: String(asset?.sourceUrl || "").trim(),
+            sourceTag: String(asset?.sourceTag || "").trim(),
+            alt: String(asset?.alt || "").trim()
+        }
+        : null;
+}
+
+function hydrateReelArgsWithCollectorMedia(args = {}, context = {}) {
+    const current =
+        args && typeof args === "object" && !Array.isArray(args)
+            ? { ...args }
+            : {};
+    const scenes = Array.isArray(current.scenes)
+        ? current.scenes.map(scene =>
+            scene && typeof scene === "object" && !Array.isArray(scene)
+                ? { ...scene }
+                : scene
+        )
+        : [];
+    const verifiedAssets = collectorEvidence(context)
+        .assets
+        .map(verifiedCollectorAsset)
+        .filter(Boolean);
+
+    if (scenes.length === 0 || verifiedAssets.length === 0) {
+        return {
+            args: current,
+            hydrated: false,
+            assetCount: 0,
+            sceneCount: scenes.length,
+            assets: []
+        };
+    }
+
+    const orderedAssets = [
+        ...verifiedAssets.filter(asset => asset.kind === "video"),
+        ...verifiedAssets.filter(asset => asset.kind === "image")
+    ];
+    let assigned = 0;
+    const hydratedScenes = scenes.map((scene, index) => {
+        if (!scene || typeof scene !== "object" || Array.isArray(scene)) return scene;
+        const hasExplicitMedia = Boolean(
+            String(scene.assetOutput || "").trim() ||
+            String(scene.assetDataUrl || "").trim() ||
+            String(scene.mediaUrl || "").trim()
+        );
+        if (hasExplicitMedia) return scene;
+        const asset = orderedAssets[index % orderedAssets.length];
+        if (!asset) return scene;
+        assigned += 1;
+        return {
+            ...scene,
+            assetOutput: asset.output,
+            mediaType: asset.kind,
+            sourceMedia: {
+                origin: "web.media.collect",
+                sourceUrl: asset.sourceUrl || null,
+                sha256: asset.sha256,
+                mimeType: asset.mimeType
+            }
+        };
+    });
+
+    return {
+        args: {
+            ...current,
+            scenes: hydratedScenes
+        },
+        hydrated: assigned > 0,
+        assetCount: orderedAssets.length,
+        sceneCount: assigned,
+        assets: orderedAssets
+    };
 }
 
 function slug(value = "nexo-campaign") {
@@ -157,6 +268,8 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
 
     const canonicalMarketingDefinition =
         previousDefinition(runtime, "marketing.plan");
+    const canonicalReelDefinition =
+        previousDefinition(runtime, "reel.create");
 
     registerOrReplace(runtime, {
         name: "marketing.plan",
@@ -196,6 +309,43 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
             };
         }
     });
+
+    if (typeof canonicalReelDefinition?.execute === "function") {
+        registerOrReplace(runtime, {
+            name: "reel.create",
+            description:
+                "Crea un reel 9:16 local y reutiliza automáticamente los medios reales verificados de la misma misión cuando el plan no haya asignado material visual explícito. No inventa logotipos ni sustituye medios ya elegidos.",
+            execute: async (args = {}, context = {}) => {
+                const hydration =
+                    hydrateReelArgsWithCollectorMedia(args, context);
+                const result =
+                    await canonicalReelDefinition.execute(
+                        hydration.args,
+                        context
+                    );
+                return {
+                    ...result,
+                    mediaHydration: {
+                        hydrated: hydration.hydrated,
+                        verifiedAssetCount: hydration.assetCount,
+                        hydratedSceneCount: hydration.sceneCount,
+                        source: hydration.hydrated
+                            ? "web.media.collect"
+                            : null
+                    },
+                    missionExecution: {
+                        args: hydration.args,
+                        mediaHydration: {
+                            hydrated: hydration.hydrated,
+                            verifiedAssetCount: hydration.assetCount,
+                            hydratedSceneCount: hydration.sceneCount
+                        }
+                    },
+                    runtimeOverride: NEXO_REAL_MEDIA_TOOLS_VERSION
+                };
+            }
+        });
+    }
 
     registerOrReplace(runtime, {
         name: "web.media.collect",
@@ -353,7 +503,8 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
         tools: [
             "marketing.plan",
             "web.media.collect",
-            "marketing.package.real-media"
+            "marketing.package.real-media",
+            ...(typeof canonicalReelDefinition?.execute === "function" ? ["reel.create"] : [])
         ],
         installedAt: new Date().toISOString()
     };
@@ -378,7 +529,10 @@ export function installNexoRealMediaTools({ maximumAttempts = 120, intervalMs = 
         const attempt = () => {
             attempts += 1;
             const runtime = runtimeCandidate();
-            if (runtime?.has?.("marketing.plan")) {
+            if (
+                runtime?.has?.("marketing.plan") &&
+                runtime?.has?.("reel.create")
+            ) {
                 resolve(registerNexoRealMediaTools(runtime));
                 return;
             }
@@ -405,5 +559,7 @@ export const __test = {
     completedTask,
     collectorEvidence,
     marketingEvidence,
+    verifiedCollectorAsset,
+    hydrateReelArgsWithCollectorMedia,
     slug
 };
