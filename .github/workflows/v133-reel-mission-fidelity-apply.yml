@@ -38,6 +38,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Align patcher with current trustedCalls formatting
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('.github/scripts/v133-reel-mission-fidelity.py')
+          source = path.read_text(encoding='utf-8')
+          old = '].map(item => item.name));'
+          if old not in source:
+              raise SystemExit('V133_PATCHER_TRUSTED_CALLS_TEMPLATE_NOT_FOUND')
+          source = source.replace(old, '].map(item => item?.name).filter(Boolean));')
+          path.write_text(source, encoding='utf-8')
+          PY
+
       - name: Apply v133 patch
         run: python .github/scripts/v133-reel-mission-fidelity.py
 
