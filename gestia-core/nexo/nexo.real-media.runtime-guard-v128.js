@@ -1,5 +1,5 @@
 export const NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION =
-    "1.0.0-real-media-runtime-authority-v128";
+    "1.1.0-brand-role-audio-authority-v130";
 
 const INSTALL_KEY = "__NEXO_REAL_MEDIA_RUNTIME_GUARD_V128__";
 const CACHE_KEY = "__NEXO_REAL_MEDIA_MISSION_CACHE_V128__";
@@ -66,6 +66,7 @@ function verifiedAsset(asset = {}) {
         sha256,
         sourceUrl: String(asset?.sourceUrl || "").trim(),
         sourceTag: String(asset?.sourceTag || "").trim(),
+        mediaRole: String(asset?.mediaRole || "").trim() === "brand_logo" ? "brand_logo" : "scene",
         alt: String(asset?.alt || "").trim()
     };
 }
@@ -94,6 +95,79 @@ function dedupeAssets(assets = []) {
         seen.add(key);
         return true;
     });
+}
+
+function attachmentManifest(context = {}) {
+    const marker = "Archivos adjuntos reales entregados por el usuario:";
+    const source = String(context?.rawInput || "");
+    const markerIndex = source.indexOf(marker);
+    if (markerIndex < 0) return [];
+    try {
+        const attachments = JSON.parse(source.slice(markerIndex + marker.length).trim());
+        return Array.isArray(attachments) ? attachments.slice(0, 30) : [];
+    } catch {
+        return [];
+    }
+}
+
+function verifiedAudioAttachment(attachment = {}) {
+    const output = String(attachment?.artifact || attachment?.output || "").trim().replaceAll("\\", "/");
+    const mimeType = String(attachment?.mimeType || "").trim().toLowerCase();
+    const sha256 = String(attachment?.sha256 || "").trim().toLowerCase();
+    const bytes = Number(attachment?.bytes || attachment?.size || 0);
+    const hashValid = sha256.length === 64 && [...sha256].every(character =>
+        (character >= "0" && character <= "9") ||
+        (character >= "a" && character <= "f")
+    );
+    if (
+        !output.startsWith(".jarvis-artifacts/uploads/") ||
+        output.includes("../") ||
+        !mimeType.startsWith("audio/") ||
+        !Number.isFinite(bytes) ||
+        bytes <= 0 ||
+        !hashValid
+    ) return null;
+    return { output, mimeType, sha256, bytes };
+}
+
+function hydrateReelAudioArgs(args = {}, context = {}) {
+    const current = args && typeof args === "object" && !Array.isArray(args) ? { ...args } : {};
+    const explicit = Boolean(
+        String(current.audioOutput || "").trim() ||
+        String(current.audioDataUrl || "").trim() ||
+        String(current.audioUrl || "").trim()
+    );
+    if (explicit) {
+        return { args: current, hydrated: false, ambiguous: false, candidateCount: 0, source: "explicit" };
+    }
+    const candidates = attachmentManifest(context)
+        .map(verifiedAudioAttachment)
+        .filter(Boolean)
+        .filter((item, index, list) => list.findIndex(candidate => candidate.output === item.output) === index);
+    if (candidates.length > 1) {
+        return { args: current, hydrated: false, ambiguous: true, candidateCount: candidates.length, source: "user_attachment" };
+    }
+    if (candidates.length === 1) {
+        return {
+            args: { ...current, audioOutput: candidates[0].output },
+            hydrated: true,
+            ambiguous: false,
+            candidateCount: 1,
+            source: "user_attachment",
+            output: candidates[0].output
+        };
+    }
+    return { args: current, hydrated: false, ambiguous: false, candidateCount: 0, source: null };
+}
+
+function hasExplicitSceneMedia(args = {}) {
+    return (Array.isArray(args?.scenes) ? args.scenes : []).some(scene =>
+        scene && typeof scene === "object" && (
+            String(scene.assetOutput || "").trim() ||
+            String(scene.assetDataUrl || "").trim() ||
+            String(scene.mediaUrl || "").trim()
+        )
+    );
 }
 
 function missionTasks(context = {}) {
@@ -185,29 +259,35 @@ function rememberCollection(args = {}, context = {}, result = {}) {
 }
 
 function hydrateReelArgs(args = {}, assets = []) {
-    const current = args && typeof args === "object" && !Array.isArray(args)
-        ? { ...args }
-        : {};
+    const current = args && typeof args === "object" && !Array.isArray(args) ? { ...args } : {};
     const scenes = Array.isArray(current.scenes)
-        ? current.scenes.map(scene =>
-            scene && typeof scene === "object" && !Array.isArray(scene)
-                ? { ...scene }
-                : scene
-        )
+        ? current.scenes.map(scene => scene && typeof scene === "object" && !Array.isArray(scene) ? { ...scene } : scene)
         : [];
     const verified = dedupeAssets(assets.map(verifiedAsset).filter(Boolean));
-    if (scenes.length === 0 || verified.length === 0) {
+    const logoAssets = verified.filter(asset => asset.kind === "image" && asset.mediaRole === "brand_logo");
+    const sceneAssets = verified.filter(asset => asset.mediaRole !== "brand_logo");
+    const ordered = [
+        ...sceneAssets.filter(asset => asset.kind === "video"),
+        ...sceneAssets.filter(asset => asset.kind === "image")
+    ];
+    const explicitLogo = Boolean(
+        String(current.logoOutput || "").trim() ||
+        String(current.logoDataUrl || "").trim() ||
+        String(current.logoUrl || "").trim()
+    );
+    const logoAsset = !explicitLogo ? logoAssets[0] || null : null;
+    const baseArgs = logoAsset ? { ...current, logoOutput: logoAsset.output } : current;
+    if (scenes.length === 0 || ordered.length === 0) {
         return {
-            args: current,
-            hydrated: false,
+            args: baseArgs,
+            hydrated: Boolean(logoAsset),
             verifiedAssetCount: verified.length,
-            hydratedSceneCount: 0
+            verifiedSceneAssetCount: ordered.length,
+            verifiedLogoAssetCount: logoAssets.length,
+            hydratedSceneCount: 0,
+            logoHydrated: Boolean(logoAsset)
         };
     }
-    const ordered = [
-        ...verified.filter(asset => asset.kind === "video"),
-        ...verified.filter(asset => asset.kind === "image")
-    ];
     let assigned = 0;
     const hydratedScenes = scenes.map((scene, index) => {
         if (!scene || typeof scene !== "object" || Array.isArray(scene)) return scene;
@@ -228,15 +308,19 @@ function hydrateReelArgs(args = {}, assets = []) {
                 origin: "web.media.collect",
                 sourceUrl: asset.sourceUrl || null,
                 mimeType: asset.mimeType,
-                sha256: asset.sha256
+                sha256: asset.sha256,
+                mediaRole: asset.mediaRole
             }
         };
     });
     return {
-        args: { ...current, scenes: hydratedScenes },
-        hydrated: assigned > 0,
-        verifiedAssetCount: ordered.length,
-        hydratedSceneCount: assigned
+        args: { ...baseArgs, scenes: hydratedScenes },
+        hydrated: assigned > 0 || Boolean(logoAsset),
+        verifiedAssetCount: verified.length,
+        verifiedSceneAssetCount: ordered.length,
+        verifiedLogoAssetCount: logoAssets.length,
+        hydratedSceneCount: assigned,
+        logoHydrated: Boolean(logoAsset)
     };
 }
 
@@ -273,8 +357,28 @@ export function registerNexoRealMediaRuntimeGuard(runtime = runtimeCandidate()) 
         ...reelDefinition,
         version: NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION,
         execute: async (args = {}, context = {}) => {
-            const media = availableMediaState(args, context);
-            if (media.attempted && media.assets.length === 0) {
+            const audioHydration = hydrateReelAudioArgs(args, context);
+            if (audioHydration.ambiguous) {
+                return {
+                    ok: false,
+                    executionOk: true,
+                    objectiveSatisfied: false,
+                    blocked: true,
+                    requiresInput: true,
+                    retryable: false,
+                    status: "REEL_AUDIO_SELECTION_REQUIRED",
+                    error: "MULTIPLE_AUDIO_ATTACHMENTS_REQUIRE_SELECTION",
+                    message: "Hay más de un audio adjunto verificable. La producción se detuvo para no elegir una pista arbitrariamente.",
+                    audioHydration,
+                    runtimeMediaAuthority: NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION
+                };
+            }
+            const media = availableMediaState(audioHydration.args, context);
+            const verifiedSceneAssetCount = media.assets
+                .map(verifiedAsset)
+                .filter(asset => asset && asset.mediaRole !== "brand_logo")
+                .length;
+            if (media.attempted && verifiedSceneAssetCount === 0 && !hasExplicitSceneMedia(audioHydration.args)) {
                 return {
                     ok: false,
                     executionOk: true,
@@ -283,12 +387,13 @@ export function registerNexoRealMediaRuntimeGuard(runtime = runtimeCandidate()) 
                     requiresInput: false,
                     retryable: false,
                     status: "REEL_REAL_MEDIA_UNAVAILABLE",
-                    error: "WEB_MEDIA_COLLECT_RETURNED_NO_VERIFIED_MEDIA",
+                    error: "WEB_MEDIA_COLLECT_RETURNED_NO_VERIFIED_SCENE_MEDIA",
                     message:
-                        "web.media.collect se ejecutó, pero no entregó imágenes o videos verificables. Se bloqueó la plantilla genérica para no presentarla como un reel con identidad real.",
+                        "web.media.collect se ejecutó, pero no entregó imágenes o videos verificables para escenas. Un logo declarado no se reutiliza como fondo genérico.",
                     mediaHydration: {
                         hydrated: false,
-                        verifiedAssetCount: 0,
+                        verifiedAssetCount: media.assets.length,
+                        verifiedSceneAssetCount,
                         hydratedSceneCount: 0,
                         source: "web.media.collect"
                     },
@@ -296,7 +401,7 @@ export function registerNexoRealMediaRuntimeGuard(runtime = runtimeCandidate()) 
                 };
             }
 
-            const hydration = hydrateReelArgs(args, media.assets);
+            const hydration = hydrateReelArgs(audioHydration.args, media.assets);
             const result = await reelDefinition.execute(hydration.args, context);
             const checks =
                 result?.checks ||
@@ -327,6 +432,13 @@ export function registerNexoRealMediaRuntimeGuard(runtime = runtimeCandidate()) 
             }
             return {
                 ...result,
+                audioHydration: {
+                    ...(result?.audioHydration || {}),
+                    hydrated: audioHydration.hydrated,
+                    candidateCount: audioHydration.candidateCount,
+                    source: audioHydration.source,
+                    output: audioHydration.output || null
+                },
                 mediaHydration: {
                     ...(result?.mediaHydration || {}),
                     hydrated: hydration.hydrated || result?.mediaHydration?.hydrated === true,
@@ -334,10 +446,13 @@ export function registerNexoRealMediaRuntimeGuard(runtime = runtimeCandidate()) 
                         hydration.verifiedAssetCount,
                         Number(result?.mediaHydration?.verifiedAssetCount || 0)
                     ),
+                    verifiedSceneAssetCount: hydration.verifiedSceneAssetCount,
+                    verifiedLogoAssetCount: hydration.verifiedLogoAssetCount,
                     hydratedSceneCount: Math.max(
                         hydration.hydratedSceneCount,
                         Number(result?.mediaHydration?.hydratedSceneCount || 0)
                     ),
+                    logoHydrated: hydration.logoHydrated,
                     source:
                         hydration.hydrated || result?.mediaHydration?.hydrated === true
                             ? "web.media.collect"
@@ -415,5 +530,9 @@ export const __test = {
     dedupeAssets,
     missionKeys,
     taskMediaState,
+    attachmentManifest,
+    verifiedAudioAttachment,
+    hydrateReelAudioArgs,
+    hasExplicitSceneMedia,
     hydrateReelArgs
 };

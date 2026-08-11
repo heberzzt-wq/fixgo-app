@@ -22,7 +22,7 @@ function temporaryRoot() {
 
 async function startFixture() {
     const server = http.createServer((req, res) => {
-        if (req.url === "/photo.jpg") {
+        if (req.url === "/photo.jpg" || req.url === "/logo.jpg") {
             res.writeHead(200, { "Content-Type": "image/jpeg", "Content-Length": jpeg.length });
             return res.end(jpeg);
         }
@@ -34,6 +34,7 @@ async function startFixture() {
         const html = [
             "<!doctype html><html><head>",
             '<meta property="og:image" content="/photo.jpg">',
+            '<script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","logo":"/logo.jpg"}</script>',
             includeVideo ? '<meta property="og:video" content="/clip.mp4">' : "",
             "</head><body>",
             '<img src="/photo.jpg" alt="Trabajo real">',
@@ -71,6 +72,9 @@ test("collector persists verified real JPEG and MP4 bytes with SHA-256", async t
     assert.equal(result.counts.videos >= 1, true);
     assert.equal(result.mediaAssets.every(asset => /^[a-f0-9]{64}$/.test(asset.sha256)), true);
     assert.equal(result.mediaAssets.every(asset => fs.existsSync(path.join(root, asset.output))), true);
+    const logo = result.mediaAssets.find(asset => asset.mediaRole === "brand_logo");
+    assert.equal(Boolean(logo), true);
+    assert.equal(logo.sourceTag, "jsonld:logo");
     assert.equal(fs.existsSync(path.join(root, result.output)), true);
     const manifest = JSON.parse(fs.readFileSync(path.join(root, result.output), "utf8"));
     assert.equal(manifest.requirementsMet, true);
@@ -105,4 +109,17 @@ test("collector blocks localhost and private addresses outside explicit test mod
     );
     assert.equal(__test.isPrivateAddress("127.0.0.1"), true);
     assert.equal(__test.isPrivateAddress("8.8.8.8"), false);
+});
+
+
+test("v130 structured logo metadata outranks a duplicate generic image declaration", () => {
+    const html = [
+        '<img src="/logo.jpg" alt="Marca">',
+        '<script type="application/ld+json">{"@type":"Organization","logo":"/logo.jpg"}</script>'
+    ].join("");
+    const candidates = __test.mediaCandidates(html, "https://source.example/page");
+    const logo = candidates.find(item => item.url === "https://source.example/logo.jpg");
+    assert.equal(logo.mediaRole, "brand_logo");
+    assert.equal(logo.sourceTag, "jsonld:logo");
+    assert.equal(__test.sourceDeclaredMediaCandidate(logo), true);
 });

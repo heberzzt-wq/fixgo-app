@@ -82,6 +82,10 @@ test("v129 reel quality gate requires loaded media and executes production direc
     assert.match(html, /local%sourceDuration/);
     assert.match(html, /scene\.mediaUrl\.startsWith\('https:'\)/);
     assert.match(html, /qualityGatePassed/);
+    assert.match(html, /async function ensureAudioGraph/);
+    assert.match(html, /source_video_audio_route/);
+    assert.match(html, /mode=audio\?'explicit_audio'/);
+    assert.match(html, /attachExportAudioTracks/);
     assert.doesNotMatch(html, /scene\.subtitle\|\|scene\.visualDescription/);
     assert.equal(report.checks.mediaReadinessGate, true);
     assert.equal(report.checks.effectiveTransitions, true);
@@ -112,4 +116,7 @@ test("reel creation is approval-bound and connected to the local artifact bridge
     assert.match(actuator, /REEL_VIDEO_CREATED_VERIFIED/);
     assert.match(bridge, /exportReelWebmWithChrome/);
     assert.match(bridge, /REEL_WEBM_SHA256_MISMATCH/);
+    assert.match(bridge, /audioMixMode/);
+    assert.match(bridge, /audioTracksAdded/);
+    assert.match(actuator, /audioGraphAvailable/);
 });

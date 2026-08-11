@@ -17,6 +17,17 @@ const verifiedImage = {
     sourceTag: "og:image"
 };
 
+const verifiedLogo = {
+    kind: "image",
+    output: ".jarvis-artifacts/web-media/source.example/1/00-logo.jpg",
+    mimeType: "image/jpeg",
+    bytes: 125678,
+    sha256: "b".repeat(64),
+    sourceUrl: "https://cdn.example/logo.jpg",
+    sourceTag: "jsonld:logo",
+    mediaRole: "brand_logo"
+};
+
 function makeRuntime() {
     const registry = new Map();
     return {
@@ -119,4 +130,40 @@ test("v128 caches the real collector result by mission and injects it into the a
     assert.equal(result.mediaHydration.verifiedAssetCount, 1);
     assert.equal(reelArgs.scenes[0].assetOutput, verifiedImage.output);
     assert.equal(reelArgs.scenes[1].assetOutput, verifiedImage.output);
+});
+
+
+test("v130 hydrates a source-declared logo without recycling it as scene media", () => {
+    const hydrated = runtimeGuardTest.hydrateReelArgs({
+        scenes: [
+            { durationSeconds: 10, overlay: "Uno" },
+            { durationSeconds: 10, overlay: "Dos" },
+            { durationSeconds: 10, overlay: "Tres" }
+        ]
+    }, [verifiedLogo, verifiedImage]);
+    assert.equal(hydrated.logoHydrated, true);
+    assert.equal(hydrated.args.logoOutput, verifiedLogo.output);
+    assert.equal(hydrated.verifiedLogoAssetCount, 1);
+    assert.equal(hydrated.verifiedSceneAssetCount, 1);
+    assert.equal(hydrated.args.scenes.every(scene => scene.assetOutput === verifiedImage.output), true);
+});
+
+test("v130 hydrates exactly one verified audio upload and refuses arbitrary selection among several", () => {
+    const audioA = {
+        name: "musica.mp3",
+        mimeType: "audio/mpeg",
+        artifact: ".jarvis-artifacts/uploads/audio-a.mp3",
+        bytes: 2000,
+        sha256: "c".repeat(64)
+    };
+    const one = runtimeGuardTest.hydrateReelAudioArgs({}, {
+        rawInput: `Solicitud\nArchivos adjuntos reales entregados por el usuario:${JSON.stringify([audioA])}`
+    });
+    assert.equal(one.hydrated, true);
+    assert.equal(one.args.audioOutput, audioA.artifact);
+    const two = runtimeGuardTest.hydrateReelAudioArgs({}, {
+        rawInput: `Archivos adjuntos reales entregados por el usuario:${JSON.stringify([audioA, { ...audioA, artifact: ".jarvis-artifacts/uploads/audio-b.mp3", sha256: "d".repeat(64) }])}`
+    });
+    assert.equal(two.ambiguous, true);
+    assert.equal(two.candidateCount, 2);
 });

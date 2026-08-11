@@ -475,7 +475,7 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "reel.create",
-            description: "Crea un reel 9:16 local, genera su estudio editable y exporta automáticamente un WebM físico verificado por SHA-256. No publica.",
+            description: "Crea un reel 9:16 local, genera su estudio editable y exporta automáticamente un WebM físico verificado por SHA-256. Prioriza audioOutput explícito y, si no existe, enruta audio de videos fuente cuando esté disponible; no genera TTS. No publica.",
             output: "REEL_VIDEO_ARTIFACT",
             inputSchema: {
                 brandName: "string", title: "string", cta: "string", durationSeconds: "number",
@@ -507,6 +507,9 @@ export function registerJarvisActuatorTools(runtime) {
                         durationSeconds: result.durationSeconds,
                         width: result.width,
                         height: result.height,
+                        audioMixMode: result.audioMixMode,
+                        audioTracksAdded: result.audioTracksAdded,
+                        audioGraphAvailable: result.audioGraphAvailable,
                         checks: result.checks,
                         videoExportStatus: result.videoExportStatus,
                         checkedAt: new Date().toISOString()

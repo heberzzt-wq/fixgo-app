@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 import { registerArtifact } from "./jarvis-artifact-studio.js";
 
 export const NEXO_WEB_MEDIA_BRIDGE_VERSION =
-    "1.1.0-source-declared-cdn-v127";
+    "1.2.0-structured-brand-role-v130";
 
 const MAX_HTML_BYTES = 2 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
@@ -37,7 +37,9 @@ const SOURCE_DECLARED_MEDIA_TAGS = new Set([
     "og:video",
     "og:video:url",
     "og:video:secure_url",
-    "twitter:player:stream"
+    "twitter:player:stream",
+    "jsonld:logo",
+    "itemprop:logo"
 ]);
 
 function safeStem(value = "media", maximum = 80) {
@@ -263,21 +265,72 @@ function bestSrcset(value = "") {
     return candidates.at(-1) || "";
 }
 
+function structuredLogoUrls(value, urls = [], depth = 0) {
+    if (value === null || value === undefined || depth > 12) return urls;
+    if (Array.isArray(value)) {
+        for (const item of value) structuredLogoUrls(item, urls, depth + 1);
+        return urls;
+    }
+    if (typeof value !== "object") return urls;
+    for (const [key, nested] of Object.entries(value)) {
+        if (String(key || "").toLowerCase() === "logo") {
+            if (typeof nested === "string") urls.push(nested);
+            else if (nested && typeof nested === "object") {
+                for (const field of ["url", "contentUrl", "@id"]) {
+                    if (typeof nested[field] === "string") urls.push(nested[field]);
+                }
+                structuredLogoUrls(nested, urls, depth + 1);
+            }
+            continue;
+        }
+        structuredLogoUrls(nested, urls, depth + 1);
+    }
+    return urls;
+}
+
+function jsonLdLogoUrls(html = "") {
+    const urls = [];
+    const pattern = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
+    let match;
+    while ((match = pattern.exec(String(html || "")))) {
+        const attrs = attributes(`<script ${match[1] || ""}>`);
+        if (String(attrs.type || "").trim().toLowerCase() !== "application/ld+json") continue;
+        const body = decodeHtml(match[2] || "").trim();
+        if (!body) continue;
+        try { structuredLogoUrls(JSON.parse(body), urls); } catch {}
+    }
+    return [...new Set(urls.map(value => String(value || "").trim()).filter(Boolean))];
+}
+
 function mediaCandidates(html = "", pageUrl = "") {
     const page = normalizeHttpUrl(pageUrl);
     const candidates = [];
-    const add = (kind, rawUrl, sourceTag, alt = "") => {
+    const add = (kind, rawUrl, sourceTag, alt = "", mediaRole = "scene") => {
         const value = String(rawUrl || "").trim();
         if (!value || /^(data|blob|javascript):/i.test(value)) return;
         try {
             const url = normalizeHttpUrl(value, page);
-            candidates.push({ kind, url: url.toString(), sourceTag, alt: String(alt || "").slice(0, 300) });
+            candidates.push({
+                kind,
+                url: url.toString(),
+                sourceTag,
+                alt: String(alt || "").slice(0, 300),
+                mediaRole: mediaRole === "brand_logo" ? "brand_logo" : "scene"
+            });
         } catch {}
     };
 
     for (const tag of html.match(/<img\b[^>]*>/gi) || []) {
         const attrs = attributes(tag);
-        add("image", attrs.src || attrs["data-src"] || attrs["data-lazy-src"] || bestSrcset(attrs.srcset), "img", attrs.alt);
+        const itemprop = String(attrs.itemprop || "").trim().toLowerCase().split(/\s+/).filter(Boolean);
+        const declaredLogo = itemprop.includes("logo");
+        add(
+            "image",
+            attrs.src || attrs["data-src"] || attrs["data-lazy-src"] || bestSrcset(attrs.srcset),
+            declaredLogo ? "itemprop:logo" : "img",
+            attrs.alt,
+            declaredLogo ? "brand_logo" : "scene"
+        );
     }
     for (const tag of html.match(/<video\b[^>]*>/gi) || []) {
         const attrs = attributes(tag);
@@ -300,14 +353,19 @@ function mediaCandidates(html = "", pageUrl = "") {
             add("video", attrs.content, key);
         }
     }
+    for (const logoUrl of jsonLdLogoUrls(html)) {
+        add("image", logoUrl, "jsonld:logo", "", "brand_logo");
+    }
 
-    const seen = new Set();
-    return candidates.filter(item => {
+    const deduped = new Map();
+    for (const item of candidates) {
         const key = `${item.kind}:${item.url}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-    });
+        const previous = deduped.get(key);
+        if (!previous || (previous.mediaRole !== "brand_logo" && item.mediaRole === "brand_logo")) {
+            deduped.set(key, item);
+        }
+    }
+    return [...deduped.values()];
 }
 
 function detectedMime(bytes, declared = "") {
@@ -362,7 +420,14 @@ export async function collectNexoRealWebMedia({
     };
     const selected = [];
     for (const kind of ["image", "video"]) {
-        selected.push(...discovered.filter(item => item.kind === kind).slice(0, limits[kind]));
+        const available = discovered.filter(item => item.kind === kind);
+        const ordered = kind === "image"
+            ? [
+                ...available.filter(item => item.mediaRole === "brand_logo"),
+                ...available.filter(item => item.mediaRole !== "brand_logo")
+            ]
+            : available;
+        selected.push(...ordered.slice(0, limits[kind]));
     }
 
     const batchDirectory = path.resolve(
@@ -417,7 +482,8 @@ export async function collectNexoRealWebMedia({
                     transformations: [{
                         type: "verbatim_download",
                         sha256: digest,
-                        sourceDeclared: sourceDeclaredMediaCandidate(candidate)
+                        sourceDeclared: sourceDeclaredMediaCandidate(candidate),
+                        mediaRole: candidate.mediaRole || "scene"
                     }]
                 }
             });
@@ -426,6 +492,7 @@ export async function collectNexoRealWebMedia({
                 sourceUrl: fetched.url,
                 sourceTag: candidate.sourceTag,
                 sourceDeclared: sourceDeclaredMediaCandidate(candidate),
+                mediaRole: candidate.mediaRole || "scene",
                 alt: candidate.alt,
                 output,
                 mimeType: actualMimeType,
@@ -439,6 +506,7 @@ export async function collectNexoRealWebMedia({
                 sourceUrl: candidate.url,
                 sourceTag: candidate.sourceTag,
                 sourceDeclared: sourceDeclaredMediaCandidate(candidate),
+                mediaRole: candidate.mediaRole || "scene",
                 reason: error?.message || String(error)
             });
         }
@@ -510,7 +578,8 @@ export async function collectNexoRealWebMedia({
             output: asset.output,
             sha256: asset.sha256,
             mimeType: asset.mimeType,
-            kind: asset.kind
+            kind: asset.kind,
+            mediaRole: asset.mediaRole || "scene"
         })),
         version: NEXO_WEB_MEDIA_BRIDGE_VERSION
     };
@@ -554,6 +623,8 @@ export const __test = {
     isPrivateAddress,
     hostAllowed,
     sourceDeclaredMediaCandidate,
+    structuredLogoUrls,
+    jsonLdLogoUrls,
     mediaCandidates,
     detectedMime
 };

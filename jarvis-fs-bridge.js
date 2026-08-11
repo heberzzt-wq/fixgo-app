@@ -307,7 +307,10 @@ export async function exportReelWebmWithChrome({
                 sha256,
                 durationSeconds: duration,
                 width: Number(payload.width || 1080),
-                height: Number(payload.height || 1920)
+                height: Number(payload.height || 1920),
+                audioMixMode: String(payload.audioMixMode || "silent_visual"),
+                audioTracksAdded: Number(payload.audioTracksAdded || 0),
+                audioGraphAvailable: payload.audioGraphAvailable === true
             }
         });
         return {
@@ -320,6 +323,9 @@ export async function exportReelWebmWithChrome({
             durationSeconds: duration,
             width: Number(payload.width || 1080),
             height: Number(payload.height || 1920),
+            audioMixMode: String(payload.audioMixMode || "silent_visual"),
+            audioTracksAdded: Number(payload.audioTracksAdded || 0),
+            audioGraphAvailable: payload.audioGraphAvailable === true,
             artifact
         };
     }
@@ -4164,6 +4170,9 @@ export function createJarvisFsBridgeApp({
                 durationSeconds: Number(hydrated.durationSeconds),
                 width: videoExport.width,
                 height: videoExport.height,
+                audioMixMode: videoExport.audioMixMode,
+                audioTracksAdded: videoExport.audioTracksAdded,
+                audioGraphAvailable: videoExport.audioGraphAvailable,
                 downloadable: true,
                 previewable: true,
                 videoExportStatus: "VERIFIED",
