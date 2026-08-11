@@ -1,4 +1,4 @@
-import "./nexo-bootstrap.js?v=v94-real-media-reel-hydration-v127-20260811";
+import "./nexo-bootstrap.js?v=v94-real-media-runtime-authority-v128-20260811";
 
 const ACTIVE_STORAGE_KEY =
     "sia7:activePatchProposal:v1";
