@@ -6,11 +6,16 @@ on:
       - v94-media-v4n-negative-claims
     paths:
       - .github/workflows/v133-reel-mission-fidelity-cert.yml
+      - .github/workflows/v133-reel-mission-fidelity-apply.yml
+      - .github/scripts/v133-reel-mission-fidelity.py
+      - .github/workflows/v133-reel-failure-precedence-apply.yml
+      - .github/scripts/v133-reel-failure-precedence.py
       - gestia-core/jarvis/jarvis.multifunction.planner.js
       - gestia-core/jarvis/jarvis.mission.orchestrator.js
       - gestia-core/jarvis/jarvis.reel.presenter.js
       - tests/jarvis-reel-mission-fidelity-v133.test.mjs
       - tests/jarvis-reel-researched-media-v132.test.mjs
+      - tests/jarvis-mission-failure-precedence.test.mjs
       - package.json
       - package-lock.json
 
@@ -54,6 +59,7 @@ jobs:
           node --test \
             tests/jarvis-reel-mission-fidelity-v133.test.mjs \
             tests/jarvis-reel-researched-media-v132.test.mjs \
+            tests/jarvis-mission-failure-precedence.test.mjs \
             tests/jarvis-semantic-planner.test.cjs \
             tests/jarvis-mission-orchestrator.test.mjs
 
@@ -69,4 +75,6 @@ jobs:
           echo "V133_RESEARCH_IDENTITY_FAILSAFE=true"
           echo "V133_REEL_PLAN_NESTED_PAYLOAD=true"
           echo "V133_COMPLETED_REEL_PLAN_DEDUPE=true"
+          echo "V133_TOP_LEVEL_FAILURE_PRECEDENCE=true"
+          echo "V133_NESTED_EVIDENCE_PRESERVED=true"
           echo "V133_FUNCTIONS_UNCHANGED=true"
