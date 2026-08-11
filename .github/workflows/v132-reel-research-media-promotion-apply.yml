@@ -1,0 +1,54 @@
+name: v132-reel-research-media-promotion-apply
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v132-reel-research-media-promotion-apply.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Guard branch and Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF_NAME}" = "v94-media-v4n-negative-claims"
+          ! git diff --name-only a09d76c5d42117aa88630f7b0d5fee75290525b2..HEAD | grep -E '^functions/'
+
+      - name: Apply v132 subwave
+        run: python .github/scripts/v132-reel-research-media-promotion.py
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Focal syntax and tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          node --test tests/jarvis-reel-researched-media-v132.test.mjs tests/jarvis-source-grounded-research-v124.test.mjs tests/jarvis-semantic-planner.test.cjs
+          git diff --check
+          ! git diff --name-only | grep -E '^functions/'
+
+      - name: Commit and push product subwave
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gestia-core/jarvis/jarvis.multifunction.planner.js tests/jarvis-reel-researched-media-v132.test.mjs
+          git commit -m "[v132] feat(adj): promote verified research sources into reel media collection"
+          git push origin HEAD:v94-media-v4n-negative-claims
