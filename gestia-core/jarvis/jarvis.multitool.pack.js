@@ -35,7 +35,7 @@ import {
     validateDocumentBlueprint
 } from "./jarvis.document.validator.js?v=sia7-exact-template-contract-v84-20260725";
 
-const VERSION = "1.52.0-source-grounded-research-v124";
+const VERSION = "1.53.0-marketing-production-intent-v125";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 4500;
 const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";
@@ -183,11 +183,7 @@ export function resolveMarketingMissionProductionScope(
         Array.isArray(context?.requiredToolNames)
             ? context.requiredToolNames.map(String).filter(Boolean)
             : [];
-    if (requiredToolNames.length === 0) {
-        return current;
-    }
-
-    const productionToolNames =
+    const contractedProductionToolNames =
         [...new Set(
             requiredToolNames.filter(name =>
                 Object.prototype.hasOwnProperty.call(
@@ -196,8 +192,6 @@ export function resolveMarketingMissionProductionScope(
                 )
             )
         )];
-    const productionRequested =
-        productionToolNames.length > 0;
     const declaredArtifacts =
         (Array.isArray(current.productionArtifacts)
             ? current.productionArtifacts
@@ -206,13 +200,21 @@ export function resolveMarketingMissionProductionScope(
                 item &&
                 typeof item === "object" &&
                 !Array.isArray(item) &&
-                productionToolNames.includes(String(item.toolName || ""))
+                Object.prototype.hasOwnProperty.call(
+                    MARKETING_PRODUCTION_TOOL_TYPES,
+                    String(item.toolName || "")
+                )
             );
+    const semanticProductionRequested =
+        current.productionRequested === true;
+    const productionRequested =
+        semanticProductionRequested ||
+        contractedProductionToolNames.length > 0;
     const productionArtifacts =
         productionRequested
             ? (declaredArtifacts.length > 0
                 ? declaredArtifacts
-                : productionToolNames.map(toolName => ({
+                : contractedProductionToolNames.map(toolName => ({
                     id: `mission-${toolName.replaceAll(".", "-")}`,
                     type: MARKETING_PRODUCTION_TOOL_TYPES[toolName],
                     toolName,
