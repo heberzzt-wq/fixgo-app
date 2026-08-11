@@ -57,76 +57,53 @@ jobs:
               raise SystemExit('MARKETING_PRODUCTION_TOOL_TYPES anchor not found')
           text = text.replace(old_map, new_map, 1)
 
-          old_scope = '''    const contractedProductionToolNames =
-              [...new Set(
-                  requiredToolNames.filter(name =>
-                      Object.prototype.hasOwnProperty.call(
-                          MARKETING_PRODUCTION_TOOL_TYPES,
-                          name
-                      )
-                  )
-              )];'''
-          new_scope = '''    const contractedProductionToolNames =
-              [...new Set(
-                  requiredToolNames.filter(name =>
-                      Object.prototype.hasOwnProperty.call(
-                          MARKETING_PRODUCTION_TOOL_TYPES,
-                          name
-                      )
-                  )
-              )];
-          const plannedProductionToolNames =
+          declared_anchor = '    const declaredArtifacts =\n'
+          if declared_anchor not in text:
+              raise SystemExit('declaredArtifacts anchor not found')
+          planned_block = '''    const plannedProductionToolNames =
               [...new Set(
                   requiredToolNames
                       .map(name => MARKETING_PLANNING_TO_PRODUCTION_TOOL[name])
                       .filter(Boolean)
-              )];'''
-          if old_scope not in text:
-              raise SystemExit('contractedProductionToolNames anchor not found')
-          text = text.replace(old_scope, new_scope, 1)
+              )];
+          '''
+          text = text.replace(declared_anchor, planned_block + declared_anchor, 1)
 
-          old_requested = '''    const productionRequested =
-              semanticProductionRequested ||
-              contractedProductionToolNames.length > 0;
-          const productionArtifacts =
-              productionRequested
-                  ? (declaredArtifacts.length > 0
-                      ? declaredArtifacts
-                      : contractedProductionToolNames.map(toolName => ({
-                          id: `mission-${toolName.replaceAll(".", "-")}`,
-                          type: MARKETING_PRODUCTION_TOOL_TYPES[toolName],
-                          toolName,
-                          label: toolName
-                      })))
-                  : [];'''
-          new_requested = '''    const effectiveProductionToolNames =
+          semantic_anchor = '''    const semanticProductionRequested =
+              current.productionRequested === true;
+          '''
+          if semantic_anchor not in text:
+              raise SystemExit('semanticProductionRequested anchor not found')
+          effective_block = semantic_anchor + '''    const effectiveProductionToolNames =
               [...new Set([
                   ...contractedProductionToolNames,
                   ...(semanticProductionRequested
                       ? plannedProductionToolNames
                       : [])
               ])];
-          const productionRequested =
-              semanticProductionRequested ||
-              effectiveProductionToolNames.length > 0;
-          const productionArtifacts =
-              productionRequested
-                  ? (declaredArtifacts.length > 0
-                      ? declaredArtifacts
-                      : effectiveProductionToolNames.map(toolName => ({
-                          id: `mission-${toolName.replaceAll(".", "-")}`,
-                          type: MARKETING_PRODUCTION_TOOL_TYPES[toolName],
-                          toolName,
-                          label: toolName
-                      })))
-                  : [];'''
-          if old_requested not in text:
-              raise SystemExit('productionRequested anchor not found')
-          text = text.replace(old_requested, new_requested, 1)
-          text = text.replace('1.53.0-marketing-production-intent-v125', '1.54.0-marketing-actuator-bridge-v126')
+          '''
+          text = text.replace(semantic_anchor, effective_block, 1)
+
+          if 'contractedProductionToolNames.length > 0' not in text:
+              raise SystemExit('productionRequested force anchor not found')
+          text = text.replace(
+              'contractedProductionToolNames.length > 0',
+              'effectiveProductionToolNames.length > 0',
+              1
+          )
+          if 'contractedProductionToolNames.map(toolName => ({' not in text:
+              raise SystemExit('productionArtifacts derivation anchor not found')
+          text = text.replace(
+              'contractedProductionToolNames.map(toolName => ({',
+              'effectiveProductionToolNames.map(toolName => ({',
+              1
+          )
+          text = text.replace(
+              '1.53.0-marketing-production-intent-v125',
+              '1.54.0-marketing-actuator-bridge-v126'
+          )
           pack.write_text(text, encoding='utf-8')
 
-          # Cache-bust the product entrypoints and refresh stale exact-version expectations.
           old_token = 'v94-marketing-production-intent-v125-20260810'
           new_token = 'v94-marketing-actuator-bridge-v126-20260810'
           old_version = '1.53.0-marketing-production-intent-v125'
@@ -144,8 +121,7 @@ jobs:
                   if dst != src:
                       path.write_text(dst, encoding='utf-8')
 
-          test_path = Path('tests/jarvis-marketing-actuator-bridge-v126.test.mjs')
-          test_path.write_text('''import assert from "node:assert/strict";\nimport { test } from "node:test";\n\nimport { resolveMarketingMissionProductionScope } from "../gestia-core/jarvis/jarvis.multitool.pack.js";\n\ntest("production intent promotes a planned reel to the real reel actuator", () => {\n  const result = resolveMarketingMissionProductionScope(\n    { productionRequested: true, productionArtifacts: [] },\n    { requiredToolNames: ["web.research", "marketing.plan", "reel.plan"] }\n  );\n  assert.equal(result.productionRequested, true);\n  assert.deepEqual(result.productionArtifacts.map(item => item.toolName), ["reel.create"]);\n});\n\ntest("planning-only reel requests remain planning-only", () => {\n  const result = resolveMarketingMissionProductionScope(\n    { productionRequested: false, productionArtifacts: [] },\n    { requiredToolNames: ["web.research", "marketing.plan", "reel.plan"] }\n  );\n  assert.equal(result.productionRequested, false);\n  assert.deepEqual(result.productionArtifacts, []);\n});\n\ntest("explicit semantic artifacts remain authoritative over derived actuators", () => {\n  const result = resolveMarketingMissionProductionScope(\n    { productionRequested: true, productionArtifacts: [{ id: "custom", type: "reel", toolName: "reel.create", label: "Reel final" }] },\n    { requiredToolNames: ["marketing.plan", "reel.plan"] }\n  );\n  assert.deepEqual(result.productionArtifacts.map(item => item.id), ["custom"]);\n});\n''', encoding='utf-8')
+          Path('tests/jarvis-marketing-actuator-bridge-v126.test.mjs').write_text('''import assert from "node:assert/strict";\nimport { test } from "node:test";\n\nimport { resolveMarketingMissionProductionScope } from "../gestia-core/jarvis/jarvis.multitool.pack.js";\n\ntest("production intent promotes a planned reel to the real reel actuator", () => {\n  const result = resolveMarketingMissionProductionScope(\n    { productionRequested: true, productionArtifacts: [] },\n    { requiredToolNames: ["web.research", "marketing.plan", "reel.plan"] }\n  );\n  assert.equal(result.productionRequested, true);\n  assert.deepEqual(result.productionArtifacts.map(item => item.toolName), ["reel.create"]);\n});\n\ntest("planning-only reel requests remain planning-only", () => {\n  const result = resolveMarketingMissionProductionScope(\n    { productionRequested: false, productionArtifacts: [] },\n    { requiredToolNames: ["web.research", "marketing.plan", "reel.plan"] }\n  );\n  assert.equal(result.productionRequested, false);\n  assert.deepEqual(result.productionArtifacts, []);\n});\n\ntest("explicit semantic artifacts remain authoritative over derived actuators", () => {\n  const result = resolveMarketingMissionProductionScope(\n    { productionRequested: true, productionArtifacts: [{ id: "custom", type: "reel", toolName: "reel.create", label: "Reel final" }] },\n    { requiredToolNames: ["marketing.plan", "reel.plan"] }\n  );\n  assert.deepEqual(result.productionArtifacts.map(item => item.id), ["custom"]);\n});\n''', encoding='utf-8')
 
       - name: Prove Functions untouched after patch
         shell: bash
