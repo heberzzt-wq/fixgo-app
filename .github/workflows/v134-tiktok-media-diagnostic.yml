@@ -11,9 +11,9 @@ permissions:
   contents: read
 
 jobs:
-  probe-tiktok-media:
+  probe-research-media:
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 12
     steps:
       - name: Checkout isolated branch
         uses: actions/checkout@v4
@@ -28,126 +28,40 @@ jobs:
           test "${GITHUB_REF_NAME}" = "v94-media-v4n-negative-claims"
           ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
 
-      - name: Locate Chrome
-        id: chrome
-        shell: bash
-        run: |
-          set -euo pipefail
-          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
-          test -n "$CHROME"
-          echo "path=$CHROME" >> "$GITHUB_OUTPUT"
-          "$CHROME" --version
-
-      - name: Render exact Taquería El Dorado TikTok profile
-        shell: bash
-        env:
-          CHROME: ${{ steps.chrome.outputs.path }}
-        run: |
-          set -euo pipefail
-          "$CHROME" \
-            --headless=new \
-            --no-sandbox \
-            --disable-gpu \
-            --disable-dev-shm-usage \
-            --autoplay-policy=no-user-gesture-required \
-            --virtual-time-budget=12000 \
-            --dump-dom \
-            'https://www.tiktok.com/@taqueria.eldorado' \
-            > "$RUNNER_TEMP/tiktok-profile.html" 2> "$RUNNER_TEMP/chrome-profile.stderr" || true
-          test -s "$RUNNER_TEMP/tiktok-profile.html"
-          echo "PROFILE_RENDERED_BYTES=$(wc -c < "$RUNNER_TEMP/tiktok-profile.html")"
-
-      - name: Extract public post links from rendered profile
+      - name: Probe exact verified Uber Eats source through ADJUNTO collector
         shell: bash
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          const html = fs.readFileSync(process.env.RUNNER_TEMP + '/tiktok-profile.html', 'utf8');
-          const matches = [...html.matchAll(/href=["']([^"']*\/video\/\d+[^"']*)["']/gi)];
-          const urls = [];
-          const seen = new Set();
-          for (const match of matches) {
-            try {
-              const url = new URL(match[1], 'https://www.tiktok.com/@taqueria.eldorado');
-              url.hash = '';
-              if (url.protocol !== 'https:' || !url.hostname.endsWith('tiktok.com')) continue;
-              if (!url.pathname.includes('/@taqueria.eldorado/video/')) continue;
-              const normalized = url.toString();
-              if (!seen.has(normalized)) {
-                seen.add(normalized);
-                urls.push(normalized);
-              }
-            } catch {}
-            if (urls.length >= 5) break;
-          }
-          fs.writeFileSync(process.env.RUNNER_TEMP + '/tiktok-posts.txt', urls.join('\n') + (urls.length ? '\n' : ''));
-          console.log('TIKTOK_PUBLIC_POST_LINKS', JSON.stringify({ count: urls.length, urls }, null, 2));
-          if (urls.length === 0) process.exitCode = 2;
-          NODE
-
-      - name: Render first public posts
-        shell: bash
-        env:
-          CHROME: ${{ steps.chrome.outputs.path }}
-        run: |
-          set -euo pipefail
-          index=0
-          while IFS= read -r url; do
-            test -n "$url" || continue
-            index=$((index+1))
-            "$CHROME" \
-              --headless=new \
-              --no-sandbox \
-              --disable-gpu \
-              --disable-dev-shm-usage \
-              --autoplay-policy=no-user-gesture-required \
-              --virtual-time-budget=10000 \
-              --dump-dom \
-              "$url" \
-              > "$RUNNER_TEMP/tiktok-post-$index.html" 2> "$RUNNER_TEMP/chrome-post-$index.stderr" || true
-            echo "POST_${index}_BYTES=$(wc -c < "$RUNNER_TEMP/tiktok-post-$index.html")"
-            test "$index" -ge 3 && break
-          done < "$RUNNER_TEMP/tiktok-posts.txt"
-
-      - name: Inspect rendered post media without downloading it
-        shell: bash
-        run: |
-          set -euo pipefail
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          import path from 'node:path';
-          import { __test as webMediaTest } from './nexo-web-media-bridge.js';
-          const postUrls = fs.readFileSync(process.env.RUNNER_TEMP + '/tiktok-posts.txt', 'utf8').split(/\r?\n/).filter(Boolean).slice(0, 3);
-          const results = [];
-          let totalVideos = 0;
-          let totalImages = 0;
-          for (let index = 0; index < postUrls.length; index += 1) {
-            const file = path.join(process.env.RUNNER_TEMP, `tiktok-post-${index + 1}.html`);
-            const html = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
-            const candidates = html ? webMediaTest.mediaCandidates(html, postUrls[index]) : [];
-            const videos = candidates.filter(item => item.kind === 'video');
-            const images = candidates.filter(item => item.kind === 'image');
-            totalVideos += videos.length;
-            totalImages += images.length;
-            results.push({
-              postUrl: postUrls[index],
-              htmlBytes: Buffer.byteLength(html),
-              challenge: html.toLowerCase().includes('captcha'),
-              counts: { images: images.length, videos: videos.length, total: candidates.length },
-              samples: candidates.slice(0, 8).map(item => ({
-                kind: item.kind,
-                sourceTag: item.sourceTag,
-                host: new URL(item.url).hostname,
-                path: new URL(item.url).pathname.slice(0, 180)
-              }))
-            });
-          }
-          console.log('TIKTOK_PUBLIC_POST_MEDIA_PROBE', JSON.stringify({
-            postsInspected: results.length,
-            totalImages,
-            totalVideos,
-            results
+          import { collectNexoRealWebMedia } from './nexo-web-media-bridge.js';
+          const sourceUrl = 'https://www.ubereats.com/mx/store/takos-el-dorado-cancun/DmKfCVrVW9W46Zx3LBI8jw';
+          const result = await collectNexoRealWebMedia({
+            url: sourceUrl,
+            requireAnyVisual: true,
+            maxImages: 8,
+            maxVideos: 4,
+            timeoutMs: 45000,
+            root: process.cwd()
+          });
+          console.log('UBER_EATS_MEDIA_PROBE', JSON.stringify({
+            ok: result.ok,
+            status: result.status,
+            finalPageUrl: result.finalPageUrl,
+            counts: result.counts,
+            requirementsMet: result.requirementsMet,
+            assets: (result.mediaAssets || []).map(item => ({
+              kind: item.kind,
+              sourceTag: item.sourceTag,
+              mediaRole: item.mediaRole,
+              mimeType: item.mimeType,
+              bytes: item.bytes,
+              host: new URL(item.sourceUrl).hostname,
+              output: item.output,
+              sha256: item.sha256
+            })),
+            skipped: (result.skipped || []).slice(0, 12)
           }, null, 2));
-          if (totalVideos === 0) process.exitCode = 2;
+          if (!result.ok || !result.requirementsMet || Number(result.counts?.total || 0) < 1) {
+            process.exitCode = 2;
+          }
           NODE
