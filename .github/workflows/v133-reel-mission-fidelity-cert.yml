@@ -12,12 +12,15 @@ on:
       - .github/scripts/v133-reel-failure-precedence.py
       - .github/workflows/v133-reel-fidelity-no-lexical-regex-apply.yml
       - .github/scripts/v133-reel-fidelity-no-lexical-regex.py
+      - .github/workflows/v133-planner-version-expectation-apply.yml
+      - .github/scripts/v133-planner-version-expectation.py
       - gestia-core/jarvis/jarvis.multifunction.planner.js
       - gestia-core/jarvis/jarvis.mission.orchestrator.js
       - gestia-core/jarvis/jarvis.reel.presenter.js
       - tests/jarvis-reel-mission-fidelity-v133.test.mjs
       - tests/jarvis-reel-researched-media-v132.test.mjs
       - tests/jarvis-mission-failure-precedence.test.mjs
+      - tests/jarvis-multifunction-tools.test.mjs
       - tests/single-semantic-authority.test.mjs
       - package.json
       - package-lock.json
@@ -65,7 +68,8 @@ jobs:
             tests/jarvis-reel-researched-media-v132.test.mjs \
             tests/jarvis-mission-failure-precedence.test.mjs \
             tests/jarvis-semantic-planner.test.cjs \
-            tests/jarvis-mission-orchestrator.test.mjs
+            tests/jarvis-mission-orchestrator.test.mjs \
+            tests/jarvis-multifunction-tools.test.mjs
 
       - name: Full CI
         run: npm run ci:test
@@ -83,4 +87,5 @@ jobs:
           echo "V133_COMPLETED_REEL_PLAN_DEDUPE=true"
           echo "V133_TOP_LEVEL_FAILURE_PRECEDENCE=true"
           echo "V133_NESTED_EVIDENCE_PRESERVED=true"
+          echo "V133_PLANNER_VERSION_EXPECTATION_ALIGNED=true"
           echo "V133_FUNCTIONS_UNCHANGED=true"
