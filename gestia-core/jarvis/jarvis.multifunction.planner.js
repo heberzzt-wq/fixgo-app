@@ -684,6 +684,38 @@ function appendSourceAnchorHints(
         .slice(0, 600);
 }
 
+function verifiedResearchSourceUrls(
+    missionState = null
+) {
+    const completedTasks = Array.isArray(missionState?.completedTasks)
+        ? missionState.completedTasks
+        : [];
+    const values = [];
+    const seen = new Set();
+    for (const task of completedTasks) {
+        if (
+            String(task?.name || "") !== "web.research" ||
+            task?.observation?.objectiveSatisfied !== true ||
+            !Array.isArray(task?.observation?.validSources)
+        ) continue;
+        for (const source of task.observation.validSources) {
+            const candidate = String(source?.url || source?.href || "").trim();
+            if (!candidate) continue;
+            try {
+                const url = new URL(candidate);
+                if (!["https:", "http:"].includes(url.protocol)) continue;
+                url.hash = "";
+                const normalized = url.toString();
+                if (seen.has(normalized)) continue;
+                seen.add(normalized);
+                values.push(normalized);
+            } catch {}
+            if (values.length >= 8) return values;
+        }
+    }
+    return values;
+}
+
 function normalizeExplicitSourceCandidates(
     candidates = [],
     catalog = [],
@@ -693,12 +725,20 @@ function normalizeExplicitSourceCandidates(
         Array.isArray(candidates)
             ? candidates
             : [];
-    const anchors =
+    const explicitAnchors =
         explicitHttpSourceUrls(
             context?.originalInstruction ||
             ""
         );
-    if (anchors.length === 0) {
+    const researchedAnchors =
+        verifiedResearchSourceUrls(
+            context?.missionState ||
+            null
+        );
+    if (
+        explicitAnchors.length === 0 &&
+        researchedAnchors.length === 0
+    ) {
         return sourceCandidates;
     }
     const available =
@@ -722,10 +762,29 @@ function normalizeExplicitSourceCandidates(
         }
         const args =
             candidateArgumentObject(candidate);
+        if (
+            name === "web.media.collect" &&
+            explicitAnchors.length === 0 &&
+            researchedAnchors.length > 1
+        ) {
+            const declared = sourceAnchorDescriptor(args.url || "");
+            const verifiedSelection = Boolean(declared) && researchedAnchors.some(value =>
+                sourceAnchorDescriptor(value)?.url === declared.url
+            );
+            if (!verifiedSelection) {
+                return { ...candidate, name: "" };
+            }
+        }
+        const candidateAnchors =
+            explicitAnchors.length > 0
+                ? explicitAnchors
+                : name === "web.media.collect"
+                    ? researchedAnchors
+                    : [];
         const anchor =
             sourceAnchorForCandidate(
                 args,
-                anchors
+                candidateAnchors
             );
         if (!anchor) return candidate;
 
@@ -2197,5 +2256,6 @@ export const __test = {
     normalizeGroundedImageReferenceCandidates,
     explicitHttpSourceUrls,
     sourceAnchorDescriptor,
+    verifiedResearchSourceUrls,
     normalizeExplicitSourceCandidates
 };
