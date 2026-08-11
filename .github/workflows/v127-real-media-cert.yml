@@ -24,6 +24,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install Functions test dependencies without modifying source
+        run: npm ci --prefix functions
+
       - name: Guard protected branches and Functions
         shell: bash
         run: |
