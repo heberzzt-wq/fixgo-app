@@ -1,0 +1,72 @@
+name: v133-reel-mission-fidelity-cert
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v133-reel-mission-fidelity-cert.yml
+      - gestia-core/jarvis/jarvis.multifunction.planner.js
+      - gestia-core/jarvis/jarvis.mission.orchestrator.js
+      - gestia-core/jarvis/jarvis.reel.presenter.js
+      - tests/jarvis-reel-mission-fidelity-v133.test.mjs
+      - tests/jarvis-reel-researched-media-v132.test.mjs
+      - package.json
+      - package-lock.json
+
+permissions:
+  contents: read
+
+jobs:
+  certify-v133:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Functions test dependencies without modifying source
+        run: npm ci --prefix functions
+
+      - name: Guard branch and Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF_NAME}" = "v94-media-v4n-negative-claims"
+          ! git diff --name-only a09d76c5d42117aa88630f7b0d5fee75290525b2..HEAD | grep -E '^functions/'
+
+      - name: Focal v133
+        run: |
+          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
+          node --check gestia-core/jarvis/jarvis.reel.presenter.js
+          node --test \
+            tests/jarvis-reel-mission-fidelity-v133.test.mjs \
+            tests/jarvis-reel-researched-media-v132.test.mjs \
+            tests/jarvis-semantic-planner.test.cjs \
+            tests/jarvis-mission-orchestrator.test.mjs
+
+      - name: Full CI
+        run: npm run ci:test
+
+      - name: Reject whitespace errors
+        run: git diff --check
+
+      - name: Certification marker
+        run: |
+          echo "V133_REEL_MISSION_FIDELITY_CERTIFIED=true"
+          echo "V133_RESEARCH_IDENTITY_FAILSAFE=true"
+          echo "V133_REEL_PLAN_NESTED_PAYLOAD=true"
+          echo "V133_COMPLETED_REEL_PLAN_DEDUPE=true"
+          echo "V133_FUNCTIONS_UNCHANGED=true"
