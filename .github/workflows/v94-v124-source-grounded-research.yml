@@ -134,7 +134,19 @@ jobs:
           retention-days: 1
 
       - name: Full CI
-        run: npm run ci:test
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run ci:test 2>&1 | tee v124-full-ci.log
+
+      - name: Upload Full CI diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v124-full-ci-diagnostic
+          path: v124-full-ci.log
+          if-no-files-found: warn
+          retention-days: 1
 
       - name: Final product proof before commit
         shell: bash
@@ -153,7 +165,7 @@ jobs:
           rm -f scripts/v124-source-grounded-research.py
           rm -f scripts/v124-source-grounded-research-r2.py
           rm -f .github/workflows/v94-v124-source-grounded-research.yml
-          rm -f v124-patch.log v124-focal.log
+          rm -f v124-patch.log v124-focal.log v124-full-ci.log
           git config user.name "heberzzt-wq"
           git config user.email "heberzzt@gmail.com"
           git add -A
