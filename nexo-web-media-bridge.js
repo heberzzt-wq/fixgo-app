@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 import { registerArtifact } from "./jarvis-artifact-studio.js";
 
 export const NEXO_WEB_MEDIA_BRIDGE_VERSION =
-    "1.2.0-structured-brand-role-v130";
+    "1.3.0-real-reel-production-gate-v134";
 
 const MAX_HTML_BYTES = 2 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
@@ -391,6 +391,7 @@ export async function collectNexoRealWebMedia({
     url = "",
     requireImages = false,
     requireVideos = false,
+    requireAnyVisual = false,
     maxImages = 12,
     maxVideos = 4,
     allowedHosts = [],
@@ -516,14 +517,15 @@ export async function collectNexoRealWebMedia({
     const videoCount = assets.filter(item => item.kind === "video").length;
     const requirementsMet =
         (!requireImages || imageCount > 0) &&
-        (!requireVideos || videoCount > 0);
+        (!requireVideos || videoCount > 0) &&
+        (!requireAnyVisual || imageCount + videoCount > 0);
     const manifest = {
         engine: "NEXO",
         version: NEXO_WEB_MEDIA_BRIDGE_VERSION,
         sourceUrl: page.toString(),
         finalPageUrl: pageResponse.url,
         capturedAt: new Date().toISOString(),
-        requirements: { requireImages: Boolean(requireImages), requireVideos: Boolean(requireVideos) },
+        requirements: { requireImages: Boolean(requireImages), requireVideos: Boolean(requireVideos), requireAnyVisual: Boolean(requireAnyVisual) },
         counts: { images: imageCount, videos: videoCount, total: assets.length },
         totalBytes,
         requirementsMet,

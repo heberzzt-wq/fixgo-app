@@ -1,6 +1,6 @@
-const VERSION = "1.12.0-reel-mission-fidelity-v133";
+const VERSION = "1.13.0-real-reel-production-gate-v134";
 const STORAGE_KEY = "jarvis.missions.v1";
-const SINGLETON_MISSION_TOOLS = new Set(["marketing.plan"]);
+const SINGLETON_MISSION_TOOLS = new Set(["marketing.plan", "reel.plan"]);
 const COMPLETED_SINGLETON_MISSION_TOOLS = new Set(["reel.plan"]);
 
 function text(value = "", maximum = 120000) {
@@ -1033,6 +1033,142 @@ function trustedCalls(calls = [], mission) {
     return accepted;
 }
 
+function normalizedHttpSourceUrl(value = "") {
+    try {
+        const url = new URL(String(value || "").trim());
+        if (!["http:", "https:"].includes(url.protocol)) return "";
+        if (url.username || url.password) return "";
+        url.hash = "";
+        return url.toString();
+    }
+    catch {
+        return "";
+    }
+}
+
+function explicitMissionHttpSourceUrls(input = "") {
+    const source = String(input || "");
+    const values = [];
+    const seen = new Set();
+    let cursor = 0;
+    while (cursor < source.length && values.length < 8) {
+        const httpIndex = source.indexOf("http://", cursor);
+        const httpsIndex = source.indexOf("https://", cursor);
+        let start = -1;
+        if (httpIndex < 0) start = httpsIndex;
+        else if (httpsIndex < 0) start = httpIndex;
+        else start = Math.min(httpIndex, httpsIndex);
+        if (start < 0) break;
+        let end = start;
+        while (end < source.length) {
+            const character = source[end];
+            if (character.charCodeAt(0) <= 32 || "<>\"'`".includes(character)) break;
+            end += 1;
+        }
+        let candidate = source.slice(start, end);
+        while (candidate && ".,;:!?)]}".includes(candidate.at(-1))) {
+            candidate = candidate.slice(0, -1);
+        }
+        const normalized = normalizedHttpSourceUrl(candidate);
+        if (normalized && !seen.has(normalized)) {
+            seen.add(normalized);
+            values.push(normalized);
+        }
+        cursor = Math.max(end, start + 1);
+    }
+    return values;
+}
+
+function verifiedResearchMediaSourceUrls(mission = {}) {
+    const values = [];
+    const seen = new Set();
+    for (const task of Array.isArray(mission?.completedTasks) ? mission.completedTasks : []) {
+        if (task?.name !== "web.research" || task?.observation?.objectiveSatisfied !== true) continue;
+        const sources = Array.isArray(task?.observation?.validSources)
+            ? task.observation.validSources
+            : [];
+        for (const source of sources) {
+            const normalized = normalizedHttpSourceUrl(source?.url || source?.href || "");
+            if (normalized && !seen.has(normalized)) {
+                seen.add(normalized);
+                values.push(normalized);
+            }
+        }
+    }
+    return values.slice(0, 12);
+}
+
+function reelArgsHaveExplicitVisualMedia(args = {}) {
+    const scenes = Array.isArray(args?.scenes) ? args.scenes : [];
+    return scenes.some(scene =>
+        scene &&
+        typeof scene === "object" &&
+        !Array.isArray(scene) &&
+        [scene.assetOutput, scene.assetDataUrl, scene.mediaUrl]
+            .some(value => String(value || "").trim().length > 0)
+    );
+}
+
+function verifiedCollectedVisualAssets(mission = {}) {
+    const assets = [];
+    for (const task of Array.isArray(mission?.completedTasks) ? mission.completedTasks : []) {
+        if (task?.name !== "web.media.collect" || task?.observation?.objectiveSatisfied !== true) continue;
+        const candidates = Array.isArray(task?.observation?.evidence?.mediaAssets)
+            ? task.observation.evidence.mediaAssets
+            : Array.isArray(task?.observation?.mediaAssets)
+                ? task.observation.mediaAssets
+                : [];
+        for (const asset of candidates) {
+            const kind = String(asset?.kind || "").trim().toLowerCase();
+            const output = String(asset?.output || "").trim().replaceAll("\\", "/");
+            const mimeType = String(asset?.mimeType || "").trim().toLowerCase();
+            const sha256 = String(asset?.sha256 || "").trim().toLowerCase();
+            const bytes = Number(asset?.bytes || 0);
+            const hashValid = sha256.length === 64 && [...sha256].every(character =>
+                (character >= "0" && character <= "9") ||
+                (character >= "a" && character <= "f")
+            );
+            if (
+                ["image", "video"].includes(kind) &&
+                output.startsWith(".jarvis-artifacts/web-media/") &&
+                mimeType.startsWith(`${kind}/`) &&
+                Number.isFinite(bytes) &&
+                bytes > 0 &&
+                hashValid
+            ) {
+                assets.push(asset);
+            }
+        }
+    }
+    return assets;
+}
+
+function reelMediaDependencyCall(task = {}, mission = {}) {
+    if (task?.name !== "reel.create") return null;
+    if (reelArgsHaveExplicitVisualMedia(task?.args || {})) return null;
+    if (verifiedCollectedVisualAssets(mission).length > 0) return null;
+
+    const explicitSources = explicitMissionHttpSourceUrls(mission?.originalInstruction || "");
+    const researchedSources = verifiedResearchMediaSourceUrls(mission);
+    const sourceUrl = explicitSources.length === 1
+        ? explicitSources[0]
+        : explicitSources.length === 0 && researchedSources.length === 1
+            ? researchedSources[0]
+            : "";
+    if (!sourceUrl) return null;
+
+    return {
+        name: "web.media.collect",
+        args: {
+            url: sourceUrl,
+            requireAnyVisual: true,
+            maxImages: 8,
+            maxVideos: 4
+        },
+        reason: "REEL_REAL_MEDIA_DEPENDENCY"
+    };
+}
+
 export async function runJarvisMission({
     instruction,
     initialToolCalls = [],
@@ -1205,6 +1341,29 @@ export async function runJarvisMission({
         }
 
         const task = mission.pendingTasks.shift();
+        const mediaDependency =
+            reelMediaDependencyCall(
+                task,
+                mission
+            );
+        if (mediaDependency) {
+            const dependencyTasks =
+                trustedCalls(
+                    [mediaDependency],
+                    mission
+                );
+            if (dependencyTasks.length > 0) {
+                if (!mission.requiredToolNames.includes("web.media.collect")) {
+                    mission.requiredToolNames.push("web.media.collect");
+                }
+                mission.pendingTasks.unshift(task);
+                mission.pendingTasks.unshift(...dependencyTasks);
+                mission.plannedTools.push(...dependencyTasks.map(item => item.name));
+                mission.updatedAt = now();
+                saveMission(persistence, mission);
+                continue;
+            }
+        }
         mission.iterations += 1;
         task.attempts += 1;
         let result;
@@ -1359,4 +1518,4 @@ export function recoverJarvisMission(missionId, { storage } = {}) {
     return readMissions(storageOrMemory(storage)).find(item => item.missionId === missionId) || null;
 }
 
-export const __test = { callSignature, compactRoutingInstruction, isFailureStatus, safeObservation, trustedCalls, canonicalMissionEvidence, unwrapObservationPayload };
+export const __test = { callSignature, compactRoutingInstruction, isFailureStatus, safeObservation, trustedCalls, canonicalMissionEvidence, unwrapObservationPayload, explicitMissionHttpSourceUrls, verifiedResearchMediaSourceUrls, reelArgsHaveExplicitVisualMedia, verifiedCollectedVisualAssets, reelMediaDependencyCall };

@@ -3,7 +3,7 @@ import {
 } from "../jarvis/jarvis.marketing.engine.js?v=v94-source-grounded-research-v124-20260810";
 
 export const NEXO_REAL_MEDIA_TOOLS_VERSION =
-    "1.3.0-real-media-reel-hydration-v127";
+    "1.4.0-real-reel-production-gate-v134";
 
 const INSTALL_KEY = "__NEXO_REAL_MEDIA_TOOLS__";
 
@@ -236,6 +236,27 @@ function hydrateReelArgsWithCollectorMedia(args = {}, context = {}) {
     };
 }
 
+function reelVisualMediaEvidence(args = {}, context = {}) {
+    const scenes = Array.isArray(args?.scenes) ? args.scenes : [];
+    const sceneMedia = scenes.filter(scene =>
+        scene &&
+        typeof scene === "object" &&
+        !Array.isArray(scene) &&
+        [scene.assetOutput, scene.assetDataUrl, scene.mediaUrl]
+            .some(value => String(value || "").trim().length > 0)
+    );
+    const verifiedAssets = collectorEvidence(context)
+        .assets
+        .map(verifiedCollectorAsset)
+        .filter(Boolean);
+    return {
+        hasVisualMedia: sceneMedia.length > 0,
+        sceneMediaCount: sceneMedia.length,
+        verifiedCollectorAssetCount: verifiedAssets.length,
+        sceneCount: scenes.length
+    };
+}
+
 function slug(value = "nexo-campaign") {
     return String(value || "nexo-campaign")
         .normalize("NFD")
@@ -318,6 +339,38 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
             execute: async (args = {}, context = {}) => {
                 const hydration =
                     hydrateReelArgsWithCollectorMedia(args, context);
+                const visualEvidence =
+                    reelVisualMediaEvidence(
+                        hydration.args,
+                        context
+                    );
+                const mediaHydration = {
+                    hydrated: hydration.hydrated,
+                    verifiedAssetCount: hydration.assetCount,
+                    hydratedSceneCount: hydration.sceneCount,
+                    source: hydration.hydrated
+                        ? "web.media.collect"
+                        : null
+                };
+                if (!visualEvidence.hasVisualMedia) {
+                    return {
+                        ok: false,
+                        executionOk: true,
+                        objectiveSatisfied: false,
+                        blocked: true,
+                        requiresInput: false,
+                        retryable: false,
+                        status: "REEL_VISUAL_MEDIA_REQUIRED",
+                        error: "REEL_VISUAL_MEDIA_REQUIRED",
+                        visualEvidence,
+                        mediaHydration,
+                        missionExecution: {
+                            args: hydration.args,
+                            mediaHydration
+                        },
+                        runtimeOverride: NEXO_REAL_MEDIA_TOOLS_VERSION
+                    };
+                }
                 const result =
                     await canonicalReelDefinition.execute(
                         hydration.args,
@@ -325,21 +378,11 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
                     );
                 return {
                     ...result,
-                    mediaHydration: {
-                        hydrated: hydration.hydrated,
-                        verifiedAssetCount: hydration.assetCount,
-                        hydratedSceneCount: hydration.sceneCount,
-                        source: hydration.hydrated
-                            ? "web.media.collect"
-                            : null
-                    },
+                    visualEvidence,
+                    mediaHydration,
                     missionExecution: {
                         args: hydration.args,
-                        mediaHydration: {
-                            hydrated: hydration.hydrated,
-                            verifiedAssetCount: hydration.assetCount,
-                            hydratedSceneCount: hydration.sceneCount
-                        }
+                        mediaHydration
                     },
                     runtimeOverride: NEXO_REAL_MEDIA_TOOLS_VERSION
                 };
@@ -363,6 +406,7 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
                 url: { type: "string" },
                 requireImages: { type: "boolean" },
                 requireVideos: { type: "boolean" },
+                requireAnyVisual: { type: "boolean" },
                 maxImages: { type: "number" },
                 maxVideos: { type: "number" },
                 allowedHosts: { type: "array", items: { type: "string" } },
@@ -561,5 +605,6 @@ export const __test = {
     marketingEvidence,
     verifiedCollectorAsset,
     hydrateReelArgsWithCollectorMedia,
+    reelVisualMediaEvidence,
     slug
 };
