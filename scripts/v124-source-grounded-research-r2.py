@@ -20,6 +20,22 @@ replacements = {
             'v94-page-evidence-failclosed-v123-20260810',
             'v94-source-grounded-research-v124-20260810'
         )
+    ],
+    'tests/jarvis-multifunction-tools.test.mjs': [
+        (
+            '1.51.0-test-outcome-evidence',
+            '1.52.0-source-grounded-research-v124'
+        ),
+        (
+            '4.16.0-generalist-current-turn',
+            '4.17.0-source-grounded-research-v124'
+        )
+    ],
+    'tests/jarvis-semantic-memory-integrity.test.mjs': [
+        (
+            'v94-page-evidence-failclosed-v123-20260810',
+            'v94-source-grounded-research-v124-20260810'
+        )
     ]
 }
 
