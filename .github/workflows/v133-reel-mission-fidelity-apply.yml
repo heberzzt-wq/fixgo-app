@@ -1,0 +1,85 @@
+name: v133-reel-mission-fidelity-apply
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/scripts/v133-reel-mission-fidelity.py
+      - .github/workflows/v133-reel-mission-fidelity-apply.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-v133:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: v94-media-v4n-negative-claims
+
+      - name: Guard branch and Functions baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-media-v4n-negative-claims"
+          ! git diff --name-only a09d76c5d42117aa88630f7b0d5fee75290525b2..HEAD | grep -E '^functions/'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply v133 patch
+        run: python .github/scripts/v133-reel-mission-fidelity.py
+
+      - name: Assert Functions untouched
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! git diff --name-only | grep -E '^functions/'
+
+      - name: Syntax check
+        run: |
+          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
+          node --check gestia-core/jarvis/jarvis.reel.presenter.js
+
+      - name: Focal v133
+        run: |
+          node --test \
+            tests/jarvis-reel-mission-fidelity-v133.test.mjs \
+            tests/jarvis-reel-researched-media-v132.test.mjs \
+            tests/jarvis-semantic-planner.test.cjs \
+            tests/jarvis-mission-orchestrator.test.mjs
+
+      - name: Reject whitespace errors
+        run: git diff --check
+
+      - name: Commit functional v133
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            gestia-core/jarvis/jarvis.multifunction.planner.js \
+            gestia-core/jarvis/jarvis.mission.orchestrator.js \
+            tests/jarvis-reel-mission-fidelity-v133.test.mjs
+          git commit -m "[v133] fix(adj): preserve research identity and reel plan payload"
+          git push origin HEAD:v94-media-v4n-negative-claims
+
+      - name: Apply marker
+        run: |
+          echo "V133_RESEARCH_MISSION_FIDELITY=true"
+          echo "V133_NESTED_REEL_PLAN_PAYLOAD=true"
+          echo "V133_COMPLETED_REEL_PLAN_DEDUPE=true"
+          echo "V133_FUNCTIONS_UNCHANGED=true"
