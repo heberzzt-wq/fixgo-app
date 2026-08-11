@@ -121,6 +121,7 @@ jobs:
             tests/jarvis-marketing-terminal-delivery.e2e.test.mjs \
             tests/jarvis-mission-orchestrator.test.mjs \
             tests/jarvis-fs-bridge-v2.test.mjs \
+            tests/single-semantic-authority.test.mjs \
             2>&1 | tee v124-focal.log
 
       - name: Upload focal diagnostic

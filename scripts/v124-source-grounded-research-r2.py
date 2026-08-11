@@ -33,4 +33,48 @@ for file, pairs in replacements.items():
         source = source.replace(old, new, 1)
     path.write_text(source, encoding='utf-8')
 
+planner_path = Path('gestia-core/jarvis/jarvis.multifunction.planner.js')
+planner = planner_path.read_text(encoding='utf-8')
+old_url_scan = r'''    const matches =
+        source.match(
+            /https?:\/\/[^\s<>"'`]+/gi
+        ) || [];'''
+new_url_scan = '''    const matches = [];
+    let cursor = 0;
+    while (cursor < source.length) {
+        const httpIndex =
+            source.indexOf("http://", cursor);
+        const httpsIndex =
+            source.indexOf("https://", cursor);
+        let start = -1;
+
+        if (httpIndex < 0) start = httpsIndex;
+        else if (httpsIndex < 0) start = httpIndex;
+        else start = Math.min(httpIndex, httpsIndex);
+        if (start < 0) break;
+
+        let end = start;
+        while (end < source.length) {
+            const character = source[end];
+            if (
+                character.charCodeAt(0) <= 32 ||
+                "<>\\\"'`".includes(character)
+            ) {
+                break;
+            }
+            end += 1;
+        }
+        const candidate =
+            source.slice(start, end);
+        if (candidate) matches.push(candidate);
+        cursor = Math.max(end, start + 1);
+        if (matches.length >= 16) break;
+    }'''
+count = planner.count(old_url_scan)
+if count != 1:
+    raise SystemExit(f'V124_STRUCTURAL_URL_SCAN_COUNT:{count}')
+planner = planner.replace(old_url_scan, new_url_scan, 1)
+planner_path.write_text(planner, encoding='utf-8')
+
 print('V124_R2_EXPECTATIONS_UPDATED=TRUE')
+print('V124_STRUCTURAL_URL_SCAN=TRUE')
