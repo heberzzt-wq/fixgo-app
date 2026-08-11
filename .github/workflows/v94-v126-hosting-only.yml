@@ -1,0 +1,104 @@
+name: V94 V126 Hosting-only release
+
+on:
+  push:
+    branches: [v94-media-v4n-negative-claims]
+    paths: ['.github/workflows/v94-v126-hosting-only.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  deploy-hosting-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Guard certified v126 and protected refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-media-v4n-negative-claims"
+          git merge-base --is-ancestor 836dc4b49edea72c31ca8869e3d99d0d0721ce85 HEAD
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "f3fa8e1806b681e860875afd4ce8183d27864873"
+          test "$(git ls-remote origin refs/heads/v5.9-polish | cut -f1)" = "2ae85e670505c5d425a5a0334e99c45168054bb8"
+          if git diff --name-only 48d39848179af2650ba77d11cf434e6605ffa2c2...HEAD | grep -q '^functions/'; then
+            echo 'Functions source differs from v125 base' >&2
+            exit 1
+          fi
+          grep -q 'v94-marketing-actuator-bridge-v126-20260810' gestia-terminal.html
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools
+
+      - name: Build repo-root single-site Hosting config
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+          source = json.loads(Path('firebase.json').read_text(encoding='utf-8'))
+          hosting = source['hosting'][0]
+          assert hosting.get('site') == 'fixgo-44e4d'
+          assert hosting.get('public') == '.'
+          config = {'hosting': [hosting]}
+          assert 'functions' not in config
+          Path('.firebase-v126-hosting.json').write_text(json.dumps(config, indent=2), encoding='utf-8')
+
+      - name: Deploy certified ADJUNTO Hosting only
+        shell: bash
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          firebase deploy --only hosting --config .firebase-v126-hosting.json --project fixgo-44e4d --token "$FIREBASE_TOKEN" 2>&1 | tee v126-hosting.log
+
+      - name: Verify live ADJUNTO v126
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://fixgo-44e4d.web.app/gestia-terminal.html'
+          for i in {1..12}; do
+            code=$(curl -L -sS -o /tmp/gestia-terminal.html -w '%{http_code}' "$URL" || true)
+            if [ "$code" = '200' ] && grep -q 'v94-marketing-actuator-bridge-v126-20260810' /tmp/gestia-terminal.html; then
+              echo "V126_LIVE_PROBE=200 /gestia-terminal.html"
+              echo 'V126_LIVE_RELEASE_VERIFIED=v94-marketing-actuator-bridge-v126-20260810'
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Live v126 marker not observed; last HTTP=$code" >&2
+          head -80 /tmp/gestia-terminal.html || true
+          exit 1
+
+      - name: Remove temporary Hosting workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'heberzzt-wq'
+          git config user.email 'heberzzt@gmail.com'
+          git rm .github/workflows/v94-v126-hosting-only.yml
+          git commit -m '[v126] chore(deploy): remove temporary hosting workflow'
+          git push origin HEAD:v94-media-v4n-negative-claims
+
+      - name: Final no-Functions and protected refs proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "f3fa8e1806b681e860875afd4ce8183d27864873"
+          test "$(git ls-remote origin refs/heads/v5.9-polish | cut -f1)" = "2ae85e670505c5d425a5a0334e99c45168054bb8"
+          if git diff --name-only 48d39848179af2650ba77d11cf434e6605ffa2c2...HEAD | grep -q '^functions/'; then
+            echo 'Functions source changed' >&2
+            exit 1
+          fi
+          echo 'V126_HOSTING_ONLY_RELEASE_COMPLETE=true'
+          echo 'V126_FUNCTIONS_UNCHANGED=true'
