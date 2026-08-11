@@ -2514,7 +2514,7 @@ test("system health exposes bridge server version separately from tool pack vers
         );
         assert.equal(
             result.toolPackVersion,
-            "1.54.0-marketing-actuator-bridge-v126"
+            "1.55.0-reel-semantic-media-binding-v131"
         );
         assert.notEqual(
             result.toolPackVersion,
