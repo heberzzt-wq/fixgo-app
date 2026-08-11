@@ -10,12 +10,15 @@ on:
       - .github/scripts/v133-reel-mission-fidelity.py
       - .github/workflows/v133-reel-failure-precedence-apply.yml
       - .github/scripts/v133-reel-failure-precedence.py
+      - .github/workflows/v133-reel-fidelity-no-lexical-regex-apply.yml
+      - .github/scripts/v133-reel-fidelity-no-lexical-regex.py
       - gestia-core/jarvis/jarvis.multifunction.planner.js
       - gestia-core/jarvis/jarvis.mission.orchestrator.js
       - gestia-core/jarvis/jarvis.reel.presenter.js
       - tests/jarvis-reel-mission-fidelity-v133.test.mjs
       - tests/jarvis-reel-researched-media-v132.test.mjs
       - tests/jarvis-mission-failure-precedence.test.mjs
+      - tests/single-semantic-authority.test.mjs
       - package.json
       - package-lock.json
 
@@ -57,6 +60,7 @@ jobs:
           node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
           node --check gestia-core/jarvis/jarvis.reel.presenter.js
           node --test \
+            tests/single-semantic-authority.test.mjs \
             tests/jarvis-reel-mission-fidelity-v133.test.mjs \
             tests/jarvis-reel-researched-media-v132.test.mjs \
             tests/jarvis-mission-failure-precedence.test.mjs \
@@ -73,6 +77,8 @@ jobs:
         run: |
           echo "V133_REEL_MISSION_FIDELITY_CERTIFIED=true"
           echo "V133_RESEARCH_IDENTITY_FAILSAFE=true"
+          echo "V133_RESEARCH_FIDELITY_SEGMENTER=true"
+          echo "V133_ZERO_LEXICAL_REGEX=true"
           echo "V133_REEL_PLAN_NESTED_PAYLOAD=true"
           echo "V133_COMPLETED_REEL_PLAN_DEDUPE=true"
           echo "V133_TOP_LEVEL_FAILURE_PRECEDENCE=true"
