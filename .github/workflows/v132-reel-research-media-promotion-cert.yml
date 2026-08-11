@@ -37,6 +37,12 @@ jobs:
           set -euo pipefail
           test "${GITHUB_REF_NAME}" = "v94-media-v4n-negative-claims"
           ! git diff --name-only a09d76c5d42117aa88630f7b0d5fee75290525b2..HEAD | grep -E '^functions/'
+      - name: Confirm v132 staging cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e .github/scripts/v132-reel-research-media-promotion.py
+          test ! -e .github/workflows/v132-reel-research-media-promotion-apply.yml
       - name: Focal v132
         run: |
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
@@ -50,4 +56,5 @@ jobs:
           echo "V132_RESEARCH_MEDIA_PROMOTION_CERTIFIED=true"
           echo "V132_RESEARCH_SOURCE_POLICY=VERIFIED_EVIDENCE_ONLY"
           echo "V132_AMBIGUOUS_SOURCE_POLICY=FAIL_CLOSED"
+          echo "V132_STAGING_CLEAN=true"
           echo "V132_FUNCTIONS_UNCHANGED=true"
