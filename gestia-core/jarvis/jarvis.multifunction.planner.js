@@ -688,15 +688,44 @@ function appendSourceAnchorHints(
 function normalizedMissionFidelityTerms(
     value = ""
 ) {
-    return [
-        ...String(value || "")
+    const source =
+        String(value || "")
             .normalize("NFC")
             .toLocaleLowerCase()
-            .matchAll(/[\p{L}\p{N}]+/gu)
-    ]
-        .map(match => match[0])
-        .filter(term => term.length >= 3)
-        .slice(0, 1200);
+            .trim();
+    if (!source) return [];
+
+    if (
+        typeof Intl !== "undefined" &&
+        typeof Intl.Segmenter === "function"
+    ) {
+        const segmenter =
+            new Intl.Segmenter(
+                undefined,
+                { granularity: "word" }
+            );
+        const terms = [];
+        for (
+            const item
+            of segmenter.segment(source)
+        ) {
+            const term =
+                String(item?.segment || "")
+                    .trim();
+            if (
+                item?.isWordLike === true &&
+                term.length >= 3
+            ) {
+                terms.push(term);
+            }
+            if (terms.length >= 1200) break;
+        }
+        return terms;
+    }
+
+    return source.length >= 3
+        ? [source]
+        : [];
 }
 
 function researchQueryPreservesMissionIdentity(
