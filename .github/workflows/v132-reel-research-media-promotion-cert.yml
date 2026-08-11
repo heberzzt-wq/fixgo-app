@@ -6,6 +6,7 @@ on:
       - v94-media-v4n-negative-claims
     paths:
       - .github/workflows/v132-reel-research-media-promotion-cert.yml
+      - .github/workflows/v132-adjunto-hosting-restore.yml
       - gestia-core/jarvis/jarvis.multifunction.planner.js
       - tests/jarvis-reel-researched-media-v132.test.mjs
       - package.json
@@ -44,6 +45,7 @@ jobs:
           test ! -e .github/scripts/v132-reel-research-media-promotion.py
           test ! -e .github/workflows/v132-reel-research-media-promotion-apply.yml
           test ! -e .github/workflows/v132-adjunto-hosting-only.yml
+          test ! -e .github/workflows/v132-adjunto-hosting-restore.yml
       - name: Focal v132
         run: |
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
@@ -59,4 +61,5 @@ jobs:
           echo "V132_AMBIGUOUS_SOURCE_POLICY=FAIL_CLOSED"
           echo "V132_STAGING_CLEAN=true"
           echo "V132_POST_DEPLOY_HEAD_CLEAN=true"
+          echo "V132_EMERGENCY_RESTORE_WORKFLOW_CLEAN=true"
           echo "V132_FUNCTIONS_UNCHANGED=true"
