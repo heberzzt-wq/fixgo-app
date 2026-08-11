@@ -7,6 +7,7 @@ on:
     paths:
       - .github/workflows/v94-v124-source-grounded-research.yml
       - scripts/v124-source-grounded-research.py
+      - scripts/v124-source-grounded-research-r2.py
 
 permissions:
   contents: write
@@ -43,7 +44,7 @@ jobs:
           test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "$MAIN_SHA"
           test "$(git ls-remote origin refs/heads/v5.9-polish | awk '{print $1}')" = "$POLISH_SHA"
           test -z "$(git diff --name-only "$BASE_SHA" HEAD -- functions/)"
-          unexpected="$(git diff --name-only "$BASE_SHA" HEAD | grep -Ev '^(scripts/v124-source-grounded-research\.py|\.github/workflows/v94-v124-source-grounded-research\.yml)$' || true)"
+          unexpected="$(git diff --name-only "$BASE_SHA" HEAD | grep -Ev '^(scripts/v124-source-grounded-research(-r2)?\.py|\.github/workflows/v94-v124-source-grounded-research\.yml)$' || true)"
           if test -n "$unexpected"; then
             echo "Unexpected pre-patch files:" >&2
             printf '%s\n' "$unexpected" >&2
@@ -67,7 +68,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          python3 scripts/v124-source-grounded-research.py 2>&1 | tee v124-patch.log
+          python3 scripts/v124-source-grounded-research-r2.py 2>&1 | tee v124-patch.log
 
       - name: Upload patch diagnostic
         if: always()
@@ -149,6 +150,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -f scripts/v124-source-grounded-research.py
+          rm -f scripts/v124-source-grounded-research-r2.py
           rm -f .github/workflows/v94-v124-source-grounded-research.yml
           rm -f v124-patch.log v124-focal.log
           git config user.name "heberzzt-wq"
@@ -156,6 +158,7 @@ jobs:
           git add -A
           test -z "$(git diff --cached --name-only | grep -E '^functions/' || true)"
           test ! -e scripts/v124-source-grounded-research.py
+          test ! -e scripts/v124-source-grounded-research-r2.py
           test ! -e .github/workflows/v94-v124-source-grounded-research.yml
           git diff --cached --check
           git commit -m "[v94] fix(adj): anchor research to user sources v124"
