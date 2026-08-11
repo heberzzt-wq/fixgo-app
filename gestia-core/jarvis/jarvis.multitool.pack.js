@@ -34,8 +34,13 @@ import {
     extractDocumentContract,
     validateDocumentBlueprint
 } from "./jarvis.document.validator.js?v=sia7-exact-template-contract-v84-20260725";
+import {
+    buildReelMediaBindingPrompt,
+    reelMediaCollectionState,
+    validateReelMediaBindings
+} from "./jarvis.reel.media-binder.js?v=v131-semantic-scene-media-authority-20260811";
 
-const VERSION = "1.54.0-marketing-actuator-bridge-v126";
+const VERSION = "1.55.0-reel-semantic-media-binding-v131";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 4500;
 const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";
@@ -5687,6 +5692,135 @@ export function registerJarvisMultifunctionTools(runtime) {
                         };
                     }
                 }
+                let semanticMediaBinding = {
+                    used: false
+                };
+                if (result?.ok === true) {
+                    const requiredTools = Array.isArray(context?.requiredToolNames)
+                        ? context.requiredToolNames.map(String)
+                        : [];
+                    const collectionRequired = requiredTools.includes("web.media.collect");
+                    const collection = reelMediaCollectionState(context);
+                    if (collectionRequired && collection.attempted !== true) {
+                        return {
+                            ...result,
+                            ok: false,
+                            executionOk: true,
+                            objectiveSatisfied: false,
+                            blocked: false,
+                            retryable: true,
+                            requiresInput: false,
+                            status: "REEL_MEDIA_COLLECTION_REQUIRED_BEFORE_PLAN",
+                            error: "WEB_MEDIA_COLLECT_MUST_COMPLETE_BEFORE_REEL_PLAN",
+                            missingInputs: [],
+                            semanticMediaBinding: {
+                                used: false,
+                                waitingFor: "web.media.collect"
+                            }
+                        };
+                    }
+                    if (collection.attempted === true && collection.assets.length < 1) {
+                        return {
+                            ...result,
+                            ok: false,
+                            executionOk: true,
+                            objectiveSatisfied: false,
+                            blocked: true,
+                            retryable: false,
+                            requiresInput: false,
+                            status: "REEL_VERIFIED_SCENE_MEDIA_REQUIRED",
+                            error: "WEB_MEDIA_COLLECT_RETURNED_NO_VERIFIED_SCENE_MEDIA",
+                            missingInputs: [],
+                            semanticMediaBinding: { used: false, assetCount: 0 }
+                        };
+                    }
+                    if (collection.assets.length > 0) {
+                        let semanticBindingResult = null;
+                        let decision = null;
+                        try {
+                            semanticBindingResult = await fetchSemanticConversation(
+                                buildReelMediaBindingPrompt({
+                                    scenes: result.scenes,
+                                    assets: collection.assets
+                                }),
+                                { maxOutputTokens: 2800 }
+                            );
+                            if (semanticBindingResult?.ok !== true) {
+                                throw new Error(
+                                    semanticBindingResult?.error ||
+                                    semanticBindingResult?.status ||
+                                    "REEL_MEDIA_BINDING_MODEL_UNAVAILABLE"
+                                );
+                            }
+                            decision = extractSemanticJsonObject(
+                                semanticBindingResult?.message ||
+                                ""
+                            );
+                        }
+                        catch(error) {
+                            return {
+                                ...result,
+                                ok: false,
+                                executionOk: true,
+                                objectiveSatisfied: false,
+                                blocked: false,
+                                retryable: true,
+                                requiresInput: false,
+                                status: "REEL_MEDIA_SEMANTIC_BINDING_FAILED",
+                                error: error?.message || "REEL_MEDIA_SEMANTIC_BINDING_FAILED",
+                                semanticMediaBinding: {
+                                    used: true,
+                                    validated: false,
+                                    assetCount: collection.assets.length,
+                                    provider: semanticBindingResult?.provider || null,
+                                    model: semanticBindingResult?.model || null
+                                }
+                            };
+                        }
+                        const validation = validateReelMediaBindings({
+                            scenes: result.scenes,
+                            assets: collection.assets,
+                            decision
+                        });
+                        if (validation.ok !== true) {
+                            return {
+                                ...result,
+                                ok: false,
+                                executionOk: true,
+                                objectiveSatisfied: false,
+                                blocked: false,
+                                retryable: true,
+                                requiresInput: false,
+                                status: "REEL_MEDIA_SEMANTIC_BINDING_FAILED",
+                                error: validation.status || "REEL_MEDIA_SEMANTIC_BINDING_FAILED",
+                                semanticMediaBinding: {
+                                    used: true,
+                                    validated: false,
+                                    validationStatus: validation.status || null,
+                                    assetCount: collection.assets.length,
+                                    provider: semanticBindingResult?.provider || null,
+                                    model: semanticBindingResult?.model || null
+                                }
+                            };
+                        }
+                        semanticMediaBinding = {
+                            used: true,
+                            validated: true,
+                            version: "semantic_scene_media_authority_v131",
+                            assetCount: validation.assetCount,
+                            bindingCount: validation.bindingCount,
+                            maxUse: validation.maxUse,
+                            bindings: validation.bindings,
+                            provider: semanticBindingResult?.provider || null,
+                            model: semanticBindingResult?.model || null
+                        };
+                        result = {
+                            ...result,
+                            scenes: validation.scenes,
+                            mediaBinding: semanticMediaBinding
+                        };
+                    }
+                }
                 return {
                     ...result,
                     objectiveSatisfied: result?.ok === true,
@@ -5701,7 +5835,8 @@ export function registerJarvisMultifunctionTools(runtime) {
                         }
                         : {
                             used: false
-                        }
+                        },
+                    semanticMediaBinding
                 };
             }
         }),

@@ -70,7 +70,7 @@ test("v128 hydrates reel from completed mission media without relying on synthet
     assert.equal(hydrated.args.scenes[2].mediaType, "image");
 });
 
-test("v128 caches the real collector result by mission and injects it into the actual reel executor", async () => {
+test("v131 caches collected media but refuses positional injection into reel.create", async () => {
     const runtime = makeRuntime();
     let reelArgs = null;
 
@@ -125,11 +125,11 @@ test("v128 caches the real collector result by mission and injects it into the a
         objectiveId: "objective-v128"
     });
 
-    assert.equal(result.ok, true);
-    assert.equal(result.mediaHydration.hydrated, true);
+    assert.equal(result.ok, false);
+    assert.equal(result.status, "REEL_MEDIA_SEMANTIC_BINDING_REQUIRED");
+    assert.equal(result.semanticMediaCoverage.complete, false);
     assert.equal(result.mediaHydration.verifiedAssetCount, 1);
-    assert.equal(reelArgs.scenes[0].assetOutput, verifiedImage.output);
-    assert.equal(reelArgs.scenes[1].assetOutput, verifiedImage.output);
+    assert.equal(reelArgs, null);
 });
 
 

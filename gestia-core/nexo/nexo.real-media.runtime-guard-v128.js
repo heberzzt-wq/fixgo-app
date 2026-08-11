@@ -1,5 +1,9 @@
+import {
+    reelSceneMediaCoverage
+} from "../jarvis/jarvis.reel.media-binder.js?v=v131-semantic-scene-media-authority-20260811";
+
 export const NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION =
-    "1.1.0-brand-role-audio-authority-v130";
+    "1.2.0-semantic-scene-media-authority-v131";
 
 const INSTALL_KEY = "__NEXO_REAL_MEDIA_RUNTIME_GUARD_V128__";
 const CACHE_KEY = "__NEXO_REAL_MEDIA_MISSION_CACHE_V128__";
@@ -390,6 +394,34 @@ export function registerNexoRealMediaRuntimeGuard(runtime = runtimeCandidate()) 
                     error: "WEB_MEDIA_COLLECT_RETURNED_NO_VERIFIED_SCENE_MEDIA",
                     message:
                         "web.media.collect se ejecutó, pero no entregó imágenes o videos verificables para escenas. Un logo declarado no se reutiliza como fondo genérico.",
+                    mediaHydration: {
+                        hydrated: false,
+                        verifiedAssetCount: media.assets.length,
+                        verifiedSceneAssetCount,
+                        hydratedSceneCount: 0,
+                        source: "web.media.collect"
+                    },
+                    runtimeMediaAuthority: NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION
+                };
+            }
+
+            const semanticCoverage = reelSceneMediaCoverage(audioHydration.args);
+            if (
+                media.attempted === true &&
+                verifiedSceneAssetCount > 0 &&
+                semanticCoverage.complete !== true
+            ) {
+                return {
+                    ok: false,
+                    executionOk: true,
+                    objectiveSatisfied: false,
+                    blocked: true,
+                    requiresInput: false,
+                    retryable: true,
+                    status: "REEL_MEDIA_SEMANTIC_BINDING_REQUIRED",
+                    error: "WEB_MEDIA_REQUIRES_COMPLETE_SEMANTIC_SCENE_BINDING",
+                    message: "Los medios web verificados existen, pero el storyboard no trae una selección semántica completa por escena. Se bloqueó el reparto automático por posición.",
+                    semanticMediaCoverage: semanticCoverage,
                     mediaHydration: {
                         hydrated: false,
                         verifiedAssetCount: media.assets.length,

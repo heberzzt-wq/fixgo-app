@@ -9,7 +9,7 @@
  */
 
 export const NEXO_TERMINAL_BOOTSTRAP_VERSION =
-    "1.6.0-real-media-runtime-authority-v128";
+    "1.7.0-semantic-reel-media-authority-v131";
 
 const INSTALL_KEY = "__NEXO_TERMINAL_BOOTSTRAP__";
 
@@ -33,7 +33,7 @@ export async function instalarBootstrapTerminalNexo() {
         "../../gestia-core/nexo/nexo.real-media.tools.js?v=v94-real-media-reel-hydration-v127-20260811"
     );
     const runtimeMediaGuard = await import(
-        "../../gestia-core/nexo/nexo.real-media.runtime-guard-v128.js?v=v94-real-media-runtime-authority-v128-20260811"
+        "../../gestia-core/nexo/nexo.real-media.runtime-guard-v128.js?v=v131-semantic-scene-media-authority-20260811"
     );
 
     const toolsInstallation =
