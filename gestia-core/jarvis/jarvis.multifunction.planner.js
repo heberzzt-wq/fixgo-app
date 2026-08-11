@@ -2,7 +2,7 @@ import {
     rejectCorruptedIdentityArgs
 } from "./jarvis.identity.integrity.js?v=v94-generalist-page-integrity-v120-20260810";
 
-const VERSION = "4.17.0-source-grounded-research-v124";
+const VERSION = "4.18.0-reel-mission-fidelity-v133";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
@@ -684,6 +684,145 @@ function appendSourceAnchorHints(
         .slice(0, 600);
 }
 
+
+function normalizedMissionFidelityTerms(
+    value = ""
+) {
+    return [
+        ...String(value || "")
+            .normalize("NFC")
+            .toLocaleLowerCase()
+            .matchAll(/[\p{L}\p{N}]+/gu)
+    ]
+        .map(match => match[0])
+        .filter(term => term.length >= 3)
+        .slice(0, 1200);
+}
+
+function researchQueryPreservesMissionIdentity(
+    query = "",
+    instruction = ""
+) {
+    const queryTerms =
+        new Set(
+            normalizedMissionFidelityTerms(
+                query
+            )
+        );
+    const instructionTerms =
+        new Set(
+            normalizedMissionFidelityTerms(
+                instruction
+            )
+        );
+    if (
+        queryTerms.size === 0 ||
+        instructionTerms.size === 0
+    ) {
+        return false;
+    }
+    const overlap =
+        [...queryTerms]
+            .filter(term =>
+                instructionTerms.has(term)
+            );
+    return (
+        overlap.length >= 2 ||
+        overlap.some(term =>
+            term.length >= 6
+        )
+    );
+}
+
+function normalizeResearchMissionFidelity(
+    args = {},
+    instruction = ""
+) {
+    const next = {
+        ...(args &&
+        typeof args === "object" &&
+        !Array.isArray(args)
+            ? args
+            : {})
+    };
+    const missionInstruction =
+        instructionBeforeAttachmentManifest(
+            instruction
+        )
+            .replace(/\s+/g, " ")
+            .trim();
+    let query =
+        String(
+            next.query ||
+            next.prompt ||
+            ""
+        )
+            .replace(/\s+/g, " ")
+            .trim();
+    const exactEntity =
+        String(next.exactEntity || "")
+            .replace(/\s+/g, " ")
+            .trim();
+    let repaired =
+        false;
+
+    if (exactEntity) {
+        const queryTerms =
+            new Set(
+                normalizedMissionFidelityTerms(
+                    query
+                )
+            );
+        const entityTerms =
+            normalizedMissionFidelityTerms(
+                exactEntity
+            );
+        if (
+            entityTerms.length > 0 &&
+            !entityTerms.every(term =>
+                queryTerms.has(term)
+            )
+        ) {
+            query =
+                `${exactEntity} ${query}`
+                    .replace(/\s+/g, " ")
+                    .trim()
+                    .slice(0, 600);
+            repaired =
+                true;
+        }
+    }
+
+    if (
+        !exactEntity &&
+        missionInstruction &&
+        explicitHttpSourceUrls(
+            instruction
+        ).length === 0 &&
+        !researchQueryPreservesMissionIdentity(
+            query,
+            missionInstruction
+        )
+    ) {
+        query =
+            missionInstruction
+                .slice(0, 600);
+        repaired =
+            true;
+    }
+
+    if (query) {
+        next.query =
+            query;
+    }
+
+    return {
+        args:
+            next,
+        repaired
+    };
+}
+
 function verifiedResearchSourceUrls(
     missionState = null
 ) {
@@ -735,12 +874,6 @@ function normalizeExplicitSourceCandidates(
             context?.missionState ||
             null
         );
-    if (
-        explicitAnchors.length === 0 &&
-        researchedAnchors.length === 0
-    ) {
-        return sourceCandidates;
-    }
     const available =
         new Set(
             catalog.map(tool =>
@@ -760,8 +893,25 @@ function normalizeExplicitSourceCandidates(
         if (!available.has(name)) {
             return candidate;
         }
-        const args =
+        let args =
             candidateArgumentObject(candidate);
+        let missionFidelityRepaired =
+            false;
+        if (
+            name === "web.research"
+        ) {
+            const fidelity =
+                normalizeResearchMissionFidelity(
+                    args,
+                    context?.originalInstruction ||
+                    ""
+                );
+            args =
+                fidelity.args;
+            missionFidelityRepaired =
+                fidelity.repaired ===
+                true;
+        }
         if (
             name === "web.media.collect" &&
             explicitAnchors.length === 0 &&
@@ -786,7 +936,20 @@ function normalizeExplicitSourceCandidates(
                 args,
                 candidateAnchors
             );
-        if (!anchor) return candidate;
+        if (!anchor) {
+            return {
+                ...candidate,
+                args,
+                ...(
+                    missionFidelityRepaired
+                        ? {
+                            reason:
+                                "SEMANTIC_RESEARCH_MISSION_FIDELITY_REPAIRED"
+                        }
+                        : {}
+                )
+            };
+        }
 
         if (name === "web.research") {
             return {
@@ -2257,5 +2420,8 @@ export const __test = {
     explicitHttpSourceUrls,
     sourceAnchorDescriptor,
     verifiedResearchSourceUrls,
-    normalizeExplicitSourceCandidates
+    normalizeExplicitSourceCandidates,
+    normalizedMissionFidelityTerms,
+    researchQueryPreservesMissionIdentity,
+    normalizeResearchMissionFidelity
 };

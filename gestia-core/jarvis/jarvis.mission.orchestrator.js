@@ -1,6 +1,7 @@
-const VERSION = "1.11.0-semantic-memory-canonical-evidence";
+const VERSION = "1.12.0-reel-mission-fidelity-v133";
 const STORAGE_KEY = "jarvis.missions.v1";
 const SINGLETON_MISSION_TOOLS = new Set(["marketing.plan"]);
+const COMPLETED_SINGLETON_MISSION_TOOLS = new Set(["reel.plan"]);
 
 function text(value = "", maximum = 120000) {
     return String(value ?? "").trim().slice(0, maximum);
@@ -349,15 +350,96 @@ function isFailureStatus(status = "") {
     );
 }
 
+
+function genericRuntimeEnvelopeStatus(
+    value = ""
+) {
+    const status =
+        text(value, 120)
+            .toUpperCase();
+    return (
+        !status ||
+        status === "SUCCESS" ||
+        status === "COMPLETED" ||
+        status === "OK"
+    );
+}
+
+function unwrapObservationPayload(
+    result = {}
+) {
+    let current =
+        result;
+    const seen =
+        new Set();
+
+    for (
+        let depth = 0;
+        depth < 8;
+        depth += 1
+    ) {
+        if (
+            !current ||
+            typeof current !== "object" ||
+            Array.isArray(current) ||
+            seen.has(current)
+        ) {
+            break;
+        }
+        seen.add(current);
+
+        const observation =
+            current
+                ?.observations
+                ?.[0]
+                ?.data;
+        if (
+            observation &&
+            typeof observation === "object" &&
+            !Array.isArray(observation)
+        ) {
+            current =
+                observation;
+            continue;
+        }
+
+        if (
+            !genericRuntimeEnvelopeStatus(
+                current?.status
+            )
+        ) {
+            break;
+        }
+
+        const nested =
+            [
+                current?.result,
+                current?.data,
+                current?.response
+            ].find(value =>
+                value &&
+                typeof value === "object" &&
+                !Array.isArray(value)
+            );
+        if (!nested) {
+            break;
+        }
+        current =
+            nested;
+    }
+
+    return current &&
+        typeof current === "object" &&
+        !Array.isArray(current)
+        ? current
+        : result;
+}
+
 function safeObservation(result = {}) {
     const payload =
-        result?.observations?.[0]?.data ||
-        result?.data?.observations?.[0]?.data ||
-        result?.result?.observations?.[0]?.data ||
-        result?.result ||
-        result?.data ||
-        result?.response ||
-        result;
+        unwrapObservationPayload(
+            result
+        );
     const envelopeStatus = text(result?.status, 120);
     const payloadStatus = text(payload?.status, 120);
     const genericEnvelopeStatus =
@@ -900,10 +982,15 @@ function trustedCalls(calls = [], mission) {
         ...mission.pendingTasks,
         ...mission.blockedTasks
     ].map(item => item?.name).filter(Boolean));
+    const completedNames = new Set(
+        mission.completedTasks
+            .map(item => item.name)
+    );
     for (const candidate of Array.isArray(calls) ? calls : []) {
         const name = text(candidate?.name, 100);
         if (!name) continue;
         if (SINGLETON_MISSION_TOOLS.has(name) && scheduledNames.has(name)) continue;
+        if (COMPLETED_SINGLETON_MISSION_TOOLS.has(name) && completedNames.has(name)) continue;
         const call = { name, args: candidate?.args && typeof candidate.args === "object" ? candidate.args : {}, approved: false };
         const missionDedupeKey =
             text(
@@ -1260,4 +1347,4 @@ export function recoverJarvisMission(missionId, { storage } = {}) {
     return readMissions(storageOrMemory(storage)).find(item => item.missionId === missionId) || null;
 }
 
-export const __test = { callSignature, compactRoutingInstruction, isFailureStatus, safeObservation, trustedCalls, canonicalMissionEvidence };
+export const __test = { callSignature, compactRoutingInstruction, isFailureStatus, safeObservation, trustedCalls, canonicalMissionEvidence, unwrapObservationPayload };
