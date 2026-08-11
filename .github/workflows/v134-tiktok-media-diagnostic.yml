@@ -1,0 +1,68 @@
+name: v134-tiktok-media-diagnostic
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v134-tiktok-media-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  probe-tiktok-media:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+
+      - name: Guard branch and Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF_NAME}" = "v94-media-v4n-negative-claims"
+          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
+
+      - name: Probe exact Taquería El Dorado TikTok source
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { collectNexoRealWebMedia } from './nexo-web-media-bridge.js';
+          try {
+            const result = await collectNexoRealWebMedia({
+              url: 'https://www.tiktok.com/@taqueria.eldorado',
+              requireAnyVisual: true,
+              maxImages: 8,
+              maxVideos: 4,
+              timeoutMs: 45000,
+              root: process.cwd()
+            });
+            console.log('TIKTOK_MEDIA_PROBE', JSON.stringify({
+              ok: result.ok,
+              status: result.status,
+              finalPageUrl: result.finalPageUrl,
+              counts: result.counts,
+              requirementsMet: result.requirementsMet,
+              assets: (result.mediaAssets || []).map(item => ({
+                kind: item.kind,
+                sourceTag: item.sourceTag,
+                mediaRole: item.mediaRole,
+                mimeType: item.mimeType,
+                bytes: item.bytes,
+                sourceUrl: item.sourceUrl
+              })),
+              skipped: (result.skipped || []).slice(0, 12)
+            }, null, 2));
+            if (!result.ok || !result.requirementsMet || Number(result.counts?.total || 0) < 1) {
+              process.exitCode = 2;
+            }
+          } catch (error) {
+            console.error('TIKTOK_MEDIA_PROBE_EXCEPTION', error?.stack || error?.message || String(error));
+            process.exitCode = 3;
+          }
+          NODE
