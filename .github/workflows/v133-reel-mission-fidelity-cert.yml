@@ -16,6 +16,7 @@ on:
       - .github/scripts/v133-planner-version-expectation.py
       - .github/workflows/v133-full-ci-diagnostic.yml
       - .github/workflows/v133-full-ci-monolithic-diagnostic.yml
+      - .github/workflows/v133-adjunto-hosting-only.yml
       - gestia-core/jarvis/jarvis.multifunction.planner.js
       - gestia-core/jarvis/jarvis.mission.orchestrator.js
       - gestia-core/jarvis/jarvis.reel.presenter.js
@@ -59,6 +60,22 @@ jobs:
           test "${GITHUB_REF_NAME}" = "v94-media-v4n-negative-claims"
           ! git diff --name-only a09d76c5d42117aa88630f7b0d5fee75290525b2..HEAD | grep -E '^functions/'
 
+      - name: Confirm v133 staging and deploy cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e .github/scripts/v133-reel-mission-fidelity.py
+          test ! -e .github/workflows/v133-reel-mission-fidelity-apply.yml
+          test ! -e .github/scripts/v133-reel-failure-precedence.py
+          test ! -e .github/workflows/v133-reel-failure-precedence-apply.yml
+          test ! -e .github/scripts/v133-reel-fidelity-no-lexical-regex.py
+          test ! -e .github/workflows/v133-reel-fidelity-no-lexical-regex-apply.yml
+          test ! -e .github/scripts/v133-planner-version-expectation.py
+          test ! -e .github/workflows/v133-planner-version-expectation-apply.yml
+          test ! -e .github/workflows/v133-full-ci-diagnostic.yml
+          test ! -e .github/workflows/v133-full-ci-monolithic-diagnostic.yml
+          test ! -e .github/workflows/v133-adjunto-hosting-only.yml
+
       - name: Focal v133
         run: |
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
@@ -76,6 +93,22 @@ jobs:
       - name: Full CI
         run: npm run ci:test
 
+      - name: Verify post-deploy live artifacts remain exact
+        shell: bash
+        run: |
+          set -euo pipefail
+          verify_exact() {
+            local url="$1"
+            local local_file="$2"
+            local live_file="$RUNNER_TEMP/$(basename "$local_file").postdeploy"
+            curl -fsS --retry 3 --retry-delay 2 -H 'Cache-Control: no-cache' "$url?postdeploy=${GITHUB_SHA}" -o "$live_file"
+            cmp -s "$local_file" "$live_file"
+            echo "POST_DEPLOY_LIVE_EXACT $local_file $(sha256sum "$live_file" | awk '{print $1}')"
+          }
+          verify_exact 'https://fixgo-44e4d.web.app/gestia-terminal.html' 'gestia-terminal.html'
+          verify_exact 'https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.multifunction.planner.js' 'gestia-core/jarvis/jarvis.multifunction.planner.js'
+          verify_exact 'https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.mission.orchestrator.js' 'gestia-core/jarvis/jarvis.mission.orchestrator.js'
+
       - name: Reject whitespace errors
         run: git diff --check
 
@@ -90,6 +123,7 @@ jobs:
           echo "V133_TOP_LEVEL_FAILURE_PRECEDENCE=true"
           echo "V133_NESTED_EVIDENCE_PRESERVED=true"
           echo "V133_PLANNER_VERSION_EXPECTATION_ALIGNED=true"
-          echo "V133_SEGMENTED_CI_DIAGNOSTIC_GREEN=true"
-          echo "V133_MONOLITHIC_CI_DIAGNOSTIC_GREEN=true"
+          echo "V133_STAGING_CLEAN=true"
+          echo "V133_DEPLOY_WORKFLOW_CLEAN=true"
+          echo "V133_POST_DEPLOY_LIVE_EXACT=true"
           echo "V133_FUNCTIONS_UNCHANGED=true"
