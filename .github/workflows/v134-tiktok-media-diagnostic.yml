@@ -13,11 +13,12 @@ permissions:
 jobs:
   probe-tiktok-media:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - name: Checkout isolated branch
         uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           ref: v94-media-v4n-negative-claims
 
       - name: Guard branch and Functions
@@ -27,42 +28,65 @@ jobs:
           test "${GITHUB_REF_NAME}" = "v94-media-v4n-negative-claims"
           ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
 
-      - name: Probe exact Taquería El Dorado TikTok source
+      - name: Locate Chrome
+        id: chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$CHROME"
+          echo "path=$CHROME" >> "$GITHUB_OUTPUT"
+          "$CHROME" --version
+
+      - name: Render exact Taquería El Dorado TikTok source
+        shell: bash
+        env:
+          CHROME: ${{ steps.chrome.outputs.path }}
+        run: |
+          set -euo pipefail
+          "$CHROME" \
+            --headless=new \
+            --no-sandbox \
+            --disable-gpu \
+            --disable-dev-shm-usage \
+            --autoplay-policy=no-user-gesture-required \
+            --virtual-time-budget=12000 \
+            --dump-dom \
+            'https://www.tiktok.com/@taqueria.eldorado' \
+            > "$RUNNER_TEMP/tiktok-rendered.html" 2> "$RUNNER_TEMP/chrome.stderr" || true
+          test -s "$RUNNER_TEMP/tiktok-rendered.html"
+          echo "RENDERED_BYTES=$(wc -c < "$RUNNER_TEMP/tiktok-rendered.html")"
+
+      - name: Inspect rendered DOM media without downloading it
         shell: bash
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE'
-          import { collectNexoRealWebMedia } from './nexo-web-media-bridge.js';
-          try {
-            const result = await collectNexoRealWebMedia({
-              url: 'https://www.tiktok.com/@taqueria.eldorado',
-              requireAnyVisual: true,
-              maxImages: 8,
-              maxVideos: 4,
-              timeoutMs: 45000,
-              root: process.cwd()
-            });
-            console.log('TIKTOK_MEDIA_PROBE', JSON.stringify({
-              ok: result.ok,
-              status: result.status,
-              finalPageUrl: result.finalPageUrl,
-              counts: result.counts,
-              requirementsMet: result.requirementsMet,
-              assets: (result.mediaAssets || []).map(item => ({
-                kind: item.kind,
-                sourceTag: item.sourceTag,
-                mediaRole: item.mediaRole,
-                mimeType: item.mimeType,
-                bytes: item.bytes,
-                sourceUrl: item.sourceUrl
-              })),
-              skipped: (result.skipped || []).slice(0, 12)
-            }, null, 2));
-            if (!result.ok || !result.requirementsMet || Number(result.counts?.total || 0) < 1) {
-              process.exitCode = 2;
-            }
-          } catch (error) {
-            console.error('TIKTOK_MEDIA_PROBE_EXCEPTION', error?.stack || error?.message || String(error));
-            process.exitCode = 3;
-          }
+          import fs from 'node:fs';
+          import { __test as webMediaTest } from './nexo-web-media-bridge.js';
+          const html = fs.readFileSync(process.env.RUNNER_TEMP + '/tiktok-rendered.html', 'utf8');
+          const base = 'https://www.tiktok.com/@taqueria.eldorado';
+          const candidates = webMediaTest.mediaCandidates(html, base);
+          const images = candidates.filter(item => item.kind === 'image');
+          const videos = candidates.filter(item => item.kind === 'video');
+          const challengeSignals = [
+            'captcha',
+            'verify to continue',
+            'security verification',
+            'access denied',
+            'unusual traffic'
+          ].filter(term => html.toLowerCase().includes(term));
+          console.log('TIKTOK_RENDERED_DOM_PROBE', JSON.stringify({
+            htmlBytes: Buffer.byteLength(html),
+            counts: { images: images.length, videos: videos.length, total: candidates.length },
+            challengeSignals,
+            samples: candidates.slice(0, 12).map(item => ({
+              kind: item.kind,
+              sourceTag: item.sourceTag,
+              mediaRole: item.mediaRole,
+              host: new URL(item.url).hostname,
+              path: new URL(item.url).pathname.slice(0, 180)
+            }))
+          }, null, 2));
+          if (candidates.length === 0) process.exitCode = 2;
           NODE
