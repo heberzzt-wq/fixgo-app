@@ -1,5 +1,6 @@
 const MAX_PLANNER_TEXT = 700;
 const MAX_PLANNER_SOURCES = 3;
+const MAX_PLANNER_MEDIA_ASSETS = 8;
 
 function object(value) {
     return value && typeof value === "object" && !Array.isArray(value)
@@ -21,6 +22,37 @@ function compactSource(source = {}) {
     };
 }
 
+function compactMediaAsset(asset = {}) {
+    const item = object(asset);
+    const kind = text(item.kind, 20).toLowerCase();
+    const output = text(item.output, 500);
+    const mimeType = text(item.mimeType, 100).toLowerCase();
+    const sha256 = text(item.sha256, 80).toLowerCase();
+    const sourceUrl = text(item.sourceUrl, 500);
+    const sourceTag = text(item.sourceTag, 80);
+    const alt = text(item.alt, 220);
+    const bytes = Number(item.bytes || 0) || 0;
+
+    if (
+        !["image", "video", "audio"].includes(kind) ||
+        !output ||
+        !mimeType.startsWith(`${kind}/`)
+    ) {
+        return null;
+    }
+
+    return {
+        kind,
+        output,
+        mimeType,
+        ...(bytes > 0 ? { bytes } : {}),
+        ...(sha256 ? { sha256 } : {}),
+        ...(sourceUrl ? { sourceUrl } : {}),
+        ...(sourceTag ? { sourceTag } : {}),
+        ...(alt ? { alt } : {})
+    };
+}
+
 export function compactMissionPlannerObservation(observation = {}) {
     const source = object(observation);
     const evidence = object(source.evidence);
@@ -31,6 +63,16 @@ export function compactMissionPlannerObservation(observation = {}) {
                 ? evidence.sources
                 : []
     ).slice(0, MAX_PLANNER_SOURCES).map(compactSource);
+    const rawMediaAssets =
+        Array.isArray(source.mediaAssets)
+            ? source.mediaAssets
+            : Array.isArray(evidence.mediaAssets)
+                ? evidence.mediaAssets
+                : [];
+    const mediaAssets = rawMediaAssets
+        .slice(0, MAX_PLANNER_MEDIA_ASSETS)
+        .map(compactMediaAsset)
+        .filter(Boolean);
     const sourceCount = Number(
         source.sourceCount ??
         source.sourcesCount ??
@@ -55,6 +97,18 @@ export function compactMissionPlannerObservation(observation = {}) {
     const sha256 = text(source.sha256 || evidence.sha256, 80);
     const mimeType = text(source.mimeType || evidence.mimeType, 100);
     const bytes = Number(source.bytes ?? evidence.bytes ?? 0) || 0;
+    const requirementsMet =
+        typeof source.requirementsMet === "boolean"
+            ? source.requirementsMet
+            : typeof evidence.requirementsMet === "boolean"
+                ? evidence.requirementsMet
+                : null;
+    const rawCounts = object(source.counts || evidence.counts);
+    const counts = {
+        images: Number(rawCounts.images || 0) || 0,
+        videos: Number(rawCounts.videos || 0) || 0,
+        total: Number(rawCounts.total || mediaAssets.length) || mediaAssets.length
+    };
 
     return {
         status: text(source.status || evidence.status, 120) || null,
@@ -67,6 +121,11 @@ export function compactMissionPlannerObservation(observation = {}) {
         sourceCount,
         ...(summary ? { summary } : {}),
         ...(sources.length ? { sources } : {}),
+        ...(mediaAssets.length ? { mediaAssets } : {}),
+        ...(mediaAssets.length || requirementsMet !== null
+            ? { counts }
+            : {}),
+        ...(requirementsMet !== null ? { requirementsMet } : {}),
         ...(output ? { output } : {}),
         ...(sha256 ? { sha256 } : {}),
         ...(mimeType ? { mimeType } : {}),
