@@ -1,0 +1,79 @@
+name: v130-reel-brand-audio-cert
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v130-reel-brand-audio-cert.yml
+
+permissions:
+  contents: read
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Functions test dependencies without modifying source
+        run: npm ci --prefix functions
+
+      - name: Guard isolated branch, Functions, and staging cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF_NAME}" = "v94-media-v4n-negative-claims"
+          if git diff --name-only 84f19ae9c806aa282028431eaefc799f3b6bd23e..HEAD | grep -E '^functions/'; then
+            echo "Functions changed in v130" >&2
+            exit 1
+          fi
+          test ! -e .github/workflows/v130-reel-brand-audio-apply.yml
+          test ! -e scripts/apply-v130-reel-brand-audio.mjs.gz.b64
+          test ! -e scripts/apply-v130-reel-brand-audio-v2.mjs.gz.b64
+          test ! -e scripts/apply-v130-reel-brand-audio-v3.mjs.gz.b64
+          test ! -e scripts/v130-reel-patcher.part1.b64
+          test ! -e scripts/v130-reel-patcher.part2.b64
+          test ! -e scripts/v130-reel-patcher.part3.b64
+          test ! -e scripts/v130-reel-patcher.part4.b64
+          echo "V130_FUNCTIONS_UNCHANGED=true"
+          echo "V130_STAGING_CLEAN=true"
+
+      - name: Syntax focal v130
+        run: |
+          node --check nexo-web-media-bridge.js
+          node --check gestia-core/nexo/nexo.real-media.runtime-guard-v128.js
+          node --check jarvis-reel-artifact.js
+          node --check jarvis-fs-bridge.js
+          node --check gestia-core/jarvis/jarvis.actuator.pack.js
+          node --check modules/terminal/nexo-bootstrap.js
+
+      - name: Focal v130 tests
+        run: node --test tests/nexo-web-media-bridge.test.mjs tests/nexo-real-media-runtime-guard-v128.test.mjs tests/jarvis-reel-artifact.test.mjs tests/jarvis-real-media-reel-hydration-v127.test.mjs tests/nexo-real-media-tools.test.mjs tests/jarvis-fs-bridge-v2.test.mjs tests/proposal-state.test.mjs
+
+      - name: Full CI
+        run: npm run ci:test
+
+      - name: Reject whitespace errors
+        run: git diff --check
+
+      - name: Certification marker
+        run: |
+          echo "V130_REEL_BRAND_AUDIO_CERTIFIED=true"
+          echo "V130_FUNCTIONS_UNCHANGED=true"
+          echo "V130_STAGING_CLEAN=true"
+          echo "V130_AUDIO_POLICY=EXPLICIT_ARTIFACT_OR_SOURCE_VIDEO_NO_TTS"
+          echo "V130_BRAND_POLICY=STRUCTURED_SOURCE_DECLARED_LOGO_ONLY"
