@@ -32,6 +32,8 @@ jobs:
           cache: npm
       - name: Install app dependencies
         run: npm ci
+      - name: Install Functions test dependencies without modifying source
+        run: npm ci --prefix functions
       - name: Reconfirm full CI before deploy
         run: npm run ci:test
       - name: Build single-site Hosting config
