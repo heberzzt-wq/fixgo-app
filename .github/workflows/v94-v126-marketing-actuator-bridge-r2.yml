@@ -1,0 +1,135 @@
+name: V94 V126 Marketing actuator bridge R2
+
+on:
+  push:
+    branches: [v94-media-v4n-negative-claims]
+    paths: ['.github/workflows/v94-v126-marketing-actuator-bridge-r2.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  certify-v126:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Guard branch and protected refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "v94-media-v4n-negative-claims"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "f3fa8e1806b681e860875afd4ce8183d27864873"
+          test "$(git ls-remote origin refs/heads/v5.9-polish | cut -f1)" = "2ae85e670505c5d425a5a0334e99c45168054bb8"
+          ! git diff --name-only 48d39848179af2650ba77d11cf434e6605ffa2c2...HEAD | grep -q '^functions/'
+
+      - name: Apply v126 product patch
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          pack = Path('gestia-core/jarvis/jarvis.multitool.pack.js')
+          text = pack.read_text(encoding='utf-8')
+          marker = '''const MARKETING_PRODUCTION_TOOL_TYPES = Object.freeze({
+              "document.create": "document",
+              "page.create": "page",
+              "image.generate": "image",
+              "image.edit": "image",
+              "reel.create": "reel",
+              "marketing.package.real-media": "campaign_package"
+          });'''
+          if marker not in text: raise SystemExit('production tool map missing')
+          text = text.replace(marker, marker + '''\n\nconst MARKETING_PLANNING_TO_PRODUCTION_TOOL = Object.freeze({
+              "page.plan": "page.create",
+              "image.plan": "image.generate",
+              "reel.plan": "reel.create"
+          });''', 1)
+          declared = '    const declaredArtifacts ='
+          if declared not in text: raise SystemExit('declaredArtifacts missing')
+          text = text.replace(declared, '''    const plannedProductionToolNames =
+              [...new Set(requiredToolNames.map(name => MARKETING_PLANNING_TO_PRODUCTION_TOOL[name]).filter(Boolean))];
+          const declaredArtifacts =''', 1)
+          pattern = r'(\s*const semanticProductionRequested\s*=\s*current\.productionRequested === true;)'
+          replacement = r'''\1
+          const effectiveProductionToolNames =
+              [...new Set([
+                  ...contractedProductionToolNames,
+                  ...(semanticProductionRequested ? plannedProductionToolNames : [])
+              ])];'''
+          text, count = re.subn(pattern, replacement, text, count=1)
+          if count != 1: raise SystemExit('semanticProductionRequested missing')
+          text = text.replace('contractedProductionToolNames.length > 0', 'effectiveProductionToolNames.length > 0', 1)
+          text = text.replace('contractedProductionToolNames.map(toolName => ({', 'effectiveProductionToolNames.map(toolName => ({', 1)
+          text = text.replace('1.53.0-marketing-production-intent-v125', '1.54.0-marketing-actuator-bridge-v126')
+          pack.write_text(text, encoding='utf-8')
+          old_token='v94-marketing-production-intent-v125-20260810'; new_token='v94-marketing-actuator-bridge-v126-20260810'
+          old_version='1.53.0-marketing-production-intent-v125'; new_version='1.54.0-marketing-actuator-bridge-v126'
+          for root in [Path('gestia-core'), Path('tests'), Path('gestia-terminal.html')]:
+              paths=[root] if root.is_file() else list(root.rglob('*'))
+              for path in paths:
+                  if not path.is_file(): continue
+                  try: src=path.read_text(encoding='utf-8')
+                  except UnicodeDecodeError: continue
+                  dst=src.replace(old_token,new_token).replace(old_version,new_version)
+                  if dst != src: path.write_text(dst,encoding='utf-8')
+          Path('tests/jarvis-marketing-actuator-bridge-v126.test.mjs').write_text('''import assert from "node:assert/strict";\nimport { test } from "node:test";\nimport { resolveMarketingMissionProductionScope } from "../gestia-core/jarvis/jarvis.multitool.pack.js";\n\ntest("production intent promotes a planned reel to reel.create",()=>{const r=resolveMarketingMissionProductionScope({productionRequested:true,productionArtifacts:[]},{requiredToolNames:["web.research","marketing.plan","reel.plan"]});assert.equal(r.productionRequested,true);assert.deepEqual(r.productionArtifacts.map(x=>x.toolName),["reel.create"]);});\ntest("planning-only remains planning-only",()=>{const r=resolveMarketingMissionProductionScope({productionRequested:false,productionArtifacts:[]},{requiredToolNames:["web.research","marketing.plan","reel.plan"]});assert.equal(r.productionRequested,false);assert.deepEqual(r.productionArtifacts,[]);});\n''',encoding='utf-8')
+
+      - name: Prove Functions untouched
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! git status --short | grep -E '(^| )functions/'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install nested dependencies required by repo-wide tests
+        run: npm --prefix functions ci
+
+      - name: Focal regression
+        shell: bash
+        run: |
+          set -o pipefail
+          node --test tests/jarvis-marketing-production-intent-v125.test.mjs tests/jarvis-marketing-actuator-bridge-v126.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs 2>&1 | tee v126-focal.log
+
+      - name: Full CI
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run ci:test 2>&1 | tee v126-full-ci.log
+
+      - name: Commit certified product
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'heberzzt-wq'
+          git config user.email 'heberzzt@gmail.com'
+          git add gestia-core gestia-terminal.html tests
+          ! git diff --cached --name-only | grep -q '^functions/'
+          git commit -m '[v94] fix(adj): promote marketing plans to real actuators v126'
+          git push origin HEAD:v94-media-v4n-negative-claims
+          echo "V126_PRODUCT_TREE=$(git rev-parse HEAD^{tree})" >> "$GITHUB_ENV"
+          echo "V126_PRODUCT_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Remove temporary certification workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/v94-v126-marketing-actuator-bridge.yml .github/workflows/v94-v126-marketing-actuator-bridge-r2.yml
+          git commit -m '[v126] chore(ci): remove temporary certification workflows'
+          git push origin HEAD:v94-media-v4n-negative-claims
+
+      - name: Final proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^{tree})" = "$V126_PRODUCT_TREE"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "f3fa8e1806b681e860875afd4ce8183d27864873"
+          test "$(git ls-remote origin refs/heads/v5.9-polish | cut -f1)" = "2ae85e670505c5d425a5a0334e99c45168054bb8"
+          ! git diff --name-only 48d39848179af2650ba77d11cf434e6605ffa2c2...HEAD | grep -q '^functions/'
+          echo "V126_CERTIFIED_PRODUCT_SHA=$V126_PRODUCT_SHA"
+          echo 'V126_FUNCTIONS_UNCHANGED=true'
