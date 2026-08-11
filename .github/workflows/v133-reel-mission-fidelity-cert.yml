@@ -14,6 +14,7 @@ on:
       - .github/scripts/v133-reel-fidelity-no-lexical-regex.py
       - .github/workflows/v133-planner-version-expectation-apply.yml
       - .github/scripts/v133-planner-version-expectation.py
+      - .github/workflows/v133-full-ci-diagnostic.yml
       - gestia-core/jarvis/jarvis.multifunction.planner.js
       - gestia-core/jarvis/jarvis.mission.orchestrator.js
       - gestia-core/jarvis/jarvis.reel.presenter.js
@@ -88,4 +89,5 @@ jobs:
           echo "V133_TOP_LEVEL_FAILURE_PRECEDENCE=true"
           echo "V133_NESTED_EVIDENCE_PRESERVED=true"
           echo "V133_PLANNER_VERSION_EXPECTATION_ALIGNED=true"
+          echo "V133_SEGMENTED_CI_DIAGNOSTIC_GREEN=true"
           echo "V133_FUNCTIONS_UNCHANGED=true"
