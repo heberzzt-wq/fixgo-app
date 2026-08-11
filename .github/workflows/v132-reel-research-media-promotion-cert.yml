@@ -43,6 +43,7 @@ jobs:
           set -euo pipefail
           test ! -e .github/scripts/v132-reel-research-media-promotion.py
           test ! -e .github/workflows/v132-reel-research-media-promotion-apply.yml
+          test ! -e .github/workflows/v132-adjunto-hosting-only.yml
       - name: Focal v132
         run: |
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
@@ -57,4 +58,5 @@ jobs:
           echo "V132_RESEARCH_SOURCE_POLICY=VERIFIED_EVIDENCE_ONLY"
           echo "V132_AMBIGUOUS_SOURCE_POLICY=FAIL_CLOSED"
           echo "V132_STAGING_CLEAN=true"
+          echo "V132_POST_DEPLOY_HEAD_CLEAN=true"
           echo "V132_FUNCTIONS_UNCHANGED=true"
