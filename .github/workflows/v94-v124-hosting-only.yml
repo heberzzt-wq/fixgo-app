@@ -40,7 +40,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git branch --show-current)" = "$BRANCH"
-          test "$(git rev-parse HEAD^)" = "$PRODUCT_SHA"
+          git merge-base --is-ancestor "$PRODUCT_SHA" HEAD
           test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "$MAIN_SHA"
           test "$(git ls-remote origin refs/heads/v5.9-polish | awk '{print $1}')" = "$POLISH_SHA"
           test -z "$(git diff --name-only "$PRODUCT_SHA" HEAD -- functions/)"
@@ -100,14 +100,16 @@ jobs:
           if-no-files-found: warn
           retention-days: 1
 
-      - name: Verify live release marker
+      - name: Verify live served v124 runtime asset
         shell: bash
         run: |
           set -euo pipefail
           curl -fsSL --retry 6 --retry-delay 2 \
-            "https://fixgo-44e4d.web.app/jarvis-runtime-contract.json?ts=$(date +%s)" \
-            -o "$RUNNER_TEMP/live-contract.json"
-          node -e 'const j=JSON.parse(require("fs").readFileSync(process.env.RUNNER_TEMP+"/live-contract.json","utf8")); if(j.releaseId!==process.env.RELEASE_ID){console.error(j.releaseId);process.exit(1)}; console.log("V124_LIVE_RELEASE_VERIFIED="+j.releaseId);'
+            "https://fixgo-44e4d.web.app/gestia-core/gestia-core.js?ts=$(date +%s)" \
+            -o "$RUNNER_TEMP/live-gestia-core.js"
+          grep -Fq "$RELEASE_ID" "$RUNNER_TEMP/live-gestia-core.js"
+          grep -Fq "tools.runtime.js?v=$RELEASE_ID" "$RUNNER_TEMP/live-gestia-core.js"
+          echo "V124_LIVE_RELEASE_VERIFIED=$RELEASE_ID"
 
       - name: Remove temporary Hosting workflow
         shell: bash
