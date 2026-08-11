@@ -5,7 +5,7 @@ on:
     branches:
       - v94-media-v4n-negative-claims
     paths:
-      - scripts/apply-v130-reel-brand-audio-v3.mjs.gz.b64
+      - scripts/v130-reel-patcher.part4.b64
       - .github/workflows/v130-reel-brand-audio-apply.yml
 
 permissions:
@@ -40,11 +40,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          base64 -d scripts/apply-v130-reel-brand-audio-v3.mjs.gz.b64 | gzip -d > /tmp/apply-v130.py
+          cat \
+            scripts/v130-reel-patcher.part1.b64 \
+            scripts/v130-reel-patcher.part2.b64 \
+            scripts/v130-reel-patcher.part3.b64 \
+            scripts/v130-reel-patcher.part4.b64 \
+            | base64 -d | gzip -d > /tmp/apply-v130.py
           python3 /tmp/apply-v130.py
           rm -f scripts/apply-v130-reel-brand-audio.mjs.gz.b64
           rm -f scripts/apply-v130-reel-brand-audio-v2.mjs.gz.b64
-          rm scripts/apply-v130-reel-brand-audio-v3.mjs.gz.b64
+          rm -f scripts/apply-v130-reel-brand-audio-v3.mjs.gz.b64
+          rm -f scripts/v130-reel-patcher.part1.b64
+          rm -f scripts/v130-reel-patcher.part2.b64
+          rm -f scripts/v130-reel-patcher.part3.b64
+          rm -f scripts/v130-reel-patcher.part4.b64
           rm .github/workflows/v130-reel-brand-audio-apply.yml
 
       - name: Guard Functions unchanged
