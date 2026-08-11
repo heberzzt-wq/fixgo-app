@@ -35,7 +35,7 @@ import {
     validateDocumentBlueprint
 } from "./jarvis.document.validator.js?v=sia7-exact-template-contract-v84-20260725";
 
-const VERSION = "1.53.0-marketing-production-intent-v125";
+const VERSION = "1.54.0-marketing-actuator-bridge-v126";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;
 const FORENSICS_SUPERVISION_TIMEOUT_MS = 4500;
 const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";
@@ -171,6 +171,12 @@ const MARKETING_PRODUCTION_TOOL_TYPES = Object.freeze({
     "marketing.package.real-media": "campaign_package"
 });
 
+const MARKETING_PLANNING_TO_PRODUCTION_TOOL = Object.freeze({
+    "page.plan": "page.create",
+    "image.plan": "image.generate",
+    "reel.plan": "reel.create"
+});
+
 export function resolveMarketingMissionProductionScope(
     args = {},
     context = {}
@@ -192,7 +198,9 @@ export function resolveMarketingMissionProductionScope(
                 )
             )
         )];
-    const declaredArtifacts =
+    const plannedProductionToolNames =
+    [...new Set(requiredToolNames.map(name => MARKETING_PLANNING_TO_PRODUCTION_TOOL[name]).filter(Boolean))];
+const declaredArtifacts =
         (Array.isArray(current.productionArtifacts)
             ? current.productionArtifacts
             : [])
@@ -207,14 +215,19 @@ export function resolveMarketingMissionProductionScope(
             );
     const semanticProductionRequested =
         current.productionRequested === true;
+const effectiveProductionToolNames =
+    [...new Set([
+        ...contractedProductionToolNames,
+        ...(semanticProductionRequested ? plannedProductionToolNames : [])
+    ])];
     const productionRequested =
         semanticProductionRequested ||
-        contractedProductionToolNames.length > 0;
+        effectiveProductionToolNames.length > 0;
     const productionArtifacts =
         productionRequested
             ? (declaredArtifacts.length > 0
                 ? declaredArtifacts
-                : contractedProductionToolNames.map(toolName => ({
+                : effectiveProductionToolNames.map(toolName => ({
                     id: `mission-${toolName.replaceAll(".", "-")}`,
                     type: MARKETING_PRODUCTION_TOOL_TYPES[toolName],
                     toolName,

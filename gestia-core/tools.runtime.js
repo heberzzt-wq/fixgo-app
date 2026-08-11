@@ -5,7 +5,7 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=v94-marketing-production-intent-v125-20260810";
+} from "./jarvis/jarvis.multitool.pack.js?v=v94-marketing-actuator-bridge-v126-20260810";
 import {
     registerJarvisActuatorTools
 } from "./jarvis/jarvis.actuator.pack.js?v=v94-source-grounded-research-v124-20260810";
