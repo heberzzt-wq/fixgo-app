@@ -79,6 +79,8 @@ test("v129 reel quality gate requires loaded media and executes production direc
     assert.match(html, /function fitHeadline/);
     assert.match(html, /function syncVideoPlayback/);
     assert.match(html, /item\.loop=true/);
+    assert.match(html, /local%sourceDuration/);
+    assert.match(html, /scene\.mediaUrl\.startsWith\('https:'\)/);
     assert.match(html, /qualityGatePassed/);
     assert.doesNotMatch(html, /scene\.subtitle\|\|scene\.visualDescription/);
     assert.equal(report.checks.mediaReadinessGate, true);
