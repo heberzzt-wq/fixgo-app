@@ -314,7 +314,7 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
         registerOrReplace(runtime, {
             name: "reel.create",
             description:
-                "Crea un reel 9:16 local y reutiliza automáticamente los medios reales verificados de la misma misión cuando el plan no haya asignado material visual explícito. No inventa logotipos ni sustituye medios ya elegidos.",
+                "Crea un reel 9:16 local y reutiliza automáticamente los medios reales verificados de la misma misión cuando el plan no haya asignado material visual explícito. No inventa logotipos ni sustituye medios ya elegidos. El audio sólo se incorpora cuando existe un artefacto de audio explícito; este actuador no genera TTS.",
             execute: async (args = {}, context = {}) => {
                 const hydration =
                     hydrateReelArgsWithCollectorMedia(args, context);

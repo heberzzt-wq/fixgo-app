@@ -56,6 +56,52 @@ test("reel studio blocks short or inconsistent timelines", () => {
     assert.throws(() => buildReelStudioHtml({ ...input, durationSeconds: 45 }), /REEL_TIMELINE_DURATION_MISMATCH/);
 });
 
+test("v129 reel quality gate requires loaded media and executes production directions", () => {
+    const qualityInput = {
+        ...input,
+        scenes: input.scenes.map((scene, index) => ({
+            ...scene,
+            transition: ["slide", "zoom", "cut", "dissolve", "fade"][index],
+            ...(index === 0
+                ? {
+                    assetDataUrl: "data:image/png;base64,iVBORw0KGgo=",
+                    mediaType: "image"
+                }
+                : {})
+        }))
+    };
+    const html = buildReelStudioHtml(qualityInput);
+    const report = describeReelStudio(qualityInput, html);
+
+    assert.match(html, /async function waitForMediaReady/);
+    assert.match(html, /REEL_SOURCE_MEDIA_NOT_READY/);
+    assert.match(html, /function applySceneTransition/);
+    assert.match(html, /function fitHeadline/);
+    assert.match(html, /function syncVideoPlayback/);
+    assert.match(html, /item\.loop=true/);
+    assert.match(html, /qualityGatePassed/);
+    assert.doesNotMatch(html, /scene\.subtitle\|\|scene\.visualDescription/);
+    assert.equal(report.checks.mediaReadinessGate, true);
+    assert.equal(report.checks.effectiveTransitions, true);
+    assert.equal(report.checks.adaptiveTypography, true);
+    assert.equal(report.checks.inactiveVideoPause, true);
+    assert.equal(report.checks.visualDirectionNotPublic, true);
+    assert.equal(report.checks.qualityEvidence, true);
+    assert.ok(Object.values(report.checks).every(Boolean));
+});
+
+test("v129 normalizes unsupported transitions without discarding visual direction", () => {
+    const html = buildReelStudioHtml({
+        ...input,
+        scenes: input.scenes.map((scene, index) => ({
+            ...scene,
+            transition: index === 0 ? "spin-around" : scene.transition
+        }))
+    });
+    assert.match(html, /"transition":"fade"/);
+    assert.match(html, /"visualDescription":"Equipo detenido"/);
+});
+
 test("reel creation is approval-bound and connected to the local artifact bridge", () => {
     const bridge = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
     const actuator = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.actuator.pack.js", import.meta.url), "utf8");
