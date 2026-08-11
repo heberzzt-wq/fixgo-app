@@ -1,0 +1,125 @@
+name: v133-adjunto-hosting-only
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - .github/workflows/v133-adjunto-hosting-only.yml
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-adjunto-hosting:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Guard branch and Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF_NAME}" = "v94-media-v4n-negative-claims"
+          ! git diff --name-only a09d76c5d42117aa88630f7b0d5fee75290525b2..HEAD | grep -E '^functions/'
+
+      - name: Verify ADJUNTO web root
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f gestia-terminal.html
+          test -f gestia-terminal.js
+          test -f gestia-core/jarvis/jarvis.multifunction.planner.js
+          test -f gestia-core/jarvis/jarvis.mission.orchestrator.js
+          grep -Fq '<title>Terminal Heberto | ADJUNTO</title>' gestia-terminal.html
+          echo "HTML_SHA256=$(sha256sum gestia-terminal.html | awk '{print $1}')"
+          echo "PLANNER_SHA256=$(sha256sum gestia-core/jarvis/jarvis.multifunction.planner.js | awk '{print $1}')"
+          echo "ORCHESTRATOR_SHA256=$(sha256sum gestia-core/jarvis/jarvis.mission.orchestrator.js | awk '{print $1}')"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Functions test dependencies without modifying source
+        run: npm ci --prefix functions
+
+      - name: Full CI before deploy
+        run: npm run ci:test
+
+      - name: Build one-site Firebase config in repository root
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const source = JSON.parse(fs.readFileSync('firebase.json', 'utf8'));
+          const hosting = Array.isArray(source.hosting)
+            ? source.hosting.find(item => item?.site === 'fixgo-44e4d')
+            : source.hosting;
+          if (!hosting || hosting.site !== 'fixgo-44e4d') {
+            throw new Error('ADJUNTO_HOSTING_SITE_NOT_FOUND');
+          }
+          fs.writeFileSync('.firebase-adjunto-v133.json', JSON.stringify({ hosting }, null, 2));
+          NODE
+          test -f .firebase-adjunto-v133.json
+          test "$(node -e "const c=require('./.firebase-adjunto-v133.json'); console.log(c.hosting.site)")" = "fixgo-44e4d"
+          test "$(node -e "const c=require('./.firebase-adjunto-v133.json'); console.log(c.hosting.public)")" = "."
+          test -f gestia-terminal.html
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy ADJUNTO Hosting only
+        shell: bash
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${FIREBASE_TOKEN:-}"
+          firebase deploy \
+            --config .firebase-adjunto-v133.json \
+            --only hosting \
+            --project fixgo-44e4d \
+            --token "$FIREBASE_TOKEN"
+
+      - name: Verify exact live ADJUNTO artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          verify_exact() {
+            local url="$1"
+            local local_file="$2"
+            local live_file="$RUNNER_TEMP/$(basename "$local_file").live"
+            local ok=false
+            for attempt in 1 2 3 4 5 6; do
+              rm -f "$live_file"
+              if curl -fsS --retry 2 --retry-delay 2 -H 'Cache-Control: no-cache' "$url?verify=${GITHUB_SHA}-${attempt}" -o "$live_file"; then
+                if cmp -s "$local_file" "$live_file"; then
+                  ok=true
+                  break
+                fi
+              fi
+              sleep 5
+            done
+            test "$ok" = true
+            echo "LIVE_EXACT_MATCH $local_file $(sha256sum "$live_file" | awk '{print $1}')"
+          }
+          verify_exact 'https://fixgo-44e4d.web.app/gestia-terminal.html' 'gestia-terminal.html'
+          verify_exact 'https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.multifunction.planner.js' 'gestia-core/jarvis/jarvis.multifunction.planner.js'
+          verify_exact 'https://fixgo-44e4d.web.app/gestia-core/jarvis/jarvis.mission.orchestrator.js' 'gestia-core/jarvis/jarvis.mission.orchestrator.js'
+
+      - name: Deploy marker
+        run: |
+          echo "V133_ADJUNTO_HOSTING_DEPLOYED=true"
+          echo "V133_LIVE_ARTIFACTS_EXACT=true"
+          echo "V133_FUNCTIONS_DEPLOYED=false"
+          echo "V133_MULTISERVICIOS_HOSTING_DEPLOYED=false"
