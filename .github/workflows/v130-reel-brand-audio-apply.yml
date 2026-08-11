@@ -5,7 +5,7 @@ on:
     branches:
       - v94-media-v4n-negative-claims
     paths:
-      - scripts/apply-v130-reel-brand-audio.mjs.gz.b64
+      - scripts/apply-v130-reel-brand-audio-v2.mjs.gz.b64
       - .github/workflows/v130-reel-brand-audio-apply.yml
 
 permissions:
@@ -40,9 +40,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          base64 -d scripts/apply-v130-reel-brand-audio.mjs.gz.b64 | gzip -d > /tmp/apply-v130.py
+          base64 -d scripts/apply-v130-reel-brand-audio-v2.mjs.gz.b64 | gzip -d > /tmp/apply-v130.py
           python3 /tmp/apply-v130.py
-          rm scripts/apply-v130-reel-brand-audio.mjs.gz.b64
+          rm scripts/apply-v130-reel-brand-audio-v2.mjs.gz.b64
+          rm -f scripts/apply-v130-reel-brand-audio.mjs.gz.b64
           rm .github/workflows/v130-reel-brand-audio-apply.yml
 
       - name: Guard Functions unchanged
