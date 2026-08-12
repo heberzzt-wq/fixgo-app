@@ -1,3 +1,4 @@
+// v135 diagnostic: exact TikTok-handle provenance only.
 const query = process.argv.slice(2).join(" ") || 'site:tiktok.com "taqueria.eldorado"';
 const expected = "tiktok.com/@taqueria.eldorado/";
 const headers = {
