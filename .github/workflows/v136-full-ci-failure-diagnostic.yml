@@ -1,4 +1,4 @@
-name: v136 full ci failure diagnostic
+name: v136 slash branch resolver diagnostic
 
 on:
   push:
@@ -14,7 +14,7 @@ permissions:
 jobs:
   diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -22,29 +22,26 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
       - name: Guard branch and Functions
         shell: bash
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
           git diff --quiet HEAD^ HEAD -- functions/
-      - name: Install root dependencies
-        run: npm ci
-      - name: Install Functions test dependencies without modifying source
-        run: npm ci --prefix functions
-      - name: Apply previously proven fixture alignment in workspace only
-        run: python .github/scripts/v136-marketing-media-fixture-align.py
-      - name: Capture monolithic Full CI output
+      - name: Locate exact failing tests and resolver source
         shell: bash
         run: |
-          set +e
-          npm run ci:test > /tmp/v136-ci.log 2>&1
-          code=$?
-          set -e
-          echo "V136_CI_EXIT_CODE=$code"
-          echo '=== FAILURE MARKERS ==='
-          grep -nE 'not ok|AssertionError|ERR_ASSERTION|fail [1-9]|error:|Error:' /tmp/v136-ci.log | tail -n 120 || true
-          echo '=== FINAL 260 LINES ==='
-          tail -n 260 /tmp/v136-ci.log
-          exit "$code"
+          set -euo pipefail
+          file="$(grep -RFl --exclude-dir=node_modules --exclude-dir=.git 'bridge target resolver accepts the exact GitHub slash-branch URL as a string' tests | head -n 1)"
+          test -n "$file"
+          echo "V136_FAILING_TEST_FILE=$file"
+          echo '=== FAILING TEST CONTEXT ==='
+          line="$(grep -n 'bridge target resolver accepts the exact GitHub slash-branch URL as a string' "$file" | head -n 1 | cut -d: -f1)"
+          start=$(( line > 30 ? line - 30 : 1 ))
+          end=$(( line + 120 ))
+          sed -n "${start},${end}p" "$file"
+          echo '=== RESOLVER REFERENCES ==='
+          grep -RFn --exclude-dir=node_modules --exclude-dir=.git 'resolveBridgeTarget' . | head -n 80 || true
+          grep -RFn --exclude-dir=node_modules --exclude-dir=.git 'target resolver' . | head -n 80 || true
+          echo '=== TARGETED TEST RUN ==='
+          node --test "$file"
