@@ -7,7 +7,17 @@ on:
     paths:
       - '.github/workflows/v139-real-reel-e2e-cert.yml'
       - '.github/workflows/v139-reel-e2e-discovery.yml'
+      - '.github/workflows/v139-bridge-endpoint-diagnostic.yml'
+      - '.github/scripts/v139-bridge-endpoint-probe.mjs'
+      - '.github/workflows/v139-live-reel-cache-apply.yml'
+      - '.github/scripts/v139-live-reel-cache-apply.py'
+      - '.github/workflows/v139-focal-failure-diagnostic.yml'
+      - 'gestia-terminal.html'
+      - 'gestia-core/gestia-core.js'
+      - 'gestia-core/tools.runtime.js'
+      - 'gestia-core/tools.bridge.js'
       - 'gestia-core/jarvis/jarvis.mission.orchestrator.js'
+      - 'gestia-core/jarvis/jarvis.multifunction.planner.js'
       - 'gestia-core/jarvis/jarvis.multitool.pack.js'
       - 'gestia-core/jarvis/jarvis.actuator.pack.js'
       - 'gestia-core/nexo/nexo.real-media.tools.js'
@@ -16,12 +26,79 @@ on:
       - 'jarvis-reel-artifact.js'
       - 'jarvis-speech-artifact.js'
       - 'nexo-web-media-bridge.js'
+      - 'tests/jarvis-reel-live-cache-v139.test.mjs'
+      - 'tests/jarvis-reel-media-source-recovery-v136.test.mjs'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  certify-v139:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install root dependencies
+        run: npm ci
+      - name: Install Functions test dependencies without modifying source
+        run: npm ci --prefix functions
+      - name: Guard branch and Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
+          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
+      - name: Focal v139 plus reel lineage contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check gestia-core/gestia-core.js
+          node --check gestia-core/tools.runtime.js
+          node --check gestia-core/tools.bridge.js
+          node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
+          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          node --check gestia-core/jarvis/jarvis.multitool.pack.js
+          node --check gestia-core/jarvis/jarvis.actuator.pack.js
+          node --check gestia-core/nexo/nexo.real-media.tools.js
+          node --check jarvis-fs-bridge.js
+          node --check jarvis-reel-artifact.js
+          node --check jarvis-speech-artifact.js
+          node --test \
+            tests/jarvis-reel-live-cache-v139.test.mjs \
+            tests/jarvis-reel-native-mp4-v138.test.mjs \
+            tests/jarvis-reel-speech-v137.test.mjs \
+            tests/jarvis-reel-media-source-recovery-v136.test.mjs \
+            tests/nexo-browser-media-fallback-v135.test.mjs \
+            tests/jarvis-reel-real-production-v134.test.mjs \
+            tests/jarvis-reel-mission-fidelity-v133.test.mjs \
+            tests/jarvis-reel-researched-media-v132.test.mjs \
+            tests/nexo-real-media-tools.test.mjs \
+            tests/jarvis-actuator-pack.test.mjs \
+            tests/jarvis-fs-bridge-v2.test.mjs \
+            tests/jarvis-reel-artifact.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs \
+            tests/jarvis-semantic-planner.test.cjs \
+            tests/single-semantic-authority.test.mjs
+      - name: Full CI
+        run: npm run ci:test
+      - name: Reject whitespace errors
+        run: git diff --check
+      - name: Certification marker
+        run: |
+          echo 'V139_LIVE_CACHE_CHAIN_CURRENT=true'
+          echo 'V139_FUNCTIONS_UNCHANGED=true'
+          echo 'V139_FULL_CI_GREEN=true'
+          echo 'V139_CANONICAL_HANDSHAKE_CERTIFIED=true'
+
   real-reel-e2e:
     runs-on: windows-latest
     timeout-minutes: 18
@@ -77,21 +154,103 @@ jobs:
 
           const SOURCE = 'https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004';
           const BRIDGE = 'http://127.0.0.1:3344';
+          const REQUIRED_BRIDGE_VERSION = '2.38.0-page-no-contact-route';
+          const expected = JSON.parse(fs.readFileSync('jarvis-runtime-contract.json', 'utf8'));
+
+          function versionTuple(value = '') {
+            const parts = String(value || '').trim().split('-')[0].split('.').slice(0, 3).map(Number);
+            return parts.length === 3 && parts.every(part => Number.isInteger(part) && part >= 0) ? parts : null;
+          }
+          function versionAtLeast(actual = '', required = REQUIRED_BRIDGE_VERSION) {
+            const a = versionTuple(actual);
+            const r = versionTuple(required);
+            if (!a || !r) return false;
+            for (let i = 0; i < 3; i += 1) {
+              if (a[i] > r[i]) return true;
+              if (a[i] < r[i]) return false;
+            }
+            return true;
+          }
+
+          const healthResponse = await fetch(`${BRIDGE}/health`, { cache: 'no-store' });
+          const bridgeHealth = await healthResponse.json();
+          const actual = bridgeHealth?.identity || null;
+          const bridgeVersion = String(bridgeHealth?.version || '').trim();
+          const identityCompatible =
+            healthResponse.ok === true &&
+            actual?.ok === true &&
+            actual?.contract?.projectId === expected.projectId &&
+            actual?.contract?.releaseId === expected.releaseId &&
+            actual?.contract?.branch === expected.branch &&
+            actual?.git?.branch === expected.branch;
+          if (!identityCompatible) {
+            throw new Error(`V139_BRIDGE_IDENTITY_MISMATCH:${JSON.stringify({expected,actual,bridgeVersion})}`);
+          }
+          if (!versionAtLeast(bridgeVersion)) {
+            throw new Error(`V139_BRIDGE_VERSION_MISMATCH:${bridgeVersion}`);
+          }
+          const identity = {
+            ok: true,
+            status: 'BRIDGE_IDENTITY_OK',
+            expected,
+            actual,
+            bridgeVersion,
+            requiredBridgeVersion: REQUIRED_BRIDGE_VERSION,
+            bridgeVersionCompatible: true
+          };
+          console.log('V139_BRIDGE_IDENTITY', JSON.stringify(identity));
 
           globalThis.JarvisLocalBridge = {
+            async verifyIdentity() { return identity; },
             async requestJson(endpoint, payload = {}, options = {}) {
+              const verified = await this.verifyIdentity();
+              if (verified.ok !== true) {
+                return { ...verified, ok: false, success: false, error: verified.status, path: endpoint };
+              }
+              const timeoutMs = Math.max(5000, Number(options.timeoutMs || payload.timeoutMs || 30000));
               const controller = new AbortController();
-              const timeout = setTimeout(() => controller.abort(), Math.max(1000, Number(options.timeoutMs) || 120000));
+              const timer = setTimeout(() => controller.abort(), timeoutMs);
               try {
                 const response = await fetch(`${BRIDGE}${endpoint}`, {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(payload),
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'X-Jarvis-Release-Id': verified.expected.releaseId
+                  },
+                  body: JSON.stringify(payload || {}),
                   signal: controller.signal
                 });
-                return await response.json();
+                const rawText = await response.text();
+                let result;
+                try {
+                  result = JSON.parse(rawText);
+                } catch (error) {
+                  result = {
+                    ok: false,
+                    status: 'BRIDGE_BAD_JSON',
+                    error: 'BRIDGE_ENDPOINT_DID_NOT_RETURN_JSON',
+                    raw: rawText.slice(0, 1000),
+                    parseError: error?.message || String(error)
+                  };
+                }
+                return {
+                  ...result,
+                  httpOk: response.ok,
+                  httpStatus: response.status,
+                  bridgeIdentity: verified
+                };
+              } catch (error) {
+                return {
+                  ok: false,
+                  success: false,
+                  status: error?.name === 'AbortError' ? 'BRIDGE_REQUEST_TIMEOUT' : 'BRIDGE_REQUEST_FAILED',
+                  error: error?.message || String(error),
+                  timeoutMs,
+                  path: endpoint,
+                  bridgeIdentity: verified
+                };
               } finally {
-                clearTimeout(timeout);
+                clearTimeout(timer);
               }
             }
           };
@@ -229,11 +388,11 @@ jobs:
           console.log('V139_WEB_MEDIA_FILES', JSON.stringify(fs.existsSync('.jarvis-artifacts/web-media') ? fs.readdirSync('.jarvis-artifacts/web-media',{recursive:true}).slice(0,80) : []));
 
           const completedNames = mission.completedTasks.map(task => task.name);
-          const expected = ['reel.plan','speech.synthesize','web.media.collect','reel.create'];
-          for (const name of expected) {
+          const expectedTools = ['reel.plan','speech.synthesize','web.media.collect','reel.create'];
+          for (const name of expectedTools) {
             if (!completedNames.includes(name)) throw new Error(`V139_COMPLETED_TOOL_REQUIRED:${name}`);
           }
-          const order = expected.map(name => mission.executedTools.indexOf(name));
+          const order = expectedTools.map(name => mission.executedTools.indexOf(name));
           if (!(order[0] >= 0 && order[1] > order[0] && order[2] > order[1] && order[3] > order[2])) {
             throw new Error(`V139_EXECUTION_ORDER_INVALID:${JSON.stringify(mission.executedTools)}`);
           }
