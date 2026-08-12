@@ -1,0 +1,47 @@
+name: v137 speech pipeline discovery
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/v137-speech-pipeline-discovery.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Guard isolated branch and untouched Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
+          git diff --quiet HEAD^ HEAD -- functions/
+      - name: Locate reel plan to create and audio paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== REEL ARTIFACT ARG HELPERS ==='
+          grep -RFn --exclude-dir=node_modules --exclude-dir=.git 'reelArtifactArgsFromCompletedTasks' . || true
+          echo '=== PREPARED ARTIFACT ==='
+          grep -RFn --exclude-dir=node_modules --exclude-dir=.git 'preparedArtifact' gestia-core modules gestia-terminal.js || true
+          echo '=== REEL PLAN READY ==='
+          grep -RFn --exclude-dir=node_modules --exclude-dir=.git 'REEL_PLAN_READY' gestia-core modules gestia-terminal.js || true
+          echo '=== AUDIO OUTPUT ==='
+          grep -RFn --exclude-dir=node_modules --exclude-dir=.git 'audioOutput' gestia-core modules jarvis-fs-bridge.js gestia-terminal.js || true
+          echo '=== VOICEOVER ==='
+          grep -RFn --exclude-dir=node_modules --exclude-dir=.git 'voiceover' gestia-core/jarvis gestia-core/nexo modules/terminal | head -n 160 || true
+          echo '=== REEL CREATE REGISTRATION ==='
+          grep -RFn --exclude-dir=node_modules --exclude-dir=.git 'name: "reel.create"' gestia-core | head -n 40 || true
+          echo '=== BRIDGE ROUTES NEAR REEL ==='
+          grep -n -B8 -A35 'app.post("/reel/create"' jarvis-fs-bridge.js || true
+          echo '=== ARTIFACT REGISTRATION ==='
+          grep -n -B4 -A18 'registerArtifact' jarvis-fs-bridge.js | head -n 160 || true
