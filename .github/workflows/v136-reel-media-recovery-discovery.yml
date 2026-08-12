@@ -1,0 +1,41 @@
+name: v136 reel media recovery discovery
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/v136-reel-media-recovery-discovery.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Guard branch and Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
+          git diff --quiet HEAD^ HEAD -- functions/
+      - name: Locate orchestrator and planner import chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== ORCHESTRATOR IMPORTS ==='
+          grep -RFn --exclude-dir=node_modules --exclude-dir=.git 'jarvis.mission.orchestrator' . || true
+          echo '=== RUN JARVIS MISSION REFERENCES ==='
+          grep -RFn --exclude-dir=node_modules --exclude-dir=.git 'runJarvisMission' . || true
+          echo '=== PLANNER IMPORTS ==='
+          grep -RFn --exclude-dir=node_modules --exclude-dir=.git 'jarvis.multifunction.planner' . || true
+          echo '=== REEL MEDIA DEPENDENCY ==='
+          grep -n -B8 -A45 'reelMediaDependencyCall' gestia-core/jarvis/jarvis.mission.orchestrator.js || true
+          echo '=== PLANNER REFILL LOOP ==='
+          grep -n -B12 -A80 'pendingTasks.length === 0' gestia-core/jarvis/jarvis.mission.orchestrator.js || true
