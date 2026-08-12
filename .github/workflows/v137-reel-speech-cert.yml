@@ -54,6 +54,18 @@ jobs:
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
           ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
+      - name: Guard clean v137 staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          for temporary in \
+            .github/workflows/v137-reel-speech-apply.yml \
+            .github/workflows/v137-speech-pipeline-discovery.yml \
+            .github/scripts/v137-reel-speech-apply.py \
+            .github/scripts/v137-reel-speech-tests.py
+          do
+            test ! -e "$temporary"
+          done
       - name: Focal v137 plus reel compatibility contracts
         shell: bash
         run: |
@@ -96,3 +108,4 @@ jobs:
           echo 'V137_EXPLICIT_AUDIO_PRIORITY=true'
           echo 'V137_AMBIGUOUS_AUDIO_FAILS_CLOSED=true'
           echo 'V137_FUNCTIONS_UNCHANGED=true'
+          echo 'V137_STAGING_CLEAN=true'
