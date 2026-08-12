@@ -1,0 +1,43 @@
+name: v139 reel e2e discovery
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/v139-reel-e2e-discovery.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Guard branch and Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
+          git diff --quiet HEAD^ HEAD -- functions/
+      - name: Locate canonical reel toolchain registrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== REEL PLAN REGISTRATION ==='
+          grep -RFn --exclude-dir=node_modules --exclude-dir=.git 'reel.plan' gestia-core/jarvis | head -n 120 || true
+          echo '=== WEB MEDIA COLLECT REGISTRATION ==='
+          grep -RFn --exclude-dir=node_modules --exclude-dir=.git 'web.media.collect' gestia-core | head -n 140 || true
+          echo '=== PACK REGISTER EXPORTS ==='
+          grep -RFn --exclude-dir=node_modules --exclude-dir=.git -E 'export function register.*Tools|export function install.*Tools|registerJarvis.*Tools' gestia-core/jarvis gestia-core/nexo | head -n 160 || true
+          echo '=== TOOL RUNTIME CREATION ==='
+          grep -RFn --exclude-dir=node_modules --exclude-dir=.git -E 'createJarvisToolRuntime|new Map\(|toolRuntime|registerJarvisActuatorTools|registerNexoRealMediaTools' gestia-core modules | head -n 180 || true
+          echo '=== REEL PLAN EXECUTE BODY ==='
+          grep -RFn --exclude-dir=node_modules --exclude-dir=.git -B8 -A45 'name: "reel.plan"' gestia-core/jarvis || true
+          echo '=== MEDIA COLLECT EXECUTE BODY ==='
+          grep -RFn --exclude-dir=node_modules --exclude-dir=.git -B8 -A60 'name: "web.media.collect"' gestia-core/nexo || true
