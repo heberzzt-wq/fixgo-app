@@ -1,0 +1,50 @@
+name: v136 full ci failure diagnostic
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/v136-full-ci-failure-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Guard branch and Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
+          git diff --quiet HEAD^ HEAD -- functions/
+      - name: Install root dependencies
+        run: npm ci
+      - name: Install Functions test dependencies without modifying source
+        run: npm ci --prefix functions
+      - name: Apply previously proven fixture alignment in workspace only
+        run: python .github/scripts/v136-marketing-media-fixture-align.py
+      - name: Capture monolithic Full CI output
+        shell: bash
+        run: |
+          set +e
+          npm run ci:test > /tmp/v136-ci.log 2>&1
+          code=$?
+          set -e
+          echo "V136_CI_EXIT_CODE=$code"
+          echo '=== FAILURE MARKERS ==='
+          grep -nE 'not ok|AssertionError|ERR_ASSERTION|fail [1-9]|error:|Error:' /tmp/v136-ci.log | tail -n 120 || true
+          echo '=== FINAL 260 LINES ==='
+          tail -n 260 /tmp/v136-ci.log
+          exit "$code"
