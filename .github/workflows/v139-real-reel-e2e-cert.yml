@@ -89,8 +89,7 @@ jobs:
                   body: JSON.stringify(payload),
                   signal: controller.signal
                 });
-                const data = await response.json();
-                return data;
+                return await response.json();
               } finally {
                 clearTimeout(timeout);
               }
@@ -128,6 +127,7 @@ jobs:
               overlay: 'Taquería El Dorado',
               voiceover: 'En Cancún, el antojo tiene un nombre: Taquería El Dorado.',
               visual: 'Video real de la publicación de Taquería El Dorado mostrando el producto.',
+              evidence: SOURCE,
               transition: 'fade'
             },
             {
@@ -135,6 +135,7 @@ jobs:
               overlay: 'Sabor que se antoja',
               voiceover: 'Tacos preparados para convertir una visita en ese momento que quieres repetir.',
               visual: 'Continuación dinámica del video real, priorizando alimento y preparación.',
+              evidence: SOURCE,
               transition: 'cut'
             },
             {
@@ -142,6 +143,7 @@ jobs:
               overlay: 'Ven por los tuyos',
               voiceover: 'Guarda este lugar y ven a probar Taquería El Dorado en Cancún.',
               visual: 'Cierre con el mejor encuadre disponible del video real y llamado a la acción.',
+              evidence: SOURCE,
               transition: 'fade'
             }
           ];
