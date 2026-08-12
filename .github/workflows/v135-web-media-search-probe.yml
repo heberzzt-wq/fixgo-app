@@ -1,0 +1,31 @@
+name: v135 web media search probe
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/scripts/v135-web-media-search-probe.mjs'
+      - '.github/workflows/v135-web-media-search-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Guard isolated branch and untouched Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF_NAME}" = "v94-media-v4n-negative-claims"
+          git diff --quiet HEAD^ HEAD -- functions/
+      - name: Probe Bing Images candidates
+        run: node .github/scripts/v135-web-media-search-probe.mjs "Taquería El Dorado Cancún"
