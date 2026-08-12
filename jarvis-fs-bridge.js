@@ -773,6 +773,25 @@ function repositoryRefs(root = DEFAULT_ROOT) {
     return normalizeRepositoryRefs(output.split(/\r?\n/).filter(Boolean));
 }
 
+function advertisedRepositoryRefs(root = DEFAULT_ROOT) {
+    const output = gitText([
+        "ls-remote",
+        "--heads",
+        "origin"
+    ], root, {
+        allowFailure: true,
+        maxBuffer: 4 * 1024 * 1024
+    });
+    const refs = output
+        .split(/\r?\n/)
+        .map(line => String(line || "").trim())
+        .filter(Boolean)
+        .map(line => line.split(/\s+/).at(-1) || "")
+        .filter(ref => ref.startsWith("refs/heads/"))
+        .map(ref => ref.slice("refs/heads/".length));
+    return normalizeRepositoryRefs(refs);
+}
+
 function resolveCommitForRef(ref = "", root = DEFAULT_ROOT) {
     const cleanRef = String(ref || "").trim().replace(/^refs\/heads\//, "").replace(/^origin\//, "");
     const candidates = [...new Set([
@@ -816,7 +835,7 @@ export function resolveBridgeRepositoryTarget(input = {}, root = DEFAULT_ROOT) {
                 : {};
     const { target = "", ref = "", file = "" } = request;
     const git = readGitIdentity(root);
-    const refs = repositoryRefs(root);
+    let refs = repositoryRefs(root);
     const rawTarget = String(target || "").trim();
     const explicitRef = String(ref || "").trim().replace(/^origin\//, "");
     let parsed = rawTarget
@@ -861,7 +880,24 @@ export function resolveBridgeRepositoryTarget(input = {}, root = DEFAULT_ROOT) {
         }
     }
     if (parsed.kind === "github_selector") {
-        parsed = resolveRepositorySelector(parsed, refs);
+        const unresolvedSelector = parsed;
+        parsed = resolveRepositorySelector(unresolvedSelector, refs);
+        if (
+            parsed.ok !== true &&
+            parsed.error === "GITHUB_REF_UNRESOLVED"
+        ) {
+            const remoteRefs = advertisedRepositoryRefs(root);
+            if (remoteRefs.length > 0) {
+                refs = normalizeRepositoryRefs([
+                    ...refs,
+                    ...remoteRefs
+                ]);
+                parsed = resolveRepositorySelector(
+                    unresolvedSelector,
+                    refs
+                );
+            }
+        }
         if (parsed.ok !== true) return parsed;
     }
     if (parsed.provider === "github" && explicitRef && !parsed.ref) {

@@ -130,8 +130,19 @@ test("mission contract expands from structured marketing requirements and asks t
             plannedStates.push(structuredClone(current));
             const done = new Set(current.completedTasks.map(item => item.name));
             const nextRequirement = requirements.find(item => !done.has(item.toolName));
+            const args = nextRequirement?.toolName === "reel.create"
+                ? {
+                    brandName: "Multiservicios Peninsulares HMH",
+                    durationSeconds: 30,
+                    scenes: [{
+                        durationSeconds: 30,
+                        overlay: "Servicio verificado",
+                        assetOutput: ".jarvis-artifacts/web-media/marketing-fixture/primary.mp4"
+                    }]
+                }
+                : {};
             return nextRequirement
-                ? { toolCalls: [{ name: nextRequirement.toolName, args: {} }], missionComplete: false }
+                ? { toolCalls: [{ name: nextRequirement.toolName, args }], missionComplete: false }
                 : { toolCalls: [], missionComplete: true };
         },
         execute: async call => {

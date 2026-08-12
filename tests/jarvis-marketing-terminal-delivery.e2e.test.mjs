@@ -78,7 +78,17 @@ function artifactArgs(requirement) {
         return { prompt: "Visual tecnológico limpio para Península Tech", mimeType: "image/png" };
     }
     if (requirement.toolName === "reel.create") {
-        return { brandName: "Península Tech", title: "Servicio con trazabilidad", cta: "Solicita tu servicio", durationSeconds: 30, scenes: [] };
+        return {
+            brandName: "Península Tech",
+            title: "Servicio con trazabilidad",
+            cta: "Solicita tu servicio",
+            durationSeconds: 30,
+            scenes: [{
+                durationSeconds: 30,
+                overlay: "Servicio con trazabilidad",
+                assetOutput: ".jarvis-artifacts/web-media/e2e/primary.mp4"
+            }]
+        };
     }
     return {};
 }
