@@ -32,7 +32,7 @@ jobs:
           git diff --quiet HEAD^ HEAD -- functions/
       - name: Install root dependencies
         run: npm ci
-      - name: Normalize v136 orchestrator version anchor
+      - name: Normalize v136 orchestrator anchors
         shell: bash
         run: |
           set -euo pipefail
@@ -40,11 +40,16 @@ jobs:
           from pathlib import Path
           p = Path('gestia-core/jarvis/jarvis.mission.orchestrator.js')
           s = p.read_text(encoding='utf-8')
-          old = 'const VERSION = "1.14.0-reel-media-source-recovery-v136";'
-          new = 'const VERSION =\n    "1.14.0-reel-media-source-recovery-v136";'
-          if s.count(old) != 1:
-              raise SystemExit(f'ORCHESTRATOR_VERSION_ANCHOR_MISMATCH:{s.count(old)}')
-          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          old_version = 'const VERSION = "1.14.0-reel-media-source-recovery-v136";'
+          new_version = 'const VERSION =\n    "1.14.0-reel-media-source-recovery-v136";'
+          if s.count(old_version) != 1:
+              raise SystemExit(f'ORCHESTRATOR_VERSION_ANCHOR_MISMATCH:{s.count(old_version)}')
+          s = s.replace(old_version, new_version, 1)
+          old_export = 'export const __test = { callSignature, compactRoutingInstruction, isFailureStatus, safeObservation, trustedCalls, canonicalMissionEvidence, unwrapObservationPayload, explicitMissionHttpSourceUrls, verifiedResearchMediaSourceUrls, reelArgsHaveExplicitVisualMedia, verifiedCollectedVisualAssets, reelMediaDependencyCall, reelMediaRecoveryState, reelMediaRecoveryAllowedCalls, deterministicReelMediaRecoveryCall, archiveRecoveredMediaSourceAttempts };'
+          new_export = '''export const __test = {\n    callSignature,\n    compactRoutingInstruction,\n    isFailureStatus,\n    safeObservation,\n    trustedCalls,\n    canonicalMissionEvidence,\n    unwrapObservationPayload,\n    explicitMissionHttpSourceUrls,\n    verifiedResearchMediaSourceUrls,\n    reelArgsHaveExplicitVisualMedia,\n    verifiedCollectedVisualAssets,\n    reelMediaDependencyCall,\n    reelMediaRecoveryState,\n    reelMediaRecoveryAllowedCalls,\n    deterministicReelMediaRecoveryCall,\n    archiveRecoveredMediaSourceAttempts\n};'''
+          if s.count(old_export) != 1:
+              raise SystemExit(f'ORCHESTRATOR_EXPORT_ANCHOR_MISMATCH:{s.count(old_export)}')
+          p.write_text(s.replace(old_export, new_export, 1), encoding='utf-8')
           PY
       - name: Apply v137 product patch
         run: python .github/scripts/v137-reel-speech-apply.py
