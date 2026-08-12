@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/scripts/v135-cdp-response-body-apply.py'
       - '.github/scripts/v135-cdp-response-body-tests.py'
+      - '.github/scripts/v135-cdp-patcher-anchor-fix.py'
       - '.github/workflows/v135-cdp-response-body-apply.yml'
   workflow_dispatch:
 
@@ -32,6 +33,8 @@ jobs:
           git diff --quiet HEAD^ HEAD -- functions/
       - name: Install root dependencies
         run: npm ci
+      - name: Fix captured-body patcher anchors
+        run: python .github/scripts/v135-cdp-patcher-anchor-fix.py
       - name: Apply captured-body patch
         run: python .github/scripts/v135-cdp-response-body-apply.py
       - name: Append captured-body regressions
@@ -45,10 +48,12 @@ jobs:
           printf '%s\n' "${changed[@]}"
           for path in "${changed[@]}"; do
             case "$path" in
-              jarvis-fs-bridge.js|nexo-web-media-bridge.js|gestia-core/nexo/nexo.real-media.tools.js|modules/terminal/nexo-bootstrap.js|modules/terminal/proposal-state.js|gestia-terminal.html|tests/nexo-browser-media-fallback-v135.test.mjs|tests/jarvis-fs-bridge-v2.test.mjs) ;;
+              .github/scripts/v135-cdp-response-body-apply.py|jarvis-fs-bridge.js|nexo-web-media-bridge.js|gestia-core/nexo/nexo.real-media.tools.js|modules/terminal/nexo-bootstrap.js|modules/terminal/proposal-state.js|gestia-terminal.html|tests/nexo-browser-media-fallback-v135.test.mjs|tests/jarvis-fs-bridge-v2.test.mjs) ;;
               *) echo "UNEXPECTED_V135_BODY_PATH:$path" >&2; exit 1 ;;
             esac
           done
+      - name: Restore staged patcher mutation before product commit
+        run: git restore .github/scripts/v135-cdp-response-body-apply.py
       - name: Syntax v135 captured body
         shell: bash
         run: |
