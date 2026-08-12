@@ -24,6 +24,9 @@ on:
       - 'tests/nexo-real-media-tools.test.mjs'
       - 'tests/nexo-web-media-bridge.test.mjs'
       - 'tests/jarvis-fs-bridge-v2.test.mjs'
+      - 'tests/jarvis-repo-target-runtime.test.mjs'
+      - 'tests/jarvis-marketing-real-delivery.test.mjs'
+      - 'tests/jarvis-marketing-terminal-delivery.e2e.test.mjs'
       - 'tests/jarvis-multifunction-tools.test.mjs'
       - 'tests/single-semantic-authority.test.mjs'
   workflow_dispatch:
@@ -55,7 +58,7 @@ jobs:
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
           ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
-      - name: Focal v136 plus v135-v132 contracts
+      - name: Focal v136 plus v135-v132 and compatibility contracts
         shell: bash
         run: |
           set -euo pipefail
@@ -75,6 +78,9 @@ jobs:
             tests/nexo-real-media-tools.test.mjs \
             tests/nexo-web-media-bridge.test.mjs \
             tests/jarvis-fs-bridge-v2.test.mjs \
+            tests/jarvis-repo-target-runtime.test.mjs \
+            tests/jarvis-marketing-real-delivery.test.mjs \
+            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs \
             tests/jarvis-mission-orchestrator.test.mjs \
             tests/jarvis-multifunction-tools.test.mjs \
             tests/jarvis-semantic-planner.test.cjs \
@@ -90,4 +96,6 @@ jobs:
           echo 'V136_ALTERNATE_VERIFIED_SOURCE_RECOVERY=true'
           echo 'V136_RECOVERY_EXHAUSTION_FAILS_CLOSED=true'
           echo 'V135_EXACT_TIKTOK_PRIMARY_MEDIA_PROVEN=true'
+          echo 'V136_SLASH_BRANCH_REMOTE_REF_RESOLUTION=true'
+          echo 'V136_MARKETING_FIXTURES_REQUIRE_REAL_VISUALS=true'
           echo 'V136_FUNCTIONS_UNCHANGED=true'
