@@ -3,7 +3,7 @@ import {
 } from "../jarvis/jarvis.marketing.engine.js?v=v94-source-grounded-research-v124-20260810";
 
 export const NEXO_REAL_MEDIA_TOOLS_VERSION =
-    "1.5.0-browser-network-media-fallback-v135";
+    "1.6.0-cdp-response-body-media-v135";
 
 const INSTALL_KEY = "__NEXO_REAL_MEDIA_TOOLS__";
 
@@ -393,7 +393,7 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
     registerOrReplace(runtime, {
         name: "web.media.collect",
         description:
-            "Descarga fotos y videos reales desde una URL explícita; si el HTML estático no expone suficientes medios, usa Chrome/CDP para observar recursos visuales solicitados por esa misma página y después valida host, MIME, firma de bytes, tamaño y SHA-256. Nunca genera material sintético.",
+            "Descarga fotos y videos reales desde una URL explícita; si el HTML estático no expone suficientes medios, usa Chrome/CDP para observar y conservar los bytes visuales recibidos por esa misma sesión, y después valida host, MIME, firma de bytes, tamaño y SHA-256. Prioriza el medio principal y nunca genera material sintético.",
         output: "NEXO_REAL_WEB_MEDIA",
         mutates: true,
         requiresApproval: false,

@@ -1,4 +1,4 @@
-import "./nexo-bootstrap.js?v=v135-browser-network-media-fallback-20260812";
+import "./nexo-bootstrap.js?v=v135-cdp-response-body-media-20260812";
 
 const ACTIVE_STORAGE_KEY =
     "sia7:activePatchProposal:v1";

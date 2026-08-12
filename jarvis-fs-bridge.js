@@ -52,7 +52,7 @@ import {
 } from "./nexo-web-media-bridge.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.42.0-browser-network-media-fallback-v135";
+    "2.43.0-cdp-response-body-media-v135";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -339,6 +339,7 @@ export async function captureBrowserNetworkMedia({
                 url: mediaUrl,
                 mimeType,
                 resourceType,
+                requestId: String(message?.params?.requestId || ""),
                 declaredBytes: Number.isFinite(declaredBytes) ? declaredBytes : 0,
                 status: Number(response?.status || 0),
                 sourcePageUrl: targetUrl,
@@ -383,6 +384,69 @@ export async function captureBrowserNetworkMedia({
             Math.min(5000, Math.max(1500, Math.floor(boundedTimeoutMs / 10)))
         );
 
+        const bodyCandidates = [...media.values()]
+            .filter(item =>
+                item.status >= 200 &&
+                item.status < 400 &&
+                String(item.requestId || "").trim()
+            )
+            .sort((left, right) => {
+                const familyOrder =
+                    (right.kind === "video" ? 1 : 0) -
+                    (left.kind === "video" ? 1 : 0);
+                return familyOrder ||
+                    Number(right.declaredBytes || 0) -
+                    Number(left.declaredBytes || 0);
+            })
+            .slice(0, 24);
+        let capturedBodyBytes = 0;
+        for (const candidate of bodyCandidates) {
+            const maximum = candidate.kind === "video"
+                ? 50 * 1024 * 1024
+                : 12 * 1024 * 1024;
+            if (Number(candidate.declaredBytes || 0) > maximum) {
+                candidate.bodyCaptureError = "BROWSER_MEDIA_CDP_DECLARED_SIZE_EXCEEDED";
+                continue;
+            }
+            try {
+                const responseBody = await call("Network.getResponseBody", {
+                    requestId: candidate.requestId
+                });
+                const rawBody = String(responseBody?.body || "");
+                if (!rawBody) {
+                    candidate.bodyCaptureError = "BROWSER_MEDIA_CDP_BODY_EMPTY";
+                    continue;
+                }
+                if (
+                    responseBody?.base64Encoded === true &&
+                    rawBody.length > Math.ceil(maximum * 4 / 3) + 16
+                ) {
+                    candidate.bodyCaptureError = "BROWSER_MEDIA_CDP_BODY_SIZE_EXCEEDED";
+                    continue;
+                }
+                const bodyBytes = responseBody?.base64Encoded === true
+                    ? Buffer.from(rawBody, "base64")
+                    : Buffer.from(rawBody, "utf8");
+                if (
+                    bodyBytes.length < 1 ||
+                    bodyBytes.length > maximum ||
+                    capturedBodyBytes + bodyBytes.length > 120 * 1024 * 1024
+                ) {
+                    candidate.bodyCaptureError = "BROWSER_MEDIA_CDP_BODY_SIZE_EXCEEDED";
+                    continue;
+                }
+                capturedBodyBytes += bodyBytes.length;
+                candidate.bodyCaptured = true;
+                candidate.bodyBytes = bodyBytes.length;
+                candidate.bodyBase64 = bodyBytes.toString("base64");
+            }
+            catch(error) {
+                candidate.bodyCaptureError =
+                    error?.message ||
+                    "BROWSER_MEDIA_CDP_BODY_UNAVAILABLE";
+            }
+        }
+
         const candidates = [...media.values()]
             .filter(item => item.status >= 200 && item.status < 400)
             .sort((left, right) =>
@@ -397,6 +461,9 @@ export async function captureBrowserNetworkMedia({
                 : "BROWSER_NETWORK_MEDIA_EMPTY",
             url: targetUrl,
             candidateCount: candidates.length,
+            bodyCapturedCount: candidates.filter(item => item.bodyCaptured === true).length,
+            bodyCapturedBytes: candidates.reduce((sum, item) =>
+                sum + Number(item.bodyBytes || 0), 0),
             counts: {
                 images: candidates.filter(item => item.kind === "image").length,
                 videos: candidates.filter(item => item.kind === "video").length,
@@ -4200,6 +4267,8 @@ export function createJarvisFsBridgeApp({
                     browserNetwork: {
                         status: observed.status,
                         candidateCount: observed.candidateCount,
+                        bodyCapturedCount: observed.bodyCapturedCount || 0,
+                        bodyCapturedBytes: observed.bodyCapturedBytes || 0,
                         counts: observed.counts
                     },
                     engine: path.basename(chrome),

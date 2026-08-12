@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 import { registerArtifact } from "./jarvis-artifact-studio.js";
 
 export const NEXO_WEB_MEDIA_BRIDGE_VERSION =
-    "1.4.0-browser-network-media-fallback-v135";
+    "1.5.0-cdp-response-body-media-v135";
 
 const MAX_HTML_BYTES = 2 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
@@ -428,7 +428,13 @@ export async function collectNexoRealWebMedia({
                     sourcePageUrl: String(item.sourcePageUrl || page.toString()),
                     declaredBytes: Math.max(0, Number(item.declaredBytes || 0)),
                     resourceType: String(item.resourceType || ""),
-                    observedMimeType: mimeType
+                    observedMimeType: mimeType,
+                    bodyCaptured: item.bodyCaptured === true,
+                    bodyBytes: Math.max(0, Number(item.bodyBytes || 0)),
+                    bodyBase64: item.bodyCaptured === true
+                        ? String(item.bodyBase64 || "")
+                        : "",
+                    bodyCaptureError: String(item.bodyCaptureError || "")
                 };
             } catch {
                 return null;
@@ -464,12 +470,32 @@ export async function collectNexoRealWebMedia({
         video: Math.max(0, Math.min(10, Number(maxVideos) || 0))
     };
     const selected = [];
+    const browserPrimaryVideoAvailable =
+        discoveryMode === "browser_network" &&
+        discovered.some(item =>
+            item.kind === "video" &&
+            (
+                item.bodyCaptured === true ||
+                Number(item.declaredBytes || 0) >= 50000
+            )
+        );
     for (const kind of ["image", "video"]) {
-        const available = discovered.filter(item => item.kind === kind);
+        let available = discovered.filter(item => item.kind === kind);
+        if (discoveryMode === "browser_network") {
+            available = available.filter(item => {
+                const effectiveBytes = Math.max(
+                    Number(item.bodyBytes || 0),
+                    Number(item.declaredBytes || 0)
+                );
+                if (kind === "video") return effectiveBytes >= 50000;
+                return effectiveBytes >= 20000 &&
+                    String(item.resourceType || "").toLowerCase() === "image";
+            });
+        }
         const ordered = available.some(item => item.networkObserved === true)
             ? [...available].sort((left, right) =>
-                Number(right.declaredBytes || 0) -
-                Number(left.declaredBytes || 0)
+                Math.max(Number(right.bodyBytes || 0), Number(right.declaredBytes || 0)) -
+                Math.max(Number(left.bodyBytes || 0), Number(left.declaredBytes || 0))
             )
             : kind === "image"
                 ? [
@@ -477,7 +503,23 @@ export async function collectNexoRealWebMedia({
                     ...available.filter(item => item.mediaRole !== "brand_logo")
                 ]
                 : available;
-        selected.push(...ordered.slice(0, limits[kind]));
+        let effectiveLimit = limits[kind];
+        if (
+            discoveryMode === "browser_network" &&
+            kind === "image" &&
+            browserPrimaryVideoAvailable &&
+            requireImages !== true
+        ) {
+            effectiveLimit = 0;
+        }
+        if (
+            discoveryMode === "browser_network" &&
+            kind === "video" &&
+            browserPrimaryVideoAvailable
+        ) {
+            effectiveLimit = Math.min(effectiveLimit, 1);
+        }
+        selected.push(...ordered.slice(0, effectiveLimit));
     }
 
     const batchDirectory = path.resolve(
@@ -493,12 +535,38 @@ export async function collectNexoRealWebMedia({
     let totalBytes = 0;
     for (const candidate of selected) {
         try {
-            const fetched = await fetchBounded(candidate.url, {
-                maxBytes: candidate.kind === "video" ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES,
-                timeoutMs,
-                allowedMimePrefixes: [candidate.kind === "video" ? "video/" : "image/"],
-                allowPrivateHostsForTesting
-            });
+            let fetched;
+            if (candidate.bodyCaptured === true && candidate.bodyBase64) {
+                const candidateUrl = normalizeHttpUrl(candidate.url);
+                await assertPublicUrl(candidateUrl, { allowPrivateHostsForTesting });
+                const maximum = candidate.kind === "video" ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+                const bytes = Buffer.from(candidate.bodyBase64, "base64");
+                if (
+                    bytes.length < 1 ||
+                    bytes.length > maximum ||
+                    (Number(candidate.bodyBytes || 0) > 0 && bytes.length !== Number(candidate.bodyBytes))
+                ) {
+                    throw new Error("WEB_MEDIA_CAPTURED_BODY_SIZE_INVALID");
+                }
+                const observedMimeType = String(candidate.observedMimeType || "").toLowerCase();
+                if (!observedMimeType.startsWith(`${candidate.kind}/`)) {
+                    throw new Error("WEB_MEDIA_CAPTURED_BODY_MIME_INVALID");
+                }
+                fetched = {
+                    url: candidateUrl.toString(),
+                    mimeType: observedMimeType,
+                    bytes,
+                    headers: {}
+                };
+            }
+            else {
+                fetched = await fetchBounded(candidate.url, {
+                    maxBytes: candidate.kind === "video" ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES,
+                    timeoutMs,
+                    allowedMimePrefixes: [candidate.kind === "video" ? "video/" : "image/"],
+                    allowPrivateHostsForTesting
+                });
+            }
             const actualMimeType = detectedMime(fetched.bytes, fetched.mimeType);
             if (!actualMimeType || !actualMimeType.startsWith(`${candidate.kind}/`) || !MIME_EXTENSIONS[actualMimeType]) {
                 throw new Error("WEB_MEDIA_MAGIC_MISMATCH");
@@ -530,7 +598,9 @@ export async function collectNexoRealWebMedia({
                     publishable: false,
                     originalFile: fetched.url,
                     transformations: [{
-                        type: "verbatim_download",
+                        type: candidate.bodyCaptured === true
+                            ? "browser_network_response_body"
+                            : "verbatim_download",
                         sha256: digest,
                         sourceDeclared: sourceDeclaredMediaCandidate(candidate),
                         networkObserved: candidate.networkObserved === true,
@@ -545,6 +615,7 @@ export async function collectNexoRealWebMedia({
                 sourceTag: candidate.sourceTag,
                 sourceDeclared: sourceDeclaredMediaCandidate(candidate),
                 networkObserved: candidate.networkObserved === true,
+                bodyCaptured: candidate.bodyCaptured === true,
                 sourcePageUrl: candidate.sourcePageUrl || page.toString(),
                 mediaRole: candidate.mediaRole || "scene",
                 alt: candidate.alt,
@@ -561,6 +632,7 @@ export async function collectNexoRealWebMedia({
                 sourceTag: candidate.sourceTag,
                 sourceDeclared: sourceDeclaredMediaCandidate(candidate),
                 networkObserved: candidate.networkObserved === true,
+                bodyCaptured: candidate.bodyCaptured === true,
                 sourcePageUrl: candidate.sourcePageUrl || page.toString(),
                 mediaRole: candidate.mediaRole || "scene",
                 reason: error?.message || String(error)
