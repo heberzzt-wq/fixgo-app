@@ -509,7 +509,7 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "reel.create",
-            description: "Crea un reel 9:16 local, genera su estudio editable y exporta automáticamente un WebM físico verificado por SHA-256. Mezcla audioOutput explícito o el WAV verificado producido por speech.synthesize en la misma misión. No publica.",
+            description: "Crea un reel 9:16 local, genera su estudio editable y exporta automáticamente MP4 H.264/AAC cuando Chrome lo soporta, con WebM como fallback verificado. Mezcla audioOutput explícito o el WAV verificado producido por speech.synthesize en la misma misión. No publica.",
             output: "REEL_VIDEO_ARTIFACT",
             inputSchema: {
                 brandName: "string", title: "string", cta: "string", durationSeconds: "number",

@@ -8,7 +8,7 @@ import {
 } from "./jarvis/jarvis.multitool.pack.js?v=v94-marketing-actuator-bridge-v126-20260810";
 import {
     registerJarvisActuatorTools
-} from "./jarvis/jarvis.actuator.pack.js?v=v137-local-speech-synthesis-20260812";
+} from "./jarvis/jarvis.actuator.pack.js?v=v138-native-mp4-reel-export-20260812";
 import {
     reviewChiefArchitectPlan
 } from "./jarvis/jarvis.chief.architect.js?v=sia7-chief-architect-v92-20260726";

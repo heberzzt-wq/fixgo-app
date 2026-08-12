@@ -78,25 +78,25 @@ test("terminal accepts finalResponse without requiring AGENT_TOOL_RESULT and nev
     assert.match(terminal, /TERMINAL_CORE_RESPONSE_NOT_PRESENTED/);
 });
 
-test("reel creator and bridge require a physical verified WebM", () => {
+test("reel creator and bridge require a physical verified final video", () => {
     const reelArtifact = fs.readFileSync(path.join(process.cwd(), "jarvis-reel-artifact.js"), "utf8");
     const bridge = fs.readFileSync(path.join(process.cwd(), "jarvis-fs-bridge.js"), "utf8");
     const actuator = fs.readFileSync(path.join(process.cwd(), "gestia-core", "jarvis", "jarvis.actuator.pack.js"), "utf8");
     assert.match(reelArtifact, /__JARVIS_LAST_REEL_BLOB__/);
-    assert.match(bridge, /exportReelWebmWithChrome/);
+    assert.match(bridge, /exportReelVideoWithChrome/);
     assert.match(bridge, /REEL_VIDEO_CREATED_VERIFIED/);
-    assert.match(bridge, /REEL_WEBM_SHA256_MISMATCH/);
+    assert.match(bridge, /REEL_VIDEO_SHA256_MISMATCH/);
     assert.match(actuator, /REEL_VIDEO_CREATED_VERIFIED/);
     assert.doesNotMatch(actuator, /result\?\.status === "REEL_STUDIO_CREATED_VERIFIED"/);
 });
 
 
-test("reel human response reports the physical WebM as primary artifact", () => {
+test("reel human response reports the physical final video as primary artifact", () => {
     const bridge = fs.readFileSync(path.join(process.cwd(), "gestia-core", "tools.bridge.js"), "utf8");
     assert.match(bridge, /"Reel creado"/);
     assert.match(bridge, /data\?\.videoOutput/);
     assert.match(bridge, /SHA-256/);
-    assert.match(bridge, /WebM fue generado fisicamente/);
+    assert.match(bridge, /video final fue generado fisicamente/);
     assert.match(bridge, /Estudio editable auxiliar/);
     assert.doesNotMatch(bridge, /exportacion WebM se realiza desde el navegador/);
     assert.doesNotMatch(bridge, /"Estudio de reel creado"/);

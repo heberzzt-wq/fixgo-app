@@ -56,7 +56,7 @@ import {
 } from "./jarvis-speech-artifact.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.44.0-local-speech-synthesis-v137";
+    "2.45.0-native-mp4-reel-export-v138";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -495,7 +495,60 @@ export async function captureBrowserNetworkMedia({
     }
 }
 
-export async function exportReelWebmWithChrome({
+export function reelVideoFormatFromMime(mimeType = "") {
+    const family = String(mimeType || "")
+        .split(";")[0]
+        .trim()
+        .toLowerCase();
+    if (family === "video/mp4") return "mp4";
+    if (family === "video/webm") return "webm";
+    throw new Error("REEL_VIDEO_MIME_UNSUPPORTED");
+}
+
+export function reelVideoExtensionFromMime(mimeType = "") {
+    return `.${reelVideoFormatFromMime(mimeType)}`;
+}
+
+export function assertReelVideoContainer(buffer, mimeType = "") {
+    if (!Buffer.isBuffer(buffer) || buffer.length < 8) {
+        throw new Error("REEL_VIDEO_CONTAINER_TOO_SMALL");
+    }
+    const format = reelVideoFormatFromMime(mimeType);
+    if (format === "mp4") {
+        if (buffer.length < 12 || buffer.toString("ascii", 4, 8) !== "ftyp") {
+            throw new Error("REEL_MP4_SIGNATURE_INVALID");
+        }
+    }
+    else {
+        const webmMagic = [0x1a, 0x45, 0xdf, 0xa3];
+        if (!webmMagic.every((value, index) => buffer[index] === value)) {
+            throw new Error("REEL_WEBM_SIGNATURE_INVALID");
+        }
+    }
+    return { ok: true, format, extension: `.${format}` };
+}
+
+export function reelVideoOutputTarget(output = "", mimeType = "", root = DEFAULT_ROOT) {
+    const extension = reelVideoExtensionFromMime(mimeType);
+    const requested = String(output || "").trim().replaceAll("\\", "/");
+    let stem = `.jarvis-artifacts/reels/reel-${Date.now()}`;
+    if (
+        requested.startsWith(".jarvis-artifacts/") &&
+        !requested.includes("../") &&
+        (/\.(?:mp4|webm)$/i.test(requested) || !path.posix.extname(requested))
+    ) {
+        stem = requested.replace(/\.(?:mp4|webm)$/i, "");
+    }
+    const relativeOutput = `${stem}${extension}`;
+    return {
+        relativeOutput,
+        target: artifactPath(relativeOutput, root, [extension]),
+        extension,
+        format: extension.slice(1)
+    };
+}
+
+export async function exportReelVideoWithChrome({
     studioPath = "",
     output = "",
     durationSeconds = 0,
@@ -514,12 +567,8 @@ export async function exportReelWebmWithChrome({
         return { ok: false, status: "REEL_STUDIO_FILE_REQUIRED", error: "REEL_STUDIO_FILE_REQUIRED" };
     }
     const requestedOutput = String(output || "").trim().replaceAll("\\", "/");
-    const normalizedOutput =
-        requestedOutput.startsWith(".jarvis-artifacts/") && requestedOutput.toLowerCase().endsWith(".webm")
-            ? requestedOutput
-            : `.jarvis-artifacts/reels/reel-${Date.now()}.webm`;
-    const videoTarget = artifactPath(normalizedOutput, root, [".webm"]);
-    fs.mkdirSync(path.dirname(videoTarget), { recursive: true });
+    let videoTarget = "";
+    let relativeOutput = "";
 
     const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-reel-cdp-"));
     const child = spawn(
@@ -577,17 +626,25 @@ export async function exportReelWebmWithChrome({
         const payload = JSON.parse(String(payloadText || "{}"));
         const buffer = Buffer.from(String(payload.base64 || ""), "base64");
         if (buffer.length < 1000 || buffer.length !== Number(payload.bytes || 0)) {
-            throw new Error("REEL_WEBM_BYTE_COUNT_INVALID");
+            throw new Error("REEL_VIDEO_BYTE_COUNT_INVALID");
         }
+        const actualMimeType = String(payload.mimeType || "").trim();
+        const container = assertReelVideoContainer(buffer, actualMimeType);
         const sha256 = createHash("sha256").update(buffer).digest("hex");
         if (sha256 !== String(payload.sha256 || "").toLowerCase()) {
-            throw new Error("REEL_WEBM_SHA256_MISMATCH");
+            throw new Error("REEL_VIDEO_SHA256_MISMATCH");
         }
+        const outputTarget = reelVideoOutputTarget(requestedOutput, actualMimeType, root);
+        videoTarget = outputTarget.target;
+        relativeOutput = outputTarget.relativeOutput;
+        fs.mkdirSync(path.dirname(videoTarget), { recursive: true });
         fs.writeFileSync(videoTarget, buffer);
         if (!fs.existsSync(videoTarget) || fs.statSync(videoTarget).size !== buffer.length) {
-            throw new Error("REEL_WEBM_WRITE_VERIFY_FAILED");
+            throw new Error("REEL_VIDEO_WRITE_VERIFY_FAILED");
         }
-        const relativeOutput = path.relative(path.resolve(root), videoTarget).replaceAll("\\", "/");
+        if (path.extname(videoTarget).toLowerCase() !== container.extension) {
+            throw new Error("REEL_VIDEO_EXTENSION_MISMATCH");
+        }
         const artifact = registerArtifact({
             root,
             output: relativeOutput,
@@ -595,7 +652,9 @@ export async function exportReelWebmWithChrome({
                 type: "video",
                 origin: "reel.create",
                 provider: path.basename(chrome),
-                mimeType: payload.mimeType || "video/webm",
+                mimeType: actualMimeType,
+                container: container.format,
+                formatFallback: container.format !== "mp4",
                 status: "REEL_VIDEO_CREATED_VERIFIED",
                 approvalRequired: false,
                 approved: true,
@@ -617,7 +676,9 @@ export async function exportReelWebmWithChrome({
             ok: true,
             status: "REEL_VIDEO_CREATED_VERIFIED",
             output: relativeOutput,
-            mimeType: payload.mimeType || "video/webm",
+            mimeType: actualMimeType,
+            container: container.format,
+            formatFallback: container.format !== "mp4",
             bytes: buffer.length,
             sha256,
             durationSeconds: duration,
@@ -630,7 +691,7 @@ export async function exportReelWebmWithChrome({
         };
     }
     catch(error) {
-        try { fs.rmSync(videoTarget, { force: true }); } catch {}
+        try { if (videoTarget) fs.rmSync(videoTarget, { force: true }); } catch {}
         return {
             ok: false,
             status: "REEL_VIDEO_EXPORT_FAILED",
@@ -4570,12 +4631,12 @@ export function createJarvisFsBridgeApp({
             fs.writeFileSync(target, html, "utf8");
             const requestedVideoOutput =
                 String(req.body?.videoOutput || "").trim().replaceAll("\\", "/") ||
-                (requestedOutput.toLowerCase().endsWith(".webm") ? requestedOutput : "");
-            const videoExport = await exportReelWebmWithChrome({
+                (/\.(?:mp4|webm)$/i.test(requestedOutput) ? requestedOutput : "");
+            const videoExport = await exportReelVideoWithChrome({
                 studioPath: target,
                 output:
                     requestedVideoOutput ||
-                    `.jarvis-artifacts/reels/${slug}-${Date.now()}.webm`,
+                    `.jarvis-artifacts/reels/${slug}-${Date.now()}`,
                 durationSeconds: Number(hydrated.durationSeconds),
                 root
             });

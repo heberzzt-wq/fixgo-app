@@ -17,7 +17,7 @@ const input = {
     ]
 };
 
-test("reel studio creates a configurable 9:16 WebM production artifact", () => {
+test("reel studio creates a configurable 9:16 MP4-preferred production artifact", () => {
     const html = buildReelStudioHtml(input);
     const report = describeReelStudio(input, html);
     assert.match(html, /width="1080" height="1920"/);
@@ -47,7 +47,7 @@ test("reel studio builds a complete editable 45-second production timeline", () 
     const report = describeReelStudio(fortyFiveSecondInput, html);
     assert.equal(fortyFiveSecondInput.scenes.reduce((total, scene) => total + scene.durationSeconds, 0), 45);
     assert.match(html, /"durationSeconds":45/);
-    assert.match(html, /jarvis-reel-'\+spec\.durationSeconds\+'s\.webm/);
+    assert.match(html, /fileName:'jarvis-reel-'\+spec\.durationSeconds\+'s\.'\+extension/);
     assert.ok(Object.values(report.checks).every(Boolean));
 });
 
@@ -114,8 +114,10 @@ test("reel creation is approval-bound and connected to the local artifact bridge
     assert.match(bridge, /app\.post\("\/reel\/create"/);
     assert.match(actuator, /name: "reel\.create"/);
     assert.match(actuator, /REEL_VIDEO_CREATED_VERIFIED/);
-    assert.match(bridge, /exportReelWebmWithChrome/);
-    assert.match(bridge, /REEL_WEBM_SHA256_MISMATCH/);
+    assert.match(bridge, /exportReelVideoWithChrome/);
+    assert.match(bridge, /REEL_VIDEO_SHA256_MISMATCH/);
+    assert.match(bridge, /REEL_MP4_SIGNATURE_INVALID/);
+    assert.match(bridge, /REEL_WEBM_SIGNATURE_INVALID/);
     assert.match(bridge, /audioMixMode/);
     assert.match(bridge, /audioTracksAdded/);
     assert.match(actuator, /audioGraphAvailable/);

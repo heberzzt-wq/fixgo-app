@@ -570,7 +570,7 @@ function composeActuatorResponse(
                 "",
                 `Estado: **${data?.status || "COMPLETED"}**.`,
                 `Video: **${videoOutput || "sin ruta"}**.`,
-                `Formato: **${data?.mimeType || "video/webm"}**.`,
+                `Formato: **${data?.mimeType || "video"}**.`,
                 `Tamano: ${Number(data?.bytes || 0)} bytes.`,
                 data?.sha256
                     ? `SHA-256: **${data.sha256}**.`
@@ -584,7 +584,7 @@ function composeActuatorResponse(
                 data?.studioOutput
                     ? `Estudio editable auxiliar: **${data.studioOutput}**.`
                     : "",
-                "El WebM fue generado fisicamente por el bridge local y verificado antes de reportar la mision como completada; no fue publicado automaticamente."
+                "El video final fue generado fisicamente por el bridge local, con el formato real indicado arriba y verificado antes de reportar la mision como completada; no fue publicado automaticamente."
             ].filter(Boolean).join("\n"),
             reelData,
             {
