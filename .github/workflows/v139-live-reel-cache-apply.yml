@@ -44,11 +44,11 @@ jobs:
           printf '%s\n' "${changed[@]}"
           for path in "${changed[@]}"; do
             case "$path" in
-              gestia-terminal.html|gestia-core/gestia-core.js|gestia-core/tools.runtime.js|tests/jarvis-reel-live-cache-v139.test.mjs) ;;
+              gestia-terminal.html|gestia-core/gestia-core.js|gestia-core/tools.runtime.js|tests/jarvis-reel-live-cache-v139.test.mjs|tests/jarvis-reel-media-source-recovery-v136.test.mjs) ;;
               *) echo "V139_UNEXPECTED_PATCH_SURFACE:$path" >&2; exit 1 ;;
             esac
           done
-          test "${#changed[@]}" -eq 4
+          test "${#changed[@]}" -eq 5
       - name: Syntax and focal v139 contracts
         shell: bash
         run: |
@@ -76,7 +76,7 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add gestia-terminal.html gestia-core/gestia-core.js gestia-core/tools.runtime.js tests/jarvis-reel-live-cache-v139.test.mjs
+          git add gestia-terminal.html gestia-core/gestia-core.js gestia-core/tools.runtime.js tests/jarvis-reel-live-cache-v139.test.mjs tests/jarvis-reel-media-source-recovery-v136.test.mjs
           git diff --cached --check
           git commit -m '[v139] fix(adj): refresh live reel runtime cache chain'
           git push origin HEAD:v94-media-v4n-negative-claims
