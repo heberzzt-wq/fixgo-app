@@ -1,0 +1,63 @@
+name: v139 bridge endpoint diagnostic
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/v139-bridge-endpoint-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - name: Guard branch and Functions
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_NAME -ne 'v94-media-v4n-negative-claims') { throw 'WRONG_BRANCH' }
+          git diff --quiet HEAD^ HEAD -- functions/
+          if ($LASTEXITCODE -ne 0) { throw 'FUNCTIONS_CHANGED' }
+      - name: Start bridge and call exact endpoints
+        shell: pwsh
+        run: |
+          $stdout = Join-Path $env:RUNNER_TEMP 'bridge.stdout.log'
+          $stderr = Join-Path $env:RUNNER_TEMP 'bridge.stderr.log'
+          $process = Start-Process -FilePath node -ArgumentList 'jarvis-fs-bridge.js' -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          try {
+            $ready = $false
+            for ($i=0; $i -lt 40; $i++) {
+              Start-Sleep -Milliseconds 250
+              if ((Test-NetConnection -ComputerName 127.0.0.1 -Port 3344 -WarningAction SilentlyContinue).TcpTestSucceeded) { $ready=$true; break }
+              if ($process.HasExited) { break }
+            }
+            if (-not $ready) { throw 'BRIDGE_NOT_READY' }
+            @'
+            const base='http://127.0.0.1:3344';
+            async function call(path,payload){
+              const response=await fetch(base+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
+              const text=await response.text();
+              console.log('V139_HTTP',JSON.stringify({path,status:response.status,contentType:response.headers.get('content-type'),body:text.slice(0,12000)}));
+              try { return JSON.parse(text); } catch(error) { throw new Error(`NON_JSON:${path}:${response.status}:${text.slice(0,300)}`); }
+            }
+            const speech=await call('/speech/synthesize',{text:'Prueba de narración ADJUNTO v139',output:'.jarvis-artifacts/audio/v139-direct.wav'});
+            console.log('V139_SPEECH_ENVELOPE',JSON.stringify({ok:speech.ok,status:speech.status,error:speech.error,output:speech.output,mimeType:speech.mimeType,bytes:speech.bytes,sha256:speech.sha256}));
+            const media=await call('/web/media/collect',{url:'https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004',requireAnyVisual:true,maxImages:8,maxVideos:4,timeoutMs:45000});
+            console.log('V139_MEDIA_ENVELOPE',JSON.stringify({ok:media.ok,status:media.status,error:media.error,discoveryMode:media.discoveryMode,requirementsMet:media.requirementsMet,counts:media.counts,assets:(media.mediaAssets||[]).slice(0,4).map(x=>({kind:x.kind,output:x.output,mimeType:x.mimeType,bytes:x.bytes,sha256:x.sha256,sourceUrl:x.sourceUrl,sourceTag:x.sourceTag}))}));
+            '@ | node --input-type=module -
+          } finally {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            Get-Content $stdout -ErrorAction SilentlyContinue | Select-Object -Last 100
+            Get-Content $stderr -ErrorAction SilentlyContinue | Select-Object -Last 100
+          }
