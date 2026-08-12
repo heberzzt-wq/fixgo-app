@@ -22,6 +22,7 @@ on:
       - 'gestia-core/gestia-core.js'
       - 'gestia-terminal.html'
       - 'tests/jarvis-reel-speech-v137.test.mjs'
+      - 'tests/jarvis-reel-media-source-recovery-v136.test.mjs'
       - 'tests/jarvis-actuator-pack.test.mjs'
       - 'tests/jarvis-fs-bridge-v2.test.mjs'
   workflow_dispatch:
