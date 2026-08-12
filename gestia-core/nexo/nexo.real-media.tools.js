@@ -3,7 +3,7 @@ import {
 } from "../jarvis/jarvis.marketing.engine.js?v=v94-source-grounded-research-v124-20260810";
 
 export const NEXO_REAL_MEDIA_TOOLS_VERSION =
-    "1.4.0-real-reel-production-gate-v134";
+    "1.5.0-browser-network-media-fallback-v135";
 
 const INSTALL_KEY = "__NEXO_REAL_MEDIA_TOOLS__";
 
@@ -393,7 +393,7 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
     registerOrReplace(runtime, {
         name: "web.media.collect",
         description:
-            "Descarga fotos y videos reales desde una URL explícita, valida host, MIME, firma de bytes, tamaño y SHA-256, y conserva un manifiesto local. Nunca genera material sintético.",
+            "Descarga fotos y videos reales desde una URL explícita; si el HTML estático no expone suficientes medios, usa Chrome/CDP para observar recursos visuales solicitados por esa misma página y después valida host, MIME, firma de bytes, tamaño y SHA-256. Nunca genera material sintético.",
         output: "NEXO_REAL_WEB_MEDIA",
         mutates: true,
         requiresApproval: false,
@@ -417,13 +417,58 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
             additionalProperties: false
         },
         execute: async (args = {}, context = {}) => {
-            const result = await bridgeRequest("/web/media/collect", {
+            const timeoutMs = Math.max(60000, Number(args.timeoutMs) || 120000);
+            const staticResult = await bridgeRequest("/web/media/collect", {
                 ...args,
                 objectiveId: args.objectiveId || context.objectiveId || "",
                 caseId: args.caseId || context.caseId || ""
-            }, Math.max(60000, Number(args.timeoutMs) || 120000));
+            }, timeoutMs);
+            let result = staticResult;
+            let browserFallback = null;
+            const shouldTryBrowser =
+                staticResult?.status !== "LOCAL_BRIDGE_REQUIRED" &&
+                (staticResult?.ok !== true || staticResult?.requirementsMet !== true);
+            if (shouldTryBrowser) {
+                const browserResult = await bridgeRequest("/browser", {
+                    action: "media",
+                    url: args.url,
+                    requireImages: args.requireImages === true,
+                    requireVideos: args.requireVideos === true,
+                    requireAnyVisual: args.requireAnyVisual === true,
+                    maxImages: args.maxImages,
+                    maxVideos: args.maxVideos,
+                    timeoutMs: Number(args.timeoutMs) || 45000,
+                    objectiveId: args.objectiveId || context.objectiveId || "",
+                    caseId: args.caseId || context.caseId || ""
+                }, timeoutMs);
+                browserFallback = {
+                    attempted: true,
+                    status: browserResult?.status || "BROWSER_MEDIA_FALLBACK_FAILED",
+                    ok: browserResult?.ok === true,
+                    requirementsMet: browserResult?.requirementsMet === true,
+                    candidateCount: Number(browserResult?.browserNetwork?.candidateCount || 0)
+                };
+                if (
+                    browserResult?.ok === true &&
+                    browserResult?.requirementsMet === true
+                ) {
+                    result = {
+                        ...browserResult,
+                        browserFallbackUsed: true,
+                        staticCollectionStatus: staticResult?.status || null
+                    };
+                }
+                else {
+                    result = {
+                        ...staticResult,
+                        browserFallbackUsed: false,
+                        browserFallback
+                    };
+                }
+            }
             return {
                 ...result,
+                ...(browserFallback ? { browserFallback } : {}),
                 objectiveSatisfied: result?.ok === true && result?.requirementsMet === true,
                 blocked: result?.ok !== true || result?.requirementsMet !== true,
                 requiresInput: false,

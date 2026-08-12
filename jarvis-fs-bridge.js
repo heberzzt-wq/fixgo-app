@@ -47,11 +47,12 @@ import {
     extractJarvisDocumentArtifact
 } from "./jarvis-document-extractor.js";
 import {
+    collectNexoRealWebMedia,
     registerNexoWebMediaRoutes
 } from "./nexo-web-media-bridge.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.41.0-source-grounded-research-v124";
+    "2.42.0-browser-network-media-fallback-v135";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -192,6 +193,234 @@ async function evaluateCdpExpression(webSocketDebuggerUrl, expression, timeoutMs
     finally {
         if (timeoutHandle) clearTimeout(timeoutHandle);
         try { socket.close(); } catch {}
+    }
+}
+
+
+export async function captureBrowserNetworkMedia({
+    url = "",
+    chrome = resolveChromeExecutable(),
+    timeoutMs = 45000,
+    root = DEFAULT_ROOT
+} = {}) {
+    const targetUrl = normalizeBrowserUrl(url);
+    if (!chrome) {
+        return {
+            ok: false,
+            status: "BROWSER_EXECUTABLE_NOT_FOUND",
+            error: "BROWSER_EXECUTABLE_NOT_FOUND",
+            media: []
+        };
+    }
+    if (typeof globalThis.WebSocket !== "function") {
+        return {
+            ok: false,
+            status: "BROWSER_CDP_WEBSOCKET_UNAVAILABLE",
+            error: "BROWSER_CDP_WEBSOCKET_UNAVAILABLE",
+            media: []
+        };
+    }
+
+    const boundedTimeoutMs = Math.min(
+        Math.max(Number(timeoutMs) || 45000, 8000),
+        90000
+    );
+    const profileDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), "jarvis-browser-media-cdp-")
+    );
+    const child = spawn(
+        chrome,
+        [
+            "--headless=new",
+            "--no-sandbox",
+            "--disable-gpu",
+            "--disable-dev-shm-usage",
+            "--disable-extensions",
+            "--disable-sync",
+            "--no-first-run",
+            "--remote-debugging-port=0",
+            "--remote-allow-origins=*",
+            `--user-data-dir=${profileDir}`,
+            "about:blank"
+        ],
+        {
+            cwd: path.resolve(root),
+            stdio: "ignore",
+            windowsHide: true
+        }
+    );
+
+    let socket = null;
+    try {
+        const port = await readChromeDevToolsPort(
+            profileDir,
+            child,
+            Math.min(12000, boundedTimeoutMs)
+        );
+        const targetResponse = await fetch(
+            `http://127.0.0.1:${port}/json/new?${encodeURIComponent("about:blank")}`,
+            { method: "PUT" }
+        );
+        if (!targetResponse.ok) {
+            throw new Error(`BROWSER_MEDIA_CDP_NEW_TARGET_${targetResponse.status}`);
+        }
+        const target = await targetResponse.json();
+        if (!target?.webSocketDebuggerUrl) {
+            throw new Error("BROWSER_MEDIA_CDP_PAGE_WS_REQUIRED");
+        }
+
+        socket = new globalThis.WebSocket(target.webSocketDebuggerUrl);
+        const pending = new Map();
+        const media = new Map();
+        let nextId = 1;
+        let loadResolve = null;
+        const loaded = new Promise(resolve => {
+            loadResolve = resolve;
+        });
+        const opened = new Promise((resolve, reject) => {
+            socket.onopen = resolve;
+            socket.onerror = () => reject(
+                new Error("BROWSER_MEDIA_CDP_SOCKET_OPEN_FAILED")
+            );
+        });
+        socket.onmessage = event => {
+            let message;
+            try {
+                message = JSON.parse(String(event.data));
+            }
+            catch {
+                return;
+            }
+            if (message?.id && pending.has(message.id)) {
+                const current = pending.get(message.id);
+                pending.delete(message.id);
+                if (message.error) {
+                    current.reject(
+                        new Error(message.error.message || "BROWSER_MEDIA_CDP_ERROR")
+                    );
+                }
+                else {
+                    current.resolve(message.result);
+                }
+                return;
+            }
+            if (message?.method === "Page.loadEventFired") {
+                loadResolve?.(true);
+                return;
+            }
+            if (message?.method !== "Network.responseReceived") {
+                return;
+            }
+            const response = message?.params?.response || {};
+            const resourceType = String(message?.params?.type || "").trim();
+            const mimeType = String(response?.mimeType || "")
+                .split(";")[0]
+                .trim()
+                .toLowerCase();
+            const kind = mimeType.startsWith("image/")
+                ? "image"
+                : mimeType.startsWith("video/")
+                    ? "video"
+                    : "";
+            const mediaUrl = String(response?.url || "").trim();
+            if (!kind || !/^https?:\/\//i.test(mediaUrl)) {
+                return;
+            }
+            let declaredBytes = 0;
+            for (const [headerName, headerValue] of Object.entries(response?.headers || {})) {
+                if (String(headerName).toLowerCase() === "content-length") {
+                    declaredBytes = Number(headerValue || 0);
+                    break;
+                }
+            }
+            const previous = media.get(mediaUrl);
+            const candidate = {
+                kind,
+                url: mediaUrl,
+                mimeType,
+                resourceType,
+                declaredBytes: Number.isFinite(declaredBytes) ? declaredBytes : 0,
+                status: Number(response?.status || 0),
+                sourcePageUrl: targetUrl,
+                sourceTag: "browser-network"
+            };
+            if (
+                !previous ||
+                candidate.declaredBytes > Number(previous.declaredBytes || 0)
+            ) {
+                media.set(mediaUrl, candidate);
+            }
+        };
+
+        await opened;
+        const call = (method, params = {}) =>
+            new Promise((resolve, reject) => {
+                const id = nextId++;
+                pending.set(id, { resolve, reject });
+                socket.send(JSON.stringify({ id, method, params }));
+            });
+
+        await call("Network.enable");
+        await call("Page.enable");
+        await call("Runtime.enable");
+        const navigation = await call("Page.navigate", { url: targetUrl });
+        if (navigation?.errorText) {
+            throw new Error(`BROWSER_MEDIA_NAVIGATION_FAILED:${navigation.errorText}`);
+        }
+        await Promise.race([
+            loaded,
+            sleepMs(Math.min(10000, Math.max(2500, Math.floor(boundedTimeoutMs / 3))))
+        ]);
+        try {
+            await call("Runtime.evaluate", {
+                expression: `(() => new Promise(async resolve => { try { const height = Math.max(document.body?.scrollHeight || 0, document.documentElement?.scrollHeight || 0); const steps = 5; for (let index = 1; index <= steps; index += 1) { window.scrollTo(0, Math.floor(height * index / steps)); await new Promise(done => setTimeout(done, 350)); } window.scrollTo(0, 0); resolve(true); } catch { resolve(false); } }))()`,
+                awaitPromise: true,
+                returnByValue: true
+            });
+        }
+        catch {}
+        await sleepMs(
+            Math.min(5000, Math.max(1500, Math.floor(boundedTimeoutMs / 10)))
+        );
+
+        const candidates = [...media.values()]
+            .filter(item => item.status >= 200 && item.status < 400)
+            .sort((left, right) =>
+                Number(right.declaredBytes || 0) -
+                Number(left.declaredBytes || 0)
+            )
+            .slice(0, 120);
+        return {
+            ok: true,
+            status: candidates.length > 0
+                ? "BROWSER_NETWORK_MEDIA_DISCOVERED"
+                : "BROWSER_NETWORK_MEDIA_EMPTY",
+            url: targetUrl,
+            candidateCount: candidates.length,
+            counts: {
+                images: candidates.filter(item => item.kind === "image").length,
+                videos: candidates.filter(item => item.kind === "video").length,
+                total: candidates.length
+            },
+            media: candidates,
+            engine: path.basename(chrome)
+        };
+    }
+    catch(error) {
+        return {
+            ok: false,
+            status: "BROWSER_NETWORK_MEDIA_FAILED",
+            error: error?.message || String(error),
+            url: targetUrl,
+            candidateCount: 0,
+            media: []
+        };
+    }
+    finally {
+        try { socket?.close?.(); } catch {}
+        try { child.kill("SIGTERM"); } catch {}
+        await sleepMs(150);
+        try { fs.rmSync(profileDir, { recursive: true, force: true }); } catch {}
     }
 }
 
@@ -1047,7 +1276,7 @@ export function describeJarvisFsBridge() {
                 engine: browserExecutable
                     ? path.basename(browserExecutable)
                     : null,
-                actions: ["inspect", "screenshot", "pdf", "open"]
+                actions: ["inspect", "screenshot", "pdf", "open", "media"]
             },
             documents: {
                 available: true,
@@ -3937,6 +4166,47 @@ export function createJarvisFsBridgeApp({
                 });
             }
 
+
+            if (action === "media") {
+                const observed = await captureBrowserNetworkMedia({
+                    url,
+                    chrome,
+                    timeoutMs,
+                    root
+                });
+                if (observed?.ok !== true) {
+                    return res.status(502).json({
+                        ...observed,
+                        action,
+                        engine: path.basename(chrome),
+                        version: JARVIS_FS_BRIDGE_VERSION
+                    });
+                }
+                const collected = await collectNexoRealWebMedia({
+                    url,
+                    discoveredMedia: observed.media,
+                    requireImages: req.body?.requireImages === true,
+                    requireVideos: req.body?.requireVideos === true,
+                    requireAnyVisual: req.body?.requireAnyVisual === true,
+                    maxImages: req.body?.maxImages,
+                    maxVideos: req.body?.maxVideos,
+                    timeoutMs,
+                    root,
+                    allowPrivateHostsForTesting: false
+                });
+                return res.status(collected?.ok === true ? 200 : 422).json({
+                    ...collected,
+                    action,
+                    browserNetwork: {
+                        status: observed.status,
+                        candidateCount: observed.candidateCount,
+                        counts: observed.counts
+                    },
+                    engine: path.basename(chrome),
+                    version: JARVIS_FS_BRIDGE_VERSION
+                });
+            }
+
             const args = [
                 "--headless=new",
                 "--disable-gpu",
@@ -3971,7 +4241,7 @@ export function createJarvisFsBridgeApp({
                 return res.status(400).json({
                     ok: false,
                     status: "BROWSER_ACTION_NOT_ALLOWED",
-                    allowedActions: ["inspect", "screenshot", "pdf", "open"],
+                    allowedActions: ["inspect", "screenshot", "pdf", "open", "media"],
                     action,
                     version: JARVIS_FS_BRIDGE_VERSION
                 });

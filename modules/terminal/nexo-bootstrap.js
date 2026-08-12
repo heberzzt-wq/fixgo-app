@@ -9,7 +9,7 @@
  */
 
 export const NEXO_TERMINAL_BOOTSTRAP_VERSION =
-    "1.7.0-semantic-reel-media-authority-v131";
+    "1.8.0-browser-network-media-fallback-v135";
 
 const INSTALL_KEY = "__NEXO_TERMINAL_BOOTSTRAP__";
 
@@ -30,7 +30,7 @@ export async function instalarBootstrapTerminalNexo() {
     }
 
     const realMediaTools = await import(
-        "../../gestia-core/nexo/nexo.real-media.tools.js?v=v94-real-media-reel-hydration-v127-20260811"
+        "../../gestia-core/nexo/nexo.real-media.tools.js?v=v135-browser-network-media-fallback-20260812"
     );
     const runtimeMediaGuard = await import(
         "../../gestia-core/nexo/nexo.real-media.runtime-guard-v128.js?v=v131-semantic-scene-media-authority-20260811"
