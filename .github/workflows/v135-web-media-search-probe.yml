@@ -29,5 +29,11 @@ jobs:
           set -euo pipefail
           test "${GITHUB_REF_NAME}" = "v94-media-v4n-negative-claims"
           git diff --quiet HEAD^ HEAD -- functions/
-      - name: Probe Bing Images candidates
-        run: node .github/scripts/v135-web-media-search-probe.mjs "Taquería El Dorado Cancún"
+      - name: Probe exact Taquería entity
+        run: node .github/scripts/v135-web-media-search-probe.mjs '"Taquería El Dorado" Cancún tacos'
+      - name: Probe exact Takos entity
+        run: node .github/scripts/v135-web-media-search-probe.mjs '"Takos El Dorado" Cancún tacos'
+      - name: Probe verified Uber Eats source
+        run: node .github/scripts/v135-web-media-search-probe.mjs 'site:ubereats.com "Takos El Dorado" Cancún'
+      - name: Probe TikTok style/source anchor
+        run: node .github/scripts/v135-web-media-search-probe.mjs 'site:tiktok.com "taqueria.eldorado" Cancún'
