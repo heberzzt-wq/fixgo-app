@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/scripts/v135-web-media-search-probe.mjs'
       - '.github/scripts/v135-ddg-image-search-probe.mjs'
+      - '.github/scripts/v135-ddg-handle-proof.mjs'
       - '.github/workflows/v135-web-media-search-probe.yml'
   workflow_dispatch:
 
@@ -30,11 +31,8 @@ jobs:
           set -euo pipefail
           test "${GITHUB_REF_NAME}" = "v94-media-v4n-negative-claims"
           git diff --quiet HEAD^ HEAD -- functions/
-      - name: Probe DDG exact Taquería entity
-        run: node .github/scripts/v135-ddg-image-search-probe.mjs '"Taquería El Dorado" Cancún tacos'
-      - name: Probe DDG exact Takos entity
-        run: node .github/scripts/v135-ddg-image-search-probe.mjs '"Takos El Dorado" Cancún tacos'
-      - name: Probe DDG verified Uber Eats source
-        run: node .github/scripts/v135-ddg-image-search-probe.mjs 'site:ubereats.com "Takos El Dorado" Cancún'
-      - name: Probe DDG TikTok source anchor
-        run: node .github/scripts/v135-ddg-image-search-probe.mjs 'site:tiktok.com "taqueria.eldorado" Cancún'
+      - name: Prove exact TikTok handle candidates
+        run: |
+          node .github/scripts/v135-ddg-handle-proof.mjs 'site:tiktok.com "taqueria.eldorado"'
+          node .github/scripts/v135-ddg-handle-proof.mjs '"https://www.tiktok.com/@taqueria.eldorado"'
+          node .github/scripts/v135-ddg-handle-proof.mjs '"@taqueria.eldorado"'
