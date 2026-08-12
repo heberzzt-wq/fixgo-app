@@ -1,0 +1,97 @@
+name: v137 verified reel speech cert
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/v137-reel-speech-cert.yml'
+      - '.github/workflows/v137-reel-speech-apply.yml'
+      - '.github/workflows/v137-speech-pipeline-discovery.yml'
+      - '.github/scripts/v137-reel-speech-apply.py'
+      - '.github/scripts/v137-reel-speech-tests.py'
+      - 'jarvis-speech-artifact.js'
+      - 'jarvis-fs-bridge.js'
+      - 'gestia-core/jarvis/jarvis.actuator.pack.js'
+      - 'gestia-core/jarvis/jarvis.mission.orchestrator.js'
+      - 'gestia-core/nexo/nexo.real-media.runtime-guard-v128.js'
+      - 'gestia-core/nexo/nexo.real-media.tools.js'
+      - 'gestia-core/tools.runtime.js'
+      - 'modules/terminal/nexo-bootstrap.js'
+      - 'modules/terminal/proposal-state.js'
+      - 'gestia-core/gestia-core.js'
+      - 'gestia-terminal.html'
+      - 'tests/jarvis-reel-speech-v137.test.mjs'
+      - 'tests/jarvis-actuator-pack.test.mjs'
+      - 'tests/jarvis-fs-bridge-v2.test.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  certify-v137:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install root dependencies
+        run: npm ci
+      - name: Install Functions test dependencies without modifying source
+        run: npm ci --prefix functions
+      - name: Guard branch and Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
+          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
+      - name: Focal v137 plus reel compatibility contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check jarvis-speech-artifact.js
+          node --check jarvis-fs-bridge.js
+          node --check gestia-core/jarvis/jarvis.actuator.pack.js
+          node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
+          node --check gestia-core/nexo/nexo.real-media.runtime-guard-v128.js
+          node --check gestia-core/nexo/nexo.real-media.tools.js
+          node --check gestia-core/tools.runtime.js
+          node --check modules/terminal/nexo-bootstrap.js
+          node --check modules/terminal/proposal-state.js
+          node --check gestia-core/gestia-core.js
+          node --test \
+            tests/jarvis-reel-speech-v137.test.mjs \
+            tests/jarvis-actuator-pack.test.mjs \
+            tests/jarvis-fs-bridge-v2.test.mjs \
+            tests/jarvis-reel-media-source-recovery-v136.test.mjs \
+            tests/nexo-browser-media-fallback-v135.test.mjs \
+            tests/jarvis-reel-real-production-v134.test.mjs \
+            tests/jarvis-reel-mission-fidelity-v133.test.mjs \
+            tests/jarvis-reel-researched-media-v132.test.mjs \
+            tests/nexo-real-media-tools.test.mjs \
+            tests/nexo-web-media-bridge.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs \
+            tests/jarvis-semantic-planner.test.cjs \
+            tests/single-semantic-authority.test.mjs
+      - name: Full CI
+        run: npm run ci:test
+      - name: Reject whitespace errors
+        run: git diff --check
+      - name: Certification marker
+        run: |
+          echo 'V137_LOCAL_SPEECH_SYNTHESIS=true'
+          echo 'V137_WAV_BYTES_VERIFIED=true'
+          echo 'V137_SPEECH_SHA256_VERIFIED=true'
+          echo 'V137_REEL_PLAN_TO_SPEECH_DEPENDENCY=true'
+          echo 'V137_SYNTHESIZED_AUDIO_HYDRATION=true'
+          echo 'V137_EXPLICIT_AUDIO_PRIORITY=true'
+          echo 'V137_AMBIGUOUS_AUDIO_FAILS_CLOSED=true'
+          echo 'V137_FUNCTIONS_UNCHANGED=true'
