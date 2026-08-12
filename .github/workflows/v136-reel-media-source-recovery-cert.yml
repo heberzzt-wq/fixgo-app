@@ -58,6 +58,41 @@ jobs:
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
           ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
+      - name: Guard clean v134-v136 staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          forbidden=(
+            .github/workflows/v134-tiktok-media-diagnostic.yml
+            .github/scripts/v135-bridge-version-test-fix.py
+            .github/scripts/v135-browser-network-media-apply.py
+            .github/scripts/v135-browser-network-media-tests.py
+            .github/scripts/v135-cdp-patcher-anchor-fix.py
+            .github/scripts/v135-cdp-response-body-apply.py
+            .github/scripts/v135-cdp-response-body-tests.py
+            .github/scripts/v135-ddg-handle-proof.mjs
+            .github/scripts/v135-ddg-image-search-probe.mjs
+            .github/scripts/v135-network-scene-fixture-fix.py
+            .github/scripts/v135-web-media-search-probe.mjs
+            .github/workflows/v135-browser-network-media-apply.yml
+            .github/workflows/v135-cdp-response-body-apply.yml
+            .github/workflows/v135-uber-browser-network-diagnostic.yml
+            .github/workflows/v135-web-media-search-probe.yml
+            .github/scripts/v136-marketing-media-fixture-align.py
+            .github/scripts/v136-planner-version-test-fix.py
+            .github/scripts/v136-reel-media-source-recovery-apply.py
+            .github/scripts/v136-reel-media-source-recovery-tests.py
+            .github/scripts/v136-slash-branch-resolver-fix.py
+            .github/workflows/v136-reel-media-recovery-discovery.yml
+            .github/workflows/v136-reel-media-source-recovery-apply.yml
+            .github/workflows/v136-marketing-media-fixture-align.yml
+            .github/workflows/v136-full-ci-failure-diagnostic.yml
+            .github/workflows/v136-compatibility-close.yml
+          )
+          for path in "${forbidden[@]}"; do
+            test ! -e "$path" || { echo "TEMPORARY_STAGING_PRESENT:$path" >&2; exit 1; }
+          done
+          echo 'V136_STAGING_CLEAN=true'
       - name: Focal v136 plus v135-v132 and compatibility contracts
         shell: bash
         run: |
@@ -98,4 +133,5 @@ jobs:
           echo 'V135_EXACT_TIKTOK_PRIMARY_MEDIA_PROVEN=true'
           echo 'V136_SLASH_BRANCH_REMOTE_REF_RESOLUTION=true'
           echo 'V136_MARKETING_FIXTURES_REQUIRE_REAL_VISUALS=true'
+          echo 'V136_STAGING_CLEAN=true'
           echo 'V136_FUNCTIONS_UNCHANGED=true'
