@@ -3,7 +3,7 @@ import {
 } from "../jarvis/jarvis.marketing.engine.js?v=v94-source-grounded-research-v124-20260810";
 
 export const NEXO_REAL_MEDIA_TOOLS_VERSION =
-    "1.6.0-cdp-response-body-media-v135";
+    "1.7.0-local-speech-v137";
 
 const INSTALL_KEY = "__NEXO_REAL_MEDIA_TOOLS__";
 
@@ -291,6 +291,8 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
         previousDefinition(runtime, "marketing.plan");
     const canonicalReelDefinition =
         previousDefinition(runtime, "reel.create");
+    const canonicalSpeechDefinition =
+        previousDefinition(runtime, "speech.synthesize");
 
     registerOrReplace(runtime, {
         name: "marketing.plan",
@@ -331,11 +333,55 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
         }
     });
 
+    registerOrReplace(runtime, {
+        name: "speech.synthesize",
+        description:
+            "Sintetiza narración local en un WAV físico verificado por SHA-256 para el reel. No usa Functions ni publica.",
+        output: "SPEECH_AUDIO_ARTIFACT",
+        mutates: true,
+        requiresApproval: false,
+        userArtifact: true,
+        missionDedupeBy: [],
+        inputSchema: {
+            type: "object",
+            required: ["text"],
+            properties: {
+                text: { type: "string" },
+                output: { type: "string" },
+                voice: { type: "string" },
+                language: { type: "string" },
+                rate: { type: "number" },
+                volume: { type: "number" },
+                objectiveId: { type: "string" },
+                caseId: { type: "string" }
+            },
+            additionalProperties: false
+        },
+        execute: async (args = {}, context = {}) => {
+            const payload = {
+                ...args,
+                objectiveId: args.objectiveId || context.objectiveId || "",
+                caseId: args.caseId || context.caseId || ""
+            };
+            const result = typeof canonicalSpeechDefinition?.execute === "function"
+                ? await canonicalSpeechDefinition.execute(payload, context)
+                : await bridgeRequest("/speech/synthesize", payload, 90000);
+            return {
+                ...result,
+                objectiveSatisfied: result?.ok === true && result?.status === "SPEECH_AUDIO_CREATED_VERIFIED",
+                blocked: result?.ok !== true,
+                requiresInput: false,
+                retryable: result?.status === "LOCAL_BRIDGE_REQUIRED",
+                runtimeOverride: NEXO_REAL_MEDIA_TOOLS_VERSION
+            };
+        }
+    });
+
     if (typeof canonicalReelDefinition?.execute === "function") {
         registerOrReplace(runtime, {
             name: "reel.create",
             description:
-                "Crea un reel 9:16 local y reutiliza automáticamente los medios reales verificados de la misma misión cuando el plan no haya asignado material visual explícito. No inventa logotipos ni sustituye medios ya elegidos. El audio sólo se incorpora cuando existe un artefacto de audio explícito; este actuador no genera TTS.",
+                "Crea un reel 9:16 local y reutiliza automáticamente los medios reales verificados de la misma misión cuando el plan no haya asignado material visual explícito. No inventa logotipos ni sustituye medios ya elegidos. El audio explícito conserva prioridad y, si existe un WAV verificado de speech.synthesize en la misión, el runtime lo incorpora antes de renderizar.",
             execute: async (args = {}, context = {}) => {
                 const hydration =
                     hydrateReelArgsWithCollectorMedia(args, context);
@@ -591,6 +637,7 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
         version: NEXO_REAL_MEDIA_TOOLS_VERSION,
         tools: [
             "marketing.plan",
+            "speech.synthesize",
             "web.media.collect",
             "marketing.package.real-media",
             ...(typeof canonicalReelDefinition?.execute === "function" ? ["reel.create"] : [])

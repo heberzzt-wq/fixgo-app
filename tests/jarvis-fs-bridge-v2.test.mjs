@@ -33,7 +33,9 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.43.0-cdp-response-body-media-v135");
+    assert.equal(description.version, "2.44.0-local-speech-synthesis-v137");
+    assert.equal(typeof description.actuators.speech.available, "boolean");
+    assert.deepEqual(description.actuators.speech.outputFormats, ["wav"]);
     assert.equal(description.policy.authority, "full_repo_private_owner");
     assert.equal(description.policy.safeZone, "advisory");
     assert.equal(description.policy.emptyWrites, "blocked");

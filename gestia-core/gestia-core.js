@@ -49,7 +49,7 @@ import {
 } from '/gestia-core/jarvis/jarvis.conversation.composer.js?v=v94-semantic-only-evidence-v100-20260809';
 import {
     runJarvisMission
-} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=v136-reel-media-source-recovery-20260812';
+} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=v137-local-speech-synthesis-20260812';
 import {
     marketingArtifactArgsFromCompletedTasks,
     marketingFinalResponseFromMission

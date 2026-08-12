@@ -9,7 +9,7 @@
  */
 
 export const NEXO_TERMINAL_BOOTSTRAP_VERSION =
-    "1.9.0-cdp-response-body-media-v135";
+    "1.10.0-local-speech-v137";
 
 const INSTALL_KEY = "__NEXO_TERMINAL_BOOTSTRAP__";
 
@@ -30,10 +30,10 @@ export async function instalarBootstrapTerminalNexo() {
     }
 
     const realMediaTools = await import(
-        "../../gestia-core/nexo/nexo.real-media.tools.js?v=v135-cdp-response-body-media-20260812"
+        "../../gestia-core/nexo/nexo.real-media.tools.js?v=v137-local-speech-synthesis-20260812"
     );
     const runtimeMediaGuard = await import(
-        "../../gestia-core/nexo/nexo.real-media.runtime-guard-v128.js?v=v131-semantic-scene-media-authority-20260811"
+        "../../gestia-core/nexo/nexo.real-media.runtime-guard-v128.js?v=v137-local-speech-synthesis-20260812"
     );
 
     const toolsInstallation =

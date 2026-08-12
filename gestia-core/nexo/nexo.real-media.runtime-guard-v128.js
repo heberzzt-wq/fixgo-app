@@ -3,7 +3,7 @@ import {
 } from "../jarvis/jarvis.reel.media-binder.js?v=v131-semantic-scene-media-authority-20260811";
 
 export const NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION =
-    "1.2.0-semantic-scene-media-authority-v131";
+    "1.3.0-synthesized-reel-audio-v137";
 
 const INSTALL_KEY = "__NEXO_REAL_MEDIA_RUNTIME_GUARD_V128__";
 const CACHE_KEY = "__NEXO_REAL_MEDIA_MISSION_CACHE_V128__";
@@ -134,6 +134,36 @@ function verifiedAudioAttachment(attachment = {}) {
     return { output, mimeType, sha256, bytes };
 }
 
+
+function verifiedSynthesizedAudioTask(task = {}) {
+    if (
+        String(task?.name || "") !== "speech.synthesize" ||
+        task?.observation?.objectiveSatisfied !== true ||
+        String(task?.observation?.status || "") !== "SPEECH_AUDIO_CREATED_VERIFIED"
+    ) return null;
+    const evidence = task?.observation?.evidence || {};
+    const output = String(task?.observation?.artifact || evidence?.output || "")
+        .trim()
+        .replaceAll("\\", "/");
+    const mimeType = String(evidence?.mimeType || "").trim().toLowerCase();
+    const sha256 = String(evidence?.sha256 || "").trim().toLowerCase();
+    const bytes = Number(evidence?.bytes || 0);
+    const hashValid = sha256.length === 64 && [...sha256].every(character =>
+        (character >= "0" && character <= "9") ||
+        (character >= "a" && character <= "f")
+    );
+    if (
+        !output.startsWith(".jarvis-artifacts/audio/") ||
+        output.includes("../") ||
+        !output.toLowerCase().endsWith(".wav") ||
+        mimeType !== "audio/wav" ||
+        !Number.isFinite(bytes) ||
+        bytes <= 0 ||
+        !hashValid
+    ) return null;
+    return { output, mimeType, sha256, bytes };
+}
+
 function hydrateReelAudioArgs(args = {}, context = {}) {
     const current = args && typeof args === "object" && !Array.isArray(args) ? { ...args } : {};
     const explicit = Boolean(
@@ -159,6 +189,23 @@ function hydrateReelAudioArgs(args = {}, context = {}) {
             candidateCount: 1,
             source: "user_attachment",
             output: candidates[0].output
+        };
+    }
+    const synthesized = missionTasks(context)
+        .map(verifiedSynthesizedAudioTask)
+        .filter(Boolean)
+        .filter((item, index, list) => list.findIndex(candidate => candidate.output === item.output) === index);
+    if (synthesized.length > 1) {
+        return { args: current, hydrated: false, ambiguous: true, candidateCount: synthesized.length, source: "speech.synthesize" };
+    }
+    if (synthesized.length === 1) {
+        return {
+            args: { ...current, audioOutput: synthesized[0].output },
+            hydrated: true,
+            ambiguous: false,
+            candidateCount: 1,
+            source: "speech.synthesize",
+            output: synthesized[0].output
         };
     }
     return { args: current, hydrated: false, ambiguous: false, candidateCount: 0, source: null };
@@ -564,6 +611,7 @@ export const __test = {
     taskMediaState,
     attachmentManifest,
     verifiedAudioAttachment,
+    verifiedSynthesizedAudioTask,
     hydrateReelAudioArgs,
     hasExplicitSceneMedia,
     hydrateReelArgs

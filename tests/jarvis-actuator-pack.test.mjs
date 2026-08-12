@@ -37,6 +37,7 @@ test("actuator pack registers browser, documents, image, delegation and connecto
         "browser.open",
         "system.observability",
         "page.create",
+        "speech.synthesize",
         "reel.create",
         "document.create",
         "document.pdf",
@@ -59,6 +60,8 @@ test("actuator pack registers browser, documents, image, delegation and connecto
     assert.equal(runtime.get("browser.screenshot").requiresApproval, true);
     assert.equal(runtime.get("page.create").requiresApproval, false);
     assert.equal(runtime.get("page.create").userArtifact, true);
+    assert.equal(runtime.get("speech.synthesize").requiresApproval, false);
+    assert.equal(runtime.get("speech.synthesize").userArtifact, true);
     assert.equal(runtime.get("reel.create").requiresApproval, false);
     assert.equal(runtime.get("reel.create").userArtifact, true);
     assert.equal(runtime.get("document.create").requiresApproval, false);

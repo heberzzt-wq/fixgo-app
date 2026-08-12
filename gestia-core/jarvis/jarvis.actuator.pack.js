@@ -474,8 +474,42 @@ export function registerJarvisActuatorTools(runtime) {
             }
         }),
         register(runtime, {
+            name: "speech.synthesize",
+            description: "Sintetiza narración local en un WAV físico verificado por SHA-256 para usarlo como audio de producción. No publica.",
+            output: "SPEECH_AUDIO_ARTIFACT",
+            inputSchema: {
+                text: "string", output: "string", voice: "string", language: "string",
+                rate: "number", volume: "number", caseId: "string", objectiveId: "string"
+            },
+            mutates: true,
+            requiresApproval: false,
+            userArtifact: true,
+            missionDedupeBy: [],
+            execute: async (args = {}, context = {}) => {
+                const result = await bridgeRequest("/speech/synthesize", {
+                    ...args,
+                    caseId: args.caseId || context.caseId || "",
+                    objectiveId: args.objectiveId || context.objectiveId || ""
+                }, 90000);
+                if (result?.ok === true && result?.status === "SPEECH_AUDIO_CREATED_VERIFIED") {
+                    recordCapabilityEvidence("speech_synthesis", {
+                        ok: true,
+                        status: result.status,
+                        output: result.output,
+                        bytes: result.bytes,
+                        sha256: result.sha256,
+                        mimeType: result.mimeType,
+                        durationSeconds: result.durationSeconds,
+                        provider: result.provider,
+                        checkedAt: new Date().toISOString()
+                    });
+                }
+                return result;
+            }
+        }),
+        register(runtime, {
             name: "reel.create",
-            description: "Crea un reel 9:16 local, genera su estudio editable y exporta automáticamente un WebM físico verificado por SHA-256. Prioriza audioOutput explícito y, si no existe, enruta audio de videos fuente cuando esté disponible; no genera TTS. No publica.",
+            description: "Crea un reel 9:16 local, genera su estudio editable y exporta automáticamente un WebM físico verificado por SHA-256. Mezcla audioOutput explícito o el WAV verificado producido por speech.synthesize en la misma misión. No publica.",
             output: "REEL_VIDEO_ARTIFACT",
             inputSchema: {
                 brandName: "string", title: "string", cta: "string", durationSeconds: "number",

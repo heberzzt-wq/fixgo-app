@@ -50,9 +50,13 @@ import {
     collectNexoRealWebMedia,
     registerNexoWebMediaRoutes
 } from "./nexo-web-media-bridge.js";
+import {
+    describeLocalSpeechCapability,
+    synthesizeSpeechArtifact
+} from "./jarvis-speech-artifact.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.43.0-cdp-response-body-media-v135";
+    "2.44.0-local-speech-synthesis-v137";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -1380,6 +1384,12 @@ export function describeJarvisFsBridge() {
                     ? path.basename(browserExecutable)
                     : null,
                 actions: ["inspect", "screenshot", "pdf", "open", "media"]
+            },
+            speech: {
+                ...describeLocalSpeechCapability(),
+                status: describeLocalSpeechCapability().available
+                    ? "LOCAL_SPEECH_READY"
+                    : "LOCAL_SPEECH_PLATFORM_UNSUPPORTED"
             },
             documents: {
                 available: true,
@@ -4461,6 +4471,60 @@ export function createJarvisFsBridgeApp({
             });
         } catch (error) {
             return res.status(400).json({ ok: false, status: "PAGE_CREATE_BLOCKED", error: error.message, version: JARVIS_FS_BRIDGE_VERSION });
+        }
+    });
+
+    app.post("/speech/synthesize", async (req, res) => {
+        try {
+            const speech = synthesizeSpeechArtifact({
+                ...(req.body || {}),
+                root
+            });
+            const artifact = registerArtifact({
+                root,
+                output: speech.output,
+                metadata: {
+                    type: "audio",
+                    origin: "speech.synthesize",
+                    provider: speech.provider,
+                    caseId: req.body?.caseId,
+                    objectiveId: req.body?.objectiveId,
+                    mimeType: speech.mimeType,
+                    status: speech.status,
+                    approvalRequired: false,
+                    approved: true,
+                    approvedBy: "LOCAL_ARTIFACT_POLICY",
+                    editable: false,
+                    preview: true,
+                    downloadable: true,
+                    publishable: false,
+                    sha256: speech.sha256,
+                    durationSeconds: speech.durationSeconds,
+                    sampleRate: speech.sampleRate,
+                    channels: speech.channels,
+                    bitsPerSample: speech.bitsPerSample
+                }
+            });
+            return res.json({
+                ...speech,
+                artifact,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        } catch (error) {
+            const unsupported = String(error?.message || error) === "SPEECH_SYNTHESIS_PLATFORM_UNSUPPORTED";
+            return res.status(unsupported ? 501 : 400).json({
+                ok: false,
+                executionOk: false,
+                objectiveSatisfied: false,
+                blocked: true,
+                requiresInput: false,
+                retryable: false,
+                status: unsupported
+                    ? "SPEECH_SYNTHESIS_PLATFORM_UNSUPPORTED"
+                    : "SPEECH_SYNTHESIS_FAILED",
+                error: String(error?.message || error),
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
         }
     });
 

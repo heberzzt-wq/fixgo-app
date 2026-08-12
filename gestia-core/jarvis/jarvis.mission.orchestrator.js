@@ -1,4 +1,5 @@
-const VERSION = "1.14.0-reel-media-source-recovery-v136";
+const VERSION =
+    "1.15.0-reel-speech-dependency-v137";
 const REEL_MEDIA_RECOVERY_MAX_ATTEMPTS = 3;
 const STORAGE_KEY = "jarvis.missions.v1";
 const SINGLETON_MISSION_TOOLS = new Set(["marketing.plan", "reel.plan"]);
@@ -1144,6 +1145,76 @@ function verifiedCollectedVisualAssets(mission = {}) {
     return assets;
 }
 
+
+function reelArgsHaveExplicitAudio(args = {}) {
+    return [args?.audioOutput, args?.audioDataUrl, args?.audioUrl]
+        .some(value => String(value || "").trim().length > 0);
+}
+
+function completedReelNarration(mission = {}) {
+    const tasks = Array.isArray(mission?.completedTasks) ? mission.completedTasks : [];
+    const task = [...tasks].reverse().find(item =>
+        item?.name === "reel.plan" &&
+        item?.observation?.objectiveSatisfied === true &&
+        item?.observation?.status === "REEL_PLAN_READY" &&
+        item?.observation?.preparedArtifact?.kind === "reel"
+    );
+    const scenes = Array.isArray(task?.observation?.preparedArtifact?.scenes)
+        ? task.observation.preparedArtifact.scenes
+        : [];
+    const narration = scenes
+        .map(scene => String(scene?.voiceover || "").trim())
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+    return narration.slice(0, 12000);
+}
+
+function verifiedSpeechArtifact(task = {}) {
+    if (
+        task?.name !== "speech.synthesize" ||
+        task?.observation?.objectiveSatisfied !== true ||
+        task?.observation?.status !== "SPEECH_AUDIO_CREATED_VERIFIED"
+    ) return null;
+    const evidence = task?.observation?.evidence || {};
+    const output = String(task?.observation?.artifact || evidence?.output || "")
+        .trim()
+        .replaceAll("\\", "/");
+    const mimeType = String(evidence?.mimeType || "").trim().toLowerCase();
+    const bytes = Number(evidence?.bytes || 0);
+    const sha256 = String(evidence?.sha256 || "").trim().toLowerCase();
+    const hashValid = sha256.length === 64 && [...sha256].every(character =>
+        (character >= "0" && character <= "9") ||
+        (character >= "a" && character <= "f")
+    );
+    if (
+        !output.startsWith(".jarvis-artifacts/audio/") ||
+        output.includes("../") ||
+        !output.toLowerCase().endsWith(".wav") ||
+        mimeType !== "audio/wav" ||
+        !Number.isFinite(bytes) ||
+        bytes <= 0 ||
+        !hashValid
+    ) return null;
+    return { output, mimeType, bytes, sha256 };
+}
+
+function reelSpeechDependencyCall(task = {}, mission = {}) {
+    if (task?.name !== "reel.create") return null;
+    if (reelArgsHaveExplicitAudio(task?.args || {})) return null;
+    const completedSpeech = (Array.isArray(mission?.completedTasks) ? mission.completedTasks : [])
+        .map(verifiedSpeechArtifact)
+        .filter(Boolean);
+    if (completedSpeech.length > 0) return null;
+    const narration = completedReelNarration(mission);
+    if (!narration) return null;
+    return {
+        name: "speech.synthesize",
+        args: { text: narration },
+        reason: "REEL_VOICEOVER_AUDIO_DEPENDENCY"
+    };
+}
+
 function reelMediaDependencyCall(task = {}, mission = {}) {
     if (task?.name !== "reel.create") return null;
     if (reelArgsHaveExplicitVisualMedia(task?.args || {})) return null;
@@ -1441,6 +1512,30 @@ export async function runJarvisMission({
         }
 
         const task = mission.pendingTasks.shift();
+        const speechDependency =
+            reelSpeechDependencyCall(
+                task,
+                mission
+            );
+        if (speechDependency) {
+            const dependencyTasks =
+                trustedCalls(
+                    [speechDependency],
+                    mission
+                );
+            if (dependencyTasks.length > 0) {
+                if (!mission.requiredToolNames.includes("speech.synthesize")) {
+                    mission.requiredToolNames.push("speech.synthesize");
+                }
+                mission.pendingTasks.unshift(task);
+                mission.pendingTasks.unshift(...dependencyTasks);
+                mission.plannedTools.push(...dependencyTasks.map(item => item.name));
+                mission.updatedAt = now();
+                saveMission(persistence, mission);
+                continue;
+            }
+        }
+
         const mediaDependency =
             reelMediaDependencyCall(
                 task,
@@ -1756,4 +1851,25 @@ export function recoverJarvisMission(missionId, { storage } = {}) {
     return readMissions(storageOrMemory(storage)).find(item => item.missionId === missionId) || null;
 }
 
-export const __test = { callSignature, compactRoutingInstruction, isFailureStatus, safeObservation, trustedCalls, canonicalMissionEvidence, unwrapObservationPayload, explicitMissionHttpSourceUrls, verifiedResearchMediaSourceUrls, reelArgsHaveExplicitVisualMedia, verifiedCollectedVisualAssets, reelMediaDependencyCall, reelMediaRecoveryState, reelMediaRecoveryAllowedCalls, deterministicReelMediaRecoveryCall, archiveRecoveredMediaSourceAttempts };
+export const __test = {
+    callSignature,
+    compactRoutingInstruction,
+    isFailureStatus,
+    safeObservation,
+    trustedCalls,
+    canonicalMissionEvidence,
+    unwrapObservationPayload,
+    explicitMissionHttpSourceUrls,
+    verifiedResearchMediaSourceUrls,
+    reelArgsHaveExplicitVisualMedia,
+    reelArgsHaveExplicitAudio,
+    completedReelNarration,
+    verifiedSpeechArtifact,
+    reelSpeechDependencyCall,
+    verifiedCollectedVisualAssets,
+    reelMediaDependencyCall,
+    reelMediaRecoveryState,
+    reelMediaRecoveryAllowedCalls,
+    deterministicReelMediaRecoveryCall,
+    archiveRecoveredMediaSourceAttempts
+};
