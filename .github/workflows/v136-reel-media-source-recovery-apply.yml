@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/scripts/v136-reel-media-source-recovery-apply.py'
       - '.github/scripts/v136-reel-media-source-recovery-tests.py'
+      - '.github/scripts/v136-planner-version-test-fix.py'
       - '.github/workflows/v136-reel-media-source-recovery-apply.yml'
   workflow_dispatch:
 
@@ -36,6 +37,8 @@ jobs:
         run: python .github/scripts/v136-reel-media-source-recovery-apply.py
       - name: Materialize v136 regressions
         run: python .github/scripts/v136-reel-media-source-recovery-tests.py
+      - name: Align planner version contract
+        run: python .github/scripts/v136-planner-version-test-fix.py
       - name: Guard product surface
         shell: bash
         run: |
@@ -45,7 +48,7 @@ jobs:
           printf '%s\n' "${changed[@]}"
           for path in "${changed[@]}"; do
             case "$path" in
-              gestia-core/jarvis/jarvis.mission.orchestrator.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/gestia-core.js|gestia-terminal.html|tests/jarvis-reel-media-source-recovery-v136.test.mjs) ;;
+              gestia-core/jarvis/jarvis.mission.orchestrator.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/gestia-core.js|gestia-terminal.html|tests/jarvis-reel-media-source-recovery-v136.test.mjs|tests/jarvis-multifunction-tools.test.mjs) ;;
               *) echo "UNEXPECTED_V136_PATH:$path" >&2; exit 1 ;;
             esac
           done
@@ -82,7 +85,8 @@ jobs:
             gestia-core/jarvis/jarvis.multitool.pack.js \
             gestia-core/gestia-core.js \
             gestia-terminal.html \
-            tests/jarvis-reel-media-source-recovery-v136.test.mjs
+            tests/jarvis-reel-media-source-recovery-v136.test.mjs \
+            tests/jarvis-multifunction-tools.test.mjs
           git diff --cached --quiet && { echo 'NO_V136_FUNCTIONAL_CHANGE'; exit 1; }
           git commit -m '[v136] feat(adj): recover alternate visual sources before reel creation'
           git push origin HEAD:v94-media-v4n-negative-claims
