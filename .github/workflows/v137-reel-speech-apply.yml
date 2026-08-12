@@ -1,0 +1,101 @@
+name: v137 verified reel speech apply
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/scripts/v137-reel-speech-apply.py'
+      - '.github/scripts/v137-reel-speech-tests.py'
+      - '.github/workflows/v137-reel-speech-apply.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Guard isolated branch and untouched Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
+          git diff --quiet HEAD^ HEAD -- functions/
+      - name: Install root dependencies
+        run: npm ci
+      - name: Apply v137 product patch
+        run: python .github/scripts/v137-reel-speech-apply.py
+      - name: Materialize v137 regression
+        run: python .github/scripts/v137-reel-speech-tests.py
+      - name: Guard functional change surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --quiet HEAD -- functions/
+          mapfile -t changed < <(git diff --name-only HEAD)
+          printf '%s\n' "${changed[@]}"
+          for file in "${changed[@]}"; do
+            case "$file" in
+              jarvis-speech-artifact.js|jarvis-fs-bridge.js|gestia-core/jarvis/jarvis.actuator.pack.js|gestia-core/jarvis/jarvis.mission.orchestrator.js|gestia-core/nexo/nexo.real-media.runtime-guard-v128.js|gestia-core/nexo/nexo.real-media.tools.js|gestia-core/tools.runtime.js|modules/terminal/nexo-bootstrap.js|modules/terminal/proposal-state.js|gestia-core/gestia-core.js|gestia-terminal.html|tests/jarvis-actuator-pack.test.mjs|tests/jarvis-fs-bridge-v2.test.mjs|tests/jarvis-reel-speech-v137.test.mjs) ;;
+              *) echo "UNEXPECTED_V137_PATH:$file" >&2; exit 1 ;;
+            esac
+          done
+      - name: Syntax v137
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check jarvis-speech-artifact.js
+          node --check jarvis-fs-bridge.js
+          node --check gestia-core/jarvis/jarvis.actuator.pack.js
+          node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
+          node --check gestia-core/nexo/nexo.real-media.runtime-guard-v128.js
+          node --check gestia-core/nexo/nexo.real-media.tools.js
+          node --check gestia-core/tools.runtime.js
+          node --check modules/terminal/nexo-bootstrap.js
+          node --check modules/terminal/proposal-state.js
+          node --check gestia-core/gestia-core.js
+      - name: Focal v137
+        run: >-
+          node --test
+          tests/jarvis-reel-speech-v137.test.mjs
+          tests/jarvis-actuator-pack.test.mjs
+          tests/jarvis-fs-bridge-v2.test.mjs
+          tests/nexo-real-media-tools.test.mjs
+          tests/jarvis-reel-real-production-v134.test.mjs
+          tests/jarvis-reel-mission-fidelity-v133.test.mjs
+          tests/single-semantic-authority.test.mjs
+      - name: Whitespace guard
+        run: git diff --check
+      - name: Commit and push functional v137
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            jarvis-speech-artifact.js \
+            jarvis-fs-bridge.js \
+            gestia-core/jarvis/jarvis.actuator.pack.js \
+            gestia-core/jarvis/jarvis.mission.orchestrator.js \
+            gestia-core/nexo/nexo.real-media.runtime-guard-v128.js \
+            gestia-core/nexo/nexo.real-media.tools.js \
+            gestia-core/tools.runtime.js \
+            modules/terminal/nexo-bootstrap.js \
+            modules/terminal/proposal-state.js \
+            gestia-core/gestia-core.js \
+            gestia-terminal.html \
+            tests/jarvis-actuator-pack.test.mjs \
+            tests/jarvis-fs-bridge-v2.test.mjs \
+            tests/jarvis-reel-speech-v137.test.mjs
+          git diff --cached --quiet && { echo 'NO_V137_FUNCTIONAL_CHANGE'; exit 1; }
+          git commit -m '[v137] feat(adj): synthesize verified reel narration audio'
+          git push origin HEAD:v94-media-v4n-negative-claims
