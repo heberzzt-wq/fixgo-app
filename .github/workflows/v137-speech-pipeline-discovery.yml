@@ -14,38 +14,44 @@ permissions:
 jobs:
   discover:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - name: Guard isolated branch and untouched Functions
         shell: bash
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
           git diff --quiet HEAD^ HEAD -- functions/
-      - name: Locate reel plan to create and audio paths
+      - name: Install root dependencies
+        run: npm ci
+      - name: Print only failing expanded v137 contracts
         shell: bash
         run: |
-          set -euo pipefail
-          echo '=== REEL ARTIFACT ARG HELPERS ==='
-          grep -RFn --exclude-dir=node_modules --exclude-dir=.git 'reelArtifactArgsFromCompletedTasks' . || true
-          echo '=== PREPARED ARTIFACT ==='
-          grep -RFn --exclude-dir=node_modules --exclude-dir=.git 'preparedArtifact' gestia-core modules gestia-terminal.js || true
-          echo '=== REEL PLAN READY ==='
-          grep -RFn --exclude-dir=node_modules --exclude-dir=.git 'REEL_PLAN_READY' gestia-core modules gestia-terminal.js || true
-          echo '=== AUDIO OUTPUT ==='
-          grep -RFn --exclude-dir=node_modules --exclude-dir=.git 'audioOutput' gestia-core modules jarvis-fs-bridge.js gestia-terminal.js || true
-          echo '=== VOICEOVER ==='
-          grep -RFn --exclude-dir=node_modules --exclude-dir=.git 'voiceover' gestia-core/jarvis gestia-core/nexo modules/terminal | head -n 160 || true
-          echo '=== REEL CREATE REGISTRATION ==='
-          grep -RFn --exclude-dir=node_modules --exclude-dir=.git 'name: "reel.create"' gestia-core | head -n 40 || true
-          echo '=== ACTUATOR PACK LOAD CHAIN ==='
-          grep -REn --exclude-dir=node_modules --exclude-dir=.git --exclude='v137-speech-pipeline-discovery.yml' 'jarvis\.actuator\.pack|registerJarvisActuatorTools' . | head -n 160 || true
-          echo '=== RUNTIME AUDIO HYDRATION ==='
-          grep -n -B18 -A100 -E 'function hydrateReelAudioArgs|function missionTasks' gestia-core/nexo/nexo.real-media.runtime-guard-v128.js || true
-          echo '=== BRIDGE ROUTES NEAR REEL ==='
-          grep -n -B8 -A35 'app.post("/reel/create"' jarvis-fs-bridge.js || true
-          echo '=== BRIDGE DESCRIPTION ==='
-          grep -n -B8 -A95 'export function describeJarvisFsBridge' jarvis-fs-bridge.js || true
+          set +e
+          node --test \
+            tests/jarvis-reel-speech-v137.test.mjs \
+            tests/jarvis-actuator-pack.test.mjs \
+            tests/jarvis-fs-bridge-v2.test.mjs \
+            tests/jarvis-reel-media-source-recovery-v136.test.mjs \
+            tests/nexo-browser-media-fallback-v135.test.mjs \
+            tests/jarvis-reel-real-production-v134.test.mjs \
+            tests/jarvis-reel-mission-fidelity-v133.test.mjs \
+            tests/jarvis-reel-researched-media-v132.test.mjs \
+            tests/nexo-real-media-tools.test.mjs \
+            tests/nexo-web-media-bridge.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs \
+            tests/jarvis-semantic-planner.test.cjs \
+            tests/single-semantic-authority.test.mjs \
+            > "$RUNNER_TEMP/v137-focal.tap" 2>&1
+          status=$?
+          echo "V137_FOCAL_EXIT=$status"
+          grep -E '^# Subtest:|^not ok|^# (tests|pass|fail|duration_ms)' "$RUNNER_TEMP/v137-focal.tap" | tail -n 260
+          echo '=== FAILURE LOCATIONS ==='
+          grep -E "location: '/home/runner/work/fixgo-app/fixgo-app/tests/" "$RUNNER_TEMP/v137-focal.tap" || true
+          exit 0
