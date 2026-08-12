@@ -41,6 +41,8 @@ jobs:
           grep -RFn --exclude-dir=node_modules --exclude-dir=.git 'voiceover' gestia-core/jarvis gestia-core/nexo modules/terminal | head -n 160 || true
           echo '=== REEL CREATE REGISTRATION ==='
           grep -RFn --exclude-dir=node_modules --exclude-dir=.git 'name: "reel.create"' gestia-core | head -n 40 || true
+          echo '=== ACTUATOR PACK LOAD CHAIN ==='
+          grep -RFn --exclude-dir=node_modules --exclude-dir=.git --exclude='v137-speech-pipeline-discovery.yml' -E 'jarvis\.actuator\.pack|registerJarvisActuatorTools' . | head -n 160 || true
           echo '=== PLANNER NORMALIZATION INSERTION POINTS ==='
           grep -n -B18 -A95 -E 'function normalizeExplicitSourceCandidates|function trustedPlanCalls|function verifiedResearchSourceUrls' gestia-core/jarvis/jarvis.multifunction.planner.js || true
           echo '=== RUNTIME AUDIO HYDRATION ==='
