@@ -25,6 +25,12 @@ replacements = {
             f"./jarvis/jarvis.multitool.pack.js?v={RELEASE}",
         ),
     ],
+    Path("tests/jarvis-reel-media-source-recovery-v136.test.mjs"): [
+        (
+            "assert.match(html, /gestia-core\\/gestia-core\\.js\\?v=v137-local-speech-synthesis-20260812/);",
+            f"assert.match(html, /gestia-core\\/gestia-core\\.js\\?v={RELEASE}/);",
+        ),
+    ],
 }
 
 for path, pairs in replacements.items():
