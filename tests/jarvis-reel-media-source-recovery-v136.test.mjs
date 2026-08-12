@@ -222,5 +222,5 @@ test("v136 reel media recovery remains reachable through the current browser cac
     assert.match(core, /jarvis\.multifunction\.planner\.js\?v=v136-reel-media-source-recovery-20260812/);
     assert.match(core, /jarvis\.mission\.orchestrator\.js\?v=v137-local-speech-synthesis-20260812/);
     assert.match(pack, /jarvis\.multifunction\.planner\.js\?v=v136-reel-media-source-recovery-20260812/);
-    assert.match(html, /gestia-core\/gestia-core\.js\?v=v137-local-speech-synthesis-20260812/);
+    assert.match(html, /gestia-core\/gestia-core\.js\?v=v139-real-reel-e2e-20260812/);
 });

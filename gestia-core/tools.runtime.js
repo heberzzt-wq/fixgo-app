@@ -5,7 +5,7 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=v94-marketing-actuator-bridge-v126-20260810";
+} from "./jarvis/jarvis.multitool.pack.js?v=v139-real-reel-e2e-20260812";
 import {
     registerJarvisActuatorTools
 } from "./jarvis/jarvis.actuator.pack.js?v=v138-native-mp4-reel-export-20260812";
