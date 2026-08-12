@@ -1,0 +1,59 @@
+name: v136 marketing media fixture align
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/scripts/v136-marketing-media-fixture-align.py'
+      - '.github/workflows/v136-marketing-media-fixture-align.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  align:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Guard branch and Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
+          git diff --quiet HEAD^ HEAD -- functions/
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Functions test dependencies without modifying source
+        run: npm ci --prefix functions
+      - name: Align only marketing test fixtures
+        run: python .github/scripts/v136-marketing-media-fixture-align.py
+      - name: Guard fixture-only surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --quiet HEAD -- functions/
+          test "$(git diff --name-only HEAD | sort | tr '\n' ' ')" = "tests/jarvis-marketing-real-delivery.test.mjs tests/jarvis-marketing-terminal-delivery.e2e.test.mjs "
+      - name: Marketing regression
+        run: node --test tests/jarvis-marketing-real-delivery.test.mjs tests/jarvis-marketing-terminal-delivery.e2e.test.mjs tests/jarvis-reel-media-source-recovery-v136.test.mjs tests/jarvis-reel-real-production-v134.test.mjs
+      - name: Full CI
+        run: npm run ci:test
+      - name: Whitespace guard
+        run: git diff --check
+      - name: Commit and push fixture alignment
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/jarvis-marketing-real-delivery.test.mjs tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
+          git diff --cached --quiet && { echo 'NO_FIXTURE_ALIGNMENT'; exit 1; }
+          git commit -m '[v136] test: align marketing fixtures with real reel media gate'
+          git push origin HEAD:v94-media-v4n-negative-claims
