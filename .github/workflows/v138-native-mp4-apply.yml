@@ -1,0 +1,98 @@
+name: v138 native mp4 reel apply
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/scripts/v138-native-mp4-apply.py'
+      - '.github/scripts/v138-native-mp4-tests.py'
+      - '.github/workflows/v138-native-mp4-apply.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Guard isolated branch and untouched Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
+          git diff --quiet HEAD^ HEAD -- functions/
+      - name: Install root dependencies
+        run: npm ci
+      - name: Apply v138 product patch
+        run: python .github/scripts/v138-native-mp4-apply.py
+      - name: Materialize v138 regression
+        run: python .github/scripts/v138-native-mp4-tests.py
+      - name: Guard functional change surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --quiet HEAD -- functions/
+          mapfile -t changed < <(git diff --name-only HEAD)
+          printf '%s\n' "${changed[@]}"
+          for file in "${changed[@]}"; do
+            case "$file" in
+              jarvis-reel-artifact.js|jarvis-fs-bridge.js|gestia-core/jarvis/jarvis.actuator.pack.js|gestia-core/tools.runtime.js|tests/jarvis-reel-artifact.test.mjs|tests/jarvis-fs-bridge-v2.test.mjs|tests/jarvis-reel-native-mp4-v138.test.mjs) ;;
+              *) echo "UNEXPECTED_V138_PATH:$file" >&2; exit 1 ;;
+            esac
+          done
+      - name: Syntax v138
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check jarvis-reel-artifact.js
+          node --check jarvis-fs-bridge.js
+          node --check gestia-core/jarvis/jarvis.actuator.pack.js
+          node --check gestia-core/tools.runtime.js
+          node --check tests/jarvis-reel-native-mp4-v138.test.mjs
+      - name: Focal v138
+        run: >-
+          node --test
+          tests/jarvis-reel-native-mp4-v138.test.mjs
+          tests/jarvis-reel-artifact.test.mjs
+          tests/jarvis-fs-bridge-v2.test.mjs
+          tests/jarvis-reel-speech-v137.test.mjs
+          tests/jarvis-reel-real-production-v134.test.mjs
+          tests/jarvis-actuator-pack.test.mjs
+          tests/single-semantic-authority.test.mjs
+      - name: Reject stale WebM-only bridge contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -RFn --exclude-dir=node_modules --exclude-dir=.git \
+            -e 'exportReelWebmWithChrome' \
+            -e 'REEL_WEBM_SHA256_MISMATCH' \
+            -e 'REEL_WEBM_BYTE_COUNT_INVALID' \
+            tests jarvis-fs-bridge.js
+      - name: Whitespace guard
+        run: git diff --check
+      - name: Commit and push functional v138
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            jarvis-reel-artifact.js \
+            jarvis-fs-bridge.js \
+            gestia-core/jarvis/jarvis.actuator.pack.js \
+            gestia-core/tools.runtime.js \
+            tests/jarvis-reel-artifact.test.mjs \
+            tests/jarvis-fs-bridge-v2.test.mjs \
+            tests/jarvis-reel-native-mp4-v138.test.mjs
+          git diff --cached --quiet && { echo 'NO_V138_FUNCTIONAL_CHANGE'; exit 1; }
+          git commit -m '[v138] feat(adj): prefer verified native MP4 reel export'
+          git push origin HEAD:v94-media-v4n-negative-claims
