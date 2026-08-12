@@ -120,4 +120,79 @@ jobs:
             Write-Host 'V138_NATIVE_MP4_FEASIBLE=true'
           } else {
             Write-Host 'V138_NATIVE_MP4_FEASIBLE=false'
+            throw 'V138_NATIVE_MP4_UNAVAILABLE'
           }
+      - name: Verify native H264 MP4 keeps an audio track
+        shell: pwsh
+        env:
+          CHROME: ${{ steps.env.outputs.chrome }}
+        run: |
+          $html = @'
+          <!doctype html><meta charset="utf-8"><body><pre id="result">PENDING</pre><canvas id="c" width="320" height="568"></canvas><script>
+          (async()=>{
+            const result=document.querySelector('#result');
+            const canvas=document.querySelector('#c');
+            const ctx=canvas.getContext('2d');
+            const mime='video/mp4;codecs=avc1.42E01E,mp4a.40.2';
+            if(!window.MediaRecorder||!MediaRecorder.isTypeSupported(mime))throw new Error('MP4_AAC_NOT_SUPPORTED');
+            const stream=canvas.captureStream(30);
+            const AudioCtor=window.AudioContext||window.webkitAudioContext;
+            if(!AudioCtor)throw new Error('AUDIO_CONTEXT_MISSING');
+            const ac=new AudioCtor();
+            const destination=ac.createMediaStreamDestination();
+            const oscillator=ac.createOscillator();
+            const gain=ac.createGain();
+            oscillator.frequency.value=440;gain.gain.value=.06;
+            oscillator.connect(gain);gain.connect(destination);
+            const audioTrack=destination.stream.getAudioTracks()[0];
+            if(!audioTrack)throw new Error('AUDIO_TRACK_MISSING');
+            stream.addTrack(audioTrack);
+            const recorder=new MediaRecorder(stream,{mimeType:mime});
+            const chunks=[];
+            recorder.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
+            oscillator.start();recorder.start(100);
+            const start=performance.now();
+            while(performance.now()-start<1200){
+              const t=(performance.now()-start)/1200;
+              ctx.fillStyle=`rgb(${Math.floor(40+180*t)},40,120)`;ctx.fillRect(0,0,320,568);
+              ctx.fillStyle='#fff';ctx.font='bold 34px sans-serif';ctx.fillText('ADJUNTO MP4',32,285);
+              await new Promise(r=>setTimeout(r,30));
+            }
+            recorder.stop();oscillator.stop();
+            await new Promise(resolve=>recorder.addEventListener('stop',resolve,{once:true}));
+            const blob=new Blob(chunks,{type:recorder.mimeType||mime});
+            const bytes=new Uint8Array(await blob.arrayBuffer());
+            const ascii=Array.from(bytes).map(v=>v>=32&&v<=126?String.fromCharCode(v):'.').join('');
+            const head=Array.from(bytes.slice(0,48)).map(v=>v.toString(16).padStart(2,'0')).join('');
+            const payload={
+              requested:mime,
+              actual:recorder.mimeType||'',
+              bytes:blob.size,
+              inputAudioTracks:stream.getAudioTracks().length,
+              hasFtyp:ascii.includes('ftyp'),
+              hasAvc1:ascii.includes('avc1'),
+              hasSoundHandler:ascii.includes('soun'),
+              hasMp4a:ascii.includes('mp4a'),
+              head
+            };
+            result.textContent='V138_AUDIO_MP4='+JSON.stringify(payload);document.title='DONE';
+            try{stream.getTracks().forEach(track=>track.stop());await ac.close()}catch{}
+          })().catch(error=>{document.querySelector('#result').textContent='V138_AUDIO_ERROR='+(error?.stack||error);document.title='ERROR'});
+          </script></body>
+          '@
+          $probe = Join-Path $env:RUNNER_TEMP 'v138-audio-mp4.html'
+          $out = Join-Path $env:RUNNER_TEMP 'v138-audio-dom.txt'
+          Set-Content -LiteralPath $probe -Value $html -Encoding UTF8
+          $uri = ([System.Uri]$probe).AbsoluteUri
+          & $env:CHROME --headless=new --disable-gpu --disable-dev-shm-usage --autoplay-policy=no-user-gesture-required --virtual-time-budget=10000 --dump-dom $uri 2>$null | Set-Content -LiteralPath $out -Encoding UTF8
+          $raw = Get-Content -Raw -LiteralPath $out
+          $match = [regex]::Match($raw, 'V138_AUDIO_MP4=(\{.*?\})</pre>')
+          if (-not $match.Success) { Write-Host $raw; throw 'V138_AUDIO_MP4_RESULT_MISSING' }
+          $json = [System.Net.WebUtility]::HtmlDecode($match.Groups[1].Value)
+          Write-Host "V138_AUDIO_MP4=$json"
+          $data = $json | ConvertFrom-Json
+          if ([int64]$data.bytes -le 0) { throw 'V138_AUDIO_MP4_EMPTY' }
+          if (-not $data.hasFtyp -or -not $data.hasAvc1 -or -not $data.hasSoundHandler -or -not $data.hasMp4a) {
+            throw 'V138_AUDIO_MP4_CONTAINER_TRACKS_INVALID'
+          }
+          Write-Host 'V138_NATIVE_MP4_WITH_AUDIO_FEASIBLE=true'
