@@ -1,0 +1,82 @@
+name: v139 live reel cache apply
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/v139-live-reel-cache-apply.yml'
+      - '.github/scripts/v139-live-reel-cache-apply.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-v139-live-cache:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install root dependencies
+        run: npm ci
+      - name: Guard branch and Functions before patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
+          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
+      - name: Apply deterministic v139 live cache patch
+        run: python .github/scripts/v139-live-reel-cache-apply.py
+      - name: Guard patch surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t changed < <(git diff --name-only)
+          printf '%s\n' "${changed[@]}"
+          for path in "${changed[@]}"; do
+            case "$path" in
+              gestia-terminal.html|gestia-core/gestia-core.js|gestia-core/tools.runtime.js|tests/jarvis-reel-live-cache-v139.test.mjs) ;;
+              *) echo "V139_UNEXPECTED_PATCH_SURFACE:$path" >&2; exit 1 ;;
+            esac
+          done
+          test "${#changed[@]}" -eq 4
+      - name: Syntax and focal v139 contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check gestia-core/gestia-core.js
+          node --check gestia-core/tools.runtime.js
+          node --test \
+            tests/jarvis-reel-live-cache-v139.test.mjs \
+            tests/jarvis-reel-native-mp4-v138.test.mjs \
+            tests/jarvis-reel-speech-v137.test.mjs \
+            tests/jarvis-reel-media-source-recovery-v136.test.mjs \
+            tests/nexo-browser-media-fallback-v135.test.mjs \
+            tests/jarvis-reel-real-production-v134.test.mjs \
+            tests/jarvis-reel-mission-fidelity-v133.test.mjs \
+            tests/jarvis-reel-researched-media-v132.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs
+      - name: Guard Functions after patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
+      - name: Commit and push functional v139 cache fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add gestia-terminal.html gestia-core/gestia-core.js gestia-core/tools.runtime.js tests/jarvis-reel-live-cache-v139.test.mjs
+          git diff --cached --check
+          git commit -m '[v139] fix(adj): refresh live reel runtime cache chain'
+          git push origin HEAD:v94-media-v4n-negative-claims
