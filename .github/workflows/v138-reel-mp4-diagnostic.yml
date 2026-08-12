@@ -1,0 +1,123 @@
+name: v138 reel mp4 diagnostic
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/v138-reel-mp4-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe-native-mp4:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Guard isolated branch and untouched Functions
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_NAME -ne 'v94-media-v4n-negative-claims') { throw 'WRONG_BRANCH' }
+          git diff --quiet HEAD^ HEAD -- functions/
+          if ($LASTEXITCODE -ne 0) { throw 'FUNCTIONS_CHANGED' }
+      - name: Locate Chrome and optional local encoders
+        id: env
+        shell: pwsh
+        run: |
+          $candidates = @(
+            "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
+            "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
+            "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe"
+          )
+          $chrome = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $chrome) { throw 'CHROME_NOT_FOUND' }
+          "chrome=$chrome" >> $env:GITHUB_OUTPUT
+          & $chrome --version
+          $ffmpeg = Get-Command ffmpeg -ErrorAction SilentlyContinue
+          if ($ffmpeg) {
+            Write-Host "FFMPEG_FOUND=$($ffmpeg.Source)"
+            & $ffmpeg.Source -version | Select-Object -First 1
+          } else {
+            Write-Host 'FFMPEG_FOUND=false'
+          }
+      - name: Probe MediaRecorder support and actual one-second recording
+        shell: pwsh
+        env:
+          CHROME: ${{ steps.env.outputs.chrome }}
+        run: |
+          $html = @'
+          <!doctype html><meta charset="utf-8"><body><pre id="result">PENDING</pre><canvas id="c" width="320" height="568"></canvas><script>
+          (async()=>{
+            const result=document.querySelector('#result');
+            const canvas=document.querySelector('#c');
+            const ctx=canvas.getContext('2d');
+            const types=[
+              'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+              'video/mp4;codecs=avc1.42E01E',
+              'video/mp4;codecs=h264',
+              'video/mp4',
+              'video/webm;codecs=vp9',
+              'video/webm;codecs=vp8',
+              'video/webm'
+            ];
+            const support=Object.fromEntries(types.map(type=>[type,Boolean(window.MediaRecorder&&MediaRecorder.isTypeSupported(type))]));
+            const attempts=[];
+            for(const type of types){
+              if(!support[type]) continue;
+              let recorder=null;
+              try{
+                const stream=canvas.captureStream(30);
+                recorder=new MediaRecorder(stream,{mimeType:type});
+                const chunks=[];
+                recorder.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
+                recorder.start(100);
+                const start=performance.now();
+                while(performance.now()-start<900){
+                  const t=(performance.now()-start)/900;
+                  ctx.fillStyle=`hsl(${Math.floor(t*300)} 80% 45%)`;
+                  ctx.fillRect(0,0,320,568);
+                  ctx.fillStyle='#fff';ctx.font='bold 42px sans-serif';ctx.fillText('ADJUNTO',55,285);
+                  await new Promise(r=>setTimeout(r,30));
+                }
+                recorder.stop();
+                await new Promise(resolve=>recorder.addEventListener('stop',resolve,{once:true}));
+                const blob=new Blob(chunks,{type:recorder.mimeType||type});
+                const head=Array.from(new Uint8Array((await blob.arrayBuffer()).slice(0,32))).map(v=>v.toString(16).padStart(2,'0')).join('');
+                attempts.push({requested:type,actual:recorder.mimeType||'',bytes:blob.size,head,ok:blob.size>0});
+              }catch(error){attempts.push({requested:type,ok:false,error:error?.message||String(error)})}
+              try{recorder?.stream?.getTracks().forEach(track=>track.stop())}catch{}
+            }
+            const payload={userAgent:navigator.userAgent,mediaRecorder:Boolean(window.MediaRecorder),captureStream:Boolean(canvas.captureStream),support,attempts};
+            result.textContent='V138_RESULT='+JSON.stringify(payload);
+            document.title='DONE';
+          })().catch(error=>{document.querySelector('#result').textContent='V138_ERROR='+(error?.stack||error);document.title='ERROR'});
+          </script></body>
+          '@
+          $probe = Join-Path $env:RUNNER_TEMP 'v138-mediarecorder.html'
+          $out = Join-Path $env:RUNNER_TEMP 'v138-dom.txt'
+          Set-Content -LiteralPath $probe -Value $html -Encoding UTF8
+          $uri = ([System.Uri]$probe).AbsoluteUri
+          & $env:CHROME --headless=new --disable-gpu --disable-dev-shm-usage --autoplay-policy=no-user-gesture-required --virtual-time-budget=8000 --dump-dom $uri 2>$null | Set-Content -LiteralPath $out -Encoding UTF8
+          $raw = Get-Content -Raw -LiteralPath $out
+          $match = [regex]::Match($raw, 'V138_RESULT=(\{.*?\})</pre>')
+          if (-not $match.Success) {
+            Write-Host $raw
+            throw 'V138_MEDIARECORDER_RESULT_MISSING'
+          }
+          $json = [System.Net.WebUtility]::HtmlDecode($match.Groups[1].Value)
+          Write-Host "V138_RESULT=$json"
+          $data = $json | ConvertFrom-Json
+          $mp4 = @($data.attempts | Where-Object { $_.requested -like 'video/mp4*' -and $_.ok -eq $true -and [int64]$_.bytes -gt 0 })
+          $webm = @($data.attempts | Where-Object { $_.requested -like 'video/webm*' -and $_.ok -eq $true -and [int64]$_.bytes -gt 0 })
+          Write-Host "V138_NATIVE_MP4_RECORDINGS=$($mp4.Count)"
+          Write-Host "V138_WEBM_RECORDINGS=$($webm.Count)"
+          if ($mp4.Count -gt 0) {
+            Write-Host 'V138_NATIVE_MP4_FEASIBLE=true'
+          } else {
+            Write-Host 'V138_NATIVE_MP4_FEASIBLE=false'
+          }
