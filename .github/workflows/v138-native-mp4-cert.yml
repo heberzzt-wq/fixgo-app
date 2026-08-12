@@ -49,6 +49,19 @@ jobs:
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
           ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
+      - name: Guard clean v138 staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          for temporary in \
+            .github/workflows/v138-native-mp4-apply.yml \
+            .github/workflows/v138-reel-mp4-diagnostic.yml \
+            .github/workflows/v138-reel-mp4-audio-diagnostic.yml \
+            .github/scripts/v138-native-mp4-apply.py \
+            .github/scripts/v138-native-mp4-tests.py
+          do
+            test ! -e "$temporary"
+          done
       - name: Focal v138 plus reel compatibility contracts
         shell: bash
         run: |
@@ -86,6 +99,7 @@ jobs:
           echo 'V138_SHA256_VERIFIED=true'
           echo 'V138_HUMAN_RESPONSE_FORMAT_COHERENT=true'
           echo 'V138_FUNCTIONS_UNCHANGED=true'
+          echo 'V138_STAGING_CLEAN=true'
 
   windows-real-mp4:
     runs-on: windows-latest
@@ -108,6 +122,19 @@ jobs:
           if ($env:GITHUB_REF_NAME -ne 'v94-media-v4n-negative-claims') { throw 'WRONG_BRANCH' }
           $changed = git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD
           if ($changed -match '^functions/') { throw 'FUNCTIONS_CHANGED' }
+      - name: Guard clean v138 staging on Windows
+        shell: pwsh
+        run: |
+          $temporary = @(
+            '.github/workflows/v138-native-mp4-apply.yml',
+            '.github/workflows/v138-reel-mp4-diagnostic.yml',
+            '.github/workflows/v138-reel-mp4-audio-diagnostic.yml',
+            '.github/scripts/v138-native-mp4-apply.py',
+            '.github/scripts/v138-native-mp4-tests.py'
+          )
+          foreach ($path in $temporary) {
+            if (Test-Path $path) { throw "V138_TEMPORARY_FILE_PRESENT:$path" }
+          }
       - name: Export real 30-second MP4 with audio through product renderer and bridge
         shell: pwsh
         run: |
