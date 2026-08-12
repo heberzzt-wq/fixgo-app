@@ -1,0 +1,250 @@
+name: v139 real reel e2e cert
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/v139-real-reel-e2e-cert.yml'
+      - '.github/workflows/v139-reel-e2e-discovery.yml'
+      - 'gestia-core/jarvis/jarvis.mission.orchestrator.js'
+      - 'gestia-core/jarvis/jarvis.multitool.pack.js'
+      - 'gestia-core/jarvis/jarvis.actuator.pack.js'
+      - 'gestia-core/nexo/nexo.real-media.tools.js'
+      - 'gestia-core/nexo/nexo.real-media.runtime-guard-v128.js'
+      - 'jarvis-fs-bridge.js'
+      - 'jarvis-reel-artifact.js'
+      - 'jarvis-speech-artifact.js'
+      - 'nexo-web-media-bridge.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-reel-e2e:
+    runs-on: windows-latest
+    timeout-minutes: 18
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install root dependencies
+        run: npm ci
+      - name: Guard branch and Functions
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_NAME -ne 'v94-media-v4n-negative-claims') { throw 'WRONG_BRANCH' }
+          $changed = git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD
+          if ($changed -match '^functions/') { throw 'FUNCTIONS_CHANGED' }
+      - name: Start local Jarvis bridge
+        shell: pwsh
+        run: |
+          $stdout = Join-Path $env:RUNNER_TEMP 'v139-bridge.stdout.log'
+          $stderr = Join-Path $env:RUNNER_TEMP 'v139-bridge.stderr.log'
+          $process = Start-Process -FilePath node -ArgumentList 'jarvis-fs-bridge.js' -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          $process.Id | Set-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'v139-bridge.pid')
+          $ready = $false
+          for ($i = 0; $i -lt 40; $i++) {
+            Start-Sleep -Milliseconds 250
+            $probe = Test-NetConnection -ComputerName 127.0.0.1 -Port 3344 -WarningAction SilentlyContinue
+            if ($probe.TcpTestSucceeded) { $ready = $true; break }
+            if ($process.HasExited) { break }
+          }
+          if (-not $ready) {
+            Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue
+            Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue
+            throw 'V139_LOCAL_BRIDGE_NOT_READY'
+          }
+          Write-Host "V139_BRIDGE_PID=$($process.Id)"
+      - name: Run canonical human reel mission against exact TikTok source
+        shell: pwsh
+        run: |
+          @'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import { createHash } from 'node:crypto';
+          import { registerJarvisMultifunctionTools } from './gestia-core/jarvis/jarvis.multitool.pack.js';
+          import { registerJarvisActuatorTools } from './gestia-core/jarvis/jarvis.actuator.pack.js';
+          import { registerNexoRealMediaTools } from './gestia-core/nexo/nexo.real-media.tools.js';
+          import { runJarvisMission } from './gestia-core/jarvis/jarvis.mission.orchestrator.js';
+
+          const SOURCE = 'https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004';
+          const BRIDGE = 'http://127.0.0.1:3344';
+
+          globalThis.JarvisLocalBridge = {
+            async requestJson(endpoint, payload = {}, options = {}) {
+              const controller = new AbortController();
+              const timeout = setTimeout(() => controller.abort(), Math.max(1000, Number(options.timeoutMs) || 120000));
+              try {
+                const response = await fetch(`${BRIDGE}${endpoint}`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(payload),
+                  signal: controller.signal
+                });
+                const data = await response.json();
+                return data;
+              } finally {
+                clearTimeout(timeout);
+              }
+            }
+          };
+
+          const registry = new Map();
+          const runtime = {
+            _registry: registry,
+            register(tool) {
+              registry.set(tool.name, tool);
+              return { ok: true, tool: tool.name };
+            },
+            get(name) { return registry.get(name); },
+            has(name) { return registry.has(name); },
+            list() { return [...registry.values()]; },
+            async execute(name, args = {}, context = {}) {
+              const tool = registry.get(name);
+              if (!tool?.execute) throw new Error(`TOOL_NOT_FOUND:${name}`);
+              return await tool.execute(args, context);
+            }
+          };
+          globalThis.JarvisToolRuntime = runtime;
+          registerJarvisMultifunctionTools(runtime);
+          registerJarvisActuatorTools(runtime);
+          registerNexoRealMediaTools(runtime);
+
+          for (const required of ['reel.plan','speech.synthesize','web.media.collect','reel.create']) {
+            if (!runtime.has(required)) throw new Error(`V139_REGISTERED_TOOL_REQUIRED:${required}`);
+          }
+
+          const planScenes = [
+            {
+              durationSeconds: 10,
+              overlay: 'Taquería El Dorado',
+              voiceover: 'En Cancún, el antojo tiene un nombre: Taquería El Dorado.',
+              visual: 'Video real de la publicación de Taquería El Dorado mostrando el producto.',
+              transition: 'fade'
+            },
+            {
+              durationSeconds: 10,
+              overlay: 'Sabor que se antoja',
+              voiceover: 'Tacos preparados para convertir una visita en ese momento que quieres repetir.',
+              visual: 'Continuación dinámica del video real, priorizando alimento y preparación.',
+              transition: 'cut'
+            },
+            {
+              durationSeconds: 10,
+              overlay: 'Ven por los tuyos',
+              voiceover: 'Guarda este lugar y ven a probar Taquería El Dorado en Cancún.',
+              visual: 'Cierre con el mejor encuadre disponible del video real y llamado a la acción.',
+              transition: 'fade'
+            }
+          ];
+          const renderScenes = planScenes.map(scene => ({
+            durationSeconds: scene.durationSeconds,
+            overlay: scene.overlay,
+            subtitle: scene.voiceover,
+            visualDescription: scene.visual,
+            transition: scene.transition
+          }));
+
+          const instruction = `Usa exclusivamente medios verificables de esta publicación exacta ${SOURCE}. Crea un reel profesional vertical de 30 segundos para Taquería El Dorado en Cancún, con narración y archivo final físico. No publiques.`;
+          const mission = await runJarvisMission({
+            instruction,
+            initialToolCalls: [
+              {
+                name: 'reel.plan',
+                args: {
+                  brandName: 'Taquería El Dorado',
+                  title: 'El antojo dorado de Cancún',
+                  cta: 'Ven por los tuyos',
+                  durationSeconds: 30,
+                  scenes: planScenes
+                }
+              },
+              {
+                name: 'reel.create',
+                args: {
+                  brandName: 'Taquería El Dorado',
+                  title: 'El antojo dorado de Cancún',
+                  cta: 'Ven por los tuyos',
+                  durationSeconds: 30,
+                  scenes: renderScenes
+                }
+              }
+            ],
+            requiredToolNames: ['reel.plan','reel.create'],
+            maximumSteps: 14,
+            planner: async () => ({ missionComplete: true, toolCalls: [] }),
+            execute: async (call, context) => runtime.execute(call.name, call.args, context)
+          });
+
+          console.log('V139_MISSION_STATUS', mission.status, mission.reason || '');
+          console.log('V139_EXECUTED_TOOLS', JSON.stringify(mission.executedTools));
+          console.log('V139_COMPLETED_TOOLS', JSON.stringify(mission.completedTasks.map(task => task.name)));
+          console.log('V139_BLOCKED', JSON.stringify(mission.blockedTasks.map(task => ({name:task.name,reason:task.reason,status:task.observation?.status}))));
+
+          const completedNames = mission.completedTasks.map(task => task.name);
+          const expected = ['reel.plan','speech.synthesize','web.media.collect','reel.create'];
+          for (const name of expected) {
+            if (!completedNames.includes(name)) throw new Error(`V139_COMPLETED_TOOL_REQUIRED:${name}`);
+          }
+          const order = expected.map(name => mission.executedTools.indexOf(name));
+          if (!(order[0] >= 0 && order[1] > order[0] && order[2] > order[1] && order[3] > order[2])) {
+            throw new Error(`V139_EXECUTION_ORDER_INVALID:${JSON.stringify(mission.executedTools)}`);
+          }
+          if (mission.blockedTasks.length > 0) throw new Error(`V139_BLOCKED_TASKS:${JSON.stringify(mission.blockedTasks)}`);
+
+          const speech = [...mission.completedTasks].reverse().find(task => task.name === 'speech.synthesize');
+          const speechOutput = String(speech?.observation?.artifact || speech?.observation?.evidence?.output || '');
+          if (!speechOutput.endsWith('.wav')) throw new Error(`V139_WAV_REQUIRED:${speechOutput}`);
+          const speechPath = path.join(process.cwd(), speechOutput);
+          const speechBytes = fs.readFileSync(speechPath);
+          if (speechBytes.toString('ascii',0,4) !== 'RIFF' || speechBytes.toString('ascii',8,12) !== 'WAVE') throw new Error('V139_WAV_SIGNATURE_INVALID');
+
+          const media = [...mission.completedTasks].reverse().find(task => task.name === 'web.media.collect');
+          const mediaEvidence = media?.observation?.evidence || {};
+          const mediaText = JSON.stringify(mediaEvidence);
+          if (!mediaText.includes('@taqueria.eldorado') && !mediaText.includes('7629216747131850004')) {
+            throw new Error('V139_EXACT_TIKTOK_PROVENANCE_REQUIRED');
+          }
+          if (!mediaText.includes('video/mp4')) throw new Error('V139_REAL_MP4_SOURCE_MEDIA_REQUIRED');
+
+          const reel = [...mission.completedTasks].reverse().find(task => task.name === 'reel.create');
+          const reelOutput = String(reel?.observation?.artifact || reel?.observation?.evidence?.output || '');
+          const reelMime = String(reel?.observation?.evidence?.mimeType || '');
+          const reelSha = String(reel?.observation?.evidence?.sha256 || '');
+          if (!reelOutput.endsWith('.mp4')) throw new Error(`V139_FINAL_MP4_REQUIRED:${reelOutput}`);
+          if (!reelMime.startsWith('video/mp4')) throw new Error(`V139_FINAL_MP4_MIME_REQUIRED:${reelMime}`);
+          if (!/^[a-f0-9]{64}$/.test(reelSha)) throw new Error(`V139_FINAL_SHA_REQUIRED:${reelSha}`);
+          const reelPath = path.join(process.cwd(), reelOutput);
+          const reelBytes = fs.readFileSync(reelPath);
+          if (reelBytes.toString('ascii',4,8) !== 'ftyp') throw new Error('V139_FINAL_MP4_SIGNATURE_INVALID');
+          if (createHash('sha256').update(reelBytes).digest('hex') !== reelSha) throw new Error('V139_FINAL_SHA_MISMATCH');
+          const reelEvidenceText = JSON.stringify(reel?.observation?.evidence || {});
+          if (!reelEvidenceText.includes('audioTracksAdded') || !reelEvidenceText.match(/"audioTracksAdded"\s*:\s*[1-9]/)) {
+            throw new Error(`V139_FINAL_AUDIO_TRACK_REQUIRED:${reelEvidenceText.slice(0,2000)}`);
+          }
+
+          console.log('V139_EXACT_SOURCE_MEDIA=true');
+          console.log('V139_AUTOMATIC_SPEECH=true');
+          console.log('V139_AUTOMATIC_MEDIA_DEPENDENCY=true');
+          console.log('V139_FINAL_MP4_WITH_AUDIO=true');
+          console.log('V139_FINAL_SHA256_VERIFIED=true');
+          '@ | node --input-type=module -
+      - name: Stop local Jarvis bridge
+        if: always()
+        shell: pwsh
+        run: |
+          $pidFile = Join-Path $env:RUNNER_TEMP 'v139-bridge.pid'
+          if (Test-Path $pidFile) {
+            $bridgePid = [int](Get-Content -Raw -LiteralPath $pidFile)
+            Stop-Process -Id $bridgePid -Force -ErrorAction SilentlyContinue
+          }
+          Get-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'v139-bridge.stdout.log') -ErrorAction SilentlyContinue | Select-Object -Last 80
+          Get-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'v139-bridge.stderr.log') -ErrorAction SilentlyContinue | Select-Object -Last 80
