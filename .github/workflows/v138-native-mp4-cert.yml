@@ -1,0 +1,187 @@
+name: v138 native mp4 reel cert
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/v138-native-mp4-cert.yml'
+      - '.github/workflows/v138-native-mp4-apply.yml'
+      - '.github/workflows/v138-reel-mp4-diagnostic.yml'
+      - '.github/workflows/v138-reel-mp4-audio-diagnostic.yml'
+      - '.github/scripts/v138-native-mp4-apply.py'
+      - '.github/scripts/v138-native-mp4-tests.py'
+      - 'jarvis-reel-artifact.js'
+      - 'jarvis-fs-bridge.js'
+      - 'gestia-core/jarvis/jarvis.actuator.pack.js'
+      - 'gestia-core/tools.runtime.js'
+      - 'gestia-core/tools.bridge.js'
+      - 'tests/jarvis-reel-native-mp4-v138.test.mjs'
+      - 'tests/jarvis-reel-artifact.test.mjs'
+      - 'tests/jarvis-fs-bridge-v2.test.mjs'
+      - 'tests/jarvis-live-human-reds-v113.test.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  certify-v138:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install root dependencies
+        run: npm ci
+      - name: Install Functions test dependencies without modifying source
+        run: npm ci --prefix functions
+      - name: Guard branch and Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
+          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
+      - name: Focal v138 plus reel compatibility contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check jarvis-reel-artifact.js
+          node --check jarvis-fs-bridge.js
+          node --check gestia-core/jarvis/jarvis.actuator.pack.js
+          node --check gestia-core/tools.runtime.js
+          node --check gestia-core/tools.bridge.js
+          node --test \
+            tests/jarvis-reel-native-mp4-v138.test.mjs \
+            tests/jarvis-reel-artifact.test.mjs \
+            tests/jarvis-fs-bridge-v2.test.mjs \
+            tests/jarvis-live-human-reds-v113.test.mjs \
+            tests/jarvis-reel-speech-v137.test.mjs \
+            tests/jarvis-reel-media-source-recovery-v136.test.mjs \
+            tests/nexo-browser-media-fallback-v135.test.mjs \
+            tests/jarvis-reel-real-production-v134.test.mjs \
+            tests/jarvis-reel-mission-fidelity-v133.test.mjs \
+            tests/jarvis-reel-researched-media-v132.test.mjs \
+            tests/nexo-real-media-tools.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs \
+            tests/jarvis-semantic-planner.test.cjs \
+            tests/single-semantic-authority.test.mjs
+      - name: Full CI
+        run: npm run ci:test
+      - name: Reject whitespace errors
+        run: git diff --check
+      - name: Certification marker
+        run: |
+          echo 'V138_NATIVE_MP4_PREFERRED=true'
+          echo 'V138_WEBM_FALLBACK_RETAINED=true'
+          echo 'V138_ACTUAL_MIME_DRIVES_EXTENSION=true'
+          echo 'V138_CONTAINER_SIGNATURE_VERIFIED=true'
+          echo 'V138_SHA256_VERIFIED=true'
+          echo 'V138_HUMAN_RESPONSE_FORMAT_COHERENT=true'
+          echo 'V138_FUNCTIONS_UNCHANGED=true'
+
+  windows-real-mp4:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install root dependencies
+        run: npm ci
+      - name: Guard branch and Functions
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_NAME -ne 'v94-media-v4n-negative-claims') { throw 'WRONG_BRANCH' }
+          $changed = git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD
+          if ($changed -match '^functions/') { throw 'FUNCTIONS_CHANGED' }
+      - name: Export real 30-second MP4 with audio through product renderer and bridge
+        shell: pwsh
+        run: |
+          @'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import { createHash } from 'node:crypto';
+          import { buildReelStudioHtml } from './jarvis-reel-artifact.js';
+          import { exportReelVideoWithChrome } from './jarvis-fs-bridge.js';
+
+          function wavDataUrl() {
+            const sampleRate = 8000;
+            const seconds = 1;
+            const samples = sampleRate * seconds;
+            const dataBytes = samples * 2;
+            const buffer = Buffer.alloc(44 + dataBytes);
+            buffer.write('RIFF', 0, 'ascii');
+            buffer.writeUInt32LE(36 + dataBytes, 4);
+            buffer.write('WAVE', 8, 'ascii');
+            buffer.write('fmt ', 12, 'ascii');
+            buffer.writeUInt32LE(16, 16);
+            buffer.writeUInt16LE(1, 20);
+            buffer.writeUInt16LE(1, 22);
+            buffer.writeUInt32LE(sampleRate, 24);
+            buffer.writeUInt32LE(sampleRate * 2, 28);
+            buffer.writeUInt16LE(2, 32);
+            buffer.writeUInt16LE(16, 34);
+            buffer.write('data', 36, 'ascii');
+            buffer.writeUInt32LE(dataBytes, 40);
+            for (let i = 0; i < samples; i += 1) {
+              const sample = Math.round(Math.sin((i / sampleRate) * Math.PI * 2 * 440) * 1800);
+              buffer.writeInt16LE(sample, 44 + i * 2);
+            }
+            return `data:audio/wav;base64,${buffer.toString('base64')}`;
+          }
+
+          const root = process.cwd();
+          const image = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/l8MZ7wAAAABJRU5ErkJggg==';
+          const scenes = [
+            { durationSeconds: 10, overlay: 'Taquería El Dorado', subtitle: 'Cancún', visualDescription: 'Tacos', assetDataUrl: image, mediaType: 'image' },
+            { durationSeconds: 10, overlay: 'Sabor que antoja', subtitle: 'Preparado al momento', visualDescription: 'Servicio', assetDataUrl: image, mediaType: 'image' },
+            { durationSeconds: 10, overlay: 'Ven por los tuyos', subtitle: 'Taquería El Dorado', visualDescription: 'CTA', assetDataUrl: image, mediaType: 'image' }
+          ];
+          const html = buildReelStudioHtml({
+            brandName: 'Taquería El Dorado',
+            title: 'Reel v138 certificado',
+            cta: 'Visítanos',
+            durationSeconds: 30,
+            audioDataUrl: wavDataUrl(),
+            scenes
+          });
+          const studioDir = path.join(root, '.jarvis-artifacts', 'reels');
+          fs.mkdirSync(studioDir, { recursive: true });
+          const studioPath = path.join(studioDir, 'v138-native-mp4-cert.html');
+          fs.writeFileSync(studioPath, html, 'utf8');
+
+          const result = await exportReelVideoWithChrome({
+            studioPath,
+            output: '.jarvis-artifacts/reels/v138-native-mp4-cert',
+            durationSeconds: 30,
+            root
+          });
+          console.log('V138_PRODUCT_EXPORT', JSON.stringify(result, null, 2));
+          if (result?.ok !== true) throw new Error(`PRODUCT_EXPORT_FAILED:${result?.error || result?.status}`);
+          if (!String(result.mimeType || '').startsWith('video/mp4')) throw new Error(`MP4_MIME_REQUIRED:${result.mimeType}`);
+          if (result.container !== 'mp4' || result.formatFallback !== false) throw new Error('MP4_CONTAINER_REQUIRED');
+          if (!String(result.output || '').endsWith('.mp4')) throw new Error(`MP4_EXTENSION_REQUIRED:${result.output}`);
+          if (Number(result.audioTracksAdded || 0) < 1) throw new Error('PRODUCT_AUDIO_TRACK_REQUIRED');
+          if (!Number.isFinite(Number(result.bytes)) || Number(result.bytes) < 1000) throw new Error('PRODUCT_MP4_BYTES_INVALID');
+          if (!/^[a-f0-9]{64}$/.test(String(result.sha256 || ''))) throw new Error('PRODUCT_MP4_SHA_INVALID');
+          const videoPath = path.join(root, result.output);
+          const bytes = fs.readFileSync(videoPath);
+          if (bytes.toString('ascii', 4, 8) !== 'ftyp') throw new Error('PRODUCT_MP4_FTYP_REQUIRED');
+          if (createHash('sha256').update(bytes).digest('hex') !== result.sha256) throw new Error('PRODUCT_MP4_SHA_MISMATCH');
+          console.log('V138_REAL_WINDOWS_PRODUCT_MP4=true');
+          console.log('V138_REAL_WINDOWS_PRODUCT_AUDIO=true');
+          '@ | node --input-type=module -
