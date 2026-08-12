@@ -96,6 +96,38 @@ jobs:
             }
           };
 
+          function toolResultSummary(name, result) {
+            const mediaAssets = Array.isArray(result?.mediaAssets)
+              ? result.mediaAssets.slice(0, 4).map(item => ({
+                  kind: item?.kind,
+                  output: item?.output,
+                  mimeType: item?.mimeType,
+                  bytes: item?.bytes,
+                  sha256: item?.sha256,
+                  sourceUrl: item?.sourceUrl,
+                  sourceTag: item?.sourceTag
+                }))
+              : [];
+            return {
+              name,
+              ok: result?.ok,
+              executionOk: result?.executionOk,
+              objectiveSatisfied: result?.objectiveSatisfied,
+              blocked: result?.blocked,
+              requiresInput: result?.requiresInput,
+              retryable: result?.retryable,
+              status: result?.status,
+              error: result?.error,
+              output: result?.output,
+              mimeType: result?.mimeType,
+              bytes: result?.bytes,
+              sha256: result?.sha256,
+              requirementsMet: result?.requirementsMet,
+              audioTracksAdded: result?.audioTracksAdded,
+              mediaAssets
+            };
+          }
+
           const registry = new Map();
           const runtime = {
             _registry: registry,
@@ -109,7 +141,9 @@ jobs:
             async execute(name, args = {}, context = {}) {
               const tool = registry.get(name);
               if (!tool?.execute) throw new Error(`TOOL_NOT_FOUND:${name}`);
-              return await tool.execute(args, context);
+              const result = await tool.execute(args, context);
+              console.log('V139_TOOL_RESULT', JSON.stringify(toolResultSummary(name, result)));
+              return result;
             }
           };
           globalThis.JarvisToolRuntime = runtime;
@@ -188,8 +222,11 @@ jobs:
 
           console.log('V139_MISSION_STATUS', mission.status, mission.reason || '');
           console.log('V139_EXECUTED_TOOLS', JSON.stringify(mission.executedTools));
-          console.log('V139_COMPLETED_TOOLS', JSON.stringify(mission.completedTasks.map(task => task.name)));
-          console.log('V139_BLOCKED', JSON.stringify(mission.blockedTasks.map(task => ({name:task.name,reason:task.reason,status:task.observation?.status}))));
+          console.log('V139_COMPLETED', JSON.stringify(mission.completedTasks.map(task => ({name:task.name,status:task.observation?.status,artifact:task.observation?.artifact,evidence:task.observation?.evidence}))));
+          console.log('V139_BLOCKED', JSON.stringify(mission.blockedTasks.map(task => ({name:task.name,reason:task.reason,status:task.observation?.status,evidence:task.observation?.evidence}))));
+          console.log('V139_RECOVERED_MEDIA_ATTEMPTS', JSON.stringify(mission.recoveredMediaSourceAttempts || []));
+          console.log('V139_AUDIO_FILES', JSON.stringify(fs.existsSync('.jarvis-artifacts/audio') ? fs.readdirSync('.jarvis-artifacts/audio') : []));
+          console.log('V139_WEB_MEDIA_FILES', JSON.stringify(fs.existsSync('.jarvis-artifacts/web-media') ? fs.readdirSync('.jarvis-artifacts/web-media',{recursive:true}).slice(0,80) : []));
 
           const completedNames = mission.completedTasks.map(task => task.name);
           const expected = ['reel.plan','speech.synthesize','web.media.collect','reel.create'];
@@ -212,9 +249,7 @@ jobs:
           const media = [...mission.completedTasks].reverse().find(task => task.name === 'web.media.collect');
           const mediaEvidence = media?.observation?.evidence || {};
           const mediaText = JSON.stringify(mediaEvidence);
-          if (!mediaText.includes('@taqueria.eldorado') && !mediaText.includes('7629216747131850004')) {
-            throw new Error('V139_EXACT_TIKTOK_PROVENANCE_REQUIRED');
-          }
+          if (!mediaText.includes('@taqueria.eldorado') && !mediaText.includes('7629216747131850004')) throw new Error('V139_EXACT_TIKTOK_PROVENANCE_REQUIRED');
           if (!mediaText.includes('video/mp4')) throw new Error('V139_REAL_MP4_SOURCE_MEDIA_REQUIRED');
 
           const reel = [...mission.completedTasks].reverse().find(task => task.name === 'reel.create');
@@ -229,9 +264,7 @@ jobs:
           if (reelBytes.toString('ascii',4,8) !== 'ftyp') throw new Error('V139_FINAL_MP4_SIGNATURE_INVALID');
           if (createHash('sha256').update(reelBytes).digest('hex') !== reelSha) throw new Error('V139_FINAL_SHA_MISMATCH');
           const reelEvidenceText = JSON.stringify(reel?.observation?.evidence || {});
-          if (!reelEvidenceText.includes('audioTracksAdded') || !reelEvidenceText.match(/"audioTracksAdded"\s*:\s*[1-9]/)) {
-            throw new Error(`V139_FINAL_AUDIO_TRACK_REQUIRED:${reelEvidenceText.slice(0,2000)}`);
-          }
+          if (!reelEvidenceText.includes('audioTracksAdded') || !reelEvidenceText.match(/"audioTracksAdded"\s*:\s*[1-9]/)) throw new Error(`V139_FINAL_AUDIO_TRACK_REQUIRED:${reelEvidenceText.slice(0,2000)}`);
 
           console.log('V139_EXACT_SOURCE_MEDIA=true');
           console.log('V139_AUTOMATIC_SPEECH=true');
@@ -248,5 +281,5 @@ jobs:
             $bridgePid = [int](Get-Content -Raw -LiteralPath $pidFile)
             Stop-Process -Id $bridgePid -Force -ErrorAction SilentlyContinue
           }
-          Get-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'v139-bridge.stdout.log') -ErrorAction SilentlyContinue | Select-Object -Last 80
-          Get-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'v139-bridge.stderr.log') -ErrorAction SilentlyContinue | Select-Object -Last 80
+          Get-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'v139-bridge.stdout.log') -ErrorAction SilentlyContinue | Select-Object -Last 120
+          Get-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'v139-bridge.stderr.log') -ErrorAction SilentlyContinue | Select-Object -Last 120
