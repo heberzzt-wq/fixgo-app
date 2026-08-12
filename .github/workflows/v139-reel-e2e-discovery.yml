@@ -29,15 +29,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo '=== REEL PLAN REGISTRATION ==='
-          grep -RFn --exclude-dir=node_modules --exclude-dir=.git 'reel.plan' gestia-core/jarvis | head -n 120 || true
-          echo '=== WEB MEDIA COLLECT REGISTRATION ==='
-          grep -RFn --exclude-dir=node_modules --exclude-dir=.git 'web.media.collect' gestia-core | head -n 140 || true
           echo '=== PACK REGISTER EXPORTS ==='
-          grep -RFn --exclude-dir=node_modules --exclude-dir=.git -E 'export function register.*Tools|export function install.*Tools|registerJarvis.*Tools' gestia-core/jarvis gestia-core/nexo | head -n 160 || true
+          grep -REn --exclude-dir=node_modules --exclude-dir=.git 'export function register.*Tools|export function install.*Tools|registerJarvis.*Tools' gestia-core/jarvis gestia-core/nexo | head -n 200 || true
           echo '=== TOOL RUNTIME CREATION ==='
-          grep -RFn --exclude-dir=node_modules --exclude-dir=.git -E 'createJarvisToolRuntime|new Map\(|toolRuntime|registerJarvisActuatorTools|registerNexoRealMediaTools' gestia-core modules | head -n 180 || true
-          echo '=== REEL PLAN EXECUTE BODY ==='
-          grep -RFn --exclude-dir=node_modules --exclude-dir=.git -B8 -A45 'name: "reel.plan"' gestia-core/jarvis || true
-          echo '=== MEDIA COLLECT EXECUTE BODY ==='
-          grep -RFn --exclude-dir=node_modules --exclude-dir=.git -B8 -A60 'name: "web.media.collect"' gestia-core/nexo || true
+          grep -REn --exclude-dir=node_modules --exclude-dir=.git 'createJarvisToolRuntime|toolRuntime|registerJarvisActuatorTools|registerNexoRealMediaTools|registerJarvisMultitool' gestia-core modules | head -n 220 || true
+          echo '=== MULTITOOL REGISTER FUNCTION ==='
+          grep -n -B6 -A26 -E 'export function register.*Multitool|function register.*Multitool' gestia-core/jarvis/jarvis.multitool.pack.js || true
+          echo '=== NEXO REGISTER FUNCTION ==='
+          grep -n -B6 -A30 -E 'export function registerNexoRealMediaTools|function registerNexoRealMediaTools' gestia-core/nexo/nexo.real-media.tools.js || true
+          echo '=== TOOL RUNTIME MODULE ==='
+          sed -n '1,220p' gestia-core/jarvis/jarvis.tool.runtime.js
