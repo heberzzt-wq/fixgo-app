@@ -41,7 +41,7 @@ import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     buildJarvisMultifunctionToolCalls,
     completeJarvisPlanningArguments
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=v94-source-grounded-research-v124-20260810';
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=v136-reel-media-source-recovery-20260812';
 import {
     composeEvidenceGroundedConversation,
     mergeEvidenceGroundedToolCalls,
@@ -49,7 +49,7 @@ import {
 } from '/gestia-core/jarvis/jarvis.conversation.composer.js?v=v94-semantic-only-evidence-v100-20260809';
 import {
     runJarvisMission
-} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=v94-source-grounded-research-v124-20260810';
+} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=v136-reel-media-source-recovery-20260812';
 import {
     marketingArtifactArgsFromCompletedTasks,
     marketingFinalResponseFromMission

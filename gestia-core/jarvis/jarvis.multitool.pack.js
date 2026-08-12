@@ -26,7 +26,7 @@ import {
 
 import {
     completeJarvisPlanningArguments
-} from "./jarvis.multifunction.planner.js?v=v94-generalist-production-integrity-v121-20260810";
+} from "./jarvis.multifunction.planner.js?v=v136-reel-media-source-recovery-20260812";
 import {
     validateWorkbookFormulaStructure
 } from "./jarvis.workbook.validator.js?v=sia7-deep-artifact-validation-v65-20260725";

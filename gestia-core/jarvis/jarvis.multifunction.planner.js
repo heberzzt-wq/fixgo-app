@@ -2,7 +2,7 @@ import {
     rejectCorruptedIdentityArgs
 } from "./jarvis.identity.integrity.js?v=v94-generalist-page-integrity-v120-20260810";
 
-const VERSION = "4.18.0-reel-mission-fidelity-v133";
+const VERSION = "4.19.0-reel-media-source-recovery-v136";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
@@ -1457,9 +1457,11 @@ async function callBrowserSemanticPlan(input = "", catalog = [], missionState = 
         `FUENTES_EXPLICITAS_USUARIO=${JSON.stringify(explicitHttpSourceUrls(instruction))}`,
         "Si se piden datos oficiales, usa allowedDomain con el dominio oficial de la autoridad identificada y no presentes fuentes secundarias como oficiales.",
         "Si una investigacion pide hechos sobre una entidad nombrada sin dominio, copia el nombre exacto en exactEntity de web.research.",
-        missionState?.phase === "COMPLETION_AUDIT"
-            ? "AUDITORIA DE CIERRE: compara cada entregable con la evidencia. Si todo esta satisfecho devuelve toolCalls=[] y missionComplete=true. Si falta algo devuelve exactamente una herramienta pertinente con argumentos completos y missionComplete=false. No explores capacidades no solicitadas. Si repo.search entrego sourceDefinitions o definitionFiles, prioriza esas rutas ejecutables sobre archivos que solo mencionan el simbolo y permite repetir lectura o diagnostico cuando el archivo sea distinto."
-            : "Devuelve solamente JSON valido con toolCalls, missionComplete y explanation. Si la intencion actual no necesita herramientas, devuelve toolCalls=[] y missionComplete=true; si necesita una o mas herramientas, missionComplete=false.",
+        missionState?.phase === "REEL_MEDIA_SOURCE_RECOVERY"
+            ? `RECUPERACION DE FUENTE VISUAL PARA REEL: reel.create esta en espera y no debe ejecutarse ni volver a planearse hasta obtener medios reales. No reutilices URLs de reelMediaRecovery.attemptedUrls. Si reelMediaRecovery.availableVerifiedSources contiene una URL adecuada, usa web.media.collect exclusivamente con una de esas URLs verificadas. Si no hay una fuente verificada util, usa web.research sobre la misma entidad exacta de la instruccion para encontrar otra pagina o publicacion publica que pueda contener fotos o video, con un researchGoal nuevo. No inventes URLs, no uses busqueda de imagenes sin procedencia y no atribuyas material de otra entidad.`
+            : missionState?.phase === "COMPLETION_AUDIT"
+                ? "AUDITORIA DE CIERRE: compara cada entregable con la evidencia. Si todo esta satisfecho devuelve toolCalls=[] y missionComplete=true. Si falta algo devuelve exactamente una herramienta pertinente con argumentos completos y missionComplete=false. No explores capacidades no solicitadas. Si repo.search entrego sourceDefinitions o definitionFiles, prioriza esas rutas ejecutables sobre archivos que solo mencionan el simbolo y permite repetir lectura o diagnostico cuando el archivo sea distinto."
+                : "Devuelve solamente JSON valido con toolCalls, missionComplete y explanation. Si la intencion actual no necesita herramientas, devuelve toolCalls=[] y missionComplete=true; si necesita una o mas herramientas, missionComplete=false.",
         `CATALOGO=${catalog.map(tool => tool.name).join(",")}`,
         missionState ? `ESTADO_DE_MISION=${JSON.stringify(missionState).slice(0, 12000)}` : "",
         `INSTRUCCION=${boundedInstruction}`

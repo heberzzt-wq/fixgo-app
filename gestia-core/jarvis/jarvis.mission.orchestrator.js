@@ -1,4 +1,5 @@
-const VERSION = "1.13.0-real-reel-production-gate-v134";
+const VERSION = "1.14.0-reel-media-source-recovery-v136";
+const REEL_MEDIA_RECOVERY_MAX_ATTEMPTS = 3;
 const STORAGE_KEY = "jarvis.missions.v1";
 const SINGLETON_MISSION_TOOLS = new Set(["marketing.plan", "reel.plan"]);
 const COMPLETED_SINGLETON_MISSION_TOOLS = new Set(["reel.plan"]);
@@ -1169,6 +1170,105 @@ function reelMediaDependencyCall(task = {}, mission = {}) {
     };
 }
 
+
+function reelMediaRecoveryState(task = {}, mission = {}) {
+    if (task?.name !== "reel.create") return null;
+    if (reelArgsHaveExplicitVisualMedia(task?.args || {})) return null;
+    if (verifiedCollectedVisualAssets(mission).length > 0) return null;
+
+    const attemptedUrls = [...new Set(
+        (Array.isArray(mission?.blockedTasks) ? mission.blockedTasks : [])
+            .filter(item => item?.name === "web.media.collect")
+            .map(item => text(item?.args?.url, 2000))
+            .filter(Boolean)
+    )];
+    const verifiedSources = [...new Set([
+        ...explicitMissionHttpSourceUrls(mission?.originalInstruction || ""),
+        ...verifiedResearchMediaSourceUrls(mission)
+    ])];
+    const attempted = new Set(attemptedUrls);
+    const availableVerifiedSources = verifiedSources.filter(url => !attempted.has(url));
+    const previous = mission?.reelMediaRecovery && typeof mission.reelMediaRecovery === "object"
+        ? mission.reelMediaRecovery
+        : {};
+
+    return {
+        active: true,
+        reason: "REEL_VISUAL_MEDIA_SOURCE_RECOVERY",
+        attempts: Math.max(0, Number(previous.attempts || 0)),
+        maxAttempts: REEL_MEDIA_RECOVERY_MAX_ATTEMPTS,
+        attemptedUrls,
+        availableVerifiedSources,
+        verifiedSourceCount: verifiedSources.length,
+        originalInstruction: text(mission?.originalInstruction, 12000)
+    };
+}
+
+function reelMediaRecoveryAllowedCalls(calls = [], recovery = {}) {
+    const attempted = new Set(
+        (Array.isArray(recovery?.attemptedUrls) ? recovery.attemptedUrls : [])
+            .map(value => text(value, 2000))
+            .filter(Boolean)
+    );
+    const verified = new Set(
+        (Array.isArray(recovery?.availableVerifiedSources) ? recovery.availableVerifiedSources : [])
+            .map(value => text(value, 2000))
+            .filter(Boolean)
+    );
+    return (Array.isArray(calls) ? calls : []).filter(call => {
+        const name = text(call?.name, 100);
+        if (name === "web.research") return true;
+        if (name !== "web.media.collect") return false;
+        const url = text(call?.args?.url, 2000);
+        if (!url || attempted.has(url)) return false;
+        return verified.size > 0 && verified.has(url);
+    });
+}
+
+function deterministicReelMediaRecoveryCall(recovery = {}) {
+    const sources = Array.isArray(recovery?.availableVerifiedSources)
+        ? recovery.availableVerifiedSources
+        : [];
+    if (sources.length !== 1) return null;
+    return {
+        name: "web.media.collect",
+        args: {
+            url: sources[0],
+            requireAnyVisual: true,
+            maxImages: 8,
+            maxVideos: 4
+        },
+        reason: "REEL_MEDIA_RECOVERY_VERIFIED_SOURCE"
+    };
+}
+
+function archiveRecoveredMediaSourceAttempts(mission = {}, now = () => new Date().toISOString()) {
+    const blocked = Array.isArray(mission?.blockedTasks) ? mission.blockedTasks : [];
+    const recovered = blocked.filter(item => item?.name === "web.media.collect");
+    if (recovered.length === 0) return;
+    mission.recoveredMediaSourceAttempts = [
+        ...(Array.isArray(mission.recoveredMediaSourceAttempts)
+            ? mission.recoveredMediaSourceAttempts
+            : []),
+        ...recovered.map(item => ({
+            name: item.name,
+            args: item.args,
+            reason: item.reason,
+            observation: item.observation,
+            recoveredAt: now()
+        }))
+    ].slice(-12);
+    mission.blockedTasks = blocked.filter(item => item?.name !== "web.media.collect");
+    mission.errors = (Array.isArray(mission?.errors) ? mission.errors : [])
+        .filter(item => item?.tool !== "web.media.collect");
+    mission.reelMediaRecovery = {
+        ...(mission.reelMediaRecovery || {}),
+        active: false,
+        recovered: true,
+        recoveredAt: now()
+    };
+}
+
 export async function runJarvisMission({
     instruction,
     initialToolCalls = [],
@@ -1364,6 +1464,141 @@ export async function runJarvisMission({
                 continue;
             }
         }
+
+        const mediaRecovery =
+            reelMediaRecoveryState(
+                task,
+                mission
+            );
+        if (mediaRecovery) {
+            const deterministicRecovery =
+                deterministicReelMediaRecoveryCall(
+                    mediaRecovery
+                );
+            const deterministicTasks =
+                deterministicRecovery
+                    ? trustedCalls([deterministicRecovery], mission)
+                    : [];
+            if (deterministicTasks.length > 0) {
+                if (!mission.requiredToolNames.includes("web.media.collect")) {
+                    mission.requiredToolNames.push("web.media.collect");
+                }
+                mission.reelMediaRecovery = {
+                    ...mediaRecovery,
+                    strategy: "VERIFIED_UNUSED_SOURCE"
+                };
+                mission.pendingTasks.unshift(task);
+                mission.pendingTasks.unshift(...deterministicTasks);
+                mission.plannedTools.push(...deterministicTasks.map(item => item.name));
+                mission.updatedAt = now();
+                saveMission(persistence, mission);
+                continue;
+            }
+
+            if (mediaRecovery.attempts >= mediaRecovery.maxAttempts) {
+                const observation = {
+                    ok: false,
+                    executionOk: true,
+                    objectiveSatisfied: false,
+                    status: "REEL_MEDIA_SOURCE_RECOVERY_EXHAUSTED",
+                    requiresInput: false,
+                    requiresApproval: false,
+                    blocked: true,
+                    degraded: false,
+                    retryable: false,
+                    summary: "No se encontro una fuente visual verificable alternativa para completar el reel.",
+                    error: "REEL_MEDIA_SOURCE_RECOVERY_EXHAUSTED",
+                    evidence: {
+                        attemptedUrls: mediaRecovery.attemptedUrls,
+                        availableVerifiedSources: mediaRecovery.availableVerifiedSources,
+                        attempts: mediaRecovery.attempts
+                    }
+                };
+                mission.blockedTasks.push({
+                    ...task,
+                    status: "BLOCKED",
+                    observation,
+                    reason: observation.status,
+                    completedAt: now()
+                });
+                mission.errors.push({
+                    tool: "reel.create",
+                    status: observation.status,
+                    retryable: false,
+                    at: now()
+                });
+                mission.observations.push({
+                    tool: "reel.create",
+                    args: task.args,
+                    signature: task.signature,
+                    ...observation,
+                    at: now()
+                });
+                mission.reelMediaRecovery = {
+                    ...mediaRecovery,
+                    active: false,
+                    exhausted: true,
+                    exhaustedAt: now()
+                };
+                mission.reason = observation.status;
+                mission.updatedAt = now();
+                saveMission(persistence, mission);
+                break;
+            }
+
+            const recoveryForPlanner = {
+                ...mediaRecovery,
+                attempts: mediaRecovery.attempts + 1
+            };
+            mission.reelMediaRecovery = recoveryForPlanner;
+            let recoveryPlan;
+            try {
+                const plannerMission = structuredClone(mission);
+                plannerMission.phase = "REEL_MEDIA_SOURCE_RECOVERY";
+                plannerMission.reelMediaRecovery = structuredClone(recoveryForPlanner);
+                recoveryPlan = await planner({
+                    originalInstruction,
+                    routingInstruction: mission.routingInstruction,
+                    mission: plannerMission,
+                    memoryContext: memoryContext && typeof memoryContext === "object"
+                        ? structuredClone(memoryContext)
+                        : null
+                });
+            } catch (error) {
+                mission.errors.push({
+                    tool: "semantic.planner",
+                    status: text(error?.message || "REEL_MEDIA_RECOVERY_PLANNER_UNAVAILABLE", 500),
+                    retryable: true,
+                    at: now()
+                });
+                mission.pendingTasks.unshift(task);
+                mission.updatedAt = now();
+                saveMission(persistence, mission);
+                continue;
+            }
+            const recoveryCandidates =
+                reelMediaRecoveryAllowedCalls(
+                    recoveryPlan?.toolCalls || recoveryPlan || [],
+                    recoveryForPlanner
+                );
+            const recoveryTasks =
+                trustedCalls(
+                    recoveryCandidates,
+                    mission
+                );
+            if (recoveryTasks.length > 0) {
+                mission.pendingTasks.unshift(task);
+                mission.pendingTasks.unshift(...recoveryTasks);
+                mission.plannedTools.push(...recoveryTasks.map(item => item.name));
+                mission.updatedAt = now();
+                saveMission(persistence, mission);
+                continue;
+            }
+            mission.pendingTasks.unshift(task);
+            mission.updatedAt = now();
+            saveMission(persistence, mission);
+            continue;
+        }
         mission.iterations += 1;
         task.attempts += 1;
         let result;
@@ -1442,6 +1677,9 @@ export async function runJarvisMission({
         });
 
         if (observation.objectiveSatisfied) {
+            if (task.name === "web.media.collect") {
+                archiveRecoveredMediaSourceAttempts(mission, now);
+            }
             mission.completedTasks.push(record);
         } else if (observation.blocked) {
             mission.blockedTasks.push({
@@ -1518,4 +1756,4 @@ export function recoverJarvisMission(missionId, { storage } = {}) {
     return readMissions(storageOrMemory(storage)).find(item => item.missionId === missionId) || null;
 }
 
-export const __test = { callSignature, compactRoutingInstruction, isFailureStatus, safeObservation, trustedCalls, canonicalMissionEvidence, unwrapObservationPayload, explicitMissionHttpSourceUrls, verifiedResearchMediaSourceUrls, reelArgsHaveExplicitVisualMedia, verifiedCollectedVisualAssets, reelMediaDependencyCall };
+export const __test = { callSignature, compactRoutingInstruction, isFailureStatus, safeObservation, trustedCalls, canonicalMissionEvidence, unwrapObservationPayload, explicitMissionHttpSourceUrls, verifiedResearchMediaSourceUrls, reelArgsHaveExplicitVisualMedia, verifiedCollectedVisualAssets, reelMediaDependencyCall, reelMediaRecoveryState, reelMediaRecoveryAllowedCalls, deterministicReelMediaRecoveryCall, archiveRecoveredMediaSourceAttempts };

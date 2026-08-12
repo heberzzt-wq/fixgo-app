@@ -4332,7 +4332,7 @@ test("multifunction descriptor remains approval-bound", () => {
     assert.equal(planner.mutates, false);
     assert.equal(
         planner.version,
-        "4.18.0-reel-mission-fidelity-v133"
+        "4.19.0-reel-media-source-recovery-v136"
     );
     assert.equal(planner.maximumToolCalls, 12);
     assert.equal(planner.architecture, "model_selected_runtime_catalog");
