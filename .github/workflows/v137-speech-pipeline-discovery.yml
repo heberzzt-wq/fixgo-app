@@ -41,7 +41,13 @@ jobs:
           grep -RFn --exclude-dir=node_modules --exclude-dir=.git 'voiceover' gestia-core/jarvis gestia-core/nexo modules/terminal | head -n 160 || true
           echo '=== REEL CREATE REGISTRATION ==='
           grep -RFn --exclude-dir=node_modules --exclude-dir=.git 'name: "reel.create"' gestia-core | head -n 40 || true
+          echo '=== PLANNER NORMALIZATION INSERTION POINTS ==='
+          grep -n -B18 -A95 -E 'function normalizeExplicitSourceCandidates|function trustedPlanCalls|function verifiedResearchSourceUrls' gestia-core/jarvis/jarvis.multifunction.planner.js || true
+          echo '=== RUNTIME AUDIO HYDRATION ==='
+          grep -n -B18 -A100 -E 'function hydrateReelAudioArgs|function missionTasks' gestia-core/nexo/nexo.real-media.runtime-guard-v128.js || true
           echo '=== BRIDGE ROUTES NEAR REEL ==='
           grep -n -B8 -A35 'app.post("/reel/create"' jarvis-fs-bridge.js || true
+          echo '=== BRIDGE DESCRIPTION ==='
+          grep -n -B8 -A95 'export function describeJarvisFsBridge' jarvis-fs-bridge.js || true
           echo '=== ARTIFACT REGISTRATION ==='
           grep -n -B4 -A18 'registerArtifact' jarvis-fs-bridge.js | head -n 160 || true
