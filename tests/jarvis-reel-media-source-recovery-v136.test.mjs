@@ -211,7 +211,7 @@ test("v136 repeated blocked media source exhausts recovery without executing ree
     ), true);
 });
 
-test("v136 browser cache chain points at reel media recovery modules", async () => {
+test("v136 reel media recovery remains reachable through the current browser cache chain", async () => {
     const fs = await import("node:fs");
     const planner = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.multifunction.planner.js", import.meta.url), "utf8");
     const core = fs.readFileSync(new URL("../gestia-core/gestia-core.js", import.meta.url), "utf8");
@@ -219,7 +219,8 @@ test("v136 browser cache chain points at reel media recovery modules", async () 
     const html = fs.readFileSync(new URL("../gestia-terminal.html", import.meta.url), "utf8");
     assert.match(planner, /REEL_MEDIA_SOURCE_RECOVERY/);
     assert.match(planner, /No reutilices URLs de reelMediaRecovery\.attemptedUrls/);
-    assert.match(core, /v136-reel-media-source-recovery-20260812/);
-    assert.match(pack, /v136-reel-media-source-recovery-20260812/);
-    assert.match(html, /gestia-core\/gestia-core\.js\?v=v136-reel-media-source-recovery-20260812/);
+    assert.match(core, /jarvis\.multifunction\.planner\.js\?v=v136-reel-media-source-recovery-20260812/);
+    assert.match(core, /jarvis\.mission\.orchestrator\.js\?v=v137-local-speech-synthesis-20260812/);
+    assert.match(pack, /jarvis\.multifunction\.planner\.js\?v=v136-reel-media-source-recovery-20260812/);
+    assert.match(html, /gestia-core\/gestia-core\.js\?v=v137-local-speech-synthesis-20260812/);
 });
