@@ -138,3 +138,24 @@ if s.count(marker) != 1:
     raise SystemExit('SEMANTIC_MEMORY_TEST_INSERTION_MISMATCH')
 s = s.replace(marker, insertion + marker, 1)
 test.write_text(s)
+
+fresh = Path('tests/jarvis-current-turn-freshness-v119.test.mjs')
+s = fresh.read_text()
+old = '''test("terminal shell forces the v119 current-turn runtime instead of cached v116-v117 entrypoints", () => {
+    const html = fs.readFileSync(new URL("../gestia-terminal.html", import.meta.url), "utf8");
+    const release = "v94-page-evidence-failclosed-v123-20260810";
+    assert.match(html, new RegExp(`gestia-core\\\\/gestia-core\\\\.js\\\\?v=${release}`));
+    assert.equal((html.match(new RegExp(`gestia-terminal\\\\.js\\\\?v=${release}`, "g")) || []).length, 2);
+    assert.match(html, new RegExp(`gestia-core\\\\/gestia\\\\.runtime\\\\.v7\\\\.js\\\\?v=${release}`));
+    assert.doesNotMatch(html, /gestia-core\\/gestia-core\\.js\\?v=v94-runtime-health-truth-v116-20260809/);
+});'''
+new = '''test("terminal shell forces current runtime entrypoints instead of cached v116-v117 entrypoints", () => {
+    const html = fs.readFileSync(new URL("../gestia-terminal.html", import.meta.url), "utf8");
+    assert.match(html, /gestia-core\\/gestia-core\\.js\\?v=v139-real-reel-e2e-20260812/);
+    assert.equal((html.match(/gestia-terminal\\.js\\?v=v94-source-grounded-research-v124-20260810/g) || []).length, 2);
+    assert.match(html, /gestia-core\\/gestia\\.runtime\\.v7\\.js\\?v=v94-source-grounded-research-v124-20260810/);
+    assert.doesNotMatch(html, /gestia-core\\/gestia-core\\.js\\?v=v94-runtime-health-truth-v116-20260809/);
+});'''
+if s.count(old) != 1:
+    raise SystemExit(f'FRESHNESS_STALE_CACHE_ASSERT_MISMATCH:{s.count(old)}')
+fresh.write_text(s.replace(old, new, 1))
