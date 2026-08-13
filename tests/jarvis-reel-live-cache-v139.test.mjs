@@ -31,3 +31,21 @@ test("v139 runtime refreshes the multifunction pack used by web research and ree
   assert.doesNotMatch(runtime, /jarvis\.multitool\.pack\.js\?v=v94-marketing-actuator-bridge-v126-20260810/);
   assert.match(runtime, /jarvis\.actuator\.pack\.js\?v=v138-native-mp4-reel-export-20260812/);
 });
+
+test("v139 transient planner resilience stays semantic and bounded", () => {
+  assert.match(core, /buildMissionToolCallsWithTransientRetry/);
+  assert.match(core, /MISSION_SEMANTIC_PLANNER_TRANSIENT_RETRY/);
+  assert.match(core, /attempt <= 3/);
+  assert.match(core, /maximumRetries:\s*2/);
+  assert.doesNotMatch(core, /TRANSIENT_LEXICAL_ROUTER/);
+});
+
+test("v139 transient media resilience retries only browser transport failures", () => {
+  assert.match(core, /WEB_MEDIA_TRANSIENT_RETRY/);
+  assert.match(core, /BROWSER_NETWORK_MEDIA_FAILED/);
+  assert.match(core, /BROWSER_NETWORK_MEDIA_EMPTY/);
+  assert.match(core, /browserFallback\?\.attempted === true/);
+  assert.match(core, /mediaResult\?\.objectiveSatisfied !== true/);
+});
+
+// v139-transient-resilience-20260813

@@ -10102,3 +10102,4 @@ if (window.JarvisToolRuntime?.register && !window.__JARVIS_CODEX_PATCH_TOOL_41_1
     isDangerousPatch
   };
 })();
+// v139-transient-resilience-20260813

@@ -4414,6 +4414,32 @@ if (
         );
     const continuationContext =
         missionInitialToolCalls.find(call => call?.name === "marketing.plan")?.args || {};
+    const buildMissionToolCallsWithTransientRetry =
+        async (plannerInstruction, plannerOptions) => {
+            let lastPlannerError = null;
+            for (let attempt = 1; attempt <= 3; attempt += 1) {
+                try {
+                    return await buildJarvisMultifunctionToolCalls(
+                        plannerInstruction,
+                        plannerOptions
+                    );
+                }
+                catch (error) {
+                    lastPlannerError = error;
+                    if (attempt >= 3) throw error;
+                    console.warn(
+                        "[MISSION_SEMANTIC_PLANNER_TRANSIENT_RETRY]",
+                        attempt,
+                        error?.message || "SEMANTIC_PLANNER_UNAVAILABLE"
+                    );
+                    await new Promise(resolve =>
+                        setTimeout(resolve, 500 * attempt)
+                    );
+                }
+            }
+            throw lastPlannerError || new Error("SEMANTIC_PLANNER_UNAVAILABLE");
+        };
+
     const missionResult =
         await runJarvisMission({
             instruction:
@@ -4433,7 +4459,7 @@ if (
             maximumSteps:
                 20,
             maximumRetries:
-                1,
+                2,
             timeoutMs:
                 missionInitialToolCalls
                     .some(call =>
@@ -4480,7 +4506,7 @@ if (
 
                         if (completionAuditCatalog.length > 0) {
                             const completionAuditToolCalls =
-                                await buildJarvisMultifunctionToolCalls(
+                                await buildMissionToolCallsWithTransientRetry(
                                     originalInstruction.slice(0, 120000),
                                     {
                                         ...context,
@@ -4626,7 +4652,7 @@ if (
                         };
                     }
                     const nextToolCalls =
-                        await buildJarvisMultifunctionToolCalls(
+                        await buildMissionToolCallsWithTransientRetry(
                             originalInstruction.slice(0, 120000),
                             {
                                 ...context,
@@ -5167,28 +5193,64 @@ if (
                         }
                     }
 
-                    const results = await window.ToolsBridge.executeMany(
-                        [
-                            executionCall
-                        ],
-                        {
-                            ...context,
-                            ...missionContext,
-                            tenantId,
-                            analysisId,
-                            rol,
-                            authorityId:
-                                verifiedAuthorityId,
-                            learningHints:
-                                agentLearningHints,
-                            reasoning:
-                                propuesta.cognition ||
-                                propuesta.reasoning ||
-                                null,
-                            approved:
-                                false
+                    const executeMissionToolOnce =
+                        async () =>
+                            window.ToolsBridge.executeMany(
+                                [
+                                    executionCall
+                                ],
+                                {
+                                    ...context,
+                                    ...missionContext,
+                                    tenantId,
+                                    analysisId,
+                                    rol,
+                                    authorityId:
+                                        verifiedAuthorityId,
+                                    learningHints:
+                                        agentLearningHints,
+                                    reasoning:
+                                        propuesta.cognition ||
+                                        propuesta.reasoning ||
+                                        null,
+                                    approved:
+                                        false
+                                }
+                            );
+                    let results =
+                        await executeMissionToolOnce();
+
+                    if (call?.name === "web.media.collect") {
+                        for (let attempt = 1; attempt <= 2; attempt += 1) {
+                            const mediaResult = results?.[0] || {};
+                            const browserFallback =
+                                mediaResult?.browserFallback ||
+                                mediaResult?.evidence?.browserFallback ||
+                                mediaResult?.result?.browserFallback ||
+                                null;
+                            const browserStatus =
+                                String(browserFallback?.status || "");
+                            const transientMediaFailure =
+                                mediaResult?.objectiveSatisfied !== true &&
+                                browserFallback?.attempted === true &&
+                                [
+                                    "BROWSER_NETWORK_MEDIA_FAILED",
+                                    "BROWSER_NETWORK_MEDIA_EMPTY"
+                                ].includes(browserStatus);
+                            if (!transientMediaFailure) break;
+                            console.warn(
+                                "[WEB_MEDIA_TRANSIENT_RETRY]",
+                                attempt,
+                                browserStatus
+                            );
+                            await new Promise(resolve =>
+                                setTimeout(resolve, 500 * attempt)
+                            );
+                            results =
+                                await executeMissionToolOnce();
                         }
-                    );
+                    }
+
                     const result =
                         results[0] ||
                         {

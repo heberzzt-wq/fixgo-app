@@ -224,3 +224,4 @@ test("v136 reel media recovery remains reachable through the current browser cac
     assert.match(pack, /jarvis\.multifunction\.planner\.js\?v=v136-reel-media-source-recovery-20260812/);
     assert.match(html, /gestia-core\/gestia-core\.js\?v=v139-real-reel-e2e-20260812/);
 });
+// v139-transient-resilience-20260813
