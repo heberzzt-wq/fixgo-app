@@ -1,0 +1,89 @@
+name: v139 materialize proven fixes
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/v139-materialize-proven-fixes.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Guard isolated branch and untouched Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
+          test "$(git rev-parse HEAD^)" = "d2baaed3e29a7b7f69ba01f6f4c55cde1d039282"
+          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
+      - run: npm ci
+      - name: Materialize only candidate fixes already proven green
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          p=Path('tests/jarvis-multifunction-tools.test.mjs'); s=p.read_text()
+          one='    assert.match(core, /v94-page-browser-fallback-v115-20260809/);\n'
+          two='    assert.match(\n        core,\n        /v94-page-browser-fallback-v115-20260809/\n    );\n'
+          if s.count(one)!=1 or s.count(two)!=1: raise SystemExit('V139_V115_STALE_ASSERT_COUNT_MISMATCH')
+          p.write_text(s.replace(one,'',1).replace(two,'',1))
+
+          p=Path('tests/jarvis-semantic-memory-integrity.test.mjs'); s=p.read_text()
+          old='    assert.match(core, /tools\\.runtime\\.js\\?v=v94-marketing-actuator-bridge-v126-20260810/);\n'
+          if s.count(old)!=1: raise SystemExit('V139_V126_STALE_ASSERT_COUNT_MISMATCH')
+          p.write_text(s.replace(old,'',1))
+
+          p=Path('jarvis-reel-artifact.js'); s=p.read_text()
+          old='export function describeReelStudio(input = {}, html = "") {\n    return {'
+          new='export function describeReelStudio(input = {}, html = "") {\n    const semanticText = [\n        input.brandName,\n        input.title,\n        input.cta,\n        ...(Array.isArray(input.scenes)\n            ? input.scenes.flatMap(scene => [scene?.overlay, scene?.subtitle, scene?.visualDescription])\n            : [])\n    ].map(value => clean(value)).filter(Boolean).join("\\n");\n    return {'
+          if s.count(old)!=1: raise SystemExit('V139_DESCRIBE_REEL_ANCHOR_MISMATCH')
+          s=s.replace(old,new,1)
+          old2='            noPlaceholders: !html.includes("TODO") && !html.includes("Lorem ipsum")'
+          new2='            noPlaceholders: !/\\bTODO\\b/i.test(semanticText) && !/Lorem ipsum/i.test(semanticText)'
+          if s.count(old2)!=1: raise SystemExit('V139_NO_PLACEHOLDERS_ANCHOR_MISMATCH')
+          p.write_text(s.replace(old2,new2,1))
+
+          p=Path('.github/workflows/v139-real-reel-e2e-cert.yml'); s=p.read_text()
+          start='      - name: Start local Jarvis bridge\n'
+          mission='      - name: Run canonical human reel mission against exact TikTok source\n'
+          a=s.find(start); b=s.find(mission)
+          if a < 0 or b <= a: raise SystemExit('V139_WINDOWS_STEP_ANCHOR_MISMATCH')
+          s=s[:a]+s[b:]
+          old_name='      - name: Run canonical human reel mission against exact TikTok source\n        shell: pwsh\n        run: |\n'
+          new_name='      - name: Start bridge and run canonical human reel mission in same step\n        shell: pwsh\n        run: |\n          $stdout = Join-Path $env:RUNNER_TEMP \'v139-bridge.stdout.log\'\n          $stderr = Join-Path $env:RUNNER_TEMP \'v139-bridge.stderr.log\'\n          $process = Start-Process -FilePath node -ArgumentList \'jarvis-fs-bridge.js\' -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr\n          $process.Id | Set-Content -LiteralPath (Join-Path $env:RUNNER_TEMP \'v139-bridge.pid\')\n          $ready = $false\n          for ($i = 0; $i -lt 40; $i++) {\n            Start-Sleep -Milliseconds 250\n            $probe = Test-NetConnection -ComputerName 127.0.0.1 -Port 3344 -WarningAction SilentlyContinue\n            if ($probe.TcpTestSucceeded) { $ready = $true; break }\n            if ($process.HasExited) { break }\n          }\n          if (-not $ready) {\n            Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue\n            Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue\n            throw \'V139_LOCAL_BRIDGE_NOT_READY\'\n          }\n          Write-Host "V139_BRIDGE_PID=$($process.Id)"\n'
+          if s.count(old_name)!=1: raise SystemExit('V139_WINDOWS_MISSION_ANCHOR_MISMATCH')
+          p.write_text(s.replace(old_name,new_name,1))
+          PY
+          npm install 'acorn@^8.17.0' --save --ignore-scripts
+          rm -f .github/workflows/v139-materialize-proven-fixes.yml
+          git diff --check
+          if git diff --name-only | grep -E '^functions/'; then echo 'FUNCTIONS_CHANGED'; exit 1; fi
+      - name: Focused regression before commit
+        run: node --test tests/jarvis-reel-artifact.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs tests/repo-authority-v2.test.cjs
+      - name: Full CI before commit
+        run: npm run ci:test
+      - name: Commit proven fixes to isolated branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package.json package-lock.json jarvis-reel-artifact.js tests/jarvis-multifunction-tools.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs .github/workflows/v139-real-reel-e2e-cert.yml .github/workflows/v139-materialize-proven-fixes.yml
+          ! git diff --cached --name-only | grep -E '^functions/'
+          git commit -m 'fix(v139): materialize proven reel and CI corrections'
+          git push origin HEAD:v94-media-v4n-negative-claims
