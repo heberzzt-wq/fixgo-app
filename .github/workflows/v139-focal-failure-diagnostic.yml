@@ -1,4 +1,4 @@
-name: v139 focal failure diagnostic
+name: v139 full ci failure diagnostic
 
 on:
   push:
@@ -12,12 +12,14 @@ permissions:
   contents: read
 
 jobs:
-  diagnose-v139-focal:
+  diagnose-v139-full-ci:
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 55
     steps:
       - name: Checkout isolated branch
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -25,34 +27,31 @@ jobs:
           cache: npm
       - name: Install root dependencies
         run: npm ci
+      - name: Install Functions test dependencies without modifying source
+        run: npm ci --prefix functions
       - name: Guard branch and Functions
         shell: bash
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
           ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
-      - name: Materialize v139 cache candidate
-        run: python .github/scripts/v139-live-reel-cache-apply.py
-      - name: Run focal and print only failures
+      - name: Run Full CI and expose exact failure
         shell: bash
         run: |
           set +e
-          node --test \
-            tests/jarvis-reel-live-cache-v139.test.mjs \
-            tests/jarvis-reel-native-mp4-v138.test.mjs \
-            tests/jarvis-reel-speech-v137.test.mjs \
-            tests/jarvis-reel-media-source-recovery-v136.test.mjs \
-            tests/nexo-browser-media-fallback-v135.test.mjs \
-            tests/jarvis-reel-real-production-v134.test.mjs \
-            tests/jarvis-reel-mission-fidelity-v133.test.mjs \
-            tests/jarvis-reel-researched-media-v132.test.mjs \
-            tests/jarvis-mission-orchestrator.test.mjs \
-            > /tmp/v139-focal.tap 2>&1
+          npm run ci:test > /tmp/v139-full-ci.log 2>&1
           code=$?
-          echo '===== V139_FAILING_SUBTESTS ====='
-          grep -E '^not ok [0-9]+ - ' /tmp/v139-focal.tap || true
-          echo '===== V139_ASSERTION_LOCATIONS ====='
-          grep -E '^[[:space:]]*(at |file:|error:|expected:|actual:)' /tmp/v139-focal.tap || true
-          echo '===== V139_SUMMARY ====='
-          grep -E '^# (tests|pass|fail|cancelled|skipped|todo|duration_ms) ' /tmp/v139-focal.tap || true
+          echo '===== V139_FULL_CI_FAILING_SUBTESTS ====='
+          grep -E '^not ok [0-9]+ - |^# Subtest:|AssertionError|ERR_ASSERTION|npm ERR!|Error:|error:' /tmp/v139-full-ci.log | tail -n 160 || true
+          echo '===== V139_FULL_CI_ASSERTION_DETAILS ====='
+          grep -E '^[[:space:]]*(at |file:|expected:|actual:|operator:|code:|stack:)' /tmp/v139-full-ci.log | tail -n 160 || true
+          echo '===== V139_FULL_CI_TAIL ====='
+          tail -n 220 /tmp/v139-full-ci.log || true
+          if [ "$code" -ne 0 ]; then
+            first_failure="$(grep -E -m1 '^not ok [0-9]+ - |AssertionError|ERR_ASSERTION|npm ERR!|Error:|error:' /tmp/v139-full-ci.log || true)"
+            first_failure="${first_failure//'%'/'%25'}"
+            first_failure="${first_failure//$'\r'/'%0D'}"
+            first_failure="${first_failure//$'\n'/'%0A'}"
+            echo "::error title=V139 Full CI failure::${first_failure:-npm run ci:test exited with code $code}"
+          fi
           exit "$code"
