@@ -214,8 +214,9 @@ const CORE_CONFIG = {
     }
 };
 import {
-    JarvisSemanticMemory
-} from '/gestia-core/jarvis/jarvis.semantic.memory.js?v=v94-semantic-memory-v1-20260809';
+    JarvisSemanticMemory,
+    compactJarvisSemanticMemoryForPlanner
+} from '/gestia-core/jarvis/jarvis.semantic.memory.js?v=v139-semantic-continuity-20260813';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
 import '/gestia-core/tools.runtime.js?v=v139-real-reel-e2e-20260812';
 import '/gestia-core/response.composer.js?v=v94-live-human-reds-v113-20260809';
@@ -3813,6 +3814,7 @@ export const GestiaCore = {
                     missionState: {
                         phase: "CURRENT_TURN",
                         semanticMemoryAvailable: Boolean(semanticMemory),
+                        advisorySemanticContext: compactJarvisSemanticMemoryForPlanner(semanticMemory),
                         writeAllowed: false
                     }
                 }
@@ -4288,7 +4290,8 @@ if (
                         writeAllowed: false,
                         userArtifactAllowed: true,
                         existingInitialTools: operationalInitialToolCalls.map(call => call?.name).filter(Boolean),
-                        semanticMemoryAvailable: Boolean(semanticMemoryContext)
+                        semanticMemoryAvailable: Boolean(semanticMemoryContext),
+                        advisorySemanticContext: compactJarvisSemanticMemoryForPlanner(semanticMemoryContext)
                     }
                 }
             );
@@ -4533,7 +4536,8 @@ if (
                                                 false,
                                             userArtifactAllowed:
                                                 true,
-                                            semanticMemoryAvailable: Boolean(semanticMemoryContext)
+                                            semanticMemoryAvailable: Boolean(semanticMemoryContext),
+                        advisorySemanticContext: compactJarvisSemanticMemoryForPlanner(semanticMemoryContext)
                                         }
                                     }
                                 );
@@ -4660,7 +4664,8 @@ if (
                                     iterations: mission.iterations,
                                     writeAllowed: false,
                                     userArtifactAllowed: true,
-                                    semanticMemoryAvailable: Boolean(semanticMemoryContext)
+                                    semanticMemoryAvailable: Boolean(semanticMemoryContext),
+                        advisorySemanticContext: compactJarvisSemanticMemoryForPlanner(semanticMemoryContext)
                                 }
                             }
                         );

@@ -221,6 +221,56 @@ export function createJarvisSemanticMemory({
     };
 }
 
+
+export function compactJarvisSemanticMemoryForPlanner(memory = {}) {
+    const currentConversationId = clean(memory?.currentConversationId, 240);
+    const belongsToCurrentConversation = item =>
+        Boolean(currentConversationId) && clean(item?.conversationId, 240) === currentConversationId;
+    const turns = (Array.isArray(memory?.turns) ? memory.turns : [])
+        .filter(belongsToCurrentConversation)
+        .slice(-12)
+        .map(item => ({
+            role: clean(item?.role, 40),
+            content: clean(item?.content, 4000),
+            missionId: clean(item?.missionId, 240),
+            status: clean(item?.status, 120)
+        }));
+    const missions = (Array.isArray(memory?.missions) ? memory.missions : [])
+        .filter(belongsToCurrentConversation)
+        .slice(-6)
+        .map(item => ({
+            missionId: clean(item?.missionId, 240),
+            instruction: clean(item?.instruction, 6000),
+            missionStatus: clean(item?.missionStatus, 120),
+            missionReason: clean(item?.missionReason, 160),
+            completedTools: Array.isArray(item?.completedTools)
+                ? item.completedTools.map(value => clean(value, 120)).filter(Boolean).slice(0, 30)
+                : [],
+            blockedTools: Array.isArray(item?.blockedTools)
+                ? item.blockedTools.map(value => clean(value, 120)).filter(Boolean).slice(0, 30)
+                : [],
+            finalText: clean(item?.finalText, 8000),
+            producedArtifacts: Array.isArray(item?.producedArtifacts)
+                ? item.producedArtifacts.map(artifact => ({
+                    label: clean(artifact?.label, 240),
+                    output: clean(artifact?.output, 800)
+                })).filter(artifact => artifact.label || artifact.output).slice(0, 20)
+                : []
+        }));
+    return {
+        authority: 'ADVISORY_SEMANTIC_MEMORY',
+        currentConversationId,
+        turns,
+        missions,
+        policy: {
+            currentInstructionPrimary: true,
+            memoryNeverBecomesCurrentMissionEvidence: true,
+            noLexicalRouting: true,
+            relevanceDecidedBySemanticModel: true
+        }
+    };
+}
+
 export const JarvisSemanticMemory = createJarvisSemanticMemory();
 export const JARVIS_SEMANTIC_MEMORY_VERSION = VERSION;
 

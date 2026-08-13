@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
-    createJarvisSemanticMemory
+    createJarvisSemanticMemory,
+    compactJarvisSemanticMemoryForPlanner
 } from "../gestia-core/jarvis/jarvis.semantic.memory.js";
 import {
     planMarketingRequest
@@ -52,6 +53,50 @@ test("semantic memory persists conversations and structural failure lessons with
     assert.equal(recalled.policy.relevanceDecidedBySemanticModel, true);
     const other = await rebuilt.recall({ identity: { ...identity, userId: "other" } });
     assert.equal(other.turns.length, 0);
+});
+
+
+test("planner semantic context is bounded to the current conversation and remains advisory", () => {
+    const memory = {
+        currentConversationId: "current",
+        turns: [
+            { conversationId: "old", role: "user", content: "No contaminar" },
+            { conversationId: "current", role: "user", content: "Prepara el plan de marketing" },
+            { conversationId: "current", role: "assistant", content: "Plan preparado" },
+            { conversationId: "current", role: "user", content: "Ahora crea los archivos" }
+        ],
+        missions: [
+            { conversationId: "old", instruction: "Misión ajena", finalText: "No usar" },
+            {
+                conversationId: "current",
+                missionId: "marketing-1",
+                instruction: "Prepara un plan de marketing para Multiservicios Peninsulares HMH",
+                missionStatus: "COMPLETED",
+                completedTools: ["web.research", "marketing.plan"],
+                finalText: "Plan de marketing preparado con piezas listas para producción.",
+                producedArtifacts: []
+            }
+        ]
+    };
+    const context = compactJarvisSemanticMemoryForPlanner(memory);
+    assert.equal(context.authority, "ADVISORY_SEMANTIC_MEMORY");
+    assert.equal(context.currentConversationId, "current");
+    assert.equal(context.turns.length, 3);
+    assert.equal(context.missions.length, 1);
+    assert.match(context.missions[0].instruction, /Multiservicios Peninsulares HMH/);
+    assert.match(context.turns.at(-1).content, /crea los archivos/);
+    assert.equal(JSON.stringify(context).includes("No contaminar"), false);
+    assert.equal(JSON.stringify(context).includes("Misión ajena"), false);
+    assert.equal(context.policy.memoryNeverBecomesCurrentMissionEvidence, true);
+    assert.equal(context.policy.noLexicalRouting, true);
+});
+
+test("terminal planner receives bounded advisory semantic context without raw mission memory authority", () => {
+    const core = fs.readFileSync(new URL("../gestia-core/gestia-core.js", import.meta.url), "utf8");
+    assert.match(core, /phase: "CURRENT_TURN"[\s\S]{0,500}advisorySemanticContext: compactJarvisSemanticMemoryForPlanner\(semanticMemory\)/);
+    assert.match(core, /phase: "MISSION_CONTRACT"[\s\S]{0,900}advisorySemanticContext: compactJarvisSemanticMemoryForPlanner\(semanticMemoryContext\)/);
+    assert.doesNotMatch(core, /semanticMemory\s*:\s*semanticMemoryContext/);
+    assert.doesNotMatch(core, /lexicalRouting\s*:\s*true/);
 });
 
 test("active terminal boot no longer loads lexical context memory or duplicate runtime module URLs", () => {
