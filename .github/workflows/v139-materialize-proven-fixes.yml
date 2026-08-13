@@ -27,7 +27,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
-          test "$(git rev-parse HEAD^)" = "a50ea033c1d5a50bbb43ff0bb22222ffb65d5a9b"
+          test "$(git rev-parse HEAD^)" = "0702921edbbac1bc2ad48951f887101dbf2f7ae5"
           ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..HEAD | grep -E '^(functions/|multiservicios-web/)'
       - run: npm ci
       - name: Apply bounded semantic continuity candidate in runner only
@@ -42,8 +42,12 @@ jobs:
         run: node --test tests/jarvis-generalist-current-turn.test.mjs
       - name: Generalist execution contract
         run: node --test tests/jarvis-generalist-execution-contract-v122.test.mjs
-      - name: Current turn freshness
-        run: node --test tests/jarvis-current-turn-freshness-v119.test.mjs
+      - name: Freshness current subject authority
+        run: node --test --test-name-pattern="new page subject" tests/jarvis-current-turn-freshness-v119.test.mjs
+      - name: Freshness memory boundary
+        run: node --test --test-name-pattern="tool-planning" tests/jarvis-current-turn-freshness-v119.test.mjs
+      - name: Freshness terminal cache authority
+        run: node --test --test-name-pattern="terminal shell" tests/jarvis-current-turn-freshness-v119.test.mjs
       - name: Marketing production intent
         run: node --test tests/jarvis-marketing-production-intent-v125.test.mjs
       - name: Marketing real delivery
