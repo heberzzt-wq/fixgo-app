@@ -7,10 +7,10 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  stale-contract-cleanup:
+  linux-post-cleanup-diagnostic:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -21,107 +21,51 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - name: Install root dependencies
-        run: npm ci
-      - name: Guard branch and Functions
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
-          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
-      - name: Remove only proven stale release literals
-        id: cleanup
+      - run: npm ci
+      - name: Apply proven stale-assert cleanup in workspace only
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
-          changed = False
-
-          p = Path('tests/jarvis-multifunction-tools.test.mjs')
-          s = p.read_text()
-          one = '    assert.match(core, /v94-page-browser-fallback-v115-20260809/);\n'
-          two = '    assert.match(\n        core,\n        /v94-page-browser-fallback-v115-20260809/\n    );\n'
-          c1, c2 = s.count(one), s.count(two)
-          if (c1 not in (0,1)) or (c2 not in (0,1)):
-              raise SystemExit(f'unexpected v115 counts compact={c1} multiline={c2}')
-          if c1 or c2:
-              if c1 != 1 or c2 != 1:
-                  raise SystemExit(f'partial stale v115 state compact={c1} multiline={c2}')
-              p.write_text(s.replace(one, '', 1).replace(two, '', 1))
-              changed = True
-
-          p = Path('tests/jarvis-semantic-memory-integrity.test.mjs')
-          s = p.read_text()
-          old = '    assert.match(core, /tools\\.runtime\\.js\\?v=v94-marketing-actuator-bridge-v126-20260810/);\n'
-          c3 = s.count(old)
-          if c3 not in (0,1):
-              raise SystemExit(f'unexpected v126 count={c3}')
-          if c3:
-              p.write_text(s.replace(old, '', 1))
-              changed = True
-
-          Path('.v139-stale-cleanup-state').write_text('changed=true\n' if changed else 'changed=false\n')
+          p=Path('tests/jarvis-multifunction-tools.test.mjs'); s=p.read_text()
+          one='    assert.match(core, /v94-page-browser-fallback-v115-20260809/);\n'
+          two='    assert.match(\n        core,\n        /v94-page-browser-fallback-v115-20260809/\n    );\n'
+          if s.count(one)!=1 or s.count(two)!=1: raise SystemExit('V139_V115_STALE_ASSERT_COUNT_MISMATCH')
+          p.write_text(s.replace(one,'',1).replace(two,'',1))
+          p=Path('tests/jarvis-semantic-memory-integrity.test.mjs'); s=p.read_text()
+          old='    assert.match(core, /tools\\.runtime\\.js\\?v=v94-marketing-actuator-bridge-v126-20260810/);\n'
+          if s.count(old)!=1: raise SystemExit('V139_V126_STALE_ASSERT_COUNT_MISMATCH')
+          p.write_text(s.replace(old,'',1))
           PY
-          cat .v139-stale-cleanup-state >> "$GITHUB_OUTPUT"
-          rm -f .v139-stale-cleanup-state
           git diff --check
-          git diff -- tests/jarvis-multifunction-tools.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs
-      - name: Focused tests after cleanup
-        if: steps.cleanup.outputs.changed == 'true'
+      - name: Focused tests
         run: node --test tests/jarvis-multifunction-tools.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs
-      - name: Full CI after cleanup
-        if: steps.cleanup.outputs.changed == 'true'
-        run: npm run ci:test
-      - name: Commit exact cleanup
-        if: steps.cleanup.outputs.changed == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -z "$(git diff --name-only | grep -Ev '^(tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-memory-integrity.test.mjs)$' || true)"
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add tests/jarvis-multifunction-tools.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs
-          git commit -m 'test(v139): remove stale release literal assertions'
-          git push origin HEAD:v94-media-v4n-negative-claims
-
-  linux-full-ci-diagnostic:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-      - name: Install root dependencies
-        run: npm ci
-      - name: Run full CI and publish exact failures
+      - name: Full CI after cleanup with exact diagnostics
         shell: bash
         run: |
           set +e
-          npm run ci:test > v139-full-ci.log 2>&1
+          npm run ci:test > v139-post-cleanup.log 2>&1
           status=$?
-          cat v139-full-ci.log
+          cat v139-post-cleanup.log
           if [ "$status" -ne 0 ]; then
             python - <<'PY'
           from pathlib import Path
-          lines = Path('v139-full-ci.log').read_text(errors='replace').splitlines()
-          needles = ('not ok ', 'AssertionError', 'ERR_ASSERTION', 'Error:', 'expected:', 'actual:')
-          hits = [i for i,l in enumerate(lines) if any(n in l for n in needles)]
-          emitted = set()
+          lines=Path('v139-post-cleanup.log').read_text(errors='replace').splitlines()
+          needles=('not ok ','AssertionError','ERR_ASSERTION','Error:','expected:','actual:','npm error','npm ERR')
+          hits=[i for i,l in enumerate(lines) if any(n in l for n in needles)]
+          if not hits: hits=[max(0,len(lines)-1)]
+          emitted=set()
           for hit in hits:
-              block=' | '.join(lines[max(0,hit-6):min(len(lines),hit+18)]).replace('%','%25').replace('\r','%0D').replace('\n','%0A')
+              block=' | '.join(lines[max(0,hit-10):min(len(lines),hit+28)]).replace('%','%25').replace('\r','%0D').replace('\n','%0A')
               if block in emitted: continue
               emitted.add(block)
-              print(f'::error title=V139 Full CI failure::{block}')
+              print(f'::error title=V139 post-cleanup Full CI failure::{block}')
           PY
           fi
           exit "$status"
 
-  windows-canonical-diagnostic:
+  windows-same-step-canonical:
     runs-on: windows-latest
     timeout-minutes: 18
     steps:
@@ -132,72 +76,56 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - name: Install root dependencies
-        run: npm ci
+      - run: npm ci
       - name: Guard branch and Functions
         shell: pwsh
         run: |
           if ($env:GITHUB_REF_NAME -ne 'v94-media-v4n-negative-claims') { throw 'WRONG_BRANCH' }
           $changed = git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD
           if ($changed -match '^functions/') { throw 'FUNCTIONS_CHANGED' }
-      - name: Start local Jarvis bridge
+      - name: Start bridge and execute exact canonical mission in same step
         shell: pwsh
         run: |
-          $stdout = Join-Path $env:RUNNER_TEMP 'v139-diag-bridge.stdout.log'
-          $stderr = Join-Path $env:RUNNER_TEMP 'v139-diag-bridge.stderr.log'
-          $env:RUNNER_TRACKING_ID = ''
+          $stdout = Join-Path $env:RUNNER_TEMP 'v139-same-step-bridge.stdout.log'
+          $stderr = Join-Path $env:RUNNER_TEMP 'v139-same-step-bridge.stderr.log'
           $process = Start-Process -FilePath node -ArgumentList 'jarvis-fs-bridge.js' -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
-          $process.Id | Set-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'v139-diag-bridge.pid')
-          $ready = $false
-          for ($i = 0; $i -lt 40; $i++) {
-            Start-Sleep -Milliseconds 250
-            $probe = Test-NetConnection -ComputerName 127.0.0.1 -Port 3344 -WarningAction SilentlyContinue
-            if ($probe.TcpTestSucceeded) { $ready = $true; break }
-            if ($process.HasExited) { break }
-          }
-          if (-not $ready) { throw 'V139_DIAG_BRIDGE_NOT_READY' }
-      - name: Execute exact canonical mission and publish exact exception
-        shell: pwsh
-        run: |
           try {
-            $workflow = Get-Content -Raw -LiteralPath '.github/workflows/v139-real-reel-e2e-cert.yml'
-            $pattern = "(?s)          @'\r?\n(?<script>.*?)\r?\n          '@ \| node --input-type=module -"
-            $match = [regex]::Match($workflow, $pattern)
-            if (-not $match.Success) { throw 'V139_DIAG_CANONICAL_BLOCK_NOT_FOUND' }
-            $script = $match.Groups['script'].Value
-            $script = ($script -split "`r?`n" | ForEach-Object { if ($_.StartsWith('          ')) { $_.Substring(10) } else { $_ } }) -join "`n"
-            $scriptPath = Join-Path $env:GITHUB_WORKSPACE '.v139-canonical-exact.mjs'
+            $ready=$false
+            for ($i=0; $i -lt 40; $i++) {
+              Start-Sleep -Milliseconds 250
+              $probe=Test-NetConnection -ComputerName 127.0.0.1 -Port 3344 -WarningAction SilentlyContinue
+              if ($probe.TcpTestSucceeded) { $ready=$true; break }
+              if ($process.HasExited) { break }
+            }
+            if (-not $ready) { throw 'V139_SAME_STEP_BRIDGE_NOT_READY' }
+            $workflow=Get-Content -Raw -LiteralPath '.github/workflows/v139-real-reel-e2e-cert.yml'
+            $pattern="(?s)          @'\r?\n(?<script>.*?)\r?\n          '@ \| node --input-type=module -"
+            $match=[regex]::Match($workflow,$pattern)
+            if (-not $match.Success) { throw 'V139_CANONICAL_BLOCK_NOT_FOUND' }
+            $script=$match.Groups['script'].Value
+            $script=($script -split "`r?`n" | ForEach-Object { if ($_.StartsWith('          ')) { $_.Substring(10) } else { $_ } }) -join "`n"
+            $scriptPath=Join-Path $env:GITHUB_WORKSPACE '.v139-canonical-same-step.mjs'
             Set-Content -LiteralPath $scriptPath -Value $script -Encoding utf8
-            $output = @(& node $scriptPath 2>&1)
-            $exitCode = $LASTEXITCODE
+            $output=@(& node $scriptPath 2>&1)
+            $exitCode=$LASTEXITCODE
             $output | ForEach-Object { Write-Host $_ }
-            Remove-Item -LiteralPath $scriptPath -Force -ErrorAction SilentlyContinue
             if ($exitCode -ne 0) {
-              $tail = (($output | Select-Object -Last 120) -join ' | ')
-              $escaped = $tail.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
-              Write-Output "::error title=V139 canonical mission exact failure::$escaped"
+              $tail=(($output | Select-Object -Last 160) -join ' | ').Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+              Write-Output "::error title=V139 same-step canonical failure::$tail"
               exit $exitCode
             }
           } catch {
-            $detail = ($_ | Out-String).Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
-            Write-Output "::error title=V139 canonical diagnostic wrapper failure::$detail"
+            $detail=($_ | Out-String).Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=V139 same-step wrapper failure::$detail"
             exit 1
-          }
-      - name: Publish bridge tail
-        if: always()
-        shell: pwsh
-        run: |
-          $bridgeOut = Join-Path $env:RUNNER_TEMP 'v139-diag-bridge.stdout.log'
-          $bridgeErr = Join-Path $env:RUNNER_TEMP 'v139-diag-bridge.stderr.log'
-          $tail = @()
-          $tail += Get-Content -LiteralPath $bridgeOut -ErrorAction SilentlyContinue | Select-Object -Last 100
-          $tail += Get-Content -LiteralPath $bridgeErr -ErrorAction SilentlyContinue | Select-Object -Last 100
-          if ($tail.Count -gt 0) {
-            $escaped = (($tail -join ' | ').Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A'))
-            Write-Output "::notice title=V139 bridge diagnostic tail::$escaped"
-          }
-          $pidFile = Join-Path $env:RUNNER_TEMP 'v139-diag-bridge.pid'
-          if (Test-Path $pidFile) {
-            $bridgePid = [int](Get-Content -Raw -LiteralPath $pidFile)
-            Stop-Process -Id $bridgePid -Force -ErrorAction SilentlyContinue
+          } finally {
+            Remove-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE '.v139-canonical-same-step.mjs') -Force -ErrorAction SilentlyContinue
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            $tail=@()
+            $tail += Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue | Select-Object -Last 120
+            $tail += Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue | Select-Object -Last 120
+            if ($tail.Count -gt 0) {
+              $escaped=(($tail -join ' | ').Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A'))
+              Write-Output "::notice title=V139 same-step bridge tail::$escaped"
+            }
           }
