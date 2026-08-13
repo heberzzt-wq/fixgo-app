@@ -1,4 +1,4 @@
-name: v139 semantic continuity materializer
+name: v139 Windows canonical fail-transparent
 
 on:
   push:
@@ -8,12 +8,12 @@ on:
       - '.github/workflows/v139-materialize-proven-fixes.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  materialize:
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
+  diagnose-windows:
+    runs-on: windows-latest
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
         with:
@@ -23,43 +23,52 @@ jobs:
           node-version: '22'
           cache: npm
       - name: Guard isolated branch and protected surfaces
-        shell: bash
+        shell: pwsh
         run: |
-          set -euo pipefail
-          test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
-          test "$(git rev-parse HEAD^)" = "6b31b53707f4b71c47e30f82afb4c892f13579e8"
-          ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..HEAD | grep -E '^(functions/|multiservicios-web/)'
+          if ($env:GITHUB_REF_NAME -ne 'v94-media-v4n-negative-claims') { throw 'WRONG_BRANCH' }
+          $changed = git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD
+          if ($changed -match '^functions/') { throw 'FUNCTIONS_CHANGED' }
+          $recentChanged = git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..HEAD
+          if ($recentChanged -match '^multiservicios-web/') { throw 'MULTISERVICIOS_CHANGED' }
       - run: npm ci
-      - name: Apply proven semantic continuity patch
-        run: python .github/scripts/v139-semantic-continuity-patch.py
-      - name: Recheck focused human continuity regression
-        shell: bash
+      - name: Run bridge plus canonical mission and expose exact failure
+        shell: pwsh
         run: |
-          set -euo pipefail
-          node --check gestia-core/jarvis/jarvis.semantic.memory.js
-          node --check gestia-core/gestia-core.js
-          node --test \
-            tests/jarvis-semantic-memory-integrity.test.mjs \
-            tests/jarvis-generalist-current-turn.test.mjs \
-            tests/jarvis-generalist-execution-contract-v122.test.mjs \
-            tests/jarvis-current-turn-freshness-v119.test.mjs \
-            tests/jarvis-marketing-production-intent-v125.test.mjs \
-            tests/jarvis-marketing-real-delivery.test.mjs \
-            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
-      - name: Recheck Full CI
-        run: npm run ci:test
-      - name: Commit only proven product and regression changes
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add \
-            gestia-core/jarvis/jarvis.semantic.memory.js \
-            gestia-core/gestia-core.js \
-            tests/jarvis-semantic-memory-integrity.test.mjs \
-            tests/jarvis-current-turn-freshness-v119.test.mjs
-          ! git diff --cached --name-only | grep -E '^(functions/|multiservicios-web/)'
-          git diff --cached --check
-          git commit -m 'fix(jarvis): preserve semantic continuity across follow-up production turns'
-          git push origin HEAD:v94-media-v4n-negative-claims
+          $stdout = Join-Path $env:RUNNER_TEMP 'v139-bridge.stdout.log'
+          $stderr = Join-Path $env:RUNNER_TEMP 'v139-bridge.stderr.log'
+          $missionLog = Join-Path $env:RUNNER_TEMP 'v139-mission.log'
+          $process = Start-Process -FilePath node -ArgumentList 'jarvis-fs-bridge.js' -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          try {
+            $ready = $false
+            for ($i = 0; $i -lt 60; $i++) {
+              Start-Sleep -Milliseconds 250
+              $probe = Test-NetConnection -ComputerName 127.0.0.1 -Port 3344 -WarningAction SilentlyContinue
+              if ($probe.TcpTestSucceeded) { $ready = $true; break }
+              if ($process.HasExited) { break }
+            }
+            if (-not $ready) {
+              $bridgeTail = ((Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue | Select-Object -Last 80) -join ' | ')
+              $bridgeErr = ((Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue | Select-Object -Last 80) -join ' | ')
+              Write-Output "::error title=V139_BRIDGE_NOT_READY::$bridgeTail $bridgeErr"
+              throw 'V139_LOCAL_BRIDGE_NOT_READY'
+            }
+            & node '.github/scripts/v139-canonical-real-reel.mjs' *> $missionLog
+            $code = $LASTEXITCODE
+            Get-Content -LiteralPath $missionLog -ErrorAction SilentlyContinue
+            if ($code -ne 0) {
+              $signal = Get-Content -LiteralPath $missionLog -ErrorAction SilentlyContinue | Where-Object {
+                $_ -match 'V139_|REEL_|WEB_|SPEECH_|Error|error|BLOCKED|FAILED|PARTIAL|status'
+              } | Select-Object -Last 80
+              $msg = (($signal -join ' | ') -replace '%','%25' -replace "`r",'%0D' -replace "`n",'%0A')
+              if ($msg.Length -gt 6000) { $msg = $msg.Substring($msg.Length - 6000) }
+              Write-Output "::error title=V139_WINDOWS_CANONICAL_EXACT_RED::$msg"
+              throw "V139_CANONICAL_MISSION_FAILED:$code"
+            }
+          }
+          finally {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            $bridgeSignal = Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue | Select-Object -Last 80
+            if ($bridgeSignal) { Write-Host ($bridgeSignal -join "`n") }
+            $bridgeErrSignal = Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue | Select-Object -Last 80
+            if ($bridgeErrSignal) { Write-Host ($bridgeErrSignal -join "`n") }
+          }
