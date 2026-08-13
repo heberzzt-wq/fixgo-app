@@ -31,7 +31,6 @@ jobs:
           status=$?
           cat v139-full-ci.log
           if [ "$status" -ne 0 ]; then
-            echo '=== V139_FULL_CI_FAILURES ==='
             python - <<'PY'
           from pathlib import Path
           lines = Path('v139-full-ci.log').read_text(errors='replace').splitlines()
@@ -39,14 +38,10 @@ jobs:
           hits = [i for i,l in enumerate(lines) if any(n in l for n in needles)]
           emitted = set()
           for hit in hits:
-              start=max(0,hit-6); end=min(len(lines),hit+18)
-              block=' | '.join(lines[start:end]).replace('%','%25').replace('\r','%0D').replace('\n','%0A')
+              block=' | '.join(lines[max(0,hit-6):min(len(lines),hit+18)]).replace('%','%25').replace('\r','%0D').replace('\n','%0A')
               if block in emitted: continue
               emitted.add(block)
               print(f'::error title=V139 Full CI failure::{block}')
-          if not hits:
-              tail=' | '.join(lines[-120:]).replace('%','%25').replace('\r','%0D').replace('\n','%0A')
-              print(f'::error title=V139 Full CI failure tail::{tail}')
           PY
           fi
           exit "$status"
@@ -89,30 +84,33 @@ jobs:
       - name: Execute exact canonical mission and publish exact exception
         shell: pwsh
         run: |
-          $workflow = Get-Content -Raw -LiteralPath '.github/workflows/v139-real-reel-e2e-cert.yml'
-          $startToken = "          @'`n"
-          $endToken = "          '@ | node --input-type=module -"
-          $start = $workflow.IndexOf($startToken)
-          if ($start -lt 0) { throw 'V139_DIAG_CANONICAL_START_NOT_FOUND' }
-          $start += $startToken.Length
-          $end = $workflow.IndexOf($endToken, $start)
-          if ($end -lt 0) { throw 'V139_DIAG_CANONICAL_END_NOT_FOUND' }
-          $script = $workflow.Substring($start, $end - $start)
-          $script = ($script -split "`r?`n" | ForEach-Object { if ($_.StartsWith('          ')) { $_.Substring(10) } else { $_ } }) -join "`n"
-          $scriptPath = Join-Path $env:GITHUB_WORKSPACE '.v139-canonical-exact.mjs'
-          Set-Content -LiteralPath $scriptPath -Value $script -Encoding utf8
-          $out = Join-Path $env:RUNNER_TEMP 'v139-canonical.stdout.log'
-          $err = Join-Path $env:RUNNER_TEMP 'v139-canonical.stderr.log'
-          $proc = Start-Process -FilePath node -ArgumentList $scriptPath -WorkingDirectory $env:GITHUB_WORKSPACE -Wait -PassThru -NoNewWindow -RedirectStandardOutput $out -RedirectStandardError $err
-          Get-Content -LiteralPath $out -ErrorAction SilentlyContinue
-          Get-Content -LiteralPath $err -ErrorAction SilentlyContinue
-          Remove-Item -LiteralPath $scriptPath -Force -ErrorAction SilentlyContinue
-          if ($proc.ExitCode -ne 0) {
-            $errText = ((Get-Content -LiteralPath $err -ErrorAction SilentlyContinue | Select-Object -Last 80) -join ' | ')
-            if (-not $errText) { $errText = ((Get-Content -LiteralPath $out -ErrorAction SilentlyContinue | Select-Object -Last 120) -join ' | ') }
-            $escaped = $errText.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
-            Write-Output "::error title=V139 canonical mission exact failure::$escaped"
-            exit $proc.ExitCode
+          try {
+            $workflow = Get-Content -Raw -LiteralPath '.github/workflows/v139-real-reel-e2e-cert.yml'
+            $startToken = "          @'`n"
+            $endToken = "          '@ | node --input-type=module -"
+            $start = $workflow.IndexOf($startToken)
+            if ($start -lt 0) { throw 'V139_DIAG_CANONICAL_START_NOT_FOUND' }
+            $start += $startToken.Length
+            $end = $workflow.IndexOf($endToken, $start)
+            if ($end -lt 0) { throw 'V139_DIAG_CANONICAL_END_NOT_FOUND' }
+            $script = $workflow.Substring($start, $end - $start)
+            $script = ($script -split "`r?`n" | ForEach-Object { if ($_.StartsWith('          ')) { $_.Substring(10) } else { $_ } }) -join "`n"
+            $scriptPath = Join-Path $env:GITHUB_WORKSPACE '.v139-canonical-exact.mjs'
+            Set-Content -LiteralPath $scriptPath -Value $script -Encoding utf8
+            $output = @(& node $scriptPath 2>&1)
+            $exitCode = $LASTEXITCODE
+            $output | ForEach-Object { Write-Host $_ }
+            Remove-Item -LiteralPath $scriptPath -Force -ErrorAction SilentlyContinue
+            if ($exitCode -ne 0) {
+              $tail = (($output | Select-Object -Last 120) -join ' | ')
+              $escaped = $tail.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+              Write-Output "::error title=V139 canonical mission exact failure::$escaped"
+              exit $exitCode
+            }
+          } catch {
+            $detail = ($_ | Out-String).Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=V139 canonical diagnostic wrapper failure::$detail"
+            exit 1
           }
       - name: Publish bridge tail
         if: always()
