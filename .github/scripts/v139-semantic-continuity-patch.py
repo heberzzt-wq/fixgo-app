@@ -68,13 +68,13 @@ if s.count(old_import) != 1:
 s = s.replace(old_import, new_import, 1)
 
 current = 'semanticMemoryAvailable: Boolean(semanticMemory),\n                        writeAllowed: false'
-current_new = 'semanticMemoryAvailable: Boolean(semanticMemory),\n                        semanticMemoryContext: compactJarvisSemanticMemoryForPlanner(semanticMemory),\n                        writeAllowed: false'
+current_new = 'semanticMemoryAvailable: Boolean(semanticMemory),\n                        advisorySemanticContext: compactJarvisSemanticMemoryForPlanner(semanticMemory),\n                        writeAllowed: false'
 if s.count(current) != 1:
     raise SystemExit(f'CURRENT_TURN_MEMORY_ANCHOR_MISMATCH:{s.count(current)}')
 s = s.replace(current, current_new, 1)
 
 contract = 'semanticMemoryAvailable: Boolean(semanticMemoryContext)'
-contract_new = 'semanticMemoryAvailable: Boolean(semanticMemoryContext),\n                        semanticMemoryContext: compactJarvisSemanticMemoryForPlanner(semanticMemoryContext)'
+contract_new = 'semanticMemoryAvailable: Boolean(semanticMemoryContext),\n                        advisorySemanticContext: compactJarvisSemanticMemoryForPlanner(semanticMemoryContext)'
 count = s.count(contract)
 if count < 3 or count > 4:
     raise SystemExit(f'MISSION_MEMORY_ANCHOR_MISMATCH:{count}')
@@ -125,10 +125,11 @@ test("planner semantic context is bounded to the current conversation and remain
     assert.equal(context.policy.noLexicalRouting, true);
 });
 
-test("terminal planner receives advisory semantic context instead of a boolean-only memory flag", () => {
+test("terminal planner receives bounded advisory semantic context without raw mission memory authority", () => {
     const core = fs.readFileSync(new URL("../gestia-core/gestia-core.js", import.meta.url), "utf8");
-    assert.match(core, /phase: "CURRENT_TURN"[\s\S]{0,500}semanticMemoryContext: compactJarvisSemanticMemoryForPlanner\(semanticMemory\)/);
-    assert.match(core, /phase: "MISSION_CONTRACT"[\s\S]{0,900}semanticMemoryContext: compactJarvisSemanticMemoryForPlanner\(semanticMemoryContext\)/);
+    assert.match(core, /phase: "CURRENT_TURN"[\s\S]{0,500}advisorySemanticContext: compactJarvisSemanticMemoryForPlanner\(semanticMemory\)/);
+    assert.match(core, /phase: "MISSION_CONTRACT"[\s\S]{0,900}advisorySemanticContext: compactJarvisSemanticMemoryForPlanner\(semanticMemoryContext\)/);
+    assert.doesNotMatch(core, /semanticMemory\s*:\s*semanticMemoryContext/);
     assert.doesNotMatch(core, /lexicalRouting\s*:\s*true/);
 });
 '''
