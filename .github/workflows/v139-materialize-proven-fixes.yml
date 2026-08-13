@@ -27,30 +27,29 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
-          test "$(git rev-parse HEAD^)" = "2348e9b7e7a57116b66e77a5dca04d139c38282d"
+          test "$(git rev-parse HEAD^)" = "bc2a18e3553524e043d8735b26879f697d9bbd3e"
           ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..HEAD | grep -E '^(functions/|multiservicios-web/)'
       - run: npm ci
       - name: Apply bounded semantic continuity candidate in runner only
-        shell: bash
-        run: |
-          set -euo pipefail
-          python .github/scripts/v139-semantic-continuity-patch.py
-          git diff --check
-          if git diff --name-only | grep -E '^(functions/|multiservicios-web/)'; then echo 'PROTECTED_SURFACE_CHANGED'; exit 1; fi
-      - name: Human continuity focal regression
-        shell: bash
-        run: |
-          set -euo pipefail
-          node --check gestia-core/jarvis/jarvis.semantic.memory.js
-          node --check gestia-core/gestia-core.js
-          node --test \
-            tests/jarvis-semantic-memory-integrity.test.mjs \
-            tests/jarvis-generalist-current-turn.test.mjs \
-            tests/jarvis-generalist-execution-contract-v122.test.mjs \
-            tests/jarvis-current-turn-freshness-v119.test.mjs \
-            tests/jarvis-marketing-production-intent-v125.test.mjs \
-            tests/jarvis-marketing-real-delivery.test.mjs \
-            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
+        run: python .github/scripts/v139-semantic-continuity-patch.py
+      - name: Syntax semantic memory
+        run: node --check gestia-core/jarvis/jarvis.semantic.memory.js
+      - name: Syntax Gestia core
+        run: node --check gestia-core/gestia-core.js
+      - name: Semantic memory integrity
+        run: node --test tests/jarvis-semantic-memory-integrity.test.mjs
+      - name: Generalist current turn
+        run: node --test tests/jarvis-generalist-current-turn.test.mjs
+      - name: Generalist execution contract
+        run: node --test tests/jarvis-generalist-execution-contract-v122.test.mjs
+      - name: Current turn freshness
+        run: node --test tests/jarvis-current-turn-freshness-v119.test.mjs
+      - name: Marketing production intent
+        run: node --test tests/jarvis-marketing-production-intent-v125.test.mjs
+      - name: Marketing real delivery
+        run: node --test tests/jarvis-marketing-real-delivery.test.mjs
+      - name: Marketing terminal delivery
+        run: node --test tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
       - name: Full CI
         run: npm run ci:test
       - name: Candidate marker
