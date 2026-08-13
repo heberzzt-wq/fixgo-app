@@ -1,0 +1,133 @@
+name: v139 certification diagnostics
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-full-ci-diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install root dependencies
+        run: npm ci
+      - name: Run full CI and publish exact failures
+        shell: bash
+        run: |
+          set +e
+          npm run ci:test > v139-full-ci.log 2>&1
+          status=$?
+          cat v139-full-ci.log
+          if [ "$status" -ne 0 ]; then
+            echo '=== V139_FULL_CI_FAILURES ==='
+            python - <<'PY'
+          from pathlib import Path
+          lines = Path('v139-full-ci.log').read_text(errors='replace').splitlines()
+          needles = ('not ok ', 'AssertionError', 'ERR_ASSERTION', 'Error:', 'expected:', 'actual:')
+          hits = [i for i,l in enumerate(lines) if any(n in l for n in needles)]
+          emitted = set()
+          for hit in hits:
+              start=max(0,hit-6); end=min(len(lines),hit+18)
+              block=' | '.join(lines[start:end]).replace('%','%25').replace('\r','%0D').replace('\n','%0A')
+              if block in emitted: continue
+              emitted.add(block)
+              print(f'::error title=V139 Full CI failure::{block}')
+          if not hits:
+              tail=' | '.join(lines[-120:]).replace('%','%25').replace('\r','%0D').replace('\n','%0A')
+              print(f'::error title=V139 Full CI failure tail::{tail}')
+          PY
+          fi
+          exit "$status"
+
+  windows-canonical-diagnostic:
+    runs-on: windows-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install root dependencies
+        run: npm ci
+      - name: Guard branch and Functions
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_NAME -ne 'v94-media-v4n-negative-claims') { throw 'WRONG_BRANCH' }
+          $changed = git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD
+          if ($changed -match '^functions/') { throw 'FUNCTIONS_CHANGED' }
+      - name: Start local Jarvis bridge
+        shell: pwsh
+        run: |
+          $stdout = Join-Path $env:RUNNER_TEMP 'v139-diag-bridge.stdout.log'
+          $stderr = Join-Path $env:RUNNER_TEMP 'v139-diag-bridge.stderr.log'
+          $env:RUNNER_TRACKING_ID = ''
+          $process = Start-Process -FilePath node -ArgumentList 'jarvis-fs-bridge.js' -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          $process.Id | Set-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'v139-diag-bridge.pid')
+          $ready = $false
+          for ($i = 0; $i -lt 40; $i++) {
+            Start-Sleep -Milliseconds 250
+            $probe = Test-NetConnection -ComputerName 127.0.0.1 -Port 3344 -WarningAction SilentlyContinue
+            if ($probe.TcpTestSucceeded) { $ready = $true; break }
+            if ($process.HasExited) { break }
+          }
+          if (-not $ready) { throw 'V139_DIAG_BRIDGE_NOT_READY' }
+      - name: Execute exact canonical mission and publish exact exception
+        shell: pwsh
+        run: |
+          $workflow = Get-Content -Raw -LiteralPath '.github/workflows/v139-real-reel-e2e-cert.yml'
+          $startToken = "          @'`n"
+          $endToken = "          '@ | node --input-type=module -"
+          $start = $workflow.IndexOf($startToken)
+          if ($start -lt 0) { throw 'V139_DIAG_CANONICAL_START_NOT_FOUND' }
+          $start += $startToken.Length
+          $end = $workflow.IndexOf($endToken, $start)
+          if ($end -lt 0) { throw 'V139_DIAG_CANONICAL_END_NOT_FOUND' }
+          $script = $workflow.Substring($start, $end - $start)
+          $script = ($script -split "`r?`n" | ForEach-Object { if ($_.StartsWith('          ')) { $_.Substring(10) } else { $_ } }) -join "`n"
+          $scriptPath = Join-Path $env:RUNNER_TEMP 'v139-canonical-exact.mjs'
+          Set-Content -LiteralPath $scriptPath -Value $script -Encoding utf8
+          $out = Join-Path $env:RUNNER_TEMP 'v139-canonical.stdout.log'
+          $err = Join-Path $env:RUNNER_TEMP 'v139-canonical.stderr.log'
+          $proc = Start-Process -FilePath node -ArgumentList $scriptPath -WorkingDirectory $env:GITHUB_WORKSPACE -Wait -PassThru -NoNewWindow -RedirectStandardOutput $out -RedirectStandardError $err
+          Get-Content -LiteralPath $out -ErrorAction SilentlyContinue
+          Get-Content -LiteralPath $err -ErrorAction SilentlyContinue
+          if ($proc.ExitCode -ne 0) {
+            $errText = ((Get-Content -LiteralPath $err -ErrorAction SilentlyContinue | Select-Object -Last 80) -join ' | ')
+            if (-not $errText) { $errText = ((Get-Content -LiteralPath $out -ErrorAction SilentlyContinue | Select-Object -Last 120) -join ' | ') }
+            $escaped = $errText.Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
+            Write-Output "::error title=V139 canonical mission exact failure::$escaped"
+            exit $proc.ExitCode
+          }
+      - name: Publish bridge tail
+        if: always()
+        shell: pwsh
+        run: |
+          $bridgeOut = Join-Path $env:RUNNER_TEMP 'v139-diag-bridge.stdout.log'
+          $bridgeErr = Join-Path $env:RUNNER_TEMP 'v139-diag-bridge.stderr.log'
+          $tail = @()
+          $tail += Get-Content -LiteralPath $bridgeOut -ErrorAction SilentlyContinue | Select-Object -Last 100
+          $tail += Get-Content -LiteralPath $bridgeErr -ErrorAction SilentlyContinue | Select-Object -Last 100
+          if ($tail.Count -gt 0) {
+            $escaped = (($tail -join ' | ').Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A'))
+            Write-Output "::notice title=V139 bridge diagnostic tail::$escaped"
+          }
+          $pidFile = Join-Path $env:RUNNER_TEMP 'v139-diag-bridge.pid'
+          if (Test-Path $pidFile) {
+            $bridgePid = [int](Get-Content -Raw -LiteralPath $pidFile)
+            Stop-Process -Id $bridgePid -Force -ErrorAction SilentlyContinue
+          }
