@@ -18,6 +18,7 @@
     "ci:test": "node --test tests/response-composer-semantic-contract.test.mjs tests/jarvis-mission-contract-accounting.test.mjs tests/jarvis-mission-failure-precedence.test.mjs tests/jarvis-mission-orchestrator.test.mjs && npm run check:nexo && npm run check:entry-syntax && npm run check:syntax && npm run test:multifunction && npm test"
   },
   "dependencies": {
+    "acorn": "^8.18.0",
     "cors": "^2.8.6",
     "docx": "^9.7.1",
     "exceljs": "^4.4.0",

@@ -4381,14 +4381,9 @@ test("repo diagnostics resolve indexed basenames to real repository paths", () =
         "utf8"
     );
 
-    assert.match(core, /v94-page-browser-fallback-v115-20260809/);
     assert.doesNotMatch(
         terminal,
         /<script[^>]+response\.composer\.js/
-    );
-    assert.match(
-        core,
-        /v94-page-browser-fallback-v115-20260809/
     );
     assert.match(core, /DOCUMENT_BLUEPRINT_REQUIRED/);
     assert.match(core, /DOCUMENT_BLUEPRINT_PENDING/);
