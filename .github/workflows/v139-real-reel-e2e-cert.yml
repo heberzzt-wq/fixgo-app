@@ -125,6 +125,7 @@ jobs:
         run: |
           $stdout = Join-Path $env:RUNNER_TEMP 'v139-bridge.stdout.log'
           $stderr = Join-Path $env:RUNNER_TEMP 'v139-bridge.stderr.log'
+          $env:RUNNER_TRACKING_ID = ''
           $process = Start-Process -FilePath node -ArgumentList 'jarvis-fs-bridge.js' -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
           $process.Id | Set-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'v139-bridge.pid')
           $ready = $false

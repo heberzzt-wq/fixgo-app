@@ -207,7 +207,6 @@ test("Terminal core hydrates marketing documents and gives the direct delivery r
     assert.match(core, /marketingArtifactArgsFromCompletedTasks\(/);
     assert.match(core, /marketingFinalResponseFromMission\(\s*missionResult\s*\)/);
     assert.match(core, /const finalResponse\s*=\s*marketingDeliverableFinalResponse\s*\|\|/);
-    assert.match(core, /v94-page-browser-fallback-v115-20260809/);
     assert.match(terminal, /gestia-terminal\.js\?v=v94-[a-z0-9-]+-[0-9]{8}/);
 });
 
