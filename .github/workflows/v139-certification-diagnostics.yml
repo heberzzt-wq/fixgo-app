@@ -99,13 +99,14 @@ jobs:
           if ($end -lt 0) { throw 'V139_DIAG_CANONICAL_END_NOT_FOUND' }
           $script = $workflow.Substring($start, $end - $start)
           $script = ($script -split "`r?`n" | ForEach-Object { if ($_.StartsWith('          ')) { $_.Substring(10) } else { $_ } }) -join "`n"
-          $scriptPath = Join-Path $env:RUNNER_TEMP 'v139-canonical-exact.mjs'
+          $scriptPath = Join-Path $env:GITHUB_WORKSPACE '.v139-canonical-exact.mjs'
           Set-Content -LiteralPath $scriptPath -Value $script -Encoding utf8
           $out = Join-Path $env:RUNNER_TEMP 'v139-canonical.stdout.log'
           $err = Join-Path $env:RUNNER_TEMP 'v139-canonical.stderr.log'
           $proc = Start-Process -FilePath node -ArgumentList $scriptPath -WorkingDirectory $env:GITHUB_WORKSPACE -Wait -PassThru -NoNewWindow -RedirectStandardOutput $out -RedirectStandardError $err
           Get-Content -LiteralPath $out -ErrorAction SilentlyContinue
           Get-Content -LiteralPath $err -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath $scriptPath -Force -ErrorAction SilentlyContinue
           if ($proc.ExitCode -ne 0) {
             $errText = ((Get-Content -LiteralPath $err -ErrorAction SilentlyContinue | Select-Object -Last 80) -join ' | ')
             if (-not $errText) { $errText = ((Get-Content -LiteralPath $out -ErrorAction SilentlyContinue | Select-Object -Last 120) -join ' | ') }
