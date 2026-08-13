@@ -7,9 +7,84 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
+  stale-contract-cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install root dependencies
+        run: npm ci
+      - name: Guard branch and Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
+          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
+      - name: Remove only proven stale release literals
+        id: cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          changed = False
+
+          p = Path('tests/jarvis-multifunction-tools.test.mjs')
+          s = p.read_text()
+          one = '    assert.match(core, /v94-page-browser-fallback-v115-20260809/);\n'
+          two = '    assert.match(\n        core,\n        /v94-page-browser-fallback-v115-20260809/\n    );\n'
+          c1, c2 = s.count(one), s.count(two)
+          if (c1 not in (0,1)) or (c2 not in (0,1)):
+              raise SystemExit(f'unexpected v115 counts compact={c1} multiline={c2}')
+          if c1 or c2:
+              if c1 != 1 or c2 != 1:
+                  raise SystemExit(f'partial stale v115 state compact={c1} multiline={c2}')
+              p.write_text(s.replace(one, '', 1).replace(two, '', 1))
+              changed = True
+
+          p = Path('tests/jarvis-semantic-memory-integrity.test.mjs')
+          s = p.read_text()
+          old = '    assert.match(core, /tools\\.runtime\\.js\\?v=v94-marketing-actuator-bridge-v126-20260810/);\n'
+          c3 = s.count(old)
+          if c3 not in (0,1):
+              raise SystemExit(f'unexpected v126 count={c3}')
+          if c3:
+              p.write_text(s.replace(old, '', 1))
+              changed = True
+
+          Path('.v139-stale-cleanup-state').write_text('changed=true\n' if changed else 'changed=false\n')
+          PY
+          cat .v139-stale-cleanup-state >> "$GITHUB_OUTPUT"
+          rm -f .v139-stale-cleanup-state
+          git diff --check
+          git diff -- tests/jarvis-multifunction-tools.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs
+      - name: Focused tests after cleanup
+        if: steps.cleanup.outputs.changed == 'true'
+        run: node --test tests/jarvis-multifunction-tools.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs
+      - name: Full CI after cleanup
+        if: steps.cleanup.outputs.changed == 'true'
+        run: npm run ci:test
+      - name: Commit exact cleanup
+        if: steps.cleanup.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git diff --name-only | grep -Ev '^(tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-memory-integrity.test.mjs)$' || true)"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tests/jarvis-multifunction-tools.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs
+          git commit -m 'test(v139): remove stale release literal assertions'
+          git push origin HEAD:v94-media-v4n-negative-claims
+
   linux-full-ci-diagnostic:
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -86,14 +161,10 @@ jobs:
         run: |
           try {
             $workflow = Get-Content -Raw -LiteralPath '.github/workflows/v139-real-reel-e2e-cert.yml'
-            $startToken = "          @'`n"
-            $endToken = "          '@ | node --input-type=module -"
-            $start = $workflow.IndexOf($startToken)
-            if ($start -lt 0) { throw 'V139_DIAG_CANONICAL_START_NOT_FOUND' }
-            $start += $startToken.Length
-            $end = $workflow.IndexOf($endToken, $start)
-            if ($end -lt 0) { throw 'V139_DIAG_CANONICAL_END_NOT_FOUND' }
-            $script = $workflow.Substring($start, $end - $start)
+            $pattern = "(?s)          @'\r?\n(?<script>.*?)\r?\n          '@ \| node --input-type=module -"
+            $match = [regex]::Match($workflow, $pattern)
+            if (-not $match.Success) { throw 'V139_DIAG_CANONICAL_BLOCK_NOT_FOUND' }
+            $script = $match.Groups['script'].Value
             $script = ($script -split "`r?`n" | ForEach-Object { if ($_.StartsWith('          ')) { $_.Substring(10) } else { $_ } }) -join "`n"
             $scriptPath = Join-Path $env:GITHUB_WORKSPACE '.v139-canonical-exact.mjs'
             Set-Content -LiteralPath $scriptPath -Value $script -Encoding utf8
