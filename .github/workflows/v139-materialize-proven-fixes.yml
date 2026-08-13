@@ -27,7 +27,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
-          test "$(git rev-parse HEAD^)" = "bc2a18e3553524e043d8735b26879f697d9bbd3e"
+          test "$(git rev-parse HEAD^)" = "a50ea033c1d5a50bbb43ff0bb22222ffb65d5a9b"
           ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..HEAD | grep -E '^(functions/|multiservicios-web/)'
       - run: npm ci
       - name: Apply bounded semantic continuity candidate in runner only
