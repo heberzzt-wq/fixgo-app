@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  linux-post-cleanup-diagnostic:
+  linux-candidate-fixes:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -22,50 +22,76 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - name: Apply proven stale-assert cleanup in workspace only
+      - name: Apply candidate fixes in workspace only
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
+
           p=Path('tests/jarvis-multifunction-tools.test.mjs'); s=p.read_text()
           one='    assert.match(core, /v94-page-browser-fallback-v115-20260809/);\n'
           two='    assert.match(\n        core,\n        /v94-page-browser-fallback-v115-20260809/\n    );\n'
           if s.count(one)!=1 or s.count(two)!=1: raise SystemExit('V139_V115_STALE_ASSERT_COUNT_MISMATCH')
           p.write_text(s.replace(one,'',1).replace(two,'',1))
+
           p=Path('tests/jarvis-semantic-memory-integrity.test.mjs'); s=p.read_text()
           old='    assert.match(core, /tools\\.runtime\\.js\\?v=v94-marketing-actuator-bridge-v126-20260810/);\n'
           if s.count(old)!=1: raise SystemExit('V139_V126_STALE_ASSERT_COUNT_MISMATCH')
           p.write_text(s.replace(old,'',1))
+
+          p=Path('jarvis-reel-artifact.js'); s=p.read_text()
+          old='export function describeReelStudio(input = {}, html = "") {\n    return {'
+          new='export function describeReelStudio(input = {}, html = "") {\n    const semanticText = [\n        input.brandName,\n        input.title,\n        input.cta,\n        ...(Array.isArray(input.scenes)\n            ? input.scenes.flatMap(scene => [scene?.overlay, scene?.subtitle, scene?.visualDescription])\n            : [])\n    ].map(value => clean(value)).filter(Boolean).join("\\n");\n    return {'
+          if s.count(old)!=1: raise SystemExit('V139_DESCRIBE_REEL_ANCHOR_MISMATCH')
+          s=s.replace(old,new,1)
+          old2='            noPlaceholders: !html.includes("TODO") && !html.includes("Lorem ipsum")'
+          new2='            noPlaceholders: !/\\bTODO\\b/i.test(semanticText) && !/Lorem ipsum/i.test(semanticText)'
+          if s.count(old2)!=1: raise SystemExit('V139_NO_PLACEHOLDERS_ANCHOR_MISMATCH')
+          p.write_text(s.replace(old2,new2,1))
           PY
+          npm install 'acorn@^8.17.0' --save --ignore-scripts
           git diff --check
+      - name: Regression test for binary TODO false positive
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { buildReelStudioHtml, describeReelStudio } from './jarvis-reel-artifact.js';
+          const input={brandName:'Taquería El Dorado',title:'Reel real',cta:'Ven por los tuyos',durationSeconds:30,scenes:[
+            {durationSeconds:10,overlay:'Uno',subtitle:'Sabor real',visualDescription:'Video real',assetDataUrl:'data:video/mp4;base64,TODO',mediaType:'video'},
+            {durationSeconds:10,overlay:'Dos',subtitle:'Preparación',visualDescription:'Continuación'},
+            {durationSeconds:10,overlay:'Tres',subtitle:'Cierre',visualDescription:'Mejor encuadre'}
+          ]};
+          const html=buildReelStudioHtml(input); const report=describeReelStudio(input,html);
+          if (!html.includes('TODO')) throw new Error('V139_BINARY_TODO_FIXTURE_MISSING');
+          if (report.checks.noPlaceholders !== true) throw new Error('V139_BINARY_TODO_FALSE_POSITIVE_NOT_FIXED');
+          console.log('V139_BINARY_TODO_FALSE_POSITIVE_FIXED=true');
+          NODE
       - name: Focused tests
-        run: node --test tests/jarvis-multifunction-tools.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs
-      - name: Full CI after cleanup with exact diagnostics
+        run: node --test tests/jarvis-reel-artifact.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs tests/repo-authority-v2.test.cjs
+      - name: Full CI candidate
         shell: bash
         run: |
           set +e
-          npm run ci:test > v139-post-cleanup.log 2>&1
+          npm run ci:test > v139-candidate-ci.log 2>&1
           status=$?
-          cat v139-post-cleanup.log
+          cat v139-candidate-ci.log
           if [ "$status" -ne 0 ]; then
             python - <<'PY'
           from pathlib import Path
-          lines=Path('v139-post-cleanup.log').read_text(errors='replace').splitlines()
-          needles=('not ok ','AssertionError','ERR_ASSERTION','Error:','expected:','actual:','npm error','npm ERR')
-          hits=[i for i,l in enumerate(lines) if any(n in l for n in needles)]
-          if not hits: hits=[max(0,len(lines)-1)]
+          lines=Path('v139-candidate-ci.log').read_text(errors='replace').splitlines()
+          needles=('not ok ','AssertionError','ERR_ASSERTION','Error:','expected:','actual:','MODULE_NOT_FOUND','npm error','npm ERR')
+          hits=[i for i,l in enumerate(lines) if any(n in l for n in needles)] or [max(0,len(lines)-1)]
           emitted=set()
           for hit in hits:
-              block=' | '.join(lines[max(0,hit-10):min(len(lines),hit+28)]).replace('%','%25').replace('\r','%0D').replace('\n','%0A')
+              block=' | '.join(lines[max(0,hit-10):min(len(lines),hit+30)]).replace('%','%25').replace('\r','%0D').replace('\n','%0A')
               if block in emitted: continue
-              emitted.add(block)
-              print(f'::error title=V139 post-cleanup Full CI failure::{block}')
+              emitted.add(block); print(f'::error title=V139 candidate Full CI failure::{block}')
           PY
           fi
           exit "$status"
 
-  windows-same-step-canonical:
+  windows-candidate-reel:
     runs-on: windows-latest
     timeout-minutes: 18
     steps:
@@ -81,51 +107,43 @@ jobs:
         shell: pwsh
         run: |
           if ($env:GITHUB_REF_NAME -ne 'v94-media-v4n-negative-claims') { throw 'WRONG_BRANCH' }
-          $changed = git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD
+          $changed=git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD
           if ($changed -match '^functions/') { throw 'FUNCTIONS_CHANGED' }
+      - name: Apply reel post-verify candidate in workspace only
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          p=Path('jarvis-reel-artifact.js'); s=p.read_text()
+          old='export function describeReelStudio(input = {}, html = "") {\n    return {'
+          new='export function describeReelStudio(input = {}, html = "") {\n    const semanticText = [\n        input.brandName,\n        input.title,\n        input.cta,\n        ...(Array.isArray(input.scenes)\n            ? input.scenes.flatMap(scene => [scene?.overlay, scene?.subtitle, scene?.visualDescription])\n            : [])\n    ].map(value => clean(value)).filter(Boolean).join("\\n");\n    return {'
+          if s.count(old)!=1: raise SystemExit('V139_DESCRIBE_REEL_ANCHOR_MISMATCH')
+          s=s.replace(old,new,1)
+          old2='            noPlaceholders: !html.includes("TODO") && !html.includes("Lorem ipsum")'
+          new2='            noPlaceholders: !/\\bTODO\\b/i.test(semanticText) && !/Lorem ipsum/i.test(semanticText)'
+          if s.count(old2)!=1: raise SystemExit('V139_NO_PLACEHOLDERS_ANCHOR_MISMATCH')
+          p.write_text(s.replace(old2,new2,1))
+          '@ | python -
       - name: Start bridge and execute exact canonical mission in same step
         shell: pwsh
         run: |
-          $stdout = Join-Path $env:RUNNER_TEMP 'v139-same-step-bridge.stdout.log'
-          $stderr = Join-Path $env:RUNNER_TEMP 'v139-same-step-bridge.stderr.log'
-          $process = Start-Process -FilePath node -ArgumentList 'jarvis-fs-bridge.js' -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          $stdout=Join-Path $env:RUNNER_TEMP 'v139-candidate-bridge.stdout.log'
+          $stderr=Join-Path $env:RUNNER_TEMP 'v139-candidate-bridge.stderr.log'
+          $process=Start-Process -FilePath node -ArgumentList 'jarvis-fs-bridge.js' -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
           try {
             $ready=$false
-            for ($i=0; $i -lt 40; $i++) {
-              Start-Sleep -Milliseconds 250
-              $probe=Test-NetConnection -ComputerName 127.0.0.1 -Port 3344 -WarningAction SilentlyContinue
-              if ($probe.TcpTestSucceeded) { $ready=$true; break }
-              if ($process.HasExited) { break }
-            }
-            if (-not $ready) { throw 'V139_SAME_STEP_BRIDGE_NOT_READY' }
+            for($i=0;$i -lt 40;$i++){Start-Sleep -Milliseconds 250;$probe=Test-NetConnection -ComputerName 127.0.0.1 -Port 3344 -WarningAction SilentlyContinue;if($probe.TcpTestSucceeded){$ready=$true;break};if($process.HasExited){break}}
+            if(-not $ready){throw 'V139_CANDIDATE_BRIDGE_NOT_READY'}
             $workflow=Get-Content -Raw -LiteralPath '.github/workflows/v139-real-reel-e2e-cert.yml'
-            $pattern="(?s)          @'\r?\n(?<script>.*?)\r?\n          '@ \| node --input-type=module -"
-            $match=[regex]::Match($workflow,$pattern)
-            if (-not $match.Success) { throw 'V139_CANONICAL_BLOCK_NOT_FOUND' }
-            $script=$match.Groups['script'].Value
-            $script=($script -split "`r?`n" | ForEach-Object { if ($_.StartsWith('          ')) { $_.Substring(10) } else { $_ } }) -join "`n"
-            $scriptPath=Join-Path $env:GITHUB_WORKSPACE '.v139-canonical-same-step.mjs'
-            Set-Content -LiteralPath $scriptPath -Value $script -Encoding utf8
-            $output=@(& node $scriptPath 2>&1)
-            $exitCode=$LASTEXITCODE
-            $output | ForEach-Object { Write-Host $_ }
-            if ($exitCode -ne 0) {
-              $tail=(($output | Select-Object -Last 160) -join ' | ').Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
-              Write-Output "::error title=V139 same-step canonical failure::$tail"
-              exit $exitCode
-            }
-          } catch {
-            $detail=($_ | Out-String).Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A')
-            Write-Output "::error title=V139 same-step wrapper failure::$detail"
-            exit 1
+            $match=[regex]::Match($workflow,"(?s)          @'\r?\n(?<script>.*?)\r?\n          '@ \| node --input-type=module -")
+            if(-not $match.Success){throw 'V139_CANONICAL_BLOCK_NOT_FOUND'}
+            $script=($match.Groups['script'].Value -split "`r?`n"|ForEach-Object{if($_.StartsWith('          ')){$_.Substring(10)}else{$_}})-join "`n"
+            $scriptPath=Join-Path $env:GITHUB_WORKSPACE '.v139-candidate.mjs';Set-Content -LiteralPath $scriptPath -Value $script -Encoding utf8
+            $output=@(& node $scriptPath 2>&1);$exitCode=$LASTEXITCODE;$output|ForEach-Object{Write-Host $_}
+            if($exitCode -ne 0){$interesting=$output|Where-Object{$_ -match 'V139_TOOL_RESULT|V139_MISSION_STATUS|V139_BLOCKED|REEL_'};if(-not $interesting){$interesting=$output|Select-Object -Last 160};$tail=(($interesting -join ' | ')).Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A');Write-Output "::error title=V139 candidate reel failure::$tail";exit $exitCode}
           } finally {
-            Remove-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE '.v139-canonical-same-step.mjs') -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE '.v139-candidate.mjs') -Force -ErrorAction SilentlyContinue
             Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-            $tail=@()
-            $tail += Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue | Select-Object -Last 120
-            $tail += Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue | Select-Object -Last 120
-            if ($tail.Count -gt 0) {
-              $escaped=(($tail -join ' | ').Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A'))
-              Write-Output "::notice title=V139 same-step bridge tail::$escaped"
-            }
+            $tail=@();$tail+=Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue|Select-Object -Last 120;$tail+=Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue|Select-Object -Last 120
+            if($tail.Count -gt 0){$escaped=(($tail -join ' | ').Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A'));Write-Output "::notice title=V139 candidate bridge tail::$escaped"}
           }
