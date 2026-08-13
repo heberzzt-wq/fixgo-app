@@ -1,4 +1,4 @@
-name: v139 semantic continuity candidate
+name: v139 semantic continuity materializer
 
 on:
   push:
@@ -8,10 +8,10 @@ on:
       - '.github/workflows/v139-materialize-proven-fixes.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  prove:
+  materialize:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -27,37 +27,39 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
-          test "$(git rev-parse HEAD^)" = "09801520a7a87d33e76ecfd158937abc7bc02dab"
+          test "$(git rev-parse HEAD^)" = "6b31b53707f4b71c47e30f82afb4c892f13579e8"
           ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..HEAD | grep -E '^(functions/|multiservicios-web/)'
       - run: npm ci
-      - name: Apply bounded semantic continuity candidate in runner only
+      - name: Apply proven semantic continuity patch
         run: python .github/scripts/v139-semantic-continuity-patch.py
-      - name: Syntax semantic memory
-        run: node --check gestia-core/jarvis/jarvis.semantic.memory.js
-      - name: Syntax Gestia core
-        run: node --check gestia-core/gestia-core.js
-      - name: Semantic memory integrity
-        run: node --test tests/jarvis-semantic-memory-integrity.test.mjs
-      - name: Generalist current turn
-        run: node --test tests/jarvis-generalist-current-turn.test.mjs
-      - name: Generalist execution contract
-        run: node --test tests/jarvis-generalist-execution-contract-v122.test.mjs
-      - name: Freshness current subject authority
-        run: node --test --test-name-pattern="new page subject" tests/jarvis-current-turn-freshness-v119.test.mjs
-      - name: Freshness memory boundary
-        run: node --test --test-name-pattern="tool-planning" tests/jarvis-current-turn-freshness-v119.test.mjs
-      - name: Freshness terminal cache authority
-        run: node --test --test-name-pattern="terminal shell" tests/jarvis-current-turn-freshness-v119.test.mjs
-      - name: Marketing production intent
-        run: node --test tests/jarvis-marketing-production-intent-v125.test.mjs
-      - name: Marketing real delivery
-        run: node --test tests/jarvis-marketing-real-delivery.test.mjs
-      - name: Marketing terminal delivery
-        run: node --test tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
-      - name: Full CI
-        run: npm run ci:test
-      - name: Candidate marker
+      - name: Recheck focused human continuity regression
+        shell: bash
         run: |
-          echo V139_SEMANTIC_CONTINUITY_CANDIDATE_GREEN=true
-          echo V139_FUNCTIONS_UNCHANGED=true
-          echo V139_MULTISERVICIOS_UNCHANGED=true
+          set -euo pipefail
+          node --check gestia-core/jarvis/jarvis.semantic.memory.js
+          node --check gestia-core/gestia-core.js
+          node --test \
+            tests/jarvis-semantic-memory-integrity.test.mjs \
+            tests/jarvis-generalist-current-turn.test.mjs \
+            tests/jarvis-generalist-execution-contract-v122.test.mjs \
+            tests/jarvis-current-turn-freshness-v119.test.mjs \
+            tests/jarvis-marketing-production-intent-v125.test.mjs \
+            tests/jarvis-marketing-real-delivery.test.mjs \
+            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
+      - name: Recheck Full CI
+        run: npm run ci:test
+      - name: Commit only proven product and regression changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            gestia-core/jarvis/jarvis.semantic.memory.js \
+            gestia-core/gestia-core.js \
+            tests/jarvis-semantic-memory-integrity.test.mjs \
+            tests/jarvis-current-turn-freshness-v119.test.mjs
+          ! git diff --cached --name-only | grep -E '^(functions/|multiservicios-web/)'
+          git diff --cached --check
+          git commit -m 'fix(jarvis): preserve semantic continuity across follow-up production turns'
+          git push origin HEAD:v94-media-v4n-negative-claims
