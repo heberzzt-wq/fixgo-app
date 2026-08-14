@@ -1,0 +1,79 @@
+name: V139 human mission close
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/v139-human-mission-close.yml'
+
+permissions:
+  contents: write
+
+env:
+  TARGET_BRANCH: v94-media-v4n-negative-claims
+
+jobs:
+  human-mission:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
+
+      - name: Guard branch and protected surfaces
+        shell: pwsh
+        run: |
+          if ((git branch --show-current).Trim() -ne $env:TARGET_BRANCH) { throw 'WRONG_BRANCH' }
+          $protected = git diff --name-only HEAD~2..HEAD | Select-String '^(functions/|multiservicios-web/)'
+          if ($protected) { throw 'PROTECTED_SURFACE_CHANGED' }
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Human mission exact TikTok research to final reel
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $bridge = Start-Process -FilePath node -ArgumentList 'jarvis-fs-bridge.js' -PassThru -NoNewWindow
+          try {
+            $ready = $false
+            for ($i = 0; $i -lt 60; $i++) {
+              try {
+                $health = Invoke-RestMethod -Uri 'http://127.0.0.1:3344/health' -TimeoutSec 2
+                if ($health.ok -eq $true) { $ready = $true; break }
+              } catch {}
+              Start-Sleep -Milliseconds 500
+            }
+            if (-not $ready) { throw 'BRIDGE_NOT_READY' }
+            node .github/scripts/v139-human-mission-close.mjs
+            if ($LASTEXITCODE -ne 0) { throw "HUMAN_MISSION_SCRIPT_EXIT_$LASTEXITCODE" }
+          }
+          finally {
+            try { Stop-Process -Id $bridge.Id -Force -ErrorAction SilentlyContinue } catch {}
+          }
+
+      - name: Guard protected surfaces remain untouched
+        shell: pwsh
+        run: |
+          $protected = git diff --name-only | Select-String '^(functions/|multiservicios-web/)'
+          if ($protected) { throw 'PROTECTED_SURFACE_CHANGED_AFTER_MISSION' }
+          git diff --check
+
+      - name: Self delete focused verifier
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/v139-human-mission-close.yml .github/scripts/v139-human-mission-close.mjs
+          git commit -m 'ci(v139): close human mission verification'
+          git push origin HEAD:$env:TARGET_BRANCH
