@@ -1,6 +1,9 @@
 import {
     reelSceneMediaCoverage
 } from "../jarvis/jarvis.reel.media-binder.js?v=v131-semantic-scene-media-authority-20260811";
+import {
+    NEXO_REAL_MEDIA_TOOLS_VERSION
+} from "./nexo.real-media.tools.js?v=v137-local-speech-synthesis-20260812";
 
 export const NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION =
     "1.3.0-synthesized-reel-audio-v137";
@@ -19,6 +22,17 @@ function runtimeCandidate() {
 function previousDefinition(runtime, name) {
     if (typeof runtime?.get === "function") return runtime.get(name);
     return runtime?._registry?.get?.(name) || null;
+}
+
+function realMediaToolsReady(runtime) {
+    const collector = previousDefinition(runtime, "web.media.collect");
+    const reel = previousDefinition(runtime, "reel.create");
+    return (
+        typeof collector?.execute === "function" &&
+        typeof reel?.execute === "function" &&
+        String(collector?.version || "") === NEXO_REAL_MEDIA_TOOLS_VERSION &&
+        String(reel?.version || "") === NEXO_REAL_MEDIA_TOOLS_VERSION
+    );
 }
 
 function missionCache() {
@@ -574,14 +588,7 @@ export function installNexoRealMediaRuntimeGuard({
         const attempt = () => {
             attempts += 1;
             const runtime = runtimeCandidate();
-            const collector = previousDefinition(runtime, "web.media.collect");
-            const reel = previousDefinition(runtime, "reel.create");
-            const realMediaReady =
-                typeof collector?.execute === "function" &&
-                typeof reel?.execute === "function" &&
-                String(collector?.version || "").includes("real-media-reel-hydration-v127") &&
-                String(reel?.version || "").includes("real-media-reel-hydration-v127");
-            if (realMediaReady) {
+            if (realMediaToolsReady(runtime)) {
                 resolve(registerNexoRealMediaRuntimeGuard(runtime));
                 return;
             }
@@ -614,5 +621,6 @@ export const __test = {
     verifiedSynthesizedAudioTask,
     hydrateReelAudioArgs,
     hasExplicitSceneMedia,
-    hydrateReelArgs
+    hydrateReelArgs,
+    realMediaToolsReady
 };

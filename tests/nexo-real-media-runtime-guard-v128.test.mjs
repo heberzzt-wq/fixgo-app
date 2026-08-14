@@ -6,6 +6,9 @@ import {
     registerNexoRealMediaRuntimeGuard,
     __test as runtimeGuardTest
 } from "../gestia-core/nexo/nexo.real-media.runtime-guard-v128.js";
+import {
+    NEXO_REAL_MEDIA_TOOLS_VERSION
+} from "../gestia-core/nexo/nexo.real-media.tools.js";
 
 const verifiedImage = {
     kind: "image",
@@ -42,6 +45,34 @@ function makeRuntime() {
     };
 }
 
+test("v139 runtime guard readiness follows current real-media tools contract and rejects stale v127", () => {
+    const current = makeRuntime();
+    current.register({
+        name: "web.media.collect",
+        version: NEXO_REAL_MEDIA_TOOLS_VERSION,
+        execute: async () => ({ ok: true })
+    });
+    current.register({
+        name: "reel.create",
+        version: NEXO_REAL_MEDIA_TOOLS_VERSION,
+        execute: async () => ({ ok: true })
+    });
+    assert.equal(runtimeGuardTest.realMediaToolsReady(current), true);
+
+    const stale = makeRuntime();
+    stale.register({
+        name: "web.media.collect",
+        version: "1.3.0-real-media-reel-hydration-v127",
+        execute: async () => ({ ok: true })
+    });
+    stale.register({
+        name: "reel.create",
+        version: "1.3.0-real-media-reel-hydration-v127",
+        execute: async () => ({ ok: true })
+    });
+    assert.equal(runtimeGuardTest.realMediaToolsReady(stale), false);
+});
+
 test("v128 hydrates reel from completed mission media without relying on synthetic test-only context shape", () => {
     const state = runtimeGuardTest.taskMediaState({
         completedTasks: [{
@@ -76,7 +107,7 @@ test("v131 caches collected media but refuses positional injection into reel.cre
 
     runtime.register({
         name: "web.media.collect",
-        version: "1.3.0-real-media-reel-hydration-v127",
+        version: NEXO_REAL_MEDIA_TOOLS_VERSION,
         execute: async () => ({
             ok: true,
             executionOk: true,
@@ -88,7 +119,7 @@ test("v131 caches collected media but refuses positional injection into reel.cre
     });
     runtime.register({
         name: "reel.create",
-        version: "1.3.0-real-media-reel-hydration-v127",
+        version: NEXO_REAL_MEDIA_TOOLS_VERSION,
         execute: async args => {
             reelArgs = args;
             return {
