@@ -1,4 +1,5 @@
 name: v139 real reel e2e cert
+# final-canonical-trigger: v139 repaired lineage 2026-08-14
 
 on:
   push:
