@@ -219,8 +219,7 @@ const declaredArtifacts =
                 )
             );
     const semanticProductionRequested =
-        current.productionRequested === true &&
-        declaredArtifacts.length > 0;
+        current.productionRequested === true;
     const effectiveProductionToolNames =
         [...new Set([
             ...contractedProductionToolNames,

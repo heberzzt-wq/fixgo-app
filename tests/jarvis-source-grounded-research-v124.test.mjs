@@ -89,15 +89,18 @@ test("local fallback preserves source scope, entity and URL hints", () => {
     assert.match(query, /acme norte merida/i);
 });
 
-test("marketing production scope follows executable mission tools, not a stray boolean", () => {
+test("marketing production scope preserves explicit production intent across planned actuators", () => {
     const planningOnly = resolveMarketingMissionProductionScope({
         productionRequested: true,
         productionArtifacts: []
     }, {
         requiredToolNames: ["web.research", "marketing.plan", "reel.plan"]
     });
-    assert.equal(planningOnly.productionRequested, false);
-    assert.deepEqual(planningOnly.productionArtifacts, []);
+    assert.equal(planningOnly.productionRequested, true);
+    assert.deepEqual(
+        planningOnly.productionArtifacts.map(item => item.toolName),
+        ["reel.create"]
+    );
 
     const production = resolveMarketingMissionProductionScope({
         productionRequested: false
