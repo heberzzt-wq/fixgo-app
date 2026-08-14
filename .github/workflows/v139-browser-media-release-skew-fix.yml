@@ -1,0 +1,150 @@
+name: V139 browser media release-skew fix
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/v139-browser-media-release-skew-fix.yml'
+
+permissions:
+  contents: write
+
+env:
+  TARGET_BRANCH: v94-media-v4n-negative-claims
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
+
+      - name: Guard branch and protected surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "$TARGET_BRANCH"
+          test -z "$(git diff --name-only HEAD^..HEAD | grep -E '^(functions/|multiservicios-web/)' || true)"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Materialize browser media-only release-skew compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('gestia-core/tools.runtime.js')
+          source = path.read_text(encoding='utf-8')
+
+          anchor = '''const JARVIS_RELEASE_SKEW_SAFE_PATHS =
+    new Set([
+        "/research",
+        "/web/media/collect",
+        "/speech/synthesize",
+        "/reel/create",
+        "/artifact/read"
+    ]);
+'''
+          helper = anchor + '''
+function jarvisReleaseSkewSafeRequest(
+    path = "",
+    payload = {}
+) {
+    const normalizedPath =
+        String(path || "").trim();
+    if (JARVIS_RELEASE_SKEW_SAFE_PATHS.has(normalizedPath)) {
+        return true;
+    }
+    return (
+        normalizedPath === "/browser" &&
+        String(payload?.action || "")
+            .trim()
+            .toLowerCase() === "media"
+    );
+}
+'''
+          if source.count(anchor) != 1:
+              raise SystemExit(f'allowlist anchor count={source.count(anchor)}')
+          source = source.replace(anchor, helper, 1)
+
+          old = '''        identity.releaseSkewBridgeVersionCompatible === true &&
+        JARVIS_RELEASE_SKEW_SAFE_PATHS.has(normalizedPath);'''
+          new = '''        identity.releaseSkewBridgeVersionCompatible === true &&
+        jarvisReleaseSkewSafeRequest(normalizedPath, payload);'''
+          if source.count(old) != 1:
+              raise SystemExit(f'release skew gate count={source.count(old)}')
+          source = source.replace(old, new, 1)
+          path.write_text(source, encoding='utf-8')
+
+          test_path = Path('tests/jarvis-v139-browser-media-release-skew.test.mjs')
+          test_path.write_text(r'''import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+
+const runtime = fs.readFileSync("gestia-core/tools.runtime.js", "utf8");
+
+test("v139 release skew permits only browser media fallback, not generic browser actions", () => {
+    assert.match(runtime, /function jarvisReleaseSkewSafeRequest\([\s\S]*?normalizedPath === "\/browser"[\s\S]*?payload\?\.action[\s\S]*?=== "media"/);
+    assert.match(runtime, /jarvisReleaseSkewSafeRequest\(normalizedPath, payload\)/);
+
+    const helper = runtime.match(/function jarvisReleaseSkewSafeRequest\([\s\S]*?\n\}/)?.[0] || "";
+    assert.ok(helper.includes('normalizedPath === "/browser"'));
+    assert.ok(helper.includes('=== "media"'));
+    for (const forbiddenAction of ["open", "inspect", "screenshot", "pdf"]) {
+        assert.equal(helper.includes(`=== "${forbiddenAction}"`), false, forbiddenAction);
+    }
+});
+
+test("v139 browser path is not added to the unconditional release-skew allowlist", () => {
+    const allowlist = runtime.match(/const JARVIS_RELEASE_SKEW_SAFE_PATHS[\s\S]*?\]\);/)?.[0] || "";
+    assert.equal(allowlist.includes('"/browser"'), false);
+    assert.ok(allowlist.includes('"/web/media/collect"'));
+});
+''', encoding='utf-8')
+          PY
+
+      - name: Syntax and media fallback regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check gestia-core/tools.runtime.js
+          node --test \
+            tests/jarvis-v139-browser-media-release-skew.test.mjs \
+            tests/jarvis-v139-release-skew-safe-artifacts.test.mjs \
+            tests/nexo-browser-media-fallback-v135.test.mjs \
+            tests/jarvis-reel-media-source-recovery-v136.test.mjs
+
+      - name: Full CI
+        run: npm run ci:test
+
+      - name: Guard protected surfaces after patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git diff --name-only | grep -E '^(functions/|multiservicios-web/)' || true)"
+          git diff --check
+
+      - name: Commit fix and remove materializer
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/v139-browser-media-release-skew-fix.yml
+          git add gestia-core/tools.runtime.js tests/jarvis-v139-browser-media-release-skew.test.mjs
+          git commit -m "fix(v139): allow release-skew browser media fallback"
+          git push origin HEAD:"$TARGET_BRANCH"
