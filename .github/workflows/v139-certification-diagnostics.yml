@@ -10,9 +10,9 @@ permissions:
   contents: read
 
 jobs:
-  linux-candidate-fixes:
+  linux-materialized-certification:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
         with:
@@ -22,35 +22,42 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - name: Apply candidate fixes in workspace only
+      - name: Guard branch and Functions unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
+          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
+      - name: Verify materialized v139 fixes read-only
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
 
-          p=Path('tests/jarvis-multifunction-tools.test.mjs'); s=p.read_text()
-          one='    assert.match(core, /v94-page-browser-fallback-v115-20260809/);\n'
-          two='    assert.match(\n        core,\n        /v94-page-browser-fallback-v115-20260809/\n    );\n'
-          if s.count(one)!=1 or s.count(two)!=1: raise SystemExit('V139_V115_STALE_ASSERT_COUNT_MISMATCH')
-          p.write_text(s.replace(one,'',1).replace(two,'',1))
+          multi = Path('tests/jarvis-multifunction-tools.test.mjs').read_text()
+          stale_v115 = 'v94-page-browser-fallback-v115-20260809'
+          if stale_v115 in multi:
+              raise SystemExit('V139_STALE_V115_ASSERTION_PRESENT')
 
-          p=Path('tests/jarvis-semantic-memory-integrity.test.mjs'); s=p.read_text()
-          old='    assert.match(core, /tools\\.runtime\\.js\\?v=v94-marketing-actuator-bridge-v126-20260810/);\n'
-          if s.count(old)!=1: raise SystemExit('V139_V126_STALE_ASSERT_COUNT_MISMATCH')
-          p.write_text(s.replace(old,'',1))
+          memory = Path('tests/jarvis-semantic-memory-integrity.test.mjs').read_text()
+          stale_v126 = 'tools.runtime.js?v=v94-marketing-actuator-bridge-v126-20260810'
+          if stale_v126 in memory:
+              raise SystemExit('V139_STALE_V126_ASSERTION_PRESENT')
 
-          p=Path('jarvis-reel-artifact.js'); s=p.read_text()
-          old='export function describeReelStudio(input = {}, html = "") {\n    return {'
-          new='export function describeReelStudio(input = {}, html = "") {\n    const semanticText = [\n        input.brandName,\n        input.title,\n        input.cta,\n        ...(Array.isArray(input.scenes)\n            ? input.scenes.flatMap(scene => [scene?.overlay, scene?.subtitle, scene?.visualDescription])\n            : [])\n    ].map(value => clean(value)).filter(Boolean).join("\\n");\n    return {'
-          if s.count(old)!=1: raise SystemExit('V139_DESCRIBE_REEL_ANCHOR_MISMATCH')
-          s=s.replace(old,new,1)
-          old2='            noPlaceholders: !html.includes("TODO") && !html.includes("Lorem ipsum")'
-          new2='            noPlaceholders: !/\\bTODO\\b/i.test(semanticText) && !/Lorem ipsum/i.test(semanticText)'
-          if s.count(old2)!=1: raise SystemExit('V139_NO_PLACEHOLDERS_ANCHOR_MISMATCH')
-          p.write_text(s.replace(old2,new2,1))
+          reel = Path('jarvis-reel-artifact.js').read_text()
+          required = (
+              'const semanticText = [',
+              '!/\\bTODO\\b/i.test(semanticText)',
+              '!/Lorem ipsum/i.test(semanticText)',
+          )
+          missing = [item for item in required if item not in reel]
+          if missing:
+              raise SystemExit('V139_REEL_POST_VERIFY_NOT_MATERIALIZED:' + ','.join(missing))
+
+          print('V139_MATERIALIZED_FIXES_VERIFIED=true')
           PY
-          npm install 'acorn@^8.17.0' --save --ignore-scripts
+          git diff --exit-code
           git diff --check
       - name: Regression test for binary TODO false positive
         shell: bash
@@ -69,29 +76,16 @@ jobs:
           NODE
       - name: Focused tests
         run: node --test tests/jarvis-reel-artifact.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs tests/repo-authority-v2.test.cjs
-      - name: Full CI candidate
-        shell: bash
+      - name: Full CI
+        run: npm run ci:test
+      - name: Linux certification marker
         run: |
-          set +e
-          npm run ci:test > v139-candidate-ci.log 2>&1
-          status=$?
-          cat v139-candidate-ci.log
-          if [ "$status" -ne 0 ]; then
-            python - <<'PY'
-          from pathlib import Path
-          lines=Path('v139-candidate-ci.log').read_text(errors='replace').splitlines()
-          needles=('not ok ','AssertionError','ERR_ASSERTION','Error:','expected:','actual:','MODULE_NOT_FOUND','npm error','npm ERR')
-          hits=[i for i,l in enumerate(lines) if any(n in l for n in needles)] or [max(0,len(lines)-1)]
-          emitted=set()
-          for hit in hits:
-              block=' | '.join(lines[max(0,hit-10):min(len(lines),hit+30)]).replace('%','%25').replace('\r','%0D').replace('\n','%0A')
-              if block in emitted: continue
-              emitted.add(block); print(f'::error title=V139 candidate Full CI failure::{block}')
-          PY
-          fi
-          exit "$status"
+          echo 'V139_FUNCTIONS_UNCHANGED=true'
+          echo 'V139_MATERIALIZED_FIXES_VERIFIED=true'
+          echo 'V139_FOCUSED_GREEN=true'
+          echo 'V139_FULL_CI_GREEN=true'
 
-  windows-candidate-reel:
+  windows-canonical-reel:
     runs-on: windows-latest
     timeout-minutes: 18
     steps:
@@ -103,47 +97,59 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - name: Guard branch and Functions
+      - name: Guard branch and Functions unchanged
         shell: pwsh
         run: |
           if ($env:GITHUB_REF_NAME -ne 'v94-media-v4n-negative-claims') { throw 'WRONG_BRANCH' }
-          $changed=git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD
+          $changed = git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD
           if ($changed -match '^functions/') { throw 'FUNCTIONS_CHANGED' }
-      - name: Apply reel post-verify candidate in workspace only
+      - name: Verify reel fix materialized read-only
         shell: pwsh
         run: |
           @'
           from pathlib import Path
-          p=Path('jarvis-reel-artifact.js'); s=p.read_text()
-          old='export function describeReelStudio(input = {}, html = "") {\n    return {'
-          new='export function describeReelStudio(input = {}, html = "") {\n    const semanticText = [\n        input.brandName,\n        input.title,\n        input.cta,\n        ...(Array.isArray(input.scenes)\n            ? input.scenes.flatMap(scene => [scene?.overlay, scene?.subtitle, scene?.visualDescription])\n            : [])\n    ].map(value => clean(value)).filter(Boolean).join("\\n");\n    return {'
-          if s.count(old)!=1: raise SystemExit('V139_DESCRIBE_REEL_ANCHOR_MISMATCH')
-          s=s.replace(old,new,1)
-          old2='            noPlaceholders: !html.includes("TODO") && !html.includes("Lorem ipsum")'
-          new2='            noPlaceholders: !/\\bTODO\\b/i.test(semanticText) && !/Lorem ipsum/i.test(semanticText)'
-          if s.count(old2)!=1: raise SystemExit('V139_NO_PLACEHOLDERS_ANCHOR_MISMATCH')
-          p.write_text(s.replace(old2,new2,1))
+          reel = Path('jarvis-reel-artifact.js').read_text()
+          required = (
+              'const semanticText = [',
+              '!/\\bTODO\\b/i.test(semanticText)',
+              '!/Lorem ipsum/i.test(semanticText)',
+          )
+          missing = [item for item in required if item not in reel]
+          if missing:
+              raise SystemExit('V139_REEL_POST_VERIFY_NOT_MATERIALIZED:' + ','.join(missing))
+          print('V139_REEL_POST_VERIFY_MATERIALIZED=true')
           '@ | python -
-      - name: Start bridge and execute exact canonical mission in same step
+          if ($LASTEXITCODE -ne 0) { throw "V139_READ_ONLY_VERIFY_FAILED:$LASTEXITCODE" }
+          git diff --exit-code
+          if ($LASTEXITCODE -ne 0) { throw 'V139_WORKTREE_MUTATED_DURING_VERIFY' }
+      - name: Start bridge and execute exact canonical mission
         shell: pwsh
         run: |
-          $stdout=Join-Path $env:RUNNER_TEMP 'v139-candidate-bridge.stdout.log'
-          $stderr=Join-Path $env:RUNNER_TEMP 'v139-candidate-bridge.stderr.log'
-          $process=Start-Process -FilePath node -ArgumentList 'jarvis-fs-bridge.js' -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          $stdout = Join-Path $env:RUNNER_TEMP 'v139-bridge.stdout.log'
+          $stderr = Join-Path $env:RUNNER_TEMP 'v139-bridge.stderr.log'
+          $process = Start-Process -FilePath node -ArgumentList 'jarvis-fs-bridge.js' -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
           try {
-            $ready=$false
-            for($i=0;$i -lt 40;$i++){Start-Sleep -Milliseconds 250;$probe=Test-NetConnection -ComputerName 127.0.0.1 -Port 3344 -WarningAction SilentlyContinue;if($probe.TcpTestSucceeded){$ready=$true;break};if($process.HasExited){break}}
-            if(-not $ready){throw 'V139_CANDIDATE_BRIDGE_NOT_READY'}
-            $workflow=Get-Content -Raw -LiteralPath '.github/workflows/v139-real-reel-e2e-cert.yml'
-            $match=[regex]::Match($workflow,"(?s)          @'\r?\n(?<script>.*?)\r?\n          '@ \| node --input-type=module -")
-            if(-not $match.Success){throw 'V139_CANONICAL_BLOCK_NOT_FOUND'}
-            $script=($match.Groups['script'].Value -split "`r?`n"|ForEach-Object{if($_.StartsWith('          ')){$_.Substring(10)}else{$_}})-join "`n"
-            $scriptPath=Join-Path $env:GITHUB_WORKSPACE '.v139-candidate.mjs';Set-Content -LiteralPath $scriptPath -Value $script -Encoding utf8
-            $output=@(& node $scriptPath 2>&1);$exitCode=$LASTEXITCODE;$output|ForEach-Object{Write-Host $_}
-            if($exitCode -ne 0){$interesting=$output|Where-Object{$_ -match 'V139_TOOL_RESULT|V139_MISSION_STATUS|V139_BLOCKED|REEL_'};if(-not $interesting){$interesting=$output|Select-Object -Last 160};$tail=(($interesting -join ' | ')).Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A');Write-Output "::error title=V139 candidate reel failure::$tail";exit $exitCode}
-          } finally {
-            Remove-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE '.v139-candidate.mjs') -Force -ErrorAction SilentlyContinue
-            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-            $tail=@();$tail+=Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue|Select-Object -Last 120;$tail+=Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue|Select-Object -Last 120
-            if($tail.Count -gt 0){$escaped=(($tail -join ' | ').Replace('%','%25').Replace("`r",'%0D').Replace("`n",'%0A'));Write-Output "::notice title=V139 candidate bridge tail::$escaped"}
+            $ready = $false
+            for ($i = 0; $i -lt 40; $i++) {
+              Start-Sleep -Milliseconds 250
+              $probe = Test-NetConnection -ComputerName 127.0.0.1 -Port 3344 -WarningAction SilentlyContinue
+              if ($probe.TcpTestSucceeded) { $ready = $true; break }
+              if ($process.HasExited) { break }
+            }
+            if (-not $ready) {
+              Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue
+              Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue
+              throw 'V139_LOCAL_BRIDGE_NOT_READY'
+            }
+            Write-Host "V139_BRIDGE_PID=$($process.Id)"
+            & node '.github/scripts/v139-canonical-real-reel.mjs'
+            if ($LASTEXITCODE -ne 0) { throw "V139_CANONICAL_MISSION_FAILED:$LASTEXITCODE" }
           }
+          finally {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue | Select-Object -Last 120
+            Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue | Select-Object -Last 120
+          }
+      - name: Windows certification marker
+        run: |
+          echo V139_CANONICAL_REAL_REEL_E2E_GREEN=true
