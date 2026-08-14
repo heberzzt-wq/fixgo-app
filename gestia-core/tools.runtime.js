@@ -1317,6 +1317,18 @@ catch(error) {
 const JARVIS_REQUIRED_LOCAL_BRIDGE_VERSION =
     "2.38.0-page-no-contact-route";
 
+const JARVIS_RELEASE_SKEW_SAFE_MIN_BRIDGE_VERSION =
+    "2.45.0-native-mp4-reel-export-v138";
+
+const JARVIS_RELEASE_SKEW_SAFE_PATHS =
+    new Set([
+        "/research",
+        "/web/media/collect",
+        "/speech/synthesize",
+        "/reel/create",
+        "/artifact/read"
+    ]);
+
 function jarvisBridgeVersionTuple(value = "") {
     const core =
         String(value || "")
@@ -1402,16 +1414,25 @@ window.JarvisLocalBridge.verifyIdentity ||= async function({
                 bridgeVersion,
                 JARVIS_REQUIRED_LOCAL_BRIDGE_VERSION
             );
-        const identityCompatible =
+        const lineageCompatible =
             expectedResponse.ok === true &&
             bridgeResponse.ok === true &&
             actual?.ok === true &&
             actual?.contract?.projectId === expected.projectId &&
-            actual?.contract?.releaseId === expected.releaseId &&
             actual?.contract?.branch === expected.branch &&
             actual?.git?.branch === expected.branch;
+        const releaseCompatible =
+            lineageCompatible &&
+            actual?.contract?.releaseId === expected.releaseId;
+        const identityCompatible =
+            releaseCompatible;
+        const releaseSkewBridgeVersionCompatible =
+            jarvisBridgeVersionAtLeast(
+                bridgeVersion,
+                JARVIS_RELEASE_SKEW_SAFE_MIN_BRIDGE_VERSION
+            );
         const compatible =
-            identityCompatible &&
+            releaseCompatible &&
             bridgeVersionCompatible;
 
         const result = {
@@ -1426,6 +1447,11 @@ window.JarvisLocalBridge.verifyIdentity ||= async function({
             requiredBridgeVersion:
                 JARVIS_REQUIRED_LOCAL_BRIDGE_VERSION,
             bridgeVersionCompatible,
+            lineageCompatible,
+            releaseCompatible,
+            releaseSkewBridgeVersionCompatible,
+            releaseSkewSafeMinBridgeVersion:
+                JARVIS_RELEASE_SKEW_SAFE_MIN_BRIDGE_VERSION,
             expected,
             actual,
             bridgeRoot:
@@ -1470,14 +1496,43 @@ window.JarvisLocalBridge.requestJson ||= async function(
                 options.forceIdentityCheck === true
         });
 
-    if (identity.ok !== true) {
+    const normalizedPath =
+        String(path || "").trim();
+    const releaseSkewAllowed =
+        identity.ok !== true &&
+        identity.lineageCompatible === true &&
+        identity.releaseCompatible === false &&
+        identity.releaseSkewBridgeVersionCompatible === true &&
+        JARVIS_RELEASE_SKEW_SAFE_PATHS.has(normalizedPath);
+
+    if (
+        identity.ok !== true &&
+        releaseSkewAllowed !== true
+    ) {
         return {
             ...identity,
             ok: false,
             success: false,
             error:
                 identity.status,
-            path
+            path:
+                normalizedPath
+        };
+    }
+
+    const selectedReleaseId =
+        releaseSkewAllowed
+            ? String(identity.actual?.contract?.releaseId || "")
+            : String(identity.expected?.releaseId || "");
+
+    if (!selectedReleaseId) {
+        return {
+            ...identity,
+            ok: false,
+            success: false,
+            status: "BRIDGE_RELEASE_ID_REQUIRED",
+            error: "BRIDGE_RELEASE_ID_REQUIRED",
+            path: normalizedPath
         };
     }
 
@@ -1505,7 +1560,7 @@ window.JarvisLocalBridge.requestJson ||= async function(
                     headers: {
                         "Content-Type": "application/json",
                         "X-Jarvis-Release-Id":
-                            identity.expected.releaseId
+                            selectedReleaseId
                     },
                     body:
                         JSON.stringify(payload || {}),
