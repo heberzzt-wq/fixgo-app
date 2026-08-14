@@ -12,8 +12,8 @@ permissions:
   contents: read
 
 env:
-  CERTIFIED_SHA: f1f9d8d7be3eb655450c3469a32979e7db6705c9
-  CERTIFIED_TREE: 1f872abda7fd0e8d08bee9a14edf72a41c8fa494
+  CERTIFIED_SHA: 25b165fdb953475da35b8128e2c3589d9cc60481
+  CERTIFIED_TREE: 8eef77c3a91909cf16b81450fd4af1dfd67df1b3
   FIREBASE_PROJECT_ID: fixgo-44e4d
   FIREBASE_SITE_ID: fixgo-44e4d
 
@@ -97,18 +97,23 @@ jobs:
           echo 'V139_HOSTING_ONLY_DEPLOYED=true'
           echo "V139_DEPLOYED_CERTIFIED_SHA=$CERTIFIED_SHA"
 
-      - name: Verify deployed web bytes
+      - name: Verify deployed web bytes and runtime guard contract
         shell: bash
         run: |
           set -euo pipefail
           url="https://${FIREBASE_SITE_ID}.web.app/gestia-terminal.html?v139_sha=${CERTIFIED_SHA}"
           core_url="https://${FIREBASE_SITE_ID}.web.app/gestia-core/gestia-core.js?v139_sha=${CERTIFIED_SHA}"
+          guard_url="https://${FIREBASE_SITE_ID}.web.app/gestia-core/nexo/nexo.real-media.runtime-guard-v128.js?v139_sha=${CERTIFIED_SHA}"
           ok=false
           for attempt in $(seq 1 15); do
             if curl --fail --silent --show-error --location "$url" -o /tmp/v139-terminal.html \
               && curl --fail --silent --show-error --location "$core_url" -o /tmp/v139-core.js \
+              && curl --fail --silent --show-error --location "$guard_url" -o /tmp/v139-runtime-guard.js \
               && grep -q 'gestia-core/gestia-core.js?v=v139-real-reel-e2e-20260812' /tmp/v139-terminal.html \
-              && grep -q 'MISSION_SEMANTIC_PLANNER_TRANSIENT_RETRY' /tmp/v139-core.js; then
+              && grep -q 'MISSION_SEMANTIC_PLANNER_TRANSIENT_RETRY' /tmp/v139-core.js \
+              && grep -q 'NEXO_REAL_MEDIA_TOOLS_VERSION' /tmp/v139-runtime-guard.js \
+              && grep -q 'realMediaToolsReady' /tmp/v139-runtime-guard.js \
+              && ! grep -q 'includes("real-media-reel-hydration-v127")' /tmp/v139-runtime-guard.js; then
               ok=true
               break
             fi
@@ -116,4 +121,5 @@ jobs:
           done
           test "$ok" = true
           echo 'V139_HOSTING_WEB_VERIFIED=true'
+          echo 'V139_NEXO_RUNTIME_GUARD_CONTRACT_VERIFIED=true'
           echo "V139_WEB_URL=https://${FIREBASE_SITE_ID}.web.app/gestia-terminal.html"
