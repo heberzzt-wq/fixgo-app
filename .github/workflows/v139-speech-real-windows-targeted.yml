@@ -52,50 +52,53 @@ jobs:
           node --test tests/jarvis-reel-speech-v137.test.mjs tests/jarvis-v139-release-skew-safe-artifacts.test.mjs
           if ($LASTEXITCODE -ne 0) { throw 'SPEECH_CONTRACTS_FAILED' }
 
-      - name: Start real local bridge
+      - name: Real Windows bridge and System.Speech end to end
         shell: pwsh
         run: |
           $proc = Start-Process -FilePath node -ArgumentList 'jarvis-fs-bridge.js' -PassThru -NoNewWindow
-          $proc.Id | Set-Content -Path "$env:RUNNER_TEMP\jarvis-bridge.pid"
-          $ready = $false
-          for ($i = 0; $i -lt 40; $i++) {
-            try {
-              $health = Invoke-RestMethod -Uri 'http://127.0.0.1:3344/health' -Method Get -TimeoutSec 2
-              if ($health.ok -eq $true) { $ready = $true; break }
-            } catch {}
-            Start-Sleep -Milliseconds 500
-          }
-          if (-not $ready) { throw 'BRIDGE_NOT_READY' }
-          $health | ConvertTo-Json -Depth 8
+          try {
+            $ready = $false
+            for ($i = 0; $i -lt 40; $i++) {
+              try {
+                $health = Invoke-RestMethod -Uri 'http://127.0.0.1:3344/health' -Method Get -TimeoutSec 2
+                if ($health.ok -eq $true) { $ready = $true; break }
+              } catch {}
+              Start-Sleep -Milliseconds 500
+            }
+            if (-not $ready) { throw 'BRIDGE_NOT_READY' }
+            if ($health.actuators.speech.available -ne $true) { throw 'LOCAL_SPEECH_NOT_AVAILABLE' }
+            if ([string]$health.actuators.speech.provider -ne 'windows-system-speech') { throw "BAD_SPEECH_PROVIDER:$($health.actuators.speech.provider)" }
+            if ([string]$health.identity.contract.branch -ne $env:TARGET_BRANCH) { throw "HEALTH_CONTRACT_WRONG_BRANCH:$($health.identity.contract.branch)" }
+            if ([string]$health.identity.git.branch -ne $env:TARGET_BRANCH) { throw "HEALTH_GIT_WRONG_BRANCH:$($health.identity.git.branch)" }
 
-      - name: Real Windows System.Speech through bridge
-        shell: pwsh
-        run: |
-          $contract = Get-Content -Raw 'jarvis-runtime-contract.json' | ConvertFrom-Json
-          $headers = @{ 'X-Jarvis-Release-Id' = [string]$contract.releaseId }
-          $output = '.jarvis-artifacts/audio/v139-real-windows-speech.wav'
-          $body = @{
-            text = 'Taqueria El Dorado. Narracion real de certificacion de ADJUNTO.'
-            output = $output
-            rate = 0
-            volume = 90
-          } | ConvertTo-Json
-          $result = Invoke-RestMethod -Uri 'http://127.0.0.1:3344/speech/synthesize' -Method Post -Headers $headers -ContentType 'application/json' -Body $body -TimeoutSec 90
-          $result | ConvertTo-Json -Depth 8
-          if ($result.ok -ne $true) { throw 'SPEECH_NOT_OK' }
-          if ($result.status -ne 'SPEECH_AUDIO_CREATED_VERIFIED') { throw "BAD_STATUS:$($result.status)" }
-          if ($result.mimeType -ne 'audio/wav') { throw "BAD_MIME:$($result.mimeType)" }
-          if ([int64]$result.bytes -le 44) { throw "WAV_TOO_SMALL:$($result.bytes)" }
-          if ([double]$result.durationSeconds -le 0) { throw 'WAV_DURATION_INVALID' }
-          if ([string]$result.sha256 -notmatch '^[a-f0-9]{64}$') { throw 'SHA256_INVALID' }
-          if (-not (Test-Path $output)) { throw 'WAV_NOT_CREATED' }
-          $actualHash = (Get-FileHash -Algorithm SHA256 $output).Hash.ToLowerInvariant()
-          if ($actualHash -ne ([string]$result.sha256).ToLowerInvariant()) { throw 'SHA256_MISMATCH' }
-          $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $output))
-          $riff = [System.Text.Encoding]::ASCII.GetString($bytes, 0, 4)
-          $wave = [System.Text.Encoding]::ASCII.GetString($bytes, 8, 4)
-          if ($riff -ne 'RIFF' -or $wave -ne 'WAVE') { throw 'WAV_SIGNATURE_INVALID' }
-          Remove-Item -Force $output
+            $contract = Get-Content -Raw 'jarvis-runtime-contract.json' | ConvertFrom-Json
+            $headers = @{ 'X-Jarvis-Release-Id' = [string]$contract.releaseId }
+            $output = '.jarvis-artifacts/audio/v139-real-windows-speech.wav'
+            $body = @{
+              text = 'Taqueria El Dorado. Narracion real de certificacion de ADJUNTO.'
+              output = $output
+              rate = 0
+              volume = 90
+            } | ConvertTo-Json
+            $result = Invoke-RestMethod -Uri 'http://127.0.0.1:3344/speech/synthesize' -Method Post -Headers $headers -ContentType 'application/json' -Body $body -TimeoutSec 90
+            $result | ConvertTo-Json -Depth 8
+            if ($result.ok -ne $true) { throw 'SPEECH_NOT_OK' }
+            if ($result.status -ne 'SPEECH_AUDIO_CREATED_VERIFIED') { throw "BAD_STATUS:$($result.status)" }
+            if ($result.mimeType -ne 'audio/wav') { throw "BAD_MIME:$($result.mimeType)" }
+            if ([int64]$result.bytes -le 44) { throw "WAV_TOO_SMALL:$($result.bytes)" }
+            if ([double]$result.durationSeconds -le 0) { throw 'WAV_DURATION_INVALID' }
+            if ([string]$result.sha256 -notmatch '^[a-f0-9]{64}$') { throw 'SHA256_INVALID' }
+            if (-not (Test-Path $output)) { throw 'WAV_NOT_CREATED' }
+            $actualHash = (Get-FileHash -Algorithm SHA256 $output).Hash.ToLowerInvariant()
+            if ($actualHash -ne ([string]$result.sha256).ToLowerInvariant()) { throw 'SHA256_MISMATCH' }
+            $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $output))
+            $riff = [System.Text.Encoding]::ASCII.GetString($bytes, 0, 4)
+            $wave = [System.Text.Encoding]::ASCII.GetString($bytes, 8, 4)
+            if ($riff -ne 'RIFF' -or $wave -ne 'WAVE') { throw 'WAV_SIGNATURE_INVALID' }
+            Remove-Item -Force $output
+          } finally {
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          }
 
       - name: Protected surfaces remain untouched
         shell: pwsh
@@ -104,16 +107,6 @@ jobs:
           if ($changed | Select-String -Pattern '^(functions/|multiservicios-web/)') { throw 'PROTECTED_SURFACE_DIRTY' }
           git diff --check
           if ($LASTEXITCODE -ne 0) { throw 'DIFF_CHECK_FAILED' }
-
-      - name: Stop bridge
-        if: always()
-        shell: pwsh
-        run: |
-          $pidPath = "$env:RUNNER_TEMP\jarvis-bridge.pid"
-          if (Test-Path $pidPath) {
-            $bridgePid = [int](Get-Content $pidPath)
-            Stop-Process -Id $bridgePid -Force -ErrorAction SilentlyContinue
-          }
 
       - name: Self delete verifier
         shell: pwsh
