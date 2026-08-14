@@ -29,7 +29,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          npm test -- \
+          node --test \
             tests/jarvis-reel-live-cache-v139.test.mjs \
             tests/jarvis-reel-native-mp4-v138.test.mjs \
             tests/jarvis-reel-speech-v137.test.mjs \
