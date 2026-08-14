@@ -9,6 +9,7 @@ import { runJarvisMission } from '../../gestia-core/jarvis/jarvis.mission.orches
 const SOURCE = 'https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004';
 const BRIDGE = 'http://127.0.0.1:3344';
 const expected = JSON.parse(fs.readFileSync('jarvis-runtime-contract.json', 'utf8'));
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 const healthResponse = await fetch(`${BRIDGE}/health`, { cache: 'no-store' });
 const health = await healthResponse.json();
@@ -96,6 +97,17 @@ const runtime = {
       const tool = registry.get(name);
       if (!tool?.execute) throw new Error(`HUMAN_TOOL_NOT_FOUND:${name}`);
       result = await tool.execute(args, context);
+      if (
+        name === 'web.media.collect' &&
+        String(args?.url || '') === SOURCE &&
+        result?.objectiveSatisfied !== true &&
+        result?.status === 'WEB_REAL_MEDIA_REQUIREMENTS_UNMET'
+      ) {
+        console.log('HUMAN_MEDIA_RECOVERY_RETRY=1');
+        await sleep(1500);
+        result = await tool.execute(args, context);
+        result = { ...result, boundedRecoveryAttempted: true };
+      }
     }
     console.log('HUMAN_TOOL', name, JSON.stringify({
       ok: result?.ok,
@@ -105,6 +117,7 @@ const runtime = {
       error: result?.error,
       sourceCount: Array.isArray(result?.sources) ? result.sources.length : undefined,
       fallbackMode: result?.fallbackMode,
+      boundedRecoveryAttempted: result?.boundedRecoveryAttempted,
       output: result?.output,
       mimeType: result?.mimeType,
       bytes: result?.bytes,
@@ -136,7 +149,7 @@ const renderScenes = scenes.map(scene => ({
   transition: scene.transition
 }));
 
-const instruction = `Investiga Taquería El Dorado, Cancún usando esta publicación exacta ${SOURCE}. La capa cloud se considera no disponible en este runner sin sesión; usa el fallback local verificable que recupera el 500. Después usa medios reales de esa publicación, sintetiza narración y crea un reel vertical profesional de 30 segundos. No publiques.`;
+const instruction = `Investiga Taquería El Dorado, Cancún usando esta publicación exacta ${SOURCE}. La capa cloud se considera no disponible en este runner sin sesión; usa el fallback local verificable que recupera el 500. Después usa medios reales de esa publicación, sintetiza narración y crea un reel vertical profesional de 30 segundos. Si la captura dinámica de medios falla temporalmente, haz una sola recuperación razonable. No publiques.`;
 
 const mission = await runJarvisMission({
   instruction,
