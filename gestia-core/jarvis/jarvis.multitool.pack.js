@@ -219,12 +219,13 @@ const declaredArtifacts =
                 )
             );
     const semanticProductionRequested =
-        current.productionRequested === true;
-const effectiveProductionToolNames =
-    [...new Set([
-        ...contractedProductionToolNames,
-        ...(semanticProductionRequested ? plannedProductionToolNames : [])
-    ])];
+        current.productionRequested === true &&
+        declaredArtifacts.length > 0;
+    const effectiveProductionToolNames =
+        [...new Set([
+            ...contractedProductionToolNames,
+            ...(semanticProductionRequested ? plannedProductionToolNames : [])
+        ])];
     const productionRequested =
         semanticProductionRequested ||
         effectiveProductionToolNames.length > 0;

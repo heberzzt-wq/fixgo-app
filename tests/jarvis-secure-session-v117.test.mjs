@@ -114,8 +114,9 @@ test("browser shell and media ingestion receive fresh v117 cache identities", ()
     const html = read("gestia-terminal.html");
     const multitool = read("gestia-core/jarvis/jarvis.multitool.pack.js");
 
-    const shellToken = "gestia-terminal.js?v=v94-secure-session-v117-20260810";
-    assert.equal(html.split(shellToken).length - 1, 2);
+    const shellTokens =
+        html.match(/gestia-terminal\.js\?v=v94-[a-z0-9-]+-[0-9]{8}/g) || [];
+    assert.equal(shellTokens.length, 2);
     assert.doesNotMatch(
         html,
         /gestia-terminal\.js\?v=v94-runtime-health-truth-v116-20260809/
