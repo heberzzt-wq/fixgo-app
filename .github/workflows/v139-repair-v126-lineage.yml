@@ -1,0 +1,82 @@
+name: v139 repair v126 lineage
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/v139-repair-v126-lineage.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair-v126-lineage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Guard isolated branch and protected surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
+          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
+          ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..HEAD | grep -E '^multiservicios-web/'
+      - run: npm ci
+      - name: Reconcile V124 with later V126 production-intent contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_exact(path, old, new, label):
+              p = Path(path)
+              s = p.read_text()
+              count = s.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}_ANCHOR_COUNT={count}')
+              p.write_text(s.replace(old, new, 1))
+
+          replace_exact(
+              'gestia-core/jarvis/jarvis.multitool.pack.js',
+              '''    const semanticProductionRequested =\n        current.productionRequested === true &&\n        declaredArtifacts.length > 0;''',
+              '''    const semanticProductionRequested =\n        current.productionRequested === true;''',
+              'V139_V126_PRODUCT_INTENT'
+          )
+
+          replace_exact(
+              'tests/jarvis-source-grounded-research-v124.test.mjs',
+              '''test("marketing production scope follows executable mission tools, not a stray boolean", () => {\n    const planningOnly = resolveMarketingMissionProductionScope({\n        productionRequested: true,\n        productionArtifacts: []\n    }, {\n        requiredToolNames: ["web.research", "marketing.plan", "reel.plan"]\n    });\n    assert.equal(planningOnly.productionRequested, false);\n    assert.deepEqual(planningOnly.productionArtifacts, []);''',
+              '''test("marketing production scope preserves explicit production intent across planned actuators", () => {\n    const planningOnly = resolveMarketingMissionProductionScope({\n        productionRequested: true,\n        productionArtifacts: []\n    }, {\n        requiredToolNames: ["web.research", "marketing.plan", "reel.plan"]\n    });\n    assert.equal(planningOnly.productionRequested, true);\n    assert.deepEqual(\n        planningOnly.productionArtifacts.map(item => item.toolName),\n        ["reel.create"]\n    );''',
+              'V139_V124_STALE_PRODUCTION_EXPECTATION'
+          )
+          PY
+          git diff --check
+          changed="$(git diff --name-only)"
+          printf '%s\n' "$changed"
+          test "$(printf '%s\n' "$changed" | grep -Ec '^(gestia-core/jarvis/jarvis\.multitool\.pack\.js|tests/jarvis-source-grounded-research-v124\.test\.mjs)$')" -eq 2
+          ! printf '%s\n' "$changed" | grep -E '^(functions/|multiservicios-web/)'
+      - name: Verify V124 V125 V126 lineage together
+        run: |
+          node --test \
+            tests/jarvis-source-grounded-research-v124.test.mjs \
+            tests/jarvis-marketing-production-intent-v125.test.mjs \
+            tests/jarvis-marketing-actuator-bridge-v126.test.mjs
+      - name: Commit proven lineage repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add gestia-core/jarvis/jarvis.multitool.pack.js tests/jarvis-source-grounded-research-v124.test.mjs
+          git diff --cached --check
+          git commit -m 'fix(v139): reconcile production intent through v126 lineage'
+          git push origin HEAD:v94-media-v4n-negative-claims
