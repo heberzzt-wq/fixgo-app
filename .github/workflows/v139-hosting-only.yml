@@ -2,25 +2,40 @@ name: v139 hosting only
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/v139-hosting-only.yml'
 
 permissions:
   contents: read
+
+env:
+  CERTIFIED_SHA: dae9da49fe59a0a1cefa0572fc8521236df25962
+  FIREBASE_PROJECT_ID: fixgo-44e4d
+  FIREBASE_SITE_ID: fixgo-44e4d
 
 jobs:
   deploy-hosting-only:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - name: Checkout isolated branch
+      - name: Checkout exact certified product SHA
         uses: actions/checkout@v4
         with:
+          ref: ${{ env.CERTIFIED_SHA }}
           fetch-depth: 0
 
-      - name: Guard isolated branch
+      - name: Guard exact certified SHA and protected surfaces
         shell: bash
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
+          test "$(git rev-parse HEAD)" = "$CERTIFIED_SHA"
+          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817.."$CERTIFIED_SHA" | grep -E '^functions/'
+          ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52.."$CERTIFIED_SHA" | grep -E '^multiservicios-web/'
+          echo "V139_CERTIFIED_SHA=$CERTIFIED_SHA"
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -34,15 +49,71 @@ jobs:
       - name: Final predeploy CI gate
         run: npm run ci:test
 
+      - name: Build single-site Hosting config
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const source = JSON.parse(fs.readFileSync('firebase.json', 'utf8'));
+          const hosting = Array.isArray(source.hosting) ? source.hosting : [source.hosting].filter(Boolean);
+          const selected = hosting.filter(item => item && item.site === process.env.FIREBASE_SITE_ID);
+          if (selected.length !== 1) {
+            throw new Error(`V139_HOSTING_SITE_SELECTION_INVALID:${selected.length}`);
+          }
+          if (selected[0].target) {
+            throw new Error(`V139_HOSTING_TARGET_FORBIDDEN:${selected[0].target}`);
+          }
+          const isolated = { hosting: selected[0] };
+          fs.writeFileSync('.firebase-v139-hosting-only.json', JSON.stringify(isolated, null, 2));
+          NODE
+          node <<'NODE'
+          const fs = require('fs');
+          const config = JSON.parse(fs.readFileSync('.firebase-v139-hosting-only.json', 'utf8'));
+          if (config.functions) throw new Error('V139_FUNCTIONS_CONFIG_PRESENT');
+          if (Array.isArray(config.hosting)) throw new Error('V139_MULTISITE_CONFIG_PRESENT');
+          if (config.hosting?.site !== process.env.FIREBASE_SITE_ID) throw new Error('V139_WRONG_HOSTING_SITE');
+          if (config.hosting?.target) throw new Error('V139_MULTISERVICIOS_TARGET_PRESENT');
+          console.log('V139_HOSTING_CONFIG_ISOLATED=true');
+          console.log(`V139_HOSTING_SITE=${config.hosting.site}`);
+          NODE
+
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
-      - name: Deploy Hosting only
+      - name: Deploy certified ADJUNTO Hosting only
         shell: bash
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         run: |
           set -euo pipefail
           test -n "$FIREBASE_TOKEN"
-          firebase deploy --only hosting --project fixgo-44e4d --token "$FIREBASE_TOKEN"
+          firebase deploy \
+            --config .firebase-v139-hosting-only.json \
+            --only hosting \
+            --project "$FIREBASE_PROJECT_ID" \
+            --token "$FIREBASE_TOKEN" \
+            --non-interactive
           echo 'V139_HOSTING_ONLY_DEPLOYED=true'
+          echo "V139_DEPLOYED_CERTIFIED_SHA=$CERTIFIED_SHA"
+
+      - name: Verify deployed web bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://${FIREBASE_SITE_ID}.web.app/gestia-terminal.html?v139_sha=${CERTIFIED_SHA}"
+          core_url="https://${FIREBASE_SITE_ID}.web.app/gestia-core/gestia-core.js?v139_sha=${CERTIFIED_SHA}"
+          ok=false
+          for attempt in $(seq 1 15); do
+            if curl --fail --silent --show-error --location "$url" -o /tmp/v139-terminal.html \
+              && curl --fail --silent --show-error --location "$core_url" -o /tmp/v139-core.js \
+              && grep -q 'gestia-core/gestia-core.js?v=v139-real-reel-e2e-20260812' /tmp/v139-terminal.html \
+              && grep -q 'MISSION_SEMANTIC_PLANNER_TRANSIENT_RETRY' /tmp/v139-core.js; then
+              ok=true
+              break
+            fi
+            sleep 4
+          done
+          test "$ok" = true
+          echo 'V139_HOSTING_WEB_VERIFIED=true'
+          echo "V139_WEB_URL=https://${FIREBASE_SITE_ID}.web.app/gestia-terminal.html"
