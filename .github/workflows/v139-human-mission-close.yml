@@ -78,4 +78,4 @@ jobs:
           git commit -m 'ci(v139): close human mission verification'
           git push origin HEAD:$env:TARGET_BRANCH
 
-# retry: compose previously certified cloud-500 fallback with full human mission
+# retry: one bounded recovery for transient dynamic TikTok media capture
