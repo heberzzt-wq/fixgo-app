@@ -1,0 +1,152 @@
+name: V139 physical reel create close
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/v139-reel-create-physical-close.yml'
+
+permissions:
+  contents: write
+
+env:
+  TARGET_BRANCH: v94-media-v4n-negative-claims
+
+jobs:
+  physical-reel-create:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
+
+      - name: Guard branch and protected surfaces
+        shell: pwsh
+        run: |
+          if ((git branch --show-current).Trim() -ne $env:TARGET_BRANCH) { throw 'WRONG_BRANCH' }
+          $changed = git diff --name-only HEAD^..HEAD
+          if ($changed | Select-String -Pattern '^(functions/|multiservicios-web/)') { throw 'PROTECTED_SURFACE_CHANGED' }
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Relevant reel contracts
+        shell: pwsh
+        run: |
+          node --check jarvis-fs-bridge.js
+          node --check jarvis-reel-artifact.js
+          node --test tests/jarvis-reel-real-production-v134.test.mjs tests/jarvis-reel-speech-v137.test.mjs tests/jarvis-reel-native-mp4-v138.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'REEL_CONTRACTS_FAILED' }
+
+      - name: Physical Windows reel.create with real WAV and media bytes
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $proc = Start-Process -FilePath node -ArgumentList 'jarvis-fs-bridge.js' -PassThru -NoNewWindow
+          try {
+            $ready = $false
+            for ($i = 0; $i -lt 40; $i++) {
+              try {
+                $health = Invoke-RestMethod -Uri 'http://127.0.0.1:3344/health' -Method Get -TimeoutSec 2
+                if ($health.ok -eq $true) { $ready = $true; break }
+              } catch {}
+              Start-Sleep -Milliseconds 500
+            }
+            if (-not $ready) { throw 'BRIDGE_NOT_READY' }
+            if ($health.actuators.browser.available -ne $true) { throw 'BROWSER_NOT_AVAILABLE' }
+            if ($health.actuators.speech.available -ne $true) { throw 'SPEECH_NOT_AVAILABLE' }
+
+            $contract = Get-Content -Raw 'jarvis-runtime-contract.json' | ConvertFrom-Json
+            $headers = @{ 'X-Jarvis-Release-Id' = [string]$contract.releaseId }
+
+            $mediaDir = '.jarvis-artifacts/web-media/v139-close'
+            New-Item -ItemType Directory -Force -Path $mediaDir | Out-Null
+            $png = [Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl4nXsAAAAASUVORK5CYII=')
+            $imageOutput = "$mediaDir/source.png"
+            [IO.File]::WriteAllBytes($imageOutput, $png)
+            if ((Get-Item $imageOutput).Length -le 32) { throw 'SOURCE_IMAGE_NOT_CREATED' }
+
+            $speechOutput = '.jarvis-artifacts/audio/v139-reel-close.wav'
+            $speechBody = @{
+              text = 'Taqueria El Dorado. Sabor, antojo y una experiencia hecha para disfrutarse en Cancun.'
+              output = $speechOutput
+              rate = 0
+              volume = 90
+            } | ConvertTo-Json
+            $speech = Invoke-RestMethod -Uri 'http://127.0.0.1:3344/speech/synthesize' -Method Post -Headers $headers -ContentType 'application/json' -Body $speechBody -TimeoutSec 90
+            if ($speech.ok -ne $true -or $speech.status -ne 'SPEECH_AUDIO_CREATED_VERIFIED') { throw "SPEECH_FAILED:$($speech.status)" }
+            if (-not (Test-Path $speechOutput)) { throw 'SPEECH_FILE_MISSING' }
+
+            $scenes = @(
+              @{ durationSeconds = 10; overlay = 'Antojo desde el primer vistazo'; subtitle = 'Taqueria El Dorado'; assetOutput = $imageOutput; mediaType = 'image'; transition = 'zoom' },
+              @{ durationSeconds = 10; overlay = 'Sabor que se disfruta'; subtitle = 'Cancun'; assetOutput = $imageOutput; mediaType = 'image'; transition = 'fade' },
+              @{ durationSeconds = 10; overlay = 'Ven por los tuyos'; subtitle = 'Visitanos'; assetOutput = $imageOutput; mediaType = 'image'; transition = 'dissolve' }
+            )
+            $reelBody = @{
+              brandName = 'Taqueria El Dorado'
+              title = 'Sabor que si se ve'
+              cta = 'Visitanos'
+              durationSeconds = 30
+              scenes = $scenes
+              audioOutput = $speechOutput
+              studioOutput = '.jarvis-artifacts/reels/v139-reel-close-studio.html'
+              videoOutput = '.jarvis-artifacts/reels/v139-reel-close.mp4'
+            } | ConvertTo-Json -Depth 8
+
+            $reel = Invoke-RestMethod -Uri 'http://127.0.0.1:3344/reel/create' -Method Post -Headers $headers -ContentType 'application/json' -Body $reelBody -TimeoutSec 180
+            $reel | ConvertTo-Json -Depth 10
+            if ($reel.ok -ne $true) { throw "REEL_NOT_OK:$($reel.status):$($reel.error)" }
+            if ($reel.status -ne 'REEL_VIDEO_CREATED_VERIFIED') { throw "BAD_REEL_STATUS:$($reel.status)" }
+            if ([int64]$reel.bytes -le 1000) { throw "REEL_TOO_SMALL:$($reel.bytes)" }
+            if ([string]$reel.sha256 -notmatch '^[a-f0-9]{64}$') { throw 'REEL_SHA_INVALID' }
+            if ([double]$reel.durationSeconds -ne 30) { throw "REEL_DURATION_BAD:$($reel.durationSeconds)" }
+            if ([int]$reel.width -ne 1080 -or [int]$reel.height -ne 1920) { throw "REEL_DIMENSIONS_BAD:$($reel.width)x$($reel.height)" }
+            if (-not (Test-Path ([string]$reel.videoOutput))) { throw 'REEL_FILE_MISSING' }
+            if (-not (Test-Path ([string]$reel.studioOutput))) { throw 'REEL_STUDIO_MISSING' }
+            $actualHash = (Get-FileHash -Algorithm SHA256 ([string]$reel.videoOutput)).Hash.ToLowerInvariant()
+            if ($actualHash -ne ([string]$reel.sha256).ToLowerInvariant()) { throw 'REEL_SHA_MISMATCH' }
+            $videoBytes = [IO.File]::ReadAllBytes((Resolve-Path ([string]$reel.videoOutput)))
+            $isMp4 = $reel.mimeType -like 'video/mp4*'
+            $isWebm = $reel.mimeType -like 'video/webm*'
+            if (-not ($isMp4 -or $isWebm)) { throw "REEL_MIME_BAD:$($reel.mimeType)" }
+            if ($isMp4) {
+              if ($videoBytes.Length -lt 12 -or [Text.Encoding]::ASCII.GetString($videoBytes, 4, 4) -ne 'ftyp') { throw 'MP4_SIGNATURE_BAD' }
+            } else {
+              if ($videoBytes.Length -lt 4 -or $videoBytes[0] -ne 0x1A -or $videoBytes[1] -ne 0x45 -or $videoBytes[2] -ne 0xDF -or $videoBytes[3] -ne 0xA3) { throw 'WEBM_SIGNATURE_BAD' }
+            }
+            Write-Host "V139_REEL_CREATE_PHYSICAL_VERIFIED=true"
+            Write-Host "V139_REEL_MIME=$($reel.mimeType)"
+            Write-Host "V139_REEL_BYTES=$($reel.bytes)"
+          }
+          finally {
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Guard protected surfaces remain untouched
+        shell: pwsh
+        run: |
+          $changed = git diff --name-only
+          if ($changed | Select-String -Pattern '^(functions/|multiservicios-web/)') { throw 'PROTECTED_SURFACE_DIRTY' }
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { throw 'DIFF_CHECK_FAILED' }
+
+      - name: Self delete verifier
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/v139-reel-create-physical-close.yml
+          git commit -m "ci(v139): close physical reel.create verification"
+          if ($LASTEXITCODE -ne 0) { throw 'CLEANUP_COMMIT_FAILED' }
+          git push origin HEAD:$env:TARGET_BRANCH
+          if ($LASTEXITCODE -ne 0) { throw 'CLEANUP_PUSH_FAILED' }
