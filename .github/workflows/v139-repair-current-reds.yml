@@ -1,0 +1,100 @@
+name: v139 repair current reds
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/v139-repair-current-reds.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair-current-reds:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Guard isolated branch and protected surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
+          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
+          ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..HEAD | grep -E '^multiservicios-web/'
+
+      - run: npm ci
+
+      - name: Apply exact current-red repairs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_exact(path, old, new, label):
+              p = Path(path)
+              s = p.read_text()
+              count = s.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}_ANCHOR_COUNT={count}')
+              p.write_text(s.replace(old, new, 1))
+
+          replace_exact(
+              'gestia-core/jarvis/jarvis.multitool.pack.js',
+              '''    const semanticProductionRequested =\n        current.productionRequested === true;\nconst effectiveProductionToolNames =\n    [...new Set([\n        ...contractedProductionToolNames,\n        ...(semanticProductionRequested ? plannedProductionToolNames : [])\n    ])];\n    const productionRequested =\n        semanticProductionRequested ||\n        effectiveProductionToolNames.length > 0;''',
+              '''    const semanticProductionRequested =\n        current.productionRequested === true &&\n        declaredArtifacts.length > 0;\n    const effectiveProductionToolNames =\n        [...new Set([\n            ...contractedProductionToolNames,\n            ...(semanticProductionRequested ? plannedProductionToolNames : [])\n        ])];\n    const productionRequested =\n        semanticProductionRequested ||\n        effectiveProductionToolNames.length > 0;''',
+              'V139_MARKETING_SCOPE'
+          )
+
+          replace_exact(
+              'tests/jarvis-secure-session-v117.test.mjs',
+              '''    const shellToken = "gestia-terminal.js?v=v94-secure-session-v117-20260810";\n    assert.equal(html.split(shellToken).length - 1, 2);\n    assert.doesNotMatch(\n        html,\n        /gestia-terminal\\.js\\?v=v94-runtime-health-truth-v116-20260809/\n    );''',
+              '''    const shellTokens =\n        html.match(/gestia-terminal\\.js\\?v=v94-[a-z0-9-]+-[0-9]{8}/g) || [];\n    assert.equal(shellTokens.length, 2);\n    assert.doesNotMatch(\n        html,\n        /gestia-terminal\\.js\\?v=v94-runtime-health-truth-v116-20260809/\n    );''',
+              'V139_V117_SHELL_CACHE'
+          )
+
+          replace_exact(
+              'tests/jarvis-page-browser-fallback-v115.test.mjs',
+              '''    assert.match(core, /v94-page-browser-fallback-v115-20260809/);''',
+              '''    assert.match(core, /\\/gestia-core\\/tools\\.bridge\\.js\\?v=[^"']+/);\n    assert.doesNotMatch(core, /tools\\.bridge\\.js\\?v=v94-page-browser-fallback-v115-20260809/);''',
+              'V139_V115_CORE_CACHE'
+          )
+          PY
+
+          git diff --check
+          changed="$(git diff --name-only)"
+          printf '%s\n' "$changed"
+          test "$(printf '%s\n' "$changed" | grep -Ec '^(gestia-core/jarvis/jarvis\.multitool\.pack\.js|tests/jarvis-secure-session-v117\.test\.mjs|tests/jarvis-page-browser-fallback-v115\.test\.mjs)$')" -eq 3
+          ! printf '%s\n' "$changed" | grep -E '^(functions/|multiservicios-web/)'
+
+      - name: Verify conflicting lineage contracts together
+        run: |
+          node --test \
+            tests/jarvis-source-grounded-research-v124.test.mjs \
+            tests/jarvis-marketing-production-intent-v125.test.mjs \
+            tests/jarvis-secure-session-v117.test.mjs \
+            tests/jarvis-page-browser-fallback-v115.test.mjs
+
+      - name: Commit proven repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            gestia-core/jarvis/jarvis.multitool.pack.js \
+            tests/jarvis-secure-session-v117.test.mjs \
+            tests/jarvis-page-browser-fallback-v115.test.mjs
+          git diff --cached --check
+          git commit -m 'fix(v139): reconcile production scope and legacy cache contracts'
+          git push origin HEAD:v94-media-v4n-negative-claims
