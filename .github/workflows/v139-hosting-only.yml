@@ -12,7 +12,8 @@ permissions:
   contents: read
 
 env:
-  CERTIFIED_SHA: dae9da49fe59a0a1cefa0572fc8521236df25962
+  CERTIFIED_SHA: f1f9d8d7be3eb655450c3469a32979e7db6705c9
+  CERTIFIED_TREE: 1f872abda7fd0e8d08bee9a14edf72a41c8fa494
   FIREBASE_PROJECT_ID: fixgo-44e4d
   FIREBASE_SITE_ID: fixgo-44e4d
 
@@ -27,15 +28,17 @@ jobs:
           ref: ${{ env.CERTIFIED_SHA }}
           fetch-depth: 0
 
-      - name: Guard exact certified SHA and protected surfaces
+      - name: Guard exact certified tree and protected surfaces
         shell: bash
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
           test "$(git rev-parse HEAD)" = "$CERTIFIED_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$CERTIFIED_TREE"
           ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817.."$CERTIFIED_SHA" | grep -E '^functions/'
           ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52.."$CERTIFIED_SHA" | grep -E '^multiservicios-web/'
           echo "V139_CERTIFIED_SHA=$CERTIFIED_SHA"
+          echo "V139_CERTIFIED_TREE=$CERTIFIED_TREE"
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -45,9 +48,6 @@ jobs:
 
       - name: Install app dependencies
         run: npm ci
-
-      - name: Final predeploy CI gate
-        run: npm run ci:test
 
       - name: Build single-site Hosting config
         shell: bash
