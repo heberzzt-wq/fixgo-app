@@ -1,0 +1,126 @@
+name: V139 real Windows speech bridge targeted
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/v139-speech-real-windows-targeted.yml'
+
+permissions:
+  contents: write
+
+env:
+  TARGET_BRANCH: v94-media-v4n-negative-claims
+
+jobs:
+  real-windows-speech:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
+
+      - name: Guard branch and protected surfaces
+        shell: pwsh
+        run: |
+          if ((git branch --show-current).Trim() -ne $env:TARGET_BRANCH) { throw 'WRONG_BRANCH' }
+          $changed = git diff --name-only HEAD^..HEAD
+          if ($changed | Select-String -Pattern '^(functions/|multiservicios-web/)') { throw 'PROTECTED_SURFACE_CHANGED' }
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Speech and release-skew contracts
+        shell: pwsh
+        run: |
+          node --check jarvis-speech-artifact.js
+          node --check jarvis-fs-bridge.js
+          node --check gestia-core/tools.runtime.js
+          node --test tests/jarvis-reel-speech-v137.test.mjs tests/jarvis-v139-release-skew-safe-artifacts.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'SPEECH_CONTRACTS_FAILED' }
+
+      - name: Start real local bridge
+        shell: pwsh
+        run: |
+          $proc = Start-Process -FilePath node -ArgumentList 'jarvis-fs-bridge.js' -PassThru -NoNewWindow
+          $proc.Id | Set-Content -Path "$env:RUNNER_TEMP\jarvis-bridge.pid"
+          $ready = $false
+          for ($i = 0; $i -lt 40; $i++) {
+            try {
+              $health = Invoke-RestMethod -Uri 'http://127.0.0.1:3344/health' -Method Get -TimeoutSec 2
+              if ($health.ok -eq $true) { $ready = $true; break }
+            } catch {}
+            Start-Sleep -Milliseconds 500
+          }
+          if (-not $ready) { throw 'BRIDGE_NOT_READY' }
+          if ($health.git.branch -ne $env:TARGET_BRANCH) { throw "BRIDGE_WRONG_BRANCH:$($health.git.branch)" }
+          if ([string]::IsNullOrWhiteSpace([string]$health.contract.releaseId)) { throw 'BRIDGE_RELEASE_REQUIRED' }
+          $health | ConvertTo-Json -Depth 8
+
+      - name: Real Windows System.Speech through bridge
+        shell: pwsh
+        run: |
+          $contract = Get-Content -Raw 'jarvis-runtime-contract.json' | ConvertFrom-Json
+          $headers = @{ 'X-Jarvis-Release-Id' = [string]$contract.releaseId }
+          $output = '.jarvis-artifacts/audio/v139-real-windows-speech.wav'
+          $body = @{
+            text = 'Taqueria El Dorado. Narracion real de certificacion de ADJUNTO.'
+            output = $output
+            rate = 0
+            volume = 90
+          } | ConvertTo-Json
+          $result = Invoke-RestMethod -Uri 'http://127.0.0.1:3344/speech/synthesize' -Method Post -Headers $headers -ContentType 'application/json' -Body $body -TimeoutSec 90
+          $result | ConvertTo-Json -Depth 8
+          if ($result.ok -ne $true) { throw 'SPEECH_NOT_OK' }
+          if ($result.status -ne 'SPEECH_AUDIO_CREATED_VERIFIED') { throw "BAD_STATUS:$($result.status)" }
+          if ($result.mimeType -ne 'audio/wav') { throw "BAD_MIME:$($result.mimeType)" }
+          if ([int64]$result.bytes -le 44) { throw "WAV_TOO_SMALL:$($result.bytes)" }
+          if ([double]$result.durationSeconds -le 0) { throw 'WAV_DURATION_INVALID' }
+          if ([string]$result.sha256 -notmatch '^[a-f0-9]{64}$') { throw 'SHA256_INVALID' }
+          if (-not (Test-Path $output)) { throw 'WAV_NOT_CREATED' }
+          $actualHash = (Get-FileHash -Algorithm SHA256 $output).Hash.ToLowerInvariant()
+          if ($actualHash -ne ([string]$result.sha256).ToLowerInvariant()) { throw 'SHA256_MISMATCH' }
+          $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $output))
+          $riff = [System.Text.Encoding]::ASCII.GetString($bytes, 0, 4)
+          $wave = [System.Text.Encoding]::ASCII.GetString($bytes, 8, 4)
+          if ($riff -ne 'RIFF' -or $wave -ne 'WAVE') { throw 'WAV_SIGNATURE_INVALID' }
+          Remove-Item -Force $output
+
+      - name: Protected surfaces remain untouched
+        shell: pwsh
+        run: |
+          $changed = git diff --name-only
+          if ($changed | Select-String -Pattern '^(functions/|multiservicios-web/)') { throw 'PROTECTED_SURFACE_DIRTY' }
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { throw 'DIFF_CHECK_FAILED' }
+
+      - name: Stop bridge
+        if: always()
+        shell: pwsh
+        run: |
+          $pidPath = "$env:RUNNER_TEMP\jarvis-bridge.pid"
+          if (Test-Path $pidPath) {
+            $bridgePid = [int](Get-Content $pidPath)
+            Stop-Process -Id $bridgePid -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Self delete verifier
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/v139-speech-real-windows-targeted.yml
+          git commit -m "ci(v139): close real Windows speech verification"
+          if ($LASTEXITCODE -ne 0) { throw 'CLEANUP_COMMIT_FAILED' }
+          git push origin HEAD:$env:TARGET_BRANCH
+          if ($LASTEXITCODE -ne 0) { throw 'CLEANUP_PUSH_FAILED' }
