@@ -1329,6 +1329,23 @@ const JARVIS_RELEASE_SKEW_SAFE_PATHS =
         "/artifact/read"
     ]);
 
+function jarvisReleaseSkewSafeRequest(
+    path = "",
+    payload = {}
+) {
+    const normalizedPath =
+        String(path || "").trim();
+    if (JARVIS_RELEASE_SKEW_SAFE_PATHS.has(normalizedPath)) {
+        return true;
+    }
+    return (
+        normalizedPath === "/browser" &&
+        String(payload?.action || "")
+            .trim()
+            .toLowerCase() === "media"
+    );
+}
+
 function jarvisBridgeVersionTuple(value = "") {
     const core =
         String(value || "")
@@ -1503,7 +1520,7 @@ window.JarvisLocalBridge.requestJson ||= async function(
         identity.lineageCompatible === true &&
         identity.releaseCompatible === false &&
         identity.releaseSkewBridgeVersionCompatible === true &&
-        JARVIS_RELEASE_SKEW_SAFE_PATHS.has(normalizedPath);
+        jarvisReleaseSkewSafeRequest(normalizedPath, payload);
 
     if (
         identity.ok !== true &&
