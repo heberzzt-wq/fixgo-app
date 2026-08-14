@@ -30,6 +30,9 @@ jobs:
           if ((git branch --show-current).Trim() -ne $env:TARGET_BRANCH) { throw 'WRONG_BRANCH' }
           $changed = git diff --name-only HEAD^..HEAD
           if ($changed | Select-String -Pattern '^(functions/|multiservicios-web/)') { throw 'PROTECTED_SURFACE_CHANGED' }
+          $contract = Get-Content -Raw 'jarvis-runtime-contract.json' | ConvertFrom-Json
+          if ([string]$contract.branch -ne $env:TARGET_BRANCH) { throw "CONTRACT_WRONG_BRANCH:$($contract.branch)" }
+          if ([string]::IsNullOrWhiteSpace([string]$contract.releaseId)) { throw 'CONTRACT_RELEASE_REQUIRED' }
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -63,8 +66,6 @@ jobs:
             Start-Sleep -Milliseconds 500
           }
           if (-not $ready) { throw 'BRIDGE_NOT_READY' }
-          if ($health.git.branch -ne $env:TARGET_BRANCH) { throw "BRIDGE_WRONG_BRANCH:$($health.git.branch)" }
-          if ([string]::IsNullOrWhiteSpace([string]$health.contract.releaseId)) { throw 'BRIDGE_RELEASE_REQUIRED' }
           $health | ConvertTo-Json -Depth 8
 
       - name: Real Windows System.Speech through bridge
