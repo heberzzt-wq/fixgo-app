@@ -1,0 +1,67 @@
+name: V139 web research cloud fallback targeted
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/v139-web-research-cloud-fallback-targeted.yml'
+
+permissions:
+  contents: write
+
+env:
+  TARGET_BRANCH: v94-media-v4n-negative-claims
+
+jobs:
+  targeted:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
+
+      - name: Guard branch and protected surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "$TARGET_BRANCH"
+          test -z "$(git diff --name-only HEAD^..HEAD | grep -E '^(functions/|multiservicios-web/)' || true)"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Exact cloud 500 to local grounded fallback regression
+        run: node --test tests/jarvis-v139-web-research-cloud-fallback.test.mjs
+
+      - name: Existing grounded research regression
+        run: node --test tests/jarvis-source-grounded-research-v124.test.mjs tests/jarvis-live-human-reds-v113.test.mjs
+
+      - name: Full CI baseline
+        run: npm run ci:test
+
+      - name: Guard protected surfaces after tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git diff --name-only | grep -E '^(functions/|multiservicios-web/)' || true)"
+          git diff --check
+
+      - name: Self delete verifier and preserve tested product
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/v139-web-research-cloud-fallback-targeted.yml
+          git commit -m "ci(v139): close cloud research fallback verification"
+          git push origin HEAD:"$TARGET_BRANCH"
