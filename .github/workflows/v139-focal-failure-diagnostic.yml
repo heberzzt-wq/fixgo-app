@@ -12,7 +12,7 @@ permissions:
 jobs:
   diagnose-v139-focal:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -25,50 +25,73 @@ jobs:
       - name: Install root dependencies
         run: npm ci
 
-      - name: Run v139 focal tests with full diagnostics
+      - name: Run focal files independently and annotate every failure
         shell: bash
         run: |
           set +e
-          node --test \
-            tests/jarvis-reel-live-cache-v139.test.mjs \
-            tests/jarvis-reel-native-mp4-v138.test.mjs \
-            tests/jarvis-reel-speech-v137.test.mjs \
-            tests/jarvis-reel-media-source-recovery-v136.test.mjs \
-            tests/nexo-browser-media-fallback-v135.test.mjs \
-            tests/jarvis-reel-real-production-v134.test.mjs \
-            tests/jarvis-reel-mission-fidelity-v133.test.mjs \
-            tests/jarvis-reel-researched-media-v132.test.mjs \
-            tests/jarvis-reel-media-binder-v131.test.mjs \
-            tests/nexo-real-media-semantic-binding-v131.test.mjs \
-            tests/nexo-real-media-runtime-guard-v128.test.mjs \
-            tests/jarvis-real-media-reel-hydration-v127.test.mjs \
-            tests/jarvis-marketing-actuator-bridge-v126.test.mjs \
-            tests/jarvis-marketing-production-intent-v125.test.mjs \
-            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs \
-            tests/jarvis-marketing-real-delivery.test.mjs \
-            tests/jarvis-marketing-engine-v2.test.mjs \
-            tests/jarvis-fs-bridge-v2.test.mjs \
-            tests/jarvis-multifunction-tools.test.mjs \
-            tests/jarvis-conversation-composer.test.mjs \
-            tests/jarvis-mission-orchestrator.test.mjs \
-            tests/jarvis-actuator-pack.test.mjs \
-            tests/jarvis-source-grounded-research-v124.test.mjs \
-            tests/jarvis-generalist-execution-contract-v122.test.mjs \
-            tests/jarvis-page-factual-integrity-v121.test.mjs \
-            tests/jarvis-current-turn-freshness-v119.test.mjs \
-            tests/jarvis-page-request-contract-v118.test.mjs \
-            tests/jarvis-secure-session-v117.test.mjs \
-            tests/jarvis-runtime-health-truth-v116.test.mjs \
-            tests/jarvis-page-browser-fallback-v115.test.mjs \
-            tests/jarvis-live-human-reds-v113.test.mjs \
-            tests/single-semantic-authority.test.mjs \
-            tests/response-composer-semantic-contract.test.mjs \
-            tests/repo-source-structure.test.mjs \
-            tests/repo-authority-v2.test.cjs \
-            2>&1 | tee v139-focal.log
-          status=${PIPESTATUS[0]}
-          echo "=== V139 FOCAL FAILURE EXCERPTS ==="
-          grep -nE "^(not ok|# Subtest:)|AssertionError|ERR_ASSERTION|expected|actual|Error:" v139-focal.log || true
-          echo "=== V139 FOCAL LOG TAIL ==="
-          tail -n 250 v139-focal.log || true
-          exit $status
+          files=(
+            tests/jarvis-reel-live-cache-v139.test.mjs
+            tests/jarvis-reel-native-mp4-v138.test.mjs
+            tests/jarvis-reel-speech-v137.test.mjs
+            tests/jarvis-reel-media-source-recovery-v136.test.mjs
+            tests/nexo-browser-media-fallback-v135.test.mjs
+            tests/jarvis-reel-real-production-v134.test.mjs
+            tests/jarvis-reel-mission-fidelity-v133.test.mjs
+            tests/jarvis-reel-researched-media-v132.test.mjs
+            tests/jarvis-reel-media-binder-v131.test.mjs
+            tests/nexo-real-media-semantic-binding-v131.test.mjs
+            tests/nexo-real-media-runtime-guard-v128.test.mjs
+            tests/jarvis-real-media-reel-hydration-v127.test.mjs
+            tests/jarvis-marketing-actuator-bridge-v126.test.mjs
+            tests/jarvis-marketing-production-intent-v125.test.mjs
+            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
+            tests/jarvis-marketing-real-delivery.test.mjs
+            tests/jarvis-marketing-engine-v2.test.mjs
+            tests/jarvis-fs-bridge-v2.test.mjs
+            tests/jarvis-multifunction-tools.test.mjs
+            tests/jarvis-conversation-composer.test.mjs
+            tests/jarvis-mission-orchestrator.test.mjs
+            tests/jarvis-actuator-pack.test.mjs
+            tests/jarvis-source-grounded-research-v124.test.mjs
+            tests/jarvis-generalist-execution-contract-v122.test.mjs
+            tests/jarvis-page-factual-integrity-v121.test.mjs
+            tests/jarvis-current-turn-freshness-v119.test.mjs
+            tests/jarvis-page-request-contract-v118.test.mjs
+            tests/jarvis-secure-session-v117.test.mjs
+            tests/jarvis-runtime-health-truth-v116.test.mjs
+            tests/jarvis-page-browser-fallback-v115.test.mjs
+            tests/jarvis-live-human-reds-v113.test.mjs
+            tests/single-semantic-authority.test.mjs
+            tests/response-composer-semantic-contract.test.mjs
+            tests/repo-source-structure.test.mjs
+            tests/repo-authority-v2.test.cjs
+          )
+
+          failures=0
+          for file in "${files[@]}"; do
+            safe=$(echo "$file" | tr '/.' '__')
+            log="${RUNNER_TEMP}/${safe}.log"
+            echo "=== V139 FOCAL FILE: $file ==="
+            node --test "$file" >"$log" 2>&1
+            status=$?
+            if [ "$status" -eq 0 ]; then
+              echo "PASS $file"
+              continue
+            fi
+
+            failures=$((failures + 1))
+            excerpt=$(grep -E "^(not ok|# Subtest:)|AssertionError|ERR_ASSERTION|expected|actual|Error:|MODULE_NOT_FOUND" "$log" | head -n 30 | tr '\n' ' ')
+            if [ -z "$excerpt" ]; then
+              excerpt=$(tail -n 30 "$log" | tr '\n' ' ')
+            fi
+            excerpt=${excerpt//'%'/'%25'}
+            excerpt=${excerpt//$'\r'/'%0D'}
+            excerpt=${excerpt//$'\n'/'%0A'}
+            echo "::error title=V139 FOCAL FILE FAILED: $file::$excerpt"
+          done
+
+          echo "V139_FOCAL_FAILED_FILES=$failures"
+          if [ "$failures" -ne 0 ]; then
+            exit 1
+          fi
+          echo 'V139_FOCAL_GREEN=true'
