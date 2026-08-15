@@ -59,19 +59,15 @@ jobs:
           bash /tmp/harden.sh
           echo 'RECONSTRUCTED=true'
 
-      - name: Inspect exact production-chain merge points
+      - name: Inspect semantic production handoff
         shell: bash
         run: |
           set -euo pipefail
-          echo '=== CORE 4200-4330 ==='
-          sed -n '4200,4330p' gestia-core/gestia-core.js
-          echo '=== DEPENDENCIES 145-255 ==='
-          sed -n '145,255p' gestia-core/jarvis/jarvis.mission.dependencies.js
-          echo '=== PLANNER TRUSTED CALLS 1600-1765 ==='
-          sed -n '1600,1765p' gestia-core/jarvis/jarvis.multifunction.planner.js
-          echo '=== PLANNER BUILD 2220-2325 ==='
-          sed -n '2220,2325p' gestia-core/jarvis/jarvis.multifunction.planner.js
-          echo '=== MARKETING SCOPE SOURCE ==='
-          grep -R -n -C 10 'function resolveMarketingMissionProductionScope\|export function resolveMarketingMissionProductionScope' gestia-core | head -n 500 || true
-          echo '=== INITIAL PLAN METADATA/MERGE HELPERS ==='
-          grep -n -C 8 -E 'operationalInitialToolCalls|mergeJarvisToolCalls|mergeEvidenceGroundedToolCalls|attachPlanMetadata|resolveSemanticPlan' gestia-core/gestia-core.js gestia-core/jarvis/jarvis.multifunction.planner.js | head -n 900 || true
+          echo '=== MERGE TOOL CALLS ==='
+          sed -n '2170,2225p' gestia-core/jarvis/jarvis.multifunction.planner.js
+          echo '=== MARKETING PRODUCTION SCOPE ==='
+          sed -n '160,285p' gestia-core/jarvis/jarvis.multitool.pack.js
+          echo '=== PROPOSAL TOOL PLAN CREATION ==='
+          grep -R -n -C 12 -E 'model_selected_multifunction_plan|buildJarvisMultifunctionToolCalls|propuesta\.toolCalls|toolCalls.*buildJarvis|jarvisSemanticPlan' gestia-core/propose.engine.js gestia-core | head -n 1800 || true
+          echo '=== GENERAL SEMANTIC PRODUCTION RULES ==='
+          grep -R -n -C 8 -E 'productionRequested|productionArtifacts|reel\.create|speech\.synthesize' gestia-core/jarvis/jarvis.multifunction.planner.js gestia-core/propose.engine.js | head -n 1400 || true
