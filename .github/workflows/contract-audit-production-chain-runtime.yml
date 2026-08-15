@@ -1,0 +1,77 @@
+name: contract-audit production-chain runtime
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/contract-audit-production-chain-runtime.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
+  CERTIFIED_CARRIER_SHA: cebe6f399d4edf4f234e584e0a42cf980b3a404d
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct exact certified Hosting candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show "${CERTIFIED_CARRIER_SHA}:.github/workflows/contract-audit-provider-outage-v3.yml" > /tmp/certified.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('/tmp/certified.yml').read_text()
+          def extract(step_name, next_step_name, output):
+              start = text.index(f'      - name: {step_name}\n')
+              run_start = text.index('        run: |\n', start) + len('        run: |\n')
+              end = text.index(f'\n      - name: {next_step_name}\n', run_start)
+              block = text[run_start:end]
+              lines=[]
+              for line in block.splitlines():
+                  if line.startswith('          '): lines.append(line[10:])
+                  elif not line.strip(): lines.append('')
+                  else: raise SystemExit(f'INDENT:{step_name}:{line!r}')
+              Path(output).write_text('\n'.join(lines)+'\n')
+          extract('Restore previously certified invariants','Harden existing planner and fail-closed presentation','/tmp/restore.sh')
+          extract('Harden existing planner and fail-closed presentation','Contract and authority assertions','/tmp/harden.sh')
+          PY
+          mkdir -p /tmp/contract-audit
+          for part in chunk-00.txt chunk-01.txt chunk-02.txt segment-05.txt segment-06.txt segment-07.txt chunk-04.txt; do
+            git show "${CERTIFIED_CARRIER_SHA}:.github/candidates/contract-audit/${part}" >> /tmp/contract-audit/handoff.patch.gz.b64
+          done
+          base64 -d /tmp/contract-audit/handoff.patch.gz.b64 | gzip -d > /tmp/contract-audit/handoff.patch
+          echo "$HANDOFF_PATCH_SHA256  /tmp/contract-audit/handoff.patch" | sha256sum -c -
+          git checkout --detach "$BASE_SHA"
+          git apply /tmp/contract-audit/handoff.patch
+          bash /tmp/restore.sh
+          bash /tmp/harden.sh
+          echo 'RECONSTRUCTED=true'
+
+      - name: Inspect contract construction and dependency closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== GESTIA CORE CONTRACT CONSTRUCTION ==='
+          grep -n -C 8 -E 'missionContractToolCalls|missionInitialToolCalls|requiredToolNames|ensureExecutableArtifactDependencies|productionRequested|productionArtifacts' gestia-core/gestia-core.js || true
+          echo '=== MULTIFUNCTION PLANNER PRODUCTION NORMALIZATION ==='
+          grep -n -C 8 -E 'productionRequested|productionArtifacts|toolCalls|HERRAMIENTAS_INICIALES|MARKETING_PRODUCTION_REQUIREMENTS|ensure|artifact' gestia-core/jarvis/jarvis.multifunction.planner.js | head -n 900 || true
+          echo '=== DEPENDENCY AUTHORITY ==='
+          grep -n -C 8 -E 'web.media.collect|marketing.plan|speech.synthesize|reel.plan|reel.create|depends|dependency' gestia-core/jarvis/jarvis.mission.dependencies.js | head -n 900 || true
+          echo '=== ORCHESTRATOR REQUIRED/RECOVERY ==='
+          grep -n -C 8 -E 'requiredToolNames|speech.synthesize|reel.plan|reel.create|dependency|blockedTasks|objectiveSatisfied' gestia-core/jarvis/jarvis.mission.orchestrator.js | head -n 1200 || true
+          echo '=== TEST EXPORTS ==='
+          tail -n 160 gestia-core/jarvis/jarvis.multifunction.planner.js
+          echo '=== EXISTING PRODUCTION TESTS ==='
+          grep -n -C 5 -E 'productionRequested|productionArtifacts|reel.create|speech.synthesize|requiredToolNames' tests/jarvis-marketing-production-intent-v125.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-mission-contract-accounting.test.mjs tests/jarvis-reel-dependency-recovery-v140.test.mjs | head -n 1200 || true
