@@ -1,0 +1,110 @@
+name: contract-audit full-ci exact failure diagnostic
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/contract-audit-full-ci-exact-failure-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLOW_V2_CARRIER_SHA: 8ef564d954de07a3b63d8a117ada4c2bcf40e3b4
+  FINAL_V3_CARRIER_SHA: 71e4b1f847640dd9d3d9b142b0158073f5451336
+  FINAL_V2_CARRIER_SHA: 21d1fc513d7817e7bfd9913ec113bd7923f3bb10
+  FAILED_FINAL_CARRIER_SHA: b6dd83bc03bebc8cc66b790a38404fa48db3f395
+  V3_CARRIER_SHA: e32b68752e452ef1d4f3eb6ba8fa375cce5787ab
+  PRIOR_V2_CARRIER_SHA: 1892d5f7726ce41402600d49b22fb1cf62e830fb
+  PRIOR_CARRIER_SHA: 2a51c1c349edac309465a22fd73c5b157dbaccd9
+  BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
+  CERTIFIED_CARRIER_SHA: cebe6f399d4edf4f234e584e0a42cf980b3a404d
+
+jobs:
+  expose-full-ci-failure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct exact refined candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .github/candidates/contract-audit/mission-contract-authority-closeout-v2.py /tmp/authority-closeout-v2.py
+          git show "${FLOW_V2_CARRIER_SHA}:.github/workflows/contract-audit-mission-flow-closeout-v2.yml" > /tmp/flow-v2.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('/tmp/flow-v2.yml').read_text()
+          for a,b,out in [
+            ('Reconstruct certified final-v3 candidate','Preserve complete semantic mission flow','/tmp/full-reconstruct.sh'),
+            ('Preserve complete semantic mission flow','Install dependencies','/tmp/full-flow.sh')
+          ]:
+              s=text.index(f'      - name: {a}\n')
+              rs=text.index('        run: |\n',s)+len('        run: |\n')
+              e=text.index(f'\n      - name: {b}\n',rs)
+              lines=[]
+              for line in text[rs:e].splitlines():
+                  if line.startswith('          '): lines.append(line[10:])
+                  elif not line.strip(): lines.append('')
+                  else: raise SystemExit(f'EXTRACT_INDENT:{a}:{line!r}')
+              Path(out).write_text('\n'.join(lines)+'\n')
+          PY
+          bash /tmp/full-reconstruct.sh
+          bash /tmp/full-flow.sh
+          python3 /tmp/authority-closeout-v2.py
+          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          node --check gestia-core/gestia-core.js
+          git diff --check
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Capture exact full CI failure
+        id: full
+        shell: bash
+        run: |
+          set +e
+          npm run ci:test 2>&1 | tee /tmp/full-ci.log
+          status=${PIPESTATUS[0]}
+          set -e
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+          STATUS="$status" python3 - <<'PY'
+          from pathlib import Path
+          import os,re
+          lines=Path('/tmp/full-ci.log').read_text(errors='replace').splitlines()
+          indexes=[]
+          patterns=[r'(^|\s)not ok\b',r'AssertionError',r'ERR_ASSERTION',r'failureType:',r'\bSyntaxError\b',r'\bReferenceError\b',r'\bTypeError\b',r'npm error',r'npm ERR!',r'Process exited',r'\bFAIL\b']
+          for i,line in enumerate(lines):
+              if any(re.search(p,line,re.I) for p in patterns): indexes.append(i)
+          windows=[]
+          for i in indexes[-12:]:
+              block='\n'.join(lines[max(0,i-7):min(len(lines),i+18)])
+              if block not in windows: windows.append(block)
+          summary='\n\n--- failure window ---\n\n'.join(windows[-8:]) if windows else '\n'.join(lines[-220:])
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a',encoding='utf-8') as f:
+              f.write('## Exact full CI diagnostic\n\n```text\n'+summary[:18000]+'\n```\n')
+          one=' | '.join(x.strip() for x in summary.splitlines() if x.strip())[-5000:]
+          one=one.replace('%','%25').replace('\r','%0D').replace('\n','%0A')
+          level='error' if os.environ['STATUS']!='0' else 'notice'
+          print(f'::{level} title=Exact full CI diagnostic::{one}')
+          PY
+          exit 0
+
+      - name: Enforce full CI result
+        shell: bash
+        run: |
+          test "${{ steps.full.outputs.status }}" = "0"
+          echo 'FULL_CI_DIAGNOSTIC_GREEN=true'
+
+      - name: No deploy
+        if: always()
+        run: |
+          echo 'NO_HOSTING_DEPLOY=true'
+          echo 'NO_FUNCTIONS_CHANGE=true'
+          echo 'NO_MULTISERVICIOS_CHANGE=true'
