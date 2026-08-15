@@ -1,0 +1,187 @@
+name: v140 candidate web
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/v140-candidate-web.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  PATCH_SHA256: f33c6e26579b7248483658089a53a4e6281b922e1577735cfff9bbd71b622fd8
+  FIREBASE_PROJECT_ID: fixgo-44e4d
+  FIREBASE_SITE_ID: fixgo-44e4d
+
+jobs:
+  certify-and-deploy-hosting-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout candidate carrier commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct exact local candidate over certified branch base
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
+          cp .github/candidates/adjunto-v140-candidate.patch.gz.b64 /tmp/adjunto-v140-candidate.patch.gz.b64
+          git reset --hard "$BASE_SHA"
+          base64 -d /tmp/adjunto-v140-candidate.patch.gz.b64 | gunzip > /tmp/adjunto-v140-candidate.patch
+          echo "$PATCH_SHA256  /tmp/adjunto-v140-candidate.patch" | sha256sum -c -
+          git apply --check /tmp/adjunto-v140-candidate.patch
+          git apply --whitespace=nowarn /tmp/adjunto-v140-candidate.patch
+          git diff --check
+          cat > /tmp/expected-files.txt <<'EOF'
+          gestia-core/jarvis/jarvis.marketing.engine.js
+          gestia-core/jarvis/jarvis.mission.orchestrator.js
+          gestia-core/nexo/nexo.real-media.runtime-guard-v128.js
+          gestia-core/nexo/nexo.real-media.tools.js
+          gestia-terminal.html
+          jarvis-fs-bridge.js
+          nexo-web-media-bridge.js
+          tests/jarvis-fs-bridge-v2.test.mjs
+          tests/jarvis-marketing-engine-v2.test.mjs
+          tests/jarvis-multifunction-tools.test.mjs
+          tests/jarvis-reel-artifact.test.mjs
+          tests/jarvis-reel-dependency-recovery-v140.test.mjs
+          tests/jarvis-reel-media-source-recovery-v136.test.mjs
+          tests/jarvis-reel-real-production-v134.test.mjs
+          tests/jarvis-reel-speech-v137.test.mjs
+          tests/nexo-browser-media-fallback-v135.test.mjs
+          tests/nexo-real-media-runtime-guard-v128.test.mjs
+          EOF
+          git diff --name-only "$BASE_SHA" | sort > /tmp/actual-files.txt
+          sort /tmp/expected-files.txt -o /tmp/expected-files.txt
+          diff -u /tmp/expected-files.txt /tmp/actual-files.txt
+          ! grep -Eq '^(functions/|multiservicios-web/)' /tmp/actual-files.txt
+          echo "V140_CANDIDATE_PATCH_APPLIED=true"
+          echo "V140_BASE_SHA=$BASE_SHA"
+          echo "V140_PATCH_SHA256=$PATCH_SHA256"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install app dependencies
+        run: npm ci
+
+      - name: Run v140 focal regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/jarvis-reel-speech-v137.test.mjs \
+            tests/jarvis-reel-dependency-recovery-v140.test.mjs \
+            tests/nexo-browser-media-fallback-v135.test.mjs \
+            tests/nexo-real-media-runtime-guard-v128.test.mjs \
+            tests/jarvis-reel-artifact.test.mjs \
+            tests/jarvis-reel-real-production-v134.test.mjs \
+            tests/jarvis-reel-media-source-recovery-v136.test.mjs
+
+      - name: Run full repository certification
+        run: npm run ci:test
+
+      - name: Guard protected surfaces after certification
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git diff --name-only "$BASE_SHA" | sort > /tmp/final-files.txt
+          diff -u /tmp/expected-files.txt /tmp/final-files.txt
+          ! grep -Eq '^(functions/|multiservicios-web/)' /tmp/final-files.txt
+          test -z "$(git status --porcelain | grep -E '^(.. )?(functions/|multiservicios-web/)' || true)"
+          echo 'V140_PROTECTED_SURFACES_UNTOUCHED=true'
+
+      - name: Build isolated Hosting config and candidate marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const source = JSON.parse(fs.readFileSync('firebase.json', 'utf8'));
+          const hosting = Array.isArray(source.hosting) ? source.hosting : [source.hosting].filter(Boolean);
+          const selected = hosting.filter(item => item && item.site === process.env.FIREBASE_SITE_ID);
+          if (selected.length !== 1) throw new Error(`V140_HOSTING_SITE_SELECTION_INVALID:${selected.length}`);
+          if (selected[0].target) throw new Error(`V140_HOSTING_TARGET_FORBIDDEN:${selected[0].target}`);
+          const isolated = { hosting: selected[0] };
+          if (isolated.functions) throw new Error('V140_FUNCTIONS_CONFIG_PRESENT');
+          fs.writeFileSync('.firebase-v140-hosting-only.json', JSON.stringify(isolated, null, 2));
+          fs.writeFileSync('v140-candidate.json', JSON.stringify({
+            candidate: 'ADJUNTO_V140_WEB',
+            baseSha: process.env.BASE_SHA,
+            patchSha256: process.env.PATCH_SHA256,
+            builtAt: new Date().toISOString()
+          }, null, 2));
+          NODE
+          node <<'NODE'
+          const fs = require('fs');
+          const config = JSON.parse(fs.readFileSync('.firebase-v140-hosting-only.json', 'utf8'));
+          if (config.functions) throw new Error('V140_FUNCTIONS_CONFIG_PRESENT');
+          if (Array.isArray(config.hosting)) throw new Error('V140_MULTISITE_CONFIG_PRESENT');
+          if (config.hosting?.site !== process.env.FIREBASE_SITE_ID) throw new Error('V140_WRONG_HOSTING_SITE');
+          if (config.hosting?.target) throw new Error('V140_MULTISERVICIOS_TARGET_PRESENT');
+          console.log('V140_HOSTING_CONFIG_ISOLATED=true');
+          NODE
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy ADJUNTO v140 candidate Hosting only
+        shell: bash
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy \
+            --config .firebase-v140-hosting-only.json \
+            --only hosting \
+            --project "$FIREBASE_PROJECT_ID" \
+            --token "$FIREBASE_TOKEN" \
+            --non-interactive
+          echo 'V140_HOSTING_ONLY_DEPLOYED=true'
+
+      - name: Verify exact candidate bytes served from Hosting
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://${FIREBASE_SITE_ID}.web.app"
+          marker="${base}/v140-candidate.json?sha=${PATCH_SHA256}"
+          terminal="${base}/gestia-terminal.html?sha=${PATCH_SHA256}"
+          orchestrator="${base}/gestia-core/jarvis/jarvis.mission.orchestrator.js?sha=${PATCH_SHA256}"
+          bridge="${base}/jarvis-fs-bridge.js?sha=${PATCH_SHA256}"
+          media_bridge="${base}/nexo-web-media-bridge.js?sha=${PATCH_SHA256}"
+          media_tools="${base}/gestia-core/nexo/nexo.real-media.tools.js?sha=${PATCH_SHA256}"
+          ok=false
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent --show-error --location "$marker" -o /tmp/v140-marker.json \
+              && curl --fail --silent --show-error --location "$terminal" -o /tmp/v140-terminal.html \
+              && curl --fail --silent --show-error --location "$orchestrator" -o /tmp/v140-orchestrator.js \
+              && curl --fail --silent --show-error --location "$bridge" -o /tmp/v140-bridge.js \
+              && curl --fail --silent --show-error --location "$media_bridge" -o /tmp/v140-media-bridge.js \
+              && curl --fail --silent --show-error --location "$media_tools" -o /tmp/v140-media-tools.js \
+              && grep -q "$PATCH_SHA256" /tmp/v140-marker.json \
+              && grep -q 'completedMissionToolNames' /tmp/v140-terminal.html \
+              && grep -q 'dependencyRecoveryHistory' /tmp/v140-orchestrator.js \
+              && grep -q '2.47.0-post-state-media-provenance-v141' /tmp/v140-bridge.js \
+              && grep -q '1.6.0-post-provenance-v140' /tmp/v140-media-bridge.js \
+              && grep -q '1.8.0-post-provenance-v140' /tmp/v140-media-tools.js; then
+                ok=true
+                break
+            fi
+            sleep 4
+          done
+          test "$ok" = true
+          echo 'V140_HOSTING_WEB_VERIFIED=true'
+          echo "V140_WEB_URL=${base}/gestia-terminal.html"
+          echo "V140_PATCH_SHA256=$PATCH_SHA256"
