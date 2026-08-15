@@ -32,12 +32,14 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
-          cp .github/candidates/adjunto-v140-candidate.patch.gz.b64 /tmp/adjunto-v140-candidate.patch.gz.b64
+          cat .github/candidates/v140/chunk-*.txt > /tmp/adjunto-v140-candidate.patch.gz.b64
+          test "$(wc -c < /tmp/adjunto-v140-candidate.patch.gz.b64)" -eq 28188
           git reset --hard "$BASE_SHA"
           base64 -d /tmp/adjunto-v140-candidate.patch.gz.b64 | gunzip > /tmp/adjunto-v140-candidate.patch
           echo "$PATCH_SHA256  /tmp/adjunto-v140-candidate.patch" | sha256sum -c -
           git apply --check /tmp/adjunto-v140-candidate.patch
           git apply --whitespace=nowarn /tmp/adjunto-v140-candidate.patch
+          git add -N -- tests/jarvis-reel-dependency-recovery-v140.test.mjs
           git diff --check
           cat > /tmp/expected-files.txt <<'EOF'
           gestia-core/jarvis/jarvis.marketing.engine.js
