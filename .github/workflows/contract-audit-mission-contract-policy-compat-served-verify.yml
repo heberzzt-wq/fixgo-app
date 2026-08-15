@@ -1,0 +1,150 @@
+name: contract-audit mission-contract policy compat served verify
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/contract-audit-mission-contract-policy-compat-served-verify.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FIREBASE_SITE_ID: fixgo-44e4d
+
+jobs:
+  verify-production-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch exact current production bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://${FIREBASE_SITE_ID}.web.app"
+          stamp="${GITHUB_RUN_ID}-$(date +%s)"
+          curl -fsSL -D /tmp/planner.headers "${base}/gestia-core/jarvis/jarvis.multifunction.planner.js?policy-diagnostic=${stamp}" -o /tmp/policy-planner.js
+          curl -fsSL -D /tmp/core.headers "${base}/gestia-core/gestia-core.js?policy-diagnostic=${stamp}" -o /tmp/policy-core.js
+          curl -fsSL -D /tmp/marker.headers "${base}/contract-audit-production-chain.json?policy-diagnostic=${stamp}" -o /tmp/policy-marker.json
+          echo "::notice::PLANNER_BYTES=$(wc -c < /tmp/policy-planner.js)"
+          echo "::notice::CORE_BYTES=$(wc -c < /tmp/policy-core.js)"
+          echo "::notice::MARKER_BYTES=$(wc -c < /tmp/policy-marker.json)"
+          echo "::notice::PLANNER_SHA256=$(sha256sum /tmp/policy-planner.js | cut -d' ' -f1)"
+          echo "::notice::CORE_SHA256=$(sha256sum /tmp/policy-core.js | cut -d' ' -f1)"
+          echo "::notice::MARKER_SHA256=$(sha256sum /tmp/policy-marker.json | cut -d' ' -f1)"
+
+      - name: Diagnose served planner authority block
+        shell: bash
+        run: |
+          set -uo pipefail
+          node <<'NODE'
+          const fs=require('fs');
+          const source=fs.readFileSync('/tmp/policy-planner.js','utf8');
+          const checks={
+            policyGate:source.includes('function cloudMissionContractPolicyCertified'),
+            policyUnverified:source.includes('MISSION_CONTRACT_CLOUD_POLICY_UNVERIFIED'),
+            exactMediaCapability:source.includes('exactMediaEvidenceSemantics'),
+            physicalArtifactCapability:source.includes('physicalArtifactCompletionSemantics'),
+            cloudCall:source.includes('callSemanticPlanner'),
+            browserCall:source.includes('callBrowserMissionContract')
+          };
+          for(const [k,v] of Object.entries(checks)) console.log(`::notice::PLANNER_${k}=${v}`);
+          const a=source.indexOf('function cloudMissionContractPolicyCertified');
+          const b=source.indexOf('async function callBrowserSemanticPlan',a);
+          console.log(`::notice::POLICY_BLOCK_START=${a}`);
+          console.log(`::notice::POLICY_BLOCK_END=${b}`);
+          if(a>=0 && b>a){
+            const block=source.slice(a,b);
+            const cloud=block.indexOf('callSemanticPlanner');
+            const browser=block.indexOf('callBrowserMissionContract');
+            console.log(`::notice::POLICY_BLOCK_BYTES=${Buffer.byteLength(block)}`);
+            console.log(`::notice::POLICY_CLOUD_INDEX=${cloud}`);
+            console.log(`::notice::POLICY_BROWSER_INDEX=${browser}`);
+            console.log(`::notice::POLICY_CLOUD_BEFORE_BROWSER=${cloud>=0 && browser>=0 && cloud<browser}`);
+            for(const forbidden of ['tiktok.com','Taquería El Dorado','web.research','web.media.collect','media.analyze','marketing.plan','reel.plan','reel.create']){
+              const idx=block.indexOf(forbidden);
+              console.log(`::notice::POLICY_FORBIDDEN_${forbidden.replace(/[^a-z0-9]+/gi,'_')}=${idx>=0}`);
+              if(idx>=0){
+                const snippet=block.slice(Math.max(0,idx-100),Math.min(block.length,idx+forbidden.length+100)).replace(/\s+/g,' ');
+                console.log(`::warning::FORBIDDEN_MATCH_${forbidden.replace(/[^a-z0-9]+/gi,'_')}=${snippet}`);
+              }
+            }
+          }
+          NODE
+
+      - name: Diagnose served core contract semantics
+        shell: bash
+        run: |
+          set -uo pipefail
+          node <<'NODE'
+          const fs=require('fs');
+          const core=fs.readFileSync('/tmp/policy-core.js','utf8');
+          const checks={
+            unavailable:core.includes('MISSION_CONTRACT_UNAVAILABLE'),
+            staleSeedRecovery:core.includes('MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN'),
+            stableContract:core.includes('1.2.0-stable-research-objectives')
+          };
+          for(const [k,v] of Object.entries(checks)) console.log(`::notice::CORE_${k}=${v}`);
+          NODE
+
+      - name: Diagnose served production marker
+        shell: bash
+        run: |
+          set -uo pipefail
+          node <<'NODE'
+          const fs=require('fs');
+          let value={};
+          try { value=JSON.parse(fs.readFileSync('/tmp/policy-marker.json','utf8')); }
+          catch(error){ console.log(`::error::MARKER_JSON_PARSE=${error.message}`); process.exit(0); }
+          const keys=[
+            'candidate',
+            'missionContractCloudPolicyCertificationRequired',
+            'browserFallbackOnCloudPolicyMismatch',
+            'exactMediaEvidenceSemantics',
+            'physicalArtifactCompletionSemantics',
+            'cloudPlannerPrimary',
+            'initialSeedRecoveryRemoved',
+            'staticToolRouting',
+            'canonicalMissionContract',
+            'untouchedSurfaces'
+          ];
+          for(const key of keys) console.log(`::notice::MARKER_${key}=${JSON.stringify(value[key])}`);
+          NODE
+
+      - name: Final strict current-policy certification
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('fs');
+          const planner=fs.readFileSync('/tmp/policy-planner.js','utf8');
+          const core=fs.readFileSync('/tmp/policy-core.js','utf8');
+          const marker=JSON.parse(fs.readFileSync('/tmp/policy-marker.json','utf8'));
+          const a=planner.indexOf('function cloudMissionContractPolicyCertified');
+          const b=planner.indexOf('async function callBrowserSemanticPlan',a);
+          if(a<0 || b<=a) throw new Error('SERVED_POLICY_BLOCK_MISSING');
+          const block=planner.slice(a,b);
+          const cloud=block.indexOf('callSemanticPlanner');
+          const browser=block.indexOf('callBrowserMissionContract');
+          if(cloud<0 || browser<0 || cloud>browser) throw new Error('SERVED_CLOUD_BROWSER_ORDER_INVALID');
+          if(!block.includes('MISSION_CONTRACT_CLOUD_POLICY_UNVERIFIED')) throw new Error('SERVED_POLICY_MISMATCH_FAILOVER_MISSING');
+          if(!block.includes('exactMediaEvidenceSemantics') || !block.includes('physicalArtifactCompletionSemantics')) throw new Error('SERVED_POLICY_CAPABILITY_GATE_MISSING');
+          for(const forbidden of ['tiktok.com','Taquería El Dorado','web.research','web.media.collect','media.analyze','marketing.plan','reel.plan','reel.create']){
+            if(block.includes(forbidden)) throw new Error(`SERVED_STATIC_ROUTING_LEAK:${forbidden}`);
+          }
+          if(!core.includes('MISSION_CONTRACT_UNAVAILABLE')) throw new Error('SERVED_FAIL_CLOSED_MARKER_MISSING');
+          if(core.includes('MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN')) throw new Error('SERVED_STALE_SEED_RECOVERY_PRESENT');
+          if(!core.includes('1.2.0-stable-research-objectives')) throw new Error('SERVED_STABLE_CONTRACT_MISSING');
+          if(marker.candidate!=='ADJUNTO_MISSION_CONTRACT_POLICY_COMPAT') throw new Error(`SERVED_MARKER_CANDIDATE:${marker.candidate}`);
+          if(marker.missionContractCloudPolicyCertificationRequired!==true) throw new Error('SERVED_MARKER_POLICY_CERT_REQUIRED');
+          if(marker.browserFallbackOnCloudPolicyMismatch!==true) throw new Error('SERVED_MARKER_POLICY_FALLBACK');
+          if(marker.exactMediaEvidenceSemantics!==true) throw new Error('SERVED_MARKER_EXACT_MEDIA');
+          if(marker.physicalArtifactCompletionSemantics!==true) throw new Error('SERVED_MARKER_PHYSICAL_ARTIFACT');
+          if(marker.cloudPlannerPrimary!==true) throw new Error('SERVED_MARKER_CLOUD_PRIMARY');
+          if(marker.initialSeedRecoveryRemoved!==true) throw new Error('SERVED_MARKER_SEED_RECOVERY');
+          if(marker.staticToolRouting!==false) throw new Error('SERVED_MARKER_STATIC_ROUTING');
+          if(marker.canonicalMissionContract!=='1.2.0-stable-research-objectives') throw new Error(`SERVED_MARKER_CONTRACT:${marker.canonicalMissionContract}`);
+          console.log('MISSION_CONTRACT_POLICY_COMPAT_SERVED_VERIFIED=true');
+          NODE
