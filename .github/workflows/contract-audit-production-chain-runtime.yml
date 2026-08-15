@@ -83,32 +83,20 @@ jobs:
               raise SystemExit('PLANNER_IMPORT_ANCHOR_NOT_FOUND')
           core = core.replace(old_import, new_import, 1)
 
-          anchor = '''    if (conversationalPlan.requiresFinalConversation) {
-              missionContractToolCalls =
-                  mergeEvidenceGroundedToolCalls(
-                      missionContractToolCalls,
-                      operationalInitialToolCalls
-                  );
+          old_merge_anchor = '''        if (missionContractToolCalls.length === 0) throw contractError;
+          }
+          if (conversationalPlan.requiresFinalConversation) {'''
+          new_merge_anchor = '''        if (missionContractToolCalls.length === 0) throw contractError;
           }
           missionContractToolCalls =
-              ensureExecutableArtifactDependencies({'''
-          replacement = '''    missionContractToolCalls =
               mergeJarvisToolCalls(
                   missionContractToolCalls,
                   operationalInitialToolCalls
               );
-          if (conversationalPlan.requiresFinalConversation) {
-              missionContractToolCalls =
-                  mergeEvidenceGroundedToolCalls(
-                      missionContractToolCalls,
-                      operationalInitialToolCalls
-                  );
-          }
-          missionContractToolCalls =
-              ensureExecutableArtifactDependencies({'''
-          if anchor not in core:
+          if (conversationalPlan.requiresFinalConversation) {'''
+          if old_merge_anchor not in core:
               raise SystemExit('MISSION_CONTRACT_MERGE_ANCHOR_NOT_FOUND')
-          core_path.write_text(core.replace(anchor, replacement, 1))
+          core_path.write_text(core.replace(old_merge_anchor, new_merge_anchor, 1))
 
           planner_path = Path('gestia-core/jarvis/jarvis.multifunction.planner.js')
           planner = planner_path.read_text()
@@ -156,13 +144,20 @@ jobs:
             const merged = mergeJarvisToolCalls(truncatedAudit, initial);
             const expanded = ensureExecutableArtifactDependencies({ toolCalls: merged, catalog });
             const names = new Set(expanded.map(call => call.name));
-            for (const name of catalog.map(item => item.name)) assert.equal(names.has(name), true, `missing ${name}`);
+            for (const name of catalog.map(item => item.name)) {
+              assert.equal(names.has(name), true, `missing ${name}`);
+            }
+            assert.equal(
+              expanded.some(call => call.name === 'marketing.plan' && call.args?.productionRequested === true),
+              true,
+              'production declaration must survive contract audit'
+            );
           });
 
-          test('GestiaCore structurally preserves initial semantic tool calls before dependency closure', () => {
+          test('GestiaCore preserves initial semantic tool calls before dependency closure', () => {
             const core = fs.readFileSync(new URL('../gestia-core/gestia-core.js', import.meta.url), 'utf8');
             assert.match(core, /mergeJarvisToolCalls\(\s*missionContractToolCalls,\s*operationalInitialToolCalls\s*\)/s);
-            const mergeAt = core.indexOf('mergeJarvisToolCalls(\n                missionContractToolCalls');
+            const mergeAt = core.indexOf('mergeJarvisToolCalls(');
             const ensureAt = core.indexOf('ensureExecutableArtifactDependencies({', mergeAt);
             assert.ok(mergeAt >= 0 && ensureAt > mergeAt);
           });
