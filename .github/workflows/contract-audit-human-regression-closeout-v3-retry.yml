@@ -101,6 +101,30 @@ jobs:
 
           bash /tmp/v3-step-1.sh
           bash /tmp/v3-step-2.sh
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('gestia-core/jarvis/jarvis.mission.orchestrator.js')
+          t=p.read_text()
+          s=t.index('function safeObservation(result = {}) {')
+          e=t.index('\nfunction ',s+1)
+          chunk=t[s:e]
+          print('===SAFE_OBSERVATION_GENERATED===')
+          print(chunk[:9000])
+          print('===END_SAFE_OBSERVATION_GENERATED===')
+          test=Path('tests/jarvis-human-regression-closeout.test.mjs')
+          source=test.read_text()
+          needle='const observed=missionTest.safeObservation(envelope);'
+          if needle not in source:
+              raise SystemExit('OBSERVED_FIXTURE_ANCHOR_NOT_FOUND')
+          source=source.replace(
+              needle,
+              needle+'\n  console.error("MARKETING_OBSERVED="+JSON.stringify(observed));',
+              1
+          )
+          test.write_text(source)
+          PY
+
           bash /tmp/v3-step-3.sh
           bash /tmp/v3-step-4.sh
           bash /tmp/v3-step-5.sh
