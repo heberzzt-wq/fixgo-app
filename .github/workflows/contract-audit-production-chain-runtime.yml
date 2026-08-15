@@ -68,7 +68,6 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import re
-
           p = Path('gestia-core/gestia-core.js')
           t = p.read_text()
           old = """import {
@@ -80,25 +79,12 @@ jobs:
               completeJarvisPlanningArguments,
               mergeJarvisToolCalls
           } from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=v136-reel-media-source-recovery-20260812';"""
-          if old not in t:
-              raise SystemExit('PLANNER_IMPORT_ANCHOR_NOT_FOUND')
+          if old not in t: raise SystemExit('PLANNER_IMPORT_ANCHOR_NOT_FOUND')
           t = t.replace(old, new, 1)
-
-          pattern = re.compile(
-              r'(\n\s*if \(missionContractToolCalls\.length === 0\) throw contractError;\n\s*\}\n)(\s*if \(conversationalPlan\.requiresFinalConversation\) \{)'
-          )
-          replacement = (
-              r'\1'
-              '    missionContractToolCalls =\n'
-              '        mergeJarvisToolCalls(\n'
-              '            missionContractToolCalls,\n'
-              '            operationalInitialToolCalls\n'
-              '        );\n'
-              r'\2'
-          )
+          pattern = re.compile(r'(\n\s*if \(missionContractToolCalls\.length === 0\) throw contractError;\n\s*\}\n)(\s*if \(conversationalPlan\.requiresFinalConversation\) \{)')
+          replacement = r'\1' + '    missionContractToolCalls =\n        mergeJarvisToolCalls(\n            missionContractToolCalls,\n            operationalInitialToolCalls\n        );\n' + r'\2'
           t, count = pattern.subn(replacement, t, count=1)
-          if count != 1:
-              raise SystemExit('MISSION_CONTRACT_MERGE_ANCHOR_NOT_FOUND')
+          if count != 1: raise SystemExit('MISSION_CONTRACT_MERGE_ANCHOR_NOT_FOUND')
           p.write_text(t)
           PY
 
@@ -108,48 +94,33 @@ jobs:
           import fs from 'node:fs';
           import { mergeJarvisToolCalls } from '../gestia-core/jarvis/jarvis.multifunction.planner.js';
           import { ensureExecutableArtifactDependencies } from '../gestia-core/jarvis/jarvis.mission.dependencies.js';
-
-          const catalog = [
-            'web.research','web.media.collect','marketing.plan',
-            'reel.plan','speech.synthesize','reel.create'
-          ].map(name => ({ name }));
-
-          test('a successful contract audit cannot erase an initial production chain', () => {
-            const initial = [
-              { name:'web.research', args:{ researchGoal:'RESEARCH_1' } },
-              { name:'web.media.collect', args:{ url:'https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004', requireVideos:true } },
-              { name:'marketing.plan', args:{ factsOnly:true, productionRequested:true, productionArtifacts:[{ type:'reel', toolName:'reel.create', label:'Reel final' }] } },
-              { name:'reel.plan', args:{} },
-              { name:'speech.synthesize', args:{} },
-              { name:'reel.create', args:{} }
+          const catalog=['web.research','web.media.collect','marketing.plan','reel.plan','speech.synthesize','reel.create'].map(name=>({name}));
+          test('a successful contract audit cannot erase an initial production chain',()=>{
+            const initial=[
+              {name:'web.research',args:{researchGoal:'RESEARCH_1'}},
+              {name:'web.media.collect',args:{url:'https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004',requireVideos:true}},
+              {name:'marketing.plan',args:{factsOnly:true,productionRequested:true,productionArtifacts:[{type:'reel',toolName:'reel.create',label:'Reel final'}]}},
+              {name:'reel.plan',args:{}},{name:'speech.synthesize',args:{}},{name:'reel.create',args:{}}
             ];
-            const truncatedAudit = [
-              { name:'web.research', args:{ researchGoal:'RESEARCH_1' } },
-              { name:'web.media.collect', args:{ url:'https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004', requireVideos:true } },
-              { name:'marketing.plan', args:{ factsOnly:true } }
+            const audited=[
+              {name:'web.research',args:{researchGoal:'RESEARCH_1'}},
+              {name:'web.media.collect',args:{url:'https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004',requireVideos:true}},
+              {name:'marketing.plan',args:{factsOnly:true}}
             ];
-            const merged = mergeJarvisToolCalls(truncatedAudit, initial);
-            const expanded = ensureExecutableArtifactDependencies({ toolCalls:merged, catalog });
-            const names = new Set(expanded.map(call => call.name));
-            for (const name of catalog.map(item => item.name)) {
-              assert.equal(names.has(name), true, `missing ${name}`);
-            }
-            assert.equal(
-              expanded.some(call => call.name === 'marketing.plan' && call.args?.productionRequested === true),
-              true
-            );
+            const expanded=ensureExecutableArtifactDependencies({toolCalls:mergeJarvisToolCalls(audited,initial),catalog});
+            const names=new Set(expanded.map(call=>call.name));
+            for(const name of catalog.map(item=>item.name)) assert.equal(names.has(name),true,`missing ${name}`);
+            assert.equal(expanded.some(call=>call.name==='marketing.plan'&&call.args?.productionRequested===true),true);
           });
-
-          test('GestiaCore merges the existing plan before dependency closure', () => {
-            const core = fs.readFileSync(new URL('../gestia-core/gestia-core.js', import.meta.url), 'utf8');
-            const match = core.match(/mergeJarvisToolCalls\(\s*missionContractToolCalls,\s*operationalInitialToolCalls\s*\)/s);
+          test('GestiaCore merges the existing plan before dependency closure',()=>{
+            const core=fs.readFileSync(new URL('../gestia-core/gestia-core.js',import.meta.url),'utf8');
+            const match=core.match(/mergeJarvisToolCalls\(\s*missionContractToolCalls,\s*operationalInitialToolCalls\s*\)/s);
             assert.ok(match);
-            const mergeAt = core.indexOf(match[0]);
-            const ensureAt = core.indexOf('ensureExecutableArtifactDependencies({', mergeAt);
-            assert.ok(mergeAt >= 0 && ensureAt > mergeAt);
+            const mergeAt=core.indexOf(match[0]);
+            const ensureAt=core.indexOf('ensureExecutableArtifactDependencies({',mergeAt);
+            assert.ok(mergeAt>=0&&ensureAt>mergeAt);
           });
           EOF
-
           node --check gestia-core/gestia-core.js
           git diff --check
           echo 'SAME_PLAN_PRESERVED=true'
@@ -160,38 +131,25 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
-          p = Path('gestia-core/jarvis/jarvis.multitool.pack.js')
-          t = p.read_text()
-          anchor = 'async function fetchGroundedWebResearch(\n'
-          if anchor not in t:
-              raise SystemExit('WEB_RESEARCH_FUNCTION_ANCHOR_NOT_FOUND')
+          p=Path('gestia-core/jarvis/jarvis.multitool.pack.js')
+          t=p.read_text()
+          anchor='async function fetchGroundedWebResearch(\n'
+          if anchor not in t: raise SystemExit('WEB_RESEARCH_FUNCTION_ANCHOR_NOT_FOUND')
 
-          helper = r'''function researchSourceUrl(source = {}) {
-              return String(
-                  source?.url ||
-                  source?.href ||
-                  source?.link ||
-                  source?.sourceUrl ||
-                  ""
-              ).trim();
+          helper=r'''function researchSourceUrl(source = {}) {
+              return String(source?.url || source?.href || source?.link || source?.sourceUrl || "").trim();
           }
 
           function tiktokResearchIdentity(value = "") {
               try {
                   const url = new URL(String(value || "").trim());
-                  const host = String(url.hostname || "")
-                      .toLowerCase()
-                      .replace(/^www\./, "");
-                  if (host !== "tiktok.com" && !host.endsWith(".tiktok.com")) {
-                      return null;
-                  }
+                  const host = String(url.hostname || "").toLowerCase().replace(/^www\./, "");
+                  if (host !== "tiktok.com" && !host.endsWith(".tiktok.com")) return null;
                   const match = url.pathname.match(/^\/@([^/]+)(?:\/video\/(\d+))?(?:\/|$)/i);
                   if (!match) return null;
-                  const author = decodeURIComponent(match[1] || "")
-                      .replace(/^@/, "")
-                      .trim()
-                      .toLowerCase();
+                  const author = decodeURIComponent(match[1] || "").replace(/^@/, "").trim().toLowerCase();
                   if (!author) return null;
                   const postId = String(match[2] || "").trim();
                   return {
@@ -203,19 +161,11 @@ jobs:
                           : `https://www.tiktok.com/@${author}`
                   };
               }
-              catch {
-                  return null;
-              }
+              catch { return null; }
           }
 
           function researchFactSourceUrl(value = {}) {
-              return String(
-                  value?.sourceUrl ||
-                  value?.url ||
-                  value?.source?.url ||
-                  value?.source?.href ||
-                  ""
-              ).trim();
+              return String(value?.sourceUrl || value?.url || value?.source?.url || value?.source?.href || "").trim();
           }
 
           function scopedResearchAnswer(sources = [], seedIdentity = null, exactPostObjective = false) {
@@ -229,12 +179,8 @@ jobs:
                   : `Fuentes verificadas vinculadas a @${seedIdentity.author}. Las fuentes marcadas SAME_IDENTITY pertenecen a la misma cuenta, pero no describen necesariamente la publicacion ancla ${seedIdentity.canonicalUrl}:`;
               const lines = sources.slice(0, 8).map((source, index) => {
                   const title = String(source?.title || source?.name || "Fuente").trim();
-                  const snippet = String(source?.snippet || source?.description || source?.text || "")
-                      .replace(/\s+/g, " ")
-                      .trim()
-                      .slice(0, 500);
-                  const scope = String(source?.sourceScope || "");
-                  return `[${index + 1}] [${scope}] ${title}${snippet ? `: ${snippet}` : ""}`;
+                  const snippet = String(source?.snippet || source?.description || source?.text || "").replace(/\s+/g, " ").trim().slice(0, 500);
+                  return `[${index + 1}] [${String(source?.sourceScope || "")}] ${title}${snippet ? `: ${snippet}` : ""}`;
               });
               return [heading, ...lines].join("\n");
           }
@@ -244,13 +190,7 @@ jobs:
                   ? result.sources.filter(source => source && typeof source === "object")
                   : [];
               const seedIdentity = tiktokResearchIdentity(trace?.seedUrl || "");
-              if (!seedIdentity?.postId) {
-                  return {
-                      ...result,
-                      sources,
-                      anchorConstrained: false
-                  };
-              }
+              if (!seedIdentity?.postId) return { ...result, sources, anchorConstrained: false };
 
               const exactPostObjective = String(originalQuery || "").includes(seedIdentity.postId);
               const kept = [];
@@ -259,25 +199,16 @@ jobs:
                   const url = researchSourceUrl(source);
                   const identity = tiktokResearchIdentity(url);
                   if (!identity || identity.author !== seedIdentity.author) continue;
-
-                  const exactPost = Boolean(
-                      identity.postId &&
-                      identity.postId === seedIdentity.postId
-                  );
+                  const exactPost = Boolean(identity.postId && identity.postId === seedIdentity.postId);
                   if (exactPostObjective && !exactPost) continue;
-
-                  const sourceScope = exactPost
-                      ? "EXACT_SEED_POST"
-                      : "SAME_IDENTITY";
                   kept.push({
                       ...source,
-                      sourceScope,
+                      sourceScope: exactPost ? "EXACT_SEED_POST" : "SAME_IDENTITY",
                       anchorUrl: seedIdentity.canonicalUrl,
                       anchorVerified: exactPost
                   });
                   if (url) keptUrls.add(url);
               }
-
               const grounded = kept.length > 0;
               const facts = Array.isArray(result?.facts)
                   ? result.facts.filter(fact => {
@@ -285,7 +216,6 @@ jobs:
                       return Boolean(url) && keptUrls.has(url);
                   })
                   : [];
-
               return {
                   ...result,
                   ok: result?.ok !== false,
@@ -300,160 +230,94 @@ jobs:
                   anchorConstrained: true,
                   anchorVerified: kept.some(source => source?.sourceScope === "EXACT_SEED_POST"),
                   anchorUrl: seedIdentity.canonicalUrl,
-                  anchorIdentity: {
-                      platform: seedIdentity.platform,
-                      author: seedIdentity.author,
-                      postId: seedIdentity.postId
-                  },
+                  anchorIdentity: { platform: seedIdentity.platform, author: seedIdentity.author, postId: seedIdentity.postId },
                   exactPostObjective
               };
           }
 
           '''
-          t = t.replace(anchor, helper + anchor, 1)
+          t=t.replace(anchor,helper+anchor,1)
 
-          old_result = '''        const result =
-              payload?.result ||
-              payload?.data ||
-              null;
+          cloud_pattern=re.compile(
+              r'(?m)^(?P<i>[ \t]*)const result =\n(?P=i)    payload\?\.result \|\|\n(?P=i)    payload\?\.data \|\|\n(?P=i)    null;'
+          )
+          def cloud_repl(m):
+              i=m.group('i')
+              return (
+                  f'{i}const rawResult =\n'
+                  f'{i}    payload?.result ||\n'
+                  f'{i}    payload?.data ||\n'
+                  f'{i}    null;\n'
+                  f'{i}const result =\n'
+                  f'{i}    scopeGroundedResearchResult(\n'
+                  f'{i}        rawResult || {{}},\n'
+                  f'{i}        trace,\n'
+                  f'{i}        query\n'
+                  f'{i}    );'
+              )
+          t,count=cloud_pattern.subn(cloud_repl,t,count=1)
+          if count!=1: raise SystemExit('CLOUD_RESULT_ANCHOR_NOT_FOUND')
 
-          if (
-              !response.ok ||'''
-          new_result = '''        const rawResult =
-              payload?.result ||
-              payload?.data ||
-              null;
-          const result =
-              scopeGroundedResearchResult(
-                  rawResult || {},
-                  trace,
-                  query
-              );
+          health_needle='globalThis.__JARVIS_WEB_RESEARCH_HEALTH__ = recordCapabilityEvidence("web_research", {'
+          result_at=t.index('const rawResult =')
+          health_at=t.index(health_needle,result_at)
+          line_start=t.rfind('\n',0,health_at)+1
+          indent=t[line_start:health_at]
+          guard=(
+              f'{indent}if (result?.anchorConstrained === true && result?.grounded !== true) {{\n'
+              f'{indent}    throw new Error("WEB_RESEARCH_SOURCE_ANCHOR_UNVERIFIED");\n'
+              f'{indent}}}\n\n'
+          )
+          t=t[:line_start]+guard+t[line_start:]
 
-          if (
-              !response.ok ||'''
-          if old_result not in t:
-              raise SystemExit('CLOUD_RESULT_ANCHOR_NOT_FOUND')
-          t = t.replace(old_result, new_result, 1)
+          local_start=t.index('const localResult =',health_at)
+          call_end=t.index('\n                );',local_start)+len('\n                );')
+          failure_health=t.index('\n        globalThis.__JARVIS_WEB_RESEARCH_HEALTH__ = {',call_end)
+          original_segment=t[call_end:failure_health]
+          filtered_segment=original_segment.replace('localResult','scopedLocalResult')
+          insert=r'''
+              const scopedLocalResult =
+                  scopeGroundedResearchResult(
+                      localResult || {},
+                      trace,
+                      query
+                  );
 
-          old_cloud_health = '''        globalThis.__JARVIS_WEB_RESEARCH_HEALTH__ = recordCapabilityEvidence("web_research", {
-              ok: true,
-              grounded: true,
-              status: "GROUNDED",
-              sourceCount:
-                  result.sources.length,'''
-          new_cloud_health = '''        if (result?.anchorConstrained === true && result?.grounded !== true) {
-              throw new Error("WEB_RESEARCH_SOURCE_ANCHOR_UNVERIFIED");
-          }
-
-          globalThis.__JARVIS_WEB_RESEARCH_HEALTH__ = recordCapabilityEvidence("web_research", {
-              ok: true,
-              grounded: true,
-              status: "GROUNDED",
-              sourceCount:
-                  result.sources.length,'''
-          if old_cloud_health not in t:
-              raise SystemExit('CLOUD_HEALTH_ANCHOR_NOT_FOUND')
-          t = t.replace(old_cloud_health, new_cloud_health, 1)
-
-          old_local = '''            if (
+              if (
                   localResult?.ok === true &&
                   localResult?.grounded === true &&
                   Array.isArray(localResult?.sources) &&
-                  localResult.sources.length > 0
+                  localResult.sources.length > 0 &&
+                  scopedLocalResult?.anchorConstrained === true &&
+                  scopedLocalResult?.grounded !== true
               ) {
                   globalThis.__JARVIS_WEB_RESEARCH_HEALTH__ = recordCapabilityEvidence("web_research", {
                       ok: true,
-                      grounded: true,
-                      status: "GROUNDED_LOCAL_FALLBACK",
-                      sourceCount: localResult.sources.length,
+                      grounded: false,
+                      status: "ENTITY_NOT_VERIFIED",
+                      sourceCount: 0,
                       checkedAt: new Date().toISOString()
                   });
                   recordCapabilityEvidence("web_research_context", {
                       ok: true,
-                      grounded: true,
-                      query: localResult.query || normalizedQuery,
-                      answer: String(localResult.answer || "").slice(0, 5000),
-                      sources: localResult.sources.slice(0, 8),
-                      checkedAt: new Date().toISOString()
-                  });
-
-                  return {
-                      ...localResult,
-                      cloudError: message,
-                      source: "JARVIS_LOCAL_GROUNDED_WEB_RESEARCH",
-                      readOnly: true
-                  };
-              }'''
-          new_local = '''            if (
-                  localResult?.ok === true &&
-                  localResult?.grounded === true &&
-                  Array.isArray(localResult?.sources) &&
-                  localResult.sources.length > 0
-              ) {
-                  const scopedLocalResult =
-                      scopeGroundedResearchResult(
-                          localResult,
-                          trace,
-                          query
-                      );
-
-                  if (
-                      scopedLocalResult?.anchorConstrained === true &&
-                      scopedLocalResult?.grounded !== true
-                  ) {
-                      globalThis.__JARVIS_WEB_RESEARCH_HEALTH__ = recordCapabilityEvidence("web_research", {
-                          ok: true,
-                          grounded: false,
-                          status: "ENTITY_NOT_VERIFIED",
-                          sourceCount: 0,
-                          checkedAt: new Date().toISOString()
-                      });
-                      recordCapabilityEvidence("web_research_context", {
-                          ok: true,
-                          grounded: false,
-                          query: scopedLocalResult.query || normalizedQuery,
-                          answer: String(scopedLocalResult.answer || "").slice(0, 5000),
-                          sources: [],
-                          checkedAt: new Date().toISOString()
-                      });
-                      return {
-                          ...scopedLocalResult,
-                          ok: true,
-                          grounded: false,
-                          status: "ENTITY_NOT_VERIFIED",
-                          cloudError: message,
-                          source: "JARVIS_LOCAL_GROUNDED_WEB_RESEARCH",
-                          readOnly: true
-                      };
-                  }
-
-                  globalThis.__JARVIS_WEB_RESEARCH_HEALTH__ = recordCapabilityEvidence("web_research", {
-                      ok: true,
-                      grounded: true,
-                      status: "GROUNDED_LOCAL_FALLBACK",
-                      sourceCount: scopedLocalResult.sources.length,
-                      checkedAt: new Date().toISOString()
-                  });
-                  recordCapabilityEvidence("web_research_context", {
-                      ok: true,
-                      grounded: true,
+                      grounded: false,
                       query: scopedLocalResult.query || normalizedQuery,
                       answer: String(scopedLocalResult.answer || "").slice(0, 5000),
-                      sources: scopedLocalResult.sources.slice(0, 8),
+                      sources: [],
                       checkedAt: new Date().toISOString()
                   });
-
                   return {
                       ...scopedLocalResult,
+                      ok: true,
+                      grounded: false,
+                      status: "ENTITY_NOT_VERIFIED",
                       cloudError: message,
                       source: "JARVIS_LOCAL_GROUNDED_WEB_RESEARCH",
                       readOnly: true
                   };
-              }'''
-          if old_local not in t:
-              raise SystemExit('LOCAL_FALLBACK_ANCHOR_NOT_FOUND')
-          t = t.replace(old_local, new_local, 1)
+              }
+          '''
+          t=t[:call_end]+insert+filtered_segment+t[failure_health:]
           p.write_text(t)
           PY
 
@@ -461,90 +325,48 @@ jobs:
           import test from 'node:test';
           import assert from 'node:assert/strict';
           import { scopeGroundedResearchResult } from '../gestia-core/jarvis/jarvis.multitool.pack.js';
-
-          const target = 'https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004';
-          const otherPost = 'https://www.tiktok.com/@taqueria.eldorado/video/7630010786378796308';
-          const exactSource = {
-            title: 'El Taco Macho viene calientito, rellenito y con el chile bien puesto',
-            url: target,
-            snippet: 'Contenido atribuible al post exacto.'
-          };
-          const sameAuthorOtherPost = {
-            title: 'Prendimos el carbón con toda la fe',
-            url: otherPost,
-            snippet: 'Tacos estilo Sinaloa y salva la racha.'
-          };
-          const homonyms = [
-            { title:'Taquería el Dorado', url:'https://www.tiktok.com/@el.dorado509' },
-            { title:'Taqueria El Dorado', url:'https://www.tiktok.com/@taqueria.el.dorad' },
-            { title:'El Dorado Taqueria', url:'https://www.tiktok.com/@el.dorado.taqueri' }
+          const target='https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004';
+          const otherPost='https://www.tiktok.com/@taqueria.eldorado/video/7630010786378796308';
+          const exactSource={title:'El Taco Macho viene calientito, rellenito y con el chile bien puesto',url:target,snippet:'Contenido atribuible al post exacto.'};
+          const sameAuthorOtherPost={title:'Prendimos el carbón con toda la fe',url:otherPost,snippet:'Tacos estilo Sinaloa y salva la racha.'};
+          const homonyms=[
+            {title:'Taquería el Dorado',url:'https://www.tiktok.com/@el.dorado509'},
+            {title:'Taqueria El Dorado',url:'https://www.tiktok.com/@taqueria.el.dorad'},
+            {title:'El Dorado Taqueria',url:'https://www.tiktok.com/@el.dorado.taqueri'}
           ];
-
-          test('exact TikTok-post objective rejects another post from the same author and all homonyms', () => {
-            const result = scopeGroundedResearchResult({
-              ok:true,
-              grounded:true,
-              answer:'polluted answer: Prendimos el carbón; salva la racha',
-              sources:[exactSource, sameAuthorOtherPost, ...homonyms],
-              facts:[{ text:'wrong', sourceUrl:otherPost }, { text:'right', sourceUrl:target }],
-              inferences:[{ text:'unsupported' }]
-            }, { seedUrl:target }, `Taquería El Dorado video 7629216747131850004`);
-
-            assert.equal(result.grounded, true);
-            assert.equal(result.sources.length, 1);
-            assert.equal(result.sources[0].url, target);
-            assert.equal(result.sources[0].sourceScope, 'EXACT_SEED_POST');
-            assert.equal(result.anchorVerified, true);
-            assert.equal(result.facts.length, 1);
-            assert.equal(result.facts[0].text, 'right');
-            assert.deepEqual(result.inferences, []);
-            assert.doesNotMatch(result.answer, /Prendimos el carbón|salva la racha/i);
-            assert.match(result.answer, /publicacion exacta/i);
+          test('exact post rejects another same-author post and homonyms',()=>{
+            const result=scopeGroundedResearchResult({ok:true,grounded:true,answer:'Prendimos el carbón; salva la racha',sources:[exactSource,sameAuthorOtherPost,...homonyms],facts:[{text:'wrong',sourceUrl:otherPost},{text:'right',sourceUrl:target}],inferences:[{text:'unsupported'}]},{seedUrl:target},'Taquería El Dorado video 7629216747131850004');
+            assert.equal(result.grounded,true);
+            assert.deepEqual(result.sources.map(source=>source.url),[target]);
+            assert.equal(result.sources[0].sourceScope,'EXACT_SEED_POST');
+            assert.equal(result.anchorVerified,true);
+            assert.deepEqual(result.facts.map(fact=>fact.text),['right']);
+            assert.deepEqual(result.inferences,[]);
+            assert.doesNotMatch(result.answer,/Prendimos el carbón|salva la racha/i);
           });
-
-          test('broader business research may use the same TikTok account but never homonym handles', () => {
-            const result = scopeGroundedResearchResult({
-              ok:true,
-              grounded:true,
-              sources:[exactSource, sameAuthorOtherPost, ...homonyms]
-            }, { seedUrl:target }, 'Taquería El Dorado Cancún ubicación teléfono horarios redes sociales');
-
-            assert.equal(result.grounded, true);
-            assert.deepEqual(
-              result.sources.map(source => source.url),
-              [target, otherPost]
-            );
-            assert.equal(result.sources[1].sourceScope, 'SAME_IDENTITY');
-            assert.doesNotMatch(result.answer, /@el\.dorado509|@taqueria\.el\.dorad|@el\.dorado\.taqueri/i);
-            assert.match(result.answer, /no describen necesariamente la publicacion ancla/i);
+          test('broader research keeps same account but excludes homonyms',()=>{
+            const result=scopeGroundedResearchResult({ok:true,grounded:true,sources:[exactSource,sameAuthorOtherPost,...homonyms]},{seedUrl:target},'Taquería El Dorado Cancún ubicación teléfono horarios redes sociales');
+            assert.deepEqual(result.sources.map(source=>source.url),[target,otherPost]);
+            assert.equal(result.sources[1].sourceScope,'SAME_IDENTITY');
+            assert.doesNotMatch(result.answer,/@el\.dorado509|@taqueria\.el\.dorad|@el\.dorado\.taqueri/i);
+            assert.match(result.answer,/no describen necesariamente la publicacion ancla/i);
           });
-
-          test('same-domain search results cannot satisfy an exact-post objective without the target post', () => {
-            const result = scopeGroundedResearchResult({
-              ok:true,
-              grounded:true,
-              answer:'Prendimos el carbón con toda la fe',
-              sources:[sameAuthorOtherPost, ...homonyms]
-            }, { seedUrl:target }, 'video 7629216747131850004');
-
-            assert.equal(result.ok, true);
-            assert.equal(result.grounded, false);
-            assert.equal(result.status, 'ENTITY_NOT_VERIFIED');
-            assert.equal(result.sources.length, 0);
-            assert.equal(result.anchorVerified, false);
-            assert.doesNotMatch(result.answer, /Prendimos el carbón/i);
+          test('same-domain results cannot satisfy exact post without target URL',()=>{
+            const result=scopeGroundedResearchResult({ok:true,grounded:true,answer:'Prendimos el carbón con toda la fe',sources:[sameAuthorOtherPost,...homonyms]},{seedUrl:target},'video 7629216747131850004');
+            assert.equal(result.ok,true);
+            assert.equal(result.grounded,false);
+            assert.equal(result.status,'ENTITY_NOT_VERIFIED');
+            assert.equal(result.sources.length,0);
+            assert.equal(result.anchorVerified,false);
+            assert.doesNotMatch(result.answer,/Prendimos el carbón/i);
           });
-
-          test('non-TikTok research keeps existing generic fallback behavior', () => {
-            const sources=[{ title:'Acme', url:'https://example.test/acme' }];
-            const result=scopeGroundedResearchResult({ ok:true, grounded:true, sources }, {
-              seedUrl:'https://example.test/acme'
-            }, 'Acme');
-            assert.equal(result.anchorConstrained, false);
-            assert.deepEqual(result.sources, sources);
+          test('non TikTok research preserves generic fallback',()=>{
+            const sources=[{title:'Acme',url:'https://example.test/acme'}];
+            const result=scopeGroundedResearchResult({ok:true,grounded:true,sources},{seedUrl:'https://example.test/acme'},'Acme');
+            assert.equal(result.anchorConstrained,false);
+            assert.deepEqual(result.sources,sources);
           });
           EOF
-
           node --check gestia-core/jarvis/jarvis.multitool.pack.js
           git diff --check
           echo 'EXACT_SOURCE_RESEARCH_FAIL_CLOSED=true'
@@ -604,15 +426,7 @@ jobs:
           if(selected.length!==1) throw new Error(`HOSTING_SITE_SELECTION_INVALID:${selected.length}`);
           if(selected[0].target) throw new Error(`HOSTING_TARGET_FORBIDDEN:${selected[0].target}`);
           fs.writeFileSync('.firebase-production-chain-hosting-only.json',JSON.stringify({hosting:selected[0]},null,2));
-          fs.writeFileSync('contract-audit-production-chain.json',JSON.stringify({
-            candidate:'ADJUNTO_CURRENT_CONTRACT_PRODUCTION_CHAIN_PRESERVED',
-            contract:'1.2.0-stable-research-objectives',
-            semanticAuthority:'jarvisSemanticPlan',
-            samePlanPreserved:true,
-            exactSourceGrounding:true,
-            hostingOnly:true,
-            builtAt:new Date().toISOString()
-          },null,2));
+          fs.writeFileSync('contract-audit-production-chain.json',JSON.stringify({candidate:'ADJUNTO_CURRENT_CONTRACT_PRODUCTION_CHAIN_PRESERVED',contract:'1.2.0-stable-research-objectives',semanticAuthority:'jarvisSemanticPlan',samePlanPreserved:true,exactSourceGrounding:true,hostingOnly:true,builtAt:new Date().toISOString()},null,2));
           const config=JSON.parse(fs.readFileSync('.firebase-production-chain-hosting-only.json','utf8'));
           if(config.functions||Array.isArray(config.hosting)||config.hosting?.target) throw new Error('HOSTING_CONFIG_NOT_ISOLATED');
           console.log('HOSTING_CONFIG_ISOLATED=true');
