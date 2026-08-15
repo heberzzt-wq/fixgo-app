@@ -13,7 +13,7 @@ permissions:
 
 env:
   BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
-  PATCH_SHA256: 4993c9e2aa0e898097b7f6252d003c3ba462ea2fae0f971b8738487f1935fe97
+  PATCH_SHA256: acd13ba2e1323a0d90fa5e0de98cc5ada458703d786866962abadb8bbc8e9f3f
   FIREBASE_PROJECT_ID: fixgo-44e4d
   FIREBASE_SITE_ID: fixgo-44e4d
 
@@ -27,15 +27,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Reconstruct normalized v140 candidate
+      - name: Reconstruct exact v140 candidate
         shell: bash
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
           cat .github/candidates/v140/chunk-*.txt > /tmp/candidate.patch.gz.b64
           test "$(wc -c < /tmp/candidate.patch.gz.b64)" -eq 28188
-          base64 -d /tmp/candidate.patch.gz.b64 | gunzip > /tmp/candidate.crlf.patch
-          sed 's/\r$//' /tmp/candidate.crlf.patch > /tmp/candidate.patch
+          base64 -d /tmp/candidate.patch.gz.b64 | gunzip > /tmp/candidate.oem-crlf.patch
+          iconv -f CP850 -t UTF-8 /tmp/candidate.oem-crlf.patch | sed 's/\r$//' > /tmp/candidate.patch
           echo "$PATCH_SHA256  /tmp/candidate.patch" | sha256sum -c -
           git reset --hard "$BASE_SHA"
           git apply --check /tmp/candidate.patch
