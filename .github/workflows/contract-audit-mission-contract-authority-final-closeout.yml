@@ -1,0 +1,136 @@
+name: contract-audit mission-contract authority final closeout
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/contract-audit-mission-contract-authority-final-closeout.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLOW_V2_CARRIER_SHA: 8ef564d954de07a3b63d8a117ada4c2bcf40e3b4
+  FINAL_V3_CARRIER_SHA: 71e4b1f847640dd9d3d9b142b0158073f5451336
+  FINAL_V2_CARRIER_SHA: 21d1fc513d7817e7bfd9913ec113bd7923f3bb10
+  FAILED_FINAL_CARRIER_SHA: b6dd83bc03bebc8cc66b790a38404fa48db3f395
+  V3_CARRIER_SHA: e32b68752e452ef1d4f3eb6ba8fa375cce5787ab
+  PRIOR_V2_CARRIER_SHA: 1892d5f7726ce41402600d49b22fb1cf62e830fb
+  PRIOR_CARRIER_SHA: 2a51c1c349edac309465a22fd73c5b157dbaccd9
+  BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
+  CERTIFIED_CARRIER_SHA: cebe6f399d4edf4f234e584e0a42cf980b3a404d
+  FIREBASE_PROJECT_ID: fixgo-44e4d
+  FIREBASE_SITE_ID: fixgo-44e4d
+
+jobs:
+  certify-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract certified v4 execution blocks
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .github/workflows/contract-audit-mission-contract-authority-closeout-v4.yml /tmp/v4.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('/tmp/v4.yml').read_text()
+          pairs=[
+            ('Reconstruct exact refined candidate','Assert instruction-driven tool selection','/tmp/final-reconstruct.sh'),
+            ('Assert instruction-driven tool selection','Install dependencies','/tmp/final-authority.sh'),
+            ('Protected surface audit','Build isolated Hosting-only config','/tmp/final-audit.sh'),
+            ('Build isolated Hosting-only config','Install Firebase CLI','/tmp/final-host.sh'),
+            ('Deploy Hosting only','Verify served bytes','/tmp/final-deploy.sh'),
+          ]
+          for a,b,out in pairs:
+              s=text.index(f'      - name: {a}\n')
+              rs=text.index('        run: |\n',s)+len('        run: |\n')
+              e=text.index(f'\n      - name: {b}\n',rs)
+              lines=[]
+              for line in text[rs:e].splitlines():
+                  if line.startswith('          '): lines.append(line[10:])
+                  elif not line.strip(): lines.append('')
+                  else: raise SystemExit(f'EXTRACT_INDENT:{a}:{line!r}')
+              Path(out).write_text('\n'.join(lines)+'\n')
+          a='Verify served bytes'
+          s=text.index(f'      - name: {a}\n')
+          rs=text.index('        run: |\n',s)+len('        run: |\n')
+          lines=[]
+          for line in text[rs:].splitlines():
+              if line.startswith('          '): lines.append(line[10:])
+              elif not line.strip(): lines.append('')
+              else: break
+          Path('/tmp/final-verify.sh').write_text('\n'.join(lines)+'\n')
+          PY
+          for f in /tmp/final-*.sh; do bash -n "$f"; done
+          echo 'CERTIFIED_V4_BLOCKS_EXTRACTED=true'
+
+      - name: Reconstruct exact refined candidate
+        shell: bash
+        run: bash /tmp/final-reconstruct.sh
+
+      - name: Assert instruction-driven tool selection
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/final-authority.sh
+          grep -q 'assert.doesNotMatch(core, /MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN/)' tests/jarvis-multifunction-tools.test.mjs
+          grep -q 'assert.match(core, /MISSION_CONTRACT_UNAVAILABLE/)' tests/jarvis-multifunction-tools.test.mjs
+          ! grep -q 'assert.match(core, /MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN/)' tests/jarvis-multifunction-tools.test.mjs
+          echo 'LEGACY_FAIL_CLOSED_ASSERTION_ALIGNED=true'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Focal instruction-to-tool-flow regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/jarvis-mission-contract-authority-closeout-v2.test.mjs \
+            tests/jarvis-mission-flow-contract-closeout.test.mjs \
+            tests/jarvis-mission-contract-preserves-initial-production.test.mjs \
+            tests/jarvis-human-regression-closeout.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs \
+            tests/jarvis-mission-contract-accounting.test.mjs \
+            tests/jarvis-single-contract-authority.test.mjs \
+            tests/single-semantic-authority.test.mjs
+          echo 'FOCAL_INSTRUCTION_TOOL_FLOW_GREEN=true'
+
+      - name: Full CI exact command
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run ci:test
+          echo 'FULL_CI_EXACT_GREEN=true'
+
+      - name: Protected surface audit
+        shell: bash
+        run: bash /tmp/final-audit.sh
+
+      - name: Build isolated Hosting-only config
+        shell: bash
+        run: bash /tmp/final-host.sh
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Hosting only
+        shell: bash
+        run: bash /tmp/final-deploy.sh
+
+      - name: Verify served bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/final-verify.sh
+          echo 'FINAL_MISSION_CONTRACT_AUTHORITY_CLOSEOUT=true'
