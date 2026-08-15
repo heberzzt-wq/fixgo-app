@@ -18,20 +18,17 @@ env:
   BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
   HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
   CERTIFIED_CARRIER_SHA: cebe6f399d4edf4f234e584e0a42cf980b3a404d
-  FIREBASE_PROJECT_ID: fixgo-44e4d
-  FIREBASE_SITE_ID: fixgo-44e4d
-  FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
 
 jobs:
-  certify-and-deploy:
+  inspect-normalizer:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Run corrected v3 certification chain
+      - name: Reconstruct v3 candidate and print canonical semantics
         shell: bash
         run: |
           set -euo pipefail
@@ -53,7 +50,6 @@ jobs:
             'Deploy Hosting only',
             'Verify served bytes'
           ]
-
           for index,name in enumerate(names):
               s=text.index(f'      - name: {name}\n')
               e=text.index(f'\n      - name: {names[index+1]}\n',s) if index+1<len(names) else len(text)
@@ -63,19 +59,14 @@ jobs:
                   rs=block.index(marker)+len(marker)
                   lines=[]
                   for line in block[rs:].splitlines():
-                      if line.startswith('          '):
-                          lines.append(line[10:])
-                      elif not line.strip():
-                          lines.append('')
-                      else:
-                          break
+                      if line.startswith('          '): lines.append(line[10:])
+                      elif not line.strip(): lines.append('')
+                      else: break
                   script='\n'.join(lines)+'\n'
               else:
                   match=re.search(r'^        run: (.+)$',block,re.M)
-                  if not match:
-                      raise SystemExit(f'RUN_COMMAND_NOT_FOUND:{name}')
+                  if not match: raise SystemExit(f'RUN_COMMAND_NOT_FOUND:{name}')
                   script=match.group(1).strip()+'\n'
-
               if name=='Preserve exact web-media provenance through mission semantics':
                   fixed=[]
                   replaced=False
@@ -87,15 +78,10 @@ jobs:
                           replaced=True
                       else:
                           fixed.append(line)
-                  if not replaced:
-                      raise SystemExit('URL_NORMALIZATION_LINE_NOT_FOUND')
+                  if not replaced: raise SystemExit('URL_NORMALIZATION_LINE_NOT_FOUND')
                   script='\n'.join(fixed)+'\n'
-                  old='explicitObjectiveSatisfied === true &&'
-                  new='payload?.objectiveSatisfied === true &&'
-                  if old not in script:
-                      raise SystemExit('MARKETING_CANONICAL_OBJECTIVE_ANCHOR_NOT_FOUND')
-                  script=script.replace(old,new,1)
-
+                  if 'explicitObjectiveSatisfied === true &&' in script:
+                      script=script.replace('explicitObjectiveSatisfied === true &&','payload?.objectiveSatisfied === true &&',1)
               Path(f'/tmp/v3-step-{index+1}.sh').write_text(script)
           PY
 
@@ -104,32 +90,27 @@ jobs:
 
           python3 - <<'PY'
           from pathlib import Path
-          p=Path('gestia-core/jarvis/jarvis.mission.orchestrator.js')
-          t=p.read_text()
-          s=t.index('function safeObservation(result = {}) {')
-          e=t.index('\nfunction ',s+1)
-          chunk=t[s:e]
-          print('===SAFE_OBSERVATION_GENERATED===')
-          print(chunk[:9000])
-          print('===END_SAFE_OBSERVATION_GENERATED===')
-          test=Path('tests/jarvis-human-regression-closeout.test.mjs')
-          source=test.read_text()
-          needle='const observed=missionTest.safeObservation(envelope);'
-          if needle not in source:
-              raise SystemExit('OBSERVED_FIXTURE_ANCHOR_NOT_FOUND')
-          source=source.replace(
-              needle,
-              needle+'\n  console.error("MARKETING_OBSERVED="+JSON.stringify(observed));',
-              1
-          )
-          test.write_text(source)
+          hits=[]
+          for p in Path('.').rglob('*.js'):
+              try: t=p.read_text()
+              except: continue
+              if 'normalizeToolSemantics' in t:
+                  hits.append((p,t))
+          if not hits: raise SystemExit('NORMALIZER_NOT_FOUND')
+          for p,t in hits:
+              print(f'===NORMALIZER_FILE:{p}===')
+              positions=[]
+              pos=0
+              while True:
+                  i=t.find('normalizeToolSemantics',pos)
+                  if i<0: break
+                  positions.append(i)
+                  pos=i+1
+              for i in positions:
+                  start=max(0,t.rfind('\n',0,max(0,i-7000)))
+                  next_fn=t.find('\nfunction ',i+1)
+                  end=min(len(t), next_fn if next_fn>=0 else i+10000)
+                  print(t[start:end])
+                  print('===NORMALIZER_OCCURRENCE_END===')
+          print('NORMALIZER_DIAGNOSTIC_COMPLETE=true')
           PY
-
-          bash /tmp/v3-step-3.sh
-          bash /tmp/v3-step-4.sh
-          bash /tmp/v3-step-5.sh
-          bash /tmp/v3-step-6.sh
-          bash /tmp/v3-step-7.sh
-          bash /tmp/v3-step-8.sh
-          bash /tmp/v3-step-9.sh
-          bash /tmp/v3-step-10.sh
