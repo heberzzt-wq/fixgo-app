@@ -1,0 +1,92 @@
+name: contract-audit human-regression closeout v3 retry
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/contract-audit-human-regression-closeout-v3-retry.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  V3_CARRIER_SHA: e32b68752e452ef1d4f3eb6ba8fa375cce5787ab
+  PRIOR_V2_CARRIER_SHA: 1892d5f7726ce41402600d49b22fb1cf62e830fb
+  PRIOR_CARRIER_SHA: 2a51c1c349edac309465a22fd73c5b157dbaccd9
+  BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
+  CERTIFIED_CARRIER_SHA: cebe6f399d4edf4f234e584e0a42cf980b3a404d
+  FIREBASE_PROJECT_ID: fixgo-44e4d
+  FIREBASE_SITE_ID: fixgo-44e4d
+  FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+jobs:
+  certify-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run corrected v3 certification chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show "${V3_CARRIER_SHA}:.github/workflows/contract-audit-human-regression-closeout-v3.yml" > /tmp/v3.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('/tmp/v3.yml').read_text()
+          names=[
+            'Reconstruct v2 certified candidate',
+            'Preserve exact web-media provenance through mission semantics',
+            'Install dependencies',
+            'Focal exact-media semantic closeout',
+            'Full CI once',
+            'Protected surface audit',
+            'Build isolated Hosting-only config',
+            'Install Firebase CLI',
+            'Deploy Hosting only',
+            'Verify served bytes'
+          ]
+          for index,name in enumerate(names):
+              s=text.index(f'      - name: {name}\n')
+              rs=text.index('        run: |\n',s)+len('        run: |\n')
+              e=text.index(f'\n      - name: {names[index+1]}\n',rs) if index+1<len(names) else len(text)
+              lines=[]
+              for line in text[rs:e].splitlines():
+                  if line.startswith('          '): lines.append(line[10:])
+                  elif not line.strip(): lines.append('')
+                  elif index+1==len(names): break
+                  else: raise SystemExit(f'INDENT:{name}:{line!r}')
+              script='\n'.join(lines)+'\n'
+              if name=='Preserve exact web-media provenance through mission semantics':
+                  src=script.splitlines()
+                  fixed=[]
+                  replaced=False
+                  for line in src:
+                      if 'return parsed.toString().replace(' in line:
+                          indent=line[:len(line)-len(line.lstrip())]
+                          fixed.append(indent+'const normalized = parsed.toString();')
+                          fixed.append(indent+'return normalized.endsWith("/") ? normalized.slice(0, -1) : normalized;')
+                          replaced=True
+                      else:
+                          fixed.append(line)
+                  if not replaced:
+                      raise SystemExit('URL_NORMALIZATION_LINE_NOT_FOUND')
+                  script='\n'.join(fixed)+'\n'
+              Path(f'/tmp/v3-step-{index+1}.sh').write_text(script)
+          PY
+
+          bash /tmp/v3-step-1.sh
+          bash /tmp/v3-step-2.sh
+          bash /tmp/v3-step-3.sh
+          bash /tmp/v3-step-4.sh
+          bash /tmp/v3-step-5.sh
+          bash /tmp/v3-step-6.sh
+          bash /tmp/v3-step-7.sh
+          bash /tmp/v3-step-8.sh
+          bash /tmp/v3-step-9.sh
+          bash /tmp/v3-step-10.sh
