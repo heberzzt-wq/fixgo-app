@@ -1,0 +1,70 @@
+name: contract-audit normalizer diagnostic
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/contract-audit-normalizer-diagnostic.yml'
+
+permissions:
+  contents: read
+
+env:
+  V3_CARRIER_SHA: e32b68752e452ef1d4f3eb6ba8fa375cce5787ab
+  PRIOR_V2_CARRIER_SHA: 1892d5f7726ce41402600d49b22fb1cf62e830fb
+  PRIOR_CARRIER_SHA: 2a51c1c349edac309465a22fd73c5b157dbaccd9
+  BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
+  CERTIFIED_CARRIER_SHA: cebe6f399d4edf4f234e584e0a42cf980b3a404d
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Reconstruct and print canonical normalizer
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show "${V3_CARRIER_SHA}:.github/workflows/contract-audit-human-regression-closeout-v3.yml" > /tmp/v3.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('/tmp/v3.yml').read_text()
+          name='Reconstruct v2 certified candidate'
+          next_name='Preserve exact web-media provenance through mission semantics'
+          s=text.index(f'      - name: {name}\n')
+          rs=text.index('        run: |\n',s)+len('        run: |\n')
+          e=text.index(f'\n      - name: {next_name}\n',rs)
+          lines=[]
+          for line in text[rs:e].splitlines():
+              if line.startswith('          '): lines.append(line[10:])
+              elif not line.strip(): lines.append('')
+              else: raise SystemExit(f'INDENT:{line!r}')
+          Path('/tmp/reconstruct-v2.sh').write_text('\n'.join(lines)+'\n')
+          PY
+          bash /tmp/reconstruct-v2.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          hits=[]
+          for p in Path('.').rglob('*.js'):
+              try: t=p.read_text()
+              except: continue
+              if 'normalizeToolSemantics' in t:
+                  hits.append((p,t))
+          if not hits:
+              raise SystemExit('NORMALIZER_NOT_FOUND')
+          for p,t in hits:
+              print(f'===NORMALIZER_FILE:{p}===')
+              pos=0
+              while True:
+                  i=t.find('normalizeToolSemantics',pos)
+                  if i<0: break
+                  start=max(0,t.rfind('\n',0,max(0,i-5000)))
+                  end=min(len(t),t.find('\nfunction ',i+1) if t.find('\nfunction ',i+1)>=0 else i+8000)
+                  print(t[start:end])
+                  print('===NORMALIZER_OCCURRENCE_END===')
+                  pos=i+1
+          PY
