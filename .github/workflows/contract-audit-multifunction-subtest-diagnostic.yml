@@ -1,0 +1,133 @@
+name: contract-audit multifunction subtest diagnostic
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/contract-audit-multifunction-subtest-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLOW_V2_CARRIER_SHA: 8ef564d954de07a3b63d8a117ada4c2bcf40e3b4
+  FINAL_V3_CARRIER_SHA: 71e4b1f847640dd9d3d9b142b0158073f5451336
+  FINAL_V2_CARRIER_SHA: 21d1fc513d7817e7bfd9913ec113bd7923f3bb10
+  FAILED_FINAL_CARRIER_SHA: b6dd83bc03bebc8cc66b790a38404fa48db3f395
+  V3_CARRIER_SHA: e32b68752e452ef1d4f3eb6ba8fa375cce5787ab
+  PRIOR_V2_CARRIER_SHA: 1892d5f7726ce41402600d49b22fb1cf62e830fb
+  PRIOR_CARRIER_SHA: 2a51c1c349edac309465a22fd73c5b157dbaccd9
+  BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
+  CERTIFIED_CARRIER_SHA: cebe6f399d4edf4f234e584e0a42cf980b3a404d
+
+jobs:
+  expose-failure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct exact refined candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .github/candidates/contract-audit/mission-contract-authority-closeout-v2.py /tmp/authority-closeout-v2.py
+          git show "${FLOW_V2_CARRIER_SHA}:.github/workflows/contract-audit-mission-flow-closeout-v2.yml" > /tmp/flow-v2.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('/tmp/flow-v2.yml').read_text()
+          pairs=[
+            ('Reconstruct certified final-v3 candidate','Preserve complete semantic mission flow','/tmp/subtest-reconstruct.sh'),
+            ('Preserve complete semantic mission flow','Install dependencies','/tmp/subtest-flow.sh')
+          ]
+          for a,b,out in pairs:
+              s=text.index(f'      - name: {a}\n')
+              rs=text.index('        run: |\n',s)+len('        run: |\n')
+              e=text.index(f'\n      - name: {b}\n',rs)
+              lines=[]
+              for line in text[rs:e].splitlines():
+                  if line.startswith('          '): lines.append(line[10:])
+                  elif not line.strip(): lines.append('')
+                  else: raise SystemExit(f'EXTRACT_INDENT:{a}:{line!r}')
+              Path(out).write_text('\n'.join(lines)+'\n')
+          PY
+          bash /tmp/subtest-reconstruct.sh
+          bash /tmp/subtest-flow.sh
+          python3 /tmp/authority-closeout-v2.py
+          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          node --check gestia-core/gestia-core.js
+          git diff --check
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prefix stage 1 mission semantics
+        run: node --test tests/response-composer-semantic-contract.test.mjs tests/jarvis-mission-contract-accounting.test.mjs tests/jarvis-mission-failure-precedence.test.mjs tests/jarvis-mission-orchestrator.test.mjs
+
+      - name: Prefix stage 2 nexo
+        run: npm run check:nexo
+
+      - name: Prefix stage 3 entry syntax
+        run: npm run check:entry-syntax
+
+      - name: Prefix stage 4 global syntax
+        run: npm run check:syntax
+
+      - name: Capture exact multifunction failure
+        id: exact
+        shell: bash
+        run: |
+          set +e
+          node --test --test-reporter=tap tests/jarvis-multifunction-tools.test.mjs 2>&1 | tee /tmp/multifunction.tap
+          status=${PIPESTATUS[0]}
+          set -e
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+          python3 - <<'PY'
+          from pathlib import Path
+          import os, re
+          p=Path('/tmp/multifunction.tap')
+          text=p.read_text(errors='replace')
+          lines=text.splitlines()
+          hits=[]
+          for i,line in enumerate(lines):
+              if re.search(r'(^|\s)not ok\b|AssertionError|ERR_ASSERTION|failureType:|error:|expected:|actual:', line):
+                  lo=max(0,i-5); hi=min(len(lines),i+13)
+                  block='\n'.join(lines[lo:hi])
+                  if block not in hits: hits.append(block)
+          summary='\n\n--- failure window ---\n\n'.join(hits[:8]) if hits else '\n'.join(lines[-120:])
+          Path('/tmp/multifunction-failure.txt').write_text(summary+'\n')
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a',encoding='utf-8') as f:
+              f.write('## jarvis-multifunction-tools exact failure\n\n```text\n'+summary[:12000]+'\n```\n')
+          one=' | '.join(x.strip() for x in summary.splitlines() if x.strip())[:3500]
+          one=one.replace('%','%25').replace('\r','%0D').replace('\n','%0A')
+          print(f'::error file=tests/jarvis-multifunction-tools.test.mjs,title=Exact multifunction subtest failure::{one}')
+          PY
+          exit 0
+
+      - name: Upload exact TAP diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: multifunction-exact-failure
+          path: |
+            /tmp/multifunction.tap
+            /tmp/multifunction-failure.txt
+          if-no-files-found: error
+
+      - name: Enforce reproduced failure
+        if: steps.exact.outputs.status != '0'
+        run: |
+          echo 'EXACT_MULTIFUNCTION_FAILURE_REPRODUCED=true'
+          exit 1
+
+      - name: No deploy
+        if: always()
+        run: |
+          echo 'NO_HOSTING_DEPLOY=true'
+          echo 'NO_FUNCTIONS_CHANGE=true'
+          echo 'NO_MULTISERVICIOS_CHANGE=true'
