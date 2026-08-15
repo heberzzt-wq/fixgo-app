@@ -25,14 +25,22 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/contract-audit
-          wc -c .github/candidates/contract-audit/chunk-*.txt
-          sha256sum .github/candidates/contract-audit/chunk-*.txt
           echo 'd1b2e6e6a64f07ba2a19ae6cb36fd5d67153007dd771ce92ed295043dee5feb9  .github/candidates/contract-audit/chunk-00.txt' | sha256sum -c -
           echo 'f001cb84b33961031a2f4f8936040082aa11666eae4828d8ca13b42d18f1c1ad  .github/candidates/contract-audit/chunk-01.txt' | sha256sum -c -
           echo 'fdcc344cb3759f40fa05c94b17371f9f7dd7b9690490ea81f3f9a00477ec8e68  .github/candidates/contract-audit/chunk-02.txt' | sha256sum -c -
-          echo '977a248ae6b35ad731ad2b0b43df6520fa6e8e2d8e3c6bea4756a9ddbf354bf0  .github/candidates/contract-audit/chunk-03.txt' | sha256sum -c -
+          echo 'dc7fdf37fc8563028ca2003d0083d35a314c2ea4e250ed8ddf70e1e7325fb92c  .github/candidates/contract-audit/segment-05.txt' | sha256sum -c -
+          echo 'e7941063664bde2f3336657250367fc9cc434d560f7f0353c0cf126e7ec6efee  .github/candidates/contract-audit/segment-06.txt' | sha256sum -c -
+          echo '27a9be7862fda074c444dcee94d2e1b044cba215038102c1d90a69738d4ad556  .github/candidates/contract-audit/segment-07.txt' | sha256sum -c -
           echo 'd0461f8bccfcb757e522df0f7e51ff72e39fab493bd50490e13a81618a4376e6  .github/candidates/contract-audit/chunk-04.txt' | sha256sum -c -
-          cat .github/candidates/contract-audit/chunk-*.txt > /tmp/contract-audit/handoff.patch.gz.b64
+          cat \
+            .github/candidates/contract-audit/chunk-00.txt \
+            .github/candidates/contract-audit/chunk-01.txt \
+            .github/candidates/contract-audit/chunk-02.txt \
+            .github/candidates/contract-audit/segment-05.txt \
+            .github/candidates/contract-audit/segment-06.txt \
+            .github/candidates/contract-audit/segment-07.txt \
+            .github/candidates/contract-audit/chunk-04.txt \
+            > /tmp/contract-audit/handoff.patch.gz.b64
           echo '07cadc45fbec00cb11b49682b8036a62c3c33cf9a1f2d669b1c9c1c30a73e258  /tmp/contract-audit/handoff.patch.gz.b64' | sha256sum -c -
           base64 -d /tmp/contract-audit/handoff.patch.gz.b64 | gzip -d > /tmp/contract-audit/handoff.patch
           echo '0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a  /tmp/contract-audit/handoff.patch' | sha256sum -c -
