@@ -1,0 +1,209 @@
+name: contract-audit hosting-only
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/contract-audit-hosting-only.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
+  CERTIFIED_AUDIT_RUN: '31893099082'
+  FIREBASE_PROJECT_ID: fixgo-44e4d
+  FIREBASE_SITE_ID: fixgo-44e4d
+
+jobs:
+  deploy-certified-tree:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout carrier
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct exact certified product tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
+          mkdir -p /tmp/contract-audit
+          echo 'd1b2e6e6a64f07ba2a19ae6cb36fd5d67153007dd771ce92ed295043dee5feb9  .github/candidates/contract-audit/chunk-00.txt' | sha256sum -c -
+          echo 'f001cb84b33961031a2f4f8936040082aa11666eae4828d8ca13b42d18f1c1ad  .github/candidates/contract-audit/chunk-01.txt' | sha256sum -c -
+          echo 'fdcc344cb3759f40fa05c94b17371f9f7dd7b9690490ea81f3f9a00477ec8e68  .github/candidates/contract-audit/chunk-02.txt' | sha256sum -c -
+          echo 'dc7fdf37fc8563028ca2003d0083d35a314c2ea4e250ed8ddf70e1e7325fb92c  .github/candidates/contract-audit/segment-05.txt' | sha256sum -c -
+          echo 'e7941063664bde2f3336657250367fc9cc434d560f7f0353c0cf126e7ec6efee  .github/candidates/contract-audit/segment-06.txt' | sha256sum -c -
+          echo '27a9be7862fda074c444dcee94d2e1b044cba215038102c1d90a69738d4ad556  .github/candidates/contract-audit/segment-07.txt' | sha256sum -c -
+          echo 'd0461f8bccfcb757e522df0f7e51ff72e39fab493bd50490e13a81618a4376e6  .github/candidates/contract-audit/chunk-04.txt' | sha256sum -c -
+          cat .github/candidates/contract-audit/chunk-00.txt .github/candidates/contract-audit/chunk-01.txt .github/candidates/contract-audit/chunk-02.txt .github/candidates/contract-audit/segment-05.txt .github/candidates/contract-audit/segment-06.txt .github/candidates/contract-audit/segment-07.txt .github/candidates/contract-audit/chunk-04.txt > /tmp/contract-audit/handoff.patch.gz.b64
+          echo '07cadc45fbec00cb11b49682b8036a62c3c33cf9a1f2d669b1c9c1c30a73e258  /tmp/contract-audit/handoff.patch.gz.b64' | sha256sum -c -
+          base64 -d /tmp/contract-audit/handoff.patch.gz.b64 | gzip -d > /tmp/contract-audit/handoff.patch
+          echo "$HANDOFF_PATCH_SHA256  /tmp/contract-audit/handoff.patch" | sha256sum -c -
+          git checkout --detach "$BASE_SHA"
+          git apply --check /tmp/contract-audit/handoff.patch
+          git apply /tmp/contract-audit/handoff.patch
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('gestia-core/response.composer.js')
+          t = p.read_text()
+          old = '''        !layers.some(layer => layer?.requirementsMet === false) &&
+                  !layers.some(layer => layer?.readyForProduction === false) &&
+                  (
+                      explicitObjectiveSatisfied !== null
+                          ? explicitObjectiveSatisfied
+                          : true
+                  );'''
+          new = '''        !layers.some(layer => layer?.requirementsMet === false) &&
+                  (
+                      explicitObjectiveSatisfied !== null
+                          ? explicitObjectiveSatisfied
+                          : !layers.some(layer => layer?.readyForProduction === false)
+                  );'''
+          if old not in t: raise SystemExit('TARGET_SEMANTICS_BLOCK_NOT_FOUND')
+          p.write_text(t.replace(old, new, 1))
+
+          p = Path('jarvis-speech-artifact.js')
+          t = p.read_text()
+          old = '''    const platform = options.platform || process.platform;
+              if (platform !== "win32" && typeof options.synthesizeImpl !== "function") {
+                  throw new Error("SPEECH_SYNTHESIS_PLATFORM_UNSUPPORTED");
+              }
+              const output = speechOutputPath(input.root || options.root || process.cwd(), input.output);'''
+          new = '''    const output = speechOutputPath(input.root || options.root || process.cwd(), input.output);
+              const platform = options.platform || process.platform;
+              if (platform !== "win32" && typeof options.synthesizeImpl !== "function") {
+                  throw new Error("SPEECH_SYNTHESIS_PLATFORM_UNSUPPORTED");
+              }'''
+          if old not in t: raise SystemExit('SPEECH_OUTPUT_VALIDATION_BOUNDARY_NOT_FOUND')
+          p.write_text(t.replace(old, new, 1))
+
+          p = Path('tests/jarvis-real-media-reel-hydration-v127.test.mjs')
+          t = p.read_text()
+          old = '''    sourceUrl: "https://cdn.example/cover.jpg",
+              sourceTag: "og:image",
+              alt: "Imagen verificada"'''
+          new = '''    sourceUrl: "https://cdn.example/cover.jpg",
+              sourceTag: "og:image",
+              sourceDeclared: true,
+              alt: "Imagen verificada"'''
+          if old not in t: raise SystemExit('V127_IMAGE_FIXTURE_NOT_FOUND')
+          t = t.replace(old, new, 1)
+          old = '''    sourceUrl: "https://cdn.example/source.mp4",
+              sourceTag: "og:video"'''
+          new = '''    sourceUrl: "https://cdn.example/source.mp4",
+              sourceTag: "og:video",
+              sourceDeclared: true'''
+          if old not in t: raise SystemExit('V127_VIDEO_FIXTURE_NOT_FOUND')
+          p.write_text(t.replace(old, new, 1))
+
+          p = Path('tests/nexo-real-media-semantic-binding-v131.test.mjs')
+          t = p.read_text()
+          old = '''    sourceUrl: "https://cdn.example/a.jpg",
+              sourceTag: "og:image",
+              mediaRole: "scene"'''
+          new = '''    sourceUrl: "https://cdn.example/a.jpg",
+              sourceTag: "og:image",
+              sourceDeclared: true,
+              mediaRole: "scene"'''
+          if old not in t: raise SystemExit('V131_PROVENANCE_FIXTURE_NOT_FOUND')
+          p.write_text(t.replace(old, new, 1))
+
+          p = Path('tests/jarvis-reel-media-source-recovery-v136.test.mjs')
+          t = p.read_text()
+          old = '''    assert.match(core, /jarvis\\.mission\\.orchestrator\\.js\\?v=v137-local-speech-synthesis-20260812/);'''
+          new = '''    assert.match(core, /jarvis\\.mission\\.orchestrator\\.js["']/);
+              assert.doesNotMatch(core, /jarvis\\.mission\\.orchestrator\\.js\\?v=v137-local-speech-synthesis-20260812/);'''
+          if old not in t: raise SystemExit('V136_STALE_CACHE_ASSERTION_NOT_FOUND')
+          p.write_text(t.replace(old, new, 1))
+          PY
+
+          node --check gestia-core/response.composer.js
+          node --check jarvis-speech-artifact.js
+          git diff --check
+          git diff --name-only "$BASE_SHA" | sort > /tmp/certified-files.txt
+          if grep -E '^(functions/|multiservicios-web/|.*Multiservicios)' /tmp/certified-files.txt; then
+            echo 'PROTECTED_SURFACE_TOUCHED=true' >&2
+            exit 1
+          fi
+          grep -q 'WEB_REAL_MEDIA_REQUIREMENTS_UNMET' gestia-core/response.composer.js
+          grep -q '1.2.0-stable-research-objectives' gestia-core/gestia-core.js
+          echo 'CERTIFIED_TREE_RECONSTRUCTED=true'
+          echo 'FUNCTIONS_UNTOUCHED=true'
+          echo 'MULTISERVICIOS_UNTOUCHED=true'
+
+      - name: Build isolated Hosting config and marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const source = JSON.parse(fs.readFileSync('firebase.json', 'utf8'));
+          const hosting = Array.isArray(source.hosting) ? source.hosting : [source.hosting].filter(Boolean);
+          const selected = hosting.filter(item => item && item.site === process.env.FIREBASE_SITE_ID);
+          if (selected.length !== 1) throw new Error(`HOSTING_SITE_SELECTION_INVALID:${selected.length}`);
+          if (selected[0].target) throw new Error(`HOSTING_TARGET_FORBIDDEN:${selected[0].target}`);
+          fs.writeFileSync('.firebase-contract-audit-hosting-only.json', JSON.stringify({hosting:selected[0]}, null, 2));
+          fs.writeFileSync('contract-audit-candidate.json', JSON.stringify({
+            candidate:'ADJUNTO_CURRENT_CONTRACT_CERTIFIED',
+            contract:'1.2.0-stable-research-objectives',
+            semanticAuthority:'jarvisSemanticPlan',
+            baseSha:process.env.BASE_SHA,
+            handoffPatchSha256:process.env.HANDOFF_PATCH_SHA256,
+            certifiedAuditRun:process.env.CERTIFIED_AUDIT_RUN,
+            hostingOnly:true,
+            builtAt:new Date().toISOString()
+          }, null, 2));
+          const c=JSON.parse(fs.readFileSync('.firebase-contract-audit-hosting-only.json','utf8'));
+          if(c.functions) throw new Error('FUNCTIONS_CONFIG_PRESENT');
+          if(Array.isArray(c.hosting)) throw new Error('MULTISITE_CONFIG_PRESENT');
+          if(c.hosting?.site!==process.env.FIREBASE_SITE_ID) throw new Error('WRONG_HOSTING_SITE');
+          if(c.hosting?.target) throw new Error('MULTISERVICIOS_TARGET_PRESENT');
+          console.log('HOSTING_CONFIG_ISOLATED=true');
+          NODE
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Hosting only
+        shell: bash
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy --config .firebase-contract-audit-hosting-only.json --only hosting --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
+          echo 'HOSTING_ONLY_DEPLOYED=true'
+
+      - name: Verify certified bytes served
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://${FIREBASE_SITE_ID}.web.app"
+          ok=false
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent --show-error --location "${base}/contract-audit-candidate.json?run=${GITHUB_RUN_ID}" -o /tmp/marker.json \
+              && curl --fail --silent --show-error --location "${base}/gestia-core/response.composer.js?run=${GITHUB_RUN_ID}" -o /tmp/composer.js \
+              && curl --fail --silent --show-error --location "${base}/gestia-core/jarvis/jarvis.mission.orchestrator.js?run=${GITHUB_RUN_ID}" -o /tmp/orchestrator.js \
+              && curl --fail --silent --show-error --location "${base}/gestia-terminal.html?run=${GITHUB_RUN_ID}" -o /tmp/terminal.html \
+              && grep -q 'ADJUNTO_CURRENT_CONTRACT_CERTIFIED' /tmp/marker.json \
+              && grep -q '1.2.0-stable-research-objectives' /tmp/marker.json \
+              && grep -q 'jarvisSemanticPlan' /tmp/marker.json \
+              && grep -q 'WEB_REAL_MEDIA_REQUIREMENTS_UNMET' /tmp/composer.js \
+              && grep -q 'dependencyRecoveryHistory' /tmp/orchestrator.js \
+              && grep -q 'completedMissionToolNames' /tmp/terminal.html; then
+              ok=true
+              break
+            fi
+            sleep 4
+          done
+          test "$ok" = true
+          echo 'CERTIFIED_HOSTING_WEB_VERIFIED=true'
+          echo "WEB_URL=${base}/gestia-terminal.html"
