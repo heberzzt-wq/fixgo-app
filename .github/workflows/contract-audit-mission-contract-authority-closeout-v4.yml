@@ -1,0 +1,272 @@
+name: contract-audit mission-contract authority closeout v4
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/contract-audit-mission-contract-authority-closeout-v4.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLOW_V2_CARRIER_SHA: 8ef564d954de07a3b63d8a117ada4c2bcf40e3b4
+  FINAL_V3_CARRIER_SHA: 71e4b1f847640dd9d3d9b142b0158073f5451336
+  FINAL_V2_CARRIER_SHA: 21d1fc513d7817e7bfd9913ec113bd7923f3bb10
+  FAILED_FINAL_CARRIER_SHA: b6dd83bc03bebc8cc66b790a38404fa48db3f395
+  V3_CARRIER_SHA: e32b68752e452ef1d4f3eb6ba8fa375cce5787ab
+  PRIOR_V2_CARRIER_SHA: 1892d5f7726ce41402600d49b22fb1cf62e830fb
+  PRIOR_CARRIER_SHA: 2a51c1c349edac309465a22fd73c5b157dbaccd9
+  BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
+  CERTIFIED_CARRIER_SHA: cebe6f399d4edf4f234e584e0a42cf980b3a404d
+  FIREBASE_PROJECT_ID: fixgo-44e4d
+  FIREBASE_SITE_ID: fixgo-44e4d
+
+jobs:
+  certify-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct exact refined candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .github/candidates/contract-audit/mission-contract-authority-closeout-v2.py /tmp/authority-closeout-v2.py
+          git show "${FLOW_V2_CARRIER_SHA}:.github/workflows/contract-audit-mission-flow-closeout-v2.yml" > /tmp/flow-v2.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('/tmp/flow-v2.yml').read_text()
+          pairs=[
+            ('Reconstruct certified final-v3 candidate','Preserve complete semantic mission flow','/tmp/v4-reconstruct.sh'),
+            ('Preserve complete semantic mission flow','Install dependencies','/tmp/v4-flow.sh')
+          ]
+          for a,b,out in pairs:
+              s=text.index(f'      - name: {a}\n')
+              rs=text.index('        run: |\n',s)+len('        run: |\n')
+              e=text.index(f'\n      - name: {b}\n',rs)
+              lines=[]
+              for line in text[rs:e].splitlines():
+                  if line.startswith('          '): lines.append(line[10:])
+                  elif not line.strip(): lines.append('')
+                  else: raise SystemExit(f'EXTRACT_INDENT:{a}:{line!r}')
+              Path(out).write_text('\n'.join(lines)+'\n')
+          PY
+          bash /tmp/v4-reconstruct.sh
+          bash /tmp/v4-flow.sh
+          python3 /tmp/authority-closeout-v2.py
+          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          node --check gestia-core/gestia-core.js
+          node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
+          git diff --check
+          echo 'REFINED_CANDIDATE_RECONSTRUCTED=true'
+
+      - name: Assert instruction-driven tool selection
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('fs');
+          const source=fs.readFileSync('gestia-core/jarvis/jarvis.multifunction.planner.js','utf8');
+          const a=source.indexOf('async function callMissionContractCoverageAuthority');
+          const b=source.indexOf('async function callBrowserSemanticPlan',a);
+          if(a<0 || b<=a) process.exit(11);
+          const helper=source.slice(a,b);
+          if(!helper.includes('callSemanticPlanner')) process.exit(12);
+          if(!helper.includes('callBrowserMissionContract')) process.exit(13);
+          if(helper.indexOf('callSemanticPlanner') > helper.indexOf('callBrowserMissionContract')) process.exit(14);
+          for(const forbidden of ['web.research','web.media.collect','media.analyze','marketing.plan','tiktok.com','Taquería El Dorado']){
+            if(helper.includes(forbidden)){
+              console.error('STATIC_TOOL_ROUTING_DETECTED',forbidden);
+              process.exit(15);
+            }
+          }
+          if(!/callSemanticPlanner\(\s*input,\s*catalog,\s*missionState\s*\)/s.test(helper)) process.exit(16);
+          if(!/callBrowserMissionContract\(\s*input,\s*catalog,\s*missionState\s*\)/s.test(helper)) process.exit(17);
+          NODE
+          echo 'ORIGINAL_INSTRUCTION_DRIVES_MISSION_CONTRACT=true'
+          echo 'CATALOG_DRIVES_TOOL_AVAILABILITY=true'
+          echo 'NO_STATIC_TIKTOK_ROUTER=true'
+          echo 'NO_STATIC_TOOL_CHAIN=true'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Focal instruction-to-tool-flow regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/jarvis-mission-contract-authority-closeout-v2.test.mjs \
+            tests/jarvis-mission-flow-contract-closeout.test.mjs \
+            tests/jarvis-mission-contract-preserves-initial-production.test.mjs \
+            tests/jarvis-human-regression-closeout.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs \
+            tests/jarvis-mission-contract-accounting.test.mjs \
+            tests/jarvis-single-contract-authority.test.mjs \
+            tests/single-semantic-authority.test.mjs
+          echo 'FOCAL_INSTRUCTION_TOOL_FLOW_GREEN=true'
+
+      - name: Full CI exact command
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run ci:test
+          echo 'FULL_CI_EXACT_GREEN=true'
+
+      - name: Protected surface audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show "${FLOW_V2_CARRIER_SHA}:.github/workflows/contract-audit-mission-flow-closeout-v2.yml" > /tmp/flow-v2-audit.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('/tmp/flow-v2-audit.yml').read_text()
+          a='Protected surface audit'
+          b='Build isolated Hosting-only config'
+          s=text.index(f'      - name: {a}\n')
+          rs=text.index('        run: |\n',s)+len('        run: |\n')
+          e=text.index(f'\n      - name: {b}\n',rs)
+          lines=[]
+          for line in text[rs:e].splitlines():
+              if line.startswith('          '): lines.append(line[10:])
+              elif not line.strip(): lines.append('')
+              else: raise SystemExit(f'AUDIT_INDENT:{line!r}')
+          Path('/tmp/v4-audit.sh').write_text('\n'.join(lines)+'\n')
+          PY
+          bash /tmp/v4-audit.sh
+          ! git diff --name-only "$BASE_SHA" -- . | grep -E '^(functions/|multiservicios-web/|.*Multiservicios)'
+          grep -q '1.2.0-stable-research-objectives' gestia-core/gestia-core.js
+          ! grep -q 'MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN' gestia-core/gestia-core.js
+          grep -q 'MISSION_CONTRACT_UNAVAILABLE' gestia-core/gestia-core.js
+          node <<'NODE'
+          const fs=require('fs');
+          const source=fs.readFileSync('gestia-core/jarvis/jarvis.multifunction.planner.js','utf8');
+          const a=source.indexOf('async function callMissionContractCoverageAuthority');
+          const b=source.indexOf('async function callBrowserSemanticPlan',a);
+          const helper=source.slice(a,b);
+          if(a<0 || b<=a) process.exit(21);
+          if(helper.indexOf('callSemanticPlanner') < 0 || helper.indexOf('callBrowserMissionContract') < 0) process.exit(22);
+          if(helper.indexOf('callSemanticPlanner') > helper.indexOf('callBrowserMissionContract')) process.exit(23);
+          for(const forbidden of ['web.research','web.media.collect','media.analyze','marketing.plan','tiktok.com']) if(helper.includes(forbidden)) process.exit(24);
+          NODE
+          echo 'FUNCTIONS_UNTOUCHED=true'
+          echo 'MULTISERVICIOS_UNTOUCHED=true'
+          echo 'MISSION_CONTRACT_STABLE=true'
+          echo 'ONE_SEMANTIC_AUTHORITY=true'
+          echo 'INSTRUCTION_DRIVEN_TOOL_GRAPH=true'
+
+      - name: Build isolated Hosting-only config
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show "${FLOW_V2_CARRIER_SHA}:.github/workflows/contract-audit-mission-flow-closeout-v2.yml" > /tmp/flow-v2-host.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('/tmp/flow-v2-host.yml').read_text()
+          a='Build isolated Hosting-only config'
+          b='Install Firebase CLI'
+          s=text.index(f'      - name: {a}\n')
+          rs=text.index('        run: |\n',s)+len('        run: |\n')
+          e=text.index(f'\n      - name: {b}\n',rs)
+          lines=[]
+          for line in text[rs:e].splitlines():
+              if line.startswith('          '): lines.append(line[10:])
+              elif not line.strip(): lines.append('')
+              else: raise SystemExit(f'HOST_INDENT:{line!r}')
+          Path('/tmp/v4-host.sh').write_text('\n'.join(lines)+'\n')
+          PY
+          bash /tmp/v4-host.sh
+          node <<'NODE'
+          const fs=require('fs');
+          const path='contract-audit-production-chain.json';
+          const value=JSON.parse(fs.readFileSync(path,'utf8'));
+          value.candidate='ADJUNTO_INSTRUCTION_DRIVEN_MISSION_TOOL_FLOW_V4';
+          value.cloudAuditedMissionContractPrimary=true;
+          value.browserMissionContractFallbackOnly=true;
+          value.initialSeedRecoveryRemoved=true;
+          value.originalInstructionDrivesToolGraph=true;
+          value.staticToolRouting=false;
+          value.exactWebMediaAttribution=true;
+          value.collectIsNotAnalyze=true;
+          value.canonicalMissionContract='1.2.0-stable-research-objectives';
+          value.untouchedSurfaces=['Functions','Multiservicios'];
+          fs.writeFileSync(path,JSON.stringify(value,null,2));
+          NODE
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Hosting only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show "${FLOW_V2_CARRIER_SHA}:.github/workflows/contract-audit-mission-flow-closeout-v2.yml" > /tmp/flow-v2-deploy.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('/tmp/flow-v2-deploy.yml').read_text()
+          a='Deploy Hosting only'
+          b='Verify served bytes'
+          s=text.index(f'      - name: {a}\n')
+          rs=text.index('        run: |\n',s)+len('        run: |\n')
+          e=text.index(f'\n      - name: {b}\n',rs)
+          lines=[]
+          for line in text[rs:e].splitlines():
+              if line.startswith('          '): lines.append(line[10:])
+              elif not line.strip(): lines.append('')
+              else: raise SystemExit(f'DEPLOY_INDENT:{line!r}')
+          Path('/tmp/v4-deploy.sh').write_text('\n'.join(lines)+'\n')
+          PY
+          bash /tmp/v4-deploy.sh
+
+      - name: Verify served bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show "${FLOW_V2_CARRIER_SHA}:.github/workflows/contract-audit-mission-flow-closeout-v2.yml" > /tmp/flow-v2-verify.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('/tmp/flow-v2-verify.yml').read_text()
+          a='Verify served bytes'
+          s=text.index(f'      - name: {a}\n')
+          rs=text.index('        run: |\n',s)+len('        run: |\n')
+          lines=[]
+          for line in text[rs:].splitlines():
+              if line.startswith('          '): lines.append(line[10:])
+              elif not line.strip(): lines.append('')
+              else: break
+          Path('/tmp/v4-verify.sh').write_text('\n'.join(lines)+'\n')
+          PY
+          bash /tmp/v4-verify.sh
+          base="https://${FIREBASE_SITE_ID}.web.app"
+          ok=false
+          for attempt in $(seq 1 20); do
+            if curl -fsSL "${base}/gestia-core/jarvis/jarvis.multifunction.planner.js?v4=${GITHUB_RUN_ID}" -o /tmp/v4-planner.js \
+              && curl -fsSL "${base}/gestia-core/gestia-core.js?v4=${GITHUB_RUN_ID}" -o /tmp/v4-core.js \
+              && curl -fsSL "${base}/contract-audit-production-chain.json?v4=${GITHUB_RUN_ID}" -o /tmp/v4-marker.json \
+              && grep -q 'async function callMissionContractCoverageAuthority' /tmp/v4-planner.js \
+              && grep -q 'callSemanticPlanner' /tmp/v4-planner.js \
+              && grep -q 'callBrowserMissionContract' /tmp/v4-planner.js \
+              && grep -q 'MISSION_CONTRACT_UNAVAILABLE' /tmp/v4-core.js \
+              && ! grep -q 'MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN' /tmp/v4-core.js \
+              && grep -q 'ADJUNTO_INSTRUCTION_DRIVEN_MISSION_TOOL_FLOW_V4' /tmp/v4-marker.json \
+              && grep -q '"originalInstructionDrivesToolGraph": true' /tmp/v4-marker.json \
+              && grep -q '"staticToolRouting": false' /tmp/v4-marker.json \
+              && grep -q '"cloudAuditedMissionContractPrimary": true' /tmp/v4-marker.json \
+              && grep -q '"initialSeedRecoveryRemoved": true' /tmp/v4-marker.json; then
+              ok=true
+              break
+            fi
+            sleep 4
+          done
+          test "$ok" = true
+          echo 'CERTIFIED_INSTRUCTION_DRIVEN_TOOL_FLOW_BYTES_VERIFIED=true'
+          echo "WEB_URL=${base}/gestia-terminal.html"
