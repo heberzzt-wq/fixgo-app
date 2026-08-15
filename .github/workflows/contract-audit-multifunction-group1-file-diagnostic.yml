@@ -1,0 +1,114 @@
+name: contract-audit multifunction group1 file diagnostic
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/contract-audit-multifunction-group1-file-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLOW_V2_CARRIER_SHA: 8ef564d954de07a3b63d8a117ada4c2bcf40e3b4
+  FINAL_V3_CARRIER_SHA: 71e4b1f847640dd9d3d9b142b0158073f5451336
+  FINAL_V2_CARRIER_SHA: 21d1fc513d7817e7bfd9913ec113bd7923f3bb10
+  FAILED_FINAL_CARRIER_SHA: b6dd83bc03bebc8cc66b790a38404fa48db3f395
+  V3_CARRIER_SHA: e32b68752e452ef1d4f3eb6ba8fa375cce5787ab
+  PRIOR_V2_CARRIER_SHA: 1892d5f7726ce41402600d49b22fb1cf62e830fb
+  PRIOR_CARRIER_SHA: 2a51c1c349edac309465a22fd73c5b157dbaccd9
+  BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
+  CERTIFIED_CARRIER_SHA: cebe6f399d4edf4f234e584e0a42cf980b3a404d
+
+jobs:
+  isolate:
+    name: group1-${{ matrix.case }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - case: multifunction-tools
+            file: tests/jarvis-multifunction-tools.test.mjs
+          - case: conversation-composer
+            file: tests/jarvis-conversation-composer.test.mjs
+          - case: workbook-validator
+            file: tests/jarvis-workbook-validator.test.mjs
+          - case: actuator-pack
+            file: tests/jarvis-actuator-pack.test.mjs
+          - case: image-generation
+            file: tests/jarvis-image-generation.test.cjs
+          - case: image-adapter
+            file: tests/jarvis-image-adapter.test.mjs
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct exact refined candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .github/candidates/contract-audit/mission-contract-authority-closeout-v2.py /tmp/authority-closeout-v2.py
+          git show "${FLOW_V2_CARRIER_SHA}:.github/workflows/contract-audit-mission-flow-closeout-v2.yml" > /tmp/flow-v2.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('/tmp/flow-v2.yml').read_text()
+          pairs=[
+            ('Reconstruct certified final-v3 candidate','Preserve complete semantic mission flow','/tmp/g1-reconstruct.sh'),
+            ('Preserve complete semantic mission flow','Install dependencies','/tmp/g1-flow.sh')
+          ]
+          for a,b,out in pairs:
+              s=text.index(f'      - name: {a}\n')
+              rs=text.index('        run: |\n',s)+len('        run: |\n')
+              e=text.index(f'\n      - name: {b}\n',rs)
+              lines=[]
+              for line in text[rs:e].splitlines():
+                  if line.startswith('          '): lines.append(line[10:])
+                  elif not line.strip(): lines.append('')
+                  else: raise SystemExit(f'EXTRACT_INDENT:{a}:{line!r}')
+              Path(out).write_text('\n'.join(lines)+'\n')
+          PY
+          bash /tmp/g1-reconstruct.sh
+          bash /tmp/g1-flow.sh
+          python3 /tmp/authority-closeout-v2.py
+          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          node --check gestia-core/gestia-core.js
+          git diff --check
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prefix stage 1 mission semantics
+        run: node --test tests/response-composer-semantic-contract.test.mjs tests/jarvis-mission-contract-accounting.test.mjs tests/jarvis-mission-failure-precedence.test.mjs tests/jarvis-mission-orchestrator.test.mjs
+
+      - name: Prefix stage 2 nexo
+        run: npm run check:nexo
+
+      - name: Prefix stage 3 entry syntax
+        run: npm run check:entry-syntax
+
+      - name: Prefix stage 4 global syntax
+        run: npm run check:syntax
+
+      - name: Run one group1 file
+        shell: bash
+        env:
+          TEST_FILE: ${{ matrix.file }}
+          TEST_CASE: ${{ matrix.case }}
+        run: |
+          set -euo pipefail
+          echo "GROUP1_CASE=${TEST_CASE}"
+          echo "GROUP1_FILE=${TEST_FILE}"
+          node --test "$TEST_FILE"
+          echo "GROUP1_${TEST_CASE}_GREEN=true"
+
+      - name: No deploy
+        run: |
+          echo 'NO_HOSTING_DEPLOY=true'
+          echo 'NO_FUNCTIONS_CHANGE=true'
+          echo 'NO_MULTISERVICIOS_CHANGE=true'
