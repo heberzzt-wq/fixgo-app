@@ -1,0 +1,562 @@
+name: contract-audit human-regression closeout v3
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/contract-audit-human-regression-closeout-v3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PRIOR_V2_CARRIER_SHA: 1892d5f7726ce41402600d49b22fb1cf62e830fb
+  PRIOR_CARRIER_SHA: 2a51c1c349edac309465a22fd73c5b157dbaccd9
+  BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
+  CERTIFIED_CARRIER_SHA: cebe6f399d4edf4f234e584e0a42cf980b3a404d
+  FIREBASE_PROJECT_ID: fixgo-44e4d
+  FIREBASE_SITE_ID: fixgo-44e4d
+
+jobs:
+  certify-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct v2 certified candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show "${PRIOR_V2_CARRIER_SHA}:.github/workflows/contract-audit-human-regression-closeout-v2.yml" > /tmp/prior-v2.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('/tmp/prior-v2.yml').read_text()
+          def extract(a,b,o):
+              s=text.index(f'      - name: {a}\n')
+              rs=text.index('        run: |\n',s)+len('        run: |\n')
+              e=text.index(f'\n      - name: {b}\n',rs)
+              lines=[]
+              for line in text[rs:e].splitlines():
+                  if line.startswith('          '): lines.append(line[10:])
+                  elif not line.strip(): lines.append('')
+                  else: raise SystemExit(f'INDENT:{a}:{line!r}')
+              Path(o).write_text('\n'.join(lines)+'\n')
+          extract('Reconstruct previously certified exact-source candidate','Preserve canonical tool observations and retry dynamic media once','/tmp/reconstruct-v2.sh')
+          extract('Preserve canonical tool observations and retry dynamic media once','Install dependencies','/tmp/apply-v2.sh')
+          PY
+          bash /tmp/reconstruct-v2.sh
+          bash /tmp/apply-v2.sh
+          echo 'V2_CERTIFIED_CANDIDATE_RECONSTRUCTED=true'
+
+      - name: Preserve exact web-media provenance through mission semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('gestia-core/jarvis/jarvis.mission.orchestrator.js')
+          t=p.read_text()
+
+          safe_start='''function safeObservation(result = {}) {
+              if (
+                  result?.type === "TOOL_OBSERVATION" &&
+                  result?.data &&
+                  typeof result.data === "object" &&
+                  !Array.isArray(result.data)
+              ) {
+                  result = result.data;
+              }
+          '''
+          safe_replacement='''function safeObservation(result = {}) {
+              const canonicalToolPayload =
+                  result?.type === "TOOL_OBSERVATION" &&
+                  result?.data &&
+                  typeof result.data === "object" &&
+                  !Array.isArray(result.data)
+                      ? result.data
+                      : result?.type === "AGENT_TOOL_RESULT" &&
+                          Array.isArray(result?.observations) &&
+                          result.observations.length === 1 &&
+                          result.observations[0]?.data &&
+                          typeof result.observations[0].data === "object" &&
+                          !Array.isArray(result.observations[0].data)
+                              ? result.observations[0].data
+                              : null;
+              if (canonicalToolPayload) {
+                  result = canonicalToolPayload;
+              }
+          '''
+          if safe_start not in t:
+              raise SystemExit('V2_SAFE_OBSERVATION_START_NOT_FOUND')
+          t=t.replace(safe_start,safe_replacement,1)
+
+          helper='''function normalizedVerifiedWebMediaUrl(value = "") {
+              const source = text(value, 2000);
+              if (!source) return "";
+              try {
+                  const parsed = new URL(source);
+                  parsed.hash = "";
+                  parsed.search = "";
+                  return parsed.toString().replace(/\\\/$/, "");
+              }
+              catch {
+                  return "";
+              }
+          }
+
+          function verifiedWebMediaAttributionSources(payload = {}) {
+              if (
+                  payload?.status !== "WEB_REAL_MEDIA_COLLECTED" ||
+                  payload?.requirementsMet !== true
+              ) {
+                  return [];
+              }
+              const assets = [
+                  ...(Array.isArray(payload?.assets) ? payload.assets : []),
+                  ...(Array.isArray(payload?.mediaAssets) ? payload.mediaAssets : [])
+              ];
+              const payloadSourceUrl =
+                  normalizedVerifiedWebMediaUrl(payload?.sourceUrl);
+              const payloadFinalUrl =
+                  normalizedVerifiedWebMediaUrl(payload?.finalPageUrl);
+              const seen = new Set();
+              const sources = [];
+
+              for (const asset of assets) {
+                  const provenance =
+                      asset?.provenance &&
+                      typeof asset.provenance === "object"
+                          ? asset.provenance
+                          : {};
+                  if (
+                      provenance?.verified !== true ||
+                      provenance?.status !== "WEB_MEDIA_POST_PROVENANCE_VERIFIED" ||
+                      asset?.networkObserved !== true ||
+                      asset?.bodyCaptured !== true
+                  ) {
+                      continue;
+                  }
+                  const requestedUrl =
+                      normalizedVerifiedWebMediaUrl(
+                          provenance?.requestedPageUrl
+                      );
+                  const documentUrl =
+                      normalizedVerifiedWebMediaUrl(
+                          provenance?.documentUrl
+                      );
+                  const canonicalUrl =
+                      normalizedVerifiedWebMediaUrl(
+                          provenance?.canonicalUrl
+                      );
+                  const assetPageUrl =
+                      normalizedVerifiedWebMediaUrl(
+                          asset?.sourcePageUrl
+                      );
+                  if (
+                      !canonicalUrl ||
+                      requestedUrl !== canonicalUrl ||
+                      documentUrl !== canonicalUrl ||
+                      (assetPageUrl && assetPageUrl !== canonicalUrl) ||
+                      (payloadSourceUrl && payloadSourceUrl !== canonicalUrl) ||
+                      (payloadFinalUrl && payloadFinalUrl !== canonicalUrl)
+                  ) {
+                      continue;
+                  }
+                  const bytes = Number(asset?.bytes || 0);
+                  const sha256 =
+                      text(asset?.sha256, 80).toLowerCase();
+                  if (
+                      !Number.isFinite(bytes) ||
+                      bytes < 1 ||
+                      !/^[a-f0-9]{64}$/.test(sha256)
+                  ) {
+                      continue;
+                  }
+                  const identity =
+                      provenance?.documentIdentity &&
+                      typeof provenance.documentIdentity === "object"
+                          ? provenance.documentIdentity
+                          : {};
+                  if (
+                      identity?.verified === false
+                  ) {
+                      continue;
+                  }
+                  const author =
+                      text(identity?.author, 200);
+                  const postId =
+                      text(identity?.postId, 200);
+                  const kind =
+                      text(asset?.kind || "media", 40)
+                          .toLowerCase();
+                  const key =
+                      `${canonicalUrl}:${sha256}`;
+                  if (seen.has(key)) continue;
+                  seen.add(key);
+                  sources.push({
+                      title:
+                          text(
+                              provenance?.documentTitle ||
+                              "Publicacion web exacta verificada",
+                              500
+                          ),
+                      url:
+                          canonicalUrl,
+                      snippet:
+                          text(
+                              [
+                                  "Publicacion exacta verificada mediante captura del navegador.",
+                                  author
+                                      ? `Cuenta verificada para este documento: @${author}.`
+                                      : "",
+                                  postId
+                                      ? `Post ID verificado: ${postId}.`
+                                      : "",
+                                  `Se capturaron ${bytes} bytes de un medio ${kind || "visual"} ligado al documento.`,
+                                  "Alcance de esta evidencia: identidad del post, titulo del documento y bytes del medio; no implica transcripcion ni analisis visual del contenido."
+                              ]
+                                  .filter(Boolean)
+                                  .join(" "),
+                              1400
+                          ),
+                      sourceType:
+                          "VERIFIED_WEB_MEDIA",
+                      provenanceStatus:
+                          "WEB_MEDIA_POST_PROVENANCE_VERIFIED",
+                      evidenceScope:
+                          "POST_IDENTITY_TITLE_AND_MEDIA_BYTES",
+                      author:
+                          author || null,
+                      postId:
+                          postId || null,
+                      mediaKind:
+                          kind || null,
+                      bytes,
+                      sha256
+                  });
+              }
+              return sources.slice(0, 6);
+          }
+
+          '''
+          anchor='function safeObservation(result = {}) {\n'
+          if 'function verifiedWebMediaAttributionSources' in t:
+              raise SystemExit('VERIFIED_WEB_MEDIA_HELPER_ALREADY_PRESENT')
+          idx=t.index(anchor)
+          t=t[:idx]+helper+t[idx:]
+
+          old_marketing='''    const marketingDeliverableReady =
+                  !marketingPackageReady ||
+                  (
+                      payload?.plan &&
+                      typeof payload.plan === "object" &&
+                      Object.keys(payload.plan).length >= 25 &&
+                      typeof payload?.userVisible === "string" &&
+                      payload.userVisible.trim().length > 0
+                  );
+          '''
+          new_marketing='''    const marketingDeliverableReady =
+                  !marketingPackageReady ||
+                  (
+                      explicitObjectiveSatisfied === true &&
+                      payload?.planReady === true &&
+                      payload?.plan &&
+                      typeof payload.plan === "object" &&
+                      !Array.isArray(payload.plan) &&
+                      typeof payload?.userVisible === "string" &&
+                      payload.userVisible.trim().length > 0
+                  );
+          '''
+          if old_marketing not in t:
+              raise SystemExit('MARKETING_DELIVERABLE_HEURISTIC_NOT_FOUND')
+          t=t.replace(old_marketing,new_marketing,1)
+
+          return_anchor='''    return {
+                  ok: executionOk,
+          '''
+          rret=t.index(return_anchor,t.index(anchor))
+          valid_source_prelude='''    const canonicalValidSources = [];
+              const seenValidSources = new Set();
+              for (const source of [
+                  ...(Array.isArray(payload?.sources) ? payload.sources : []),
+                  ...verifiedWebMediaAttributionSources(payload)
+              ]) {
+                  if (!source || typeof source !== "object") continue;
+                  const key =
+                      `${text(source?.url, 2000)}::${text(source?.title, 500)}`;
+                  if (seenValidSources.has(key)) continue;
+                  seenValidSources.add(key);
+                  canonicalValidSources.push(source);
+                  if (canonicalValidSources.length >= 12) break;
+              }
+
+          '''
+          t=t[:rret]+valid_source_prelude+t[rret:]
+
+          old_sources='''        validSources: Array.isArray(payload?.sources) ? payload.sources.slice(0, 12) : [],
+          '''
+          new_sources='''        validSources: canonicalValidSources,
+          '''
+          if old_sources not in t:
+              raise SystemExit('VALID_SOURCES_RETURN_NOT_FOUND')
+          t=t.replace(old_sources,new_sources,1)
+          p.write_text(t)
+
+          p=Path('tests/jarvis-human-regression-closeout.test.mjs')
+          t=p.read_text()
+          start=t.index("test('TOOL_OBSERVATION data remains the canonical MARKETING_PACKAGE_READY result'")
+          end=t.index("\ntest('web.media.collect uses at most a second CDP attempt",start)
+          replacement='''test('AGENT_TOOL_RESULT preserves canonical MARKETING_PACKAGE_READY without local field-count authority',()=>{
+            const plan={
+              executiveSummary:'Campaña específica sustentada.',
+              prioritizedNextSteps:['Revisar y publicar con aprobación.']
+            };
+            const canonical={
+              ok:true,
+              executionOk:true,
+              objectiveSatisfied:true,
+              blocked:false,
+              requiresInput:false,
+              retryable:false,
+              status:'MARKETING_PACKAGE_READY',
+              productionRequested:false,
+              requiredArtifacts:[],
+              planReady:true,
+              readyForProduction:true,
+              plan,
+              userVisible:'Campaña específica lista para revisión.'
+            };
+            const envelope={
+              ok:true,
+              executionOk:true,
+              objectiveSatisfied:false,
+              blocked:true,
+              status:'MARKETING_PACKAGE_READY',
+              type:'AGENT_TOOL_RESULT',
+              observations:[{
+                type:'TOOL_OBSERVATION',
+                tool:'marketing.plan',
+                data:canonical
+              }]
+            };
+            const observed=missionTest.safeObservation(envelope);
+            assert.equal(observed.objectiveSatisfied,true);
+            assert.equal(observed.blocked,false);
+            assert.equal(observed.status,'MARKETING_PACKAGE_READY');
+            assert.equal(observed.userVisible,canonical.userVisible);
+            assert.deepEqual(observed.deliverable,plan);
+          });
+
+          test('exact browser media provenance becomes attributable mission evidence without claiming a transcript',()=>{
+            const url='https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004';
+            const canonical={
+              ok:true,
+              executionOk:true,
+              objectiveSatisfied:true,
+              blocked:false,
+              requiresInput:false,
+              retryable:false,
+              status:'WEB_REAL_MEDIA_COLLECTED',
+              requirementsMet:true,
+              sourceUrl:url,
+              finalPageUrl:url,
+              assets:[{
+                kind:'video',
+                sourcePageUrl:url,
+                networkObserved:true,
+                bodyCaptured:true,
+                bytes:565016,
+                sha256:'7f098fbb91370284c1848d4cc36cb2177a789c9987fdf9e22b9fbfa25d88d6ac',
+                provenance:{
+                  verified:true,
+                  status:'WEB_MEDIA_POST_PROVENANCE_VERIFIED',
+                  requestedPageUrl:url,
+                  documentUrl:url,
+                  canonicalUrl:url,
+                  documentTitle:'El Taco Macho viene calientito | TikTok',
+                  documentIdentity:{
+                    author:'taqueria.eldorado',
+                    postId:'7629216747131850004',
+                    verified:true
+                  }
+                }
+              }]
+            };
+            const observed=missionTest.safeObservation({
+              ok:true,
+              executionOk:true,
+              objectiveSatisfied:false,
+              blocked:true,
+              status:'WEB_REAL_MEDIA_COLLECTED',
+              type:'AGENT_TOOL_RESULT',
+              observations:[{
+                type:'TOOL_OBSERVATION',
+                tool:'web.media.collect',
+                data:canonical
+              }]
+            });
+            assert.equal(observed.objectiveSatisfied,true);
+            assert.equal(observed.blocked,false);
+            assert.equal(observed.validSources.length,1);
+            assert.equal(observed.validSources[0].url,url);
+            assert.equal(observed.validSources[0].sourceType,'VERIFIED_WEB_MEDIA');
+            assert.equal(observed.validSources[0].postId,'7629216747131850004');
+            assert.match(observed.validSources[0].snippet,/no implica transcripcion ni analisis visual/i);
+
+            const evidence=missionTest.canonicalMissionEvidence({
+              completedTasks:[{
+                name:'web.media.collect',
+                observation:observed
+              }]
+            });
+            assert.equal(evidence.length,1);
+            assert.equal(evidence[0].validSources[0].url,url);
+
+            const tampered=structuredClone(canonical);
+            tampered.assets[0].provenance.canonicalUrl=
+              'https://www.tiktok.com/@taqueria.eldorado/video/7630010786378796308';
+            const rejected=missionTest.safeObservation({
+              type:'TOOL_OBSERVATION',
+              data:tampered
+            });
+            assert.equal(rejected.validSources.length,0);
+          });
+          '''
+          t=t[:start]+replacement+t[end:]
+          p.write_text(t)
+          PY
+
+          node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
+          git diff --check
+          echo 'AGENT_TOOL_CANONICAL_UNWRAP=true'
+          echo 'VERIFIED_WEB_MEDIA_ATTRIBUTION=true'
+          echo 'WEB_MEDIA_EVIDENCE_SCOPE=POST_IDENTITY_TITLE_AND_MEDIA_BYTES'
+          echo 'NO_TRANSCRIPT_INFERENCE=true'
+          echo 'NO_NEW_BRAIN=true'
+          echo 'NO_NEW_CONTRACT=true'
+          echo 'NO_NEW_CONTRACT_VERSION=true'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Focal exact-media semantic closeout
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/jarvis-human-regression-closeout.test.mjs \
+            tests/nexo-browser-media-fallback-v135.test.mjs \
+            tests/jarvis-exact-source-research-grounding.test.mjs \
+            tests/jarvis-v139-web-research-cloud-fallback.test.mjs \
+            tests/jarvis-mission-contract-preserves-initial-production.test.mjs \
+            tests/jarvis-mission-contract-accounting.test.mjs \
+            tests/jarvis-single-contract-authority.test.mjs \
+            tests/single-semantic-authority.test.mjs
+
+      - name: Full CI once
+        run: npm run ci:test
+
+      - name: Protected surface audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only "$BASE_SHA" -- .)"
+          printf '%s\n' "$changed"
+          if printf '%s\n' "$changed" | grep -E '^(functions/|multiservicios-web/|.*Multiservicios)' ; then
+            echo 'PROTECTED_SURFACE_TOUCHED=true' >&2
+            exit 1
+          fi
+          grep -q '1.2.0-stable-research-objectives' gestia-core/gestia-core.js
+          grep -q 'scopeGroundedResearchResult' gestia-core/jarvis/jarvis.multitool.pack.js
+          grep -q 'result?.type === "AGENT_TOOL_RESULT"' gestia-core/jarvis/jarvis.mission.orchestrator.js
+          grep -q 'function verifiedWebMediaAttributionSources' gestia-core/jarvis/jarvis.mission.orchestrator.js
+          grep -q 'POST_IDENTITY_TITLE_AND_MEDIA_BYTES' gestia-core/jarvis/jarvis.mission.orchestrator.js
+          grep -q 'const browserAttempts = \[\]' gestia-core/nexo/nexo.real-media.tools.js
+          ! grep -q 'v141\|v142\|v143' tests/jarvis-human-regression-closeout.test.mjs
+          git diff --check
+          echo 'FUNCTIONS_UNTOUCHED=true'
+          echo 'MULTISERVICIOS_UNTOUCHED=true'
+          echo 'NO_NEW_BRAIN=true'
+          echo 'NO_NEW_CONTRACT=true'
+          echo 'NO_NEW_CONTRACT_VERSION=true'
+
+      - name: Build isolated Hosting-only config
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('fs');
+          const source=JSON.parse(fs.readFileSync('firebase.json','utf8'));
+          const hosting=Array.isArray(source.hosting)?source.hosting:[source.hosting].filter(Boolean);
+          const selected=hosting.filter(item=>item&&item.site===process.env.FIREBASE_SITE_ID);
+          if(selected.length!==1) throw new Error(`HOSTING_SITE_SELECTION_INVALID:${selected.length}`);
+          if(selected[0].target) throw new Error(`HOSTING_TARGET_FORBIDDEN:${selected[0].target}`);
+          fs.writeFileSync('.firebase-human-regression-hosting-only.json',JSON.stringify({hosting:selected[0]},null,2));
+          fs.writeFileSync('contract-audit-production-chain.json',JSON.stringify({
+            candidate:'ADJUNTO_HUMAN_REGRESSION_CLOSEOUT_V3',
+            contract:'1.2.0-stable-research-objectives',
+            semanticAuthority:'jarvisSemanticPlan',
+            samePlanPreserved:true,
+            exactSourceGrounding:true,
+            canonicalAgentToolObservationUnwrap:true,
+            verifiedWebMediaAttribution:true,
+            webMediaEvidenceScope:'POST_IDENTITY_TITLE_AND_MEDIA_BYTES',
+            transcriptInferenceAllowed:false,
+            dynamicMediaBrowserRetryMax:2,
+            hostingOnly:true,
+            builtAt:new Date().toISOString()
+          },null,2));
+          const config=JSON.parse(fs.readFileSync('.firebase-human-regression-hosting-only.json','utf8'));
+          if(config.functions||Array.isArray(config.hosting)||config.hosting?.target) throw new Error('HOSTING_CONFIG_NOT_ISOLATED');
+          console.log('HOSTING_CONFIG_ISOLATED=true');
+          NODE
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Hosting only
+        shell: bash
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy --config .firebase-human-regression-hosting-only.json --only hosting --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
+          echo 'HOSTING_ONLY_DEPLOYED=true'
+
+      - name: Verify served bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://${FIREBASE_SITE_ID}.web.app"
+          ok=false
+          for attempt in $(seq 1 20); do
+            if curl -fsSL "${base}/contract-audit-production-chain.json?run=${GITHUB_RUN_ID}" -o /tmp/marker.json \
+              && curl -fsSL "${base}/gestia-core/jarvis/jarvis.mission.orchestrator.js?run=${GITHUB_RUN_ID}" -o /tmp/orchestrator.js \
+              && curl -fsSL "${base}/gestia-core/nexo/nexo.real-media.tools.js?run=${GITHUB_RUN_ID}" -o /tmp/media-tools.js \
+              && curl -fsSL "${base}/gestia-core/tools.bridge.js?run=${GITHUB_RUN_ID}" -o /tmp/tools-bridge.js \
+              && curl -fsSL "${base}/gestia-core/jarvis/jarvis.multitool.pack.js?run=${GITHUB_RUN_ID}" -o /tmp/pack.js \
+              && grep -q 'ADJUNTO_HUMAN_REGRESSION_CLOSEOUT_V3' /tmp/marker.json \
+              && grep -q '"verifiedWebMediaAttribution": true' /tmp/marker.json \
+              && grep -q '"transcriptInferenceAllowed": false' /tmp/marker.json \
+              && grep -q 'scopeGroundedResearchResult' /tmp/pack.js \
+              && grep -q 'result?.type === "AGENT_TOOL_RESULT"' /tmp/orchestrator.js \
+              && grep -q 'function verifiedWebMediaAttributionSources' /tmp/orchestrator.js \
+              && grep -q 'POST_IDENTITY_TITLE_AND_MEDIA_BYTES' /tmp/orchestrator.js \
+              && grep -q 'const browserAttempts = \[\]' /tmp/media-tools.js \
+              && grep -q 'result?.status' /tmp/tools-bridge.js; then
+              ok=true
+              break
+            fi
+            sleep 4
+          done
+          test "$ok" = true
+          echo 'CERTIFIED_HOSTING_BYTES_VERIFIED=true'
+          echo "WEB_URL=${base}/gestia-terminal.html"
