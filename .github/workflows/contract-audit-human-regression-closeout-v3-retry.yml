@@ -38,6 +38,8 @@ jobs:
           git show "${V3_CARRIER_SHA}:.github/workflows/contract-audit-human-regression-closeout-v3.yml" > /tmp/v3.yml
           python3 - <<'PY'
           from pathlib import Path
+          import re
+
           text=Path('/tmp/v3.yml').read_text()
           names=[
             'Reconstruct v2 certified candidate',
@@ -51,22 +53,33 @@ jobs:
             'Deploy Hosting only',
             'Verify served bytes'
           ]
+
           for index,name in enumerate(names):
               s=text.index(f'      - name: {name}\n')
-              rs=text.index('        run: |\n',s)+len('        run: |\n')
-              e=text.index(f'\n      - name: {names[index+1]}\n',rs) if index+1<len(names) else len(text)
-              lines=[]
-              for line in text[rs:e].splitlines():
-                  if line.startswith('          '): lines.append(line[10:])
-                  elif not line.strip(): lines.append('')
-                  elif index+1==len(names): break
-                  else: raise SystemExit(f'INDENT:{name}:{line!r}')
-              script='\n'.join(lines)+'\n'
+              e=text.index(f'\n      - name: {names[index+1]}\n',s) if index+1<len(names) else len(text)
+              block=text[s:e]
+              marker='        run: |\n'
+              if marker in block:
+                  rs=block.index(marker)+len(marker)
+                  lines=[]
+                  for line in block[rs:].splitlines():
+                      if line.startswith('          '):
+                          lines.append(line[10:])
+                      elif not line.strip():
+                          lines.append('')
+                      else:
+                          break
+                  script='\n'.join(lines)+'\n'
+              else:
+                  match=re.search(r'^        run: (.+)$',block,re.M)
+                  if not match:
+                      raise SystemExit(f'RUN_COMMAND_NOT_FOUND:{name}')
+                  script=match.group(1).strip()+'\n'
+
               if name=='Preserve exact web-media provenance through mission semantics':
-                  src=script.splitlines()
                   fixed=[]
                   replaced=False
-                  for line in src:
+                  for line in script.splitlines():
                       if 'return parsed.toString().replace(' in line:
                           indent=line[:len(line)-len(line.lstrip())]
                           fixed.append(indent+'const normalized = parsed.toString();')
@@ -77,6 +90,7 @@ jobs:
                   if not replaced:
                       raise SystemExit('URL_NORMALIZATION_LINE_NOT_FOUND')
                   script='\n'.join(fixed)+'\n'
+
               Path(f'/tmp/v3-step-{index+1}.sh').write_text(script)
           PY
 
