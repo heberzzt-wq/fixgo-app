@@ -79,6 +79,12 @@ jobs:
           git diff --check
           echo 'EXPLICIT_OBJECTIVE_SEMANTICS_PRESERVED=true'
 
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+
       - name: Focal contract authority
         shell: bash
         run: |
@@ -120,5 +126,4 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm ci
           npm run ci:test
