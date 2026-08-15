@@ -53,15 +53,17 @@ jobs:
           git apply /tmp/contract-audit/handoff.patch
           bash /tmp/restore.sh
           bash /tmp/harden.sh
-      - name: Inspect exact-source research path
+      - name: Inspect exact-source validation seams
         shell: bash
         run: |
           set -euo pipefail
-          echo '=== seed/exact entity references ==='
-          grep -R -n -C 12 'seedUrl\|exactEntity\|allowedDomain\|GROUNDED_LOCAL_SEARCH\|web.research' gestia-core/jarvis gestia-core/gestia-core.js | head -n 1800 || true
-          echo '=== source validation/composer ==='
-          grep -R -n -C 12 'validSources\|verifiedSources\|sourceUrl\|researchGoal\|factsOnly' gestia-core/response.composer.js gestia-core/jarvis/jarvis.conversation.composer.js gestia-core/jarvis/jarvis.marketing.engine.js | head -n 1600 || true
-          echo '=== multitool web area ==='
-          grep -n -C 40 'name: "web.research"' gestia-core/jarvis/jarvis.multitool.pack.js | head -n 700 || true
-          echo '=== research helper references ==='
-          grep -n -C 30 'local.*search\|search.*local\|GROUNDED_LOCAL_SEARCH\|seedUrl\|allowedDomain\|exactEntity' gestia-core/jarvis/jarvis.multitool.pack.js | head -n 1400 || true
+          echo '=== pack 1-180 ==='
+          sed -n '1,180p' gestia-core/jarvis/jarvis.multitool.pack.js
+          echo '=== planner source anchors 500-1035 ==='
+          sed -n '500,1035p' gestia-core/jarvis/jarvis.multifunction.planner.js
+          echo '=== pack research 1460-1650 ==='
+          sed -n '1460,1650p' gestia-core/jarvis/jarvis.multitool.pack.js
+          echo '=== existing url/source helpers ==='
+          grep -n -C 8 -E 'normalizedHttp|normalize.*Url|canonical.*Url|TikTok|tiktok|source.*match|match.*source|exact.*source|seedUrl' gestia-core/jarvis/jarvis.multitool.pack.js gestia-core/jarvis/jarvis.multifunction.planner.js | head -n 1800 || true
+          echo '=== exact-source tests ==='
+          grep -R -n -C 6 -E 'seedUrl|exactEntity|source anchor|homonym|7629216747131850004|7630010786378796308|taqueria\.eldorado' tests | head -n 1800 || true
