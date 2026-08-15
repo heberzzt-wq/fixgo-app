@@ -66,15 +66,17 @@ if count != 1:
 core.write_text(text)
 
 # Align the legacy multifunction architecture regression with the fail-closed
-# mission-contract authority. Falling back to the initial seed is precisely the
-# behavior this candidate removes, so the old positive marker assertion is stale.
+# mission-contract authority. Both the recovery marker and allowedMissionTools
+# belonged exclusively to the removed initial-seed recovery path.
 legacy_test = Path('tests/jarvis-multifunction-tools.test.mjs')
 text = legacy_test.read_text()
-old = '    assert.match(core, /MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN/);'
+old = '''    assert.match(core, /MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN/);
+    assert.match(core, /allowedMissionTools/);'''
 new = '''    assert.doesNotMatch(core, /MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN/);
+    assert.doesNotMatch(core, /allowedMissionTools/);
     assert.match(core, /MISSION_CONTRACT_UNAVAILABLE/);'''
 if text.count(old) != 1:
-    raise SystemExit(f'LEGACY_INITIAL_PLAN_ASSERTION_COUNT:{text.count(old)}')
+    raise SystemExit(f'LEGACY_INITIAL_PLAN_FALLBACK_ASSERTION_COUNT:{text.count(old)}')
 legacy_test.write_text(text.replace(old, new, 1))
 
 # The prior mission-flow regression encoded the temporary architecture where
@@ -213,7 +215,7 @@ test('browser coverage is used only after cloud contract failure',async()=>{
 test('failed mission contract can never degrade to the initial web.research seed',()=>{
   const core=fs.readFileSync(new URL('../gestia-core/gestia-core.js',import.meta.url),'utf8');
   assert.doesNotMatch(core,/MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN/);
-  assert.doesNotMatch(core,/allowedMissionTools = new Set\(missionToolCatalog/);
+  assert.doesNotMatch(core,/allowedMissionTools/);
   assert.match(core,/MISSION_CONTRACT_UNAVAILABLE/);
 });
 
