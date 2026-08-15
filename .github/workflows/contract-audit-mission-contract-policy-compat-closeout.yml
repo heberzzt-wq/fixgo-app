@@ -42,6 +42,7 @@ jobs:
         run: |
           set -euo pipefail
           cp .github/workflows/contract-audit-mission-contract-authority-closeout-v4.yml /tmp/v4.yml
+          cp .github/candidates/contract-audit/mission-contract-policy-compat-v3.py /tmp/policy-compat-v3.py
           python3 - <<'PY'
           from pathlib import Path
           text=Path('/tmp/v4.yml').read_text()
@@ -64,6 +65,7 @@ jobs:
               Path(out).write_text('\n'.join(lines)+'\n')
           PY
           for f in /tmp/final-*.sh; do bash -n "$f"; done
+          python3 -m py_compile /tmp/policy-compat-v3.py
           echo 'CERTIFIED_EXECUTION_BLOCKS_EXTRACTED=true'
 
       - name: Reconstruct authority candidate and apply policy compatibility
@@ -71,7 +73,7 @@ jobs:
         run: |
           set -euo pipefail
           bash /tmp/final-reconstruct.sh
-          python3 .github/candidates/contract-audit/mission-contract-policy-compat-v3.py
+          python3 /tmp/policy-compat-v3.py
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
           node --check gestia-core/gestia-core.js
           node --check tests/jarvis-mission-contract-policy-compat-v3.test.mjs
@@ -97,9 +99,7 @@ jobs:
           const block=source.slice(a,b);
           if(block.indexOf('callSemanticPlanner')<0 || block.indexOf('callBrowserMissionContract')<0) process.exit(32);
           if(block.indexOf('callSemanticPlanner')>block.indexOf('callBrowserMissionContract')) process.exit(33);
-          for(const forbidden of ['tiktok.com','Taquería El Dorado','web.research','web.media.collect','media.analyze','marketing.plan','reel.plan','reel.create']){
-            if(block.includes(forbidden)) process.exit(34);
-          }
+          for(const forbidden of ['tiktok.com','Taquería El Dorado','web.research','web.media.collect','media.analyze','marketing.plan','reel.plan','reel.create']) if(block.includes(forbidden)) process.exit(34);
           NODE
           echo 'CLOUD_PRIMARY_POLICY_CERTIFIED=true'
           echo 'UNCERTIFIED_CLOUD_FALLS_TO_CURRENT_SEMANTIC_AUDITOR=true'
