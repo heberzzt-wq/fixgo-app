@@ -35,7 +35,7 @@ jobs:
           cat .github/candidates/v140/chunk-*.txt > /tmp/candidate.patch.gz.b64
           test "$(wc -c < /tmp/candidate.patch.gz.b64)" -eq 28188
           base64 -d /tmp/candidate.patch.gz.b64 | gunzip > /tmp/candidate.oem-crlf.patch
-          iconv -f CP850 -t UTF-8 /tmp/candidate.oem-crlf.patch | sed 's/\r$//' > /tmp/candidate.patch
+          iconv -f UTF-8 -t CP850 /tmp/candidate.oem-crlf.patch | sed 's/\r$//' > /tmp/candidate.patch
           echo "$PATCH_SHA256  /tmp/candidate.patch" | sha256sum -c -
           git reset --hard "$BASE_SHA"
           git apply --check /tmp/candidate.patch
