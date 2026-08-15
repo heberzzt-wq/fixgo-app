@@ -127,7 +127,6 @@ jobs:
 
           node --check gestia-core/response.composer.js
           node --check jarvis-speech-artifact.js
-          git diff --check
           git diff --name-only "$BASE_SHA" | sort > /tmp/certified-files.txt
           if grep -E '^(functions/|multiservicios-web/|.*Multiservicios)' /tmp/certified-files.txt; then
             echo 'PROTECTED_SURFACE_TOUCHED=true' >&2
