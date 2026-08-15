@@ -1,0 +1,300 @@
+name: contract-audit provider outage v3
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/contract-audit-provider-outage-v3.yml'
+
+permissions:
+  contents: read
+
+env:
+  BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct exact handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/contract-audit
+          cat .github/candidates/contract-audit/chunk-00.txt .github/candidates/contract-audit/chunk-01.txt .github/candidates/contract-audit/chunk-02.txt .github/candidates/contract-audit/segment-05.txt .github/candidates/contract-audit/segment-06.txt .github/candidates/contract-audit/segment-07.txt .github/candidates/contract-audit/chunk-04.txt > /tmp/contract-audit/handoff.patch.gz.b64
+          base64 -d /tmp/contract-audit/handoff.patch.gz.b64 | gzip -d > /tmp/contract-audit/handoff.patch
+          echo "$HANDOFF_PATCH_SHA256  /tmp/contract-audit/handoff.patch" | sha256sum -c -
+          git checkout --detach "$BASE_SHA"
+          git apply --check /tmp/contract-audit/handoff.patch
+          git apply /tmp/contract-audit/handoff.patch
+
+      - name: Restore previously certified invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('gestia-core/response.composer.js')
+          text = p.read_text()
+          pattern = re.compile(
+              r'(!layers\.some\(layer => layer\?\.requirementsMet === false\) &&\s*)'
+              r'!layers\.some\(layer => layer\?\.readyForProduction === false\) &&\s*'
+              r'(\(\s*explicitObjectiveSatisfied !== null\s*\? explicitObjectiveSatisfied\s*:\s*)true(\s*\);)'
+          )
+          text, count = pattern.subn(
+              r'\1\2!layers.some(layer => layer?.readyForProduction === false)\3',
+              text,
+              count=1
+          )
+          if count != 1:
+              raise SystemExit('COMPOSER_SEMANTIC_INVARIANT_NOT_FOUND')
+          p.write_text(text)
+
+          p = Path('jarvis-speech-artifact.js')
+          text = p.read_text()
+          pattern = re.compile(
+              r'(\s*)const platform = options\.platform \|\| process\.platform;\s*'
+              r'if \(platform !== "win32" && typeof options\.synthesizeImpl !== "function"\) \{\s*'
+              r'throw new Error\("SPEECH_SYNTHESIS_PLATFORM_UNSUPPORTED"\);\s*'
+              r'\}\s*'
+              r'const output = speechOutputPath\(input\.root \|\| options\.root \|\| process\.cwd\(\), input\.output\);'
+          )
+          def speech_repl(match):
+              indent = match.group(1)
+              return (
+                  f'{indent}const output = speechOutputPath(input.root || options.root || process.cwd(), input.output);\n'
+                  f'{indent}const platform = options.platform || process.platform;\n'
+                  f'{indent}if (platform !== "win32" && typeof options.synthesizeImpl !== "function") {{\n'
+                  f'{indent}    throw new Error("SPEECH_SYNTHESIS_PLATFORM_UNSUPPORTED");\n'
+                  f'{indent}}}'
+              )
+          text, count = pattern.subn(speech_repl, text, count=1)
+          if count != 1:
+              raise SystemExit('SPEECH_VALIDATION_ORDER_NOT_FOUND')
+          p.write_text(text)
+
+          def add_declared(path, source_url, source_tag):
+              p = Path(path)
+              text = p.read_text()
+              pattern = re.compile(
+                  rf'(sourceUrl:\s*"{re.escape(source_url)}",\s*sourceTag:\s*"{re.escape(source_tag)}",?)'
+              )
+              match = pattern.search(text)
+              if not match:
+                  raise SystemExit(f'SOURCE_FIXTURE_NOT_FOUND:{path}:{source_url}')
+              block = match.group(1)
+              if 'sourceDeclared' not in text[match.start():match.end()+80]:
+                  comma = '' if block.rstrip().endswith(',') else ','
+                  block_new = block.rstrip(',') + ',\n              sourceDeclared: true'
+                  text = text[:match.start()] + block_new + text[match.end():]
+                  p.write_text(text)
+
+          add_declared('tests/jarvis-real-media-reel-hydration-v127.test.mjs', 'https://cdn.example/cover.jpg', 'og:image')
+          add_declared('tests/jarvis-real-media-reel-hydration-v127.test.mjs', 'https://cdn.example/source.mp4', 'og:video')
+          add_declared('tests/nexo-real-media-semantic-binding-v131.test.mjs', 'https://cdn.example/a.jpg', 'og:image')
+
+          p = Path('tests/jarvis-reel-media-source-recovery-v136.test.mjs')
+          text = p.read_text()
+          old = '    assert.match(core, /jarvis\\.mission\\.orchestrator\\.js\\?v=v137-local-speech-synthesis-20260812/);'
+          if old not in text:
+              raise SystemExit('STALE_CACHE_CANARY_NOT_FOUND')
+          new = "\n".join([
+              '    assert.match(core, /jarvis\\.mission\\.orchestrator\\.js["\\\']/);',
+              '    assert.doesNotMatch(core, /jarvis\\.mission\\.orchestrator\\.js\\?v=v137-local-speech-synthesis-20260812/);',
+          ])
+          p.write_text(text.replace(old, new, 1))
+
+          p = Path('gestia-core/jarvis/jarvis.multifunction.planner.js')
+          text = p.read_text()
+          old = 'Las HERRAMIENTAS_INICIALES son un borrador semantico ya seleccionado para la misma instruccion. Conserva sus entregables y agrega solamente una herramienta que cubra un objetivo independiente pedido de forma explicita y no cubierto por ese borrador. No agregues diagnostico, supervision, forense, repositorio, navegador, conectores, investigacion ni otros artefactos solo porque existan en el catalogo.'
+          new = 'Las HERRAMIENTAS_INICIALES son un borrador semantico ya seleccionado para la misma instruccion. Conserva todos sus objetivos y entregables. Si un entregable explicito requiere una cadena de herramientas dependientes, agrega TODAS las herramientas necesarias para satisfacer ese mismo entregable; por ejemplo, cuando corresponda a una produccion real de reel incluye la cadena reel.plan, speech.synthesize si hay narracion o voz solicitada, y reel.create. La restriccion de no inventar objetivos nuevos se refiere a objetivos independientes, no a dependencias necesarias de ejecucion. No agregues diagnostico, supervision, forense, repositorio, navegador, conectores, investigacion ni otros artefactos solo porque existan en el catalogo.'
+          if old not in text:
+              raise SystemExit('INITIAL_TOOL_CHAIN_RULE_NOT_FOUND')
+          text = text.replace(old, new, 1)
+          old = 'MARKETING: marketing.plan produce estrategia y brief, nunca cuenta como archivo producido. Decide semánticamente la solicitud actual: si el usuario sólo pide plan o asesoría, usa productionRequested=false. Si pide ejecutar, producir, entregar piezas reales o una misión de punta a punta, usa productionRequested=true y productionArtifacts con type, toolName exacto, format cuando corresponda y label humano; además incluye en toolCalls las herramientas reales de creación que satisfacen cada productionArtifact. Si un documento toma el plan como contenido usa document.create con contentSource=marketing.plan. No declares missionComplete mientras falte una salida verificable de cualquiera de los MARKETING_PRODUCTION_REQUIREMENTS.'
+          new = 'MARKETING: marketing.plan produce estrategia y brief, nunca cuenta como archivo producido. Decide semánticamente la solicitud actual: si el usuario sólo pide plan o asesoría, usa productionRequested=false. Si pide ejecutar, producir, entregar piezas reales o una misión de punta a punta, usa productionRequested=true y productionArtifacts con type, toolName exacto, format cuando corresponda y label humano; además incluye en toolCalls TODA la cadena real de creación necesaria para satisfacer cada productionArtifact, no sólo el primer paso disponible. Para una producción real de reel o video, declara reel.create como productionArtifact y conserva sus dependencias de planificación, voz cuando haya narración solicitada y medios reales cuando la instrucción los exija. Si un documento toma el plan como contenido usa document.create con contentSource=marketing.plan. No declares missionComplete mientras falte una salida verificable de cualquiera de los MARKETING_PRODUCTION_REQUIREMENTS.'
+          if old not in text:
+              raise SystemExit('MARKETING_CHAIN_RULE_NOT_FOUND')
+          p.write_text(text.replace(old, new, 1))
+          PY
+
+      - name: Harden existing planner and fail-closed presentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('gestia-core/jarvis/jarvis.multifunction.planner.js')
+          text = p.read_text()
+          anchor = 'async function callBrowserMissionContract(\n'
+          if anchor not in text:
+              raise SystemExit('BROWSER_CONTRACT_ANCHOR_NOT_FOUND')
+          helper = "\n".join([
+              'function semanticProviderRetryableStatus(status = 0) {',
+              '    const value = Number(status || 0);',
+              '    return value === 429 || value >= 500;',
+              '}',
+              '',
+              'function semanticProviderRetryDelayMs(response = null, attempt = 1) {',
+              '    const retryAfterSeconds = Number(response?.headers?.get?.("retry-after"));',
+              '    if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) return Math.min(retryAfterSeconds * 1000, 5000);',
+              '    return Math.min(Math.max(Number(attempt) || 1, 1) * 750, 3000);',
+              '}',
+              '',
+              'async function waitForSemanticProviderRetry(response = null, attempt = 1) {',
+              '    await new Promise(resolve => setTimeout(resolve, semanticProviderRetryDelayMs(response, attempt)));',
+              '}',
+              '',
+          ])
+          text = text.replace(anchor, helper + anchor, 1)
+
+          text, count = re.subn(
+              r'if \(!response\.ok\) \{\s*throw new Error\(\s*`CLIENT_MISSION_CONTRACT_HTTP_\$\{response\.status\}`\s*\);\s*\}',
+              'if (!response.ok) {\n                    if (semanticProviderRetryableStatus(response.status)) await waitForSemanticProviderRetry(response, seed - 83);\n                    throw new Error(`CLIENT_MISSION_CONTRACT_HTTP_${response.status}`);\n                }',
+              text,
+              count=1
+          )
+          if count != 1:
+              raise SystemExit('MISSION_CONTRACT_HTTP_BLOCK_NOT_FOUND')
+
+          text, count = re.subn(
+              r'if \(!response\.ok\) \{\s*throw new Error\(\s*`CLIENT_SEMANTIC_PLAN_HTTP_\$\{response\.status\}`\s*\);\s*\}',
+              'if (!response.ok) {\n                    if (semanticProviderRetryableStatus(response.status)) await waitForSemanticProviderRetry(response, seed - 41);\n                    throw new Error(`CLIENT_SEMANTIC_PLAN_HTTP_${response.status}`);\n                }',
+              text,
+              count=1
+          )
+          if count != 1:
+              raise SystemExit('BROWSER_SEMANTIC_HTTP_BLOCK_NOT_FOUND')
+
+          pattern = re.compile(r'async function callSemanticPlanner\(input = "", catalog = \[\], missionState = null\) \{.*?\n\}\n\nfunction planCacheKey', re.S)
+          lines = [
+              'async function callSemanticPlanner(input = "", catalog = [], missionState = null) {',
+              '    const user = globalThis?.auth?.currentUser || globalThis?.window?.auth?.currentUser || null;',
+              '    if (!user) throw new Error("SEMANTIC_PLANNER_AUTH_REQUIRED");',
+              '    const token = await user.getIdToken();',
+              '    const timeoutMs = missionState?.phase === "MISSION_CONTRACT" ? CLOUD_MISSION_CONTRACT_TIMEOUT_MS : 110000;',
+              '    const controller = new AbortController();',
+              '    const timer = setTimeout(() => controller.abort(), timeoutMs);',
+              '    let lastError = null;',
+              '    try {',
+              '        for (let attempt = 1; attempt <= 3; attempt += 1) {',
+              '            const response = await fetch(ENDPOINT, { method: "POST", headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ data: { input, catalog, missionState } }), signal: controller.signal });',
+              '            const text = await response.text();',
+              '            let payload = null;',
+              '            try { payload = JSON.parse(text); } catch { payload = null; }',
+              '            const result = payload?.result || payload?.data;',
+              '            if (response.ok && result?.ok) return result;',
+              '            lastError = new Error(payload?.error?.message || result?.error || (payload ? `SEMANTIC_PLANNER_HTTP_${response.status}` : `SEMANTIC_PLANNER_INVALID_RESPONSE_${response.status}`));',
+              '            if (semanticProviderRetryableStatus(response.status) && attempt < 3) {',
+              '                await waitForSemanticProviderRetry(response, attempt);',
+              '                continue;',
+              '            }',
+              '            throw lastError;',
+              '        }',
+              '        throw lastError || new Error("SEMANTIC_PLANNER_RETRY_EXHAUSTED");',
+              '    } catch (error) {',
+              '        if (controller.signal.aborted) throw new Error(`SEMANTIC_PLANNER_TIMEOUT_${timeoutMs}`);',
+              '        throw error;',
+              '    } finally { clearTimeout(timer); }',
+              '}',
+              '',
+              'function planCacheKey',
+          ]
+          text, count = pattern.subn('\n'.join(lines), text, count=1)
+          if count != 1:
+              raise SystemExit('CLOUD_PLANNER_FUNCTION_NOT_FOUND')
+          p.write_text(text)
+
+          p = Path('gestia-core/gestia-core.js')
+          text = p.read_text()
+          pattern = re.compile(r'return \{\s*status:\s*"halted",\s*reason:\s*atomicState\.haltReason\s*\};')
+          replacement = 'return {\n                    status: "halted",\n                    reason: atomicState.haltReason,\n                    result: atomicState.agentResult || null,\n                    finalResponse: atomicState.agentResult?.finalResponse || null\n                };'
+          text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit('GENERIC_HALT_ENVELOPE_NOT_FOUND')
+          p.write_text(text)
+
+          p = Path('gestia-terminal.html')
+          text = p.read_text()
+          marker = '            const extractDiagnoseSummary =\n    function(result = {}) {'
+          renderer = "\n".join([
+              '            if (shouldPreferAgentFinalResponse && coreResult?.type !== "AGENT_TOOL_RESULT") {',
+              '                activeWorkTracker?.complete("evidence", "Resultado verificable integrado");',
+              '                activeWorkTracker?.activate("response", "Preparando la respuesta");',
+              '                window.renderJarvisResponse?.(preferredAgentFinalResponse?.title || "Jarvis", preferredAgentFinalResponse.text, preferredAgentFinalResponse?.ok === false ? "warning" : "info");',
+              '                activeWorkTracker?.complete("response", "Respuesta preparada");',
+              '                activeWorkTracker?.finish(preferredAgentFinalResponse?.ok === false ? "Trabajo detenido con diagnóstico verificable" : "Trabajo completado");',
+              '                handled = true;',
+              '                return;',
+              '            }',
+              '',
+              marker,
+          ])
+          if marker not in text:
+              raise SystemExit('TERMINAL_PRESENTATION_MARKER_NOT_FOUND')
+          p.write_text(text.replace(marker, renderer, 1))
+          PY
+
+          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          node --check gestia-core/gestia-core.js
+          git diff --check
+
+      - name: Contract and authority assertions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          planner = Path('gestia-core/jarvis/jarvis.multifunction.planner.js').read_text()
+          core = Path('gestia-core/gestia-core.js').read_text()
+          terminal = Path('gestia-terminal.html').read_text()
+          assert 'semanticProviderRetryableStatus' in planner
+          assert 'attempt <= 3' in planner
+          assert 'agrega TODAS las herramientas necesarias' in planner
+          assert 'agrega solamente una herramienta' not in planner
+          assert 'atomicState.agentResult?.finalResponse || null' in core
+          assert 'coreResult?.type !== "AGENT_TOOL_RESULT"' in terminal
+          assert '1.2.0-stable-research-objectives' in core
+          print('TRANSIENT_PROVIDER_RETRY=true')
+          print('FAIL_CLOSED_RESPONSE_PRESERVED=true')
+          print('NO_NEW_BRAIN=true')
+          print('NO_NEW_CONTRACT=true')
+          print('NO_NEW_CONTRACT_VERSION=true')
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Focal regressions
+        run: node --test tests/jarvis-mission-contract-accounting.test.mjs tests/jarvis-reel-dependency-recovery-v140.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-single-contract-authority.test.mjs tests/single-semantic-authority.test.mjs
+
+      - name: Full CI once
+        run: npm run ci:test
+
+      - name: Protected surface audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only "$BASE_SHA" -- .)"
+          if printf '%s\n' "$changed" | grep -E '^(functions/|multiservicios-web/|.*Multiservicios)' ; then
+            echo 'PROTECTED_SURFACE_TOUCHED=true' >&2
+            exit 1
+          fi
+          git diff --check
+          echo 'FUNCTIONS_UNTOUCHED=true'
+          echo 'MULTISERVICIOS_UNTOUCHED=true'
+          echo 'NO_DEPLOY=true'
+          echo 'NO_NEW_BRAIN=true'
+          echo 'NO_NEW_CONTRACT=true'
+          echo 'NO_NEW_CONTRACT_VERSION=true'
