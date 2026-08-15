@@ -24,7 +24,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Reconstruct exact certified Hosting candidate
         shell: bash
         run: |
@@ -32,42 +31,37 @@ jobs:
           git show "${CERTIFIED_CARRIER_SHA}:.github/workflows/contract-audit-provider-outage-v3.yml" > /tmp/certified.yml
           python3 - <<'PY'
           from pathlib import Path
-          text = Path('/tmp/certified.yml').read_text()
-          def extract(step_name, next_step_name, output):
-              start = text.index(f'      - name: {step_name}\n')
-              run_start = text.index('        run: |\n', start) + len('        run: |\n')
-              end = text.index(f'\n      - name: {next_step_name}\n', run_start)
-              block = text[run_start:end]
+          text=Path('/tmp/certified.yml').read_text()
+          def extract(a,b,o):
+              s=text.index(f'      - name: {a}\n'); rs=text.index('        run: |\n',s)+len('        run: |\n'); e=text.index(f'\n      - name: {b}\n',rs)
               lines=[]
-              for line in block.splitlines():
+              for line in text[rs:e].splitlines():
                   if line.startswith('          '): lines.append(line[10:])
                   elif not line.strip(): lines.append('')
-                  else: raise SystemExit(f'INDENT:{step_name}:{line!r}')
-              Path(output).write_text('\n'.join(lines)+'\n')
+                  else: raise SystemExit(f'INDENT:{a}:{line!r}')
+              Path(o).write_text('\n'.join(lines)+'\n')
           extract('Restore previously certified invariants','Harden existing planner and fail-closed presentation','/tmp/restore.sh')
           extract('Harden existing planner and fail-closed presentation','Contract and authority assertions','/tmp/harden.sh')
           PY
           mkdir -p /tmp/contract-audit
-          for part in chunk-00.txt chunk-01.txt chunk-02.txt segment-05.txt segment-06.txt segment-07.txt chunk-04.txt; do
-            git show "${CERTIFIED_CARRIER_SHA}:.github/candidates/contract-audit/${part}" >> /tmp/contract-audit/handoff.patch.gz.b64
-          done
+          for part in chunk-00.txt chunk-01.txt chunk-02.txt segment-05.txt segment-06.txt segment-07.txt chunk-04.txt; do git show "${CERTIFIED_CARRIER_SHA}:.github/candidates/contract-audit/${part}" >> /tmp/contract-audit/handoff.patch.gz.b64; done
           base64 -d /tmp/contract-audit/handoff.patch.gz.b64 | gzip -d > /tmp/contract-audit/handoff.patch
           echo "$HANDOFF_PATCH_SHA256  /tmp/contract-audit/handoff.patch" | sha256sum -c -
           git checkout --detach "$BASE_SHA"
           git apply /tmp/contract-audit/handoff.patch
           bash /tmp/restore.sh
           bash /tmp/harden.sh
-          echo 'RECONSTRUCTED=true'
-
-      - name: Inspect semantic production handoff
+      - name: Inspect current-turn and contract semantic prompts
         shell: bash
         run: |
           set -euo pipefail
-          echo '=== MERGE TOOL CALLS ==='
-          sed -n '2170,2225p' gestia-core/jarvis/jarvis.multifunction.planner.js
-          echo '=== MARKETING PRODUCTION SCOPE ==='
-          sed -n '160,285p' gestia-core/jarvis/jarvis.multitool.pack.js
-          echo '=== PROPOSAL TOOL PLAN CREATION ==='
-          grep -R -n -C 12 -E 'model_selected_multifunction_plan|buildJarvisMultifunctionToolCalls|propuesta\.toolCalls|toolCalls.*buildJarvis|jarvisSemanticPlan' gestia-core/propose.engine.js gestia-core | head -n 1800 || true
-          echo '=== GENERAL SEMANTIC PRODUCTION RULES ==='
-          grep -R -n -C 8 -E 'productionRequested|productionArtifacts|reel\.create|speech\.synthesize' gestia-core/jarvis/jarvis.multifunction.planner.js gestia-core/propose.engine.js | head -n 1400 || true
+          echo '=== CONTRACT PASS 1250-1445 ==='
+          sed -n '1250,1445p' gestia-core/jarvis/jarvis.multifunction.planner.js
+          echo '=== GENERAL BROWSER PASS 1435-1555 ==='
+          sed -n '1435,1555p' gestia-core/jarvis/jarvis.multifunction.planner.js
+          echo '=== SEMANTIC RESOLUTION 2035-2115 ==='
+          sed -n '2035,2115p' gestia-core/jarvis/jarvis.multifunction.planner.js
+          echo '=== CORE PRE-PROPOSAL 3740-3885 ==='
+          sed -n '3740,3885p' gestia-core/gestia-core.js
+          echo '=== CORE PROPOSAL TRANSFER 4030-4208 ==='
+          sed -n '4030,4208p' gestia-core/gestia-core.js
