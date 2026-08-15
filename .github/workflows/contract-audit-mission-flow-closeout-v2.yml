@@ -1,0 +1,345 @@
+name: contract-audit mission-flow closeout v2
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/contract-audit-mission-flow-closeout-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FINAL_V3_CARRIER_SHA: 71e4b1f847640dd9d3d9b142b0158073f5451336
+  FINAL_V2_CARRIER_SHA: 21d1fc513d7817e7bfd9913ec113bd7923f3bb10
+  FAILED_FINAL_CARRIER_SHA: b6dd83bc03bebc8cc66b790a38404fa48db3f395
+  V3_CARRIER_SHA: e32b68752e452ef1d4f3eb6ba8fa375cce5787ab
+  PRIOR_V2_CARRIER_SHA: 1892d5f7726ce41402600d49b22fb1cf62e830fb
+  PRIOR_CARRIER_SHA: 2a51c1c349edac309465a22fd73c5b157dbaccd9
+  BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
+  CERTIFIED_CARRIER_SHA: cebe6f399d4edf4f234e584e0a42cf980b3a404d
+  FIREBASE_PROJECT_ID: fixgo-44e4d
+  FIREBASE_SITE_ID: fixgo-44e4d
+
+jobs:
+  certify-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct certified final-v3 candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show "${FINAL_V3_CARRIER_SHA}:.github/workflows/contract-audit-human-regression-closeout-final-v3.yml" > /tmp/final-v3.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('/tmp/final-v3.yml').read_text()
+          pairs=[
+            ('Reconstruct final-v2 candidate','Preserve compatible canonical marketing readiness','/tmp/mission-flow-reconstruct.sh'),
+            ('Preserve compatible canonical marketing readiness','Install dependencies','/tmp/mission-flow-planready.sh')
+          ]
+          for a,b,out in pairs:
+              s=text.index(f'      - name: {a}\n')
+              rs=text.index('        run: |\n',s)+len('        run: |\n')
+              e=text.index(f'\n      - name: {b}\n',rs)
+              lines=[]
+              for line in text[rs:e].splitlines():
+                  if line.startswith('          '): lines.append(line[10:])
+                  elif not line.strip(): lines.append('')
+                  else: raise SystemExit(f'EXTRACT_INDENT:{a}:{line!r}')
+              Path(out).write_text('\n'.join(lines)+'\n')
+          PY
+          bash /tmp/mission-flow-reconstruct.sh
+          bash /tmp/mission-flow-planready.sh
+          echo 'CERTIFIED_FINAL_V3_CANDIDATE_RECONSTRUCTED=true'
+
+      - name: Preserve complete semantic mission flow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('gestia-core/jarvis/jarvis.multifunction.planner.js')
+          t=p.read_text()
+
+          anchor='async function callBrowserSemanticPlan(input = "", catalog = [], missionState = null) {'
+          if anchor not in t:
+              raise SystemExit('BROWSER_SEMANTIC_PLAN_ANCHOR_NOT_FOUND')
+          helper='''async function callMissionContractCoverageAuthority(input = "", catalog = [], missionState = null) {
+              try {
+                  return await callBrowserMissionContract(
+                      input,
+                      catalog,
+                      missionState
+                  );
+              }
+              catch (error) {
+                  throw new Error(
+                      `MISSION_CONTRACT_CLIENT_COVERAGE_REQUIRED_${error?.message || "UNAVAILABLE"}`
+                  );
+              }
+          }
+
+          '''
+          t=t.replace(anchor,helper+anchor,1)
+
+          start_marker='        const contractPlanner = context?.missionState?.phase === "MISSION_CONTRACT" &&'
+          start=t.index(start_marker)
+          end_marker='            : context.semanticPlanner;'
+          end=t.index(end_marker,start)+len(end_marker)
+          replacement='''        const contractPlanner = context?.missionState?.phase === "MISSION_CONTRACT" &&
+              typeof context.semanticPlanner !== "function"
+              ? async ({ input: contractInput, catalog: contractCatalog, missionState }) =>
+                  callMissionContractCoverageAuthority(
+                      contractInput,
+                      contractCatalog,
+                      missionState
+                  )
+              : context.semanticPlanner;'''
+          t=t[:start]+replacement+t[end:]
+
+          media_rule='        "En web.media.collect usa una URL explicita del usuario como fuente directa. Marca requireImages o requireVideos=true solamente si esa familia de medios es un entregable obligatorio; una busqueda exploratoria u opcional de material no debe convertirse en requisito bloqueante.",'
+          if t.count(media_rule) != 2:
+              raise SystemExit(f'WEB_MEDIA_RULE_COUNT:{t.count(media_rule)}')
+          expanded=media_rule+'''\n        "WEB_MEDIA_FLOW: web.media.collect adquiere y verifica bytes, URL, identidad y procedencia; no analiza escenas, audio, texto hablado ni significado visual. Si cualquier entregable depende de lo que el medio exacto muestra o dice, incluye media.analyze despues de web.media.collect y antes de marketing.plan, reel.plan u otra planificacion basada en contenido. No inventes transcripcion ni escenas.",\n        "REEL_PRODUCTION_FLOW: un storyboard dentro de marketing.plan y un MP4 recolectado como fuente no satisfacen un reel final. Si la instruccion pide producir o entregar un reel/video real, conserva reel.plan y reel.create hasta obtener un artefacto final verificado; usa speech.synthesize solamente cuando la instruccion pida narracion o voz. No declares missionComplete mientras falte esa salida fisica.",'''
+          t=t.replace(media_rule,expanded)
+
+          test_export='''    callBrowserMissionContract,\n    callBrowserSemanticPlan,'''
+          if test_export not in t:
+              raise SystemExit('TEST_EXPORT_ANCHOR_NOT_FOUND')
+          t=t.replace(test_export,'''    callBrowserMissionContract,\n    callMissionContractCoverageAuthority,\n    callBrowserSemanticPlan,''',1)
+          p.write_text(t)
+
+          test=Path('tests/jarvis-mission-flow-contract-closeout.test.mjs')
+          test.write_text(r'''import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs';
+          import { __test as plannerTest } from '../gestia-core/jarvis/jarvis.multifunction.planner.js';
+
+          const exact='https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004';
+          const catalog=[
+            {name:'web.research',inputSchema:{type:'object',properties:{query:{type:'string'},researchGoal:{type:'string'},seedUrl:{type:'string'},allowedDomain:{type:'string'}}}},
+            {name:'web.media.collect',inputSchema:{type:'object',properties:{url:{type:'string'},requireAnyVisual:{type:'boolean'}}}},
+            {name:'media.analyze',inputSchema:{type:'object',properties:{sourceOutput:{type:'string'}}}},
+            {name:'marketing.plan',inputSchema:{type:'object',properties:{productionRequested:{type:'boolean'},productionArtifacts:{type:'array'}}}},
+            {name:'reel.plan',inputSchema:{type:'object',properties:{}}},
+            {name:'reel.create',userArtifact:true,inputSchema:{type:'object',properties:{}}}
+          ];
+
+          function response(body){
+            return {
+              ok:true,
+              status:200,
+              headers:{get(){return null;}},
+              async text(){return JSON.stringify(body);}
+            };
+          }
+
+          test('MISSION_CONTRACT coverage restores exact-media analysis and final reel chain when semantically requested', async()=>{
+            const priorFetch=globalThis.fetch;
+            const prompts=[];
+            let call=0;
+            globalThis.fetch=async url=>{
+              const raw=String(url);
+              assert.match(raw,/text\.pollinations\.ai/);
+              const encoded=raw.split('https://text.pollinations.ai/')[1].split('?')[0];
+              prompts.push(decodeURIComponent(encoded));
+              call+=1;
+              if(call===1){
+                return response({
+                  toolCalls:[
+                    {name:'web.research',args:{query:'Taquería El Dorado TikTok exacto',researchGoal:'RESEARCH_1',seedUrl:exact,allowedDomain:'tiktok.com'}},
+                    {name:'web.media.collect',args:{url:exact,requireAnyVisual:true}},
+                    {name:'media.analyze',args:{}},
+                    {name:'marketing.plan',args:{productionRequested:true,productionArtifacts:[{type:'reel',toolName:'reel.create',label:'Reel final'}]}},
+                    {name:'reel.plan',args:{}},
+                    {name:'reel.create',args:{}}
+                  ],
+                  missionComplete:false
+                });
+              }
+              return response({toolCalls:[],missionComplete:false});
+            };
+            try{
+              const plan=await plannerTest.callMissionContractCoverageAuthority(
+                'Investiga la publicación exacta, basa la campaña únicamente en hechos encontrados y entrega el reel final.',
+                catalog,
+                {phase:'MISSION_CONTRACT',existingInitialTools:['web.research','web.media.collect','marketing.plan']}
+              );
+              const names=plan.toolCalls.map(item=>item.name);
+              for(const name of ['web.research','web.media.collect','media.analyze','marketing.plan','reel.plan','reel.create']){
+                assert.equal(names.includes(name),true,`missing ${name}`);
+              }
+              assert.equal(call,2);
+              assert.match(prompts[0],/WEB_MEDIA_FLOW: web\.media\.collect adquiere y verifica bytes/i);
+              assert.match(prompts[0],/REEL_PRODUCTION_FLOW: un storyboard dentro de marketing\.plan/i);
+              assert.match(prompts[0],/HERRAMIENTAS_INICIALES=web\.research,web\.media\.collect,marketing\.plan/);
+            } finally {
+              globalThis.fetch=priorFetch;
+            }
+          });
+
+          test('semantic mission coverage does not invent reel production for a marketing-only contract', async()=>{
+            const priorFetch=globalThis.fetch;
+            let call=0;
+            globalThis.fetch=async()=>{
+              call+=1;
+              if(call===1){
+                return response({
+                  toolCalls:[
+                    {name:'web.research',args:{query:'Taquería El Dorado',researchGoal:'RESEARCH_1'}},
+                    {name:'marketing.plan',args:{productionRequested:false}}
+                  ],
+                  missionComplete:false
+                });
+              }
+              return response({toolCalls:[],missionComplete:false});
+            };
+            try{
+              const plan=await plannerTest.callMissionContractCoverageAuthority(
+                'Investiga Taquería El Dorado y dame únicamente un plan de marketing, sin producir archivos.',
+                catalog,
+                {phase:'MISSION_CONTRACT',existingInitialTools:['web.research','marketing.plan']}
+              );
+              const names=plan.toolCalls.map(item=>item.name);
+              assert.deepEqual(names,['web.research','marketing.plan']);
+            } finally {
+              globalThis.fetch=priorFetch;
+            }
+          });
+
+          test('MISSION_CONTRACT path cannot silently fall back to the stale cloud contract',()=>{
+            const source=fs.readFileSync(new URL('../gestia-core/jarvis/jarvis.multifunction.planner.js',import.meta.url),'utf8');
+            const helperStart=source.indexOf('async function callMissionContractCoverageAuthority');
+            const helperEnd=source.indexOf('async function callBrowserSemanticPlan',helperStart);
+            const helper=source.slice(helperStart,helperEnd);
+            assert.ok(helperStart>=0 && helperEnd>helperStart);
+            assert.match(helper,/callBrowserMissionContract/);
+            assert.doesNotMatch(helper,/callSemanticPlanner/);
+            const plannerStart=source.indexOf('const contractPlanner = context?.missionState?.phase === "MISSION_CONTRACT"');
+            const plannerEnd=source.indexOf(': context.semanticPlanner;',plannerStart)+': context.semanticPlanner;'.length;
+            const block=source.slice(plannerStart,plannerEnd);
+            assert.match(block,/callMissionContractCoverageAuthority/);
+            assert.doesNotMatch(block,/callSemanticPlanner/);
+          });
+          ''')
+          PY
+
+          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          node --check tests/jarvis-mission-flow-contract-closeout.test.mjs
+          git diff --check
+          grep -q 'callMissionContractCoverageAuthority' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -q 'WEB_MEDIA_FLOW: web.media.collect adquiere y verifica bytes' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -q 'REEL_PRODUCTION_FLOW: un storyboard dentro de marketing.plan' gestia-core/jarvis/jarvis.multifunction.planner.js
+          echo 'MISSION_CONTRACT_CLIENT_COVERAGE_AUTHORITY=true'
+          echo 'COLLECT_IS_NOT_ANALYZE=true'
+          echo 'STORYBOARD_IS_NOT_FINAL_REEL=true'
+          echo 'SOURCE_MP4_IS_NOT_FINAL_OUTPUT=true'
+          echo 'NO_NEW_BRAIN=true'
+          echo 'NO_NEW_CONTRACT_VERSION=true'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Focal mission-flow regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/jarvis-mission-flow-contract-closeout.test.mjs \
+            tests/jarvis-mission-contract-preserves-initial-production.test.mjs \
+            tests/jarvis-human-regression-closeout.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs \
+            tests/jarvis-mission-contract-accounting.test.mjs \
+            tests/jarvis-single-contract-authority.test.mjs
+          echo 'FOCAL_MISSION_FLOW_GREEN=true'
+
+      - name: Full CI once
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/final-step-5.sh
+          echo 'FULL_CI_MISSION_FLOW_GREEN=true'
+
+      - name: Protected surface audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/final-step-6.sh
+          ! git diff --name-only "$BASE_SHA" -- . | grep -E '^(functions/|multiservicios-web/|.*Multiservicios)'
+          grep -q '1.2.0-stable-research-objectives' gestia-core/gestia-core.js
+          grep -q 'callMissionContractCoverageAuthority' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -q 'WEB_MEDIA_FLOW: web.media.collect adquiere y verifica bytes' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -q 'REEL_PRODUCTION_FLOW: un storyboard dentro de marketing.plan' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -q 'canonicalObservationPayload' gestia-core/response.composer.js
+          grep -q 'function verifiedWebMediaAttributionSources' gestia-core/jarvis/jarvis.mission.orchestrator.js
+          echo 'FUNCTIONS_UNTOUCHED=true'
+          echo 'MULTISERVICIOS_UNTOUCHED=true'
+          echo 'MISSION_CONTRACT_STABLE=true'
+          echo 'NO_NEW_BRAIN=true'
+
+      - name: Build isolated Hosting-only config
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/final-step-7.sh
+          node <<'NODE'
+          const fs=require('fs');
+          const path='contract-audit-production-chain.json';
+          const value=JSON.parse(fs.readFileSync(path,'utf8'));
+          value.candidate='ADJUNTO_COMPLETE_MISSION_FLOW_CLOSEOUT';
+          value.missionContractClientCoverageAuthority=true;
+          value.collectIsNotAnalyze=true;
+          value.storyboardIsNotFinalReel=true;
+          value.sourceMp4IsNotFinalOutput=true;
+          value.exactWebMediaAttribution=true;
+          value.canonicalMissionContract='1.2.0-stable-research-objectives';
+          value.untouchedSurfaces=['Functions','Multiservicios'];
+          fs.writeFileSync(path,JSON.stringify(value,null,2));
+          NODE
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Hosting only
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/final-step-9.sh
+
+      - name: Verify served bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/final-step-10.sh
+          base="https://${FIREBASE_SITE_ID}.web.app"
+          ok=false
+          for attempt in $(seq 1 20); do
+            if curl -fsSL "${base}/gestia-core/jarvis/jarvis.multifunction.planner.js?flow=${GITHUB_RUN_ID}" -o /tmp/planner.js \
+              && curl -fsSL "${base}/contract-audit-production-chain.json?flow=${GITHUB_RUN_ID}" -o /tmp/flow-marker.json \
+              && grep -q 'callMissionContractCoverageAuthority' /tmp/planner.js \
+              && grep -q 'WEB_MEDIA_FLOW: web.media.collect adquiere y verifica bytes' /tmp/planner.js \
+              && grep -q 'REEL_PRODUCTION_FLOW: un storyboard dentro de marketing.plan' /tmp/planner.js \
+              && grep -q 'ADJUNTO_COMPLETE_MISSION_FLOW_CLOSEOUT' /tmp/flow-marker.json \
+              && grep -q '"missionContractClientCoverageAuthority": true' /tmp/flow-marker.json \
+              && grep -q '"collectIsNotAnalyze": true' /tmp/flow-marker.json \
+              && grep -q '"storyboardIsNotFinalReel": true' /tmp/flow-marker.json \
+              && grep -q '"sourceMp4IsNotFinalOutput": true' /tmp/flow-marker.json; then
+              ok=true
+              break
+            fi
+            sleep 4
+          done
+          test "$ok" = true
+          echo 'CERTIFIED_COMPLETE_MISSION_FLOW_BYTES_VERIFIED=true'
+          echo "WEB_URL=${base}/gestia-terminal.html"
