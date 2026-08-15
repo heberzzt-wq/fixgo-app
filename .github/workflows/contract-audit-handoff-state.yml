@@ -1,0 +1,50 @@
+name: contract-audit handoff state
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/contract-audit-handoff-state.yml'
+
+permissions:
+  contents: read
+
+env:
+  BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Reconstruct and inspect
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/contract-audit
+          cat .github/candidates/contract-audit/chunk-00.txt .github/candidates/contract-audit/chunk-01.txt .github/candidates/contract-audit/chunk-02.txt .github/candidates/contract-audit/segment-05.txt .github/candidates/contract-audit/segment-06.txt .github/candidates/contract-audit/segment-07.txt .github/candidates/contract-audit/chunk-04.txt > /tmp/contract-audit/handoff.patch.gz.b64
+          base64 -d /tmp/contract-audit/handoff.patch.gz.b64 | gzip -d > /tmp/contract-audit/handoff.patch
+          echo "$HANDOFF_PATCH_SHA256  /tmp/contract-audit/handoff.patch" | sha256sum -c -
+          git checkout --detach "$BASE_SHA"
+          git apply /tmp/contract-audit/handoff.patch
+          python3 - <<'PY'
+          from pathlib import Path
+          composer = Path('gestia-core/response.composer.js').read_text()
+          speech = Path('jarvis-speech-artifact.js').read_text()
+          planner = Path('gestia-core/jarvis/jarvis.multifunction.planner.js').read_text()
+          v127 = Path('tests/jarvis-real-media-reel-hydration-v127.test.mjs').read_text()
+          v131 = Path('tests/nexo-real-media-semantic-binding-v131.test.mjs').read_text()
+          v136 = Path('tests/jarvis-reel-media-source-recovery-v136.test.mjs').read_text()
+          print('COMPOSER_OLD=', '!layers.some(layer => layer?.readyForProduction === false) &&' in composer)
+          print('COMPOSER_NEW=', ': !layers.some(layer => layer?.readyForProduction === false)' in composer)
+          print('SPEECH_OUTPUT_BEFORE_PLATFORM=', speech.find('const output = speechOutputPath') < speech.find('const platform = options.platform'))
+          print('V127_SOURCE_DECLARED=', 'sourceDeclared: true' in v127)
+          print('V131_SOURCE_DECLARED=', 'sourceDeclared: true' in v131)
+          print('V136_STALE_CACHE_LITERAL=', 'v137-local-speech-synthesis-20260812' in v136)
+          print('PLANNER_SINGLE_TOOL_RULE=', 'agrega solamente una herramienta' in planner)
+          print('PLANNER_COMPLETE_CHAIN_RULE=', 'agrega TODAS las herramientas necesarias' in planner)
+          PY
