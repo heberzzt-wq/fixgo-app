@@ -65,6 +65,18 @@ if count != 1:
     raise SystemExit('INITIAL_PLAN_RECOVERY_BLOCK_NOT_FOUND')
 core.write_text(text)
 
+# Align the legacy multifunction architecture regression with the fail-closed
+# mission-contract authority. Falling back to the initial seed is precisely the
+# behavior this candidate removes, so the old positive marker assertion is stale.
+legacy_test = Path('tests/jarvis-multifunction-tools.test.mjs')
+text = legacy_test.read_text()
+old = '    assert.match(core, /MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN/);'
+new = '''    assert.doesNotMatch(core, /MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN/);
+    assert.match(core, /MISSION_CONTRACT_UNAVAILABLE/);'''
+if text.count(old) != 1:
+    raise SystemExit(f'LEGACY_INITIAL_PLAN_ASSERTION_COUNT:{text.count(old)}')
+legacy_test.write_text(text.replace(old, new, 1))
+
 # The prior mission-flow regression encoded the temporary architecture where
 # browser coverage replaced the cloud audited contract. The real server already
 # performs MISSION_CONTRACT + coverage audit, so update that regression to the
