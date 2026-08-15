@@ -59,19 +59,19 @@ jobs:
           bash /tmp/harden.sh
           echo 'RECONSTRUCTED=true'
 
-      - name: Inspect contract construction and dependency closure
+      - name: Inspect exact production-chain merge points
         shell: bash
         run: |
           set -euo pipefail
-          echo '=== GESTIA CORE CONTRACT CONSTRUCTION ==='
-          grep -n -C 8 -E 'missionContractToolCalls|missionInitialToolCalls|requiredToolNames|ensureExecutableArtifactDependencies|productionRequested|productionArtifacts' gestia-core/gestia-core.js || true
-          echo '=== MULTIFUNCTION PLANNER PRODUCTION NORMALIZATION ==='
-          grep -n -C 8 -E 'productionRequested|productionArtifacts|toolCalls|HERRAMIENTAS_INICIALES|MARKETING_PRODUCTION_REQUIREMENTS|ensure|artifact' gestia-core/jarvis/jarvis.multifunction.planner.js | head -n 900 || true
-          echo '=== DEPENDENCY AUTHORITY ==='
-          grep -n -C 8 -E 'web.media.collect|marketing.plan|speech.synthesize|reel.plan|reel.create|depends|dependency' gestia-core/jarvis/jarvis.mission.dependencies.js | head -n 900 || true
-          echo '=== ORCHESTRATOR REQUIRED/RECOVERY ==='
-          grep -n -C 8 -E 'requiredToolNames|speech.synthesize|reel.plan|reel.create|dependency|blockedTasks|objectiveSatisfied' gestia-core/jarvis/jarvis.mission.orchestrator.js | head -n 1200 || true
-          echo '=== TEST EXPORTS ==='
-          tail -n 160 gestia-core/jarvis/jarvis.multifunction.planner.js
-          echo '=== EXISTING PRODUCTION TESTS ==='
-          grep -n -C 5 -E 'productionRequested|productionArtifacts|reel.create|speech.synthesize|requiredToolNames' tests/jarvis-marketing-production-intent-v125.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-mission-contract-accounting.test.mjs tests/jarvis-reel-dependency-recovery-v140.test.mjs | head -n 1200 || true
+          echo '=== CORE 4200-4330 ==='
+          sed -n '4200,4330p' gestia-core/gestia-core.js
+          echo '=== DEPENDENCIES 145-255 ==='
+          sed -n '145,255p' gestia-core/jarvis/jarvis.mission.dependencies.js
+          echo '=== PLANNER TRUSTED CALLS 1600-1765 ==='
+          sed -n '1600,1765p' gestia-core/jarvis/jarvis.multifunction.planner.js
+          echo '=== PLANNER BUILD 2220-2325 ==='
+          sed -n '2220,2325p' gestia-core/jarvis/jarvis.multifunction.planner.js
+          echo '=== MARKETING SCOPE SOURCE ==='
+          grep -R -n -C 10 'function resolveMarketingMissionProductionScope\|export function resolveMarketingMissionProductionScope' gestia-core | head -n 500 || true
+          echo '=== INITIAL PLAN METADATA/MERGE HELPERS ==='
+          grep -n -C 8 -E 'operationalInitialToolCalls|mergeJarvisToolCalls|mergeEvidenceGroundedToolCalls|attachPlanMetadata|resolveSemanticPlan' gestia-core/gestia-core.js gestia-core/jarvis/jarvis.multifunction.planner.js | head -n 900 || true
