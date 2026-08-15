@@ -1,0 +1,177 @@
+name: contract-audit provider outage hosting-only
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/contract-audit-provider-outage-hosting.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
+  CERTIFIED_CARRIER_SHA: cebe6f399d4edf4f234e584e0a42cf980b3a404d
+  CERTIFIED_RUN_ID: '31902456224'
+  FIREBASE_PROJECT_ID: fixgo-44e4d
+  FIREBASE_SITE_ID: fixgo-44e4d
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Verify certification
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          status="$(gh api repos/${GITHUB_REPOSITORY}/actions/runs/${CERTIFIED_RUN_ID} --jq '.status')"
+          conclusion="$(gh api repos/${GITHUB_REPOSITORY}/actions/runs/${CERTIFIED_RUN_ID} --jq '.conclusion')"
+          test "$status" = completed
+          test "$conclusion" = success
+          echo 'CERTIFICATION_GREEN=true'
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract exact certified transformations
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show "${CERTIFIED_CARRIER_SHA}:.github/workflows/contract-audit-provider-outage-v3.yml" > /tmp/certified-provider-outage.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('/tmp/certified-provider-outage.yml').read_text()
+          def extract(step_name, next_step_name, output):
+              start_marker = f'      - name: {step_name}\n'
+              next_marker = f'\n      - name: {next_step_name}\n'
+              start = text.index(start_marker)
+              run_start = text.index('        run: |\n', start) + len('        run: |\n')
+              end = text.index(next_marker, run_start)
+              block = text[run_start:end]
+              lines = []
+              for line in block.splitlines():
+                  if line.startswith('          '):
+                      lines.append(line[10:])
+                  elif not line.strip():
+                      lines.append('')
+                  else:
+                      raise SystemExit(f'CERTIFIED_RUN_BLOCK_INDENT_INVALID:{step_name}:{line!r}')
+              Path(output).write_text('\n'.join(lines) + '\n')
+          extract('Restore previously certified invariants', 'Harden existing planner and fail-closed presentation', '/tmp/restore-certified.sh')
+          extract('Harden existing planner and fail-closed presentation', 'Contract and authority assertions', '/tmp/harden-certified.sh')
+          PY
+          bash -n /tmp/restore-certified.sh
+          bash -n /tmp/harden-certified.sh
+          echo 'CERTIFIED_TRANSFORMATIONS_EXTRACTED=true'
+
+      - name: Reconstruct exact certified candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/contract-audit
+          for part in chunk-00.txt chunk-01.txt chunk-02.txt segment-05.txt segment-06.txt segment-07.txt chunk-04.txt; do
+            git show "${CERTIFIED_CARRIER_SHA}:.github/candidates/contract-audit/${part}" >> /tmp/contract-audit/handoff.patch.gz.b64
+          done
+          base64 -d /tmp/contract-audit/handoff.patch.gz.b64 | gzip -d > /tmp/contract-audit/handoff.patch
+          echo "$HANDOFF_PATCH_SHA256  /tmp/contract-audit/handoff.patch" | sha256sum -c -
+          git checkout --detach "$BASE_SHA"
+          git apply --check /tmp/contract-audit/handoff.patch
+          git apply /tmp/contract-audit/handoff.patch
+          bash /tmp/restore-certified.sh
+          bash /tmp/harden-certified.sh
+          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          node --check gestia-core/gestia-core.js
+          grep -q 'semanticProviderRetryableStatus' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -q 'attempt <= 3' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -q 'agrega TODAS las herramientas necesarias' gestia-core/jarvis/jarvis.multifunction.planner.js
+          ! grep -q 'agrega solamente una herramienta' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -q 'atomicState.agentResult?.finalResponse || null' gestia-core/gestia-core.js
+          grep -q 'coreResult?.type !== "AGENT_TOOL_RESULT"' gestia-terminal.html
+          grep -q '1.2.0-stable-research-objectives' gestia-core/gestia-core.js
+          changed="$(git diff --name-only "$BASE_SHA" -- .)"
+          if printf '%s\n' "$changed" | grep -E '^(functions/|multiservicios-web/|.*Multiservicios)' ; then
+            echo 'PROTECTED_SURFACE_TOUCHED=true' >&2
+            exit 1
+          fi
+          git diff --check
+          echo 'CERTIFIED_CANDIDATE_RECONSTRUCTED=true'
+          echo 'FUNCTIONS_UNTOUCHED=true'
+          echo 'MULTISERVICIOS_UNTOUCHED=true'
+
+      - name: Build isolated Hosting config
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const source = JSON.parse(fs.readFileSync('firebase.json', 'utf8'));
+          const hosting = Array.isArray(source.hosting) ? source.hosting : [source.hosting].filter(Boolean);
+          const selected = hosting.filter(item => item && item.site === process.env.FIREBASE_SITE_ID);
+          if (selected.length !== 1) throw new Error(`HOSTING_SITE_SELECTION_INVALID:${selected.length}`);
+          if (selected[0].target) throw new Error(`HOSTING_TARGET_FORBIDDEN:${selected[0].target}`);
+          fs.writeFileSync('.firebase-provider-outage-hosting-only.json', JSON.stringify({hosting:selected[0]}, null, 2));
+          fs.writeFileSync('contract-audit-provider-outage.json', JSON.stringify({
+            candidate:'ADJUNTO_CURRENT_CONTRACT_PROVIDER_OUTAGE_CERTIFIED',
+            contract:'1.2.0-stable-research-objectives',
+            semanticAuthority:'jarvisSemanticPlan',
+            certifiedRunId:process.env.CERTIFIED_RUN_ID,
+            transientProviderRetry:true,
+            failClosedResponsePreserved:true,
+            completeProductionChain:true,
+            hostingOnly:true,
+            builtAt:new Date().toISOString()
+          }, null, 2));
+          const config = JSON.parse(fs.readFileSync('.firebase-provider-outage-hosting-only.json','utf8'));
+          if (config.functions) throw new Error('FUNCTIONS_CONFIG_PRESENT');
+          if (Array.isArray(config.hosting)) throw new Error('MULTISITE_CONFIG_PRESENT');
+          if (config.hosting?.site !== process.env.FIREBASE_SITE_ID) throw new Error('WRONG_HOSTING_SITE');
+          if (config.hosting?.target) throw new Error('MULTISERVICIOS_TARGET_PRESENT');
+          console.log('HOSTING_CONFIG_ISOLATED=true');
+          NODE
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Hosting only
+        shell: bash
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy --config .firebase-provider-outage-hosting-only.json --only hosting --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
+          echo 'HOSTING_ONLY_DEPLOYED=true'
+
+      - name: Verify served certified bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://${FIREBASE_SITE_ID}.web.app"
+          ok=false
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent --show-error --location "${base}/contract-audit-provider-outage.json?run=${GITHUB_RUN_ID}" -o /tmp/marker.json \
+              && curl --fail --silent --show-error --location "${base}/gestia-core/jarvis/jarvis.multifunction.planner.js?run=${GITHUB_RUN_ID}" -o /tmp/planner.js \
+              && curl --fail --silent --show-error --location "${base}/gestia-core/gestia-core.js?run=${GITHUB_RUN_ID}" -o /tmp/core.js \
+              && curl --fail --silent --show-error --location "${base}/gestia-terminal.html?run=${GITHUB_RUN_ID}" -o /tmp/terminal.html \
+              && grep -q 'ADJUNTO_CURRENT_CONTRACT_PROVIDER_OUTAGE_CERTIFIED' /tmp/marker.json \
+              && grep -q 'semanticProviderRetryableStatus' /tmp/planner.js \
+              && grep -q 'attempt <= 3' /tmp/planner.js \
+              && grep -q 'agrega TODAS las herramientas necesarias' /tmp/planner.js \
+              && grep -q 'atomicState.agentResult?.finalResponse || null' /tmp/core.js \
+              && grep -q '1.2.0-stable-research-objectives' /tmp/core.js \
+              && grep -q 'coreResult?.type !== "AGENT_TOOL_RESULT"' /tmp/terminal.html; then
+              ok=true
+              break
+            fi
+            sleep 4
+          done
+          test "$ok" = true
+          echo 'CERTIFIED_HOSTING_BYTES_VERIFIED=true'
+          echo "WEB_URL=${base}/gestia-terminal.html"
