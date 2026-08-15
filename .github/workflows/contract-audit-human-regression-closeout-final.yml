@@ -1,0 +1,472 @@
+name: contract-audit human-regression closeout final
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/contract-audit-human-regression-closeout-final.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  V3_CARRIER_SHA: e32b68752e452ef1d4f3eb6ba8fa375cce5787ab
+  PRIOR_V2_CARRIER_SHA: 1892d5f7726ce41402600d49b22fb1cf62e830fb
+  PRIOR_CARRIER_SHA: 2a51c1c349edac309465a22fd73c5b157dbaccd9
+  BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
+  CERTIFIED_CARRIER_SHA: cebe6f399d4edf4f234e584e0a42cf980b3a404d
+  FIREBASE_PROJECT_ID: fixgo-44e4d
+  FIREBASE_SITE_ID: fixgo-44e4d
+
+jobs:
+  certify-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct certified v3 candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show "${V3_CARRIER_SHA}:.github/workflows/contract-audit-human-regression-closeout-v3.yml" > /tmp/v3.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          text=Path('/tmp/v3.yml').read_text()
+          names=[
+            'Reconstruct v2 certified candidate',
+            'Preserve exact web-media provenance through mission semantics',
+            'Install dependencies',
+            'Focal exact-media semantic closeout',
+            'Full CI once',
+            'Protected surface audit',
+            'Build isolated Hosting-only config',
+            'Install Firebase CLI',
+            'Deploy Hosting only',
+            'Verify served bytes'
+          ]
+          for index,name in enumerate(names):
+              s=text.index(f'      - name: {name}\n')
+              e=text.index(f'\n      - name: {names[index+1]}\n',s) if index+1<len(names) else len(text)
+              block=text[s:e]
+              marker='        run: |\n'
+              if marker in block:
+                  rs=block.index(marker)+len(marker)
+                  lines=[]
+                  for line in block[rs:].splitlines():
+                      if line.startswith('          '): lines.append(line[10:])
+                      elif not line.strip(): lines.append('')
+                      else: break
+                  script='\n'.join(lines)+'\n'
+              else:
+                  match=re.search(r'^        run: (.+)$',block,re.M)
+                  if not match: raise SystemExit(f'RUN_COMMAND_NOT_FOUND:{name}')
+                  script=match.group(1).strip()+'\n'
+
+              if name=='Preserve exact web-media provenance through mission semantics':
+                  fixed=[]
+                  replaced=False
+                  for line in script.splitlines():
+                      if 'return parsed.toString().replace(' in line:
+                          indent=line[:len(line)-len(line.lstrip())]
+                          fixed.append(indent+'const normalized = parsed.toString();')
+                          fixed.append(indent+'return normalized.endsWith("/") ? normalized.slice(0, -1) : normalized;')
+                          replaced=True
+                      else:
+                          fixed.append(line)
+                  if not replaced: raise SystemExit('URL_NORMALIZATION_LINE_NOT_FOUND')
+                  script='\n'.join(fixed)+'\n'
+                  if 'explicitObjectiveSatisfied === true &&' not in script:
+                      raise SystemExit('MARKETING_LOCAL_CANONICAL_ANCHOR_NOT_FOUND')
+                  script=script.replace(
+                      'explicitObjectiveSatisfied === true &&',
+                      'payload?.objectiveSatisfied === true &&',
+                      1
+                  )
+              Path(f'/tmp/final-step-{index+1}.sh').write_text(script)
+          PY
+          bash /tmp/final-step-1.sh
+          bash /tmp/final-step-2.sh
+          echo 'CERTIFIED_V3_CANDIDATE_RECONSTRUCTED=true'
+
+      - name: Fix shared canonical tool semantics authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('gestia-core/response.composer.js')
+          t=p.read_text()
+
+          old='''        const observation = current?.observations?.[0]?.data;
+          if (
+              observation &&
+              typeof observation === "object" &&
+              !Array.isArray(observation)
+          ) {
+              current = observation;
+              continue;
+          }
+
+          const currentStatus = semanticStatus(current?.status, "");
+          '''
+          new='''        const observation = current?.observations?.[0]?.data;
+          if (
+              observation &&
+              typeof observation === "object" &&
+              !Array.isArray(observation)
+          ) {
+              current = observation;
+              continue;
+          }
+
+          const toolObservationData =
+              current?.type === "TOOL_OBSERVATION" &&
+              current?.data &&
+              typeof current.data === "object" &&
+              !Array.isArray(current.data)
+                  ? current.data
+                  : null;
+          if (toolObservationData) {
+              current = toolObservationData;
+              continue;
+          }
+
+          const currentStatus = semanticStatus(current?.status, "");
+          '''
+          if old not in t: raise SystemExit('TOOL_RESULT_LAYERS_ANCHOR_NOT_FOUND')
+          t=t.replace(old,new,1)
+
+          old='''    const envelopeStatus = semanticStatus(envelope?.status, "");
+          const payloadStatus = semanticStatus(payload?.status, "");
+          const anyExplicitFailure = layers.some(layer =>
+              layer?.executionOk === false ||
+              layer?.ok === false ||
+              isFailureStatus(layer?.status)
+          );
+          const status = semanticStatus(
+              !isGenericRuntimeStatus(envelopeStatus)
+                  ? envelopeStatus
+                  : payloadStatus || envelopeStatus,
+              anyExplicitFailure ? "FAILED" : "COMPLETED"
+          );
+          '''
+          new='''    const envelopeStatus = semanticStatus(envelope?.status, "");
+          const payloadStatus = semanticStatus(payload?.status, "");
+          const canonicalObservationPayload =
+              layers.length > 1 &&
+              payload !== envelope &&
+              (
+                  envelope?.type === "TOOL_OBSERVATION" ||
+                  (
+                      envelope?.type === "AGENT_TOOL_RESULT" &&
+                      Array.isArray(envelope?.observations) &&
+                      envelope.observations.length === 1
+                  )
+              );
+          const semanticLayers =
+              canonicalObservationPayload
+                  ? [payload]
+                  : layers;
+          const hardEnvelopeFailure =
+              canonicalObservationPayload &&
+              isFailureStatus(envelopeStatus);
+          const anyExplicitFailure =
+              hardEnvelopeFailure ||
+              semanticLayers.some(layer =>
+                  layer?.executionOk === false ||
+                  layer?.ok === false ||
+                  isFailureStatus(layer?.status)
+              );
+          const status = semanticStatus(
+              hardEnvelopeFailure
+                  ? envelopeStatus
+                  : canonicalObservationPayload
+                      ? payloadStatus || envelopeStatus
+                      : !isGenericRuntimeStatus(envelopeStatus)
+                          ? envelopeStatus
+                          : payloadStatus || envelopeStatus,
+              anyExplicitFailure ? "FAILED" : "COMPLETED"
+          );
+          '''
+          if old not in t: raise SystemExit('NORMALIZER_ENVELOPE_ANCHOR_NOT_FOUND')
+          t=t.replace(old,new,1)
+
+          replacements={
+          '''            layers.flatMap(layer =>
+          ''':'''            semanticLayers.flatMap(layer =>
+          ''',
+          '''        layers.some(layer => layer?.requiresInput === true) ||
+          ''':'''        semanticLayers.some(layer => layer?.requiresInput === true) ||
+          ''',
+          '''        layers.some(layer => layer?.requiresApproval === true) ||
+          ''':'''        semanticLayers.some(layer => layer?.requiresApproval === true) ||
+          ''',
+          '''    const objectiveFlags = layers
+          ''':'''    const objectiveFlags = semanticLayers
+          ''',
+          '''        !layers.some(layer => layer?.requirementsMet === false) &&
+          ''':'''        !semanticLayers.some(layer => layer?.requirementsMet === false) &&
+          ''',
+          '''                : !layers.some(layer => layer?.readyForProduction === false)
+          ''':'''                : !semanticLayers.some(layer => layer?.readyForProduction === false)
+          ''',
+          '''        layers.some(layer => layer?.blocked === true) ||
+          ''':'''        hardEnvelopeFailure ||
+              semanticLayers.some(layer => layer?.blocked === true) ||
+          ''',
+          '''    const explicitRetryable = [...layers]
+          ''':'''    const explicitRetryable = [...semanticLayers]
+          '''
+          }
+          for old,new in replacements.items():
+              if old not in t: raise SystemExit(f'NORMALIZER_SEMANTIC_LAYER_ANCHOR_NOT_FOUND:{old[:50]!r}')
+              t=t.replace(old,new,1)
+
+          old='''    const marketingDeliverableReady =
+              !marketingPackageReady ||
+              (
+                  payload?.plan &&
+                  typeof payload.plan === "object" &&
+                  !Array.isArray(payload.plan) &&
+                  Object.keys(payload.plan).length >= 25 &&
+                  typeof payload?.userVisible === "string" &&
+                  payload.userVisible.trim().length > 0
+              );
+          '''
+          new='''    const marketingDeliverableReady =
+              !marketingPackageReady ||
+              (
+                  payload?.planReady === true &&
+                  payload?.plan &&
+                  typeof payload.plan === "object" &&
+                  !Array.isArray(payload.plan) &&
+                  Object.keys(payload.plan).length > 0 &&
+                  typeof payload?.userVisible === "string" &&
+                  payload.userVisible.trim().length > 0
+              );
+          '''
+          if old not in t: raise SystemExit('MARKETING_25_KEY_HEURISTIC_NOT_FOUND')
+          t=t.replace(old,new,1)
+          p.write_text(t)
+
+          p=Path('tests/jarvis-human-regression-closeout.test.mjs')
+          t=p.read_text()
+          import_line="import { ResponseComposer, normalizeToolSemantics } from '../gestia-core/response.composer.js';\n"
+          if import_line not in t:
+              first_import_end=t.find('\n')+1
+              t=t[:first_import_end]+import_line+t[first_import_end:]
+
+          marker="test('web.media.collect uses at most a second CDP attempt"
+          idx=t.index(marker)
+          tests=r'''test('shared ResponseComposer accepts the real small canonical marketing package',()=>{
+            const canonical={
+              ok:true,
+              executionOk:true,
+              objectiveSatisfied:true,
+              blocked:false,
+              requiresInput:false,
+              requiresApproval:false,
+              retryable:false,
+              status:'MARKETING_PACKAGE_READY',
+              productionRequested:false,
+              requiredArtifacts:[],
+              planReady:true,
+              readyForProduction:true,
+              plan:{
+                executiveSummary:'Campaña específica sustentada.',
+                prioritizedNextSteps:['Revisar y publicar con aprobación.']
+              },
+              userVisible:'Campaña específica lista para revisión.'
+            };
+            const direct=normalizeToolSemantics(canonical);
+            assert.equal(direct.objectiveSatisfied,true);
+            assert.equal(direct.blocked,false);
+
+            const observation=ResponseComposer.composeToolObservation('marketing.plan',canonical);
+            assert.equal(observation.objectiveSatisfied,true);
+            assert.equal(observation.blocked,false);
+
+            const agent=ResponseComposer.composeAgentToolResult({
+              analysisId:'marketing-small-plan',
+              toolCalls:[{name:'marketing.plan',args:{}}],
+              observations:[observation]
+            });
+            assert.equal(agent.objectiveSatisfied,true);
+            assert.equal(agent.blocked,false);
+          });
+
+          test('stale single-observation agent wrapper cannot override its canonical inner semantics',()=>{
+            const canonical={
+              ok:true,
+              executionOk:true,
+              objectiveSatisfied:true,
+              blocked:false,
+              requiresInput:false,
+              requiresApproval:false,
+              retryable:false,
+              status:'MARKETING_PACKAGE_READY',
+              planReady:true,
+              readyForProduction:true,
+              plan:{executiveSummary:'Campaña específica sustentada.'},
+              userVisible:'Campaña específica lista para revisión.'
+            };
+            const stale={
+              ok:true,
+              executionOk:true,
+              objectiveSatisfied:false,
+              blocked:true,
+              status:'MARKETING_PACKAGE_READY',
+              type:'AGENT_TOOL_RESULT',
+              observations:[{
+                type:'TOOL_OBSERVATION',
+                tool:'marketing.plan',
+                data:canonical
+              }]
+            };
+            const normalized=normalizeToolSemantics(stale);
+            assert.equal(normalized.objectiveSatisfied,true);
+            assert.equal(normalized.blocked,false);
+            assert.equal(normalized.status,'MARKETING_PACKAGE_READY');
+          });
+
+          test('a genuine outer ERROR remains fail-closed even with a successful nested payload',()=>{
+            const canonical={
+              ok:true,
+              executionOk:true,
+              objectiveSatisfied:true,
+              blocked:false,
+              status:'MARKETING_PACKAGE_READY',
+              planReady:true,
+              plan:{executiveSummary:'Campaña.'},
+              userVisible:'Lista.'
+            };
+            const failed={
+              ok:false,
+              executionOk:false,
+              objectiveSatisfied:false,
+              blocked:true,
+              status:'ERROR',
+              type:'AGENT_TOOL_RESULT',
+              observations:[{type:'TOOL_OBSERVATION',tool:'marketing.plan',data:canonical}]
+            };
+            const normalized=normalizeToolSemantics(failed);
+            assert.equal(normalized.executionOk,false);
+            assert.equal(normalized.objectiveSatisfied,false);
+            assert.equal(normalized.blocked,true);
+            assert.equal(normalized.status,'ERROR');
+          });
+
+          '''
+          t=t[:idx]+tests+t[idx:]
+          p.write_text(t)
+          PY
+
+          node --check gestia-core/response.composer.js
+          node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
+          git diff --check
+          ! grep -q 'Object.keys(payload.plan).length >= 25' gestia-core/response.composer.js
+          grep -q 'canonicalObservationPayload' gestia-core/response.composer.js
+          grep -q 'current?.type === "TOOL_OBSERVATION"' gestia-core/response.composer.js
+          echo 'CANONICAL_TOOL_SEMANTICS_FIXED=true'
+          echo 'MARKETING_FIELD_COUNT_AUTHORITY_REMOVED=true'
+          echo 'STALE_WRAPPER_CANNOT_VETO_CANONICAL_PAYLOAD=true'
+          echo 'HARD_FAILURE_STILL_FAILS_CLOSED=true'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Focal human-regression closeout
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/final-step-4.sh
+          echo 'FOCAL_HUMAN_REGRESSION_GREEN=true'
+
+      - name: Full CI once
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/final-step-5.sh
+          echo 'FULL_CI_FINAL_GREEN=true'
+
+      - name: Protected surface audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/final-step-6.sh
+          ! git diff --name-only "$BASE_SHA" -- . | grep -E '^(functions/|multiservicios-web/|.*Multiservicios)'
+          grep -q '1.2.0-stable-research-objectives' gestia-core/gestia-core.js
+          grep -q 'canonicalObservationPayload' gestia-core/response.composer.js
+          ! grep -q 'Object.keys(payload.plan).length >= 25' gestia-core/response.composer.js
+          grep -q 'function verifiedWebMediaAttributionSources' gestia-core/jarvis/jarvis.mission.orchestrator.js
+          grep -q 'POST_IDENTITY_TITLE_AND_MEDIA_BYTES' gestia-core/jarvis/jarvis.mission.orchestrator.js
+          grep -q 'const browserAttempts = \[\]' gestia-core/nexo/nexo.real-media.tools.js
+          echo 'FUNCTIONS_UNTOUCHED=true'
+          echo 'MULTISERVICIOS_UNTOUCHED=true'
+          echo 'NO_NEW_BRAIN=true'
+          echo 'NO_NEW_CONTRACT=true'
+          echo 'NO_NEW_CONTRACT_VERSION=true'
+
+      - name: Build isolated Hosting-only config
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/final-step-7.sh
+          node <<'NODE'
+          const fs=require('fs');
+          const path='contract-audit-production-chain.json';
+          const value=JSON.parse(fs.readFileSync(path,'utf8'));
+          value.candidate='ADJUNTO_HUMAN_REGRESSION_CLOSEOUT_V3_CANONICAL';
+          value.sharedSemanticNormalizerCanonicalPayload=true;
+          value.marketingFieldCountAuthorityRemoved=true;
+          value.verifiedWebMediaAttribution=true;
+          value.webMediaEvidenceScope='POST_IDENTITY_TITLE_AND_MEDIA_BYTES';
+          value.transcriptInferenceAllowed=false;
+          fs.writeFileSync(path,JSON.stringify(value,null,2));
+          NODE
+          echo 'HOSTING_CONFIG_ISOLATED=true'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Hosting only
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/final-step-9.sh
+
+      - name: Verify served bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/final-step-10.sh
+          base="https://${FIREBASE_SITE_ID}.web.app"
+          for attempt in $(seq 1 20); do
+            if curl -fsSL "${base}/gestia-core/response.composer.js?final=${GITHUB_RUN_ID}" -o /tmp/response-composer.js \
+              && curl -fsSL "${base}/contract-audit-production-chain.json?final=${GITHUB_RUN_ID}" -o /tmp/final-marker.json \
+              && grep -q 'canonicalObservationPayload' /tmp/response-composer.js \
+              && ! grep -q 'Object.keys(payload.plan).length >= 25' /tmp/response-composer.js \
+              && grep -q 'ADJUNTO_HUMAN_REGRESSION_CLOSEOUT_V3_CANONICAL' /tmp/final-marker.json \
+              && grep -q '"sharedSemanticNormalizerCanonicalPayload": true' /tmp/final-marker.json \
+              && grep -q '"marketingFieldCountAuthorityRemoved": true' /tmp/final-marker.json \
+              && grep -q '"verifiedWebMediaAttribution": true' /tmp/final-marker.json \
+              && grep -q '"transcriptInferenceAllowed": false' /tmp/final-marker.json; then
+              echo 'CERTIFIED_HOSTING_BYTES_VERIFIED=true'
+              echo "WEB_URL=${base}/gestia-terminal.html"
+              exit 0
+            fi
+            sleep 4
+          done
+          echo 'FINAL_SERVED_BYTES_NOT_VERIFIED=true' >&2
+          exit 1
