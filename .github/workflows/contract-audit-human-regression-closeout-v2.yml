@@ -1,0 +1,253 @@
+name: contract-audit human-regression closeout v2
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/contract-audit-human-regression-closeout-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PRIOR_CARRIER_SHA: 2a51c1c349edac309465a22fd73c5b157dbaccd9
+  BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
+  CERTIFIED_CARRIER_SHA: cebe6f399d4edf4f234e584e0a42cf980b3a404d
+  FIREBASE_PROJECT_ID: fixgo-44e4d
+  FIREBASE_SITE_ID: fixgo-44e4d
+
+jobs:
+  certify-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct previously certified exact-source candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show "${PRIOR_CARRIER_SHA}:.github/workflows/contract-audit-production-chain-runtime.yml" > /tmp/prior-carrier.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('/tmp/prior-carrier.yml').read_text()
+          def extract(a,b,o):
+              s=text.index(f'      - name: {a}\n')
+              rs=text.index('        run: |\n',s)+len('        run: |\n')
+              e=text.index(f'\n      - name: {b}\n',rs)
+              lines=[]
+              for line in text[rs:e].splitlines():
+                  if line.startswith('          '): lines.append(line[10:])
+                  elif not line.strip(): lines.append('')
+                  else: raise SystemExit(f'INDENT:{a}:{line!r}')
+              Path(o).write_text('\n'.join(lines)+'\n')
+          extract('Reconstruct certified candidate','Make MISSION_CONTRACT audit additive to the same plan','/tmp/reconstruct.sh')
+          extract('Make MISSION_CONTRACT audit additive to the same plan','Constrain exact-source research inside the existing web.research implementation','/tmp/additive.sh')
+          extract('Constrain exact-source research inside the existing web.research implementation','Install dependencies','/tmp/exact-source.sh')
+          PY
+          bash /tmp/reconstruct.sh
+          bash /tmp/additive.sh
+          bash /tmp/exact-source.sh
+          echo 'PRIOR_EXACT_SOURCE_CANDIDATE_RECONSTRUCTED=true'
+
+      - name: Preserve canonical tool observations and retry dynamic media once
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('gestia-core/jarvis/jarvis.mission.orchestrator.js')
+          t=p.read_text()
+          anchor='function safeObservation(result = {}) {\n'
+          if anchor not in t: raise SystemExit('SAFE_OBSERVATION_ANCHOR_NOT_FOUND')
+          insert='''function safeObservation(result = {}) {\n    if (\n        result?.type === "TOOL_OBSERVATION" &&\n        result?.data &&\n        typeof result.data === "object" &&\n        !Array.isArray(result.data)\n    ) {\n        result = result.data;\n    }\n'''
+          if 'result?.type === "TOOL_OBSERVATION"' in t[t.index(anchor):t.index(anchor)+1200]:
+              raise SystemExit('TOOL_OBSERVATION_UNWRAP_ALREADY_PRESENT')
+          t=t.replace(anchor,insert,1)
+          p.write_text(t)
+
+          p=Path('gestia-core/nexo/nexo.real-media.tools.js')
+          t=p.read_text()
+          start=t.index('            if (shouldTryBrowser) {')
+          end=t.index('            return {\n                ...result,',start)
+          replacement='''            if (shouldTryBrowser) {\n                const browserPayload = {\n                    action: "media",\n                    url: args.url,\n                    requireImages: args.requireImages === true,\n                    requireVideos: args.requireVideos === true,\n                    requireAnyVisual: args.requireAnyVisual === true,\n                    maxImages: args.maxImages,\n                    maxVideos: args.maxVideos,\n                    timeoutMs: Number(args.timeoutMs) || 45000,\n                    objectiveId: args.objectiveId || context.objectiveId || "",\n                    caseId: args.caseId || context.caseId || ""\n                };\n                const browserAttempts = [];\n                const summarizeAttempt = value => ({\n                    status: value?.status || "BROWSER_MEDIA_FALLBACK_FAILED",\n                    ok: value?.ok === true,\n                    requirementsMet: value?.requirementsMet === true,\n                    candidateCount: Number(value?.browserNetwork?.candidateCount || 0),\n                    bodyCapturedCount: Number(value?.browserNetwork?.bodyCapturedCount || 0),\n                    count: Number(value?.counts?.total || 0)\n                });\n                let browserResult =\n                    await bridgeRequest("/browser", browserPayload, timeoutMs);\n                browserAttempts.push(summarizeAttempt(browserResult));\n                if (\n                    browserResult?.status === "WEB_REAL_MEDIA_REQUIREMENTS_UNMET" &&\n                    browserResult?.requirementsMet !== true\n                ) {\n                    browserResult =\n                        await bridgeRequest("/browser", browserPayload, timeoutMs);\n                    browserAttempts.push(summarizeAttempt(browserResult));\n                }\n                browserFallback = {\n                    attempted: true,\n                    attempts: browserAttempts.length,\n                    attemptResults: browserAttempts,\n                    status: browserResult?.status || "BROWSER_MEDIA_FALLBACK_FAILED",\n                    ok: browserResult?.ok === true,\n                    requirementsMet: browserResult?.requirementsMet === true,\n                    candidateCount: Number(browserResult?.browserNetwork?.candidateCount || 0),\n                    bodyCapturedCount: Number(browserResult?.browserNetwork?.bodyCapturedCount || 0)\n                };\n                if (\n                    browserResult?.ok === true &&\n                    browserResult?.requirementsMet === true\n                ) {\n                    result = {\n                        ...browserResult,\n                        browserFallbackUsed: true,\n                        staticCollectionStatus: staticResult?.status || null\n                    };\n                }\n                else {\n                    result = {\n                        ...staticResult,\n                        browserFallbackUsed: false,\n                        browserFallback,\n                        error:\n                            staticResult?.error ||\n                            browserResult?.error ||\n                            browserResult?.status ||\n                            staticResult?.status ||\n                            "WEB_REAL_MEDIA_REQUIREMENTS_UNMET"\n                    };\n                }\n            }\n'''
+          t=t[:start]+replacement+t[end:]
+          p.write_text(t)
+
+          p=Path('gestia-core/tools.bridge.js')
+          t=p.read_text()
+          old='                result?.error || "Error desconocido",\n'
+          new='                result?.error || result?.status || "Error desconocido",\n'
+          if old not in t: raise SystemExit('TOOLS_BRIDGE_ERROR_ANCHOR_NOT_FOUND')
+          t=t.replace(old,new,1)
+          p.write_text(t)
+          PY
+
+          cat > tests/jarvis-human-regression-closeout.test.mjs <<'EOF'
+          import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs';
+          import { __test as missionTest } from '../gestia-core/jarvis/jarvis.mission.orchestrator.js';
+          import { registerNexoRealMediaTools } from '../gestia-core/nexo/nexo.real-media.tools.js';
+
+          function runtimeFixture(){
+            const registry=new Map();
+            return {registry,register(d){registry.set(d.name,d);return {ok:true,tool:d.name};},get(n){return registry.get(n)||null;},has(n){return registry.has(n);}};
+          }
+
+          test('TOOL_OBSERVATION data remains the canonical MARKETING_PACKAGE_READY result',()=>{
+            const plan=Object.fromEntries(Array.from({length:25},(_,i)=>[`field${i+1}`,i+1]));
+            const canonical={ok:true,executionOk:true,objectiveSatisfied:true,blocked:false,requiresInput:false,retryable:false,status:'MARKETING_PACKAGE_READY',productionRequested:false,requiredArtifacts:[],planReady:true,readyForProduction:true,plan,userVisible:'Campaña específica lista para revisión.'};
+            const envelope={ok:true,executionOk:true,objectiveSatisfied:true,blocked:false,status:'MARKETING_PACKAGE_READY',type:'TOOL_OBSERVATION',tool:'marketing.plan',data:canonical};
+            const observed=missionTest.safeObservation(envelope);
+            assert.equal(observed.objectiveSatisfied,true);
+            assert.equal(observed.status,'MARKETING_PACKAGE_READY');
+            assert.equal(observed.userVisible,canonical.userVisible);
+            assert.deepEqual(observed.deliverable,plan);
+          });
+
+          test('web.media.collect uses at most a second CDP attempt after one unmet dynamic capture',async t=>{
+            const previous=globalThis.JarvisLocalBridge;
+            t.after(()=>{if(previous===undefined) delete globalThis.JarvisLocalBridge; else globalThis.JarvisLocalBridge=previous;});
+            const calls=[]; let browserCalls=0;
+            globalThis.JarvisLocalBridge={async requestJson(route,payload){
+              calls.push({route,payload});
+              if(route==='/web/media/collect') return {ok:false,executionOk:true,objectiveSatisfied:false,blocked:true,retryable:false,status:'WEB_REAL_MEDIA_REQUIREMENTS_UNMET',requirementsMet:false,counts:{images:0,videos:0,total:0},mediaAssets:[]};
+              if(route==='/browser'){
+                browserCalls+=1;
+                if(browserCalls===1) return {ok:false,executionOk:true,objectiveSatisfied:false,blocked:true,retryable:false,status:'WEB_REAL_MEDIA_REQUIREMENTS_UNMET',requirementsMet:false,browserNetwork:{candidateCount:0,bodyCapturedCount:0},counts:{images:0,videos:0,total:0},mediaAssets:[]};
+                return {ok:true,executionOk:true,objectiveSatisfied:true,blocked:false,retryable:false,status:'WEB_REAL_MEDIA_COLLECTED',requirementsMet:true,discoveryMode:'browser_network',browserNetwork:{candidateCount:1,bodyCapturedCount:1},counts:{images:0,videos:1,total:1},mediaAssets:[{kind:'video',output:'.jarvis-artifacts/web-media/tiktok/post.mp4',mimeType:'video/mp4',bytes:70000,sha256:'a'.repeat(64),sourceUrl:'https://v16.tiktokcdn.com/post.mp4',sourceTag:'browser-network',networkObserved:true}]};
+              }
+              throw new Error(`unexpected route ${route}`);
+            }};
+            const runtime=runtimeFixture(); registerNexoRealMediaTools(runtime);
+            const result=await runtime.registry.get('web.media.collect').execute({url:'https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004',requireVideos:true,maxVideos:4});
+            assert.deepEqual(calls.map(item=>item.route),['/web/media/collect','/browser','/browser']);
+            assert.equal(result.ok,true);
+            assert.equal(result.objectiveSatisfied,true);
+            assert.equal(result.browserFallbackUsed,true);
+            assert.equal(result.browserFallback.attempts,2);
+            assert.equal(result.mediaAssets.length,1);
+          });
+
+          test('tools bridge preserves concrete actuator status before Error desconocido',()=>{
+            const source=fs.readFileSync(new URL('../gestia-core/tools.bridge.js',import.meta.url),'utf8');
+            assert.match(source,/result\?\.error\s*\|\|\s*result\?\.status\s*\|\|\s*"Error desconocido"/s);
+          });
+          EOF
+
+          node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
+          node --check gestia-core/nexo/nexo.real-media.tools.js
+          node --check gestia-core/tools.bridge.js
+          git diff --check
+          echo 'CANONICAL_TOOL_OBSERVATION_UNWRAP=true'
+          echo 'DYNAMIC_MEDIA_BROWSER_RETRY_MAX=2'
+          echo 'NO_NEW_BRAIN=true'
+          echo 'NO_NEW_CONTRACT=true'
+          echo 'NO_NEW_CONTRACT_VERSION=true'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Focal human-regression closeout
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/jarvis-human-regression-closeout.test.mjs \
+            tests/nexo-browser-media-fallback-v135.test.mjs \
+            tests/jarvis-exact-source-research-grounding.test.mjs \
+            tests/jarvis-v139-web-research-cloud-fallback.test.mjs \
+            tests/jarvis-mission-contract-preserves-initial-production.test.mjs \
+            tests/jarvis-mission-contract-accounting.test.mjs \
+            tests/jarvis-single-contract-authority.test.mjs \
+            tests/single-semantic-authority.test.mjs
+
+      - name: Full CI once
+        run: npm run ci:test
+
+      - name: Protected surface audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only "$BASE_SHA" -- .)"
+          printf '%s\n' "$changed"
+          if printf '%s\n' "$changed" | grep -E '^(functions/|multiservicios-web/|.*Multiservicios)' ; then
+            echo 'PROTECTED_SURFACE_TOUCHED=true' >&2
+            exit 1
+          fi
+          grep -q '1.2.0-stable-research-objectives' gestia-core/gestia-core.js
+          grep -q 'scopeGroundedResearchResult' gestia-core/jarvis/jarvis.multitool.pack.js
+          grep -q 'result?.type === "TOOL_OBSERVATION"' gestia-core/jarvis/jarvis.mission.orchestrator.js
+          grep -q 'const browserAttempts = \[\]' gestia-core/nexo/nexo.real-media.tools.js
+          ! grep -q 'v141\|v142\|v143' tests/jarvis-human-regression-closeout.test.mjs
+          git diff --check
+          echo 'FUNCTIONS_UNTOUCHED=true'
+          echo 'MULTISERVICIOS_UNTOUCHED=true'
+          echo 'NO_NEW_BRAIN=true'
+          echo 'NO_NEW_CONTRACT=true'
+          echo 'NO_NEW_CONTRACT_VERSION=true'
+
+      - name: Build isolated Hosting-only config
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('fs');
+          const source=JSON.parse(fs.readFileSync('firebase.json','utf8'));
+          const hosting=Array.isArray(source.hosting)?source.hosting:[source.hosting].filter(Boolean);
+          const selected=hosting.filter(item=>item&&item.site===process.env.FIREBASE_SITE_ID);
+          if(selected.length!==1) throw new Error(`HOSTING_SITE_SELECTION_INVALID:${selected.length}`);
+          if(selected[0].target) throw new Error(`HOSTING_TARGET_FORBIDDEN:${selected[0].target}`);
+          fs.writeFileSync('.firebase-human-regression-hosting-only.json',JSON.stringify({hosting:selected[0]},null,2));
+          fs.writeFileSync('contract-audit-production-chain.json',JSON.stringify({candidate:'ADJUNTO_HUMAN_REGRESSION_CLOSEOUT_V2',contract:'1.2.0-stable-research-objectives',semanticAuthority:'jarvisSemanticPlan',samePlanPreserved:true,exactSourceGrounding:true,canonicalToolObservationUnwrap:true,dynamicMediaBrowserRetryMax:2,hostingOnly:true,builtAt:new Date().toISOString()},null,2));
+          const config=JSON.parse(fs.readFileSync('.firebase-human-regression-hosting-only.json','utf8'));
+          if(config.functions||Array.isArray(config.hosting)||config.hosting?.target) throw new Error('HOSTING_CONFIG_NOT_ISOLATED');
+          console.log('HOSTING_CONFIG_ISOLATED=true');
+          NODE
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Hosting only
+        shell: bash
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy --config .firebase-human-regression-hosting-only.json --only hosting --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
+          echo 'HOSTING_ONLY_DEPLOYED=true'
+
+      - name: Verify served bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://${FIREBASE_SITE_ID}.web.app"
+          ok=false
+          for attempt in $(seq 1 20); do
+            if curl -fsSL "${base}/contract-audit-production-chain.json?run=${GITHUB_RUN_ID}" -o /tmp/marker.json \
+              && curl -fsSL "${base}/gestia-core/jarvis/jarvis.mission.orchestrator.js?run=${GITHUB_RUN_ID}" -o /tmp/orchestrator.js \
+              && curl -fsSL "${base}/gestia-core/nexo/nexo.real-media.tools.js?run=${GITHUB_RUN_ID}" -o /tmp/media-tools.js \
+              && curl -fsSL "${base}/gestia-core/tools.bridge.js?run=${GITHUB_RUN_ID}" -o /tmp/tools-bridge.js \
+              && curl -fsSL "${base}/gestia-core/jarvis/jarvis.multitool.pack.js?run=${GITHUB_RUN_ID}" -o /tmp/pack.js \
+              && grep -q 'ADJUNTO_HUMAN_REGRESSION_CLOSEOUT_V2' /tmp/marker.json \
+              && grep -q '"dynamicMediaBrowserRetryMax": 2' /tmp/marker.json \
+              && grep -q 'scopeGroundedResearchResult' /tmp/pack.js \
+              && grep -q 'result?.type === "TOOL_OBSERVATION"' /tmp/orchestrator.js \
+              && grep -q 'const browserAttempts = \[\]' /tmp/media-tools.js \
+              && grep -q 'result?.status' /tmp/tools-bridge.js; then
+              ok=true
+              break
+            fi
+            sleep 4
+          done
+          test "$ok" = true
+          echo 'CERTIFIED_HOSTING_BYTES_VERIFIED=true'
+          echo "WEB_URL=${base}/gestia-terminal.html"
