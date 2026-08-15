@@ -1,4 +1,4 @@
-# certified carrier trigger: mission-contract policy compatibility
+# certified carrier: mission-contract policy compatibility
 name: contract-audit mission-contract policy compat closeout
 
 on:
@@ -14,7 +14,15 @@ permissions:
 
 env:
   FLOW_V2_CARRIER_SHA: 8ef564d954de07a3b63d8a117ada4c2bcf40e3b4
+  FINAL_V3_CARRIER_SHA: 71e4b1f847640dd9d3d9b142b0158073f5451336
+  FINAL_V2_CARRIER_SHA: 21d1fc513d7817e7bfd9913ec113bd7923f3bb10
+  FAILED_FINAL_CARRIER_SHA: b6dd83bc03bebc8cc66b790a38404fa48db3f395
+  V3_CARRIER_SHA: e32b68752e452ef1d4f3eb6ba8fa375cce5787ab
+  PRIOR_V2_CARRIER_SHA: 1892d5f7726ce41402600d49b22fb1cf62e830fb
+  PRIOR_CARRIER_SHA: 2a51c1c349edac309465a22fd73c5b157dbaccd9
   BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
+  CERTIFIED_CARRIER_SHA: cebe6f399d4edf4f234e584e0a42cf980b3a404d
   FIREBASE_PROJECT_ID: fixgo-44e4d
   FIREBASE_SITE_ID: fixgo-44e4d
 
@@ -90,10 +98,7 @@ jobs:
           if(block.indexOf('callSemanticPlanner')<0 || block.indexOf('callBrowserMissionContract')<0) process.exit(32);
           if(block.indexOf('callSemanticPlanner')>block.indexOf('callBrowserMissionContract')) process.exit(33);
           for(const forbidden of ['tiktok.com','Taquería El Dorado','web.research','web.media.collect','media.analyze','marketing.plan','reel.plan','reel.create']){
-            if(block.includes(forbidden)){
-              console.error('STATIC_ROUTING_LEAK',forbidden);
-              process.exit(34);
-            }
+            if(block.includes(forbidden)) process.exit(34);
           }
           NODE
           echo 'CLOUD_PRIMARY_POLICY_CERTIFIED=true'
