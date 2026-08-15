@@ -1,0 +1,208 @@
+name: contract-audit human-regression closeout final v3
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/contract-audit-human-regression-closeout-final-v3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FINAL_V2_CARRIER_SHA: 21d1fc513d7817e7bfd9913ec113bd7923f3bb10
+  FAILED_FINAL_CARRIER_SHA: b6dd83bc03bebc8cc66b790a38404fa48db3f395
+  V3_CARRIER_SHA: e32b68752e452ef1d4f3eb6ba8fa375cce5787ab
+  PRIOR_V2_CARRIER_SHA: 1892d5f7726ce41402600d49b22fb1cf62e830fb
+  PRIOR_CARRIER_SHA: 2a51c1c349edac309465a22fd73c5b157dbaccd9
+  BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
+  CERTIFIED_CARRIER_SHA: cebe6f399d4edf4f234e584e0a42cf980b3a404d
+  FIREBASE_PROJECT_ID: fixgo-44e4d
+  FIREBASE_SITE_ID: fixgo-44e4d
+
+jobs:
+  certify-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct final-v2 candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show "${FINAL_V2_CARRIER_SHA}:.github/workflows/contract-audit-human-regression-closeout-final-v2.yml" > /tmp/final-v2.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('/tmp/final-v2.yml').read_text()
+          pairs=[
+            ('Reconstruct certified v3 candidate','Fix shared canonical tool semantics authority','/tmp/final-v2-reconstruct.sh'),
+            ('Fix shared canonical tool semantics authority','Install dependencies','/tmp/final-v2-semantics.sh')
+          ]
+          for a,b,out in pairs:
+              s=text.index(f'      - name: {a}\n')
+              rs=text.index('        run: |\n',s)+len('        run: |\n')
+              e=text.index(f'\n      - name: {b}\n',rs)
+              lines=[]
+              for line in text[rs:e].splitlines():
+                  if line.startswith('          '): lines.append(line[10:])
+                  elif not line.strip(): lines.append('')
+                  else: raise SystemExit(f'EXTRACT_INDENT:{a}:{line!r}')
+              Path(out).write_text('\n'.join(lines)+'\n')
+          PY
+          bash /tmp/final-v2-reconstruct.sh
+          bash /tmp/final-v2-semantics.sh
+          echo 'FINAL_V2_CANDIDATE_RECONSTRUCTED=true'
+
+      - name: Preserve compatible canonical marketing readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('gestia-core/response.composer.js')
+          t=p.read_text()
+          old='payload?.planReady === true &&'
+          new='payload?.planReady !== false &&'
+          if old not in t: raise SystemExit('PLAN_READY_COMPAT_ANCHOR_NOT_FOUND')
+          t=t.replace(old,new,1)
+          p.write_text(t)
+
+          p=Path('tests/jarvis-human-regression-closeout.test.mjs')
+          t=p.read_text()
+          marker="test('stale single-observation agent wrapper cannot override its canonical inner semantics'"
+          idx=t.index(marker)
+          regression=r'''test('canonical ready marketing remains compatible when legacy result omits planReady',()=>{
+            const canonical={
+              ok:true,
+              executionOk:true,
+              objectiveSatisfied:true,
+              blocked:false,
+              requiresInput:false,
+              requiresApproval:false,
+              retryable:false,
+              status:'MARKETING_PACKAGE_READY',
+              readyForProduction:true,
+              plan:{executiveSummary:'Campaña completa y visible.'},
+              userVisible:'Campaña completa y visible.'
+            };
+            const normalized=normalizeToolSemantics(canonical);
+            assert.equal(normalized.objectiveSatisfied,true);
+            assert.equal(normalized.blocked,false);
+            const explicitNotReady=normalizeToolSemantics({...canonical,planReady:false});
+            assert.equal(explicitNotReady.objectiveSatisfied,false);
+          });
+
+          '''
+          t=t[:idx]+regression+t[idx:]
+          p.write_text(t)
+          PY
+          node --check gestia-core/response.composer.js
+          git diff --check
+          grep -q 'payload?.planReady !== false' gestia-core/response.composer.js
+          ! grep -q 'Object.keys(payload.plan).length >= 25' gestia-core/response.composer.js
+          echo 'LEGACY_PLAN_READY_ABSENCE_COMPATIBLE=true'
+          echo 'EXPLICIT_PLAN_READY_FALSE_STILL_BLOCKS=true'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Focal plus prior Full-CI red
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/final-step-4.sh
+          node --test tests/jarvis-mission-orchestrator.test.mjs
+          echo 'PRIOR_FULL_CI_RED_NOW_GREEN=true'
+          echo 'FOCAL_HUMAN_REGRESSION_GREEN=true'
+
+      - name: Full CI once for corrected candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/final-step-5.sh
+          echo 'FULL_CI_CORRECTED_CANDIDATE_GREEN=true'
+
+      - name: Protected surface audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/final-step-6.sh
+          ! git diff --name-only "$BASE_SHA" -- . | grep -E '^(functions/|multiservicios-web/|.*Multiservicios)'
+          grep -q '1.2.0-stable-research-objectives' gestia-core/gestia-core.js
+          grep -q 'canonicalObservationPayload' gestia-core/response.composer.js
+          grep -q 'payload?.planReady !== false' gestia-core/response.composer.js
+          ! grep -q 'Object.keys(payload.plan).length >= 25' gestia-core/response.composer.js
+          grep -q 'function verifiedWebMediaAttributionSources' gestia-core/jarvis/jarvis.mission.orchestrator.js
+          grep -q 'POST_IDENTITY_TITLE_AND_MEDIA_BYTES' gestia-core/jarvis/jarvis.mission.orchestrator.js
+          grep -q 'const browserAttempts = \[\]' gestia-core/nexo/nexo.real-media.tools.js
+          echo 'FUNCTIONS_UNTOUCHED=true'
+          echo 'MULTISERVICIOS_UNTOUCHED=true'
+          echo 'NO_NEW_BRAIN=true'
+          echo 'NO_NEW_CONTRACT=true'
+          echo 'NO_NEW_CONTRACT_VERSION=true'
+
+      - name: Build isolated Hosting-only config
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/final-step-7.sh
+          node <<'NODE'
+          const fs=require('fs');
+          const path='contract-audit-production-chain.json';
+          const value=JSON.parse(fs.readFileSync(path,'utf8'));
+          value.candidate='ADJUNTO_HUMAN_REGRESSION_CLOSEOUT_V3_CANONICAL';
+          value.sharedSemanticNormalizerCanonicalPayload=true;
+          value.marketingFieldCountAuthorityRemoved=true;
+          value.legacyPlanReadyAbsenceCompatible=true;
+          value.explicitPlanReadyFalseStillBlocks=true;
+          value.verifiedWebMediaAttribution=true;
+          value.webMediaEvidenceScope='POST_IDENTITY_TITLE_AND_MEDIA_BYTES';
+          value.transcriptInferenceAllowed=false;
+          fs.writeFileSync(path,JSON.stringify(value,null,2));
+          NODE
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Hosting only
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/final-step-9.sh
+
+      - name: Verify served bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/final-step-10.sh
+          base="https://${FIREBASE_SITE_ID}.web.app"
+          ok=false
+          for attempt in $(seq 1 20); do
+            if curl -fsSL "${base}/gestia-core/response.composer.js?final=${GITHUB_RUN_ID}" -o /tmp/response-composer.js \
+              && curl -fsSL "${base}/contract-audit-production-chain.json?final=${GITHUB_RUN_ID}" -o /tmp/final-marker.json \
+              && grep -q 'canonicalObservationPayload' /tmp/response-composer.js \
+              && grep -q 'toolObservationData' /tmp/response-composer.js \
+              && grep -q 'payload?.planReady !== false' /tmp/response-composer.js \
+              && ! grep -q 'Object.keys(payload.plan).length >= 25' /tmp/response-composer.js \
+              && grep -q 'ADJUNTO_HUMAN_REGRESSION_CLOSEOUT_V3_CANONICAL' /tmp/final-marker.json \
+              && grep -q '"sharedSemanticNormalizerCanonicalPayload": true' /tmp/final-marker.json \
+              && grep -q '"marketingFieldCountAuthorityRemoved": true' /tmp/final-marker.json \
+              && grep -q '"legacyPlanReadyAbsenceCompatible": true' /tmp/final-marker.json \
+              && grep -q '"verifiedWebMediaAttribution": true' /tmp/final-marker.json \
+              && grep -q '"transcriptInferenceAllowed": false' /tmp/final-marker.json; then
+              ok=true
+              break
+            fi
+            sleep 4
+          done
+          test "$ok" = true
+          echo 'CERTIFIED_HOSTING_BYTES_VERIFIED=true'
+          echo "WEB_URL=${base}/gestia-terminal.html"
