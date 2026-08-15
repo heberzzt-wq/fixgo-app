@@ -1,0 +1,108 @@
+name: contract-audit ci sequence prefix diagnostic
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/contract-audit-ci-sequence-prefix-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLOW_V2_CARRIER_SHA: 8ef564d954de07a3b63d8a117ada4c2bcf40e3b4
+  FINAL_V3_CARRIER_SHA: 71e4b1f847640dd9d3d9b142b0158073f5451336
+  FINAL_V2_CARRIER_SHA: 21d1fc513d7817e7bfd9913ec113bd7923f3bb10
+  FAILED_FINAL_CARRIER_SHA: b6dd83bc03bebc8cc66b790a38404fa48db3f395
+  V3_CARRIER_SHA: e32b68752e452ef1d4f3eb6ba8fa375cce5787ab
+  PRIOR_V2_CARRIER_SHA: 1892d5f7726ce41402600d49b22fb1cf62e830fb
+  PRIOR_CARRIER_SHA: 2a51c1c349edac309465a22fd73c5b157dbaccd9
+  BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
+  CERTIFIED_CARRIER_SHA: cebe6f399d4edf4f234e584e0a42cf980b3a404d
+
+jobs:
+  prefix:
+    name: ci-prefix-${{ matrix.upto }}
+    strategy:
+      fail-fast: false
+      matrix:
+        upto: [1, 2, 3, 4, 5, 6]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct exact refined candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .github/candidates/contract-audit/mission-contract-authority-closeout-v2.py /tmp/authority-closeout-v2.py
+          git show "${FLOW_V2_CARRIER_SHA}:.github/workflows/contract-audit-mission-flow-closeout-v2.yml" > /tmp/flow-v2.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('/tmp/flow-v2.yml').read_text()
+          pairs=[
+            ('Reconstruct certified final-v3 candidate','Preserve complete semantic mission flow','/tmp/prefix-reconstruct.sh'),
+            ('Preserve complete semantic mission flow','Install dependencies','/tmp/prefix-flow.sh')
+          ]
+          for a,b,out in pairs:
+              s=text.index(f'      - name: {a}\n')
+              rs=text.index('        run: |\n',s)+len('        run: |\n')
+              e=text.index(f'\n      - name: {b}\n',rs)
+              lines=[]
+              for line in text[rs:e].splitlines():
+                  if line.startswith('          '): lines.append(line[10:])
+                  elif not line.strip(): lines.append('')
+                  else: raise SystemExit(f'EXTRACT_INDENT:{a}:{line!r}')
+              Path(out).write_text('\n'.join(lines)+'\n')
+          PY
+          bash /tmp/prefix-reconstruct.sh
+          bash /tmp/prefix-flow.sh
+          python3 /tmp/authority-closeout-v2.py
+          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          node --check gestia-core/gestia-core.js
+          git diff --check
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run cumulative exact CI prefix
+        shell: bash
+        env:
+          UPTO: ${{ matrix.upto }}
+        run: |
+          set -euo pipefail
+          echo "PREFIX_UPTO=${UPTO}"
+          node --test tests/response-composer-semantic-contract.test.mjs tests/jarvis-mission-contract-accounting.test.mjs tests/jarvis-mission-failure-precedence.test.mjs tests/jarvis-mission-orchestrator.test.mjs
+          echo 'PREFIX_STAGE_1_GREEN=true'
+          if [ "$UPTO" -ge 2 ]; then
+            npm run check:nexo
+            echo 'PREFIX_STAGE_2_GREEN=true'
+          fi
+          if [ "$UPTO" -ge 3 ]; then
+            npm run check:entry-syntax
+            echo 'PREFIX_STAGE_3_GREEN=true'
+          fi
+          if [ "$UPTO" -ge 4 ]; then
+            npm run check:syntax
+            echo 'PREFIX_STAGE_4_GREEN=true'
+          fi
+          if [ "$UPTO" -ge 5 ]; then
+            npm run test:multifunction
+            echo 'PREFIX_STAGE_5_GREEN=true'
+          fi
+          if [ "$UPTO" -ge 6 ]; then
+            npm test
+            echo 'PREFIX_STAGE_6_GREEN=true'
+          fi
+
+      - name: No deploy
+        run: |
+          echo 'NO_HOSTING_DEPLOY=true'
+          echo 'NO_FUNCTIONS_CHANGE=true'
+          echo 'NO_MULTISERVICIOS_CHANGE=true'
