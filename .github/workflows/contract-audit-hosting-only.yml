@@ -132,7 +132,8 @@ jobs:
             echo 'PROTECTED_SURFACE_TOUCHED=true' >&2
             exit 1
           fi
-          grep -q 'WEB_REAL_MEDIA_REQUIREMENTS_UNMET' gestia-core/response.composer.js
+          grep -q 'requirementsMet' gestia-core/response.composer.js
+          grep -q 'objectiveSatisfied' gestia-core/response.composer.js
           grep -q '1.2.0-stable-research-objectives' gestia-core/gestia-core.js
           echo 'CERTIFIED_TREE_RECONSTRUCTED=true'
           echo 'FUNCTIONS_UNTOUCHED=true'
@@ -195,7 +196,8 @@ jobs:
               && grep -q 'ADJUNTO_CURRENT_CONTRACT_CERTIFIED' /tmp/marker.json \
               && grep -q '1.2.0-stable-research-objectives' /tmp/marker.json \
               && grep -q 'jarvisSemanticPlan' /tmp/marker.json \
-              && grep -q 'WEB_REAL_MEDIA_REQUIREMENTS_UNMET' /tmp/composer.js \
+              && grep -q 'requirementsMet' /tmp/composer.js \
+              && grep -q 'objectiveSatisfied' /tmp/composer.js \
               && grep -q 'dependencyRecoveryHistory' /tmp/orchestrator.js \
               && grep -q 'completedMissionToolNames' /tmp/terminal.html; then
               ok=true
