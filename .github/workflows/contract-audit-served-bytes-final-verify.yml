@@ -1,0 +1,134 @@
+name: contract-audit served-bytes final verify
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/contract-audit-served-bytes-final-verify.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FIREBASE_SITE_ID: fixgo-44e4d
+
+jobs:
+  verify-production-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch current production bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://${FIREBASE_SITE_ID}.web.app"
+          ok=false
+          for attempt in $(seq 1 10); do
+            if curl -fsSL "${base}/gestia-terminal.html?verify=${GITHUB_RUN_ID}-${attempt}" -o /tmp/terminal.html \
+              && curl -fsSL "${base}/gestia-core/jarvis/jarvis.multifunction.planner.js?verify=${GITHUB_RUN_ID}-${attempt}" -o /tmp/planner.js \
+              && curl -fsSL "${base}/gestia-core/gestia-core.js?verify=${GITHUB_RUN_ID}-${attempt}" -o /tmp/core.js \
+              && curl -fsSL "${base}/contract-audit-production-chain.json?verify=${GITHUB_RUN_ID}-${attempt}" -o /tmp/marker.json; then
+              ok=true
+              break
+            fi
+            sleep 3
+          done
+          if [ "$ok" != true ]; then
+            echo '::error title=PRODUCTION_FETCH_FAILED::Could not fetch one or more production files'
+            exit 1
+          fi
+          test -s /tmp/terminal.html
+          test -s /tmp/planner.js
+          test -s /tmp/core.js
+          test -s /tmp/marker.json
+          echo 'PRODUCTION_BYTES_FETCHED=true'
+
+      - name: Verify semantic authority helper is served
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('fs');
+          const source=fs.readFileSync('/tmp/planner.js','utf8');
+          const a=source.indexOf('async function callMissionContractCoverageAuthority');
+          const b=source.indexOf('async function callBrowserSemanticPlan',a);
+          if(a<0 || b<=a){
+            console.log('::error title=AUTHORITY_HELPER_MISSING::Production planner does not contain callMissionContractCoverageAuthority');
+            process.exit(11);
+          }
+          const helper=source.slice(a,b);
+          const cloud=helper.indexOf('callSemanticPlanner');
+          const browser=helper.indexOf('callBrowserMissionContract');
+          if(cloud<0){
+            console.log('::error title=CLOUD_AUTHORITY_MISSING::Production helper does not call cloud semantic planner');
+            process.exit(12);
+          }
+          if(browser<0){
+            console.log('::error title=BROWSER_FALLBACK_MISSING::Production helper does not contain browser mission-contract fallback');
+            process.exit(13);
+          }
+          if(cloud>browser){
+            console.log('::error title=AUTHORITY_ORDER_WRONG::Browser fallback appears before cloud semantic planner');
+            process.exit(14);
+          }
+          for(const forbidden of ['web.research','web.media.collect','media.analyze','marketing.plan','tiktok.com','Taquería El Dorado']){
+            if(helper.includes(forbidden)){
+              console.log(`::error title=STATIC_TOOL_ROUTING_DETECTED::Forbidden hardcoded route token: ${forbidden}`);
+              process.exit(15);
+            }
+          }
+          console.log('SERVED_CLOUD_PRIMARY_BROWSER_FALLBACK=true');
+          console.log('SERVED_INSTRUCTION_DRIVEN_TOOL_GRAPH=true');
+          NODE
+
+      - name: Verify fail-closed core semantics are served
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! grep -q 'MISSION_CONTRACT_UNAVAILABLE' /tmp/core.js; then
+            echo '::error title=FAIL_CLOSED_MARKER_MISSING::Production core lacks MISSION_CONTRACT_UNAVAILABLE'
+            exit 21
+          fi
+          if grep -q 'MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN' /tmp/core.js; then
+            echo '::error title=STALE_SEED_FALLBACK_SERVED::Production core still serves initial-plan recovery marker'
+            exit 22
+          fi
+          if ! grep -q '1.2.0-stable-research-objectives' /tmp/core.js; then
+            echo '::error title=STABLE_CONTRACT_MISSING::Production core does not serve the stable mission contract'
+            exit 23
+          fi
+          echo 'SERVED_FAIL_CLOSED_MISSION_CONTRACT=true'
+          echo 'SERVED_INITIAL_SEED_RECOVERY_REMOVED=true'
+          echo 'SERVED_STABLE_CONTRACT=true'
+
+      - name: Verify current candidate marker is served
+        shell: bash
+        run: |
+          set -euo pipefail
+          check() {
+            local pattern="$1" title="$2"
+            if ! grep -q "$pattern" /tmp/marker.json; then
+              echo "::error title=${title}::Missing production marker pattern: ${pattern}"
+              exit 31
+            fi
+          }
+          check 'ADJUNTO_INSTRUCTION_DRIVEN_MISSION_TOOL_FLOW_V4' 'CURRENT_CANDIDATE_MARKER_MISSING'
+          check '"cloudAuditedMissionContractPrimary": true' 'CLOUD_PRIMARY_MARKER_MISSING'
+          check '"browserMissionContractFallbackOnly": true' 'BROWSER_FALLBACK_MARKER_MISSING'
+          check '"initialSeedRecoveryRemoved": true' 'SEED_RECOVERY_REMOVAL_MARKER_MISSING'
+          check '"originalInstructionDrivesToolGraph": true' 'INSTRUCTION_GRAPH_MARKER_MISSING'
+          check '"staticToolRouting": false' 'STATIC_ROUTING_MARKER_WRONG'
+          check '"canonicalMissionContract": "1.2.0-stable-research-objectives"' 'STABLE_CONTRACT_MARKER_MISSING'
+          echo 'SERVED_CURRENT_CANDIDATE_MARKER=true'
+
+      - name: Final served-byte certification
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://${FIREBASE_SITE_ID}.web.app"
+          echo 'FINAL_SERVED_BYTES_GREEN=true'
+          echo 'FUNCTIONS_NOT_DEPLOYED_BY_THIS_WORKFLOW=true'
+          echo 'MULTISERVICIOS_NOT_TOUCHED_BY_THIS_WORKFLOW=true'
+          echo "WEB_URL=${base}/gestia-terminal.html"
