@@ -1,0 +1,15 @@
+diff --git a/jarvis-speech-artifact.js b/jarvis-speech-artifact.js
+--- a/jarvis-speech-artifact.js
++++ b/jarvis-speech-artifact.js
+@@ -167,11 +167,11 @@ export function synthesizeSpeechArtifact(input = {}, options = {}) {
+     const text = safeText(input.text);
+     if (!text) throw new Error("SPEECH_TEXT_REQUIRED");
++    const output = speechOutputPath(input.root || options.root || process.cwd(), input.output);
+     const platform = options.platform || process.platform;
+     if (platform !== "win32" && typeof options.synthesizeImpl !== "function") {
+         throw new Error("SPEECH_SYNTHESIS_PLATFORM_UNSUPPORTED");
+     }
+-    const output = speechOutputPath(input.root || options.root || process.cwd(), input.output);
+     fs.mkdirSync(path.dirname(output.target), { recursive: true });
+     if (fs.existsSync(output.target)) fs.rmSync(output.target, { force: true });
+ 
