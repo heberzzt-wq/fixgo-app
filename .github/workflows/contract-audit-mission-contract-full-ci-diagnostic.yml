@@ -1,0 +1,118 @@
+name: contract-audit mission-contract full-ci diagnostic
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/contract-audit-mission-contract-full-ci-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLOW_V2_CARRIER_SHA: 8ef564d954de07a3b63d8a117ada4c2bcf40e3b4
+  FINAL_V3_CARRIER_SHA: 71e4b1f847640dd9d3d9b142b0158073f5451336
+  FINAL_V2_CARRIER_SHA: 21d1fc513d7817e7bfd9913ec113bd7923f3bb10
+  FAILED_FINAL_CARRIER_SHA: b6dd83bc03bebc8cc66b790a38404fa48db3f395
+  V3_CARRIER_SHA: e32b68752e452ef1d4f3eb6ba8fa375cce5787ab
+  PRIOR_V2_CARRIER_SHA: 1892d5f7726ce41402600d49b22fb1cf62e830fb
+  PRIOR_CARRIER_SHA: 2a51c1c349edac309465a22fd73c5b157dbaccd9
+  BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
+  CERTIFIED_CARRIER_SHA: cebe6f399d4edf4f234e584e0a42cf980b3a404d
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct exact refined candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .github/candidates/contract-audit/mission-contract-authority-closeout-v2.py /tmp/authority-closeout-v2.py
+          git show "${FLOW_V2_CARRIER_SHA}:.github/workflows/contract-audit-mission-flow-closeout-v2.yml" > /tmp/flow-v2.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('/tmp/flow-v2.yml').read_text()
+          pairs=[
+            ('Reconstruct certified final-v3 candidate','Preserve complete semantic mission flow','/tmp/diag-reconstruct.sh'),
+            ('Preserve complete semantic mission flow','Install dependencies','/tmp/diag-flow.sh')
+          ]
+          for a,b,out in pairs:
+              s=text.index(f'      - name: {a}\n')
+              rs=text.index('        run: |\n',s)+len('        run: |\n')
+              e=text.index(f'\n      - name: {b}\n',rs)
+              lines=[]
+              for line in text[rs:e].splitlines():
+                  if line.startswith('          '): lines.append(line[10:])
+                  elif not line.strip(): lines.append('')
+                  else: raise SystemExit(f'EXTRACT_INDENT:{a}:{line!r}')
+              Path(out).write_text('\n'.join(lines)+'\n')
+          PY
+          bash /tmp/diag-reconstruct.sh
+          bash /tmp/diag-flow.sh
+          python3 /tmp/authority-closeout-v2.py
+          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          node --check gestia-core/gestia-core.js
+          git diff --check
+          echo 'EXACT_REFINED_CANDIDATE_READY=true'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: CI A1 response composer semantic contract
+        continue-on-error: true
+        run: node --test tests/response-composer-semantic-contract.test.mjs
+
+      - name: CI A2 mission contract accounting
+        continue-on-error: true
+        run: node --test tests/jarvis-mission-contract-accounting.test.mjs
+
+      - name: CI A3 mission failure precedence
+        continue-on-error: true
+        run: node --test tests/jarvis-mission-failure-precedence.test.mjs
+
+      - name: CI A4 mission orchestrator
+        continue-on-error: true
+        run: node --test tests/jarvis-mission-orchestrator.test.mjs
+
+      - name: CI B1 nexo contracts
+        continue-on-error: true
+        run: npm run check:nexo:contracts
+
+      - name: CI B2 nexo core tests
+        continue-on-error: true
+        run: npm run test:nexo
+
+      - name: CI B3 nexo bridge tests
+        continue-on-error: true
+        run: npm run test:nexo:bridge
+
+      - name: CI C entry syntax
+        continue-on-error: true
+        run: npm run check:entry-syntax
+
+      - name: CI D global syntax
+        continue-on-error: true
+        run: npm run check:syntax
+
+      - name: CI E multifunction
+        continue-on-error: true
+        run: npm run test:multifunction
+
+      - name: CI F general tests
+        continue-on-error: true
+        run: npm test
+
+      - name: Diagnostic complete no deploy
+        run: |
+          echo 'NO_HOSTING_DEPLOY=true'
+          echo 'NO_FUNCTIONS_CHANGE=true'
+          echo 'NO_MULTISERVICIOS_CHANGE=true'
