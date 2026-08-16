@@ -218,5 +218,105 @@ test('mission contract authority has no cloud-draft self-certification bypass',(
 });
 ''')
 
+legacy_authority_test = Path('tests/jarvis-mission-contract-authority-closeout-v2.test.mjs')
+legacy = legacy_authority_test.read_text()
+legacy_helper_old = '''function jsonResponse(status, body){
+  return {
+    ok:status>=200 && status<300,
+    status,
+    headers:{get(){return null;}},
+    async text(){return JSON.stringify(body);}
+  };
+}'''
+legacy_helper_new = '''function jsonResponse(status, body){
+  return {
+    ok:status>=200 && status<300,
+    status,
+    headers:{get(){return null;}},
+    async text(){return JSON.stringify(body);},
+    async json(){return body;}
+  };
+}'''
+if legacy.count(legacy_helper_old) != 1:
+    raise SystemExit(f'LEGACY_AUTHORITY_RESPONSE_HELPER_COUNT:{legacy.count(legacy_helper_old)}')
+legacy = legacy.replace(legacy_helper_old, legacy_helper_new, 1)
+legacy_pattern = re.compile(
+    r"test\('audited cloud mission contract is primary and preserves the full research-marketing chain',async\(\)=>\{.*?\n\}\);\n\ntest\('browser coverage is used only after cloud contract failure',async\(\)=>\{",
+    re.S,
+)
+legacy_replacement = r'''test('audited cloud mission contract is primary only after the mandatory cloud policy audit',async()=>{
+  const oldAuth=globalThis.auth;
+  const oldFetch=globalThis.fetch;
+  const urls=[];
+  globalThis.auth={currentUser:{async getIdToken(){return 'token';}}};
+  globalThis.fetch=async url=>{
+    const value=String(url);
+    urls.push(value);
+    if(value.includes('jarvisSemanticPlan')){
+      return jsonResponse(200,{result:{
+        ok:true,
+        status:'SEMANTIC_PLAN_READY',
+        provider:'vertex-adc',
+        model:'gemini-2.5-flash',
+        planKind:'MISSION_CONTRACT_AUDITED',
+        missionComplete:false,
+        toolCalls:[
+          {name:'web.research',args:{query:'Taquería El Dorado Cancún',researchGoal:'RESEARCH_1'}},
+          {name:'web.media.collect',args:{url:exact}},
+          {name:'media.analyze',args:{sourceOutput:'web.media.collect'}},
+          {name:'marketing.plan',args:{productionRequested:false,factsOnly:true}}
+        ]
+      }});
+    }
+    if(value.includes('jarvisSemanticRespond')){
+      return jsonResponse(200,{result:{
+        ok:true,
+        status:'SEMANTIC_RESPONSE_READY',
+        provider:'vertex-adc',
+        model:'gemini-2.5-flash',
+        message:JSON.stringify({
+          toolCalls:[
+            {name:'web.research',args:{query:'Taquería El Dorado Cancún',researchGoal:'RESEARCH_1'}},
+            {name:'web.media.collect',args:{url:exact}},
+            {name:'media.analyze',args:{sourceOutput:'web.media.collect'}},
+            {name:'marketing.plan',args:{productionRequested:false,factsOnly:true}}
+          ],
+          missionComplete:false,
+          completionAssessment:{coverage:'complete'}
+        })
+      }});
+    }
+    throw new Error(`UNEXPECTED_URL:${value}`);
+  };
+  const catalog=[
+    {name:'web.research',description:'Investigación web con fuentes',inputSchema:{type:'object',properties:{query:{type:'string'},researchGoal:{type:'string'}}}},
+    {name:'web.media.collect',description:'Recolecta bytes exactos de una fuente web',inputSchema:{type:'object',properties:{url:{type:'string'}}}},
+    {name:'media.analyze',description:'Analiza contenido multimedia real',inputSchema:{type:'object',properties:{sourceOutput:{type:'string'}}}},
+    {name:'marketing.plan',description:'Crea estrategia basada en evidencia',inputSchema:{type:'object',properties:{productionRequested:{type:'boolean'},factsOnly:{type:'boolean'}}}}
+  ];
+  try{
+    const plan=await plannerTest.callMissionContractCoverageAuthority(
+      'Investiga la publicación exacta y después crea una propuesta de marketing basada únicamente en hechos verificados.',
+      catalog,
+      {phase:'MISSION_CONTRACT',existingInitialTools:['web.research']}
+    );
+    assert.deepEqual(plan.toolCalls.map(x=>x.name),['web.research','web.media.collect','media.analyze','marketing.plan']);
+    assert.equal(urls.filter(url=>url.includes('jarvisSemanticPlan')).length,1);
+    assert.equal(urls.filter(url=>url.includes('jarvisSemanticRespond')).length,1);
+    assert.equal(urls.some(url=>url.includes('text.pollinations.ai')),false);
+    assert.equal(plan.missionContractCapabilities?.policySource,'cloud-semantic-response-audit-v1');
+  } finally {
+    globalThis.auth=oldAuth;
+    globalThis.fetch=oldFetch;
+  }
+});
+
+test('browser coverage is used only after cloud contract failure',async()=>{'''
+legacy, legacy_count = legacy_pattern.subn(lambda _match: legacy_replacement, legacy, count=1)
+if legacy_count != 1:
+    raise SystemExit(f'LEGACY_AUTHORITY_PRIMARY_TEST_COUNT:{legacy_count}')
+legacy_authority_test.write_text(legacy)
+
 print('MISSION_CONTRACT_CLOUD_DRAFT_ALWAYS_AUDITED=true')
 print('MISSION_CONTRACT_SELF_CERTIFICATION_BYPASS_REMOVED=true')
+print('LEGACY_AUTHORITY_REGRESSION_ALIGNED=true')
