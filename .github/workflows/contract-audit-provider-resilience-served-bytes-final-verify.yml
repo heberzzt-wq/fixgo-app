@@ -1,0 +1,148 @@
+name: contract-audit provider resilience served-bytes final verify
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/contract-audit-provider-resilience-served-bytes-final-verify.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch current production bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://fixgo-44e4d.web.app'
+          stamp="${GITHUB_RUN_ID}-$(date +%s)"
+          curl -fsSL --retry 4 --retry-all-errors "${base}/gestia-core/jarvis/jarvis.multifunction.planner.js?finalverify=${stamp}" -o /tmp/planner.js
+          curl -fsSL --retry 4 --retry-all-errors "${base}/gestia-core/gestia-core.js?finalverify=${stamp}" -o /tmp/core.js
+          curl -fsSL --retry 4 --retry-all-errors "${base}/contract-audit-production-chain.json?finalverify=${stamp}" -o /tmp/marker.json
+          test -s /tmp/planner.js
+          test -s /tmp/core.js
+          test -s /tmp/marker.json
+          echo "PLANNER_SHA256=$(sha256sum /tmp/planner.js | cut -d' ' -f1)"
+          echo "CORE_SHA256=$(sha256sum /tmp/core.js | cut -d' ' -f1)"
+          echo 'SERVED_MARKER:'
+          cat /tmp/marker.json
+
+      - name: Verify cloud authority and provider resilience
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'callCloudMissionContractPolicyAudit' /tmp/planner.js
+          grep -Fq 'jarvisSemanticRespond' /tmp/planner.js
+          grep -Fq 'cloud-semantic-response-audit-v1' /tmp/planner.js
+          grep -Fq 'continueAfterBrowserMissionContractFailure' /tmp/planner.js
+          grep -Fq 'status === 402' /tmp/planner.js
+          grep -Fq 'status === 429' /tmp/planner.js
+          grep -Fq 'CLIENT_MISSION_CONTRACT_HTTP_' /tmp/planner.js
+          grep -Fq 'character.charCodeAt(0)' /tmp/planner.js
+          ! grep -Fq '.match(/CLIENT_MISSION_CONTRACT_HTTP_' /tmp/planner.js
+          echo 'CLOUD_AUTHORITY_AND_PROVIDER_RESILIENCE_SERVED=true'
+
+      - name: Verify semantic authority order and no static route
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const source = fs.readFileSync('/tmp/planner.js', 'utf8');
+          const a = source.indexOf('async function callMissionContractCoverageAuthority');
+          const b = source.indexOf('async function callBrowserSemanticPlan', a);
+          if (a < 0 || b <= a) throw new Error('AUTHORITY_BLOCK_NOT_FOUND');
+          const block = source.slice(a, b);
+          const p = block.indexOf('callSemanticPlanner');
+          const q = block.indexOf('callCloudMissionContractPolicyAudit');
+          const r = block.indexOf('callBrowserMissionContract');
+          if (p < 0 || q < 0 || r < 0 || !(p < q && q < r)) {
+            throw new Error(`AUTHORITY_ORDER_INVALID:${p}:${q}:${r}`);
+          }
+          for (const forbidden of [
+            'tiktok.com',
+            'Taquería El Dorado',
+            'web.research',
+            'web.media.collect',
+            'media.analyze',
+            'marketing.plan',
+            'reel.plan',
+            'reel.create'
+          ]) {
+            if (block.includes(forbidden)) throw new Error(`STATIC_ROUTE_FOUND:${forbidden}`);
+          }
+          console.log('CLOUD_PLAN_THEN_CLOUD_AUDIT_THEN_BROWSER=true');
+          console.log('NO_STATIC_MEDIA_MARKETING_ROUTE=true');
+          NODE
+
+      - name: Verify strict semantic surface remains regex-brain free
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const source = fs.readFileSync('/tmp/planner.js', 'utf8');
+          for (const forbidden of ['new RegExp', '.match(', '.matchAll(', '.exec(', '.test(']) {
+            if (source.includes(forbidden)) throw new Error(`LEXICAL_REGEX_SURFACE_FOUND:${forbidden}`);
+          }
+          console.log('ACTIVE_SEMANTIC_SURFACE_REGEX_BRAIN_FREE=true');
+          NODE
+
+      - name: Verify presentable fail-closed stable contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'MISSION_CONTRACT_FAIL_CLOSED' /tmp/core.js
+          grep -Fq 'MISSION_CONTRACT_UNAVAILABLE' /tmp/core.js
+          ! grep -Fq 'MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN' /tmp/core.js
+          grep -Fq '1.2.0-stable-research-objectives' /tmp/core.js
+          echo 'FAIL_CLOSED_PRESENTABLE_SERVED=true'
+          echo 'INITIAL_SEED_RECOVERY_ABSENT=true'
+          echo 'STABLE_MISSION_CONTRACT_SERVED=true'
+
+      - name: Verify current production marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const value = JSON.parse(fs.readFileSync('/tmp/marker.json', 'utf8'));
+          const expected = {
+            candidate: 'ADJUNTO_MISSION_CONTRACT_PROVIDER_RESILIENCE_V2',
+            cloudPlannerPrimary: true,
+            cloudSemanticPolicyAuditSecond: true,
+            browserSemanticFallbackTertiary: true,
+            browser429Backoff: true,
+            browser402FailFast: true,
+            failClosedPresentable: true,
+            exactMediaEvidenceSemantics: true,
+            physicalArtifactCompletionSemantics: true,
+            initialSeedRecoveryRemoved: true,
+            staticToolRouting: false,
+            canonicalMissionContract: '1.2.0-stable-research-objectives'
+          };
+          for (const [key, expectedValue] of Object.entries(expected)) {
+            if (value[key] !== expectedValue) {
+              throw new Error(`MARKER_MISMATCH:${key}:expected=${JSON.stringify(expectedValue)}:actual=${JSON.stringify(value[key])}`);
+            }
+          }
+          const untouched = Array.isArray(value.untouchedSurfaces) ? value.untouchedSurfaces : [];
+          if (!untouched.includes('Functions') || !untouched.includes('Multiservicios')) {
+            throw new Error(`UNTOUCHED_SURFACES_MISMATCH:${JSON.stringify(untouched)}`);
+          }
+          console.log('CURRENT_PROVIDER_RESILIENCE_MARKER_SERVED=true');
+          NODE
+
+      - name: Final served-byte certification
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'FINAL_PROVIDER_RESILIENCE_SERVED_BYTES_CERTIFIED=true'
+          echo 'HOSTING_ONLY_CURRENT_BYTES_VERIFIED=true'
+          echo 'WEB_URL=https://fixgo-44e4d.web.app/gestia-terminal.html'
