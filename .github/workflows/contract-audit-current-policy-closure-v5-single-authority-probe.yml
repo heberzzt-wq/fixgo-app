@@ -1,0 +1,121 @@
+name: contract-audit current-policy v5 single-authority probe
+
+on:
+  push:
+    branches: [v94-media-v4n-negative-claims]
+    paths: ['.github/workflows/contract-audit-current-policy-closure-v5-single-authority-probe.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLOW_V2_CARRIER_SHA: 8ef564d954de07a3b63d8a117ada4c2bcf40e3b4
+  FINAL_V3_CARRIER_SHA: 71e4b1f847640dd9d3d9b142b0158073f5451336
+  FINAL_V2_CARRIER_SHA: 21d1fc513d7817e7bfd9913ec113bd7923f3bb10
+  V3_CARRIER_SHA: e32b68752e452ef1d4f3eb6ba8fa375cce5787ab
+  PRIOR_V2_CARRIER_SHA: 1892d5f7726ce41402600d49b22fb1cf62e830fb
+  PRIOR_CARRIER_SHA: 2a51c1c349edac309465a22fd73c5b157dbaccd9
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+
+      - name: Reconstruct exact V5 candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show "${PRIOR_CARRIER_SHA}:.github/workflows/contract-audit-production-chain-runtime.yml" > /tmp/prior.yml
+          git show "${PRIOR_V2_CARRIER_SHA}:.github/workflows/contract-audit-human-regression-closeout-v2.yml" > /tmp/prior-v2.yml
+          git show "${V3_CARRIER_SHA}:.github/workflows/contract-audit-human-regression-closeout-v3.yml" > /tmp/v3.yml
+          git show "${FINAL_V2_CARRIER_SHA}:.github/workflows/contract-audit-human-regression-closeout-final-v2.yml" > /tmp/final-v2.yml
+          git show "${FINAL_V3_CARRIER_SHA}:.github/workflows/contract-audit-human-regression-closeout-final-v3.yml" > /tmp/final-v3.yml
+          git show "${FLOW_V2_CARRIER_SHA}:.github/workflows/contract-audit-mission-flow-closeout-v2.yml" > /tmp/flow-v2.yml
+          cp .github/candidates/contract-audit/mission-contract-authority-closeout-v2.py /tmp/authority-v2.py
+          cp .github/candidates/contract-audit/mission-contract-policy-compat-v3.py /tmp/policy-v3.py
+          cp .github/candidates/contract-audit/mission-contract-provider-resilience-v1.py /tmp/provider-v1.py
+          cp .github/candidates/contract-audit/mission-contract-provider-resilience-v2.py /tmp/provider-v2.py
+          cp .github/candidates/contract-audit/mission-contract-provider-resilience-v3.py /tmp/provider-v3.py
+          cp .github/candidates/contract-audit/mission-contract-current-policy-closure-v5.py /tmp/current-policy-v5.py
+          cp .github/candidates/contract-audit/mission-contract-current-policy-closure-v5-test-compat.py /tmp/current-policy-v5-test-compat.py
+          python3 - <<'PY'
+          from pathlib import Path
+          def extract(src,a,b,out):
+              text=Path(src).read_text()
+              s=text.index(f'      - name: {a}\n')
+              rs=text.index('        run: |\n',s)+len('        run: |\n')
+              e=text.index(f'\n      - name: {b}\n',rs)
+              lines=[]
+              for line in text[rs:e].splitlines():
+                  if line.startswith('          '): lines.append(line[10:])
+                  elif not line.strip(): lines.append('')
+                  else: raise SystemExit(f'INDENT:{src}:{a}:{line!r}')
+              Path(out).write_text('\n'.join(lines)+'\n')
+          extract('/tmp/prior.yml','Reconstruct certified candidate','Make MISSION_CONTRACT audit additive to the same plan','/tmp/s1.sh')
+          extract('/tmp/prior.yml','Make MISSION_CONTRACT audit additive to the same plan','Constrain exact-source research inside the existing web.research implementation','/tmp/s2.sh')
+          extract('/tmp/prior.yml','Constrain exact-source research inside the existing web.research implementation','Install dependencies','/tmp/s3.sh')
+          extract('/tmp/prior-v2.yml','Preserve canonical tool observations and retry dynamic media once','Install dependencies','/tmp/s4.sh')
+          extract('/tmp/v3.yml','Preserve exact web-media provenance through mission semantics','Install dependencies','/tmp/s5raw.sh')
+          extract('/tmp/final-v2.yml','Fix shared canonical tool semantics authority','Install dependencies','/tmp/s6.sh')
+          extract('/tmp/final-v3.yml','Preserve compatible canonical marketing readiness','Install dependencies','/tmp/s7.sh')
+          extract('/tmp/flow-v2.yml','Preserve complete semantic mission flow','Install dependencies','/tmp/s8.sh')
+          raw=Path('/tmp/s5raw.sh').read_text(); fixed=[]; replaced=False
+          for line in raw.splitlines():
+              if 'return parsed.toString().replace(' in line:
+                  indent=line[:len(line)-len(line.lstrip())]
+                  fixed += [indent+'const normalized = parsed.toString();', indent+'return normalized.endsWith("/") ? normalized.slice(0, -1) : normalized;']
+                  replaced=True
+              else: fixed.append(line)
+          if not replaced: raise SystemExit('URL_NORMALIZATION_LINE_NOT_FOUND')
+          script='\n'.join(fixed)+'\n'
+          if 'explicitObjectiveSatisfied === true &&' not in script: raise SystemExit('MARKETING_LOCAL_CANONICAL_ANCHOR_NOT_FOUND')
+          Path('/tmp/s5.sh').write_text(script.replace('explicitObjectiveSatisfied === true &&','payload?.objectiveSatisfied === true &&',1))
+          PY
+          for f in /tmp/s1.sh /tmp/s2.sh /tmp/s3.sh /tmp/s4.sh /tmp/s5.sh /tmp/s6.sh /tmp/s7.sh /tmp/s8.sh; do bash "$f"; done
+          python3 /tmp/authority-v2.py
+          python3 /tmp/policy-v3.py
+          python3 /tmp/provider-v1.py
+          python3 /tmp/provider-v2.py
+          python3 /tmp/provider-v3.py
+          python3 /tmp/current-policy-v5.py
+          python3 /tmp/current-policy-v5-test-compat.py
+
+      - name: A planner keeps jarvisSemanticPlan
+        run: node -e "const s=require('fs').readFileSync('gestia-core/jarvis/jarvis.multifunction.planner.js','utf8'); if(!s.includes('jarvisSemanticPlan')) process.exit(1)"
+      - name: B planner keeps Firebase currentUser auth
+        if: always()
+        run: node -e "const s=require('fs').readFileSync('gestia-core/jarvis/jarvis.multifunction.planner.js','utf8'); if(!s.includes('firebase.auth().currentUser')) process.exit(1)"
+      - name: C planner keeps plan endpoint
+        if: always()
+        run: node -e "const s=require('fs').readFileSync('gestia-core/jarvis/jarvis.multifunction.planner.js','utf8'); if(!s.includes('/jarvisSemanticPlan')) process.exit(1)"
+      - name: D orchestrator has no provider brain markers
+        if: always()
+        run: node -e "const s=require('fs').readFileSync('gestia-core/jarvis/jarvis.mission.orchestrator.js','utf8'); if(/openai|anthropic|groq|gemini/i.test(s)) process.exit(1)"
+      - name: E orchestrator has no network inference surface
+        if: always()
+        run: node -e "const s=require('fs').readFileSync('gestia-core/jarvis/jarvis.mission.orchestrator.js','utf8'); if(/fetch\\s*\\(|XMLHttpRequest|axios\\./.test(s)) process.exit(1)"
+      - name: F orchestrator has no lexical judging methods
+        if: always()
+        run: node -e "const s=require('fs').readFileSync('gestia-core/jarvis/jarvis.mission.orchestrator.js','utf8'); if(/\\.test\\s*\\(|\\.match\\s*\\(|\\.includes\\s*\\(/.test(s)) process.exit(1)"
+      - name: G core has tool-registry boundary
+        if: always()
+        run: node -e "const s=require('fs').readFileSync('gestia-core/gestia-core.js','utf8'); if(s.indexOf('function hasJarvisTool')<0) process.exit(1)"
+      - name: H core has semantic support decision
+        if: always()
+        run: node -e "const s=require('fs').readFileSync('gestia-core/gestia-core.js','utf8'); if(s.indexOf('async function resolveSemanticSupportDecision')<0) process.exit(1)"
+      - name: I registry block uses JARVIS_TOOLS metadata
+        if: always()
+        run: node -e "const s=require('fs').readFileSync('gestia-core/gestia-core.js','utf8'),a=s.indexOf('function hasJarvisTool'),b=s.indexOf('async function resolveSemanticSupportDecision'),x=s.slice(a,b); if(!x.includes('window.JARVIS_TOOLS?.getMeta')) process.exit(1)"
+      - name: J registry block has no test call
+        if: always()
+        run: node -e "const s=require('fs').readFileSync('gestia-core/gestia-core.js','utf8'),a=s.indexOf('function hasJarvisTool'),b=s.indexOf('async function resolveSemanticSupportDecision'),x=s.slice(a,b); if(/\\btest\\s*\\(/.test(x)) process.exit(1)"
+      - name: K registry block has no includes call
+        if: always()
+        run: node -e "const s=require('fs').readFileSync('gestia-core/gestia-core.js','utf8'),a=s.indexOf('function hasJarvisTool'),b=s.indexOf('async function resolveSemanticSupportDecision'),x=s.slice(a,b); if(/\\.includes\\s*\\(/.test(x)) process.exit(1)"
+      - name: L registry block has no regex literal
+        if: always()
+        run: node -e "const s=require('fs').readFileSync('gestia-core/gestia-core.js','utf8'),a=s.indexOf('function hasJarvisTool'),b=s.indexOf('async function resolveSemanticSupportDecision'),x=s.slice(a,b); if(/\\/[^\\n/]+\\/[gimsuy]*/.test(x)) process.exit(1)"
