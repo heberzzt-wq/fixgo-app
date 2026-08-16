@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/contract-audit-current-policy-closure-v5-deterministic.yml'
       - '.github/candidates/contract-audit/mission-contract-current-policy-closure-v5.py'
+      - '.github/candidates/contract-audit/mission-contract-current-policy-closure-v5-test-compat.py'
   workflow_dispatch:
 
 permissions:
@@ -47,7 +48,8 @@ jobs:
           cp .github/candidates/contract-audit/mission-contract-provider-resilience-v2.py /tmp/provider-v2.py
           cp .github/candidates/contract-audit/mission-contract-provider-resilience-v3.py /tmp/provider-v3.py
           cp .github/candidates/contract-audit/mission-contract-current-policy-closure-v5.py /tmp/current-policy-v5.py
-          python3 -m py_compile /tmp/authority-v2.py /tmp/policy-v3.py /tmp/provider-v1.py /tmp/provider-v2.py /tmp/provider-v3.py /tmp/current-policy-v5.py
+          cp .github/candidates/contract-audit/mission-contract-current-policy-closure-v5-test-compat.py /tmp/current-policy-v5-test-compat.py
+          python3 -m py_compile /tmp/authority-v2.py /tmp/policy-v3.py /tmp/provider-v1.py /tmp/provider-v2.py /tmp/provider-v3.py /tmp/current-policy-v5.py /tmp/current-policy-v5-test-compat.py
 
       - name: Extract direct historical mutation chain before base reset
         shell: bash
@@ -74,8 +76,6 @@ jobs:
           extract('/tmp/final-v2.yml','Fix shared canonical tool semantics authority','Install dependencies','/tmp/s6-semantic-authority.sh')
           extract('/tmp/final-v3.yml','Preserve compatible canonical marketing readiness','Install dependencies','/tmp/s7-planready.sh')
           extract('/tmp/flow-v2.yml','Preserve complete semantic mission flow','Install dependencies','/tmp/s8-mission-flow.sh')
-
-          # Reproduce the compatibility fixes that the certified final carrier applied to the V3 mutation script.
           raw=Path('/tmp/s5-provenance-raw.sh').read_text()
           fixed=[]; replaced=False
           for line in raw.splitlines():
@@ -119,6 +119,7 @@ jobs:
           python3 /tmp/provider-v2.py
           python3 /tmp/provider-v3.py
           python3 /tmp/current-policy-v5.py
+          python3 /tmp/current-policy-v5-test-compat.py
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
           node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
           node --check gestia-core/gestia-core.js
