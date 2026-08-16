@@ -4,7 +4,9 @@ name: contract-audit current-policy closure v5 focal isolation
 on:
   push:
     branches: [v94-media-v4n-negative-claims]
-    paths: ['.github/workflows/contract-audit-current-policy-closure-v5-focal-isolation.yml']
+    paths:
+      - '.github/workflows/contract-audit-current-policy-closure-v5-focal-isolation.yml'
+      - '.github/candidates/contract-audit/mission-contract-current-policy-closure-v5-test-compat.py'
   workflow_dispatch:
 
 permissions:
