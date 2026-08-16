@@ -1,0 +1,236 @@
+# certified carrier: mission-contract provider resilience
+name: contract-audit mission-contract provider resilience closeout
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/contract-audit-mission-contract-provider-resilience-closeout.yml'
+      - '.github/candidates/contract-audit/mission-contract-provider-resilience-v1.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLOW_V2_CARRIER_SHA: 8ef564d954de07a3b63d8a117ada4c2bcf40e3b4
+  FINAL_V3_CARRIER_SHA: 71e4b1f847640dd9d3d9b142b0158073f5451336
+  FINAL_V2_CARRIER_SHA: 21d1fc513d7817e7bfd9913ec113bd7923f3bb10
+  FAILED_FINAL_CARRIER_SHA: b6dd83bc03bebc8cc66b790a38404fa48db3f395
+  V3_CARRIER_SHA: e32b68752e452ef1d4f3eb6ba8fa375cce5787ab
+  PRIOR_V2_CARRIER_SHA: 1892d5f7726ce41402600d49b22fb1cf62e830fb
+  PRIOR_CARRIER_SHA: 2a51c1c349edac309465a22fd73c5b157dbaccd9
+  BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
+  CERTIFIED_CARRIER_SHA: cebe6f399d4edf4f234e584e0a42cf980b3a404d
+  FIREBASE_PROJECT_ID: fixgo-44e4d
+  FIREBASE_SITE_ID: fixgo-44e4d
+
+jobs:
+  certify-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract certified execution blocks
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .github/workflows/contract-audit-mission-contract-authority-closeout-v4.yml /tmp/v4.yml
+          cp .github/candidates/contract-audit/mission-contract-policy-compat-v3.py /tmp/policy-compat-v3.py
+          cp .github/candidates/contract-audit/mission-contract-provider-resilience-v1.py /tmp/provider-resilience-v1.py
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('/tmp/v4.yml').read_text()
+          pairs=[
+            ('Reconstruct exact refined candidate','Assert instruction-driven tool selection','/tmp/final-reconstruct.sh'),
+            ('Assert instruction-driven tool selection','Install dependencies','/tmp/final-authority.sh'),
+            ('Protected surface audit','Build isolated Hosting-only config','/tmp/final-audit.sh'),
+            ('Build isolated Hosting-only config','Install Firebase CLI','/tmp/final-host.sh'),
+            ('Deploy Hosting only','Verify served bytes','/tmp/final-deploy.sh'),
+          ]
+          for a,b,out in pairs:
+              s=text.index(f'      - name: {a}\n')
+              rs=text.index('        run: |\n',s)+len('        run: |\n')
+              e=text.index(f'\n      - name: {b}\n',rs)
+              lines=[]
+              for line in text[rs:e].splitlines():
+                  if line.startswith('          '): lines.append(line[10:])
+                  elif not line.strip(): lines.append('')
+                  else: raise SystemExit(f'EXTRACT_INDENT:{a}:{line!r}')
+              Path(out).write_text('\n'.join(lines)+'\n')
+          PY
+          for f in /tmp/final-*.sh; do bash -n "$f"; done
+          python3 -m py_compile /tmp/policy-compat-v3.py /tmp/provider-resilience-v1.py
+          echo 'CERTIFIED_EXECUTION_BLOCKS_EXTRACTED=true'
+
+      - name: Reconstruct current served candidate and apply provider resilience
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/final-reconstruct.sh
+          python3 /tmp/policy-compat-v3.py
+          python3 /tmp/provider-resilience-v1.py
+          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          node --check gestia-core/gestia-core.js
+          node --check tests/jarvis-mission-contract-provider-resilience-v1.test.mjs
+          node --check tests/jarvis-mission-contract-policy-compat-v3.test.mjs
+          node --check tests/jarvis-mission-contract-authority-closeout-v2.test.mjs
+          git diff --check
+          echo 'MISSION_CONTRACT_PROVIDER_RESILIENCE_RECONSTRUCTED=true'
+
+      - name: Assert single semantic authority and provider resilience
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/final-authority.sh
+          grep -q 'function cloudMissionContractPolicyCertified' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -q 'callCloudMissionContractPolicyAudit' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -q 'jarvisSemanticRespond' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -q 'cloud-semantic-response-audit-v1' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -q 'continueAfterBrowserMissionContractFailure' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -q 'status === 402' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -q 'status === 429' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -q 'MISSION_CONTRACT_FAIL_CLOSED' gestia-core/gestia-core.js
+          node <<'NODE'
+          const fs=require('fs');
+          const source=fs.readFileSync('gestia-core/jarvis/jarvis.multifunction.planner.js','utf8');
+          const a=source.indexOf('function cloudMissionContractPolicyCertified');
+          const b=source.indexOf('async function callBrowserSemanticPlan',a);
+          if(a<0 || b<=a) process.exit(31);
+          const block=source.slice(a,b);
+          for(const required of ['callSemanticPlanner','callCloudMissionContractPolicyAudit','callBrowserMissionContract']) if(!block.includes(required)) process.exit(32);
+          if(!(block.indexOf('callSemanticPlanner') < block.indexOf('callCloudMissionContractPolicyAudit') && block.indexOf('callCloudMissionContractPolicyAudit') < block.indexOf('callBrowserMissionContract'))) process.exit(33);
+          for(const forbidden of ['tiktok.com','Taquería El Dorado','web.research','web.media.collect','media.analyze','marketing.plan','reel.plan','reel.create']) if(block.includes(forbidden)) process.exit(34);
+          NODE
+          echo 'CLOUD_PLANNER_PRIMARY=true'
+          echo 'CLOUD_SEMANTIC_POLICY_AUDIT_SECOND=true'
+          echo 'BROWSER_SEMANTIC_FALLBACK_TERTIARY=true'
+          echo 'NO_STATIC_MEDIA_OR_MARKETING_ROUTING=true'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Focal provider resilience regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/jarvis-mission-contract-provider-resilience-v1.test.mjs \
+            tests/jarvis-mission-contract-policy-compat-v3.test.mjs \
+            tests/jarvis-mission-contract-authority-closeout-v2.test.mjs \
+            tests/jarvis-mission-flow-contract-closeout.test.mjs \
+            tests/jarvis-mission-contract-preserves-initial-production.test.mjs \
+            tests/jarvis-human-regression-closeout.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs \
+            tests/jarvis-mission-contract-accounting.test.mjs \
+            tests/jarvis-single-contract-authority.test.mjs \
+            tests/single-semantic-authority.test.mjs \
+            tests/jarvis-multifunction-tools.test.mjs
+          echo 'FOCAL_PROVIDER_RESILIENCE_GREEN=true'
+
+      - name: Full CI exact command
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run ci:test
+          echo 'FULL_CI_EXACT_GREEN=true'
+
+      - name: Protected surface audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/final-audit.sh
+          ! git diff --name-only "$BASE_SHA" -- . | grep -E '^(functions/|multiservicios-web/|.*Multiservicios)'
+          grep -q '1.2.0-stable-research-objectives' gestia-core/gestia-core.js
+          ! grep -q 'MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN' gestia-core/gestia-core.js
+          grep -q 'MISSION_CONTRACT_UNAVAILABLE' gestia-core/gestia-core.js
+          grep -q 'MISSION_CONTRACT_FAIL_CLOSED' gestia-core/gestia-core.js
+          echo 'FUNCTIONS_UNTOUCHED=true'
+          echo 'MULTISERVICIOS_UNTOUCHED=true'
+          echo 'MISSION_CONTRACT_STABLE=true'
+
+      - name: Build isolated Hosting-only config
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/final-host.sh
+          node <<'NODE'
+          const fs=require('fs');
+          const path='contract-audit-production-chain.json';
+          const value=JSON.parse(fs.readFileSync(path,'utf8'));
+          value.candidate='ADJUNTO_MISSION_CONTRACT_PROVIDER_RESILIENCE';
+          value.cloudPlannerPrimary=true;
+          value.cloudSemanticPolicyAuditSecond=true;
+          value.browserSemanticFallbackTertiary=true;
+          value.browser429Backoff=true;
+          value.browser402FailFast=true;
+          value.failClosedPresentable=true;
+          value.exactMediaEvidenceSemantics=true;
+          value.physicalArtifactCompletionSemantics=true;
+          value.initialSeedRecoveryRemoved=true;
+          value.staticToolRouting=false;
+          value.canonicalMissionContract='1.2.0-stable-research-objectives';
+          value.untouchedSurfaces=['Functions','Multiservicios'];
+          fs.writeFileSync(path,JSON.stringify(value,null,2));
+          NODE
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Hosting only
+        shell: bash
+        run: bash /tmp/final-deploy.sh
+
+      - name: Verify current served bytes only
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://${FIREBASE_SITE_ID}.web.app"
+          ok=false
+          for attempt in $(seq 1 20); do
+            stamp="${GITHUB_RUN_ID}-${attempt}-$(date +%s)"
+            if curl -fsSL "${base}/gestia-core/jarvis/jarvis.multifunction.planner.js?resilience=${stamp}" -o /tmp/resilience-planner.js \
+              && curl -fsSL "${base}/gestia-core/gestia-core.js?resilience=${stamp}" -o /tmp/resilience-core.js \
+              && curl -fsSL "${base}/contract-audit-production-chain.json?resilience=${stamp}" -o /tmp/resilience-marker.json \
+              && grep -q 'callCloudMissionContractPolicyAudit' /tmp/resilience-planner.js \
+              && grep -q 'jarvisSemanticRespond' /tmp/resilience-planner.js \
+              && grep -q 'cloud-semantic-response-audit-v1' /tmp/resilience-planner.js \
+              && grep -q 'continueAfterBrowserMissionContractFailure' /tmp/resilience-planner.js \
+              && grep -q 'status === 402' /tmp/resilience-planner.js \
+              && grep -q 'status === 429' /tmp/resilience-planner.js \
+              && grep -q 'MISSION_CONTRACT_FAIL_CLOSED' /tmp/resilience-core.js \
+              && grep -q 'MISSION_CONTRACT_UNAVAILABLE' /tmp/resilience-core.js \
+              && ! grep -q 'MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN' /tmp/resilience-core.js \
+              && grep -q '1.2.0-stable-research-objectives' /tmp/resilience-core.js \
+              && grep -q 'ADJUNTO_MISSION_CONTRACT_PROVIDER_RESILIENCE' /tmp/resilience-marker.json \
+              && grep -q '"cloudSemanticPolicyAuditSecond": true' /tmp/resilience-marker.json \
+              && grep -q '"browserSemanticFallbackTertiary": true' /tmp/resilience-marker.json \
+              && grep -q '"browser429Backoff": true' /tmp/resilience-marker.json \
+              && grep -q '"browser402FailFast": true' /tmp/resilience-marker.json \
+              && grep -q '"failClosedPresentable": true' /tmp/resilience-marker.json; then
+              node <<'NODE'
+              const fs=require('fs');
+              const source=fs.readFileSync('/tmp/resilience-planner.js','utf8');
+              const a=source.indexOf('function cloudMissionContractPolicyCertified');
+              const b=source.indexOf('async function callBrowserSemanticPlan',a);
+              if(a<0 || b<=a) process.exit(41);
+              const block=source.slice(a,b);
+              for(const required of ['callSemanticPlanner','callCloudMissionContractPolicyAudit','callBrowserMissionContract']) if(!block.includes(required)) process.exit(42);
+              if(!(block.indexOf('callSemanticPlanner') < block.indexOf('callCloudMissionContractPolicyAudit') && block.indexOf('callCloudMissionContractPolicyAudit') < block.indexOf('callBrowserMissionContract'))) process.exit(43);
+              for(const forbidden of ['tiktok.com','Taquería El Dorado','web.research','web.media.collect','media.analyze','marketing.plan','reel.plan','reel.create']) if(block.includes(forbidden)) process.exit(44);
+              NODE
+              ok=true
+              break
+            fi
+            sleep 4
+          done
+          test "$ok" = true
+          echo 'MISSION_CONTRACT_PROVIDER_RESILIENCE_SERVED=true'
+          echo "WEB_URL=${base}/gestia-terminal.html"
