@@ -1,0 +1,61 @@
+name: repair mission-contract provider resilience carrier
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/repair-mission-contract-provider-resilience-carrier.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  repair-and-dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Repair literal regex replacement only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.github/candidates/contract-audit/mission-contract-provider-resilience-v1.py')
+          text = path.read_text()
+          old = 'text, count = helper_pattern.subn(helper_replacement, text, count=1)'
+          new = 'text, count = helper_pattern.subn(lambda _match: helper_replacement, text, count=1)'
+          if text.count(old) != 1:
+              raise SystemExit(f'EXPECTED_LITERAL_REPLACEMENT_ONCE:{text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          python3 -m py_compile .github/candidates/contract-audit/mission-contract-provider-resilience-v1.py
+          git diff --check
+          git diff -- .github/candidates/contract-audit/mission-contract-provider-resilience-v1.py
+
+      - name: Commit repaired carrier candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'heberzzt-wq'
+          git config user.email 'heberzzt@gmail.com'
+          git add .github/candidates/contract-audit/mission-contract-provider-resilience-v1.py
+          git commit -m 'ci(contract-audit): fix literal regex replacement in resilience carrier'
+          git push origin HEAD:v94-media-v4n-negative-claims
+
+      - name: Dispatch provider resilience certification on repaired HEAD
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run contract-audit-mission-contract-provider-resilience-closeout.yml \
+            --repo heberzzt-wq/fixgo-app \
+            --ref v94-media-v4n-negative-claims
+          echo 'PROVIDER_RESILIENCE_CERTIFICATION_DISPATCHED=true'
