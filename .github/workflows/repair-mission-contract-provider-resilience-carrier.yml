@@ -1,4 +1,4 @@
-# registered trigger: literal replacement repair only
+# registered repair: scope authority ordering to the authority function body
 name: repair mission-contract provider resilience carrier
 
 on:
@@ -22,32 +22,50 @@ jobs:
           ref: v94-media-v4n-negative-claims
           fetch-depth: 0
 
-      - name: Repair literal regex replacement only
+      - name: Scope authority-order assertions to authority function
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          path = Path('.github/candidates/contract-audit/mission-contract-provider-resilience-v1.py')
-          text = path.read_text()
-          old = 'text, count = helper_pattern.subn(helper_replacement, text, count=1)'
-          new = 'text, count = helper_pattern.subn(lambda _match: helper_replacement, text, count=1)'
-          if text.count(old) != 1:
-              raise SystemExit(f'EXPECTED_LITERAL_REPLACEMENT_ONCE:{text.count(old)}')
-          path.write_text(text.replace(old, new, 1))
+
+          candidate = Path('.github/candidates/contract-audit/mission-contract-provider-resilience-v1.py')
+          candidate_text = candidate.read_text()
+          old_a = "const a=source.indexOf('function cloudMissionContractPolicyCertified');"
+          new_a = "const a=source.indexOf('async function callMissionContractCoverageAuthority');"
+          old_b = "const b=source.indexOf('async function callBrowserSemanticPlan',a);"
+          new_b = old_b
+          if candidate_text.count(old_a) != 1:
+              raise SystemExit(f'CANDIDATE_AUTHORITY_START_COUNT:{candidate_text.count(old_a)}')
+          if candidate_text.count(old_b) != 1:
+              raise SystemExit(f'CANDIDATE_AUTHORITY_END_COUNT:{candidate_text.count(old_b)}')
+          candidate_text = candidate_text.replace(old_a, new_a, 1)
+          candidate.write_text(candidate_text)
+
+          workflow = Path('.github/workflows/contract-audit-mission-contract-provider-resilience-closeout.yml')
+          workflow_text = workflow.read_text()
+          if workflow_text.count(old_a) != 2:
+              raise SystemExit(f'WORKFLOW_AUTHORITY_START_COUNT:{workflow_text.count(old_a)}')
+          if workflow_text.count(old_b) != 2:
+              raise SystemExit(f'WORKFLOW_AUTHORITY_END_COUNT:{workflow_text.count(old_b)}')
+          workflow_text = workflow_text.replace(old_a, new_a)
+          workflow.write_text(workflow_text)
           PY
           python3 -m py_compile .github/candidates/contract-audit/mission-contract-provider-resilience-v1.py
+          grep -q "const a=source.indexOf('async function callMissionContractCoverageAuthority');" .github/workflows/contract-audit-mission-contract-provider-resilience-closeout.yml
           git diff --check
-          git diff -- .github/candidates/contract-audit/mission-contract-provider-resilience-v1.py
+          git diff -- .github/candidates/contract-audit/mission-contract-provider-resilience-v1.py .github/workflows/contract-audit-mission-contract-provider-resilience-closeout.yml
 
-      - name: Commit repaired carrier candidate
+      - name: Commit repaired authority-order gate
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'heberzzt-wq'
           git config user.email 'heberzzt@gmail.com'
-          git add .github/candidates/contract-audit/mission-contract-provider-resilience-v1.py
-          git commit -m 'ci(contract-audit): fix literal regex replacement in resilience carrier'
+          git add \
+            .github/candidates/contract-audit/mission-contract-provider-resilience-v1.py \
+            .github/workflows/contract-audit-mission-contract-provider-resilience-closeout.yml
+          git commit -m 'ci(contract-audit): scope resilience authority-order gate correctly'
           git push origin HEAD:v94-media-v4n-negative-claims
 
       - name: Dispatch provider resilience certification on repaired HEAD
