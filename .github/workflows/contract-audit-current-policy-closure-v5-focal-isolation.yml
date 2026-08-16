@@ -146,25 +146,25 @@ jobs:
         run: node --test tests/jarvis-single-contract-authority.test.mjs
       - name: 12a authority boundary planner core
         if: always()
-        run: node --test --test-name-pattern="single authority boundary between planner and core" tests/single-semantic-authority.test.mjs
+        run: node --test --test-name-pattern="only jarvisSemanticPlan owns natural-language planning" tests/single-semantic-authority.test.mjs
       - name: 12b legacy canaries inert
         if: always()
-        run: node --test --test-name-pattern="legacy symbolic semantic engines remain inert compatibility canaries" tests/single-semantic-authority.test.mjs
+        run: node --test --test-name-pattern="legacy cognition URLs are inert compatibility canaries" tests/single-semantic-authority.test.mjs
       - name: 12c bootstrap campaigns single engine
         if: always()
-        run: node --test --test-name-pattern="bootstrap and campaigns no longer invoke alternate semantic engines" tests/single-semantic-authority.test.mjs
+        run: node --test --test-name-pattern="NEXO runtime no longer installs local semantic resilience" tests/single-semantic-authority.test.mjs
       - name: 12d terminal alternate runtime inert
         if: always()
-        run: node --test --test-name-pattern="terminal alternate semantic runtime stays inert" tests/single-semantic-authority.test.mjs
+        run: node --test --test-name-pattern="alternate adaptive intelligence runtime is absent" tests/single-semantic-authority.test.mjs
       - name: 12e planner composer no regex brain
         if: always()
-        run: node --test --test-name-pattern="planner and composer never instantiate a regex brain" tests/single-semantic-authority.test.mjs
+        run: node --test --test-name-pattern="active semantic surfaces contain no lexical regex brain" tests/single-semantic-authority.test.mjs
       - name: 12f terminal routes one planner
         if: always()
-        run: node --test --test-name-pattern="terminal natural commands route through one semantic planner" tests/single-semantic-authority.test.mjs
+        run: node --test --test-name-pattern="terminal has no dead lexical natural-command router after semantic return" tests/single-semantic-authority.test.mjs
       - name: 12g canned approval retired
         if: always()
-        run: node --test --test-name-pattern="approval language and canned helper scripts stay retired" tests/single-semantic-authority.test.mjs
+        run: node --test --test-name-pattern="UI branding never interprets natural approval language" tests/single-semantic-authority.test.mjs
       - name: 13 multifunction tools
         if: always()
         run: node --test tests/jarvis-multifunction-tools.test.mjs
