@@ -282,7 +282,7 @@ async function callMissionContractCoverageAuthority(input = "", catalog = [], mi
 
 async function callBrowserSemanticPlan'''
 
-text, count = helper_pattern.subn(helper_replacement, text, count=1)
+text, count = helper_pattern.subn(lambda _match: helper_replacement, text, count=1)
 if count != 1:
     raise SystemExit(f'PROVIDER_AUTHORITY_HELPER_COUNT:{count}')
 
