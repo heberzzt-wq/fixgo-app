@@ -165,6 +165,9 @@ jobs:
       - name: 12g canned approval retired
         if: always()
         run: node --test --test-name-pattern="UI branding never interprets natural approval language" tests/single-semantic-authority.test.mjs
+      - name: 12h full single semantic authority
+        if: always()
+        run: node --test tests/single-semantic-authority.test.mjs
       - name: 13 multifunction tools
         if: always()
         run: node --test tests/jarvis-multifunction-tools.test.mjs
