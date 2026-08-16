@@ -1,5 +1,6 @@
 name: contract-audit provider resilience served-bytes final verify
 
+# Read-only production verification; no deploy actions in this workflow.
 on:
   push:
     branches:
