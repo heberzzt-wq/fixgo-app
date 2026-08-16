@@ -87,38 +87,43 @@ jobs:
           python3 /tmp/current-policy-v5.py
           python3 /tmp/current-policy-v5-test-compat.py
 
-      - name: A planner keeps jarvisSemanticPlan
-        run: node -e "const s=require('fs').readFileSync('gestia-core/jarvis/jarvis.multifunction.planner.js','utf8'); if(!s.includes('jarvisSemanticPlan')) process.exit(1)"
-      - name: B planner keeps Firebase currentUser auth
+      - name: Canonical 1 semantic brain contract markers
+        run: node -e "const f=require('fs'),p=f.readFileSync('gestia-core/jarvis/jarvis.multifunction.planner.js','utf8'),c=f.readFileSync('gestia-core/gestia-core.js','utf8'); if(!/jarvisSemanticPlan/.test(p)||!/SINGLE SEMANTIC BRAIN CONTRACT/.test(c)||!/SINGLE_SEMANTIC_BRAIN_FAIL_CLOSED/.test(c)||/runCognitiveReasoning|sincronizarCorralSemantico|interpretarIntenciones/.test(c)) process.exit(1)"
+      - name: Canonical 2 legacy cognition canaries
         if: always()
-        run: node -e "const s=require('fs').readFileSync('gestia-core/jarvis/jarvis.multifunction.planner.js','utf8'); if(!s.includes('firebase.auth().currentUser')) process.exit(1)"
-      - name: C planner keeps plan endpoint
+        run: node - <<'NODE'
+          const f=require('fs'); for(const x of ['gestia-core/brain.engine.js','gestia-core/semantic.engine.js','gestia-core/nexo/nexo.mission.compiler.js','gestia-core/nexo/nexo.mission.compiler.v2.js','gestia-core/nexo/nexo.semantic-planner-resilience.js']){const s=f.readFileSync(x,'utf8'); if(!/COMPATIBILITY_CANARY_ONLY/.test(s)||/globalThis\.fetch\s*=|compileNexoMission\s*\(|\.match(All)?\s*\(|\.test\s*\(/.test(s)) {console.error(x); process.exit(1)}}
+          NODE
+      - name: Canonical 3 NEXO runtime resilience absent
         if: always()
-        run: node -e "const s=require('fs').readFileSync('gestia-core/jarvis/jarvis.multifunction.planner.js','utf8'); if(!s.includes('/jarvisSemanticPlan')) process.exit(1)"
-      - name: D orchestrator has no provider brain markers
+        run: node -e "const f=require('fs'),b=f.readFileSync('modules/terminal/nexo-bootstrap.js','utf8'),m=f.readFileSync('gestia-core/jarvis/jarvis.marketing.engine.js','utf8'); if(/nexo\.semantic-planner-resilience/.test(b)||/nexo\.semantic-planner-resilience/.test(m)||!/nexo\.real-media\.tools/.test(b)) process.exit(1)"
+      - name: Canonical 4 alternate runtime absent
         if: always()
-        run: node -e "const s=require('fs').readFileSync('gestia-core/jarvis/jarvis.mission.orchestrator.js','utf8'); if(/openai|anthropic|groq|gemini/i.test(s)) process.exit(1)"
-      - name: E orchestrator has no network inference surface
+        run: node -e "const f=require('fs'),t=f.readFileSync('gestia-terminal.js','utf8'); if(f.existsSync('modules/terminal/runtime-intelligence.js')||/HYBRID_COGNITION_LINKS|runtime_intelligence/.test(t)||!/__SEMANTIC_AUTHORITY__/.test(t)||!/alternateBrains:\s*0/.test(t)) process.exit(1)"
+      - name: Canonical 5a planner has no new RegExp
         if: always()
-        run: node -e "const s=require('fs').readFileSync('gestia-core/jarvis/jarvis.mission.orchestrator.js','utf8'); if(/fetch\\s*\\(|XMLHttpRequest|axios\\./.test(s)) process.exit(1)"
-      - name: F orchestrator has no lexical judging methods
+        run: node -e "const s=require('fs').readFileSync('gestia-core/jarvis/jarvis.multifunction.planner.js','utf8'); if(s.includes('new RegExp')) process.exit(1)"
+      - name: Canonical 5b planner has no match call
         if: always()
-        run: node -e "const s=require('fs').readFileSync('gestia-core/jarvis/jarvis.mission.orchestrator.js','utf8'); if(/\\.test\\s*\\(|\\.match\\s*\\(|\\.includes\\s*\\(/.test(s)) process.exit(1)"
-      - name: G core has tool-registry boundary
+        run: node -e "const s=require('fs').readFileSync('gestia-core/jarvis/jarvis.multifunction.planner.js','utf8'); if(s.includes('.match(')) process.exit(1)"
+      - name: Canonical 5c planner has no matchAll call
         if: always()
-        run: node -e "const s=require('fs').readFileSync('gestia-core/gestia-core.js','utf8'); if(s.indexOf('function hasJarvisTool')<0) process.exit(1)"
-      - name: H core has semantic support decision
+        run: node -e "const s=require('fs').readFileSync('gestia-core/jarvis/jarvis.multifunction.planner.js','utf8'); if(s.includes('.matchAll(')) process.exit(1)"
+      - name: Canonical 5d planner has no exec call
         if: always()
-        run: node -e "const s=require('fs').readFileSync('gestia-core/gestia-core.js','utf8'); if(s.indexOf('async function resolveSemanticSupportDecision')<0) process.exit(1)"
-      - name: I registry block uses JARVIS_TOOLS metadata
+        run: node -e "const s=require('fs').readFileSync('gestia-core/jarvis/jarvis.multifunction.planner.js','utf8'); if(s.includes('.exec(')) process.exit(1)"
+      - name: Canonical 5e planner has no test call
         if: always()
-        run: node -e "const s=require('fs').readFileSync('gestia-core/gestia-core.js','utf8'),a=s.indexOf('function hasJarvisTool'),b=s.indexOf('async function resolveSemanticSupportDecision'),x=s.slice(a,b); if(!x.includes('window.JARVIS_TOOLS?.getMeta')) process.exit(1)"
-      - name: J registry block has no test call
+        run: node -e "const s=require('fs').readFileSync('gestia-core/jarvis/jarvis.multifunction.planner.js','utf8'); if(s.includes('.test(')) process.exit(1)"
+      - name: Canonical 5f composer has no lexical regex brain
         if: always()
-        run: node -e "const s=require('fs').readFileSync('gestia-core/gestia-core.js','utf8'),a=s.indexOf('function hasJarvisTool'),b=s.indexOf('async function resolveSemanticSupportDecision'),x=s.slice(a,b); if(/\\btest\\s*\\(/.test(x)) process.exit(1)"
-      - name: K registry block has no includes call
+        run: node -e "const s=require('fs').readFileSync('gestia-core/jarvis/jarvis.conversation.composer.js','utf8'); for(const x of ['new RegExp','.match(','.matchAll(','.exec(','.test(']) if(s.includes(x)){console.error(x);process.exit(1)}"
+      - name: Canonical 6 terminal lexical router absent
         if: always()
-        run: node -e "const s=require('fs').readFileSync('gestia-core/gestia-core.js','utf8'),a=s.indexOf('function hasJarvisTool'),b=s.indexOf('async function resolveSemanticSupportDecision'),x=s.slice(a,b); if(/\\.includes\\s*\\(/.test(x)) process.exit(1)"
-      - name: L registry block has no regex literal
+        run: node -e "const s=require('fs').readFileSync('gestia-terminal.js','utf8'); if(!/naturalIntentAuthority:\s*\"jarvisSemanticPlan\"/.test(s)||!/lexicalFallbackAllowed:\s*false/.test(s)||/APPROVAL_WORDS|CANCEL_WORDS|REPO SEARCH INTERCEPTOR|QUICK COMMANDS JARVIS|REPO AUDIT INTERCEPTORS|APPROVAL DETECTED/.test(s)) process.exit(1)"
+      - name: Canonical 7 branding never interprets approval
         if: always()
-        run: node -e "const s=require('fs').readFileSync('gestia-core/gestia-core.js','utf8'),a=s.indexOf('function hasJarvisTool'),b=s.indexOf('async function resolveSemanticSupportDecision'),x=s.slice(a,b); if(/\\/[^\\n/]+\\/[gimsuy]*/.test(x)) process.exit(1)"
+        run: node -e "const s=require('fs').readFileSync('gestia-core/nexo/nexo.ui.branding.js','utf8'); if(/EXACT_APPROVAL_COMMANDS|isNexoApprovalCommand|normalizeNexoCommand|input\.value\s*=\s*\"proceder\"/.test(s)||!/semanticAuthority:\s*\"jarvisSemanticPlan\"/.test(s)) process.exit(1)"
+      - name: Canonical exact test
+        if: always()
+        run: node --test tests/single-semantic-authority.test.mjs
