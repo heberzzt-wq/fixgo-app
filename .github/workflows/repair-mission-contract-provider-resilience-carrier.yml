@@ -1,3 +1,4 @@
+# registered trigger: literal replacement repair only
 name: repair mission-contract provider resilience carrier
 
 on:
