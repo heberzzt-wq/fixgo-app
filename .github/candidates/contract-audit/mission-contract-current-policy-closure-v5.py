@@ -400,7 +400,7 @@ planner = planner.replace(browser_completion_anchor, browser_completion_policy, 
 
 # Route both contract creation and completion through current Hosting policy.
 authority_pattern = re.compile(
-    r'        const contractPlanner = context\?\.missionState\?\.phase === "MISSION_CONTRACT" &&\n.*?            : context\.semanticPlanner;\n        const plan = await resolveSemanticPlan\(\n            instruction,\n            catalog,\n            contractPlanner,',
+    r'const contractPlanner\s*=\s*context\?\.missionState\?\.phase\s*===\s*"MISSION_CONTRACT".*?:\s*context\.semanticPlanner;\s*const plan = await resolveSemanticPlan\(\s*instruction,\s*catalog,\s*contractPlanner,',
     re.S,
 )
 authority_replacement = r'''        const missionPhase =
