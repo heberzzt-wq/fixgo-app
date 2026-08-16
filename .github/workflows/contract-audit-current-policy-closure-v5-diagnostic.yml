@@ -1,0 +1,127 @@
+name: contract-audit current-policy closure v5 diagnostic
+
+on:
+  push:
+    branches: [v94-media-v4n-negative-claims]
+    paths:
+      - '.github/workflows/contract-audit-current-policy-closure-v5-diagnostic.yml'
+      - '.github/candidates/contract-audit/mission-contract-current-policy-closure-v5.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLOW_V2_CARRIER_SHA: 8ef564d954de07a3b63d8a117ada4c2bcf40e3b4
+  FINAL_V3_CARRIER_SHA: 71e4b1f847640dd9d3d9b142b0158073f5451336
+  FINAL_V2_CARRIER_SHA: 21d1fc513d7817e7bfd9913ec113bd7923f3bb10
+  FAILED_FINAL_CARRIER_SHA: b6dd83bc03bebc8cc66b790a38404fa48db3f395
+  V3_CARRIER_SHA: e32b68752e452ef1d4f3eb6ba8fa375cce5787ab
+  PRIOR_V2_CARRIER_SHA: 1892d5f7726ce41402600d49b22fb1cf62e830fb
+  PRIOR_CARRIER_SHA: 2a51c1c349edac309465a22fd73c5b157dbaccd9
+  BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
+  CERTIFIED_CARRIER_SHA: cebe6f399d4edf4f234e584e0a42cf980b3a404d
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Preserve certified inputs and extract reconstruction
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .github/workflows/contract-audit-mission-contract-authority-closeout-v4.yml /tmp/v4.yml
+          cp .github/candidates/contract-audit/mission-contract-policy-compat-v3.py /tmp/policy-compat-v3.py
+          cp .github/candidates/contract-audit/mission-contract-provider-resilience-v1.py /tmp/provider-resilience-v1.py
+          cp .github/candidates/contract-audit/mission-contract-provider-resilience-v2.py /tmp/provider-resilience-v2.py
+          cp .github/candidates/contract-audit/mission-contract-provider-resilience-v3.py /tmp/provider-resilience-v3.py
+          cp .github/candidates/contract-audit/mission-contract-current-policy-closure-v5.py /tmp/current-policy-closure-v5.py
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('/tmp/v4.yml').read_text()
+          a='Reconstruct exact refined candidate'; b='Assert instruction-driven tool selection'
+          s=text.index(f'      - name: {a}\n')
+          rs=text.index('        run: |\n',s)+len('        run: |\n')
+          e=text.index(f'\n      - name: {b}\n',rs)
+          lines=[]
+          for line in text[rs:e].splitlines():
+              if line.startswith('          '): lines.append(line[10:])
+              elif not line.strip(): lines.append('')
+              else: raise SystemExit(f'EXTRACT_INDENT:{line!r}')
+          Path('/tmp/reconstruct.sh').write_text('\n'.join(lines)+'\n')
+          PY
+          bash -n /tmp/reconstruct.sh
+          python3 -m py_compile /tmp/policy-compat-v3.py /tmp/provider-resilience-v1.py /tmp/provider-resilience-v2.py /tmp/provider-resilience-v3.py /tmp/current-policy-closure-v5.py
+
+      - name: Reconstruct and apply V5
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/reconstruct.sh
+          python3 /tmp/policy-compat-v3.py
+          python3 /tmp/provider-resilience-v1.py
+          python3 /tmp/provider-resilience-v2.py
+          python3 /tmp/provider-resilience-v3.py
+          python3 /tmp/current-policy-closure-v5.py
+          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
+          node --check gestia-core/gestia-core.js
+          node --check tests/jarvis-current-policy-closure-v5.test.mjs
+          git diff --check
+
+      - name: Architecture invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'cloud-semantic-response-audit-v2' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -q 'MISSION_CONTRACT_CURRENT_POLICY_AUDIT' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -q 'MISSION_COMPLETION_CURRENT_POLICY_AUDIT' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -q 'callCloudMissionCompletionPolicyAudit' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -q 'requireSemanticCompletionAudit: true' gestia-core/gestia-core.js
+          grep -q 'v142-current-policy-closure-20260816' gestia-core/gestia-core.js
+          grep -q 'v142-current-policy-closure-20260816' gestia-terminal.html
+          ! git diff --name-only "$BASE_SHA" -- . | grep -E '^(functions/|multiservicios-web/|.*Multiservicios)'
+          node <<'NODE'
+          const fs=require('fs');
+          const p=fs.readFileSync('gestia-core/jarvis/jarvis.multifunction.planner.js','utf8');
+          const a=p.indexOf('async function callMissionContractCoverageAuthority');
+          const b=p.indexOf('async function callBrowserSemanticPlan',a);
+          if(a<0||b<=a) process.exit(31);
+          const block=p.slice(a,b);
+          for(const forbidden of ['tiktok.com','Taquería El Dorado']) if(block.includes(forbidden)) process.exit(32);
+          const s=p.indexOf('const missionSemanticPlanner');
+          const e=p.indexOf('const plan = await resolveSemanticPlan',s);
+          if(s<0||e<=s) process.exit(33);
+          const route=p.slice(s,e);
+          if(!(route.includes('callMissionContractCoverageAuthority')&&route.includes('callCloudMissionCompletionPolicyAudit')&&route.includes('callBrowserSemanticPlan'))) process.exit(34);
+          NODE
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: V5 exact regression
+        run: node --test tests/jarvis-current-policy-closure-v5.test.mjs
+
+      - name: Provider and mission focal suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/jarvis-mission-contract-no-self-certification-v3.test.mjs \
+            tests/jarvis-mission-contract-provider-resilience-v1.test.mjs \
+            tests/jarvis-mission-contract-policy-compat-v3.test.mjs \
+            tests/jarvis-mission-contract-authority-closeout-v2.test.mjs \
+            tests/jarvis-mission-flow-contract-closeout.test.mjs \
+            tests/jarvis-mission-contract-preserves-initial-production.test.mjs \
+            tests/jarvis-human-regression-closeout.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs \
+            tests/jarvis-mission-contract-accounting.test.mjs \
+            tests/jarvis-single-contract-authority.test.mjs \
+            tests/single-semantic-authority.test.mjs \
+            tests/jarvis-multifunction-tools.test.mjs
