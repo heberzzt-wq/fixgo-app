@@ -32,38 +32,40 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Preserve certified inputs and extract reconstruction
+      - name: Preserve candidates and reconstruct certified V4 directly
         shell: bash
         run: |
           set -euo pipefail
-          cp .github/workflows/contract-audit-mission-contract-authority-closeout-v4.yml /tmp/v4.yml
+          cp .github/candidates/contract-audit/mission-contract-authority-closeout-v2.py /tmp/authority-closeout-v2.py
           cp .github/candidates/contract-audit/mission-contract-policy-compat-v3.py /tmp/policy-compat-v3.py
           cp .github/candidates/contract-audit/mission-contract-provider-resilience-v1.py /tmp/provider-resilience-v1.py
           cp .github/candidates/contract-audit/mission-contract-provider-resilience-v2.py /tmp/provider-resilience-v2.py
           cp .github/candidates/contract-audit/mission-contract-provider-resilience-v3.py /tmp/provider-resilience-v3.py
           cp .github/candidates/contract-audit/mission-contract-current-policy-closure-v5.py /tmp/current-policy-closure-v5.py
+          git show "${FLOW_V2_CARRIER_SHA}:.github/workflows/contract-audit-mission-flow-closeout-v2.yml" > /tmp/flow-v2.yml
           python3 - <<'PY'
           from pathlib import Path
-          text=Path('/tmp/v4.yml').read_text()
-          a='Reconstruct exact refined candidate'; b='Assert instruction-driven tool selection'
-          s=text.index(f'      - name: {a}\n')
-          rs=text.index('        run: |\n',s)+len('        run: |\n')
-          e=text.index(f'\n      - name: {b}\n',rs)
-          lines=[]
-          for line in text[rs:e].splitlines():
-              if line.startswith('          '): lines.append(line[10:])
-              elif not line.strip(): lines.append('')
-              else: raise SystemExit(f'EXTRACT_INDENT:{line!r}')
-          Path('/tmp/reconstruct.sh').write_text('\n'.join(lines)+'\n')
+          text=Path('/tmp/flow-v2.yml').read_text()
+          pairs=[
+            ('Reconstruct certified final-v3 candidate','Preserve complete semantic mission flow','/tmp/v4-reconstruct.sh'),
+            ('Preserve complete semantic mission flow','Install dependencies','/tmp/v4-flow.sh')
+          ]
+          for a,b,out in pairs:
+              s=text.index(f'      - name: {a}\n')
+              rs=text.index('        run: |\n',s)+len('        run: |\n')
+              e=text.index(f'\n      - name: {b}\n',rs)
+              lines=[]
+              for line in text[rs:e].splitlines():
+                  if line.startswith('          '): lines.append(line[10:])
+                  elif not line.strip(): lines.append('')
+                  else: raise SystemExit(f'EXTRACT_INDENT:{a}:{line!r}')
+              Path(out).write_text('\n'.join(lines)+'\n')
           PY
-          bash -n /tmp/reconstruct.sh
-          python3 -m py_compile /tmp/policy-compat-v3.py /tmp/provider-resilience-v1.py /tmp/provider-resilience-v2.py /tmp/provider-resilience-v3.py /tmp/current-policy-closure-v5.py
-
-      - name: Reconstruct and apply V5
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash /tmp/reconstruct.sh
+          bash -n /tmp/v4-reconstruct.sh
+          bash -n /tmp/v4-flow.sh
+          bash /tmp/v4-reconstruct.sh
+          bash /tmp/v4-flow.sh
+          python3 /tmp/authority-closeout-v2.py
           python3 /tmp/policy-compat-v3.py
           python3 /tmp/provider-resilience-v1.py
           python3 /tmp/provider-resilience-v2.py
