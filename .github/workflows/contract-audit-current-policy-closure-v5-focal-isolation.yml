@@ -1,0 +1,149 @@
+name: contract-audit current-policy closure v5 focal isolation
+
+on:
+  push:
+    branches: [v94-media-v4n-negative-claims]
+    paths: ['.github/workflows/contract-audit-current-policy-closure-v5-focal-isolation.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLOW_V2_CARRIER_SHA: 8ef564d954de07a3b63d8a117ada4c2bcf40e3b4
+  FINAL_V3_CARRIER_SHA: 71e4b1f847640dd9d3d9b142b0158073f5451336
+  FINAL_V2_CARRIER_SHA: 21d1fc513d7817e7bfd9913ec113bd7923f3bb10
+  V3_CARRIER_SHA: e32b68752e452ef1d4f3eb6ba8fa375cce5787ab
+  PRIOR_V2_CARRIER_SHA: 1892d5f7726ce41402600d49b22fb1cf62e830fb
+  PRIOR_CARRIER_SHA: 2a51c1c349edac309465a22fd73c5b157dbaccd9
+  BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
+  CERTIFIED_CARRIER_SHA: cebe6f399d4edf4f234e584e0a42cf980b3a404d
+
+jobs:
+  isolate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+
+      - name: Preload historical carriers and current candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show "${PRIOR_CARRIER_SHA}:.github/workflows/contract-audit-production-chain-runtime.yml" > /tmp/prior.yml
+          git show "${PRIOR_V2_CARRIER_SHA}:.github/workflows/contract-audit-human-regression-closeout-v2.yml" > /tmp/prior-v2.yml
+          git show "${V3_CARRIER_SHA}:.github/workflows/contract-audit-human-regression-closeout-v3.yml" > /tmp/v3.yml
+          git show "${FINAL_V2_CARRIER_SHA}:.github/workflows/contract-audit-human-regression-closeout-final-v2.yml" > /tmp/final-v2.yml
+          git show "${FINAL_V3_CARRIER_SHA}:.github/workflows/contract-audit-human-regression-closeout-final-v3.yml" > /tmp/final-v3.yml
+          git show "${FLOW_V2_CARRIER_SHA}:.github/workflows/contract-audit-mission-flow-closeout-v2.yml" > /tmp/flow-v2.yml
+          cp .github/candidates/contract-audit/mission-contract-authority-closeout-v2.py /tmp/authority-v2.py
+          cp .github/candidates/contract-audit/mission-contract-policy-compat-v3.py /tmp/policy-v3.py
+          cp .github/candidates/contract-audit/mission-contract-provider-resilience-v1.py /tmp/provider-v1.py
+          cp .github/candidates/contract-audit/mission-contract-provider-resilience-v2.py /tmp/provider-v2.py
+          cp .github/candidates/contract-audit/mission-contract-provider-resilience-v3.py /tmp/provider-v3.py
+          cp .github/candidates/contract-audit/mission-contract-current-policy-closure-v5.py /tmp/current-policy-v5.py
+          cp .github/candidates/contract-audit/mission-contract-current-policy-closure-v5-test-compat.py /tmp/current-policy-v5-test-compat.py
+          python3 -m py_compile /tmp/authority-v2.py /tmp/policy-v3.py /tmp/provider-v1.py /tmp/provider-v2.py /tmp/provider-v3.py /tmp/current-policy-v5.py /tmp/current-policy-v5-test-compat.py
+
+      - name: Extract deterministic mutation chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          def extract(src,a,b,out):
+              text=Path(src).read_text()
+              s=text.index(f'      - name: {a}\n')
+              rs=text.index('        run: |\n',s)+len('        run: |\n')
+              e=text.index(f'\n      - name: {b}\n',rs)
+              lines=[]
+              for line in text[rs:e].splitlines():
+                  if line.startswith('          '): lines.append(line[10:])
+                  elif not line.strip(): lines.append('')
+                  else: raise SystemExit(f'INDENT:{src}:{a}:{line!r}')
+              Path(out).write_text('\n'.join(lines)+'\n')
+          extract('/tmp/prior.yml','Reconstruct certified candidate','Make MISSION_CONTRACT audit additive to the same plan','/tmp/s1-reconstruct.sh')
+          extract('/tmp/prior.yml','Make MISSION_CONTRACT audit additive to the same plan','Constrain exact-source research inside the existing web.research implementation','/tmp/s2-additive.sh')
+          extract('/tmp/prior.yml','Constrain exact-source research inside the existing web.research implementation','Install dependencies','/tmp/s3-exact-source.sh')
+          extract('/tmp/prior-v2.yml','Preserve canonical tool observations and retry dynamic media once','Install dependencies','/tmp/s4-canonical-observation.sh')
+          extract('/tmp/v3.yml','Preserve exact web-media provenance through mission semantics','Install dependencies','/tmp/s5-provenance-raw.sh')
+          extract('/tmp/final-v2.yml','Fix shared canonical tool semantics authority','Install dependencies','/tmp/s6-semantic-authority.sh')
+          extract('/tmp/final-v3.yml','Preserve compatible canonical marketing readiness','Install dependencies','/tmp/s7-planready.sh')
+          extract('/tmp/flow-v2.yml','Preserve complete semantic mission flow','Install dependencies','/tmp/s8-mission-flow.sh')
+          raw=Path('/tmp/s5-provenance-raw.sh').read_text()
+          fixed=[]; replaced=False
+          for line in raw.splitlines():
+              if 'return parsed.toString().replace(' in line:
+                  indent=line[:len(line)-len(line.lstrip())]
+                  fixed.append(indent+'const normalized = parsed.toString();')
+                  fixed.append(indent+'return normalized.endsWith("/") ? normalized.slice(0, -1) : normalized;')
+                  replaced=True
+              else: fixed.append(line)
+          if not replaced: raise SystemExit('URL_NORMALIZATION_LINE_NOT_FOUND')
+          script='\n'.join(fixed)+'\n'
+          if 'explicitObjectiveSatisfied === true &&' not in script: raise SystemExit('MARKETING_LOCAL_CANONICAL_ANCHOR_NOT_FOUND')
+          script=script.replace('explicitObjectiveSatisfied === true &&','payload?.objectiveSatisfied === true &&',1)
+          Path('/tmp/s5-provenance.sh').write_text(script)
+          PY
+
+      - name: Reconstruct and apply V5
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in /tmp/s1-reconstruct.sh /tmp/s2-additive.sh /tmp/s3-exact-source.sh /tmp/s4-canonical-observation.sh /tmp/s5-provenance.sh /tmp/s6-semantic-authority.sh /tmp/s7-planready.sh /tmp/s8-mission-flow.sh; do bash "$f"; done
+          python3 /tmp/authority-v2.py
+          python3 /tmp/policy-v3.py
+          python3 /tmp/provider-v1.py
+          python3 /tmp/provider-v2.py
+          python3 /tmp/provider-v3.py
+          python3 /tmp/current-policy-v5.py
+          python3 /tmp/current-policy-v5-test-compat.py
+          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
+          node --check gestia-core/gestia-core.js
+          node --check tests/jarvis-current-policy-closure-v5.test.mjs
+          git diff --check
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: 01 current policy V5
+        run: node --test tests/jarvis-current-policy-closure-v5.test.mjs
+      - name: 02 no self certification V3
+        if: always()
+        run: node --test tests/jarvis-mission-contract-no-self-certification-v3.test.mjs
+      - name: 03 provider resilience V1
+        if: always()
+        run: node --test tests/jarvis-mission-contract-provider-resilience-v1.test.mjs
+      - name: 04 policy compat V3
+        if: always()
+        run: node --test tests/jarvis-mission-contract-policy-compat-v3.test.mjs
+      - name: 05 authority closeout V2
+        if: always()
+        run: node --test tests/jarvis-mission-contract-authority-closeout-v2.test.mjs
+      - name: 06 mission flow contract closeout
+        if: always()
+        run: node --test tests/jarvis-mission-flow-contract-closeout.test.mjs
+      - name: 07 preserves initial production
+        if: always()
+        run: node --test tests/jarvis-mission-contract-preserves-initial-production.test.mjs
+      - name: 08 human regression closeout
+        if: always()
+        run: node --test tests/jarvis-human-regression-closeout.test.mjs
+      - name: 09 mission orchestrator
+        if: always()
+        run: node --test tests/jarvis-mission-orchestrator.test.mjs
+      - name: 10 mission contract accounting
+        if: always()
+        run: node --test tests/jarvis-mission-contract-accounting.test.mjs
+      - name: 11 single contract authority
+        if: always()
+        run: node --test tests/jarvis-single-contract-authority.test.mjs
+      - name: 12 single semantic authority
+        if: always()
+        run: node --test tests/single-semantic-authority.test.mjs
+      - name: 13 multifunction tools
+        if: always()
+        run: node --test tests/jarvis-multifunction-tools.test.mjs
