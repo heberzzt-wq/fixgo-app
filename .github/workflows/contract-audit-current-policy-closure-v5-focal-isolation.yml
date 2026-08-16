@@ -1,3 +1,4 @@
+# diagnostic rerun against current branch head
 name: contract-audit current-policy closure v5 focal isolation
 
 on:
