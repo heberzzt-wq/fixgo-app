@@ -1,0 +1,41 @@
+name: repair current-policy closure v5 authority pattern
+
+on:
+  push:
+    branches: [v94-media-v4n-negative-claims]
+    paths:
+      - '.github/workflows/repair-current-policy-closure-v5-authority-pattern.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+      - name: Repair flexible generated authority matcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('.github/candidates/contract-audit/mission-contract-current-policy-closure-v5.py')
+          text=p.read_text()
+          start=text.index('authority_pattern = re.compile(')
+          end=text.index('authority_replacement = r\'\'\'', start)
+          replacement='''authority_pattern = re.compile(\n    r'const contractPlanner\\s*=\\s*context\\?\\.missionState\\?\\.phase\\s*===\\s*"MISSION_CONTRACT".*?:\\s*context\\.semanticPlanner;\\s*const plan = await resolveSemanticPlan\\(\\s*instruction,\\s*catalog,\\s*contractPlanner,',\n    re.S,\n)\n'''
+          text=text[:start]+replacement+text[end:]
+          p.write_text(text)
+          PY
+          python3 -m py_compile .github/candidates/contract-audit/mission-contract-current-policy-closure-v5.py
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/candidates/contract-audit/mission-contract-current-policy-closure-v5.py
+          git commit -m "fix(contract-audit): match reconstructed mission authority flexibly"
+          git push origin HEAD:v94-media-v4n-negative-claims
