@@ -1,0 +1,117 @@
+name: contract-audit mission-contract provider resilience served diagnostic v4
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/contract-audit-mission-contract-provider-resilience-served-diagnostic-v4.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose-served-bytes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch exact current production bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://fixgo-44e4d.web.app'
+          stamp="${GITHUB_RUN_ID}-$(date +%s)"
+          curl -fsSL -H 'Cache-Control: no-cache, no-store, max-age=0' "${base}/gestia-core/jarvis/jarvis.multifunction.planner.js?diag=${stamp}" -o /tmp/planner.js
+          curl -fsSL -H 'Cache-Control: no-cache, no-store, max-age=0' "${base}/gestia-core/gestia-core.js?diag=${stamp}" -o /tmp/core.js
+          curl -fsSL -H 'Cache-Control: no-cache, no-store, max-age=0' "${base}/contract-audit-production-chain.json?diag=${stamp}" -o /tmp/marker.json
+          echo "PLANNER_BYTES=$(wc -c </tmp/planner.js)"
+          echo "CORE_BYTES=$(wc -c </tmp/core.js)"
+          echo "MARKER_BYTES=$(wc -c </tmp/marker.json)"
+          sha256sum /tmp/planner.js /tmp/core.js /tmp/marker.json
+
+      - name: Diagnose served planner authority
+        shell: bash
+        run: |
+          set -uo pipefail
+          fail=0
+          check_present(){ if grep -Fq "$1" /tmp/planner.js; then echo "PASS planner contains: $1"; else echo "FAIL planner missing: $1"; fail=1; fi; }
+          check_absent(){ if grep -Fq "$1" /tmp/planner.js; then echo "FAIL planner still contains: $1"; fail=1; else echo "PASS planner absent: $1"; fi; }
+          check_present 'callCloudMissionContractPolicyAudit'
+          check_present 'jarvisSemanticRespond'
+          check_present 'cloud-semantic-response-audit-v1'
+          check_present 'continueAfterBrowserMissionContractFailure'
+          check_present 'status === 402'
+          check_present 'status === 429'
+          check_absent 'cloudMissionContractPolicyCertified'
+          node <<'NODE' || fail=1
+          const fs=require('fs');
+          const source=fs.readFileSync('/tmp/planner.js','utf8');
+          const a=source.indexOf('async function callMissionContractCoverageAuthority');
+          const b=source.indexOf('async function callBrowserSemanticPlan',a);
+          console.log({a,b});
+          if(a<0 || b<=a) process.exit(10);
+          const block=source.slice(a,b);
+          const p=block.indexOf('callSemanticPlanner');
+          const q=block.indexOf('callCloudMissionContractPolicyAudit');
+          const r=block.indexOf('callBrowserMissionContract');
+          console.log({p,q,r,returnsCloudPlan:block.includes('return cloudPlan')});
+          if(p<0 || q<0 || r<0 || !(p<q && q<r)) process.exit(11);
+          if(block.includes('return cloudPlan')) process.exit(12);
+          for(const forbidden of ['tiktok.com','Taquería El Dorado','web.research','web.media.collect','media.analyze','marketing.plan','reel.plan','reel.create']) {
+            const hit=block.includes(forbidden);
+            console.log(`STATIC_ROUTE ${forbidden}=${hit}`);
+            if(hit) process.exitCode=13;
+          }
+          NODE
+          exit "$fail"
+
+      - name: Diagnose served core contract
+        shell: bash
+        run: |
+          set -uo pipefail
+          fail=0
+          for needle in 'MISSION_CONTRACT_FAIL_CLOSED' 'MISSION_CONTRACT_UNAVAILABLE' '1.2.0-stable-research-objectives'; do
+            if grep -Fq "$needle" /tmp/core.js; then echo "PASS core contains: $needle"; else echo "FAIL core missing: $needle"; fail=1; fi
+          done
+          if grep -Fq 'MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN' /tmp/core.js; then echo 'FAIL core still has initial-plan recovery'; fail=1; else echo 'PASS initial-plan recovery absent'; fi
+          exit "$fail"
+
+      - name: Diagnose served marker
+        shell: bash
+        run: |
+          set -uo pipefail
+          cat /tmp/marker.json
+          node <<'NODE'
+          const fs=require('fs');
+          const marker=JSON.parse(fs.readFileSync('/tmp/marker.json','utf8'));
+          const expected={
+            candidate:'ADJUNTO_MISSION_CONTRACT_PROVIDER_RESILIENCE_V3',
+            cloudPlannerDraftPrimary:true,
+            cloudDraftAlwaysPolicyAudited:true,
+            cloudSemanticPolicyAuditRequired:true,
+            browserSemanticFallbackTertiary:true,
+            browser429Backoff:true,
+            browser402FailFast:true,
+            failClosedPresentable:true,
+            exactMediaEvidenceSemantics:true,
+            physicalArtifactCompletionSemantics:true,
+            initialSeedRecoveryRemoved:true,
+            cloudSelfCertificationBypassRemoved:true,
+            staticToolRouting:false,
+            canonicalMissionContract:'1.2.0-stable-research-objectives'
+          };
+          let fail=false;
+          for(const [key,value] of Object.entries(expected)){
+            const pass=JSON.stringify(marker[key])===JSON.stringify(value);
+            console.log(`${pass?'PASS':'FAIL'} marker ${key}: actual=${JSON.stringify(marker[key])} expected=${JSON.stringify(value)}`);
+            if(!pass) fail=true;
+          }
+          if(fail) process.exit(20);
+          NODE
+
+      - name: Final current production verdict
+        shell: bash
+        run: |
+          echo 'MISSION_CONTRACT_PROVIDER_RESILIENCE_V3_CURRENT_PRODUCTION_VERIFIED=true'
+          echo 'WEB_READY_FOR_HUMAN_REGRESSION=true'
