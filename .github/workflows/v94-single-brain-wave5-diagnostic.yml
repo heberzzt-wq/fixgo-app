@@ -42,187 +42,11 @@ jobs:
       - name: Install root dependencies only
         run: npm ci
 
-      - name: Apply existing single-brain maintenance
+      - name: Preserve certified single-brain convergence
         shell: bash
         run: |
           set -euo pipefail
           python3 tools/v94_single_brain_prune.py | tee /tmp/v94-single-brain-maintenance.log
-          git diff --check
-          test -z "$(git diff --name-only -- functions/)"
-          test -z "$(git diff --name-only -- multiservicios-web/)"
-
-      - name: Converge grounded research anchor then expansion
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          planner_path = Path("gestia-core/jarvis/jarvis.multifunction.planner.js")
-          source = planner_path.read_text(encoding="utf-8")
-
-          helper_marker = "function researchGoalHasSatisfiedExplicitAnchor("
-          verified_marker = "function verifiedResearchSourceUrls(\n"
-          helper = '''function researchGoalHasSatisfiedExplicitAnchor(
-              missionState = null,
-              researchGoal = "",
-              explicitAnchors = []
-          ) {
-              const goal = String(researchGoal || "").trim();
-              const anchorUrls = new Set(
-                  (Array.isArray(explicitAnchors) ? explicitAnchors : [])
-                      .map(sourceAnchorDescriptor)
-                      .filter(Boolean)
-                      .map(item => item.url)
-              );
-              if (!goal || anchorUrls.size === 0) return false;
-              const completedTasks = Array.isArray(missionState?.completedTasks)
-                  ? missionState.completedTasks
-                  : [];
-              return completedTasks.some(task => {
-                  if (
-                      String(task?.name || "") !== "web.research" ||
-                      task?.observation?.objectiveSatisfied !== true
-                  ) return false;
-                  const completedGoal = String(
-                      task?.args?.researchGoal ||
-                      task?.observation?.researchGoal ||
-                      ""
-                  ).trim();
-                  if (completedGoal !== goal) return false;
-                  const seed = sourceAnchorDescriptor(task?.args?.seedUrl || "");
-                  if (seed && anchorUrls.has(seed.url)) return true;
-                  const sources = [
-                      ...(Array.isArray(task?.observation?.validSources)
-                          ? task.observation.validSources
-                          : []),
-                      ...(Array.isArray(task?.observation?.sources)
-                          ? task.observation.sources
-                          : [])
-                  ];
-                  return sources.some(item => {
-                      const descriptor = sourceAnchorDescriptor(
-                          item?.url || item?.href || ""
-                      );
-                      return Boolean(descriptor) && anchorUrls.has(descriptor.url);
-                  });
-              });
-          }
-
-          '''
-          if helper_marker not in source:
-              insert_at = source.find(verified_marker)
-              if insert_at < 0:
-                  raise SystemExit("GROUNDED_RESEARCH_HELPER_ANCHOR_MISSING")
-              source = source[:insert_at] + helper + source[insert_at:]
-
-          policy_marker = "const explicitAnchorAlreadySatisfied ="
-          if policy_marker not in source:
-              function_start = source.find("function normalizeExplicitSourceCandidates(")
-              if function_start < 0:
-                  raise SystemExit("GROUNDED_RESEARCH_NORMALIZER_MISSING")
-              block_start = source.find("        const candidateAnchors =", function_start)
-              anchor_start = source.find("        const anchor =", block_start)
-              block_end = source.find("            );", anchor_start)
-              if min(block_start, anchor_start, block_end) < 0:
-                  raise SystemExit("GROUNDED_RESEARCH_POLICY_BLOCK_MISSING")
-              block_end += len("            );")
-              replacement = '''        const explicitAnchorAlreadySatisfied =
-              name === "web.research" &&
-              researchGoalHasSatisfiedExplicitAnchor(
-                  context?.missionState || null,
-                  args.researchGoal,
-                  explicitAnchors
-              );
-          const candidateAnchors =
-              name === "web.research"
-                  ? (
-                      explicitAnchorAlreadySatisfied
-                          ? []
-                          : explicitAnchors
-                  )
-                  : explicitAnchors.length > 0
-                      ? explicitAnchors
-                      : name === "web.media.collect"
-                          ? researchedAnchors
-                          : [];
-          const anchor =
-              sourceAnchorForCandidate(
-                  args,
-                  candidateAnchors
-              );'''
-              source = source[:block_start] + replacement + source[block_end:]
-
-          for required in (
-              helper_marker,
-              policy_marker,
-              "researchGoalHasSatisfiedExplicitAnchor(",
-              "context?.missionState || null",
-              "args.researchGoal"
-          ):
-              if required not in source:
-                  raise SystemExit(f"GROUNDED_RESEARCH_PLANNER_MARKER_MISSING:{required}")
-          planner_path.write_text(source, encoding="utf-8")
-
-          test_path = Path("tests/jarvis-source-grounded-research-v124.test.mjs")
-          tests = test_path.read_text(encoding="utf-8")
-          test_name = 'test("verified explicit anchor releases the same research goal for cross-source expansion"'
-          marker = 'test("local fallback preserves source scope, entity and URL hints", () => {'
-          regression = '''test("verified explicit anchor releases the same research goal for cross-source expansion", () => {
-              const seedUrl = "https://social.example/@acme.norte/video/123?q=acme%20norte%20merida";
-              const instruction = `Investiga la publicación exacta ${seedUrl} de Acme Norte y después cruza otras fuentes públicas para ubicación, teléfono, horarios y redes.`;
-              const missionState = {
-                  completedTasks: [
-                      {
-                          name: "web.research",
-                          args: {
-                              query: "Acme Norte @acme.norte acme norte merida",
-                              researchGoal: "RESEARCH_1",
-                              exactEntity: "Acme Norte",
-                              seedUrl,
-                              allowedDomain: "social.example"
-                          },
-                          observation: {
-                              objectiveSatisfied: true,
-                              validSources: [{ url: seedUrl }]
-                          }
-                      }
-                  ]
-              };
-              const calls = plannerTest.trustedPlanCalls({
-                  planKind: "MISSION_CONTRACT",
-                  toolCalls: [
-                      {
-                          name: "web.research",
-                          args: {
-                              query: "Acme Norte ubicación teléfono horarios redes sociales",
-                              researchGoal: "RESEARCH_1",
-                              exactEntity: "Acme Norte"
-                          }
-                      }
-                  ]
-              }, [webTool], {
-                  originalInstruction: instruction,
-                  missionState
-              });
-              const research = calls.find(call => call.name === "web.research");
-              assert.ok(research);
-              assert.equal(research.args.researchGoal, "RESEARCH_1");
-              assert.equal(research.args.exactEntity, "Acme Norte");
-              assert.equal(research.args.seedUrl, undefined);
-              assert.equal(research.args.allowedDomain, undefined);
-              assert.match(research.args.query, /Acme Norte/i);
-              assert.match(research.args.query, /teléfono/i);
-          });
-
-          '''
-          if test_name not in tests:
-              insert_at = tests.find(marker)
-              if insert_at < 0:
-                  raise SystemExit("GROUNDED_RESEARCH_TEST_ANCHOR_MISSING")
-              tests = tests[:insert_at] + regression + tests[insert_at:]
-          test_path.write_text(tests, encoding="utf-8")
-          PY
           git diff --check
           test -z "$(git diff --name-only -- functions/)"
           test -z "$(git diff --name-only -- multiservicios-web/)"
@@ -237,52 +61,55 @@ jobs:
           terminal_path = Path("gestia-terminal.html")
           terminal = terminal_path.read_text(encoding="utf-8")
           delivery_marker = "const verifiedProducedArtifacts ="
+
           if delivery_marker not in terminal:
-              anchor = '''                window.JarvisAttachments
-                    ?.renderArtifactsFromObservations?.(agentObservations)
-                    .catch(error => console.warn("[JARVIS_ARTIFACT_RENDER_FAILED]", error));'''
-              if anchor not in terminal:
-                  raise SystemExit("MARKETING_DOWNLOAD_RENDER_ANCHOR_MISSING")
-              replacement = '''                const verifiedProducedArtifacts =
-                    (Array.isArray(finalResponse?.producedArtifacts)
-                        ? finalResponse.producedArtifacts
-                        : [])
-                        .filter(item =>
-                            typeof item?.output === "string" &&
-                            item.output.startsWith(".jarvis-artifacts/")
-                        )
-                        .filter((item, index, items) =>
-                            items.findIndex(candidate => candidate.output === item.output) === index
-                        );
+              pending_marker = "?.renderPendingArtifacts?.()"
+              pending_pos = terminal.find(pending_marker)
+              if pending_pos < 0:
+                  raise SystemExit("MARKETING_DOWNLOAD_PENDING_RENDERER_MISSING")
+              insert_at = terminal.rfind("window.JarvisAttachments", 0, pending_pos)
+              if insert_at < 0:
+                  raise SystemExit("MARKETING_DOWNLOAD_RENDERER_OWNER_MISSING")
+              line_start = terminal.rfind("\n", 0, insert_at) + 1
+              indent = terminal[line_start:insert_at]
+              block = f'''{indent}const verifiedProducedArtifacts =
+          (Array.isArray(finalResponse?.producedArtifacts)
+              ? finalResponse.producedArtifacts
+              : [])
+              .filter(item =>
+                  typeof item?.output === "string" &&
+                  item.output.startsWith(".jarvis-artifacts/")
+              )
+              .filter((item, index, items) =>
+                  items.findIndex(candidate => candidate.output === item.output) === index
+              );
 
-                if (
-                    verifiedProducedArtifacts.length > 0 &&
-                    typeof window.JarvisAttachments?.renderArtifact === "function"
-                ) {
-                    for (const artifact of verifiedProducedArtifacts) {
-                        try {
-                            await window.JarvisAttachments.renderArtifact(
-                                artifact.output,
-                                "",
-                                artifact.label || "archivo producido"
-                            );
-                        }
-                        catch(error) {
-                            console.warn(
-                                "[JARVIS_FINAL_ARTIFACT_RENDER_FAILED]",
-                                {
-                                    output: artifact.output,
-                                    error: error?.message || String(error)
-                                }
-                            );
-                        }
-                    }
-                }
+      if (
+          verifiedProducedArtifacts.length > 0 &&
+          typeof window.JarvisAttachments?.renderArtifact === "function"
+      ) {{
+          for (const artifact of verifiedProducedArtifacts) {{
+              try {{
+                  await window.JarvisAttachments.renderArtifact(
+                      artifact.output,
+                      "",
+                      artifact.label || "archivo producido"
+                  );
+              }}
+              catch(error) {{
+                  console.warn(
+                      "[JARVIS_FINAL_ARTIFACT_RENDER_FAILED]",
+                      {{
+                          output: artifact.output,
+                          error: error?.message || String(error)
+                      }}
+                  );
+              }}
+          }}
+      }}
 
-                window.JarvisAttachments
-                    ?.renderArtifactsFromObservations?.(agentObservations)
-                    .catch(error => console.warn("[JARVIS_ARTIFACT_RENDER_FAILED]", error));'''
-              terminal = terminal.replace(anchor, replacement, 1)
+'''
+              terminal = terminal[:line_start] + block + terminal[line_start:]
               terminal_path.write_text(terminal, encoding="utf-8")
 
           test_path = Path("tests/jarvis-marketing-terminal-delivery.e2e.test.mjs")
@@ -292,7 +119,7 @@ jobs:
               marker = 'test("completed marketing plan content is injected into MD and PDF artifact creation", () => {'
               if marker not in tests:
                   raise SystemExit("MARKETING_DOWNLOAD_TEST_ANCHOR_MISSING")
-              regression = '''test("Terminal renders verified marketing producedArtifacts through the existing download renderer", () => {
+              regression = r'''test("Terminal renders verified marketing producedArtifacts through the existing download renderer", () => {
               const terminal = fs.readFileSync(path.join(process.cwd(), "gestia-terminal.html"), "utf8");
               assert.match(terminal, /const verifiedProducedArtifacts =/);
               assert.match(terminal, /finalResponse\?\.producedArtifacts/);
@@ -323,7 +150,7 @@ jobs:
           test -z "$(git diff --name-only -- functions/)"
           test -z "$(git diff --name-only -- multiservicios-web/)"
 
-      - name: Verify one semantic authority grounded expansion and downloadable delivery
+      - name: Verify single brain grounded research and downloadable delivery
         shell: bash
         run: |
           set -euo pipefail
@@ -352,28 +179,28 @@ jobs:
           test -z "$(git diff --name-only -- functions/)"
           test -z "$(git diff --name-only -- multiservicios-web/)"
 
-      - name: Materialize current grounded single flow
+      - name: Materialize downloadable grounded single flow
         shell: bash
         run: |
           set -euo pipefail
           changed="$(git diff --name-only)"
           if [ -z "$changed" ]; then
-            echo 'GROUNDED_SINGLE_FLOW_ALREADY_MATERIALIZED=true'
+            echo 'DOWNLOADABLE_SINGLE_FLOW_ALREADY_MATERIALIZED=true'
             exit 0
           fi
-          allowed='^(gestia-terminal\.html|gestia-core/jarvis/jarvis\.multifunction\.planner\.js|gestia-core/nexo/nexo\.real-media\.runtime-guard-v128\.js|tests/single-semantic-authority\.test\.mjs|tests/jarvis-multifunction-tools\.test\.mjs|tests/repo-authority-v2\.test\.cjs|tests/jarvis-source-grounded-research-v124\.test\.mjs|tests/jarvis-marketing-terminal-delivery\.e2e\.test\.mjs)$'
+          allowed='^(gestia-terminal\.html|tests/jarvis-marketing-terminal-delivery\.e2e\.test\.mjs)$'
           unexpected="$(printf '%s\n' "$changed" | grep -Ev "$allowed" || true)"
           if [ -n "$unexpected" ]; then
             echo "$unexpected"
-            echo 'GROUNDED_SINGLE_FLOW_UNEXPECTED_DIFF=true'
+            echo 'DOWNLOADABLE_SINGLE_FLOW_UNEXPECTED_DIFF=true'
             exit 1
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add gestia-terminal.html gestia-core/jarvis/jarvis.multifunction.planner.js gestia-core/nexo/nexo.real-media.runtime-guard-v128.js tests/single-semantic-authority.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/repo-authority-v2.test.cjs tests/jarvis-source-grounded-research-v124.test.mjs tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
+          git add gestia-terminal.html tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
           git commit -m 'fix(jarvis): render verified marketing deliverables for download'
           git push origin HEAD:v94-media-v4n-negative-claims
-          echo 'GROUNDED_SINGLE_FLOW_MATERIALIZED=true'
+          echo 'DOWNLOADABLE_SINGLE_FLOW_MATERIALIZED=true'
 
       - name: Upload maintenance evidence
         if: always()
