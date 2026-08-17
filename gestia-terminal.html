@@ -3436,26 +3436,6 @@ if (
         return;
     }
 }
-                if (
-            terminalBrainRoute?.mode !== "PROPOSAL_ADJUSTMENT" &&
-            window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__
-        ) {
-            console.info(
-                "[SIA7_STALE_ADJUSTMENT_CONTEXT_CLEARED_41_42_5]",
-                {
-                    mode:
-                        terminalBrainRoute?.mode,
-                    staleFile:
-                        window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__?.file,
-                    traceId:
-                        currentTraceId
-                }
-            );
-
-            window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__ =
-                null;
-        }
-
                         const adjustmentTargetFile =
             window.__SIA7_PROPOSAL_ADJUSTMENT_IN_FLIGHT__?.file ||
             "";
@@ -3467,27 +3447,12 @@ if (
             readTerminalActivePatchProposal();
 
         const activePatchProposal =
-            terminalBrainRoute?.mode === "PROPOSAL_ADJUSTMENT"
-                ? (
-                    adjustmentTargetFile &&
-                    activeVisualPatchProposal?.file === adjustmentTargetFile
-                        ? activeVisualPatchProposal
-                        : null
-                ) ||
-                (
-                    adjustmentTargetFile &&
-                    activeSharedPatchProposal?.file === adjustmentTargetFile
-                        ? activeSharedPatchProposal
-                        : null
-                ) ||
-                activeVisualPatchProposal ||
-                activeSharedPatchProposal
-                : activeSharedPatchProposal;
+            activeSharedPatchProposal ||
+            activeVisualPatchProposal ||
+            null;
 
-                const shouldBuildProposalAdjustmentInput =
-            activePatchProposal?.file &&
-            terminalBrainRoute?.mode === "PROPOSAL_ADJUSTMENT";
-
+        const shouldBuildProposalAdjustmentInput =
+            false;
                 const lockedAdjustmentFile =
             shouldBuildProposalAdjustmentInput
                 ? (
@@ -3576,7 +3541,6 @@ if (
                         currentTraceId,
                     naturalIntentAuthority:
                         "brain",
-                    terminalBrainRoute,
                                         proposalAdjustmentContext:
                         shouldBuildProposalAdjustmentInput
                             ? {

@@ -5235,3 +5235,19 @@ test("GestiaCore always builds an honest mission final response when the mission
     const coreSource = fs.readFileSync(path.resolve("gestia-core/gestia-core.js"), "utf8");
     assert.match(coreSource, /const missionFinalResponse =[\s\S]{0,700}?missionResult\.executedTools\.length > 0[\s\S]{0,300}?missionResult\.blockedTasks\.length > 0[\s\S]{0,300}?missionResult\.pendingTasks\.length > 0[\s\S]{0,300}?Boolean\(missionResult\.reason\)/);
 });
+
+test("terminal core-first has no orphan brain route and semantic latency is bounded", () => {
+    const terminalSource = fs.readFileSync(path.resolve("gestia-terminal.html"), "utf8");
+    const plannerSource = fs.readFileSync(path.resolve("gestia-core/jarvis/jarvis.multifunction.planner.js"), "utf8");
+    const coreSource = fs.readFileSync(path.resolve("gestia-core/gestia-core.js"), "utf8");
+    const multitoolSource = fs.readFileSync(path.resolve("gestia-core/jarvis/jarvis.multitool.pack.js"), "utf8");
+    assert.doesNotMatch(terminalSource, /terminalBrainRoute/);
+    assert.doesNotMatch(terminalSource, /routeTerminalNaturalIntent/);
+    assert.match(terminalSource, /await window\.GestiaCore\.procesarIntencion/);
+    assert.match(plannerSource, /CLOUD_MISSION_CONTRACT_TIMEOUT_MS\s*=\s*\n\s*12000/);
+    assert.match(plannerSource, /BROWSER_MISSION_ATTEMPT_TIMEOUT_MS\s*=\s*\n\s*6000/);
+    assert.match(plannerSource, /BROWSER_PLAN_ATTEMPT_TIMEOUT_MS\s*=\s*\n\s*5000/);
+    assert.doesNotMatch(plannerSource, /:\s*110000;/);
+    assert.match(coreSource, /providerFallbackExhausted/);
+    assert.match(multitoolSource, /\?\s*30000[\s\S]{0,80}?:\s*18000/);
+});
