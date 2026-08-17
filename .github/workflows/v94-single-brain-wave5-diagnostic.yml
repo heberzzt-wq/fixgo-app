@@ -1,4 +1,4 @@
-name: V94 single-brain maintenance
+name: V94 single-brain and grounded-mission maintenance
 
 on:
   push:
@@ -51,20 +51,197 @@ jobs:
           test -z "$(git diff --name-only -- functions/)"
           test -z "$(git diff --name-only -- multiservicios-web/)"
 
-      - name: Verify one semantic authority and one tool registry
+      - name: Converge grounded research anchor then expansion
         shell: bash
         run: |
           set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          planner_path = Path("gestia-core/jarvis/jarvis.multifunction.planner.js")
+          source = planner_path.read_text(encoding="utf-8")
+
+          helper_anchor = '''function verifiedResearchSourceUrls(
+              missionState = null
+          ) {'''
+          helper = '''function researchGoalHasSatisfiedExplicitAnchor(
+              missionState = null,
+              researchGoal = "",
+              explicitAnchors = []
+          ) {
+              const goal = String(researchGoal || "").trim();
+              const anchorUrls = new Set(
+                  (Array.isArray(explicitAnchors) ? explicitAnchors : [])
+                      .map(sourceAnchorDescriptor)
+                      .filter(Boolean)
+                      .map(item => item.url)
+              );
+              if (!goal || anchorUrls.size === 0) return false;
+              const completedTasks = Array.isArray(missionState?.completedTasks)
+                  ? missionState.completedTasks
+                  : [];
+              return completedTasks.some(task => {
+                  if (
+                      String(task?.name || "") !== "web.research" ||
+                      task?.observation?.objectiveSatisfied !== true
+                  ) return false;
+                  const completedGoal = String(
+                      task?.args?.researchGoal ||
+                      task?.observation?.researchGoal ||
+                      ""
+                  ).trim();
+                  if (completedGoal !== goal) return false;
+                  const seed = sourceAnchorDescriptor(task?.args?.seedUrl || "");
+                  if (seed && anchorUrls.has(seed.url)) return true;
+                  const sources = [
+                      ...(Array.isArray(task?.observation?.validSources)
+                          ? task.observation.validSources
+                          : []),
+                      ...(Array.isArray(task?.observation?.sources)
+                          ? task.observation.sources
+                          : [])
+                  ];
+                  return sources.some(item => {
+                      const descriptor = sourceAnchorDescriptor(
+                          item?.url || item?.href || ""
+                      );
+                      return Boolean(descriptor) && anchorUrls.has(descriptor.url);
+                  });
+              });
+          }
+
+          function verifiedResearchSourceUrls(
+              missionState = null
+          ) {'''
+          if "function researchGoalHasSatisfiedExplicitAnchor(" not in source:
+              if helper_anchor not in source:
+                  raise SystemExit("GROUNDED_RESEARCH_HELPER_ANCHOR_MISSING")
+              source = source.replace(helper_anchor, helper, 1)
+
+          old = '''        const candidateAnchors =
+              explicitAnchors.length > 0
+                  ? explicitAnchors
+                  : name === "web.media.collect"
+                      ? researchedAnchors
+                      : [];
+          const anchor =
+              sourceAnchorForCandidate(
+                  args,
+                  candidateAnchors
+              );'''
+          new = '''        const explicitAnchorAlreadySatisfied =
+              name === "web.research" &&
+              researchGoalHasSatisfiedExplicitAnchor(
+                  context?.missionState || null,
+                  args.researchGoal,
+                  explicitAnchors
+              );
+          const candidateAnchors =
+              name === "web.research"
+                  ? (
+                      explicitAnchorAlreadySatisfied
+                          ? []
+                          : explicitAnchors
+                  )
+                  : explicitAnchors.length > 0
+                      ? explicitAnchors
+                      : name === "web.media.collect"
+                          ? researchedAnchors
+                          : [];
+          const anchor =
+              sourceAnchorForCandidate(
+                  args,
+                  candidateAnchors
+              );'''
+          if old in source:
+              source = source.replace(old, new, 1)
+          if old in source:
+              raise SystemExit("GROUNDED_RESEARCH_OLD_ANCHOR_POLICY_REMAINS")
+          for required in (
+              "function researchGoalHasSatisfiedExplicitAnchor(",
+              "explicitAnchorAlreadySatisfied",
+              "args.researchGoal",
+              "context?.missionState || null"
+          ):
+              if required not in source:
+                  raise SystemExit(f"GROUNDED_RESEARCH_PLANNER_MARKER_MISSING:{required}")
+          planner_path.write_text(source, encoding="utf-8")
+
+          test_path = Path("tests/jarvis-source-grounded-research-v124.test.mjs")
+          tests = test_path.read_text(encoding="utf-8")
+          marker = '''test("local fallback preserves source scope, entity and URL hints", () => {'''
+          regression = '''test("verified explicit anchor releases the same research goal for cross-source expansion", () => {
+              const seedUrl = "https://social.example/@acme.norte/video/123?q=acme%20norte%20merida";
+              const instruction = `Investiga la publicación exacta ${seedUrl} de Acme Norte y después cruza otras fuentes públicas para ubicación, teléfono, horarios y redes.`;
+              const missionState = {
+                  completedTasks: [
+                      {
+                          name: "web.research",
+                          args: {
+                              query: "Acme Norte @acme.norte acme norte merida",
+                              researchGoal: "RESEARCH_1",
+                              exactEntity: "Acme Norte",
+                              seedUrl,
+                              allowedDomain: "social.example"
+                          },
+                          observation: {
+                              objectiveSatisfied: true,
+                              validSources: [{ url: seedUrl }]
+                          }
+                      }
+                  ]
+              };
+              const calls = plannerTest.trustedPlanCalls({
+                  planKind: "MISSION_CONTRACT",
+                  toolCalls: [
+                      {
+                          name: "web.research",
+                          args: {
+                              query: "Acme Norte ubicación teléfono horarios redes sociales",
+                              researchGoal: "RESEARCH_1",
+                              exactEntity: "Acme Norte"
+                          }
+                      }
+                  ]
+              }, [webTool], {
+                  originalInstruction: instruction,
+                  missionState
+              });
+              const research = calls.find(call => call.name === "web.research");
+              assert.ok(research);
+              assert.equal(research.args.researchGoal, "RESEARCH_1");
+              assert.equal(research.args.exactEntity, "Acme Norte");
+              assert.equal(research.args.seedUrl, undefined);
+              assert.equal(research.args.allowedDomain, undefined);
+              assert.match(research.args.query, /Acme Norte/i);
+              assert.match(research.args.query, /teléfono/i);
+          });
+
+          test("local fallback preserves source scope, entity and URL hints", () => {'''
+          if 'test("verified explicit anchor releases the same research goal for cross-source expansion"' not in tests:
+              if marker not in tests:
+                  raise SystemExit("GROUNDED_RESEARCH_TEST_ANCHOR_MISSING")
+              tests = tests.replace(marker, regression, 1)
+          test_path.write_text(tests, encoding="utf-8")
+          PY
+          git diff --check
+          test -z "$(git diff --name-only -- functions/)"
+          test -z "$(git diff --name-only -- multiservicios-web/)"
+
+      - name: Verify one semantic authority and grounded expansion
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
           node --check gestia-core/nexo/nexo.real-media.runtime-guard-v128.js
-          node --check tests/single-semantic-authority.test.mjs
           node --test tests/single-semantic-authority.test.mjs | tee /tmp/v94-single-brain-focused.log
+          node --test tests/jarvis-source-grounded-research-v124.test.mjs | tee /tmp/v94-grounded-research-focused.log
           ! grep -Fq 'routeTerminalNaturalIntent' gestia-terminal.html
           ! grep -Fq 'TERMINAL_BRAIN_ROUTER_41_42' gestia-terminal.html
           ! grep -Fq 'GestiaCore?.analizarIntencionLigera' gestia-terminal.html
           ! grep -Fq 'runtime.register({' gestia-core/nexo/nexo.real-media.runtime-guard-v128.js
           grep -Fq 'JarvisToolRuntime.execute' gestia-terminal.html
-          grep -Fq 'collectorDefinition.execute = async' gestia-core/nexo/nexo.real-media.runtime-guard-v128.js
-          grep -Fq 'reelDefinition.execute = async' gestia-core/nexo/nexo.real-media.runtime-guard-v128.js
+          grep -Fq 'researchGoalHasSatisfiedExplicitAnchor' gestia-core/jarvis/jarvis.multifunction.planner.js
           test -z "$(git diff --name-only -- functions/)"
           test -z "$(git diff --name-only -- multiservicios-web/)"
 
@@ -77,28 +254,28 @@ jobs:
           test -z "$(git diff --name-only -- functions/)"
           test -z "$(git diff --name-only -- multiservicios-web/)"
 
-      - name: Materialize current single flow
+      - name: Materialize current grounded single flow
         shell: bash
         run: |
           set -euo pipefail
           changed="$(git diff --name-only)"
           if [ -z "$changed" ]; then
-            echo 'SINGLE_BRAIN_ALREADY_MATERIALIZED=true'
+            echo 'GROUNDED_SINGLE_FLOW_ALREADY_MATERIALIZED=true'
             exit 0
           fi
-          allowed='^(gestia-terminal\.html|gestia-core/nexo/nexo\.real-media\.runtime-guard-v128\.js|tests/single-semantic-authority\.test\.mjs|tests/jarvis-multifunction-tools\.test\.mjs|tests/repo-authority-v2\.test\.cjs)$'
+          allowed='^(gestia-terminal\.html|gestia-core/jarvis/jarvis\.multifunction\.planner\.js|gestia-core/nexo/nexo\.real-media\.runtime-guard-v128\.js|tests/single-semantic-authority\.test\.mjs|tests/jarvis-multifunction-tools\.test\.mjs|tests/repo-authority-v2\.test\.cjs|tests/jarvis-source-grounded-research-v124\.test\.mjs)$'
           unexpected="$(printf '%s\n' "$changed" | grep -Ev "$allowed" || true)"
           if [ -n "$unexpected" ]; then
             echo "$unexpected"
-            echo 'SINGLE_BRAIN_UNEXPECTED_DIFF=true'
+            echo 'GROUNDED_SINGLE_FLOW_UNEXPECTED_DIFF=true'
             exit 1
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add gestia-terminal.html gestia-core/nexo/nexo.real-media.runtime-guard-v128.js tests/single-semantic-authority.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/repo-authority-v2.test.cjs
-          git commit -m 'refactor(single-brain): converge terminal and tool authority'
+          git add gestia-terminal.html gestia-core/jarvis/jarvis.multifunction.planner.js gestia-core/nexo/nexo.real-media.runtime-guard-v128.js tests/single-semantic-authority.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/repo-authority-v2.test.cjs tests/jarvis-source-grounded-research-v124.test.mjs
+          git commit -m 'fix(grounded-research): verify anchor before cross-source expansion'
           git push origin HEAD:v94-media-v4n-negative-claims
-          echo 'SINGLE_BRAIN_MATERIALIZED=true'
+          echo 'GROUNDED_SINGLE_FLOW_MATERIALIZED=true'
 
       - name: Upload maintenance evidence
         if: always()
@@ -108,6 +285,7 @@ jobs:
           path: |
             /tmp/v94-single-brain-maintenance.log
             /tmp/v94-single-brain-focused.log
+            /tmp/v94-grounded-research-focused.log
             /tmp/v94-single-brain-ci.log
           if-no-files-found: ignore
           retention-days: 14
