@@ -86,7 +86,7 @@ jobs:
             echo 'SINGLE_BRAIN_ALREADY_MATERIALIZED=true'
             exit 0
           fi
-          allowed='^(gestia-terminal\.html|gestia-core/nexo/nexo\.real-media\.runtime-guard-v128\.js|tests/single-semantic-authority\.test\.mjs)$'
+          allowed='^(gestia-terminal\.html|gestia-core/nexo/nexo\.real-media\.runtime-guard-v128\.js|tests/single-semantic-authority\.test\.mjs|tests/jarvis-multifunction-tools\.test\.mjs)$'
           unexpected="$(printf '%s\n' "$changed" | grep -Ev "$allowed" || true)"
           if [ -n "$unexpected" ]; then
             echo "$unexpected"
@@ -95,7 +95,7 @@ jobs:
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add gestia-terminal.html gestia-core/nexo/nexo.real-media.runtime-guard-v128.js tests/single-semantic-authority.test.mjs
+          git add gestia-terminal.html gestia-core/nexo/nexo.real-media.runtime-guard-v128.js tests/single-semantic-authority.test.mjs tests/jarvis-multifunction-tools.test.mjs
           git commit -m 'refactor(single-brain): converge terminal and tool authority'
           git push origin HEAD:v94-media-v4n-negative-claims
           echo 'SINGLE_BRAIN_MATERIALIZED=true'
