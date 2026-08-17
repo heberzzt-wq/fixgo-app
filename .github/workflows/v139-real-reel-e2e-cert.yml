@@ -1,5 +1,5 @@
 name: v139 real reel e2e cert
-# final-canonical-trigger: v139 repaired lineage 2026-08-14
+# final-canonical-trigger: grounded single-flow candidate 5a430c9c 2026-08-17
 
 on:
   push:
@@ -85,7 +85,12 @@ jobs:
             tests/jarvis-reel-artifact.test.mjs \
             tests/jarvis-mission-orchestrator.test.mjs \
             tests/jarvis-semantic-planner.test.cjs \
-            tests/single-semantic-authority.test.mjs
+            tests/single-semantic-authority.test.mjs \
+            tests/jarvis-source-grounded-research-v124.test.mjs \
+            tests/jarvis-marketing-real-delivery.test.mjs \
+            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs \
+            tests/jarvis-page-artifact.test.mjs \
+            tests/jarvis-docx-artifact.test.mjs
       - name: Full CI
         run: npm run ci:test
       - name: Reject whitespace errors
@@ -95,6 +100,7 @@ jobs:
           echo 'V139_FUNCTIONS_UNCHANGED=true'
           echo 'V139_FOCAL_GREEN=true'
           echo 'V139_FULL_CI_GREEN=true'
+          echo 'V139_GROUNDED_BUSINESS_CHAIN_GREEN=true'
 
   real-reel-e2e:
     runs-on: windows-latest
