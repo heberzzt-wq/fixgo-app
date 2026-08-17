@@ -78,6 +78,53 @@ test("explicit user URL anchors research and media without becoming a separate o
     assert.equal(media.args.url, research.args.seedUrl);
 });
 
+test("verified explicit anchor releases the same research goal for cross-source expansion", () => {
+    const seedUrl = "https://social.example/@acme.norte/video/123?q=acme%20norte%20merida";
+    const instruction = `Investiga la publicación exacta ${seedUrl} de Acme Norte y después cruza otras fuentes públicas para ubicación, teléfono, horarios y redes.`;
+    const missionState = {
+        completedTasks: [
+            {
+                name: "web.research",
+                args: {
+                    query: "Acme Norte @acme.norte acme norte merida",
+                    researchGoal: "RESEARCH_1",
+                    exactEntity: "Acme Norte",
+                    seedUrl,
+                    allowedDomain: "social.example"
+                },
+                observation: {
+                    objectiveSatisfied: true,
+                    validSources: [{ url: seedUrl }]
+                }
+            }
+        ]
+    };
+    const calls = plannerTest.trustedPlanCalls({
+        planKind: "MISSION_CONTRACT",
+        toolCalls: [
+            {
+                name: "web.research",
+                args: {
+                    query: "Acme Norte ubicación teléfono horarios redes sociales",
+                    researchGoal: "RESEARCH_1",
+                    exactEntity: "Acme Norte"
+                }
+            }
+        ]
+    }, [webTool], {
+        originalInstruction: instruction,
+        missionState
+    });
+    const research = calls.find(call => call.name === "web.research");
+    assert.ok(research);
+    assert.equal(research.args.researchGoal, "RESEARCH_1");
+    assert.equal(research.args.exactEntity, "Acme Norte");
+    assert.equal(research.args.seedUrl, undefined);
+    assert.equal(research.args.allowedDomain, undefined);
+    assert.match(research.args.query, /Acme Norte/i);
+    assert.match(research.args.query, /teléfono/i);
+});
+
 test("local fallback preserves source scope, entity and URL hints", () => {
     const query = buildLocalResearchQuery("Acme Norte", {
         allowedDomain: "social.example",

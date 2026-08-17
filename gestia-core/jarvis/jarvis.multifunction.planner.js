@@ -852,6 +852,52 @@ function normalizeResearchMissionFidelity(
     };
 }
 
+function researchGoalHasSatisfiedExplicitAnchor(
+    missionState = null,
+    researchGoal = "",
+    explicitAnchors = []
+) {
+    const goal = String(researchGoal || "").trim();
+    const anchorUrls = new Set(
+        (Array.isArray(explicitAnchors) ? explicitAnchors : [])
+            .map(sourceAnchorDescriptor)
+            .filter(Boolean)
+            .map(item => item.url)
+    );
+    if (!goal || anchorUrls.size === 0) return false;
+    const completedTasks = Array.isArray(missionState?.completedTasks)
+        ? missionState.completedTasks
+        : [];
+    return completedTasks.some(task => {
+        if (
+            String(task?.name || "") !== "web.research" ||
+            task?.observation?.objectiveSatisfied !== true
+        ) return false;
+        const completedGoal = String(
+            task?.args?.researchGoal ||
+            task?.observation?.researchGoal ||
+            ""
+        ).trim();
+        if (completedGoal !== goal) return false;
+        const seed = sourceAnchorDescriptor(task?.args?.seedUrl || "");
+        if (seed && anchorUrls.has(seed.url)) return true;
+        const sources = [
+            ...(Array.isArray(task?.observation?.validSources)
+                ? task.observation.validSources
+                : []),
+            ...(Array.isArray(task?.observation?.sources)
+                ? task.observation.sources
+                : [])
+        ];
+        return sources.some(item => {
+            const descriptor = sourceAnchorDescriptor(
+                item?.url || item?.href || ""
+            );
+            return Boolean(descriptor) && anchorUrls.has(descriptor.url);
+        });
+    });
+}
+
 function verifiedResearchSourceUrls(
     missionState = null
 ) {
@@ -954,17 +1000,30 @@ function normalizeExplicitSourceCandidates(
                 return { ...candidate, name: "" };
             }
         }
-        const candidateAnchors =
-            explicitAnchors.length > 0
-                ? explicitAnchors
-                : name === "web.media.collect"
-                    ? researchedAnchors
-                    : [];
-        const anchor =
-            sourceAnchorForCandidate(
-                args,
-                candidateAnchors
-            );
+        const explicitAnchorAlreadySatisfied =
+    name === "web.research" &&
+    researchGoalHasSatisfiedExplicitAnchor(
+        context?.missionState || null,
+        args.researchGoal,
+        explicitAnchors
+    );
+const candidateAnchors =
+    name === "web.research"
+        ? (
+            explicitAnchorAlreadySatisfied
+                ? []
+                : explicitAnchors
+        )
+        : explicitAnchors.length > 0
+            ? explicitAnchors
+            : name === "web.media.collect"
+                ? researchedAnchors
+                : [];
+const anchor =
+    sourceAnchorForCandidate(
+        args,
+        candidateAnchors
+    );
         if (!anchor) {
             return {
                 ...candidate,
