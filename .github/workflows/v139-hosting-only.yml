@@ -12,8 +12,8 @@ permissions:
   contents: read
 
 env:
-  CERTIFIED_SHA: 25b165fdb953475da35b8128e2c3589d9cc60481
-  CERTIFIED_TREE: 8eef77c3a91909cf16b81450fd4af1dfd67df1b3
+  CERTIFIED_SHA: 18a6b08ed8d35810253bffdbf50b8926f9a0e7ad
+  CERTIFIED_TREE: f2ff1d6f1b248e0a9c5e4a912d43bbab8a80db65
   FIREBASE_PROJECT_ID: fixgo-44e4d
   FIREBASE_SITE_ID: fixgo-44e4d
 
@@ -104,16 +104,21 @@ jobs:
           url="https://${FIREBASE_SITE_ID}.web.app/gestia-terminal.html?v139_sha=${CERTIFIED_SHA}"
           core_url="https://${FIREBASE_SITE_ID}.web.app/gestia-core/gestia-core.js?v139_sha=${CERTIFIED_SHA}"
           guard_url="https://${FIREBASE_SITE_ID}.web.app/gestia-core/nexo/nexo.real-media.runtime-guard-v128.js?v139_sha=${CERTIFIED_SHA}"
+          planner_url="https://${FIREBASE_SITE_ID}.web.app/gestia-core/jarvis/jarvis.multifunction.planner.js?v139_sha=${CERTIFIED_SHA}"
           ok=false
           for attempt in $(seq 1 15); do
             if curl --fail --silent --show-error --location "$url" -o /tmp/v139-terminal.html \
               && curl --fail --silent --show-error --location "$core_url" -o /tmp/v139-core.js \
               && curl --fail --silent --show-error --location "$guard_url" -o /tmp/v139-runtime-guard.js \
+              && curl --fail --silent --show-error --location "$planner_url" -o /tmp/v139-planner.js \
               && grep -q 'gestia-core/gestia-core.js?v=v139-real-reel-e2e-20260812' /tmp/v139-terminal.html \
               && grep -q 'MISSION_SEMANTIC_PLANNER_TRANSIENT_RETRY' /tmp/v139-core.js \
               && grep -q 'NEXO_REAL_MEDIA_TOOLS_VERSION' /tmp/v139-runtime-guard.js \
               && grep -q 'realMediaToolsReady' /tmp/v139-runtime-guard.js \
-              && ! grep -q 'includes("real-media-reel-hydration-v127")' /tmp/v139-runtime-guard.js; then
+              && ! grep -q 'runtime.register({' /tmp/v139-runtime-guard.js \
+              && grep -q 'researchGoalHasSatisfiedExplicitAnchor' /tmp/v139-planner.js \
+              && ! grep -q 'routeTerminalNaturalIntent' /tmp/v139-terminal.html \
+              && ! grep -q 'TERMINAL_BRAIN_ROUTER_41_42' /tmp/v139-terminal.html; then
               ok=true
               break
             fi
@@ -122,4 +127,6 @@ jobs:
           test "$ok" = true
           echo 'V139_HOSTING_WEB_VERIFIED=true'
           echo 'V139_NEXO_RUNTIME_GUARD_CONTRACT_VERIFIED=true'
+          echo 'V139_SINGLE_BRAIN_SERVED=true'
+          echo 'V139_GROUNDED_RESEARCH_SERVED=true'
           echo "V139_WEB_URL=https://${FIREBASE_SITE_ID}.web.app/gestia-terminal.html"
