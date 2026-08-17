@@ -1,5 +1,5 @@
 name: v139 real reel e2e cert
-# final-canonical-trigger: bounded latency and universal presentation 279bd5da 2026-08-17
+# final-canonical-trigger: bounded latency isolated focal 279bd5da 2026-08-17
 
 on:
   push:
@@ -55,7 +55,8 @@ jobs:
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
           ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
-      - name: Focal v139 plus reel lineage contracts
+
+      - name: Focal syntax contracts
         shell: bash
         run: |
           set -euo pipefail
@@ -70,7 +71,12 @@ jobs:
           node --check jarvis-fs-bridge.js
           node --check jarvis-reel-artifact.js
           node --check jarvis-speech-artifact.js
-          node --test \
+
+      - name: Focal reel and media lineage contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test --test-concurrency=1 \
             tests/jarvis-reel-live-cache-v139.test.mjs \
             tests/jarvis-reel-native-mp4-v138.test.mjs \
             tests/jarvis-reel-speech-v137.test.mjs \
@@ -82,16 +88,29 @@ jobs:
             tests/nexo-real-media-tools.test.mjs \
             tests/jarvis-actuator-pack.test.mjs \
             tests/jarvis-fs-bridge-v2.test.mjs \
-            tests/jarvis-reel-artifact.test.mjs \
+            tests/jarvis-reel-artifact.test.mjs
+
+      - name: Focal mission semantic latency contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test --test-concurrency=1 \
             tests/jarvis-mission-orchestrator.test.mjs \
             tests/jarvis-semantic-planner.test.cjs \
             tests/single-semantic-authority.test.mjs \
             tests/jarvis-source-grounded-research-v124.test.mjs \
+            tests/jarvis-multifunction-tools.test.mjs
+
+      - name: Focal business delivery contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test --test-concurrency=1 \
             tests/jarvis-marketing-real-delivery.test.mjs \
             tests/jarvis-marketing-terminal-delivery.e2e.test.mjs \
-            tests/jarvis-multifunction-tools.test.mjs \
             tests/jarvis-page-artifact.test.mjs \
             tests/jarvis-docx-artifact.test.mjs
+
       - name: Full CI
         run: npm run ci:test
       - name: Reject whitespace errors
