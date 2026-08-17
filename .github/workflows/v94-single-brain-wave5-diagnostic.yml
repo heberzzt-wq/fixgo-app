@@ -61,9 +61,8 @@ jobs:
           planner_path = Path("gestia-core/jarvis/jarvis.multifunction.planner.js")
           source = planner_path.read_text(encoding="utf-8")
 
-          helper_anchor = '''function verifiedResearchSourceUrls(
-              missionState = null
-          ) {'''
+          helper_marker = "function researchGoalHasSatisfiedExplicitAnchor("
+          verified_marker = "function verifiedResearchSourceUrls(\n"
           helper = '''function researchGoalHasSatisfiedExplicitAnchor(
               missionState = null,
               researchGoal = "",
@@ -110,26 +109,25 @@ jobs:
               });
           }
 
-          function verifiedResearchSourceUrls(
-              missionState = null
-          ) {'''
-          if "function researchGoalHasSatisfiedExplicitAnchor(" not in source:
-              if helper_anchor not in source:
+          '''
+          if helper_marker not in source:
+              insert_at = source.find(verified_marker)
+              if insert_at < 0:
                   raise SystemExit("GROUNDED_RESEARCH_HELPER_ANCHOR_MISSING")
-              source = source.replace(helper_anchor, helper, 1)
+              source = source[:insert_at] + helper + source[insert_at:]
 
-          old = '''        const candidateAnchors =
-              explicitAnchors.length > 0
-                  ? explicitAnchors
-                  : name === "web.media.collect"
-                      ? researchedAnchors
-                      : [];
-          const anchor =
-              sourceAnchorForCandidate(
-                  args,
-                  candidateAnchors
-              );'''
-          new = '''        const explicitAnchorAlreadySatisfied =
+          policy_marker = "const explicitAnchorAlreadySatisfied ="
+          if policy_marker not in source:
+              function_start = source.find("function normalizeExplicitSourceCandidates(")
+              if function_start < 0:
+                  raise SystemExit("GROUNDED_RESEARCH_NORMALIZER_MISSING")
+              block_start = source.find("        const candidateAnchors =", function_start)
+              anchor_start = source.find("        const anchor =", block_start)
+              block_end = source.find("            );", anchor_start)
+              if min(block_start, anchor_start, block_end) < 0:
+                  raise SystemExit("GROUNDED_RESEARCH_POLICY_BLOCK_MISSING")
+              block_end += len("            );")
+              replacement = '''        const explicitAnchorAlreadySatisfied =
               name === "web.research" &&
               researchGoalHasSatisfiedExplicitAnchor(
                   context?.missionState || null,
@@ -153,15 +151,14 @@ jobs:
                   args,
                   candidateAnchors
               );'''
-          if old in source:
-              source = source.replace(old, new, 1)
-          if old in source:
-              raise SystemExit("GROUNDED_RESEARCH_OLD_ANCHOR_POLICY_REMAINS")
+              source = source[:block_start] + replacement + source[block_end:]
+
           for required in (
-              "function researchGoalHasSatisfiedExplicitAnchor(",
-              "explicitAnchorAlreadySatisfied",
-              "args.researchGoal",
-              "context?.missionState || null"
+              helper_marker,
+              policy_marker,
+              "researchGoalHasSatisfiedExplicitAnchor(",
+              "context?.missionState || null",
+              "args.researchGoal"
           ):
               if required not in source:
                   raise SystemExit(f"GROUNDED_RESEARCH_PLANNER_MARKER_MISSING:{required}")
@@ -169,7 +166,8 @@ jobs:
 
           test_path = Path("tests/jarvis-source-grounded-research-v124.test.mjs")
           tests = test_path.read_text(encoding="utf-8")
-          marker = '''test("local fallback preserves source scope, entity and URL hints", () => {'''
+          test_name = 'test("verified explicit anchor releases the same research goal for cross-source expansion"'
+          marker = 'test("local fallback preserves source scope, entity and URL hints", () => {'
           regression = '''test("verified explicit anchor releases the same research goal for cross-source expansion", () => {
               const seedUrl = "https://social.example/@acme.norte/video/123?q=acme%20norte%20merida";
               const instruction = `Investiga la publicación exacta ${seedUrl} de Acme Norte y después cruza otras fuentes públicas para ubicación, teléfono, horarios y redes.`;
@@ -217,11 +215,12 @@ jobs:
               assert.match(research.args.query, /teléfono/i);
           });
 
-          test("local fallback preserves source scope, entity and URL hints", () => {'''
-          if 'test("verified explicit anchor releases the same research goal for cross-source expansion"' not in tests:
-              if marker not in tests:
+          '''
+          if test_name not in tests:
+              insert_at = tests.find(marker)
+              if insert_at < 0:
                   raise SystemExit("GROUNDED_RESEARCH_TEST_ANCHOR_MISSING")
-              tests = tests.replace(marker, regression, 1)
+              tests = tests[:insert_at] + regression + tests[insert_at:]
           test_path.write_text(tests, encoding="utf-8")
           PY
           git diff --check
