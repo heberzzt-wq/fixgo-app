@@ -32,10 +32,14 @@ test("v139 runtime refreshes the multifunction pack used by web research and ree
   assert.match(runtime, /jarvis\.actuator\.pack\.js\?v=v138-native-mp4-reel-export-20260812/);
 });
 
-test("v139 transient planner resilience stays semantic and bounded", () => {
+test("v139 transient planner resilience stays semantic and bounded without stacking exhausted providers", () => {
   assert.match(core, /buildMissionToolCallsWithTransientRetry/);
   assert.match(core, /MISSION_SEMANTIC_PLANNER_TRANSIENT_RETRY/);
-  assert.match(core, /attempt <= 3/);
+  assert.match(core, /attempt <= 2/);
+  assert.doesNotMatch(core, /attempt <= 3/);
+  assert.match(core, /providerFallbackExhausted/);
+  assert.match(core, /message\.includes\("__BROWSER_"\)/);
+  assert.match(core, /message\.includes\("TIMEOUT_"\)/);
   assert.match(core, /maximumRetries:\s*2/);
   assert.doesNotMatch(core, /TRANSIENT_LEXICAL_ROUTER/);
 });
@@ -48,4 +52,4 @@ test("v139 transient media resilience retries only browser transport failures", 
   assert.match(core, /mediaResult\?\.objectiveSatisfied !== true/);
 });
 
-// v139-transient-resilience-20260813
+// v139-transient-resilience-20260817-bounded-latency
