@@ -2485,8 +2485,8 @@ async function fetchSemanticConversation(
     const controller = new AbortController();
     const responseTimeoutMs =
         Number(maxOutputTokens) >= 6000
-            ? 130000
-            : 55000;
+            ? 30000
+            : 18000;
     const timer =
         setTimeout(
             () => controller.abort(),

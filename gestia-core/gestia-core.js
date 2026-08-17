@@ -4417,7 +4417,7 @@ if (
     const buildMissionToolCallsWithTransientRetry =
         async (plannerInstruction, plannerOptions) => {
             let lastPlannerError = null;
-            for (let attempt = 1; attempt <= 3; attempt += 1) {
+            for (let attempt = 1; attempt <= 2; attempt += 1) {
                 try {
                     return await buildJarvisMultifunctionToolCalls(
                         plannerInstruction,
@@ -4426,20 +4426,33 @@ if (
                 }
                 catch (error) {
                     lastPlannerError = error;
-                    if (attempt >= 3) throw error;
+                    const message =
+                        String(
+                            error?.message ||
+                            "SEMANTIC_PLANNER_UNAVAILABLE"
+                        );
+                    const providerFallbackExhausted =
+                        message.includes("__BROWSER_") ||
+                        message.includes("TIMEOUT_") ||
+                        message.includes("AUTH_REQUIRED");
+                    if (
+                        attempt >= 2 ||
+                        providerFallbackExhausted
+                    ) {
+                        throw error;
+                    }
                     console.warn(
                         "[MISSION_SEMANTIC_PLANNER_TRANSIENT_RETRY]",
                         attempt,
-                        error?.message || "SEMANTIC_PLANNER_UNAVAILABLE"
+                        message
                     );
                     await new Promise(resolve =>
-                        setTimeout(resolve, 500 * attempt)
+                        setTimeout(resolve, 350)
                     );
                 }
             }
             throw lastPlannerError || new Error("SEMANTIC_PLANNER_UNAVAILABLE");
         };
-
     const missionResult =
         await runJarvisMission({
             instruction:
@@ -5934,7 +5947,12 @@ if (
         !observationDrivenFinalResponse &&
         !globalAnalysisFinalResponse &&
         !directActuatorFinalResponse &&
-        missionResult.executedTools.length > 1
+        (
+            missionResult.executedTools.length > 0 ||
+            missionResult.blockedTasks.length > 0 ||
+            missionResult.pendingTasks.length > 0 ||
+            Boolean(missionResult.reason)
+        )
             ? (() => {
                 const completed = missionResult.completedTasks.map(item => {
                     const evidence = item.observation?.summary

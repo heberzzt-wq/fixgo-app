@@ -9,13 +9,13 @@ const planCache = new Map();
 const pendingPlans = new Map();
 
 const CLOUD_MISSION_CONTRACT_TIMEOUT_MS =
-    45000;
+    12000;
 
 const BROWSER_MISSION_ATTEMPT_TIMEOUT_MS =
-    20000;
+    6000;
 
 const BROWSER_PLAN_ATTEMPT_TIMEOUT_MS =
-    15000;
+    5000;
 
 const GENERALIST_CURRENT_TURN_POLICY = [
     "Actua como un agente generalista: entiende libremente la instruccion actual antes de elegir herramientas.",
@@ -2054,7 +2054,7 @@ async function callSemanticPlanner(input = "", catalog = [], missionState = null
         missionState?.phase ===
             "MISSION_CONTRACT"
             ? CLOUD_MISSION_CONTRACT_TIMEOUT_MS
-            : 110000;
+            : 12000;
 
     const timer =
         setTimeout(

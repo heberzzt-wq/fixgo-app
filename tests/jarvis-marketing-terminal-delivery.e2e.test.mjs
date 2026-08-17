@@ -258,3 +258,11 @@ test("marketing document dependency cannot fall through to generic document comp
     assert.match(core, /MARKETING_PLAN_CONTENT_REQUIRED/);
     assert.match(core, /document\.compose no puede sustituir esa dependencia/);
 });
+
+test("Terminal presents any valid non-agent GestiaCore finalResponse instead of a false not-presented error", () => {
+    const terminal = fs.readFileSync(path.join(process.cwd(), "gestia-terminal.html"), "utf8");
+    assert.match(terminal, /TERMINAL_UNIVERSAL_CORE_FINAL_RESPONSE/);
+    assert.match(terminal, /shouldPreferAgentFinalResponse\s*&&[\s\S]{0,180}?coreResult\?\.type !== "AGENT_TOOL_RESULT"/);
+    assert.match(terminal, /preferredAgentFinalResponse\.text/);
+    assert.match(terminal, /window\.renderJarvisResponse\?\.\(/);
+});

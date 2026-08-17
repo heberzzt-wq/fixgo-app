@@ -3629,6 +3629,44 @@ if (
                 );
             }
 
+            if (
+                shouldPreferAgentFinalResponse &&
+                coreResult?.type !== "AGENT_TOOL_RESULT"
+            ) {
+                console.info(
+                    "[TERMINAL_UNIVERSAL_CORE_FINAL_RESPONSE]",
+                    {
+                        traceId: currentTraceId,
+                        type: coreResult?.type || null,
+                        status: coreResult?.status || null
+                    }
+                );
+                activeWorkTracker?.complete(
+                    "evidence",
+                    "Evidencia integrada"
+                );
+                activeWorkTracker?.activate(
+                    "response",
+                    "Preparando la respuesta final"
+                );
+                window.renderJarvisResponse?.(
+                    preferredAgentFinalResponse?.title || "Jarvis",
+                    preferredAgentFinalResponse.text,
+                    preferredAgentFinalResponse?.ok === false
+                        ? "warning"
+                        : "info"
+                );
+                activeWorkTracker?.complete(
+                    "response",
+                    "Respuesta preparada"
+                );
+                activeWorkTracker?.finish(
+                    "Trabajo completado"
+                );
+                handled = true;
+                return;
+            }
+
             const extractDiagnoseSummary =
     function(result = {}) {
         const observations =
