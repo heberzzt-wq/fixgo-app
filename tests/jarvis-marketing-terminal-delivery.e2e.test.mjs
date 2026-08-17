@@ -210,6 +210,15 @@ test("Terminal core hydrates marketing documents and gives the direct delivery r
     assert.match(terminal, /gestia-terminal\.js\?v=v94-[a-z0-9-]+-[0-9]{8}/);
 });
 
+test("Terminal renders verified marketing producedArtifacts through the existing download renderer", () => {
+    const terminal = fs.readFileSync(path.join(process.cwd(), "gestia-terminal.html"), "utf8");
+    assert.match(terminal, /const verifiedProducedArtifacts =/);
+    assert.match(terminal, /finalResponse\?\.producedArtifacts/);
+    assert.match(terminal, /item\.output\.startsWith\("\.jarvis-artifacts\/"\)/);
+    assert.match(terminal, /JarvisAttachments\.renderArtifact\(/);
+    assert.match(terminal, /JARVIS_FINAL_ARTIFACT_RENDER_FAILED/);
+});
+
 test("completed marketing plan content is injected into MD and PDF artifact creation", () => {
     const plan = planMarketingRequest("Producción integral.", marketingContext);
     const completed = [{

@@ -4613,6 +4613,39 @@ if (
                 window.JarvisAttachments
                     ?.renderArtifactsFromObservations?.(agentObservations)
                     .catch(error => console.warn("[JARVIS_ARTIFACT_RENDER_FAILED]", error));
+                const verifiedProducedArtifacts =
+                    (Array.isArray(finalResponse?.producedArtifacts)
+                        ? finalResponse.producedArtifacts
+                        : [])
+                        .filter(item =>
+                            typeof item?.output === "string" &&
+                            item.output.startsWith(".jarvis-artifacts/")
+                        )
+                        .filter((item, index, items) =>
+                            items.findIndex(candidate => candidate.output === item.output) === index
+                        );
+
+                if (
+                    verifiedProducedArtifacts.length > 0 &&
+                    typeof window.JarvisAttachments?.renderArtifact === "function"
+                ) {
+                    for (const artifact of verifiedProducedArtifacts) {
+                        try {
+                            await window.JarvisAttachments.renderArtifact(
+                                artifact.output,
+                                "",
+                                artifact.label || "archivo producido"
+                            );
+                        }
+                        catch(error) {
+                            console.warn(
+                                "[JARVIS_FINAL_ARTIFACT_RENDER_FAILED]",
+                                { output: artifact.output, error: error?.message || String(error) }
+                            );
+                        }
+                    }
+                }
+
                 window.JarvisAttachments
                     ?.renderPendingArtifacts?.()
                     .catch(error => console.warn("[JARVIS_PENDING_ARTIFACT_RENDER_FAILED]", error));
