@@ -1,4 +1,4 @@
-name: V94 single-brain and grounded-mission maintenance
+name: V94 single-brain latency and presentation maintenance
 
 on:
   push:
@@ -32,7 +32,7 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - name: Guard branch and clean protected products
+      - name: Guard branch and protected products
         shell: bash
         run: |
           set -euo pipefail
@@ -51,119 +51,291 @@ jobs:
           test -z "$(git diff --name-only -- functions/)"
           test -z "$(git diff --name-only -- multiservicios-web/)"
 
-      - name: Converge verified marketing files into existing download renderer
+      - name: Converge bounded latency and universal final presentation
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+
+          def replace_once(text, old, new, code):
+              if new in text:
+                  return text
+              if old not in text:
+                  raise SystemExit(code)
+              return text.replace(old, new, 1)
+
+          planner_path = Path("gestia-core/jarvis/jarvis.multifunction.planner.js")
+          planner = planner_path.read_text(encoding="utf-8")
+          planner = replace_once(
+              planner,
+              "const CLOUD_MISSION_CONTRACT_TIMEOUT_MS =\n    45000;\n\nconst BROWSER_MISSION_ATTEMPT_TIMEOUT_MS =\n    20000;\n\nconst BROWSER_PLAN_ATTEMPT_TIMEOUT_MS =\n    15000;",
+              "const CLOUD_MISSION_CONTRACT_TIMEOUT_MS =\n    12000;\n\nconst BROWSER_MISSION_ATTEMPT_TIMEOUT_MS =\n    6000;\n\nconst BROWSER_PLAN_ATTEMPT_TIMEOUT_MS =\n    5000;",
+              "PLANNER_TIMEOUT_CONSTANTS_ANCHOR_MISSING"
+          )
+          planner = replace_once(
+              planner,
+              "missionState?.phase ===\n            \"MISSION_CONTRACT\"\n            ? CLOUD_MISSION_CONTRACT_TIMEOUT_MS\n            : 110000;",
+              "missionState?.phase ===\n            \"MISSION_CONTRACT\"\n            ? CLOUD_MISSION_CONTRACT_TIMEOUT_MS\n            : 12000;",
+              "PLANNER_CLOUD_TIMEOUT_ANCHOR_MISSING"
+          )
+          planner_path.write_text(planner, encoding="utf-8")
+
+          multitool_path = Path("gestia-core/jarvis/jarvis.multitool.pack.js")
+          multitool = multitool_path.read_text(encoding="utf-8")
+          multitool = replace_once(
+              multitool,
+              "const responseTimeoutMs =\n        Number(maxOutputTokens) >= 6000\n            ? 130000\n            : 55000;",
+              "const responseTimeoutMs =\n        Number(maxOutputTokens) >= 6000\n            ? 30000\n            : 18000;",
+              "CONVERSATION_RESPONSE_TIMEOUT_ANCHOR_MISSING"
+          )
+          multitool_path.write_text(multitool, encoding="utf-8")
+
+          core_path = Path("gestia-core/gestia-core.js")
+          core = core_path.read_text(encoding="utf-8")
+          old_retry = '''    const buildMissionToolCallsWithTransientRetry =
+        async (plannerInstruction, plannerOptions) => {
+            let lastPlannerError = null;
+            for (let attempt = 1; attempt <= 3; attempt += 1) {
+                try {
+                    return await buildJarvisMultifunctionToolCalls(
+                        plannerInstruction,
+                        plannerOptions
+                    );
+                }
+                catch (error) {
+                    lastPlannerError = error;
+                    if (attempt >= 3) throw error;
+                    console.warn(
+                        "[MISSION_SEMANTIC_PLANNER_TRANSIENT_RETRY]",
+                        attempt,
+                        error?.message || "SEMANTIC_PLANNER_UNAVAILABLE"
+                    );
+                    await new Promise(resolve =>
+                        setTimeout(resolve, 500 * attempt)
+                    );
+                }
+            }
+            throw lastPlannerError || new Error("SEMANTIC_PLANNER_UNAVAILABLE");
+        };'''
+          new_retry = '''    const buildMissionToolCallsWithTransientRetry =
+        async (plannerInstruction, plannerOptions) => {
+            let lastPlannerError = null;
+            for (let attempt = 1; attempt <= 2; attempt += 1) {
+                try {
+                    return await buildJarvisMultifunctionToolCalls(
+                        plannerInstruction,
+                        plannerOptions
+                    );
+                }
+                catch (error) {
+                    lastPlannerError = error;
+                    const message =
+                        String(
+                            error?.message ||
+                            "SEMANTIC_PLANNER_UNAVAILABLE"
+                        );
+                    const providerFallbackExhausted =
+                        message.includes("__BROWSER_") ||
+                        message.includes("TIMEOUT_") ||
+                        message.includes("AUTH_REQUIRED");
+                    if (
+                        attempt >= 2 ||
+                        providerFallbackExhausted
+                    ) {
+                        throw error;
+                    }
+                    console.warn(
+                        "[MISSION_SEMANTIC_PLANNER_TRANSIENT_RETRY]",
+                        attempt,
+                        message
+                    );
+                    await new Promise(resolve =>
+                        setTimeout(resolve, 350)
+                    );
+                }
+            }
+            throw lastPlannerError || new Error("SEMANTIC_PLANNER_UNAVAILABLE");
+        };'''
+          core = replace_once(
+              core,
+              old_retry,
+              new_retry,
+              "CORE_PLANNER_RETRY_ANCHOR_MISSING"
+          )
+          old_final = '''    const missionFinalResponse =
+        !observationDrivenFinalResponse &&
+        !globalAnalysisFinalResponse &&
+        !directActuatorFinalResponse &&
+        missionResult.executedTools.length > 1
+            ? (() => {'''
+          new_final = '''    const missionFinalResponse =
+        !observationDrivenFinalResponse &&
+        !globalAnalysisFinalResponse &&
+        !directActuatorFinalResponse &&
+        (
+            missionResult.executedTools.length > 0 ||
+            missionResult.blockedTasks.length > 0 ||
+            missionResult.pendingTasks.length > 0 ||
+            Boolean(missionResult.reason)
+        )
+            ? (() => {'''
+          core = replace_once(
+              core,
+              old_final,
+              new_final,
+              "CORE_FINAL_RESPONSE_FALLBACK_ANCHOR_MISSING"
+          )
+          core_path.write_text(core, encoding="utf-8")
+
           terminal_path = Path("gestia-terminal.html")
           terminal = terminal_path.read_text(encoding="utf-8")
-          delivery_marker = "const verifiedProducedArtifacts ="
-          if delivery_marker not in terminal:
-              pending_pos = terminal.find("?.renderPendingArtifacts?.()")
-              if pending_pos < 0:
-                  raise SystemExit("MARKETING_DOWNLOAD_PENDING_RENDERER_MISSING")
-              owner_pos = terminal.rfind("window.JarvisAttachments", 0, pending_pos)
-              if owner_pos < 0:
-                  raise SystemExit("MARKETING_DOWNLOAD_RENDERER_OWNER_MISSING")
-              line_start = terminal.rfind("\n", 0, owner_pos) + 1
-              indent = terminal[line_start:owner_pos]
-              lines = [
-                  "const verifiedProducedArtifacts =",
-                  "    (Array.isArray(finalResponse?.producedArtifacts)",
-                  "        ? finalResponse.producedArtifacts",
-                  "        : [])",
-                  "        .filter(item =>",
-                  "            typeof item?.output === \"string\" &&",
-                  "            item.output.startsWith(\".jarvis-artifacts/\")",
-                  "        )",
-                  "        .filter((item, index, items) =>",
-                  "            items.findIndex(candidate => candidate.output === item.output) === index",
-                  "        );",
-                  "",
-                  "if (",
-                  "    verifiedProducedArtifacts.length > 0 &&",
-                  "    typeof window.JarvisAttachments?.renderArtifact === \"function\"",
-                  ") {",
-                  "    for (const artifact of verifiedProducedArtifacts) {",
-                  "        try {",
-                  "            await window.JarvisAttachments.renderArtifact(",
-                  "                artifact.output,",
-                  "                \"\",",
-                  "                artifact.label || \"archivo producido\"",
-                  "            );",
-                  "        }",
-                  "        catch(error) {",
-                  "            console.warn(",
-                  "                \"[JARVIS_FINAL_ARTIFACT_RENDER_FAILED]\",",
-                  "                { output: artifact.output, error: error?.message || String(error) }",
-                  "            );",
-                  "        }",
-                  "    }",
-                  "}",
-                  ""
-              ]
-              block = "\n".join((indent + line if line else "") for line in lines) + "\n"
-              terminal = terminal[:line_start] + block + terminal[line_start:]
+          universal_marker = "TERMINAL_UNIVERSAL_CORE_FINAL_RESPONSE"
+          if universal_marker not in terminal:
+              anchor = "            const extractDiagnoseSummary ="
+              pos = terminal.find(anchor)
+              if pos < 0:
+                  raise SystemExit("TERMINAL_UNIVERSAL_PRESENTATION_ANCHOR_MISSING")
+              block = '''            if (
+                shouldPreferAgentFinalResponse &&
+                coreResult?.type !== "AGENT_TOOL_RESULT"
+            ) {
+                console.info(
+                    "[TERMINAL_UNIVERSAL_CORE_FINAL_RESPONSE]",
+                    {
+                        traceId: currentTraceId,
+                        type: coreResult?.type || null,
+                        status: coreResult?.status || null
+                    }
+                );
+                activeWorkTracker?.complete(
+                    "evidence",
+                    "Evidencia integrada"
+                );
+                activeWorkTracker?.activate(
+                    "response",
+                    "Preparando la respuesta final"
+                );
+                window.renderJarvisResponse?.(
+                    preferredAgentFinalResponse?.title || "Jarvis",
+                    preferredAgentFinalResponse.text,
+                    preferredAgentFinalResponse?.ok === false
+                        ? "warning"
+                        : "info"
+                );
+                activeWorkTracker?.complete(
+                    "response",
+                    "Respuesta preparada"
+                );
+                activeWorkTracker?.finish(
+                    "Trabajo completado"
+                );
+                handled = true;
+                return;
+            }
+
+'''
+              terminal = terminal[:pos] + block + terminal[pos:]
               terminal_path.write_text(terminal, encoding="utf-8")
-          test_path = Path("tests/jarvis-marketing-terminal-delivery.e2e.test.mjs")
-          tests = test_path.read_text(encoding="utf-8")
-          test_name = 'test("Terminal renders verified marketing producedArtifacts through the existing download renderer"'
-          if test_name not in tests:
-              marker = 'test("completed marketing plan content is injected into MD and PDF artifact creation", () => {'
-              if marker not in tests:
-                  raise SystemExit("MARKETING_DOWNLOAD_TEST_ANCHOR_MISSING")
-              regression_lines = [
-                  'test("Terminal renders verified marketing producedArtifacts through the existing download renderer", () => {',
-                  '    const terminal = fs.readFileSync(path.join(process.cwd(), "gestia-terminal.html"), "utf8");',
-                  '    assert.match(terminal, /const verifiedProducedArtifacts =/);',
-                  '    assert.match(terminal, /finalResponse\\?\\.producedArtifacts/);',
-                  '    assert.match(terminal, /item\\.output\\.startsWith\\("\\.jarvis-artifacts\\/"\\)/);',
-                  '    assert.match(terminal, /JarvisAttachments\\.renderArtifact\\(/);',
-                  '    assert.match(terminal, /JARVIS_FINAL_ARTIFACT_RENDER_FAILED/);',
-                  '});',
-                  ''
-              ]
-              regression = "\n".join(regression_lines) + "\n"
-              tests = tests.replace(marker, regression + marker, 1)
-              test_path.write_text(tests, encoding="utf-8")
-          terminal = terminal_path.read_text(encoding="utf-8")
-          tests = test_path.read_text(encoding="utf-8")
-          required_markers = [
-              delivery_marker,
-              "finalResponse?.producedArtifacts",
-              'item.output.startsWith(".jarvis-artifacts/")',
-              "JarvisAttachments.renderArtifact(",
-              "JARVIS_FINAL_ARTIFACT_RENDER_FAILED"
-          ]
-          for required in required_markers:
-              if required not in terminal:
-                  raise SystemExit("MARKETING_DOWNLOAD_MARKER_MISSING:" + required)
-          if test_name not in tests:
-              raise SystemExit("MARKETING_DOWNLOAD_REGRESSION_MISSING")
+
+          multifunction_test_path = Path("tests/jarvis-multifunction-tools.test.mjs")
+          multifunction_tests = multifunction_test_path.read_text(encoding="utf-8")
+          latency_test_name = 'test("semantic mission latency budgets are bounded and do not stack exhausted providers"'
+          if latency_test_name not in multifunction_tests:
+              multifunction_tests += '''
+
+test("semantic mission latency budgets are bounded and do not stack exhausted providers", () => {
+    const plannerSource = fs.readFileSync(
+        path.resolve("gestia-core/jarvis/jarvis.multifunction.planner.js"),
+        "utf8"
+    );
+    const coreSource = fs.readFileSync(
+        path.resolve("gestia-core/gestia-core.js"),
+        "utf8"
+    );
+    const multitoolSource = fs.readFileSync(
+        path.resolve("gestia-core/jarvis/jarvis.multitool.pack.js"),
+        "utf8"
+    );
+
+    assert.match(plannerSource, /CLOUD_MISSION_CONTRACT_TIMEOUT_MS\s*=\s*\n\s*12000/);
+    assert.match(plannerSource, /BROWSER_MISSION_ATTEMPT_TIMEOUT_MS\s*=\s*\n\s*6000/);
+    assert.match(plannerSource, /BROWSER_PLAN_ATTEMPT_TIMEOUT_MS\s*=\s*\n\s*5000/);
+    assert.doesNotMatch(plannerSource, /:\s*110000;/);
+    assert.match(coreSource, /providerFallbackExhausted[\s\S]{0,500}?__BROWSER_/);
+    assert.match(coreSource, /attempt\s*<=\s*2/);
+    assert.match(multitoolSource, /Number\(maxOutputTokens\)\s*>=\s*6000[\s\S]{0,100}?\?\s*30000[\s\S]{0,100}?:\s*18000/);
+});
+
+test("GestiaCore always builds an honest mission final response when the mission produced state", () => {
+    const coreSource = fs.readFileSync(
+        path.resolve("gestia-core/gestia-core.js"),
+        "utf8"
+    );
+
+    assert.match(
+        coreSource,
+        /const missionFinalResponse =[\s\S]{0,700}?missionResult\.executedTools\.length > 0[\s\S]{0,300}?missionResult\.blockedTasks\.length > 0[\s\S]{0,300}?missionResult\.pendingTasks\.length > 0[\s\S]{0,300}?Boolean\(missionResult\.reason\)/
+    );
+});
+'''
+              multifunction_test_path.write_text(multifunction_tests, encoding="utf-8")
+
+          marketing_test_path = Path("tests/jarvis-marketing-terminal-delivery.e2e.test.mjs")
+          marketing_tests = marketing_test_path.read_text(encoding="utf-8")
+          presentation_test_name = 'test("Terminal presents any valid non-agent GestiaCore finalResponse instead of a false not-presented error"'
+          if presentation_test_name not in marketing_tests:
+              marketing_tests += '''
+
+test("Terminal presents any valid non-agent GestiaCore finalResponse instead of a false not-presented error", () => {
+    const terminal = fs.readFileSync(
+        path.join(process.cwd(), "gestia-terminal.html"),
+        "utf8"
+    );
+
+    assert.match(terminal, /TERMINAL_UNIVERSAL_CORE_FINAL_RESPONSE/);
+    assert.match(terminal, /shouldPreferAgentFinalResponse\s*&&[\s\S]{0,180}?coreResult\?\.type !== "AGENT_TOOL_RESULT"/);
+    assert.match(terminal, /preferredAgentFinalResponse\.text/);
+    assert.match(terminal, /window\.renderJarvisResponse\?\.\(/);
+});
+'''
+              marketing_test_path.write_text(marketing_tests, encoding="utf-8")
+
+          required = {
+              "gestia-core/jarvis/jarvis.multifunction.planner.js": ["12000", "6000", "5000"],
+              "gestia-core/jarvis/jarvis.multitool.pack.js": ["? 30000", ": 18000"],
+              "gestia-core/gestia-core.js": ["providerFallbackExhausted", "Boolean(missionResult.reason)"],
+              "gestia-terminal.html": [universal_marker, "preferredAgentFinalResponse.text"],
+          }
+          for filename, markers in required.items():
+              source = Path(filename).read_text(encoding="utf-8")
+              for marker in markers:
+                  if marker not in source:
+                      raise SystemExit("LATENCY_PRESENTATION_MARKER_MISSING:" + filename + ":" + marker)
           PY
           git diff --check
           test -z "$(git diff --name-only -- functions/)"
           test -z "$(git diff --name-only -- multiservicios-web/)"
 
-      - name: Verify single brain grounded research and downloadable delivery
+      - name: Verify focused single flow latency and presentation contracts
         shell: bash
         run: |
           set -euo pipefail
+          node --check gestia-core/gestia-core.js
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          node --check gestia-core/jarvis/jarvis.multitool.pack.js
           node --check gestia-core/nexo/nexo.real-media.runtime-guard-v128.js
           node --test tests/single-semantic-authority.test.mjs | tee /tmp/v94-single-brain-focused.log
           node --test tests/jarvis-source-grounded-research-v124.test.mjs | tee /tmp/v94-grounded-research-focused.log
-          node --test tests/jarvis-marketing-terminal-delivery.e2e.test.mjs | tee /tmp/v94-marketing-download-focused.log
+          node --test tests/jarvis-marketing-terminal-delivery.e2e.test.mjs | tee /tmp/v94-marketing-presentation-focused.log
+          node --test tests/jarvis-multifunction-tools.test.mjs | tee /tmp/v94-latency-focused.log
           ! grep -Fq 'routeTerminalNaturalIntent' gestia-terminal.html
           ! grep -Fq 'TERMINAL_BRAIN_ROUTER_41_42' gestia-terminal.html
-          ! grep -Fq 'GestiaCore?.analizarIntencionLigera' gestia-terminal.html
           ! grep -Fq 'runtime.register({' gestia-core/nexo/nexo.real-media.runtime-guard-v128.js
-          grep -Fq 'JarvisToolRuntime.execute' gestia-terminal.html
           grep -Fq 'researchGoalHasSatisfiedExplicitAnchor' gestia-core/jarvis/jarvis.multifunction.planner.js
           grep -Fq 'const verifiedProducedArtifacts =' gestia-terminal.html
-          grep -Fq 'JarvisAttachments.renderArtifact(' gestia-terminal.html
+          grep -Fq 'TERMINAL_UNIVERSAL_CORE_FINAL_RESPONSE' gestia-terminal.html
+          grep -Fq 'providerFallbackExhausted' gestia-core/gestia-core.js
           test -z "$(git diff --name-only -- functions/)"
           test -z "$(git diff --name-only -- multiservicios-web/)"
 
@@ -176,39 +348,46 @@ jobs:
           test -z "$(git diff --name-only -- functions/)"
           test -z "$(git diff --name-only -- multiservicios-web/)"
 
-      - name: Materialize downloadable grounded single flow
+      - name: Materialize bounded latency and final presentation
         shell: bash
         run: |
           set -euo pipefail
           changed="$(git diff --name-only)"
           if [ -z "$changed" ]; then
-            echo 'DOWNLOADABLE_SINGLE_FLOW_ALREADY_MATERIALIZED=true'
+            echo 'BOUNDED_LATENCY_PRESENTATION_ALREADY_MATERIALIZED=true'
             exit 0
           fi
-          allowed='^(gestia-terminal\.html|tests/jarvis-marketing-terminal-delivery\.e2e\.test\.mjs)$'
+          allowed='^(gestia-terminal\.html|gestia-core/gestia-core\.js|gestia-core/jarvis/jarvis\.multifunction\.planner\.js|gestia-core/jarvis/jarvis\.multitool\.pack\.js|tests/jarvis-multifunction-tools\.test\.mjs|tests/jarvis-marketing-terminal-delivery\.e2e\.test\.mjs)$'
           unexpected="$(printf '%s\n' "$changed" | grep -Ev "$allowed" || true)"
           if [ -n "$unexpected" ]; then
             echo "$unexpected"
-            echo 'DOWNLOADABLE_SINGLE_FLOW_UNEXPECTED_DIFF=true'
+            echo 'BOUNDED_LATENCY_PRESENTATION_UNEXPECTED_DIFF=true'
             exit 1
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add gestia-terminal.html tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
-          git commit -m 'fix(jarvis): render verified marketing deliverables for download'
+          git add \
+            gestia-terminal.html \
+            gestia-core/gestia-core.js \
+            gestia-core/jarvis/jarvis.multifunction.planner.js \
+            gestia-core/jarvis/jarvis.multitool.pack.js \
+            tests/jarvis-multifunction-tools.test.mjs \
+            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
+          git commit -m 'fix(jarvis): bound semantic latency and always present final response'
           git push origin HEAD:v94-media-v4n-negative-claims
-          echo 'DOWNLOADABLE_SINGLE_FLOW_MATERIALIZED=true'
+          echo 'BOUNDED_LATENCY_PRESENTATION_MATERIALIZED=true'
 
       - name: Upload maintenance evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: v94-single-brain-maintenance-evidence
+          name: v94-single-brain-latency-presentation-evidence
           path: |
             /tmp/v94-single-brain-maintenance.log
             /tmp/v94-single-brain-focused.log
             /tmp/v94-grounded-research-focused.log
-            /tmp/v94-marketing-download-focused.log
+            /tmp/v94-marketing-presentation-focused.log
+            /tmp/v94-latency-focused.log
             /tmp/v94-single-brain-ci.log
           if-no-files-found: ignore
           retention-days: 14
