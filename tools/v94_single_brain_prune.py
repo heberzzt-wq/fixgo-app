@@ -75,6 +75,16 @@ terminal = remove_between(
         "        );\n\n"
     ),
 )
+readiness_old = (
+    "            window.GestiaCore?.procesarIntencion ||\n"
+    "            window.GestiaCore?.analizarIntencionLigera ||\n"
+)
+if readiness_old in terminal:
+    terminal = terminal.replace(
+        readiness_old,
+        "            window.GestiaCore?.procesarIntencion ||\n",
+        1,
+    )
 for forbidden in (
     "buildTerminalBrainRoute",
     "decideTerminalModeFromContext",
