@@ -231,6 +231,84 @@ for required in (
 write(multifunction_test_path, multifunction_test)
 
 
+# 5) Keep existing repository-authority tests focused on deterministic UI/write
+# governance while natural-language routing goes directly to the single core.
+repo_authority_test_path = "tests/repo-authority-v2.test.cjs"
+repo_authority_test = read(repo_authority_test_path)
+repo_authority_replacements = (
+    (
+        "    assert.match(terminal, /hasProposalAdjustmentRequest/);\n",
+        "    assert.doesNotMatch(terminal, /hasProposalAdjustmentRequest/);\n",
+    ),
+    (
+        "    assert.match(terminal, /controlled_adjustment_prompt_from_visual_card/);\n",
+        "    assert.doesNotMatch(terminal, /controlled_adjustment_prompt_from_visual_card/);\n",
+    ),
+)
+for old_assertion, new_assertion in repo_authority_replacements:
+    if old_assertion in repo_authority_test:
+        repo_authority_test = repo_authority_test.replace(old_assertion, new_assertion, 1)
+    if old_assertion in repo_authority_test:
+        raise SystemExit(f"SINGLE_BRAIN_STALE_REPO_AUTHORITY_ASSERTION_REMAINS:{old_assertion.strip()}")
+
+repo_router_test_start = 'test("terminal keeps natural repository analysis in the brain route", () => {'
+repo_router_test_end = 'test("Codex V2 write path fails closed without governed repo.write runtime", () => {'
+repo_router_test_replacement = '''test("terminal sends natural repository analysis directly to the single core route", () => {
+    const terminal =
+        fs.readFileSync(
+            path.join(
+                __dirname,
+                "..",
+                "gestia-terminal.html"
+            ),
+            "utf8"
+        );
+
+    const routerIndex =
+        terminal.indexOf("routeTerminalNaturalIntent");
+
+    const coreCallIndex =
+        terminal.indexOf("await window.GestiaCore.procesarIntencion");
+
+    assert.equal(routerIndex, -1);
+    assert.ok(coreCallIndex > 0);
+    assert.doesNotMatch(terminal, /GestiaCore\.analizarIntencionLigera/);
+    assert.doesNotMatch(terminal, /BRAIN_DELEGATED/);
+    assert.doesNotMatch(terminal, /Delegate freeform natural input to GestiaCore cognitive reasoning/);
+    assert.match(terminal, /TERMINAL_CORE_FIRST/);
+    assert.doesNotMatch(terminal, /terminal_global_repo_audit_41_44/);
+    assert.doesNotMatch(terminal, /isExactGlobalRepoAuditCommand/);
+    assert.doesNotMatch(terminal, /ANÁLISIS GLOBAL DEL REPOSITORIO SIA7/);
+    assert.doesNotMatch(terminal, /legacyRepoBypassEnabled/);
+    assert.doesNotMatch(terminal, /__JARVIS_ENABLE_LEGACY_EXACT_PATCH_BUILDER__/);
+    assert.doesNotMatch(terminal, /legacyExactPatchBuilderEnabled/);
+    assert.doesNotMatch(terminal, /__JARVIS_ENABLE_LEGACY_COMBINED_REPO_FILE_ROUTE__/);
+    assert.doesNotMatch(terminal, /legacyCombinedRepoFileRouteEnabled/);
+    assert.doesNotMatch(terminal, /combinedRepoFileMatch/);
+});
+
+'''
+if repo_router_test_start in repo_authority_test:
+    repo_authority_test = remove_between(
+        repo_authority_test,
+        repo_router_test_start,
+        repo_router_test_end,
+        repo_router_test_replacement,
+    )
+if repo_router_test_start in repo_authority_test:
+    raise SystemExit("SINGLE_BRAIN_STALE_REPO_ROUTER_TEST_REMAINS")
+for required in (
+    'test("terminal sends natural repository analysis directly to the single core route"',
+    "assert.equal(routerIndex, -1);",
+    "assert.ok(coreCallIndex > 0);",
+    "assert.doesNotMatch(terminal, /GestiaCore\\.analizarIntencionLigera/);",
+    "assert.match(terminal, /TERMINAL_CORE_FIRST/);",
+):
+    if required not in repo_authority_test:
+        raise SystemExit(f"SINGLE_BRAIN_REPO_AUTHORITY_ASSERTION_MISSING:{required}")
+write(repo_authority_test_path, repo_authority_test)
+
+
 print("SINGLE_SEMANTIC_BRAIN=jarvisSemanticPlan")
 print("SINGLE_TOOL_EXECUTION_AUTHORITY=JarvisToolRuntime")
 print("NEW_CONTRACTS_CREATED=0")
