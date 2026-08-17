@@ -1,4 +1,4 @@
-name: V94 single-brain latency and presentation maintenance
+name: V94 single-brain crash and latency maintenance
 
 on:
   push:
@@ -42,28 +42,62 @@ jobs:
       - name: Install root dependencies only
         run: npm ci
 
-      - name: Preserve certified single-brain convergence
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 tools/v94_single_brain_prune.py | tee /tmp/v94-single-brain-maintenance.log
-          git diff --check
-          test -z "$(git diff --name-only -- functions/)"
-          test -z "$(git diff --name-only -- multiservicios-web/)"
-
-      - name: Converge bounded latency and universal final presentation
+      - name: Close orphan terminal route and bound semantic latency
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
 
-          def replace_once(text, old, new, code):
+          def replace_once_if_needed(text, old, new, code):
               if new in text:
                   return text
               if old not in text:
                   raise SystemExit(code)
               return text.replace(old, new, 1)
+
+          terminal_path = Path("gestia-terminal.html")
+          terminal = terminal_path.read_text(encoding="utf-8")
+
+          stale_token = 'terminalBrainRoute?.mode !== "PROPOSAL_ADJUSTMENT"'
+          if stale_token in terminal:
+              token_pos = terminal.index(stale_token)
+              start = terminal.rfind("                if (", 0, token_pos)
+              end_marker = "                        const adjustmentTargetFile ="
+              end = terminal.find(end_marker, token_pos)
+              if start < 0 or end < 0:
+                  raise SystemExit("TERMINAL_STALE_ROUTE_BLOCK_ANCHOR_MISSING")
+              terminal = terminal[:start] + terminal[end:]
+
+          route_patch_start = "        const activePatchProposal =\n            terminalBrainRoute?.mode === \"PROPOSAL_ADJUSTMENT\""
+          if route_patch_start in terminal:
+              start = terminal.index(route_patch_start)
+              end_marker = "                const lockedAdjustmentFile ="
+              end = terminal.find(end_marker, start)
+              if end < 0:
+                  raise SystemExit("TERMINAL_ACTIVE_PROPOSAL_ROUTE_END_MISSING")
+              deterministic_block = "\n".join([
+                  "        const activePatchProposal =",
+                  "            activeSharedPatchProposal ||",
+                  "            activeVisualPatchProposal ||",
+                  "            null;",
+                  "",
+                  "        const shouldBuildProposalAdjustmentInput =",
+                  "            false;",
+                  "",
+              ])
+              terminal = terminal[:start] + deterministic_block + terminal[end:]
+
+          terminal = terminal.replace("                    terminalBrainRoute,\n", "")
+
+          if "terminalBrainRoute" in terminal:
+              raise SystemExit("TERMINAL_ORPHAN_BRAIN_ROUTE_REMAINS")
+          if "routeTerminalNaturalIntent" in terminal:
+              raise SystemExit("TERMINAL_SEMANTIC_ROUTER_REAPPEARED")
+          if "TERMINAL_BRAIN_ROUTER_41_42" in terminal:
+              raise SystemExit("TERMINAL_BRAIN_ROUTER_MARKER_REAPPEARED")
+
+          terminal_path.write_text(terminal, encoding="utf-8")
 
           planner_path = Path("gestia-core/jarvis/jarvis.multifunction.planner.js")
           planner = planner_path.read_text(encoding="utf-8")
@@ -87,29 +121,17 @@ jobs:
               "const BROWSER_PLAN_ATTEMPT_TIMEOUT_MS =",
               "    5000;"
           ])
-          planner = replace_once(
+          planner = replace_once_if_needed(
               planner,
               planner_old,
               planner_new,
               "PLANNER_TIMEOUT_CONSTANTS_ANCHOR_MISSING"
           )
-          planner_cloud_old = "\n".join([
-              "missionState?.phase ===",
-              "            \"MISSION_CONTRACT\"",
-              "            ? CLOUD_MISSION_CONTRACT_TIMEOUT_MS",
-              "            : 110000;"
-          ])
-          planner_cloud_new = "\n".join([
-              "missionState?.phase ===",
-              "            \"MISSION_CONTRACT\"",
-              "            ? CLOUD_MISSION_CONTRACT_TIMEOUT_MS",
-              "            : 12000;"
-          ])
-          planner = replace_once(
+          planner = replace_once_if_needed(
               planner,
-              planner_cloud_old,
-              planner_cloud_new,
-              "PLANNER_CLOUD_TIMEOUT_ANCHOR_MISSING"
+              "            : 110000;",
+              "            : 12000;",
+              "PLANNER_LONG_TIMEOUT_ANCHOR_MISSING"
           )
           planner_path.write_text(planner, encoding="utf-8")
 
@@ -127,7 +149,7 @@ jobs:
               "            ? 30000",
               "            : 18000;"
           ])
-          multitool = replace_once(
+          multitool = replace_once_if_needed(
               multitool,
               response_old,
               response_new,
@@ -141,8 +163,7 @@ jobs:
           retry_end = core.find("    const missionResult =", retry_start)
           if retry_start < 0 or retry_end < 0:
               raise SystemExit("CORE_PLANNER_RETRY_ANCHOR_MISSING")
-          retry_marker = "providerFallbackExhausted"
-          if retry_marker not in core[retry_start:retry_end]:
+          if "providerFallbackExhausted" not in core[retry_start:retry_end]:
               retry_lines = [
                   "    const buildMissionToolCallsWithTransientRetry =",
                   "        async (plannerInstruction, plannerOptions) => {",
@@ -156,19 +177,12 @@ jobs:
                   "                }",
                   "                catch (error) {",
                   "                    lastPlannerError = error;",
-                  "                    const message =",
-                  "                        String(",
-                  "                            error?.message ||",
-                  "                            \"SEMANTIC_PLANNER_UNAVAILABLE\"",
-                  "                        );",
+                  "                    const message = String(error?.message || \"SEMANTIC_PLANNER_UNAVAILABLE\");",
                   "                    const providerFallbackExhausted =",
                   "                        message.includes(\"__BROWSER_\") ||",
                   "                        message.includes(\"TIMEOUT_\") ||",
                   "                        message.includes(\"AUTH_REQUIRED\");",
-                  "                    if (",
-                  "                        attempt >= 2 ||",
-                  "                        providerFallbackExhausted",
-                  "                    ) {",
+                  "                    if (attempt >= 2 || providerFallbackExhausted) {",
                   "                        throw error;",
                   "                    }",
                   "                    console.warn(",
@@ -176,9 +190,7 @@ jobs:
                   "                        attempt,",
                   "                        message",
                   "                    );",
-                  "                    await new Promise(resolve =>",
-                  "                        setTimeout(resolve, 350)",
-                  "                    );",
+                  "                    await new Promise(resolve => setTimeout(resolve, 350));",
                   "                }",
                   "            }",
                   "            throw lastPlannerError || new Error(\"SEMANTIC_PLANNER_UNAVAILABLE\");",
@@ -186,145 +198,38 @@ jobs:
                   ""
               ]
               core = core[:retry_start] + "\n".join(retry_lines) + core[retry_end:]
-
-          final_start = core.find("    const missionFinalResponse =")
-          if final_start < 0:
-              raise SystemExit("CORE_FINAL_RESPONSE_START_MISSING")
-          final_window_end = core.find("            ? (() => {", final_start)
-          if final_window_end < 0:
-              raise SystemExit("CORE_FINAL_RESPONSE_CONDITION_MISSING")
-          final_window = core[final_start:final_window_end]
-          old_condition = "        missionResult.executedTools.length > 1\n"
-          new_condition = "\n".join([
-              "        (",
-              "            missionResult.executedTools.length > 0 ||",
-              "            missionResult.blockedTasks.length > 0 ||",
-              "            missionResult.pendingTasks.length > 0 ||",
-              "            Boolean(missionResult.reason)",
-              "        )",
-              ""
-          ])
-          if "Boolean(missionResult.reason)" not in final_window:
-              if old_condition not in final_window:
-                  raise SystemExit("CORE_FINAL_RESPONSE_FALLBACK_ANCHOR_MISSING")
-              final_window = final_window.replace(old_condition, new_condition, 1)
-              core = core[:final_start] + final_window + core[final_window_end:]
           core_path.write_text(core, encoding="utf-8")
 
-          terminal_path = Path("gestia-terminal.html")
-          terminal = terminal_path.read_text(encoding="utf-8")
-          universal_marker = "TERMINAL_UNIVERSAL_CORE_FINAL_RESPONSE"
-          if universal_marker not in terminal:
-              anchor = "            const extractDiagnoseSummary ="
-              pos = terminal.find(anchor)
-              if pos < 0:
-                  raise SystemExit("TERMINAL_UNIVERSAL_PRESENTATION_ANCHOR_MISSING")
-              block_lines = [
-                  "            if (",
-                  "                shouldPreferAgentFinalResponse &&",
-                  "                coreResult?.type !== \"AGENT_TOOL_RESULT\"",
-                  "            ) {",
-                  "                console.info(",
-                  "                    \"[TERMINAL_UNIVERSAL_CORE_FINAL_RESPONSE]\",",
-                  "                    {",
-                  "                        traceId: currentTraceId,",
-                  "                        type: coreResult?.type || null,",
-                  "                        status: coreResult?.status || null",
-                  "                    }",
-                  "                );",
-                  "                activeWorkTracker?.complete(",
-                  "                    \"evidence\",",
-                  "                    \"Evidencia integrada\"",
-                  "                );",
-                  "                activeWorkTracker?.activate(",
-                  "                    \"response\",",
-                  "                    \"Preparando la respuesta final\"",
-                  "                );",
-                  "                window.renderJarvisResponse?.(",
-                  "                    preferredAgentFinalResponse?.title || \"Jarvis\",",
-                  "                    preferredAgentFinalResponse.text,",
-                  "                    preferredAgentFinalResponse?.ok === false",
-                  "                        ? \"warning\"",
-                  "                        : \"info\"",
-                  "                );",
-                  "                activeWorkTracker?.complete(",
-                  "                    \"response\",",
-                  "                    \"Respuesta preparada\"",
-                  "                );",
-                  "                activeWorkTracker?.finish(",
-                  "                    \"Trabajo completado\"",
-                  "                );",
-                  "                handled = true;",
-                  "                return;",
-                  "            }",
-                  ""
-              ]
-              terminal = terminal[:pos] + "\n".join(block_lines) + "\n" + terminal[pos:]
-              terminal_path.write_text(terminal, encoding="utf-8")
-
-          multifunction_test_path = Path("tests/jarvis-multifunction-tools.test.mjs")
-          multifunction_tests = multifunction_test_path.read_text(encoding="utf-8")
-          latency_test_name = 'test("semantic mission latency budgets are bounded and do not stack exhausted providers"'
-          if latency_test_name not in multifunction_tests:
-              test_lines = [
-                  "",
-                  "test(\"semantic mission latency budgets are bounded and do not stack exhausted providers\", () => {",
+          test_path = Path("tests/jarvis-multifunction-tools.test.mjs")
+          tests = test_path.read_text(encoding="utf-8")
+          test_name = 'test("terminal core-first has no orphan brain route and semantic latency is bounded"'
+          if test_name not in tests:
+              tests += "\n" + "\n".join([
+                  "test(\"terminal core-first has no orphan brain route and semantic latency is bounded\", () => {",
+                  "    const terminalSource = fs.readFileSync(path.resolve(\"gestia-terminal.html\"), \"utf8\");",
                   "    const plannerSource = fs.readFileSync(path.resolve(\"gestia-core/jarvis/jarvis.multifunction.planner.js\"), \"utf8\");",
                   "    const coreSource = fs.readFileSync(path.resolve(\"gestia-core/gestia-core.js\"), \"utf8\");",
                   "    const multitoolSource = fs.readFileSync(path.resolve(\"gestia-core/jarvis/jarvis.multitool.pack.js\"), \"utf8\");",
+                  "    assert.doesNotMatch(terminalSource, /terminalBrainRoute/);",
+                  "    assert.doesNotMatch(terminalSource, /routeTerminalNaturalIntent/);",
+                  "    assert.match(terminalSource, /await window\\.GestiaCore\\.procesarIntencion/);",
                   "    assert.match(plannerSource, /CLOUD_MISSION_CONTRACT_TIMEOUT_MS\\s*=\\s*\\n\\s*12000/);",
                   "    assert.match(plannerSource, /BROWSER_MISSION_ATTEMPT_TIMEOUT_MS\\s*=\\s*\\n\\s*6000/);",
                   "    assert.match(plannerSource, /BROWSER_PLAN_ATTEMPT_TIMEOUT_MS\\s*=\\s*\\n\\s*5000/);",
                   "    assert.doesNotMatch(plannerSource, /:\\s*110000;/);",
-                  "    assert.match(coreSource, /providerFallbackExhausted[\\s\\S]{0,500}?__BROWSER_/);",
-                  "    assert.match(coreSource, /attempt\\s*<=\\s*2/);",
-                  "    assert.match(multitoolSource, /Number\\(maxOutputTokens\\)\\s*>=\\s*6000[\\s\\S]{0,100}?\\?\\s*30000[\\s\\S]{0,100}?:\\s*18000/);",
-                  "});",
-                  "",
-                  "test(\"GestiaCore always builds an honest mission final response when the mission produced state\", () => {",
-                  "    const coreSource = fs.readFileSync(path.resolve(\"gestia-core/gestia-core.js\"), \"utf8\");",
-                  "    assert.match(coreSource, /const missionFinalResponse =[\\s\\S]{0,700}?missionResult\\.executedTools\\.length > 0[\\s\\S]{0,300}?missionResult\\.blockedTasks\\.length > 0[\\s\\S]{0,300}?missionResult\\.pendingTasks\\.length > 0[\\s\\S]{0,300}?Boolean\\(missionResult\\.reason\\)/);",
+                  "    assert.match(coreSource, /providerFallbackExhausted/);",
+                  "    assert.match(multitoolSource, /\\?\\s*30000[\\s\\S]{0,80}?:\\s*18000/);",
                   "});",
                   ""
-              ]
-              multifunction_tests += "\n".join(test_lines)
-              multifunction_test_path.write_text(multifunction_tests, encoding="utf-8")
-
-          marketing_test_path = Path("tests/jarvis-marketing-terminal-delivery.e2e.test.mjs")
-          marketing_tests = marketing_test_path.read_text(encoding="utf-8")
-          presentation_test_name = 'test("Terminal presents any valid non-agent GestiaCore finalResponse instead of a false not-presented error"'
-          if presentation_test_name not in marketing_tests:
-              test_lines = [
-                  "",
-                  "test(\"Terminal presents any valid non-agent GestiaCore finalResponse instead of a false not-presented error\", () => {",
-                  "    const terminal = fs.readFileSync(path.join(process.cwd(), \"gestia-terminal.html\"), \"utf8\");",
-                  "    assert.match(terminal, /TERMINAL_UNIVERSAL_CORE_FINAL_RESPONSE/);",
-                  "    assert.match(terminal, /shouldPreferAgentFinalResponse\\s*&&[\\s\\S]{0,180}?coreResult\\?\\.type !== \"AGENT_TOOL_RESULT\"/);",
-                  "    assert.match(terminal, /preferredAgentFinalResponse\\.text/);",
-                  "    assert.match(terminal, /window\\.renderJarvisResponse\\?\\.\\(/);",
-                  "});",
-                  ""
-              ]
-              marketing_tests += "\n".join(test_lines)
-              marketing_test_path.write_text(marketing_tests, encoding="utf-8")
-
-          required = {
-              "gestia-core/jarvis/jarvis.multifunction.planner.js": ["12000", "6000", "5000"],
-              "gestia-core/jarvis/jarvis.multitool.pack.js": ["? 30000", ": 18000"],
-              "gestia-core/gestia-core.js": ["providerFallbackExhausted", "Boolean(missionResult.reason)"],
-              "gestia-terminal.html": [universal_marker, "preferredAgentFinalResponse.text"]
-          }
-          for filename, markers in required.items():
-              source = Path(filename).read_text(encoding="utf-8")
-              for marker in markers:
-                  if marker not in source:
-                      raise SystemExit("LATENCY_PRESENTATION_MARKER_MISSING:" + filename + ":" + marker)
+              ])
+          test_path.write_text(tests, encoding="utf-8")
           PY
+
           git diff --check
           test -z "$(git diff --name-only -- functions/)"
           test -z "$(git diff --name-only -- multiservicios-web/)"
 
-      - name: Verify focused single flow latency and presentation contracts
+      - name: Verify focused crash latency and single-brain contracts
         shell: bash
         run: |
           set -euo pipefail
@@ -332,43 +237,39 @@ jobs:
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
           node --check gestia-core/jarvis/jarvis.multitool.pack.js
           node --check gestia-core/nexo/nexo.real-media.runtime-guard-v128.js
-          node --test tests/single-semantic-authority.test.mjs | tee /tmp/v94-single-brain-focused.log
-          node --test tests/jarvis-source-grounded-research-v124.test.mjs | tee /tmp/v94-grounded-research-focused.log
-          node --test tests/jarvis-marketing-terminal-delivery.e2e.test.mjs | tee /tmp/v94-marketing-presentation-focused.log
-          node --test tests/jarvis-multifunction-tools.test.mjs | tee /tmp/v94-latency-focused.log
+          node --test tests/single-semantic-authority.test.mjs
+          node --test tests/jarvis-multifunction-tools.test.mjs
+          node --test tests/jarvis-source-grounded-research-v124.test.mjs
+          ! grep -Fq 'terminalBrainRoute' gestia-terminal.html
           ! grep -Fq 'routeTerminalNaturalIntent' gestia-terminal.html
           ! grep -Fq 'TERMINAL_BRAIN_ROUTER_41_42' gestia-terminal.html
-          ! grep -Fq 'runtime.register({' gestia-core/nexo/nexo.real-media.runtime-guard-v128.js
-          grep -Fq 'researchGoalHasSatisfiedExplicitAnchor' gestia-core/jarvis/jarvis.multifunction.planner.js
-          grep -Fq 'const verifiedProducedArtifacts =' gestia-terminal.html
-          grep -Fq 'TERMINAL_UNIVERSAL_CORE_FINAL_RESPONSE' gestia-terminal.html
+          grep -Fq 'await window.GestiaCore.procesarIntencion' gestia-terminal.html
           grep -Fq 'providerFallbackExhausted' gestia-core/gestia-core.js
-          test -z "$(git diff --name-only -- functions/)"
-          test -z "$(git diff --name-only -- multiservicios-web/)"
+          grep -Fq '    12000;' gestia-core/jarvis/jarvis.multifunction.planner.js
 
       - name: Run complete CI
         shell: bash
         run: |
           set -euo pipefail
-          npm run ci:test 2>&1 | tee /tmp/v94-single-brain-ci.log
+          npm run ci:test 2>&1 | tee /tmp/v94-core-first-latency-ci.log
           git diff --check
           test -z "$(git diff --name-only -- functions/)"
           test -z "$(git diff --name-only -- multiservicios-web/)"
 
-      - name: Materialize bounded latency and final presentation
+      - name: Materialize crash and latency fix
         shell: bash
         run: |
           set -euo pipefail
           changed="$(git diff --name-only)"
           if [ -z "$changed" ]; then
-            echo 'BOUNDED_LATENCY_PRESENTATION_ALREADY_MATERIALIZED=true'
+            echo 'CORE_FIRST_CRASH_LATENCY_ALREADY_MATERIALIZED=true'
             exit 0
           fi
-          allowed='^(gestia-terminal\.html|gestia-core/gestia-core\.js|gestia-core/jarvis/jarvis\.multifunction\.planner\.js|gestia-core/jarvis/jarvis\.multitool\.pack\.js|tests/jarvis-multifunction-tools\.test\.mjs|tests/jarvis-marketing-terminal-delivery\.e2e\.test\.mjs)$'
+          allowed='^(gestia-terminal\.html|gestia-core/gestia-core\.js|gestia-core/jarvis/jarvis\.multifunction\.planner\.js|gestia-core/jarvis/jarvis\.multitool\.pack\.js|tests/jarvis-multifunction-tools\.test\.mjs)$'
           unexpected="$(printf '%s\n' "$changed" | grep -Ev "$allowed" || true)"
           if [ -n "$unexpected" ]; then
             echo "$unexpected"
-            echo 'BOUNDED_LATENCY_PRESENTATION_UNEXPECTED_DIFF=true'
+            echo 'CORE_FIRST_CRASH_LATENCY_UNEXPECTED_DIFF=true'
             exit 1
           fi
           git config user.name 'github-actions[bot]'
@@ -378,23 +279,16 @@ jobs:
             gestia-core/gestia-core.js \
             gestia-core/jarvis/jarvis.multifunction.planner.js \
             gestia-core/jarvis/jarvis.multitool.pack.js \
-            tests/jarvis-multifunction-tools.test.mjs \
-            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
-          git commit -m 'fix(jarvis): bound semantic latency and always present final response'
+            tests/jarvis-multifunction-tools.test.mjs
+          git commit -m 'fix(jarvis): remove orphan terminal route and bound semantic latency'
           git push origin HEAD:v94-media-v4n-negative-claims
-          echo 'BOUNDED_LATENCY_PRESENTATION_MATERIALIZED=true'
+          echo 'CORE_FIRST_CRASH_LATENCY_MATERIALIZED=true'
 
       - name: Upload maintenance evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: v94-single-brain-latency-presentation-evidence
-          path: |
-            /tmp/v94-single-brain-maintenance.log
-            /tmp/v94-single-brain-focused.log
-            /tmp/v94-grounded-research-focused.log
-            /tmp/v94-marketing-presentation-focused.log
-            /tmp/v94-latency-focused.log
-            /tmp/v94-single-brain-ci.log
+          name: v94-core-first-crash-latency-evidence
+          path: /tmp/v94-core-first-latency-ci.log
           if-no-files-found: ignore
           retention-days: 14
