@@ -12,8 +12,8 @@ permissions:
   contents: read
 
 env:
-  CERTIFIED_SHA: 8bfd4bf94d8319da534903300e88db7f3fd39a76
-  CERTIFIED_TREE: 06d34064ad583bb5426bec2daa5f3d4e8748bb07
+  CERTIFIED_SHA: cf500ef286fd4bcfed7d634fdbf49b2911fd7d39
+  CERTIFIED_TREE: 0b93f5b7d5ff350c7787674a0baf24a9c9663f43
   FIREBASE_PROJECT_ID: fixgo-44e4d
   FIREBASE_SITE_ID: fixgo-44e4d
 
@@ -97,7 +97,7 @@ jobs:
           echo 'V139_HOSTING_ONLY_DEPLOYED=true'
           echo "V139_DEPLOYED_CERTIFIED_SHA=$CERTIFIED_SHA"
 
-      - name: Verify deployed web bytes runtime guard and downloadable delivery
+      - name: Verify deployed web bytes runtime guard downloadable delivery and bounded latency
         shell: bash
         run: |
           set -euo pipefail
@@ -105,6 +105,7 @@ jobs:
           core_url="https://${FIREBASE_SITE_ID}.web.app/gestia-core/gestia-core.js?v139_sha=${CERTIFIED_SHA}"
           guard_url="https://${FIREBASE_SITE_ID}.web.app/gestia-core/nexo/nexo.real-media.runtime-guard-v128.js?v139_sha=${CERTIFIED_SHA}"
           planner_url="https://${FIREBASE_SITE_ID}.web.app/gestia-core/jarvis/jarvis.multifunction.planner.js?v139_sha=${CERTIFIED_SHA}"
+          multitool_url="https://${FIREBASE_SITE_ID}.web.app/gestia-core/jarvis/jarvis.multitool.pack.js?v139_sha=${CERTIFIED_SHA}"
           attachments_url="https://${FIREBASE_SITE_ID}.web.app/modules/terminal/jarvis-attachments.js?v139_sha=${CERTIFIED_SHA}"
           ok=false
           for attempt in $(seq 1 15); do
@@ -112,15 +113,30 @@ jobs:
               && curl --fail --silent --show-error --location "$core_url" -o /tmp/v139-core.js \
               && curl --fail --silent --show-error --location "$guard_url" -o /tmp/v139-runtime-guard.js \
               && curl --fail --silent --show-error --location "$planner_url" -o /tmp/v139-planner.js \
+              && curl --fail --silent --show-error --location "$multitool_url" -o /tmp/v139-multitool.js \
               && curl --fail --silent --show-error --location "$attachments_url" -o /tmp/v139-attachments.js \
               && grep -Fq 'gestia-core/gestia-core.js?v=v139-real-reel-e2e-20260812' /tmp/v139-terminal.html \
               && grep -Fq 'MISSION_SEMANTIC_PLANNER_TRANSIENT_RETRY' /tmp/v139-core.js \
+              && grep -Fq 'providerFallbackExhausted' /tmp/v139-core.js \
+              && grep -Fq 'Boolean(missionResult.reason)' /tmp/v139-core.js \
               && grep -Fq 'NEXO_REAL_MEDIA_TOOLS_VERSION' /tmp/v139-runtime-guard.js \
               && grep -Fq 'realMediaToolsReady' /tmp/v139-runtime-guard.js \
               && ! grep -Fq 'runtime.register({' /tmp/v139-runtime-guard.js \
               && grep -Fq 'researchGoalHasSatisfiedExplicitAnchor' /tmp/v139-planner.js \
+              && grep -Fq 'CLOUD_MISSION_CONTRACT_TIMEOUT_MS =' /tmp/v139-planner.js \
+              && grep -Fq '    12000;' /tmp/v139-planner.js \
+              && grep -Fq '    6000;' /tmp/v139-planner.js \
+              && grep -Fq '    5000;' /tmp/v139-planner.js \
+              && ! grep -Fq ': 110000;' /tmp/v139-planner.js \
+              && grep -Fq 'const responseTimeoutMs =' /tmp/v139-multitool.js \
+              && grep -Fq '? 30000' /tmp/v139-multitool.js \
+              && grep -Fq ': 18000;' /tmp/v139-multitool.js \
+              && ! grep -Fq '? 130000' /tmp/v139-multitool.js \
+              && ! grep -Fq ': 55000;' /tmp/v139-multitool.js \
               && ! grep -Fq 'routeTerminalNaturalIntent' /tmp/v139-terminal.html \
               && ! grep -Fq 'TERMINAL_BRAIN_ROUTER_41_42' /tmp/v139-terminal.html \
+              && grep -Fq 'TERMINAL_UNIVERSAL_CORE_FINAL_RESPONSE' /tmp/v139-terminal.html \
+              && grep -Fq 'preferredAgentFinalResponse.text' /tmp/v139-terminal.html \
               && grep -Fq 'const verifiedProducedArtifacts =' /tmp/v139-terminal.html \
               && grep -Fq 'finalResponse?.producedArtifacts' /tmp/v139-terminal.html \
               && grep -Fq 'JarvisAttachments.renderArtifact(' /tmp/v139-terminal.html \
@@ -138,4 +154,5 @@ jobs:
           echo 'V139_SINGLE_BRAIN_SERVED=true'
           echo 'V139_GROUNDED_RESEARCH_SERVED=true'
           echo 'V139_DOWNLOADABLE_DELIVERY_SERVED=true'
+          echo 'V139_BOUNDED_LATENCY_PRESENTATION_SERVED=true'
           echo "V139_WEB_URL=https://${FIREBASE_SITE_ID}.web.app/gestia-terminal.html"
