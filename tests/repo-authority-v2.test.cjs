@@ -1156,8 +1156,8 @@ test("terminal renders visual patch proposal card without direct write execution
     assert.match(terminal, /buildSia7ProposalAdjustmentInput/);
     assert.match(terminal, /buildSia7ProposalAdjustmentPromptPrefix/);
     assert.match(terminal, /isControlledSia7ProposalAdjustmentInput/);
-    assert.match(terminal, /hasProposalAdjustmentRequest/);
-    assert.match(terminal, /controlled_adjustment_prompt_from_visual_card/);
+    assert.doesNotMatch(terminal, /hasProposalAdjustmentRequest/);
+    assert.doesNotMatch(terminal, /controlled_adjustment_prompt_from_visual_card/);
     assert.doesNotMatch(
         terminal,
         /if\s*\(\s*state\.hasActivePatchProposal\s*\)\s*\{[\s\S]{0,300}PROPOSAL_ADJUSTMENT/
@@ -1245,7 +1245,7 @@ test("terminal renders visual patch proposal card without direct write execution
     assert.match(terminal, /__SIA7_PENDING_PATCH_APPROVAL__\s*=\s*null/);
 });
 
-test("terminal keeps natural repository analysis in the brain route", () => {
+test("terminal sends natural repository analysis directly to the single core route", () => {
     const terminal =
         fs.readFileSync(
             path.join(
@@ -1262,11 +1262,12 @@ test("terminal keeps natural repository analysis in the brain route", () => {
     const coreCallIndex =
         terminal.indexOf("await window.GestiaCore.procesarIntencion");
 
-    assert.ok(routerIndex > 0);
-    assert.ok(coreCallIndex > routerIndex);
-    assert.match(terminal, /GestiaCore\.analizarIntencionLigera/);
-    assert.match(terminal, /BRAIN_DELEGATED/);
-    assert.match(terminal, /Delegate freeform natural input to GestiaCore cognitive reasoning/);
+    assert.equal(routerIndex, -1);
+    assert.ok(coreCallIndex > 0);
+    assert.doesNotMatch(terminal, /GestiaCore\.analizarIntencionLigera/);
+    assert.doesNotMatch(terminal, /BRAIN_DELEGATED/);
+    assert.doesNotMatch(terminal, /Delegate freeform natural input to GestiaCore cognitive reasoning/);
+    assert.match(terminal, /TERMINAL_CORE_FIRST/);
     assert.doesNotMatch(terminal, /terminal_global_repo_audit_41_44/);
     assert.doesNotMatch(terminal, /isExactGlobalRepoAuditCommand/);
     assert.doesNotMatch(terminal, /ANÁLISIS GLOBAL DEL REPOSITORIO SIA7/);

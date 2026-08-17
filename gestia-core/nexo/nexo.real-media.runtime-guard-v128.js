@@ -404,24 +404,21 @@ export function registerNexoRealMediaRuntimeGuard(runtime = runtimeCandidate()) 
         throw new Error("NEXO_RUNTIME_GUARD_DEPENDENCIES_REQUIRED");
     }
 
-    runtime.register({
-        ...collectorDefinition,
-        version: NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION,
-        execute: async (args = {}, context = {}) => {
-            const result = await collectorDefinition.execute(args, context);
+    const collectorExecute = collectorDefinition.execute.bind(collectorDefinition);
+    collectorDefinition.runtimeGuardVersion = NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION;
+    collectorDefinition.execute = async (args = {}, context = {}) => {
+            const result = await collectorExecute(args, context);
             const remembered = rememberCollection(args, context, result);
             return {
                 ...result,
                 verifiedMediaCount: remembered.assets.length,
                 runtimeMediaAuthority: NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION
             };
-        }
-    });
+        };
 
-    runtime.register({
-        ...reelDefinition,
-        version: NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION,
-        execute: async (args = {}, context = {}) => {
+    const reelExecute = reelDefinition.execute.bind(reelDefinition);
+    reelDefinition.runtimeGuardVersion = NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION;
+    reelDefinition.execute = async (args = {}, context = {}) => {
             const audioHydration = hydrateReelAudioArgs(args, context);
             if (audioHydration.ambiguous) {
                 return {
@@ -495,7 +492,7 @@ export function registerNexoRealMediaRuntimeGuard(runtime = runtimeCandidate()) 
             }
 
             const hydration = hydrateReelArgs(audioHydration.args, media.assets);
-            const result = await reelDefinition.execute(hydration.args, context);
+            const result = await reelExecute(hydration.args, context);
             const checks =
                 result?.checks ||
                 result?.studioVerification?.checks ||
@@ -553,8 +550,7 @@ export function registerNexoRealMediaRuntimeGuard(runtime = runtimeCandidate()) 
                 },
                 runtimeMediaAuthority: NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION
             };
-        }
-    });
+        };
 
     const installation = {
         ok: true,

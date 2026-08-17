@@ -9,12 +9,17 @@ const read = file => fs.readFileSync(path.join(root, file), "utf8");
 test("only jarvisSemanticPlan owns natural-language planning", () => {
     const planner = read("gestia-core/jarvis/jarvis.multifunction.planner.js");
     const core = read("gestia-core/gestia-core.js");
+    const terminalHtml = read("gestia-terminal.html");
     assert.match(planner, /jarvisSemanticPlan/);
     assert.match(core, /SINGLE SEMANTIC BRAIN CONTRACT/);
     assert.match(core, /SINGLE_SEMANTIC_BRAIN_FAIL_CLOSED/);
     assert.doesNotMatch(core, /runCognitiveReasoning/);
     assert.doesNotMatch(core, /sincronizarCorralSemantico/);
     assert.doesNotMatch(core, /interpretarIntenciones/);
+    assert.doesNotMatch(terminalHtml, /routeTerminalNaturalIntent/);
+    assert.doesNotMatch(terminalHtml, /TERMINAL_BRAIN_ROUTER_41_42/);
+    assert.doesNotMatch(terminalHtml, /GestiaCore\?\.analizarIntencionLigera/);
+    assert.match(terminalHtml, /JarvisToolRuntime\.execute/);
 });
 
 test("legacy cognition URLs are inert compatibility canaries", () => {
@@ -38,9 +43,13 @@ test("legacy cognition URLs are inert compatibility canaries", () => {
 test("NEXO runtime no longer installs local semantic resilience", () => {
     const bootstrap = read("modules/terminal/nexo-bootstrap.js");
     const marketing = read("gestia-core/jarvis/jarvis.marketing.engine.js");
+    const runtimeGuard = read("gestia-core/nexo/nexo.real-media.runtime-guard-v128.js");
     assert.doesNotMatch(bootstrap, /nexo\.semantic-planner-resilience/);
     assert.doesNotMatch(marketing, /nexo\.semantic-planner-resilience/);
     assert.match(bootstrap, /nexo\.real-media\.tools/);
+    assert.doesNotMatch(runtimeGuard, /runtime\.register\s*\(/);
+    assert.match(runtimeGuard, /collectorDefinition\.execute\s*=\s*async/);
+    assert.match(runtimeGuard, /reelDefinition\.execute\s*=\s*async/);
 });
 
 test("alternate adaptive intelligence runtime is absent", () => {

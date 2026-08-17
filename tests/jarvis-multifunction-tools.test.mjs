@@ -2944,12 +2944,14 @@ test("semantic model planner replaces phrase gates and preserves terminal speech
     assert.doesNotMatch(planner, /new RegExp/);
     assert.doesNotMatch(planner, /ACTION_MAP|ENTITY_MAP|STOPWORDS/);
     assert.match(terminal, /JarvisToolRuntime\.execute\(\s*"conversation\.respond"/);
-    assert.match(terminal, /Array\.isArray\(semantic\.toolCalls\)/);
+    assert.doesNotMatch(terminal, /Array\.isArray\(semantic\.toolCalls\)/);
+    assert.doesNotMatch(terminal, /routeTerminalNaturalIntent/);
+    assert.doesNotMatch(terminal, /TERMINAL_BRAIN_ROUTER_41_42/);
     assert.doesNotMatch(terminal, /canAnswerCasualTerminalLocally/);
     assert.doesNotMatch(terminal, /findLocalTerminalExplanation/);
     assert.doesNotMatch(terminal, /localExplanations/);
-    assert.match(terminal, /await window\.consultarCerebroIA\(comando\)/);
-    assert.match(terminal, /await window\.hablarJarvis\?\.\(\s*casualResponse/);
+    assert.doesNotMatch(terminal, /await window\.consultarCerebroIA\(comando\)/);
+    assert.doesNotMatch(terminal, /await window\.hablarJarvis\?\.\(\s*casualResponse/);
     assert.match(terminal, /window\.showJarvis\?\.\(\s*"Sistema listo"/);
 });
 
