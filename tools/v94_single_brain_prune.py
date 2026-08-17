@@ -194,30 +194,37 @@ write(test_path, test_source)
 
 
 # 4) Keep the existing multifunction regression aligned with the same authority.
-# The old positive assertion certified the inline terminal semantic router that is
-# intentionally removed. Replace it in place; do not create another contract.
+# Old positive assertions certified the inline terminal semantic router that is
+# intentionally removed. Replace them in place; do not create another contract.
 multifunction_test_path = "tests/jarvis-multifunction-tools.test.mjs"
 multifunction_test = read(multifunction_test_path)
-old_terminal_router_assertion = (
-    "    assert.match(terminal, /Array\\.isArray\\(semantic\\.toolCalls\\)/);\n"
+terminal_brain_assertion_replacements = (
+    (
+        "    assert.match(terminal, /Array\\.isArray\\(semantic\\.toolCalls\\)/);\n",
+        "    assert.doesNotMatch(terminal, /Array\\.isArray\\(semantic\\.toolCalls\\)/);\n"
+        "    assert.doesNotMatch(terminal, /routeTerminalNaturalIntent/);\n"
+        "    assert.doesNotMatch(terminal, /TERMINAL_BRAIN_ROUTER_41_42/);\n",
+    ),
+    (
+        "    assert.match(terminal, /await window\\.consultarCerebroIA\\(comando\\)/);\n",
+        "    assert.doesNotMatch(terminal, /await window\\.consultarCerebroIA\\(comando\\)/);\n",
+    ),
+    (
+        "    assert.match(terminal, /await window\\.hablarJarvis\\?\\.\\(\\s*casualResponse/);\n",
+        "    assert.doesNotMatch(terminal, /await window\\.hablarJarvis\\?\\.\\(\\s*casualResponse/);\n",
+    ),
 )
-new_terminal_router_assertions = (
-    "    assert.doesNotMatch(terminal, /Array\\.isArray\\(semantic\\.toolCalls\\)/);\n"
-    "    assert.doesNotMatch(terminal, /routeTerminalNaturalIntent/);\n"
-    "    assert.doesNotMatch(terminal, /TERMINAL_BRAIN_ROUTER_41_42/);\n"
-)
-if old_terminal_router_assertion in multifunction_test:
-    multifunction_test = multifunction_test.replace(
-        old_terminal_router_assertion,
-        new_terminal_router_assertions,
-        1,
-    )
-if old_terminal_router_assertion in multifunction_test:
-    raise SystemExit("SINGLE_BRAIN_STALE_MULTIFUNCTION_ROUTER_ASSERTION_REMAINS")
+for old_assertion, new_assertion in terminal_brain_assertion_replacements:
+    if old_assertion in multifunction_test:
+        multifunction_test = multifunction_test.replace(old_assertion, new_assertion, 1)
+    if old_assertion in multifunction_test:
+        raise SystemExit(f"SINGLE_BRAIN_STALE_MULTIFUNCTION_ASSERTION_REMAINS:{old_assertion.strip()}")
 for required in (
     "assert.doesNotMatch(terminal, /Array\\.isArray\\(semantic\\.toolCalls\\)/);",
     "assert.doesNotMatch(terminal, /routeTerminalNaturalIntent/);",
     "assert.doesNotMatch(terminal, /TERMINAL_BRAIN_ROUTER_41_42/);",
+    "assert.doesNotMatch(terminal, /await window\\.consultarCerebroIA\\(comando\\)/);",
+    "assert.doesNotMatch(terminal, /await window\\.hablarJarvis\\?\\.\\(\\s*casualResponse/);",
 ):
     if required not in multifunction_test:
         raise SystemExit(f"SINGLE_BRAIN_MULTIFUNCTION_ASSERTION_MISSING:{required}")
