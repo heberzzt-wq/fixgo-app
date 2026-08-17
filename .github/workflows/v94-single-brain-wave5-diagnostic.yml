@@ -57,61 +57,56 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-
           terminal_path = Path("gestia-terminal.html")
           terminal = terminal_path.read_text(encoding="utf-8")
           delivery_marker = "const verifiedProducedArtifacts ="
-
           if delivery_marker not in terminal:
-              pending_marker = "?.renderPendingArtifacts?.()"
-              pending_pos = terminal.find(pending_marker)
+              pending_pos = terminal.find("?.renderPendingArtifacts?.()")
               if pending_pos < 0:
                   raise SystemExit("MARKETING_DOWNLOAD_PENDING_RENDERER_MISSING")
-              insert_at = terminal.rfind("window.JarvisAttachments", 0, pending_pos)
-              if insert_at < 0:
+              owner_pos = terminal.rfind("window.JarvisAttachments", 0, pending_pos)
+              if owner_pos < 0:
                   raise SystemExit("MARKETING_DOWNLOAD_RENDERER_OWNER_MISSING")
-              line_start = terminal.rfind("\n", 0, insert_at) + 1
-              indent = terminal[line_start:insert_at]
-              block = f'''{indent}const verifiedProducedArtifacts =
-          (Array.isArray(finalResponse?.producedArtifacts)
-              ? finalResponse.producedArtifacts
-              : [])
-              .filter(item =>
-                  typeof item?.output === "string" &&
-                  item.output.startsWith(".jarvis-artifacts/")
-              )
-              .filter((item, index, items) =>
-                  items.findIndex(candidate => candidate.output === item.output) === index
-              );
-
-      if (
-          verifiedProducedArtifacts.length > 0 &&
-          typeof window.JarvisAttachments?.renderArtifact === "function"
-      ) {{
-          for (const artifact of verifiedProducedArtifacts) {{
-              try {{
-                  await window.JarvisAttachments.renderArtifact(
-                      artifact.output,
-                      "",
-                      artifact.label || "archivo producido"
-                  );
-              }}
-              catch(error) {{
-                  console.warn(
-                      "[JARVIS_FINAL_ARTIFACT_RENDER_FAILED]",
-                      {{
-                          output: artifact.output,
-                          error: error?.message || String(error)
-                      }}
-                  );
-              }}
-          }}
-      }}
-
-'''
+              line_start = terminal.rfind("\n", 0, owner_pos) + 1
+              indent = terminal[line_start:owner_pos]
+              lines = [
+                  "const verifiedProducedArtifacts =",
+                  "    (Array.isArray(finalResponse?.producedArtifacts)",
+                  "        ? finalResponse.producedArtifacts",
+                  "        : [])",
+                  "        .filter(item =>",
+                  "            typeof item?.output === \"string\" &&",
+                  "            item.output.startsWith(\".jarvis-artifacts/\")",
+                  "        )",
+                  "        .filter((item, index, items) =>",
+                  "            items.findIndex(candidate => candidate.output === item.output) === index",
+                  "        );",
+                  "",
+                  "if (",
+                  "    verifiedProducedArtifacts.length > 0 &&",
+                  "    typeof window.JarvisAttachments?.renderArtifact === \"function\"",
+                  ") {",
+                  "    for (const artifact of verifiedProducedArtifacts) {",
+                  "        try {",
+                  "            await window.JarvisAttachments.renderArtifact(",
+                  "                artifact.output,",
+                  "                \"\",",
+                  "                artifact.label || \"archivo producido\"",
+                  "            );",
+                  "        }",
+                  "        catch(error) {",
+                  "            console.warn(",
+                  "                \"[JARVIS_FINAL_ARTIFACT_RENDER_FAILED]\",",
+                  "                { output: artifact.output, error: error?.message || String(error) }",
+                  "            );",
+                  "        }",
+                  "    }",
+                  "}",
+                  ""
+              ]
+              block = "\n".join((indent + line if line else "") for line in lines) + "\n"
               terminal = terminal[:line_start] + block + terminal[line_start:]
               terminal_path.write_text(terminal, encoding="utf-8")
-
           test_path = Path("tests/jarvis-marketing-terminal-delivery.e2e.test.mjs")
           tests = test_path.read_text(encoding="utf-8")
           test_name = 'test("Terminal renders verified marketing producedArtifacts through the existing download renderer"'
@@ -119,30 +114,32 @@ jobs:
               marker = 'test("completed marketing plan content is injected into MD and PDF artifact creation", () => {'
               if marker not in tests:
                   raise SystemExit("MARKETING_DOWNLOAD_TEST_ANCHOR_MISSING")
-              regression = r'''test("Terminal renders verified marketing producedArtifacts through the existing download renderer", () => {
-              const terminal = fs.readFileSync(path.join(process.cwd(), "gestia-terminal.html"), "utf8");
-              assert.match(terminal, /const verifiedProducedArtifacts =/);
-              assert.match(terminal, /finalResponse\?\.producedArtifacts/);
-              assert.match(terminal, /item\.output\.startsWith\("\.jarvis-artifacts\/"\)/);
-              assert.match(terminal, /JarvisAttachments\.renderArtifact\(/);
-              assert.match(terminal, /JARVIS_FINAL_ARTIFACT_RENDER_FAILED/);
-          });
-
-          '''
+              regression_lines = [
+                  'test("Terminal renders verified marketing producedArtifacts through the existing download renderer", () => {',
+                  '    const terminal = fs.readFileSync(path.join(process.cwd(), "gestia-terminal.html"), "utf8");',
+                  '    assert.match(terminal, /const verifiedProducedArtifacts =/);',
+                  '    assert.match(terminal, /finalResponse\\?\\.producedArtifacts/);',
+                  '    assert.match(terminal, /item\\.output\\.startsWith\\("\\.jarvis-artifacts\\/"\\)/);',
+                  '    assert.match(terminal, /JarvisAttachments\\.renderArtifact\\(/);',
+                  '    assert.match(terminal, /JARVIS_FINAL_ARTIFACT_RENDER_FAILED/);',
+                  '});',
+                  ''
+              ]
+              regression = "\n".join(regression_lines) + "\n"
               tests = tests.replace(marker, regression + marker, 1)
               test_path.write_text(tests, encoding="utf-8")
-
           terminal = terminal_path.read_text(encoding="utf-8")
           tests = test_path.read_text(encoding="utf-8")
-          for required in (
+          required_markers = [
               delivery_marker,
               "finalResponse?.producedArtifacts",
               'item.output.startsWith(".jarvis-artifacts/")',
               "JarvisAttachments.renderArtifact(",
               "JARVIS_FINAL_ARTIFACT_RENDER_FAILED"
-          ):
+          ]
+          for required in required_markers:
               if required not in terminal:
-                  raise SystemExit(f"MARKETING_DOWNLOAD_MARKER_MISSING:{required}")
+                  raise SystemExit("MARKETING_DOWNLOAD_MARKER_MISSING:" + required)
           if test_name not in tests:
               raise SystemExit("MARKETING_DOWNLOAD_REGRESSION_MISSING")
           PY
