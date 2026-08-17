@@ -193,6 +193,37 @@ if "const runtimeGuard = read(\"gestia-core/nexo/nexo.real-media.runtime-guard-v
 write(test_path, test_source)
 
 
+# 4) Keep the existing multifunction regression aligned with the same authority.
+# The old positive assertion certified the inline terminal semantic router that is
+# intentionally removed. Replace it in place; do not create another contract.
+multifunction_test_path = "tests/jarvis-multifunction-tools.test.mjs"
+multifunction_test = read(multifunction_test_path)
+old_terminal_router_assertion = (
+    "    assert.match(terminal, /Array\\.isArray\\(semantic\\.toolCalls\\)/);\n"
+)
+new_terminal_router_assertions = (
+    "    assert.doesNotMatch(terminal, /Array\\.isArray\\(semantic\\.toolCalls\\)/);\n"
+    "    assert.doesNotMatch(terminal, /routeTerminalNaturalIntent/);\n"
+    "    assert.doesNotMatch(terminal, /TERMINAL_BRAIN_ROUTER_41_42/);\n"
+)
+if old_terminal_router_assertion in multifunction_test:
+    multifunction_test = multifunction_test.replace(
+        old_terminal_router_assertion,
+        new_terminal_router_assertions,
+        1,
+    )
+if old_terminal_router_assertion in multifunction_test:
+    raise SystemExit("SINGLE_BRAIN_STALE_MULTIFUNCTION_ROUTER_ASSERTION_REMAINS")
+for required in (
+    "assert.doesNotMatch(terminal, /Array\\.isArray\\(semantic\\.toolCalls\\)/);",
+    "assert.doesNotMatch(terminal, /routeTerminalNaturalIntent/);",
+    "assert.doesNotMatch(terminal, /TERMINAL_BRAIN_ROUTER_41_42/);",
+):
+    if required not in multifunction_test:
+        raise SystemExit(f"SINGLE_BRAIN_MULTIFUNCTION_ASSERTION_MISSING:{required}")
+write(multifunction_test_path, multifunction_test)
+
+
 print("SINGLE_SEMANTIC_BRAIN=jarvisSemanticPlan")
 print("SINGLE_TOOL_EXECUTION_AUTHORITY=JarvisToolRuntime")
 print("NEW_CONTRACTS_CREATED=0")
