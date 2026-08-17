@@ -69,6 +69,12 @@ semantic_authority_passthrough = [
 for path in semantic_authority_passthrough:
     path.write_text(source_text(source_sha, path))
 
+# Historical replay can also resurrect an obsolete copy of the authority
+# contract itself. The test must describe the exact source revision being
+# certified, not extra assertions that existed only in an older carrier tree.
+semantic_authority_contract = Path('tests/single-semantic-authority.test.mjs')
+semantic_authority_contract.write_text(source_text(source_sha, semantic_authority_contract))
+
 # This alternate runtime is deliberately absent at the current authority source.
 retired_runtime = Path('modules/terminal/runtime-intelligence.js')
 source_runtime = subprocess.run(
@@ -125,4 +131,5 @@ print(f'CURRENT_POLICY_V5_SEMANTIC_SOURCE_SHA={source_sha}')
 print('CURRENT_POLICY_V5_TWO_PASS_TEST_COMPAT=true')
 print('CURRENT_POLICY_V5_LEGACY_CANARIES_REBASED=true')
 print('CURRENT_POLICY_V5_SEMANTIC_AUTHORITY_REBASED=true')
+print('CURRENT_POLICY_V5_SEMANTIC_AUTHORITY_TEST_REBASED=true')
 print('ACTIVE_RUNTIME_UNCHANGED_BY_TEST_COMPAT=true')
