@@ -49,9 +49,10 @@ def unwrap_runtime_registration(block: str, definition: str, saved_execute: str)
         raise SystemExit(f"SINGLE_BRAIN_GUARD_EXECUTE_CALL_MISSING:{definition}")
     block = block.replace(old_call, new_call, 1)
     stripped = block.rstrip()
-    if not stripped.endswith("    });"):
+    suffix = "\n    });"
+    if not stripped.endswith(suffix):
         raise SystemExit(f"SINGLE_BRAIN_GUARD_END_MISSING:{definition}")
-    stripped = stripped[:-len("    });")] + "    };"
+    stripped = stripped[:-len(suffix)] + ";"
     return stripped
 
 
