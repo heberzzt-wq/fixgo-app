@@ -227,7 +227,103 @@ jobs:
           test -z "$(git diff --name-only -- functions/)"
           test -z "$(git diff --name-only -- multiservicios-web/)"
 
-      - name: Verify one semantic authority and grounded expansion
+      - name: Converge verified marketing files into existing download renderer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          terminal_path = Path("gestia-terminal.html")
+          terminal = terminal_path.read_text(encoding="utf-8")
+          delivery_marker = "const verifiedProducedArtifacts ="
+          if delivery_marker not in terminal:
+              anchor = '''                window.JarvisAttachments
+                    ?.renderArtifactsFromObservations?.(agentObservations)
+                    .catch(error => console.warn("[JARVIS_ARTIFACT_RENDER_FAILED]", error));'''
+              if anchor not in terminal:
+                  raise SystemExit("MARKETING_DOWNLOAD_RENDER_ANCHOR_MISSING")
+              replacement = '''                const verifiedProducedArtifacts =
+                    (Array.isArray(finalResponse?.producedArtifacts)
+                        ? finalResponse.producedArtifacts
+                        : [])
+                        .filter(item =>
+                            typeof item?.output === "string" &&
+                            item.output.startsWith(".jarvis-artifacts/")
+                        )
+                        .filter((item, index, items) =>
+                            items.findIndex(candidate => candidate.output === item.output) === index
+                        );
+
+                if (
+                    verifiedProducedArtifacts.length > 0 &&
+                    typeof window.JarvisAttachments?.renderArtifact === "function"
+                ) {
+                    for (const artifact of verifiedProducedArtifacts) {
+                        try {
+                            await window.JarvisAttachments.renderArtifact(
+                                artifact.output,
+                                "",
+                                artifact.label || "archivo producido"
+                            );
+                        }
+                        catch(error) {
+                            console.warn(
+                                "[JARVIS_FINAL_ARTIFACT_RENDER_FAILED]",
+                                {
+                                    output: artifact.output,
+                                    error: error?.message || String(error)
+                                }
+                            );
+                        }
+                    }
+                }
+
+                window.JarvisAttachments
+                    ?.renderArtifactsFromObservations?.(agentObservations)
+                    .catch(error => console.warn("[JARVIS_ARTIFACT_RENDER_FAILED]", error));'''
+              terminal = terminal.replace(anchor, replacement, 1)
+              terminal_path.write_text(terminal, encoding="utf-8")
+
+          test_path = Path("tests/jarvis-marketing-terminal-delivery.e2e.test.mjs")
+          tests = test_path.read_text(encoding="utf-8")
+          test_name = 'test("Terminal renders verified marketing producedArtifacts through the existing download renderer"'
+          if test_name not in tests:
+              marker = 'test("completed marketing plan content is injected into MD and PDF artifact creation", () => {'
+              if marker not in tests:
+                  raise SystemExit("MARKETING_DOWNLOAD_TEST_ANCHOR_MISSING")
+              regression = '''test("Terminal renders verified marketing producedArtifacts through the existing download renderer", () => {
+              const terminal = fs.readFileSync(path.join(process.cwd(), "gestia-terminal.html"), "utf8");
+              assert.match(terminal, /const verifiedProducedArtifacts =/);
+              assert.match(terminal, /finalResponse\?\.producedArtifacts/);
+              assert.match(terminal, /item\.output\.startsWith\("\.jarvis-artifacts\/"\)/);
+              assert.match(terminal, /JarvisAttachments\.renderArtifact\(/);
+              assert.match(terminal, /JARVIS_FINAL_ARTIFACT_RENDER_FAILED/);
+          });
+
+          '''
+              tests = tests.replace(marker, regression + marker, 1)
+              test_path.write_text(tests, encoding="utf-8")
+
+          terminal = terminal_path.read_text(encoding="utf-8")
+          tests = test_path.read_text(encoding="utf-8")
+          for required in (
+              delivery_marker,
+              "finalResponse?.producedArtifacts",
+              'item.output.startsWith(".jarvis-artifacts/")',
+              "JarvisAttachments.renderArtifact(",
+              "JARVIS_FINAL_ARTIFACT_RENDER_FAILED"
+          ):
+              if required not in terminal:
+                  raise SystemExit(f"MARKETING_DOWNLOAD_MARKER_MISSING:{required}")
+          if test_name not in tests:
+              raise SystemExit("MARKETING_DOWNLOAD_REGRESSION_MISSING")
+          PY
+          git diff --check
+          test -z "$(git diff --name-only -- functions/)"
+          test -z "$(git diff --name-only -- multiservicios-web/)"
+
+      - name: Verify one semantic authority grounded expansion and downloadable delivery
         shell: bash
         run: |
           set -euo pipefail
@@ -235,12 +331,15 @@ jobs:
           node --check gestia-core/nexo/nexo.real-media.runtime-guard-v128.js
           node --test tests/single-semantic-authority.test.mjs | tee /tmp/v94-single-brain-focused.log
           node --test tests/jarvis-source-grounded-research-v124.test.mjs | tee /tmp/v94-grounded-research-focused.log
+          node --test tests/jarvis-marketing-terminal-delivery.e2e.test.mjs | tee /tmp/v94-marketing-download-focused.log
           ! grep -Fq 'routeTerminalNaturalIntent' gestia-terminal.html
           ! grep -Fq 'TERMINAL_BRAIN_ROUTER_41_42' gestia-terminal.html
           ! grep -Fq 'GestiaCore?.analizarIntencionLigera' gestia-terminal.html
           ! grep -Fq 'runtime.register({' gestia-core/nexo/nexo.real-media.runtime-guard-v128.js
           grep -Fq 'JarvisToolRuntime.execute' gestia-terminal.html
           grep -Fq 'researchGoalHasSatisfiedExplicitAnchor' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -Fq 'const verifiedProducedArtifacts =' gestia-terminal.html
+          grep -Fq 'JarvisAttachments.renderArtifact(' gestia-terminal.html
           test -z "$(git diff --name-only -- functions/)"
           test -z "$(git diff --name-only -- multiservicios-web/)"
 
@@ -262,7 +361,7 @@ jobs:
             echo 'GROUNDED_SINGLE_FLOW_ALREADY_MATERIALIZED=true'
             exit 0
           fi
-          allowed='^(gestia-terminal\.html|gestia-core/jarvis/jarvis\.multifunction\.planner\.js|gestia-core/nexo/nexo\.real-media\.runtime-guard-v128\.js|tests/single-semantic-authority\.test\.mjs|tests/jarvis-multifunction-tools\.test\.mjs|tests/repo-authority-v2\.test\.cjs|tests/jarvis-source-grounded-research-v124\.test\.mjs)$'
+          allowed='^(gestia-terminal\.html|gestia-core/jarvis/jarvis\.multifunction\.planner\.js|gestia-core/nexo/nexo\.real-media\.runtime-guard-v128\.js|tests/single-semantic-authority\.test\.mjs|tests/jarvis-multifunction-tools\.test\.mjs|tests/repo-authority-v2\.test\.cjs|tests/jarvis-source-grounded-research-v124\.test\.mjs|tests/jarvis-marketing-terminal-delivery\.e2e\.test\.mjs)$'
           unexpected="$(printf '%s\n' "$changed" | grep -Ev "$allowed" || true)"
           if [ -n "$unexpected" ]; then
             echo "$unexpected"
@@ -271,8 +370,8 @@ jobs:
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add gestia-terminal.html gestia-core/jarvis/jarvis.multifunction.planner.js gestia-core/nexo/nexo.real-media.runtime-guard-v128.js tests/single-semantic-authority.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/repo-authority-v2.test.cjs tests/jarvis-source-grounded-research-v124.test.mjs
-          git commit -m 'fix(grounded-research): verify anchor before cross-source expansion'
+          git add gestia-terminal.html gestia-core/jarvis/jarvis.multifunction.planner.js gestia-core/nexo/nexo.real-media.runtime-guard-v128.js tests/single-semantic-authority.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/repo-authority-v2.test.cjs tests/jarvis-source-grounded-research-v124.test.mjs tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
+          git commit -m 'fix(jarvis): render verified marketing deliverables for download'
           git push origin HEAD:v94-media-v4n-negative-claims
           echo 'GROUNDED_SINGLE_FLOW_MATERIALIZED=true'
 
@@ -285,6 +384,7 @@ jobs:
             /tmp/v94-single-brain-maintenance.log
             /tmp/v94-single-brain-focused.log
             /tmp/v94-grounded-research-focused.log
+            /tmp/v94-marketing-download-focused.log
             /tmp/v94-single-brain-ci.log
           if-no-files-found: ignore
           retention-days: 14
