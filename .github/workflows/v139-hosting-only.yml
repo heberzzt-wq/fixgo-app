@@ -12,8 +12,8 @@ permissions:
   contents: read
 
 env:
-  CERTIFIED_SHA: 18a6b08ed8d35810253bffdbf50b8926f9a0e7ad
-  CERTIFIED_TREE: f2ff1d6f1b248e0a9c5e4a912d43bbab8a80db65
+  CERTIFIED_SHA: 8bfd4bf94d8319da534903300e88db7f3fd39a76
+  CERTIFIED_TREE: 06d34064ad583bb5426bec2daa5f3d4e8748bb07
   FIREBASE_PROJECT_ID: fixgo-44e4d
   FIREBASE_SITE_ID: fixgo-44e4d
 
@@ -97,7 +97,7 @@ jobs:
           echo 'V139_HOSTING_ONLY_DEPLOYED=true'
           echo "V139_DEPLOYED_CERTIFIED_SHA=$CERTIFIED_SHA"
 
-      - name: Verify deployed web bytes and runtime guard contract
+      - name: Verify deployed web bytes runtime guard and downloadable delivery
         shell: bash
         run: |
           set -euo pipefail
@@ -105,20 +105,28 @@ jobs:
           core_url="https://${FIREBASE_SITE_ID}.web.app/gestia-core/gestia-core.js?v139_sha=${CERTIFIED_SHA}"
           guard_url="https://${FIREBASE_SITE_ID}.web.app/gestia-core/nexo/nexo.real-media.runtime-guard-v128.js?v139_sha=${CERTIFIED_SHA}"
           planner_url="https://${FIREBASE_SITE_ID}.web.app/gestia-core/jarvis/jarvis.multifunction.planner.js?v139_sha=${CERTIFIED_SHA}"
+          attachments_url="https://${FIREBASE_SITE_ID}.web.app/modules/terminal/jarvis-attachments.js?v139_sha=${CERTIFIED_SHA}"
           ok=false
           for attempt in $(seq 1 15); do
             if curl --fail --silent --show-error --location "$url" -o /tmp/v139-terminal.html \
               && curl --fail --silent --show-error --location "$core_url" -o /tmp/v139-core.js \
               && curl --fail --silent --show-error --location "$guard_url" -o /tmp/v139-runtime-guard.js \
               && curl --fail --silent --show-error --location "$planner_url" -o /tmp/v139-planner.js \
-              && grep -q 'gestia-core/gestia-core.js?v=v139-real-reel-e2e-20260812' /tmp/v139-terminal.html \
-              && grep -q 'MISSION_SEMANTIC_PLANNER_TRANSIENT_RETRY' /tmp/v139-core.js \
-              && grep -q 'NEXO_REAL_MEDIA_TOOLS_VERSION' /tmp/v139-runtime-guard.js \
-              && grep -q 'realMediaToolsReady' /tmp/v139-runtime-guard.js \
-              && ! grep -q 'runtime.register({' /tmp/v139-runtime-guard.js \
-              && grep -q 'researchGoalHasSatisfiedExplicitAnchor' /tmp/v139-planner.js \
-              && ! grep -q 'routeTerminalNaturalIntent' /tmp/v139-terminal.html \
-              && ! grep -q 'TERMINAL_BRAIN_ROUTER_41_42' /tmp/v139-terminal.html; then
+              && curl --fail --silent --show-error --location "$attachments_url" -o /tmp/v139-attachments.js \
+              && grep -Fq 'gestia-core/gestia-core.js?v=v139-real-reel-e2e-20260812' /tmp/v139-terminal.html \
+              && grep -Fq 'MISSION_SEMANTIC_PLANNER_TRANSIENT_RETRY' /tmp/v139-core.js \
+              && grep -Fq 'NEXO_REAL_MEDIA_TOOLS_VERSION' /tmp/v139-runtime-guard.js \
+              && grep -Fq 'realMediaToolsReady' /tmp/v139-runtime-guard.js \
+              && ! grep -Fq 'runtime.register({' /tmp/v139-runtime-guard.js \
+              && grep -Fq 'researchGoalHasSatisfiedExplicitAnchor' /tmp/v139-planner.js \
+              && ! grep -Fq 'routeTerminalNaturalIntent' /tmp/v139-terminal.html \
+              && ! grep -Fq 'TERMINAL_BRAIN_ROUTER_41_42' /tmp/v139-terminal.html \
+              && grep -Fq 'const verifiedProducedArtifacts =' /tmp/v139-terminal.html \
+              && grep -Fq 'finalResponse?.producedArtifacts' /tmp/v139-terminal.html \
+              && grep -Fq 'JarvisAttachments.renderArtifact(' /tmp/v139-terminal.html \
+              && grep -Fq '/artifact/read' /tmp/v139-attachments.js \
+              && grep -Fq 'jarvis-artifact-download' /tmp/v139-attachments.js \
+              && grep -Fq 'renderArtifact' /tmp/v139-attachments.js; then
               ok=true
               break
             fi
@@ -129,4 +137,5 @@ jobs:
           echo 'V139_NEXO_RUNTIME_GUARD_CONTRACT_VERIFIED=true'
           echo 'V139_SINGLE_BRAIN_SERVED=true'
           echo 'V139_GROUNDED_RESEARCH_SERVED=true'
+          echo 'V139_DOWNLOADABLE_DELIVERY_SERVED=true'
           echo "V139_WEB_URL=https://${FIREBASE_SITE_ID}.web.app/gestia-terminal.html"
