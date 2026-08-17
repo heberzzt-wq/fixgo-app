@@ -1,5 +1,5 @@
 name: v139 real reel e2e cert
-# final-canonical-trigger: bounded latency isolated focal 279bd5da 2026-08-17
+# final-canonical-trigger: bounded latency exact reel isolation 279bd5da 2026-08-17
 
 on:
   push:
@@ -72,23 +72,30 @@ jobs:
           node --check jarvis-reel-artifact.js
           node --check jarvis-speech-artifact.js
 
-      - name: Focal reel and media lineage contracts
-        shell: bash
-        run: |
-          set -euo pipefail
-          node --test --test-concurrency=1 \
-            tests/jarvis-reel-live-cache-v139.test.mjs \
-            tests/jarvis-reel-native-mp4-v138.test.mjs \
-            tests/jarvis-reel-speech-v137.test.mjs \
-            tests/jarvis-reel-media-source-recovery-v136.test.mjs \
-            tests/nexo-browser-media-fallback-v135.test.mjs \
-            tests/jarvis-reel-real-production-v134.test.mjs \
-            tests/jarvis-reel-mission-fidelity-v133.test.mjs \
-            tests/jarvis-reel-researched-media-v132.test.mjs \
-            tests/nexo-real-media-tools.test.mjs \
-            tests/jarvis-actuator-pack.test.mjs \
-            tests/jarvis-fs-bridge-v2.test.mjs \
-            tests/jarvis-reel-artifact.test.mjs
+      - name: Reel live cache v139
+        run: node --test tests/jarvis-reel-live-cache-v139.test.mjs
+      - name: Reel native mp4 v138
+        run: node --test tests/jarvis-reel-native-mp4-v138.test.mjs
+      - name: Reel speech v137
+        run: node --test tests/jarvis-reel-speech-v137.test.mjs
+      - name: Reel media source recovery v136
+        run: node --test tests/jarvis-reel-media-source-recovery-v136.test.mjs
+      - name: NEXO browser media fallback v135
+        run: node --test tests/nexo-browser-media-fallback-v135.test.mjs
+      - name: Reel real production v134
+        run: node --test tests/jarvis-reel-real-production-v134.test.mjs
+      - name: Reel mission fidelity v133
+        run: node --test tests/jarvis-reel-mission-fidelity-v133.test.mjs
+      - name: Reel researched media v132
+        run: node --test tests/jarvis-reel-researched-media-v132.test.mjs
+      - name: NEXO real media tools
+        run: node --test tests/nexo-real-media-tools.test.mjs
+      - name: Jarvis actuator pack
+        run: node --test tests/jarvis-actuator-pack.test.mjs
+      - name: Jarvis fs bridge v2
+        run: node --test tests/jarvis-fs-bridge-v2.test.mjs
+      - name: Jarvis reel artifact
+        run: node --test tests/jarvis-reel-artifact.test.mjs
 
       - name: Focal mission semantic latency contracts
         shell: bash
