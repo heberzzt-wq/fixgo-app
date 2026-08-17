@@ -1,5 +1,5 @@
 name: v139 real reel e2e cert
-# final-canonical-trigger: bounded latency exact reel isolation 279bd5da 2026-08-17
+# final-canonical-trigger: core-first crash latency fix 4dea903f 2026-08-17
 
 on:
   push:
