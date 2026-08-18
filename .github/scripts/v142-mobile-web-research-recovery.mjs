@@ -129,7 +129,7 @@ export async function fetchGroundedWebResearch(
                 {
                     method: "POST",
                     headers: {
-                        "Authorization": `Bearer \${token}`,
+                        "Authorization": "Bearer " + token,
                         "Content-Type": "application/json"
                     },
                     body: JSON.stringify({
@@ -149,7 +149,7 @@ export async function fetchGroundedWebResearch(
                 throw new Error(
                     payload?.error?.message ||
                     result?.message ||
-                    `WEB_RESEARCH_HTTP_\${response.status}`
+                    "WEB_RESEARCH_HTTP_" + response.status
                 );
             }
             return result;
