@@ -1,0 +1,128 @@
+name: v139 postdeploy verify
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/v139-postdeploy-verify.yml'
+
+permissions:
+  contents: read
+  statuses: write
+
+env:
+  CERTIFIED_SHA: c9ab09c064ce7db3337592fdca2d92607203c9fd
+  FIREBASE_SITE_ID: fixgo-44e4d
+
+jobs:
+  announce:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish pending status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          payload=$(jq -n --arg state pending --arg context 'v139-postdeploy-verify' --arg description "run=${GITHUB_RUN_ID} started" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          curl --fail-with-body --silent --show-error --location -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' -H 'X-GitHub-Api-Version: 2022-11-28' "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" -d "$payload"
+
+  verify-official-bytes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Fetch official Firebase bytes with cache busting
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://${FIREBASE_SITE_ID}.web.app"
+          stamp="${CERTIFIED_SHA}-$(date +%s)"
+          curl --fail --silent --show-error --location "$base/gestia-terminal.html?v139_postdeploy=$stamp" -o /tmp/terminal.html
+          curl --fail --silent --show-error --location "$base/gestia-core/jarvis/jarvis.multifunction.planner.js?v139_postdeploy=$stamp" -o /tmp/planner.js
+          curl --fail --silent --show-error --location "$base/gestia-core/jarvis/jarvis.multitool.pack.js?v139_postdeploy=$stamp" -o /tmp/multitool.js
+          curl --fail --silent --show-error --location "$base/modules/terminal/jarvis-attachments.js?v139_postdeploy=$stamp" -o /tmp/attachments.js
+          wc -c /tmp/terminal.html /tmp/planner.js /tmp/multitool.js /tmp/attachments.js
+          sha256sum /tmp/terminal.html /tmp/planner.js /tmp/multitool.js /tmp/attachments.js
+
+      - name: Diagnose served contracts individually
+        shell: bash
+        run: |
+          set -euo pipefail
+          failed=0
+          present() {
+            label="$1"; needle="$2"; file="$3"
+            if grep -Fq "$needle" "$file"; then
+              echo "PASS:$label"
+            else
+              echo "FAIL:$label missing [$needle]"
+              failed=1
+            fi
+          }
+          absent() {
+            label="$1"; needle="$2"; file="$3"
+            if grep -Fq "$needle" "$file"; then
+              echo "FAIL:$label forbidden [$needle]"
+              failed=1
+            else
+              echo "PASS:$label"
+            fi
+          }
+
+          absent terminal_orphan_route 'terminalBrainRoute' /tmp/terminal.html
+          absent terminal_old_router 'routeTerminalNaturalIntent' /tmp/terminal.html
+          absent terminal_old_router_marker 'TERMINAL_BRAIN_ROUTER_41_42' /tmp/terminal.html
+          present terminal_core_first 'await window.GestiaCore.procesarIntencion' /tmp/terminal.html
+          present terminal_adjustment_disabled 'const shouldBuildProposalAdjustmentInput =' /tmp/terminal.html
+          present terminal_final_response 'finalResponse?.producedArtifacts' /tmp/terminal.html
+          present terminal_artifact_renderer 'JarvisAttachments.renderArtifact(' /tmp/terminal.html
+
+          present planner_cloud_timeout_decl 'CLOUD_MISSION_CONTRACT_TIMEOUT_MS =' /tmp/planner.js
+          present planner_cloud_timeout_12000 '    12000;' /tmp/planner.js
+          present planner_browser_mission_6000 '    6000;' /tmp/planner.js
+          present planner_browser_plan_5000 '    5000;' /tmp/planner.js
+          absent planner_old_110s ': 110000;' /tmp/planner.js
+
+          present multitool_timeout_decl 'const responseTimeoutMs =' /tmp/multitool.js
+          present multitool_long_30s '? 30000' /tmp/multitool.js
+          present multitool_short_18s ': 18000;' /tmp/multitool.js
+          absent multitool_old_130s '? 130000' /tmp/multitool.js
+          absent multitool_old_55s ': 55000;' /tmp/multitool.js
+
+          present attachments_bridge_read '/artifact/read' /tmp/attachments.js
+          present attachments_download_class 'jarvis-artifact-download' /tmp/attachments.js
+          present attachments_render 'renderArtifact' /tmp/attachments.js
+
+          if [ "$failed" -ne 0 ]; then
+            echo 'V139_POSTDEPLOY_VERIFY_FAILED=true'
+            exit 1
+          fi
+          echo 'V139_POSTDEPLOY_FIREBASE_VERIFIED=true'
+          echo 'V139_POSTDEPLOY_ORPHAN_ROUTE_ABSENT=true'
+          echo 'V139_POSTDEPLOY_BOUNDED_LATENCY=true'
+          echo 'V139_POSTDEPLOY_DOWNLOADABLE_DELIVERY=true'
+
+  publish-result:
+    needs:
+      - announce
+      - verify-official-bytes
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish final status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERIFY_RESULT: ${{ needs.verify-official-bytes.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          state=failure
+          if [ "$VERIFY_RESULT" = success ]; then state=success; fi
+          target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          description="verify=${VERIFY_RESULT}; run=${GITHUB_RUN_ID}"
+          payload=$(jq -n --arg state "$state" --arg context 'v139-postdeploy-verify' --arg description "$description" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          curl --fail-with-body --silent --show-error --location -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' -H 'X-GitHub-Api-Version: 2022-11-28' "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" -d "$payload"
+          echo "V139_POSTDEPLOY_OBSERVABLE_STATE=$state"
+          echo "V139_POSTDEPLOY_RUN_ID=$GITHUB_RUN_ID"
