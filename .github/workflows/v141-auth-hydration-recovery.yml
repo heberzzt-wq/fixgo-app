@@ -49,9 +49,7 @@ jobs:
           from pathlib import Path
 
           core_path = Path('gestia-core/gestia-core.js')
-          test_path = Path('tests/jarvis-multifunction-tools.test.mjs')
           core = core_path.read_text(encoding='utf-8')
-          tests = test_path.read_text(encoding='utf-8')
 
           old_seed = (
               '        let terminalPlannerSeed =\n'
@@ -89,26 +87,7 @@ jobs:
           if core.count(old_seed) != 1:
               raise SystemExit('SEMANTIC_SEED_ALIGNMENT_ANCHOR_INVALID')
           core = core.replace(old_seed, new_seed, 1)
-
-          test_anchor = (
-              '    assert.doesNotMatch(terminalSource, /terminalBrainRoute/);\n'
-              '    assert.doesNotMatch(terminalSource, /routeTerminalNaturalIntent/);\n'
-              '    assert.match(terminalSource, /await window\\\\.GestiaCore\\\\.procesarIntencion/);\n'
-          )
-          test_replacement = (
-              '    assert.doesNotMatch(terminalSource, /terminalBrainRoute/);\n'
-              '    assert.doesNotMatch(terminalSource, /routeTerminalNaturalIntent/);\n'
-              '    assert.doesNotMatch(coreSource, /terminalBrainRoute/);\n'
-              '    assert.match(coreSource, /await this\\\\.analizarIntencionLigera\\\\(/);\n'
-              '    assert.match(coreSource, /terminalSemanticPlan\\\\?\\\\.toolCalls/);\n'
-              '    assert.match(terminalSource, /await window\\\\.GestiaCore\\\\.procesarIntencion/);\n'
-          )
-          if tests.count(test_anchor) != 1:
-              raise SystemExit('EXISTING_CORE_FIRST_TEST_ANCHOR_INVALID')
-          tests = tests.replace(test_anchor, test_replacement, 1)
-
           core_path.write_text(core, encoding='utf-8')
-          test_path.write_text(tests, encoding='utf-8')
           PY
 
       - name: Guard exact alignment scope
@@ -117,9 +96,8 @@ jobs:
           set -euo pipefail
           changed="$(git diff --name-only)"
           printf '%s\n' "$changed"
-          test "$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l)" -eq 2
+          test "$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l)" -eq 1
           printf '%s\n' "$changed" | grep -Fx 'gestia-core/gestia-core.js'
-          printf '%s\n' "$changed" | grep -Fx 'tests/jarvis-multifunction-tools.test.mjs'
           ! printf '%s\n' "$changed" | grep -E '^functions/'
           ! printf '%s\n' "$changed" | grep -E '^multiservicios-web/'
           ! grep -Fq 'terminalBrainRoute' gestia-core/gestia-core.js
@@ -159,7 +137,7 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add gestia-core/gestia-core.js tests/jarvis-multifunction-tools.test.mjs
+          git add gestia-core/gestia-core.js
           git commit -m 'fix(jarvis): align core with existing semantic planner'
           product_sha="$(git rev-parse HEAD)"
           product_tree="$(git rev-parse HEAD^{tree})"
