@@ -3972,11 +3972,20 @@ export const GestiaCore = {
                 identity: semanticMemoryIdentity
             });
 
+        const terminalSemanticPlan =
+            await this.analizarIntencionLigera(
+                inputRaw,
+                {
+                    ...context,
+                    tenantId
+                }
+            );
+
         let terminalPlannerSeed =
             Array.isArray(
-                context?.terminalBrainRoute?.toolCalls
+                terminalSemanticPlan?.toolCalls
             )
-                ? context.terminalBrainRoute.toolCalls.filter(call =>
+                ? terminalSemanticPlan.toolCalls.filter(call =>
                     call &&
                     typeof call.name === "string" &&
                     call.name.trim()
