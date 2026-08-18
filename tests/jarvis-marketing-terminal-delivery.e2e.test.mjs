@@ -266,3 +266,16 @@ test("Terminal presents any valid non-agent GestiaCore finalResponse instead of 
     assert.match(terminal, /preferredAgentFinalResponse\.text/);
     assert.match(terminal, /window\.renderJarvisResponse\?\.\(/);
 });
+
+
+test("Terminal recovers nested core finalResponse envelopes and removes false not-presented outcome", () => {
+    const terminal = fs.readFileSync(path.join(process.cwd(), "gestia-terminal.html"), "utf8");
+    assert.match(terminal, /let lastCoreResult = null;/);
+    assert.match(terminal, /lastCoreResult =\s*coreResult;/);
+    assert.match(terminal, /lastCoreResult\?\.result\?\.missionResult\?\.finalResponse/);
+    assert.match(terminal, /lastCoreResult\?\.result\?\.agentLoop\?\.finalResponse/);
+    assert.match(terminal, /TERMINAL_CORE_FALLBACK_FINAL_RESPONSE_RECOVERED/);
+    assert.match(terminal, /TERMINAL_CORE_RESULT_WITHOUT_FINAL_RESPONSE/);
+    assert.doesNotMatch(terminal, /TERMINAL_CORE_RESPONSE_NOT_PRESENTED/);
+    assert.match(terminal, /Misión sin respuesta final verificable/);
+});

@@ -4,11 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Terminal Heberto | ADJUNTO</title>
-    
+
     <script src="https://cdn.tailwindcss.com"></script>
-    
+
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
     <script>
         tailwind.config = {
             theme: {
@@ -25,14 +25,14 @@
             }
         }
     </script>
-    
+
     <style>
         /* Scrollbar personalizado para mantener el look de terminal limpia */
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #0f172a; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #475569; }
-        
+
         /* Animación suave para la aparición de mensajes */
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
@@ -70,7 +70,7 @@
     </header>
 
     <main class="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 relative" id="gestia-output">
-        
+
         <div class="flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mt-4">
             <div class="w-10 h-10 rounded-full bg-gestia-primary flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/30">
                 <i class="fa-solid fa-bolt text-white text-sm"></i>
@@ -83,7 +83,7 @@
                 <p class="text-xs text-slate-500">Cada conversación conserva su propio expediente. ADJUNTO puede recuperar memoria semántica de sesiones anteriores sin convertir recuerdos en evidencia de la misión actual.</p>
             </div>
         </div>
-        
+
     </main>
 
     <footer class="p-4 bg-gestia-panel border-t border-slate-800 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.5)]">
@@ -115,24 +115,24 @@
                 </div>
                 <div class="relative flex-1 bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden focus-within:border-gestia-primary focus-within:ring-1 focus-within:ring-gestia-primary transition-all shadow-inner">
                     <div id="jarvis-attachment-tray" data-testid="jarvis-attachment-tray" class="p-2 flex flex-wrap gap-2 border-b border-slate-800" hidden></div>
-                    <textarea 
-                        id="gestia-input" 
-                        rows="1" 
-                        class="w-full bg-transparent text-slate-100 p-4 resize-none focus:outline-none max-h-48 overflow-y-auto block font-sans" 
+                    <textarea
+                        id="gestia-input"
+                        rows="1"
+                        class="w-full bg-transparent text-slate-100 p-4 resize-none focus:outline-none max-h-48 overflow-y-auto block font-sans"
                         placeholder="Dile a ADJUNTO qué debe investigar, crear, analizar o ejecutar..."
                         style="min-height: 58px;"
                     ></textarea>
                 </div>
-                
-                <button 
-                    type="submit" 
+
+                <button
+                    type="submit"
                     id="btn-generate"
                     class="bg-gestia-primary hover:bg-blue-500 text-white h-[58px] w-[58px] rounded-2xl flex items-center justify-center transition-all shadow-lg shadow-blue-500/25 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed group"
                     title="Generar Módulo"
                 >
                     <i class="fa-solid fa-wand-magic-sparkles text-lg group-hover:scale-110 transition-transform"></i>
                 </button>
-                
+
             </form>
             <div class="text-center mt-3">
                 <span class="text-[10px] text-slate-500 uppercase tracking-widest font-semibold flex items-center justify-center gap-2">
@@ -141,7 +141,7 @@
             </div>
         </div>
     </footer>
-    
+
    <script>
 window.__APP_MAIN_SOURCE__ = "";
 window.__INDEX_SOURCE__ = "";
@@ -433,9 +433,9 @@ const terminalAuthGateInterval = setInterval(() => {
         🛡️ SISTEMA DE AUDITORÍA Y NORMALIZACIÓN (NÚCLEO RESILIENTE)
         Blindaje Total: Coherencia Temporal y Seguridad V5.70.
     ===================================================== */
-    
+
     // Configuración de límites del Búnker (Modo Tacaño)
-    window.__DEV__ = true; 
+    window.__DEV__ = true;
     const ALLOWED_TYPES = new Set(["SYSTEM_STATUS", "LEDGER", "ALERT", "TEXT", "UNKNOWN"]);
     const MAX_ARRAY = 50;
     const MAX_KEYS = 50;
@@ -451,14 +451,14 @@ const terminalAuthGateInterval = setInterval(() => {
         } catch { return false; }
     };
 
-    const isDomNode = (v) => 
-        v && typeof v === "object" && 
-        typeof v.nodeType === "number" && 
+    const isDomNode = (v) =>
+        v && typeof v === "object" &&
+        typeof v.nodeType === "number" &&
         typeof v.nodeName === "string";
 
-    const genId = () => 
-        (typeof crypto !== "undefined" && crypto.randomUUID) 
-            ? crypto.randomUUID() 
+    const genId = () =>
+        (typeof crypto !== "undefined" && crypto.randomUUID)
+            ? crypto.randomUUID()
             : "op_" + Math.random().toString(36).slice(2);
 
     const nowEpoch = () => Date.now();
@@ -474,9 +474,9 @@ const terminalAuthGateInterval = setInterval(() => {
             seen.add(current);
             const d = current.detail;
             const p = current.payload;
-            
+
             const hasDetail = isPlainObject(d) && ("type" in d || "data" in d || "message" in d || "report" in d);
-            
+
             if (hasDetail) {
                 current = d;
             } else if (p && typeof p === "object") {
@@ -498,7 +498,7 @@ const terminalAuthGateInterval = setInterval(() => {
         if (data instanceof Date) return data.toISOString();
         if (data instanceof Error) return { message: data.message, stack: "[stack]" };
         if (data instanceof RegExp) return data.toString();
-        
+
         if (data instanceof Map) {
             const out = {};
             let i = 0;
@@ -525,7 +525,7 @@ const terminalAuthGateInterval = setInterval(() => {
 
         if (Array.isArray(data)) {
             const truncated = data.length > MAX_ARRAY;
-            const arr = data.slice(0, MAX_ARRAY).map(v => 
+            const arr = data.slice(0, MAX_ARRAY).map(v =>
                 typeof v === "object" ? window.safeData(v, depth + 1, seen) : v
             );
             if (truncated) arr.push("[...truncated]");
@@ -560,7 +560,7 @@ const terminalAuthGateInterval = setInterval(() => {
     window.estimateSize = (obj) => {
         if (!obj || typeof obj !== "object") return 0;
         const keys = Object.keys(obj);
-        if (keys.length < 20) return 0; 
+        if (keys.length < 20) return 0;
         try {
             return JSON.stringify(obj).length;
         } catch {
@@ -576,8 +576,8 @@ const terminalAuthGateInterval = setInterval(() => {
         if (isDomNode(obj)) return "[dom]";
         try {
             const hasStructuredClone = typeof structuredClone === "function";
-            const clone = hasStructuredClone 
-                ? structuredClone(obj) 
+            const clone = hasStructuredClone
+                ? structuredClone(obj)
                 : JSON.parse(JSON.stringify(obj, bigIntReplacer));
             return (window.estimateSize(clone) > MAX_SNAPSHOT_SIZE) ? { truncated: true } : clone;
         } catch { return { warning: "snapshot_failed" }; }
@@ -595,23 +595,23 @@ const terminalAuthGateInterval = setInterval(() => {
         const key = payload?.opId ? stage + ":" + payload.opId : stage;
         const last = lastAuditMap.get(key) || 0;
 
-        if (now - last < 5 && level === "info") return; 
+        if (now - last < 5 && level === "info") return;
 
         lastAuditMap.set(key, now);
-        const entry = { 
-            id: ++__AUDIT_SEQ__, 
-            ts: nowEpoch(), 
-            stage, 
-            level, 
-            opId: payload?.opId || genId(), 
-            snapshot: window.safeClone(payload) 
+        const entry = {
+            id: ++__AUDIT_SEQ__,
+            ts: nowEpoch(),
+            stage,
+            level,
+            opId: payload?.opId || genId(),
+            snapshot: window.safeClone(payload)
         };
         window.__AUDIT__.push(entry);
         if (window.__AUDIT__.length > 200) window.__AUDIT__.shift();
     };
 
     // 6. NORMALIZACIÓN SOBERANA
-    window.normalizeType = (t) => 
+    window.normalizeType = (t) =>
         String(t)
             .replace(/([a-z])([A-Z])/g, "$1_$2")
             .replace(/[-\s]+/g, "_")
@@ -635,7 +635,7 @@ const terminalAuthGateInterval = setInterval(() => {
 
         const type = window.normalizeType(base.type || base.state || "UNKNOWN");
         const isTypeValid = ALLOWED_TYPES.has(type);
-        
+
         let data = base.data ?? base.payload ?? null;
         if (typeof data === "object" && data !== null) {
             if (Array.isArray(data) && data.length === 1) data = data[0];
@@ -643,8 +643,8 @@ const terminalAuthGateInterval = setInterval(() => {
         }
 
         const message = typeof base.message === "string" ? base.message : (typeof base.report === "string" ? base.report : null);
-        const hasContent = (typeof message === "string" && message.length > 0) || 
-                           (Array.isArray(data) && data.length > 0) || 
+        const hasContent = (typeof message === "string" && message.length > 0) ||
+                           (Array.isArray(data) && data.length > 0) ||
                            (typeof data === "number" || typeof data === "boolean") ||
                            (data && typeof data === "object" && Object.keys(data).length > 0);
 
@@ -653,12 +653,12 @@ const terminalAuthGateInterval = setInterval(() => {
             type: isTypeValid ? type : "UNKNOWN",
             valid: isTypeValid && hasContent,
             data, message,
-            meta: { 
+            meta: {
                 ts: base.meta?.ts || base.timestamp || nowEpoch(),
-                opId: window.resolveOpId(base, raw), 
-                source, 
+                opId: window.resolveOpId(base, raw),
+                source,
                 latency: nowPerf() - t0,
-                normalized: true 
+                normalized: true
             }
         };
 
@@ -677,7 +677,7 @@ const terminalAuthGateInterval = setInterval(() => {
     const renderedOps = new Set();
 
     // Nota: escapeHTML se queda aquí ya que es específico de la UI
-    const escapeHTML = (str) => 
+    const escapeHTML = (str) =>
         String(str)
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
@@ -723,15 +723,15 @@ function formatOp(op) {
         const d = data || window.lastTelemetry || { online: true, memory: 'STABLE', ops: 0 };
 
         console.log("🧠 PANEL DATA:", d);
-        
+
         // Resolución robusta de Timestamp (Number o ISO String)
         const rawTs = d.timestamp;
         const ts = (typeof rawTs === "number" && Number.isFinite(rawTs)) ? rawTs :
                    (typeof rawTs === "string" && !isNaN(Date.parse(rawTs))) ? Date.parse(rawTs) :
                    Date.now();
-        
+
         const isoDate = new Date(ts).toISOString();
-        
+
         const cardHtml = `
             <div id="system-status-block" class="flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mb-4">
                 <div class="w-10 h-10 rounded-full bg-gestia-accent flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20">
@@ -748,7 +748,7 @@ function formatOp(op) {
                         </h3>
                         <span class="text-[10px] text-slate-500">${escapeHTML(isoDate)}</span>
                     </div>
-                    
+
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700/50 hover:border-emerald-500/30 transition-colors">
                             <p class="text-[9px] text-slate-500 uppercase mb-1 font-bold tracking-tighter">Estado Núcleo</p>
@@ -770,7 +770,7 @@ function formatOp(op) {
                                 ${escapeHTML(formatOp(d.lastOperation))}
                             </p>
                         </div>
-                        
+
                         <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700/50 hover:border-blue-500/30 transition-colors">
                             <p class="text-[9px] text-slate-500 uppercase mb-1 font-bold tracking-tighter">Autoridad</p>
                             <p class="text-sm font-mono text-blue-400 italic">Heberto Confirmado</p>
@@ -785,7 +785,7 @@ function formatOp(op) {
                 </div>
             </div>
         `;
-        
+
         // 🔥 detectar si ya existe el panel
 const existing = document.getElementById("system-status-block");
 
@@ -813,7 +813,7 @@ outputElement.scrollTop = outputElement.scrollHeight;
         const opId = clean.meta?.opId || genId();
         if (renderedOps.has(opId)) return;
         renderedOps.add(opId);
-        
+
         // Limpieza FIFO del Ledger Visual
         if (renderedOps.size > 100) {
             const firstKey = renderedOps.values().next().value;
@@ -852,7 +852,7 @@ outputElement.scrollTop = outputElement.scrollHeight;
     renderSystemStatus(data);
     return;
 }
-        
+
         // Caso 2: Mensajería Genérica con Blindaje Anti-Ciclos y XSS
         let safeDataString = "Protocolo finalizado.";
         if (clean.data) {
@@ -878,12 +878,12 @@ outputElement.scrollTop = outputElement.scrollHeight;
     // 4. TELEMETRY SYNC (Captura Eficiente de Estados)
     window.addEventListener('gestia-terminal-state', (e) => {
         if (!e.detail) return;
-        
+
         const clean = normalizeSafe(e.detail, "TelemetryEvent_Listener");
-        
+
         if (clean.valid && clean.data) {
             window.lastTelemetry = clean.data;
-            
+
             if (clean.type === "SYSTEM_STATUS") {
                 // Inyectamos ya normalizado para optimizar CPU
                 window.renderResponse(clean, true);
@@ -959,7 +959,7 @@ outputElement.scrollTop = outputElement.scrollHeight;
             if (typeof o === "string") return o.slice(0, 500);
 
             if (typeof o === "object") {
-                const target = 
+                const target =
                     (o.detail && isPlainObject(o.detail)) ? o.detail :
                     (o.payload && isPlainObject(o.payload)) ? o.payload :
                     (isPlainObject(o)) ? o : null;
@@ -968,7 +968,7 @@ outputElement.scrollTop = outputElement.scrollHeight;
 
                 // Resolución de opId e Inmutabilidad funcional (Sincronización Módulo 2)
                 if (target.type === "SYSTEM_STATUS" || target.state === "SYSTEM_STATUS") {
-                    const opId = target?.meta?.opId || 
+                    const opId = target?.meta?.opId ||
                         (typeof window.genId === "function" ? window.genId() : Date.now().toString());
 
                     const safeTarget = {
@@ -977,12 +977,12 @@ outputElement.scrollTop = outputElement.scrollHeight;
                     };
 
                     if (typeof window.renderResponse === "function") {
-                        window.renderResponse(safeTarget, true); 
-                        return "[SYSTEM_STATUS]"; 
+                        window.renderResponse(safeTarget, true);
+                        return "[SYSTEM_STATUS]";
                     }
                 }
 
-                
+
 /* ======================================
    OPERATIONAL HUMAN NARRATOR
 ====================================== */
@@ -1050,7 +1050,7 @@ y está esperando aprobación humana.
                             if (++count >= 10) break;
                         }
                     }
-                    
+
                     return JSON.stringify(limited, null, 2) || "[Empty]";
                 } catch {
                     return "[Data Unserializable]";
@@ -1245,9 +1245,9 @@ window.unlockJarvisVoice = function() {
 
             osc.start();
             setTimeout(() => {
-                try { 
-                    osc.stop(); 
-                    osc.disconnect(); 
+                try {
+                    osc.stop();
+                    osc.disconnect();
                     gain.disconnect();
                 } catch(e) {}
             }, 120);
@@ -1290,7 +1290,7 @@ window.unlockJarvisVoice = function() {
             console.error("❌ [BOOT_FAIL]: Secuencia interrumpida.", e);
         }
     };
-    
+
 /* =====================================================
         🎤 RECONOCIMIENTO DE VOZ V5.95 (VOICE COMMANDER)
         Arquitectura de Entrada: Control Manos Libres y Watchdog de Audio.
@@ -1298,29 +1298,29 @@ window.unlockJarvisVoice = function() {
 
     let reconocimiento = null;
     let escuchandoAhora = false;
-    let lastJarvisEnd = 0; 
-    let isProcessing = false; 
-    let activeUtterances = 0; 
-    const COOLDOWN_ACUSTICO = 1200; 
+    let lastJarvisEnd = 0;
+    let isProcessing = false;
+    let activeUtterances = 0;
+    const COOLDOWN_ACUSTICO = 1200;
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
     // 1. DETERMINISMO DE HARDWARE: Centralización de estado con cola invisible (Pending Aware)
     const isAudioBusy = () => (
-        activeUtterances > 0 || 
-        speechSynthesis.speaking || 
+        activeUtterances > 0 ||
+        speechSynthesis.speaking ||
         speechSynthesis.pending
     );
 
     // 2. HOOK DE PRECISIÓN (PROXY): Gestión de Ráfagas Encadenadas con Blindaje Global
     const hookVoiceEnd = () => {
         if (!("speechSynthesis" in window) || window.__JARVIS_TTS_HOOKED__) return;
-        
+
         window.__JARVIS_TTS_HOOKED__ = true;
         const originalSpeak = speechSynthesis.speak.bind(speechSynthesis);
 
         const safeSpeak = (utterance) => {
-            activeUtterances++; 
+            activeUtterances++;
 
             const originalOnEnd = utterance.onend;
             const originalOnError = utterance.onerror;
@@ -1347,7 +1347,7 @@ window.unlockJarvisVoice = function() {
                 return originalSpeak(utterance);
             } catch (err) {
                 // Rollback inmediato para evitar bloqueo del contador por fallo de hardware
-                finalize(); 
+                finalize();
                 if (window.__DEV__) console.error("🎤 [TTS_HW_FAIL]: Rollback de ráfaga.", err);
                 throw err;
             }
@@ -1427,9 +1427,9 @@ window.unlockJarvisVoice = function() {
 
         reconocimiento.onerror = (event) => {
             if (window.__DEV__) console.error("🎤 [MIC_ERROR]:", event.error);
-            
+
             if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-                reconocimiento = null; 
+                reconocimiento = null;
                 console.warn("🎤 [MIC_DISABLED]: Permisos denegados.");
             }
             escuchandoAhora = false;
@@ -1503,19 +1503,20 @@ window.unlockJarvisVoice = function() {
                 : rawCommand;
 
             window.showJarvisPersistent?.("analizando comando...");
-            
+
             // Orden de validación defensivo para evitar microtasks encadenadas
             if (!comando) return;
 
             // 🟢 INTEGRACIÓN DE TRAZA: Iniciamos el túnel de seguimiento
-            const currentTraceId = (typeof window.startTrace === "function") 
-                ? window.startTrace() 
+            const currentTraceId = (typeof window.startTrace === "function")
+                ? window.startTrace()
                 : "trace_" + Date.now();
 
             isProcessing = true;
             const btnGenerate = document.getElementById("btn-generate");
             let handled = false;
             let activeWorkTracker = null;
+            let lastCoreResult = null;
 
             try {
                 if (btnGenerate) {
@@ -1545,10 +1546,10 @@ window.unlockJarvisVoice = function() {
 
                 // Auditoría vinculada a la traza actual
                 if (typeof window.audit === "function") {
-                    window.audit("COMMAND_INPUT", { 
-                        command: comando, 
-                        traceId: currentTraceId, 
-                        source: "terminal_v5" 
+                    window.audit("COMMAND_INPUT", {
+                        command: comando,
+                        traceId: currentTraceId,
+                        source: "terminal_v5"
                     });
                 }
 
@@ -3556,6 +3557,9 @@ if (
                 }
             );
 
+            lastCoreResult =
+                coreResult;
+
             activeWorkTracker?.complete(
                 "core",
                 "Ejecución principal completada"
@@ -4892,7 +4896,7 @@ const repoSummary =
             )
     ]
         .join("\n")
-        
+
             : toolName === "repo.search"
     ? errorPayload
         ? [
@@ -5068,38 +5072,174 @@ const summary =
 }
 
                 if (!handled) {
-                    window.renderJarvisResponse?.(
-                        "Jarvis",
+                    const fallbackCandidates =
                         [
-                            "GestiaCore no entregó una respuesta presentable para esta ejecución.",
-                            "La solicitud técnica sigue siendo válida y no necesita reformulación.",
-                            "Estado interno: TERMINAL_CORE_RESPONSE_NOT_PRESENTED."
-                        ].join("\n"),
-                        "error"
-                    );
+                            lastCoreResult?.finalResponse,
+                            lastCoreResult?.result?.finalResponse,
+                            lastCoreResult?.result?.followUp?.finalResponse,
+                            lastCoreResult?.result?.agentLoop?.finalResponse,
+                            lastCoreResult?.agentLoop?.finalResponse,
+                            lastCoreResult?.missionResult?.finalResponse,
+                            lastCoreResult?.result?.missionResult?.finalResponse,
+                            lastCoreResult?.result?.mission?.finalResponse,
+                            lastCoreResult?.result?.result?.finalResponse,
+                            lastCoreResult?.response?.finalResponse,
+                            lastCoreResult?.data?.finalResponse,
+                            lastCoreResult?.result?.response,
+                            lastCoreResult?.response,
+                            lastCoreResult?.data,
+                            lastCoreResult
+                        ]
+                            .filter(Boolean);
 
-                    recordTerminalLearningIncident?.({
-                        category: "TERMINAL_CORE_PRESENTATION",
-                        status: "error",
-                        stage: "terminal_core_final_response",
-                        operation: "PRESENT_CORE_RESULT",
-                        reason: "TERMINAL_CORE_RESPONSE_NOT_PRESENTED",
-                        symptom: comando,
-                        wrongBehavior: "GestiaCore terminó la ejecución pero Terminal no presentó un resultado útil.",
-                        fixRule: "Present any valid GestiaCore finalResponse regardless of envelope type; never ask the user to reformulate a valid technical objective.",
-                        sourceTraceId: currentTraceId,
-                        confidence: 1
-                    });
+                    const fallbackPresentation =
+                        (() => {
+                            for (const candidate of fallbackCandidates) {
+                                const textCandidate =
+                                    [
+                                        candidate?.text,
+                                        candidate?.message,
+                                        candidate?.answer,
+                                        candidate?.summary
+                                    ]
+                                        .find(value =>
+                                            typeof value === "string" &&
+                                            value.trim().length > 0
+                                        );
 
-                    handled =
-                        true;
+                                if (textCandidate) {
+                                    return {
+                                        ...(typeof candidate === "object" ? candidate : {}),
+                                        text: String(textCandidate).trim()
+                                    };
+                                }
+                            }
+                            return null;
+                        })();
+
+                    if (fallbackPresentation?.text) {
+                        console.info(
+                            "[TERMINAL_CORE_FALLBACK_FINAL_RESPONSE_RECOVERED]",
+                            {
+                                traceId: currentTraceId,
+                                type: lastCoreResult?.type || null,
+                                status:
+                                    lastCoreResult?.status ||
+                                    lastCoreResult?.result?.status ||
+                                    null
+                            }
+                        );
+
+                        activeWorkTracker?.complete("evidence", "Evidencia integrada");
+                        activeWorkTracker?.activate("response", "Preparando la respuesta final");
+                        window.renderJarvisResponse?.(
+                            fallbackPresentation?.title || "Jarvis",
+                            fallbackPresentation.text,
+                            fallbackPresentation?.ok === false || lastCoreResult?.status === "FAILED"
+                                ? "warning"
+                                : "info"
+                        );
+
+                        const fallbackProducedArtifacts =
+                            (Array.isArray(fallbackPresentation?.producedArtifacts)
+                                ? fallbackPresentation.producedArtifacts
+                                : [])
+                                .filter(item =>
+                                    typeof item?.output === "string" &&
+                                    item.output.startsWith(".jarvis-artifacts/")
+                                )
+                                .filter((item, index, items) =>
+                                    items.findIndex(candidate => candidate.output === item.output) === index
+                                );
+
+                        if (
+                            fallbackProducedArtifacts.length > 0 &&
+                            typeof window.JarvisAttachments?.renderArtifact === "function"
+                        ) {
+                            for (const artifact of fallbackProducedArtifacts) {
+                                try {
+                                    await window.JarvisAttachments.renderArtifact(
+                                        artifact.output,
+                                        "",
+                                        artifact.label || "archivo producido"
+                                    );
+                                }
+                                catch(error) {
+                                    console.warn(
+                                        "[JARVIS_FALLBACK_ARTIFACT_RENDER_FAILED]",
+                                        { output: artifact.output, error: error?.message || String(error) }
+                                    );
+                                }
+                            }
+                        }
+
+                        activeWorkTracker?.complete("response", "Respuesta preparada");
+                        activeWorkTracker?.finish("Trabajo completado");
+                        handled = true;
+                    }
+                    else {
+                        const coreStatus =
+                            lastCoreResult?.status ||
+                            lastCoreResult?.result?.status ||
+                            lastCoreResult?.missionResult?.status ||
+                            lastCoreResult?.result?.missionResult?.status ||
+                            "CORE_RESULT_WITHOUT_FINAL_RESPONSE";
+
+                        const coreReason =
+                            lastCoreResult?.reason ||
+                            lastCoreResult?.result?.reason ||
+                            lastCoreResult?.missionResult?.reason ||
+                            lastCoreResult?.result?.missionResult?.reason ||
+                            lastCoreResult?.error ||
+                            lastCoreResult?.result?.error ||
+                            "El núcleo no produjo texto final verificable.";
+
+                        const envelopeKeys =
+                            lastCoreResult && typeof lastCoreResult === "object"
+                                ? Object.keys(lastCoreResult).slice(0, 12).join(", ")
+                                : typeof lastCoreResult;
+
+                        console.warn(
+                            "[TERMINAL_CORE_RESULT_WITHOUT_FINAL_RESPONSE]",
+                            { traceId: currentTraceId, status: coreStatus, reason: coreReason, envelopeKeys }
+                        );
+
+                        activeWorkTracker?.fail?.("Misión sin respuesta final verificable");
+                        window.renderJarvisResponse?.(
+                            "Jarvis no pudo completar la misión",
+                            [
+                                "GestiaCore terminó sin una respuesta final verificable.",
+                                `Estado: ${coreStatus}`,
+                                `Razón: ${String(coreReason).slice(0, 1200)}`,
+                                envelopeKeys ? `Envoltura recibida: ${envelopeKeys}` : "",
+                                "No se reporta la misión como completada."
+                            ].filter(Boolean).join("\n"),
+                            "warning"
+                        );
+
+                        recordTerminalLearningIncident?.({
+                            category: "TERMINAL_CORE_PRESENTATION",
+                            status: "error",
+                            stage: "terminal_core_final_response",
+                            operation: "PRESENT_CORE_RESULT",
+                            reason: "TERMINAL_CORE_RESULT_WITHOUT_FINAL_RESPONSE",
+                            symptom: comando,
+                            wrongBehavior: "GestiaCore terminó sin texto final recuperable por el presenter universal.",
+                            fixRule: "Return a finalResponse with non-empty text from every completed mission envelope.",
+                            sourceTraceId: currentTraceId,
+                            confidence: 1,
+                            context: { coreStatus, envelopeKeys }
+                        });
+
+                        handled = true;
+                    }
                 }
 
             } catch (error) {
                 if (typeof window.audit === "function") {
-                    window.audit("MISSION_CRASH", { 
-                        error: error.message, 
-                        traceId: currentTraceId 
+                    window.audit("MISSION_CRASH", {
+                        error: error.message,
+                        traceId: currentTraceId
                     }, "error");
                 }
                 activeWorkTracker?.fail?.(
@@ -5199,8 +5339,8 @@ const summary =
             if (result === undefined || result === '"__TRUNCATED__"') return "[Truncated root]";
 
             // Reemplazo semántico para el Ledger visual
-            return truncated 
-                ? result.replace(/"__TRUNCATED__"/g, '"[Truncated...]"') 
+            return truncated
+                ? result.replace(/"__TRUNCATED__"/g, '"[Truncated...]"')
                 : result;
         } catch (e) {
             return "[Unserializable Object]";
@@ -5214,11 +5354,11 @@ const summary =
     window.normalizeResponse = function(raw, traceId = null) {
         const allowedTypes = ["info", "warning", "success", "error"];
         const allowedSources = ["bridge", "kernel", "ia", "system"];
-        
+
         // Resolución garantizada de ID para trazabilidad usable
-        const resolvedTraceId = 
-            traceId || 
-            raw?.meta?.traceId || 
+        const resolvedTraceId =
+            traceId ||
+            raw?.meta?.traceId ||
             (typeof window.getCurrentTrace === 'function' ? window.getCurrentTrace() : null) ||
             (window.genId ? window.genId() : "trace_" + Date.now());
 
@@ -5386,7 +5526,7 @@ const summary =
         const localTpl = document.createElement("template");
         localTpl.innerHTML = responseHtml.trim();
         outputContainer.appendChild(localTpl.content.firstElementChild);
-        
+
         scheduleScroll(outputContainer);
 
         window.logEvent({
@@ -5407,7 +5547,7 @@ const summary =
 
     window.startTrace = () => {
         const id = window.genId ? window.genId() : "trace_" + Date.now();
-        
+
         // Registro en orden FIFO real
         window.__TRACE_ORDER__.push(id);
         window.__TRACE_STACK__.push(id);
@@ -5484,11 +5624,11 @@ const summary =
 
             const snapshot = nuevoEstado;
             const sessionReady = snapshot === "IDLE" || snapshot === "SECURE SESSION READY";
-            
+
             if (sessionReady) {
                 if (!window.__JARVIS_BOOTED__) {
-                    window.__JARVIS_BOOTED__ = true; 
-                    
+                    window.__JARVIS_BOOTED__ = true;
+
                     setTimeout(() => {
                         if (((window.state || snapshot) === snapshot) && typeof window.launchSovereignBriefing === 'function') {
                             window.launchSovereignBriefing();
@@ -5514,11 +5654,11 @@ const summary =
     };
 
     setInterval(window.updateJarvisHUD, 60000);
-    
+
     // Persistencia final: Garantía de cierre de sesión
     window.addEventListener('beforeunload', () => {
         window.logEvent({ type: "SESSION_TERMINATED", source: "lifecycle" });
-        
+
         // Opcional: Envío de ráfaga final de logs si el búnker está configurado
         if (navigator.sendBeacon && window.__JARVIS_LOGS__) {
             const finalData = JSON.stringify(window.__JARVIS_LOGS__.slice(-5));
@@ -5538,26 +5678,26 @@ const summary =
     ===================================================== */
     window.GestiaTaskForce = {
         technicians: [
-            { 
-                id: "tech_jonathan_01", 
-                name: "Jonathan", 
-                role: "Lead Technician", 
-                status: "active", 
-                location: "Uxmal 39", 
+            {
+                id: "tech_jonathan_01",
+                name: "Jonathan",
+                role: "Lead Technician",
+                status: "active",
+                location: "Uxmal 39",
                 specialty: "General Maintenance"
             },
-            { 
-                id: "tech_jessica_02", 
-                name: "Jessica", 
-                role: "Operations Coordinator", 
-                status: "active", 
+            {
+                id: "tech_jessica_02",
+                name: "Jessica",
+                role: "Operations Coordinator",
+                status: "active",
                 location: "Cancún Office"
             },
-            { 
-                id: "tech_luis_03", 
-                name: "Luis", 
-                role: "Field Technician", 
-                status: "standby", 
+            {
+                id: "tech_luis_03",
+                name: "Luis",
+                role: "Field Technician",
+                status: "standby",
                 location: "Riviera Maya"
             }
         ],
@@ -5576,12 +5716,12 @@ const summary =
     window.executeCommands = async function(cmds) {
         // Normalizamos el comando para que ANALYZE::technicians entre siempre
         const checkCmd = Array.isArray(cmds) ? cmds[0] : cmds;
-        
+
         if (checkCmd && checkCmd.includes("ANALYZE::technicians")) {
             if (typeof window.audit === "function") {
                 window.audit("DATA_HYDRATION", { target: "technicians", count: window.GestiaTaskForce.technicians.length });
             }
-            
+
             return [{
                 ok: true,
                 type: "SYSTEM_STATUS", // Cambiado a SYSTEM_STATUS para que el Renderer lo pinte con estilo
@@ -5593,7 +5733,7 @@ const summary =
     };
 
     console.log("📦 [DATA_VAULT]: Perfiles cargados. Jonathan listo para pruebas.");
-    
+
     setTimeout(() => {
         window.listenLedgerRealtime?.();
     }, 1500);
@@ -6049,7 +6189,7 @@ if (
           "Propuesta cancelada, no se escribieron archivos.",
           "warning"
         );
-                
+
         return;
       }
 
@@ -6533,7 +6673,7 @@ if (
               <pre class="max-h-44 overflow-auto rounded-lg border border-slate-700 bg-slate-950/70 p-3 whitespace-pre-wrap">${escapeHtml(payload.replace || "ND")}</pre>
             </div>
           </div>
-          
+
           ${miniDiffHtml}
 
           <div class="mt-4 flex flex-wrap gap-2 text-xs">
