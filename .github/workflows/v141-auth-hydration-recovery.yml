@@ -1,4 +1,4 @@
-name: v141 existing-flow exact-prompt certification
+name: v141 master-session authority certification
 
 on:
   push:
@@ -6,9 +6,15 @@ on:
       - v94-media-v4n-negative-claims
     paths:
       - '.github/workflows/v141-auth-hydration-recovery.yml'
-      - '.github/scripts/v139-canonical-real-reel.mjs'
+      - 'firebase.js'
+      - 'gestia-core/auth/role-authority.js'
+      - 'gestia-core/core_auth_tenant_v1.js'
       - 'gestia-core/gestia-core.js'
-      - 'gestia-core/jarvis/jarvis.multifunction.planner.js'
+      - 'gestia-core/jarvis/**'
+      - 'gestia-terminal.js'
+      - 'gestia-terminal.html'
+      - 'modules/terminal/**'
+      - 'tests/jarvis-master-session-authority.test.mjs'
   workflow_dispatch:
 
 permissions:
@@ -33,7 +39,7 @@ jobs:
         run: |
           set -euo pipefail
           target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          payload=$(jq -n --arg state pending --arg context 'v141-planner-recovery' --arg description "run=${GITHUB_RUN_ID} exact existing flow" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          payload=$(jq -n --arg state pending --arg context 'v141-master-session-authority' --arg description "run=${GITHUB_RUN_ID} master-session certification" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
           curl --fail-with-body --silent --show-error --location -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" -d "$payload" >/dev/null
 
       - name: Checkout exact branch head
@@ -42,26 +48,28 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - name: Guard existing architecture and protected surfaces
+      - name: Guard master-session architecture and protected surfaces
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git branch -r --contains HEAD | grep -c 'origin/v94-media-v4n-negative-claims')" -ge 1
           ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
           ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..HEAD | grep -E '^multiservicios-web/'
           ! grep -Fq 'terminalBrainRoute' gestia-core/gestia-core.js
           ! grep -Fq 'terminalBrainRoute' gestia-terminal.html
-          grep -Fq 'await this.analizarIntencionLigera(' gestia-core/gestia-core.js
-          grep -Fq 'terminalSemanticPlan?.toolCalls' gestia-core/gestia-core.js
+          grep -Fq 'export function isGestiaMasterIdentity' gestia-core/auth/role-authority.js
+          grep -Fq 'master_authenticated_email_is_primary_authority' gestia-core/auth/role-authority.js
+          grep -Fq 'if (isGestiaMasterIdentity(user))' firebase.js
+          grep -Fq 'const isMasterEmail = isGestiaMasterIdentity(user);' gestia-core/core_auth_tenant_v1.js
+          grep -Fq 'const isGod = isMasterEmail || isAdminClaim;' gestia-core/core_auth_tenant_v1.js
+          grep -Fq 'await user.getIdTokenResult(options.forceRefresh)' gestia-core/core_auth_tenant_v1.js
+          ! grep -Fq 'Se ha erradicado el bypass de email' gestia-core/core_auth_tenant_v1.js
           grep -Fq 'AUTH_RESTORE_TIMEOUT_MS' gestia-core/gestia-core.js
-          grep -Fq 'runJarvisSemanticPlanner' .github/scripts/v139-canonical-real-reel.mjs
-          grep -Fq 'semanticPlanner: canonicalSemanticPlanner' .github/scripts/v139-canonical-real-reel.mjs
-          grep -Fq 'V139_EXACT_HUMAN_PROMPT=true' .github/scripts/v139-canonical-real-reel.mjs
-          grep -Fq 'V139_SEMANTIC_PLAN_NOT_PRESEEDED=true' .github/scripts/v139-canonical-real-reel.mjs
-          ! grep -Fq 'const planScenes =' .github/scripts/v139-canonical-real-reel.mjs
+          node --check firebase.js
+          node --check gestia-core/auth/role-authority.js
+          node --check gestia-core/core_auth_tenant_v1.js
           node --check gestia-core/gestia-core.js
-          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
-          node --check .github/scripts/v139-canonical-real-reel.mjs
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -72,11 +80,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Existing semantic and business focal contracts
+      - name: Master session and existing semantic focal contracts
         shell: bash
         run: |
           set -euo pipefail
           node --test --test-concurrency=1 \
+            tests/jarvis-master-session-authority.test.mjs \
+            tests/jarvis-secure-session-v117.test.mjs \
             tests/jarvis-marketing-terminal-delivery.e2e.test.mjs \
             tests/jarvis-multifunction-tools.test.mjs \
             tests/jarvis-mission-orchestrator.test.mjs \
@@ -103,7 +113,7 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - name: Guard exact existing flow and protected surfaces
+      - name: Guard exact master-session flow and protected surfaces
         shell: pwsh
         run: |
           if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw 'WRONG_SHA' }
@@ -112,9 +122,9 @@ jobs:
           $changedMulti = git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..HEAD
           if ($changedMulti -match '^multiservicios-web/') { throw 'MULTISERVICIOS_CHANGED' }
           if (Select-String -LiteralPath 'gestia-core/gestia-core.js' -SimpleMatch 'terminalBrainRoute' -Quiet) { throw 'ORPHAN_CORE_ROUTE_PRESENT' }
-          if (-not (Select-String -LiteralPath '.github/scripts/v139-canonical-real-reel.mjs' -SimpleMatch 'semanticPlanner: canonicalSemanticPlanner' -Quiet)) { throw 'EXISTING_SEMANTIC_PLANNER_ADAPTER_MISSING' }
-          if (-not (Select-String -LiteralPath '.github/scripts/v139-canonical-real-reel.mjs' -SimpleMatch 'V139_EXACT_HUMAN_PROMPT=true' -Quiet)) { throw 'EXACT_HUMAN_PROMPT_MISSING' }
-          if (Select-String -LiteralPath '.github/scripts/v139-canonical-real-reel.mjs' -SimpleMatch 'const planScenes =' -Quiet) { throw 'PRESEEDED_PLAN_FORBIDDEN' }
+          if (-not (Select-String -LiteralPath 'gestia-core/auth/role-authority.js' -SimpleMatch 'master_authenticated_email_is_primary_authority' -Quiet)) { throw 'MASTER_ROLE_AUTHORITY_MISSING' }
+          if (-not (Select-String -LiteralPath 'firebase.js' -SimpleMatch 'if (isGestiaMasterIdentity(user))' -Quiet)) { throw 'MASTER_FIREBASE_SHORT_CIRCUIT_MISSING' }
+          if (-not (Select-String -LiteralPath 'gestia-core/core_auth_tenant_v1.js' -SimpleMatch 'const isGod = isMasterEmail || isAdminClaim;' -Quiet)) { throw 'MASTER_TENANT_AUTHORITY_MISSING' }
 
       - name: Attach exact SHA to expected branch identity
         shell: pwsh
@@ -132,39 +142,40 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Canonical exact human mission
+      - name: Verify Windows bridge identity
         shell: pwsh
         run: |
-          $stdout = Join-Path $env:RUNNER_TEMP 'v141-existing-flow-bridge.stdout.log'
-          $stderr = Join-Path $env:RUNNER_TEMP 'v141-existing-flow-bridge.stderr.log'
+          $stdout = Join-Path $env:RUNNER_TEMP 'v141-master-session-bridge.stdout.log'
+          $stderr = Join-Path $env:RUNNER_TEMP 'v141-master-session-bridge.stderr.log'
           $process = Start-Process -FilePath node -ArgumentList 'jarvis-fs-bridge.js' -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
           try {
             $ready = $false
             for ($i = 0; $i -lt 40; $i++) {
               Start-Sleep -Milliseconds 250
-              $probe = Test-NetConnection -ComputerName 127.0.0.1 -Port 3344 -WarningAction SilentlyContinue
-              if ($probe.TcpTestSucceeded) { $ready = $true; break }
+              try {
+                $health = Invoke-RestMethod -Uri 'http://127.0.0.1:3344/health' -Method Get -TimeoutSec 2
+                if ($health.identity.ok -eq $true -and $health.identity.contract.branch -eq 'v94-media-v4n-negative-claims') {
+                  $ready = $true
+                  break
+                }
+              } catch {}
               if ($process.HasExited) { break }
             }
-            if (-not $ready) {
-              Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue
-              Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue
-              throw 'BRIDGE_NOT_READY'
-            }
-            $passed = $false
-            for ($attempt = 1; $attempt -le 2; $attempt++) {
-              Write-Host "CANONICAL_ATTEMPT=$attempt"
-              & node '.github/scripts/v139-canonical-real-reel.mjs'
-              if ($LASTEXITCODE -eq 0) { $passed = $true; break }
-              Start-Sleep -Seconds 8
-            }
-            if (-not $passed) { throw 'CANONICAL_FAILED_AFTER_RETRIES' }
+            if (-not $ready) { throw 'BRIDGE_IDENTITY_NOT_READY' }
+            Write-Host 'V141_WINDOWS_BRIDGE_IDENTITY=true'
           }
           finally {
             Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-            Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue | Select-Object -Last 240
-            Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue | Select-Object -Last 240
+            Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue | Select-Object -Last 120
+            Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue | Select-Object -Last 120
           }
+
+      - name: Verify Windows reel audio and physical container mechanics
+        shell: pwsh
+        run: |
+          node --test --test-concurrency=1 tests/jarvis-reel-speech-v137.test.mjs tests/jarvis-reel-native-mp4-v138.test.mjs tests/nexo-real-media-tools.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_MEDIA_MECHANICS_FAILED' }
+          Write-Host 'V141_WINDOWS_MEDIA_MECHANICS=true'
 
   deploy-hosting-only:
     needs:
@@ -199,9 +210,9 @@ jobs:
           const selected = hosting.filter(item => item && item.site === process.env.FIREBASE_SITE_ID);
           if (selected.length !== 1) throw new Error(`HOSTING_SITE_SELECTION_INVALID:${selected.length}`);
           if (selected[0].target) throw new Error('HOSTING_TARGET_FORBIDDEN');
-          fs.writeFileSync('.firebase-v141-auth.json', JSON.stringify({ hosting: selected[0] }, null, 2));
+          fs.writeFileSync('.firebase-v141-master-session.json', JSON.stringify({ hosting: selected[0] }, null, 2));
           NODE
-          node -e "const c=require('./.firebase-v141-auth.json'); if(c.functions||Array.isArray(c.hosting)||c.hosting.site!==process.env.FIREBASE_SITE_ID||c.hosting.target) process.exit(1)"
+          node -e "const c=require('./.firebase-v141-master-session.json'); if(c.functions||Array.isArray(c.hosting)||c.hosting.site!==process.env.FIREBASE_SITE_ID||c.hosting.target) process.exit(1)"
 
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
@@ -213,10 +224,10 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$FIREBASE_TOKEN"
-          firebase deploy --config .firebase-v141-auth.json --only hosting --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
+          firebase deploy --config .firebase-v141-master-session.json --only hosting --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
           echo "DEPLOYED_SHA=$GITHUB_SHA"
 
-      - name: Verify official Firebase bytes
+      - name: Verify official Firebase master-session bytes
         shell: bash
         run: |
           set -euo pipefail
@@ -224,16 +235,19 @@ jobs:
           ok=false
           for attempt in $(seq 1 30); do
             stamp="${GITHUB_SHA}-${attempt}-$(date +%s)"
-            if curl --fail --silent --show-error --location "$base/gestia-core/gestia-core.js?v141=$stamp" -o /tmp/core.js \
-              && curl --fail --silent --show-error --location "$base/gestia-core/jarvis/jarvis.multifunction.planner.js?v141=$stamp" -o /tmp/planner.js \
+            if curl --fail --silent --show-error --location "$base/gestia-core/auth/role-authority.js?v141=$stamp" -o /tmp/role-authority.js \
+              && curl --fail --silent --show-error --location "$base/firebase.js?v141=$stamp" -o /tmp/firebase.js \
+              && curl --fail --silent --show-error --location "$base/gestia-core/core_auth_tenant_v1.js?v141=$stamp" -o /tmp/core-auth.js \
+              && curl --fail --silent --show-error --location "$base/gestia-core/gestia-core.js?v141=$stamp" -o /tmp/core.js \
               && curl --fail --silent --show-error --location "$base/gestia-terminal.html?v141=$stamp" -o /tmp/terminal.html \
               && curl --fail --silent --show-error --location "$base/modules/terminal/jarvis-attachments.js?v141=$stamp" -o /tmp/attachments.js \
+              && grep -Fq 'master_authenticated_email_is_primary_authority' /tmp/role-authority.js \
+              && grep -Fq 'if (isGestiaMasterIdentity(user))' /tmp/firebase.js \
+              && grep -Fq 'const isGod = isMasterEmail || isAdminClaim;' /tmp/core-auth.js \
+              && grep -Fq 'await user.getIdTokenResult(options.forceRefresh)' /tmp/core-auth.js \
+              && ! grep -Fq 'Se ha erradicado el bypass de email' /tmp/core-auth.js \
               && ! grep -Fq 'terminalBrainRoute' /tmp/core.js \
               && ! grep -Fq 'terminalBrainRoute' /tmp/terminal.html \
-              && grep -Fq 'await this.analizarIntencionLigera(' /tmp/core.js \
-              && grep -Fq 'terminalSemanticPlan?.toolCalls' /tmp/core.js \
-              && grep -Fq 'AUTH_RESTORE_TIMEOUT_MS' /tmp/core.js \
-              && grep -Fq 'Código: ${coreCode}' /tmp/terminal.html \
               && grep -Fq '/artifact/read' /tmp/attachments.js \
               && grep -Fq 'jarvis-artifact-download' /tmp/attachments.js; then
               ok=true
@@ -242,7 +256,8 @@ jobs:
             sleep 4
           done
           test "$ok" = true
-          echo 'V141_FIREBASE_EXISTING_FLOW_VERIFIED=true'
+          echo 'V141_FIREBASE_MASTER_SESSION_AUTHORITY_VERIFIED=true'
+          echo 'V141_AUTHENTICATED_BROWSER_ACCEPTANCE_REQUIRED=true'
           echo "WEB_URL=$base/gestia-terminal.html"
 
   publish-result:
@@ -267,5 +282,5 @@ jobs:
           if [ "$LINUX_RESULT" != success ] || [ "$WINDOWS_RESULT" != success ] || [ "$DEPLOY_RESULT" != success ]; then state=failure; fi
           target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           description="linux=${LINUX_RESULT} windows=${WINDOWS_RESULT} deploy=${DEPLOY_RESULT} sha=${GITHUB_SHA:0:8}"
-          payload=$(jq -n --arg state "$state" --arg context 'v141-planner-recovery' --arg description "$description" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          payload=$(jq -n --arg state "$state" --arg context 'v141-master-session-authority' --arg description "$description" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
           curl --fail-with-body --silent --show-error --location -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" -d "$payload" >/dev/null
