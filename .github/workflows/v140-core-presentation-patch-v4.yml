@@ -1,0 +1,112 @@
+name: v140 core presentation patch v4
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/v140-core-presentation-patch-v4.yml'
+
+permissions:
+  contents: write
+  statuses: write
+
+env:
+  TARGET_BRANCH: v94-media-v4n-negative-claims
+  CLEAN_BASE: 5873ce52bcef0b1acdb341a86b3f43692ea0cb52
+
+jobs:
+  minimize-and-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Publish observable run
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          payload=$(jq -n --arg state pending --arg context 'v140-patch-v4' --arg description "run=${GITHUB_RUN_ID} started" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          curl --fail-with-body --silent --show-error --location -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" -d "$payload" >/dev/null
+
+      - name: Checkout working branch
+        uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Restore clean product files and apply blank-safe patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout "$CLEAN_BASE" -- gestia-terminal.html tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
+          python3 <<'EXTRACT'
+          from pathlib import Path
+          import textwrap
+          source = Path('.github/workflows/v140-core-presentation-patch-v2.yml').read_text(encoding='utf-8')
+          anchor = "          python3 <<'PY'\n"
+          start = source.index(anchor) + len(anchor)
+          end = source.index("\n          PY", start)
+          script = textwrap.dedent(source[start:end])
+          old = "    text = text[:start] + (' ' * 16) + fallback.replace('\\n', '\\n' + (' ' * 16)) + text[end:]"
+          new = "    indented_fallback = '\\n'.join(((' ' * 16) + line) if line else '' for line in fallback.split('\\n'))\n    text = text[:start] + indented_fallback + text[end:]"
+          if old not in script:
+              raise SystemExit('V140_V2_INDENT_ANCHOR_NOT_FOUND')
+          script = script.replace(old, new, 1)
+          Path('/tmp/v140_patch_minimal.py').write_text(script + '\n', encoding='utf-8')
+          EXTRACT
+          python3 /tmp/v140_patch_minimal.py
+
+      - name: Guard minimal product scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only)"
+          echo "$changed"
+          test "$(echo "$changed" | grep -c '^gestia-terminal.html$')" -eq 1
+          test "$(echo "$changed" | grep -c '^tests/jarvis-marketing-terminal-delivery.e2e.test.mjs$')" -eq 1
+          test "$(echo "$changed" | wc -l)" -eq 2
+          ! echo "$changed" | grep -E '^functions/'
+          ! echo "$changed" | grep -E '^multiservicios-web/'
+          ! grep -Fq 'terminalBrainRoute' gestia-terminal.html
+          ! grep -Fq 'TERMINAL_CORE_RESPONSE_NOT_PRESENTED' gestia-terminal.html
+          grep -Fq 'TERMINAL_CORE_FALLBACK_FINAL_RESPONSE_RECOVERED' gestia-terminal.html
+          grep -Fq 'TERMINAL_CORE_RESULT_WITHOUT_FINAL_RESPONSE' gestia-terminal.html
+          git diff --check
+          echo '--- NET PRODUCT DIFF VS CLEAN BASE ---'
+          git diff --stat "$CLEAN_BASE" -- gestia-terminal.html tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
+
+      - name: Focal regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          node --test --test-concurrency=1 tests/jarvis-marketing-terminal-delivery.e2e.test.mjs tests/jarvis-multifunction-tools.test.mjs
+          git diff --check
+
+      - name: Commit minimal presentation recovery
+        id: product
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add gestia-terminal.html tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
+          git commit -m 'fix(jarvis): minimize core response recovery patch'
+          product_sha="$(git rev-parse HEAD)"
+          echo "product_sha=$product_sha" >> "$GITHUB_OUTPUT"
+          git push origin HEAD:"$TARGET_BRANCH"
+          echo "V140_MINIMAL_PRODUCT_SHA=$product_sha"
+
+      - name: Publish patch success
+        if: ${{ success() }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRODUCT_SHA: ${{ steps.product.outputs.product_sha }}
+        run: |
+          set -euo pipefail
+          target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          payload=$(jq -n --arg state success --arg context 'v140-patch-v4' --arg description "product=${PRODUCT_SHA} minimal patch green" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          curl --fail-with-body --silent --show-error --location -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" -d "$payload" >/dev/null
