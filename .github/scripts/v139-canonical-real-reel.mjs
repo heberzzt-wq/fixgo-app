@@ -1,10 +1,12 @@
-// v139 final certification trigger after materialized semantic-continuity fix.
+// Canonical human-path certification for the exact Taquería El Dorado mission.
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { registerJarvisMultifunctionTools } from '../../gestia-core/jarvis/jarvis.multitool.pack.js';
 import { registerJarvisActuatorTools } from '../../gestia-core/jarvis/jarvis.actuator.pack.js';
 import { registerNexoRealMediaTools } from '../../gestia-core/nexo/nexo.real-media.tools.js';
+import { buildJarvisMultifunctionToolCalls } from '../../gestia-core/jarvis/jarvis.multifunction.planner.js';
+import { ensureExecutableArtifactDependencies } from '../../gestia-core/jarvis/jarvis.mission.dependencies.js';
 import { runJarvisMission } from '../../gestia-core/jarvis/jarvis.mission.orchestrator.js';
 
 const SOURCE = 'https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004';
@@ -121,6 +123,10 @@ function summarize(name, result) {
     bytes: result?.bytes,
     sha256: result?.sha256,
     audioTracksAdded: result?.audioTracksAdded,
+    sourceCount: result?.sourceCount,
+    validSources: Array.isArray(result?.validSources)
+      ? result.validSources.slice(0, 8).map(item => ({ title: item?.title, url: item?.url }))
+      : [],
     mediaAssets: Array.isArray(result?.mediaAssets)
       ? result.mediaAssets.slice(0, 4).map(item => ({
           kind: item?.kind,
@@ -155,72 +161,193 @@ registerJarvisMultifunctionTools(runtime);
 registerJarvisActuatorTools(runtime);
 registerNexoRealMediaTools(runtime);
 
-for (const required of ['reel.plan', 'speech.synthesize', 'web.media.collect', 'reel.create']) {
+for (const required of ['web.research', 'marketing.plan', 'reel.plan', 'speech.synthesize', 'web.media.collect', 'reel.create']) {
   if (!runtime.has(required)) throw new Error(`V139_REGISTERED_TOOL_REQUIRED:${required}`);
 }
 
-const planScenes = [
-  {
-    durationSeconds: 10,
-    overlay: 'Taquería El Dorado',
-    voiceover: 'En Cancún, el antojo tiene un nombre: Taquería El Dorado.',
-    visual: 'Video real de la publicación de Taquería El Dorado mostrando el producto.',
-    evidence: SOURCE,
-    transition: 'fade'
-  },
-  {
-    durationSeconds: 10,
-    overlay: 'Sabor que se antoja',
-    voiceover: 'Tacos preparados para convertir una visita en ese momento que quieres repetir.',
-    visual: 'Continuación dinámica del video real, priorizando alimento y preparación.',
-    evidence: SOURCE,
-    transition: 'cut'
-  },
-  {
-    durationSeconds: 10,
-    overlay: 'Ven por los tuyos',
-    voiceover: 'Guarda este lugar y ven a probar Taquería El Dorado en Cancún.',
-    visual: 'Cierre con el mejor encuadre disponible del video real y llamado a la acción.',
-    evidence: SOURCE,
-    transition: 'fade'
-  }
-];
-const renderScenes = planScenes.map(scene => ({
-  durationSeconds: scene.durationSeconds,
-  overlay: scene.overlay,
-  subtitle: scene.voiceover,
-  visualDescription: scene.visual,
-  transition: scene.transition
-}));
+const instruction = `Investiga esta publicación exacta de TikTok:
 
-const instruction = `Usa exclusivamente medios verificables de esta publicación exacta ${SOURCE}. Crea un reel profesional vertical de 30 segundos para Taquería El Dorado en Cancún, con narración y archivo final físico. No publiques.`;
+https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004
+
+La empresa es Taquería El Dorado, Cancún.
+
+Quiero que ejecutes la misión completa, no sólo que me expliques cómo hacerlo.
+
+Primero investiga la publicación y el negocio utilizando únicamente información que puedas verificar.
+
+Identifica correctamente qué negocio corresponde a la publicación y evita confundirlo con otros establecimientos de nombre parecido.
+
+Investiga por tu cuenta toda la información pública útil que encuentres: ubicación, teléfono, horarios, redes sociales, servicios, productos, promociones u otros datos relevantes.
+
+Si algún dato importante no aparece inicialmente, intenta investigarlo por otros medios antes de darte por vencido.
+
+Si después de investigar realmente no puedes verificar algún dato importante, dime exactamente cuál falta y pregúntame si puedo proporcionártelo. No lo inventes.
+
+Separa claramente:
+
+información verificada;
+información que no pudiste verificar;
+inferencias o recomendaciones.
+
+Conserva las fuentes y la procedencia de la información.
+
+Después de investigar, crea una propuesta de marketing basada únicamente en los hechos realmente encontrados.
+
+Luego crea un reel vertical profesional de aproximadamente 30 segundos para promocionar Taquería El Dorado.
+
+El reel debe:
+
+utilizar medios reales y verificables de la publicación indicada;
+tener formato vertical;
+incluir apertura, desarrollo y llamada a la acción;
+incluir textos/overlays;
+incluir narración de voz;
+producir un archivo final de video reproducible;
+no inventar teléfono, dirección, precios, promociones, horarios ni características;
+no sustituir silenciosamente el contenido real por imágenes inventadas;
+no publicar nada en ninguna red social.
+
+No quiero solamente un storyboard, un guion ni instrucciones para producirlo.
+
+Quiero que ejecutes realmente las herramientas disponibles hasta obtener el artefacto final.
+
+Si una herramienta falla temporalmente, intenta una recuperación razonable antes de abandonar la misión.
+
+Al terminar entrégame:
+
+resumen de la investigación;
+datos confirmados;
+datos que no pudiste verificar;
+fuentes utilizadas;
+herramientas ejecutadas;
+estrategia breve del reel;
+archivo final generado;
+confirmación de que contiene narración;
+confirmación de que utilizó medios verificables de la publicación;
+cualquier limitación real encontrada.
+
+No declares éxito si el archivo final no existe realmente.`;
+
+const missionToolCatalog = runtime.list().filter(tool =>
+  tool?.name !== 'conversation.respond' &&
+  (
+    tool?.mutates !== true ||
+    (tool?.userArtifact === true && tool?.requiresApproval !== true)
+  )
+);
+
+const plannedInitialCalls = await buildJarvisMultifunctionToolCalls(
+  instruction,
+  {
+    throwOnUnavailable: true,
+    toolCatalog: missionToolCatalog,
+    missionState: {
+      phase: 'CURRENT_TURN',
+      writeAllowed: false,
+      userArtifactAllowed: true
+    }
+  }
+);
+console.log('V139_EXACT_PROMPT_INITIAL_PLAN', JSON.stringify(plannedInitialCalls.map(call => ({ name: call.name, args: call.args }))));
+if (plannedInitialCalls.length === 0) {
+  throw new Error('V139_EXACT_PROMPT_NO_EXECUTABLE_PLAN');
+}
+
+const initialToolCalls = ensureExecutableArtifactDependencies({
+  toolCalls: plannedInitialCalls,
+  catalog: missionToolCatalog
+});
+if (!Array.isArray(initialToolCalls) || initialToolCalls.length === 0) {
+  throw new Error('V139_EXACT_PROMPT_NO_INITIAL_TOOLS_AFTER_EXISTING_DEPENDENCIES');
+}
+
+function compactObservation(observation = {}) {
+  return {
+    status: observation?.status || null,
+    objectiveSatisfied: observation?.objectiveSatisfied === true,
+    artifact: observation?.artifact || null,
+    output: observation?.output || observation?.evidence?.output || null,
+    sourceCount: Number(observation?.sourceCount || 0),
+    validSources: Array.isArray(observation?.validSources)
+      ? observation.validSources.slice(0, 8).map(item => ({ title: item?.title, url: item?.url }))
+      : []
+  };
+}
+
 const mission = await runJarvisMission({
   instruction,
-  initialToolCalls: [
-    {
-      name: 'reel.plan',
-      args: {
-        brandName: 'Taquería El Dorado',
-        title: 'El antojo dorado de Cancún',
-        cta: 'Ven por los tuyos',
-        durationSeconds: 30,
-        scenes: planScenes
+  initialToolCalls,
+  requiredToolNames: [...new Set(initialToolCalls.map(call => call.name))],
+  maximumSteps: 20,
+  maximumRetries: 2,
+  timeoutMs: 360000,
+  planner: async ({ originalInstruction, mission: missionState }) => {
+    const resolvedSignatures = new Set(
+      [...missionState.completedTasks, ...missionState.blockedTasks].map(item =>
+        `${item.name}:${JSON.stringify(item.args || {})}`
+      )
+    );
+    const requiredResolved = missionState.requiredToolNames.every(name =>
+      missionState.completedTasks.some(item => item.name === name) ||
+      missionState.blockedTasks.some(item => item.name === name)
+    );
+    const phase = requiredResolved ? 'COMPLETION_AUDIT' : 'MISSION_CONTRACT';
+    const nextCalls = await buildJarvisMultifunctionToolCalls(
+      originalInstruction,
+      {
+        throwOnUnavailable: true,
+        toolCatalog: missionToolCatalog,
+        missionState: {
+          phase,
+          missionId: missionState.missionId,
+          caseId: missionState.caseId,
+          objectiveId: missionState.objectiveId,
+          requiredToolNames: missionState.requiredToolNames,
+          completedTasks: missionState.completedTasks.map(item => ({
+            name: item.name,
+            args: item.args,
+            observation: compactObservation(item.observation)
+          })),
+          pendingTasks: missionState.pendingTasks.map(item => ({ name: item.name, args: item.args })),
+          blockedTasks: missionState.blockedTasks.map(item => ({
+            name: item.name,
+            args: item.args,
+            reason: item.reason,
+            observation: compactObservation(item.observation)
+          })),
+          iterations: missionState.iterations,
+          writeAllowed: false,
+          userArtifactAllowed: true
+        }
       }
-    },
-    {
-      name: 'reel.create',
-      args: {
-        brandName: 'Taquería El Dorado',
-        title: 'El antojo dorado de Cancún',
-        cta: 'Ven por los tuyos',
-        durationSeconds: 30,
-        scenes: renderScenes
-      }
+    );
+    const unresolvedCall = nextCalls.find(call =>
+      !resolvedSignatures.has(`${call.name}:${JSON.stringify(call.args || {})}`)
+    ) || null;
+    console.log('V139_EXACT_PROMPT_NEXT_PLAN', JSON.stringify({
+      phase,
+      missionComplete: nextCalls.missionComplete === true,
+      next: unresolvedCall ? { name: unresolvedCall.name, args: unresolvedCall.args } : null
+    }));
+    if (unresolvedCall) {
+      return {
+        toolCalls: ensureExecutableArtifactDependencies({
+          toolCalls: [unresolvedCall],
+          catalog: missionToolCatalog
+        }),
+        missionComplete: false,
+        completionAssessment: nextCalls.completionAssessment || null
+      };
     }
-  ],
-  requiredToolNames: ['reel.plan', 'reel.create'],
-  maximumSteps: 14,
-  planner: async () => ({ missionComplete: true, toolCalls: [] }),
+    if (nextCalls.missionComplete === true) {
+      return {
+        toolCalls: [],
+        missionComplete: true,
+        completionAssessment: nextCalls.completionAssessment || null
+      };
+    }
+    throw new Error(`V139_EXACT_PROMPT_PLANNER_NO_NEXT_EXECUTABLE_CALL:${phase}`);
+  },
   execute: async (call, context) => runtime.execute(call.name, call.args, context)
 });
 
@@ -229,16 +356,32 @@ console.log('V139_EXECUTED_TOOLS', JSON.stringify(mission.executedTools));
 console.log('V139_COMPLETED', JSON.stringify(mission.completedTasks.map(task => ({ name: task.name, status: task.observation?.status, artifact: task.observation?.artifact, evidence: task.observation?.evidence }))));
 console.log('V139_BLOCKED', JSON.stringify(mission.blockedTasks.map(task => ({ name: task.name, reason: task.reason, status: task.observation?.status, evidence: task.observation?.evidence }))));
 
+if (mission.status !== 'COMPLETED') {
+  throw new Error(`V139_EXACT_PROMPT_MISSION_NOT_COMPLETED:${mission.status}:${mission.reason || ''}`);
+}
+if (mission.blockedTasks.length > 0) {
+  throw new Error(`V139_BLOCKED_TASKS:${JSON.stringify(mission.blockedTasks)}`);
+}
+
 const completedNames = mission.completedTasks.map(task => task.name);
-const expectedTools = ['reel.plan', 'speech.synthesize', 'web.media.collect', 'reel.create'];
+const expectedTools = ['web.research', 'marketing.plan', 'reel.plan', 'speech.synthesize', 'web.media.collect', 'reel.create'];
 for (const name of expectedTools) {
   if (!completedNames.includes(name)) throw new Error(`V139_COMPLETED_TOOL_REQUIRED:${name}`);
 }
-const order = expectedTools.map(name => mission.executedTools.indexOf(name));
+
+const researchTasks = mission.completedTasks.filter(task => task.name === 'web.research');
+const researchEvidenceText = JSON.stringify(researchTasks.map(task => ({
+  args: task.args,
+  observation: task.observation
+})));
+if (!researchEvidenceText.includes('@taqueria.eldorado') && !researchEvidenceText.includes('7629216747131850004')) {
+  throw new Error('V139_EXACT_TIKTOK_RESEARCH_PROVENANCE_REQUIRED');
+}
+
+const order = ['reel.plan', 'speech.synthesize', 'web.media.collect', 'reel.create'].map(name => mission.executedTools.indexOf(name));
 if (!(order[0] >= 0 && order[1] > order[0] && order[2] > order[1] && order[3] > order[2])) {
   throw new Error(`V139_EXECUTION_ORDER_INVALID:${JSON.stringify(mission.executedTools)}`);
 }
-if (mission.blockedTasks.length > 0) throw new Error(`V139_BLOCKED_TASKS:${JSON.stringify(mission.blockedTasks)}`);
 
 const speech = [...mission.completedTasks].reverse().find(task => task.name === 'speech.synthesize');
 const speechOutput = String(speech?.observation?.artifact || speech?.observation?.evidence?.output || '');
@@ -270,6 +413,10 @@ if (!/"audioTracksAdded"\s*:\s*[1-9]/.test(reelEvidenceText)) {
   throw new Error(`V139_FINAL_AUDIO_TRACK_REQUIRED:${reelEvidenceText.slice(0, 2000)}`);
 }
 
+console.log('V139_EXACT_HUMAN_PROMPT=true');
+console.log('V139_SEMANTIC_PLAN_NOT_PRESEEDED=true');
+console.log('V139_RESEARCH_EXECUTED=true');
+console.log('V139_MARKETING_PLAN_EXECUTED=true');
 console.log('V139_EXACT_SOURCE_MEDIA=true');
 console.log('V139_AUTOMATIC_SPEECH=true');
 console.log('V139_AUTOMATIC_MEDIA_DEPENDENCY=true');
