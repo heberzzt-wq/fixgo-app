@@ -1,6 +1,25 @@
 export const GESTIA_MASTER_EMAIL =
     "hebertoh-m@hotmail.com";
 
+export function normalizeGestiaEmail(
+    value = ""
+) {
+    return String(value || "")
+        .trim()
+        .toLowerCase();
+}
+
+export function isGestiaMasterIdentity(
+    user = {}
+) {
+    return (
+        normalizeGestiaEmail(
+            user?.email
+        ) ===
+        GESTIA_MASTER_EMAIL
+    );
+}
+
 const ROLE_ALIASES =
     Object.freeze({
         b2c: "cliente",
@@ -16,19 +35,19 @@ export function resolveGestiaRole(
     metadata = {}
 ) {
     const email =
-        String(
+        normalizeGestiaEmail(
             user?.email ||
             metadata?.email ||
             ""
-        )
-            .trim()
-            .toLowerCase();
+        );
 
-    if (email === GESTIA_MASTER_EMAIL) {
+    if (
+        isGestiaMasterIdentity({ email })
+    ) {
         return {
             role: "admin",
             roleReal: "admin",
-            source: "master_identity",
+            source: "master_authenticated_email",
             resolved: true
         };
     }
@@ -63,14 +82,16 @@ export function resolveGestiaRole(
 
 export function describeGestiaRoleAuthority() {
     return {
-        version: "3.0.0-single-navigation-authority",
+        version: "4.0.0-master-session-authority",
         masterIdentity: GESTIA_MASTER_EMAIL,
         aliases: {
             ...ROLE_ALIASES
         },
         unresolvedFallback: null,
         guarantees: [
-            "master_identity_precedes_profile",
+            "firebase_session_required",
+            "master_authenticated_email_is_primary_authority",
+            "master_identity_precedes_profile_and_claims",
             "no_temporary_client_role",
             "unknown_role_does_not_redirect"
         ]
