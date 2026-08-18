@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
 import { registerJarvisMultifunctionTools } from '../../gestia-core/jarvis/jarvis.multitool.pack.js';
 import { registerJarvisActuatorTools } from '../../gestia-core/jarvis/jarvis.actuator.pack.js';
 import { registerNexoRealMediaTools } from '../../gestia-core/nexo/nexo.real-media.tools.js';
@@ -9,10 +10,23 @@ import { buildJarvisMultifunctionToolCalls } from '../../gestia-core/jarvis/jarv
 import { ensureExecutableArtifactDependencies } from '../../gestia-core/jarvis/jarvis.mission.dependencies.js';
 import { runJarvisMission } from '../../gestia-core/jarvis/jarvis.mission.orchestrator.js';
 
+const require = createRequire(import.meta.url);
+const { runJarvisSemanticPlanner } = require('../../functions/jarvis-semantic-planner.js');
+
 const SOURCE = 'https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004';
 const BRIDGE = 'http://127.0.0.1:3344';
 const REQUIRED_BRIDGE_VERSION = '2.38.0-page-no-contact-route';
 const expected = JSON.parse(fs.readFileSync('jarvis-runtime-contract.json', 'utf8'));
+
+const canonicalSemanticPlanner = ({ input, catalog, missionState }) =>
+  runJarvisSemanticPlanner({
+    fetchImpl: fetch,
+    simpleFetchImpl: null,
+    input,
+    catalog,
+    missionState,
+    timeoutMs: 60000
+  });
 
 function versionTuple(value = '') {
   const parts = String(value || '').trim().split('-')[0].split('.').slice(0, 3).map(Number);
@@ -240,6 +254,7 @@ const plannedInitialCalls = await buildJarvisMultifunctionToolCalls(
   instruction,
   {
     throwOnUnavailable: true,
+    semanticPlanner: canonicalSemanticPlanner,
     toolCatalog: missionToolCatalog,
     missionState: {
       phase: 'CURRENT_TURN',
@@ -296,6 +311,7 @@ const mission = await runJarvisMission({
       originalInstruction,
       {
         throwOnUnavailable: true,
+        semanticPlanner: canonicalSemanticPlanner,
         toolCatalog: missionToolCatalog,
         missionState: {
           phase,
