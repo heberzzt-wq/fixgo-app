@@ -13,8 +13,9 @@ import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebase
 import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app-check.js";
 import { getStorage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 import {
+    isGestiaMasterIdentity,
     resolveGestiaRouteDecision
-} from "./gestia-core/auth/role-authority.js?v=role-authority-v3-single-navigation-20260713";
+} from "./gestia-core/auth/role-authority.js?v=role-authority-v4-master-session-20260818";
 
 import { 
     getAuth, 
@@ -139,6 +140,21 @@ export function observarAuth(callback) {
 
         }
 
+        // La sesión Firebase firmada es la prueba de identidad. Para la cuenta
+        // maestra no existe un segundo candado de perfil/claim: el correo maestro
+        // es la autoridad primaria declarada en role-authority.js.
+        if (isGestiaMasterIdentity(user)) {
+            try {
+                user.rol = "admin";
+                user.role = "admin";
+            }
+            catch {}
+
+            console.log("💎 Identidad Maestra autenticada por Firebase.");
+            callback(user);
+            return;
+        }
+
         try {
 
             let snap = await getDoc(doc(db, "users", user.uid));
@@ -182,14 +198,6 @@ export function observarAuth(callback) {
                     ...user,
                     ...data
                 };
-
-                // RE-APLICAR BYPASS EN OBJETO FINAL
-                if (finalUser.email &&
-                    finalUser.email.toLowerCase() === "hebertoh-m@hotmail.com") {
-
-                    finalUser.rol = "admin";
-
-                }
 
                 console.log("💎 Perfil Identificado:", finalUser.rol);
 
