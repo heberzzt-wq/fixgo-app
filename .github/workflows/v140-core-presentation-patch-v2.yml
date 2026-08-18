@@ -1,0 +1,308 @@
+name: v140 core presentation patch v2
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/v140-core-presentation-patch-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+  statuses: write
+
+env:
+  TARGET_BRANCH: v94-media-v4n-negative-claims
+
+jobs:
+  patch-and-dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Publish observable run
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          payload=$(jq -n --arg state pending --arg context 'v140-patch-v2' --arg description "run=${GITHUB_RUN_ID} started" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          curl --fail-with-body --silent --show-error --location -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" -d "$payload" >/dev/null
+
+      - name: Checkout working branch
+        uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Patch universal core presentation recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          path = Path('gestia-terminal.html')
+          text = path.read_text(encoding='utf-8')
+
+          if 'TERMINAL_CORE_FALLBACK_FINAL_RESPONSE_RECOVERED' not in text:
+              decl_old = "            let handled = false;\n            let activeWorkTracker = null;"
+              decl_new = "            let handled = false;\n            let activeWorkTracker = null;\n            let lastCoreResult = null;"
+              if decl_old not in text:
+                  raise SystemExit('V140_DECLARATION_ANCHOR_NOT_FOUND')
+              text = text.replace(decl_old, decl_new, 1)
+
+              core_anchor = "        const coreResult =\n            await window.GestiaCore.procesarIntencion("
+              core_index = text.find(core_anchor)
+              if core_index < 0:
+                  raise SystemExit('V140_CORE_CALL_ANCHOR_NOT_FOUND')
+
+              completion_anchor = "\n            );\n\n            activeWorkTracker?.complete("
+              completion_index = text.find(completion_anchor, core_index)
+              if completion_index < 0:
+                  raise SystemExit('V140_CORE_COMPLETION_ANCHOR_NOT_FOUND')
+              replacement = "\n            );\n\n            lastCoreResult =\n                coreResult;\n\n            activeWorkTracker?.complete("
+              text = text[:completion_index] + replacement + text[completion_index + len(completion_anchor):]
+
+              token_index = text.find('TERMINAL_CORE_RESPONSE_NOT_PRESENTED')
+              if token_index < 0:
+                  raise SystemExit('V140_OLD_FALLBACK_TOKEN_NOT_FOUND')
+              start = text.rfind('                if (!handled) {', 0, token_index)
+              end_marker = '\n\n            } catch (error) {'
+              end = text.find(end_marker, token_index)
+              if start < 0 or end < 0:
+                  raise SystemExit('V140_FALLBACK_BLOCK_ANCHOR_NOT_FOUND')
+
+              fallback = textwrap.dedent(r"""
+                  if (!handled) {
+                      const fallbackCandidates =
+                          [
+                              lastCoreResult?.finalResponse,
+                              lastCoreResult?.result?.finalResponse,
+                              lastCoreResult?.result?.followUp?.finalResponse,
+                              lastCoreResult?.result?.agentLoop?.finalResponse,
+                              lastCoreResult?.agentLoop?.finalResponse,
+                              lastCoreResult?.missionResult?.finalResponse,
+                              lastCoreResult?.result?.missionResult?.finalResponse,
+                              lastCoreResult?.result?.mission?.finalResponse,
+                              lastCoreResult?.result?.result?.finalResponse,
+                              lastCoreResult?.response?.finalResponse,
+                              lastCoreResult?.data?.finalResponse,
+                              lastCoreResult?.result?.response,
+                              lastCoreResult?.response,
+                              lastCoreResult?.data,
+                              lastCoreResult
+                          ]
+                              .filter(Boolean);
+
+                      const fallbackPresentation =
+                          (() => {
+                              for (const candidate of fallbackCandidates) {
+                                  const textCandidate =
+                                      [
+                                          candidate?.text,
+                                          candidate?.message,
+                                          candidate?.answer,
+                                          candidate?.summary
+                                      ]
+                                          .find(value =>
+                                              typeof value === "string" &&
+                                              value.trim().length > 0
+                                          );
+
+                                  if (textCandidate) {
+                                      return {
+                                          ...(typeof candidate === "object" ? candidate : {}),
+                                          text: String(textCandidate).trim()
+                                      };
+                                  }
+                              }
+                              return null;
+                          })();
+
+                      if (fallbackPresentation?.text) {
+                          console.info(
+                              "[TERMINAL_CORE_FALLBACK_FINAL_RESPONSE_RECOVERED]",
+                              {
+                                  traceId: currentTraceId,
+                                  type: lastCoreResult?.type || null,
+                                  status:
+                                      lastCoreResult?.status ||
+                                      lastCoreResult?.result?.status ||
+                                      null
+                              }
+                          );
+
+                          activeWorkTracker?.complete("evidence", "Evidencia integrada");
+                          activeWorkTracker?.activate("response", "Preparando la respuesta final");
+                          window.renderJarvisResponse?.(
+                              fallbackPresentation?.title || "Jarvis",
+                              fallbackPresentation.text,
+                              fallbackPresentation?.ok === false || lastCoreResult?.status === "FAILED"
+                                  ? "warning"
+                                  : "info"
+                          );
+
+                          const fallbackProducedArtifacts =
+                              (Array.isArray(fallbackPresentation?.producedArtifacts)
+                                  ? fallbackPresentation.producedArtifacts
+                                  : [])
+                                  .filter(item =>
+                                      typeof item?.output === "string" &&
+                                      item.output.startsWith(".jarvis-artifacts/")
+                                  )
+                                  .filter((item, index, items) =>
+                                      items.findIndex(candidate => candidate.output === item.output) === index
+                                  );
+
+                          if (
+                              fallbackProducedArtifacts.length > 0 &&
+                              typeof window.JarvisAttachments?.renderArtifact === "function"
+                          ) {
+                              for (const artifact of fallbackProducedArtifacts) {
+                                  try {
+                                      await window.JarvisAttachments.renderArtifact(
+                                          artifact.output,
+                                          "",
+                                          artifact.label || "archivo producido"
+                                      );
+                                  }
+                                  catch(error) {
+                                      console.warn(
+                                          "[JARVIS_FALLBACK_ARTIFACT_RENDER_FAILED]",
+                                          { output: artifact.output, error: error?.message || String(error) }
+                                      );
+                                  }
+                              }
+                          }
+
+                          activeWorkTracker?.complete("response", "Respuesta preparada");
+                          activeWorkTracker?.finish("Trabajo completado");
+                          handled = true;
+                      }
+                      else {
+                          const coreStatus =
+                              lastCoreResult?.status ||
+                              lastCoreResult?.result?.status ||
+                              lastCoreResult?.missionResult?.status ||
+                              lastCoreResult?.result?.missionResult?.status ||
+                              "CORE_RESULT_WITHOUT_FINAL_RESPONSE";
+
+                          const coreReason =
+                              lastCoreResult?.reason ||
+                              lastCoreResult?.result?.reason ||
+                              lastCoreResult?.missionResult?.reason ||
+                              lastCoreResult?.result?.missionResult?.reason ||
+                              lastCoreResult?.error ||
+                              lastCoreResult?.result?.error ||
+                              "El núcleo no produjo texto final verificable.";
+
+                          const envelopeKeys =
+                              lastCoreResult && typeof lastCoreResult === "object"
+                                  ? Object.keys(lastCoreResult).slice(0, 12).join(", ")
+                                  : typeof lastCoreResult;
+
+                          console.warn(
+                              "[TERMINAL_CORE_RESULT_WITHOUT_FINAL_RESPONSE]",
+                              { traceId: currentTraceId, status: coreStatus, reason: coreReason, envelopeKeys }
+                          );
+
+                          activeWorkTracker?.fail?.("Misión sin respuesta final verificable");
+                          window.renderJarvisResponse?.(
+                              "Jarvis no pudo completar la misión",
+                              [
+                                  "GestiaCore terminó sin una respuesta final verificable.",
+                                  `Estado: ${coreStatus}`,
+                                  `Razón: ${String(coreReason).slice(0, 1200)}`,
+                                  envelopeKeys ? `Envoltura recibida: ${envelopeKeys}` : "",
+                                  "No se reporta la misión como completada."
+                              ].filter(Boolean).join("\n"),
+                              "warning"
+                          );
+
+                          recordTerminalLearningIncident?.({
+                              category: "TERMINAL_CORE_PRESENTATION",
+                              status: "error",
+                              stage: "terminal_core_final_response",
+                              operation: "PRESENT_CORE_RESULT",
+                              reason: "TERMINAL_CORE_RESULT_WITHOUT_FINAL_RESPONSE",
+                              symptom: comando,
+                              wrongBehavior: "GestiaCore terminó sin texto final recuperable por el presenter universal.",
+                              fixRule: "Return a finalResponse with non-empty text from every completed mission envelope.",
+                              sourceTraceId: currentTraceId,
+                              confidence: 1,
+                              context: { coreStatus, envelopeKeys }
+                          });
+
+                          handled = true;
+                      }
+                  }
+              """).strip()
+
+              text = text[:start] + (' ' * 16) + fallback.replace('\n', '\n' + (' ' * 16)) + text[end:]
+
+          if 'TERMINAL_CORE_RESPONSE_NOT_PRESENTED' in text:
+              raise SystemExit('V140_FALSE_NOT_PRESENTED_TOKEN_STILL_PRESENT')
+          if 'TERMINAL_CORE_FALLBACK_FINAL_RESPONSE_RECOVERED' not in text:
+              raise SystemExit('V140_RECOVERY_MARKER_MISSING')
+          if 'lastCoreResult =\n                coreResult;' not in text:
+              raise SystemExit('V140_CORE_CAPTURE_MISSING')
+          path.write_text(text, encoding='utf-8')
+
+          test_path = Path('tests/jarvis-marketing-terminal-delivery.e2e.test.mjs')
+          tests = test_path.read_text(encoding='utf-8')
+          test_name = 'Terminal recovers nested core finalResponse envelopes and removes false not-presented outcome'
+          if test_name not in tests:
+              addition = "\n\ntest(\"Terminal recovers nested core finalResponse envelopes and removes false not-presented outcome\", () => {\n    const terminal = fs.readFileSync(path.join(process.cwd(), \"gestia-terminal.html\"), \"utf8\");\n    assert.match(terminal, /let lastCoreResult = null;/);\n    assert.match(terminal, /lastCoreResult =\\s*coreResult;/);\n    assert.match(terminal, /lastCoreResult\\?\\.result\\?\\.missionResult\\?\\.finalResponse/);\n    assert.match(terminal, /lastCoreResult\\?\\.result\\?\\.agentLoop\\?\\.finalResponse/);\n    assert.match(terminal, /TERMINAL_CORE_FALLBACK_FINAL_RESPONSE_RECOVERED/);\n    assert.match(terminal, /TERMINAL_CORE_RESULT_WITHOUT_FINAL_RESPONSE/);\n    assert.doesNotMatch(terminal, /TERMINAL_CORE_RESPONSE_NOT_PRESENTED/);\n    assert.match(terminal, /Misión sin respuesta final verificable/);\n});\n"
+              test_path.write_text(tests + addition, encoding='utf-8')
+          PY
+
+      - name: Guard patch scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only)"
+          echo "$changed"
+          test "$(echo "$changed" | grep -c '^gestia-terminal.html$')" -eq 1
+          test "$(echo "$changed" | grep -c '^tests/jarvis-marketing-terminal-delivery.e2e.test.mjs$')" -eq 1
+          test "$(echo "$changed" | wc -l)" -eq 2
+          ! echo "$changed" | grep -E '^functions/'
+          ! echo "$changed" | grep -E '^multiservicios-web/'
+          ! grep -Fq 'terminalBrainRoute' gestia-terminal.html
+          ! grep -Fq 'TERMINAL_CORE_RESPONSE_NOT_PRESENTED' gestia-terminal.html
+          grep -Fq 'TERMINAL_CORE_FALLBACK_FINAL_RESPONSE_RECOVERED' gestia-terminal.html
+
+      - name: Focal regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          node --test --test-concurrency=1 tests/jarvis-marketing-terminal-delivery.e2e.test.mjs tests/jarvis-multifunction-tools.test.mjs
+          git diff --check
+
+      - name: Commit presentation recovery
+        id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add gestia-terminal.html tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
+          git commit -m 'fix(jarvis): recover nested core final responses'
+          product_sha="$(git rev-parse HEAD)"
+          echo "product_sha=$product_sha" >> "$GITHUB_OUTPUT"
+          git push origin HEAD:"$TARGET_BRANCH"
+          echo "V140_PRODUCT_SHA=$product_sha"
+
+      - name: Dispatch exact certification workflow
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          payload=$(jq -n --arg ref "$TARGET_BRANCH" '{ref:$ref}')
+          curl --fail-with-body --silent --show-error --location -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/v140-core-presentation-cert.yml/dispatches" -d "$payload"
+          echo 'V140_CERTIFICATION_DISPATCHED=true'
