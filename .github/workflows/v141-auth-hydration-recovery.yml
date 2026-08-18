@@ -67,7 +67,7 @@ jobs:
                     call.name.trim()
                 )
                 : [];
-'''
+          '''
           new_seed = '''        const terminalSemanticPlan =
             await this.analizarIntencionLigera(
                 inputRaw,
@@ -87,7 +87,7 @@ jobs:
                     call.name.trim()
                 )
                 : [];
-'''
+          '''
           if core.count(old_seed) != 1:
               raise SystemExit('SEMANTIC_SEED_ALIGNMENT_ANCHOR_INVALID')
           core = core.replace(old_seed, new_seed, 1)
@@ -95,14 +95,14 @@ jobs:
           old_assert = '''    assert.doesNotMatch(terminalSource, /terminalBrainRoute/);
     assert.doesNotMatch(terminalSource, /routeTerminalNaturalIntent/);
     assert.match(terminalSource, /await window\\.GestiaCore\\.procesarIntencion/);
-'''
+          '''
           new_assert = '''    assert.doesNotMatch(terminalSource, /terminalBrainRoute/);
     assert.doesNotMatch(terminalSource, /routeTerminalNaturalIntent/);
     assert.doesNotMatch(coreSource, /terminalBrainRoute/);
     assert.match(coreSource, /await this\\.analizarIntencionLigera\\(/);
     assert.match(coreSource, /terminalSemanticPlan\\?\\.toolCalls/);
     assert.match(terminalSource, /await window\\.GestiaCore\\.procesarIntencion/);
-'''
+          '''
           if tests.count(old_assert) != 1:
               raise SystemExit('EXISTING_CORE_FIRST_TEST_ANCHOR_INVALID')
           tests = tests.replace(old_assert, new_assert, 1)
