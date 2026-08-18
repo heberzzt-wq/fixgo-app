@@ -1,0 +1,116 @@
+name: v140 core presentation patch v3
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/v140-core-presentation-patch-v3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+  statuses: write
+
+env:
+  TARGET_BRANCH: v94-media-v4n-negative-claims
+
+jobs:
+  patch-test-commit-dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Publish observable run
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          payload=$(jq -n --arg state pending --arg context 'v140-patch-v3' --arg description "run=${GITHUB_RUN_ID} started" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          curl --fail-with-body --silent --show-error --location -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" -d "$payload" >/dev/null
+
+      - name: Checkout working branch
+        uses: actions/checkout@v4
+        with:
+          ref: v94-media-v4n-negative-claims
+          fetch-depth: 0
+
+      - name: Reuse verified v2 patch logic
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'EXTRACT'
+          from pathlib import Path
+          import textwrap
+          source = Path('.github/workflows/v140-core-presentation-patch-v2.yml').read_text(encoding='utf-8')
+          anchor = "          python3 <<'PY'\n"
+          start = source.index(anchor) + len(anchor)
+          end = source.index("\n          PY", start)
+          script = textwrap.dedent(source[start:end])
+          Path('/tmp/v140_patch.py').write_text(script + '\n', encoding='utf-8')
+          EXTRACT
+          python3 /tmp/v140_patch.py
+          sed -i 's/[[:space:]]\+$//' gestia-terminal.html
+          sed -i 's/[[:space:]]\+$//' tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
+
+      - name: Guard exact patch scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only)"
+          echo "$changed"
+          test "$(echo "$changed" | grep -c '^gestia-terminal.html$')" -eq 1
+          test "$(echo "$changed" | grep -c '^tests/jarvis-marketing-terminal-delivery.e2e.test.mjs$')" -eq 1
+          test "$(echo "$changed" | wc -l)" -eq 2
+          ! echo "$changed" | grep -E '^functions/'
+          ! echo "$changed" | grep -E '^multiservicios-web/'
+          ! grep -Fq 'terminalBrainRoute' gestia-terminal.html
+          ! grep -Fq 'TERMINAL_CORE_RESPONSE_NOT_PRESENTED' gestia-terminal.html
+          grep -Fq 'TERMINAL_CORE_FALLBACK_FINAL_RESPONSE_RECOVERED' gestia-terminal.html
+          grep -Fq 'TERMINAL_CORE_RESULT_WITHOUT_FINAL_RESPONSE' gestia-terminal.html
+
+      - name: Focal regression and whitespace gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          node --test --test-concurrency=1 tests/jarvis-marketing-terminal-delivery.e2e.test.mjs tests/jarvis-multifunction-tools.test.mjs
+          git diff --check
+
+      - name: Commit presentation recovery
+        id: product
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add gestia-terminal.html tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
+          git commit -m 'fix(jarvis): recover nested core final responses'
+          product_sha="$(git rev-parse HEAD)"
+          echo "product_sha=$product_sha" >> "$GITHUB_OUTPUT"
+          git push origin HEAD:"$TARGET_BRANCH"
+          echo "V140_PRODUCT_SHA=$product_sha"
+
+      - name: Dispatch exact certification
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          payload=$(jq -n --arg ref "$TARGET_BRANCH" '{ref:$ref}')
+          curl --fail-with-body --silent --show-error --location -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/v140-core-presentation-cert.yml/dispatches" -d "$payload"
+          echo 'V140_CERTIFICATION_DISPATCHED=true'
+
+      - name: Publish patch success
+        if: ${{ success() }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRODUCT_SHA: ${{ steps.product.outputs.product_sha }}
+        run: |
+          set -euo pipefail
+          target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          payload=$(jq -n --arg state success --arg context 'v140-patch-v3' --arg description "product=${PRODUCT_SHA} cert dispatched" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          curl --fail-with-body --silent --show-error --location -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" -d "$payload" >/dev/null
