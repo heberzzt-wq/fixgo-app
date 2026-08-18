@@ -1,4 +1,4 @@
-name: v141 existing planner recovery certification
+name: v141 existing-flow exact-prompt certification
 
 on:
   push:
@@ -6,9 +6,13 @@ on:
       - v94-media-v4n-negative-claims
     paths:
       - '.github/workflows/v141-auth-hydration-recovery.yml'
+      - '.github/scripts/v139-canonical-real-reel.mjs'
+      - 'gestia-core/gestia-core.js'
+      - 'gestia-core/jarvis/jarvis.multifunction.planner.js'
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   statuses: write
 
 env:
@@ -17,12 +21,9 @@ env:
   FIREBASE_SITE_ID: fixgo-44e4d
 
 jobs:
-  patch-and-focal:
+  certify-linux:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
-    outputs:
-      product_sha: ${{ steps.commit.outputs.product_sha }}
-      product_tree: ${{ steps.commit.outputs.product_tree }}
+    timeout-minutes: 60
     steps:
       - name: Publish observable run
         continue-on-error: true
@@ -32,228 +33,35 @@ jobs:
         run: |
           set -euo pipefail
           target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          payload=$(jq -n --arg state pending --arg context 'v141-planner-recovery' --arg description "run=${GITHUB_RUN_ID} started" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          payload=$(jq -n --arg state pending --arg context 'v141-planner-recovery' --arg description "run=${GITHUB_RUN_ID} exact existing flow" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
           curl --fail-with-body --silent --show-error --location -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" -d "$payload" >/dev/null
 
-      - name: Checkout isolated branch
+      - name: Checkout exact branch head
         uses: actions/checkout@v4
         with:
-          ref: ${{ env.TARGET_BRANCH }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - name: Recover existing browser semantic planner on transient upstream failures
+      - name: Guard existing architecture and protected surfaces
         shell: bash
         run: |
           set -euo pipefail
-          python3 <<'PY'
-          from pathlib import Path
-
-          planner_path = Path('gestia-core/jarvis/jarvis.multifunction.planner.js')
-          planner = planner_path.read_text(encoding='utf-8')
-          start_marker = 'async function fetchBrowserPlanText(\n'
-          end_marker = '\nasync function callBrowserMissionContract(\n'
-          start = planner.find(start_marker)
-          if start < 0:
-              raise SystemExit('BROWSER_PLAN_FETCH_START_NOT_FOUND')
-          end = planner.find(end_marker, start)
-          if end < 0:
-              raise SystemExit('BROWSER_PLAN_FETCH_END_NOT_FOUND')
-          current = planner[start:end]
-          if 'transientStatuses' in current:
-              raise SystemExit('BROWSER_PLAN_TRANSIENT_RECOVERY_ALREADY_PRESENT')
-
-          replacement_lines = [
-              'async function fetchBrowserPlanText(',
-              '    url = "",',
-              '    timeoutMs =',
-              '        BROWSER_PLAN_ATTEMPT_TIMEOUT_MS',
-              ') {',
-              '    const transientStatuses =',
-              '        new Set([',
-              '            429,',
-              '            502,',
-              '            503,',
-              '            504',
-              '        ]);',
-              '    let lastResult =',
-              '        null;',
-              '',
-              '    for (',
-              '        let transientAttempt = 0;',
-              '        transientAttempt < 3;',
-              '        transientAttempt += 1',
-              '    ) {',
-              '        const controller =',
-              '            new AbortController();',
-              '',
-              '        let timedOut =',
-              '            false;',
-              '',
-              '        const timer =',
-              '            setTimeout(',
-              '                () => {',
-              '                    timedOut =',
-              '                        true;',
-              '',
-              '                    controller.abort();',
-              '                },',
-              '                timeoutMs',
-              '            );',
-              '',
-              '        try {',
-              '            const response =',
-              '                await fetch(',
-              '                    url,',
-              '                    {',
-              '                        signal:',
-              '                            controller.signal',
-              '                    }',
-              '                );',
-              '',
-              '            const responseText =',
-              '                await response.text();',
-              '',
-              '            lastResult = {',
-              '                response,',
-              '                responseText',
-              '            };',
-              '',
-              '            if (',
-              '                !transientStatuses.has(',
-              '                    response.status',
-              '                ) ||',
-              '                transientAttempt === 2',
-              '            ) {',
-              '                return lastResult;',
-              '            }',
-              '        }',
-              '        catch(error) {',
-              '            if (',
-              '                timedOut ||',
-              '                controller.signal.aborted',
-              '            ) {',
-              '                throw new Error(',
-              '                    `BROWSER_PLAN_ATTEMPT_TIMEOUT_${timeoutMs}`',
-              '                );',
-              '            }',
-              '',
-              '            throw error;',
-              '        }',
-              '        finally {',
-              '            clearTimeout(',
-              '                timer',
-              '            );',
-              '        }',
-              '',
-              '        await new Promise(resolve =>',
-              '            setTimeout(',
-              '                resolve,',
-              '                Math.min(',
-              '                    Number(timeoutMs) ||',
-              '                    BROWSER_PLAN_ATTEMPT_TIMEOUT_MS,',
-              '                    2000 *',
-              '                    (transientAttempt + 1)',
-              '                )',
-              '            )',
-              '        );',
-              '    }',
-              '',
-              '    return lastResult;',
-              '}',
-          ]
-          replacement = '\n'.join(replacement_lines) + '\n'
-          planner = planner[:start] + replacement + planner[end:]
-          planner_path.write_text(planner, encoding='utf-8')
-          PY
-
-      - name: Guard existing architecture and exact patch scope
-        shell: bash
-        run: |
-          set -euo pipefail
-          changed="$(git diff --name-only)"
-          printf '%s\n' "$changed"
-          test "$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l)" -eq 1
-          printf '%s\n' "$changed" | grep -Fx 'gestia-core/jarvis/jarvis.multifunction.planner.js'
-          ! printf '%s\n' "$changed" | grep -E '^functions/'
-          ! printf '%s\n' "$changed" | grep -E '^multiservicios-web/'
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
+          ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..HEAD | grep -E '^multiservicios-web/'
           ! grep -Fq 'terminalBrainRoute' gestia-core/gestia-core.js
           ! grep -Fq 'terminalBrainRoute' gestia-terminal.html
           grep -Fq 'await this.analizarIntencionLigera(' gestia-core/gestia-core.js
           grep -Fq 'terminalSemanticPlan?.toolCalls' gestia-core/gestia-core.js
           grep -Fq 'AUTH_RESTORE_TIMEOUT_MS' gestia-core/gestia-core.js
-          grep -Fq 'transientAttempt < 3' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -Fq 'runJarvisSemanticPlanner' .github/scripts/v139-canonical-real-reel.mjs
+          grep -Fq 'semanticPlanner: canonicalSemanticPlanner' .github/scripts/v139-canonical-real-reel.mjs
           grep -Fq 'V139_EXACT_HUMAN_PROMPT=true' .github/scripts/v139-canonical-real-reel.mjs
           grep -Fq 'V139_SEMANTIC_PLAN_NOT_PRESEEDED=true' .github/scripts/v139-canonical-real-reel.mjs
           ! grep -Fq 'const planScenes =' .github/scripts/v139-canonical-real-reel.mjs
+          node --check gestia-core/gestia-core.js
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Existing focal regression
-        shell: bash
-        run: |
-          set -euo pipefail
-          node --test --test-concurrency=1 \
-            tests/jarvis-multifunction-tools.test.mjs \
-            tests/jarvis-semantic-planner.test.cjs \
-            tests/single-semantic-authority.test.mjs \
-            tests/jarvis-source-grounded-research-v124.test.mjs \
-            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
-          git diff --check
-
-      - name: Commit recovered existing planner
-        id: commit
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add gestia-core/jarvis/jarvis.multifunction.planner.js
-          git commit -m 'fix(jarvis): recover existing semantic planner on transient upstream errors'
-          product_sha="$(git rev-parse HEAD)"
-          product_tree="$(git rev-parse HEAD^{tree})"
-          echo "product_sha=$product_sha" >> "$GITHUB_OUTPUT"
-          echo "product_tree=$product_tree" >> "$GITHUB_OUTPUT"
-          git push origin HEAD:"$TARGET_BRANCH"
-          echo "V141_PRODUCT_SHA=$product_sha"
-          echo "V141_PRODUCT_TREE=$product_tree"
-
-  certify-linux:
-    needs: patch-and-focal
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    env:
-      PRODUCT_SHA: ${{ needs.patch-and-focal.outputs.product_sha }}
-      PRODUCT_TREE: ${{ needs.patch-and-focal.outputs.product_tree }}
-    steps:
-      - name: Checkout exact product
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ env.PRODUCT_SHA }}
-          fetch-depth: 0
-
-      - name: Guard exact product and protected surfaces
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$PRODUCT_SHA"
-          test "$(git rev-parse HEAD^{tree})" = "$PRODUCT_TREE"
-          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817.."$PRODUCT_SHA" | grep -E '^functions/'
-          ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52.."$PRODUCT_SHA" | grep -E '^multiservicios-web/'
-          ! grep -Fq 'terminalBrainRoute' gestia-core/gestia-core.js
-          grep -Fq 'await this.analizarIntencionLigera(' gestia-core/gestia-core.js
-          grep -Fq 'terminalSemanticPlan?.toolCalls' gestia-core/gestia-core.js
-          grep -Fq 'AUTH_RESTORE_TIMEOUT_MS' gestia-core/gestia-core.js
-          grep -Fq 'transientAttempt < 3' gestia-core/jarvis/jarvis.multifunction.planner.js
-          grep -Fq 'V139_EXACT_HUMAN_PROMPT=true' .github/scripts/v139-canonical-real-reel.mjs
-          grep -Fq 'V139_SEMANTIC_PLAN_NOT_PRESEEDED=true' .github/scripts/v139-canonical-real-reel.mjs
+          node --check .github/scripts/v139-canonical-real-reel.mjs
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -286,38 +94,33 @@ jobs:
         run: git diff --check
 
   certify-windows:
-    needs: patch-and-focal
     runs-on: windows-latest
-    timeout-minutes: 30
-    env:
-      PRODUCT_SHA: ${{ needs.patch-and-focal.outputs.product_sha }}
-      PRODUCT_TREE: ${{ needs.patch-and-focal.outputs.product_tree }}
+    timeout-minutes: 35
     steps:
-      - name: Checkout exact product
+      - name: Checkout exact branch head
         uses: actions/checkout@v4
         with:
-          ref: ${{ env.PRODUCT_SHA }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - name: Guard exact product and protected surfaces
+      - name: Guard exact existing flow and protected surfaces
         shell: pwsh
         run: |
-          if ((git rev-parse HEAD).Trim() -ne $env:PRODUCT_SHA) { throw 'WRONG_PRODUCT_SHA' }
-          if ((git rev-parse 'HEAD^{tree}').Trim() -ne $env:PRODUCT_TREE) { throw 'WRONG_PRODUCT_TREE' }
-          $changedFunctions = git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..$env:PRODUCT_SHA
+          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw 'WRONG_SHA' }
+          $changedFunctions = git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD
           if ($changedFunctions -match '^functions/') { throw 'FUNCTIONS_CHANGED' }
-          $changedMulti = git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..$env:PRODUCT_SHA
+          $changedMulti = git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..HEAD
           if ($changedMulti -match '^multiservicios-web/') { throw 'MULTISERVICIOS_CHANGED' }
           if (Select-String -LiteralPath 'gestia-core/gestia-core.js' -SimpleMatch 'terminalBrainRoute' -Quiet) { throw 'ORPHAN_CORE_ROUTE_PRESENT' }
-          if (-not (Select-String -LiteralPath 'gestia-core/jarvis/jarvis.multifunction.planner.js' -SimpleMatch 'transientAttempt < 3' -Quiet)) { throw 'TRANSIENT_RECOVERY_MISSING' }
+          if (-not (Select-String -LiteralPath '.github/scripts/v139-canonical-real-reel.mjs' -SimpleMatch 'semanticPlanner: canonicalSemanticPlanner' -Quiet)) { throw 'EXISTING_SEMANTIC_PLANNER_ADAPTER_MISSING' }
           if (-not (Select-String -LiteralPath '.github/scripts/v139-canonical-real-reel.mjs' -SimpleMatch 'V139_EXACT_HUMAN_PROMPT=true' -Quiet)) { throw 'EXACT_HUMAN_PROMPT_MISSING' }
           if (Select-String -LiteralPath '.github/scripts/v139-canonical-real-reel.mjs' -SimpleMatch 'const planScenes =' -Quiet) { throw 'PRESEEDED_PLAN_FORBIDDEN' }
 
-      - name: Attach exact product to expected branch identity
+      - name: Attach exact SHA to expected branch identity
         shell: pwsh
         run: |
-          git checkout -B v94-media-v4n-negative-claims $env:PRODUCT_SHA
-          if ((git rev-parse HEAD).Trim() -ne $env:PRODUCT_SHA) { throw 'LOCAL_BRANCH_HEAD_CHANGED' }
+          git checkout -B v94-media-v4n-negative-claims $env:GITHUB_SHA
+          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw 'LOCAL_BRANCH_HEAD_CHANGED' }
           if ((git branch --show-current).Trim() -ne 'v94-media-v4n-negative-claims') { throw 'LOCAL_BRANCH_IDENTITY_FAILED' }
 
       - name: Setup Node
@@ -332,8 +135,8 @@ jobs:
       - name: Canonical exact human mission
         shell: pwsh
         run: |
-          $stdout = Join-Path $env:RUNNER_TEMP 'v141-planner-bridge.stdout.log'
-          $stderr = Join-Path $env:RUNNER_TEMP 'v141-planner-bridge.stderr.log'
+          $stdout = Join-Path $env:RUNNER_TEMP 'v141-existing-flow-bridge.stdout.log'
+          $stderr = Join-Path $env:RUNNER_TEMP 'v141-existing-flow-bridge.stderr.log'
           $process = Start-Process -FilePath node -ArgumentList 'jarvis-fs-bridge.js' -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
           try {
             $ready = $false
@@ -349,7 +152,7 @@ jobs:
               throw 'BRIDGE_NOT_READY'
             }
             $passed = $false
-            for ($attempt = 1; $attempt -le 3; $attempt++) {
+            for ($attempt = 1; $attempt -le 2; $attempt++) {
               Write-Host "CANONICAL_ATTEMPT=$attempt"
               & node '.github/scripts/v139-canonical-real-reel.mjs'
               if ($LASTEXITCODE -eq 0) { $passed = $true; break }
@@ -359,36 +162,31 @@ jobs:
           }
           finally {
             Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-            Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue | Select-Object -Last 220
-            Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue | Select-Object -Last 220
+            Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue | Select-Object -Last 240
+            Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue | Select-Object -Last 240
           }
 
   deploy-hosting-only:
     needs:
-      - patch-and-focal
       - certify-linux
       - certify-windows
     if: ${{ success() }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    env:
-      PRODUCT_SHA: ${{ needs.patch-and-focal.outputs.product_sha }}
-      PRODUCT_TREE: ${{ needs.patch-and-focal.outputs.product_tree }}
     steps:
-      - name: Checkout exact certified product
+      - name: Checkout exact certified SHA
         uses: actions/checkout@v4
         with:
-          ref: ${{ env.PRODUCT_SHA }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - name: Guard exact product and protected surfaces
+      - name: Guard exact certified SHA and protected surfaces
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$PRODUCT_SHA"
-          test "$(git rev-parse HEAD^{tree})" = "$PRODUCT_TREE"
-          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817.."$PRODUCT_SHA" | grep -E '^functions/'
-          ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52.."$PRODUCT_SHA" | grep -E '^multiservicios-web/'
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
+          ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..HEAD | grep -E '^multiservicios-web/'
 
       - name: Build isolated Hosting config
         shell: bash
@@ -403,6 +201,7 @@ jobs:
           if (selected[0].target) throw new Error('HOSTING_TARGET_FORBIDDEN');
           fs.writeFileSync('.firebase-v141-auth.json', JSON.stringify({ hosting: selected[0] }, null, 2));
           NODE
+          node -e "const c=require('./.firebase-v141-auth.json'); if(c.functions||Array.isArray(c.hosting)||c.hosting.site!==process.env.FIREBASE_SITE_ID||c.hosting.target) process.exit(1)"
 
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
@@ -415,6 +214,7 @@ jobs:
           set -euo pipefail
           test -n "$FIREBASE_TOKEN"
           firebase deploy --config .firebase-v141-auth.json --only hosting --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
+          echo "DEPLOYED_SHA=$GITHUB_SHA"
 
       - name: Verify official Firebase bytes
         shell: bash
@@ -423,7 +223,7 @@ jobs:
           base="https://${FIREBASE_SITE_ID}.web.app"
           ok=false
           for attempt in $(seq 1 30); do
-            stamp="${PRODUCT_SHA}-${attempt}-$(date +%s)"
+            stamp="${GITHUB_SHA}-${attempt}-$(date +%s)"
             if curl --fail --silent --show-error --location "$base/gestia-core/gestia-core.js?v141=$stamp" -o /tmp/core.js \
               && curl --fail --silent --show-error --location "$base/gestia-core/jarvis/jarvis.multifunction.planner.js?v141=$stamp" -o /tmp/planner.js \
               && curl --fail --silent --show-error --location "$base/gestia-terminal.html?v141=$stamp" -o /tmp/terminal.html \
@@ -433,7 +233,6 @@ jobs:
               && grep -Fq 'await this.analizarIntencionLigera(' /tmp/core.js \
               && grep -Fq 'terminalSemanticPlan?.toolCalls' /tmp/core.js \
               && grep -Fq 'AUTH_RESTORE_TIMEOUT_MS' /tmp/core.js \
-              && grep -Fq 'transientAttempt < 3' /tmp/planner.js \
               && grep -Fq 'Código: ${coreCode}' /tmp/terminal.html \
               && grep -Fq '/artifact/read' /tmp/attachments.js \
               && grep -Fq 'jarvis-artifact-download' /tmp/attachments.js; then
@@ -443,11 +242,11 @@ jobs:
             sleep 4
           done
           test "$ok" = true
-          echo 'V141_FIREBASE_EXISTING_PLANNER_RECOVERY_VERIFIED=true'
+          echo 'V141_FIREBASE_EXISTING_FLOW_VERIFIED=true'
+          echo "WEB_URL=$base/gestia-terminal.html"
 
   publish-result:
     needs:
-      - patch-and-focal
       - certify-linux
       - certify-windows
       - deploy-hosting-only
@@ -459,16 +258,14 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          PATCH_RESULT: ${{ needs.patch-and-focal.result }}
           LINUX_RESULT: ${{ needs.certify-linux.result }}
           WINDOWS_RESULT: ${{ needs.certify-windows.result }}
           DEPLOY_RESULT: ${{ needs.deploy-hosting-only.result }}
-          PRODUCT_SHA: ${{ needs.patch-and-focal.outputs.product_sha }}
         run: |
           set -euo pipefail
           state=success
-          if [ "$PATCH_RESULT" != success ] || [ "$LINUX_RESULT" != success ] || [ "$WINDOWS_RESULT" != success ] || [ "$DEPLOY_RESULT" != success ]; then state=failure; fi
+          if [ "$LINUX_RESULT" != success ] || [ "$WINDOWS_RESULT" != success ] || [ "$DEPLOY_RESULT" != success ]; then state=failure; fi
           target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          description="patch=${PATCH_RESULT} linux=${LINUX_RESULT} windows=${WINDOWS_RESULT} deploy=${DEPLOY_RESULT} product=${PRODUCT_SHA:0:8}"
+          description="linux=${LINUX_RESULT} windows=${WINDOWS_RESULT} deploy=${DEPLOY_RESULT} sha=${GITHUB_SHA:0:8}"
           payload=$(jq -n --arg state "$state" --arg context 'v141-planner-recovery' --arg description "$description" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
           curl --fail-with-body --silent --show-error --location -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" -d "$payload" >/dev/null
