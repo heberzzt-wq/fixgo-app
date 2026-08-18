@@ -6,6 +6,7 @@ on:
       - v94-media-v4n-negative-claims
     paths:
       - '.github/workflows/v141-auth-hydration-recovery.yml'
+      - '.github/scripts/v139-canonical-real-reel.mjs'
 
 permissions:
   contents: write
@@ -31,7 +32,7 @@ jobs:
         run: |
           set -euo pipefail
           target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          payload=$(jq -n --arg state pending --arg context 'v141-auth-hydration' --arg description "run=${GITHUB_RUN_ID} aligning existing semantic flow" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          payload=$(jq -n --arg state pending --arg context 'v141-auth-hydration' --arg description "run=${GITHUB_RUN_ID} exact-human-prompt existing-flow" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
           curl --fail-with-body --silent --show-error --location -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" -d "$payload" >/dev/null
 
       - name: Checkout working branch
@@ -125,6 +126,9 @@ jobs:
           grep -Fq 'buildJarvisMultifunctionToolCalls(' gestia-core/gestia-core.js
           grep -Fq 'AUTH_RESTORE_TIMEOUT_MS' gestia-core/gestia-core.js
           grep -Fq 'TERMINAL_CORE_RESULT_WITHOUT_FINAL_RESPONSE' gestia-terminal.html
+          grep -Fq 'V139_EXACT_HUMAN_PROMPT=true' .github/scripts/v139-canonical-real-reel.mjs
+          grep -Fq 'V139_SEMANTIC_PLAN_NOT_PRESEEDED=true' .github/scripts/v139-canonical-real-reel.mjs
+          ! grep -Fq 'const planScenes =' .github/scripts/v139-canonical-real-reel.mjs
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -192,6 +196,7 @@ jobs:
           grep -Fq 'terminalSemanticPlan?.toolCalls' gestia-core/gestia-core.js
           grep -Fq 'AUTH_RESTORE_TIMEOUT_MS' gestia-core/gestia-core.js
           grep -Fq 'Código: ${coreCode}' gestia-terminal.html
+          grep -Fq 'V139_EXACT_HUMAN_PROMPT=true' .github/scripts/v139-canonical-real-reel.mjs
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -253,6 +258,8 @@ jobs:
           $multiserviciosChanged = git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..$env:PRODUCT_SHA
           if ($multiserviciosChanged -match '^multiservicios-web/') { throw 'MULTISERVICIOS_CHANGED' }
           if (Select-String -LiteralPath 'gestia-core/gestia-core.js' -SimpleMatch 'terminalBrainRoute' -Quiet) { throw 'ORPHAN_CORE_ROUTE_PRESENT' }
+          if (-not (Select-String -LiteralPath '.github/scripts/v139-canonical-real-reel.mjs' -SimpleMatch 'V139_EXACT_HUMAN_PROMPT=true' -Quiet)) { throw 'EXACT_HUMAN_PROMPT_CERT_MISSING' }
+          if (Select-String -LiteralPath '.github/scripts/v139-canonical-real-reel.mjs' -SimpleMatch 'const planScenes =' -Quiet) { throw 'PRESEEDED_REEL_PLAN_FORBIDDEN' }
 
       - name: Attach exact product to expected branch identity
         shell: pwsh
