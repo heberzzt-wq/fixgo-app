@@ -1,3 +1,4 @@
+// retrigger exact-human-flow via git object commit
 // Canonical human-path certification for the exact Taquería El Dorado mission.
 import fs from 'node:fs';
 import path from 'node:path';
