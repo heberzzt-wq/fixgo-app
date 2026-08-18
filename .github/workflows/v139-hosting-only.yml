@@ -12,13 +12,178 @@ permissions:
   contents: read
 
 env:
-  CERTIFIED_SHA: cf500ef286fd4bcfed7d634fdbf49b2911fd7d39
-  CERTIFIED_TREE: 0b93f5b7d5ff350c7787674a0baf24a9c9663f43
+  CERTIFIED_SHA: c9ab09c064ce7db3337592fdca2d92607203c9fd
+  CERTIFIED_TREE: 40835625ed507a2f576ff4999cf3a79c4a6d066c
   FIREBASE_PROJECT_ID: fixgo-44e4d
   FIREBASE_SITE_ID: fixgo-44e4d
 
 jobs:
+  recertify-exact-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - name: Checkout exact corrected certification SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CERTIFIED_SHA }}
+          fetch-depth: 0
+
+      - name: Guard exact corrected tree and protected surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
+          test "$(git rev-parse HEAD)" = "$CERTIFIED_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$CERTIFIED_TREE"
+          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817.."$CERTIFIED_SHA" | grep -E '^functions/'
+          ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52.."$CERTIFIED_SHA" | grep -E '^multiservicios-web/'
+          echo "V139_RECERT_SHA=$CERTIFIED_SHA"
+          echo "V139_RECERT_TREE=$CERTIFIED_TREE"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Focal syntax contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check gestia-core/gestia-core.js
+          node --check gestia-core/tools.runtime.js
+          node --check gestia-core/tools.bridge.js
+          node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
+          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          node --check gestia-core/jarvis/jarvis.multitool.pack.js
+          node --check gestia-core/jarvis/jarvis.actuator.pack.js
+          node --check gestia-core/nexo/nexo.real-media.tools.js
+          node --check jarvis-fs-bridge.js
+          node --check jarvis-reel-artifact.js
+          node --check jarvis-speech-artifact.js
+
+      - name: Legacy reel focal contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/jarvis-reel-live-cache-v139.test.mjs
+          node --test tests/jarvis-reel-native-mp4-v138.test.mjs
+          node --test tests/jarvis-reel-speech-v137.test.mjs
+          node --test tests/jarvis-reel-media-source-recovery-v136.test.mjs
+          node --test tests/nexo-browser-media-fallback-v135.test.mjs
+          node --test tests/jarvis-reel-real-production-v134.test.mjs
+          node --test tests/jarvis-reel-mission-fidelity-v133.test.mjs
+          node --test tests/jarvis-reel-researched-media-v132.test.mjs
+          node --test tests/nexo-real-media-tools.test.mjs
+          node --test tests/jarvis-actuator-pack.test.mjs
+          node --test tests/jarvis-fs-bridge-v2.test.mjs
+          node --test tests/jarvis-reel-artifact.test.mjs
+
+      - name: Focal mission semantic latency contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test --test-concurrency=1 \
+            tests/jarvis-mission-orchestrator.test.mjs \
+            tests/jarvis-semantic-planner.test.cjs \
+            tests/single-semantic-authority.test.mjs \
+            tests/jarvis-source-grounded-research-v124.test.mjs \
+            tests/jarvis-multifunction-tools.test.mjs
+
+      - name: Focal business delivery contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test --test-concurrency=1 \
+            tests/jarvis-marketing-real-delivery.test.mjs \
+            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs \
+            tests/jarvis-page-artifact.test.mjs \
+            tests/jarvis-docx-artifact.test.mjs
+
+      - name: Full CI
+        run: npm run ci:test
+
+      - name: Reject whitespace errors
+        run: git diff --check
+
+      - name: Exact Linux certification marker
+        run: |
+          echo 'V139_EXACT_LINUX_RECERT_GREEN=true'
+          echo 'V139_FUNCTIONS_UNCHANGED=true'
+          echo 'V139_MULTISERVICIOS_UNCHANGED=true'
+          echo 'V139_BOUNDED_LATENCY_PRESENTATION_GREEN=true'
+
+  recertify-exact-windows:
+    runs-on: windows-latest
+    timeout-minutes: 18
+    steps:
+      - name: Checkout exact corrected certification SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CERTIFIED_SHA }}
+          fetch-depth: 0
+
+      - name: Guard exact corrected tree and protected surfaces
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_NAME -ne 'v94-media-v4n-negative-claims') { throw 'WRONG_BRANCH' }
+          if ((git rev-parse HEAD).Trim() -ne $env:CERTIFIED_SHA) { throw 'WRONG_CERTIFIED_SHA' }
+          if ((git rev-parse 'HEAD^{tree}').Trim() -ne $env:CERTIFIED_TREE) { throw 'WRONG_CERTIFIED_TREE' }
+          $functionsChanged = git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..$env:CERTIFIED_SHA
+          if ($functionsChanged -match '^functions/') { throw 'FUNCTIONS_CHANGED' }
+          $multiserviciosChanged = git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..$env:CERTIFIED_SHA
+          if ($multiserviciosChanged -match '^multiservicios-web/') { throw 'MULTISERVICIOS_CHANGED' }
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Start bridge and run canonical real-reel mission in same step
+        shell: pwsh
+        run: |
+          $stdout = Join-Path $env:RUNNER_TEMP 'v139-bridge.stdout.log'
+          $stderr = Join-Path $env:RUNNER_TEMP 'v139-bridge.stderr.log'
+          $process = Start-Process -FilePath node -ArgumentList 'jarvis-fs-bridge.js' -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          try {
+            $ready = $false
+            for ($i = 0; $i -lt 40; $i++) {
+              Start-Sleep -Milliseconds 250
+              $probe = Test-NetConnection -ComputerName 127.0.0.1 -Port 3344 -WarningAction SilentlyContinue
+              if ($probe.TcpTestSucceeded) { $ready = $true; break }
+              if ($process.HasExited) { break }
+            }
+            if (-not $ready) {
+              Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue
+              Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue
+              throw 'V139_LOCAL_BRIDGE_NOT_READY'
+            }
+            Write-Host "V139_BRIDGE_PID=$($process.Id)"
+            & node '.github/scripts/v139-canonical-real-reel.mjs'
+            if ($LASTEXITCODE -ne 0) { throw "V139_CANONICAL_MISSION_FAILED:$LASTEXITCODE" }
+          }
+          finally {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue | Select-Object -Last 120
+            Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue | Select-Object -Last 120
+          }
+
+      - name: Exact Windows certification marker
+        run: |
+          echo V139_EXACT_WINDOWS_REAL_REEL_RECERT_GREEN=true
+
   deploy-hosting-only:
+    needs:
+      - recertify-exact-linux
+      - recertify-exact-windows
+    if: ${{ success() }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -133,8 +298,10 @@ jobs:
               && grep -Fq ': 18000;' /tmp/v139-multitool.js \
               && ! grep -Fq '? 130000' /tmp/v139-multitool.js \
               && ! grep -Fq ': 55000;' /tmp/v139-multitool.js \
+              && ! grep -Fq 'terminalBrainRoute' /tmp/v139-terminal.html \
               && ! grep -Fq 'routeTerminalNaturalIntent' /tmp/v139-terminal.html \
               && ! grep -Fq 'TERMINAL_BRAIN_ROUTER_41_42' /tmp/v139-terminal.html \
+              && grep -Fq 'await window.GestiaCore.procesarIntencion' /tmp/v139-terminal.html \
               && grep -Fq 'TERMINAL_UNIVERSAL_CORE_FINAL_RESPONSE' /tmp/v139-terminal.html \
               && grep -Fq 'preferredAgentFinalResponse.text' /tmp/v139-terminal.html \
               && grep -Fq 'const verifiedProducedArtifacts =' /tmp/v139-terminal.html \
@@ -155,4 +322,5 @@ jobs:
           echo 'V139_GROUNDED_RESEARCH_SERVED=true'
           echo 'V139_DOWNLOADABLE_DELIVERY_SERVED=true'
           echo 'V139_BOUNDED_LATENCY_PRESENTATION_SERVED=true'
+          echo 'V139_TERMINAL_ORPHAN_ROUTE_ABSENT_SERVED=true'
           echo "V139_WEB_URL=https://${FIREBASE_SITE_ID}.web.app/gestia-terminal.html"
