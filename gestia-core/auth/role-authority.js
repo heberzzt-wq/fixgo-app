@@ -47,7 +47,7 @@ export function resolveGestiaRole(
         return {
             role: "admin",
             roleReal: "admin",
-            source: "master_authenticated_email",
+            source: "master_identity",
             resolved: true
         };
     }
