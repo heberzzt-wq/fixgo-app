@@ -1,4 +1,4 @@
-name: v139 hosting recovery
+name: v139 hosting recovery observable
 
 on:
   workflow_dispatch:
@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  statuses: write
 
 env:
   CERTIFIED_SHA: c9ab09c064ce7db3337592fdca2d92607203c9fd
@@ -18,6 +19,30 @@ env:
   FIREBASE_SITE_ID: fixgo-44e4d
 
 jobs:
+  announce-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish observable pending status
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          payload=$(jq -n \
+            --arg state pending \
+            --arg context 'v139-hosting-recovery' \
+            --arg description "run=${GITHUB_RUN_ID} started" \
+            --arg target_url "$target" \
+            '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          curl --fail-with-body --silent --show-error --location \
+            -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            -d "$payload"
+
   certify-linux:
     runs-on: ubuntu-latest
     timeout-minutes: 55
@@ -234,3 +259,44 @@ jobs:
           echo 'V139_BOUNDED_LATENCY_SERVED=true'
           echo 'V139_DOWNLOADABLE_DELIVERY_SERVED=true'
           echo "V139_WEB_URL=$base/gestia-terminal.html"
+
+  publish-observable-result:
+    needs:
+      - announce-run
+      - certify-linux
+      - certify-windows
+      - deploy-hosting-only
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish final observable status
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ANNOUNCE_RESULT: ${{ needs.announce-run.result }}
+          LINUX_RESULT: ${{ needs.certify-linux.result }}
+          WINDOWS_RESULT: ${{ needs.certify-windows.result }}
+          DEPLOY_RESULT: ${{ needs.deploy-hosting-only.result }}
+        run: |
+          set -euo pipefail
+          state=failure
+          if [ "$LINUX_RESULT" = success ] && [ "$WINDOWS_RESULT" = success ] && [ "$DEPLOY_RESULT" = success ]; then
+            state=success
+          fi
+          target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          description="linux=${LINUX_RESULT}; windows=${WINDOWS_RESULT}; deploy=${DEPLOY_RESULT}; run=${GITHUB_RUN_ID}"
+          payload=$(jq -n \
+            --arg state "$state" \
+            --arg context 'v139-hosting-recovery' \
+            --arg description "$description" \
+            --arg target_url "$target" \
+            '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          curl --fail-with-body --silent --show-error --location \
+            -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            -d "$payload"
+          echo "V139_RECOVERY_OBSERVABLE_STATE=$state"
+          echo "V139_RECOVERY_RUN_ID=$GITHUB_RUN_ID"
