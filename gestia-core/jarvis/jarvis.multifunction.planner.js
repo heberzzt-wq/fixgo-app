@@ -1268,58 +1268,97 @@ async function fetchBrowserPlanText(
     timeoutMs =
         BROWSER_PLAN_ATTEMPT_TIMEOUT_MS
 ) {
-    const controller =
-        new AbortController();
+    const transientStatuses =
+        new Set([
+            429,
+            502,
+            503,
+            504
+        ]);
+    let lastResult =
+        null;
 
-    let timedOut =
-        false;
+    for (
+        let transientAttempt = 0;
+        transientAttempt < 3;
+        transientAttempt += 1
+    ) {
+        const controller =
+            new AbortController();
 
-    const timer =
-        setTimeout(
-            () => {
-                timedOut =
-                    true;
+        let timedOut =
+            false;
 
-                controller.abort();
-            },
-            timeoutMs
-        );
+        const timer =
+            setTimeout(
+                () => {
+                    timedOut =
+                        true;
 
-    try {
-        const response =
-            await fetch(
-                url,
-                {
-                    signal:
-                        controller.signal
-                }
+                    controller.abort();
+                },
+                timeoutMs
             );
 
-        const responseText =
-            await response.text();
+        try {
+            const response =
+                await fetch(
+                    url,
+                    {
+                        signal:
+                            controller.signal
+                    }
+                );
 
-        return {
-            response,
-            responseText
-        };
-    }
-    catch(error) {
-        if (
-            timedOut ||
-            controller.signal.aborted
-        ) {
-            throw new Error(
-                `BROWSER_PLAN_ATTEMPT_TIMEOUT_${timeoutMs}`
+            const responseText =
+                await response.text();
+
+            lastResult = {
+                response,
+                responseText
+            };
+
+            if (
+                !transientStatuses.has(
+                    response.status
+                ) ||
+                transientAttempt === 2
+            ) {
+                return lastResult;
+            }
+        }
+        catch(error) {
+            if (
+                timedOut ||
+                controller.signal.aborted
+            ) {
+                throw new Error(
+                    `BROWSER_PLAN_ATTEMPT_TIMEOUT_${timeoutMs}`
+                );
+            }
+
+            throw error;
+        }
+        finally {
+            clearTimeout(
+                timer
             );
         }
 
-        throw error;
-    }
-    finally {
-        clearTimeout(
-            timer
+        await new Promise(resolve =>
+            setTimeout(
+                resolve,
+                Math.min(
+                    Number(timeoutMs) ||
+                    BROWSER_PLAN_ATTEMPT_TIMEOUT_MS,
+                    2000 *
+                    (transientAttempt + 1)
+                )
+            )
         );
     }
+
+    return lastResult;
 }
 
 async function callBrowserMissionContract(
