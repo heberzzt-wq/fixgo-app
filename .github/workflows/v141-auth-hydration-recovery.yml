@@ -1,4 +1,5 @@
 name: v141 auth hydration recovery
+# native-push exact-prompt certification trigger
 
 on:
   push:
@@ -7,11 +8,6 @@ on:
     paths:
       - '.github/workflows/v141-auth-hydration-recovery.yml'
       - '.github/scripts/v139-canonical-real-reel.mjs'
-  pull_request_target:
-    branches:
-      - v94-media-v4n-negative-claims
-    types:
-      - opened
   workflow_dispatch:
 
 permissions:
