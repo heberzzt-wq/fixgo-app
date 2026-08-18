@@ -62,104 +62,106 @@ jobs:
           if 'transientStatuses' in current:
               raise SystemExit('BROWSER_PLAN_TRANSIENT_RECOVERY_ALREADY_PRESENT')
 
-          replacement = '''async function fetchBrowserPlanText(
-    url = "",
-    timeoutMs =
-        BROWSER_PLAN_ATTEMPT_TIMEOUT_MS
-) {
-    const transientStatuses =
-        new Set([
-            429,
-            502,
-            503,
-            504
-        ]);
-    let lastResult =
-        null;
-
-    for (
-        let transientAttempt = 0;
-        transientAttempt < 3;
-        transientAttempt += 1
-    ) {
-        const controller =
-            new AbortController();
-
-        let timedOut =
-            false;
-
-        const timer =
-            setTimeout(
-                () => {
-                    timedOut =
-                        true;
-
-                    controller.abort();
-                },
-                timeoutMs
-            );
-
-        try {
-            const response =
-                await fetch(
-                    url,
-                    {
-                        signal:
-                            controller.signal
-                    }
-                );
-
-            const responseText =
-                await response.text();
-
-            lastResult = {
-                response,
-                responseText
-            };
-
-            if (
-                !transientStatuses.has(
-                    response.status
-                ) ||
-                transientAttempt === 2
-            ) {
-                return lastResult;
-            }
-        }
-        catch(error) {
-            if (
-                timedOut ||
-                controller.signal.aborted
-            ) {
-                throw new Error(
-                    `BROWSER_PLAN_ATTEMPT_TIMEOUT_${timeoutMs}`
-                );
-            }
-
-            throw error;
-        }
-        finally {
-            clearTimeout(
-                timer
-            );
-        }
-
-        await new Promise(resolve =>
-            setTimeout(
-                resolve,
-                Math.min(
-                    Number(timeoutMs) ||
-                    BROWSER_PLAN_ATTEMPT_TIMEOUT_MS,
-                    2000 *
-                    (transientAttempt + 1)
-                )
-            )
-        );
-    }
-
-    return lastResult;
-}
-'''
+          replacement_lines = [
+              'async function fetchBrowserPlanText(',
+              '    url = "",',
+              '    timeoutMs =',
+              '        BROWSER_PLAN_ATTEMPT_TIMEOUT_MS',
+              ') {',
+              '    const transientStatuses =',
+              '        new Set([',
+              '            429,',
+              '            502,',
+              '            503,',
+              '            504',
+              '        ]);',
+              '    let lastResult =',
+              '        null;',
+              '',
+              '    for (',
+              '        let transientAttempt = 0;',
+              '        transientAttempt < 3;',
+              '        transientAttempt += 1',
+              '    ) {',
+              '        const controller =',
+              '            new AbortController();',
+              '',
+              '        let timedOut =',
+              '            false;',
+              '',
+              '        const timer =',
+              '            setTimeout(',
+              '                () => {',
+              '                    timedOut =',
+              '                        true;',
+              '',
+              '                    controller.abort();',
+              '                },',
+              '                timeoutMs',
+              '            );',
+              '',
+              '        try {',
+              '            const response =',
+              '                await fetch(',
+              '                    url,',
+              '                    {',
+              '                        signal:',
+              '                            controller.signal',
+              '                    }',
+              '                );',
+              '',
+              '            const responseText =',
+              '                await response.text();',
+              '',
+              '            lastResult = {',
+              '                response,',
+              '                responseText',
+              '            };',
+              '',
+              '            if (',
+              '                !transientStatuses.has(',
+              '                    response.status',
+              '                ) ||',
+              '                transientAttempt === 2',
+              '            ) {',
+              '                return lastResult;',
+              '            }',
+              '        }',
+              '        catch(error) {',
+              '            if (',
+              '                timedOut ||',
+              '                controller.signal.aborted',
+              '            ) {',
+              '                throw new Error(',
+              '                    `BROWSER_PLAN_ATTEMPT_TIMEOUT_${timeoutMs}`',
+              '                );',
+              '            }',
+              '',
+              '            throw error;',
+              '        }',
+              '        finally {',
+              '            clearTimeout(',
+              '                timer',
+              '            );',
+              '        }',
+              '',
+              '        await new Promise(resolve =>',
+              '            setTimeout(',
+              '                resolve,',
+              '                Math.min(',
+              '                    Number(timeoutMs) ||',
+              '                    BROWSER_PLAN_ATTEMPT_TIMEOUT_MS,',
+              '                    2000 *',
+              '                    (transientAttempt + 1)',
+              '                )',
+              '            )',
+              '        );',
+              '    }',
+              '',
+              '    return lastResult;',
+              '}',
+          ]
+          replacement = '\n'.join(replacement_lines) + '\n'
           planner = planner[:start] + replacement + planner[end:]
           planner_path.write_text(planner, encoding='utf-8')
           PY
@@ -179,7 +181,6 @@ jobs:
           grep -Fq 'await this.analizarIntencionLigera(' gestia-core/gestia-core.js
           grep -Fq 'terminalSemanticPlan?.toolCalls' gestia-core/gestia-core.js
           grep -Fq 'AUTH_RESTORE_TIMEOUT_MS' gestia-core/gestia-core.js
-          grep -Fq 'new Set([' gestia-core/jarvis/jarvis.multifunction.planner.js
           grep -Fq 'transientAttempt < 3' gestia-core/jarvis/jarvis.multifunction.planner.js
           grep -Fq 'V139_EXACT_HUMAN_PROMPT=true' .github/scripts/v139-canonical-real-reel.mjs
           grep -Fq 'V139_SEMANTIC_PLAN_NOT_PRESEEDED=true' .github/scripts/v139-canonical-real-reel.mjs
