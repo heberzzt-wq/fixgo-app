@@ -1,4 +1,4 @@
-name: v141 semantic alignment certification
+name: v141 existing planner recovery certification
 
 on:
   push:
@@ -19,7 +19,7 @@ env:
 jobs:
   patch-and-focal:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     outputs:
       product_sha: ${{ steps.commit.outputs.product_sha }}
       product_tree: ${{ steps.commit.outputs.product_tree }}
@@ -32,7 +32,7 @@ jobs:
         run: |
           set -euo pipefail
           target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          payload=$(jq -n --arg state pending --arg context 'v141-semantic-alignment' --arg description "run=${GITHUB_RUN_ID} started" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          payload=$(jq -n --arg state pending --arg context 'v141-planner-recovery' --arg description "run=${GITHUB_RUN_ID} started" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
           curl --fail-with-body --silent --show-error --location -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" -d "$payload" >/dev/null
 
       - name: Checkout isolated branch
@@ -41,63 +41,137 @@ jobs:
           ref: ${{ env.TARGET_BRANCH }}
           fetch-depth: 0
 
-      - name: Align core to existing semantic planner
+      - name: Recover existing browser semantic planner on transient upstream failures
         shell: bash
         run: |
           set -euo pipefail
           python3 <<'PY'
           from pathlib import Path
 
-          core_path = Path('gestia-core/gestia-core.js')
-          core = core_path.read_text(encoding='utf-8')
+          planner_path = Path('gestia-core/jarvis/jarvis.multifunction.planner.js')
+          planner = planner_path.read_text(encoding='utf-8')
+          start_marker = 'async function fetchBrowserPlanText(\n'
+          end_marker = '\nasync function callBrowserMissionContract(\n'
+          start = planner.find(start_marker)
+          if start < 0:
+              raise SystemExit('BROWSER_PLAN_FETCH_START_NOT_FOUND')
+          end = planner.find(end_marker, start)
+          if end < 0:
+              raise SystemExit('BROWSER_PLAN_FETCH_END_NOT_FOUND')
+          current = planner[start:end]
+          if 'transientStatuses' in current:
+              raise SystemExit('BROWSER_PLAN_TRANSIENT_RECOVERY_ALREADY_PRESENT')
 
-          old_seed = (
-              '        let terminalPlannerSeed =\n'
-              '            Array.isArray(\n'
-              '                context?.terminalBrainRoute?.toolCalls\n'
-              '            )\n'
-              '                ? context.terminalBrainRoute.toolCalls.filter(call =>\n'
-              '                    call &&\n'
-              '                    typeof call.name === "string" &&\n'
-              '                    call.name.trim()\n'
-              '                )\n'
-              '                : [];\n'
-          )
-          new_seed = (
-              '        const terminalSemanticPlan =\n'
-              '            await this.analizarIntencionLigera(\n'
-              '                inputRaw,\n'
-              '                {\n'
-              '                    ...context,\n'
-              '                    tenantId\n'
-              '                }\n'
-              '            );\n'
-              '\n'
-              '        let terminalPlannerSeed =\n'
-              '            Array.isArray(\n'
-              '                terminalSemanticPlan?.toolCalls\n'
-              '            )\n'
-              '                ? terminalSemanticPlan.toolCalls.filter(call =>\n'
-              '                    call &&\n'
-              '                    typeof call.name === "string" &&\n'
-              '                    call.name.trim()\n'
-              '                )\n'
-              '                : [];\n'
-          )
-          if core.count(old_seed) != 1:
-              raise SystemExit('SEMANTIC_SEED_ALIGNMENT_ANCHOR_INVALID')
-          core = core.replace(old_seed, new_seed, 1)
-          core_path.write_text(core, encoding='utf-8')
+          replacement = '''async function fetchBrowserPlanText(
+    url = "",
+    timeoutMs =
+        BROWSER_PLAN_ATTEMPT_TIMEOUT_MS
+) {
+    const transientStatuses =
+        new Set([
+            429,
+            502,
+            503,
+            504
+        ]);
+    let lastResult =
+        null;
+
+    for (
+        let transientAttempt = 0;
+        transientAttempt < 3;
+        transientAttempt += 1
+    ) {
+        const controller =
+            new AbortController();
+
+        let timedOut =
+            false;
+
+        const timer =
+            setTimeout(
+                () => {
+                    timedOut =
+                        true;
+
+                    controller.abort();
+                },
+                timeoutMs
+            );
+
+        try {
+            const response =
+                await fetch(
+                    url,
+                    {
+                        signal:
+                            controller.signal
+                    }
+                );
+
+            const responseText =
+                await response.text();
+
+            lastResult = {
+                response,
+                responseText
+            };
+
+            if (
+                !transientStatuses.has(
+                    response.status
+                ) ||
+                transientAttempt === 2
+            ) {
+                return lastResult;
+            }
+        }
+        catch(error) {
+            if (
+                timedOut ||
+                controller.signal.aborted
+            ) {
+                throw new Error(
+                    `BROWSER_PLAN_ATTEMPT_TIMEOUT_${timeoutMs}`
+                );
+            }
+
+            throw error;
+        }
+        finally {
+            clearTimeout(
+                timer
+            );
+        }
+
+        await new Promise(resolve =>
+            setTimeout(
+                resolve,
+                Math.min(
+                    Number(timeoutMs) ||
+                    BROWSER_PLAN_ATTEMPT_TIMEOUT_MS,
+                    2000 *
+                    (transientAttempt + 1)
+                )
+            )
+        );
+    }
+
+    return lastResult;
+}
+'''
+          planner = planner[:start] + replacement + planner[end:]
+          planner_path.write_text(planner, encoding='utf-8')
           PY
 
-      - name: Guard exact alignment scope
+      - name: Guard existing architecture and exact patch scope
         shell: bash
         run: |
           set -euo pipefail
           changed="$(git diff --name-only)"
           printf '%s\n' "$changed"
           test "$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l)" -eq 1
-          printf '%s\n' "$changed" | grep -Fx 'gestia-core/gestia-core.js'
+          printf '%s\n' "$changed" | grep -Fx 'gestia-core/jarvis/jarvis.multifunction.planner.js'
           ! printf '%s\n' "$changed" | grep -E '^functions/'
           ! printf '%s\n' "$changed" | grep -E '^multiservicios-web/'
           ! grep -Fq 'terminalBrainRoute' gestia-core/gestia-core.js
@@ -105,9 +179,12 @@ jobs:
           grep -Fq 'await this.analizarIntencionLigera(' gestia-core/gestia-core.js
           grep -Fq 'terminalSemanticPlan?.toolCalls' gestia-core/gestia-core.js
           grep -Fq 'AUTH_RESTORE_TIMEOUT_MS' gestia-core/gestia-core.js
+          grep -Fq 'new Set([' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -Fq 'transientAttempt < 3' gestia-core/jarvis/jarvis.multifunction.planner.js
           grep -Fq 'V139_EXACT_HUMAN_PROMPT=true' .github/scripts/v139-canonical-real-reel.mjs
           grep -Fq 'V139_SEMANTIC_PLAN_NOT_PRESEEDED=true' .github/scripts/v139-canonical-real-reel.mjs
           ! grep -Fq 'const planScenes =' .github/scripts/v139-canonical-real-reel.mjs
+          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -118,7 +195,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Existing semantic focal regression
+      - name: Existing focal regression
         shell: bash
         run: |
           set -euo pipefail
@@ -130,15 +207,15 @@ jobs:
             tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
           git diff --check
 
-      - name: Commit aligned product
+      - name: Commit recovered existing planner
         id: commit
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add gestia-core/gestia-core.js
-          git commit -m 'fix(jarvis): align core with existing semantic planner'
+          git add gestia-core/jarvis/jarvis.multifunction.planner.js
+          git commit -m 'fix(jarvis): recover existing semantic planner on transient upstream errors'
           product_sha="$(git rev-parse HEAD)"
           product_tree="$(git rev-parse HEAD^{tree})"
           echo "product_sha=$product_sha" >> "$GITHUB_OUTPUT"
@@ -150,7 +227,7 @@ jobs:
   certify-linux:
     needs: patch-and-focal
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 60
     env:
       PRODUCT_SHA: ${{ needs.patch-and-focal.outputs.product_sha }}
       PRODUCT_TREE: ${{ needs.patch-and-focal.outputs.product_tree }}
@@ -173,6 +250,7 @@ jobs:
           grep -Fq 'await this.analizarIntencionLigera(' gestia-core/gestia-core.js
           grep -Fq 'terminalSemanticPlan?.toolCalls' gestia-core/gestia-core.js
           grep -Fq 'AUTH_RESTORE_TIMEOUT_MS' gestia-core/gestia-core.js
+          grep -Fq 'transientAttempt < 3' gestia-core/jarvis/jarvis.multifunction.planner.js
           grep -Fq 'V139_EXACT_HUMAN_PROMPT=true' .github/scripts/v139-canonical-real-reel.mjs
           grep -Fq 'V139_SEMANTIC_PLAN_NOT_PRESEEDED=true' .github/scripts/v139-canonical-real-reel.mjs
 
@@ -209,7 +287,7 @@ jobs:
   certify-windows:
     needs: patch-and-focal
     runs-on: windows-latest
-    timeout-minutes: 22
+    timeout-minutes: 30
     env:
       PRODUCT_SHA: ${{ needs.patch-and-focal.outputs.product_sha }}
       PRODUCT_TREE: ${{ needs.patch-and-focal.outputs.product_tree }}
@@ -230,6 +308,7 @@ jobs:
           $changedMulti = git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..$env:PRODUCT_SHA
           if ($changedMulti -match '^multiservicios-web/') { throw 'MULTISERVICIOS_CHANGED' }
           if (Select-String -LiteralPath 'gestia-core/gestia-core.js' -SimpleMatch 'terminalBrainRoute' -Quiet) { throw 'ORPHAN_CORE_ROUTE_PRESENT' }
+          if (-not (Select-String -LiteralPath 'gestia-core/jarvis/jarvis.multifunction.planner.js' -SimpleMatch 'transientAttempt < 3' -Quiet)) { throw 'TRANSIENT_RECOVERY_MISSING' }
           if (-not (Select-String -LiteralPath '.github/scripts/v139-canonical-real-reel.mjs' -SimpleMatch 'V139_EXACT_HUMAN_PROMPT=true' -Quiet)) { throw 'EXACT_HUMAN_PROMPT_MISSING' }
           if (Select-String -LiteralPath '.github/scripts/v139-canonical-real-reel.mjs' -SimpleMatch 'const planScenes =' -Quiet) { throw 'PRESEEDED_PLAN_FORBIDDEN' }
 
@@ -252,8 +331,8 @@ jobs:
       - name: Canonical exact human mission
         shell: pwsh
         run: |
-          $stdout = Join-Path $env:RUNNER_TEMP 'v141-bridge.stdout.log'
-          $stderr = Join-Path $env:RUNNER_TEMP 'v141-bridge.stderr.log'
+          $stdout = Join-Path $env:RUNNER_TEMP 'v141-planner-bridge.stdout.log'
+          $stderr = Join-Path $env:RUNNER_TEMP 'v141-planner-bridge.stderr.log'
           $process = Start-Process -FilePath node -ArgumentList 'jarvis-fs-bridge.js' -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
           try {
             $ready = $false
@@ -273,14 +352,14 @@ jobs:
               Write-Host "CANONICAL_ATTEMPT=$attempt"
               & node '.github/scripts/v139-canonical-real-reel.mjs'
               if ($LASTEXITCODE -eq 0) { $passed = $true; break }
-              Start-Sleep -Seconds 5
+              Start-Sleep -Seconds 8
             }
             if (-not $passed) { throw 'CANONICAL_FAILED_AFTER_RETRIES' }
           }
           finally {
             Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-            Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue | Select-Object -Last 180
-            Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue | Select-Object -Last 180
+            Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue | Select-Object -Last 220
+            Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue | Select-Object -Last 220
           }
 
   deploy-hosting-only:
@@ -345,6 +424,7 @@ jobs:
           for attempt in $(seq 1 30); do
             stamp="${PRODUCT_SHA}-${attempt}-$(date +%s)"
             if curl --fail --silent --show-error --location "$base/gestia-core/gestia-core.js?v141=$stamp" -o /tmp/core.js \
+              && curl --fail --silent --show-error --location "$base/gestia-core/jarvis/jarvis.multifunction.planner.js?v141=$stamp" -o /tmp/planner.js \
               && curl --fail --silent --show-error --location "$base/gestia-terminal.html?v141=$stamp" -o /tmp/terminal.html \
               && curl --fail --silent --show-error --location "$base/modules/terminal/jarvis-attachments.js?v141=$stamp" -o /tmp/attachments.js \
               && ! grep -Fq 'terminalBrainRoute' /tmp/core.js \
@@ -352,6 +432,7 @@ jobs:
               && grep -Fq 'await this.analizarIntencionLigera(' /tmp/core.js \
               && grep -Fq 'terminalSemanticPlan?.toolCalls' /tmp/core.js \
               && grep -Fq 'AUTH_RESTORE_TIMEOUT_MS' /tmp/core.js \
+              && grep -Fq 'transientAttempt < 3' /tmp/planner.js \
               && grep -Fq 'Código: ${coreCode}' /tmp/terminal.html \
               && grep -Fq '/artifact/read' /tmp/attachments.js \
               && grep -Fq 'jarvis-artifact-download' /tmp/attachments.js; then
@@ -361,7 +442,7 @@ jobs:
             sleep 4
           done
           test "$ok" = true
-          echo 'V141_FIREBASE_EXISTING_SEMANTIC_FLOW_VERIFIED=true'
+          echo 'V141_FIREBASE_EXISTING_PLANNER_RECOVERY_VERIFIED=true'
 
   publish-result:
     needs:
@@ -388,5 +469,5 @@ jobs:
           if [ "$PATCH_RESULT" != success ] || [ "$LINUX_RESULT" != success ] || [ "$WINDOWS_RESULT" != success ] || [ "$DEPLOY_RESULT" != success ]; then state=failure; fi
           target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           description="patch=${PATCH_RESULT} linux=${LINUX_RESULT} windows=${WINDOWS_RESULT} deploy=${DEPLOY_RESULT} product=${PRODUCT_SHA:0:8}"
-          payload=$(jq -n --arg state "$state" --arg context 'v141-semantic-alignment' --arg description "$description" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          payload=$(jq -n --arg state "$state" --arg context 'v141-planner-recovery' --arg description "$description" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
           curl --fail-with-body --silent --show-error --location -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" -d "$payload" >/dev/null
