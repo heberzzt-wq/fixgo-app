@@ -26,6 +26,7 @@ jobs:
       product_tree: ${{ steps.commit.outputs.product_tree }}
     steps:
       - name: Publish observable run
+        continue-on-error: true
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
