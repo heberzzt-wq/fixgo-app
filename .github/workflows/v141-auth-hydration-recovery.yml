@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/v141-auth-hydration-recovery.yml'
       - '.github/scripts/v139-canonical-real-reel.mjs'
+  workflow_dispatch:
 
 permissions:
   contents: write
