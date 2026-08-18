@@ -1,0 +1,250 @@
+name: v140 core presentation certification
+
+on:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - 'gestia-terminal.html'
+      - 'tests/jarvis-marketing-terminal-delivery.e2e.test.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  statuses: write
+
+env:
+  FIREBASE_PROJECT_ID: fixgo-44e4d
+  FIREBASE_SITE_ID: fixgo-44e4d
+
+jobs:
+  announce-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish observable pending status
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          payload=$(jq -n --arg state pending --arg context 'v140-core-presentation' --arg description "run=${GITHUB_RUN_ID} started" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          curl --fail-with-body --silent --show-error --location -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" -d "$payload" >/dev/null
+
+  certify-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - name: Checkout product commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Guard exact commit and protected surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817.."$GITHUB_SHA" | grep -E '^functions/'
+          ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52.."$GITHUB_SHA" | grep -E '^multiservicios-web/'
+          changed="$(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA")"
+          echo "$changed"
+          ! echo "$changed" | grep -E '^functions/'
+          ! echo "$changed" | grep -E '^multiservicios-web/'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Presentation focal regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test --test-concurrency=1 \
+            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs \
+            tests/jarvis-multifunction-tools.test.mjs \
+            tests/jarvis-source-grounded-research-v124.test.mjs
+
+      - name: Full CI
+        run: npm run ci:test
+
+      - name: Reject whitespace errors
+        run: git diff --check
+
+      - name: Linux marker
+        run: |
+          echo 'V140_PRESENTATION_LINUX_GREEN=true'
+          echo 'V140_FUNCTIONS_UNCHANGED=true'
+          echo 'V140_MULTISERVICIOS_UNCHANGED=true'
+
+  certify-windows:
+    runs-on: windows-latest
+    timeout-minutes: 22
+    steps:
+      - name: Checkout product commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Guard exact commit and protected surfaces
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_NAME -ne 'v94-media-v4n-negative-claims') { throw 'WRONG_BRANCH' }
+          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw 'WRONG_SHA' }
+          $functionsChanged = git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..$env:GITHUB_SHA
+          if ($functionsChanged -match '^functions/') { throw 'FUNCTIONS_CHANGED' }
+          $multiserviciosChanged = git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..$env:GITHUB_SHA
+          if ($multiserviciosChanged -match '^multiservicios-web/') { throw 'MULTISERVICIOS_CHANGED' }
+
+      - name: Attach commit to expected local branch identity
+        shell: pwsh
+        run: |
+          git checkout -B v94-media-v4n-negative-claims $env:GITHUB_SHA
+          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw 'LOCAL_BRANCH_HEAD_CHANGED' }
+          if ((git branch --show-current).Trim() -ne 'v94-media-v4n-negative-claims') { throw 'LOCAL_BRANCH_IDENTITY_FAILED' }
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Canonical real-reel mission
+        shell: pwsh
+        run: |
+          $stdout = Join-Path $env:RUNNER_TEMP 'v140-bridge.stdout.log'
+          $stderr = Join-Path $env:RUNNER_TEMP 'v140-bridge.stderr.log'
+          $process = Start-Process -FilePath node -ArgumentList 'jarvis-fs-bridge.js' -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          try {
+            $ready = $false
+            for ($i = 0; $i -lt 40; $i++) {
+              Start-Sleep -Milliseconds 250
+              $probe = Test-NetConnection -ComputerName 127.0.0.1 -Port 3344 -WarningAction SilentlyContinue
+              if ($probe.TcpTestSucceeded) { $ready = $true; break }
+              if ($process.HasExited) { break }
+            }
+            if (-not $ready) { throw 'V140_BRIDGE_NOT_READY' }
+            $passed = $false
+            for ($attempt = 1; $attempt -le 3; $attempt++) {
+              Write-Host "V140_CANONICAL_ATTEMPT=$attempt"
+              & node '.github/scripts/v139-canonical-real-reel.mjs'
+              if ($LASTEXITCODE -eq 0) { $passed = $true; break }
+              Start-Sleep -Seconds 5
+            }
+            if (-not $passed) { throw 'V140_CANONICAL_FAILED' }
+          }
+          finally {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue | Select-Object -Last 160
+            Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue | Select-Object -Last 160
+          }
+
+      - name: Windows marker
+        run: echo V140_PRESENTATION_WINDOWS_GREEN=true
+
+  deploy-hosting-only:
+    needs:
+      - certify-linux
+      - certify-windows
+    if: ${{ success() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact certified product commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Guard exact commit and protected surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817.."$GITHUB_SHA" | grep -E '^functions/'
+          ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52.."$GITHUB_SHA" | grep -E '^multiservicios-web/'
+
+      - name: Build isolated single-site Hosting config
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const source = JSON.parse(fs.readFileSync('firebase.json', 'utf8'));
+          const hosting = Array.isArray(source.hosting) ? source.hosting : [source.hosting].filter(Boolean);
+          const selected = hosting.filter(item => item && item.site === process.env.FIREBASE_SITE_ID);
+          if (selected.length !== 1) throw new Error(`V140_HOSTING_SITE_SELECTION_INVALID:${selected.length}`);
+          if (selected[0].target) throw new Error('V140_HOSTING_TARGET_FORBIDDEN');
+          fs.writeFileSync('.firebase-v140-hosting.json', JSON.stringify({ hosting: selected[0] }, null, 2));
+          NODE
+          node -e "const c=require('./.firebase-v140-hosting.json'); if(c.functions||Array.isArray(c.hosting)||c.hosting.site!==process.env.FIREBASE_SITE_ID||c.hosting.target) process.exit(1)"
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy ADJUNTO Hosting only
+        shell: bash
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy --config .firebase-v140-hosting.json --only hosting --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
+          echo 'V140_HOSTING_ONLY_DEPLOYED=true'
+
+      - name: Verify official bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://${FIREBASE_SITE_ID}.web.app"
+          stamp="${GITHUB_SHA}-$(date +%s)"
+          curl --fail --silent --show-error --location "$base/gestia-terminal.html?v140=$stamp" -o /tmp/terminal.html
+          curl --fail --silent --show-error --location "$base/gestia-core/jarvis/jarvis.multifunction.planner.js?v140=$stamp" -o /tmp/planner.js
+          curl --fail --silent --show-error --location "$base/modules/terminal/jarvis-attachments.js?v140=$stamp" -o /tmp/attachments.js
+          ! grep -Fq 'terminalBrainRoute' /tmp/terminal.html
+          ! grep -Fq 'TERMINAL_CORE_RESPONSE_NOT_PRESENTED' /tmp/terminal.html
+          grep -Fq 'TERMINAL_CORE_FALLBACK_FINAL_RESPONSE_RECOVERED' /tmp/terminal.html
+          grep -Fq 'lastCoreResult = coreResult' /tmp/terminal.html
+          grep -Fq 'CLOUD_MISSION_CONTRACT_TIMEOUT_MS =' /tmp/planner.js
+          grep -Fq '    12000;' /tmp/planner.js
+          grep -Fq '/artifact/read' /tmp/attachments.js
+          grep -Fq 'jarvis-artifact-download' /tmp/attachments.js
+          echo 'V140_FIREBASE_PRESENTATION_VERIFIED=true'
+          echo 'V140_FALSE_NOT_PRESENTED_REMOVED=true'
+          echo 'V140_ORPHAN_ROUTE_ABSENT=true'
+          echo 'V140_DOWNLOADABLE_DELIVERY_PRESENT=true'
+
+  publish-result:
+    needs:
+      - certify-linux
+      - certify-windows
+      - deploy-hosting-only
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish final observable status
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LINUX_RESULT: ${{ needs.certify-linux.result }}
+          WINDOWS_RESULT: ${{ needs.certify-windows.result }}
+          DEPLOY_RESULT: ${{ needs.deploy-hosting-only.result }}
+        run: |
+          set -euo pipefail
+          state=success
+          if [ "$LINUX_RESULT" != success ] || [ "$WINDOWS_RESULT" != success ] || [ "$DEPLOY_RESULT" != success ]; then state=failure; fi
+          target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          description="linux=${LINUX_RESULT} windows=${WINDOWS_RESULT} deploy=${DEPLOY_RESULT}"
+          payload=$(jq -n --arg state "$state" --arg context 'v140-core-presentation' --arg description "$description" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          curl --fail-with-body --silent --show-error --location -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" -d "$payload" >/dev/null
