@@ -126,6 +126,15 @@ jobs:
           $multiserviciosChanged = git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..$env:CERTIFIED_SHA
           if ($multiserviciosChanged -match '^multiservicios-web/') { throw 'MULTISERVICIOS_CHANGED' }
 
+      - name: Attach certified SHA to expected local branch
+        shell: pwsh
+        run: |
+          git checkout -B v94-media-v4n-negative-claims $env:CERTIFIED_SHA
+          if ((git branch --show-current).Trim() -ne 'v94-media-v4n-negative-claims') { throw 'LOCAL_BRANCH_ATTACH_FAILED' }
+          if ((git rev-parse HEAD).Trim() -ne $env:CERTIFIED_SHA) { throw 'LOCAL_BRANCH_HEAD_CHANGED' }
+          if ((git rev-parse 'HEAD^{tree}').Trim() -ne $env:CERTIFIED_TREE) { throw 'LOCAL_BRANCH_TREE_CHANGED' }
+          Write-Host "V139_WINDOWS_LOCAL_BRANCH=$((git branch --show-current).Trim())"
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
