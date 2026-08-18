@@ -26,7 +26,7 @@
  * ======================================================================================
  */
 
-import { auth, db } from '/firebase.js';
+import { auth, db, onAuthStateChanged } from '/firebase.js';
 import { 
     doc, 
     getDoc,
@@ -221,6 +221,55 @@ import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-3
 import '/gestia-core/tools.runtime.js?v=v139-real-reel-e2e-20260812';
 import '/gestia-core/response.composer.js?v=v94-live-human-reds-v113-20260809';
 import '/gestia-core/tools.bridge.js?v=v139-real-reel-e2e-20260812';
+
+const AUTH_RESTORE_TIMEOUT_MS =
+    2500;
+
+async function waitForAuthenticatedUser(
+    timeoutMs = AUTH_RESTORE_TIMEOUT_MS
+) {
+    if (auth.currentUser) {
+        return auth.currentUser;
+    }
+
+    return await new Promise(resolve => {
+        let settled = false;
+        let unsubscribe = () => {};
+        let timer = null;
+
+        const finish = user => {
+            if (settled) return;
+            settled = true;
+            if (timer) {
+                clearTimeout(timer);
+            }
+            try {
+                unsubscribe();
+            }
+            catch {}
+            resolve(user || auth.currentUser || null);
+        };
+
+        timer = setTimeout(
+            () => finish(auth.currentUser || null),
+            Math.max(
+                0,
+                Number(timeoutMs) || AUTH_RESTORE_TIMEOUT_MS
+            )
+        );
+
+        try {
+            unsubscribe = onAuthStateChanged(
+                auth,
+                user => finish(user || null),
+                () => finish(auth.currentUser || null)
+            );
+        }
+        catch {
+            finish(auth.currentUser || null);
+        }
+    });
+}
 
 const MISSION_EVIDENCE_CONTRACT_VERSION =
     "1.2.0-stable-research-objectives";
@@ -3864,8 +3913,25 @@ export const GestiaCore = {
      * procesarIntencion: El pipeline definitivo de soberanía sistémica.
      */
     async procesarIntencion(inputRaw, context = {}) {
-        const user = auth.currentUser;
-        if (!user) return this.abortar("AUTH_FAILED", "Acceso denegado: Sesión no válida.");
+        const userBeforeAuthRestore =
+            auth.currentUser;
+        const user =
+            userBeforeAuthRestore ||
+            await waitForAuthenticatedUser();
+
+        if (!user) {
+            return this.abortar(
+                "AUTH_FAILED",
+                "Acceso denegado: Firebase no restauró una sesión válida."
+            );
+        }
+
+        if (!userBeforeAuthRestore) {
+            console.info(
+                "[GESTIA_AUTH_RESTORED_BEFORE_MISSION]",
+                { uid: user.uid || null }
+            );
+        }
 
         const tenantId = context.tenantId || "UXMAL39";
         const analysisId = SIA7_UTILS.generarUUID();

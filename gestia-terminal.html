@@ -5185,11 +5185,22 @@ const summary =
                             lastCoreResult?.result?.missionResult?.status ||
                             "CORE_RESULT_WITHOUT_FINAL_RESPONSE";
 
+                        const coreCode =
+                            lastCoreResult?.code ||
+                            lastCoreResult?.result?.code ||
+                            lastCoreResult?.missionResult?.code ||
+                            lastCoreResult?.result?.missionResult?.code ||
+                            "";
+
                         const coreReason =
                             lastCoreResult?.reason ||
                             lastCoreResult?.result?.reason ||
                             lastCoreResult?.missionResult?.reason ||
                             lastCoreResult?.result?.missionResult?.reason ||
+                            lastCoreResult?.msg ||
+                            lastCoreResult?.result?.msg ||
+                            lastCoreResult?.missionResult?.msg ||
+                            lastCoreResult?.result?.missionResult?.msg ||
                             lastCoreResult?.error ||
                             lastCoreResult?.result?.error ||
                             "El núcleo no produjo texto final verificable.";
@@ -5210,6 +5221,7 @@ const summary =
                             [
                                 "GestiaCore terminó sin una respuesta final verificable.",
                                 `Estado: ${coreStatus}`,
+                                coreCode ? `Código: ${coreCode}` : "",
                                 `Razón: ${String(coreReason).slice(0, 1200)}`,
                                 envelopeKeys ? `Envoltura recibida: ${envelopeKeys}` : "",
                                 "No se reporta la misión como completada."
@@ -5228,7 +5240,7 @@ const summary =
                             fixRule: "Return a finalResponse with non-empty text from every completed mission envelope.",
                             sourceTraceId: currentTraceId,
                             confidence: 1,
-                            context: { coreStatus, envelopeKeys }
+                            context: { coreStatus, coreCode, envelopeKeys }
                         });
 
                         handled = true;

@@ -5236,6 +5236,22 @@ test("GestiaCore always builds an honest mission final response when the mission
     assert.match(coreSource, /const missionFinalResponse =[\s\S]{0,700}?missionResult\.executedTools\.length > 0[\s\S]{0,300}?missionResult\.blockedTasks\.length > 0[\s\S]{0,300}?missionResult\.pendingTasks\.length > 0[\s\S]{0,300}?Boolean\(missionResult\.reason\)/);
 });
 
+test("GestiaCore waits for Firebase auth restoration before aborting a mobile mission", () => {
+    const coreSource = fs.readFileSync(path.resolve("gestia-core/gestia-core.js"), "utf8");
+    const terminalSource = fs.readFileSync(path.resolve("gestia-terminal.html"), "utf8");
+
+    assert.match(coreSource, /import\s*\{[^}]*onAuthStateChanged[^}]*\}\s*from\s*["']\/firebase\.js["']/);
+    assert.match(coreSource, /AUTH_RESTORE_TIMEOUT_MS\s*=\s*\n?\s*2500/);
+    assert.match(coreSource, /async function waitForAuthenticatedUser[\s\S]{0,1800}?onAuthStateChanged\([\s\S]{0,900}?finish\(user \|\| null\)/);
+    assert.match(coreSource, /const userBeforeAuthRestore\s*=\s*[\s\S]{0,80}?auth\.currentUser;[\s\S]{0,220}?await waitForAuthenticatedUser\(\)/);
+    assert.doesNotMatch(coreSource, /const user = auth\.currentUser;\s*if \(!user\) return this\.abortar/);
+    assert.match(coreSource, /GESTIA_AUTH_RESTORED_BEFORE_MISSION/);
+
+    assert.match(terminalSource, /const coreCode =[\s\S]{0,500}?lastCoreResult\?\.code/);
+    assert.match(terminalSource, /lastCoreResult\?\.msg/);
+    assert.match(terminalSource, /Código: \$\{coreCode\}/);
+});
+
 test("terminal core-first has no orphan brain route and semantic latency is bounded", () => {
     const terminalSource = fs.readFileSync(path.resolve("gestia-terminal.html"), "utf8");
     const plannerSource = fs.readFileSync(path.resolve("gestia-core/jarvis/jarvis.multifunction.planner.js"), "utf8");
