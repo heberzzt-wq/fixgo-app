@@ -1,0 +1,236 @@
+name: v139 hosting recovery
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - v94-media-v4n-negative-claims
+    paths:
+      - '.github/workflows/v139-hosting-recovery.yml'
+
+permissions:
+  contents: read
+
+env:
+  CERTIFIED_SHA: c9ab09c064ce7db3337592fdca2d92607203c9fd
+  CERTIFIED_TREE: 40835625ed507a2f576ff4999cf3a79c4a6d066c
+  FIREBASE_PROJECT_ID: fixgo-44e4d
+  FIREBASE_SITE_ID: fixgo-44e4d
+
+jobs:
+  certify-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - name: Checkout exact corrected SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CERTIFIED_SHA }}
+          fetch-depth: 0
+
+      - name: Guard exact tree and protected surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
+          test "$(git rev-parse HEAD)" = "$CERTIFIED_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$CERTIFIED_TREE"
+          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817.."$CERTIFIED_SHA" | grep -E '^functions/'
+          ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52.."$CERTIFIED_SHA" | grep -E '^multiservicios-web/'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Core-first regression and semantic contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test --test-concurrency=1 \
+            tests/jarvis-multifunction-tools.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs \
+            tests/jarvis-semantic-planner.test.cjs \
+            tests/single-semantic-authority.test.mjs \
+            tests/jarvis-source-grounded-research-v124.test.mjs
+
+      - name: Business delivery contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test --test-concurrency=1 \
+            tests/jarvis-marketing-real-delivery.test.mjs \
+            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs \
+            tests/jarvis-page-artifact.test.mjs \
+            tests/jarvis-docx-artifact.test.mjs
+
+      - name: Full CI
+        run: npm run ci:test
+
+      - name: Reject whitespace errors
+        run: git diff --check
+
+      - name: Linux certification marker
+        run: |
+          echo 'V139_RECOVERY_LINUX_GREEN=true'
+          echo 'V139_FUNCTIONS_UNCHANGED=true'
+          echo 'V139_MULTISERVICIOS_UNCHANGED=true'
+
+  certify-windows:
+    runs-on: windows-latest
+    timeout-minutes: 22
+    steps:
+      - name: Checkout exact corrected SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CERTIFIED_SHA }}
+          fetch-depth: 0
+
+      - name: Guard exact tree and protected surfaces
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_NAME -ne 'v94-media-v4n-negative-claims') { throw 'WRONG_BRANCH' }
+          if ((git rev-parse HEAD).Trim() -ne $env:CERTIFIED_SHA) { throw 'WRONG_CERTIFIED_SHA' }
+          if ((git rev-parse 'HEAD^{tree}').Trim() -ne $env:CERTIFIED_TREE) { throw 'WRONG_CERTIFIED_TREE' }
+          $functionsChanged = git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..$env:CERTIFIED_SHA
+          if ($functionsChanged -match '^functions/') { throw 'FUNCTIONS_CHANGED' }
+          $multiserviciosChanged = git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..$env:CERTIFIED_SHA
+          if ($multiserviciosChanged -match '^multiservicios-web/') { throw 'MULTISERVICIOS_CHANGED' }
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Canonical real-reel with bounded transient retry
+        shell: pwsh
+        run: |
+          $stdout = Join-Path $env:RUNNER_TEMP 'v139-recovery-bridge.stdout.log'
+          $stderr = Join-Path $env:RUNNER_TEMP 'v139-recovery-bridge.stderr.log'
+          $process = Start-Process -FilePath node -ArgumentList 'jarvis-fs-bridge.js' -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          try {
+            $ready = $false
+            for ($i = 0; $i -lt 40; $i++) {
+              Start-Sleep -Milliseconds 250
+              $probe = Test-NetConnection -ComputerName 127.0.0.1 -Port 3344 -WarningAction SilentlyContinue
+              if ($probe.TcpTestSucceeded) { $ready = $true; break }
+              if ($process.HasExited) { break }
+            }
+            if (-not $ready) { throw 'V139_RECOVERY_BRIDGE_NOT_READY' }
+
+            $passed = $false
+            for ($attempt = 1; $attempt -le 3; $attempt++) {
+              Write-Host "V139_CANONICAL_ATTEMPT=$attempt"
+              & node '.github/scripts/v139-canonical-real-reel.mjs'
+              if ($LASTEXITCODE -eq 0) { $passed = $true; break }
+              Start-Sleep -Seconds 5
+            }
+            if (-not $passed) { throw 'V139_CANONICAL_MISSION_FAILED_AFTER_RETRIES' }
+          }
+          finally {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue | Select-Object -Last 160
+            Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue | Select-Object -Last 160
+          }
+
+      - name: Windows certification marker
+        run: echo V139_RECOVERY_WINDOWS_GREEN=true
+
+  deploy-hosting-only:
+    needs:
+      - certify-linux
+      - certify-windows
+    if: ${{ success() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact certified SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CERTIFIED_SHA }}
+          fetch-depth: 0
+
+      - name: Guard exact tree and protected surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
+          test "$(git rev-parse HEAD)" = "$CERTIFIED_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$CERTIFIED_TREE"
+          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817.."$CERTIFIED_SHA" | grep -E '^functions/'
+          ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52.."$CERTIFIED_SHA" | grep -E '^multiservicios-web/'
+
+      - name: Build isolated single-site Hosting config
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const source = JSON.parse(fs.readFileSync('firebase.json', 'utf8'));
+          const hosting = Array.isArray(source.hosting) ? source.hosting : [source.hosting].filter(Boolean);
+          const selected = hosting.filter(item => item && item.site === process.env.FIREBASE_SITE_ID);
+          if (selected.length !== 1) throw new Error(`V139_HOSTING_SITE_SELECTION_INVALID:${selected.length}`);
+          if (selected[0].target) throw new Error('V139_HOSTING_TARGET_FORBIDDEN');
+          fs.writeFileSync('.firebase-v139-recovery.json', JSON.stringify({ hosting: selected[0] }, null, 2));
+          NODE
+          node -e "const c=require('./.firebase-v139-recovery.json'); if(c.functions||Array.isArray(c.hosting)||c.hosting.site!==process.env.FIREBASE_SITE_ID||c.hosting.target) process.exit(1)"
+          echo 'V139_RECOVERY_HOSTING_CONFIG_ISOLATED=true'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy certified ADJUNTO Hosting only
+        shell: bash
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy \
+            --config .firebase-v139-recovery.json \
+            --only hosting \
+            --project "$FIREBASE_PROJECT_ID" \
+            --token "$FIREBASE_TOKEN" \
+            --non-interactive
+          echo 'V139_RECOVERY_HOSTING_ONLY_DEPLOYED=true'
+
+      - name: Verify corrected bytes on official Firebase
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://${FIREBASE_SITE_ID}.web.app"
+          ok=false
+          for attempt in $(seq 1 30); do
+            stamp="${CERTIFIED_SHA}-${attempt}-$(date +%s)"
+            if curl --fail --silent --show-error --location "$base/gestia-terminal.html?v139_recovery=$stamp" -o /tmp/terminal.html \
+              && curl --fail --silent --show-error --location "$base/gestia-core/jarvis/jarvis.multifunction.planner.js?v139_recovery=$stamp" -o /tmp/planner.js \
+              && curl --fail --silent --show-error --location "$base/gestia-core/jarvis/jarvis.multitool.pack.js?v139_recovery=$stamp" -o /tmp/multitool.js \
+              && curl --fail --silent --show-error --location "$base/modules/terminal/jarvis-attachments.js?v139_recovery=$stamp" -o /tmp/attachments.js \
+              && ! grep -Fq 'terminalBrainRoute' /tmp/terminal.html \
+              && ! grep -Fq 'routeTerminalNaturalIntent' /tmp/terminal.html \
+              && grep -Fq 'await window.GestiaCore.procesarIntencion' /tmp/terminal.html \
+              && grep -Fq 'const shouldBuildProposalAdjustmentInput =' /tmp/terminal.html \
+              && grep -Fq 'CLOUD_MISSION_CONTRACT_TIMEOUT_MS = 12000' /tmp/planner.js \
+              && grep -Fq '? 30000' /tmp/multitool.js \
+              && grep -Fq ': 18000;' /tmp/multitool.js \
+              && grep -Fq '/artifact/read' /tmp/attachments.js \
+              && grep -Fq 'jarvis-artifact-download' /tmp/attachments.js; then
+              ok=true
+              break
+            fi
+            sleep 4
+          done
+          test "$ok" = true
+          echo 'V139_RECOVERY_FIREBASE_VERIFIED=true'
+          echo 'V139_TERMINAL_ORPHAN_ROUTE_ABSENT_SERVED=true'
+          echo 'V139_BOUNDED_LATENCY_SERVED=true'
+          echo 'V139_DOWNLOADABLE_DELIVERY_SERVED=true'
+          echo "V139_WEB_URL=$base/gestia-terminal.html"
