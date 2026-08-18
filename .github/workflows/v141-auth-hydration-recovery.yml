@@ -19,7 +19,7 @@ env:
 jobs:
   patch-and-focal:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     outputs:
       product_sha: ${{ steps.commit.outputs.product_sha }}
       product_tree: ${{ steps.commit.outputs.product_tree }}
@@ -31,7 +31,7 @@ jobs:
         run: |
           set -euo pipefail
           target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          payload=$(jq -n --arg state pending --arg context 'v141-auth-hydration' --arg description "run=${GITHUB_RUN_ID} started" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          payload=$(jq -n --arg state pending --arg context 'v141-auth-hydration' --arg description "run=${GITHUB_RUN_ID} aligning existing semantic flow" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
           curl --fail-with-body --silent --show-error --location -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" -d "$payload" >/dev/null
 
       - name: Checkout working branch
@@ -40,7 +40,7 @@ jobs:
           ref: ${{ env.TARGET_BRANCH }}
           fetch-depth: 0
 
-      - name: Apply bounded Firebase auth hydration recovery
+      - name: Align GestiaCore to existing semantic planner
         shell: bash
         run: |
           set -euo pipefail
@@ -48,84 +48,83 @@ jobs:
           from pathlib import Path
 
           core_path = Path('gestia-core/gestia-core.js')
-          terminal_path = Path('gestia-terminal.html')
           test_path = Path('tests/jarvis-multifunction-tools.test.mjs')
 
           core = core_path.read_text(encoding='utf-8')
-          terminal = terminal_path.read_text(encoding='utf-8')
           tests = test_path.read_text(encoding='utf-8')
 
-          old_import = "import { auth, db } from '/firebase.js';"
-          new_import = "import { auth, db, onAuthStateChanged } from '/firebase.js';"
-          if core.count(old_import) != 1:
-              raise SystemExit('V141_CORE_IMPORT_ANCHOR_INVALID')
-          core = core.replace(old_import, new_import, 1)
+          old_seed = '''        let terminalPlannerSeed =
+            Array.isArray(
+                context?.terminalBrainRoute?.toolCalls
+            )
+                ? context.terminalBrainRoute.toolCalls.filter(call =>
+                    call &&
+                    typeof call.name === "string" &&
+                    call.name.trim()
+                )
+                : [];
+'''
+          new_seed = '''        const terminalSemanticPlan =
+            await this.analizarIntencionLigera(
+                inputRaw,
+                {
+                    ...context,
+                    tenantId
+                }
+            );
 
-          helper_anchor = 'const MISSION_EVIDENCE_CONTRACT_VERSION =\n'
-          helper = '''const AUTH_RESTORE_TIMEOUT_MS =\n    2500;\n\nasync function waitForAuthenticatedUser(\n    timeoutMs = AUTH_RESTORE_TIMEOUT_MS\n) {\n    if (auth.currentUser) {\n        return auth.currentUser;\n    }\n\n    return await new Promise(resolve => {\n        let settled = false;\n        let unsubscribe = () => {};\n        let timer = null;\n\n        const finish = user => {\n            if (settled) return;\n            settled = true;\n            if (timer) {\n                clearTimeout(timer);\n            }\n            try {\n                unsubscribe();\n            }\n            catch {}\n            resolve(user || auth.currentUser || null);\n        };\n\n        timer = setTimeout(\n            () => finish(auth.currentUser || null),\n            Math.max(\n                0,\n                Number(timeoutMs) || AUTH_RESTORE_TIMEOUT_MS\n            )\n        );\n\n        try {\n            unsubscribe = onAuthStateChanged(\n                auth,\n                user => finish(user || null),\n                () => finish(auth.currentUser || null)\n            );\n        }\n        catch {\n            finish(auth.currentUser || null);\n        }\n    });\n}\n\n'''
-          if 'AUTH_RESTORE_TIMEOUT_MS' in core:
-              raise SystemExit('V141_AUTH_HELPER_ALREADY_PRESENT')
-          if core.count(helper_anchor) != 1:
-              raise SystemExit('V141_HELPER_ANCHOR_INVALID')
-          core = core.replace(helper_anchor, helper + helper_anchor, 1)
+        let terminalPlannerSeed =
+            Array.isArray(
+                terminalSemanticPlan?.toolCalls
+            )
+                ? terminalSemanticPlan.toolCalls.filter(call =>
+                    call &&
+                    typeof call.name === "string" &&
+                    call.name.trim()
+                )
+                : [];
+'''
+          if core.count(old_seed) != 1:
+              raise SystemExit('SEMANTIC_SEED_ALIGNMENT_ANCHOR_INVALID')
+          core = core.replace(old_seed, new_seed, 1)
 
-          old_auth = '''        const user = auth.currentUser;\n        if (!user) return this.abortar("AUTH_FAILED", "Acceso denegado: Sesión no válida.");\n'''
-          new_auth = '''        const userBeforeAuthRestore =\n            auth.currentUser;\n        const user =\n            userBeforeAuthRestore ||\n            await waitForAuthenticatedUser();\n\n        if (!user) {\n            return this.abortar(\n                "AUTH_FAILED",\n                "Acceso denegado: Firebase no restauró una sesión válida."\n            );\n        }\n\n        if (!userBeforeAuthRestore) {\n            console.info(\n                "[GESTIA_AUTH_RESTORED_BEFORE_MISSION]",\n                { uid: user.uid || null }\n            );\n        }\n'''
-          if core.count(old_auth) != 1:
-              raise SystemExit('V141_AUTH_GATE_ANCHOR_INVALID')
-          core = core.replace(old_auth, new_auth, 1)
-
-          old_reason = '''                        const coreReason =\n                            lastCoreResult?.reason ||\n                            lastCoreResult?.result?.reason ||\n                            lastCoreResult?.missionResult?.reason ||\n                            lastCoreResult?.result?.missionResult?.reason ||\n                            lastCoreResult?.error ||\n                            lastCoreResult?.result?.error ||\n                            "El núcleo no produjo texto final verificable.";\n'''
-          new_reason = '''                        const coreCode =\n                            lastCoreResult?.code ||\n                            lastCoreResult?.result?.code ||\n                            lastCoreResult?.missionResult?.code ||\n                            lastCoreResult?.result?.missionResult?.code ||\n                            "";\n\n                        const coreReason =\n                            lastCoreResult?.reason ||\n                            lastCoreResult?.result?.reason ||\n                            lastCoreResult?.missionResult?.reason ||\n                            lastCoreResult?.result?.missionResult?.reason ||\n                            lastCoreResult?.msg ||\n                            lastCoreResult?.result?.msg ||\n                            lastCoreResult?.missionResult?.msg ||\n                            lastCoreResult?.result?.missionResult?.msg ||\n                            lastCoreResult?.error ||\n                            lastCoreResult?.result?.error ||\n                            "El núcleo no produjo texto final verificable.";\n'''
-          if terminal.count(old_reason) != 1:
-              raise SystemExit('V141_TERMINAL_REASON_ANCHOR_INVALID')
-          terminal = terminal.replace(old_reason, new_reason, 1)
-
-          old_render = '''                                `Estado: ${coreStatus}`,\n                                `Razón: ${String(coreReason).slice(0, 1200)}`,\n                                envelopeKeys ? `Envoltura recibida: ${envelopeKeys}` : "",\n'''
-          new_render = '''                                `Estado: ${coreStatus}`,\n                                coreCode ? `Código: ${coreCode}` : "",\n                                `Razón: ${String(coreReason).slice(0, 1200)}`,\n                                envelopeKeys ? `Envoltura recibida: ${envelopeKeys}` : "",\n'''
-          if terminal.count(old_render) != 1:
-              raise SystemExit('V141_TERMINAL_RENDER_ANCHOR_INVALID')
-          terminal = terminal.replace(old_render, new_render, 1)
-
-          old_context = '                            context: { coreStatus, envelopeKeys }\n'
-          new_context = '                            context: { coreStatus, coreCode, envelopeKeys }\n'
-          if terminal.count(old_context) != 1:
-              raise SystemExit('V141_TERMINAL_CONTEXT_ANCHOR_INVALID')
-          terminal = terminal.replace(old_context, new_context, 1)
-
-          test_anchor = '''test("terminal core-first has no orphan brain route and semantic latency is bounded", () => {\n'''
-          regression = '''test("GestiaCore waits for Firebase auth restoration before aborting a mobile mission", () => {\n    const coreSource = fs.readFileSync(path.resolve("gestia-core/gestia-core.js"), "utf8");\n    const terminalSource = fs.readFileSync(path.resolve("gestia-terminal.html"), "utf8");\n\n    assert.match(coreSource, /import\\s*\\{[^}]*onAuthStateChanged[^}]*\\}\\s*from\\s*[\"']\\/firebase\\.js[\"']/);\n    assert.match(coreSource, /AUTH_RESTORE_TIMEOUT_MS\\s*=\\s*\\n?\\s*2500/);\n    assert.match(coreSource, /async function waitForAuthenticatedUser[\\s\\S]{0,1800}?onAuthStateChanged\\([\\s\\S]{0,900}?finish\\(user \\|\\| null\\)/);\n    assert.match(coreSource, /const userBeforeAuthRestore\\s*=\\s*[\\s\\S]{0,80}?auth\\.currentUser;[\\s\\S]{0,220}?await waitForAuthenticatedUser\\(\\)/);\n    assert.doesNotMatch(coreSource, /const user = auth\\.currentUser;\\s*if \\(!user\\) return this\\.abortar/);\n    assert.match(coreSource, /GESTIA_AUTH_RESTORED_BEFORE_MISSION/);\n\n    assert.match(terminalSource, /const coreCode =[\\s\\S]{0,500}?lastCoreResult\\?\\.code/);\n    assert.match(terminalSource, /lastCoreResult\\?\\.msg/);\n    assert.match(terminalSource, /Código: \\$\\{coreCode\\}/);\n});\n\n'''
-          if regression.strip() in tests:
-              raise SystemExit('V141_REGRESSION_ALREADY_PRESENT')
-          if tests.count(test_anchor) != 1:
-              raise SystemExit('V141_TEST_ANCHOR_INVALID')
-          tests = tests.replace(test_anchor, regression + test_anchor, 1)
+          old_assert = '''    assert.doesNotMatch(terminalSource, /terminalBrainRoute/);
+    assert.doesNotMatch(terminalSource, /routeTerminalNaturalIntent/);
+    assert.match(terminalSource, /await window\\.GestiaCore\\.procesarIntencion/);
+'''
+          new_assert = '''    assert.doesNotMatch(terminalSource, /terminalBrainRoute/);
+    assert.doesNotMatch(terminalSource, /routeTerminalNaturalIntent/);
+    assert.doesNotMatch(coreSource, /terminalBrainRoute/);
+    assert.match(coreSource, /await this\\.analizarIntencionLigera\\(/);
+    assert.match(coreSource, /terminalSemanticPlan\\?\\.toolCalls/);
+    assert.match(terminalSource, /await window\\.GestiaCore\\.procesarIntencion/);
+'''
+          if tests.count(old_assert) != 1:
+              raise SystemExit('EXISTING_CORE_FIRST_TEST_ANCHOR_INVALID')
+          tests = tests.replace(old_assert, new_assert, 1)
 
           core_path.write_text(core, encoding='utf-8')
-          terminal_path.write_text(terminal, encoding='utf-8')
           test_path.write_text(tests, encoding='utf-8')
           PY
 
-      - name: Guard exact patch scope and contracts
+      - name: Guard exact alignment scope
         shell: bash
         run: |
           set -euo pipefail
           changed="$(git diff --name-only)"
-          echo "$changed"
-          test "$(echo "$changed" | grep -c '^gestia-core/gestia-core.js$')" -eq 1
-          test "$(echo "$changed" | grep -c '^gestia-terminal.html$')" -eq 1
-          test "$(echo "$changed" | grep -c '^tests/jarvis-multifunction-tools.test.mjs$')" -eq 1
-          test "$(echo "$changed" | wc -l)" -eq 3
-          ! echo "$changed" | grep -E '^functions/'
-          ! echo "$changed" | grep -E '^multiservicios-web/'
-          grep -Fq 'AUTH_RESTORE_TIMEOUT_MS' gestia-core/gestia-core.js
-          grep -Fq 'waitForAuthenticatedUser' gestia-core/gestia-core.js
-          grep -Fq 'onAuthStateChanged' gestia-core/gestia-core.js
-          grep -Fq 'GESTIA_AUTH_RESTORED_BEFORE_MISSION' gestia-core/gestia-core.js
-          grep -Fq 'Código: ${coreCode}' gestia-terminal.html
-          grep -Fq 'lastCoreResult?.msg' gestia-terminal.html
-          ! grep -Fq 'TERMINAL_CORE_RESPONSE_NOT_PRESENTED' gestia-terminal.html
+          printf '%s\n' "$changed"
+          test "$(printf '%s\n' "$changed" | grep -c '^gestia-core/gestia-core.js$')" -eq 1
+          test "$(printf '%s\n' "$changed" | grep -c '^tests/jarvis-multifunction-tools.test.mjs$')" -eq 1
+          test "$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l)" -eq 2
+          ! printf '%s\n' "$changed" | grep -E '^functions/'
+          ! printf '%s\n' "$changed" | grep -E '^multiservicios-web/'
+          ! grep -Fq 'terminalBrainRoute' gestia-core/gestia-core.js
           ! grep -Fq 'terminalBrainRoute' gestia-terminal.html
+          grep -Fq 'await this.analizarIntencionLigera(' gestia-core/gestia-core.js
+          grep -Fq 'terminalSemanticPlan?.toolCalls' gestia-core/gestia-core.js
+          grep -Fq 'buildJarvisMultifunctionToolCalls(' gestia-core/gestia-core.js
+          grep -Fq 'AUTH_RESTORE_TIMEOUT_MS' gestia-core/gestia-core.js
+          grep -Fq 'TERMINAL_CORE_RESULT_WITHOUT_FINAL_RESPONSE' gestia-terminal.html
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -133,32 +132,37 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - name: Focal regression
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Existing semantic-flow focal regression
         shell: bash
         run: |
           set -euo pipefail
-          npm ci
           node --test --test-concurrency=1 \
             tests/jarvis-multifunction-tools.test.mjs \
+            tests/jarvis-semantic-planner.test.cjs \
+            tests/single-semantic-authority.test.mjs \
+            tests/jarvis-source-grounded-research-v124.test.mjs \
             tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
           git diff --check
 
-      - name: Commit auth hydration recovery
+      - name: Commit aligned existing flow
         id: commit
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add gestia-core/gestia-core.js gestia-terminal.html tests/jarvis-multifunction-tools.test.mjs
-          git commit -m 'fix(jarvis): wait for Firebase auth hydration before missions'
+          git add gestia-core/gestia-core.js tests/jarvis-multifunction-tools.test.mjs
+          git commit -m 'fix(jarvis): align core with existing semantic planner'
           product_sha="$(git rev-parse HEAD)"
           product_tree="$(git rev-parse HEAD^{tree})"
           echo "product_sha=$product_sha" >> "$GITHUB_OUTPUT"
           echo "product_tree=$product_tree" >> "$GITHUB_OUTPUT"
           git push origin HEAD:"$TARGET_BRANCH"
-          echo "V141_PRODUCT_SHA=$product_sha"
-          echo "V141_PRODUCT_TREE=$product_tree"
+          echo "V141_ALIGNED_PRODUCT_SHA=$product_sha"
+          echo "V141_ALIGNED_PRODUCT_TREE=$product_tree"
 
   certify-linux:
     needs: patch-and-focal
@@ -182,14 +186,12 @@ jobs:
           test "$(git rev-parse HEAD^{tree})" = "$PRODUCT_TREE"
           ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817.."$PRODUCT_SHA" | grep -E '^functions/'
           ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52.."$PRODUCT_SHA" | grep -E '^multiservicios-web/'
-          grep -Fq 'AUTH_RESTORE_TIMEOUT_MS' gestia-core/gestia-core.js
-          grep -Fq 'waitForAuthenticatedUser' gestia-core/gestia-core.js
-          grep -Fq 'onAuthStateChanged' gestia-core/gestia-core.js
-          grep -Fq 'GESTIA_AUTH_RESTORED_BEFORE_MISSION' gestia-core/gestia-core.js
-          grep -Fq 'Código: ${coreCode}' gestia-terminal.html
-          grep -Fq 'lastCoreResult?.msg' gestia-terminal.html
-          ! grep -Fq 'TERMINAL_CORE_RESPONSE_NOT_PRESENTED' gestia-terminal.html
+          ! grep -Fq 'terminalBrainRoute' gestia-core/gestia-core.js
           ! grep -Fq 'terminalBrainRoute' gestia-terminal.html
+          grep -Fq 'await this.analizarIntencionLigera(' gestia-core/gestia-core.js
+          grep -Fq 'terminalSemanticPlan?.toolCalls' gestia-core/gestia-core.js
+          grep -Fq 'AUTH_RESTORE_TIMEOUT_MS' gestia-core/gestia-core.js
+          grep -Fq 'Código: ${coreCode}' gestia-terminal.html
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -200,7 +202,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Auth and presentation focal contracts
+      - name: Existing semantic-flow focal contracts
         shell: bash
         run: |
           set -euo pipefail
@@ -212,7 +214,7 @@ jobs:
             tests/single-semantic-authority.test.mjs \
             tests/jarvis-source-grounded-research-v124.test.mjs
 
-      - name: Business delivery contracts
+      - name: Existing business delivery contracts
         shell: bash
         run: |
           set -euo pipefail
@@ -226,13 +228,6 @@ jobs:
 
       - name: Reject whitespace errors
         run: git diff --check
-
-      - name: Linux marker
-        run: |
-          echo 'V141_LINUX_GREEN=true'
-          echo 'V141_AUTH_HYDRATION_GUARD_GREEN=true'
-          echo 'V141_FUNCTIONS_UNCHANGED=true'
-          echo 'V141_MULTISERVICIOS_UNCHANGED=true'
 
   certify-windows:
     needs: patch-and-focal
@@ -257,6 +252,7 @@ jobs:
           if ($functionsChanged -match '^functions/') { throw 'FUNCTIONS_CHANGED' }
           $multiserviciosChanged = git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..$env:PRODUCT_SHA
           if ($multiserviciosChanged -match '^multiservicios-web/') { throw 'MULTISERVICIOS_CHANGED' }
+          if (Select-String -LiteralPath 'gestia-core/gestia-core.js' -SimpleMatch 'terminalBrainRoute' -Quiet) { throw 'ORPHAN_CORE_ROUTE_PRESENT' }
 
       - name: Attach exact product to expected branch identity
         shell: pwsh
@@ -277,8 +273,8 @@ jobs:
       - name: Canonical real-reel mission with bounded retry
         shell: pwsh
         run: |
-          $stdout = Join-Path $env:RUNNER_TEMP 'v141-bridge.stdout.log'
-          $stderr = Join-Path $env:RUNNER_TEMP 'v141-bridge.stderr.log'
+          $stdout = Join-Path $env:RUNNER_TEMP 'v141-aligned-bridge.stdout.log'
+          $stderr = Join-Path $env:RUNNER_TEMP 'v141-aligned-bridge.stderr.log'
           $process = Start-Process -FilePath node -ArgumentList 'jarvis-fs-bridge.js' -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
           try {
             $ready = $false
@@ -291,25 +287,22 @@ jobs:
             if (-not $ready) {
               Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue
               Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue
-              throw 'V141_BRIDGE_NOT_READY'
+              throw 'BRIDGE_NOT_READY'
             }
             $passed = $false
             for ($attempt = 1; $attempt -le 3; $attempt++) {
-              Write-Host "V141_CANONICAL_ATTEMPT=$attempt"
+              Write-Host "CANONICAL_ATTEMPT=$attempt"
               & node '.github/scripts/v139-canonical-real-reel.mjs'
               if ($LASTEXITCODE -eq 0) { $passed = $true; break }
               Start-Sleep -Seconds 5
             }
-            if (-not $passed) { throw 'V141_CANONICAL_FAILED_AFTER_RETRIES' }
+            if (-not $passed) { throw 'CANONICAL_FAILED_AFTER_RETRIES' }
           }
           finally {
             Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
             Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue | Select-Object -Last 160
             Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue | Select-Object -Last 160
           }
-
-      - name: Windows marker
-        run: echo V141_WINDOWS_CANONICAL_GREEN=true
 
   deploy-hosting-only:
     needs:
@@ -347,12 +340,11 @@ jobs:
           const source = JSON.parse(fs.readFileSync('firebase.json', 'utf8'));
           const hosting = Array.isArray(source.hosting) ? source.hosting : [source.hosting].filter(Boolean);
           const selected = hosting.filter(item => item && item.site === process.env.FIREBASE_SITE_ID);
-          if (selected.length !== 1) throw new Error(`V141_HOSTING_SITE_SELECTION_INVALID:${selected.length}`);
-          if (selected[0].target) throw new Error('V141_HOSTING_TARGET_FORBIDDEN');
+          if (selected.length !== 1) throw new Error(`HOSTING_SITE_SELECTION_INVALID:${selected.length}`);
+          if (selected[0].target) throw new Error('HOSTING_TARGET_FORBIDDEN');
           fs.writeFileSync('.firebase-v141-auth.json', JSON.stringify({ hosting: selected[0] }, null, 2));
           NODE
           node -e "const c=require('./.firebase-v141-auth.json'); if(c.functions||Array.isArray(c.hosting)||c.hosting.site!==process.env.FIREBASE_SITE_ID||c.hosting.target) process.exit(1)"
-          echo 'V141_HOSTING_CONFIG_ISOLATED=true'
 
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
@@ -365,10 +357,9 @@ jobs:
           set -euo pipefail
           test -n "$FIREBASE_TOKEN"
           firebase deploy --config .firebase-v141-auth.json --only hosting --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
-          echo 'V141_HOSTING_ONLY_DEPLOYED=true'
-          echo "V141_DEPLOYED_PRODUCT_SHA=$PRODUCT_SHA"
+          echo "DEPLOYED_PRODUCT_SHA=$PRODUCT_SHA"
 
-      - name: Verify official Firebase auth recovery bytes
+      - name: Verify official Firebase aligned existing flow
         shell: bash
         run: |
           set -euo pipefail
@@ -376,20 +367,18 @@ jobs:
           ok=false
           for attempt in $(seq 1 30); do
             stamp="${PRODUCT_SHA}-${attempt}-$(date +%s)"
-            if curl --fail --silent --show-error --location "$base/gestia-core/gestia-core.js?v141=$stamp" -o /tmp/core.js \
-              && curl --fail --silent --show-error --location "$base/gestia-terminal.html?v141=$stamp" -o /tmp/terminal.html \
-              && curl --fail --silent --show-error --location "$base/gestia-core/jarvis/jarvis.multifunction.planner.js?v141=$stamp" -o /tmp/planner.js \
-              && curl --fail --silent --show-error --location "$base/modules/terminal/jarvis-attachments.js?v141=$stamp" -o /tmp/attachments.js \
-              && grep -Fq 'AUTH_RESTORE_TIMEOUT_MS' /tmp/core.js \
-              && grep -Fq '2500;' /tmp/core.js \
-              && grep -Fq 'waitForAuthenticatedUser' /tmp/core.js \
-              && grep -Fq 'onAuthStateChanged' /tmp/core.js \
-              && grep -Fq 'GESTIA_AUTH_RESTORED_BEFORE_MISSION' /tmp/core.js \
-              && grep -Fq 'Firebase no restauró una sesión válida' /tmp/core.js \
-              && grep -Fq 'Código: ${coreCode}' /tmp/terminal.html \
-              && grep -Fq 'lastCoreResult?.msg' /tmp/terminal.html \
-              && ! grep -Fq 'TERMINAL_CORE_RESPONSE_NOT_PRESENTED' /tmp/terminal.html \
+            if curl --fail --silent --show-error --location "$base/gestia-core/gestia-core.js?aligned=$stamp" -o /tmp/core.js \
+              && curl --fail --silent --show-error --location "$base/gestia-terminal.html?aligned=$stamp" -o /tmp/terminal.html \
+              && curl --fail --silent --show-error --location "$base/gestia-core/jarvis/jarvis.multifunction.planner.js?aligned=$stamp" -o /tmp/planner.js \
+              && curl --fail --silent --show-error --location "$base/modules/terminal/jarvis-attachments.js?aligned=$stamp" -o /tmp/attachments.js \
+              && ! grep -Fq 'terminalBrainRoute' /tmp/core.js \
               && ! grep -Fq 'terminalBrainRoute' /tmp/terminal.html \
+              && grep -Fq 'await this.analizarIntencionLigera(' /tmp/core.js \
+              && grep -Fq 'terminalSemanticPlan?.toolCalls' /tmp/core.js \
+              && grep -Fq 'buildJarvisMultifunctionToolCalls(' /tmp/core.js \
+              && grep -Fq 'AUTH_RESTORE_TIMEOUT_MS' /tmp/core.js \
+              && grep -Fq 'Código: ${coreCode}' /tmp/terminal.html \
+              && ! grep -Fq 'TERMINAL_CORE_RESPONSE_NOT_PRESENTED' /tmp/terminal.html \
               && grep -Fq 'CLOUD_MISSION_CONTRACT_TIMEOUT_MS =' /tmp/planner.js \
               && grep -Fq '    12000;' /tmp/planner.js \
               && grep -Fq '    6000;' /tmp/planner.js \
@@ -402,12 +391,8 @@ jobs:
             sleep 4
           done
           test "$ok" = true
-          echo 'V141_FIREBASE_AUTH_HYDRATION_VERIFIED=true'
-          echo 'V141_ABORT_CODE_PRESENTATION_VERIFIED=true'
-          echo 'V141_ORPHAN_ROUTE_ABSENT=true'
-          echo 'V141_BOUNDED_LATENCY_PRESENT=true'
-          echo 'V141_DOWNLOADABLE_DELIVERY_PRESENT=true'
-          echo "V141_WEB_URL=$base/gestia-terminal.html"
+          echo 'FIREBASE_ALIGNED_EXISTING_SEMANTIC_FLOW_VERIFIED=true'
+          echo "WEB_URL=$base/gestia-terminal.html"
 
   publish-result:
     needs:
