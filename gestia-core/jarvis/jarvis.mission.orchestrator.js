@@ -1,5 +1,5 @@
 const VERSION =
-    "1.15.0-reel-speech-dependency-v137";
+    "1.16.0-marketing-artifact-identity-v12";
 const REEL_MEDIA_RECOVERY_MAX_ATTEMPTS = 3;
 const STORAGE_KEY = "jarvis.missions.v1";
 const SINGLETON_MISSION_TOOLS = new Set(["marketing.plan", "reel.plan"]);
@@ -122,13 +122,28 @@ function marketingArtifactOutput(task = {}) {
     );
 }
 
-function taskMatchesMarketingRequirement(task = {}, requirement = {}) {
+function taskMatchesMarketingRequirement(task = {}, requirement = {}, requirements = []) {
     const toolName = text(requirement?.toolName, 120);
     if (!toolName || text(task?.name, 120) !== toolName) return false;
     const requiredFormat = text(requirement?.format, 40).toLowerCase();
     if (toolName === "document.create" && requiredFormat) {
-        return text(task?.args?.format, 40).toLowerCase() === requiredFormat;
+        if (text(task?.args?.format, 40).toLowerCase() !== requiredFormat) return false;
+        if (["md", "pdf", "xlsx"].includes(requiredFormat) && task?.args?.contentSource !== "marketing.plan") return false;
     }
+    const requirementId = text(requirement?.id, 120);
+    const taskIdentity = text(
+        task?.args?.marketingRequirementId ||
+        task?.args?.variantId,
+        120
+    );
+    const siblingCount = (Array.isArray(requirements) ? requirements : []).filter(item =>
+        text(item?.toolName, 120) === toolName &&
+        text(item?.format, 40).toLowerCase() === requiredFormat
+    ).length;
+    if (siblingCount > 1) {
+        return Boolean(requirementId && taskIdentity) && requirementId === taskIdentity;
+    }
+    if (requirementId && taskIdentity) return requirementId === taskIdentity;
     return true;
 }
 
@@ -145,7 +160,7 @@ function unresolvedMarketingProductionRequirements(mission = {}) {
         : [];
     return requirements.filter(requirement => {
         const completedTask = completed.find(item =>
-            taskMatchesMarketingRequirement(item, requirement)
+            taskMatchesMarketingRequirement(item, requirement, requirements)
         );
         return !completedTask || !marketingArtifactOutput(completedTask);
     }).map((requirement, index) => ({
@@ -1162,11 +1177,35 @@ function completedReelNarration(mission = {}) {
     const scenes = Array.isArray(task?.observation?.preparedArtifact?.scenes)
         ? task.observation.preparedArtifact.scenes
         : [];
-    const narration = scenes
+    let narration = scenes
         .map(scene => String(scene?.voiceover || "").trim())
         .filter(Boolean)
         .join(" ")
         .trim();
+
+    if (!narration) {
+        const marketing = [...tasks].reverse().find(item =>
+            item?.name === "marketing.plan" &&
+            item?.observation?.objectiveSatisfied === true &&
+            item?.observation?.status === "MARKETING_PACKAGE_READY"
+        );
+        const videoPackage = marketing?.observation?.evidence?.videoPackage || {};
+        const script = Array.isArray(videoPackage?.script) ? videoPackage.script : [];
+        narration = script
+            .map(item => String(item?.text || "").trim())
+            .filter(Boolean)
+            .join(" ")
+            .trim();
+        if (!narration) {
+            const storyboard = Array.isArray(videoPackage?.storyboard) ? videoPackage.storyboard : [];
+            narration = storyboard
+                .map(item => String(item?.overlay || "").trim())
+                .filter(Boolean)
+                .join(" ")
+                .trim();
+        }
+    }
+
     return narration.slice(0, 12000);
 }
 

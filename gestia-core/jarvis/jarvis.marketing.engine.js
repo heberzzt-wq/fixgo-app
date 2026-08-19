@@ -13,7 +13,7 @@ import {
  * se consideran verificados cuando traen una fuente válida.
  */
 
-const VERSION = "8.2.0-semantic-brief-real-delivery-contract";
+const VERSION = "8.3.0-grounded-social-edit-contract-v12";
 
 const REQUIRED_MARKETING_IDENTITY = {
     id: "business",
@@ -93,6 +93,7 @@ function structuredProductionArtifacts(context = {}) {
         "reel.create",
         "page.create",
         "image.generate",
+        "image.edit",
         "document.create",
         "marketing.package.real-media"
     ]);
