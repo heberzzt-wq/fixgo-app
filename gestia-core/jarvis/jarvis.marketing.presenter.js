@@ -323,7 +323,8 @@ export function marketingArtifactArgsFromCompletedTasks(completedTasks = [], req
     if (!marketing) return null;
     const requirement = matchingMarketingRequirement(marketing, requestedArgs);
     const explicitlyMarketing = requestedArgs?.contentSource === "marketing.plan";
-    if (!requirement && !explicitlyMarketing) return null;
+    const declaredRequirements = normalizedRequirements(marketing);
+    if (!requirement && !explicitlyMarketing && declaredRequirements.length > 0) return null;
 
     const base = {
         ...(requestedArgs || {}),
@@ -380,7 +381,7 @@ function taskMatchesRequirement(item = {}, requirement = {}) {
     if (requirement.toolName === "document.create") {
         const format = String(requirement.format || "").toLowerCase();
         if (format && String(item?.args?.format || "").toLowerCase() !== format) return false;
-        if (["md", "pdf", "xlsx"].includes(format) && item?.args?.contentSource !== "marketing.plan") return false;
+        if (requirement.legacy !== true && ["md", "pdf", "xlsx"].includes(format) && item?.args?.contentSource !== "marketing.plan") return false;
     }
     const identity = taskRequirementIdentity(item);
     if (requirement.identityRequired) {
@@ -418,13 +419,49 @@ function renderCompletedReelPlans(completedTasks = []) {
     ];
 }
 
+function legacyRequirementsFromMission(missionResult = {}) {
+    const tasks = [
+        ...(Array.isArray(missionResult?.completedTasks) ? missionResult.completedTasks : []),
+        ...(Array.isArray(missionResult?.blockedTasks) ? missionResult.blockedTasks : []),
+        ...(Array.isArray(missionResult?.pendingTasks) ? missionResult.pendingTasks : [])
+    ].filter(item => isMarketingArtifactTask(item));
+    const seen = new Set();
+    return tasks.map((item, index) => {
+        const toolName = String(item?.name || "").trim();
+        const format = toolName === "document.create"
+            ? String(item?.args?.format || "").trim().toLowerCase()
+            : "";
+        const explicitIdentity = taskRequirementIdentity(item);
+        const key = explicitIdentity || [toolName, format, String(item?.args?.title || item?.args?.output || index)].join("::");
+        if (!toolName || seen.has(key)) return null;
+        seen.add(key);
+        return {
+            id: explicitIdentity || "legacy-" + toolName.replaceAll(".", "-") + "-" + (format || index + 1),
+            type: toolName === "document.create" ? "document" : "artifact",
+            toolName,
+            format,
+            label: toolName === "document.create" ? "Documento " + format.toUpperCase() : toolName,
+            identityRequired: false,
+            legacy: true
+        };
+    }).filter(Boolean).slice(0, 12);
+}
+
 export function marketingFinalResponseFromMission(missionResult = {}) {
     const completed = Array.isArray(missionResult?.completedTasks) ? missionResult.completedTasks : [];
     const marketing = completedMarketingTask(completed);
     if (!marketing) return null;
 
-    const productionRequested = marketing.observation.productionRequested === true;
-    const requirements = normalizedRequirements(marketing);
+    const declaredRequirements = normalizedRequirements(marketing);
+    const legacyRequirements = declaredRequirements.length === 0
+        ? legacyRequirementsFromMission(missionResult)
+        : [];
+    const requirements = declaredRequirements.length > 0
+        ? declaredRequirements
+        : legacyRequirements;
+    const productionRequested =
+        marketing.observation.productionRequested === true ||
+        requirements.length > 0;
     const blockedOrPending = [
         ...(Array.isArray(missionResult?.blockedTasks) ? missionResult.blockedTasks : []),
         ...(Array.isArray(missionResult?.pendingTasks) ? missionResult.pendingTasks : [])
@@ -463,7 +500,7 @@ export function marketingFinalResponseFromMission(missionResult = {}) {
             ? [
                 "",
                 "## Producción pendiente",
-                "El plan estratégico está preparado, pero la misión de producción todavía no está completa.",
+                "El plan estratégico está preparado, pero la entrega de archivos todavía no terminó.",
                 `Pendientes: ${[...new Set(unresolved.map(item => item.label))].join(", ")}.`,
                 "No se declara producción de punta a punta hasta que cada archivo requerido exista y tenga una salida verificable."
             ]

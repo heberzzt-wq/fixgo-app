@@ -3,7 +3,7 @@ import {
 } from "../jarvis/jarvis.marketing.engine.js?v=v94-source-grounded-research-v124-20260810";
 
 export const NEXO_REAL_MEDIA_TOOLS_VERSION =
-    "1.7.0-local-speech-v137";
+    "1.8.0-marketing-physical-contract-v12";
 
 const INSTALL_KEY = "__NEXO_REAL_MEDIA_TOOLS__";
 
@@ -32,7 +32,21 @@ const MARKETING_FALLBACK_SCHEMA = Object.freeze({
         channels: { type: "array", items: { type: "string" } },
         metrics: { type: "array", items: { type: "string" } },
         productionRequested: { type: "boolean" },
-        productionArtifacts: { type: "array", items: { type: "string" } },
+        productionArtifacts: {
+            type: "array",
+            items: {
+                type: "object",
+                required: ["id", "type", "toolName"],
+                properties: {
+                    id: { type: "string" },
+                    type: { type: "string" },
+                    toolName: { type: "string" },
+                    format: { type: "string" },
+                    label: { type: "string" }
+                },
+                additionalProperties: false
+            }
+        },
         assets: { type: "array", items: { type: "string" } },
         durationSeconds: { type: "number" },
         objectiveId: { type: "string" },
