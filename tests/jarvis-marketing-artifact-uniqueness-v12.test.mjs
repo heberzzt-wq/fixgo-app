@@ -14,6 +14,34 @@ const socialRequirements = [
     { id: "social-tiktok", type: "social", toolName: "image.edit", label: "TikTok" }
 ];
 
+const completePlan = {
+    executiveSummary: "Resumen",
+    assumptions: [{ field: "none" }],
+    businessDiagnosis: "Diagnóstico",
+    smartObjectives: ["Objetivo"],
+    targetAudience: { primary: "Audiencia" },
+    customerProblem: "Problema",
+    valueProposition: "Valor",
+    positioningAndMessages: { positioning: "Posicionamiento" },
+    offerStrategy: { offer: "Oferta" },
+    competitiveAnalysis: { note: "Sin inventar" },
+    customerJourneyAndFunnel: [{ stage: "awareness" }],
+    acquisitionStrategy: "Adquisición",
+    priorityChannels: [{ channel: "instagram" }],
+    contentStrategy: "Contenido",
+    contentPillars: ["proceso"],
+    campaignExamples: [{ channel: "instagram", hook: "Hook", body: "Body", cta: "Contacta" }],
+    executionCalendar: [{ day: 1, stage: "awareness", format: "post", topic: "Tema", channels: ["instagram"] }],
+    conversionAndCta: { primaryCta: "Contacta" },
+    retentionAndReferrals: ["seguimiento"],
+    budgetScenarios: [{ scenario: "pending" }],
+    kpisAndMeasurement: [{ metric: "leads" }],
+    experiments: ["A/B"],
+    actionPlan306090: { days30: ["Medir"], days60: ["Optimizar"], days90: ["Escalar"] },
+    risksAndMitigations: [{ risk: "riesgo", mitigation: "mitigar" }],
+    prioritizedNextSteps: ["seguir"]
+};
+
 function marketingTask() {
     return {
         name: "marketing.plan",
@@ -112,7 +140,8 @@ test("mission completion stays fail-closed when distinct requirement ids point t
                     readyForProduction: true,
                     productionRequested: true,
                     requiredArtifacts: socialRequirements,
-                    userVisible: "# Plan de marketing\nContenido verificado"
+                    userVisible: "# Plan de marketing\nContenido verificado",
+                    plan: completePlan
                 };
             }
             return {
