@@ -15,6 +15,34 @@ const requirements = [
     { id: "reel-main", type: "reel", toolName: "reel.create", label: "Reel" }
 ];
 
+const completePlan = {
+    executiveSummary: "Resumen",
+    assumptions: [{ field: "none" }],
+    businessDiagnosis: "Diagnóstico",
+    smartObjectives: ["Objetivo"],
+    targetAudience: { primary: "Empresas" },
+    customerProblem: "Problema",
+    valueProposition: "Valor",
+    positioningAndMessages: { positioning: "Posicionamiento" },
+    offerStrategy: { offer: "Oferta" },
+    competitiveAnalysis: { note: "Sin inventar" },
+    customerJourneyAndFunnel: [{ stage: "awareness" }],
+    acquisitionStrategy: "Adquisición",
+    priorityChannels: [{ channel: "instagram" }],
+    contentStrategy: "Contenido",
+    contentPillars: ["proceso"],
+    campaignExamples: [{ channel: "instagram", hook: "Hook", body: "Body", cta: "Contacta" }],
+    executionCalendar: [{ day: 1, stage: "awareness", format: "reel", topic: "Tema", channels: ["instagram"] }],
+    conversionAndCta: { primaryCta: "Contacta" },
+    retentionAndReferrals: ["seguimiento"],
+    budgetScenarios: [{ scenario: "pending" }],
+    kpisAndMeasurement: [{ metric: "leads", cadence: "semanal", source: "CRM" }],
+    experiments: ["A/B"],
+    actionPlan306090: { days30: ["Medir"], days60: ["Optimizar"], days90: ["Escalar"] },
+    risksAndMitigations: [{ risk: "riesgo", mitigation: "mitigar" }],
+    prioritizedNextSteps: ["seguir"]
+};
+
 function outputFor(name, args = {}) {
     const id = args.marketingRequirementId || args.variantId || name.replaceAll(".", "-");
     if (name === "document.create") return `.jarvis-artifacts/documents/${id}.${args.format || "bin"}`;
@@ -55,10 +83,11 @@ test("completed marketing.plan deterministically schedules all seven declared ph
                     objectiveSatisfied: true,
                     status: "MARKETING_PACKAGE_READY",
                     planReady: true,
+                    readyForProduction: true,
                     productionRequested: true,
                     requiredArtifacts: requirements,
                     userVisible: "# Plan de marketing\nContenido completo",
-                    plan: { executiveSummary: "Resumen" }
+                    plan: completePlan
                 };
             }
             if (call.name === "web.media.collect") {
