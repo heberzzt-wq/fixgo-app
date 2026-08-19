@@ -32,6 +32,18 @@ function scalar(value) {
     return "";
 }
 
+function compactCell(value) {
+    const direct = scalar(value);
+    if (direct) return direct.slice(0, 32000);
+    if (value == null) return "";
+    try {
+        return JSON.stringify(value).slice(0, 32000);
+    }
+    catch {
+        return "";
+    }
+}
+
 function internalPresentationKey(key = "") {
     return key === "source" ||
         key === "editable" ||
@@ -163,6 +175,7 @@ function isMarketingArtifactTask(item = {}) {
         "reel.create",
         "page.create",
         "image.generate",
+        "image.edit",
         "marketing.package.real-media"
     ].includes(String(item?.name || ""));
 }
@@ -177,16 +190,158 @@ function completedMarketingTask(tasks = []) {
     ) || null;
 }
 
+function normalizedRequirements(marketing = {}) {
+    const source = Array.isArray(marketing?.observation?.requiredArtifacts)
+        ? marketing.observation.requiredArtifacts
+        : [];
+    const requirements = source.map((item, index) => ({
+        id: String(item?.id || `artifact-${index + 1}`).trim(),
+        type: String(item?.type || ""),
+        toolName: String(item?.toolName || ""),
+        format: String(item?.format || "").toLowerCase(),
+        label: String(item?.label || "")
+    })).filter(item => item.toolName);
+    const counts = requirements.reduce((map, item) => {
+        const key = `${item.toolName}\u0000${item.format}`;
+        map.set(key, (map.get(key) || 0) + 1);
+        return map;
+    }, new Map());
+    return requirements.map(item => ({
+        ...item,
+        identityRequired: (counts.get(`${item.toolName}\u0000${item.format}`) || 0) > 1
+    }));
+}
+
+function matchingMarketingRequirement(marketing = {}, requestedArgs = {}) {
+    const requirements = normalizedRequirements(marketing);
+    const format = String(requestedArgs?.format || "").trim().toLowerCase();
+    const requestedId = String(
+        requestedArgs?.marketingRequirementId ||
+        requestedArgs?.variantId ||
+        ""
+    ).trim();
+    return requirements.find(item =>
+        item.toolName === "document.create" &&
+        (!format || !item.format || item.format === format) &&
+        (!requestedId || item.id === requestedId)
+    ) || null;
+}
+
+function marketingWorkbookSheets(marketing = {}) {
+    const observation = marketing?.observation || {};
+    const evidence = observation?.evidence && typeof observation.evidence === "object"
+        ? observation.evidence
+        : {};
+    const plan = observation?.deliverable && typeof observation.deliverable === "object"
+        ? observation.deliverable
+        : evidence?.plan && typeof evidence.plan === "object"
+            ? evidence.plan
+            : {};
+    const brand = evidence?.brand && typeof evidence.brand === "object" ? evidence.brand : {};
+    const campaign = evidence?.campaign && typeof evidence.campaign === "object" ? evidence.campaign : {};
+    const copies = Array.isArray(evidence?.copies)
+        ? evidence.copies
+        : Array.isArray(plan?.campaignExamples)
+            ? plan.campaignExamples
+            : [];
+    const calendar = Array.isArray(evidence?.calendar)
+        ? evidence.calendar
+        : Array.isArray(plan?.executionCalendar)
+            ? plan.executionCalendar
+            : [];
+    const kpis = Array.isArray(plan?.kpisAndMeasurement) ? plan.kpisAndMeasurement : [];
+    const actionPlan = plan?.actionPlan306090 && typeof plan.actionPlan306090 === "object"
+        ? plan.actionPlan306090
+        : {};
+
+    const summaryRows = [
+        ["Campo", "Valor"],
+        ["Marca", compactCell(brand?.name || campaign?.brandName || "")],
+        ["Mercado", compactCell(brand?.market || "")],
+        ["Campaña", compactCell(campaign?.name || "")],
+        ["Objetivo", compactCell(campaign?.objective || "")],
+        ["Audiencia", compactCell(campaign?.audience || plan?.targetAudience || "")],
+        ["Oferta", compactCell(campaign?.offer || plan?.offerStrategy || "")],
+        ["CTA", compactCell(campaign?.cta || plan?.conversionAndCta || "")],
+        ["Propuesta de valor", compactCell(plan?.valueProposition || campaign?.promise || "")]
+    ];
+    const kpiRows = [
+        ["Indicador", "Meta / criterio", "Frecuencia", "Fuente"],
+        ...kpis.map(item => [
+            compactCell(item?.metric || item?.indicator || item),
+            compactCell(item?.target || item?.meta || ""),
+            compactCell(item?.cadence || item?.frequency || ""),
+            compactCell(item?.source || "")
+        ])
+    ];
+    const calendarRows = [
+        ["Día", "Etapa", "Formato", "Tema", "Canales"],
+        ...calendar.map(item => [
+            compactCell(item?.day),
+            compactCell(item?.stage),
+            compactCell(item?.format),
+            compactCell(item?.topic),
+            compactCell(item?.channels)
+        ])
+    ];
+    const copyRows = [
+        ["Canal", "Hook", "Cuerpo", "CTA"],
+        ...copies.map(item => [
+            compactCell(item?.channel),
+            compactCell(item?.hook),
+            compactCell(item?.body),
+            compactCell(item?.cta)
+        ])
+    ];
+    const actionRows = [
+        ["Horizonte", "Acción"],
+        ...Object.entries(actionPlan).flatMap(([period, actions]) =>
+            (Array.isArray(actions) ? actions : [actions])
+                .filter(Boolean)
+                .map(action => [compactCell(period), compactCell(action)])
+        )
+    ];
+    const planRows = [
+        ["Sección", "Contenido"],
+        ...SECTION_DEFINITIONS.map(([key, heading]) => [heading, compactCell(plan?.[key])])
+    ];
+
+    return [
+        { name: "Resumen", rows: summaryRows },
+        { name: "Plan", rows: planRows },
+        { name: "KPIs", rows: kpiRows },
+        { name: "Calendario", rows: calendarRows },
+        { name: "Copys", rows: copyRows },
+        { name: "30-60-90", rows: actionRows }
+    ].filter(sheet => sheet.rows.length > 1);
+}
+
 export function marketingArtifactArgsFromCompletedTasks(completedTasks = [], requestedArgs = {}) {
     const format = String(requestedArgs?.format || "").trim().toLowerCase();
-    if (!["md", "pdf"].includes(format) || requestedArgs?.contentSource !== "marketing.plan") return null;
+    if (!["md", "pdf", "xlsx"].includes(format)) return null;
     const marketing = completedMarketingTask(completedTasks);
     if (!marketing) return null;
-    return {
+    const requirement = matchingMarketingRequirement(marketing, requestedArgs);
+    const explicitlyMarketing = requestedArgs?.contentSource === "marketing.plan";
+    if (!requirement && !explicitlyMarketing) return null;
+
+    const base = {
         ...(requestedArgs || {}),
         format,
-        content: marketing.observation.userVisible
+        contentSource: "marketing.plan",
+        content: marketing.observation.userVisible,
+        ...(requirement?.id && !requestedArgs?.marketingRequirementId
+            ? { marketingRequirementId: requirement.id }
+            : {})
     };
+    if (format === "xlsx") {
+        return {
+            ...base,
+            sheets: marketingWorkbookSheets(marketing),
+            requireFormulas: false
+        };
+    }
+    return base;
 }
 
 function artifactOutput(item = {}) {
@@ -206,23 +361,18 @@ function requirementLabel(requirement = {}) {
     const toolName = String(requirement?.toolName || "");
     if (toolName === "reel.create") return "REEL 9:16";
     if (toolName === "page.create") return "LANDING HTML";
-    if (toolName === "image.generate") return "IMAGEN PUBLICITARIA";
+    if (toolName === "image.generate" || toolName === "image.edit") return "IMAGEN PUBLICITARIA";
     if (toolName === "document.create") return `DOCUMENTO ${(requirement?.format || "").toUpperCase()}`.trim();
     if (toolName === "marketing.package.real-media") return "PAQUETE DE MEDIOS REALES";
     return toolName.toUpperCase() || "ARTEFACTO";
 }
 
-function normalizedRequirements(marketing = {}) {
-    const source = Array.isArray(marketing?.observation?.requiredArtifacts)
-        ? marketing.observation.requiredArtifacts
-        : [];
-    return source.map((item, index) => ({
-        id: String(item?.id || `artifact-${index + 1}`),
-        type: String(item?.type || ""),
-        toolName: String(item?.toolName || ""),
-        format: String(item?.format || "").toLowerCase(),
-        label: String(item?.label || "")
-    })).filter(item => item.toolName);
+function taskRequirementIdentity(item = {}) {
+    return String(
+        item?.args?.marketingRequirementId ||
+        item?.args?.variantId ||
+        ""
+    ).trim();
 }
 
 function taskMatchesRequirement(item = {}, requirement = {}) {
@@ -230,11 +380,17 @@ function taskMatchesRequirement(item = {}, requirement = {}) {
     if (requirement.toolName === "document.create") {
         const format = String(requirement.format || "").toLowerCase();
         if (format && String(item?.args?.format || "").toLowerCase() !== format) return false;
-        if (["md", "pdf"].includes(format) && item?.args?.contentSource !== "marketing.plan") return false;
+        if (["md", "pdf", "xlsx"].includes(format) && item?.args?.contentSource !== "marketing.plan") return false;
+    }
+    const identity = taskRequirementIdentity(item);
+    if (requirement.identityRequired) {
+        return Boolean(identity) && identity === requirement.id;
+    }
+    if (identity && requirement.id) {
+        return identity === requirement.id;
     }
     return true;
 }
-
 
 function renderCompletedReelPlans(completedTasks = []) {
     const plans = (Array.isArray(completedTasks) ? completedTasks : [])
@@ -285,10 +441,11 @@ export function marketingFinalResponseFromMission(missionResult = {}) {
         const blockedTask = blockedOrPending.find(item => taskMatchesRequirement(item, requirement));
         const output = completedTask ? artifactOutput(completedTask) : "";
         if (completedTask && output) {
-            produced.push({ label: requirementLabel(requirement), output });
+            produced.push({ id: requirement.id, label: requirementLabel(requirement), output });
             continue;
         }
         unresolved.push({
+            id: requirement.id,
             label: requirementLabel(requirement),
             reason: blockedTask ? "PENDIENTE_O_BLOQUEADO" : completedTask ? "SIN_ARCHIVO_VERIFICABLE" : "NO_EJECUTADO"
         });
@@ -300,9 +457,7 @@ export function marketingFinalResponseFromMission(missionResult = {}) {
         .map(item => ({ label: String(item.name || "ARTEFACTO").toUpperCase(), output: artifactOutput(item) }))
         .filter(item => item.output);
 
-    const plannedReelLines =
-        renderCompletedReelPlans(completed);
-
+    const plannedReelLines = renderCompletedReelPlans(completed);
     const artifactLines = productionRequested
         ? unresolved.length
             ? [
@@ -332,3 +487,10 @@ export function marketingFinalResponseFromMission(missionResult = {}) {
 }
 
 export const MARKETING_PLAN_SECTIONS = SECTION_DEFINITIONS.map(([key, heading]) => ({ key, heading }));
+
+export const __test = {
+    completedMarketingTask,
+    normalizedRequirements,
+    taskMatchesRequirement,
+    marketingWorkbookSheets
+};
