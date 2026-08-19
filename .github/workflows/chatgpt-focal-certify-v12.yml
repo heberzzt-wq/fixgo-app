@@ -38,6 +38,7 @@ jobs:
         run: |
           node --test --test-concurrency=1 \
             tests/jarvis-marketing-handoff-v12.test.mjs \
+            tests/jarvis-marketing-expansion-v12.test.mjs \
             tests/jarvis-mission-orchestrator.test.mjs \
             tests/jarvis-actuator-pack.test.mjs \
             tests/jarvis-image-adapter.test.mjs \
