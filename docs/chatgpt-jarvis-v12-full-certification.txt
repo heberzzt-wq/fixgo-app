@@ -1,0 +1,225 @@
+CHATGPT_JARVIS_V12_FULL_CERTIFICATION=true
+source_sha=d6427f350164a1b405e68575da7eb6e864f08d3e
+workflow_run=32296531293
+exit_code=1
+--- tail ---
+  type: 'test'
+  ...
+# Subtest: generic local marketing defaults are rejected when semantic brief is incomplete
+ok 17 - generic local marketing defaults are rejected when semantic brief is incomplete
+  ---
+  duration_ms: 0.260896
+  type: 'test'
+  ...
+# Subtest: mission contract expands from structured marketing requirements and asks the same planner for real tools
+not ok 18 - mission contract expands from structured marketing requirements and asks the same planner for real tools
+  ---
+  duration_ms: 32.28016
+  type: 'test'
+  location: '/home/runner/work/fixgo-app/fixgo-app/tests/jarvis-marketing-real-delivery.test.mjs:121:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+        'marketing.plan',
+    -   'reel.create',
+    -   'page.create',
+    -   'image.generate'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'marketing.plan'
+    1: 'reel.create'
+    2: 'page.create'
+    3: 'image.generate'
+  actual:
+    0: 'marketing.plan'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/runner/work/fixgo-app/fixgo-app/tests/jarvis-marketing-real-delivery.test.mjs:170:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: complete marketing production cannot close until every requested artifact format exists
+not ok 19 - complete marketing production cannot close until every requested artifact format exists
+  ---
+  duration_ms: 55.299863
+  type: 'test'
+  location: '/home/runner/work/fixgo-app/fixgo-app/tests/jarvis-marketing-terminal-delivery.e2e.test.mjs:96:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'REEL_MEDIA_SOURCE_RECOVERY_EXHAUSTED'
+    - 'ALL_EXECUTABLE_TASKS_COMPLETED'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'ALL_EXECUTABLE_TASKS_COMPLETED'
+  actual: 'REEL_MEDIA_SOURCE_RECOVERY_EXHAUSTED'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/runner/work/fixgo-app/fixgo-app/tests/jarvis-marketing-terminal-delivery.e2e.test.mjs:151:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: marketing production fails closed when one repeated document format is missing
+not ok 20 - marketing production fails closed when one repeated document format is missing
+  ---
+  duration_ms: 2.354073
+  type: 'test'
+  location: '/home/runner/work/fixgo-app/fixgo-app/tests/jarvis-marketing-terminal-delivery.e2e.test.mjs:169:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    2 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 2
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/runner/work/fixgo-app/fixgo-app/tests/jarvis-marketing-terminal-delivery.e2e.test.mjs:198:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: Terminal core hydrates marketing documents and gives the direct delivery response highest priority
+ok 21 - Terminal core hydrates marketing documents and gives the direct delivery response highest priority
+  ---
+  duration_ms: 4.772831
+  type: 'test'
+  ...
+# Subtest: Terminal renders verified marketing producedArtifacts through the existing download renderer
+ok 22 - Terminal renders verified marketing producedArtifacts through the existing download renderer
+  ---
+  duration_ms: 2.049583
+  type: 'test'
+  ...
+# Subtest: completed marketing plan content is injected into MD and PDF artifact creation
+ok 23 - completed marketing plan content is injected into MD and PDF artifact creation
+  ---
+  duration_ms: 1.657652
+  type: 'test'
+  ...
+# Subtest: marketing document dependency cannot fall through to generic document composition
+ok 24 - marketing document dependency cannot fall through to generic document composition
+  ---
+  duration_ms: 1.869566
+  type: 'test'
+  ...
+# Subtest: Terminal presents any valid non-agent GestiaCore finalResponse instead of a false not-presented error
+ok 25 - Terminal presents any valid non-agent GestiaCore finalResponse instead of a false not-presented error
+  ---
+  duration_ms: 2.483855
+  type: 'test'
+  ...
+# Subtest: Terminal recovers nested core finalResponse envelopes and removes false not-presented outcome
+ok 26 - Terminal recovers nested core finalResponse envelopes and removes false not-presented outcome
+  ---
+  duration_ms: 2.019959
+  type: 'test'
+  ...
+# Subtest: NEXO UI branding contains no natural-language approval brain
+ok 27 - NEXO UI branding contains no natural-language approval brain
+  ---
+  duration_ms: 1.233956
+  type: 'test'
+  ...
+# Subtest: NEXO UI branding declares the single semantic authority
+ok 28 - NEXO UI branding declares the single semantic authority
+  ---
+  duration_ms: 0.331331
+  type: 'test'
+  ...
+# Subtest: runtime override preserves NEXO marketing input-required semantics
+ok 29 - runtime override preserves NEXO marketing input-required semantics
+  ---
+  duration_ms: 2.083363
+  type: 'test'
+  ...
+# Subtest: real media package blocks when requested video bytes are missing
+ok 30 - real media package blocks when requested video bytes are missing
+  ---
+  duration_ms: 0.529554
+  type: 'test'
+  ...
+# Subtest: real media package creates verified local manifest when both families exist
+ok 31 - real media package creates verified local manifest when both families exist
+  ---
+  duration_ms: 1.10223
+  type: 'test'
+  ...
+# Subtest: NEXO bootstrap keeps tools but installs no alternate semantic authority
+ok 32 - NEXO bootstrap keeps tools but installs no alternate semantic authority
+  ---
+  duration_ms: 0.860002
+  type: 'test'
+  ...
+# Subtest: NEXO bootstrap remains inert outside the browser
+ok 33 - NEXO bootstrap remains inert outside the browser
+  ---
+  duration_ms: 0.207297
+  type: 'test'
+  ...
+# Subtest: only jarvisSemanticPlan owns natural-language planning
+ok 34 - only jarvisSemanticPlan owns natural-language planning
+  ---
+  duration_ms: 6.152142
+  type: 'test'
+  ...
+# Subtest: legacy cognition URLs are inert compatibility canaries
+ok 35 - legacy cognition URLs are inert compatibility canaries
+  ---
+  duration_ms: 0.914503
+  type: 'test'
+  ...
+# Subtest: NEXO runtime no longer installs local semantic resilience
+ok 36 - NEXO runtime no longer installs local semantic resilience
+  ---
+  duration_ms: 0.717942
+  type: 'test'
+  ...
+# Subtest: alternate adaptive intelligence runtime is absent
+ok 37 - alternate adaptive intelligence runtime is absent
+  ---
+  duration_ms: 2.101869
+  type: 'test'
+  ...
+# Subtest: active semantic surfaces contain no lexical regex brain
+ok 38 - active semantic surfaces contain no lexical regex brain
+  ---
+  duration_ms: 0.89197
+  type: 'test'
+  ...
+# Subtest: terminal has no dead lexical natural-command router after semantic return
+ok 39 - terminal has no dead lexical natural-command router after semantic return
+  ---
+  duration_ms: 1.287525
+  type: 'test'
+  ...
+# Subtest: UI branding never interprets natural approval language
+ok 40 - UI branding never interprets natural approval language
+  ---
+  duration_ms: 0.398159
+  type: 'test'
+  ...
+1..40
+# tests 40
+# suites 0
+# pass 36
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 255.21084
