@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "1.23.0-marketing-physical-contract-v12";
+const VERSION = "1.22.0-mission-isolation";
 const DEFAULT_ENDPOINT = "https://text.pollinations.ai/openai";
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -680,8 +680,6 @@ function buildSemanticSystemInstruction(catalog = [], missionState = null) {
         "En ESTADO_DE_MISION, cada llamada debe llevar argumentos completos derivados de la instruccion original y de las observaciones verificadas; no devuelvas args vacios si la evidencia ya permite construir el entregable.",
         "Si repo.search entrega sourceDefinitions o definitionFiles, esas rutas son definiciones ejecutables verificadas y deben tener prioridad sobre archivos que solo mencionan el simbolo. Para revisar o evaluar riesgos usa repo.read, repo.diagnose o repo.impact sobre esas rutas, aunque la misma herramienta ya se haya usado antes con otro archivo.",
         "Para marketing.plan completa brandName, audience, offer, pain, promise, differentiator, cta, channels y assets. Pain, promise y differentiator deben ser propuestas estrategicas sustentadas, no hechos inventados.",
-        "Para marketing.plan completa tambien market, campaignObjective, horizon, tone y metrics. Si el usuario pide producir archivos o medios reales, productionRequested=true y productionArtifacts debe enumerar UNO POR UNO todos los entregables fisicos solicitados con id unico, type, toolName, format cuando aplique y label. No colapses tres variantes sociales en una sola imagen. MD, PDF y XLSX son requisitos document.create separados; cada pieza social es un requisito visual separado; cada reel es reel.create separado.",
-        "productionArtifacts es el contrato fisico de marketing: no inventes entregables que el usuario no pidio y no omitas ninguno que si pidio. La ejecucion posterior puede convertir piezas sociales de image.generate a image.edit cuando existan medios reales verificados, sin cambiar su id contractual.",
         "Para page.plan, image.plan y reel.plan completa una especificacion concreta basada solo en la evidencia disponible. Planear en read-only no equivale a crear, publicar ni desplegar.",
         "En reel.plan la suma exacta de durationSeconds de las escenas debe coincidir con durationSeconds total.",
         "Cuando el usuario limite la investigacion a un dominio, copia ese dominio exacto en allowedDomain de web.research y descarta fuentes externas.",
@@ -742,7 +740,6 @@ async function runGeminiSemanticPlanner({
                     "Incluye herramientas especializadas de investigacion, negocio, marketing, pagina, imagen, reel, documentos, hojas de calculo o diagnostico cuando el usuario haya pedido esos resultados.",
                     "Cuando se pida crear una landing local incluye page.plan, page.compose y page.create. Cuando se pida crear un documento incluye document.compose y document.create. Cuando se pida una hoja de calculo estructurada incluye spreadsheet.compose y document.create. Conserva primero la composicion o plan y despues la creacion.",
                     "Para cada artefacto solicita exactamente una composicion y una creacion; no dupliques variantes del mismo entregable salvo que el usuario pida varias.",
-                    "Si el objetivo es una produccion de marketing, marketing.plan es la autoridad contractual: incluye productionRequested=true y en productionArtifacts declara cada salida fisica pedida con id estable y unico. Si el usuario pide tres piezas sociales, deben existir tres objetos distintos aunque usen la misma herramienta; no uses una sola pieza para representar varias plataformas.",
                     "Distingue descubrimiento de inspeccion: repo.search o repo.scan no completan por si solas un entregable que pide revisar archivos, explicar hallazgos o evaluar riesgos; el contrato debe conservar las herramientas de lectura, diagnostico e impacto disponibles.",
                     "Conserva el orden de dependencias. No incluyas herramientas mutantes si la orden prohibe escribir, publicar, generar archivos o producir medios.",
                     "Si las fuentes estan limitadas a un dominio, copia ese dominio exacto en allowedDomain de cada web.research.",
