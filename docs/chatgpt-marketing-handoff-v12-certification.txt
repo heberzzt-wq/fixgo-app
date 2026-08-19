@@ -1,6 +1,7 @@
 CHATGPT_MARKETING_HANDOFF_V12_CERTIFIED=true
-source_sha=8b6f3b4a3ee2ca57770f6a72cdef31ec24da0034
-workflow_run=32298139268
+source_sha=027137d22acaa630cca1ead192d418d236e2bede
+workflow_run=32298998956
 syntax=pass
 focal_regression=pass
 official_brand_logo_overlay=pass
+unique_physical_artifacts=pass
