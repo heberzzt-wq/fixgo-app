@@ -1,6 +1,6 @@
 CHATGPT_JARVIS_V12_FULL_CERTIFICATION=true
-source_sha=8b6f3b4a3ee2ca57770f6a72cdef31ec24da0034
-workflow_run=32298139264
+source_sha=f0b8878fff63d1a7bc9bc5396fd794b6cbfd90db
+workflow_run=32298221298
 tests_exit_code=0
 deploy_gate_exit_code=1
 deploy_branch_block_verified=1
@@ -10,121 +10,121 @@ exit_code=0
 # Subtest: semantic tool planner replaces scan-only plans with focused discovery
 ok 145 - semantic tool planner replaces scan-only plans with focused discovery
   ---
-  duration_ms: 0.424673
+  duration_ms: 0.395354
   type: 'test'
   ...
 # Subtest: semantic tool planner falls back to general response without tool calls
 ok 146 - semantic tool planner falls back to general response without tool calls
   ---
-  duration_ms: 0.195124
+  duration_ms: 0.223831
   type: 'test'
   ...
 # Subtest: agent loop does not repeat completed tools for one explicit repository target
 ok 147 - agent loop does not repeat completed tools for one explicit repository target
   ---
-  duration_ms: 13.106303
+  duration_ms: 13.920383
   type: 'test'
   ...
 # Subtest: agent loop keeps planned auth targets ahead of accidental terminal matches
 ok 148 - agent loop keeps planned auth targets ahead of accidental terminal matches
   ---
-  duration_ms: 9.623256
+  duration_ms: 9.84458
   type: 'test'
   ...
 # Subtest: agent loop learning hints are advisory and do not authorize writes
 ok 149 - agent loop learning hints are advisory and do not authorize writes
   ---
-  duration_ms: 13.243138
+  duration_ms: 12.058912
   type: 'test'
   ...
 # Subtest: agent loop does not invent patchPreview when exact block is missing
 ok 150 - agent loop does not invent patchPreview when exact block is missing
   ---
-  duration_ms: 9.703596
+  duration_ms: 12.749102
   type: 'test'
   ...
 # Subtest: read-only technical response leads with findings and hides internal telemetry
 ok 151 - read-only technical response leads with findings and hides internal telemetry
   ---
-  duration_ms: 6.09197
+  duration_ms: 6.153364
   type: 'test'
   ...
 # Subtest: read-only technical response preserves evidence for every diagnosed target
 ok 152 - read-only technical response preserves evidence for every diagnosed target
   ---
-  duration_ms: 6.612342
+  duration_ms: 6.438216
   type: 'test'
   ...
 # Subtest: agent loop composes read-only final response for global repo analysis
 ok 153 - agent loop composes read-only final response for global repo analysis
   ---
-  duration_ms: 7.233742
+  duration_ms: 7.530059
   type: 'test'
   ...
 # Subtest: terminal renders visual patch proposal card without direct write execution
 ok 154 - terminal renders visual patch proposal card without direct write execution
   ---
-  duration_ms: 9.046008
+  duration_ms: 9.518357
   type: 'test'
   ...
 # Subtest: terminal sends natural repository analysis directly to the single core route
 ok 155 - terminal sends natural repository analysis directly to the single core route
   ---
-  duration_ms: 2.384194
+  duration_ms: 2.441699
   type: 'test'
   ...
 # Subtest: Codex V2 write path fails closed without governed repo.write runtime
 ok 156 - Codex V2 write path fails closed without governed repo.write runtime
   ---
-  duration_ms: 2.812574
+  duration_ms: 2.720551
   type: 'test'
   ...
 # Subtest: gestiaArchitectV5 exposes CORS preflight before firewall
 ok 157 - gestiaArchitectV5 exposes CORS preflight before firewall
   ---
-  duration_ms: 1.182198
+  duration_ms: 1.132664
   type: 'test'
   ...
 # Subtest: SIA7 public diagnostics no longer expose the internal Agent Loop label
 ok 158 - SIA7 public diagnostics no longer expose the internal Agent Loop label
   ---
-  duration_ms: 2.261755
+  duration_ms: 2.166332
   type: 'test'
   ...
 # Subtest: multi-tool missions prefer grounded semantic composition over a generic repo diagnostic
 ok 159 - multi-tool missions prefer grounded semantic composition over a generic repo diagnostic
   ---
-  duration_ms: 4.76484
+  duration_ms: 4.59416
   type: 'test'
   ...
 # Subtest: mission composition rejects truncated model headers and accepts complete reports
 ok 160 - mission composition rejects truncated model headers and accepts complete reports
   ---
-  duration_ms: 5.206997
+  duration_ms: 5.408443
   type: 'test'
   ...
 # Subtest: mission evidence packing preserves late tool results instead of starving them behind repo reads
 ok 161 - mission evidence packing preserves late tool results instead of starving them behind repo reads
   ---
-  duration_ms: 8.464802
+  duration_ms: 8.495575
   type: 'test'
   ...
 # Subtest: verified read-only missions stay outside retrying Firestore transactions
 ok 162 - verified read-only missions stay outside retrying Firestore transactions
   ---
-  duration_ms: 9.552975
+  duration_ms: 7.396461
   type: 'test'
   ...
 # Subtest: SIA7 GitHub worker commits an applied patch together with its result
 ok 163 - SIA7 GitHub worker commits an applied patch together with its result
   ---
-  duration_ms: 0.236922
+  duration_ms: 0.320764
   type: 'test'
   ...
 # Subtest: repo authority obeys the single semantic brain contract
 ok 164 - repo authority obeys the single semantic brain contract
   ---
-  duration_ms: 3.531727
+  duration_ms: 2.707392
   type: 'test'
   ...
 # 🧠 [RESOURCE_REGISTRY_READY] { files: 1, modules: 1, collections: 38, dependencies: 0 }
@@ -132,49 +132,49 @@ ok 164 - repo authority obeys the single semantic brain contract
 # Subtest: resource registry V2 rehydrates without duplicate module files
 ok 165 - resource registry V2 rehydrates without duplicate module files
   ---
-  duration_ms: 7.294416
+  duration_ms: 6.913838
   type: 'test'
   ...
 # Subtest: only jarvisSemanticPlan owns natural-language planning
 ok 166 - only jarvisSemanticPlan owns natural-language planning
   ---
-  duration_ms: 6.984197
+  duration_ms: 6.45534
   type: 'test'
   ...
 # Subtest: legacy cognition URLs are inert compatibility canaries
 ok 167 - legacy cognition URLs are inert compatibility canaries
   ---
-  duration_ms: 0.904289
+  duration_ms: 0.79844
   type: 'test'
   ...
 # Subtest: NEXO runtime no longer installs local semantic resilience
 ok 168 - NEXO runtime no longer installs local semantic resilience
   ---
-  duration_ms: 0.728501
+  duration_ms: 0.607368
   type: 'test'
   ...
 # Subtest: alternate adaptive intelligence runtime is absent
 ok 169 - alternate adaptive intelligence runtime is absent
   ---
-  duration_ms: 3.72631
+  duration_ms: 2.640673
   type: 'test'
   ...
 # Subtest: active semantic surfaces contain no lexical regex brain
 ok 170 - active semantic surfaces contain no lexical regex brain
   ---
-  duration_ms: 0.978588
+  duration_ms: 0.797669
   type: 'test'
   ...
 # Subtest: terminal has no dead lexical natural-command router after semantic return
 ok 171 - terminal has no dead lexical natural-command router after semantic return
   ---
-  duration_ms: 1.419862
+  duration_ms: 1.199873
   type: 'test'
   ...
 # Subtest: UI branding never interprets natural approval language
 ok 172 - UI branding never interprets natural approval language
   ---
-  duration_ms: 0.42313
+  duration_ms: 0.408964
   type: 'test'
   ...
 1..172
@@ -185,6 +185,6 @@ ok 172 - UI branding never interprets natural approval language
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 3310.849449
+# duration_ms 3078.371702
 --- deploy gate ---
-{"ok":false,"status":"SOVEREIGN_DEPLOY_BLOCKED","version":"1.1.0-isolated-hosting-scope","authorityId":"HEBERTO_MENDOZA","controllerId":"GITHUB_ACTIONS_CI","fingerprint":"7bcb1ca7891dab40c58598fc5cd64bcebcab78d3fe87e7b934fa6290102eff14","envelope":{"actor":"heberzzt-wq","eventName":"push","ref":"refs/heads/chatgpt/jarvis-v12-marketing-handoff","commitSha":"8b6f3b4a3ee2ca57770f6a72cdef31ec24da0034","projectId":"fixgo-44e4d","ciPassed":true,"hostingOnly":false},"failures":["DEPLOY_BRANCH_NOT_ALLOWED"],"deploymentScope":"default","hostingOnlyRequired":false,"singleCommit":true,"testsRequired":true,"selfAuthorizationAllowed":false}
+{"ok":false,"status":"SOVEREIGN_DEPLOY_BLOCKED","version":"1.1.0-isolated-hosting-scope","authorityId":"HEBERTO_MENDOZA","controllerId":"GITHUB_ACTIONS_CI","fingerprint":"05fbbe233b7a3428faeab0a44bae1b662f295976010a06e773ceb53ec07b28b8","envelope":{"actor":"heberzzt-wq","eventName":"push","ref":"refs/heads/chatgpt/jarvis-v12-marketing-handoff","commitSha":"f0b8878fff63d1a7bc9bc5396fd794b6cbfd90db","projectId":"fixgo-44e4d","ciPassed":true,"hostingOnly":false},"failures":["DEPLOY_BRANCH_NOT_ALLOWED"],"deploymentScope":"default","hostingOnlyRequired":false,"singleCommit":true,"testsRequired":true,"selfAuthorizationAllowed":false}
