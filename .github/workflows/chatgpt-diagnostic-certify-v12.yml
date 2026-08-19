@@ -1,0 +1,64 @@
+name: ChatGPT diagnostic certify v12
+
+on:
+  push:
+    branches:
+      - chatgpt/jarvis-v12-marketing-handoff
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/jarvis-v12-marketing-handoff
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run and persist diagnostic
+        shell: bash
+        run: |
+          set +e
+          {
+            node --check gestia-core/jarvis/jarvis.mission.dependencies.js &&
+            node --check gestia-core/jarvis/jarvis.marketing.presenter.js &&
+            node --check gestia-core/jarvis/jarvis.reel.presenter.js &&
+            node --check gestia-core/jarvis/jarvis.image.adapter.js &&
+            node --check gestia-core/jarvis/jarvis.marketing.engine.js &&
+            node --check gestia-core/jarvis/jarvis.mission.orchestrator.js &&
+            node --check gestia-core/jarvis/jarvis.actuator.pack.js &&
+            node --check gestia-core/gestia-core.js &&
+            node --check gestia-core/tools.runtime.js &&
+            node --test --test-concurrency=1 \
+              tests/jarvis-marketing-handoff-v12.test.mjs \
+              tests/jarvis-marketing-expansion-v12.test.mjs \
+              tests/jarvis-mission-orchestrator.test.mjs \
+              tests/jarvis-actuator-pack.test.mjs \
+              tests/jarvis-image-adapter.test.mjs \
+              tests/v94-marketing-artifact-delivery.test.mjs &&
+            git diff --check
+          } 2>&1 | tee /tmp/chatgpt-v12.log
+          code=${PIPESTATUS[0]}
+          mkdir -p docs
+          {
+            echo "CHATGPT_MARKETING_HANDOFF_V12_DIAGNOSTIC=true"
+            echo "source_sha=${GITHUB_SHA}"
+            echo "workflow_run=${GITHUB_RUN_ID}"
+            echo "exit_code=${code}"
+            echo "--- tail ---"
+            tail -n 180 /tmp/chatgpt-v12.log
+          } > docs/chatgpt-marketing-handoff-v12-diagnostic.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/chatgpt-marketing-handoff-v12-diagnostic.txt
+          git commit -m "ci: persist marketing handoff v12 diagnostic"
+          git push origin HEAD:chatgpt/jarvis-v12-marketing-handoff
+          exit 0
