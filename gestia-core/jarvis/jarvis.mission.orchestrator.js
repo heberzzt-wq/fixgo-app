@@ -1,5 +1,5 @@
 const VERSION =
-    "1.17.0-marketing-declared-artifact-expansion-v12";
+    "1.18.0-safe-marketing-artifact-expansion-v12";
 const REEL_MEDIA_RECOVERY_MAX_ATTEMPTS = 3;
 const STORAGE_KEY = "jarvis.missions.v1";
 const SINGLETON_MISSION_TOOLS = new Set(["marketing.plan", "reel.plan"]);
@@ -128,7 +128,6 @@ function taskMatchesMarketingRequirement(task = {}, requirement = {}, requiremen
     const requiredFormat = text(requirement?.format, 40).toLowerCase();
     if (toolName === "document.create" && requiredFormat) {
         if (text(task?.args?.format, 40).toLowerCase() !== requiredFormat) return false;
-        if (["md", "pdf", "xlsx"].includes(requiredFormat) && task?.args?.contentSource !== "marketing.plan") return false;
     }
     const requirementId = text(requirement?.id, 120);
     const taskIdentity = text(
@@ -260,12 +259,14 @@ function reconcileDeclaredMarketingProduction(mission = {}, requirements = []) {
             pending.marketingRequirementId = requirement.id;
             continue;
         }
-        missingCalls.push({
-            name: requirement.toolName,
-            args: requiredArgs,
-            approved: false,
-            reason: "MARKETING_DECLARED_PHYSICAL_REQUIREMENT"
-        });
+        if (requirement.toolName === "document.create") {
+            missingCalls.push({
+                name: requirement.toolName,
+                args: requiredArgs,
+                approved: false,
+                reason: "MARKETING_DECLARED_PHYSICAL_REQUIREMENT"
+            });
+        }
     }
 
     return {

@@ -381,7 +381,6 @@ function taskMatchesRequirement(item = {}, requirement = {}) {
     if (requirement.toolName === "document.create") {
         const format = String(requirement.format || "").toLowerCase();
         if (format && String(item?.args?.format || "").toLowerCase() !== format) return false;
-        if (requirement.legacy !== true && ["md", "pdf", "xlsx"].includes(format) && item?.args?.contentSource !== "marketing.plan") return false;
     }
     const identity = taskRequirementIdentity(item);
     if (requirement.identityRequired) {
