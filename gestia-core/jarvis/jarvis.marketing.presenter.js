@@ -424,7 +424,10 @@ function legacyRequirementsFromMission(missionResult = {}) {
         ...(Array.isArray(missionResult?.completedTasks) ? missionResult.completedTasks : []),
         ...(Array.isArray(missionResult?.blockedTasks) ? missionResult.blockedTasks : []),
         ...(Array.isArray(missionResult?.pendingTasks) ? missionResult.pendingTasks : [])
-    ].filter(item => isMarketingArtifactTask(item));
+    ].filter(item =>
+        item?.name === "document.create" ||
+        isMarketingArtifactTask(item)
+    );
     const seen = new Set();
     return tasks.map((item, index) => {
         const toolName = String(item?.name || "").trim();
