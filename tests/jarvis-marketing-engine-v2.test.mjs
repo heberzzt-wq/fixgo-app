@@ -55,7 +55,7 @@ test("NEXO marketing builds an evidence-grounded multi-channel production packag
     assert.equal(plan.source, "nexo_natural_brief_and_optional_evidence");
     assert.equal(plan.engine, "nexo_marketing_engine");
     assert.equal(plan.legacyEngineAlias, "jarvis_marketing_engine");
-    assert.equal(plan.version, "8.2.0-semantic-brief-real-delivery-contract");
+    assert.equal(plan.version, "8.3.0-grounded-social-edit-contract-v12");
     assert.equal(
         NexoMarketingEngine.routing,
         "semantic_fields_with_editable_assumptions"

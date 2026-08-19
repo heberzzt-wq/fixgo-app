@@ -49,17 +49,17 @@ import {
 } from '/gestia-core/jarvis/jarvis.conversation.composer.js?v=v94-semantic-only-evidence-v100-20260809';
 import {
     runJarvisMission
-} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=v137-local-speech-synthesis-20260812';
+} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=v12-marketing-handoff-20260819';
 import {
     marketingArtifactArgsFromCompletedTasks,
     marketingFinalResponseFromMission
-} from '/gestia-core/jarvis/jarvis.marketing.presenter.js?v=v94-live-human-reds-v113-20260809';
+} from '/gestia-core/jarvis/jarvis.marketing.presenter.js?v=v12-marketing-handoff-20260819';
 import {
     reelArtifactArgsFromCompletedTasks
-} from '/gestia-core/jarvis/jarvis.reel.presenter.js?v=v94-live-human-reds-v113-20260809';
+} from '/gestia-core/jarvis/jarvis.reel.presenter.js?v=v12-marketing-handoff-20260819';
 import {
     ensureExecutableArtifactDependencies
-} from '/gestia-core/jarvis/jarvis.mission.dependencies.js?v=v94-source-grounded-research-v124-20260810';
+} from '/gestia-core/jarvis/jarvis.mission.dependencies.js?v=v12-marketing-handoff-20260819';
 import {
     compactMissionPlannerObservation
 } from '/gestia-core/jarvis/jarvis.mission.planner-state.js?v=v94-source-grounded-research-v124-20260810';
@@ -218,7 +218,7 @@ import {
     compactJarvisSemanticMemoryForPlanner
 } from '/gestia-core/jarvis/jarvis.semantic.memory.js?v=v139-semantic-continuity-20260813';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=v139-real-reel-e2e-20260812';
+import '/gestia-core/tools.runtime.js?v=v12-marketing-handoff-20260819';
 import '/gestia-core/response.composer.js?v=v94-live-human-reds-v113-20260809';
 import '/gestia-core/tools.bridge.js?v=v139-real-reel-e2e-20260812';
 
@@ -4807,6 +4807,80 @@ if (
                         };
                     let argumentGrounded =
                         false;
+
+                    if (
+                        call?.name === "image.edit" &&
+                        Array.isArray(missionContext?.completedTasks) &&
+                        executionCall.args?.marketingRequirementId
+                    ) {
+                        const mediaTask = [...missionContext.completedTasks]
+                            .reverse()
+                            .find(item =>
+                                item?.name === "web.media.collect" &&
+                                item?.observation?.objectiveSatisfied === true
+                            ) || null;
+                        const mediaAssets = Array.isArray(mediaTask?.observation?.evidence?.mediaAssets)
+                            ? mediaTask.observation.evidence.mediaAssets
+                            : Array.isArray(mediaTask?.observation?.mediaAssets)
+                                ? mediaTask.observation.mediaAssets
+                                : [];
+                        const verifiedImages = mediaAssets.filter(asset => {
+                            const output = String(asset?.output || "").trim().replaceAll("\\", "/");
+                            const mimeType = String(asset?.mimeType || "").trim().toLowerCase();
+                            return asset?.kind === "image" &&
+                                output.startsWith(".jarvis-artifacts/web-media/") &&
+                                mimeType.startsWith("image/") &&
+                                Number(asset?.bytes || 0) > 0;
+                        });
+                        const roleText = asset =>
+                            [asset?.sourceUrl, asset?.sourceTag, asset?.alt, asset?.output]
+                                .map(value => String(value || ""))
+                                .join(" ")
+                                .normalize("NFD")
+                                .replace(/[\u0300-\u036f]/g, "")
+                                .toLowerCase();
+                        const brandIdentityPattern = /(?:^|[^a-z0-9])(?:logo|logotipo|emblema|emblem|isotipo|brandmark|favicon|marca)(?:[^a-z0-9]|$)/i;
+                        const logoAsset = verifiedImages.find(asset =>
+                            brandIdentityPattern.test(roleText(asset))
+                        ) || null;
+                        const sceneAsset = verifiedImages.find(asset =>
+                            asset !== logoAsset
+                        ) || null;
+
+                        if (!executionCall.args.sourceOutput && sceneAsset?.output) {
+                            executionCall.args.sourceOutput = sceneAsset.output;
+                        }
+                        if (!executionCall.args.brandLogoOutput && logoAsset?.output) {
+                            executionCall.args.brandLogoOutput = logoAsset.output;
+                        }
+                        executionCall.args.identityMode = "brand-scene";
+                        executionCall.args.referenceOutputs = [];
+                        executionCall.args.preserveLogos = true;
+                        executionCall.args.preserveApprovedText = false;
+                        executionCall.args.prompt = [
+                            String(executionCall.args.prompt || "").trim(),
+                            "Usa exclusivamente la fotografia real verificada como contenido visual principal.",
+                            "No dibujes, inventes, deformes ni repitas logotipos o emblemas dentro de la escena.",
+                            logoAsset?.output
+                                ? "Reserva una zona limpia: el emblema oficial se superpondra despues desde sus bytes originales."
+                                : "No inventes una identidad visual que no este respaldada por un archivo oficial."
+                        ].filter(Boolean).join(" ").slice(0, 3200);
+
+                        if (!executionCall.args.sourceOutput) {
+                            return {
+                                ok: false,
+                                executionOk: true,
+                                objectiveSatisfied: false,
+                                blocked: true,
+                                retryable: false,
+                                status: "MARKETING_SOCIAL_VERIFIED_SOURCE_REQUIRED",
+                                error: "WEB_MEDIA_COLLECT_RETURNED_NO_VERIFIED_SOCIAL_SOURCE",
+                                marketingRequirementId: executionCall.args.marketingRequirementId,
+                                missionExecution: { name: call.name, args: executionCall.args }
+                            };
+                        }
+                        argumentGrounded = true;
+                    }
 
                     if (
                         call?.name === "reel.create" &&

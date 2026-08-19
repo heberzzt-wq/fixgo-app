@@ -1,5 +1,5 @@
 const VERSION =
-    "1.15.0-reel-speech-dependency-v137";
+    "1.19.0-unique-marketing-artifacts-v12";
 const REEL_MEDIA_RECOVERY_MAX_ATTEMPTS = 3;
 const STORAGE_KEY = "jarvis.missions.v1";
 const SINGLETON_MISSION_TOOLS = new Set(["marketing.plan", "reel.plan"]);
@@ -122,13 +122,42 @@ function marketingArtifactOutput(task = {}) {
     );
 }
 
-function taskMatchesMarketingRequirement(task = {}, requirement = {}) {
+function marketingArtifactFingerprint(task = {}) {
+    const hash = text(
+        task?.observation?.outputSha256 ||
+        task?.observation?.sha256 ||
+        task?.observation?.evidence?.outputSha256 ||
+        task?.observation?.evidence?.sha256 ||
+        task?.observation?.evidence?.artifact?.sha256 ||
+        "",
+        160
+    ).toLowerCase();
+    if (hash) return `sha256:${hash}`;
+    const output = marketingArtifactOutput(task);
+    return output ? `output:${output.replaceAll("\\", "/").toLowerCase()}` : "";
+}
+
+function taskMatchesMarketingRequirement(task = {}, requirement = {}, requirements = []) {
     const toolName = text(requirement?.toolName, 120);
     if (!toolName || text(task?.name, 120) !== toolName) return false;
     const requiredFormat = text(requirement?.format, 40).toLowerCase();
     if (toolName === "document.create" && requiredFormat) {
-        return text(task?.args?.format, 40).toLowerCase() === requiredFormat;
+        if (text(task?.args?.format, 40).toLowerCase() !== requiredFormat) return false;
     }
+    const requirementId = text(requirement?.id, 120);
+    const taskIdentity = text(
+        task?.args?.marketingRequirementId ||
+        task?.args?.variantId,
+        120
+    );
+    const siblingCount = (Array.isArray(requirements) ? requirements : []).filter(item =>
+        text(item?.toolName, 120) === toolName &&
+        text(item?.format, 40).toLowerCase() === requiredFormat
+    ).length;
+    if (siblingCount > 1) {
+        return Boolean(requirementId && taskIdentity) && requirementId === taskIdentity;
+    }
+    if (requirementId && taskIdentity) return requirementId === taskIdentity;
     return true;
 }
 
@@ -143,18 +172,139 @@ function unresolvedMarketingProductionRequirements(mission = {}) {
     const requirements = Array.isArray(marketing?.observation?.requiredArtifacts)
         ? marketing.observation.requiredArtifacts
         : [];
-    return requirements.filter(requirement => {
-        const completedTask = completed.find(item =>
-            taskMatchesMarketingRequirement(item, requirement)
+    const consumedFingerprints = new Set();
+    const unresolved = [];
+
+    for (let index = 0; index < requirements.length; index += 1) {
+        const requirement = requirements[index];
+        const candidates = completed.filter(item =>
+            taskMatchesMarketingRequirement(item, requirement, requirements) &&
+            marketingArtifactOutput(item)
         );
-        return !completedTask || !marketingArtifactOutput(completedTask);
-    }).map((requirement, index) => ({
-        id: text(requirement?.id || `artifact-${index + 1}`, 120),
-        type: text(requirement?.type, 120),
-        toolName: text(requirement?.toolName, 120),
-        format: text(requirement?.format, 40),
-        label: text(requirement?.label, 200)
-    }));
+        const completedTask = candidates.find(item => {
+            const fingerprint = marketingArtifactFingerprint(item);
+            return fingerprint && !consumedFingerprints.has(fingerprint);
+        }) || null;
+        if (completedTask) {
+            consumedFingerprints.add(marketingArtifactFingerprint(completedTask));
+            continue;
+        }
+        unresolved.push({
+            id: text(requirement?.id || `artifact-${index + 1}`, 120),
+            type: text(requirement?.type, 120),
+            toolName: text(requirement?.toolName, 120),
+            format: text(requirement?.format, 40),
+            label: text(requirement?.label, 200),
+            reason: candidates.length > 0
+                ? "DUPLICATE_PHYSICAL_ARTIFACT"
+                : "MISSING_PHYSICAL_ARTIFACT"
+        });
+    }
+    return unresolved;
+}
+
+function marketingRequirementExecutionArgs(requirement = {}) {
+    const id = text(requirement?.id, 120) || "artifact";
+    const toolName = text(requirement?.toolName, 120);
+    const format = text(requirement?.format, 40).toLowerCase();
+    const label = text(requirement?.label || requirement?.type || id, 300);
+    if (toolName === "document.create") {
+        const extension = format === "markdown" ? "md" : format;
+        return {
+            marketingRequirementId: id,
+            contentSource: "marketing.plan",
+            ...(format ? { format } : {}),
+            ...(extension ? { output: `.jarvis-artifacts/documents/marketing-${id}.${extension}` } : {})
+        };
+    }
+    if (toolName === "image.edit") {
+        return {
+            marketingRequirementId: id,
+            variantId: id,
+            identityMode: "brand-scene",
+            preserveLogos: true,
+            preserveApprovedText: false,
+            prompt: label
+                ? `Crear la pieza "${label}" usando exclusivamente medios visuales reales verificados de esta mision. No generar ni redibujar logotipos; el emblema oficial se compone despues desde su archivo fuente.`
+                : "Crear una pieza social usando exclusivamente medios visuales reales verificados. No generar ni redibujar logotipos."
+        };
+    }
+    if (toolName === "image.generate") {
+        return {
+            marketingRequirementId: id,
+            variantId: id,
+            prompt: label || "Pieza visual de marketing"
+        };
+    }
+    if (toolName === "reel.create") {
+        return { marketingRequirementId: id };
+    }
+    if (toolName === "marketing.package.real-media") {
+        return { marketingRequirementId: id, title: label || "Paquete de marketing" };
+    }
+    if (toolName === "page.create") {
+        return { marketingRequirementId: id };
+    }
+    return { marketingRequirementId: id };
+}
+
+function marketingPendingTaskCompatible(task = {}, requirement = {}) {
+    const toolName = text(requirement?.toolName, 120);
+    if (!toolName || text(task?.name, 120) !== toolName) return false;
+    if (toolName === "document.create") {
+        const requiredFormat = text(requirement?.format, 40).toLowerCase();
+        const taskFormat = text(task?.args?.format, 40).toLowerCase();
+        return !requiredFormat || !taskFormat || requiredFormat === taskFormat;
+    }
+    return true;
+}
+
+function reconcileDeclaredMarketingProduction(mission = {}, requirements = []) {
+    const normalizedRequirements = (Array.isArray(requirements) ? requirements : [])
+        .map((requirement, index) => ({
+            id: text(requirement?.id || `artifact-${index + 1}`, 120),
+            type: text(requirement?.type, 120),
+            toolName: text(requirement?.toolName, 120),
+            format: text(requirement?.format, 40).toLowerCase(),
+            label: text(requirement?.label, 300)
+        }))
+        .filter(requirement => requirement.toolName);
+    const reservedPendingIndexes = new Set();
+    const missingCalls = [];
+
+    for (const requirement of normalizedRequirements) {
+        const completed = (Array.isArray(mission?.completedTasks) ? mission.completedTasks : [])
+            .some(task => taskMatchesMarketingRequirement(task, requirement, normalizedRequirements) && marketingArtifactOutput(task));
+        if (completed) continue;
+
+        const pendingIndex = (Array.isArray(mission?.pendingTasks) ? mission.pendingTasks : [])
+            .findIndex((task, index) =>
+                !reservedPendingIndexes.has(index) &&
+                marketingPendingTaskCompatible(task, requirement)
+            );
+        const requiredArgs = marketingRequirementExecutionArgs(requirement);
+        if (pendingIndex >= 0) {
+            reservedPendingIndexes.add(pendingIndex);
+            const pending = mission.pendingTasks[pendingIndex];
+            pending.args = { ...(pending.args || {}), ...requiredArgs };
+            pending.signature = callSignature({ name: pending.name, args: pending.args });
+            pending.marketingRequirementId = requirement.id;
+            continue;
+        }
+        if (requirement.toolName === "document.create") {
+            missingCalls.push({
+                name: requirement.toolName,
+                args: requiredArgs,
+                approved: false,
+                reason: "MARKETING_DECLARED_PHYSICAL_REQUIREMENT"
+            });
+        }
+    }
+
+    return {
+        requirements: normalizedRequirements,
+        missingCalls
+    };
 }
 
 async function sha256(value = "") {
@@ -1162,11 +1312,35 @@ function completedReelNarration(mission = {}) {
     const scenes = Array.isArray(task?.observation?.preparedArtifact?.scenes)
         ? task.observation.preparedArtifact.scenes
         : [];
-    const narration = scenes
+    let narration = scenes
         .map(scene => String(scene?.voiceover || "").trim())
         .filter(Boolean)
         .join(" ")
         .trim();
+
+    if (!narration) {
+        const marketing = [...tasks].reverse().find(item =>
+            item?.name === "marketing.plan" &&
+            item?.observation?.objectiveSatisfied === true &&
+            item?.observation?.status === "MARKETING_PACKAGE_READY"
+        );
+        const videoPackage = marketing?.observation?.evidence?.videoPackage || {};
+        const script = Array.isArray(videoPackage?.script) ? videoPackage.script : [];
+        narration = script
+            .map(item => String(item?.text || "").trim())
+            .filter(Boolean)
+            .join(" ")
+            .trim();
+        if (!narration) {
+            const storyboard = Array.isArray(videoPackage?.storyboard) ? videoPackage.storyboard : [];
+            narration = storyboard
+                .map(item => String(item?.overlay || "").trim())
+                .filter(Boolean)
+                .join(" ")
+                .trim();
+        }
+    }
+
     return narration.slice(0, 12000);
 }
 
@@ -1776,6 +1950,29 @@ export async function runJarvisMission({
                 archiveRecoveredMediaSourceAttempts(mission, now);
             }
             mission.completedTasks.push(record);
+            if (
+                task.name === "marketing.plan" &&
+                observation.productionRequested === true
+            ) {
+                const reconciliation = reconcileDeclaredMarketingProduction(
+                    mission,
+                    observation.requiredArtifacts || []
+                );
+                const recoveredTasks = trustedCalls(
+                    reconciliation.missingCalls,
+                    mission
+                );
+                if (recoveredTasks.length > 0) {
+                    mission.pendingTasks.push(...recoveredTasks);
+                    mission.plannedTools.push(...recoveredTasks.map(item => item.name));
+                }
+                mission.marketingProductionContract = {
+                    requirementCount: reconciliation.requirements.length,
+                    requirementIds: reconciliation.requirements.map(item => item.id),
+                    recoveredTaskCount: recoveredTasks.length,
+                    reconciledAt: now()
+                };
+            }
         } else if (observation.blocked) {
             mission.blockedTasks.push({
                 ...record,

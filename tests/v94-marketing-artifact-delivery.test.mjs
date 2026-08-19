@@ -22,6 +22,8 @@ function readyPlan() {
             mediumBudget: "escenario medio",
             horizon: "90 días",
             cta: "Solicitar servicio o registrarse como profesional",
+            tone: "profesional, claro y local",
+            metrics: ["leads calificados", "conversaciones iniciadas", "conversión a solicitud"],
             channels: ["Meta Ads", "Google Ads", "contenido local", "WhatsApp", "referidos"]
         }
     );

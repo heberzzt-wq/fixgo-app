@@ -7,10 +7,11 @@ import {
 } from "../../jarvis-page-artifact.js?v=v94-page-evidence-failclosed-v123-20260810";
 import {
     adaptImageSource,
-    buildIdentityReferenceSheet
-} from "./jarvis.image.adapter.js?v=sia7-identity-fidelity-v106-20260728";
+    buildIdentityReferenceSheet,
+    overlayBrandLogo
+} from "./jarvis.image.adapter.js?v=jarvis-official-brand-logo-v12-20260819";
 
-const VERSION = "7.25.0-identity-fidelity";
+const VERSION = "7.26.0-official-brand-logo-v12";
 
 export function normalizeImageArtifactOutput(output, mimeType) {
     const extensions = {
@@ -856,11 +857,13 @@ export function registerJarvisActuatorTools(runtime) {
 
         register(runtime, {
             name: "image.edit",
-            description: "Edita una imagen persistida usando una o varias referencias reales de identidad, conserva el original y genera exactamente una salida por variantId.",
+            description: "Edita una imagen persistida usando evidencia visual real. Para piezas de marca puede recibir brandLogoOutput como identidad visual inmutable: el proveedor no dibuja el logotipo y el navegador superpone después los pixeles del archivo oficial.",
             output: "IMAGE_EDIT_RESULT",
             inputSchema: {
                 sourceOutput: "string",
                 referenceOutputs: "array",
+                brandLogoOutput: "string",
+                marketingRequirementId: "string",
                 variantId: "string",
                 identityMode: "string",
                 ageMode: "string",
@@ -870,6 +873,7 @@ export function registerJarvisActuatorTools(runtime) {
                 imageSize: "string",
                 preserveLogos: "boolean",
                 preserveApprovedText: "boolean",
+                logoPosition: "string",
                 output: "string",
                 caseId: "string",
                 objectiveId: "string"
@@ -877,538 +881,255 @@ export function registerJarvisActuatorTools(runtime) {
             mutates: true,
             requiresApproval: false,
             userArtifact: true,
-            missionDedupeBy: [
-                "sourceOutput",
-                "variantId"
-            ],
+            missionDedupeBy: ["sourceOutput", "variantId"],
             execute: async (args = {}, context = {}) => {
-                if (!args.sourceOutput) {
-                    throw new Error(
-                        "IMAGE_SOURCE_OUTPUT_REQUIRED"
-                    );
-                }
+                if (!args.sourceOutput) throw new Error("IMAGE_SOURCE_OUTPUT_REQUIRED");
 
-                const requestedOutputs =
-                    [
-                        args.sourceOutput,
-                        ...(
-                            Array.isArray(
-                                args.referenceOutputs
-                            )
-                                ? args.referenceOutputs
-                                : []
-                        )
-                    ]
-                        .map(value =>
-                            String(
-                                value ||
-                                ""
-                            ).trim()
-                        )
-                        .filter(
-                            (
-                                output,
-                                index,
-                                values
-                            ) =>
-                                Boolean(output) &&
-                                values.indexOf(
-                                    output
-                                ) ===
-                                index
-                        )
-                        .slice(
-                            0,
-                            4
-                        );
+                const requestedOutputs = [
+                    args.sourceOutput,
+                    ...(Array.isArray(args.referenceOutputs) ? args.referenceOutputs : [])
+                ]
+                    .map(value => String(value || "").trim())
+                    .filter((output, index, values) => Boolean(output) && values.indexOf(output) === index)
+                    .slice(0, 4);
 
-                const referenceSources =
-                    [];
-
-                for (
-                    const output
-                    of requestedOutputs
-                ) {
-                    const source =
-                        await bridgeRequest(
-                            "/artifact/read",
-                            {
-                                output
-                            },
-                            30000
-                        );
-
+                const referenceSources = [];
+                for (const output of requestedOutputs) {
+                    const sourceArtifact = await bridgeRequest("/artifact/read", { output }, 30000);
                     const valid =
-                        source?.ok ===
-                            true &&
-                        String(
-                            source.mimeType ||
-                            ""
-                        ).startsWith(
-                            "image/"
-                        ) &&
-                        Boolean(
-                            source.dataBase64
-                        );
-
+                        sourceArtifact?.ok === true &&
+                        String(sourceArtifact.mimeType || "").startsWith("image/") &&
+                        Boolean(sourceArtifact.dataBase64);
                     if (!valid) {
-                        if (
-                            output ===
-                            String(
-                                args.sourceOutput
-                            )
-                        ) {
-                            throw new Error(
-                                "IMAGE_SOURCE_ARTIFACT_INVALID"
-                            );
-                        }
-
+                        if (output === String(args.sourceOutput)) throw new Error("IMAGE_SOURCE_ARTIFACT_INVALID");
                         continue;
                     }
-
-                    referenceSources.push({
-                        ...source,
-                        output:
-                            source.output ||
-                            output
-                    });
+                    referenceSources.push({ ...sourceArtifact, output: sourceArtifact.output || output });
                 }
+                if (referenceSources.length === 0) throw new Error("IMAGE_SOURCE_ARTIFACT_INVALID");
 
-                if (
-                    referenceSources.length ===
-                    0
-                ) {
-                    throw new Error(
-                        "IMAGE_SOURCE_ARTIFACT_INVALID"
-                    );
+                const sourceArtifact = referenceSources[0];
+                const referenceSha256s = [];
+                for (const reference of referenceSources) {
+                    referenceSha256s.push(reference.sha256 || await sha256Base64(reference.dataBase64));
                 }
-
-                const source =
-                    referenceSources[0];
-
-                const referenceSha256s =
-                    [];
-
-                for (
-                    const reference
-                    of referenceSources
-                ) {
-                    referenceSha256s.push(
-                        reference.sha256 ||
-                        await sha256Base64(
-                            reference.dataBase64
-                        )
-                    );
-                }
-
-                const primarySourceSha256 =
-                    referenceSha256s[0];
+                const primarySourceSha256 = referenceSha256s[0];
+                const identityMode = String(args.identityMode || "person").trim().toLowerCase();
+                const personIdentityMode = !["brand-scene", "product", "scene", "marketing"].includes(identityMode);
 
                 const identityReference =
-                    referenceSources.length >
-                        1
+                    personIdentityMode && referenceSources.length > 1
                         ? await buildIdentityReferenceSheet({
-                            primarySourceOutput:
-                                source.output,
-                            references:
-                                referenceSources.map(
-                                    reference => ({
-                                        sourceOutput:
-                                            reference.output,
-                                        dataBase64:
-                                            reference.dataBase64,
-                                        mimeType:
-                                            reference.mimeType
-                                    })
-                                )
+                            primarySourceOutput: sourceArtifact.output,
+                            references: referenceSources.map(reference => ({
+                                sourceOutput: reference.output,
+                                dataBase64: reference.dataBase64,
+                                mimeType: reference.mimeType
+                            }))
                         })
                         : {
-                            ok:
-                                true,
-                            status:
-                                "IDENTITY_REFERENCE_SINGLE_READY",
-                            composite:
-                                false,
-                            referenceCount:
-                                1,
-                            primarySourceOutput:
-                                source.output,
-                            referenceOutputs: [
-                                source.output
-                            ],
-                            mimeType:
-                                source.mimeType,
-                            bytes:
-                                source.bytes,
-                            dataBase64:
-                                source.dataBase64
+                            ok: true,
+                            status: "IDENTITY_REFERENCE_SINGLE_READY",
+                            composite: false,
+                            referenceCount: 1,
+                            primarySourceOutput: sourceArtifact.output,
+                            referenceOutputs: [sourceArtifact.output],
+                            mimeType: sourceArtifact.mimeType,
+                            bytes: sourceArtifact.bytes,
+                            dataBase64: sourceArtifact.dataBase64
                         };
 
-                const identityReferenceSha256 =
-                    await sha256Base64(
-                        identityReference
-                            .dataBase64
-                    );
+                const identityReferenceSha256 = await sha256Base64(identityReference.dataBase64);
 
-                const requestedTransformations =
-                    (
-                        Array.isArray(
-                            args.transformations
-                        )
-                            ? args.transformations
-                            : []
-                    )
-                        .map(item =>
-                            String(
-                                item ||
-                                ""
-                            ).trim()
-                        )
-                        .filter(Boolean)
-                        .filter(item => {
-                            const normalized =
-                                item
-                                    .normalize(
-                                        "NFD"
-                                    )
-                                    .replace(
-                                        /[\u0300-\u036f]/g,
-                                        ""
-                                    )
-                                    .toLowerCase();
-
-                            return (
-                                !normalized.includes(
-                                    "conservar la identidad"
-                                ) &&
-                                !normalized.includes(
-                                    "no sustituir el sujeto"
-                                ) &&
-                                !normalized.includes(
-                                    "apariencia actual"
-                                )
-                            );
-                        });
-
-                const identityGuard =
-                    "Conservar exactamente la identidad y geometria facial de la persona principal: frente, linea del cabello, ojos, separacion ocular, nariz, boca, mandibula, orejas, tono de piel y proporciones.";
-
-                const replacementGuard =
-                    "No sustituir, mezclar ni reinterpretar el rostro como una persona generica. La persona objetivo es el adulto que aparece de forma recurrente en las referencias; ignorar a cualquier otra persona.";
-
-                const ageGuard =
-                    "Preservar la edad aparente exacta de la referencia principal. No envejecer ni rejuvenecer; no agregar arrugas, surcos, bolsas, flacidez, textura endurecida, canas ni entradas adicionales.";
-
-                const facialHairGuard =
-                    "Preservar exactamente el estado de barba, bigote, afeitado y color del cabello de la referencia principal. No agregar barba, barba canosa, bigote ni cabello gris que no esten presentes.";
-
-                const transformations =
-                    [
-                        ...new Set([
-                            ...requestedTransformations,
-                            identityGuard,
-                            replacementGuard,
-                            ...(
-                                String(
-                                    args.ageMode ||
-                                    "preserve"
-                                )
-                                    .trim()
-                                    .toLowerCase() ===
-                                "allow-change"
-                                    ? []
-                                    : [
-                                        ageGuard,
-                                        facialHairGuard
-                                    ]
-                            )
-                        ])
-                    ].slice(
-                        0,
-                        20
-                    );
-
-                const groundedPrompt =
-                    [
-                        String(
-                            args.prompt ||
-                            context.rawInput ||
-                            ""
-                        ).trim(),
-                        identityReference
-                            .composite ===
-                            true
-                                ? "La imagen fuente es una hoja de referencias de la misma identidad. El panel grande contiene la referencia principal y define rostro, edad aparente y vello facial. Las imagenes pequenas son apoyo. No combines el rostro con otras personas."
-                                : "Usa la imagen fuente como referencia visual obligatoria.",
-                        "El resultado debe mostrar a la misma persona claramente reconocible y no a un parecido aproximado.",
-                        String(
-                            args.ageMode ||
-                            "preserve"
-                        )
-                            .trim()
-                            .toLowerCase() ===
-                        "allow-change"
-                            ? ""
-                            : "Mantener la apariencia actual de la referencia principal sin agregar signos de mayor edad."
-                    ]
-                        .filter(Boolean)
-                        .join(" ")
-                        .slice(
-                            0,
-                            3000
-                        );
-
-                const result =
-                    await callAdminFunction(
-                        "jarvisImageGenerate",
-                        {
-                            prompt:
-                                groundedPrompt,
-                            transformations,
-                            aspectRatio:
-                                args.aspectRatio ||
-                                "1:1",
-                            imageSize:
-                                args.imageSize ||
-                                "1K",
-                            sourceImageBase64:
-                                identityReference
-                                    .dataBase64,
-                            sourceMimeType:
-                                identityReference
-                                    .mimeType,
-                            sourceOutput:
-                                source.output,
-                            preserveLogos:
-                                args.preserveLogos !==
-                                false,
-                            preserveApprovedText:
-                                args.preserveApprovedText ===
-                                true,
-                            objectiveId:
-                                args.objectiveId ||
-                                context.objectiveId ||
-                                ""
-                        }
-                    );
-
-                if (
-                    result?.ok !==
-                        true ||
-                    result?.status !==
-                        "IMAGE_EDITED" ||
-                    !result?.imageBase64
-                ) {
-                    return result;
+                let brandLogo = null;
+                if (String(args.brandLogoOutput || "").trim()) {
+                    const logoOutput = String(args.brandLogoOutput).trim();
+                    const logoArtifact = await bridgeRequest("/artifact/read", { output: logoOutput }, 30000);
+                    const validLogo =
+                        logoArtifact?.ok === true &&
+                        String(logoArtifact.mimeType || "").startsWith("image/") &&
+                        Boolean(logoArtifact.dataBase64);
+                    if (!validLogo) throw new Error("BRAND_LOGO_ARTIFACT_INVALID");
+                    brandLogo = {
+                        ...logoArtifact,
+                        output: logoArtifact.output || logoOutput,
+                        sha256: logoArtifact.sha256 || await sha256Base64(logoArtifact.dataBase64)
+                    };
                 }
 
-                const referenceGrounded =
-                    result.sourceSha256 ===
-                    identityReferenceSha256;
+                const requestedTransformations = (Array.isArray(args.transformations) ? args.transformations : [])
+                    .map(item => String(item || "").trim())
+                    .filter(Boolean);
+                const personGuards = [
+                    "Conservar exactamente la identidad y geometria facial de la persona principal: frente, linea del cabello, ojos, separacion ocular, nariz, boca, mandibula, orejas, tono de piel y proporciones.",
+                    "No sustituir, mezclar ni reinterpretar el rostro como una persona generica. La persona objetivo es el adulto que aparece de forma recurrente en las referencias; ignorar a cualquier otra persona.",
+                    ...(String(args.ageMode || "preserve").trim().toLowerCase() === "allow-change" ? [] : [
+                        "Preservar la edad aparente exacta de la referencia principal. No envejecer ni rejuvenecer; no agregar arrugas, surcos, bolsas, flacidez, textura endurecida, canas ni entradas adicionales.",
+                        "Preservar exactamente el estado de barba, bigote, afeitado y color del cabello de la referencia principal. No agregar barba, barba canosa, bigote ni cabello gris que no esten presentes."
+                    ])
+                ];
+                const brandSceneGuards = [
+                    "Usar la fotografia fuente real como evidencia visual principal. No sustituir el producto, negocio, instalaciones u objetos visibles por versiones inventadas.",
+                    "No generar, redibujar, reinterpretar ni decorar logotipos, emblemas, isotipos, sellos, iniciales de marca ni textos de identidad dentro de la escena.",
+                    brandLogo
+                        ? "Dejar una zona visual limpia para el emblema oficial. El logotipo se aplicara despues de la generacion desde el archivo oficial y no debe aparecer generado dentro de la imagen."
+                        : "No inventar logotipos ni marcas que no existan en la fotografia fuente."
+                ];
+                const transformations = [
+                    ...new Set([
+                        ...requestedTransformations,
+                        ...(personIdentityMode ? personGuards : brandSceneGuards)
+                    ])
+                ].slice(0, 20);
 
+                const groundedPrompt = [
+                    String(args.prompt || context.rawInput || "").trim(),
+                    personIdentityMode
+                        ? (identityReference.composite === true
+                            ? "La imagen fuente es una hoja de referencias de la misma identidad. El panel grande contiene la referencia principal. No combines el rostro con otras personas."
+                            : "Usa la imagen fuente como referencia visual obligatoria y preserva su identidad.")
+                        : "La fotografia fuente es material real verificado y debe seguir siendo el contenido visual principal.",
+                    brandLogo
+                        ? "PROHIBIDO generar cualquier logo, emblema, palabra de marca, sello o variante decorativa. El unico logotipo permitido sera compuesto despues desde el archivo oficial; deja espacio limpio para ese overlay."
+                        : "",
+                    personIdentityMode && String(args.ageMode || "preserve").trim().toLowerCase() !== "allow-change"
+                        ? "Mantener la apariencia actual de la referencia principal sin agregar signos de mayor edad."
+                        : ""
+                ].filter(Boolean).join(" ").slice(0, 3400);
+
+                const result = await callAdminFunction("jarvisImageGenerate", {
+                    prompt: groundedPrompt,
+                    transformations,
+                    aspectRatio: args.aspectRatio || "1:1",
+                    imageSize: args.imageSize || "1K",
+                    sourceImageBase64: identityReference.dataBase64,
+                    sourceMimeType: identityReference.mimeType,
+                    sourceOutput: sourceArtifact.output,
+                    preserveLogos: personIdentityMode ? args.preserveLogos !== false : false,
+                    preserveApprovedText: args.preserveApprovedText === true,
+                    objectiveId: args.objectiveId || context.objectiveId || ""
+                });
+
+                if (result?.ok !== true || result?.status !== "IMAGE_EDITED" || !result?.imageBase64) return result;
+                const referenceGrounded = result.sourceSha256 === identityReferenceSha256;
                 if (!referenceGrounded) {
                     return {
                         ...result,
-                        ok:
-                            false,
-                        status:
-                            "IMAGE_REFERENCE_GROUNDING_UNVERIFIED",
-                        objectiveSatisfied:
-                            false,
-                        blocked:
-                            true,
-                        retryable:
-                            false,
-                        sourceOutput:
-                            source.output,
-                        sourceSha256:
-                            primarySourceSha256,
+                        ok: false,
+                        status: "IMAGE_REFERENCE_GROUNDING_UNVERIFIED",
+                        objectiveSatisfied: false,
+                        blocked: true,
+                        retryable: false,
+                        sourceOutput: sourceArtifact.output,
+                        sourceSha256: primarySourceSha256,
                         identityReferenceSha256,
-                        providerSourceSha256:
-                            result.sourceSha256 ||
-                            null,
-                        referenceGrounded:
-                            false,
-                        originalPreserved:
-                            true
+                        providerSourceSha256: result.sourceSha256 || null,
+                        referenceGrounded: false,
+                        originalPreserved: true
                     };
                 }
 
-                const outputSha256 =
-                    await sha256Base64(
-                        result.imageBase64
-                    );
+                let finalImageBase64 = result.imageBase64;
+                let finalMimeType = result.mimeType;
+                let brandLogoOverlay = null;
+                if (brandLogo) {
+                    brandLogoOverlay = await overlayBrandLogo({
+                        imageBase64: finalImageBase64,
+                        imageMimeType: finalMimeType,
+                        logoBase64: brandLogo.dataBase64,
+                        logoMimeType: brandLogo.mimeType,
+                        position: args.logoPosition || "top-right"
+                    });
+                    if (brandLogoOverlay?.ok !== true) throw new Error("BRAND_LOGO_OVERLAY_FAILED");
+                    finalImageBase64 = brandLogoOverlay.imageBase64;
+                    finalMimeType = brandLogoOverlay.mimeType;
+                }
 
-                if (
-                    referenceSha256s.includes(
-                        outputSha256
-                    )
-                ) {
+                const outputSha256 = await sha256Base64(finalImageBase64);
+                if (referenceSha256s.includes(outputSha256)) {
                     return {
                         ...result,
-                        ok:
-                            false,
-                        status:
-                            "IMAGE_EDIT_OUTPUT_IDENTICAL_TO_REFERENCE",
-                        objectiveSatisfied:
-                            false,
-                        blocked:
-                            true,
-                        retryable:
-                            false,
-                        sourceOutput:
-                            source.output,
-                        sourceSha256:
-                            primarySourceSha256,
+                        ok: false,
+                        status: "IMAGE_EDIT_OUTPUT_IDENTICAL_TO_REFERENCE",
+                        objectiveSatisfied: false,
+                        blocked: true,
+                        retryable: false,
+                        sourceOutput: sourceArtifact.output,
+                        sourceSha256: primarySourceSha256,
                         outputSha256,
-                        referenceGrounded:
-                            true,
-                        originalPreserved:
-                            true
+                        referenceGrounded: true,
+                        originalPreserved: true
                     };
                 }
 
-                const artifact =
-                    await bridgeRequest(
-                        "/image",
-                        {
-                            imageBase64:
-                                result.imageBase64,
-                            mimeType:
-                                result.mimeType,
-                            output:
-                                normalizeImageArtifactOutput(
-                                    args.output,
-                                    result.mimeType
-                                ),
-                            origin:
-                                "image.edit",
-                            provider:
-                                result.provider ||
-                                "google",
-                            model:
-                                result.model,
-                            objectiveId:
-                                result.objectiveId ||
-                                context.objectiveId ||
-                                "",
-                            caseId:
-                                args.caseId ||
-                                context.caseId ||
-                                "",
-                            originalFile:
-                                source.output,
-                            transformations
-                        },
-                        30000
-                    );
+                const artifact = await bridgeRequest("/image", {
+                    imageBase64: finalImageBase64,
+                    mimeType: finalMimeType,
+                    output: normalizeImageArtifactOutput(args.output, finalMimeType),
+                    origin: "image.edit",
+                    provider: result.provider || "google",
+                    model: result.model,
+                    objectiveId: result.objectiveId || context.objectiveId || "",
+                    caseId: args.caseId || context.caseId || "",
+                    originalFile: sourceArtifact.output,
+                    transformations
+                }, 30000);
 
                 const finalResult = {
                     ...result,
-                    sourceOutput:
-                        source.output,
-                    sourceSha256:
-                        primarySourceSha256,
+                    mimeType: finalMimeType,
+                    sourceOutput: sourceArtifact.output,
+                    sourceSha256: primarySourceSha256,
                     outputSha256,
                     identityReferenceSha256,
-                    providerSourceSha256:
-                        result.sourceSha256,
-                    referenceOutputs:
-                        identityReference
-                            .referenceOutputs,
+                    providerSourceSha256: result.sourceSha256,
+                    referenceOutputs: identityReference.referenceOutputs,
                     referenceSha256s,
-                    referenceCount:
-                        identityReference
-                            .referenceCount,
-                    identityReferenceComposite:
-                        identityReference
-                            .composite ===
-                        true,
-                    variantId:
-                        String(
-                            args.variantId ||
-                            "PRIMARY"
-                        ),
-                    persisted:
-                        artifact?.ok ===
-                        true,
-                    output:
-                        artifact?.output ||
-                        null,
-                    outputBytes:
-                        artifact?.bytes ||
-                        null,
-                    originalPreserved:
-                        true,
-                    referenceGrounded:
-                        true,
-                    apparentAgePreservedRequested:
-                        String(
-                            args.ageMode ||
-                            "preserve"
-                        )
-                            .trim()
-                            .toLowerCase() !==
-                        "allow-change"
+                    referenceCount: identityReference.referenceCount,
+                    identityReferenceComposite: identityReference.composite === true,
+                    identityMode,
+                    marketingRequirementId: String(args.marketingRequirementId || "") || null,
+                    variantId: String(args.variantId || "PRIMARY"),
+                    brandLogoOutput: brandLogo?.output || null,
+                    brandLogoSha256: brandLogo?.sha256 || null,
+                    brandLogoOverlayVerified: Boolean(brandLogo && brandLogoOverlay?.logoOverlayApplied === true),
+                    generatedLogoAllowed: false,
+                    logoPlacement: brandLogoOverlay?.placement || null,
+                    persisted: artifact?.ok === true,
+                    output: artifact?.output || null,
+                    outputBytes: artifact?.bytes || null,
+                    originalPreserved: true,
+                    referenceGrounded: true,
+                    apparentAgePreservedRequested: personIdentityMode && String(args.ageMode || "preserve").trim().toLowerCase() !== "allow-change"
                 };
 
-                recordCapabilityEvidence(
-                    "image_editing",
-                    {
-                        ok:
-                            finalResult.ok ===
-                                true &&
-                            finalResult.persisted ===
-                                true &&
-                            finalResult.referenceGrounded ===
-                                true &&
-                            Boolean(
-                                finalResult.outputSha256
-                            ),
-                        status:
-                            finalResult.persisted
-                                ? finalResult.status
-                                : "IMAGE_EDIT_ARTIFACT_REQUIRED",
-                        provider:
-                            finalResult.provider ||
-                            null,
-                        model:
-                            finalResult.model ||
-                            null,
-                        sourceOutput:
-                            finalResult.sourceOutput,
-                        sourceSha256:
-                            finalResult.sourceSha256,
-                        output:
-                            finalResult.output,
-                        outputSha256:
-                            finalResult.outputSha256,
-                        referenceOutputs:
-                            finalResult.referenceOutputs,
-                        referenceSha256s:
-                            finalResult.referenceSha256s,
-                        referenceCount:
-                            finalResult.referenceCount,
-                        identityReferenceComposite:
-                            finalResult.identityReferenceComposite,
-                        transformations:
-                            finalResult.transformations ||
-                            transformations,
-                        objectiveId:
-                            finalResult.objectiveId ||
-                            null,
-                        originalPreserved:
-                            true,
-                        referenceGrounded:
-                            true,
-                        apparentAgePreservedRequested:
-                            finalResult
-                                .apparentAgePreservedRequested,
-                        checkedAt:
-                            new Date()
-                                .toISOString()
-                    }
-                );
+                recordCapabilityEvidence("image_editing", {
+                    ok: finalResult.ok === true && finalResult.persisted === true && finalResult.referenceGrounded === true && Boolean(finalResult.outputSha256),
+                    status: finalResult.persisted ? finalResult.status : "IMAGE_EDIT_ARTIFACT_REQUIRED",
+                    provider: finalResult.provider || null,
+                    model: finalResult.model || null,
+                    sourceOutput: finalResult.sourceOutput,
+                    sourceSha256: finalResult.sourceSha256,
+                    output: finalResult.output,
+                    outputSha256: finalResult.outputSha256,
+                    referenceOutputs: finalResult.referenceOutputs,
+                    referenceSha256s: finalResult.referenceSha256s,
+                    referenceCount: finalResult.referenceCount,
+                    identityReferenceComposite: finalResult.identityReferenceComposite,
+                    identityMode: finalResult.identityMode,
+                    marketingRequirementId: finalResult.marketingRequirementId,
+                    variantId: finalResult.variantId,
+                    brandLogoOutput: finalResult.brandLogoOutput,
+                    brandLogoSha256: finalResult.brandLogoSha256,
+                    brandLogoOverlayVerified: finalResult.brandLogoOverlayVerified,
+                    generatedLogoAllowed: false,
+                    transformations: finalResult.transformations || transformations,
+                    objectiveId: finalResult.objectiveId || null,
+                    originalPreserved: true,
+                    referenceGrounded: true,
+                    apparentAgePreservedRequested: finalResult.apparentAgePreservedRequested,
+                    checkedAt: new Date().toISOString()
+                });
 
                 return finalResult;
             }
