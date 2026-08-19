@@ -1,5 +1,5 @@
 const VERSION =
-    "1.18.0-safe-marketing-artifact-expansion-v12";
+    "1.19.0-unique-marketing-artifacts-v12";
 const REEL_MEDIA_RECOVERY_MAX_ATTEMPTS = 3;
 const STORAGE_KEY = "jarvis.missions.v1";
 const SINGLETON_MISSION_TOOLS = new Set(["marketing.plan", "reel.plan"]);
@@ -122,6 +122,21 @@ function marketingArtifactOutput(task = {}) {
     );
 }
 
+function marketingArtifactFingerprint(task = {}) {
+    const hash = text(
+        task?.observation?.outputSha256 ||
+        task?.observation?.sha256 ||
+        task?.observation?.evidence?.outputSha256 ||
+        task?.observation?.evidence?.sha256 ||
+        task?.observation?.evidence?.artifact?.sha256 ||
+        "",
+        160
+    ).toLowerCase();
+    if (hash) return `sha256:${hash}`;
+    const output = marketingArtifactOutput(task);
+    return output ? `output:${output.replaceAll("\\", "/").toLowerCase()}` : "";
+}
+
 function taskMatchesMarketingRequirement(task = {}, requirement = {}, requirements = []) {
     const toolName = text(requirement?.toolName, 120);
     if (!toolName || text(task?.name, 120) !== toolName) return false;
@@ -157,18 +172,35 @@ function unresolvedMarketingProductionRequirements(mission = {}) {
     const requirements = Array.isArray(marketing?.observation?.requiredArtifacts)
         ? marketing.observation.requiredArtifacts
         : [];
-    return requirements.filter(requirement => {
-        const completedTask = completed.find(item =>
-            taskMatchesMarketingRequirement(item, requirement, requirements)
+    const consumedFingerprints = new Set();
+    const unresolved = [];
+
+    for (let index = 0; index < requirements.length; index += 1) {
+        const requirement = requirements[index];
+        const candidates = completed.filter(item =>
+            taskMatchesMarketingRequirement(item, requirement, requirements) &&
+            marketingArtifactOutput(item)
         );
-        return !completedTask || !marketingArtifactOutput(completedTask);
-    }).map((requirement, index) => ({
-        id: text(requirement?.id || `artifact-${index + 1}`, 120),
-        type: text(requirement?.type, 120),
-        toolName: text(requirement?.toolName, 120),
-        format: text(requirement?.format, 40),
-        label: text(requirement?.label, 200)
-    }));
+        const completedTask = candidates.find(item => {
+            const fingerprint = marketingArtifactFingerprint(item);
+            return fingerprint && !consumedFingerprints.has(fingerprint);
+        }) || null;
+        if (completedTask) {
+            consumedFingerprints.add(marketingArtifactFingerprint(completedTask));
+            continue;
+        }
+        unresolved.push({
+            id: text(requirement?.id || `artifact-${index + 1}`, 120),
+            type: text(requirement?.type, 120),
+            toolName: text(requirement?.toolName, 120),
+            format: text(requirement?.format, 40),
+            label: text(requirement?.label, 200),
+            reason: candidates.length > 0
+                ? "DUPLICATE_PHYSICAL_ARTIFACT"
+                : "MISSING_PHYSICAL_ARTIFACT"
+        });
+    }
+    return unresolved;
 }
 
 function marketingRequirementExecutionArgs(requirement = {}) {

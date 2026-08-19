@@ -356,6 +356,20 @@ function artifactOutput(item = {}) {
         "";
 }
 
+function artifactFingerprint(item = {}) {
+    const hash = String(
+        item?.observation?.outputSha256 ||
+        item?.observation?.sha256 ||
+        item?.observation?.evidence?.outputSha256 ||
+        item?.observation?.evidence?.sha256 ||
+        item?.observation?.evidence?.artifact?.sha256 ||
+        ""
+    ).trim().toLowerCase();
+    if (hash) return `sha256:${hash}`;
+    const output = String(artifactOutput(item) || "").trim();
+    return output ? `output:${output.replaceAll("\\", "/").toLowerCase()}` : "";
+}
+
 function requirementLabel(requirement = {}) {
     const explicit = String(requirement?.label || requirement?.type || "").trim();
     if (explicit) return explicit.toUpperCase();
@@ -475,18 +489,30 @@ export function marketingFinalResponseFromMission(missionResult = {}) {
         unresolved.push({ label: "ALCANCE DE PRODUCCIÓN", reason: "CONTRATO_DE_ARTEFACTOS_AUSENTE" });
     }
 
+    const consumedFingerprints = new Set();
     for (const requirement of requirements) {
-        const completedTask = completed.find(item => taskMatchesRequirement(item, requirement));
+        const completedCandidates = completed.filter(item =>
+            taskMatchesRequirement(item, requirement) && artifactOutput(item)
+        );
+        const completedTask = completedCandidates.find(item => {
+            const fingerprint = artifactFingerprint(item);
+            return fingerprint && !consumedFingerprints.has(fingerprint);
+        }) || null;
         const blockedTask = blockedOrPending.find(item => taskMatchesRequirement(item, requirement));
         const output = completedTask ? artifactOutput(completedTask) : "";
         if (completedTask && output) {
+            consumedFingerprints.add(artifactFingerprint(completedTask));
             produced.push({ id: requirement.id, label: requirementLabel(requirement), output });
             continue;
         }
         unresolved.push({
             id: requirement.id,
             label: requirementLabel(requirement),
-            reason: blockedTask ? "PENDIENTE_O_BLOQUEADO" : completedTask ? "SIN_ARCHIVO_VERIFICABLE" : "NO_EJECUTADO"
+            reason: blockedTask
+                ? "PENDIENTE_O_BLOQUEADO"
+                : completedCandidates.length > 0
+                    ? "ARTEFACTO_FISICO_DUPLICADO"
+                    : "NO_EJECUTADO"
         });
     }
 
