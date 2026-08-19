@@ -1,180 +1,180 @@
 CHATGPT_JARVIS_V12_FULL_CERTIFICATION=true
-source_sha=3cf460858ab91e79ddc0a02cf17c29004c34e9f6
-workflow_run=32298325230
+source_sha=1f64e86ac9b2cf9c8b7ed0ddae2f1d97d8f2c5fc
+workflow_run=32298577606
 tests_exit_code=1
 deploy_gate_exit_code=1
 deploy_branch_block_verified=1
 exit_code=1
 --- tests tail ---
-  duration_ms: 1.347416
+  duration_ms: 1.26228
   type: 'test'
   ...
 # Subtest: malformed mission contract retries with another semantic sample
 ok 212 - malformed mission contract retries with another semantic sample
   ---
-  duration_ms: 0.74883
+  duration_ms: 0.779531
   type: 'test'
   ...
 # Subtest: simple mission contract unions independent semantic coverage samples
 ok 213 - simple mission contract unions independent semantic coverage samples
   ---
-  duration_ms: 0.633448
+  duration_ms: 0.594976
   type: 'test'
   ...
 # Subtest: simple planner keeps the complete seventy-tool catalog inside a safe URL budget
 ok 214 - simple planner keeps the complete seventy-tool catalog inside a safe URL budget
   ---
-  duration_ms: 1.830439
+  duration_ms: 1.676147
   type: 'test'
   ...
 # Subtest: simple planner enriches selected specialized tools with grounded schema arguments
 ok 215 - simple planner enriches selected specialized tools with grounded schema arguments
   ---
-  duration_ms: 0.883652
+  duration_ms: 0.866711
   type: 'test'
   ...
 # Subtest: mission evidence compaction preserves verified sources without carrying raw payloads
 ok 216 - mission evidence compaction preserves verified sources without carrying raw payloads
   ---
-  duration_ms: 0.246098
+  duration_ms: 0.253207
   type: 'test'
   ...
 # Subtest: semantic plan validation rejects tools outside the runtime catalog
 ok 217 - semantic plan validation rejects tools outside the runtime catalog
   ---
-  duration_ms: 0.209994
+  duration_ms: 0.186408
   type: 'test'
   ...
 # Subtest: semantic plan grounds empty model arguments in the original instruction
 ok 218 - semantic plan grounds empty model arguments in the original instruction
   ---
-  duration_ms: 0.311687
+  duration_ms: 0.181971
   type: 'test'
   ...
 # Subtest: semantic provider retries bounded transient throttling
 ok 219 - semantic provider retries bounded transient throttling
   ---
-  duration_ms: 23.05375
+  duration_ms: 25.813151
   type: 'test'
   ...
 # Subtest: semantic planner retries one malformed model output
 ok 220 - semantic planner retries one malformed model output
   ---
-  duration_ms: 503.463698
+  duration_ms: 505.247928
   type: 'test'
   ...
 # Subtest: semantic planner uses authenticated Gemini before the public fallback
 ok 221 - semantic planner uses authenticated Gemini before the public fallback
   ---
-  duration_ms: 0.579076
+  duration_ms: 0.495648
   type: 'test'
   ...
 # Subtest: Gemini semantic plan remains bounded by the real runtime catalog
 ok 222 - Gemini semantic plan remains bounded by the real runtime catalog
   ---
-  duration_ms: 0.244667
+  duration_ms: 0.279837
   type: 'test'
   ...
 # Subtest: Gemini audits mission completion when native function output is empty
 ok 223 - Gemini audits mission completion when native function output is empty
   ---
-  duration_ms: 0.31433
+  duration_ms: 0.289842
   type: 'test'
   ...
 # Subtest: Gemini completion audit is JSON-only and selects one executable follow-up
 ok 224 - Gemini completion audit is JSON-only and selects one executable follow-up
   ---
-  duration_ms: 0.293539
+  duration_ms: 0.300968
   type: 'test'
   ...
 # Subtest: Gemini completion audit can close without a forced tool call
 ok 225 - Gemini completion audit can close without a forced tool call
   ---
-  duration_ms: 0.189624
+  duration_ms: 0.23508
   type: 'test'
   ...
 # Subtest: Gemini creates a complete read-only mission contract before execution
 ok 226 - Gemini creates a complete read-only mission contract before execution
   ---
-  duration_ms: 0.456563
+  duration_ms: 0.47659
   type: 'test'
   ...
 # Subtest: Gemini coverage audit restores an independent subject omitted by the draft contract
 ok 227 - Gemini coverage audit restores an independent subject omitted by the draft contract
   ---
-  duration_ms: 0.387921
+  duration_ms: 0.379165
   type: 'test'
   ...
 # Subtest: independent Gemini coverage restores a specialized deliverable missed twice
 ok 228 - independent Gemini coverage restores a specialized deliverable missed twice
   ---
-  duration_ms: 0.650172
+  duration_ms: 0.641355
   type: 'test'
   ...
 # Subtest: Gemini reserves response budget for evidence-driven mission follow-ups
 ok 229 - Gemini reserves response budget for evidence-driven mission follow-ups
   ---
-  duration_ms: 0.226689
+  duration_ms: 0.242822
   type: 'test'
   ...
 # Subtest: Gemini accepts a strict JSON mission contract when the provider omits native function calls
 ok 230 - Gemini accepts a strict JSON mission contract when the provider omits native function calls
   ---
-  duration_ms: 0.377986
+  duration_ms: 0.394368
   type: 'test'
   ...
 # Subtest: semantic mission completion requires an explicit model audit
 ok 231 - semantic mission completion requires an explicit model audit
   ---
-  duration_ms: 0.41446
+  duration_ms: 0.32935
   type: 'test'
   ...
 # Subtest: semantic planner accepts long and ten-page missions without losing mission state
 ok 232 - semantic planner accepts long and ten-page missions without losing mission state
   ---
-  duration_ms: 0.856572
+  duration_ms: 0.865549
   type: 'test'
   ...
 # Subtest: workbook validator rejects text operands, missing grid cells and circular formulas
 ok 233 - workbook validator rejects text operands, missing grid cells and circular formulas
   ---
-  duration_ms: 2.753039
+  duration_ms: 2.698119
   type: 'test'
   ...
 # Subtest: workbook validator accepts numeric assumptions with labels in a separate column
 ok 234 - workbook validator accepts numeric assumptions with labels in a separate column
   ---
-  duration_ms: 4.973682
+  duration_ms: 1.387858
   type: 'test'
   ...
 # Subtest: source structure indexes real multifunction registrations with lines
 ok 235 - source structure indexes real multifunction registrations with lines
   ---
-  duration_ms: 53.269721
+  duration_ms: 52.468896
   type: 'test'
   ...
 # Subtest: executable source view excludes documentary role markers
 ok 236 - executable source view excludes documentary role markers
   ---
-  duration_ms: 0.236644
+  duration_ms: 0.281569
   type: 'test'
   ...
 # Subtest: qualified identifier extraction finds tool symbols without phrase rules
 ok 237 - qualified identifier extraction finds tool symbols without phrase rules
   ---
-  duration_ms: 0.901219
+  duration_ms: 0.972108
   type: 'test'
   ...
 # Subtest: explicit repository targets keep every named file and exclude runtime tool identifiers
 ok 238 - explicit repository targets keep every named file and exclude runtime tool identifiers
   ---
-  duration_ms: 0.413428
+  duration_ms: 0.41604
   type: 'test'
   ...
 # Subtest: unresolved schema-required repo files receive discovery preflights from the live index
 ok 239 - unresolved schema-required repo files receive discovery preflights from the live index
   ---
-  duration_ms: 0.52849
+  duration_ms: 0.616589
   type: 'test'
   ...
 1..239
@@ -185,6 +185,6 @@ ok 239 - unresolved schema-required repo files receive discovery preflights from
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 14826.263219
+# duration_ms 14904.265574
 --- deploy gate ---
-{"ok":false,"status":"SOVEREIGN_DEPLOY_BLOCKED","version":"1.1.0-isolated-hosting-scope","authorityId":"HEBERTO_MENDOZA","controllerId":"GITHUB_ACTIONS_CI","fingerprint":"bfa090a31b16b210e7d4057c28816d7148b5bd287f2855d06cd300000fbea777","envelope":{"actor":"heberzzt-wq","eventName":"push","ref":"refs/heads/chatgpt/jarvis-v12-marketing-handoff","commitSha":"3cf460858ab91e79ddc0a02cf17c29004c34e9f6","projectId":"fixgo-44e4d","ciPassed":true,"hostingOnly":false},"failures":["DEPLOY_BRANCH_NOT_ALLOWED"],"deploymentScope":"default","hostingOnlyRequired":false,"singleCommit":true,"testsRequired":true,"selfAuthorizationAllowed":false}
+{"ok":false,"status":"SOVEREIGN_DEPLOY_BLOCKED","version":"1.1.0-isolated-hosting-scope","authorityId":"HEBERTO_MENDOZA","controllerId":"GITHUB_ACTIONS_CI","fingerprint":"20a8ea0c0ed04e02ccf93babff8ec6ebcad6cc10a594f005e0f6d8fed4f79c7e","envelope":{"actor":"heberzzt-wq","eventName":"push","ref":"refs/heads/chatgpt/jarvis-v12-marketing-handoff","commitSha":"1f64e86ac9b2cf9c8b7ed0ddae2f1d97d8f2c5fc","projectId":"fixgo-44e4d","ciPassed":true,"hostingOnly":false},"failures":["DEPLOY_BRANCH_NOT_ALLOWED"],"deploymentScope":"default","hostingOnlyRequired":false,"singleCommit":true,"testsRequired":true,"selfAuthorizationAllowed":false}
