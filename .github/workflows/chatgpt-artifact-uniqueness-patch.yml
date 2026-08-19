@@ -1,0 +1,76 @@
+name: ChatGPT artifact uniqueness patch
+
+on:
+  push:
+    branches:
+      - chatgpt/jarvis-v12-marketing-handoff
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/jarvis-v12-marketing-handoff
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Patch marketing artifact uniqueness
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('gestia-core/jarvis/jarvis.mission.orchestrator.js')
+          s = p.read_text(encoding='utf-8')
+          marker = '''function taskMatchesMarketingRequirement(task = {}, requirement = {}, requirements = []) {'''
+          helper = '''function marketingArtifactFingerprint(task = {}) {\n    const hash = text(\n        task?.observation?.outputSha256 ||\n        task?.observation?.sha256 ||\n        task?.observation?.evidence?.outputSha256 ||\n        task?.observation?.evidence?.sha256 ||\n        task?.observation?.evidence?.artifact?.sha256 ||\n        "",\n        160\n    ).toLowerCase();\n    if (hash) return `sha256:${hash}`;\n    const output = marketingArtifactOutput(task);\n    return output ? `output:${output.replaceAll("\\\\", "/").toLowerCase()}` : "";\n}\n\n'''
+          if helper not in s:
+              if s.count(marker) != 1:
+                  raise SystemExit(f'orchestrator helper marker count={s.count(marker)}')
+              s = s.replace(marker, helper + marker, 1)
+
+          start = s.index('function unresolvedMarketingProductionRequirements(mission = {}) {')
+          end = s.index('function marketingRequirementExecutionArgs(requirement = {}) {', start)
+          replacement = '''function unresolvedMarketingProductionRequirements(mission = {}) {\n    const completed = Array.isArray(mission?.completedTasks)\n        ? mission.completedTasks\n        : [];\n    const marketing = [...completed].reverse().find(item =>\n        item?.name === "marketing.plan" &&\n        item?.observation?.productionRequested === true\n    );\n    const requirements = Array.isArray(marketing?.observation?.requiredArtifacts)\n        ? marketing.observation.requiredArtifacts\n        : [];\n    const consumedFingerprints = new Set();\n    const unresolved = [];\n\n    for (let index = 0; index < requirements.length; index += 1) {\n        const requirement = requirements[index];\n        const candidates = completed.filter(item =>\n            taskMatchesMarketingRequirement(item, requirement, requirements) &&\n            marketingArtifactOutput(item)\n        );\n        const completedTask = candidates.find(item => {\n            const fingerprint = marketingArtifactFingerprint(item);\n            return fingerprint && !consumedFingerprints.has(fingerprint);\n        }) || null;\n        if (completedTask) {\n            consumedFingerprints.add(marketingArtifactFingerprint(completedTask));\n            continue;\n        }\n        unresolved.push({\n            id: text(requirement?.id || `artifact-${index + 1}`, 120),\n            type: text(requirement?.type, 120),\n            toolName: text(requirement?.toolName, 120),\n            format: text(requirement?.format, 40),\n            label: text(requirement?.label, 200),\n            reason: candidates.length > 0\n                ? "DUPLICATE_PHYSICAL_ARTIFACT"\n                : "MISSING_PHYSICAL_ARTIFACT"\n        });\n    }\n    return unresolved;\n}\n\n'''
+          s = s[:start] + replacement + s[end:]
+          s = s.replace('"1.18.0-safe-marketing-artifact-expansion-v12"', '"1.19.0-unique-marketing-artifacts-v12"', 1)
+          p.write_text(s, encoding='utf-8')
+
+          p = Path('gestia-core/jarvis/jarvis.marketing.presenter.js')
+          s = p.read_text(encoding='utf-8')
+          marker = '''function requirementLabel(requirement = {}) {'''
+          helper = '''function artifactFingerprint(item = {}) {\n    const hash = String(\n        item?.observation?.outputSha256 ||\n        item?.observation?.sha256 ||\n        item?.observation?.evidence?.outputSha256 ||\n        item?.observation?.evidence?.sha256 ||\n        item?.observation?.evidence?.artifact?.sha256 ||\n        ""\n    ).trim().toLowerCase();\n    if (hash) return `sha256:${hash}`;\n    const output = String(artifactOutput(item) || "").trim();\n    return output ? `output:${output.replaceAll("\\\\", "/").toLowerCase()}` : "";\n}\n\n'''
+          if helper not in s:
+              if s.count(marker) != 1:
+                  raise SystemExit(f'presenter helper marker count={s.count(marker)}')
+              s = s.replace(marker, helper + marker, 1)
+
+          old = '''    for (const requirement of requirements) {\n        const completedTask = completed.find(item => taskMatchesRequirement(item, requirement));\n        const blockedTask = blockedOrPending.find(item => taskMatchesRequirement(item, requirement));\n        const output = completedTask ? artifactOutput(completedTask) : "";\n        if (completedTask && output) {\n            produced.push({ id: requirement.id, label: requirementLabel(requirement), output });\n            continue;\n        }\n        unresolved.push({\n            id: requirement.id,\n            label: requirementLabel(requirement),\n            reason: blockedTask ? "PENDIENTE_O_BLOQUEADO" : completedTask ? "SIN_ARCHIVO_VERIFICABLE" : "NO_EJECUTADO"\n        });\n    }'''
+          new = '''    const consumedFingerprints = new Set();\n    for (const requirement of requirements) {\n        const completedCandidates = completed.filter(item =>\n            taskMatchesRequirement(item, requirement) && artifactOutput(item)\n        );\n        const completedTask = completedCandidates.find(item => {\n            const fingerprint = artifactFingerprint(item);\n            return fingerprint && !consumedFingerprints.has(fingerprint);\n        }) || null;\n        const blockedTask = blockedOrPending.find(item => taskMatchesRequirement(item, requirement));\n        const output = completedTask ? artifactOutput(completedTask) : "";\n        if (completedTask && output) {\n            consumedFingerprints.add(artifactFingerprint(completedTask));\n            produced.push({ id: requirement.id, label: requirementLabel(requirement), output });\n            continue;\n        }\n        unresolved.push({\n            id: requirement.id,\n            label: requirementLabel(requirement),\n            reason: blockedTask\n                ? "PENDIENTE_O_BLOQUEADO"\n                : completedCandidates.length > 0\n                    ? "ARTEFACTO_FISICO_DUPLICADO"\n                    : "NO_EJECUTADO"\n        });\n    }'''
+          if s.count(old) != 1:
+              raise SystemExit(f'presenter loop marker count={s.count(old)}')
+          s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+          node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
+          node --check gestia-core/jarvis/jarvis.marketing.presenter.js
+          git diff --check
+      - name: Commit uniqueness patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            gestia-core/jarvis/jarvis.mission.orchestrator.js \
+            gestia-core/jarvis/jarvis.marketing.presenter.js
+          git commit -m "jarvis: require unique physical artifact evidence per marketing requirement"
+          git pull --rebase origin chatgpt/jarvis-v12-marketing-handoff
+          git push origin HEAD:chatgpt/jarvis-v12-marketing-handoff
