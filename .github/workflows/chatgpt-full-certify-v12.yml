@@ -1,0 +1,53 @@
+name: ChatGPT full certify v12
+
+on:
+  push:
+    branches:
+      - chatgpt/jarvis-v12-marketing-handoff
+
+permissions:
+  contents: write
+
+jobs:
+  certify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/jarvis-v12-marketing-handoff
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Full Jarvis regression and deploy gate
+        shell: bash
+        env:
+          JARVIS_CI_PASSED: "true"
+          JARVIS_FIREBASE_PROJECT: fixgo-44e4d
+        run: |
+          set +e
+          {
+            npm run ci:test &&
+            node scripts/jarvis-deploy-gate.mjs
+          } 2>&1 | tee /tmp/full-v12.log
+          code=${PIPESTATUS[0]}
+          mkdir -p docs
+          {
+            echo "CHATGPT_JARVIS_V12_FULL_CERTIFICATION=true"
+            echo "source_sha=${GITHUB_SHA}"
+            echo "workflow_run=${GITHUB_RUN_ID}"
+            echo "exit_code=${code}"
+            echo "--- tail ---"
+            tail -n 220 /tmp/full-v12.log
+          } > docs/chatgpt-jarvis-v12-full-certification.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/chatgpt-jarvis-v12-full-certification.txt
+          git commit -m "ci: persist Jarvis v12 full certification"
+          git pull --rebase origin chatgpt/jarvis-v12-marketing-handoff
+          git push origin HEAD:chatgpt/jarvis-v12-marketing-handoff
+          exit 0
