@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
     adaptImageSource,
     buildIdentityReferenceSheet,
+    overlayBrandLogo,
     planImageAdaptation
 } from "../gestia-core/jarvis/jarvis.image.adapter.js";
 
@@ -183,5 +184,61 @@ test("identity reference sheet gives the primary photo the large panel", async (
 
         globalThis.OffscreenCanvas =
             OriginalCanvas;
+    }
+});
+
+test("official brand logo overlay uses the logo source as a second deterministic draw after the generated image", async () => {
+    const originalBitmap = globalThis.createImageBitmap;
+    const OriginalCanvas = globalThis.OffscreenCanvas;
+    const draws = [];
+    let bitmapCall = 0;
+
+    globalThis.createImageBitmap = async () => {
+        bitmapCall += 1;
+        return bitmapCall === 1
+            ? { width: 1200, height: 1200, close() {} }
+            : { width: 300, height: 150, close() {} };
+    };
+    globalThis.OffscreenCanvas = class {
+        constructor(width, height) {
+            this.width = width;
+            this.height = height;
+        }
+        getContext() {
+            return {
+                drawImage: (...args) => draws.push(args),
+                fillRect() {}
+            };
+        }
+        async convertToBlob({ type }) {
+            return new Blob(["official-logo-composite"], { type });
+        }
+    };
+
+    try {
+        const result = await overlayBrandLogo({
+            imageBase64: Buffer.from("generated-social-piece").toString("base64"),
+            imageMimeType: "image/png",
+            logoBase64: Buffer.from("official-logo-bytes").toString("base64"),
+            logoMimeType: "image/png",
+            position: "top-right"
+        });
+
+        assert.equal(result.ok, true);
+        assert.equal(result.status, "OFFICIAL_BRAND_LOGO_OVERLAY_APPLIED");
+        assert.equal(result.logoOverlayApplied, true);
+        assert.equal(result.logoPixelSource, "DECODED_OFFICIAL_SOURCE_BYTES");
+        assert.equal(result.generatedLogoAllowed, false);
+        assert.equal(result.width, 1200);
+        assert.equal(result.height, 1200);
+        assert.equal(result.logoSourceWidth, 300);
+        assert.equal(result.logoSourceHeight, 150);
+        assert.equal(result.placement.position, "top-right");
+        assert.equal(draws.length, 2);
+        assert.equal(Boolean(result.imageBase64), true);
+    }
+    finally {
+        globalThis.createImageBitmap = originalBitmap;
+        globalThis.OffscreenCanvas = OriginalCanvas;
     }
 });
