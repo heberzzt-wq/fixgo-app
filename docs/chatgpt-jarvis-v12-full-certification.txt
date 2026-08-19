@@ -1,225 +1,225 @@
 CHATGPT_JARVIS_V12_FULL_CERTIFICATION=true
-source_sha=8c38f6f098e6b024791fd85048a3101b42d48008
-workflow_run=32297305109
+source_sha=a81f25181258144de3748c150c62a770d56e7942
+workflow_run=32297439827
 exit_code=1
 --- tail ---
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '8.2.0-semantic-brief-real-delivery-contract'
+  actual: '8.3.0-grounded-social-edit-contract-v12'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/runner/work/fixgo-app/fixgo-app/tests/jarvis-marketing-engine-v2.test.mjs:58:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: NEXO marketing gives verified mission sources priority over semantic web research arguments
+ok 8 - NEXO marketing gives verified mission sources priority over semantic web research arguments
+  ---
+  duration_ms: 1.903428
+  type: 'test'
+  ...
+# Subtest: NEXO marketing leaves free-text routing to the mission planner
+ok 9 - NEXO marketing leaves free-text routing to the mission planner
+  ---
+  duration_ms: 0.735715
+  type: 'test'
+  ...
+# Subtest: NEXO marketing requires only structured factual brand identity
+ok 10 - NEXO marketing requires only structured factual brand identity
+  ---
+  duration_ms: 1.309238
+  type: 'test'
+  ...
+# Subtest: NEXO marketing produces the complete 90-day package after receiving sufficient context
+ok 11 - NEXO marketing produces the complete 90-day package after receiving sufficient context
+  ---
+  duration_ms: 6.398311
+  type: 'test'
+  ...
+# Subtest: company registry remains available during NEXO migration
+ok 12 - company registry remains available during NEXO migration
+  ---
+  duration_ms: 0.234438
+  type: 'test'
+  ...
+# Subtest: NEXO marketing isolates structured current brand identity from stale completed context
+ok 13 - NEXO marketing isolates structured current brand identity from stale completed context
+  ---
+  duration_ms: 0.377496
+  type: 'test'
+  ...
+# Subtest: marketing plan alone can never satisfy a real production mission
+ok 14 - marketing plan alone can never satisfy a real production mission
+  ---
+  duration_ms: 9.080463
+  type: 'test'
+  ...
+# Subtest: marketing final response turns green only when every required artifact has a verified output
+ok 15 - marketing final response turns green only when every required artifact has a verified output
+  ---
+  duration_ms: 1.568883
+  type: 'test'
+  ...
+# Subtest: human marketing output never leaks internal planning metadata or claims briefs are produced files
+ok 16 - human marketing output never leaks internal planning metadata or claims briefs are produced files
+  ---
+  duration_ms: 1.184795
   type: 'test'
   ...
 # Subtest: generic local marketing defaults are rejected when semantic brief is incomplete
 ok 17 - generic local marketing defaults are rejected when semantic brief is incomplete
   ---
-  duration_ms: 0.428152
+  duration_ms: 0.39036
   type: 'test'
   ...
 # Subtest: mission contract expands from structured marketing requirements and asks the same planner for real tools
-not ok 18 - mission contract expands from structured marketing requirements and asks the same planner for real tools
+ok 18 - mission contract expands from structured marketing requirements and asks the same planner for real tools
   ---
-  duration_ms: 47.058508
+  duration_ms: 61.834024
   type: 'test'
-  location: '/home/runner/work/fixgo-app/fixgo-app/tests/jarvis-marketing-real-delivery.test.mjs:121:1'
-  failureType: 'testCodeFailure'
-  error: |-
-    Expected values to be strictly deep-equal:
-    + actual - expected
-    
-      [
-        'marketing.plan',
-    -   'reel.create',
-    -   'page.create',
-    -   'image.generate'
-      ]
-    
-  code: 'ERR_ASSERTION'
-  name: 'AssertionError'
-  expected:
-    0: 'marketing.plan'
-    1: 'reel.create'
-    2: 'page.create'
-    3: 'image.generate'
-  actual:
-    0: 'marketing.plan'
-  operator: 'deepStrictEqual'
-  stack: |-
-    TestContext.<anonymous> (file:///home/runner/work/fixgo-app/fixgo-app/tests/jarvis-marketing-real-delivery.test.mjs:170:12)
-    async Test.run (node:internal/test_runner/test:1054:7)
-    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
   ...
 # Subtest: complete marketing production cannot close until every requested artifact format exists
-not ok 19 - complete marketing production cannot close until every requested artifact format exists
+ok 19 - complete marketing production cannot close until every requested artifact format exists
   ---
-  duration_ms: 63.782485
+  duration_ms: 69.539649
   type: 'test'
-  location: '/home/runner/work/fixgo-app/fixgo-app/tests/jarvis-marketing-terminal-delivery.e2e.test.mjs:96:1'
-  failureType: 'testCodeFailure'
-  error: |-
-    Expected values to be strictly equal:
-    + actual - expected
-    
-    + 'REEL_MEDIA_SOURCE_RECOVERY_EXHAUSTED'
-    - 'ALL_EXECUTABLE_TASKS_COMPLETED'
-    
-  code: 'ERR_ASSERTION'
-  name: 'AssertionError'
-  expected: 'ALL_EXECUTABLE_TASKS_COMPLETED'
-  actual: 'REEL_MEDIA_SOURCE_RECOVERY_EXHAUSTED'
-  operator: 'strictEqual'
-  stack: |-
-    TestContext.<anonymous> (file:///home/runner/work/fixgo-app/fixgo-app/tests/jarvis-marketing-terminal-delivery.e2e.test.mjs:151:12)
-    async Test.run (node:internal/test_runner/test:1054:7)
-    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
   ...
 # Subtest: marketing production fails closed when one repeated document format is missing
-not ok 20 - marketing production fails closed when one repeated document format is missing
+ok 20 - marketing production fails closed when one repeated document format is missing
   ---
-  duration_ms: 2.661096
+  duration_ms: 1.560989
   type: 'test'
-  location: '/home/runner/work/fixgo-app/fixgo-app/tests/jarvis-marketing-terminal-delivery.e2e.test.mjs:169:1'
-  failureType: 'testCodeFailure'
-  error: |-
-    Expected values to be strictly equal:
-    
-    2 !== 1
-    
-  code: 'ERR_ASSERTION'
-  name: 'AssertionError'
-  expected: 1
-  actual: 2
-  operator: 'strictEqual'
-  stack: |-
-    TestContext.<anonymous> (file:///home/runner/work/fixgo-app/fixgo-app/tests/jarvis-marketing-terminal-delivery.e2e.test.mjs:198:12)
-    Test.runInAsyncScope (node:async_hooks:214:14)
-    Test.run (node:internal/test_runner/test:1047:25)
-    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
-    Test.postRun (node:internal/test_runner/test:1173:19)
-    Test.run (node:internal/test_runner/test:1101:12)
-    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
   ...
 # Subtest: Terminal core hydrates marketing documents and gives the direct delivery response highest priority
 ok 21 - Terminal core hydrates marketing documents and gives the direct delivery response highest priority
   ---
-  duration_ms: 7.539608
+  duration_ms: 3.978007
   type: 'test'
   ...
 # Subtest: Terminal renders verified marketing producedArtifacts through the existing download renderer
 ok 22 - Terminal renders verified marketing producedArtifacts through the existing download renderer
   ---
-  duration_ms: 2.135833
+  duration_ms: 1.965915
   type: 'test'
   ...
 # Subtest: completed marketing plan content is injected into MD and PDF artifact creation
 ok 23 - completed marketing plan content is injected into MD and PDF artifact creation
   ---
-  duration_ms: 1.640033
+  duration_ms: 1.334594
   type: 'test'
   ...
 # Subtest: marketing document dependency cannot fall through to generic document composition
 ok 24 - marketing document dependency cannot fall through to generic document composition
   ---
-  duration_ms: 1.989117
+  duration_ms: 2.206605
   type: 'test'
   ...
 # Subtest: Terminal presents any valid non-agent GestiaCore finalResponse instead of a false not-presented error
 ok 25 - Terminal presents any valid non-agent GestiaCore finalResponse instead of a false not-presented error
   ---
-  duration_ms: 3.406533
+  duration_ms: 1.861269
   type: 'test'
   ...
 # Subtest: Terminal recovers nested core finalResponse envelopes and removes false not-presented outcome
 ok 26 - Terminal recovers nested core finalResponse envelopes and removes false not-presented outcome
   ---
-  duration_ms: 2.255306
+  duration_ms: 2.004488
   type: 'test'
   ...
 # Subtest: NEXO UI branding contains no natural-language approval brain
 ok 27 - NEXO UI branding contains no natural-language approval brain
   ---
-  duration_ms: 1.400554
+  duration_ms: 1.453086
   type: 'test'
   ...
 # Subtest: NEXO UI branding declares the single semantic authority
 ok 28 - NEXO UI branding declares the single semantic authority
   ---
-  duration_ms: 0.369522
+  duration_ms: 0.37445
   type: 'test'
   ...
 # Subtest: runtime override preserves NEXO marketing input-required semantics
 ok 29 - runtime override preserves NEXO marketing input-required semantics
   ---
-  duration_ms: 2.313525
+  duration_ms: 3.314145
   type: 'test'
   ...
 # Subtest: real media package blocks when requested video bytes are missing
 ok 30 - real media package blocks when requested video bytes are missing
   ---
-  duration_ms: 0.562454
+  duration_ms: 0.782273
   type: 'test'
   ...
 # Subtest: real media package creates verified local manifest when both families exist
 ok 31 - real media package creates verified local manifest when both families exist
   ---
-  duration_ms: 1.215698
+  duration_ms: 1.703204
   type: 'test'
   ...
 # Subtest: NEXO bootstrap keeps tools but installs no alternate semantic authority
 ok 32 - NEXO bootstrap keeps tools but installs no alternate semantic authority
   ---
-  duration_ms: 1.323701
+  duration_ms: 1.357027
   type: 'test'
   ...
 # Subtest: NEXO bootstrap remains inert outside the browser
 ok 33 - NEXO bootstrap remains inert outside the browser
   ---
-  duration_ms: 0.257462
+  duration_ms: 0.304109
   type: 'test'
   ...
 # Subtest: only jarvisSemanticPlan owns natural-language planning
 ok 34 - only jarvisSemanticPlan owns natural-language planning
   ---
-  duration_ms: 4.056351
+  duration_ms: 4.208788
   type: 'test'
   ...
 # Subtest: legacy cognition URLs are inert compatibility canaries
 ok 35 - legacy cognition URLs are inert compatibility canaries
   ---
-  duration_ms: 0.651882
+  duration_ms: 0.590685
   type: 'test'
   ...
 # Subtest: NEXO runtime no longer installs local semantic resilience
 ok 36 - NEXO runtime no longer installs local semantic resilience
   ---
-  duration_ms: 0.472916
+  duration_ms: 0.503822
   type: 'test'
   ...
 # Subtest: alternate adaptive intelligence runtime is absent
 ok 37 - alternate adaptive intelligence runtime is absent
   ---
-  duration_ms: 1.364627
+  duration_ms: 1.570977
   type: 'test'
   ...
 # Subtest: active semantic surfaces contain no lexical regex brain
 ok 38 - active semantic surfaces contain no lexical regex brain
   ---
-  duration_ms: 0.530344
+  duration_ms: 0.544839
   type: 'test'
   ...
 # Subtest: terminal has no dead lexical natural-command router after semantic return
 ok 39 - terminal has no dead lexical natural-command router after semantic return
   ---
-  duration_ms: 0.85371
+  duration_ms: 0.853525
   type: 'test'
   ...
 # Subtest: UI branding never interprets natural approval language
 ok 40 - UI branding never interprets natural approval language
   ---
-  duration_ms: 0.312154
+  duration_ms: 0.285284
   type: 'test'
   ...
 1..40
 # tests 40
 # suites 0
-# pass 36
-# fail 4
+# pass 39
+# fail 1
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 310.103331
+# duration_ms 333.096581
