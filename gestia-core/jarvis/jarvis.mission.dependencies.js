@@ -1,4 +1,4 @@
-const VERSION = "1.3.0-marketing-artifact-identity-v12";
+const VERSION = "1.4.0-grounded-social-edit-contract-v12";
 
 const MISSION_STAGE_BY_TOOL = Object.freeze({
     "web.research": 10,
@@ -98,6 +98,55 @@ function marketingProductionRequirements(calls = []) {
             };
         })
         .filter(Boolean);
+}
+
+function promoteMarketingImageEdits(calls = [], available = new Set()) {
+    const mediaAvailable = calls.some(call => call?.name === "web.media.collect");
+    if (!mediaAvailable || !available.has("image.edit")) return calls;
+    const marketingIndex = calls.findIndex(call => call?.name === "marketing.plan");
+    if (marketingIndex < 0) return calls;
+    const marketing = calls[marketingIndex];
+    const artifacts = Array.isArray(marketing?.args?.productionArtifacts)
+        ? marketing.args.productionArtifacts.map(item => ({ ...object(item) }))
+        : [];
+    const promotableIds = [];
+    const promotedArtifacts = artifacts.map((item, index) => {
+        if (clean(item.toolName) !== "image.generate") return item;
+        const id = safeRequirementId(item.id, `artifact-${index + 1}`);
+        promotableIds.push(id);
+        return {
+            ...item,
+            id,
+            toolName: "image.edit"
+        };
+    });
+    if (promotableIds.length === 0) return calls;
+
+    calls[marketingIndex] = {
+        ...marketing,
+        args: {
+            ...object(marketing.args),
+            productionArtifacts: promotedArtifacts
+        }
+    };
+
+    let promotedCallCount = 0;
+    for (let index = 0; index < calls.length && promotedCallCount < promotableIds.length; index += 1) {
+        const call = calls[index];
+        if (call?.name !== "image.generate") continue;
+        calls[index] = {
+            ...call,
+            name: "image.edit",
+            args: {
+                ...object(call.args),
+                preserveLogos: true,
+                preserveApprovedText: false
+            },
+            reason: call?.reason || "MARKETING_GROUNDED_SOCIAL_EDIT"
+        };
+        promotedCallCount += 1;
+    }
+    return calls;
 }
 
 function requirementCallCompatible(call = {}, requirement = {}) {
@@ -238,6 +287,7 @@ export function ensureExecutableArtifactDependencies({
             .filter(Boolean)
     );
 
+    calls = promoteMarketingImageEdits(calls, available);
     calls = tagMarketingProductionCalls(calls);
     calls = removeRedundantMarketingComposers(calls);
     calls = injectPageComposeDependency(calls, available);
@@ -250,8 +300,9 @@ export function describeMissionDependencies() {
         version: VERSION,
         architecture: "tool_contract_dependency",
         lexicalRouting: false,
-        currentDependency: "research/media evidence -> marketing.plan -> collected media/composition -> uniquely identified physical artifacts",
+        currentDependency: "research -> marketing.plan -> verified media -> composition -> uniquely identified physical artifacts",
         marketingArtifactIdentity: true,
+        groundedSocialEdits: true,
         stages: { ...MISSION_STAGE_BY_TOOL }
     };
 }
@@ -260,6 +311,7 @@ export const __test = {
     directPageReady,
     stableSemanticStageSort,
     marketingProductionRequirements,
+    promoteMarketingImageEdits,
     requirementCallCompatible,
     tagMarketingProductionCalls,
     removeRedundantMarketingComposers,
