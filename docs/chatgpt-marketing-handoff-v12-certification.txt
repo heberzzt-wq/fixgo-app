@@ -1,5 +1,5 @@
 CHATGPT_MARKETING_HANDOFF_V12_CERTIFIED=true
-source_sha=f988574bb43133d2dd12eb4e6923fe6736d21cd9
-workflow_run=32296314876
+source_sha=6710a779f563446787d964c570a970f5dcabeb1b
+workflow_run=32296385437
 syntax=pass
 focal_regression=pass
