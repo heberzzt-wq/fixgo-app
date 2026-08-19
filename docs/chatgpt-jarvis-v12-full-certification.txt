@@ -1,6 +1,6 @@
 CHATGPT_JARVIS_V12_FULL_CERTIFICATION=true
-source_sha=cd3d66ed29c05e3168c4663899397fd74184b2a5
-workflow_run=32296971775
+source_sha=458a2828617e46cd2505e27d887df14ac5555fe0
+workflow_run=32297160605
 exit_code=1
 --- tail ---
   type: 'test'
@@ -8,13 +8,13 @@ exit_code=1
 # Subtest: generic local marketing defaults are rejected when semantic brief is incomplete
 ok 17 - generic local marketing defaults are rejected when semantic brief is incomplete
   ---
-  duration_ms: 0.382508
+  duration_ms: 0.367173
   type: 'test'
   ...
 # Subtest: mission contract expands from structured marketing requirements and asks the same planner for real tools
 not ok 18 - mission contract expands from structured marketing requirements and asks the same planner for real tools
   ---
-  duration_ms: 50.007652
+  duration_ms: 39.181264
   type: 'test'
   location: '/home/runner/work/fixgo-app/fixgo-app/tests/jarvis-marketing-real-delivery.test.mjs:121:1'
   failureType: 'testCodeFailure'
@@ -47,7 +47,7 @@ not ok 18 - mission contract expands from structured marketing requirements and 
 # Subtest: complete marketing production cannot close until every requested artifact format exists
 not ok 19 - complete marketing production cannot close until every requested artifact format exists
   ---
-  duration_ms: 66.955407
+  duration_ms: 56.560802
   type: 'test'
   location: '/home/runner/work/fixgo-app/fixgo-app/tests/jarvis-marketing-terminal-delivery.e2e.test.mjs:96:1'
   failureType: 'testCodeFailure'
@@ -71,7 +71,7 @@ not ok 19 - complete marketing production cannot close until every requested art
 # Subtest: marketing production fails closed when one repeated document format is missing
 not ok 20 - marketing production fails closed when one repeated document format is missing
   ---
-  duration_ms: 2.330956
+  duration_ms: 2.536407
   type: 'test'
   location: '/home/runner/work/fixgo-app/fixgo-app/tests/jarvis-marketing-terminal-delivery.e2e.test.mjs:169:1'
   failureType: 'testCodeFailure'
@@ -97,121 +97,121 @@ not ok 20 - marketing production fails closed when one repeated document format 
 # Subtest: Terminal core hydrates marketing documents and gives the direct delivery response highest priority
 ok 21 - Terminal core hydrates marketing documents and gives the direct delivery response highest priority
   ---
-  duration_ms: 4.510612
+  duration_ms: 4.780161
   type: 'test'
   ...
 # Subtest: Terminal renders verified marketing producedArtifacts through the existing download renderer
 ok 22 - Terminal renders verified marketing producedArtifacts through the existing download renderer
   ---
-  duration_ms: 1.895263
+  duration_ms: 2.035216
   type: 'test'
   ...
 # Subtest: completed marketing plan content is injected into MD and PDF artifact creation
 ok 23 - completed marketing plan content is injected into MD and PDF artifact creation
   ---
-  duration_ms: 1.400905
+  duration_ms: 1.959304
   type: 'test'
   ...
 # Subtest: marketing document dependency cannot fall through to generic document composition
 ok 24 - marketing document dependency cannot fall through to generic document composition
   ---
-  duration_ms: 1.716978
+  duration_ms: 1.878514
   type: 'test'
   ...
 # Subtest: Terminal presents any valid non-agent GestiaCore finalResponse instead of a false not-presented error
 ok 25 - Terminal presents any valid non-agent GestiaCore finalResponse instead of a false not-presented error
   ---
-  duration_ms: 2.629614
+  duration_ms: 2.307523
   type: 'test'
   ...
 # Subtest: Terminal recovers nested core finalResponse envelopes and removes false not-presented outcome
 ok 26 - Terminal recovers nested core finalResponse envelopes and removes false not-presented outcome
   ---
-  duration_ms: 1.961595
+  duration_ms: 2.287384
   type: 'test'
   ...
 # Subtest: NEXO UI branding contains no natural-language approval brain
 ok 27 - NEXO UI branding contains no natural-language approval brain
   ---
-  duration_ms: 1.194499
+  duration_ms: 1.275182
   type: 'test'
   ...
 # Subtest: NEXO UI branding declares the single semantic authority
 ok 28 - NEXO UI branding declares the single semantic authority
   ---
-  duration_ms: 0.308757
+  duration_ms: 0.315757
   type: 'test'
   ...
 # Subtest: runtime override preserves NEXO marketing input-required semantics
 ok 29 - runtime override preserves NEXO marketing input-required semantics
   ---
-  duration_ms: 2.926005
+  duration_ms: 2.242692
   type: 'test'
   ...
 # Subtest: real media package blocks when requested video bytes are missing
 ok 30 - real media package blocks when requested video bytes are missing
   ---
-  duration_ms: 0.726266
+  duration_ms: 0.530887
   type: 'test'
   ...
 # Subtest: real media package creates verified local manifest when both families exist
 ok 31 - real media package creates verified local manifest when both families exist
   ---
-  duration_ms: 1.532908
+  duration_ms: 1.246018
   type: 'test'
   ...
 # Subtest: NEXO bootstrap keeps tools but installs no alternate semantic authority
 ok 32 - NEXO bootstrap keeps tools but installs no alternate semantic authority
   ---
-  duration_ms: 1.139108
+  duration_ms: 1.475193
   type: 'test'
   ...
 # Subtest: NEXO bootstrap remains inert outside the browser
 ok 33 - NEXO bootstrap remains inert outside the browser
   ---
-  duration_ms: 0.29566
+  duration_ms: 0.320756
   type: 'test'
   ...
 # Subtest: only jarvisSemanticPlan owns natural-language planning
 ok 34 - only jarvisSemanticPlan owns natural-language planning
   ---
-  duration_ms: 4.69664
+  duration_ms: 4.116236
   type: 'test'
   ...
 # Subtest: legacy cognition URLs are inert compatibility canaries
 ok 35 - legacy cognition URLs are inert compatibility canaries
   ---
-  duration_ms: 0.603731
+  duration_ms: 0.620444
   type: 'test'
   ...
 # Subtest: NEXO runtime no longer installs local semantic resilience
 ok 36 - NEXO runtime no longer installs local semantic resilience
   ---
-  duration_ms: 0.511899
+  duration_ms: 0.504388
   type: 'test'
   ...
 # Subtest: alternate adaptive intelligence runtime is absent
 ok 37 - alternate adaptive intelligence runtime is absent
   ---
-  duration_ms: 1.607559
+  duration_ms: 1.419651
   type: 'test'
   ...
 # Subtest: active semantic surfaces contain no lexical regex brain
 ok 38 - active semantic surfaces contain no lexical regex brain
   ---
-  duration_ms: 0.629611
+  duration_ms: 0.562807
   type: 'test'
   ...
 # Subtest: terminal has no dead lexical natural-command router after semantic return
 ok 39 - terminal has no dead lexical natural-command router after semantic return
   ---
-  duration_ms: 0.950317
+  duration_ms: 0.844441
   type: 'test'
   ...
 # Subtest: UI branding never interprets natural approval language
 ok 40 - UI branding never interprets natural approval language
   ---
-  duration_ms: 0.279448
+  duration_ms: 0.299207
   type: 'test'
   ...
 1..40
@@ -222,4 +222,4 @@ ok 40 - UI branding never interprets natural approval language
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 311.345692
+# duration_ms 284.270994
