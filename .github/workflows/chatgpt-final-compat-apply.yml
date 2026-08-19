@@ -1,0 +1,49 @@
+name: ChatGPT final marketing compat patch
+
+on:
+  push:
+    branches:
+      - chatgpt/jarvis-v12-marketing-handoff
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/jarvis-v12-marketing-handoff
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Patch legacy document artifact discovery
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('gestia-core/jarvis/jarvis.marketing.presenter.js')
+          s = p.read_text(encoding='utf-8')
+          old = '''    ].filter(item => isMarketingArtifactTask(item));\n    const seen = new Set();'''
+          new = '''    ].filter(item =>\n        item?.name === "document.create" ||\n        isMarketingArtifactTask(item)\n    );\n    const seen = new Set();'''
+          if s.count(old) != 1:
+              raise SystemExit(f'legacy marker count={s.count(old)}')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          PY
+          node --check gestia-core/jarvis/jarvis.marketing.presenter.js
+          node --test tests/v94-marketing-artifact-delivery.test.mjs
+          git diff --check
+      - name: Commit patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gestia-core/jarvis/jarvis.marketing.presenter.js
+          git commit -m "jarvis: preserve legacy marketing artifact delivery detection"
+          git pull --rebase origin chatgpt/jarvis-v12-marketing-handoff
+          git push origin HEAD:chatgpt/jarvis-v12-marketing-handoff
