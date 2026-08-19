@@ -39,6 +39,7 @@ jobs:
           node --test --test-concurrency=1 \
             tests/jarvis-marketing-handoff-v12.test.mjs \
             tests/jarvis-marketing-expansion-v12.test.mjs \
+            tests/jarvis-marketing-artifact-uniqueness-v12.test.mjs \
             tests/jarvis-brand-logo-overlay-v12.test.mjs \
             tests/jarvis-mission-orchestrator.test.mjs \
             tests/jarvis-actuator-pack.test.mjs \
@@ -57,6 +58,7 @@ jobs:
           syntax=pass
           focal_regression=pass
           official_brand_logo_overlay=pass
+          unique_physical_artifacts=pass
           EOF
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
