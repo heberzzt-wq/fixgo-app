@@ -51,7 +51,38 @@ function outputFor(name, args = {}) {
     return `.jarvis-artifacts/${id}.json`;
 }
 
-test("completed marketing.plan deterministically schedules all seven declared physical requirements with unique identities", async () => {
+function semanticArgs(requirement = {}) {
+    if (requirement.toolName === "image.edit") {
+        return {
+            marketingRequirementId: requirement.id,
+            variantId: requirement.id,
+            identityMode: "brand-scene",
+            sourceOutput: ".jarvis-artifacts/web-media/foto-real.jpg",
+            brandLogoOutput: ".jarvis-artifacts/web-media/emblema-oficial.png",
+            prompt: requirement.label
+        };
+    }
+    if (requirement.toolName === "reel.create") {
+        return {
+            marketingRequirementId: requirement.id,
+            brandName: "Multiservicios Peninsulares HMH",
+            title: "Reel HMH",
+            cta: "Contacta a HMH",
+            durationSeconds: 30,
+            audioOutput: ".jarvis-artifacts/audio/narracion.wav",
+            scenes: [{
+                durationSeconds: 30,
+                overlay: "Contacta a HMH",
+                assetOutput: ".jarvis-artifacts/web-media/foto-real.jpg"
+            }]
+        };
+    }
+    return {
+        marketingRequirementId: requirement.id
+    };
+}
+
+test("marketing.plan expands safe documents immediately and semantic planning completes the remaining seven physical requirements with unique identities", async () => {
     const executed = [];
     const mission = await runJarvisMission({
         instruction: "Produce plan MD, PDF, XLSX, tres piezas sociales distintas y un reel narrado con medios reales.",
@@ -69,11 +100,30 @@ test("completed marketing.plan deterministically schedules all seven declared ph
             }
         ],
         requiredToolNames: ["marketing.plan", "web.media.collect"],
-        maximumSteps: 12,
-        planner: async () => ({
-            missionComplete: true,
-            toolCalls: []
-        }),
+        maximumSteps: 14,
+        planner: async ({ mission: current }) => {
+            const completedIds = new Set(
+                current.completedTasks
+                    .map(item => item?.args?.marketingRequirementId || item?.args?.variantId)
+                    .filter(Boolean)
+            );
+            const missing = requirements.find(requirement =>
+                requirement.toolName !== "document.create" &&
+                !completedIds.has(requirement.id)
+            );
+            return missing
+                ? {
+                    missionComplete: false,
+                    toolCalls: [{
+                        name: missing.toolName,
+                        args: semanticArgs(missing)
+                    }]
+                }
+                : {
+                    missionComplete: true,
+                    toolCalls: []
+                };
+        },
         execute: async call => {
             executed.push({ name: call.name, args: structuredClone(call.args || {}) });
             if (call.name === "marketing.plan") {
@@ -156,6 +206,8 @@ test("completed marketing.plan deterministically schedules all seven declared ph
     assert.equal(socials.length, 3);
     assert.equal(new Set(socials.map(item => item.args.variantId)).size, 3);
     assert.ok(socials.every(item => item.args.identityMode === "brand-scene"));
+    assert.ok(socials.every(item => item.args.sourceOutput.endsWith("foto-real.jpg")));
+    assert.ok(socials.every(item => item.args.brandLogoOutput.endsWith("emblema-oficial.png")));
 
     assert.equal(mission.marketingProductionContract?.requirementCount, 7);
 });
