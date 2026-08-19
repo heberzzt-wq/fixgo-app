@@ -38,4 +38,5 @@ jobs:
             functions/jarvis-semantic-planner.js \
             gestia-core/nexo/nexo.real-media.tools.js
           git commit -m "jarvis: align marketing semantic and artifact contracts"
+          git pull --rebase origin chatgpt/jarvis-v12-marketing-handoff
           git push origin HEAD:chatgpt/jarvis-v12-marketing-handoff
