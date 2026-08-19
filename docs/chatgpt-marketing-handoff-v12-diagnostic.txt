@@ -1,137 +1,137 @@
 CHATGPT_MARKETING_HANDOFF_V12_DIAGNOSTIC=true
-source_sha=688e7a1fd41d2e94c738f0020d8e1b6623d0b2b5
-workflow_run=32295361530
+source_sha=f90d17eece03188b223fd064d64822925f022efa
+workflow_run=32295521379
 exit_code=1
 --- tail ---
 ok 24 - mission dedupe identity prevents repeated semantic artifact stages
   ---
-  duration_ms: 3.129804
+  duration_ms: 2.566344
   type: 'test'
   ...
 # Subtest: mission evidence preserves a complete bounded tool registry
 ok 25 - mission evidence preserves a complete bounded tool registry
   ---
-  duration_ms: 0.570573
+  duration_ms: 0.576681
   type: 'test'
   ...
 # Subtest: repo read observations preserve numbered verified source beyond compact summaries
 ok 26 - repo read observations preserve numbered verified source beyond compact summaries
   ---
-  duration_ms: 0.4208
+  duration_ms: 0.373921
   type: 'test'
   ...
 # Subtest: a fully executed model contract closes even when the final audit returns no duplicate work
 ok 27 - a fully executed model contract closes even when the final audit returns no duplicate work
   ---
-  duration_ms: 3.504134
+  duration_ms: 4.138421
   type: 'test'
   ...
 # Subtest: mission blocks writes without retrying an approval requirement
 ok 28 - mission blocks writes without retrying an approval requirement
   ---
-  duration_ms: 1.280687
+  duration_ms: 1.208141
   type: 'test'
   ...
 # Subtest: mission stops repeated plans and respects maximum steps
 ok 29 - mission stops repeated plans and respects maximum steps
   ---
-  duration_ms: 2.755303
+  duration_ms: 3.368226
   type: 'test'
   ...
 # Subtest: mission cancellation and deadline close without another tool
 ok 30 - mission cancellation and deadline close without another tool
   ---
-  duration_ms: 1.65096
+  duration_ms: 1.300688
   type: 'test'
   ...
 # Subtest: mission never reports completion when the semantic planner is unavailable
 ok 31 - mission never reports completion when the semantic planner is unavailable
   ---
-  duration_ms: 1.350551
+  duration_ms: 1.341568
   type: 'test'
   ...
 # Subtest: mission cannot close while its model-generated contract is incomplete
 ok 32 - mission cannot close while its model-generated contract is incomplete
   ---
-  duration_ms: 1.288237
+  duration_ms: 1.658935
   type: 'test'
   ...
 # Subtest: mission preserves complete prepared content for a following artifact creator
 ok 33 - mission preserves complete prepared content for a following artifact creator
   ---
-  duration_ms: 2.361173
+  duration_ms: 2.498313
   type: 'test'
   ...
 # Subtest: marketing planning is a mission singleton even with different planned arguments
 ok 34 - marketing planning is a mission singleton even with different planned arguments
   ---
-  duration_ms: 2.150368
+  duration_ms: 1.337622
   type: 'test'
   ...
 # Subtest: MARKETING_PACKAGE_READY cannot satisfy the mission without a visible complete deliverable
 ok 35 - MARKETING_PACKAGE_READY cannot satisfy the mission without a visible complete deliverable
   ---
-  duration_ms: 0.278406
+  duration_ms: 0.204111
   type: 'test'
   ...
 # Subtest: the same marketing mission resumes with supplied context and completes its dependent work
 ok 36 - the same marketing mission resumes with supplied context and completes its dependent work
   ---
-  duration_ms: 11.64026
+  duration_ms: 11.840285
   type: 'test'
   ...
 # Subtest: mission refuses a status-only document blueprint without V68 validation evidence
 ok 37 - mission refuses a status-only document blueprint without V68 validation evidence
   ---
-  duration_ms: 0.209494
+  duration_ms: 0.227195
   type: 'test'
   ...
 # Subtest: mission preserves failed document validation evidence for an honest report
 ok 38 - mission preserves failed document validation evidence for an honest report
   ---
-  duration_ms: 0.19405
+  duration_ms: 0.193766
   type: 'test'
   ...
 # Subtest: mission preserves a complete page blueprint for the local page creator
 ok 39 - mission preserves a complete page blueprint for the local page creator
   ---
-  duration_ms: 3.471631
+  duration_ms: 4.629369
   type: 'test'
   ...
 # Subtest: spreadsheet observations preserve only validated executable blueprint metadata
 ok 40 - spreadsheet observations preserve only validated executable blueprint metadata
   ---
-  duration_ms: 0.401922
+  duration_ms: 0.328565
   type: 'test'
   ...
 # Subtest: mission persistence strips large document bodies and migrates legacy quota pressure
 ok 41 - mission persistence strips large document bodies and migrates legacy quota pressure
   ---
-  duration_ms: 5.504838
+  duration_ms: 6.082227
   type: 'test'
   ...
 # Subtest: routing compaction is deterministic and does not replace the authority instruction
 ok 42 - routing compaction is deterministic and does not replace the authority instruction
   ---
-  duration_ms: 0.143295
+  duration_ms: 0.173325
   type: 'test'
   ...
 # Subtest: mission observations preserve nested diagnostic errors instead of object coercion
 ok 43 - mission observations preserve nested diagnostic errors instead of object coercion
   ---
-  duration_ms: 0.22764
+  duration_ms: 0.243349
   type: 'test'
   ...
 # Subtest: media-only required mission closes immediately after successful media analysis without replanning
 ok 44 - media-only required mission closes immediately after successful media analysis without replanning
   ---
-  duration_ms: 2.060213
+  duration_ms: 1.98723
   type: 'test'
   ...
 # Subtest: the exact completed 25-section marketing output hydrates MD and PDF
 not ok 45 - the exact completed 25-section marketing output hydrates MD and PDF
   ---
-  duration_ms: 2.089197
+  duration_ms: 2.087538
   type: 'test'
   location: '/home/runner/work/fixgo-app/fixgo-app/tests/v94-marketing-artifact-delivery.test.mjs:30:1'
   failureType: 'testCodeFailure'
@@ -158,7 +158,7 @@ not ok 45 - the exact completed 25-section marketing output hydrates MD and PDF
 # Subtest: final marketing response is fail-closed about artifact delivery
 not ok 46 - final marketing response is fail-closed about artifact delivery
   ---
-  duration_ms: 0.462502
+  duration_ms: 0.427901
   type: 'test'
   location: '/home/runner/work/fixgo-app/fixgo-app/tests/v94-marketing-artifact-delivery.test.mjs:50:1'
   failureType: 'testCodeFailure'
@@ -177,9 +177,9 @@ not ok 46 - final marketing response is fail-closed about artifact delivery
 1..46
 # tests 46
 # suites 0
-# pass 43
-# fail 3
+# pass 44
+# fail 2
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 474.035575
+# duration_ms 512.778647
