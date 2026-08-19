@@ -1,190 +1,190 @@
 CHATGPT_JARVIS_V12_FULL_CERTIFICATION=true
-source_sha=f0b8878fff63d1a7bc9bc5396fd794b6cbfd90db
-workflow_run=32298221298
-tests_exit_code=0
+source_sha=3cf460858ab91e79ddc0a02cf17c29004c34e9f6
+workflow_run=32298325230
+tests_exit_code=1
 deploy_gate_exit_code=1
 deploy_branch_block_verified=1
-exit_code=0
+exit_code=1
 --- tests tail ---
-  ...
-# Subtest: semantic tool planner replaces scan-only plans with focused discovery
-ok 145 - semantic tool planner replaces scan-only plans with focused discovery
-  ---
-  duration_ms: 0.395354
+  duration_ms: 1.347416
   type: 'test'
   ...
-# Subtest: semantic tool planner falls back to general response without tool calls
-ok 146 - semantic tool planner falls back to general response without tool calls
+# Subtest: malformed mission contract retries with another semantic sample
+ok 212 - malformed mission contract retries with another semantic sample
   ---
-  duration_ms: 0.223831
+  duration_ms: 0.74883
   type: 'test'
   ...
-# Subtest: agent loop does not repeat completed tools for one explicit repository target
-ok 147 - agent loop does not repeat completed tools for one explicit repository target
+# Subtest: simple mission contract unions independent semantic coverage samples
+ok 213 - simple mission contract unions independent semantic coverage samples
   ---
-  duration_ms: 13.920383
+  duration_ms: 0.633448
   type: 'test'
   ...
-# Subtest: agent loop keeps planned auth targets ahead of accidental terminal matches
-ok 148 - agent loop keeps planned auth targets ahead of accidental terminal matches
+# Subtest: simple planner keeps the complete seventy-tool catalog inside a safe URL budget
+ok 214 - simple planner keeps the complete seventy-tool catalog inside a safe URL budget
   ---
-  duration_ms: 9.84458
+  duration_ms: 1.830439
   type: 'test'
   ...
-# Subtest: agent loop learning hints are advisory and do not authorize writes
-ok 149 - agent loop learning hints are advisory and do not authorize writes
+# Subtest: simple planner enriches selected specialized tools with grounded schema arguments
+ok 215 - simple planner enriches selected specialized tools with grounded schema arguments
   ---
-  duration_ms: 12.058912
+  duration_ms: 0.883652
   type: 'test'
   ...
-# Subtest: agent loop does not invent patchPreview when exact block is missing
-ok 150 - agent loop does not invent patchPreview when exact block is missing
+# Subtest: mission evidence compaction preserves verified sources without carrying raw payloads
+ok 216 - mission evidence compaction preserves verified sources without carrying raw payloads
   ---
-  duration_ms: 12.749102
+  duration_ms: 0.246098
   type: 'test'
   ...
-# Subtest: read-only technical response leads with findings and hides internal telemetry
-ok 151 - read-only technical response leads with findings and hides internal telemetry
+# Subtest: semantic plan validation rejects tools outside the runtime catalog
+ok 217 - semantic plan validation rejects tools outside the runtime catalog
   ---
-  duration_ms: 6.153364
+  duration_ms: 0.209994
   type: 'test'
   ...
-# Subtest: read-only technical response preserves evidence for every diagnosed target
-ok 152 - read-only technical response preserves evidence for every diagnosed target
+# Subtest: semantic plan grounds empty model arguments in the original instruction
+ok 218 - semantic plan grounds empty model arguments in the original instruction
   ---
-  duration_ms: 6.438216
+  duration_ms: 0.311687
   type: 'test'
   ...
-# Subtest: agent loop composes read-only final response for global repo analysis
-ok 153 - agent loop composes read-only final response for global repo analysis
+# Subtest: semantic provider retries bounded transient throttling
+ok 219 - semantic provider retries bounded transient throttling
   ---
-  duration_ms: 7.530059
+  duration_ms: 23.05375
   type: 'test'
   ...
-# Subtest: terminal renders visual patch proposal card without direct write execution
-ok 154 - terminal renders visual patch proposal card without direct write execution
+# Subtest: semantic planner retries one malformed model output
+ok 220 - semantic planner retries one malformed model output
   ---
-  duration_ms: 9.518357
+  duration_ms: 503.463698
   type: 'test'
   ...
-# Subtest: terminal sends natural repository analysis directly to the single core route
-ok 155 - terminal sends natural repository analysis directly to the single core route
+# Subtest: semantic planner uses authenticated Gemini before the public fallback
+ok 221 - semantic planner uses authenticated Gemini before the public fallback
   ---
-  duration_ms: 2.441699
+  duration_ms: 0.579076
   type: 'test'
   ...
-# Subtest: Codex V2 write path fails closed without governed repo.write runtime
-ok 156 - Codex V2 write path fails closed without governed repo.write runtime
+# Subtest: Gemini semantic plan remains bounded by the real runtime catalog
+ok 222 - Gemini semantic plan remains bounded by the real runtime catalog
   ---
-  duration_ms: 2.720551
+  duration_ms: 0.244667
   type: 'test'
   ...
-# Subtest: gestiaArchitectV5 exposes CORS preflight before firewall
-ok 157 - gestiaArchitectV5 exposes CORS preflight before firewall
+# Subtest: Gemini audits mission completion when native function output is empty
+ok 223 - Gemini audits mission completion when native function output is empty
   ---
-  duration_ms: 1.132664
+  duration_ms: 0.31433
   type: 'test'
   ...
-# Subtest: SIA7 public diagnostics no longer expose the internal Agent Loop label
-ok 158 - SIA7 public diagnostics no longer expose the internal Agent Loop label
+# Subtest: Gemini completion audit is JSON-only and selects one executable follow-up
+ok 224 - Gemini completion audit is JSON-only and selects one executable follow-up
   ---
-  duration_ms: 2.166332
+  duration_ms: 0.293539
   type: 'test'
   ...
-# Subtest: multi-tool missions prefer grounded semantic composition over a generic repo diagnostic
-ok 159 - multi-tool missions prefer grounded semantic composition over a generic repo diagnostic
+# Subtest: Gemini completion audit can close without a forced tool call
+ok 225 - Gemini completion audit can close without a forced tool call
   ---
-  duration_ms: 4.59416
+  duration_ms: 0.189624
   type: 'test'
   ...
-# Subtest: mission composition rejects truncated model headers and accepts complete reports
-ok 160 - mission composition rejects truncated model headers and accepts complete reports
+# Subtest: Gemini creates a complete read-only mission contract before execution
+ok 226 - Gemini creates a complete read-only mission contract before execution
   ---
-  duration_ms: 5.408443
+  duration_ms: 0.456563
   type: 'test'
   ...
-# Subtest: mission evidence packing preserves late tool results instead of starving them behind repo reads
-ok 161 - mission evidence packing preserves late tool results instead of starving them behind repo reads
+# Subtest: Gemini coverage audit restores an independent subject omitted by the draft contract
+ok 227 - Gemini coverage audit restores an independent subject omitted by the draft contract
   ---
-  duration_ms: 8.495575
+  duration_ms: 0.387921
   type: 'test'
   ...
-# Subtest: verified read-only missions stay outside retrying Firestore transactions
-ok 162 - verified read-only missions stay outside retrying Firestore transactions
+# Subtest: independent Gemini coverage restores a specialized deliverable missed twice
+ok 228 - independent Gemini coverage restores a specialized deliverable missed twice
   ---
-  duration_ms: 7.396461
+  duration_ms: 0.650172
   type: 'test'
   ...
-# Subtest: SIA7 GitHub worker commits an applied patch together with its result
-ok 163 - SIA7 GitHub worker commits an applied patch together with its result
+# Subtest: Gemini reserves response budget for evidence-driven mission follow-ups
+ok 229 - Gemini reserves response budget for evidence-driven mission follow-ups
   ---
-  duration_ms: 0.320764
+  duration_ms: 0.226689
   type: 'test'
   ...
-# Subtest: repo authority obeys the single semantic brain contract
-ok 164 - repo authority obeys the single semantic brain contract
+# Subtest: Gemini accepts a strict JSON mission contract when the provider omits native function calls
+ok 230 - Gemini accepts a strict JSON mission contract when the provider omits native function calls
   ---
-  duration_ms: 2.707392
+  duration_ms: 0.377986
   type: 'test'
   ...
-# 🧠 [RESOURCE_REGISTRY_READY] { files: 1, modules: 1, collections: 38, dependencies: 0 }
-# 🧠 [RESOURCE_REGISTRY_READY] { files: 1, modules: 1, collections: 38, dependencies: 0 }
-# Subtest: resource registry V2 rehydrates without duplicate module files
-ok 165 - resource registry V2 rehydrates without duplicate module files
+# Subtest: semantic mission completion requires an explicit model audit
+ok 231 - semantic mission completion requires an explicit model audit
   ---
-  duration_ms: 6.913838
+  duration_ms: 0.41446
   type: 'test'
   ...
-# Subtest: only jarvisSemanticPlan owns natural-language planning
-ok 166 - only jarvisSemanticPlan owns natural-language planning
+# Subtest: semantic planner accepts long and ten-page missions without losing mission state
+ok 232 - semantic planner accepts long and ten-page missions without losing mission state
   ---
-  duration_ms: 6.45534
+  duration_ms: 0.856572
   type: 'test'
   ...
-# Subtest: legacy cognition URLs are inert compatibility canaries
-ok 167 - legacy cognition URLs are inert compatibility canaries
+# Subtest: workbook validator rejects text operands, missing grid cells and circular formulas
+ok 233 - workbook validator rejects text operands, missing grid cells and circular formulas
   ---
-  duration_ms: 0.79844
+  duration_ms: 2.753039
   type: 'test'
   ...
-# Subtest: NEXO runtime no longer installs local semantic resilience
-ok 168 - NEXO runtime no longer installs local semantic resilience
+# Subtest: workbook validator accepts numeric assumptions with labels in a separate column
+ok 234 - workbook validator accepts numeric assumptions with labels in a separate column
   ---
-  duration_ms: 0.607368
+  duration_ms: 4.973682
   type: 'test'
   ...
-# Subtest: alternate adaptive intelligence runtime is absent
-ok 169 - alternate adaptive intelligence runtime is absent
+# Subtest: source structure indexes real multifunction registrations with lines
+ok 235 - source structure indexes real multifunction registrations with lines
   ---
-  duration_ms: 2.640673
+  duration_ms: 53.269721
   type: 'test'
   ...
-# Subtest: active semantic surfaces contain no lexical regex brain
-ok 170 - active semantic surfaces contain no lexical regex brain
+# Subtest: executable source view excludes documentary role markers
+ok 236 - executable source view excludes documentary role markers
   ---
-  duration_ms: 0.797669
+  duration_ms: 0.236644
   type: 'test'
   ...
-# Subtest: terminal has no dead lexical natural-command router after semantic return
-ok 171 - terminal has no dead lexical natural-command router after semantic return
+# Subtest: qualified identifier extraction finds tool symbols without phrase rules
+ok 237 - qualified identifier extraction finds tool symbols without phrase rules
   ---
-  duration_ms: 1.199873
+  duration_ms: 0.901219
   type: 'test'
   ...
-# Subtest: UI branding never interprets natural approval language
-ok 172 - UI branding never interprets natural approval language
+# Subtest: explicit repository targets keep every named file and exclude runtime tool identifiers
+ok 238 - explicit repository targets keep every named file and exclude runtime tool identifiers
   ---
-  duration_ms: 0.408964
+  duration_ms: 0.413428
   type: 'test'
   ...
-1..172
-# tests 172
+# Subtest: unresolved schema-required repo files receive discovery preflights from the live index
+ok 239 - unresolved schema-required repo files receive discovery preflights from the live index
+  ---
+  duration_ms: 0.52849
+  type: 'test'
+  ...
+1..239
+# tests 239
 # suites 0
-# pass 172
-# fail 0
+# pass 238
+# fail 1
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 3078.371702
+# duration_ms 14826.263219
 --- deploy gate ---
-{"ok":false,"status":"SOVEREIGN_DEPLOY_BLOCKED","version":"1.1.0-isolated-hosting-scope","authorityId":"HEBERTO_MENDOZA","controllerId":"GITHUB_ACTIONS_CI","fingerprint":"05fbbe233b7a3428faeab0a44bae1b662f295976010a06e773ceb53ec07b28b8","envelope":{"actor":"heberzzt-wq","eventName":"push","ref":"refs/heads/chatgpt/jarvis-v12-marketing-handoff","commitSha":"f0b8878fff63d1a7bc9bc5396fd794b6cbfd90db","projectId":"fixgo-44e4d","ciPassed":true,"hostingOnly":false},"failures":["DEPLOY_BRANCH_NOT_ALLOWED"],"deploymentScope":"default","hostingOnlyRequired":false,"singleCommit":true,"testsRequired":true,"selfAuthorizationAllowed":false}
+{"ok":false,"status":"SOVEREIGN_DEPLOY_BLOCKED","version":"1.1.0-isolated-hosting-scope","authorityId":"HEBERTO_MENDOZA","controllerId":"GITHUB_ACTIONS_CI","fingerprint":"bfa090a31b16b210e7d4057c28816d7148b5bd287f2855d06cd300000fbea777","envelope":{"actor":"heberzzt-wq","eventName":"push","ref":"refs/heads/chatgpt/jarvis-v12-marketing-handoff","commitSha":"3cf460858ab91e79ddc0a02cf17c29004c34e9f6","projectId":"fixgo-44e4d","ciPassed":true,"hostingOnly":false},"failures":["DEPLOY_BRANCH_NOT_ALLOWED"],"deploymentScope":"default","hostingOnlyRequired":false,"singleCommit":true,"testsRequired":true,"selfAuthorizationAllowed":false}
