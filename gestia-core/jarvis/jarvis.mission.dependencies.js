@@ -294,6 +294,7 @@ export function ensureExecutableArtifactDependencies({
     return stableSemanticStageSort(calls);
 }
 
+// Exposes diagnostic metadata only; execution authority remains in the dependency helpers above.
 export function describeMissionDependencies() {
     return {
         ok: true,
