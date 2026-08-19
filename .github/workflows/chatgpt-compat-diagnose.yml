@@ -1,0 +1,43 @@
+name: ChatGPT compat diagnostic v12
+
+on:
+  push:
+    branches:
+      - chatgpt/jarvis-v12-marketing-handoff
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/jarvis-v12-marketing-handoff
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Probe patcher
+        shell: bash
+        run: |
+          set +e
+          node scripts/chatgpt-marketing-compat-v12-patch.mjs > /tmp/compat.log 2>&1
+          code=$?
+          git reset --hard HEAD
+          mkdir -p docs
+          {
+            echo "CHATGPT_COMPAT_PATCH_DIAGNOSTIC=true"
+            echo "source_sha=${GITHUB_SHA}"
+            echo "exit_code=${code}"
+            cat /tmp/compat.log
+          } > docs/chatgpt-marketing-compat-v12-diagnostic.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/chatgpt-marketing-compat-v12-diagnostic.txt
+          git commit -m "ci: persist marketing compat patch diagnostic"
+          git push origin HEAD:chatgpt/jarvis-v12-marketing-handoff
+          exit 0
