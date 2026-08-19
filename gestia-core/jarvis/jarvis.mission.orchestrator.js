@@ -1,5 +1,5 @@
 const VERSION =
-    "1.16.0-marketing-artifact-identity-v12";
+    "1.17.0-marketing-declared-artifact-expansion-v12";
 const REEL_MEDIA_RECOVERY_MAX_ATTEMPTS = 3;
 const STORAGE_KEY = "jarvis.missions.v1";
 const SINGLETON_MISSION_TOOLS = new Set(["marketing.plan", "reel.plan"]);
@@ -170,6 +170,108 @@ function unresolvedMarketingProductionRequirements(mission = {}) {
         format: text(requirement?.format, 40),
         label: text(requirement?.label, 200)
     }));
+}
+
+function marketingRequirementExecutionArgs(requirement = {}) {
+    const id = text(requirement?.id, 120) || "artifact";
+    const toolName = text(requirement?.toolName, 120);
+    const format = text(requirement?.format, 40).toLowerCase();
+    const label = text(requirement?.label || requirement?.type || id, 300);
+    if (toolName === "document.create") {
+        const extension = format === "markdown" ? "md" : format;
+        return {
+            marketingRequirementId: id,
+            contentSource: "marketing.plan",
+            ...(format ? { format } : {}),
+            ...(extension ? { output: `.jarvis-artifacts/documents/marketing-${id}.${extension}` } : {})
+        };
+    }
+    if (toolName === "image.edit") {
+        return {
+            marketingRequirementId: id,
+            variantId: id,
+            identityMode: "brand-scene",
+            preserveLogos: true,
+            preserveApprovedText: false,
+            prompt: label
+                ? `Crear la pieza "${label}" usando exclusivamente medios visuales reales verificados de esta mision. No generar ni redibujar logotipos; el emblema oficial se compone despues desde su archivo fuente.`
+                : "Crear una pieza social usando exclusivamente medios visuales reales verificados. No generar ni redibujar logotipos."
+        };
+    }
+    if (toolName === "image.generate") {
+        return {
+            marketingRequirementId: id,
+            variantId: id,
+            prompt: label || "Pieza visual de marketing"
+        };
+    }
+    if (toolName === "reel.create") {
+        return { marketingRequirementId: id };
+    }
+    if (toolName === "marketing.package.real-media") {
+        return { marketingRequirementId: id, title: label || "Paquete de marketing" };
+    }
+    if (toolName === "page.create") {
+        return { marketingRequirementId: id };
+    }
+    return { marketingRequirementId: id };
+}
+
+function marketingPendingTaskCompatible(task = {}, requirement = {}) {
+    const toolName = text(requirement?.toolName, 120);
+    if (!toolName || text(task?.name, 120) !== toolName) return false;
+    if (toolName === "document.create") {
+        const requiredFormat = text(requirement?.format, 40).toLowerCase();
+        const taskFormat = text(task?.args?.format, 40).toLowerCase();
+        return !requiredFormat || !taskFormat || requiredFormat === taskFormat;
+    }
+    return true;
+}
+
+function reconcileDeclaredMarketingProduction(mission = {}, requirements = []) {
+    const normalizedRequirements = (Array.isArray(requirements) ? requirements : [])
+        .map((requirement, index) => ({
+            id: text(requirement?.id || `artifact-${index + 1}`, 120),
+            type: text(requirement?.type, 120),
+            toolName: text(requirement?.toolName, 120),
+            format: text(requirement?.format, 40).toLowerCase(),
+            label: text(requirement?.label, 300)
+        }))
+        .filter(requirement => requirement.toolName);
+    const reservedPendingIndexes = new Set();
+    const missingCalls = [];
+
+    for (const requirement of normalizedRequirements) {
+        const completed = (Array.isArray(mission?.completedTasks) ? mission.completedTasks : [])
+            .some(task => taskMatchesMarketingRequirement(task, requirement, normalizedRequirements) && marketingArtifactOutput(task));
+        if (completed) continue;
+
+        const pendingIndex = (Array.isArray(mission?.pendingTasks) ? mission.pendingTasks : [])
+            .findIndex((task, index) =>
+                !reservedPendingIndexes.has(index) &&
+                marketingPendingTaskCompatible(task, requirement)
+            );
+        const requiredArgs = marketingRequirementExecutionArgs(requirement);
+        if (pendingIndex >= 0) {
+            reservedPendingIndexes.add(pendingIndex);
+            const pending = mission.pendingTasks[pendingIndex];
+            pending.args = { ...(pending.args || {}), ...requiredArgs };
+            pending.signature = callSignature({ name: pending.name, args: pending.args });
+            pending.marketingRequirementId = requirement.id;
+            continue;
+        }
+        missingCalls.push({
+            name: requirement.toolName,
+            args: requiredArgs,
+            approved: false,
+            reason: "MARKETING_DECLARED_PHYSICAL_REQUIREMENT"
+        });
+    }
+
+    return {
+        requirements: normalizedRequirements,
+        missingCalls
+    };
 }
 
 async function sha256(value = "") {
@@ -1815,6 +1917,29 @@ export async function runJarvisMission({
                 archiveRecoveredMediaSourceAttempts(mission, now);
             }
             mission.completedTasks.push(record);
+            if (
+                task.name === "marketing.plan" &&
+                observation.productionRequested === true
+            ) {
+                const reconciliation = reconcileDeclaredMarketingProduction(
+                    mission,
+                    observation.requiredArtifacts || []
+                );
+                const recoveredTasks = trustedCalls(
+                    reconciliation.missingCalls,
+                    mission
+                );
+                if (recoveredTasks.length > 0) {
+                    mission.pendingTasks.push(...recoveredTasks);
+                    mission.plannedTools.push(...recoveredTasks.map(item => item.name));
+                }
+                mission.marketingProductionContract = {
+                    requirementCount: reconciliation.requirements.length,
+                    requirementIds: reconciliation.requirements.map(item => item.id),
+                    recoveredTaskCount: recoveredTasks.length,
+                    reconciledAt: now()
+                };
+            }
         } else if (observation.blocked) {
             mission.blockedTasks.push({
                 ...record,
