@@ -1,0 +1,51 @@
+name: ChatGPT apply runtime handoff v12
+
+on:
+  push:
+    branches:
+      - chatgpt/jarvis-v12-marketing-handoff
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/jarvis-v12-marketing-handoff
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply deterministic patch
+        run: node scripts/chatgpt-marketing-runtime-v12-patch.mjs
+      - name: Validate patched syntax
+        run: |
+          node --check gestia-core/jarvis/jarvis.marketing.engine.js
+          node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
+          node --check gestia-core/jarvis/jarvis.actuator.pack.js
+          node --check gestia-core/gestia-core.js
+          node --check gestia-core/tools.runtime.js
+          git diff --check
+      - name: Commit patched runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "No runtime patch delta"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            gestia-core/jarvis/jarvis.marketing.engine.js \
+            gestia-core/jarvis/jarvis.mission.orchestrator.js \
+            gestia-core/jarvis/jarvis.actuator.pack.js \
+            gestia-core/gestia-core.js \
+            gestia-core/tools.runtime.js
+          git commit -m "jarvis: apply marketing runtime handoff v12"
+          git push origin HEAD:chatgpt/jarvis-v12-marketing-handoff
