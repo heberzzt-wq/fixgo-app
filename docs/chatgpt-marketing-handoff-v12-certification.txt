@@ -1,0 +1,5 @@
+CHATGPT_MARKETING_HANDOFF_V12_CERTIFIED=true
+source_sha=f988574bb43133d2dd12eb4e6923fe6736d21cd9
+workflow_run=32296314876
+syntax=pass
+focal_regression=pass
