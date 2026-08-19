@@ -1,0 +1,51 @@
+name: ChatGPT presenter structured compat patch
+
+on:
+  push:
+    branches:
+      - chatgpt/jarvis-v12-marketing-handoff
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/jarvis-v12-marketing-handoff
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Patch presenter
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('gestia-core/jarvis/jarvis.marketing.presenter.js')
+          s = p.read_text(encoding='utf-8')
+          old = '''        if (format && String(item?.args?.format || "").toLowerCase() !== format) return false;\n        if (requirement.legacy !== true && ["md", "pdf", "xlsx"].includes(format) && item?.args?.contentSource !== "marketing.plan") return false;'''
+          new = '''        if (format && String(item?.args?.format || "").toLowerCase() !== format) return false;'''
+          if s.count(old) != 1:
+              raise SystemExit(f'presenter marker count={s.count(old)}')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          PY
+          node --check gestia-core/jarvis/jarvis.marketing.presenter.js
+          node --test --test-concurrency=1 tests/jarvis-marketing-terminal-delivery.e2e.test.mjs tests/v94-marketing-artifact-delivery.test.mjs
+          git diff --check
+      - name: Commit patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gestia-core/jarvis/jarvis.marketing.presenter.js
+          git commit -m "jarvis: match verified structured marketing artifacts by contract identity"
+          git pull --rebase origin chatgpt/jarvis-v12-marketing-handoff
+          git push origin HEAD:chatgpt/jarvis-v12-marketing-handoff
