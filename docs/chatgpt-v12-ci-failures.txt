@@ -1,0 +1,71 @@
+CHATGPT_V12_CI_DIAGNOSTIC=true
+source_sha=71bb8923f30662dee7aadf7a8fcb8f9ca2bc5636
+exit_code=1
+--- failures ---
+1328-ok 59 - Firebase workflow deploys the image actuator with the Jarvis services
+1329-  ---
+1330-  duration_ms: 2.009457
+1331-  type: 'test'
+1332-  ...
+1333-# Subtest: three tagged social requirements cannot be declared complete with the same physical image
+1334-ok 60 - three tagged social requirements cannot be declared complete with the same physical image
+1335-  ---
+1336-  duration_ms: 4.064869
+1337-  type: 'test'
+1338-  ...
+1339-# Subtest: mission completion stays fail-closed when distinct requirement ids point to duplicate physical bytes
+1340:not ok 61 - mission completion stays fail-closed when distinct requirement ids point to duplicate physical bytes
+1341-  ---
+1342-  duration_ms: 37.038303
+1343-  type: 'test'
+1344-  location: '/home/runner/work/fixgo-app/fixgo-app/tests/jarvis-marketing-artifact-uniqueness-v12.test.mjs:69:1'
+1345-  failureType: 'testCodeFailure'
+1346-  error: |-
+1347-    Expected values to be strictly equal:
+1348-    
+1349-    0 !== 2
+1350-    
+1351:  code: 'ERR_ASSERTION'
+1352:  name: 'AssertionError'
+1353-  expected: 2
+1354-  actual: 0
+1355-  operator: 'strictEqual'
+1356-  stack: |-
+1357-    TestContext.<anonymous> (file:///home/runner/work/fixgo-app/fixgo-app/tests/jarvis-marketing-artifact-uniqueness-v12.test.mjs:135:12)
+1358-    async Test.run (node:internal/test_runner/test:1054:7)
+1359-    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+1360-  ...
+1361-# Subtest: marketing.plan expands safe documents immediately and semantic planning completes the remaining seven physical requirements with unique identities
+1362-ok 62 - marketing.plan expands safe documents immediately and semantic planning completes the remaining seven physical requirements with unique identities
+1363-  ---
+1364-  duration_ms: 46.742861
+--
+2421-  type: 'test'
+2422-  ...
+2423-# Subtest: unresolved schema-required repo files receive discovery preflights from the live index
+2424-ok 239 - unresolved schema-required repo files receive discovery preflights from the live index
+2425-  ---
+2426-  duration_ms: 0.541873
+2427-  type: 'test'
+2428-  ...
+2429-1..239
+2430-# tests 239
+2431-# suites 0
+2432-# pass 238
+2433:# fail 1
+2434-# cancelled 0
+2435-# skipped 0
+2436-# todo 0
+2437-# duration_ms 15176.9058
+--- npm phase markers ---
+2:> gestia-premium@1.0.0 ci:test
+3:> node --test tests/response-composer-semantic-contract.test.mjs tests/jarvis-mission-contract-accounting.test.mjs tests/jarvis-mission-failure-precedence.test.mjs tests/jarvis-mission-orchestrator.test.mjs && npm run check:nexo && npm run check:entry-syntax && npm run check:syntax && npm run test:multifunction && npm test
+312:> gestia-premium@1.0.0 check:nexo
+313:> npm run check:nexo:contracts && npm run test:nexo && npm run test:nexo:bridge
+316:> gestia-premium@1.0.0 check:nexo:contracts
+363:> gestia-premium@1.0.0 test:nexo
+617:> gestia-premium@1.0.0 test:nexo:bridge
+618:> node --test tests/nexo-web-media-bridge.test.mjs tests/jarvis-fs-bridge-v2.test.mjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-page-artifact.test.mjs tests/jarvis-page-insufficient-evidence-v123.test.mjs tests/jarvis-page-media.test.mjs tests/jarvis-reel-artifact.test.mjs tests/jarvis-artifact-studio.test.mjs tests/jarvis-docx-artifact.test.mjs
+967:> gestia-premium@1.0.0 check:entry-syntax
+971:> gestia-premium@1.0.0 check:syntax
+975:> gestia-premium@1.0.0 test:multifunction
