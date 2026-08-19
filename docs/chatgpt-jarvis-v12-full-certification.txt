@@ -1,225 +1,225 @@
 CHATGPT_JARVIS_V12_FULL_CERTIFICATION=true
-source_sha=122feb9ea8a277fde519a9453e2cfc139ce08a64
-workflow_run=32297537683
+source_sha=13c2526da00844bf349fd6b62fe4c2afc6ec9c89
+workflow_run=32297727271
 exit_code=1
 --- tail ---
-  error: |-
-    Expected values to be strictly equal:
-    
-    true !== false
-    
-  code: 'ERR_ASSERTION'
-  name: 'AssertionError'
-  expected: false
-  actual: true
-  operator: 'strictEqual'
-  stack: |-
-    TestContext.<anonymous> (file:///home/runner/work/fixgo-app/fixgo-app/tests/jarvis-marketing-engine-v2.test.mjs:101:12)
-    Test.runInAsyncScope (node:async_hooks:214:14)
-    Test.run (node:internal/test_runner/test:1047:25)
-    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
-    Test.postRun (node:internal/test_runner/test:1173:19)
-    Test.run (node:internal/test_runner/test:1101:12)
-    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
-  ...
-# Subtest: company registry remains available during NEXO migration
-ok 9 - company registry remains available during NEXO migration
   ---
-  duration_ms: 0.133472
+  duration_ms: 0.231133
   type: 'test'
   ...
-# Subtest: NEXO marketing isolates structured current brand identity from stale completed context
-ok 10 - NEXO marketing isolates structured current brand identity from stale completed context
+# Subtest: repo write auth V2 describes private owner full repo policy
+ok 139 - repo write auth V2 describes private owner full repo policy
   ---
-  duration_ms: 0.471853
+  duration_ms: 1.860714
   type: 'test'
   ...
-# Subtest: isMarketingRequest only accepts structured marketing domain
-ok 11 - isMarketingRequest only accepts structured marketing domain
+# Subtest: repo write auth V2 blocks missing bearer token with contract metadata
+ok 140 - repo write auth V2 blocks missing bearer token with contract metadata
   ---
-  duration_ms: 0.197129
+  duration_ms: 0.623297
   type: 'test'
   ...
-# Subtest: MARKETING_PLAN_SECTIONS keeps the complete structured plan contract
-ok 12 - MARKETING_PLAN_SECTIONS keeps the complete structured plan contract
+# Subtest: repo write auth V2 allows owner role
+ok 141 - repo write auth V2 allows owner role
   ---
-  duration_ms: 0.093238
+  duration_ms: 0.457065
   type: 'test'
   ...
-# Subtest: marketing final response is honest about unresolved requested artifacts
-ok 13 - marketing final response is honest about unresolved requested artifacts
+# Subtest: repo syntax validator V2 validates JS and blocks empty content
+ok 142 - repo syntax validator V2 validates JS and blocks empty content
   ---
-  duration_ms: 0.849088
+  duration_ms: 5.550804
   type: 'test'
   ...
-# Subtest: marketing plan alone can never satisfy a real production mission
-ok 14 - marketing plan alone can never satisfy a real production mission
+# Subtest: semantic tool planner keeps repo plans read-only and filters unsafe tools
+ok 143 - semantic tool planner keeps repo plans read-only and filters unsafe tools
   ---
-  duration_ms: 5.92806
+  duration_ms: 1.857568
   type: 'test'
   ...
-# Subtest: marketing final response turns green only when every required artifact has a verified output
-ok 15 - marketing final response turns green only when every required artifact has a verified output
+# Subtest: semantic tool planner replaces audit-only plans with focused discovery
+ok 144 - semantic tool planner replaces audit-only plans with focused discovery
   ---
-  duration_ms: 0.931129
+  duration_ms: 1.040047
   type: 'test'
   ...
-# Subtest: human marketing output never leaks internal planning metadata or claims briefs are produced files
-ok 16 - human marketing output never leaks internal planning metadata or claims briefs are produced files
+# Subtest: semantic tool planner replaces scan-only plans with focused discovery
+ok 145 - semantic tool planner replaces scan-only plans with focused discovery
   ---
-  duration_ms: 0.812377
+  duration_ms: 0.478235
   type: 'test'
   ...
-# Subtest: generic local marketing defaults are rejected when semantic brief is incomplete
-ok 17 - generic local marketing defaults are rejected when semantic brief is incomplete
+# Subtest: semantic tool planner falls back to general response without tool calls
+ok 146 - semantic tool planner falls back to general response without tool calls
   ---
-  duration_ms: 0.31512
+  duration_ms: 0.244899
   type: 'test'
   ...
-# Subtest: mission contract expands from structured marketing requirements and asks the same planner for real tools
-ok 18 - mission contract expands from structured marketing requirements and asks the same planner for real tools
+# Subtest: agent loop does not repeat completed tools for one explicit repository target
+ok 147 - agent loop does not repeat completed tools for one explicit repository target
   ---
-  duration_ms: 39.15166
+  duration_ms: 14.287643
   type: 'test'
   ...
-# Subtest: complete marketing production cannot close until every requested artifact format exists
-ok 19 - complete marketing production cannot close until every requested artifact format exists
+# Subtest: agent loop keeps planned auth targets ahead of accidental terminal matches
+ok 148 - agent loop keeps planned auth targets ahead of accidental terminal matches
   ---
-  duration_ms: 41.773158
+  duration_ms: 13.353044
   type: 'test'
   ...
-# Subtest: marketing production fails closed when one repeated document format is missing
-ok 20 - marketing production fails closed when one repeated document format is missing
+# Subtest: agent loop learning hints are advisory and do not authorize writes
+ok 149 - agent loop learning hints are advisory and do not authorize writes
   ---
-  duration_ms: 1.287775
+  duration_ms: 13.0043
   type: 'test'
   ...
-# Subtest: Terminal core hydrates marketing documents and gives the direct delivery response highest priority
-ok 21 - Terminal core hydrates marketing documents and gives the direct delivery response highest priority
+# Subtest: agent loop does not invent patchPreview when exact block is missing
+ok 150 - agent loop does not invent patchPreview when exact block is missing
   ---
-  duration_ms: 3.146589
+  duration_ms: 9.993453
   type: 'test'
   ...
-# Subtest: Terminal renders verified marketing producedArtifacts through the existing download renderer
-ok 22 - Terminal renders verified marketing producedArtifacts through the existing download renderer
+# Subtest: read-only technical response leads with findings and hides internal telemetry
+ok 151 - read-only technical response leads with findings and hides internal telemetry
   ---
-  duration_ms: 1.655706
+  duration_ms: 6.706517
   type: 'test'
   ...
-# Subtest: completed marketing plan content is injected into MD and PDF artifact creation
-ok 23 - completed marketing plan content is injected into MD and PDF artifact creation
+# Subtest: read-only technical response preserves evidence for every diagnosed target
+ok 152 - read-only technical response preserves evidence for every diagnosed target
   ---
-  duration_ms: 1.054287
+  duration_ms: 6.673396
   type: 'test'
   ...
-# Subtest: marketing document dependency cannot fall through to generic document composition
-ok 24 - marketing document dependency cannot fall through to generic document composition
+# Subtest: agent loop composes read-only final response for global repo analysis
+ok 153 - agent loop composes read-only final response for global repo analysis
   ---
-  duration_ms: 1.87041
+  duration_ms: 7.738931
   type: 'test'
   ...
-# Subtest: Terminal presents any valid non-agent GestiaCore finalResponse instead of a false not-presented error
-ok 25 - Terminal presents any valid non-agent GestiaCore finalResponse instead of a false not-presented error
+# Subtest: terminal renders visual patch proposal card without direct write execution
+ok 154 - terminal renders visual patch proposal card without direct write execution
   ---
-  duration_ms: 1.507826
+  duration_ms: 8.868737
   type: 'test'
   ...
-# Subtest: Terminal recovers nested core finalResponse envelopes and removes false not-presented outcome
-ok 26 - Terminal recovers nested core finalResponse envelopes and removes false not-presented outcome
+# Subtest: terminal sends natural repository analysis directly to the single core route
+ok 155 - terminal sends natural repository analysis directly to the single core route
   ---
-  duration_ms: 1.623263
+  duration_ms: 2.452332
   type: 'test'
   ...
-# Subtest: NEXO UI branding contains no natural-language approval brain
-ok 27 - NEXO UI branding contains no natural-language approval brain
+# Subtest: Codex V2 write path fails closed without governed repo.write runtime
+ok 156 - Codex V2 write path fails closed without governed repo.write runtime
   ---
-  duration_ms: 0.739919
+  duration_ms: 2.968899
   type: 'test'
   ...
-# Subtest: NEXO UI branding declares the single semantic authority
-ok 28 - NEXO UI branding declares the single semantic authority
+# Subtest: gestiaArchitectV5 exposes CORS preflight before firewall
+ok 157 - gestiaArchitectV5 exposes CORS preflight before firewall
   ---
-  duration_ms: 0.221162
+  duration_ms: 1.159702
   type: 'test'
   ...
-# Subtest: runtime override preserves NEXO marketing input-required semantics
-ok 29 - runtime override preserves NEXO marketing input-required semantics
+# Subtest: SIA7 public diagnostics no longer expose the internal Agent Loop label
+ok 158 - SIA7 public diagnostics no longer expose the internal Agent Loop label
   ---
-  duration_ms: 2.256095
+  duration_ms: 2.320706
   type: 'test'
   ...
-# Subtest: real media package blocks when requested video bytes are missing
-ok 30 - real media package blocks when requested video bytes are missing
+# Subtest: multi-tool missions prefer grounded semantic composition over a generic repo diagnostic
+ok 159 - multi-tool missions prefer grounded semantic composition over a generic repo diagnostic
   ---
-  duration_ms: 0.486343
+  duration_ms: 4.874158
   type: 'test'
   ...
-# Subtest: real media package creates verified local manifest when both families exist
-ok 31 - real media package creates verified local manifest when both families exist
+# Subtest: mission composition rejects truncated model headers and accepts complete reports
+ok 160 - mission composition rejects truncated model headers and accepts complete reports
   ---
-  duration_ms: 1.167472
+  duration_ms: 5.395313
   type: 'test'
   ...
-# Subtest: NEXO bootstrap keeps tools but installs no alternate semantic authority
-ok 32 - NEXO bootstrap keeps tools but installs no alternate semantic authority
+# Subtest: mission evidence packing preserves late tool results instead of starving them behind repo reads
+ok 161 - mission evidence packing preserves late tool results instead of starving them behind repo reads
   ---
-  duration_ms: 0.675891
+  duration_ms: 7.992926
   type: 'test'
   ...
-# Subtest: NEXO bootstrap remains inert outside the browser
-ok 33 - NEXO bootstrap remains inert outside the browser
+# Subtest: verified read-only missions stay outside retrying Firestore transactions
+ok 162 - verified read-only missions stay outside retrying Firestore transactions
   ---
-  duration_ms: 0.160739
+  duration_ms: 9.097055
+  type: 'test'
+  ...
+# Subtest: SIA7 GitHub worker commits an applied patch together with its result
+ok 163 - SIA7 GitHub worker commits an applied patch together with its result
+  ---
+  duration_ms: 0.317365
+  type: 'test'
+  ...
+# Subtest: repo authority obeys the single semantic brain contract
+ok 164 - repo authority obeys the single semantic brain contract
+  ---
+  duration_ms: 5.684544
+  type: 'test'
+  ...
+# 🧠 [RESOURCE_REGISTRY_READY] { files: 1, modules: 1, collections: 38, dependencies: 0 }
+# 🧠 [RESOURCE_REGISTRY_READY] { files: 1, modules: 1, collections: 38, dependencies: 0 }
+# Subtest: resource registry V2 rehydrates without duplicate module files
+ok 165 - resource registry V2 rehydrates without duplicate module files
+  ---
+  duration_ms: 6.622541
   type: 'test'
   ...
 # Subtest: only jarvisSemanticPlan owns natural-language planning
-ok 34 - only jarvisSemanticPlan owns natural-language planning
+ok 166 - only jarvisSemanticPlan owns natural-language planning
   ---
-  duration_ms: 3.350777
+  duration_ms: 7.387894
   type: 'test'
   ...
 # Subtest: legacy cognition URLs are inert compatibility canaries
-ok 35 - legacy cognition URLs are inert compatibility canaries
+ok 167 - legacy cognition URLs are inert compatibility canaries
   ---
-  duration_ms: 0.4913
+  duration_ms: 1.022906
   type: 'test'
   ...
 # Subtest: NEXO runtime no longer installs local semantic resilience
-ok 36 - NEXO runtime no longer installs local semantic resilience
+ok 168 - NEXO runtime no longer installs local semantic resilience
   ---
-  duration_ms: 0.363004
+  duration_ms: 0.697766
   type: 'test'
   ...
 # Subtest: alternate adaptive intelligence runtime is absent
-ok 37 - alternate adaptive intelligence runtime is absent
+ok 169 - alternate adaptive intelligence runtime is absent
   ---
-  duration_ms: 1.208708
+  duration_ms: 2.71296
   type: 'test'
   ...
 # Subtest: active semantic surfaces contain no lexical regex brain
-ok 38 - active semantic surfaces contain no lexical regex brain
+ok 170 - active semantic surfaces contain no lexical regex brain
   ---
-  duration_ms: 0.44024
+  duration_ms: 0.926224
   type: 'test'
   ...
 # Subtest: terminal has no dead lexical natural-command router after semantic return
-ok 39 - terminal has no dead lexical natural-command router after semantic return
+ok 171 - terminal has no dead lexical natural-command router after semantic return
   ---
-  duration_ms: 0.688699
+  duration_ms: 1.254459
   type: 'test'
   ...
 # Subtest: UI branding never interprets natural approval language
-ok 40 - UI branding never interprets natural approval language
+ok 172 - UI branding never interprets natural approval language
   ---
-  duration_ms: 0.227951
+  duration_ms: 0.412422
   type: 'test'
   ...
-1..40
-# tests 40
+1..172
+# tests 172
 # suites 0
-# pass 39
-# fail 1
+# pass 172
+# fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 215.672999
+# duration_ms 3529.833893
+{"ok":false,"status":"SOVEREIGN_DEPLOY_BLOCKED","version":"1.1.0-isolated-hosting-scope","authorityId":"HEBERTO_MENDOZA","controllerId":"GITHUB_ACTIONS_CI","fingerprint":"8438b99f8144302066fb7fde7a4c51dd2bcc890db6001ba7807f90aeb70d9591","envelope":{"actor":"heberzzt-wq","eventName":"push","ref":"refs/heads/chatgpt/jarvis-v12-marketing-handoff","commitSha":"13c2526da00844bf349fd6b62fe4c2afc6ec9c89","projectId":"fixgo-44e4d","ciPassed":true,"hostingOnly":false},"failures":["DEPLOY_BRANCH_NOT_ALLOWED"],"deploymentScope":"default","hostingOnlyRequired":false,"singleCommit":true,"testsRequired":true,"selfAuthorizationAllowed":false}
