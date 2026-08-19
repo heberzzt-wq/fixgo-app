@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - chatgpt/jarvis-v12-marketing-handoff
+  pull_request:
+    branches:
+      - v94-media-v4n-negative-claims
 
 permissions:
   contents: write
