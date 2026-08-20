@@ -320,6 +320,41 @@ function visibleText(fragment = "", maximum = 900) {
     return output.trim();
 }
 
+function directResearchFreshnessWindowDays(query = '') {
+    const text = String(query || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+    if (/\b(hoy|today)\b/.test(text)) return 2;
+    if (/\b(esta semana|this week|semana|week)\b/.test(text)) return 8;
+    if (/\b(este mes|this month|mes|month)\b/.test(text)) return 35;
+    if (/\b(este ano|this year|ano|year)\b/.test(text)) return 370;
+    return /\b(actual|actuales|actualidad|reciente|recientes|latest|current|recent|novedad|novedades|ultimo|ultima|ultimos|ultimas)\b/.test(text)
+        ? 60
+        : null;
+}
+
+function extractHtmlPublicationDate(html = '') {
+    const source = String(html || '').slice(0, 900000);
+    const patterns = [
+        /["']datePublished["']\s*:\s*["']([^"']+)["']/gi,
+        /["']dateModified["']\s*:\s*["']([^"']+)["']/gi,
+        /<meta[^>]+(?:property|name)=["'](?:article:published_time|article:modified_time|date|datePublished|dateModified)["'][^>]+content=["']([^"']+)["'][^>]*>/gi,
+        /<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["'](?:article:published_time|article:modified_time|date|datePublished|dateModified)["'][^>]*>/gi,
+        /<time[^>]+datetime=["']([^"']+)["'][^>]*>/gi
+    ];
+    const values = [];
+    for (const pattern of patterns) {
+        let match;
+        while ((match = pattern.exec(source)) && values.length < 24) {
+            const parsed = new Date(String(match[1] || '').trim());
+            if (Number.isFinite(parsed.getTime())) values.push(parsed);
+        }
+    }
+    values.sort((left, right) => right.getTime() - left.getTime());
+    return values[0]?.toISOString?.() || null;
+}
+
 function extractHtmlElements(html = "", tagName = "", maximum = 12) {
     const source = String(html || "");
     const lower = source.toLowerCase();
@@ -584,6 +619,14 @@ async function runJarvisDirectDomainResearch({
         "GEMINI_CREDENTIAL_UNAVAILABLE"
 } = {}) {
     const normalizedQuery = normalizeResearchQuery(query);
+    const directFreshnessWindowDays =
+        directResearchFreshnessWindowDays(normalizedQuery);
+    const directFreshnessReference = new Date();
+    const directFreshnessCutoffMs =
+        directFreshnessWindowDays
+            ? directFreshnessReference.getTime() -
+                (directFreshnessWindowDays * 86400000)
+            : null;
     const domain = requestedDomainFromQuery(normalizedQuery, allowedDomain);
     if (!domain) throw new Error("DIRECT_RESEARCH_DOMAIN_REQUIRED");
     if (typeof fetchImpl !== "function") throw new Error("DIRECT_RESEARCH_FETCH_REQUIRED");
@@ -717,6 +760,8 @@ async function runJarvisDirectDomainResearch({
             const contentType = String(response.headers?.get?.("content-type") || "").toLowerCase();
             if (!contentType.includes("text/html")) continue;
             const html = String(await response.text()).slice(0, 1500000);
+            const publishedAt =
+                extractHtmlPublicationDate(html);
             const title = extractHtmlElements(html, "title", 1)[0] || finalUrl;
             const headings = [
                 ...extractHtmlElements(html, "h1", 4),
@@ -739,7 +784,19 @@ async function runJarvisDirectDomainResearch({
                 );
             }
             if (headings.length === 0 && paragraphs.length === 0) continue;
-            pages.push({ url: finalUrl, title, headings, paragraphs });
+            if (directFreshnessWindowDays) {
+                const publishedMs = publishedAt
+                    ? Date.parse(publishedAt)
+                    : Number.NaN;
+                const freshEnough =
+                    Number.isFinite(publishedMs) &&
+                    publishedMs >= directFreshnessCutoffMs &&
+                    publishedMs <= directFreshnessReference.getTime() + 86400000;
+                if (!freshEnough) {
+                    continue; // DIRECT_RESEARCH_STALE_OR_UNDATED_PAGE
+                }
+            }
+            pages.push({ url: finalUrl, title, headings, paragraphs, publishedAt });
         } catch {
             continue;
         } finally {
@@ -748,7 +805,7 @@ async function runJarvisDirectDomainResearch({
     }
     if (pages.length === 0) throw new Error("DIRECT_RESEARCH_NO_PRIMARY_PAGES");
 
-    const sources = pages.map((page, index) => ({ id: index + 1, title: page.title, url: page.url }));
+    const sources = pages.map((page, index) => ({ id: index + 1, title: page.title, url: page.url, publishedAt: page.publishedAt || null }));
     const facts = pages.map((page, index) => ({
         id: index + 1,
         type: "PRIMARY_PAGE_EVIDENCE",
@@ -1110,6 +1167,8 @@ async function runJarvisWebResearch({
 }
 
 module.exports = {
+    directResearchFreshnessWindowDays,
+    extractHtmlPublicationDate,
     DEFAULT_MODEL,
     MAX_QUERY_LENGTH,
     collapseWhitespace,
