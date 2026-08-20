@@ -20,7 +20,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Detect multifunction service changes
+      - name: Detect changed runtime surfaces
         id: changes
         shell: bash
         run: |
@@ -35,6 +35,13 @@ jobs:
             echo "functions_changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "functions_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          hosting_candidates="$(printf '%s\n' "$changed_files" | grep -Ev '^(functions/|\.github/workflows/deploy\.yml$)' || true)"
+          if [ -n "$hosting_candidates" ]; then
+            echo "hosting_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "hosting_changed=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Setup Node
@@ -81,6 +88,7 @@ jobs:
           echo "Gemini credential synchronized with Firebase Secret Manager."
 
       - name: Deploy Hosting
+        if: steps.changes.outputs.hosting_changed == 'true'
         run: firebase deploy --only hosting --project fixgo-44e4d --token "${{ secrets.FIREBASE_TOKEN }}"
 
       - name: Deploy Jarvis multifunction services
