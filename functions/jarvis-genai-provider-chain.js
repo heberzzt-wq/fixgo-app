@@ -18,12 +18,12 @@ function coarseSchemaType(schema = {}) {
             items: ["string", "number", "integer", "boolean"].includes(itemType)
                 ? { type: itemType }
                 : itemType === "object"
-                    ? { type: "object", additionalProperties: true }
+                    ? { type: "object" }
                     : {}
         };
     }
     if (type === "object" || schema?.properties) {
-        return { type: "object", additionalProperties: true };
+        return { type: "object" };
     }
     return {};
 }
@@ -39,10 +39,7 @@ function coarseSchemaType(schema = {}) {
  */
 function compactProviderInputSchema(schema = null) {
     if (!schema || typeof schema !== "object" || Array.isArray(schema)) {
-        return {
-            type: "object",
-            additionalProperties: true
-        };
+        return { type: "object" };
     }
 
     const properties = schema?.properties && typeof schema.properties === "object"
@@ -51,15 +48,12 @@ function compactProviderInputSchema(schema = null) {
     const entries = Object.entries(properties).slice(0, 32);
 
     if (entries.length === 0) {
-        return {
-            type: "object",
-            additionalProperties: true
-        };
+        return { type: "object" };
     }
 
     const compactProperties = Object.fromEntries(
         entries.map(([name, propertySchema]) => [
-            String(name).slice(0, 80),
+            String(name),
             coarseSchemaType(propertySchema)
         ])
     );
@@ -74,8 +68,7 @@ function compactProviderInputSchema(schema = null) {
     return {
         type: "object",
         properties: compactProperties,
-        ...(required.length > 0 ? { required } : {}),
-        additionalProperties: true
+        ...(required.length > 0 ? { required } : {})
     };
 }
 
