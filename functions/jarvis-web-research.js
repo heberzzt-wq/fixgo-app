@@ -110,25 +110,29 @@ function cleanHost(value = "") {
 }
 
 function requestedDomainFromQuery(query = "", explicitDomain = "") {
-    if (explicitDomain) {
-        try {
-            return cleanHost(new URL(explicitDomain.includes("://") ? explicitDomain : `https://${explicitDomain}`).hostname);
-        } catch {
-            return "";
-        }
-    }
-
-    const trailing = new Set([".", ",", ";", ":", ")", "]", "}", "!", "?", "\"", "'"]);
-    for (const rawToken of String(query || "").split(" ")) {
-        let token = rawToken.trim();
+    const leading = new Set(["(", "[", "{", "<", "\"", "'"]);
+    const trailing = new Set([".", ",", ";", ":", ")", "]", "}", ">", "!", "?", "\"", "'"]);
+    const parseCandidate = value => {
+        let token = String(value || "").trim();
+        while (token && leading.has(token[0])) token = token.slice(1);
         while (token && trailing.has(token.at(-1))) token = token.slice(0, -1);
-        if (!token.includes("://")) continue;
+        if (!token || token.includes("@")) return "";
         try {
-            const parsed = new URL(token);
-            if (parsed.protocol === "https:" || parsed.protocol === "http:") return cleanHost(parsed.hostname);
+  const parsed = new URL(token.includes("://") ? token : `https://${token}`);
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return "";
+  const host = String(parsed.hostname || "").trim().toLowerCase();
+  if (!/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i.test(host)) return "";
+  return cleanHost(host);
         } catch {
-            continue;
+  return "";
         }
+    };
+
+    if (explicitDomain) return parseCandidate(explicitDomain);
+
+    for (const rawToken of String(query || "").split(/\s+/)) {
+        const domain = parseCandidate(rawToken);
+        if (domain) return domain;
     }
     return "";
 }
@@ -193,7 +197,11 @@ function requestedHostsFromQuery(query = "", explicitDomain = "") {
             token =
                 token.slice(0, -1);
         }
-        if (token.includes("://")) addHost(token);
+        if (
+    requestedDomainFromQuery(token) === domain
+) {
+    addHost(token);
+}
     }
 
     addHost(explicitDomain);

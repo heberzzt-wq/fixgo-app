@@ -154,6 +154,23 @@ test("grounded web research sends Google Search configuration and returns eviden
     assert.equal(result.policy.externalSideEffects, false);
 });
 
+test("bare requested domains activate the primary-domain fallback without protocol", () => {
+    const query =
+        "Investiga únicamente en openai.com las novedades actuales de la API de OpenAI";
+    assert.equal(
+        requestedDomainFromQuery(query),
+        "openai.com"
+    );
+    assert.deepEqual(
+        requestedHostsFromQuery(query).slice(0, 2),
+        ["openai.com", "www.openai.com"]
+    );
+    assert.equal(
+        requestedDomainFromQuery("Escribe a soporte@openai.com"),
+        ""
+    );
+});
+
 test("grounding maps duplicate chunks to one canonical source id", () => {
     const response = groundedResponse();
     response.candidates[0].groundingMetadata.groundingSupports.push({
