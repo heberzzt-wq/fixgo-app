@@ -138,6 +138,23 @@ function isPermanentProviderFailure(error) {
     );
 }
 
+function isTransientProviderFailure(error) {
+    const message = String(error?.message || error || "").toLowerCase();
+    return (
+        message.includes("resource_exhausted") ||
+        message.includes("deadline_exceeded") ||
+        message.includes("service unavailable") ||
+        message.includes("temporarily unavailable") ||
+        message.includes("internal server error") ||
+        message.includes("timeout") ||
+        /(^|\D)(429|500|502|503|504)(\D|$)/.test(message)
+    );
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+}
+
 function createJarvisGenAIProviderChain({ providers = [] } = {}) {
     const availableProviders = normalizeProviders(providers);
     const disabledProviders = new Map();
@@ -169,22 +186,37 @@ function createJarvisGenAIProviderChain({ providers = [] } = {}) {
                         continue;
                     }
 
-                    try {
-                        const response = await provider.ai.models.generateContent(providerRequest);
-                        if (!response) {
-                            throw new Error("EMPTY_PROVIDER_RESPONSE");
+                    const maximumAttempts = 2;
+                    for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
+                        try {
+                            const response = await provider.ai.models.generateContent(providerRequest);
+                            if (!response) {
+                                throw new Error("EMPTY_PROVIDER_RESPONSE");
+                            }
+                            lastProvider = providerName;
+                            return response;
                         }
-                        lastProvider = providerName;
-                        return response;
-                    }
-                    catch(error) {
-                        const message = String(error?.message || error || "FAILED");
-                        failures.push({
-                            name: providerName,
-                            message
-                        });
-                        if (isPermanentProviderFailure(error)) {
-                            disabledProviders.set(providerName, "INVALID_CREDENTIAL");
+                        catch(error) {
+                            const message = String(error?.message || error || "FAILED");
+                            failures.push({
+                                name: providerName,
+                                message: attempt > 1 ? `RETRY_${attempt}:${message}` : message
+                            });
+
+                            if (isPermanentProviderFailure(error)) {
+                                disabledProviders.set(providerName, "INVALID_CREDENTIAL");
+                                break;
+                            }
+
+                            if (
+                                attempt < maximumAttempts &&
+                                isTransientProviderFailure(error)
+                            ) {
+                                await sleep(180 * attempt);
+                                continue;
+                            }
+
+                            break;
                         }
                     }
                 }
@@ -202,6 +234,7 @@ module.exports = {
     compactProviderInputSchema,
     createJarvisGenAIProviderChain,
     isPermanentProviderFailure,
+    isTransientProviderFailure,
     normalizeProviders,
     sanitizeGenerateContentRequest
 };
