@@ -2882,7 +2882,7 @@ test("grounded missions complete semantic arguments for marketing, page, image a
 
     assert.equal(marketing.status, "MARKETING_PACKAGE_READY");
     assert.equal(marketing.objectiveSatisfied, true);
-    assert.equal(marketing.semanticEnrichment.used, true);
+    assert.equal(marketing.grounding.status, "GROUNDED");
     assert.equal(page.page.title, "Estrategia legal para empresas");
     assert.equal(page.semanticEnrichment.used, true);
     assert.equal(image.status, "IMAGE_REQUIREMENTS_PLAN_READY");

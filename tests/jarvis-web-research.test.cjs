@@ -654,7 +654,7 @@ test("Firebase deploys grounded web research on the supported Node runtime", () 
     assert.match(workflow, /id:\s*changes/);
     assert.match(workflow, /functions_changed=true/);
     assert.match(workflow, /Install functions dependencies\s*\n\s*run:\s*npm ci --prefix functions/);
-    assert.match(workflow, /Deploy Hosting\s*\n\s*run:\s*firebase deploy --only hosting/);
+    assert.match(workflow, /Deploy Hosting[\s\S]{0,160}?if:\s*steps\.changes\.outputs\.hosting_changed == 'true'[\s\S]{0,200}?run:\s*firebase deploy --only hosting/);
     assert.match(workflow, /Deploy Jarvis multifunction services/);
     assert.match(workflow, /if:\s*steps\.changes\.outputs\.functions_changed == 'true'/);
     assert.doesNotMatch(workflow, /--only hosting,functions:/);
