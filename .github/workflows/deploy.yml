@@ -52,7 +52,7 @@ jobs:
             changed_files="$(git ls-tree -r --name-only HEAD)"
           fi
 
-          if grep -Eq '^(functions/|firebase\.json$|\.firebaserc$|\.github/workflows/deploy\.yml$)' <<<"$changed_files"; then
+          if grep -Eq '^(functions/|firebase\.json$|\.firebaserc$)' <<<"$changed_files"; then
             echo "functions_changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "functions_changed=false" >> "$GITHUB_OUTPUT"
@@ -75,141 +75,6 @@ jobs:
 
       - name: Install functions dependencies
         run: npm ci --prefix functions
-
-      - name: Align existing web research fail-closed transport
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-
-          research_path = Path('functions/jarvis-web-research.js')
-          research = research_path.read_text(encoding='utf-8')
-          old_no_pages = '    if (pages.length === 0) throw new Error("DIRECT_RESEARCH_NO_PRIMARY_PAGES");'
-          new_no_pages = '''    if (pages.length === 0) {
-              return {
-                  ok: false,
-                  grounded: false,
-                  engine: "jarvis_direct_primary_domain_research",
-                  model: null,
-                  query: normalizedQuery,
-                  requestedDomain: domain,
-                  objectiveId: String(objectiveId || ""),
-                  caseId: String(caseId || ""),
-                  researchedAt: new Date().toISOString(),
-                  provider: "direct_primary_domain_crawl",
-                  answer: "",
-                  sources: [],
-                  discardedSources: [],
-                  supports: [],
-                  facts: [],
-                  inferences: [],
-                  searchQueries: [],
-                  sourceCount: 0,
-                  readOnly: true,
-                  policy: {
-                      citationsRequired: true,
-                      consultedSourcesOnly: true,
-                      requestedDomainEnforced: true,
-                      factsSeparatedFromInference: true,
-                      duplicatesRemoved: true,
-                      codeWrite: false,
-                      externalSideEffects: false,
-                      freshnessVerified: false,
-                      fallbackReason:
-                          String(fallbackReason || "")
-                              .trim()
-                              .slice(0, 160) ||
-                          "PRIMARY_GROUNDED_RESEARCH_UNAVAILABLE"
-                  }
-              };
-          }'''.replace('          ', '')
-          if old_no_pages in research:
-              research = research.replace(old_no_pages, new_no_pages, 1)
-          elif 'freshnessVerified: false' not in research:
-              raise SystemExit('DIRECT_RESEARCH_FAIL_CLOSED_ANCHOR_NOT_FOUND')
-          research_path.write_text(research, encoding='utf-8')
-
-          index_path = Path('functions/index.js')
-          index = index_path.read_text(encoding='utf-8')
-          complete_pos = index.find('"JARVIS_WEB_RESEARCH_COMPLETE"')
-          guard_anchor = (
-              '            if (\n'
-              '                !result.grounded &&\n'
-              '                result?.status !==\n'
-              '                    "ENTITY_NOT_VERIFIED"\n'
-              '            ) {\n'
-          )
-          guard_pos = index.find(guard_anchor, complete_pos)
-          if complete_pos < 0 or guard_pos < 0:
-              raise SystemExit('WEB_RESEARCH_POST_RESULT_GUARD_NOT_FOUND')
-          block_end = index.find('\n            }', guard_pos)
-          if block_end < 0:
-              raise SystemExit('WEB_RESEARCH_POST_RESULT_GUARD_END_NOT_FOUND')
-          block = index[guard_pos:block_end]
-          if 'if (result?.ok === false)' not in block:
-              throw_anchor = '                throw new functions.https.HttpsError('
-              throw_pos = index.find(throw_anchor, guard_pos, block_end)
-              if throw_pos < 0:
-                  raise SystemExit('WEB_RESEARCH_POST_RESULT_THROW_NOT_FOUND')
-              insertion = (
-                  '                if (result?.ok === false) {\n'
-                  '                    return result;\n'
-                  '                }\n'
-              )
-              index = index[:throw_pos] + insertion + index[throw_pos:]
-          index_path.write_text(index, encoding='utf-8')
-
-          test_path = Path('tests/jarvis-web-research.test.cjs')
-          tests = test_path.read_text(encoding='utf-8')
-          direct_title = 'test("direct domain fallback crawls only primary pages when Gemini credentials fail", async () => {'
-          direct_start = tests.find(direct_title)
-          next_title = 'test("direct domain fallback prioritizes claim-specific official pages over generic navigation", async () => {'
-          direct_end = tests.find(next_title, direct_start)
-          if direct_start < 0 or direct_end < 0:
-              raise SystemExit('WEB_RESEARCH_EXISTING_DIRECT_TEST_NOT_FOUND')
-          direct_block = tests[direct_start:direct_end]
-          if 'freshnessResult.policy.freshnessVerified' not in direct_block:
-              close_pos = tests.rfind('\n});', direct_start, direct_end)
-              if close_pos < 0:
-                  raise SystemExit('WEB_RESEARCH_EXISTING_DIRECT_TEST_END_NOT_FOUND')
-              insertion = (
-                  '\n\n'
-                  '    const freshnessResult = await runJarvisDirectDomainResearch({\n'
-                  '        query: "Investiga únicamente https://www.summ.com.mx/ novedades actuales",\n'
-                  '        fetchImpl: async url => {\n'
-                  '            const normalized = String(url);\n'
-                  '            const html = pages.get(normalized);\n'
-                  '            return {\n'
-                  '                ok: Boolean(html),\n'
-                  '                url: normalized,\n'
-                  '                headers: { get: name => name === "content-type" ? "text/html; charset=utf-8" : "" },\n'
-                  '                text: async () => html || ""\n'
-                  '            };\n'
-                  '        }\n'
-                  '    });\n'
-                  '    assert.equal(freshnessResult.ok, false);\n'
-                  '    assert.equal(freshnessResult.grounded, false);\n'
-                  '    assert.equal(freshnessResult.sourceCount, 0);\n'
-                  '    assert.equal(freshnessResult.policy.freshnessVerified, false);'
-              )
-              tests = tests[:close_pos] + insertion + tests[close_pos:]
-
-          firebase_title = 'test("Firebase deploys grounded web research on the supported Node runtime", () => {'
-          firebase_start = tests.find(firebase_title)
-          if firebase_start < 0:
-              raise SystemExit('WEB_RESEARCH_FIREBASE_TEST_NOT_FOUND')
-          marker = '    assert.match(webSection, /runJarvisDirectDomainResearch\\(\\{/);'
-          marker_pos = tests.find(marker, firebase_start)
-          if marker_pos < 0:
-              raise SystemExit('WEB_RESEARCH_FIREBASE_ASSERTION_NOT_FOUND')
-          line_end = tests.find('\n', marker_pos)
-          firebase_block_end = tests.find('\n});', firebase_start)
-          if 'result\\?\\.ok === false' not in tests[firebase_start:firebase_block_end]:
-              assertion = '\n    assert.match(webSection, /result\\?\\.ok === false[\\s\\S]{0,160}return result/);'
-              tests = tests[:line_end] + assertion + tests[line_end:]
-          test_path.write_text(tests, encoding='utf-8')
-          PY
 
       - name: Validate Jarvis runtime
         run: npm run ci:test
@@ -252,22 +117,6 @@ jobs:
       - name: Deploy Jarvis multifunction services
         if: steps.changes.outputs.functions_changed == 'true'
         run: firebase deploy --only functions:jarvisWebResearch,functions:jarvisSemanticPlan,functions:jarvisSemanticRespond,functions:jarvisImageGenerate,functions:jarvisMediaAnalyze --project fixgo-44e4d --token "${{ secrets.FIREBASE_TOKEN }}"
-
-      - name: Materialize aligned existing web research contract
-        if: success()
-        shell: bash
-        run: |
-          set -euo pipefail
-          if git diff --quiet -- functions/jarvis-web-research.js functions/index.js tests/jarvis-web-research.test.cjs; then
-            echo 'WEB_RESEARCH_FAIL_CLOSED_ALREADY_MATERIALIZED=true'
-            exit 0
-          fi
-          git diff --check -- functions/jarvis-web-research.js functions/index.js tests/jarvis-web-research.test.cjs
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add functions/jarvis-web-research.js functions/index.js tests/jarvis-web-research.test.cjs
-          git commit -m 'fix(jarvis): keep unverifiable freshness fail-closed without HTTP 500'
-          git push origin "HEAD:v5.9-polish"
 
       - name: Publish deploy result
         if: always()
