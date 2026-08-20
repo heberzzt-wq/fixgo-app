@@ -8,7 +8,8 @@ import { test } from "node:test";
 
 import {
     createJarvisUploadBridgeApp,
-    JARVIS_UPLOAD_BRIDGE_VERSION
+    JARVIS_UPLOAD_BRIDGE_VERSION,
+    runResilientLocalWebResearch
 } from "../jarvis-upload-bridge.js";
 
 function initializeBridgeRoot() {
@@ -281,5 +282,50 @@ test("Jarvis upload bridge persists a real PDF through registered chunk routes",
                     true
             }
         );
+    }
+});
+
+test("existing upload bridge keeps resilient local web research without a separate research module", async () => {
+    const calls = [];
+    const result = await runResilientLocalWebResearch(
+        "OpenAI API novedades",
+        5000,
+        {},
+        async url => {
+            calls.push(String(url));
+            return {
+                ok: true,
+                status: 200,
+                url: String(url),
+                async text() {
+                    return '<div class="result results_links"><a class="result__a" href="https://example.com/api">Example API</a><a class="result__snippet">Cambio verificado</a></div>';
+                }
+            };
+        }
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.grounded, true);
+    assert.equal(result.sources.length, 1);
+    assert.equal(result.sources[0].url, "https://example.com/api");
+    assert.equal(result.supports[0].sourceIds[0], 1);
+    assert.match(calls[0], /duckduckgo/i);
+});
+
+test("existing bridge exposes research route and rejects an empty research request without network access", async () => {
+    const root = initializeBridgeRoot();
+    const server = createJarvisUploadBridgeApp({ root }).listen(0);
+    await new Promise(resolve => server.once("listening", resolve));
+    const base = `http://127.0.0.1:${server.address().port}`;
+
+    try {
+        const result = await postJson(base, "/research", { query: "x" });
+        assert.equal(result.response.status, 400);
+        assert.equal(result.body.ok, false);
+        assert.equal(result.body.error, "WEB_RESEARCH_QUERY_REQUIRED");
+    }
+    finally {
+        await new Promise(resolve => server.close(resolve));
+        fs.rmSync(root, { recursive: true, force: true });
     }
 });
