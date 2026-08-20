@@ -2854,6 +2854,9 @@ exports.jarvisWebResearch = functions
                 result?.status !==
                     "ENTITY_NOT_VERIFIED"
             ) {
+                if (result?.ok === false) {
+                    return result;
+                }
                 throw new functions.https.HttpsError(
                     "failed-precondition",
                     "La investigacion no devolvio fuentes verificables."

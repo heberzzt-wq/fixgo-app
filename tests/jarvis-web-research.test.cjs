@@ -475,6 +475,24 @@ test("direct domain fallback crawls only primary pages when Gemini credentials f
     assert.equal(result.discardedSources.length, 0);
     assert.equal(result.inferences.length, 0);
     assert.equal(result.policy.fallbackReason, "GEMINI_CREDENTIAL_UNAVAILABLE");
+
+    const freshnessResult = await runJarvisDirectDomainResearch({
+        query: "Investiga únicamente https://www.summ.com.mx/ novedades actuales",
+        fetchImpl: async url => {
+            const normalized = String(url);
+            const html = pages.get(normalized);
+            return {
+                ok: Boolean(html),
+                url: normalized,
+                headers: { get: name => name === "content-type" ? "text/html; charset=utf-8" : "" },
+                text: async () => html || ""
+            };
+        }
+    });
+    assert.equal(freshnessResult.ok, false);
+    assert.equal(freshnessResult.grounded, false);
+    assert.equal(freshnessResult.sourceCount, 0);
+    assert.equal(freshnessResult.policy.freshnessVerified, false);
 });
 
 test("direct domain fallback prioritizes claim-specific official pages over generic navigation", async () => {
@@ -654,6 +672,7 @@ test("Firebase deploys grounded web research on the supported Node runtime", () 
     assert.match(webSection, /PRIMARY_RESEARCH_NOT_GROUNDED/);
     assert.match(webSection, /requestedDomainFromQuery/);
     assert.match(webSection, /runJarvisDirectDomainResearch\(\{/);
+    assert.match(webSection, /result\?\.ok === false[\s\S]{0,160}return result/);
     assert.match(webSection, /assertJarvisAdminContext/);
     assert.doesNotMatch(webSection, /initCore\(\)/);
     assert.equal(functionsPackage.engines.node, "22");

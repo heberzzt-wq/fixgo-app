@@ -811,7 +811,44 @@ async function runJarvisDirectDomainResearch({
             clearTimeout(timer);
         }
     }
-    if (pages.length === 0) throw new Error("DIRECT_RESEARCH_NO_PRIMARY_PAGES");
+    if (pages.length === 0) {
+    return {
+        ok: false,
+        grounded: false,
+        engine: "jarvis_direct_primary_domain_research",
+        model: null,
+        query: normalizedQuery,
+        requestedDomain: domain,
+        objectiveId: String(objectiveId || ""),
+        caseId: String(caseId || ""),
+        researchedAt: new Date().toISOString(),
+        provider: "direct_primary_domain_crawl",
+        answer: "",
+        sources: [],
+        discardedSources: [],
+        supports: [],
+        facts: [],
+        inferences: [],
+        searchQueries: [],
+        sourceCount: 0,
+        readOnly: true,
+        policy: {
+  citationsRequired: true,
+  consultedSourcesOnly: true,
+  requestedDomainEnforced: true,
+  factsSeparatedFromInference: true,
+  duplicatesRemoved: true,
+  codeWrite: false,
+  externalSideEffects: false,
+  freshnessVerified: false,
+  fallbackReason:
+      String(fallbackReason || "")
+.trim()
+.slice(0, 160) ||
+      "PRIMARY_GROUNDED_RESEARCH_UNAVAILABLE"
+        }
+    };
+}
 
     const sources = pages.map((page, index) => ({ id: index + 1, title: page.title, url: page.url, publishedAt: page.publishedAt || null }));
     const facts = pages.map((page, index) => ({
