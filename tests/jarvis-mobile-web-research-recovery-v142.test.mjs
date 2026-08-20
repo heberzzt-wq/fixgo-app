@@ -7,6 +7,7 @@ import {
 } from "../gestia-core/jarvis/jarvis.multitool.pack.js";
 import { __test as plannerTest } from "../gestia-core/jarvis/jarvis.multifunction.planner.js";
 
+// Production restoration sentinel: keep V94 ADJUNTO as the deploy authority.
 const seedUrl =
     "https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004?q=taqueria%20el%20dorado%20cancun";
 
