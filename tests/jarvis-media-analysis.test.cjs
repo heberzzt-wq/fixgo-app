@@ -94,7 +94,8 @@ test("grounded media analysis supports the deployed modern provider chain", asyn
     assert.equal(request.model, "gemini-2.5-flash");
     assert.equal(request.contents[0].parts[1].inlineData.mimeType, "image/png");
     assert.equal(result.provider, "vertex-adc");
-    assert.equal(result.sources[0].description, "Imagen tecnica verificable");
+    assert.equal(result.sources[0].description, "");
+    assert.equal(result.policy.strictVisualNarrativeDescriptionSuppressed, true);
 });
 
 test("media analysis rejects unsupported, excessive and malformed inputs before model execution", () => {
@@ -842,5 +843,984 @@ test("grounded media analysis enforces schemas through every provider route", as
             "comparison",
             "recommendations"
         ]
+    );
+});
+
+test("visual precision policy preserves verified Motor text and withholds uncertain URL and year", async () => {
+    let request = null;
+    const ai = {
+        models: {
+            async generateContent(payload) {
+                request = payload;
+                return {
+                    text: JSON.stringify({
+                        sources: [{
+                            sourceId: "SOURCE_1",
+                            fileName: "terminal.png",
+                            mimeType: "image/png",
+                            description: "Interfaz de una terminal web.",
+                            observations: ["Se observa una interfaz de asistente."],
+                            inferences: [],
+                            visibleData: [
+                                {
+                                    kind: "text",
+                                    value: "Motor No-Code",
+                                    page: 1,
+                                    confidence: 0.99,
+                                    evidence: "Texto completo visible bajo el encabezado.",
+                                    legibility: "VERIFIED"
+                                },
+                                {
+                                    kind: "text",
+                                    value: "Motion No-Code",
+                                    page: 1,
+                                    confidence: 0.72,
+                                    evidence: "Lectura alternativa incompatible con el texto del encabezado.",
+                                    legibility: "UNCERTAIN"
+                                },
+                                {
+                                    kind: "url",
+                                    value: "https://fixgo-44d.web.app",
+                                    page: 1,
+                                    confidence: 0.91,
+                                    evidence: "La barra del navegador es pequeña y no se distingue completa.",
+                                    legibility: "UNCERTAIN"
+                                },
+                                {
+                                    kind: "date",
+                                    value: "14/07/2028",
+                                    page: 1,
+                                    confidence: 1,
+                                    evidence: "",
+                                    legibility: "VERIFIED"
+                                }
+                            ],
+                            evidence: ["Interfaz visible en SOURCE_1."],
+                            uncertainty: ["La URL y la fecha no se leen completas."]
+                        }]
+                    })
+                };
+            }
+        }
+    };
+
+    const result = await runJarvisMediaAnalysis({
+        ai,
+        input: {
+            files: [{ name: "terminal.png", mimeType: "image/png", dataBase64: tinyPng }],
+            question: "Transcribe solamente lo que sea verificable."
+        }
+    });
+
+    assert.equal(result.version, "1.4.0-verified-visual-claims");
+    assert.equal(result.sources[0].sourceId, "SOURCE_1");
+    assert.equal(result.sources[0].visibleData[0].value, "Motor No-Code");
+    assert.equal(result.sources[0].visibleData[0].legibility, "VERIFIED");
+    assert.equal(result.sources[0].visibleData[1].value, "");
+    assert.equal(result.sources[0].visibleData[2].value, "");
+    assert.equal(result.sources[0].visibleData[3].value, "");
+    assert.doesNotMatch(JSON.stringify(result), /Motion No-Code|fixgo-44d|2028/);
+    assert.equal(result.policy.exactTextMinimumConfidence, 0.98);
+    assert.equal(result.policy.unverifiedLiteralValuesAreWithheld, true);
+
+    const prompt = request.contents[0].parts[0];
+    assert.match(prompt, /Nunca completes una URL parcial ni emitas una fecha, hora o ano/i);
+    assert.match(prompt, /visibleData/);
+    assert.match(prompt, /Fuera de visibleData, ninguna propiedad/);
+    assert.match(prompt, /carencias concretas comprobables por contraste visual/);
+    assert.ok(
+        request.config.responseJsonSchema.properties.sources.items.required.includes("visibleData")
+    );
+});
+
+
+test("production incident repairs a sensitive literal leaked outside visibleData", async () => {
+    let calls = 0;
+    const result = await runJarvisMediaAnalysis({
+        ai: {
+            models: {
+                generateContent: async request => {
+                    calls += 1;
+                    if (calls === 1) {
+                        return {
+                            text: JSON.stringify({
+                                sources: [{
+                                    sourceId: "SOURCE_1",
+                                    fileName: "terminal.png",
+                                    mimeType: "image/png",
+                                    description: "Interfaz de terminal.",
+                                    observations: ["La fecha mostrada es 07/08/2023."],
+                                    inferences: [],
+                                    objects: ["Una interfaz web."],
+                                    composition: {},
+                                    visibleData: [],
+                                    pages: [],
+                                    marketingUse: [],
+                                    quality: {},
+                                    uncertainty: [],
+                                    evidence: []
+                                }]
+                            })
+                        };
+                    }
+                    assert.match(
+                        request.contents[0].parts[0],
+                        /MEDIA_ANALYSIS_PRECISION_LITERAL_LEAK/
+                    );
+                    return {
+                        text: JSON.stringify({
+                            sources: [{
+                                sourceId: "SOURCE_1",
+                                fileName: "terminal.png",
+                                mimeType: "image/png",
+                                description: "Interfaz de terminal.",
+                                observations: ["Se observa una barra inferior, sin transcribir datos sensibles fuera de visibleData."],
+                                inferences: [],
+                                objects: ["Una interfaz web."],
+                                composition: {},
+                                visibleData: [],
+                                pages: [],
+                                marketingUse: [],
+                                quality: {},
+                                uncertainty: ["La fecha visible no se transcribe porque no fue solicitada como lectura literal."],
+                                evidence: []
+                            }]
+                        })
+                    };
+                }
+            }
+        },
+        input: {
+            files: [{
+                name: "terminal.png",
+                mimeType: "image/png",
+                dataBase64: tinyPng
+            }],
+            question: "Describe solamente lo verificable."
+        }
+    });
+
+    assert.equal(calls, 1);
+    assert.equal(result.repairCount, 0);
+    assert.equal(result.analysisMode, "COMBINED");
+    assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
+    assert.doesNotMatch(JSON.stringify(result), /07\/08\/2023|2023/);
+});
+
+
+test("production permits sensitive narrative literals only when grounded in verified visibleData", async () => {
+    let calls = 0;
+    const result = await runJarvisMediaAnalysis({
+        ai: {
+            models: {
+                generateContent: async () => {
+                    calls += 1;
+                    return {
+                        text: JSON.stringify({
+                            sources: [{
+                                sourceId: "SOURCE_1",
+                                fileName: "terminal.png",
+                                mimeType: "image/png",
+                                description: "La barra inferior muestra 07/08/2026 y 10:03.",
+                                observations: [
+                                    "La fecha visible es 07/08/2026.",
+                                    "La hora visible es 10:03."
+                                ],
+                                inferences: [],
+                                objects: ["Una interfaz web con barra inferior visible."],
+                                composition: {},
+                                visibleData: [
+                                    {
+                                        kind: "date",
+                                        value: "07/08/2026",
+                                        page: 1,
+                                        confidence: 0.99,
+                                        evidence: "Esquina inferior derecha de la captura.",
+                                        legibility: "VERIFIED"
+                                    },
+                                    {
+                                        kind: "time",
+                                        value: "10:03",
+                                        page: 1,
+                                        confidence: 0.99,
+                                        evidence: "Esquina inferior derecha de la captura.",
+                                        legibility: "VERIFIED"
+                                    }
+                                ],
+                                pages: [],
+                                marketingUse: [],
+                                quality: {},
+                                uncertainty: [],
+                                evidence: []
+                            }]
+                        })
+                    };
+                }
+            }
+        },
+        input: {
+            files: [{
+                name: "terminal.png",
+                mimeType: "image/png",
+                dataBase64: tinyPng
+            }],
+            question: "Describe solamente lo verificable."
+        }
+    });
+
+    assert.equal(calls, 1);
+    assert.equal(result.repairCount, 0);
+    assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
+    assert.equal(result.sources[0].visibleData[0].value, "07/08/2026");
+    assert.equal(result.sources[0].visibleData[1].value, "10:03");
+});
+
+
+
+test("production repairs ungrounded UI labels, bare domains and generic investigation advice", async () => {
+    let calls = 0;
+    const result = await runJarvisMediaAnalysis({
+        ai: {
+            models: {
+                generateContent: async request => {
+                    calls += 1;
+                    if (calls === 1) {
+                        return {
+                            text: JSON.stringify({
+                                sources: [
+                                    {
+                                        sourceId: "SOURCE_1",
+                                        fileName: "chat.png",
+                                        mimeType: "image/png",
+                                        description: "Screenshot of the ChatGPT Plus interface.",
+                                        observations: ["The menu shows 'Añadir fotos y archivos'."],
+                                        inferences: [],
+                                        objects: [],
+                                        composition: {},
+                                        visibleData: [],
+                                        pages: [],
+                                        marketingUse: [],
+                                        quality: {},
+                                        uncertainty: [],
+                                        evidence: []
+                                    },
+                                    {
+                                        sourceId: "SOURCE_2",
+                                        fileName: "terminal.png",
+                                        mimeType: "image/png",
+                                        description: "Screenshot of Terminal Heberto.",
+                                        observations: ["The browser shows fixgo-44d.web.app."],
+                                        inferences: [],
+                                        objects: [],
+                                        composition: {},
+                                        visibleData: [],
+                                        pages: [],
+                                        marketingUse: [],
+                                        quality: {},
+                                        uncertainty: [],
+                                        evidence: []
+                                    }
+                                ],
+                                comparison: {
+                                    beforeAfter: false,
+                                    differences: ["ChatGPT Plus includes GitHub while Terminal Heberto differs."],
+                                    confidence: 0.9
+                                },
+                                recommendations: ["Investigate the purpose and context of the terminal."]
+                            })
+                        };
+                    }
+
+                    assert.match(
+                        request.contents[0].parts[0],
+                        /MEDIA_ANALYSIS_PRECISION_LITERAL_LEAK|MEDIA_ANALYSIS_NON_VISUAL_RECOMMENDATION/
+                    );
+
+                    return {
+                        text: JSON.stringify({
+                            sources: [
+                                {
+                                    sourceId: "SOURCE_1",
+                                    fileName: "chat.png",
+                                    mimeType: "image/png",
+                                    description: "Interfaz conversacional con un menu desplegado.",
+                                    observations: ["Se observan varias entradas de menu sin transcribir etiquetas no verificadas."],
+                                    inferences: [],
+                                    objects: [],
+                                    composition: {},
+                                    visibleData: [],
+                                    pages: [],
+                                    marketingUse: [],
+                                    quality: {},
+                                    uncertainty: ["Las etiquetas literales no alcanzan el umbral de verificacion."],
+                                    evidence: []
+                                },
+                                {
+                                    sourceId: "SOURCE_2",
+                                    fileName: "terminal.png",
+                                    mimeType: "image/png",
+                                    description: "Interfaz conversacional con un menu desplegado.",
+                                    observations: ["Se observan menos entradas visibles en el menu sin transcribir etiquetas no verificadas."],
+                                    inferences: [],
+                                    objects: [],
+                                    composition: {},
+                                    visibleData: [],
+                                    pages: [],
+                                    marketingUse: [],
+                                    quality: {},
+                                    uncertainty: ["Las etiquetas literales no alcanzan el umbral de verificacion."],
+                                    evidence: []
+                                }
+                            ],
+                            comparison: {
+                                beforeAfter: false,
+                                differences: ["Una fuente muestra mas entradas visibles en el menu que la otra."],
+                                confidence: 0.9
+                            },
+                            recommendations: ["Hacer visibles mas opciones de adjuntos cuando exista soporte real para ellas."]
+                        })
+                    };
+                }
+            }
+        },
+        input: {
+            files: [
+                { name: "chat.png", mimeType: "image/png", dataBase64: Buffer.from("chat-ui").toString("base64") },
+                { name: "terminal.png", mimeType: "image/png", dataBase64: Buffer.from("terminal-ui").toString("base64") }
+            ],
+            question: "Compara solamente controles visibles de adjuntos."
+        }
+    });
+
+    assert.equal(calls, 2);
+    assert.equal(result.repairCount, 1);
+    assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
+    assert.doesNotMatch(
+        JSON.stringify(result),
+        /ChatGPT Plus|Terminal Heberto|GitHub|fixgo-44d\.web\.app|Investigate|Añadir fotos y archivos/
+    );
+    assert.equal(result.policy.narrativeUiLiteralsRequireVisibleData, true);
+    assert.equal(result.policy.conversationContentCannotProveUiCapability, true);
+});
+
+
+test("production permits UI labels in narrative only when verified visibleData grounds them", async () => {
+    let calls = 0;
+    const result = await runJarvisMediaAnalysis({
+        ai: {
+            models: {
+                generateContent: async () => {
+                    calls += 1;
+                    return {
+                        text: JSON.stringify({
+                            sources: [
+                                {
+                                    sourceId: "SOURCE_1",
+                                    fileName: "chat.png",
+                                    mimeType: "image/png",
+                                    description: "La interfaz muestra ChatGPT Plus.",
+                                    observations: ["El control 'Añadir fotos y archivos' esta visible."],
+                                    inferences: [],
+                                    objects: [],
+                                    composition: {},
+                                    visibleData: [
+                                        {
+                                            kind: "text",
+                                            value: "ChatGPT Plus",
+                                            page: 1,
+                                            confidence: 0.99,
+                                            evidence: "Etiqueta visible en la parte superior.",
+                                            legibility: "VERIFIED"
+                                        },
+                                        {
+                                            kind: "text",
+                                            value: "Añadir fotos y archivos",
+                                            page: 1,
+                                            confidence: 0.99,
+                                            evidence: "Entrada visible del menu abierto.",
+                                            legibility: "VERIFIED"
+                                        }
+                                    ],
+                                    pages: [],
+                                    marketingUse: [],
+                                    quality: {},
+                                    uncertainty: [],
+                                    evidence: []
+                                },
+                                {
+                                    sourceId: "SOURCE_2",
+                                    fileName: "terminal.png",
+                                    mimeType: "image/png",
+                                    description: "La interfaz muestra Terminal Heberto.",
+                                    observations: [],
+                                    inferences: [],
+                                    objects: [],
+                                    composition: {},
+                                    visibleData: [
+                                        {
+                                            kind: "text",
+                                            value: "Terminal Heberto",
+                                            page: 1,
+                                            confidence: 0.99,
+                                            evidence: "Encabezado visible de la interfaz.",
+                                            legibility: "VERIFIED"
+                                        }
+                                    ],
+                                    pages: [],
+                                    marketingUse: [],
+                                    quality: {},
+                                    uncertainty: [],
+                                    evidence: []
+                                }
+                            ],
+                            comparison: {
+                                beforeAfter: false,
+                                differences: ["ChatGPT Plus y Terminal Heberto muestran encabezados distintos."],
+                                confidence: 0.99
+                            },
+                            recommendations: []
+                        })
+                    };
+                }
+            }
+        },
+        input: {
+            files: [
+                { name: "chat.png", mimeType: "image/png", dataBase64: Buffer.from("chat-ui-verified").toString("base64") },
+                { name: "terminal.png", mimeType: "image/png", dataBase64: Buffer.from("terminal-ui-verified").toString("base64") }
+            ],
+            question: "Compara controles visibles."
+        }
+    });
+
+    assert.equal(calls, 1);
+    assert.equal(result.repairCount, 0);
+    assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
+    assert.equal(result.sources[0].visibleData[0].value, "ChatGPT Plus");
+    assert.equal(result.sources[0].visibleData[1].value, "Añadir fotos y archivos");
+    assert.equal(result.sources[1].visibleData[0].value, "Terminal Heberto");
+});
+
+
+
+test("production deterministically sanitizes a second precision leak instead of returning 500", async () => {
+    let calls = 0;
+    const leakingPayload = {
+        sources: [
+            {
+                sourceId: "SOURCE_1",
+                fileName: "chat.png",
+                mimeType: "image/png",
+                description: "Screenshot of the ChatGPT Plus interface.",
+                observations: ["The menu shows 'Añadir fotos y archivos'."],
+                inferences: [],
+                objects: [],
+                composition: {},
+                visibleData: [],
+                pages: [],
+                marketingUse: [],
+                quality: {},
+                uncertainty: ["La lectura literal no alcanza confianza suficiente."],
+                evidence: []
+            },
+            {
+                sourceId: "SOURCE_2",
+                fileName: "terminal.png",
+                mimeType: "image/png",
+                description: "Screenshot of Terminal Heberto.",
+                observations: ["The browser shows fixgo-44d.web.app."],
+                inferences: [],
+                objects: [],
+                composition: {},
+                visibleData: [],
+                pages: [],
+                marketingUse: [],
+                quality: {},
+                uncertainty: ["La lectura literal no alcanza confianza suficiente."],
+                evidence: []
+            }
+        ],
+        comparison: {
+            beforeAfter: false,
+            differences: [
+                "ChatGPT Plus includes GitHub while Terminal Heberto differs."
+            ],
+            confidence: 0.9
+        },
+        recommendations: [
+            "Investigate the purpose and context of the terminal."
+        ]
+    };
+
+    const result = await runJarvisMediaAnalysis({
+        ai: {
+            models: {
+                generateContent: async () => {
+                    calls += 1;
+                    return {
+                        text: JSON.stringify(leakingPayload)
+                    };
+                }
+            }
+        },
+        input: {
+            files: [
+                {
+                    name: "chat.png",
+                    mimeType: "image/png",
+                    dataBase64: Buffer.from("chat-ui-v4d").toString("base64")
+                },
+                {
+                    name: "terminal.png",
+                    mimeType: "image/png",
+                    dataBase64: Buffer.from("terminal-ui-v4d").toString("base64")
+                }
+            ],
+            question: "Compara solamente controles visibles."
+        }
+    });
+
+    assert.equal(calls, 2);
+    assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
+    assert.equal(result.repairCount, 1);
+    assert.equal(result.precisionSanitized, true);
+    assert.ok(result.precisionSanitizedCount >= 1);
+    assert.equal(result.analysisMode, "COMBINED_PRECISION_SANITIZED");
+    assert.equal(result.recommendations.length, 0);
+    assert.doesNotMatch(
+        JSON.stringify(result),
+        /ChatGPT Plus|Terminal Heberto|GitHub|fixgo-44d\.web\.app|Investigate|Añadir fotos y archivos/
+    );
+    assert.equal(result.policy.deterministicPrecisionSanitizer, true);
+});
+
+
+
+test("production sanitizes standalone UI brand labels that are absent from verified visibleData", async () => {
+    let calls = 0;
+    const leakingPayload = {
+        sources: [
+            {
+                sourceId: "SOURCE_1",
+                fileName: "chat.png",
+                mimeType: "image/png",
+                description: "Screenshot of a web interface.",
+                observations: ["The open menu includes Canva and Gmail among several options."],
+                inferences: [],
+                objects: [],
+                composition: {},
+                visibleData: [],
+                pages: [],
+                marketingUse: [],
+                quality: {},
+                uncertainty: [],
+                evidence: []
+            },
+            {
+                sourceId: "SOURCE_2",
+                fileName: "terminal.png",
+                mimeType: "image/png",
+                description: "Screenshot of another web interface.",
+                observations: [],
+                inferences: [],
+                objects: [],
+                composition: {},
+                visibleData: [],
+                pages: [],
+                marketingUse: [],
+                quality: {},
+                uncertainty: [],
+                evidence: []
+            }
+        ],
+        comparison: {
+            beforeAfter: false,
+            differences: ["One menu includes Canva and Gmail while the other differs."],
+            confidence: 0.9
+        },
+        recommendations: []
+    };
+
+    const result = await runJarvisMediaAnalysis({
+        ai: {
+            models: {
+                generateContent: async () => {
+                    calls += 1;
+                    return { text: JSON.stringify(leakingPayload) };
+                }
+            }
+        },
+        input: {
+            files: [
+                { name: "chat.png", mimeType: "image/png", dataBase64: Buffer.from("chat-v4e").toString("base64") },
+                { name: "terminal.png", mimeType: "image/png", dataBase64: Buffer.from("terminal-v4e").toString("base64") }
+            ],
+            question: "Compara controles visibles."
+        }
+    });
+
+    assert.equal(calls, 2);
+    assert.equal(result.ok, true);
+    assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
+    assert.equal(result.precisionSanitized, true);
+    assert.equal(result.policy.standaloneUiLiteralsRequireVisibleData, true);
+    assert.doesNotMatch(JSON.stringify(result), /Canva|Gmail/);
+});
+
+
+
+test("production removes capture-context comparisons and speculative recommendations after repair", async () => {
+    let calls = 0;
+    const payload = {
+        sources: [
+            {
+                sourceId: "SOURCE_1",
+                fileName: "one.png",
+                mimeType: "image/png",
+                description: "Interfaz con menu abierto.",
+                observations: [],
+                inferences: [],
+                objects: [],
+                composition: {},
+                visibleData: [],
+                pages: [],
+                marketingUse: [],
+                quality: {},
+                uncertainty: [],
+                evidence: []
+            },
+            {
+                sourceId: "SOURCE_2",
+                fileName: "two.png",
+                mimeType: "image/png",
+                description: "Interfaz con panel lateral visible.",
+                observations: [],
+                inferences: [],
+                objects: [],
+                composition: {},
+                visibleData: [],
+                pages: [],
+                marketingUse: [],
+                quality: {},
+                uncertainty: [],
+                evidence: []
+            }
+        ],
+        comparison: {
+            beforeAfter: false,
+            differences: [
+                "Source 2 contains a code-like output on the right side, which is absent in Source 1.",
+                "Both images show the same date and time in the system tray, suggesting they were captured around the same time."
+            ],
+            confidence: 0.9
+        },
+        recommendations: [
+            "Ensure consistency in UI/UX if these two interfaces are part of a larger ecosystem or user workflow."
+        ]
+    };
+
+    const result = await runJarvisMediaAnalysis({
+        ai: {
+            models: {
+                generateContent: async () => {
+                    calls += 1;
+                    return { text: JSON.stringify(payload) };
+                }
+            }
+        },
+        input: {
+            files: [
+                { name: "one.png", mimeType: "image/png", dataBase64: Buffer.from("one-v4f").toString("base64") },
+                { name: "two.png", mimeType: "image/png", dataBase64: Buffer.from("two-v4f").toString("base64") }
+            ],
+            question: "Compara solamente diferencias visuales relevantes."
+        }
+    });
+
+    assert.equal(calls, 2);
+    assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
+    assert.equal(result.precisionSanitized, true);
+    assert.deepEqual(result.comparison.differences, [
+        "Source 2 contains a code-like output on the right side, which is absent in Source 1."
+    ]);
+    assert.deepEqual(result.recommendations, []);
+    assert.doesNotMatch(JSON.stringify(result), /same date and time|system tray|ecosystem|user workflow/i);
+});
+
+
+
+test("strict visual-only request deterministically suppresses provider inferences", async () => {
+    const result = await runJarvisMediaAnalysis({
+        ai: {
+            models: {
+                generateContent: async () => ({
+                    text: JSON.stringify({
+                        sources: [
+                            {
+                                sourceId: "SOURCE_1",
+                                fileName: "one.png",
+                                mimeType: "image/png",
+                                description: "Interfaz web con un menu abierto.",
+                                observations: ["Se observa un menu abierto con varias filas."],
+                                inferences: ["The user is likely preparing to attach a file."],
+                                visibleData: [],
+                                evidence: [],
+                                uncertainty: []
+                            },
+                            {
+                                sourceId: "SOURCE_2",
+                                fileName: "two.png",
+                                mimeType: "image/png",
+                                description: "Interfaz web con un menu abierto y un panel lateral.",
+                                observations: ["Se observa un panel lateral junto al contenido principal."],
+                                inferences: ["The user probably uses this interface for development."],
+                                visibleData: [],
+                                evidence: [],
+                                uncertainty: []
+                            }
+                        ],
+                        comparison: {
+                            beforeAfter: false,
+                            differences: ["La segunda fuente muestra un panel lateral que no aparece en la primera."],
+                            confidence: 0.99
+                        },
+                        recommendations: []
+                    })
+                })
+            }
+        },
+        input: {
+            files: [
+                { name: "one.png", mimeType: "image/png", dataBase64: Buffer.from("one").toString("base64") },
+                { name: "two.png", mimeType: "image/png", dataBase64: Buffer.from("two").toString("base64") }
+            ],
+            question: "Describe solamente lo que puedes verificar visualmente. No infieras intenciones del usuario."
+        }
+    });
+
+    assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
+    assert.deepEqual(result.sources[0].inferences, []);
+    assert.deepEqual(result.sources[1].inferences, []);
+    assert.match(result.sources[0].observations[0], /menu abierto/i);
+    assert.match(result.comparison.differences[0], /panel lateral/i);
+});
+
+
+
+test("strict visual-only request removes long transcript observations and keeps source literal grounding isolated", async () => {
+    let calls = 0;
+    const transcript = "He analizado visualmente las dos imágenes proporcionadas, describiendo su contenido y las diferencias entre ellas. Se ha identificado que la terminal no muestra una interfaz de adjuntos de archivos.";
+    const payload = {
+        sources: [
+            {
+                sourceId: "SOURCE_1",
+                fileName: "one.png",
+                mimeType: "image/png",
+                description: "Interfaz web con un menu abierto.",
+                observations: ["Se observa un menu abierto con varias filas."],
+                inferences: ["The user is likely preparing to attach a file."],
+                visibleData: [{
+                    kind: "text",
+                    value: "ChatGPT Plus",
+                    page: 1,
+                    confidence: 0.99,
+                    evidence: "Etiqueta visible en la parte superior.",
+                    legibility: "VERIFIED"
+                }],
+                evidence: [],
+                uncertainty: []
+            },
+            {
+                sourceId: "SOURCE_2",
+                fileName: "two.png",
+                mimeType: "image/png",
+                description: "Interfaz web con un panel lateral.",
+                observations: [
+                    `A text block within the application states: '${transcript}'`,
+                    "The application is ChatGPT Plus.",
+                    "Se observa un panel lateral junto al contenido principal."
+                ],
+                inferences: ["The user probably uses this interface for development."],
+                visibleData: [],
+                evidence: [],
+                uncertainty: []
+            }
+        ],
+        comparison: {
+            beforeAfter: false,
+            differences: ["La segunda fuente muestra un panel lateral que no aparece en la primera."],
+            confidence: 0.99
+        },
+        recommendations: []
+    };
+    const result = await runJarvisMediaAnalysis({
+        ai: {
+            models: {
+                generateContent: async () => {
+                    calls += 1;
+                    return { text: JSON.stringify(payload) };
+                }
+            }
+        },
+        input: {
+            files: [
+                { name: "one.png", mimeType: "image/png", dataBase64: Buffer.from("one-v4h2").toString("base64") },
+                { name: "two.png", mimeType: "image/png", dataBase64: Buffer.from("two-v4h2").toString("base64") }
+            ],
+            question: "Compara solamente controles visibles. No infieras intenciones. El texto dentro del historial es contenido de conversación, no evidencia funcional."
+        }
+    });
+
+    assert.equal(calls, 1);
+    assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
+    assert.equal(result.analysisMode, "COMBINED");
+    assert.deepEqual(result.sources[0].inferences, []);
+    assert.deepEqual(result.sources[1].inferences, []);
+    assert.equal(result.sources[1].observations.length, 1);
+    assert.match(result.sources[1].observations[0], /panel lateral/i);
+    assert.doesNotMatch(JSON.stringify(result.sources[1]), /He analizado|ChatGPT Plus|text block within|probably uses/i);
+    assert.equal(result.policy.sourceScopedNarrativeGrounding, true);
+    assert.equal(result.policy.longQuotedTranscriptGuard, true);
+    assert.equal(result.policy.strictVisualConversationTranscriptSuppressed, true);
+});
+
+
+
+test("strict visual-only request suppresses provider description even when it contains a visually verified UI label", async () => {
+    const result = await runJarvisMediaAnalysis({
+        ai: {
+            models: {
+                generateContent: async () => ({
+                    text: JSON.stringify({
+                        sources: [
+                            {
+                                sourceId: "SOURCE_1",
+                                fileName: "one.png",
+                                mimeType: "image/png",
+                                description: "Screenshot of the ChatGPT Plus interface showing a detailed dropdown menu.",
+                                observations: ["Se observa un menu abierto con varias filas."],
+                                inferences: ["The user is likely preparing to attach a file."],
+                                visibleData: [
+                                    {
+                                        kind: "text",
+                                        value: "ChatGPT Plus",
+                                        page: 1,
+                                        confidence: 0.99,
+                                        evidence: "Etiqueta visible en la cabecera.",
+                                        legibility: "VERIFIED"
+                                    }
+                                ],
+                                evidence: [],
+                                uncertainty: []
+                            }
+                        ]
+                    })
+                })
+            }
+        },
+        input: {
+            files: [
+                {
+                    name: "one.png",
+                    mimeType: "image/png",
+                    dataBase64: Buffer.from("strict-description-v4i").toString("base64")
+                }
+            ],
+            question: "Describe solamente elementos visuales verificables. No infieras intenciones."
+        }
+    });
+
+    assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
+    assert.equal(result.sources[0].description, "");
+    assert.deepEqual(result.sources[0].inferences, []);
+    assert.match(result.sources[0].observations[0], /menu abierto/i);
+    assert.equal(result.sources[0].visibleData[0].value, "ChatGPT Plus");
+    assert.equal(result.policy.strictVisualNarrativeDescriptionSuppressed, true);
+});
+
+
+
+test("production raw strict-visual result removes the exact 1J literal leak before returning", async () => {
+    const result = await runJarvisMediaAnalysis({
+        ai: {
+            models: {
+                generateContent: async () => ({
+                    text: JSON.stringify({
+                        sources: [
+                            {
+                                sourceId: "SOURCE_1",
+                                fileName: "chat-gpt-aduntos-1.png",
+                                mimeType: "image/png",
+                                description: "Screenshot of the ChatGPT Plus interface showing a detailed dropdown menu.",
+                                observations: [
+                                    "The application is identified as 'ChatGPT Plus'.",
+                                    "An open menu displays options including 'Añadir fotos y archivos'.",
+                                    "Se observa un menu abierto con varias filas."
+                                ],
+                                inferences: ["The user is likely preparing to attach a file."],
+                                objects: [],
+                                composition: {},
+                                visibleData: [],
+                                pages: [],
+                                marketingUse: [],
+                                quality: {},
+                                uncertainty: [],
+                                evidence: []
+                            },
+                            {
+                                sourceId: "SOURCE_2",
+                                fileName: "terminal-adjunto-1.png",
+                                mimeType: "image/png",
+                                description: "Screenshot of Terminal Heberto.",
+                                observations: ["A panel on the right side displays code-like content."],
+                                inferences: [],
+                                objects: [],
+                                composition: {},
+                                visibleData: [],
+                                pages: [],
+                                marketingUse: [],
+                                quality: {},
+                                uncertainty: [],
+                                evidence: []
+                            }
+                        ],
+                        comparison: {
+                            beforeAfter: false,
+                            differences: ["The two layouts are visually distinct."],
+                            confidence: 0.99
+                        },
+                        recommendations: []
+                    })
+                })
+            }
+        },
+        input: {
+            files: [
+                {
+                    name: "chat-gpt-aduntos-1.png",
+                    mimeType: "image/png",
+                    dataBase64: Buffer.from("run-1j-source-one").toString("base64")
+                },
+                {
+                    name: "terminal-adjunto-1.png",
+                    mimeType: "image/png",
+                    dataBase64: Buffer.from("run-1j-source-two").toString("base64")
+                }
+            ],
+            question: "Describe solamente elementos visuales verificables. No infieras intenciones."
+        }
+    });
+
+    assert.equal(result.status, "MEDIA_ANALYSIS_GROUNDED");
+    assert.equal(result.strictVisualOnly, true);
+    assert.equal(result.sources[0].description, "");
+    assert.equal(result.sources[1].description, "");
+    assert.deepEqual(result.sources[0].inferences, []);
+    assert.deepEqual(result.sources[1].inferences, []);
+    assert.deepEqual(result.sources[0].observations, ["Se observa un menu abierto con varias filas."]);
+    assert.deepEqual(result.sources[1].observations, ["A panel on the right side displays code-like content."]);
+    assert.doesNotMatch(
+        JSON.stringify(result),
+        /ChatGPT Plus|Añadir fotos y archivos|Terminal Heberto|preparing to attach/i
     );
 });
