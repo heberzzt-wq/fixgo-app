@@ -76,40 +76,112 @@ jobs:
       - name: Install functions dependencies
         run: npm ci --prefix functions
 
-      - name: Align existing grounded marketing contract
+      - name: Apply bare-domain grounded research recovery
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
-          path = Path('tests/jarvis-multifunction-tools.test.mjs')
-          source = path.read_text(encoding='utf-8')
-          old = '''    assert.equal(marketing.status, "MARKETING_PACKAGE_READY");
-              assert.equal(marketing.objectiveSatisfied, true);
-              assert.equal(marketing.semanticEnrichment.used, true);'''.replace('              ', '    ')
-          new = '''    assert.equal(marketing.status, "MARKETING_PACKAGE_READY");
-              assert.equal(marketing.objectiveSatisfied, true);
-              assert.equal(marketing.grounding.status, "GROUNDED");'''.replace('              ', '    ')
-          if old in source:
-              path.write_text(source.replace(old, new, 1), encoding='utf-8')
-          elif new not in source:
-              raise SystemExit('EXISTING_GROUNDED_MARKETING_CONTRACT_NOT_FOUND')
-          PY
 
-      - name: Align existing Hosting deploy contract
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-          path = Path('tests/jarvis-web-research.test.cjs')
-          source = path.read_text(encoding='utf-8')
-          old = r'''    assert.match(workflow, /Deploy Hosting\s*\n\s*run:\s*firebase deploy --only hosting/);'''
-          new = r'''    assert.match(workflow, /Deploy Hosting[\s\S]{0,160}?if:\s*steps\.changes\.outputs\.hosting_changed == 'true'[\s\S]{0,200}?run:\s*firebase deploy --only hosting/);'''
-          if old in source:
-              path.write_text(source.replace(old, new, 1), encoding='utf-8')
-          elif new not in source:
-              raise SystemExit('EXISTING_HOSTING_DEPLOY_CONTRACT_NOT_FOUND')
+          runtime_path = Path('functions/jarvis-web-research.js')
+          runtime = runtime_path.read_text(encoding='utf-8')
+
+          old_domain = '''function requestedDomainFromQuery(query = "", explicitDomain = "") {
+              if (explicitDomain) {
+                  try {
+                      return cleanHost(new URL(explicitDomain.includes("://") ? explicitDomain : `https://${explicitDomain}`).hostname);
+                  } catch {
+                      return "";
+                  }
+              }
+
+              const trailing = new Set([".", ",", ";", ":", ")", "]", "}", "!", "?", "\\\"", "'"]);
+              for (const rawToken of String(query || "").split(" ")) {
+                  let token = rawToken.trim();
+                  while (token && trailing.has(token.at(-1))) token = token.slice(0, -1);
+                  if (!token.includes("://")) continue;
+                  try {
+                      const parsed = new URL(token);
+                      if (parsed.protocol === "https:" || parsed.protocol === "http:") return cleanHost(parsed.hostname);
+                  } catch {
+                      continue;
+                  }
+              }
+              return "";
+          }'''.replace('          ', '')
+
+          new_domain = '''function requestedDomainFromQuery(query = "", explicitDomain = "") {
+              const leading = new Set(["(", "[", "{", "<", "\\\"", "'"]);
+              const trailing = new Set([".", ",", ";", ":", ")", "]", "}", ">", "!", "?", "\\\"", "'"]);
+              const parseCandidate = value => {
+                  let token = String(value || "").trim();
+                  while (token && leading.has(token[0])) token = token.slice(1);
+                  while (token && trailing.has(token.at(-1))) token = token.slice(0, -1);
+                  if (!token || token.includes("@")) return "";
+                  try {
+                      const parsed = new URL(token.includes("://") ? token : `https://${token}`);
+                      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return "";
+                      const host = String(parsed.hostname || "").trim().toLowerCase();
+                      if (!/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$/i.test(host)) return "";
+                      return cleanHost(host);
+                  } catch {
+                      return "";
+                  }
+              };
+
+              if (explicitDomain) return parseCandidate(explicitDomain);
+
+              for (const rawToken of String(query || "").split(/\\s+/)) {
+                  const domain = parseCandidate(rawToken);
+                  if (domain) return domain;
+              }
+              return "";
+          }'''.replace('          ', '')
+
+          if old_domain in runtime:
+              runtime = runtime.replace(old_domain, new_domain, 1)
+          elif new_domain not in runtime:
+              raise SystemExit('BARE_DOMAIN_RUNTIME_ANCHOR_NOT_FOUND')
+
+          old_host = '        if (token.includes("://")) addHost(token);'
+          new_host = '''        if (
+              requestedDomainFromQuery(token) === domain
+          ) {
+              addHost(token);
+          }'''.replace('          ', '        ')
+          if old_host in runtime:
+              runtime = runtime.replace(old_host, new_host, 1)
+          elif 'requestedDomainFromQuery(token) === domain' not in runtime:
+              raise SystemExit('BARE_DOMAIN_HOST_ANCHOR_NOT_FOUND')
+
+          runtime_path.write_text(runtime, encoding='utf-8')
+
+          test_path = Path('tests/jarvis-web-research.test.cjs')
+          tests = test_path.read_text(encoding='utf-8')
+          marker = 'test("grounding maps duplicate chunks to one canonical source id", () => {'
+          regression = '''test("bare requested domains activate the primary-domain fallback without protocol", () => {
+              const query =
+                  "Investiga únicamente en openai.com las novedades actuales de la API de OpenAI";
+              assert.equal(
+                  requestedDomainFromQuery(query),
+                  "openai.com"
+              );
+              assert.deepEqual(
+                  requestedHostsFromQuery(query).slice(0, 2),
+                  ["openai.com", "www.openai.com"]
+              );
+              assert.equal(
+                  requestedDomainFromQuery("Escribe a soporte@openai.com"),
+                  ""
+              );
+          });
+
+          '''.replace('          ', '')
+          if regression.strip() not in tests:
+              if marker not in tests:
+                  raise SystemExit('BARE_DOMAIN_TEST_ANCHOR_NOT_FOUND')
+              tests = tests.replace(marker, regression + marker, 1)
+          test_path.write_text(tests, encoding='utf-8')
           PY
 
       - name: Validate Jarvis runtime
@@ -153,20 +225,20 @@ jobs:
         if: steps.changes.outputs.functions_changed == 'true'
         run: firebase deploy --only functions:jarvisWebResearch,functions:jarvisSemanticPlan,functions:jarvisSemanticRespond,functions:jarvisImageGenerate,functions:jarvisMediaAnalyze --project fixgo-44e4d --token "${{ secrets.FIREBASE_TOKEN }}"
 
-      - name: Materialize aligned existing contracts
+      - name: Materialize bare-domain research recovery
         if: success()
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet -- tests/jarvis-multifunction-tools.test.mjs tests/jarvis-web-research.test.cjs; then
-            echo 'EXISTING_CONTRACTS_ALREADY_ALIGNED=true'
+          if git diff --quiet -- functions/jarvis-web-research.js tests/jarvis-web-research.test.cjs; then
+            echo 'BARE_DOMAIN_RECOVERY_ALREADY_MATERIALIZED=true'
             exit 0
           fi
-          git diff --check -- tests/jarvis-multifunction-tools.test.mjs tests/jarvis-web-research.test.cjs
+          git diff --check -- functions/jarvis-web-research.js tests/jarvis-web-research.test.cjs
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add tests/jarvis-multifunction-tools.test.mjs tests/jarvis-web-research.test.cjs
-          git commit -m 'test(jarvis): align existing grounded deploy contracts'
+          git add functions/jarvis-web-research.js tests/jarvis-web-research.test.cjs
+          git commit -m 'fix(jarvis): accept bare domains for grounded fallback'
           git push origin "HEAD:v5.9-polish"
 
       - name: Publish deploy result
