@@ -14,268 +14,262 @@ function replaceOnce(source, before, after, label) {
 
 let provider = fs.readFileSync(providerPath, 'utf8');
 
-if (!provider.includes('async function inspectGroundingFreshness(')) {
-  const helperMarker = 'function sleep(ms) {';
-  const helperBlock = String.raw`function freshnessWindowDays(request = {}) {
-    const text = normalizeFreshnessSignalText(
-        collectRequestText(request?.contents)
-    );
-    if (/\b(hoy|today)\b/.test(text)) return 2;
-    if (/\b(esta semana|this week|semana|week)\b/.test(text)) return 8;
-    if (/\b(este mes|this month|mes|month)\b/.test(text)) return 35;
-    if (/\b(este ano|this year|ano|year)\b/.test(text)) return 370;
-    return requestNeedsFreshness(request) ? 60 : null;
+provider = provider.replace(
+  'const {\n    assessGroundingSupportFreshness\n} = require("./jarvis-web-fact-freshness");\n\n',
+  ''
+);
+
+if (!provider.includes('function assessGroundingSupportFreshness(')) {
+  const marker = 'function freshnessWindowDays(request = {}) {';
+  const helpers = String.raw`const FACT_FRESHNESS_MONTHS = new Map([
+    ["enero", 0], ["january", 0], ["jan", 0],
+    ["febrero", 1], ["february", 1], ["feb", 1],
+    ["marzo", 2], ["march", 2], ["mar", 2],
+    ["abril", 3], ["april", 3], ["apr", 3],
+    ["mayo", 4], ["may", 4],
+    ["junio", 5], ["june", 5], ["jun", 5],
+    ["julio", 6], ["july", 6], ["jul", 6],
+    ["agosto", 7], ["august", 7], ["aug", 7],
+    ["septiembre", 8], ["setiembre", 8], ["september", 8], ["sep", 8], ["sept", 8],
+    ["octubre", 9], ["october", 9], ["oct", 9],
+    ["noviembre", 10], ["november", 10], ["nov", 10],
+    ["diciembre", 11], ["december", 11], ["dec", 11]
+]);
+
+function factFreshnessSupportText(value = "") {
+    return String(value || "")
+        .replace(/\s+/g, " ")
+        .trim();
 }
 
-function extractPublicationDatesFromHtml(html = '') {
-    const source = String(html || '').slice(0, 900000);
-    const patterns = [
-        /["']datePublished["']\s*:\s*["']([^"']+)["']/gi,
-        /["']dateModified["']\s*:\s*["']([^"']+)["']/gi,
-        /<meta[^>]+(?:property|name)=["'](?:article:published_time|article:modified_time|date|datePublished|dateModified)["'][^>]+content=["']([^"']+)["'][^>]*>/gi,
-        /<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["'](?:article:published_time|article:modified_time|date|datePublished|dateModified)["'][^>]*>/gi,
-        /<time[^>]+datetime=["']([^"']+)["'][^>]*>/gi
-    ];
-    const values = [];
-    for (const pattern of patterns) {
-        let match;
-        while ((match = pattern.exec(source)) && values.length < 24) {
-            const parsed = new Date(String(match[1] || '').trim());
-            if (Number.isFinite(parsed.getTime())) values.push(parsed);
-        }
+function factFreshnessSupportKey(value = "") {
+    return factFreshnessSupportText(value)
+        .slice(0, 320)
+        .toLocaleLowerCase();
+}
+
+function pushFactFreshnessDate(target, year, month, day) {
+    const y = Number(year);
+    const m = Number(month);
+    const d = Number(day);
+    if (!Number.isInteger(y) || y < 2000 || y > 2100) return;
+    if (!Number.isInteger(m) || m < 0 || m > 11) return;
+    if (!Number.isInteger(d) || d < 1 || d > 31) return;
+    const value = new Date(Date.UTC(y, m, d, 12, 0, 0));
+    if (
+        value.getUTCFullYear() !== y ||
+        value.getUTCMonth() !== m ||
+        value.getUTCDate() !== d
+    ) return;
+    target.push(value.toISOString());
+}
+
+function extractExplicitFactDates(value = "") {
+    const text = String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+    const found = [];
+
+    for (const match of text.matchAll(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/g)) {
+        pushFactFreshnessDate(found, match[1], Number(match[2]) - 1, match[3]);
     }
-    return values
-        .sort((left, right) => right.getTime() - left.getTime())
-        .map(value => value.toISOString());
+    for (const match of text.matchAll(/\b(\d{1,2})(?:\s+de)?\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre|january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)(?:\s+de)?\s+(20\d{2})\b/g)) {
+        pushFactFreshnessDate(found, match[3], FACT_FRESHNESS_MONTHS.get(match[2]), match[1]);
+    }
+    for (const match of text.matchAll(/\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\s+(\d{1,2})(?:st|nd|rd|th)?[,]?\s+(20\d{2})\b/g)) {
+        pushFactFreshnessDate(found, match[3], FACT_FRESHNESS_MONTHS.get(match[1]), match[2]);
+    }
+    for (const match of text.matchAll(/\b(\d{1,2})[\/.](\d{1,2})[\/.](20\d{2})\b/g)) {
+        pushFactFreshnessDate(found, match[3], Number(match[2]) - 1, match[1]);
+    }
+
+    return [...new Set(found)]
+        .sort((left, right) => Date.parse(right) - Date.parse(left));
 }
 
-function groundingSourceUrls(response = {}) {
+function isAggregateFactFreshnessUrl(value = "") {
+    try {
+        const url = new URL(String(value || ""));
+        const path = url.pathname.toLowerCase().replace(/\/+$/, "") || "/";
+        if (path === "/") return true;
+        if (/\/(news|changelog|updates|releases?|blog|announcements?)$/.test(path)) return true;
+        if (path.includes("/research/index/release")) return true;
+        return false;
+    } catch {
+        return true;
+    }
+}
+
+function factFreshnessSupportSourceUrls(response = {}, support = {}) {
+    const metadata = response?.candidates?.[0]?.groundingMetadata || {};
+    const chunks = Array.isArray(metadata?.groundingChunks)
+        ? metadata.groundingChunks
+        : [];
+    const indices = Array.isArray(support?.groundingChunkIndices)
+        ? support.groundingChunkIndices
+        : [];
     const urls = [];
-    const seen = new Set();
-    for (const candidate of Array.isArray(response?.candidates) ? response.candidates : []) {
-        const chunks = Array.isArray(candidate?.groundingMetadata?.groundingChunks)
-            ? candidate.groundingMetadata.groundingChunks
-            : [];
-        for (const chunk of chunks) {
-            const url = String(chunk?.web?.uri || '').trim();
-            if (!url || seen.has(url)) continue;
-            try {
-                if (new URL(url).protocol !== 'https:') continue;
-            } catch {
-                continue;
-            }
-            seen.add(url);
-            urls.push(url);
-            if (urls.length >= 6) return urls;
-        }
+    for (const index of indices) {
+        if (!Number.isInteger(index)) continue;
+        const url = String(chunks[index]?.web?.uri || "").trim();
+        if (!url || urls.includes(url)) continue;
+        urls.push(url);
     }
-    return urls;
+    return urls.slice(0, 8);
 }
 
-async function inspectGroundingFreshness(
+function assessGroundingSupportFreshness({
     response = {},
-    request = {},
-    fetchImpl = globalThis.fetch,
-    now = new Date()
-) {
-    const windowDays = freshnessWindowDays(request);
-    if (!windowDays) {
-        return {
-            required: false,
-            verified: true,
-            windowDays: null,
-            cutoffDate: null,
-            freshCount: 0,
-            datedCount: 0,
-            inspectedCount: 0,
-            sources: []
-        };
-    }
-
-    const reference = now instanceof Date && Number.isFinite(now.getTime())
-        ? now
-        : new Date();
-    const cutoffMs = reference.getTime() - (windowDays * 86400000);
-    const cutoffDate = new Date(cutoffMs).toISOString().slice(0, 10);
-    const urls = groundingSourceUrls(response);
-
-    if (typeof fetchImpl !== 'function' || urls.length === 0) {
-        return {
-            required: true,
-            verified: false,
-            windowDays,
-            cutoffDate,
-            freshCount: 0,
-            datedCount: 0,
-            inspectedCount: urls.length,
-            sources: urls.map(url => ({ url, publishedAt: null, fresh: false }))
-        };
-    }
-
-    const inspected = await Promise.all(
-        urls.map(async url => {
-            try {
-                const page = await fetchImpl(url, {
-                    method: 'GET',
-                    redirect: 'follow',
-                    headers: {
-                        'User-Agent': 'JarvisFreshnessVerifier/1.0',
-                        'Accept': 'text/html,application/xhtml+xml'
-                    },
-                    signal: AbortSignal.timeout(2800)
-                });
-                if (!page?.ok) return { url, publishedAt: null, fresh: false };
-                const contentType = String(page.headers?.get?.('content-type') || '').toLowerCase();
-                if (contentType && !contentType.includes('html')) {
-                    return { url, publishedAt: null, fresh: false };
-                }
-                const dates = extractPublicationDatesFromHtml(await page.text());
-                const publishedAt = dates[0] || null;
-                const timestamp = publishedAt ? Date.parse(publishedAt) : Number.NaN;
-                const fresh = Number.isFinite(timestamp) &&
-                    timestamp >= cutoffMs &&
-                    timestamp <= reference.getTime() + 86400000;
-                return { url, publishedAt, fresh };
-            } catch {
-                return { url, publishedAt: null, fresh: false };
-            }
-        })
+    inspectedSources = [],
+    cutoffMs = Number.NaN,
+    referenceMs = Date.now()
+} = {}) {
+    const metadata = response?.candidates?.[0]?.groundingMetadata || {};
+    const supports = Array.isArray(metadata?.groundingSupports)
+        ? metadata.groundingSupports
+        : [];
+    const sourceByUrl = new Map(
+        (Array.isArray(inspectedSources) ? inspectedSources : [])
+            .map(source => [String(source?.url || "").trim(), source])
+            .filter(([url]) => Boolean(url))
     );
+    const assessments = [];
 
-    const freshCount = inspected.filter(item => item.fresh).length;
-    const datedCount = inspected.filter(item => item.publishedAt).length;
+    for (const support of supports) {
+        const text = factFreshnessSupportText(support?.segment?.text || "").slice(0, 320);
+        if (!text) continue;
+        const urls = factFreshnessSupportSourceUrls(response, support);
+        if (urls.length === 0) continue;
+        const explicitDates = extractExplicitFactDates(text);
+        const explicitTimestamps = explicitDates
+            .map(value => Date.parse(value))
+            .filter(Number.isFinite);
+
+        let fresh = false;
+        let evidence = "UNVERIFIED";
+        let verifiedAt = null;
+
+        if (explicitTimestamps.length > 0) {
+            const freshExplicit = explicitTimestamps
+                .filter(timestamp =>
+                    Number.isFinite(cutoffMs) &&
+                    timestamp >= cutoffMs &&
+                    timestamp <= referenceMs + 86400000
+                )
+                .sort((left, right) => right - left);
+            fresh = freshExplicit.length > 0;
+            evidence = fresh
+                ? "EXPLICIT_GROUNDED_SUPPORT_DATE"
+                : "EXPLICIT_GROUNDED_SUPPORT_DATE_STALE";
+            verifiedAt = new Date(
+                freshExplicit[0] || Math.max(...explicitTimestamps)
+            ).toISOString();
+        } else {
+            const sourceEvidence = urls
+                .map(url => ({ url, source: sourceByUrl.get(url) }))
+                .filter(item =>
+                    item.source?.fresh === true &&
+                    !isAggregateFactFreshnessUrl(item.url)
+                )
+                .sort((left, right) =>
+                    Date.parse(right.source?.publishedAt || 0) -
+                    Date.parse(left.source?.publishedAt || 0)
+                );
+            fresh = sourceEvidence.length > 0;
+            evidence = fresh
+                ? "FRESH_INDIVIDUAL_SOURCE_DATE"
+                : "AGGREGATE_OR_UNDATED_SUPPORT";
+            verifiedAt = sourceEvidence[0]?.source?.publishedAt || null;
+        }
+
+        assessments.push({
+            key: factFreshnessSupportKey(text),
+            text,
+            fresh,
+            evidence,
+            verifiedAt,
+            explicitDates,
+            sourceUrls: urls
+        });
+    }
+
     return {
-        required: true,
-        verified: freshCount > 0,
-        windowDays,
-        cutoffDate,
-        freshCount,
-        datedCount,
-        inspectedCount: inspected.length,
-        sources: inspected
+        supports: assessments,
+        freshCount: assessments.filter(item => item.fresh).length,
+        staleCount: assessments.filter(item => !item.fresh).length,
+        datedCount: assessments.filter(item => item.explicitDates.length > 0).length
     };
 }
 
-function appendFreshnessSourceRetryDirective(request = {}, freshness = {}) {
-    const cutoffDate = String(freshness?.cutoffDate || '').trim();
-    const directive = [
-        'REINTENTO_DE_FRESCURA_VERIFICABLE:',
-        `Las fuentes anteriores no demostraron una fecha suficientemente reciente${cutoffDate ? ` (corte ${cutoffDate})` : ''}.`,
-        'Busca resultados mas recientes y prioriza paginas individuales con fecha de publicacion o modificacion verificable.',
-        'No uses como novedad una pagina indice o historica sin fecha verificable.',
-        'Si no existe una fuente reciente verificable, responde FRESCURA_NO_VERIFICADA en vez de presentar hechos antiguos como actuales.'
-    ].join('\n');
-    const contents = request?.contents;
-    if (typeof contents === 'string') {
-        return { ...request, contents: `${contents}\n${directive}` };
-    }
-    if (Array.isArray(contents)) {
-        return { ...request, contents: [...contents, directive] };
-    }
-    return request;
-}
-
 `;
-  provider = replaceOnce(provider, helperMarker, helperBlock + helperMarker, 'provider_helpers');
+  provider = replaceOnce(provider, marker, helpers + marker, 'provider_fact_freshness_helpers');
 }
 
-provider = provider.replace(
-  'const maximumAttempts = 2;\n                    let activeRequest = providerRequest;',
-  'const maximumAttempts = wantsGrounding ? 3 : 2;\n                    let activeRequest = providerRequest;'
-);
-
+if (!provider.includes('async function inspectGroundingFreshness(')) {
+  throw new Error('V146_EXISTING_FRESHNESS_RUNTIME_MISSING');
+}
+if (!provider.includes('supportFreshCount: supportFreshness.freshCount')) {
+  throw new Error('V146_FACT_LEVEL_GATE_MISSING');
+}
 if (!provider.includes('response.jarvisFreshness = freshness;')) {
-  const successMarker = `                            await canonicalizeGroundingRedirects(response);\n                            lastProvider = providerName;\n                            return response;`;
-  const successReplacement = `                            await canonicalizeGroundingRedirects(response);\n\n                            if (\n                                wantsGrounding &&\n                                requestNeedsFreshness(providerRequest)\n                            ) {\n                                const freshness =\n                                    await inspectGroundingFreshness(\n                                        response,\n                                        providerRequest\n                                    );\n                                if (!freshness.verified) {\n                                    failures.push({\n                                        name: providerName,\n                                        message: \`FRESHNESS_UNVERIFIED:cutoff=\${freshness.cutoffDate || 'unknown'}:dated=\${freshness.datedCount}:fresh=\${freshness.freshCount}\`\n                                    });\n                                    if (attempt < maximumAttempts) {\n                                        activeRequest =\n                                            appendFreshnessSourceRetryDirective(\n                                                appendGroundingRetryDirective(providerRequest),\n                                                freshness\n                                            );\n                                        await sleep(180 * attempt);\n                                        continue;\n                                    }\n                                    break;\n                                }\n                                try {\n                                    response.jarvisFreshness = freshness;\n                                } catch {}\n                            }\n\n                            lastProvider = providerName;\n                            return response;`;
-  provider = replaceOnce(provider, successMarker, successReplacement, 'provider_freshness_gate');
-}
-
-if (!provider.includes('extractPublicationDatesFromHtml,')) {
-  const exportMarker = 'module.exports = {\n';
-  provider = replaceOnce(
-    provider,
-    exportMarker,
-    exportMarker + '    appendFreshnessSourceRetryDirective,\n    extractPublicationDatesFromHtml,\n    freshnessWindowDays,\n    groundingSourceUrls,\n    inspectGroundingFreshness,\n',
-    'provider_exports'
-  );
+  throw new Error('V146_RESPONSE_FRESHNESS_METADATA_MISSING');
 }
 
 fs.writeFileSync(providerPath, provider);
 
 let research = fs.readFileSync(researchPath, 'utf8');
 
-if (!research.includes('function directResearchFreshnessWindowDays(')) {
-  const marker = 'function extractHtmlElements(html = "", tagName = "", maximum = 12) {';
-  const helpers = String.raw`function directResearchFreshnessWindowDays(query = '') {
-    const text = String(query || '')
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase();
-    if (/\b(hoy|today)\b/.test(text)) return 2;
-    if (/\b(esta semana|this week|semana|week)\b/.test(text)) return 8;
-    if (/\b(este mes|this month|mes|month)\b/.test(text)) return 35;
-    if (/\b(este ano|this year|ano|year)\b/.test(text)) return 370;
-    return /\b(actual|actuales|actualidad|reciente|recientes|latest|current|recent|novedad|novedades|ultimo|ultima|ultimos|ultimas)\b/.test(text)
-        ? 60
-        : null;
+research = research.replace(
+  'const {\n    filterGroundingSupportsByFreshness\n} = require("./jarvis-web-fact-freshness");\n\n',
+  ''
+);
+
+if (!research.includes('function filterGroundingSupportsByFreshness(')) {
+  const marker = 'function lexicalTokens(value = "") {';
+  const helpers = String.raw`function webFactFreshnessKey(value = "") {
+    return String(value || "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 320)
+        .toLocaleLowerCase();
 }
 
-function extractHtmlPublicationDate(html = '') {
-    const source = String(html || '').slice(0, 900000);
-    const patterns = [
-        /["']datePublished["']\s*:\s*["']([^"']+)["']/gi,
-        /["']dateModified["']\s*:\s*["']([^"']+)["']/gi,
-        /<meta[^>]+(?:property|name)=["'](?:article:published_time|article:modified_time|date|datePublished|dateModified)["'][^>]+content=["']([^"']+)["'][^>]*>/gi,
-        /<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["'](?:article:published_time|article:modified_time|date|datePublished|dateModified)["'][^>]*>/gi,
-        /<time[^>]+datetime=["']([^"']+)["'][^>]*>/gi
-    ];
-    const values = [];
-    for (const pattern of patterns) {
-        let match;
-        while ((match = pattern.exec(source)) && values.length < 24) {
-            const parsed = new Date(String(match[1] || '').trim());
-            if (Number.isFinite(parsed.getTime())) values.push(parsed);
-        }
-    }
-    values.sort((left, right) => right.getTime() - left.getTime());
-    return values[0]?.toISOString?.() || null;
+function filterGroundingSupportsByFreshness(supports = [], freshness = null) {
+    if (!freshness?.required) return Array.isArray(supports) ? supports : [];
+    const assessmentByKey = new Map(
+        (Array.isArray(freshness?.supports) ? freshness.supports : [])
+            .map(item => [
+                String(item?.key || webFactFreshnessKey(item?.text)),
+                item
+            ])
+            .filter(([key]) => Boolean(key))
+    );
+
+    return (Array.isArray(supports) ? supports : [])
+        .map(support => {
+            const assessment = assessmentByKey.get(
+                webFactFreshnessKey(support?.text)
+            );
+            return assessment?.fresh === true
+                ? { ...support, freshness: assessment }
+                : null;
+        })
+        .filter(Boolean);
 }
 
 `;
-  research = replaceOnce(research, marker, helpers + marker, 'research_helpers');
+  research = replaceOnce(research, marker, helpers + marker, 'research_fact_freshness_helpers');
 }
 
-if (!research.includes('const directFreshnessWindowDays =')) {
-  const marker = `    const normalizedQuery = normalizeResearchQuery(query);\n    const domain = requestedDomainFromQuery(normalizedQuery, allowedDomain);`;
-  const replacement = `    const normalizedQuery = normalizeResearchQuery(query);\n    const directFreshnessWindowDays =\n        directResearchFreshnessWindowDays(normalizedQuery);\n    const directFreshnessReference = new Date();\n    const directFreshnessCutoffMs =\n        directFreshnessWindowDays\n            ? directFreshnessReference.getTime() -\n                (directFreshnessWindowDays * 86400000)\n            : null;\n    const domain = requestedDomainFromQuery(normalizedQuery, allowedDomain);`;
-  research = replaceOnce(research, marker, replacement, 'research_window');
+if (!research.includes('function directResearchFreshnessWindowDays(')) {
+  throw new Error('V146_DIRECT_FRESHNESS_RUNTIME_MISSING');
 }
-
-if (!research.includes('const publishedAt =\n                extractHtmlPublicationDate(html);')) {
-  const marker = `            const html = String(await response.text()).slice(0, 1500000);\n            const title = extractHtmlElements(html, "title", 1)[0] || finalUrl;`;
-  const replacement = `            const html = String(await response.text()).slice(0, 1500000);\n            const publishedAt =\n                extractHtmlPublicationDate(html);\n            const title = extractHtmlElements(html, "title", 1)[0] || finalUrl;`;
-  research = replaceOnce(research, marker, replacement, 'research_page_date');
+if (!research.includes('const freshnessFilteredSupports =')) {
+  throw new Error('V146_FACT_FILTER_MISSING');
 }
-
-if (!research.includes('DIRECT_RESEARCH_STALE_OR_UNDATED_PAGE')) {
-  const marker = `            if (headings.length === 0 && paragraphs.length === 0) continue;\n            pages.push({ url: finalUrl, title, headings, paragraphs });`;
-  const replacement = `            if (headings.length === 0 && paragraphs.length === 0) continue;\n            if (directFreshnessWindowDays) {\n                const publishedMs = publishedAt\n                    ? Date.parse(publishedAt)\n                    : Number.NaN;\n                const freshEnough =\n                    Number.isFinite(publishedMs) &&\n                    publishedMs >= directFreshnessCutoffMs &&\n                    publishedMs <= directFreshnessReference.getTime() + 86400000;\n                if (!freshEnough) {\n                    continue; // DIRECT_RESEARCH_STALE_OR_UNDATED_PAGE\n                }\n            }\n            pages.push({ url: finalUrl, title, headings, paragraphs, publishedAt });`;
-  research = replaceOnce(research, marker, replacement, 'research_filter_stale');
-}
-
-research = research.replace(
-  'const sources = pages.map((page, index) => ({ id: index + 1, title: page.title, url: page.url }));',
-  'const sources = pages.map((page, index) => ({ id: index + 1, title: page.title, url: page.url, publishedAt: page.publishedAt || null }));'
-);
-
-if (!research.includes('directResearchFreshnessWindowDays,')) {
-  const exportMarker = 'module.exports = {\n';
-  research = replaceOnce(
-    research,
-    exportMarker,
-    exportMarker + '    directResearchFreshnessWindowDays,\n    extractHtmlPublicationDate,\n',
-    'research_exports'
-  );
+if (!research.includes('staleFactsFiltered:')) {
+  throw new Error('V146_FACT_FILTER_POLICY_MISSING');
 }
 
 fs.writeFileSync(researchPath, research);
