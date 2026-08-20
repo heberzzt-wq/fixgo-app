@@ -155,6 +155,88 @@ function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
 }
 
+function isGroundingRedirectUrl(value = "") {
+    try {
+        const url = new URL(String(value || ""));
+        return (
+            url.hostname === "vertexaisearch.cloud.google.com" &&
+            url.pathname.includes("/grounding-api-redirect/")
+        );
+    }
+    catch {
+        return false;
+    }
+}
+
+async function resolveGroundingRedirectUrl(
+    value = "",
+    fetchImpl = globalThis.fetch
+) {
+    const original = String(value || "").trim();
+    if (!original || !isGroundingRedirectUrl(original)) return original;
+    if (typeof fetchImpl !== "function") return original;
+
+    try {
+        const response = await fetchImpl(original, {
+            method: "GET",
+            redirect: "manual",
+            headers: {
+                "User-Agent": "Mozilla/5.0 JarvisGroundingResolver/1.0"
+            },
+            signal: AbortSignal.timeout(2500)
+        });
+        const location = String(response?.headers?.get?.("location") || "").trim();
+        if (location) {
+            const resolved = new URL(location, original).toString();
+            if (!isGroundingRedirectUrl(resolved)) return resolved;
+        }
+        const finalUrl = String(response?.url || "").trim();
+        if (finalUrl && !isGroundingRedirectUrl(finalUrl)) return finalUrl;
+    }
+    catch {}
+
+    return original;
+}
+
+async function canonicalizeGroundingRedirects(
+    response,
+    fetchImpl = globalThis.fetch
+) {
+    const candidates = Array.isArray(response?.candidates)
+        ? response.candidates
+        : [];
+    const targets = [];
+
+    for (const candidate of candidates) {
+        const chunks = candidate?.groundingMetadata?.groundingChunks;
+        if (!Array.isArray(chunks)) continue;
+        for (const chunk of chunks) {
+            const web = chunk?.web;
+            const uri = String(web?.uri || "").trim();
+            if (!web || !isGroundingRedirectUrl(uri)) continue;
+            targets.push({ web, uri });
+            if (targets.length >= 8) break;
+        }
+        if (targets.length >= 8) break;
+    }
+
+    if (targets.length === 0) return response;
+
+    await Promise.all(
+        targets.map(async target => {
+            const canonical = await resolveGroundingRedirectUrl(target.uri, fetchImpl);
+            if (canonical && canonical !== target.uri) {
+                try {
+                    target.web.uri = canonical;
+                }
+                catch {}
+            }
+        })
+    );
+
+    return response;
+}
+
 function createJarvisGenAIProviderChain({ providers = [] } = {}) {
     const availableProviders = normalizeProviders(providers);
     const disabledProviders = new Map();
@@ -193,6 +275,7 @@ function createJarvisGenAIProviderChain({ providers = [] } = {}) {
                             if (!response) {
                                 throw new Error("EMPTY_PROVIDER_RESPONSE");
                             }
+                            await canonicalizeGroundingRedirects(response);
                             lastProvider = providerName;
                             return response;
                         }
@@ -231,10 +314,13 @@ function createJarvisGenAIProviderChain({ providers = [] } = {}) {
 }
 
 module.exports = {
+    canonicalizeGroundingRedirects,
     compactProviderInputSchema,
     createJarvisGenAIProviderChain,
+    isGroundingRedirectUrl,
     isPermanentProviderFailure,
     isTransientProviderFailure,
     normalizeProviders,
+    resolveGroundingRedirectUrl,
     sanitizeGenerateContentRequest
 };
