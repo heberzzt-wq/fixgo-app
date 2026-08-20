@@ -55,6 +55,16 @@ test("local research falls through from DuckDuckGo HTML to Lite and returns cano
     assert.equal(calls.length, 2);
 });
 
+test("DuckDuckGo target normalization does not double-decode literal percent sequences", () => {
+    const canonical = "https://example.com/path%2520kept";
+    const redirect = `https://duckduckgo.com/l/?uddg=${encodeURIComponent(canonical)}`;
+
+    assert.equal(
+        __test.normalizeDuckDuckGoUrl(redirect),
+        canonical
+    );
+});
+
 test("local research keeps domain restrictions during fallback", async () => {
     const fetchImpl = async url => {
         if (String(url).includes("html.duckduckgo.com")) {
