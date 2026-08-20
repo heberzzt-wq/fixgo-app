@@ -87,7 +87,9 @@ if (!research.includes('const freshnessFilteredSupports =')) {
         '        extractGroundingSupports(response);',
         '    const supports = allSupports',
         '        .map(support => ({ ...support, sourceIds: support.sourceIds.filter(id => acceptedIds.has(id)) }))',
-        '        .filter(support => support.sourceIds.length > 0);'
+        '        .filter(support => support.sourceIds.length > 0);',
+        '    const relevantSourceIds = new Set(supports.flatMap(support => support.sourceIds));',
+        '    const sources = acceptedSources.filter(source => relevantSourceIds.has(source.id));'
     ].join('\n');
     const after = [
         '    const allSupports =',
@@ -99,14 +101,8 @@ if (!research.includes('const freshnessFilteredSupports =')) {
         '        );',
         '    const supports = freshnessFilteredSupports',
         '        .map(support => ({ ...support, sourceIds: support.sourceIds.filter(id => acceptedIds.has(id)) }))',
-        '        .filter(support => support.sourceIds.length > 0);'
-    ].join('\n');
-    research = replaceOnce(research, before, after, 'research_support_filter');
-}
-
-if (!research.includes('const freshnessSourceByUrl = new Map(')) {
-    const before = '    const sources = acceptedSources.filter(source => relevantSourceIds.has(source.id));';
-    const after = [
+        '        .filter(support => support.sourceIds.length > 0);',
+        '    const relevantSourceIds = new Set(supports.flatMap(support => support.sourceIds));',
         '    const freshnessSourceByUrl = new Map(',
         '        (Array.isArray(response?.jarvisFreshness?.sources)',
         '            ? response.jarvisFreshness.sources',
@@ -123,7 +119,7 @@ if (!research.includes('const freshnessSourceByUrl = new Map(')) {
         '                : source;',
         '        });'
     ].join('\n');
-    research = replaceOnce(research, before, after, 'research_source_dates');
+    research = replaceOnce(research, before, after, 'research_grounded_support_and_source_filter');
 }
 
 if (!research.includes('freshness: support.freshness || null')) {
