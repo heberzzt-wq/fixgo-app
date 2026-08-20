@@ -120,7 +120,7 @@ jobs:
               re.S
           )
           if pattern.search(runtime):
-              runtime = pattern.sub(new_domain + '\n\nfunction requestedHostsFromQuery', runtime, count=1)
+              runtime = pattern.sub(lambda _: new_domain + '\n\nfunction requestedHostsFromQuery', runtime, count=1)
           elif 'const parseCandidate = value =>' not in runtime:
               raise SystemExit('BARE_DOMAIN_RUNTIME_ANCHOR_NOT_FOUND')
 
