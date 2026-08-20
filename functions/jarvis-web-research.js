@@ -1,9 +1,5 @@
 "use strict";
 
-const {
-    filterGroundingSupportsByFreshness
-} = require("./jarvis-web-fact-freshness");
-
 const DEFAULT_MODEL =
     "gemini-2.5-flash";
 
@@ -1027,30 +1023,11 @@ async function runJarvisWebResearch({
     const discardedSources = allSources.filter(source => !acceptedIds.has(source.id));
     const allSupports =
         extractGroundingSupports(response);
-    const freshnessFilteredSupports =
-        filterGroundingSupportsByFreshness(
-            allSupports,
-            response?.jarvisFreshness
-        );
-    const supports = freshnessFilteredSupports
+    const supports = allSupports
         .map(support => ({ ...support, sourceIds: support.sourceIds.filter(id => acceptedIds.has(id)) }))
         .filter(support => support.sourceIds.length > 0);
     const relevantSourceIds = new Set(supports.flatMap(support => support.sourceIds));
-    const freshnessSourceByUrl = new Map(
-        (Array.isArray(response?.jarvisFreshness?.sources)
-            ? response.jarvisFreshness.sources
-            : [])
-            .map(item => [String(item?.url || "").trim(), item])
-            .filter(([url]) => Boolean(url))
-    );
-    const sources = acceptedSources
-        .filter(source => relevantSourceIds.has(source.id))
-        .map(source => {
-            const freshness = freshnessSourceByUrl.get(source.url);
-            return freshness?.publishedAt
-                ? { ...source, publishedAt: freshness.publishedAt }
-                : source;
-        });
+    const sources = acceptedSources.filter(source => relevantSourceIds.has(source.id));
     const searchQueries =
         Array.isArray(metadata?.webSearchQueries)
             ? metadata.webSearchQueries
@@ -1068,8 +1045,7 @@ async function runJarvisWebResearch({
         id: index + 1,
         type: "VERIFIED_FACT",
         claim: support.text,
-        sourceIds: support.sourceIds,
-        freshness: support.freshness || null
+        sourceIds: support.sourceIds
     }));
     const supportedAnswer =
         supports
@@ -1183,14 +1159,6 @@ async function runJarvisWebResearch({
                 Boolean(requestedDomain) &&
                 !modelSynthesisAllowed,
             factsSeparatedFromInference: true,
-            freshnessRequired: Boolean(response?.jarvisFreshness?.required),
-            freshnessVerified: response?.jarvisFreshness?.required
-                ? facts.length > 0
-                : null,
-            staleFactsFiltered: Math.max(
-                0,
-                allSupports.length - supports.length
-            ),
             duplicatesRemoved: true,
             codeWrite: false,
             externalSideEffects: false
