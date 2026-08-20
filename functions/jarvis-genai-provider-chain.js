@@ -1,5 +1,9 @@
 "use strict";
 
+const {
+    assessGroundingSupportFreshness
+} = require("./jarvis-web-fact-freshness");
+
 function normalizeProviders(providers) {
     return Array.isArray(providers)
         ? providers.filter(provider => provider?.ai?.models?.generateContent)
@@ -438,17 +442,28 @@ async function inspectGroundingFreshness(
         })
     );
 
-    const freshCount = inspected.filter(item => item.fresh).length;
-    const datedCount = inspected.filter(item => item.publishedAt).length;
+    const sourceFreshCount = inspected.filter(item => item.fresh).length;
+    const sourceDatedCount = inspected.filter(item => item.publishedAt).length;
+    const supportFreshness = assessGroundingSupportFreshness({
+        response,
+        inspectedSources: inspected,
+        cutoffMs,
+        referenceMs: reference.getTime()
+    });
     return {
         required: true,
-        verified: freshCount > 0,
+        verified: supportFreshness.freshCount > 0,
         windowDays,
         cutoffDate,
-        freshCount,
-        datedCount,
+        freshCount: supportFreshness.freshCount,
+        datedCount: supportFreshness.datedCount,
+        supportFreshCount: supportFreshness.freshCount,
+        supportStaleCount: supportFreshness.staleCount,
+        sourceFreshCount,
+        sourceDatedCount,
         inspectedCount: inspected.length,
-        sources: inspected
+        sources: inspected,
+        supports: supportFreshness.supports
     };
 }
 
