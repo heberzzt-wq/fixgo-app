@@ -6,6 +6,89 @@ function normalizeProviders(providers) {
         : [];
 }
 
+function normalizeFreshnessSignalText(value = "") {
+    return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+}
+
+function collectRequestText(value, depth = 0) {
+    if (value == null || depth > 4) return "";
+    if (typeof value === "string" || typeof value === "number") {
+        return String(value);
+    }
+    if (Array.isArray(value)) {
+        return value
+            .slice(0, 24)
+            .map(item => collectRequestText(item, depth + 1))
+            .filter(Boolean)
+            .join(" ");
+    }
+    if (typeof value !== "object") return "";
+    return Object.values(value)
+        .slice(0, 24)
+        .map(item => collectRequestText(item, depth + 1))
+        .filter(Boolean)
+        .join(" ");
+}
+
+function requestUsesGoogleSearch(request = {}) {
+    const tools = request?.config?.tools;
+    return Array.isArray(tools) &&
+        tools.some(tool => tool && typeof tool === "object" && tool.googleSearch);
+}
+
+function requestNeedsFreshness(request = {}) {
+    if (!requestUsesGoogleSearch(request)) return false;
+    const text = normalizeFreshnessSignalText(
+        collectRequestText(request?.contents)
+    );
+    return /\b(hoy|today|actual|actuales|actualidad|reciente|recientes|latest|current|recent|novedad|novedades|nuevo|nueva|nuevos|nuevas|ultimo|ultima|ultimos|ultimas)\b/.test(text);
+}
+
+function freshnessGuardInstruction(now = new Date()) {
+    const reference =
+        now instanceof Date && Number.isFinite(now.getTime())
+            ? now
+            : new Date();
+    const date = reference.toISOString().slice(0, 10);
+    const year = reference.getUTCFullYear();
+    return [
+        `FECHA_DE_REFERENCIA_WEB=${date}.`,
+        `La solicitud exige actualidad. Formula consultas que incluyan ${year} cuando ayude a distinguir resultados recientes.`,
+        `Prioriza fuentes publicadas o actualizadas en ${year} y verifica la fecha antes de llamarlas actuales, recientes, nuevas o de hoy.`,
+        "No presentes como novedad actual una fuente antigua solo porque siga indexada o describa un producto todavía existente.",
+        `Si ninguna fuente permite verificar actualidad respecto de ${date}, dilo explicitamente como FRESCURA_NO_VERIFICADA en vez de rellenar con informacion historica.`
+    ].join("\n");
+}
+
+function applyFreshnessGuardToGroundedRequest(
+    request,
+    now = new Date()
+) {
+    if (!requestNeedsFreshness(request)) return request;
+
+    const instruction = freshnessGuardInstruction(now);
+    const contents = request?.contents;
+    if (typeof contents === "string") {
+        return {
+            ...request,
+            contents: `${contents}\n${instruction}`
+        };
+    }
+    if (Array.isArray(contents)) {
+        return {
+            ...request,
+            contents: [
+                ...contents,
+                instruction
+            ]
+        };
+    }
+    return request;
+}
+
 function coarseSchemaType(schema = {}) {
     const type = String(schema?.type || "").trim().toLowerCase();
     if (["string", "number", "integer", "boolean"].includes(type)) {
@@ -97,8 +180,10 @@ function compactFunctionDeclaration(declaration = {}) {
 }
 
 function sanitizeGenerateContentRequest(request) {
-    const tools = request?.config?.tools;
-    if (!Array.isArray(tools)) return request;
+    const guardedRequest =
+        applyFreshnessGuardToGroundedRequest(request);
+    const tools = guardedRequest?.config?.tools;
+    if (!Array.isArray(tools)) return guardedRequest;
 
     let changed = false;
     const compactTools = tools.map(tool => {
@@ -111,12 +196,12 @@ function sanitizeGenerateContentRequest(request) {
         };
     });
 
-    if (!changed) return request;
+    if (!changed) return guardedRequest;
 
     return {
-        ...request,
+        ...guardedRequest,
         config: {
-            ...request.config,
+            ...guardedRequest.config,
             tools: compactTools
         }
     };
@@ -307,13 +392,17 @@ function createJarvisGenAIProviderChain({ providers = [] } = {}) {
 }
 
 module.exports = {
+    applyFreshnessGuardToGroundedRequest,
     canonicalizeGroundingRedirects,
     compactProviderInputSchema,
     createJarvisGenAIProviderChain,
+    freshnessGuardInstruction,
     isGroundingRedirectUrl,
     isPermanentProviderFailure,
     isTransientProviderFailure,
     normalizeProviders,
+    requestNeedsFreshness,
+    requestUsesGoogleSearch,
     resolveGroundingRedirectUrl,
     sanitizeGenerateContentRequest
 };
