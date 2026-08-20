@@ -76,209 +76,62 @@ jobs:
       - name: Install functions dependencies
         run: npm ci --prefix functions
 
-      - name: Align existing semantic argument completion
+      - name: Align existing grounded freshness hydration
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
-
-          runtime_path = Path('functions/jarvis-semantic-planner.js')
+          runtime_path = Path('functions/jarvis-web-research.js')
           runtime = runtime_path.read_text(encoding='utf-8')
-          marker = 'planKind: "GROUNDED_ARGUMENT_COMPLETION"'
-          if marker not in runtime:
-              anchor = '    if (missionState?.phase === "COMPLETION_AUDIT") {'
-              pos = runtime.find(anchor)
-              if pos < 0:
-                  raise SystemExit('EXISTING_COMPLETION_AUDIT_ANCHOR_NOT_FOUND')
-              block = r'''    if (
-        missionState?.phase === "GROUNDED_ARGUMENT_COMPLETION" &&
-        safeCatalog.length === 1
-    ) {
-        const targetTool = safeCatalog[0];
-        let lastArgumentError = null;
-
-        for (let attempt = 1; attempt <= 2; attempt += 1) {
-            try {
-                const argumentResponse = await ai.models.generateContent({
-                    model,
-                    contents: [
-                        "COMPLETADO_DE_ARGUMENTOS_DE_HERRAMIENTA_EXISTENTE:",
-                        "La herramienta objetivo ya fue seleccionada por Jarvis. No selecciones otra herramienta y no declares la mision completa.",
-                        "Completa sus argumentos usando solamente la instruccion, los argumentos existentes y la evidencia verificable incluida. No inventes datos faltantes.",
-                        "Devuelve solamente JSON valido con forma {\"toolCalls\":[{\"name\":\"nombre.exacto\",\"args\":{},\"reason\":\"\"}],\"missionComplete\":false}.",
-                        `HERRAMIENTA_OBJETIVO=${JSON.stringify({
-                            name: targetTool.name,
-                            description: targetTool.description,
-                            inputSchema: targetTool.inputSchema
-                        })}`,
-                        `INSTRUCCION_Y_EVIDENCIA=${instruction}`,
-                        attempt > 1
-                            ? "REINTENTO: la salida anterior no produjo argumentos ejecutables. Conserva exactamente la herramienta objetivo y completa todos los campos requeridos que la evidencia permita sustentar."
-                            : ""
-                    ].filter(Boolean).join("\n"),
-                    config: {
-                        temperature: 0,
-                        maxOutputTokens: 3000,
-                        thinkingConfig: {
-                            thinkingBudget: 0
-                        },
-                        responseMimeType: "application/json"
-                    }
-                });
-                const payload = extractJsonObject(
-                    String(argumentResponse?.text || "")
-                );
-                const validated = validatePlan(
-                    {
-                        ...(payload || {}),
-                        missionComplete: false
-                    },
-                    safeCatalog,
-                    instruction
-                );
-                const selected = validated.toolCalls.find(
-                    call => call.name === targetTool.name
-                );
-                if (
-                    selected &&
-                    hasRequiredToolArguments(
-                        targetTool,
-                        selected.args || {}
-                    )
-                ) {
-                    return requireExecutablePlan({
-                        ...validated,
-                        missionComplete: false,
-                        provider: String(ai.lastProvider || "gemini"),
-                        model,
-                        catalogSize: safeCatalog.length,
-                        planKind: "GROUNDED_ARGUMENT_COMPLETION"
-                    });
-                }
-                lastArgumentError = new Error(
-                    "SEMANTIC_GROUNDED_ARGUMENTS_REQUIRED"
-                );
-            } catch (error) {
-                lastArgumentError = error;
-            }
-        }
-
-        throw lastArgumentError ||
-            new Error("SEMANTIC_GROUNDED_ARGUMENTS_REQUIRED");
-    }
-
-'''
-              runtime = runtime[:pos] + block + runtime[pos:]
-              runtime_path.write_text(runtime, encoding='utf-8')
-
-          test_path = Path('tests/jarvis-semantic-planner.test.cjs')
+          direct_start = runtime.find('async function runJarvisDirectDomainResearch')
+          web_start = runtime.find('async function runJarvisWebResearch', direct_start)
+          assert direct_start >= 0 and web_start >= 0, 'EXISTING_DIRECT_RESEARCH_BLOCK_NOT_FOUND'
+          if 'seedUrls = []' not in runtime[direct_start:web_start]:
+              a = '    allowedDomain = "",\n'
+              p = runtime.find(a, direct_start, web_start)
+              assert p >= 0, 'EXISTING_DIRECT_RESEARCH_SIGNATURE_NOT_FOUND'
+              p += len(a)
+              runtime = runtime[:p] + '    seedUrls = [],\n' + runtime[p:]
+              web_start = runtime.find('async function runJarvisWebResearch', direct_start)
+          if 'const normalizedSeedUrls =' not in runtime[direct_start:web_start]:
+              q = runtime.find('    if (entryUrls.length > 0) {', direct_start, web_start)
+              p = runtime.find('    const pages = [];', q, web_start)
+              assert q >= 0 and p >= 0, 'EXISTING_DIRECT_RESEARCH_QUEUE_NOT_FOUND'
+              block = '    const normalizedSeedUrls =\n        Array.isArray(seedUrls)\n            ? seedUrls\n            : [];\n    normalizedSeedUrls\n        .slice(0, 12)\n        .forEach((seedValue, index) => {\n            const sourceHint =\n                seedValue &&\n                typeof seedValue === "object"\n                    ? seedValue\n                    : { url: String(seedValue || "") };\n            try {\n                const parsed =\n                    new URL(String(sourceHint.url || ""));\n                parsed.hash = "";\n                parsed.search = "";\n                if (\n                    parsed.protocol === "https:" &&\n                    sourceMatchesDomain(\n                        { ...sourceHint, url: parsed.href },\n                        domain\n                    )\n                ) {\n                    enqueue(\n                        parsed.href,\n                        Number.MAX_SAFE_INTEGER - index\n                    );\n                }\n            } catch {\n                return;\n            }\n        });\n    if (\n        queue.length === 0 &&\n        entryUrls.length > 0\n    ) {\n        enqueue(\n            entryUrls.shift(),\n            Number.MAX_SAFE_INTEGER\n        );\n    }\n\n'
+              runtime = runtime[:q] + block + runtime[p:]
+              web_start = runtime.find('async function runJarvisWebResearch', direct_start)
+          if 'publishedAt: page.publishedAt || null,\n        sourceIds:' not in runtime[direct_start:web_start]:
+              a = '        claim: [page.title, ...page.headings, ...page.paragraphs].filter(Boolean).join(" | ").slice(0, 2400),\n'
+              p = runtime.find(a, direct_start, web_start)
+              assert p >= 0, 'EXISTING_DIRECT_RESEARCH_FACT_NOT_FOUND'
+              block = '        claim: [\n            page.publishedAt\n                ? `Fecha verificada: ${page.publishedAt}`\n                : "",\n            page.title,\n            ...page.headings,\n            ...page.paragraphs\n        ].filter(Boolean).join(" | ").slice(0, 2400),\n        publishedAt: page.publishedAt || null,\n'
+              runtime = runtime[:p] + block + runtime[p + len(a):]
+              web_start = runtime.find('async function runJarvisWebResearch', direct_start)
+          direct = runtime[direct_start:web_start]
+          s = direct.find('    const supports = facts.map')
+          pol = direct.find('        policy: {', s)
+          assert s >= 0 and pol >= 0, 'EXISTING_DIRECT_RESEARCH_SUCCESS_POLICY_NOT_FOUND'
+          pol += direct_start
+          f = runtime.find('            fallbackReason:', pol, web_start)
+          assert f >= 0, 'EXISTING_DIRECT_RESEARCH_FALLBACK_POLICY_NOT_FOUND'
+          if 'freshnessVerified:' not in runtime[pol:f]:
+              runtime = runtime[:f] + '            freshnessVerified:\n                directFreshnessWindowDays\n                    ? true\n                    : null,\n' + runtime[f:]
+              web_start = runtime.find('async function runJarvisWebResearch', direct_start)
+          if 'google_search_grounding+direct_primary_domain_crawl' not in runtime[web_start:]:
+              e = runtime.find('    const entityNotVerified =', web_start)
+              r = runtime.find('\n\n    return {', e)
+              assert e >= 0 and r >= 0, 'EXISTING_GROUNDED_FRESHNESS_HYDRATION_ANCHOR_NOT_FOUND'
+              runtime = runtime[:r] + '\n\n    const freshnessWindowDays =\n        directResearchFreshnessWindowDays(normalizedQuery);\n\n    if (\n        freshnessWindowDays &&\n        requestedDomain &&\n        !entityNotVerified &&\n        sources.length > 0\n    ) {\n        let directVerification = null;\n        try {\n            directVerification =\n                await runJarvisDirectDomainResearch({\n                    fetchImpl: globalThis.fetch,\n                    query: normalizedQuery,\n                    allowedDomain: requestedDomain,\n                    seedUrls: sources,\n                    objectiveId,\n                    caseId,\n                    maximumPages:\n                        Math.min(6, Math.max(2, sources.length)),\n                    fallbackReason:\n                        "GROUNDED_SOURCE_FRESHNESS_VERIFICATION"\n                });\n        } catch {\n            directVerification = null;\n        }\n\n        if (\n            directVerification?.grounded &&\n            directVerification?.sourceCount > 0\n        ) {\n            return {\n                ...directVerification,\n                engine: "jarvis_grounded_web_research",\n                model,\n                query: groundedQuery,\n                provider:\n                    "google_search_grounding+direct_primary_domain_crawl",\n                searchQueries,\n                discardedSources: [\n                    ...discardedSources,\n                    ...(directVerification.discardedSources || [])\n                ],\n                policy: {\n                    ...directVerification.policy,\n                    googleGroundingUsed: true,\n                    freshnessVerified: true\n                }\n            };\n        }\n\n        return {\n            ok: false,\n            grounded: false,\n            engine: "jarvis_grounded_web_research",\n            model,\n            query: groundedQuery,\n            requestedDomain,\n            exactEntity: null,\n            objectiveId: String(objectiveId || ""),\n            caseId: String(caseId || ""),\n            researchedAt,\n            provider:\n                "google_search_grounding+direct_primary_domain_crawl",\n            answer: "",\n            sources,\n            discardedSources,\n            supports: [],\n            facts: [],\n            inferences: [],\n            searchQueries,\n            sourceCount: sources.length,\n            readOnly: true,\n            policy: {\n                citationsRequired: true,\n                consultedSourcesOnly: true,\n                requestedDomainEnforced: true,\n                exactEntityEnforced: false,\n                similarEntitiesDiscarded: false,\n                modelSynthesisFiltered: true,\n                factsSeparatedFromInference: true,\n                duplicatesRemoved: true,\n                codeWrite: false,\n                externalSideEffects: false,\n                googleGroundingUsed: true,\n                freshnessVerified: false\n            }\n        };\n    }\n' + runtime[r:]
+          runtime_path.write_text(runtime, encoding='utf-8')
+          test_path = Path('tests/jarvis-web-research.test.cjs')
           tests = test_path.read_text(encoding='utf-8')
-          title = 'test("grounded argument completion reuses authenticated Gemini JSON and never falls through to the public planner", async () => {'
+          title = 'test("current domain research opens grounded sources and returns verified publication dates", async () => {'
           if title not in tests:
-              anchor = 'test("semantic response uses the authenticated provider chain and reports provenance", async () => {'
-              pos = tests.find(anchor)
-              if pos < 0:
-                  raise SystemExit('EXISTING_SEMANTIC_RESPONSE_TEST_ANCHOR_NOT_FOUND')
-              regression = r'''test("grounded argument completion reuses authenticated Gemini JSON and never falls through to the public planner", async () => {
-    const reelTool = {
-        name: "reel.plan",
-        description: "Completa un reel ya seleccionado.",
-        mutates: false,
-        requiresApproval: false,
-        inputSchema: {
-            type: "object",
-            required: ["durationSeconds", "scenes"],
-            properties: {
-                durationSeconds: { type: "integer" },
-                scenes: {
-                    type: "array",
-                    minItems: 1,
-                    items: {
-                        type: "object",
-                        required: ["id", "durationSeconds"],
-                        properties: {
-                            id: { type: "string" },
-                            durationSeconds: { type: "integer" }
-                        }
-                    }
-                }
-            },
-            additionalProperties: false
-        }
-    };
-    let attempts = 0;
-    const result = await runJarvisSemanticPlanner({
-        input: "Completa reel.plan con la evidencia actual.",
-        catalog: [reelTool],
-        missionState: {
-            phase: "GROUNDED_ARGUMENT_COMPLETION",
-            toolName: "reel.plan",
-            sourceCount: 2,
-            writeAllowed: false
-        },
-        ai: {
-            lastProvider: "vertex-adc",
-            models: {
-                generateContent: async request => {
-                    attempts += 1;
-                    assert.equal(
-                        request.config.responseMimeType,
-                        "application/json"
-                    );
-                    assert.equal(
-                        Object.prototype.hasOwnProperty.call(
-                            request.config,
-                            "tools"
-                        ),
-                        false
-                    );
-                    if (attempts === 1) {
-                        return {
-                            text: JSON.stringify({
-                                toolCalls: [],
-                                missionComplete: false
-                            })
-                        };
-                    }
-                    return {
-                        text: JSON.stringify({
-                            toolCalls: [{
-                                name: "reel.plan",
-                                args: {
-                                    durationSeconds: 30,
-                                    scenes: [{
-                                        id: "scene-1",
-                                        durationSeconds: 30
-                                    }]
-                                },
-                                reason: "argumentos sustentados"
-                            }],
-                            missionComplete: false
-                        })
-                    };
-                }
-            }
-        },
-        simpleFetchImpl: async () => {
-            throw new Error("SIMPLE_FALLBACK_MUST_NOT_RUN");
-        },
-        fetchImpl: async () => {
-            throw new Error("PUBLIC_FALLBACK_MUST_NOT_RUN");
-        }
-    });
-
-    assert.equal(attempts, 2);
-    assert.equal(result.provider, "vertex-adc");
-    assert.equal(result.planKind, "GROUNDED_ARGUMENT_COMPLETION");
-    assert.equal(result.toolCalls[0].name, "reel.plan");
-    assert.equal(result.toolCalls[0].args.durationSeconds, 30);
-    assert.equal(result.toolCalls[0].args.scenes.length, 1);
-});
-
-'''
-              tests = tests[:pos] + regression + tests[pos:]
-              test_path.write_text(tests, encoding='utf-8')
+              marker = 'test("grounding maps duplicate chunks to one canonical source id", () => {'
+              assert marker in tests, 'EXISTING_WEB_RESEARCH_TEST_ANCHOR_NOT_FOUND'
+              tests = tests.replace(marker, 'test("current domain research opens grounded sources and returns verified publication dates", async () => {\n    const publishedAt = new Date().toISOString();\n    const sourceUrl =\n        "https://developers.openai.com/api/docs/changelog";\n    const response = {\n        text: "El changelog oficial contiene novedades de la API.",\n        candidates: [{\n            groundingMetadata: {\n                groundingChunks: [{\n                    web: {\n                        uri: sourceUrl,\n                        title: "developers.openai.com"\n                    }\n                }],\n                groundingSupports: [{\n                    segment: {\n                        text: "El changelog oficial contiene novedades de la API."\n                    },\n                    groundingChunkIndices: [0]\n                }],\n                webSearchQueries: ["site:openai.com API changelog"]\n            }\n        }]\n    };\n    const previousFetch = globalThis.fetch;\n    globalThis.fetch = async url => ({\n        ok: true,\n        url: String(url),\n        headers: {\n            get: name =>\n                name === "content-type"\n                    ? "text/html; charset=utf-8"\n                    : ""\n        },\n        text: async () =>\n            `<html><head><title>OpenAI API changelog</title><meta property="article:modified_time" content="${publishedAt}"></head><body><h1>API changelog</h1><p>La API publico una actualizacion verificable y fechada para desarrolladores.</p></body></html>`\n    });\n    try {\n        const result = await runJarvisWebResearch({\n            ai: {\n                models: {\n                    generateContent: async () => response\n                }\n            },\n            query:\n                "Investiga únicamente en openai.com las novedades actuales de la API de OpenAI"\n        });\n        assert.equal(result.grounded, true);\n        assert.equal(result.policy.freshnessVerified, true);\n        assert.match(result.provider, /direct_primary_domain_crawl/);\n        assert.equal(result.sources[0].publishedAt, publishedAt);\n        assert.equal(result.facts[0].publishedAt, publishedAt);\n        assert.match(result.facts[0].claim, /Fecha verificada:/);\n    } finally {\n        globalThis.fetch = previousFetch;\n    }\n});\n\n' + marker, 1)
+          test_path.write_text(tests, encoding='utf-8')
           PY
 
       - name: Validate Jarvis runtime
@@ -304,14 +157,16 @@ jobs:
           set -euo pipefail
           secret_value="${GEMINI_KEY:-$GEMINI_API_KEY}"
           if [ -z "$secret_value" ]; then
-            echo "::warning::Gemini credential is not configured; authenticated provider chain will rely on its existing Vertex ADC path."
+            echo "::warning::Gemini credential is not configured; grounded web research remains fail-closed."
             exit 0
           fi
+
           secret_file="$RUNNER_TEMP/gemini-key"
           trap 'rm -f "$secret_file"' EXIT
           printf '%s' "$secret_value" > "$secret_file"
           chmod 600 "$secret_file"
           firebase functions:secrets:set GEMINI_KEY --data-file "$secret_file" --project fixgo-44e4d --token "$FIREBASE_TOKEN"
+          echo "Gemini credential synchronized with Firebase Secret Manager."
 
       - name: Deploy Hosting
         if: steps.changes.outputs.hosting_changed == 'true'
@@ -321,20 +176,20 @@ jobs:
         if: steps.changes.outputs.functions_changed == 'true'
         run: firebase deploy --only functions:jarvisWebResearch,functions:jarvisSemanticPlan,functions:jarvisSemanticRespond,functions:jarvisImageGenerate,functions:jarvisMediaAnalyze --project fixgo-44e4d --token "${{ secrets.FIREBASE_TOKEN }}"
 
-      - name: Materialize aligned semantic argument completion
+      - name: Materialize aligned grounded freshness hydration
         if: success()
         shell: bash
         run: |
           set -euo pipefail
-          git diff --check -- functions/jarvis-semantic-planner.js tests/jarvis-semantic-planner.test.cjs
-          if git diff --quiet -- functions/jarvis-semantic-planner.js tests/jarvis-semantic-planner.test.cjs; then
-            echo 'SEMANTIC_ARGUMENT_COMPLETION_ALREADY_MATERIALIZED=true'
+          if git diff --quiet -- functions/jarvis-web-research.js tests/jarvis-web-research.test.cjs; then
+            echo 'GROUNDED_FRESHNESS_HYDRATION_ALREADY_MATERIALIZED=true'
             exit 0
           fi
+          git diff --check -- functions/jarvis-web-research.js tests/jarvis-web-research.test.cjs
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add functions/jarvis-semantic-planner.js tests/jarvis-semantic-planner.test.cjs
-          git commit -m 'fix(jarvis): reuse authenticated planner for grounded arguments'
+          git add functions/jarvis-web-research.js tests/jarvis-web-research.test.cjs
+          git commit -m 'fix(jarvis): hydrate grounded sources with existing crawler'
           git push origin "HEAD:v5.9-polish"
 
       - name: Publish deploy result
