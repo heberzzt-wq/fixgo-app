@@ -12,9 +12,12 @@ import {
     saveUploadedArtifact,
     startChunkedUpload
 } from "./jarvis-fs-bridge.js";
+import {
+    runResilientLocalWebResearch
+} from "./jarvis-local-web-research.js";
 
 export const JARVIS_UPLOAD_BRIDGE_VERSION =
-    "1.2.0-fs-media-route-authority-v122";
+    "1.3.0-resilient-local-research-v123";
 
 const MODULE_FILE =
     fileURLToPath(import.meta.url);
@@ -26,6 +29,12 @@ const LEGACY_UPLOAD_ROUTE_PATHS =
         "/upload/chunk",
         "/upload/complete",
         "/upload/cancel"
+    ]);
+
+const REPLACED_ROUTE_PATHS =
+    new Set([
+        ...LEGACY_UPLOAD_ROUTE_PATHS,
+        "/research"
     ]);
 
 function resolveBridgeRoot(root = "") {
@@ -77,7 +86,7 @@ export function removeLegacyUploadRoutes(app) {
 
         if (
             paths.some(routePath =>
-                LEGACY_UPLOAD_ROUTE_PATHS.has(
+                REPLACED_ROUTE_PATHS.has(
                     routePath
                 )
             )
@@ -95,7 +104,7 @@ export function removeLegacyUploadRoutes(app) {
                 : "LEGACY_UPLOAD_ROUTES_NOT_PRESENT",
         removed,
         protectedPaths:
-            [...LEGACY_UPLOAD_ROUTE_PATHS]
+            [...REPLACED_ROUTE_PATHS]
     };
 }
 
@@ -172,6 +181,65 @@ export function registerJarvisUploadRoutes(
 
     const repoRoot =
         resolveBridgeRoot(root);
+
+    app.post("/research", async (req, res) => {
+        try {
+            const result =
+                await runResilientLocalWebResearch(
+                    req.body?.query ||
+                    req.body?.prompt ||
+                    "",
+                    req.body?.timeoutMs ||
+                    20000,
+                    {
+                        allowedDomain:
+                            req.body?.allowedDomain ||
+                            "",
+                        exactEntity:
+                            req.body?.exactEntity ||
+                            "",
+                        seedUrl:
+                            req.body?.seedUrl ||
+                            ""
+                    }
+                );
+
+            return res.json({
+                ...result,
+                bridgeVersion:
+                    JARVIS_FS_BRIDGE_VERSION,
+                uploadTransportVersion:
+                    JARVIS_UPLOAD_BRIDGE_VERSION
+            });
+        }
+        catch(error) {
+            const message =
+                String(
+                    error?.message ||
+                    error ||
+                    "WEB_RESEARCH_FAILED"
+                );
+
+            return res
+                .status(
+                    message === "WEB_RESEARCH_QUERY_REQUIRED"
+                        ? 400
+                        : 502
+                )
+                .json({
+                    ok: false,
+                    grounded: false,
+                    status:
+                        "WEB_RESEARCH_FAILED",
+                    error:
+                        message,
+                    bridgeVersion:
+                        JARVIS_FS_BRIDGE_VERSION,
+                    uploadTransportVersion:
+                        JARVIS_UPLOAD_BRIDGE_VERSION
+                });
+        }
+    });
 
     app.get("/upload/health", (req, res) => {
         return res.json({
