@@ -3993,7 +3993,7 @@ test("web research receives the semantic query without phrase stripping", () => 
     assert.doesNotMatch(source, /\(jarvis\|heberto\|gestia\)/);
     assert.doesNotMatch(source, /investiga\|investigar\|busca\|buscar/);
     assert.match(source, /objectiveId: args\.objectiveId \|\| context\.objectiveId/);
-    assert.match(source, /facts: Array\.isArray\(result\.facts\)/);
+    assert.match(source, /facts:\s*Array\.isArray\((?:primaryResult|recoveryResult)\?\.facts\)/);
 });
 
 test("multifunction planner routes capability boundary questions to forensics", async () => {

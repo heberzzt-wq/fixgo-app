@@ -879,8 +879,19 @@ function researchGoalHasSatisfiedExplicitAnchor(
             ""
         ).trim();
         if (completedGoal !== goal) return false;
-        const seed = sourceAnchorDescriptor(task?.args?.seedUrl || "");
-        if (seed && anchorUrls.has(seed.url)) return true;
+
+        const observationStatus =
+            String(task?.observation?.status || "")
+                .trim()
+                .toUpperCase();
+        if ([
+            "GROUNDED_CROSS_SOURCE_RECOVERY",
+            "ENTITY_NOT_VERIFIED_CROSS_SOURCE_RECOVERY",
+            "GROUNDED_ANCHOR_UNVERIFIED_DOMAIN_ONLY"
+        ].includes(observationStatus)) {
+            return true;
+        }
+
         const sources = [
             ...(Array.isArray(task?.observation?.validSources)
                 ? task.observation.validSources
