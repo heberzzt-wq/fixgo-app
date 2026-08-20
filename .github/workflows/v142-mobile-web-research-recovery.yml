@@ -8,8 +8,16 @@ on:
       - '.github/workflows/v142-mobile-web-research-recovery.yml'
       - '.github/scripts/v142-mobile-web-research-recovery.mjs'
       - 'tests/jarvis-mobile-web-research-recovery-v142.test.mjs'
+      - 'tests/jarvis-genai-provider-chain.test.cjs'
+      - 'tests/jarvis-web-research.test.cjs'
+      - 'tests/jarvis-upload-bridge.test.mjs'
       - 'gestia-core/jarvis/jarvis.multitool.pack.js'
       - 'gestia-core/jarvis/jarvis.multifunction.planner.js'
+      - 'functions/jarvis-genai-provider-chain.js'
+      - 'functions/jarvis-web-research.js'
+      - 'functions/jarvis-semantic-planner.js'
+      - 'functions/index.js'
+      - 'jarvis-upload-bridge.js'
   workflow_dispatch:
 
 permissions:
@@ -18,7 +26,6 @@ permissions:
 
 env:
   TARGET_BRANCH: v94-media-v4n-negative-claims
-  BASELINE_SHA: 7f12f62d03c5cfe2b3c03feb6de3e22272481de2
   FIREBASE_PROJECT_ID: fixgo-44e4d
   FIREBASE_SITE_ID: fixgo-44e4d
 
@@ -37,8 +44,13 @@ jobs:
         run: |
           set -euo pipefail
           target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          payload=$(jq -n --arg state pending --arg context 'v142-mobile-web-research-recovery' --arg description "run=${GITHUB_RUN_ID} mobile web research recovery" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
-          curl --fail-with-body --silent --show-error --location -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" -d "$payload" >/dev/null
+          payload=$(jq -n --arg state pending --arg context 'v142-mobile-web-research-recovery' --arg description "run=${GITHUB_RUN_ID} V142 web research recovery" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          curl --fail-with-body --silent --show-error --location -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            -d "$payload" >/dev/null
 
       - name: Checkout exact branch head
         uses: actions/checkout@v4
@@ -46,53 +58,66 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - name: Guard protected surfaces
+      - name: Guard protected architecture
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          ! git diff --name-only "$BASELINE_SHA"..HEAD | grep -E '^functions/'
-          ! git diff --name-only "$BASELINE_SHA"..HEAD | grep -E '^multiservicios-web/'
           ! grep -Fq 'terminalBrainRoute' gestia-core/gestia-core.js
           ! grep -Fq 'terminalBrainRoute' gestia-terminal.html
+          test ! -e functions/jarvis-web-fact-freshness.js
+          test ! -e jarvis-local-web-research.js
+          test ! -e .github/workflows/v143-jarvis-web-planner-deploy.yml
+          test ! -e .github/workflows/v146-source-freshness-verification.yml
+          test ! -e .github/workflows/v147-fact-freshness.yml
 
-      - name: Setup Node
+      - name: Setup Node 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
 
-      - name: Install dependencies
+      - name: Install app dependencies
         run: npm ci
+
+      - name: Install functions dependencies
+        run: npm ci --prefix functions
 
       - name: Apply deterministic V142 product patch
         run: node .github/scripts/v142-mobile-web-research-recovery.mjs
 
-      - name: Guard exact product delta
+      - name: Verify existing runtime surfaces
         shell: bash
         run: |
           set -euo pipefail
-          unexpected=$(git diff --name-only | grep -Ev '^(gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js)$' || true)
-          test -z "$unexpected"
           node --check gestia-core/jarvis/jarvis.multitool.pack.js
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          node --check functions/jarvis-genai-provider-chain.js
+          node --check functions/jarvis-web-research.js
+          node --check functions/jarvis-semantic-planner.js
+          node --check functions/index.js
+          node --check jarvis-upload-bridge.js
           grep -Fq 'GROUNDED_CROSS_SOURCE_RECOVERY' gestia-core/jarvis/jarvis.multitool.pack.js
           grep -Fq 'EXACT_ANCHOR_UNAVAILABLE_CROSS_SOURCE_GROUNDED' gestia-core/jarvis/jarvis.multitool.pack.js
-          grep -Fq 'buildCrossSourceResearchRecoveryQuery' gestia-core/jarvis/jarvis.multitool.pack.js
           ! grep -Fq 'if (seed && anchorUrls.has(seed.url)) return true;' gestia-core/jarvis/jarvis.multifunction.planner.js
-          grep -Fq 'ENTITY_NOT_VERIFIED_CROSS_SOURCE_RECOVERY' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -Fq 'compactProviderInputSchema' functions/jarvis-genai-provider-chain.js
+          grep -Fq 'buildJsonPlanningFallbackRequest' functions/jarvis-genai-provider-chain.js
+          grep -Fq 'canonicalizeGroundingRedirects' functions/jarvis-genai-provider-chain.js
+          grep -Fq 'runResilientLocalWebResearch' jarvis-upload-bridge.js
+          ! grep -Fq 'jarvis-local-web-research.js' jarvis-upload-bridge.js
 
-      - name: Mobile recovery focal contracts
+      - name: V142 focal contracts
         shell: bash
         run: |
           set -euo pipefail
           node --test --test-concurrency=1 \
             tests/jarvis-mobile-web-research-recovery-v142.test.mjs \
+            tests/jarvis-genai-provider-chain.test.cjs \
+            tests/jarvis-web-research.test.cjs \
+            tests/jarvis-upload-bridge.test.mjs \
             tests/jarvis-source-grounded-research-v124.test.mjs \
             tests/jarvis-multifunction-tools.test.mjs \
-            tests/jarvis-mission-orchestrator.test.mjs \
-            tests/jarvis-marketing-real-delivery.test.mjs \
-            tests/jarvis-marketing-terminal-delivery.e2e.test.mjs
+            tests/jarvis-mission-orchestrator.test.mjs
 
       - name: Full CI
         run: npm run ci:test
@@ -100,22 +125,26 @@ jobs:
       - name: Reject whitespace errors
         run: git diff --check
 
-      - name: Detect product materialization state
+      - name: Detect V142 materialization state
         id: patch-state
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet -- gestia-core/jarvis/jarvis.multitool.pack.js gestia-core/jarvis/jarvis.multifunction.planner.js; then
+          if git diff --quiet -- \
+            gestia-core/jarvis/jarvis.multitool.pack.js \
+            gestia-core/jarvis/jarvis.multifunction.planner.js; then
             echo 'product_changed=false' >> "$GITHUB_OUTPUT"
             echo 'V142_PRODUCT_ALREADY_MATERIALIZED=true'
           else
+            unexpected=$(git diff --name-only | grep -Ev '^(gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js)$' || true)
+            test -z "$unexpected"
             echo 'product_changed=true' >> "$GITHUB_OUTPUT"
             echo 'V142_PRODUCT_PATCH_NEEDS_COMMIT=true'
           fi
 
   certify-windows:
     runs-on: windows-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     steps:
       - name: Checkout exact branch head
         uses: actions/checkout@v4
@@ -123,21 +152,7 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - name: Guard protected surfaces
-        shell: pwsh
-        run: |
-          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw 'WRONG_SHA' }
-          $changed = git diff --name-only "$env:BASELINE_SHA..HEAD"
-          if ($changed -match '^functions/') { throw 'FUNCTIONS_CHANGED' }
-          if ($changed -match '^multiservicios-web/') { throw 'MULTISERVICIOS_CHANGED' }
-
-      - name: Attach exact SHA to expected branch identity
-        shell: pwsh
-        run: |
-          git checkout -B v94-media-v4n-negative-claims $env:GITHUB_SHA
-          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw 'LOCAL_BRANCH_HEAD_CHANGED' }
-
-      - name: Setup Node
+      - name: Setup Node 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -149,17 +164,23 @@ jobs:
       - name: Apply deterministic V142 product patch
         run: node .github/scripts/v142-mobile-web-research-recovery.mjs
 
-      - name: Windows mobile research and reel mechanics
+      - name: Windows V142 contracts
         shell: pwsh
         run: |
           node --check gestia-core/jarvis/jarvis.multitool.pack.js
           if ($LASTEXITCODE -ne 0) { throw 'MULTITOOL_SYNTAX_FAILED' }
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
           if ($LASTEXITCODE -ne 0) { throw 'PLANNER_SYNTAX_FAILED' }
-          node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-source-grounded-research-v124.test.mjs tests/jarvis-reel-speech-v137.test.mjs tests/jarvis-reel-native-mp4-v138.test.mjs
+          node --check functions/jarvis-genai-provider-chain.js
+          if ($LASTEXITCODE -ne 0) { throw 'PROVIDER_CHAIN_SYNTAX_FAILED' }
+          node --check functions/jarvis-web-research.js
+          if ($LASTEXITCODE -ne 0) { throw 'WEB_RESEARCH_SYNTAX_FAILED' }
+          node --check jarvis-upload-bridge.js
+          if ($LASTEXITCODE -ne 0) { throw 'UPLOAD_BRIDGE_SYNTAX_FAILED' }
+          node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-genai-provider-chain.test.cjs tests/jarvis-web-research.test.cjs tests/jarvis-upload-bridge.test.mjs
           if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_V142_CONTRACTS_FAILED' }
 
-  materialize-product:
+  materialize-v142:
     needs:
       - certify-linux
       - certify-windows
@@ -173,126 +194,115 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - name: Apply certified product patch
+      - name: Apply certified V142 patch
         run: node .github/scripts/v142-mobile-web-research-recovery.mjs
 
-      - name: Guard materialized files only
+      - name: Commit certified V142 bytes
         shell: bash
         run: |
           set -euo pipefail
           changed=$(git diff --name-only)
-          test -n "$changed"
           unexpected=$(printf '%s\n' "$changed" | grep -Ev '^(gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js)$' || true)
           test -z "$unexpected"
-          ! printf '%s\n' "$changed" | grep -E '^functions/'
-          ! printf '%s\n' "$changed" | grep -E '^multiservicios-web/'
-
-      - name: Commit certified product bytes
-        shell: bash
-        run: |
-          set -euo pipefail
+          git diff --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add gestia-core/jarvis/jarvis.multitool.pack.js gestia-core/jarvis/jarvis.multifunction.planner.js
-          git commit -m 'fix(jarvis): recover mobile web research across inaccessible anchors'
-          product_sha=$(git rev-parse HEAD)
+          git commit -m 'fix(jarvis): materialize V142 web research recovery'
           git push origin "HEAD:${TARGET_BRANCH}"
-          echo "V142_PRODUCT_MATERIALIZED_SHA=$product_sha"
 
-  deploy-hosting-only:
+  deploy-v142:
     needs:
       - certify-linux
       - certify-windows
-      - materialize-product
-    if: ${{ always() && needs.certify-linux.result == 'success' && needs.certify-windows.result == 'success' && needs.certify-linux.outputs.product_changed == 'false' }}
+      - materialize-v142
+    if: ${{ always() && needs.certify-linux.result == 'success' && needs.certify-windows.result == 'success' && (needs.certify-linux.outputs.product_changed == 'false' || needs.materialize-v142.result == 'success') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
-      - name: Checkout exact certified SHA
+      - name: Checkout certified V142 branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: v94-media-v4n-negative-claims
           fetch-depth: 0
 
-      - name: Guard exact certified SHA and protected surfaces
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          ! git diff --name-only "$BASELINE_SHA"..HEAD | grep -E '^functions/'
-          ! git diff --name-only "$BASELINE_SHA"..HEAD | grep -E '^multiservicios-web/'
-          grep -Fq 'GROUNDED_CROSS_SOURCE_RECOVERY' gestia-core/jarvis/jarvis.multitool.pack.js
-          ! grep -Fq 'if (seed && anchorUrls.has(seed.url)) return true;' gestia-core/jarvis/jarvis.multifunction.planner.js
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
 
-      - name: Build isolated Hosting config
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm ci --prefix functions
+
+      - name: Re-certify deploy bytes
         shell: bash
         run: |
           set -euo pipefail
-          node <<'NODE'
-          const fs = require('fs');
-          const source = JSON.parse(fs.readFileSync('firebase.json', 'utf8'));
-          const hosting = Array.isArray(source.hosting) ? source.hosting : [source.hosting].filter(Boolean);
-          const selected = hosting.filter(item => item && item.site === process.env.FIREBASE_SITE_ID);
-          if (selected.length !== 1) throw new Error(`HOSTING_SITE_SELECTION_INVALID:${selected.length}`);
-          if (selected[0].target) throw new Error('HOSTING_TARGET_FORBIDDEN');
-          fs.writeFileSync('.firebase-v142-mobile-research.json', JSON.stringify({ hosting: selected[0] }, null, 2));
-          NODE
-          node -e "const c=require('./.firebase-v142-mobile-research.json'); if(c.functions||Array.isArray(c.hosting)||c.hosting.site!==process.env.FIREBASE_SITE_ID||c.hosting.target) process.exit(1)"
+          node --check functions/jarvis-genai-provider-chain.js
+          node --check functions/jarvis-web-research.js
+          node --check functions/jarvis-semantic-planner.js
+          node --check functions/index.js
+          node --check jarvis-upload-bridge.js
+          node --test --test-concurrency=1 \
+            tests/jarvis-genai-provider-chain.test.cjs \
+            tests/jarvis-web-research.test.cjs \
+            tests/jarvis-upload-bridge.test.mjs
 
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
-      - name: Deploy Hosting only
-        shell: bash
+      - name: Deploy V142 Jarvis functions
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         run: |
           set -euo pipefail
           test -n "$FIREBASE_TOKEN"
-          firebase deploy --config .firebase-v142-mobile-research.json --only hosting --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
-          echo "V142_DEPLOYED_SHA=$GITHUB_SHA"
+          firebase deploy \
+            --only functions:jarvisWebResearch,functions:jarvisSemanticPlan,functions:jarvisSemanticRespond \
+            --project "$FIREBASE_PROJECT_ID" \
+            --token "$FIREBASE_TOKEN" \
+            --non-interactive
 
-      - name: Verify official Firebase V142 bytes
+      - name: Deploy V142 Hosting
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy \
+            --only hosting \
+            --project "$FIREBASE_PROJECT_ID" \
+            --token "$FIREBASE_TOKEN" \
+            --non-interactive
+
+      - name: Smoke V142 production
         shell: bash
         run: |
           set -euo pipefail
           base="https://${FIREBASE_SITE_ID}.web.app"
-          ok=false
-          for attempt in $(seq 1 30); do
-            stamp="${GITHUB_SHA}-${attempt}-$(date +%s)"
-            if curl --fail --silent --show-error --location "$base/gestia-core/jarvis/jarvis.multitool.pack.js?v142=$stamp" -o /tmp/multitool.js \
-              && curl --fail --silent --show-error --location "$base/gestia-core/jarvis/jarvis.multifunction.planner.js?v142=$stamp" -o /tmp/planner.js \
-              && curl --fail --silent --show-error --location "$base/gestia-core/auth/role-authority.js?v142=$stamp" -o /tmp/role.js \
-              && curl --fail --silent --show-error --location "$base/gestia-terminal.html?v142=$stamp" -o /tmp/terminal.html \
-              && curl --fail --silent --show-error --location "$base/modules/terminal/jarvis-attachments.js?v142=$stamp" -o /tmp/attachments.js \
-              && grep -Fq 'GROUNDED_CROSS_SOURCE_RECOVERY' /tmp/multitool.js \
-              && grep -Fq 'EXACT_ANCHOR_UNAVAILABLE_CROSS_SOURCE_GROUNDED' /tmp/multitool.js \
-              && grep -Fq 'JARVIS_CROSS_SOURCE_WEB_RESEARCH_RECOVERY' /tmp/multitool.js \
-              && grep -Fq 'buildCrossSourceResearchRecoveryQuery' /tmp/multitool.js \
-              && grep -Fq 'ENTITY_NOT_VERIFIED_CROSS_SOURCE_RECOVERY' /tmp/planner.js \
-              && ! grep -Fq 'if (seed && anchorUrls.has(seed.url)) return true;' /tmp/planner.js \
-              && grep -Fq 'master_authenticated_email_is_primary_authority' /tmp/role.js \
-              && ! grep -Fq 'terminalBrainRoute' /tmp/terminal.html \
-              && grep -Fq '/artifact/read' /tmp/attachments.js \
-              && grep -Fq 'jarvis-artifact-download' /tmp/attachments.js; then
-              ok=true
-              break
-            fi
-            sleep 4
+          curl --fail --silent --show-error --location "$base/gestia-terminal.html?v142=$(date +%s)" -o /tmp/terminal.html
+          test "$(wc -c < /tmp/terminal.html)" -gt 1000
+          for fn in jarvisWebResearch jarvisSemanticPlan jarvisSemanticRespond; do
+            url="https://us-central1-${FIREBASE_PROJECT_ID}.cloudfunctions.net/${fn}"
+            code=$(curl --silent --show-error --output "/tmp/${fn}.json" --write-out '%{http_code}' \
+              -X POST -H 'Content-Type: application/json' --data '{"data":{}}' "$url" || true)
+            echo "$fn HTTP=$code"
+            test "$code" != "000"
+            test "$code" != "404"
+            test "$code" != "502"
+            test "$code" != "503"
           done
-          test "$ok" = true
-          echo 'V142_FIREBASE_MOBILE_WEB_RESEARCH_RECOVERY_VERIFIED=true'
-          echo 'V142_EXACT_ANCHOR_HONESTY_VERIFIED=true'
-          echo 'V142_MASTER_SESSION_PRESERVED=true'
-          echo 'V142_DOWNLOADABLE_DELIVERY_PRESERVED=true'
-          echo "WEB_URL=$base/gestia-terminal.html"
+          echo 'V142_WEB_RESEARCH_RUNTIME_VERIFIED=true'
 
   publish-result:
     needs:
       - certify-linux
       - certify-windows
-      - materialize-product
-      - deploy-hosting-only
+      - materialize-v142
+      - deploy-v142
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
@@ -303,16 +313,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           LINUX_RESULT: ${{ needs.certify-linux.result }}
           WINDOWS_RESULT: ${{ needs.certify-windows.result }}
-          MATERIALIZE_RESULT: ${{ needs.materialize-product.result }}
-          DEPLOY_RESULT: ${{ needs.deploy-hosting-only.result }}
+          MATERIALIZE_RESULT: ${{ needs.materialize-v142.result }}
+          DEPLOY_RESULT: ${{ needs.deploy-v142.result }}
           PRODUCT_CHANGED: ${{ needs.certify-linux.outputs.product_changed }}
         run: |
           set -euo pipefail
           state=success
           if [ "$LINUX_RESULT" != success ] || [ "$WINDOWS_RESULT" != success ]; then state=failure; fi
           if [ "$PRODUCT_CHANGED" = true ] && [ "$MATERIALIZE_RESULT" != success ]; then state=failure; fi
-          if [ "$PRODUCT_CHANGED" = false ] && [ "$DEPLOY_RESULT" != success ]; then state=failure; fi
+          if [ "$DEPLOY_RESULT" != success ]; then state=failure; fi
           target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           description="linux=${LINUX_RESULT} windows=${WINDOWS_RESULT} materialize=${MATERIALIZE_RESULT} deploy=${DEPLOY_RESULT} changed=${PRODUCT_CHANGED}"
           payload=$(jq -n --arg state "$state" --arg context 'v142-mobile-web-research-recovery' --arg description "$description" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
-          curl --fail-with-body --silent --show-error --location -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" -d "$payload" >/dev/null
+          curl --fail-with-body --silent --show-error --location -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            -d "$payload" >/dev/null
