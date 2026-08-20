@@ -133,9 +133,9 @@ jobs:
         if: steps.changes.outputs.hosting_changed == 'true'
         run: firebase deploy --only hosting --project fixgo-44e4d --token "${{ secrets.FIREBASE_TOKEN }}"
 
-      - name: Deploy Jarvis web and semantic services
+      - name: Deploy existing Jarvis contracted services
         if: steps.changes.outputs.functions_changed == 'true'
-        run: firebase deploy --only functions:jarvisWebResearch,functions:jarvisSemanticPlan,functions:jarvisSemanticRespond --project fixgo-44e4d --token "${{ secrets.FIREBASE_TOKEN }}"
+        run: firebase deploy --only functions:jarvisWebResearch,functions:jarvisSemanticPlan,functions:jarvisSemanticRespond,functions:jarvisImageGenerate,functions:jarvisMediaAnalyze --project fixgo-44e4d --token "${{ secrets.FIREBASE_TOKEN }}"
 
       - name: Materialize aligned existing contract
         if: success()
