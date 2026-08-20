@@ -312,6 +312,165 @@ function appendGroundingRetryDirective(request = {}) {
     return request;
 }
 
+function freshnessWindowDays(request = {}) {
+    const text = normalizeFreshnessSignalText(
+        collectRequestText(request?.contents)
+    );
+    if (/\b(hoy|today)\b/.test(text)) return 2;
+    if (/\b(esta semana|this week|semana|week)\b/.test(text)) return 8;
+    if (/\b(este mes|this month|mes|month)\b/.test(text)) return 35;
+    if (/\b(este ano|this year|ano|year)\b/.test(text)) return 370;
+    return requestNeedsFreshness(request) ? 60 : null;
+}
+
+function extractPublicationDatesFromHtml(html = '') {
+    const source = String(html || '').slice(0, 900000);
+    const patterns = [
+        /["']datePublished["']\s*:\s*["']([^"']+)["']/gi,
+        /["']dateModified["']\s*:\s*["']([^"']+)["']/gi,
+        /<meta[^>]+(?:property|name)=["'](?:article:published_time|article:modified_time|date|datePublished|dateModified)["'][^>]+content=["']([^"']+)["'][^>]*>/gi,
+        /<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["'](?:article:published_time|article:modified_time|date|datePublished|dateModified)["'][^>]*>/gi,
+        /<time[^>]+datetime=["']([^"']+)["'][^>]*>/gi
+    ];
+    const values = [];
+    for (const pattern of patterns) {
+        let match;
+        while ((match = pattern.exec(source)) && values.length < 24) {
+            const parsed = new Date(String(match[1] || '').trim());
+            if (Number.isFinite(parsed.getTime())) values.push(parsed);
+        }
+    }
+    return values
+        .sort((left, right) => right.getTime() - left.getTime())
+        .map(value => value.toISOString());
+}
+
+function groundingSourceUrls(response = {}) {
+    const urls = [];
+    const seen = new Set();
+    for (const candidate of Array.isArray(response?.candidates) ? response.candidates : []) {
+        const chunks = Array.isArray(candidate?.groundingMetadata?.groundingChunks)
+            ? candidate.groundingMetadata.groundingChunks
+            : [];
+        for (const chunk of chunks) {
+            const url = String(chunk?.web?.uri || '').trim();
+            if (!url || seen.has(url)) continue;
+            try {
+                if (new URL(url).protocol !== 'https:') continue;
+            } catch {
+                continue;
+            }
+            seen.add(url);
+            urls.push(url);
+            if (urls.length >= 6) return urls;
+        }
+    }
+    return urls;
+}
+
+async function inspectGroundingFreshness(
+    response = {},
+    request = {},
+    fetchImpl = globalThis.fetch,
+    now = new Date()
+) {
+    const windowDays = freshnessWindowDays(request);
+    if (!windowDays) {
+        return {
+            required: false,
+            verified: true,
+            windowDays: null,
+            cutoffDate: null,
+            freshCount: 0,
+            datedCount: 0,
+            inspectedCount: 0,
+            sources: []
+        };
+    }
+
+    const reference = now instanceof Date && Number.isFinite(now.getTime())
+        ? now
+        : new Date();
+    const cutoffMs = reference.getTime() - (windowDays * 86400000);
+    const cutoffDate = new Date(cutoffMs).toISOString().slice(0, 10);
+    const urls = groundingSourceUrls(response);
+
+    if (typeof fetchImpl !== 'function' || urls.length === 0) {
+        return {
+            required: true,
+            verified: false,
+            windowDays,
+            cutoffDate,
+            freshCount: 0,
+            datedCount: 0,
+            inspectedCount: urls.length,
+            sources: urls.map(url => ({ url, publishedAt: null, fresh: false }))
+        };
+    }
+
+    const inspected = await Promise.all(
+        urls.map(async url => {
+            try {
+                const page = await fetchImpl(url, {
+                    method: 'GET',
+                    redirect: 'follow',
+                    headers: {
+                        'User-Agent': 'JarvisFreshnessVerifier/1.0',
+                        'Accept': 'text/html,application/xhtml+xml'
+                    },
+                    signal: AbortSignal.timeout(2800)
+                });
+                if (!page?.ok) return { url, publishedAt: null, fresh: false };
+                const contentType = String(page.headers?.get?.('content-type') || '').toLowerCase();
+                if (contentType && !contentType.includes('html')) {
+                    return { url, publishedAt: null, fresh: false };
+                }
+                const dates = extractPublicationDatesFromHtml(await page.text());
+                const publishedAt = dates[0] || null;
+                const timestamp = publishedAt ? Date.parse(publishedAt) : Number.NaN;
+                const fresh = Number.isFinite(timestamp) &&
+                    timestamp >= cutoffMs &&
+                    timestamp <= reference.getTime() + 86400000;
+                return { url, publishedAt, fresh };
+            } catch {
+                return { url, publishedAt: null, fresh: false };
+            }
+        })
+    );
+
+    const freshCount = inspected.filter(item => item.fresh).length;
+    const datedCount = inspected.filter(item => item.publishedAt).length;
+    return {
+        required: true,
+        verified: freshCount > 0,
+        windowDays,
+        cutoffDate,
+        freshCount,
+        datedCount,
+        inspectedCount: inspected.length,
+        sources: inspected
+    };
+}
+
+function appendFreshnessSourceRetryDirective(request = {}, freshness = {}) {
+    const cutoffDate = String(freshness?.cutoffDate || '').trim();
+    const directive = [
+        'REINTENTO_DE_FRESCURA_VERIFICABLE:',
+        'Las fuentes anteriores no demostraron una fecha suficientemente reciente' + (cutoffDate ? ' (corte ' + cutoffDate + ')' : '') + '.',
+        'Busca resultados mas recientes y prioriza paginas individuales con fecha de publicacion o modificacion verificable.',
+        'No uses como novedad una pagina indice o historica sin fecha verificable.',
+        'Si no existe una fuente reciente verificable, responde FRESCURA_NO_VERIFICADA en vez de presentar hechos antiguos como actuales.'
+    ].join('\n');
+    const contents = request?.contents;
+    if (typeof contents === 'string') {
+        return { ...request, contents: String(contents) + '\n' + directive };
+    }
+    if (Array.isArray(contents)) {
+        return { ...request, contents: [...contents, directive] };
+    }
+    return request;
+}
+
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
 }
@@ -430,7 +589,7 @@ function createJarvisGenAIProviderChain({ providers = [] } = {}) {
                         continue;
                     }
 
-                    const maximumAttempts = 2;
+                    const maximumAttempts = wantsGrounding ? 3 : 2;
                     let activeRequest = providerRequest;
                     for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
                         try {
@@ -460,6 +619,37 @@ function createJarvisGenAIProviderChain({ providers = [] } = {}) {
                             }
 
                             await canonicalizeGroundingRedirects(response);
+
+                            if (
+                                wantsGrounding &&
+                                requestNeedsFreshness(request)
+                            ) {
+                                const freshness =
+                                    await inspectGroundingFreshness(
+                                        response,
+                                        request
+                                    );
+                                if (!freshness.verified) {
+                                    failures.push({
+                                        name: providerName,
+                                        message: `FRESHNESS_UNVERIFIED:cutoff=${freshness.cutoffDate || 'unknown'}:dated=${freshness.datedCount}:fresh=${freshness.freshCount}`
+                                    });
+                                    if (attempt < maximumAttempts) {
+                                        activeRequest =
+                                            appendFreshnessSourceRetryDirective(
+                                                appendGroundingRetryDirective(providerRequest),
+                                                freshness
+                                            );
+                                        await sleep(180 * attempt);
+                                        continue;
+                                    }
+                                    break;
+                                }
+                                try {
+                                    response.jarvisFreshness = freshness;
+                                } catch {}
+                            }
+
                             lastProvider = providerName;
                             return response;
                         }
@@ -531,6 +721,11 @@ function createJarvisGenAIProviderChain({ providers = [] } = {}) {
 }
 
 module.exports = {
+    appendFreshnessSourceRetryDirective,
+    extractPublicationDatesFromHtml,
+    freshnessWindowDays,
+    groundingSourceUrls,
+    inspectGroundingFreshness,
     appendGroundingRetryDirective,
     applyFreshnessGuardToGroundedRequest,
     buildJsonPlanningFallbackRequest,
