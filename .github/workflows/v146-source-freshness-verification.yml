@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - '.github/scripts/v146-source-freshness-verification.mjs'
+      - '.github/scripts/v146-source-freshness-runner.mjs'
       - '.github/workflows/v146-source-freshness-verification.yml'
       - 'tests/jarvis-source-freshness-verification-v146.test.cjs'
   push:
@@ -11,6 +12,7 @@ on:
       - v94-media-v4n-negative-claims
     paths:
       - '.github/scripts/v146-source-freshness-verification.mjs'
+      - '.github/scripts/v146-source-freshness-runner.mjs'
       - '.github/workflows/v146-source-freshness-verification.yml'
       - 'tests/jarvis-source-freshness-verification-v146.test.cjs'
   workflow_dispatch:
@@ -42,7 +44,7 @@ jobs:
         run: npm ci
 
       - name: Apply deterministic V146 product patch
-        run: node .github/scripts/v146-source-freshness-verification.mjs
+        run: node .github/scripts/v146-source-freshness-runner.mjs
 
       - name: Verify patched syntax
         run: |
