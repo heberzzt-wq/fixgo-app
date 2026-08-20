@@ -144,8 +144,17 @@ if (!research.includes('freshness: support.freshness || null')) {
 }
 
 if (!research.includes('freshnessRequired: Boolean(response?.jarvisFreshness?.required)')) {
-    const before = '            factsSeparatedFromInference: true,\n            duplicatesRemoved: true,';
+    const before = [
+        '            modelSynthesisFiltered:',
+        '                Boolean(requestedDomain) &&',
+        '                !modelSynthesisAllowed,',
+        '            factsSeparatedFromInference: true,',
+        '            duplicatesRemoved: true,'
+    ].join('\n');
     const after = [
+        '            modelSynthesisFiltered:',
+        '                Boolean(requestedDomain) &&',
+        '                !modelSynthesisAllowed,',
         '            factsSeparatedFromInference: true,',
         '            freshnessRequired: Boolean(response?.jarvisFreshness?.required),',
         '            freshnessVerified: response?.jarvisFreshness?.required',
@@ -157,7 +166,7 @@ if (!research.includes('freshnessRequired: Boolean(response?.jarvisFreshness?.re
         '            ),',
         '            duplicatesRemoved: true,'
     ].join('\n');
-    research = replaceOnce(research, before, after, 'research_policy');
+    research = replaceOnce(research, before, after, 'research_grounded_policy');
 }
 
 fs.writeFileSync(researchPath, research);
