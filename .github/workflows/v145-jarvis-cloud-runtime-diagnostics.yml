@@ -1,0 +1,59 @@
+name: Jarvis V145 cloud runtime diagnostics
+
+on:
+  push:
+    branches:
+      - diag/jarvis-cloud-runtime-v145-20260820
+    paths:
+      - '.github/workflows/v145-jarvis-cloud-runtime-diagnostics.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FIREBASE_PROJECT_ID: fixgo-44e4d
+
+jobs:
+  collect-runtime-logs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Read jarvisSemanticPlan runtime logs
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_TOKEN"
+          echo '===== jarvisSemanticPlan ====='
+          firebase functions:log \
+            --only jarvisSemanticPlan \
+            --lines 120 \
+            --project "$FIREBASE_PROJECT_ID" \
+            --token "$FIREBASE_TOKEN" || true
+
+      - name: Read jarvisWebResearch runtime logs
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_TOKEN"
+          echo '===== jarvisWebResearch ====='
+          firebase functions:log \
+            --only jarvisWebResearch \
+            --lines 120 \
+            --project "$FIREBASE_PROJECT_ID" \
+            --token "$FIREBASE_TOKEN" || true
