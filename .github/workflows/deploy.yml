@@ -52,7 +52,7 @@ jobs:
             changed_files="$(git ls-tree -r --name-only HEAD)"
           fi
 
-          if grep -Eq '^(functions/|firebase\.json$|\.firebaserc$)' <<<"$changed_files"; then
+          if grep -Eq '^(functions/|firebase\.json$|\.firebaserc$|\.github/workflows/deploy\.yml$)' <<<"$changed_files"; then
             echo "functions_changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "functions_changed=false" >> "$GITHUB_OUTPUT"
@@ -75,6 +75,134 @@ jobs:
 
       - name: Install functions dependencies
         run: npm ci --prefix functions
+
+      - name: Align existing web research fail-closed transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          research_path = Path('functions/jarvis-web-research.js')
+          research = research_path.read_text(encoding='utf-8')
+          old_no_pages = '    if (pages.length === 0) throw new Error("DIRECT_RESEARCH_NO_PRIMARY_PAGES");'
+          new_no_pages = '''    if (pages.length === 0) {
+              return {
+                  ok: false,
+                  grounded: false,
+                  engine: "jarvis_direct_primary_domain_research",
+                  model: null,
+                  query: normalizedQuery,
+                  requestedDomain: domain,
+                  objectiveId: String(objectiveId || ""),
+                  caseId: String(caseId || ""),
+                  researchedAt: new Date().toISOString(),
+                  provider: "direct_primary_domain_crawl",
+                  answer: "",
+                  sources: [],
+                  discardedSources: [],
+                  supports: [],
+                  facts: [],
+                  inferences: [],
+                  searchQueries: [],
+                  sourceCount: 0,
+                  readOnly: true,
+                  policy: {
+                      citationsRequired: true,
+                      consultedSourcesOnly: true,
+                      requestedDomainEnforced: true,
+                      factsSeparatedFromInference: true,
+                      duplicatesRemoved: true,
+                      codeWrite: false,
+                      externalSideEffects: false,
+                      freshnessVerified: false,
+                      fallbackReason:
+                          String(fallbackReason || "")
+                              .trim()
+                              .slice(0, 160) ||
+                          "PRIMARY_GROUNDED_RESEARCH_UNAVAILABLE"
+                  }
+              };
+          }'''.replace('          ', '')
+          if old_no_pages in research:
+              research = research.replace(old_no_pages, new_no_pages, 1)
+          elif 'freshnessVerified: false' not in research:
+              raise SystemExit('DIRECT_RESEARCH_FAIL_CLOSED_ANCHOR_NOT_FOUND')
+          research_path.write_text(research, encoding='utf-8')
+
+          index_path = Path('functions/index.js')
+          index = index_path.read_text(encoding='utf-8')
+          old_guard = '''            if (
+                  !result.grounded &&
+                  result?.status !==
+                      "ENTITY_NOT_VERIFIED"
+              ) {
+                  throw new functions.https.HttpsError(
+                      "failed-precondition",
+                      "La investigacion no devolvio fuentes verificables."
+                  );
+              }'''.replace('          ', '')
+          new_guard = '''            if (
+                  !result.grounded &&
+                  result?.status !==
+                      "ENTITY_NOT_VERIFIED"
+              ) {
+                  if (result?.ok === false) {
+                      return result;
+                  }
+                  throw new functions.https.HttpsError(
+                      "failed-precondition",
+                      "La investigacion no devolvio fuentes verificables."
+                  );
+              }'''.replace('          ', '')
+          if old_guard in index:
+              index = index.replace(old_guard, new_guard, 1)
+          elif 'if (result?.ok === false)' not in index:
+              raise SystemExit('WEB_RESEARCH_ENDPOINT_FAIL_CLOSED_ANCHOR_NOT_FOUND')
+          index_path.write_text(index, encoding='utf-8')
+
+          test_path = Path('tests/jarvis-web-research.test.cjs')
+          tests = test_path.read_text(encoding='utf-8')
+          marker = '''    assert.equal(result.policy.fallbackReason, "GEMINI_CREDENTIAL_UNAVAILABLE");
+          });
+
+          test("direct domain fallback prioritizes claim-specific official pages over generic navigation", async () => {'''.replace('          ', '')
+          replacement = '''    assert.equal(result.policy.fallbackReason, "GEMINI_CREDENTIAL_UNAVAILABLE");
+
+              const freshnessResult = await runJarvisDirectDomainResearch({
+                  query: "Investiga únicamente https://www.summ.com.mx/ novedades actuales",
+                  fetchImpl: async url => {
+                      const normalized = String(url);
+                      const html = pages.get(normalized);
+                      return {
+                          ok: Boolean(html),
+                          url: normalized,
+                          headers: { get: name => name === "content-type" ? "text/html; charset=utf-8" : "" },
+                          text: async () => html || ""
+                      };
+                  }
+              });
+              assert.equal(freshnessResult.ok, false);
+              assert.equal(freshnessResult.grounded, false);
+              assert.equal(freshnessResult.sourceCount, 0);
+              assert.equal(freshnessResult.policy.freshnessVerified, false);
+          });
+
+          test("direct domain fallback prioritizes claim-specific official pages over generic navigation", async () => {'''.replace('          ', '')
+          if marker in tests:
+              tests = tests.replace(marker, replacement, 1)
+          elif 'assert.equal(freshnessResult.policy.freshnessVerified, false);' not in tests:
+              raise SystemExit('WEB_RESEARCH_EXISTING_TEST_ANCHOR_NOT_FOUND')
+
+          static_marker = '    assert.match(webSection, /runJarvisDirectDomainResearch\\(\\{/);'
+          static_replacement = '''    assert.match(webSection, /runJarvisDirectDomainResearch\\(\\{/);
+              assert.match(webSection, /result\\?\\.ok === false[\\s\\S]{0,120}return result/);'''.replace('          ', '')
+          if static_marker in tests:
+              tests = tests.replace(static_marker, static_replacement, 1)
+          elif 'result\\?\\.ok === false' not in tests:
+              raise SystemExit('WEB_RESEARCH_ENDPOINT_TEST_ANCHOR_NOT_FOUND')
+          test_path.write_text(tests, encoding='utf-8')
+          PY
 
       - name: Validate Jarvis runtime
         run: npm run ci:test
@@ -117,6 +245,22 @@ jobs:
       - name: Deploy Jarvis multifunction services
         if: steps.changes.outputs.functions_changed == 'true'
         run: firebase deploy --only functions:jarvisWebResearch,functions:jarvisSemanticPlan,functions:jarvisSemanticRespond,functions:jarvisImageGenerate,functions:jarvisMediaAnalyze --project fixgo-44e4d --token "${{ secrets.FIREBASE_TOKEN }}"
+
+      - name: Materialize aligned existing web research contract
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- functions/jarvis-web-research.js functions/index.js tests/jarvis-web-research.test.cjs; then
+            echo 'WEB_RESEARCH_FAIL_CLOSED_ALREADY_MATERIALIZED=true'
+            exit 0
+          fi
+          git diff --check -- functions/jarvis-web-research.js functions/index.js tests/jarvis-web-research.test.cjs
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add functions/jarvis-web-research.js functions/index.js tests/jarvis-web-research.test.cjs
+          git commit -m 'fix(jarvis): keep unverifiable freshness fail-closed without HTTP 500'
+          git push origin "HEAD:v5.9-polish"
 
       - name: Publish deploy result
         if: always()
