@@ -65,7 +65,9 @@ function normalizeDuckDuckGoUrl(value = "") {
         const redirected = parsed.hostname.endsWith("duckduckgo.com")
             ? parsed.searchParams.get("uddg")
             : "";
-        return redirected ? decodeURIComponent(redirected) : parsed.toString();
+        // URLSearchParams already percent-decodes the parameter. Decoding it a
+        // second time corrupts legitimate target URLs containing literal `%`.
+        return redirected || parsed.toString();
     }
     catch {
         return "";
