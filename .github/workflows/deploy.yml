@@ -123,7 +123,7 @@ jobs:
                           "PRIMARY_GROUNDED_RESEARCH_UNAVAILABLE"
                   }
               };
-          }'''
+          }'''.replace('          ', '')
           if old_no_pages in research:
               research = research.replace(old_no_pages, new_no_pages, 1)
           elif 'freshnessVerified: false' not in research:
@@ -132,75 +132,81 @@ jobs:
 
           index_path = Path('functions/index.js')
           index = index_path.read_text(encoding='utf-8')
-          old_guard = '''            if (
-              !result.grounded &&
-              result?.status !==
-                  "ENTITY_NOT_VERIFIED"
-          ) {
-              throw new functions.https.HttpsError(
-                  "failed-precondition",
-                  "La investigacion no devolvio fuentes verificables."
-              );
-          }'''
-          new_guard = '''            if (
-              !result.grounded &&
-              result?.status !==
-                  "ENTITY_NOT_VERIFIED"
-          ) {
-              if (result?.ok === false) {
-                  return result;
-              }
-              throw new functions.https.HttpsError(
-                  "failed-precondition",
-                  "La investigacion no devolvio fuentes verificables."
-              );
-          }'''
-          if old_guard in index:
-              index = index.replace(old_guard, new_guard, 1)
-          elif 'if (result?.ok === false)' not in index:
-              raise SystemExit('WEB_RESEARCH_ENDPOINT_FAIL_CLOSED_ANCHOR_NOT_FOUND')
+          complete_pos = index.find('"JARVIS_WEB_RESEARCH_COMPLETE"')
+          guard_anchor = (
+              '            if (\n'
+              '                !result.grounded &&\n'
+              '                result?.status !==\n'
+              '                    "ENTITY_NOT_VERIFIED"\n'
+              '            ) {\n'
+          )
+          guard_pos = index.find(guard_anchor, complete_pos)
+          if complete_pos < 0 or guard_pos < 0:
+              raise SystemExit('WEB_RESEARCH_POST_RESULT_GUARD_NOT_FOUND')
+          block_end = index.find('\n            }', guard_pos)
+          if block_end < 0:
+              raise SystemExit('WEB_RESEARCH_POST_RESULT_GUARD_END_NOT_FOUND')
+          block = index[guard_pos:block_end]
+          if 'if (result?.ok === false)' not in block:
+              throw_anchor = '                throw new functions.https.HttpsError('
+              throw_pos = index.find(throw_anchor, guard_pos, block_end)
+              if throw_pos < 0:
+                  raise SystemExit('WEB_RESEARCH_POST_RESULT_THROW_NOT_FOUND')
+              insertion = (
+                  '                if (result?.ok === false) {\n'
+                  '                    return result;\n'
+                  '                }\n'
+              )
+              index = index[:throw_pos] + insertion + index[throw_pos:]
           index_path.write_text(index, encoding='utf-8')
 
           test_path = Path('tests/jarvis-web-research.test.cjs')
           tests = test_path.read_text(encoding='utf-8')
-          marker = '''    assert.equal(result.policy.fallbackReason, "GEMINI_CREDENTIAL_UNAVAILABLE");
-          });
+          direct_title = 'test("direct domain fallback crawls only primary pages when Gemini credentials fail", async () => {'
+          direct_start = tests.find(direct_title)
+          next_title = 'test("direct domain fallback prioritizes claim-specific official pages over generic navigation", async () => {'
+          direct_end = tests.find(next_title, direct_start)
+          if direct_start < 0 or direct_end < 0:
+              raise SystemExit('WEB_RESEARCH_EXISTING_DIRECT_TEST_NOT_FOUND')
+          direct_block = tests[direct_start:direct_end]
+          if 'freshnessResult.policy.freshnessVerified' not in direct_block:
+              close_pos = tests.rfind('\n});', direct_start, direct_end)
+              if close_pos < 0:
+                  raise SystemExit('WEB_RESEARCH_EXISTING_DIRECT_TEST_END_NOT_FOUND')
+              insertion = '''
 
-          test("direct domain fallback prioritizes claim-specific official pages over generic navigation", async () => {'''
-          replacement = '''    assert.equal(result.policy.fallbackReason, "GEMINI_CREDENTIAL_UNAVAILABLE");
+    const freshnessResult = await runJarvisDirectDomainResearch({
+        query: "Investiga únicamente https://www.summ.com.mx/ novedades actuales",
+        fetchImpl: async url => {
+            const normalized = String(url);
+            const html = pages.get(normalized);
+            return {
+                ok: Boolean(html),
+                url: normalized,
+                headers: { get: name => name === "content-type" ? "text/html; charset=utf-8" : "" },
+                text: async () => html || ""
+            };
+        }
+    });
+    assert.equal(freshnessResult.ok, false);
+    assert.equal(freshnessResult.grounded, false);
+    assert.equal(freshnessResult.sourceCount, 0);
+    assert.equal(freshnessResult.policy.freshnessVerified, false);'''
+              tests = tests[:close_pos] + insertion + tests[close_pos:]
 
-              const freshnessResult = await runJarvisDirectDomainResearch({
-                  query: "Investiga únicamente https://www.summ.com.mx/ novedades actuales",
-                  fetchImpl: async url => {
-                      const normalized = String(url);
-                      const html = pages.get(normalized);
-                      return {
-                          ok: Boolean(html),
-                          url: normalized,
-                          headers: { get: name => name === "content-type" ? "text/html; charset=utf-8" : "" },
-                          text: async () => html || ""
-                      };
-                  }
-              });
-              assert.equal(freshnessResult.ok, false);
-              assert.equal(freshnessResult.grounded, false);
-              assert.equal(freshnessResult.sourceCount, 0);
-              assert.equal(freshnessResult.policy.freshnessVerified, false);
-          });
-
-          test("direct domain fallback prioritizes claim-specific official pages over generic navigation", async () => {'''
-          if marker in tests:
-              tests = tests.replace(marker, replacement, 1)
-          elif 'assert.equal(freshnessResult.policy.freshnessVerified, false);' not in tests:
-              raise SystemExit('WEB_RESEARCH_EXISTING_TEST_ANCHOR_NOT_FOUND')
-
-          static_marker = '    assert.match(webSection, /runJarvisDirectDomainResearch\\(\\{/);'
-          static_replacement = '''    assert.match(webSection, /runJarvisDirectDomainResearch\\(\\{/);
-              assert.match(webSection, /result\\?\\.ok === false[\\s\\S]{0,120}return result/);'''
-          if static_marker in tests:
-              tests = tests.replace(static_marker, static_replacement, 1)
-          elif 'result\\?\\.ok === false' not in tests:
-              raise SystemExit('WEB_RESEARCH_ENDPOINT_TEST_ANCHOR_NOT_FOUND')
+          firebase_title = 'test("Firebase deploys grounded web research on the supported Node runtime", () => {'
+          firebase_start = tests.find(firebase_title)
+          if firebase_start < 0:
+              raise SystemExit('WEB_RESEARCH_FIREBASE_TEST_NOT_FOUND')
+          marker = '    assert.match(webSection, /runJarvisDirectDomainResearch\\(\\{/);'
+          marker_pos = tests.find(marker, firebase_start)
+          if marker_pos < 0:
+              raise SystemExit('WEB_RESEARCH_FIREBASE_ASSERTION_NOT_FOUND')
+          line_end = tests.find('\n', marker_pos)
+          firebase_block_end = tests.find('\n});', firebase_start)
+          if 'result\\?\\.ok === false' not in tests[firebase_start:firebase_block_end]:
+              assertion = '\n    assert.match(webSection, /result\\?\\.ok === false[\\s\\S]{0,160}return result/);'
+              tests = tests[:line_end] + assertion + tests[line_end:]
           test_path.write_text(tests, encoding='utf-8')
           PY
 
