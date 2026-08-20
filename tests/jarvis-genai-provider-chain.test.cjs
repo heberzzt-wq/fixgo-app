@@ -2,9 +2,11 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+    applyFreshnessGuardToGroundedRequest,
     compactProviderInputSchema,
     createJarvisGenAIProviderChain,
     normalizeProviders,
+    requestNeedsFreshness,
     sanitizeGenerateContentRequest
 } = require("../functions/jarvis-genai-provider-chain");
 
@@ -209,6 +211,69 @@ test("provider request sanitation leaves Google Search alone and compacts functi
         },
         required: ["action"]
     });
+});
+
+test("grounded web freshness guard injects a real temporal contract only for fresh queries", () => {
+    const freshRequest = {
+        contents: "Investiga las novedades actuales de la API de OpenAI",
+        config: {
+            tools: [{ googleSearch: {} }]
+        }
+    };
+    const historicalRequest = {
+        contents: "Explica la historia de la API de OpenAI",
+        config: {
+            tools: [{ googleSearch: {} }]
+        }
+    };
+
+    assert.equal(requestNeedsFreshness(freshRequest), true);
+    assert.equal(requestNeedsFreshness(historicalRequest), false);
+
+    const guarded = applyFreshnessGuardToGroundedRequest(
+        freshRequest,
+        new Date("2026-08-19T12:00:00Z")
+    );
+
+    assert.notEqual(guarded, freshRequest);
+    assert.match(guarded.contents, /FECHA_DE_REFERENCIA_WEB=2026-08-19/);
+    assert.match(guarded.contents, /publicadas o actualizadas en 2026/);
+    assert.match(guarded.contents, /FRESCURA_NO_VERIFICADA/);
+    assert.equal(
+        applyFreshnessGuardToGroundedRequest(
+            historicalRequest,
+            new Date("2026-08-19T12:00:00Z")
+        ),
+        historicalRequest
+    );
+});
+
+test("provider chain forwards the freshness contract to the selected grounded provider", async () => {
+    let receivedRequest = null;
+    const chain = createJarvisGenAIProviderChain({
+        providers: [{
+            name: "vertex",
+            ai: {
+                models: {
+                    generateContent: async request => {
+                        receivedRequest = request;
+                        return { text: "grounded" };
+                    }
+                }
+            }
+        }]
+    });
+
+    await chain.models.generateContent({
+        contents: "Busca noticias recientes de inteligencia artificial",
+        config: {
+            tools: [{ googleSearch: {} }]
+        }
+    });
+
+    assert.ok(receivedRequest);
+    assert.match(receivedRequest.contents, /FECHA_DE_REFERENCIA_WEB=/);
+    assert.match(receivedRequest.contents, /No presentes como novedad actual una fuente antigua/);
 });
 
 test("provider chain reports every real provider failure without fabricating output", async () => {
