@@ -1,6 +1,9 @@
 name: Jarvis V145 cloud runtime diagnostics
 
 on:
+  pull_request:
+    paths:
+      - '.github/workflows/v145-jarvis-cloud-runtime-diagnostics.yml'
   push:
     branches:
       - diag/jarvis-cloud-runtime-v145-20260820
@@ -21,8 +24,6 @@ jobs:
     steps:
       - name: Checkout exact SHA
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
 
       - name: Setup Node 22
         uses: actions/setup-node@v4
@@ -43,7 +44,7 @@ jobs:
             --only jarvisSemanticPlan \
             --lines 120 \
             --project "$FIREBASE_PROJECT_ID" \
-            --token "$FIREBASE_TOKEN" || true
+            --token "$FIREBASE_TOKEN"
 
       - name: Read jarvisWebResearch runtime logs
         env:
@@ -56,4 +57,4 @@ jobs:
             --only jarvisWebResearch \
             --lines 120 \
             --project "$FIREBASE_PROJECT_ID" \
-            --token "$FIREBASE_TOKEN" || true
+            --token "$FIREBASE_TOKEN"
