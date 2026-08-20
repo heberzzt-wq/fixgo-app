@@ -82,6 +82,32 @@ test("provider chain quarantines a permanently invalid credential after first fa
     assert.equal(chain.disabledProviders.developer, "INVALID_CREDENTIAL");
 });
 
+test("provider chain retries a transient provider failure once", async () => {
+    let attempts = 0;
+    const chain = createJarvisGenAIProviderChain({
+        providers: [{
+            name: "vertex",
+            ai: {
+                models: {
+                    generateContent: async () => {
+                        attempts += 1;
+                        if (attempts === 1) {
+                            throw new Error("503 Service Unavailable");
+                        }
+                        return { text: "recovered" };
+                    }
+                }
+            }
+        }]
+    });
+
+    const result = await chain.models.generateContent({ contents: "retry" });
+
+    assert.equal(attempts, 2);
+    assert.equal(result.text, "recovered");
+    assert.equal(chain.lastProvider, "vertex");
+});
+
 test("provider schema compaction preserves routing fields but removes state-heavy constraints", () => {
     const schema = {
         type: "object",
@@ -131,11 +157,10 @@ test("provider schema compaction preserves routing fields but removes state-heav
     assert.deepEqual(compact.properties.limit, { type: "integer" });
     assert.deepEqual(compact.properties.filters, {
         type: "array",
-        items: { type: "object", additionalProperties: true }
+        items: { type: "object" }
     });
     assert.deepEqual(compact.properties.metadata, {
-        type: "object",
-        additionalProperties: true
+        type: "object"
     });
     assert.equal("enum" in compact.properties.mode, false);
     assert.equal("minimum" in compact.properties.limit, false);
@@ -182,8 +207,7 @@ test("provider request sanitation leaves Google Search alone and compacts functi
         properties: {
             action: { type: "string" }
         },
-        required: ["action"],
-        additionalProperties: true
+        required: ["action"]
     });
 });
 
