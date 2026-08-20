@@ -3,10 +3,13 @@ const assert = require("node:assert/strict");
 
 const {
     applyFreshnessGuardToGroundedRequest,
+    canonicalizeGroundingRedirects,
     compactProviderInputSchema,
     createJarvisGenAIProviderChain,
+    isGroundingRedirectUrl,
     normalizeProviders,
     requestNeedsFreshness,
+    resolveGroundingRedirectUrl,
     sanitizeGenerateContentRequest
 } = require("../functions/jarvis-genai-provider-chain");
 
@@ -30,8 +33,7 @@ function groundedResponse(text = "grounded") {
     };
 }
 
-// __V146_TEST_FRESH_SOURCE_FETCH__
-const __v146NativeFetch = globalThis.fetch;
+const originalFetch = globalThis.fetch;
 globalThis.fetch = async (url, options = {}) => {
     const target = String(url || "");
     if (target.startsWith("https://example.com/source")) {
@@ -50,10 +52,10 @@ globalThis.fetch = async (url, options = {}) => {
             }
         };
     }
-    if (typeof __v146NativeFetch === "function") {
-        return __v146NativeFetch(url, options);
+    if (typeof originalFetch === "function") {
+        return originalFetch(url, options);
     }
-    throw new Error("V146_TEST_FETCH_UNAVAILABLE");
+    throw new Error("TEST_FETCH_UNAVAILABLE");
 };
 
 test("provider chain continues from an invalid developer key to Vertex AI", async () => {
@@ -449,5 +451,74 @@ test("provider normalization ignores unavailable clients", () => {
     assert.throws(
         () => createJarvisGenAIProviderChain({ providers: [] }),
         /JARVIS_GENAI_PROVIDER_REQUIRED/
+    );
+});
+
+test("grounding redirect detection is limited to Vertex grounding redirect URLs", () => {
+    assert.equal(
+        isGroundingRedirectUrl("https://vertexaisearch.cloud.google.com/grounding-api-redirect/token"),
+        true
+    );
+    assert.equal(
+        isGroundingRedirectUrl("https://openai.com/api/"),
+        false
+    );
+});
+
+test("grounding redirect resolver returns the canonical Location without fetching the article", async () => {
+    const redirect = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/token";
+    const calls = [];
+    const canonical = await resolveGroundingRedirectUrl(
+        redirect,
+        async (url, options) => {
+            calls.push({ url, options });
+            return {
+                url,
+                headers: {
+                    get(name) {
+                        return String(name).toLowerCase() === "location"
+                            ? "https://anthropic.com/news/example"
+                            : null;
+                    }
+                }
+            };
+        }
+    );
+
+    assert.equal(canonical, "https://anthropic.com/news/example");
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].options.redirect, "manual");
+});
+
+test("grounding metadata is rewritten to canonical source URLs before research consumes it", async () => {
+    const redirect = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/token";
+    const response = {
+        candidates: [{
+            groundingMetadata: {
+                groundingChunks: [{
+                    web: {
+                        uri: redirect,
+                        title: "Claude API update"
+                    }
+                }]
+            }
+        }]
+    };
+
+    await canonicalizeGroundingRedirects(
+        response,
+        async url => ({
+            url,
+            headers: {
+                get() {
+                    return "https://www.anthropic.com/news/example";
+                }
+            }
+        })
+    );
+
+    assert.equal(
+        response.candidates[0].groundingMetadata.groundingChunks[0].web.uri,
+        "https://www.anthropic.com/news/example"
     );
 });
