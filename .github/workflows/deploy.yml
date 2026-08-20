@@ -52,7 +52,7 @@ jobs:
             changed_files="$(git ls-tree -r --name-only HEAD)"
           fi
 
-          if grep -Eq '^(functions/|firebase\.json$|\.firebaserc$)' <<<"$changed_files"; then
+          if grep -Eq '^(functions/|firebase\.json$|\.firebaserc$|\.github/workflows/deploy\.yml$)' <<<"$changed_files"; then
             echo "functions_changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "functions_changed=false" >> "$GITHUB_OUTPUT"
@@ -75,6 +75,357 @@ jobs:
 
       - name: Install functions dependencies
         run: npm ci --prefix functions
+
+      - name: Align existing grounded freshness hydration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          runtime_path = Path('functions/jarvis-web-research.js')
+          runtime = runtime_path.read_text(encoding='utf-8')
+
+          old_signature = '''async function runJarvisDirectDomainResearch({
+              fetchImpl = globalThis.fetch,
+              query = "",
+              allowedDomain = "",
+              objectiveId = "",
+              caseId = "",
+              maximumPages = 6,
+              fallbackReason =
+                  "GEMINI_CREDENTIAL_UNAVAILABLE"
+          } = {}) {'''.replace('          ', '')
+          new_signature = '''async function runJarvisDirectDomainResearch({
+              fetchImpl = globalThis.fetch,
+              query = "",
+              allowedDomain = "",
+              seedUrls = [],
+              objectiveId = "",
+              caseId = "",
+              maximumPages = 6,
+              fallbackReason =
+                  "GEMINI_CREDENTIAL_UNAVAILABLE"
+          } = {}) {'''.replace('          ', '')
+          if old_signature in runtime:
+              runtime = runtime.replace(old_signature, new_signature, 1)
+          elif 'seedUrls = []' not in runtime:
+              raise SystemExit('EXISTING_DIRECT_RESEARCH_SIGNATURE_NOT_FOUND')
+
+          old_initial_queue = '''    if (entryUrls.length > 0) {
+              enqueue(
+                  entryUrls.shift(),
+                  Number.MAX_SAFE_INTEGER
+              );
+          }'''.replace('          ', '')
+          new_initial_queue = '''    const normalizedSeedUrls =
+              Array.isArray(seedUrls)
+                  ? seedUrls
+                  : [];
+          normalizedSeedUrls
+              .slice(0, 12)
+              .forEach((seedUrl, index) => {
+                  try {
+                      const parsed =
+                          new URL(String(seedUrl || ""));
+                      parsed.hash = "";
+                      parsed.search = "";
+                      if (
+                          parsed.protocol === "https:" &&
+                          sourceMatchesDomain(
+                              { url: parsed.href },
+                              domain
+                          )
+                      ) {
+                          enqueue(
+                              parsed.href,
+                              Number.MAX_SAFE_INTEGER - index
+                          );
+                      }
+                  } catch {
+                      return;
+                  }
+              });
+          if (
+              queue.length === 0 &&
+              entryUrls.length > 0
+          ) {
+              enqueue(
+                  entryUrls.shift(),
+                  Number.MAX_SAFE_INTEGER
+              );
+          }'''.replace('          ', '')
+          if old_initial_queue in runtime:
+              runtime = runtime.replace(old_initial_queue, new_initial_queue, 1)
+          elif 'const normalizedSeedUrls =' not in runtime:
+              raise SystemExit('EXISTING_DIRECT_RESEARCH_QUEUE_NOT_FOUND')
+
+          old_fact = '''        claim: [page.title, ...page.headings, ...page.paragraphs].filter(Boolean).join(" | ").slice(0, 2400),
+              sourceIds: [index + 1]'''.replace('          ', '')
+          new_fact = '''        claim: [
+              page.publishedAt
+                  ? `Fecha verificada: ${page.publishedAt}`
+                  : "",
+              page.title,
+              ...page.headings,
+              ...page.paragraphs
+          ].filter(Boolean).join(" | ").slice(0, 2400),
+          publishedAt: page.publishedAt || null,
+          sourceIds: [index + 1]'''.replace('          ', '')
+          if old_fact in runtime:
+              runtime = runtime.replace(old_fact, new_fact, 1)
+          elif 'publishedAt: page.publishedAt || null' not in runtime:
+              raise SystemExit('EXISTING_DIRECT_RESEARCH_FACT_NOT_FOUND')
+
+          policy_anchor = '''            externalSideEffects: false,
+              fallbackReason:'''.replace('          ', '')
+          policy_replacement = '''            externalSideEffects: false,
+          freshnessVerified:
+              directFreshnessWindowDays
+                  ? true
+                  : null,
+          fallbackReason:'''.replace('          ', '')
+          direct_start = runtime.find('async function runJarvisDirectDomainResearch')
+          web_start = runtime.find('async function runJarvisWebResearch', direct_start)
+          direct_block = runtime[direct_start:web_start]
+          if 'freshnessVerified:' not in direct_block:
+              anchor_pos = runtime.find(policy_anchor, direct_start, web_start)
+              if anchor_pos < 0:
+                  raise SystemExit('EXISTING_DIRECT_RESEARCH_POLICY_NOT_FOUND')
+              runtime = runtime[:anchor_pos] + policy_replacement + runtime[anchor_pos + len(policy_anchor):]
+
+          entity_anchor = '''    const entityNotVerified =
+              Boolean(normalizedExactEntity) &&
+              !entityVerified;
+
+          return {'''.replace('          ', '')
+          hydration_block = '''    const entityNotVerified =
+              Boolean(normalizedExactEntity) &&
+              !entityVerified;
+
+          const freshnessWindowDays =
+              directResearchFreshnessWindowDays(
+                  normalizedQuery
+              );
+          if (
+              freshnessWindowDays &&
+              requestedDomain &&
+              !entityNotVerified &&
+              sources.length > 0
+          ) {
+              let directVerification = null;
+              try {
+                  directVerification =
+                      await runJarvisDirectDomainResearch({
+                          fetchImpl:
+                              globalThis.fetch,
+                          query:
+                              normalizedQuery,
+                          allowedDomain:
+                              requestedDomain,
+                          seedUrls:
+                              sources.map(source =>
+                                  source.url
+                              ),
+                          objectiveId,
+                          caseId,
+                          maximumPages:
+                              Math.min(
+                                  6,
+                                  Math.max(
+                                      2,
+                                      sources.length
+                                  )
+                              ),
+                          fallbackReason:
+                              "GROUNDED_SOURCE_FRESHNESS_VERIFICATION"
+                      });
+              } catch {
+                  directVerification = null;
+              }
+
+              if (
+                  directVerification?.grounded &&
+                  directVerification?.sourceCount > 0
+              ) {
+                  return {
+                      ...directVerification,
+                      engine:
+                          "jarvis_grounded_web_research",
+                      model,
+                      query:
+                          groundedQuery,
+                      provider:
+                          "google_search_grounding+direct_primary_domain_crawl",
+                      searchQueries,
+                      discardedSources: [
+                          ...discardedSources,
+                          ...(
+                              directVerification
+                                  .discardedSources ||
+                              []
+                          )
+                      ],
+                      policy: {
+                          ...directVerification.policy,
+                          googleGroundingUsed: true,
+                          freshnessVerified: true
+                      }
+                  };
+              }
+
+              return {
+                  ok: false,
+                  grounded: false,
+                  engine:
+                      "jarvis_grounded_web_research",
+                  model,
+                  query:
+                      groundedQuery,
+                  requestedDomain,
+                  exactEntity: null,
+                  objectiveId:
+                      String(objectiveId || ""),
+                  caseId:
+                      String(caseId || ""),
+                  researchedAt,
+                  provider:
+                      "google_search_grounding+direct_primary_domain_crawl",
+                  answer: "",
+                  sources,
+                  discardedSources,
+                  supports: [],
+                  facts: [],
+                  inferences: [],
+                  searchQueries,
+                  sourceCount:
+                      sources.length,
+                  readOnly: true,
+                  policy: {
+                      citationsRequired: true,
+                      consultedSourcesOnly: true,
+                      requestedDomainEnforced: true,
+                      exactEntityEnforced: false,
+                      similarEntitiesDiscarded: false,
+                      modelSynthesisFiltered: true,
+                      factsSeparatedFromInference: true,
+                      duplicatesRemoved: true,
+                      codeWrite: false,
+                      externalSideEffects: false,
+                      googleGroundingUsed: true,
+                      freshnessVerified: false
+                  }
+              };
+          }
+
+          return {'''.replace('          ', '')
+          if entity_anchor in runtime:
+              runtime = runtime.replace(entity_anchor, hydration_block, 1)
+          elif 'google_search_grounding+direct_primary_domain_crawl' not in runtime:
+              raise SystemExit('EXISTING_GROUNDED_FRESHNESS_HYDRATION_ANCHOR_NOT_FOUND')
+
+          runtime_path.write_text(runtime, encoding='utf-8')
+
+          test_path = Path('tests/jarvis-web-research.test.cjs')
+          tests = test_path.read_text(encoding='utf-8')
+          marker = 'test("grounding maps duplicate chunks to one canonical source id", () => {'
+          title = 'test("current domain research opens grounded sources and returns verified publication dates", async () => {'
+          if title not in tests:
+              if marker not in tests:
+                  raise SystemExit('EXISTING_WEB_RESEARCH_TEST_ANCHOR_NOT_FOUND')
+              regression = '''test("current domain research opens grounded sources and returns verified publication dates", async () => {
+                  const publishedAt =
+                      new Date().toISOString();
+                  const sourceUrl =
+                      "https://developers.openai.com/api/docs/changelog";
+                  const response = {
+                      text:
+                          "El changelog oficial contiene novedades de la API.",
+                      candidates: [{
+                          groundingMetadata: {
+                              groundingChunks: [{
+                                  web: {
+                                      uri: sourceUrl,
+                                      title: "Changelog - OpenAI API"
+                                  }
+                              }],
+                              groundingSupports: [{
+                                  segment: {
+                                      text: "El changelog oficial contiene novedades de la API."
+                                  },
+                                  groundingChunkIndices: [0]
+                              }],
+                              webSearchQueries: [
+                                  "site:openai.com API changelog"
+                              ]
+                          }
+                      }]
+                  };
+                  const previousFetch =
+                      globalThis.fetch;
+                  globalThis.fetch =
+                      async url => ({
+                          ok: true,
+                          url: String(url),
+                          headers: {
+                              get: name =>
+                                  name === "content-type"
+                                      ? "text/html; charset=utf-8"
+                                      : ""
+                          },
+                          text: async () => `
+                              <html>
+                                  <head>
+                                      <title>OpenAI API changelog</title>
+                                      <meta property="article:modified_time" content="${publishedAt}">
+                                  </head>
+                                  <body>
+                                      <h1>API changelog</h1>
+                                      <p>La API publico una actualizacion verificable y fechada para desarrolladores.</p>
+                                  </body>
+                              </html>
+                          `
+                      });
+                  try {
+                      const result =
+                          await runJarvisWebResearch({
+                              ai: {
+                                  models: {
+                                      generateContent:
+                                          async () => response
+                                  }
+                              },
+                              query:
+                                  "Investiga únicamente en openai.com las novedades actuales de la API de OpenAI"
+                          });
+                      assert.equal(result.grounded, true);
+                      assert.equal(result.policy.freshnessVerified, true);
+                      assert.match(
+                          result.provider,
+                          /direct_primary_domain_crawl/
+                      );
+                      assert.equal(
+                          result.sources[0].publishedAt,
+                          publishedAt
+                      );
+                      assert.equal(
+                          result.facts[0].publishedAt,
+                          publishedAt
+                      );
+                      assert.match(
+                          result.facts[0].claim,
+                          /Fecha verificada:/
+                      );
+                  } finally {
+                      globalThis.fetch =
+                          previousFetch;
+                  }
+              });
+
+              '''.replace('              ', '')
+              tests = tests.replace(marker, regression + marker, 1)
+          test_path.write_text(tests, encoding='utf-8')
+          PY
 
       - name: Validate Jarvis runtime
         run: npm run ci:test
@@ -117,6 +468,22 @@ jobs:
       - name: Deploy Jarvis multifunction services
         if: steps.changes.outputs.functions_changed == 'true'
         run: firebase deploy --only functions:jarvisWebResearch,functions:jarvisSemanticPlan,functions:jarvisSemanticRespond,functions:jarvisImageGenerate,functions:jarvisMediaAnalyze --project fixgo-44e4d --token "${{ secrets.FIREBASE_TOKEN }}"
+
+      - name: Materialize aligned grounded freshness hydration
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- functions/jarvis-web-research.js tests/jarvis-web-research.test.cjs; then
+            echo 'GROUNDED_FRESHNESS_HYDRATION_ALREADY_MATERIALIZED=true'
+            exit 0
+          fi
+          git diff --check -- functions/jarvis-web-research.js tests/jarvis-web-research.test.cjs
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add functions/jarvis-web-research.js tests/jarvis-web-research.test.cjs
+          git commit -m 'fix(jarvis): hydrate grounded sources with existing crawler'
+          git push origin "HEAD:v5.9-polish"
 
       - name: Publish deploy result
         if: always()
