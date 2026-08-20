@@ -39,6 +39,15 @@ function requestUsesGoogleSearch(request = {}) {
         tools.some(tool => tool && typeof tool === "object" && tool.googleSearch);
 }
 
+function requestUsesFunctionDeclarations(request = {}) {
+    const tools = request?.config?.tools;
+    return Array.isArray(tools) &&
+        tools.some(tool =>
+            Array.isArray(tool?.functionDeclarations) &&
+            tool.functionDeclarations.length > 0
+        );
+}
+
 function requestNeedsFreshness(request = {}) {
     if (!requestUsesGoogleSearch(request)) return false;
     const text = normalizeFreshnessSignalText(
@@ -229,6 +238,80 @@ function isTransientProviderFailure(error) {
     );
 }
 
+function isSchemaStateExplosion(error) {
+    const message = String(error?.message || error || "").toLowerCase();
+    return (
+        message.includes("too many states") ||
+        message.includes("constraint that has too many states")
+    );
+}
+
+function buildJsonPlanningFallbackRequest(request = {}) {
+    if (!requestUsesFunctionDeclarations(request)) return request;
+    const config = request?.config && typeof request.config === "object"
+        ? request.config
+        : {};
+    const {
+        tools: _tools,
+        toolConfig: _toolConfig,
+        ...restConfig
+    } = config;
+
+    return {
+        ...request,
+        config: {
+            ...restConfig,
+            responseMimeType: "application/json"
+        }
+    };
+}
+
+function responseHasGroundingEvidence(response = {}) {
+    const candidates = Array.isArray(response?.candidates)
+        ? response.candidates
+        : [];
+    return candidates.some(candidate => {
+        const metadata = candidate?.groundingMetadata;
+        const chunks = Array.isArray(metadata?.groundingChunks)
+            ? metadata.groundingChunks
+            : [];
+        const supports = Array.isArray(metadata?.groundingSupports)
+            ? metadata.groundingSupports
+            : [];
+        const hasWebSource = chunks.some(chunk =>
+            Boolean(String(chunk?.web?.uri || "").trim())
+        );
+        const hasSupport = supports.some(support =>
+            Array.isArray(support?.groundingChunkIndices) &&
+            support.groundingChunkIndices.length > 0
+        );
+        return hasWebSource && hasSupport;
+    });
+}
+
+function appendGroundingRetryDirective(request = {}) {
+    const directive = [
+        "REINTENTO_DE_GROUNDING_OBLIGATORIO:",
+        "La respuesta anterior no produjo grounding verificable.",
+        "Ejecuta Google Search en esta llamada y responde solo con hechos respaldados por groundingMetadata.",
+        "No respondas desde memoria ni omitas las fuentes consultadas."
+    ].join("\n");
+    const contents = request?.contents;
+    if (typeof contents === "string") {
+        return {
+            ...request,
+            contents: `${contents}\n${directive}`
+        };
+    }
+    if (Array.isArray(contents)) {
+        return {
+            ...request,
+            contents: [...contents, directive]
+        };
+    }
+    return request;
+}
+
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
 }
@@ -335,6 +418,7 @@ function createJarvisGenAIProviderChain({ providers = [] } = {}) {
             async generateContent(request) {
                 const failures = [];
                 const providerRequest = sanitizeGenerateContentRequest(request);
+                const wantsGrounding = requestUsesGoogleSearch(providerRequest);
 
                 for (const provider of availableProviders) {
                     const providerName = String(provider.name || "genai");
@@ -347,12 +431,34 @@ function createJarvisGenAIProviderChain({ providers = [] } = {}) {
                     }
 
                     const maximumAttempts = 2;
+                    let activeRequest = providerRequest;
                     for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
                         try {
-                            const response = await provider.ai.models.generateContent(providerRequest);
+                            const response = await provider.ai.models.generateContent(activeRequest);
                             if (!response) {
                                 throw new Error("EMPTY_PROVIDER_RESPONSE");
                             }
+
+                            if (
+                                wantsGrounding &&
+                                !responseHasGroundingEvidence(response)
+                            ) {
+                                failures.push({
+                                    name: providerName,
+                                    message:
+                                        attempt > 1
+                                            ? `RETRY_${attempt}:GOOGLE_SEARCH_UNGROUNDED`
+                                            : "GOOGLE_SEARCH_UNGROUNDED"
+                                });
+                                if (attempt < maximumAttempts) {
+                                    activeRequest =
+                                        appendGroundingRetryDirective(providerRequest);
+                                    await sleep(180 * attempt);
+                                    continue;
+                                }
+                                break;
+                            }
+
                             await canonicalizeGroundingRedirects(response);
                             lastProvider = providerName;
                             return response;
@@ -364,6 +470,38 @@ function createJarvisGenAIProviderChain({ providers = [] } = {}) {
                                 message: attempt > 1 ? `RETRY_${attempt}:${message}` : message
                             });
 
+                            if (
+                                isSchemaStateExplosion(error) &&
+                                requestUsesFunctionDeclarations(providerRequest)
+                            ) {
+                                try {
+                                    const jsonFallbackRequest =
+                                        buildJsonPlanningFallbackRequest(providerRequest);
+                                    const fallbackResponse =
+                                        await provider.ai.models.generateContent(jsonFallbackRequest);
+                                    if (!fallbackResponse) {
+                                        throw new Error("EMPTY_SCHEMA_JSON_FALLBACK_RESPONSE");
+                                    }
+                                    await canonicalizeGroundingRedirects(fallbackResponse);
+                                    lastProvider = providerName;
+                                    return fallbackResponse;
+                                }
+                                catch(fallbackError) {
+                                    failures.push({
+                                        name: providerName,
+                                        message: `SCHEMA_JSON_FALLBACK:${String(
+                                            fallbackError?.message ||
+                                            fallbackError ||
+                                            "FAILED"
+                                        )}`
+                                    });
+                                    if (isPermanentProviderFailure(fallbackError)) {
+                                        disabledProviders.set(providerName, "INVALID_CREDENTIAL");
+                                    }
+                                    break;
+                                }
+                            }
+
                             if (isPermanentProviderFailure(error)) {
                                 disabledProviders.set(providerName, "INVALID_CREDENTIAL");
                                 break;
@@ -374,6 +512,7 @@ function createJarvisGenAIProviderChain({ providers = [] } = {}) {
                                 isTransientProviderFailure(error)
                             ) {
                                 await sleep(180 * attempt);
+                                activeRequest = providerRequest;
                                 continue;
                             }
 
@@ -392,17 +531,22 @@ function createJarvisGenAIProviderChain({ providers = [] } = {}) {
 }
 
 module.exports = {
+    appendGroundingRetryDirective,
     applyFreshnessGuardToGroundedRequest,
+    buildJsonPlanningFallbackRequest,
     canonicalizeGroundingRedirects,
     compactProviderInputSchema,
     createJarvisGenAIProviderChain,
     freshnessGuardInstruction,
     isGroundingRedirectUrl,
     isPermanentProviderFailure,
+    isSchemaStateExplosion,
     isTransientProviderFailure,
     normalizeProviders,
     requestNeedsFreshness,
+    requestUsesFunctionDeclarations,
     requestUsesGoogleSearch,
     resolveGroundingRedirectUrl,
+    responseHasGroundingEvidence,
     sanitizeGenerateContentRequest
 };

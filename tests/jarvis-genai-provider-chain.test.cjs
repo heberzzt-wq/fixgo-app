@@ -10,6 +10,26 @@ const {
     sanitizeGenerateContentRequest
 } = require("../functions/jarvis-genai-provider-chain");
 
+function groundedResponse(text = "grounded") {
+    return {
+        text,
+        candidates: [{
+            groundingMetadata: {
+                groundingChunks: [{
+                    web: {
+                        uri: "https://example.com/source",
+                        title: "Example source"
+                    }
+                }],
+                groundingSupports: [{
+                    segment: { text: "verified fact" },
+                    groundingChunkIndices: [0]
+                }]
+            }
+        }]
+    };
+}
+
 test("provider chain continues from an invalid developer key to Vertex AI", async () => {
     const calls = [];
     const chain = createJarvisGenAIProviderChain({
@@ -213,6 +233,68 @@ test("provider request sanitation leaves Google Search alone and compacts functi
     });
 });
 
+test("provider chain falls back to JSON planning when Vertex rejects function schema state size", async () => {
+    const requests = [];
+    const chain = createJarvisGenAIProviderChain({
+        providers: [{
+            name: "vertex",
+            ai: {
+                models: {
+                    generateContent: async request => {
+                        requests.push(request);
+                        if (requests.length === 1) {
+                            throw new Error(
+                                "The specified schema produces a constraint that has too many states for serving"
+                            );
+                        }
+                        return {
+                            text: JSON.stringify({
+                                toolCalls: [{
+                                    name: "conversation.respond",
+                                    args: { message: "ok" },
+                                    reason: "json fallback"
+                                }],
+                                missionComplete: false
+                            })
+                        };
+                    }
+                }
+            }
+        }]
+    });
+
+    const result = await chain.models.generateContent({
+        contents: "Devuelve solamente JSON valido con toolCalls.",
+        config: {
+            temperature: 0,
+            tools: [{
+                functionDeclarations: [{
+                    name: "jarvis_tool_0",
+                    description: "conversation.respond",
+                    parametersJsonSchema: {
+                        type: "object",
+                        properties: {
+                            message: { type: "string" }
+                        },
+                        required: ["message"]
+                    }
+                }]
+            }],
+            toolConfig: {
+                functionCallingConfig: { mode: "ANY" }
+            }
+        }
+    });
+
+    assert.equal(requests.length, 2);
+    assert.ok(Array.isArray(requests[0].config.tools));
+    assert.equal(requests[1].config.tools, undefined);
+    assert.equal(requests[1].config.toolConfig, undefined);
+    assert.equal(requests[1].config.responseMimeType, "application/json");
+    assert.match(result.text, /conversation\.respond/);
+    assert.equal(chain.lastProvider, "vertex");
+});
+
 test("grounded web freshness guard injects a real temporal contract only for fresh queries", () => {
     const freshRequest = {
         contents: "Investiga las novedades actuales de la API de OpenAI",
@@ -257,7 +339,7 @@ test("provider chain forwards the freshness contract to the selected grounded pr
                 models: {
                     generateContent: async request => {
                         receivedRequest = request;
-                        return { text: "grounded" };
+                        return groundedResponse();
                     }
                 }
             }
@@ -274,6 +356,41 @@ test("provider chain forwards the freshness contract to the selected grounded pr
     assert.ok(receivedRequest);
     assert.match(receivedRequest.contents, /FECHA_DE_REFERENCIA_WEB=/);
     assert.match(receivedRequest.contents, /No presentes como novedad actual una fuente antigua/);
+});
+
+test("provider chain retries Google Search once when the first response has no grounding", async () => {
+    const requests = [];
+    const chain = createJarvisGenAIProviderChain({
+        providers: [{
+            name: "vertex",
+            ai: {
+                models: {
+                    generateContent: async request => {
+                        requests.push(request);
+                        if (requests.length === 1) {
+                            return { text: "answer from memory" };
+                        }
+                        return groundedResponse("verified answer");
+                    }
+                }
+            }
+        }]
+    });
+
+    const result = await chain.models.generateContent({
+        contents: "Investiga las novedades actuales de una API",
+        config: {
+            tools: [{ googleSearch: {} }]
+        }
+    });
+
+    assert.equal(requests.length, 2);
+    assert.match(
+        String(requests[1].contents),
+        /REINTENTO_DE_GROUNDING_OBLIGATORIO/
+    );
+    assert.equal(result.text, "verified answer");
+    assert.equal(chain.lastProvider, "vertex");
 });
 
 test("provider chain reports every real provider failure without fabricating output", async () => {
