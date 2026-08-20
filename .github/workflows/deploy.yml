@@ -82,37 +82,14 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
+          import re
 
           runtime_path = Path('functions/jarvis-web-research.js')
           runtime = runtime_path.read_text(encoding='utf-8')
 
-          old_domain = '''function requestedDomainFromQuery(query = "", explicitDomain = "") {
-              if (explicitDomain) {
-                  try {
-                      return cleanHost(new URL(explicitDomain.includes("://") ? explicitDomain : `https://${explicitDomain}`).hostname);
-                  } catch {
-                      return "";
-                  }
-              }
-
-              const trailing = new Set([".", ",", ";", ":", ")", "]", "}", "!", "?", "\\\"", "'"]);
-              for (const rawToken of String(query || "").split(" ")) {
-                  let token = rawToken.trim();
-                  while (token && trailing.has(token.at(-1))) token = token.slice(0, -1);
-                  if (!token.includes("://")) continue;
-                  try {
-                      const parsed = new URL(token);
-                      if (parsed.protocol === "https:" || parsed.protocol === "http:") return cleanHost(parsed.hostname);
-                  } catch {
-                      continue;
-                  }
-              }
-              return "";
-          }'''.replace('          ', '')
-
-          new_domain = '''function requestedDomainFromQuery(query = "", explicitDomain = "") {
-              const leading = new Set(["(", "[", "{", "<", "\\\"", "'"]);
-              const trailing = new Set([".", ",", ";", ":", ")", "]", "}", ">", "!", "?", "\\\"", "'"]);
+          new_domain = r'''function requestedDomainFromQuery(query = "", explicitDomain = "") {
+              const leading = new Set(["(", "[", "{", "<", "\"", "'"]);
+              const trailing = new Set([".", ",", ";", ":", ")", "]", "}", ">", "!", "?", "\"", "'"]);
               const parseCandidate = value => {
                   let token = String(value || "").trim();
                   while (token && leading.has(token[0])) token = token.slice(1);
@@ -122,7 +99,7 @@ jobs:
                       const parsed = new URL(token.includes("://") ? token : `https://${token}`);
                       if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return "";
                       const host = String(parsed.hostname || "").trim().toLowerCase();
-                      if (!/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$/i.test(host)) return "";
+                      if (!/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i.test(host)) return "";
                       return cleanHost(host);
                   } catch {
                       return "";
@@ -131,16 +108,20 @@ jobs:
 
               if (explicitDomain) return parseCandidate(explicitDomain);
 
-              for (const rawToken of String(query || "").split(/\\s+/)) {
+              for (const rawToken of String(query || "").split(/\s+/)) {
                   const domain = parseCandidate(rawToken);
                   if (domain) return domain;
               }
               return "";
           }'''.replace('          ', '')
 
-          if old_domain in runtime:
-              runtime = runtime.replace(old_domain, new_domain, 1)
-          elif new_domain not in runtime:
+          pattern = re.compile(
+              r'function requestedDomainFromQuery\(query = "", explicitDomain = ""\) \{.*?\n\}\n\nfunction requestedHostsFromQuery',
+              re.S
+          )
+          if pattern.search(runtime):
+              runtime = pattern.sub(new_domain + '\n\nfunction requestedHostsFromQuery', runtime, count=1)
+          elif 'const parseCandidate = value =>' not in runtime:
               raise SystemExit('BARE_DOMAIN_RUNTIME_ANCHOR_NOT_FOUND')
 
           old_host = '        if (token.includes("://")) addHost(token);'
@@ -177,7 +158,7 @@ jobs:
           });
 
           '''.replace('          ', '')
-          if regression.strip() not in tests:
+          if 'bare requested domains activate the primary-domain fallback without protocol' not in tests:
               if marker not in tests:
                   raise SystemExit('BARE_DOMAIN_TEST_ANCHOR_NOT_FOUND')
               tests = tests.replace(marker, regression + marker, 1)
