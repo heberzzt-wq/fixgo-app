@@ -123,7 +123,7 @@ jobs:
                           "PRIMARY_GROUNDED_RESEARCH_UNAVAILABLE"
                   }
               };
-          }'''.replace('          ', '')
+          }'''
           if old_no_pages in research:
               research = research.replace(old_no_pages, new_no_pages, 1)
           elif 'freshnessVerified: false' not in research:
@@ -133,28 +133,28 @@ jobs:
           index_path = Path('functions/index.js')
           index = index_path.read_text(encoding='utf-8')
           old_guard = '''            if (
-                  !result.grounded &&
-                  result?.status !==
-                      "ENTITY_NOT_VERIFIED"
-              ) {
-                  throw new functions.https.HttpsError(
-                      "failed-precondition",
-                      "La investigacion no devolvio fuentes verificables."
-                  );
-              }'''.replace('          ', '')
+              !result.grounded &&
+              result?.status !==
+                  "ENTITY_NOT_VERIFIED"
+          ) {
+              throw new functions.https.HttpsError(
+                  "failed-precondition",
+                  "La investigacion no devolvio fuentes verificables."
+              );
+          }'''
           new_guard = '''            if (
-                  !result.grounded &&
-                  result?.status !==
-                      "ENTITY_NOT_VERIFIED"
-              ) {
-                  if (result?.ok === false) {
-                      return result;
-                  }
-                  throw new functions.https.HttpsError(
-                      "failed-precondition",
-                      "La investigacion no devolvio fuentes verificables."
-                  );
-              }'''.replace('          ', '')
+              !result.grounded &&
+              result?.status !==
+                  "ENTITY_NOT_VERIFIED"
+          ) {
+              if (result?.ok === false) {
+                  return result;
+              }
+              throw new functions.https.HttpsError(
+                  "failed-precondition",
+                  "La investigacion no devolvio fuentes verificables."
+              );
+          }'''
           if old_guard in index:
               index = index.replace(old_guard, new_guard, 1)
           elif 'if (result?.ok === false)' not in index:
@@ -166,7 +166,7 @@ jobs:
           marker = '''    assert.equal(result.policy.fallbackReason, "GEMINI_CREDENTIAL_UNAVAILABLE");
           });
 
-          test("direct domain fallback prioritizes claim-specific official pages over generic navigation", async () => {'''.replace('          ', '')
+          test("direct domain fallback prioritizes claim-specific official pages over generic navigation", async () => {'''
           replacement = '''    assert.equal(result.policy.fallbackReason, "GEMINI_CREDENTIAL_UNAVAILABLE");
 
               const freshnessResult = await runJarvisDirectDomainResearch({
@@ -188,7 +188,7 @@ jobs:
               assert.equal(freshnessResult.policy.freshnessVerified, false);
           });
 
-          test("direct domain fallback prioritizes claim-specific official pages over generic navigation", async () => {'''.replace('          ', '')
+          test("direct domain fallback prioritizes claim-specific official pages over generic navigation", async () => {'''
           if marker in tests:
               tests = tests.replace(marker, replacement, 1)
           elif 'assert.equal(freshnessResult.policy.freshnessVerified, false);' not in tests:
@@ -196,7 +196,7 @@ jobs:
 
           static_marker = '    assert.match(webSection, /runJarvisDirectDomainResearch\\(\\{/);'
           static_replacement = '''    assert.match(webSection, /runJarvisDirectDomainResearch\\(\\{/);
-              assert.match(webSection, /result\\?\\.ok === false[\\s\\S]{0,120}return result/);'''.replace('          ', '')
+              assert.match(webSection, /result\\?\\.ok === false[\\s\\S]{0,120}return result/);'''
           if static_marker in tests:
               tests = tests.replace(static_marker, static_replacement, 1)
           elif 'result\\?\\.ok === false' not in tests:
