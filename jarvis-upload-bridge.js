@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
+import * as tls from "node:tls";
 
 import {
     JARVIS_FS_BRIDGE_VERSION,
@@ -12,9 +13,403 @@ import {
     saveUploadedArtifact,
     startChunkedUpload
 } from "./jarvis-fs-bridge.js";
-import {
-    runResilientLocalWebResearch
-} from "./jarvis-local-web-research.js";
+
+function ensureSystemCertificates() {
+    if (
+        typeof tls.getCACertificates === "function" &&
+        typeof tls.setDefaultCACertificates === "function"
+    ) {
+        const certificates = [
+            ...tls.getCACertificates("default"),
+            ...tls.getCACertificates("system")
+        ];
+        tls.setDefaultCACertificates([...new Set(certificates)]);
+    }
+}
+
+function decodeResearchHtml(value = "") {
+    return String(value || "")
+        .replace(/&amp;/gi, "&")
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;|&apos;/gi, "'")
+        .replace(/&lt;/gi, "<")
+        .replace(/&gt;/gi, ">")
+        .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code) || 32));
+}
+
+function stripResearchMarkup(value = "") {
+    return decodeResearchHtml(
+        String(value || "")
+            .replace(/<script[\s\S]*?<\/script>/gi, " ")
+            .replace(/<style[\s\S]*?<\/style>/gi, " ")
+            .replace(/<[^>]+>/g, " ")
+    )
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function normalizeResearchDomain(value = "") {
+    return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/^https?:\/\//, "")
+        .replace(/^www\./, "")
+        .split("/")[0];
+}
+
+function researchDomainFromUrl(value = "") {
+    try {
+        return new URL(String(value || "")).hostname
+            .toLowerCase()
+            .replace(/^www\./, "");
+    }
+    catch {
+        return "";
+    }
+}
+
+function normalizeDuckDuckGoResearchUrl(value = "") {
+    const decoded = decodeResearchHtml(String(value || "").trim());
+    if (!decoded) return "";
+    try {
+        const candidate = decoded.startsWith("//")
+            ? `https:${decoded}`
+            : decoded;
+        const parsed = new URL(candidate, "https://duckduckgo.com");
+        const redirected = parsed.hostname.endsWith("duckduckgo.com")
+            ? parsed.searchParams.get("uddg")
+            : "";
+        return redirected || parsed.toString();
+    }
+    catch {
+        return "";
+    }
+}
+
+function extractDuckDuckGoHtmlResearchSources(html = "") {
+    const sources = [];
+    const blocks = String(html || "")
+        .split(/<div class="result results_links[^>]*>/i)
+        .slice(1);
+
+    for (const block of blocks) {
+        const titleMatch = block.match(
+            /class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i
+        );
+        if (!titleMatch) continue;
+        const snippetMatch = block.match(
+            /class="result__snippet"[^>]*>([\s\S]*?)(?:<\/a>|<\/div>)/i
+        );
+        const url = normalizeDuckDuckGoResearchUrl(titleMatch[1]);
+        if (!/^https?:\/\//i.test(url)) continue;
+        sources.push({
+            title: stripResearchMarkup(titleMatch[2]).slice(0, 220),
+            url,
+            summary: stripResearchMarkup(snippetMatch?.[1] || "").slice(0, 700)
+        });
+    }
+
+    return sources;
+}
+
+function extractDuckDuckGoLiteResearchSources(html = "") {
+    const sources = [];
+    const anchorPattern = /<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+    let match;
+    while ((match = anchorPattern.exec(String(html || ""))) !== null) {
+        const url = normalizeDuckDuckGoResearchUrl(match[1]);
+        const title = stripResearchMarkup(match[2]);
+        if (!/^https?:\/\//i.test(url) || !title) continue;
+        const domain = researchDomainFromUrl(url);
+        if (!domain || domain.endsWith("duckduckgo.com")) continue;
+        sources.push({
+            title: title.slice(0, 220),
+            url,
+            summary: ""
+        });
+        if (sources.length >= 12) break;
+    }
+    return sources;
+}
+
+function extractResearchRssTag(item = "", tag = "") {
+    const match = String(item || "").match(
+        new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i")
+    );
+    return decodeResearchHtml(
+        String(match?.[1] || "")
+            .replace(/^<!\[CDATA\[/, "")
+            .replace(/\]\]>$/, "")
+    ).trim();
+}
+
+function extractBingRssResearchSources(rss = "") {
+    return (String(rss || "").match(/<item>[\s\S]*?<\/item>/gi) || [])
+        .map(item => ({
+            title: stripResearchMarkup(extractResearchRssTag(item, "title")).slice(0, 220),
+            url: extractResearchRssTag(item, "link"),
+            summary: stripResearchMarkup(extractResearchRssTag(item, "description")).slice(0, 700)
+        }))
+        .filter(source => /^https?:\/\//i.test(source.url));
+}
+
+function buildLocalResearchQuery(
+    query = "",
+    {
+        allowedDomain = "",
+        exactEntity = "",
+        seedUrl = ""
+    } = {}
+) {
+    const values = [String(query || "").replace(/\s+/g, " ").trim()];
+    const entity = String(exactEntity || "").replace(/\s+/g, " ").trim();
+    if (entity && !values.join(" ").toLowerCase().includes(entity.toLowerCase())) {
+        values.push(`"${entity}"`);
+    }
+
+    let domain = normalizeResearchDomain(allowedDomain);
+    if (!domain && seedUrl) domain = researchDomainFromUrl(seedUrl);
+    if (domain && !values.join(" ").toLowerCase().includes(`site:${domain}`)) {
+        values.push(`site:${domain}`);
+    }
+
+    return values
+        .filter(Boolean)
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 600);
+}
+
+async function fetchLocalResearchText(
+    fetchImpl,
+    url,
+    {
+        timeoutMs,
+        headers = {}
+    } = {}
+) {
+    const response = await fetchImpl(url, {
+        headers: {
+            "User-Agent": "Mozilla/5.0 JarvisLocalResearch/1.0",
+            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            ...headers
+        },
+        redirect: "follow",
+        signal: AbortSignal.timeout(timeoutMs)
+    });
+    if (!response.ok) {
+        throw new Error(`HTTP_${response.status}`);
+    }
+    return {
+        text: await response.text(),
+        url: response.url || url,
+        status: response.status
+    };
+}
+
+function localResearchSourceMatchesDomain(source, domain = "") {
+    const expected = normalizeResearchDomain(domain);
+    if (!expected) return true;
+    const actual = researchDomainFromUrl(source?.url);
+    return actual === expected || actual.endsWith(`.${expected}`);
+}
+
+function localResearchSourceMatchesEntity(source, exactEntity = "") {
+    const entity = String(exactEntity || "").trim().toLowerCase();
+    if (!entity) return true;
+    const tokens = entity
+        .split(/[^\p{L}\p{N}]+/u)
+        .filter(token => token.length >= 2);
+    if (tokens.length === 0) return true;
+    const haystack = [
+        source?.title,
+        source?.url,
+        researchDomainFromUrl(source?.url),
+        source?.summary
+    ].join(" ").toLowerCase();
+    return tokens.every(token => haystack.includes(token));
+}
+
+function normalizeLocalResearchSources(candidates = [], options = {}) {
+    const seen = new Set();
+    return candidates
+        .filter(source => {
+            const url = String(source?.url || "").trim();
+            if (!/^https?:\/\//i.test(url) || seen.has(url)) return false;
+            if (!localResearchSourceMatchesDomain(source, options.allowedDomain)) return false;
+            if (!localResearchSourceMatchesEntity(source, options.exactEntity)) return false;
+            seen.add(url);
+            return true;
+        })
+        .slice(0, 8)
+        .map((source, index) => ({
+            id: index + 1,
+            title: String(source.title || researchDomainFromUrl(source.url) || source.url).slice(0, 220),
+            url: String(source.url),
+            summary: String(source.summary || "").slice(0, 700)
+        }));
+}
+
+async function directLocalResearchDomainFallback(fetchImpl, options, timeoutMs) {
+    const domain = normalizeResearchDomain(options.allowedDomain) || researchDomainFromUrl(options.seedUrl);
+    if (!domain) return [];
+    const target = /^https?:\/\//i.test(String(options.seedUrl || ""))
+        ? String(options.seedUrl)
+        : `https://${domain}/`;
+    const result = await fetchLocalResearchText(fetchImpl, target, { timeoutMs });
+    const title = stripResearchMarkup(
+        result.text.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || domain
+    );
+    const description = stripResearchMarkup(
+        result.text.match(/<meta[^>]+(?:name|property)=["'](?:description|og:description)["'][^>]+content=["']([^"']+)["']/i)?.[1] || ""
+    );
+    return [{
+        title: title || domain,
+        url: result.url,
+        summary: description
+    }];
+}
+
+export async function runResilientLocalWebResearch(
+    query = "",
+    timeoutMs = 20000,
+    options = {},
+    fetchImpl = globalThis.fetch
+) {
+    if (typeof fetchImpl !== "function") {
+        throw new Error("WEB_RESEARCH_FETCH_REQUIRED");
+    }
+
+    const normalizedQuery = buildLocalResearchQuery(query, options);
+    if (normalizedQuery.length < 5) {
+        throw new Error("WEB_RESEARCH_QUERY_REQUIRED");
+    }
+
+    ensureSystemCertificates();
+    const boundedTimeoutMs = Math.min(
+        Math.max(Number(timeoutMs) || 20000, 5000),
+        30000
+    );
+    const attempts = [];
+    let candidates = [];
+    let engine = "";
+
+    const providers = [
+        {
+            name: "jarvis_local_duckduckgo_html_research",
+            url: `https://html.duckduckgo.com/html/?q=${encodeURIComponent(normalizedQuery)}`,
+            parse: extractDuckDuckGoHtmlResearchSources
+        },
+        {
+            name: "jarvis_local_duckduckgo_lite_research",
+            url: `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(normalizedQuery)}`,
+            parse: extractDuckDuckGoLiteResearchSources
+        },
+        {
+            name: "jarvis_local_bing_rss_research",
+            url: `https://www.bing.com/search?format=rss&q=${encodeURIComponent(normalizedQuery)}`,
+            parse: extractBingRssResearchSources,
+            headers: {
+                Accept: "application/rss+xml,application/xml,text/xml;q=0.9,*/*;q=0.8"
+            }
+        }
+    ];
+
+    for (const provider of providers) {
+        try {
+            const result = await fetchLocalResearchText(fetchImpl, provider.url, {
+                timeoutMs: boundedTimeoutMs,
+                headers: provider.headers
+            });
+            const parsed = provider.parse(result.text);
+            const accepted = normalizeLocalResearchSources(parsed, options);
+            attempts.push({
+                provider: provider.name,
+                ok: accepted.length > 0,
+                status: result.status,
+                sourceCount: accepted.length
+            });
+            if (accepted.length > 0) {
+                candidates = accepted;
+                engine = provider.name;
+                break;
+            }
+        }
+        catch(error) {
+            attempts.push({
+                provider: provider.name,
+                ok: false,
+                error: String(error?.message || error || "FAILED")
+            });
+        }
+    }
+
+    if (candidates.length === 0) {
+        try {
+            const direct = normalizeLocalResearchSources(
+                await directLocalResearchDomainFallback(fetchImpl, options, boundedTimeoutMs),
+                options
+            );
+            attempts.push({
+                provider: "jarvis_local_direct_domain_research",
+                ok: direct.length > 0,
+                sourceCount: direct.length
+            });
+            if (direct.length > 0) {
+                candidates = direct;
+                engine = "jarvis_local_direct_domain_research";
+            }
+        }
+        catch(error) {
+            attempts.push({
+                provider: "jarvis_local_direct_domain_research",
+                ok: false,
+                error: String(error?.message || error || "FAILED")
+            });
+        }
+    }
+
+    if (candidates.length === 0) {
+        const detail = attempts
+            .map(attempt => `${attempt.provider}:${attempt.error || attempt.status || "NO_SOURCES"}`)
+            .join(" | ");
+        throw new Error(`WEB_RESEARCH_UPSTREAMS_FAILED ${detail}`);
+    }
+
+    const sources = candidates.map(({ summary, ...source }) => source);
+    const supports = candidates.map(source => ({
+        text: source.summary || source.title,
+        sourceIds: [source.id]
+    }));
+
+    return {
+        ok: true,
+        grounded: true,
+        status: "GROUNDED_LOCAL_SEARCH",
+        engine,
+        query: normalizedQuery,
+        answer: [
+            `Encontré ${sources.length} fuentes web para: ${normalizedQuery}`,
+            "",
+            ...candidates.slice(0, 5).map(source =>
+                `[${source.id}] ${source.title}: ${source.summary || "Fuente recuperada sin resumen."}`
+            )
+        ].join("\n"),
+        sources,
+        supports,
+        sourceCount: sources.length,
+        searchQueries: [normalizedQuery],
+        researchedAt: new Date().toISOString(),
+        attempts,
+        readOnly: true,
+        policy: {
+            citationsRequired: true,
+            externalSideEffects: false,
+            fallback: true
+        }
+    };
+}
 
 export const JARVIS_UPLOAD_BRIDGE_VERSION =
     "1.3.0-resilient-local-research-v123";
