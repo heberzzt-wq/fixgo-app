@@ -96,6 +96,22 @@ jobs:
               raise SystemExit('EXISTING_GROUNDED_MARKETING_CONTRACT_NOT_FOUND')
           PY
 
+      - name: Align existing Hosting deploy contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('tests/jarvis-web-research.test.cjs')
+          source = path.read_text(encoding='utf-8')
+          old = r'''    assert.match(workflow, /Deploy Hosting\s*\n\s*run:\s*firebase deploy --only hosting/);'''
+          new = r'''    assert.match(workflow, /Deploy Hosting[\s\S]{0,160}?if:\s*steps\.changes\.outputs\.hosting_changed == 'true'[\s\S]{0,200}?run:\s*firebase deploy --only hosting/);'''
+          if old in source:
+              path.write_text(source.replace(old, new, 1), encoding='utf-8')
+          elif new not in source:
+              raise SystemExit('EXISTING_HOSTING_DEPLOY_CONTRACT_NOT_FOUND')
+          PY
+
       - name: Validate Jarvis runtime
         run: npm run ci:test
 
@@ -133,24 +149,24 @@ jobs:
         if: steps.changes.outputs.hosting_changed == 'true'
         run: firebase deploy --only hosting --project fixgo-44e4d --token "${{ secrets.FIREBASE_TOKEN }}"
 
-      - name: Deploy existing Jarvis contracted services
+      - name: Deploy Jarvis multifunction services
         if: steps.changes.outputs.functions_changed == 'true'
         run: firebase deploy --only functions:jarvisWebResearch,functions:jarvisSemanticPlan,functions:jarvisSemanticRespond,functions:jarvisImageGenerate,functions:jarvisMediaAnalyze --project fixgo-44e4d --token "${{ secrets.FIREBASE_TOKEN }}"
 
-      - name: Materialize aligned existing contract
+      - name: Materialize aligned existing contracts
         if: success()
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet -- tests/jarvis-multifunction-tools.test.mjs; then
-            echo 'EXISTING_CONTRACT_ALREADY_ALIGNED=true'
+          if git diff --quiet -- tests/jarvis-multifunction-tools.test.mjs tests/jarvis-web-research.test.cjs; then
+            echo 'EXISTING_CONTRACTS_ALREADY_ALIGNED=true'
             exit 0
           fi
-          git diff --check -- tests/jarvis-multifunction-tools.test.mjs
+          git diff --check -- tests/jarvis-multifunction-tools.test.mjs tests/jarvis-web-research.test.cjs
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add tests/jarvis-multifunction-tools.test.mjs
-          git commit -m 'test(jarvis): align existing grounded marketing contract'
+          git add tests/jarvis-multifunction-tools.test.mjs tests/jarvis-web-research.test.cjs
+          git commit -m 'test(jarvis): align existing grounded deploy contracts'
           git push origin "HEAD:v5.9-polish"
 
       - name: Publish deploy result
