@@ -171,6 +171,64 @@ test("bare requested domains activate the primary-domain fallback without protoc
     );
 });
 
+test("current domain research opens grounded sources and returns verified publication dates", async () => {
+    const publishedAt = new Date().toISOString();
+    const sourceUrl =
+        "https://developers.openai.com/api/docs/changelog";
+    const response = {
+        text: "El changelog oficial contiene novedades de la API.",
+        candidates: [{
+            groundingMetadata: {
+                groundingChunks: [{
+                    web: {
+                        uri: sourceUrl,
+                        title: "developers.openai.com"
+                    }
+                }],
+                groundingSupports: [{
+                    segment: {
+                        text: "El changelog oficial contiene novedades de la API."
+                    },
+                    groundingChunkIndices: [0]
+                }],
+                webSearchQueries: ["site:openai.com API changelog"]
+            }
+        }]
+    };
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = async url => ({
+        ok: true,
+        url: String(url),
+        headers: {
+            get: name =>
+                name === "content-type"
+                    ? "text/html; charset=utf-8"
+                    : ""
+        },
+        text: async () =>
+            `<html><head><title>OpenAI API changelog</title><meta property="article:modified_time" content="${publishedAt}"></head><body><h1>API changelog</h1><p>La API publico una actualizacion verificable y fechada para desarrolladores.</p></body></html>`
+    });
+    try {
+        const result = await runJarvisWebResearch({
+            ai: {
+                models: {
+                    generateContent: async () => response
+                }
+            },
+            query:
+                "Investiga únicamente en openai.com las novedades actuales de la API de OpenAI"
+        });
+        assert.equal(result.grounded, true);
+        assert.equal(result.policy.freshnessVerified, true);
+        assert.match(result.provider, /direct_primary_domain_crawl/);
+        assert.equal(result.sources[0].publishedAt, publishedAt);
+        assert.equal(result.facts[0].publishedAt, publishedAt);
+        assert.match(result.facts[0].claim, /Fecha verificada:/);
+    } finally {
+        globalThis.fetch = previousFetch;
+    }
+});
+
 test("grounding maps duplicate chunks to one canonical source id", () => {
     const response = groundedResponse();
     response.candidates[0].groundingMetadata.groundingSupports.push({

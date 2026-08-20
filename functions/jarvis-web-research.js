@@ -620,6 +620,7 @@ async function runJarvisDirectDomainResearch({
     fetchImpl = globalThis.fetch,
     query = "",
     allowedDomain = "",
+    seedUrls = [],
     objectiveId = "",
     caseId = "",
     maximumPages = 6,
@@ -712,12 +713,49 @@ async function runJarvisDirectDomainResearch({
                         right.order
             );
         };
-    if (entryUrls.length > 0) {
+    const normalizedSeedUrls =
+        Array.isArray(seedUrls)
+            ? seedUrls
+            : [];
+    normalizedSeedUrls
+        .slice(0, 12)
+        .forEach((seedValue, index) => {
+            const sourceHint =
+                seedValue &&
+                typeof seedValue === "object"
+                    ? seedValue
+                    : { url: String(seedValue || "") };
+            try {
+                const parsed =
+                    new URL(String(sourceHint.url || ""));
+                parsed.hash = "";
+                parsed.search = "";
+                if (
+                    parsed.protocol === "https:" &&
+                    sourceMatchesDomain(
+                        { ...sourceHint, url: parsed.href },
+                        domain
+                    )
+                ) {
+                    enqueue(
+                        parsed.href,
+                        Number.MAX_SAFE_INTEGER - index
+                    );
+                }
+            } catch {
+                return;
+            }
+        });
+    if (
+        queue.length === 0 &&
+        entryUrls.length > 0
+    ) {
         enqueue(
             entryUrls.shift(),
             Number.MAX_SAFE_INTEGER
         );
     }
+
     const pages = [];
     while (
         (
@@ -854,7 +892,15 @@ async function runJarvisDirectDomainResearch({
     const facts = pages.map((page, index) => ({
         id: index + 1,
         type: "PRIMARY_PAGE_EVIDENCE",
-        claim: [page.title, ...page.headings, ...page.paragraphs].filter(Boolean).join(" | ").slice(0, 2400),
+        claim: [
+            page.publishedAt
+                ? `Fecha verificada: ${page.publishedAt}`
+                : "",
+            page.title,
+            ...page.headings,
+            ...page.paragraphs
+        ].filter(Boolean).join(" | ").slice(0, 2400),
+        publishedAt: page.publishedAt || null,
         sourceIds: [index + 1]
     }));
     const supports = facts.map(fact => ({ text: fact.claim, sourceIds: fact.sourceIds }));
@@ -886,6 +932,10 @@ async function runJarvisDirectDomainResearch({
             duplicatesRemoved: true,
             codeWrite: false,
             externalSideEffects: false,
+            freshnessVerified:
+                directFreshnessWindowDays
+                    ? true
+                    : null,
             fallbackReason:
                 String(fallbackReason || "")
                     .trim()
@@ -1132,6 +1182,98 @@ async function runJarvisWebResearch({
     const entityNotVerified =
         Boolean(normalizedExactEntity) &&
         !entityVerified;
+
+    const freshnessWindowDays =
+        directResearchFreshnessWindowDays(normalizedQuery);
+
+    if (
+        freshnessWindowDays &&
+        requestedDomain &&
+        !entityNotVerified &&
+        sources.length > 0
+    ) {
+        let directVerification = null;
+        try {
+            directVerification =
+                await runJarvisDirectDomainResearch({
+                    fetchImpl: globalThis.fetch,
+                    query: normalizedQuery,
+                    allowedDomain: requestedDomain,
+                    seedUrls: sources,
+                    objectiveId,
+                    caseId,
+                    maximumPages:
+                        Math.min(6, Math.max(2, sources.length)),
+                    fallbackReason:
+                        "GROUNDED_SOURCE_FRESHNESS_VERIFICATION"
+                });
+        } catch {
+            directVerification = null;
+        }
+
+        if (
+            directVerification?.grounded &&
+            directVerification?.sourceCount > 0
+        ) {
+            return {
+                ...directVerification,
+                engine: "jarvis_grounded_web_research",
+                model,
+                query: groundedQuery,
+                provider:
+                    "google_search_grounding+direct_primary_domain_crawl",
+                searchQueries,
+                discardedSources: [
+                    ...discardedSources,
+                    ...(directVerification.discardedSources || [])
+                ],
+                policy: {
+                    ...directVerification.policy,
+                    googleGroundingUsed: true,
+                    freshnessVerified: true
+                }
+            };
+        }
+
+        return {
+            ok: false,
+            grounded: false,
+            engine: "jarvis_grounded_web_research",
+            model,
+            query: groundedQuery,
+            requestedDomain,
+            exactEntity: null,
+            objectiveId: String(objectiveId || ""),
+            caseId: String(caseId || ""),
+            researchedAt,
+            provider:
+                "google_search_grounding+direct_primary_domain_crawl",
+            answer: "",
+            sources,
+            discardedSources,
+            supports: [],
+            facts: [],
+            inferences: [],
+            searchQueries,
+            sourceCount: sources.length,
+            readOnly: true,
+            policy: {
+                citationsRequired: true,
+                consultedSourcesOnly: true,
+                requestedDomainEnforced: true,
+                exactEntityEnforced: false,
+                similarEntitiesDiscarded: false,
+                modelSynthesisFiltered: true,
+                factsSeparatedFromInference: true,
+                duplicatesRemoved: true,
+                codeWrite: false,
+                externalSideEffects: false,
+                googleGroundingUsed: true,
+                freshnessVerified: false
+            }
+        };
+    }
+
 
     return {
         ok:
