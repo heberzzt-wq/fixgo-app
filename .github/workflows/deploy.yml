@@ -82,260 +82,55 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
-
           runtime_path = Path('functions/jarvis-web-research.js')
           runtime = runtime_path.read_text(encoding='utf-8')
-
           direct_start = runtime.find('async function runJarvisDirectDomainResearch')
           web_start = runtime.find('async function runJarvisWebResearch', direct_start)
-          if direct_start < 0 or web_start < 0:
-              raise SystemExit('EXISTING_DIRECT_RESEARCH_BLOCK_NOT_FOUND')
-
+          assert direct_start >= 0 and web_start >= 0, 'EXISTING_DIRECT_RESEARCH_BLOCK_NOT_FOUND'
           if 'seedUrls = []' not in runtime[direct_start:web_start]:
-              signature_anchor = '    allowedDomain = "",\n'
-              signature_pos = runtime.find(signature_anchor, direct_start, web_start)
-              if signature_pos < 0:
-                  raise SystemExit('EXISTING_DIRECT_RESEARCH_SIGNATURE_NOT_FOUND')
-              insertion_pos = signature_pos + len(signature_anchor)
-              runtime = runtime[:insertion_pos] + '    seedUrls = [],\n' + runtime[insertion_pos:]
+              a = '    allowedDomain = "",\n'
+              p = runtime.find(a, direct_start, web_start)
+              assert p >= 0, 'EXISTING_DIRECT_RESEARCH_SIGNATURE_NOT_FOUND'
+              p += len(a)
+              runtime = runtime[:p] + '    seedUrls = [],\n' + runtime[p:]
               web_start = runtime.find('async function runJarvisWebResearch', direct_start)
-
           if 'const normalizedSeedUrls =' not in runtime[direct_start:web_start]:
-              queue_pos = runtime.find('    if (entryUrls.length > 0) {', direct_start, web_start)
-              pages_pos = runtime.find('    const pages = [];', queue_pos, web_start)
-              if queue_pos < 0 or pages_pos < 0:
-                  raise SystemExit('EXISTING_DIRECT_RESEARCH_QUEUE_NOT_FOUND')
-              seed_block = '''    const normalizedSeedUrls =
-                  Array.isArray(seedUrls)
-                      ? seedUrls
-                      : [];
-              normalizedSeedUrls
-                  .slice(0, 12)
-                  .forEach((seedUrl, index) => {
-                      try {
-                          const parsed =
-                              new URL(String(seedUrl || ""));
-                          parsed.hash = "";
-                          parsed.search = "";
-                          if (
-                              parsed.protocol === "https:" &&
-                              sourceMatchesDomain(
-                                  { url: parsed.href },
-                                  domain
-                              )
-                          ) {
-                              enqueue(
-                                  parsed.href,
-                                  Number.MAX_SAFE_INTEGER - index
-                              );
-                          }
-                      } catch {
-                          return;
-                      }
-                  });
-              if (
-                  queue.length === 0 &&
-                  entryUrls.length > 0
-              ) {
-                  enqueue(
-                      entryUrls.shift(),
-                      Number.MAX_SAFE_INTEGER
-                  );
-              }
-
-              '''.replace('              ', '')
-              runtime = runtime[:queue_pos] + seed_block + runtime[pages_pos:]
+              q = runtime.find('    if (entryUrls.length > 0) {', direct_start, web_start)
+              p = runtime.find('    const pages = [];', q, web_start)
+              assert q >= 0 and p >= 0, 'EXISTING_DIRECT_RESEARCH_QUEUE_NOT_FOUND'
+              block = '    const normalizedSeedUrls =\n        Array.isArray(seedUrls)\n            ? seedUrls\n            : [];\n    normalizedSeedUrls\n        .slice(0, 12)\n        .forEach((seedValue, index) => {\n            const sourceHint =\n                seedValue &&\n                typeof seedValue === "object"\n                    ? seedValue\n                    : { url: String(seedValue || "") };\n            try {\n                const parsed =\n                    new URL(String(sourceHint.url || ""));\n                parsed.hash = "";\n                parsed.search = "";\n                if (\n                    parsed.protocol === "https:" &&\n                    sourceMatchesDomain(\n                        { ...sourceHint, url: parsed.href },\n                        domain\n                    )\n                ) {\n                    enqueue(\n                        parsed.href,\n                        Number.MAX_SAFE_INTEGER - index\n                    );\n                }\n            } catch {\n                return;\n            }\n        });\n    if (\n        queue.length === 0 &&\n        entryUrls.length > 0\n    ) {\n        enqueue(\n            entryUrls.shift(),\n            Number.MAX_SAFE_INTEGER\n        );\n    }\n\n'
+              runtime = runtime[:q] + block + runtime[p:]
               web_start = runtime.find('async function runJarvisWebResearch', direct_start)
-
           if 'publishedAt: page.publishedAt || null' not in runtime[direct_start:web_start]:
-              claim_line = '        claim: [page.title, ...page.headings, ...page.paragraphs].filter(Boolean).join(" | ").slice(0, 2400),\n'
-              claim_pos = runtime.find(claim_line, direct_start, web_start)
-              if claim_pos < 0:
-                  raise SystemExit('EXISTING_DIRECT_RESEARCH_FACT_NOT_FOUND')
-              claim_replacement = '''        claim: [
-                  page.publishedAt
-                      ? `Fecha verificada: ${page.publishedAt}`
-                      : "",
-                  page.title,
-                  ...page.headings,
-                  ...page.paragraphs
-              ].filter(Boolean).join(" | ").slice(0, 2400),
-              publishedAt: page.publishedAt || null,
-              '''.replace('              ', '')
-              runtime = runtime[:claim_pos] + claim_replacement + runtime[claim_pos + len(claim_line):]
+              a = '        claim: [page.title, ...page.headings, ...page.paragraphs].filter(Boolean).join(" | ").slice(0, 2400),\n'
+              p = runtime.find(a, direct_start, web_start)
+              assert p >= 0, 'EXISTING_DIRECT_RESEARCH_FACT_NOT_FOUND'
+              block = '        claim: [\n            page.publishedAt\n                ? `Fecha verificada: ${page.publishedAt}`\n                : "",\n            page.title,\n            ...page.headings,\n            ...page.paragraphs\n        ].filter(Boolean).join(" | ").slice(0, 2400),\n        publishedAt: page.publishedAt || null,\n'
+              runtime = runtime[:p] + block + runtime[p + len(a):]
               web_start = runtime.find('async function runJarvisWebResearch', direct_start)
-
-          direct_block = runtime[direct_start:web_start]
-          success_policy_pos = direct_block.find('        policy: {', direct_block.find('    const supports = facts.map'))
-          if success_policy_pos < 0:
-              raise SystemExit('EXISTING_DIRECT_RESEARCH_SUCCESS_POLICY_NOT_FOUND')
-          absolute_policy_pos = direct_start + success_policy_pos
-          fallback_pos = runtime.find('            fallbackReason:', absolute_policy_pos, web_start)
-          freshness_pos = runtime.find('            freshnessVerified:', absolute_policy_pos, fallback_pos if fallback_pos > 0 else web_start)
-          if freshness_pos < 0:
-              if fallback_pos < 0:
-                  raise SystemExit('EXISTING_DIRECT_RESEARCH_FALLBACK_POLICY_NOT_FOUND')
-              policy_insert = '''            freshnessVerified:
-                  directFreshnessWindowDays
-                      ? true
-                      : null,
-              '''.replace('              ', '')
-              runtime = runtime[:fallback_pos] + policy_insert + runtime[fallback_pos:]
+          direct = runtime[direct_start:web_start]
+          s = direct.find('    const supports = facts.map')
+          pol = direct.find('        policy: {', s)
+          assert s >= 0 and pol >= 0, 'EXISTING_DIRECT_RESEARCH_SUCCESS_POLICY_NOT_FOUND'
+          pol += direct_start
+          f = runtime.find('            fallbackReason:', pol, web_start)
+          assert f >= 0, 'EXISTING_DIRECT_RESEARCH_FALLBACK_POLICY_NOT_FOUND'
+          if 'freshnessVerified:' not in runtime[pol:f]:
+              runtime = runtime[:f] + '            freshnessVerified:\n                directFreshnessWindowDays\n                    ? true\n                    : null,\n' + runtime[f:]
               web_start = runtime.find('async function runJarvisWebResearch', direct_start)
-
           if 'google_search_grounding+direct_primary_domain_crawl' not in runtime[web_start:]:
-              entity_pos = runtime.find('    const entityNotVerified =', web_start)
-              return_pos = runtime.find('\n\n    return {', entity_pos)
-              if entity_pos < 0 or return_pos < 0:
-                  raise SystemExit('EXISTING_GROUNDED_FRESHNESS_HYDRATION_ANCHOR_NOT_FOUND')
-              hydration = '''
-
-    const freshnessWindowDays =
-        directResearchFreshnessWindowDays(
-            normalizedQuery
-        );
-    if (
-        freshnessWindowDays &&
-        requestedDomain &&
-        !entityNotVerified &&
-        sources.length > 0
-    ) {
-        let directVerification = null;
-        try {
-            directVerification =
-                await runJarvisDirectDomainResearch({
-                    fetchImpl:
-                        globalThis.fetch,
-                    query:
-                        normalizedQuery,
-                    allowedDomain:
-                        requestedDomain,
-                    seedUrls:
-                        sources.map(source =>
-                            source.url
-                        ),
-                    objectiveId,
-                    caseId,
-                    maximumPages:
-                        Math.min(
-                            6,
-                            Math.max(
-                                2,
-                                sources.length
-                            )
-                        ),
-                    fallbackReason:
-                        "GROUNDED_SOURCE_FRESHNESS_VERIFICATION"
-                });
-        } catch {
-            directVerification = null;
-        }
-
-        if (
-            directVerification?.grounded &&
-            directVerification?.sourceCount > 0
-        ) {
-            return {
-                ...directVerification,
-                engine:
-                    "jarvis_grounded_web_research",
-                model,
-                query:
-                    groundedQuery,
-                provider:
-                    "google_search_grounding+direct_primary_domain_crawl",
-                searchQueries,
-                discardedSources: [
-                    ...discardedSources,
-                    ...(
-                        directVerification
-                            .discardedSources ||
-                        []
-                    )
-                ],
-                policy: {
-                    ...directVerification.policy,
-                    googleGroundingUsed: true,
-                    freshnessVerified: true
-                }
-            };
-        }
-
-        return {
-            ok: false,
-            grounded: false,
-            engine:
-                "jarvis_grounded_web_research",
-            model,
-            query:
-                groundedQuery,
-            requestedDomain,
-            exactEntity: null,
-            objectiveId:
-                String(objectiveId || ""),
-            caseId:
-                String(caseId || ""),
-            researchedAt,
-            provider:
-                "google_search_grounding+direct_primary_domain_crawl",
-            answer: "",
-            sources,
-            discardedSources,
-            supports: [],
-            facts: [],
-            inferences: [],
-            searchQueries,
-            sourceCount:
-                sources.length,
-            readOnly: true,
-            policy: {
-                citationsRequired: true,
-                consultedSourcesOnly: true,
-                requestedDomainEnforced: true,
-                exactEntityEnforced: false,
-                similarEntitiesDiscarded: false,
-                modelSynthesisFiltered: true,
-                factsSeparatedFromInference: true,
-                duplicatesRemoved: true,
-                codeWrite: false,
-                externalSideEffects: false,
-                googleGroundingUsed: true,
-                freshnessVerified: false
-            }
-        };
-    }'''
-              runtime = runtime[:return_pos] + hydration + runtime[return_pos:]
-
+              e = runtime.find('    const entityNotVerified =', web_start)
+              r = runtime.find('\n\n    return {', e)
+              assert e >= 0 and r >= 0, 'EXISTING_GROUNDED_FRESHNESS_HYDRATION_ANCHOR_NOT_FOUND'
+              runtime = runtime[:r] + '\n\n    const freshnessWindowDays =\n        directResearchFreshnessWindowDays(normalizedQuery);\n\n    if (\n        freshnessWindowDays &&\n        requestedDomain &&\n        !entityNotVerified &&\n        sources.length > 0\n    ) {\n        let directVerification = null;\n        try {\n            directVerification =\n                await runJarvisDirectDomainResearch({\n                    fetchImpl: globalThis.fetch,\n                    query: normalizedQuery,\n                    allowedDomain: requestedDomain,\n                    seedUrls: sources,\n                    objectiveId,\n                    caseId,\n                    maximumPages:\n                        Math.min(6, Math.max(2, sources.length)),\n                    fallbackReason:\n                        "GROUNDED_SOURCE_FRESHNESS_VERIFICATION"\n                });\n        } catch {\n            directVerification = null;\n        }\n\n        if (\n            directVerification?.grounded &&\n            directVerification?.sourceCount > 0\n        ) {\n            return {\n                ...directVerification,\n                engine: "jarvis_grounded_web_research",\n                model,\n                query: groundedQuery,\n                provider:\n                    "google_search_grounding+direct_primary_domain_crawl",\n                searchQueries,\n                discardedSources: [\n                    ...discardedSources,\n                    ...(directVerification.discardedSources || [])\n                ],\n                policy: {\n                    ...directVerification.policy,\n                    googleGroundingUsed: true,\n                    freshnessVerified: true\n                }\n            };\n        }\n\n        return {\n            ok: false,\n            grounded: false,\n            engine: "jarvis_grounded_web_research",\n            model,\n            query: groundedQuery,\n            requestedDomain,\n            exactEntity: null,\n            objectiveId: String(objectiveId || ""),\n            caseId: String(caseId || ""),\n            researchedAt,\n            provider:\n                "google_search_grounding+direct_primary_domain_crawl",\n            answer: "",\n            sources,\n            discardedSources,\n            supports: [],\n            facts: [],\n            inferences: [],\n            searchQueries,\n            sourceCount: sources.length,\n            readOnly: true,\n            policy: {\n                citationsRequired: true,\n                consultedSourcesOnly: true,\n                requestedDomainEnforced: true,\n                exactEntityEnforced: false,\n                similarEntitiesDiscarded: false,\n                modelSynthesisFiltered: true,\n                factsSeparatedFromInference: true,\n                duplicatesRemoved: true,\n                codeWrite: false,\n                externalSideEffects: false,\n                googleGroundingUsed: true,\n                freshnessVerified: false\n            }\n        };\n    }\n' + runtime[r:]
           runtime_path.write_text(runtime, encoding='utf-8')
-
           test_path = Path('tests/jarvis-web-research.test.cjs')
           tests = test_path.read_text(encoding='utf-8')
-          test_title = 'test("current domain research opens grounded sources and returns verified publication dates", async () => {'
-          if test_title not in tests:
+          title = 'test("current domain research opens grounded sources and returns verified publication dates", async () => {'
+          if title not in tests:
               marker = 'test("grounding maps duplicate chunks to one canonical source id", () => {'
-              if marker not in tests:
-                  raise SystemExit('EXISTING_WEB_RESEARCH_TEST_ANCHOR_NOT_FOUND')
-              regression = (
-                  'test("current domain research opens grounded sources and returns verified publication dates", async () => {\n'
-                  '    const publishedAt = new Date().toISOString();\n'
-                  '    const sourceUrl = "https://developers.openai.com/api/docs/changelog";\n'
-                  '    const response = { text: "El changelog oficial contiene novedades de la API.", candidates: [{ groundingMetadata: { groundingChunks: [{ web: { uri: sourceUrl, title: "Changelog - OpenAI API" } }], groundingSupports: [{ segment: { text: "El changelog oficial contiene novedades de la API." }, groundingChunkIndices: [0] }], webSearchQueries: ["site:openai.com API changelog"] } }] };\n'
-                  '    const previousFetch = globalThis.fetch;\n'
-                  '    globalThis.fetch = async url => ({ ok: true, url: String(url), headers: { get: name => name === "content-type" ? "text/html; charset=utf-8" : "" }, text: async () => `<html><head><title>OpenAI API changelog</title><meta property="article:modified_time" content="${publishedAt}"></head><body><h1>API changelog</h1><p>La API publico una actualizacion verificable y fechada para desarrolladores.</p></body></html>` });\n'
-                  '    try {\n'
-                  '        const result = await runJarvisWebResearch({ ai: { models: { generateContent: async () => response } }, query: "Investiga únicamente en openai.com las novedades actuales de la API de OpenAI" });\n'
-                  '        assert.equal(result.grounded, true);\n'
-                  '        assert.equal(result.policy.freshnessVerified, true);\n'
-                  '        assert.match(result.provider, /direct_primary_domain_crawl/);\n'
-                  '        assert.equal(result.sources[0].publishedAt, publishedAt);\n'
-                  '        assert.equal(result.facts[0].publishedAt, publishedAt);\n'
-                  '        assert.match(result.facts[0].claim, /Fecha verificada:/);\n'
-                  '    } finally {\n'
-                  '        globalThis.fetch = previousFetch;\n'
-                  '    }\n'
-                  '});\n\n'
-              )
-              tests = tests.replace(marker, regression + marker, 1)
+              assert marker in tests, 'EXISTING_WEB_RESEARCH_TEST_ANCHOR_NOT_FOUND'
+              tests = tests.replace(marker, 'test("current domain research opens grounded sources and returns verified publication dates", async () => {\n    const publishedAt = new Date().toISOString();\n    const sourceUrl =\n        "https://developers.openai.com/api/docs/changelog";\n    const response = {\n        text: "El changelog oficial contiene novedades de la API.",\n        candidates: [{\n            groundingMetadata: {\n                groundingChunks: [{\n                    web: {\n                        uri: sourceUrl,\n                        title: "developers.openai.com"\n                    }\n                }],\n                groundingSupports: [{\n                    segment: {\n                        text: "El changelog oficial contiene novedades de la API."\n                    },\n                    groundingChunkIndices: [0]\n                }],\n                webSearchQueries: ["site:openai.com API changelog"]\n            }\n        }]\n    };\n    const previousFetch = globalThis.fetch;\n    globalThis.fetch = async url => ({\n        ok: true,\n        url: String(url),\n        headers: {\n            get: name =>\n                name === "content-type"\n                    ? "text/html; charset=utf-8"\n                    : ""\n        },\n        text: async () =>\n            `<html><head><title>OpenAI API changelog</title><meta property="article:modified_time" content="${publishedAt}"></head><body><h1>API changelog</h1><p>La API publico una actualizacion verificable y fechada para desarrolladores.</p></body></html>`\n    });\n    try {\n        const result = await runJarvisWebResearch({\n            ai: {\n                models: {\n                    generateContent: async () => response\n                }\n            },\n            query:\n                "Investiga únicamente en openai.com las novedades actuales de la API de OpenAI"\n        });\n        assert.equal(result.grounded, true);\n        assert.equal(result.policy.freshnessVerified, true);\n        assert.match(result.provider, /direct_primary_domain_crawl/);\n        assert.equal(result.sources[0].publishedAt, publishedAt);\n        assert.equal(result.facts[0].publishedAt, publishedAt);\n        assert.match(result.facts[0].claim, /Fecha verificada:/);\n    } finally {\n        globalThis.fetch = previousFetch;\n    }\n});\n\n' + marker, 1)
           test_path.write_text(tests, encoding='utf-8')
           PY
 
@@ -410,7 +205,7 @@ jobs:
           description='Gestia deploy succeeded'
           if [ "$JOB_STATUS" != success ]; then
             state=failure
-            description="Gestia deploy ${JOB_STATUS}"
+            description="Gestia deploy $JOB_STATUS"
           fi
           target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           payload=$(jq -n --arg state "$state" --arg context 'deploy-v5.9-polish' --arg description "$description" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
