@@ -61,12 +61,30 @@ const parsed = topLevelTestBlocks(multifunction);
 const legacyInvocation = /plannerTest[\s\S]{0,100}\.callBrowser(?:MissionContract|SemanticPlan)\s*\(/;
 const keptBlocks = [];
 let removedLegacyBlocks = 0;
+let alignedLatencyBlocks = 0;
 for (const block of parsed.blocks) {
   if (legacyInvocation.test(block)) {
     removedLegacyBlocks += 1;
     continue;
   }
-  keptBlocks.push(block);
+  let keptBlock = block;
+  const isV142LatencyContract =
+    block.startsWith('test("semantic mission latency budgets are bounded and do not stack exhausted providers"') ||
+    block.startsWith('test("terminal core-first has no orphan brain route and semantic latency is bounded"');
+  if (isV142LatencyContract) {
+    alignedLatencyBlocks += 1;
+    keptBlock = keptBlock
+      .replace("12000/", "45000/")
+      .replace(
+        "assert.match(plannerSource, /BROWSER_MISSION_ATTEMPT_TIMEOUT_MS",
+        "assert.doesNotMatch(plannerSource, /BROWSER_MISSION_ATTEMPT_TIMEOUT_MS"
+      )
+      .replace(
+        "assert.match(plannerSource, /BROWSER_PLAN_ATTEMPT_TIMEOUT_MS",
+        "assert.doesNotMatch(plannerSource, /BROWSER_PLAN_ATTEMPT_TIMEOUT_MS"
+      );
+  }
+  keptBlocks.push(keptBlock);
 }
 multifunction = parsed.prefix + keptBlocks.join("");
 multifunction = multifunction
@@ -90,6 +108,15 @@ if (!multifunction.includes("assert.doesNotMatch(planner, /callBrowserMissionCon
 if (!multifunction.includes("assert.doesNotMatch(planner, /callBrowserSemanticPlan/);")) {
   throw new Error("V142_BROWSER_PLAN_NEGATIVE_ASSERTION_MISSING");
 }
+if (alignedLatencyBlocks !== 2) {
+  throw new Error(`V142_LATENCY_CONTRACT_COUNT_MISMATCH:${alignedLatencyBlocks}`);
+}
+if (multifunction.includes("assert.match(plannerSource, /BROWSER_MISSION_ATTEMPT_TIMEOUT_MS")) {
+  throw new Error("V142_LEGACY_BROWSER_MISSION_TIMEOUT_ASSERTION_ACTIVE");
+}
+if (multifunction.includes("assert.match(plannerSource, /BROWSER_PLAN_ATTEMPT_TIMEOUT_MS")) {
+  throw new Error("V142_LEGACY_BROWSER_PLAN_TIMEOUT_ASSERTION_ACTIVE");
+}
 write(paths.multifunctionTest, multifunction);
 
 let sourceGrounded = read(paths.sourceGroundedTest);
@@ -112,5 +139,6 @@ console.log(JSON.stringify({
   ok: true,
   status: "V142_FINAL_CONTRACT_ALIGNMENT_APPLIED",
   removedLegacyBrowserPlannerTests: removedLegacyBlocks,
+  alignedLatencyBlocks,
   sourceAnchorAuthority: "functions/jarvis-semantic-planner.js"
 }));
