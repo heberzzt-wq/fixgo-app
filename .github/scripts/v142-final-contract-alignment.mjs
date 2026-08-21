@@ -93,16 +93,16 @@ if (!multifunction.includes("assert.doesNotMatch(planner, /callBrowserSemanticPl
 write(paths.multifunctionTest, multifunction);
 
 let sourceGrounded = read(paths.sourceGroundedTest);
-const anchorTestStart = sourceGrounded.indexOf('test("Production code contains generic source-anchor rules", () => {');
+const anchorTestStart = sourceGrounded.indexOf('test("production code contains generic source-anchor rules and no fixture-specific business", () => {');
 if (anchorTestStart < 0) throw new Error("V142_SOURCE_ANCHOR_TEST_MISSING");
 const nextTest = sourceGrounded.indexOf("\ntest(", anchorTestStart + 1);
 const anchorTestEnd = nextTest >= 0 ? nextTest : sourceGrounded.length;
 let anchorTest = sourceGrounded.slice(anchorTestStart, anchorTestEnd);
 anchorTest = anchorTest.replace(
-  'path.join(REPO_ROOT, "gestia-core", "jarvis", "jarvis.multifunction.planner.js")',
-  'path.join(REPO_ROOT, "functions", "jarvis-semantic-planner.js")'
+  'const planner = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.multifunction.planner.js", import.meta.url), "utf8");',
+  'const planner = fs.readFileSync(new URL("../functions/jarvis-semantic-planner.js", import.meta.url), "utf8");'
 );
-if (!anchorTest.includes('path.join(REPO_ROOT, "functions", "jarvis-semantic-planner.js")')) {
+if (!anchorTest.includes('const planner = fs.readFileSync(new URL("../functions/jarvis-semantic-planner.js", import.meta.url), "utf8");')) {
   throw new Error("V142_SOURCE_ANCHOR_AUTHORITY_TEST_NOT_MIGRATED");
 }
 sourceGrounded = sourceGrounded.slice(0, anchorTestStart) + anchorTest + sourceGrounded.slice(anchorTestEnd);
