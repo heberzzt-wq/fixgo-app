@@ -151,7 +151,7 @@ multifunction = multifunction
     "    assert.doesNotMatch(planner, /callBrowserSemanticPlan/);"
   );
 if (!multifunction.includes('test("entity-not-verified research cannot satisfy the mission objective"')) {
-  multifunction += `\n\ntest("entity-not-verified research cannot satisfy the mission objective", () => {\n    const source = fs.readFileSync(\n        path.resolve("gestia-core/jarvis/jarvis.multitool.pack.js"),\n        "utf8"\n    );\n\n    assert.match(source, /objectiveSatisfied:\s*!entityNotVerified/);\n    assert.match(source, /requiresInput:\s*entityNotVerified/);\n    assert.match(source, /const primaryEntityNotVerified/);\n    assert.match(source, /objectiveSatisfied:\s*false/);\n});\n`;
+  multifunction += `\n\ntest("entity-not-verified research cannot satisfy the mission objective", () => {\n    const source = fs.readFileSync(\n        path.resolve("gestia-core/jarvis/jarvis.multitool.pack.js"),\n        "utf8"\n    );\n\n    assert.match(source, /objectiveSatisfied:\\s*!entityNotVerified/);\n    assert.match(source, /requiresInput:\\s*entityNotVerified/);\n    assert.match(source, /const primaryEntityNotVerified/);\n    assert.match(source, /objectiveSatisfied:\\s*false/);\n});\n`;
 }
 if (/plannerTest[\s\S]{0,100}\.callBrowser(?:MissionContract|SemanticPlan)\s*\(/.test(multifunction)) {
   throw new Error("V142_LEGACY_BROWSER_PLANNER_TEST_STILL_ACTIVE");
