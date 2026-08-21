@@ -1630,12 +1630,31 @@ export async function fetchGroundedWebResearch(
             seedUrl && primaryResult
                 ? webResearchExactAnchorVerified(primaryResult, seedUrl)
                 : false;
-        const scopedAnchor = Boolean(seedUrl || trace.allowedDomain);
+        let seedDomain = "";
+        try {
+            seedDomain = new URL(seedUrl).hostname
+                .toLowerCase()
+                .replace(/^www\./, "");
+        } catch {}
+        const allowedDomain = String(trace.allowedDomain || "")
+            .trim()
+            .toLowerCase()
+            .replace(/^https?:\/\//, "")
+            .replace(/^www\./, "")
+            .split("/")[0];
+        const allowedDomainDerivedFromSeed =
+            Boolean(seedDomain) &&
+            Boolean(allowedDomain) &&
+            seedDomain === allowedDomain;
+        const hardDomainScope =
+            Boolean(allowedDomain) &&
+            !allowedDomainDerivedFromSeed;
         const needsCrossSourceRecovery =
-            scopedAnchor &&
+            Boolean(seedUrl) &&
+            !hardDomainScope &&
             (
                 !primaryResult ||
-                (seedUrl && exactAnchorVerified !== true)
+                exactAnchorVerified !== true
             );
 
         if (needsCrossSourceRecovery) {
@@ -1689,6 +1708,18 @@ export async function fetchGroundedWebResearch(
                     return {
                         ...recoveryResult,
                         ok: true,
+                        executionOk: true,
+                        objectiveSatisfied: !entityNotVerified,
+                        blocked: entityNotVerified,
+                        requiresInput: entityNotVerified,
+                        retryable: false,
+                        ...(entityNotVerified
+                            ? {
+                                missingInputs: [
+                                    "informacion verificable adicional para confirmar la identidad exacta de la entidad"
+                                ]
+                            }
+                            : {}),
                         status: recoveryStatus,
                         source: "JARVIS_CROSS_SOURCE_WEB_RESEARCH_RECOVERY",
                         readOnly: true,
@@ -1712,10 +1743,15 @@ export async function fetchGroundedWebResearch(
         }
 
         if (primaryResult) {
+            const primaryEntityNotVerified =
+                primaryResult?.status ===
+                    "ENTITY_NOT_VERIFIED";
             const resultStatus =
-                seedUrl && exactAnchorVerified !== true
-                    ? "GROUNDED_ANCHOR_UNVERIFIED_DOMAIN_ONLY"
-                    : primaryResult.status;
+                primaryEntityNotVerified
+                    ? "ENTITY_NOT_VERIFIED"
+                    : seedUrl && exactAnchorVerified !== true
+                        ? "GROUNDED_ANCHOR_UNVERIFIED_DOMAIN_ONLY"
+                        : primaryResult.status;
             globalThis.__JARVIS_WEB_RESEARCH_HEALTH__ = recordCapabilityEvidence("web_research", {
                 ok: true,
                 grounded: primaryResult?.grounded === true,
@@ -1749,6 +1785,18 @@ export async function fetchGroundedWebResearch(
 
             return {
                 ...primaryResult,
+                ...(primaryEntityNotVerified
+                    ? {
+                        executionOk: true,
+                        objectiveSatisfied: false,
+                        blocked: true,
+                        requiresInput: true,
+                        retryable: false,
+                        missingInputs: [
+                            "informacion verificable adicional para confirmar la identidad exacta de la entidad"
+                        ]
+                    }
+                    : {}),
                 status: resultStatus,
                 source: "JARVIS_GROUNDED_WEB_RESEARCH",
                 readOnly: true,

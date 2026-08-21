@@ -293,7 +293,7 @@ test("marketing final response surfaces completed reel plans instead of calling 
 });
 
 test("production code contains generic source-anchor rules and no fixture-specific business", () => {
-    const planner = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.multifunction.planner.js", import.meta.url), "utf8");
+    const planner = fs.readFileSync(new URL("../functions/jarvis-semantic-planner.js", import.meta.url), "utf8");
     for (const marker of [
         "FUENTE ANCLA",
         "seedUrl",

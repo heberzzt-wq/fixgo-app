@@ -265,3 +265,43 @@ test("v142 explicit anchor marked unavailable after cross-source recovery is res
     assert.equal(research.args.seedUrl, undefined);
     assert.equal(research.args.allowedDomain, undefined);
 });
+
+
+test("v142 hard domain scope never relaxes an unrelated allowedDomain", async () => {
+    const previousAuth = globalThis.auth;
+    const previousWindow = globalThis.window;
+    const previousFetch = globalThis.fetch;
+    const previousBridge = globalThis.JarvisLocalBridge;
+    const calls = [];
+    globalThis.auth = { currentUser: { getIdToken: async () => "firebase-user-token" } };
+    globalThis.window = globalThis.window || {};
+    globalThis.JarvisLocalBridge = undefined;
+    globalThis.fetch = async (_url, options = {}) => {
+        const body = JSON.parse(String(options.body || "{}"));
+        calls.push(body?.data || {});
+        return {
+            ok: false,
+            status: 200,
+            json: async () => ({ result: { ok: false, grounded: false, status: "WEB_RESEARCH_NOT_GROUNDED", message: "scope unavailable", sources: [] } })
+        };
+    };
+    try {
+        const result = await fetchGroundedWebResearch(
+            "Facebook oficial de la empresa",
+            {
+                allowedDomain: "multiserviciospeninsulareshmh.com",
+                seedUrl,
+                exactEntity: "Taquería El Dorado"
+            }
+        );
+        assert.equal(calls.length, 1);
+        assert.equal(calls[0].allowedDomain, "multiserviciospeninsulareshmh.com");
+        assert.equal(result.ok, false);
+        assert.equal(result.error, "WEB_RESEARCH_UNAVAILABLE");
+    } finally {
+        if (previousAuth === undefined) delete globalThis.auth; else globalThis.auth = previousAuth;
+        if (previousWindow === undefined) delete globalThis.window; else globalThis.window = previousWindow;
+        if (previousFetch === undefined) delete globalThis.fetch; else globalThis.fetch = previousFetch;
+        if (previousBridge === undefined) delete globalThis.JarvisLocalBridge; else globalThis.JarvisLocalBridge = previousBridge;
+    }
+});

@@ -4650,8 +4650,7 @@ if (
                                                 false,
                                             userArtifactAllowed:
                                                 true,
-                                            semanticMemoryAvailable: Boolean(semanticMemoryContext),
-                        advisorySemanticContext: compactJarvisSemanticMemoryForPlanner(semanticMemoryContext)
+                                            semanticMemoryAvailable: Boolean(semanticMemoryContext)
                                         }
                                     }
                                 );

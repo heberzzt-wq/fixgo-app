@@ -110,25 +110,30 @@ function cleanHost(value = "") {
 }
 
 function requestedDomainFromQuery(query = "", explicitDomain = "") {
-    if (explicitDomain) {
+    const leading = new Set(["(", "[", "{", "<", "\"", "'"]);
+    const trailing = new Set([".", ",", ";", ":", ")", "]", "}", ">", "!", "?", "\"", "'"]);
+    const parseCandidate = value => {
+        let token = String(value || "").trim();
+        while (token && leading.has(token[0])) token = token.slice(1);
+        while (token && trailing.has(token.at(-1))) token = token.slice(0, -1);
+        if (!token || token.includes("@")) return "";
         try {
-            return cleanHost(new URL(explicitDomain.includes("://") ? explicitDomain : `https://${explicitDomain}`).hostname);
-        } catch {
+            const parsed = new URL(token.includes("://") ? token : `https://${token}`);
+            if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return "";
+            const host = String(parsed.hostname || "").trim().toLowerCase();
+            if (!/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i.test(host)) return "";
+            return cleanHost(host);
+        }
+        catch {
             return "";
         }
-    }
+    };
 
-    const trailing = new Set([".", ",", ";", ":", ")", "]", "}", "!", "?", "\"", "'"]);
-    for (const rawToken of String(query || "").split(" ")) {
-        let token = rawToken.trim();
-        while (token && trailing.has(token.at(-1))) token = token.slice(0, -1);
-        if (!token.includes("://")) continue;
-        try {
-            const parsed = new URL(token);
-            if (parsed.protocol === "https:" || parsed.protocol === "http:") return cleanHost(parsed.hostname);
-        } catch {
-            continue;
-        }
+    if (explicitDomain) return parseCandidate(explicitDomain);
+
+    for (const rawToken of String(query || "").split(/\s+/)) {
+        const domain = parseCandidate(rawToken);
+        if (domain) return domain;
     }
     return "";
 }
@@ -803,7 +808,50 @@ async function runJarvisDirectDomainResearch({
             clearTimeout(timer);
         }
     }
-    if (pages.length === 0) throw new Error("DIRECT_RESEARCH_NO_PRIMARY_PAGES");
+    if (pages.length === 0) {
+        return {
+            ok: false,
+            grounded: false,
+            engine: "jarvis_direct_primary_domain_research",
+            model: null,
+            query: normalizedQuery,
+            requestedDomain: domain,
+            objectiveId: String(objectiveId || ""),
+            caseId: String(caseId || ""),
+            researchedAt: new Date().toISOString(),
+            provider: "direct_primary_domain_crawl",
+            answer: "",
+            sources: [],
+            discardedSources: [],
+            supports: [],
+            facts: [],
+            inferences: [],
+            searchQueries: [],
+            sourceCount: 0,
+            readOnly: true,
+            status: directFreshnessWindowDays
+                ? "FRESHNESS_NOT_VERIFIED"
+                : "DIRECT_RESEARCH_NO_PRIMARY_PAGES",
+            error: directFreshnessWindowDays
+                ? "FRESCURA_NO_VERIFICADA"
+                : "DIRECT_RESEARCH_NO_PRIMARY_PAGES",
+            policy: {
+                citationsRequired: true,
+                consultedSourcesOnly: true,
+                requestedDomainEnforced: true,
+                factsSeparatedFromInference: true,
+                duplicatesRemoved: true,
+                freshnessVerified: directFreshnessWindowDays ? false : null,
+                codeWrite: false,
+                externalSideEffects: false,
+                fallbackReason:
+                    String(fallbackReason || "")
+                        .trim()
+                        .slice(0, 160) ||
+                    "PRIMARY_GROUNDED_RESEARCH_UNAVAILABLE"
+            }
+        };
+    }
 
     const sources = pages.map((page, index) => ({ id: index + 1, title: page.title, url: page.url, publishedAt: page.publishedAt || null }));
     const facts = pages.map((page, index) => ({

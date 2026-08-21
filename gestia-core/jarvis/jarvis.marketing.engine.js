@@ -684,7 +684,7 @@ export function planMarketingRequest(rawInput = "", context = {}) {
         publicationPlan: buildCalendar(channels, brand, campaign),
         editable: true,
         message:
-            `NEXO preparó una campaña específica para ${brand.name}. ` +
+            `ADJUNTO preparó una campaña específica para ${brand.name}. ` +
             `${allInferredFields.length} campos se marcaron como propuestas editables y ` +
             `${grounding.sourceCount} fuentes respaldan hechos verificables.`
     };

@@ -2819,13 +2819,40 @@ exports.jarvisWebResearch = functions
                                     : "PRIMARY_GROUNDED_RESEARCH_UNAVAILABLE"
                         });
                 } catch (fallbackError) {
-                    throw new Error(
-                        [
+                    result = {
+                        ok: false,
+                        grounded: false,
+                        status: "WEB_RESEARCH_NOT_GROUNDED",
+                        error: "WEB_RESEARCH_UNAVAILABLE",
+                        message: [
                             primaryMessage,
                             fallbackError?.message ||
                             String(fallbackError)
-                        ].join(" | ")
-                    );
+                        ].filter(Boolean).join(" | "),
+                        query,
+                        requestedDomain,
+                        objectiveId: data?.objectiveId || "",
+                        caseId: data?.caseId || "",
+                        researchedAt: new Date().toISOString(),
+                        provider: "fail_closed",
+                        answer: "",
+                        sources: [],
+                        discardedSources: [],
+                        supports: [],
+                        facts: [],
+                        inferences: [],
+                        searchQueries: [],
+                        sourceCount: 0,
+                        readOnly: true,
+                        policy: {
+                            citationsRequired: true,
+                            consultedSourcesOnly: true,
+                            requestedDomainEnforced: Boolean(requestedDomain),
+                            factsSeparatedFromInference: true,
+                            codeWrite: false,
+                            externalSideEffects: false
+                        }
+                    };
                 }
             }
 
@@ -2843,8 +2870,9 @@ exports.jarvisWebResearch = functions
                 sourceCount:
                     result.sourceCount,
                 searchQueryCount:
-                    result.searchQueries.length,
-                factCount: result.facts.length,
+                    Array.isArray(result.searchQueries) ? result.searchQueries.length : 0,
+                factCount:
+                    Array.isArray(result.facts) ? result.facts.length : 0,
                 objectiveId: result.objectiveId || null,
                 caseId: result.caseId || null
             }));
@@ -2854,10 +2882,15 @@ exports.jarvisWebResearch = functions
                 result?.status !==
                     "ENTITY_NOT_VERIFIED"
             ) {
-                throw new functions.https.HttpsError(
-                    "failed-precondition",
-                    "La investigacion no devolvio fuentes verificables."
-                );
+                return {
+                    ...result,
+                    ok: false,
+                    grounded: false,
+                    status:
+                        result?.status ||
+                        "WEB_RESEARCH_NOT_GROUNDED",
+                    transportOk: true
+                };
             }
 
             return result;
@@ -2912,7 +2945,7 @@ exports.jarvisSemanticPlan = functions
         try {
             const result = await runJarvisSemanticPlanner({
                 fetchImpl: fetch,
-                simpleFetchImpl: fetch,
+                simpleFetchImpl: null,
                 ai: getPlannerGenAI(),
                 input: data?.input,
                 catalog: data?.catalog,

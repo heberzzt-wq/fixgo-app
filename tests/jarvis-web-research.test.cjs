@@ -222,6 +222,7 @@ test("web research enforces the requested domain and discards similar companies"
         query: "Investiga https://www.summ.com.mx/ para una campana"
     });
     assert.equal(requestedDomainFromQuery("Investiga https://www.summ.com.mx/ para una campana"), "summ.com.mx");
+    assert.equal(requestedDomainFromQuery("Investiga únicamente en openai.com las novedades actuales"), "openai.com");
     assert.equal(sourceMatchesDomain({ url: "https://blog.summ.com.mx/post" }, "summ.com.mx"), true);
     assert.ok(request.contents.includes("site:summ.com.mx"));
     assert.deepEqual(result.sources.map(source => source.url), ["https://www.summ.com.mx/servicios"]);
@@ -658,4 +659,23 @@ test("Firebase deploys grounded web research on the supported Node runtime", () 
     assert.match(workflow, /Deploy Jarvis multifunction services/);
     assert.match(workflow, /if:\s*steps\.changes\.outputs\.functions_changed == 'true'/);
     assert.doesNotMatch(workflow, /--only hosting,functions:/);
+});
+
+
+test("direct domain freshness miss returns a fail-closed envelope instead of throwing", async () => {
+    const result = await runJarvisDirectDomainResearch({
+        query: "novedades actuales openai.com",
+        allowedDomain: "openai.com",
+        fetchImpl: async url => ({
+            ok: true,
+            url: String(url),
+            headers: { get: () => "text/html; charset=utf-8" },
+            text: async () => "<html><head><title>OpenAI</title></head><body><h1>API</h1><p>Pagina sin fecha verificable para este contrato de actualidad.</p></body></html>"
+        })
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.grounded, false);
+    assert.equal(result.status, "FRESHNESS_NOT_VERIFIED");
+    assert.equal(result.error, "FRESCURA_NO_VERIFICADA");
+    assert.deepEqual(result.facts, []);
 });

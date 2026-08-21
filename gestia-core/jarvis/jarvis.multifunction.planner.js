@@ -9,13 +9,7 @@ const planCache = new Map();
 const pendingPlans = new Map();
 
 const CLOUD_MISSION_CONTRACT_TIMEOUT_MS =
-    12000;
-
-const BROWSER_MISSION_ATTEMPT_TIMEOUT_MS =
-    6000;
-
-const BROWSER_PLAN_ATTEMPT_TIMEOUT_MS =
-    5000;
+    45000;
 
 const GENERALIST_CURRENT_TURN_POLICY = [
     "Actua como un agente generalista: entiende libremente la instruccion actual antes de elegir herramientas.",
@@ -1274,356 +1268,6 @@ function normalizeGroundedImageReferenceCandidates(
     });
 }
 
-async function fetchBrowserPlanText(
-    url = "",
-    timeoutMs =
-        BROWSER_PLAN_ATTEMPT_TIMEOUT_MS
-) {
-    const transientStatuses =
-        new Set([
-            429,
-            502,
-            503,
-            504
-        ]);
-    let lastResult =
-        null;
-
-    for (
-        let transientAttempt = 0;
-        transientAttempt < 3;
-        transientAttempt += 1
-    ) {
-        const controller =
-            new AbortController();
-
-        let timedOut =
-            false;
-
-        const timer =
-            setTimeout(
-                () => {
-                    timedOut =
-                        true;
-
-                    controller.abort();
-                },
-                timeoutMs
-            );
-
-        try {
-            const response =
-                await fetch(
-                    url,
-                    {
-                        signal:
-                            controller.signal
-                    }
-                );
-
-            const responseText =
-                await response.text();
-
-            lastResult = {
-                response,
-                responseText
-            };
-
-            if (
-                !transientStatuses.has(
-                    response.status
-                ) ||
-                transientAttempt === 2
-            ) {
-                return lastResult;
-            }
-        }
-        catch(error) {
-            if (
-                timedOut ||
-                controller.signal.aborted
-            ) {
-                throw new Error(
-                    `BROWSER_PLAN_ATTEMPT_TIMEOUT_${timeoutMs}`
-                );
-            }
-
-            throw error;
-        }
-        finally {
-            clearTimeout(
-                timer
-            );
-        }
-
-        await new Promise(resolve =>
-            setTimeout(
-                resolve,
-                Math.min(
-                    Number(timeoutMs) ||
-                    BROWSER_PLAN_ATTEMPT_TIMEOUT_MS,
-                    2000 *
-                    (transientAttempt + 1)
-                )
-            )
-        );
-    }
-
-    return lastResult;
-}
-
-async function callBrowserMissionContract(
-    input = "",
-    catalog = [],
-    missionState = null
-) {
-    if (typeof fetch !== "function") throw new Error("CLIENT_MISSION_CONTRACT_FETCH_REQUIRED");
-    const instruction = String(input || "");
-    const boundedInstruction = instruction.length <= 12000
-        ? instruction
-        : `${instruction.slice(0, 8000)}\n[PARTE_MEDIA_PERSISTIDA]\n${instruction.slice(-3500)}`;
-    const initialToolNames =
-        Array.isArray(
-            missionState
-                ?.existingInitialTools
-        )
-            ? missionState
-                .existingInitialTools
-                .map(String)
-                .filter(Boolean)
-                .slice(0, 20)
-            : [];
-    const requiredToolNames =
-        Array.isArray(missionState?.requiredToolNames)
-            ? missionState.requiredToolNames.map(String).filter(Boolean).slice(0, 30)
-            : [];
-    const marketingProductionRequirements =
-        (Array.isArray(missionState?.completedTasks) ? missionState.completedTasks : [])
-            .filter(item => item?.name === "marketing.plan" && item?.observation?.productionRequested === true)
-            .flatMap(item => Array.isArray(item?.observation?.requiredArtifacts) ? item.observation.requiredArtifacts : [])
-            .slice(0, 12);
-    const prompt = [
-        "Eres el planificador semantico de Jarvis V7.",
-        GENERALIST_CURRENT_TURN_POLICY,
-        "Devuelve solamente JSON valido.",
-        "La comprensión de intención es exclusivamente semántica: no imites ni dependas de listas de palabras, diccionarios locales o patrones de texto del cliente.",
-        "Incluye responseFormat=\"json\" solamente cuando el usuario pida explícitamente una salida JSON/machine-readable; en cualquier otro caso usa responseFormat=\"human\".",
-        "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only y userArtifact necesarias para TODOS los entregables. Para crear una landing usa page.plan, page.compose y page.create; para page.plan y page.compose copia en args.sections cada sección de contenido pedida explícitamente por el usuario, en su idioma y sin sustituirla por aliases técnicos; para crear un documento usa document.compose y document.create; para crear una hoja estructurada usa spreadsheet.compose y document.create. Para EDITAR un PDF existente usa document.pdf.edit; para EDITAR un XLSX existente usa document.xlsx.edit; para EDITAR una imagen existente usa image.edit. Nunca sustituyas una edicion solicitada por document.create, spreadsheet.compose o image.generate. Si una imagen adjunta representa a la persona, producto u objeto que debe aparecer en el resultado, usa image.edit con sourceOutput igual al artifact real del manifiesto; media.analyze no transmite identidad visual ni sustituye los bytes de la fuente. Las ediciones crean una copia nueva y deben preservar el original. system.certify es terminal: no lo incluyas en el contrato inicial; seleccionalo solamente durante COMPLETION_AUDIT cuando los demas objetivos est?n completados o bloqueados. Para image.edit genera una sola salida por defecto. La cantidad de fotos adjuntas o referencias nunca significa cantidad de variantes. Si el usuario pide varias salidas, asigna un variantId distinto y explicito a cada salida. Cuando haya varias fotos de identidad, usa la imagen mas reciente y limpia como sourceOutput y copia las referencias pertinentes en referenceOutputs. Para cada artefacto usa exactamente una composicion y una creacion salvo que el usuario pida variantes. Cuando existan archivos adjuntos reales y la instruccion pida analizarlos, describirlos, compararlos, identificarlos o leerlos, media.analyze es obligatoria y image.generate/image.edit no pueden sustituirla; usa herramientas de imagen sintetica solamente cuando el usuario pida explicitamente crear, generar, editar, modificar o transformar una imagen nueva o existente. Conserva el orden. Si la solicitud no necesita ninguna herramienta, devuelve toolCalls=[] y missionComplete=true; en caso contrario usa missionComplete=false.",
-        "MARKETING: marketing.plan produce estrategia y brief, nunca cuenta como archivo producido. Decide semánticamente la solicitud actual: si el usuario sólo pide plan o asesoría, usa productionRequested=false. Si pide ejecutar, producir, entregar piezas reales o una misión de punta a punta, usa productionRequested=true y productionArtifacts con type, toolName exacto, format cuando corresponda y label humano; además incluye en toolCalls las herramientas reales de creación que satisfacen cada productionArtifact. Si un documento toma el plan como contenido usa document.create con contentSource=marketing.plan. No declares missionComplete mientras falte una salida verificable de cualquiera de los MARKETING_PRODUCTION_REQUIREMENTS.",
-        "Las HERRAMIENTAS_INICIALES son un borrador semantico ya seleccionado para la misma instruccion. Conserva sus entregables y agrega solamente una herramienta que cubra un objetivo independiente pedido de forma explicita y no cubierto por ese borrador. No agregues diagnostico, supervision, forense, repositorio, navegador, conectores, investigacion ni otros artefactos solo porque existan en el catalogo.",
-        "No colapses sujetos u objetivos independientes. Repite el mismo nombre de herramienta cuando necesite argumentos distintos para cubrirlos por separado.",
-        "agent.delegate no es una optimizacion automatica. Incluyela solamente si la instruccion original pide explicitamente delegar, usar agentes o ejecutar en paralelo, y copia esa frase literal en delegationDirective. En cualquier otra mision conserva las herramientas directas.",
-        "repo.architectReview es autocontenida: construye su grafo y ranking y ejecuta los 11 controles sobre el plan recibido. Para una revision de plan no agregues herramientas repo adyacentes salvo que la instruccion pida por separado inspeccionar fuentes adicionales.",
-        "Para web.research usa researchGoal=RESEARCH_1, RESEARCH_2, etc. segun el orden inmutable de objetivos de investigacion en la instruccion. Reutiliza la misma identidad al auditar el mismo objetivo y no dupliques llamadas para simples reformulaciones.",
-        "Una URL explicita proporcionada por el usuario es una FUENTE ANCLA del objetivo semantico al que acompana, no un objetivo independiente. Para web.research copia esa URL exacta en seedUrl, deriva allowedDomain de su host cuando corresponda, conserva exactEntity de la entidad nombrada y usa la misma researchGoal para validar la fuente y ampliar la investigacion. Investiga primero desde la fuente ancla y despues cruza otras fuentes; no empieces por homonimos no vinculados a las senales distintivas de esa fuente.",
-        "En web.media.collect usa una URL explicita del usuario como fuente directa. Marca requireImages o requireVideos=true solamente si esa familia de medios es un entregable obligatorio; una busqueda exploratoria u opcional de material no debe convertirse en requisito bloqueante.",
-        `FUENTES_EXPLICITAS_USUARIO=${JSON.stringify(explicitHttpSourceUrls(instruction))}`,
-        `HERRAMIENTAS_INICIALES=${initialToolNames.join(",")}`,
-        `HERRAMIENTAS_REQUERIDAS=${requiredToolNames.join(",")}`,
-        `MARKETING_PRODUCTION_REQUIREMENTS=${JSON.stringify(marketingProductionRequirements)}`,
-        `CATALOGO=${catalog.map(tool => tool.name).join(",")}`,
-        `INSTRUCCION=${boundedInstruction}`
-    ].join("\n");
-    let lastError = null;
-    let auditedPlan = null;
-
-    for (const seed of [84, 85, 86]) {
-            try {
-                const attemptPrompt = auditedPlan
-                    ? [
-                        prompt,
-                        `BORRADOR_DE_CONTRATO=${JSON.stringify(auditedPlan).slice(0, 16000)}`,
-                        "AUDITORIA SEMANTICA DE COBERTURA: descompone la instruccion en todos sus sujetos, archivos, entidades, preguntas y entregables independientes. Devuelve solamente toolCalls read-only o userArtifact faltantes. No elimines ni sustituyas el borrador. Si ya cubre todo devuelve toolCalls=[] y missionComplete=false."
-                    ].join("\n")
-                    : prompt;
-                const {
-                    response,
-                    responseText
-                } = await fetchBrowserPlanText(
-                    `https://text.pollinations.ai/${encodeURIComponent(attemptPrompt)}?model=openai-fast&seed=${seed}&json=true`,
-                    BROWSER_MISSION_ATTEMPT_TIMEOUT_MS
-                );
-
-                if (!response.ok) {
-                    throw new Error(
-                        `CLIENT_MISSION_CONTRACT_HTTP_${response.status}`
-                    );
-                }
-
-                const plan =
-                    extractJsonObject(
-                        responseText
-                    );
-                if (!Array.isArray(plan?.toolCalls)) {
-                    throw new Error("CLIENT_MISSION_CONTRACT_EMPTY");
-                }
-                if (!auditedPlan) {
-                    if (plan.toolCalls.length === 0) {
-                        if (plan?.missionComplete === true) {
-                            return {
-                                ...plan,
-                                toolCalls: [],
-                                missionComplete: true,
-                                ok: true,
-                                status: "SEMANTIC_PLAN_READY",
-                                provider: "pollinations-browser-json",
-                                model: "openai-fast",
-                                planKind: "MISSION_CONTRACT_NO_TOOLS"
-                            };
-                        }
-                        throw new Error("CLIENT_MISSION_CONTRACT_EMPTY");
-                    }
-                    auditedPlan = {
-                        ...plan,
-                        toolCalls:
-                            trustedPlanCalls(
-                                {
-                                    ...plan,
-                                    planKind:
-                                        "MISSION_CONTRACT"
-                                },
-                                catalog,
-                                {
-                                    originalInstruction:
-                                        instruction
-                                }
-                            )
-                    };
-                    continue;
-                }
-                const coverageCalls =
-                    trustedPlanCalls(
-                        {
-                            ...plan,
-                            planKind:
-                                "MISSION_CONTRACT_AUDIT"
-                        },
-                        catalog,
-                        {
-                            originalInstruction:
-                                instruction
-                        }
-                    );
-                const merged = mergeJarvisToolCalls(
-                    auditedPlan.toolCalls || [],
-                    coverageCalls
-                );
-                return {
-                    ...auditedPlan,
-                    toolCalls: merged,
-                    completionAssessment: {
-                        draft: auditedPlan.completionAssessment || null,
-                        coverageAudit: plan.completionAssessment || null
-                    },
-                    missionComplete: false,
-                    ok: true,
-                    status: "SEMANTIC_PLAN_READY",
-                    provider: "pollinations-browser-json",
-                    model: "openai-fast",
-                    planKind: "MISSION_CONTRACT_AUDITED"
-                };
-            } catch (error) {
-                lastError = error;
-            }
-        }
-
-    if (auditedPlan) {
-        return {
-            ...auditedPlan,
-            missionComplete: false,
-            ok: true,
-            status: "SEMANTIC_PLAN_READY",
-            provider: "pollinations-browser-json",
-            model: "openai-fast",
-            planKind: "MISSION_CONTRACT",
-            coverageWarning: lastError?.message || "CLIENT_MISSION_COVERAGE_AUDIT_UNAVAILABLE"
-        };
-    }
-    throw lastError || new Error("CLIENT_MISSION_CONTRACT_UNAVAILABLE");
-}
-
-async function callBrowserSemanticPlan(input = "", catalog = [], missionState = null) {
-    if (typeof fetch !== "function") throw new Error("CLIENT_SEMANTIC_PLAN_FETCH_REQUIRED");
-    const instruction = String(input || "");
-    const boundedInstruction = instruction.length <= 12000
-        ? instruction
-        : `${instruction.slice(0, 8000)}\n[PARTE_MEDIA_PERSISTIDA]\n${instruction.slice(-3500)}`;
-    const prompt = [
-        "Eres el planificador semantico de herramientas de Jarvis V7.",
-        GENERALIST_CURRENT_TURN_POLICY,
-        "Interpreta significado, typos, negaciones y ordenes mixtas con razonamiento semántico; no delegues comprensión a listas de palabras, diccionarios locales ni patrones de texto. Selecciona exclusivamente nombres exactos del catalogo.",
-        "Devuelve responseFormat=\"json\" solamente si el usuario pidió explícitamente salida JSON/machine-readable; en caso contrario responseFormat=\"human\".",
-        "No autorices escrituras de repositorio, publicacion ni despliegue. Las herramientas userArtifact pueden crear entregables locales y editar copias de artefactos existentes cuando el usuario lo pide explicitamente; deben conservar el original y no equivalen a editar codigo, publicar o desplegar. Para editar PDF, XLSX o imagen usa respectivamente document.pdf.edit, document.xlsx.edit o image.edit y nunca los sustituyas por herramientas de creacion. Si una persona, producto u objeto debe conservarse desde una imagen adjunta, selecciona image.edit y copia el artifact real del manifiesto en sourceOutput; no uses image.generate ni una descripcion de media.analyze como reemplazo de la fuente visual. Si hay adjuntos reales y la orden pide analizarlos, describirlos, compararlos, identificarlos o leerlos, selecciona media.analyze; nunca sustituyas ese objetivo por image.generate o image.edit salvo que la orden tambien pida explicitamente crear, generar, editar, modificar o transformar una imagen. Conserva todas las intenciones independientes y usa herramientas especializadas para entregables operativos.",
-        "agent.delegate no es una optimizacion automatica. Seleccionala solamente si la instruccion original pide explicitamente delegar, usar agentes o ejecutar en paralelo. En ese caso copia literalmente esa frase en delegationDirective. Si solo hay varias herramientas directas, devuelve esas herramientas sin agent.delegate.",
-        "repo.architectReview es autocontenida: ya construye el grafo y ranking y ejecuta los 11 controles sobre un plan recibido. Cuando se pida esa revision, no agregues repo.search, repo.read, repo.diagnose o repo.impact salvo que la instruccion pida de forma independiente inspeccionar fuentes adicionales.",
-        "Si varios objetivos requieren la misma herramienta con argumentos distintos, devuelve una llamada separada para cada uno. En image.edit, varias fotos de referencia siguen siendo un solo objetivo y una sola salida; usa referenceOutputs. Solo devuelve varias llamadas de image.edit cuando el usuario pida varias imagenes finales y asigna variantId distinto a cada una.",
-        "Si piden referencias, usos o pruebas de un archivo concreto, usa repo.search con la ruta exacta o basename como query, no con una pregunta completa.",
-        "Si una investigacion limita fuentes a un dominio, copia el dominio exacto en allowedDomain de web.research.",
-        "En web.research, query debe contener solo el objetivo concreto y los terminos distintivos de la investigacion; no copies toda la orden mixta, archivos ni otros entregables. Conserva conceptos tecnicos importantes como custom claims, roles, APIs o normas.",
-        "Para web.research usa researchGoal=RESEARCH_1, RESEARCH_2, etc. segun el orden de objetivos independientes en la instruccion y reutiliza exactamente esa identidad para el mismo objetivo.",
-        "Una URL explicita proporcionada por el usuario es una FUENTE ANCLA del objetivo semantico al que acompana, no un objetivo independiente. Para web.research copia esa URL exacta en seedUrl, deriva allowedDomain de su host cuando corresponda, conserva exactEntity de la entidad nombrada y usa la misma researchGoal para validar la fuente y ampliar la investigacion. Investiga primero desde la fuente ancla y despues cruza otras fuentes; no empieces por homonimos no vinculados a las senales distintivas de esa fuente.",
-        "En web.media.collect usa una URL explicita del usuario como fuente directa. Marca requireImages o requireVideos=true solamente si esa familia de medios es un entregable obligatorio; una busqueda exploratoria u opcional de material no debe convertirse en requisito bloqueante.",
-        `FUENTES_EXPLICITAS_USUARIO=${JSON.stringify(explicitHttpSourceUrls(instruction))}`,
-        "Si se piden datos oficiales, usa allowedDomain con el dominio oficial de la autoridad identificada y no presentes fuentes secundarias como oficiales.",
-        "Si una investigacion pide hechos sobre una entidad nombrada sin dominio, copia el nombre exacto en exactEntity de web.research.",
-        missionState?.phase === "REEL_MEDIA_SOURCE_RECOVERY"
-            ? `RECUPERACION DE FUENTE VISUAL PARA REEL: reel.create esta en espera y no debe ejecutarse ni volver a planearse hasta obtener medios reales. No reutilices URLs de reelMediaRecovery.attemptedUrls. Si reelMediaRecovery.availableVerifiedSources contiene una URL adecuada, usa web.media.collect exclusivamente con una de esas URLs verificadas. Si no hay una fuente verificada util, usa web.research sobre la misma entidad exacta de la instruccion para encontrar otra pagina o publicacion publica que pueda contener fotos o video, con un researchGoal nuevo. No inventes URLs, no uses busqueda de imagenes sin procedencia y no atribuyas material de otra entidad.`
-            : missionState?.phase === "COMPLETION_AUDIT"
-                ? "AUDITORIA DE CIERRE: compara cada entregable con la evidencia. Si todo esta satisfecho devuelve toolCalls=[] y missionComplete=true. Si falta algo devuelve exactamente una herramienta pertinente con argumentos completos y missionComplete=false. No explores capacidades no solicitadas. Si repo.search entrego sourceDefinitions o definitionFiles, prioriza esas rutas ejecutables sobre archivos que solo mencionan el simbolo y permite repetir lectura o diagnostico cuando el archivo sea distinto."
-                : "Devuelve solamente JSON valido con toolCalls, missionComplete y explanation. Si la intencion actual no necesita herramientas, devuelve toolCalls=[] y missionComplete=true; si necesita una o mas herramientas, missionComplete=false.",
-        `CATALOGO=${catalog.map(tool => tool.name).join(",")}`,
-        missionState ? `ESTADO_DE_MISION=${JSON.stringify(missionState).slice(0, 12000)}` : "",
-        `INSTRUCCION=${boundedInstruction}`
-    ].join("\n");
-    let lastError = null;
-
-    for (const seed of [42, 43, 44]) {
-            try {
-                const {
-                    response,
-                    responseText
-                } = await fetchBrowserPlanText(
-                    `https://text.pollinations.ai/${encodeURIComponent(prompt)}?model=openai-fast&seed=${seed}&json=true`,
-                    BROWSER_PLAN_ATTEMPT_TIMEOUT_MS
-                );
-
-                if (!response.ok) {
-                    throw new Error(
-                        `CLIENT_SEMANTIC_PLAN_HTTP_${response.status}`
-                    );
-                }
-
-                const plan =
-                    extractJsonObject(
-                        responseText
-                    );
-                if (
-                    !Array.isArray(plan?.toolCalls) ||
-                    (
-                        plan.toolCalls.length === 0 &&
-                        plan?.missionComplete !== true
-                    )
-                ) {
-                    throw new Error("CLIENT_SEMANTIC_PLAN_EMPTY");
-                }
-                return {
-                    ...plan,
-                    ok: true,
-                    status: "SEMANTIC_PLAN_READY",
-                    provider: "pollinations-browser-json",
-                    model: "openai-fast"
-                };
-            } catch (error) {
-                lastError = error;
-            }
-        }
-
-    throw lastError ||
-        new Error(
-            "CLIENT_SEMANTIC_PLAN_UNAVAILABLE"
-        );
-}
-
 function runtimeCatalog(context = {}) {
     const supplied = Array.isArray(context.toolCatalog)
         ? context.toolCatalog
@@ -2101,10 +1745,13 @@ async function callSemanticPlanner(input = "", catalog = [], missionState = null
         new AbortController();
 
     const timeoutMs =
-        missionState?.phase ===
-            "MISSION_CONTRACT"
+        [
+            "MISSION_CONTRACT",
+            "COMPLETION_AUDIT",
+            "GROUNDED_ARGUMENT_COMPLETION"
+        ].includes(String(missionState?.phase || ""))
             ? CLOUD_MISSION_CONTRACT_TIMEOUT_MS
-            : 12000;
+            : 30000;
 
     const timer =
         setTimeout(
@@ -2268,33 +1915,17 @@ export async function completeJarvisPlanningArguments({
         `ESQUEMA_DE_ARGUMENTOS=${JSON.stringify(inputSchema || {}).slice(0, 12000)}`
     ].join("\n");
 
-    let plan;
-    try {
-        plan = await resolveSemanticPlan(
-            briefingInstruction,
-            catalog,
-            semanticPlanner,
-            {
-                phase: "GROUNDED_ARGUMENT_COMPLETION",
-                toolName: name,
-                sourceCount: sources.length,
-                writeAllowed: false
-            }
-        );
-    } catch (cloudError) {
-        if (typeof semanticPlanner === "function") throw cloudError;
-        const fallback = await callBrowserSemanticPlan(
-            briefingInstruction,
-            catalog,
-            {
-                phase: "GROUNDED_ARGUMENT_COMPLETION",
-                toolName: name,
-                sourceCount: sources.length,
-                writeAllowed: false
-            }
-        );
-        plan = fallback;
-    }
+    const plan = await resolveSemanticPlan(
+        briefingInstruction,
+        catalog,
+        semanticPlanner,
+        {
+            phase: "GROUNDED_ARGUMENT_COMPLETION",
+            toolName: name,
+            sourceCount: sources.length,
+            writeAllowed: false
+        }
+    );
 
     const call = trustedPlanCalls(plan, catalog, {})[0] || null;
     const args = filterSemanticArguments(call?.args || {}, inputSchema);
@@ -2431,30 +2062,7 @@ export async function buildJarvisMultifunctionToolCalls(input = "", context = {}
     }
 
     try {
-        const contractPlanner = context?.missionState?.phase === "MISSION_CONTRACT" &&
-            typeof context.semanticPlanner !== "function"
-            ? async ({ input: contractInput, catalog: contractCatalog, missionState }) => {
-                try {
-                    return await callSemanticPlanner(
-                        contractInput,
-                        contractCatalog,
-                        missionState
-                    );
-                } catch (cloudError) {
-                    try {
-                        return await callBrowserMissionContract(
-                            contractInput,
-                            contractCatalog,
-                            missionState
-                        );
-                    } catch (browserError) {
-                        throw new Error(
-                            `CLOUD_${cloudError?.message || "FAILED"}__BROWSER_${browserError?.message || "FAILED"}`
-                        );
-                    }
-                }
-            }
-            : context.semanticPlanner;
+        const contractPlanner = context.semanticPlanner;
         const plan = await resolveSemanticPlan(
             instruction,
             catalog,
@@ -2482,42 +2090,6 @@ export async function buildJarvisMultifunctionToolCalls(input = "", context = {}
 
         return attachPlanMetadata(calls, plan);
     } catch (error) {
-        if (
-            context?.missionState?.phase !== "MISSION_CONTRACT" &&
-            typeof context.semanticPlanner !== "function"
-        ) {
-            try {
-                const fallbackPlan = await callBrowserSemanticPlan(
-                    instruction,
-                    catalog,
-                    context.missionState || null
-                );
-                const fallbackCalls = trustedPlanCalls(
-                    fallbackPlan,
-                    catalog,
-                    {
-                        ...context,
-                        originalInstruction:
-                            instruction
-                    }
-                );
-                globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__ = {
-                    ok: true,
-                    status: fallbackPlan.status,
-                    provider: fallbackPlan.provider,
-                    model: fallbackPlan.model,
-                    toolCount: fallbackCalls.length,
-                    toolNames: fallbackCalls.map(call => call.name),
-                    recoveredFrom: error?.message || String(error),
-                    checkedAt: new Date().toISOString()
-                };
-                return attachPlanMetadata(fallbackCalls, fallbackPlan);
-            } catch (browserFallbackError) {
-                error = new Error(
-                    `CLOUD_${error?.message || "FAILED"}__BROWSER_${browserFallbackError?.message || "FAILED"}`
-                );
-            }
-        }
         globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__ = {
             ok: false,
             status: "SEMANTIC_PLANNER_UNAVAILABLE",
@@ -2549,8 +2121,6 @@ export const __test = {
     hasRequiredToolArguments,
     planCacheKey,
     extractJsonObject,
-    callBrowserMissionContract,
-    callBrowserSemanticPlan,
     extractExplicitGovernedToolPlan,
     extractGroundedAttachments,
     instructionBeforeAttachmentManifest,

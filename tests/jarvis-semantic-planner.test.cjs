@@ -872,48 +872,38 @@ test("empty simple plan cannot terminate the real provider chain", async () => {
     assert.equal(result.toolCalls[0].name, "repo.search");
 });
 
-test("mission contract uses the dedicated complete simple-model prompt", async () => {
-    const urls = [];
-    const result = await runJarvisSemanticPlanner({
-        input: "Investiga, entrega diagnostico y revisa conectores sin escribir.",
-        catalog,
-        missionState: {
-            phase: "MISSION_CONTRACT",
-            writeAllowed: false,
-            existingInitialTools: [
-                "repo.search",
-                "connector.list"
-            ]
-        },
-        ai: {
-            models: {
-                generateContent: async () => {
-                    throw new Error("VERTEX_MUST_NOT_RUN_FOR_CONTRACT");
+test("mission contract fails closed when the authenticated provider is unavailable", async () => {
+    let simpleCalls = 0;
+    let compatibleCalls = 0;
+    await assert.rejects(
+        () => runJarvisSemanticPlanner({
+            input: "Investiga, entrega diagnostico y revisa conectores sin escribir.",
+            catalog,
+            missionState: {
+                phase: "MISSION_CONTRACT",
+                writeAllowed: false,
+                existingInitialTools: ["repo.search", "connector.list"]
+            },
+            ai: {
+                models: {
+                    generateContent: async () => {
+                        throw new Error("VERTEX_UNAVAILABLE");
+                    }
                 }
+            },
+            simpleFetchImpl: async () => {
+                simpleCalls += 1;
+                return { ok: true, text: async () => JSON.stringify({ toolCalls: [{ name: "repo.search", args: { query: "diagnostico" } }] }) };
+            },
+            fetchImpl: async () => {
+                compatibleCalls += 1;
+                throw new Error("PUBLIC_FALLBACK_MUST_NOT_RUN");
             }
-        },
-        simpleFetchImpl: async url => {
-            urls.push(url);
-            return {
-                ok: true,
-                text: async () => JSON.stringify({
-                    toolCalls: [
-                        { name: "repo.search", args: { query: "diagnostico" } },
-                        { name: "connector.list", args: {} }
-                    ],
-                    missionComplete: false
-                })
-            };
-        },
-        fetchImpl: async () => {
-            throw new Error("COMPATIBLE_FALLBACK_MUST_NOT_RUN");
-        }
-    });
-
-    assert.ok(urls[0].includes("seed=84"));
-    assert.ok(urls[0].includes("CONTRATO%20COMPLETO"));
-    assert.deepEqual(result.toolCalls.map(call => call.name), ["repo.search", "connector.list"]);
-    assert.equal(result.provider, "pollinations-simple-json");
+        }),
+        /SEMANTIC_AUTHENTICATED_PROVIDER_VERTEX_UNAVAILABLE/
+    );
+    assert.equal(simpleCalls, 0);
+    assert.equal(compatibleCalls, 0);
 });
 
 test("malformed mission contract retries with another semantic sample", async () => {
@@ -1695,4 +1685,104 @@ test("semantic planner accepts long and ten-page missions without losing mission
     assert.equal(requestBody.messages[1].content, longInstruction);
     assert.ok(requestBody.messages[0].content.includes("MISSION-LONG-1"));
     assert.ok(requestBody.messages[0].content.includes("No repitas una herramienta completada"));
+});
+
+
+test("authenticated completion audit uses JSON without function declarations", async () => {
+    let request = null;
+    const catalog = [{
+        name: "marketing.plan",
+        description: "Completa marketing pendiente.",
+        mutates: false,
+        inputSchema: {
+            type: "object",
+            required: ["brandName"],
+            properties: { brandName: { type: "string" } }
+        }
+    }];
+    const result = await runGeminiSemanticPlanner({
+        input: "Completa la mision actual.",
+        catalog,
+        missionState: { phase: "COMPLETION_AUDIT", completedTasks: [] },
+        ai: {
+            lastProvider: "vertex-adc",
+            models: {
+                generateContent: async value => {
+                    request = value;
+                    return {
+                        text: JSON.stringify({
+                            toolCalls: [{ name: "marketing.plan", args: { brandName: "Taquería El Dorado" } }],
+                            missionComplete: false
+                        })
+                    };
+                }
+            }
+        }
+    });
+    assert.equal(request.config.responseMimeType, "application/json");
+    assert.equal(Object.prototype.hasOwnProperty.call(request.config, "tools"), false);
+    assert.equal(result.provider, "vertex-adc");
+    assert.equal(result.planKind, "COMPLETION_AUDIT");
+    assert.equal(result.toolCalls[0].name, "marketing.plan");
+});
+
+test("authenticated grounded argument completion retries JSON and never needs the public planner", async () => {
+    let attempts = 0;
+    const reelTool = {
+        name: "reel.plan",
+        description: "Completa el reel seleccionado.",
+        mutates: false,
+        inputSchema: {
+            type: "object",
+            required: ["durationSeconds", "scenes"],
+            properties: {
+                durationSeconds: { type: "integer" },
+                scenes: {
+                    type: "array",
+                    minItems: 1,
+                    items: {
+                        type: "object",
+                        required: ["id", "durationSeconds"],
+                        properties: {
+                            id: { type: "string" },
+                            durationSeconds: { type: "integer" }
+                        }
+                    }
+                }
+            }
+        }
+    };
+    const result = await runGeminiSemanticPlanner({
+        input: "Prepara solo argumentos ejecutables para reel.plan.",
+        catalog: [reelTool],
+        missionState: { phase: "GROUNDED_ARGUMENT_COMPLETION", toolName: "reel.plan" },
+        ai: {
+            lastProvider: "vertex-adc",
+            models: {
+                generateContent: async request => {
+                    attempts += 1;
+                    assert.equal(request.config.responseMimeType, "application/json");
+                    assert.equal(Object.prototype.hasOwnProperty.call(request.config, "tools"), false);
+                    return {
+                        text: JSON.stringify(attempts === 1
+                            ? { toolCalls: [], missionComplete: false }
+                            : {
+                                toolCalls: [{
+                                    name: "reel.plan",
+                                    args: {
+                                        durationSeconds: 30,
+                                        scenes: [{ id: "scene-1", durationSeconds: 30 }]
+                                    }
+                                }],
+                                missionComplete: false
+                            })
+                    };
+                }
+            }
+        }
+    });
+    assert.equal(attempts, 2);
+    assert.equal(result.provider, "vertex-adc");
+    assert.equal(result.planKind, "GROUNDED_ARGUMENT_COMPLETION");
+    assert.equal(result.toolCalls[0].args.durationSeconds, 30);
 });

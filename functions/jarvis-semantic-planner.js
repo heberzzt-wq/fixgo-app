@@ -683,6 +683,9 @@ function buildSemanticSystemInstruction(catalog = [], missionState = null) {
         "Para page.plan, image.plan y reel.plan completa una especificacion concreta basada solo en la evidencia disponible. Planear en read-only no equivale a crear, publicar ni desplegar.",
         "En reel.plan la suma exacta de durationSeconds de las escenas debe coincidir con durationSeconds total.",
         "Cuando el usuario limite la investigacion a un dominio, copia ese dominio exacto en allowedDomain de web.research y descarta fuentes externas.",
+        "Si la instruccion original contiene una URL explicita entregada por el usuario, tratala como FUENTE ANCLA. FUENTES_EXPLICITAS_USUARIO identifica esas URLs inmutables: conserva la URL y la identidad exactas y nunca sustituyas el ancla por una publicacion, cuenta o entidad homonima.",
+        "Para web.research con FUENTE ANCLA, copia la URL exacta en seedUrl y su dominio exacto en allowedDomain. Si el ancla no puede verificarse, falla cerrado; no relajes allowedDomain ni presentes otra fuente como si fuera el ancla.",
+        "Para web.media.collect con FUENTE ANCLA, copia la URL exacta en url. Si la investigacion verificada selecciono una fuente concreta, conserva exactamente esa URL y no la reemplaces por otra publicacion.",
         "En web.research, query debe contener solo el objetivo concreto de investigacion y sus terminos distintivos; no copies la mision mixta completa, nombres de archivos ni otras ordenes. Conserva literalmente conceptos tecnicos importantes como custom claims, roles, APIs o normas.",
         "No dupliques web.research para reformular el mismo objetivo. El runtime asigna una identidad estable por objetivo y solamente conserva varias investigaciones cuando la instruccion pide temas o entidades independientes.",
         "En cada web.research usa researchGoal=RESEARCH_1, RESEARCH_2, etc. segun el orden de los objetivos independientes en la instruccion original; reutiliza exactamente el mismo researchGoal al auditar o reformular el mismo objetivo.",
@@ -978,6 +981,102 @@ async function runGeminiSemanticPlanner({
             catalogSize: safeCatalog.length,
             planKind: "COMPLETION_AUDIT"
         });
+    }
+
+    const phase =
+        String(missionState?.phase || "");
+
+    if (
+        phase === "COMPLETION_AUDIT" ||
+        phase === "GROUNDED_ARGUMENT_COMPLETION"
+    ) {
+        const phaseCatalog =
+            phase === "GROUNDED_ARGUMENT_COMPLETION"
+                ? safeCatalog.slice(0, 1)
+                : safeCatalog;
+        if (
+            phase === "GROUNDED_ARGUMENT_COMPLETION" &&
+            phaseCatalog.length !== 1
+        ) {
+            throw new Error("SEMANTIC_GROUNDED_TOOL_REQUIRED");
+        }
+
+        let lastPhaseError = null;
+        for (let attempt = 1; attempt <= 2; attempt += 1) {
+            try {
+                const phaseResponse =
+                    await ai.models.generateContent({
+                        model,
+                        contents: [
+                            buildSemanticSystemInstruction(phaseCatalog, missionState),
+                            `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
+                            phase === "GROUNDED_ARGUMENT_COMPLETION"
+                                ? "COMPLETA solamente los argumentos de la herramienta ya seleccionada. Devuelve JSON con esa toolCall y missionComplete=false. No selecciones otra herramienta."
+                                : "AUDITORIA_DE_CIERRE_CONTROLADA: no estas obligado a llamar una herramienta. Compara la instruccion original con completedTasks y blockedTasks. Si falta un entregable devuelve exactamente una toolCall ejecutable. Solo si todo esta satisfecho devuelve toolCalls=[] y missionComplete=true.",
+                            attempt > 1
+                                ? "REINTENTO: la salida anterior no fue ejecutable. Conserva el mismo objetivo y devuelve JSON valido."
+                                : ""
+                        ].filter(Boolean).join("\n\n"),
+                        config: {
+                            temperature: 0,
+                            maxOutputTokens: 3000,
+                            thinkingConfig: {
+                                thinkingBudget: 0
+                            },
+                            responseMimeType: "application/json"
+                        }
+                    });
+                const payload =
+                    extractJsonObject(
+                        String(phaseResponse?.text || "")
+                    );
+                const validated =
+                    validatePlan(
+                        {
+                            ...(payload || {}),
+                            ...(phase === "GROUNDED_ARGUMENT_COMPLETION"
+                                ? { missionComplete: false }
+                                : {})
+                        },
+                        phaseCatalog,
+                        instruction
+                    );
+
+                if (phase === "GROUNDED_ARGUMENT_COMPLETION") {
+                    const selected =
+                        validated.toolCalls.find(call =>
+                            call.name === phaseCatalog[0].name
+                        );
+                    if (
+                        !selected ||
+                        !hasRequiredToolArguments(
+                            phaseCatalog[0],
+                            selected.args || {}
+                        )
+                    ) {
+                        throw new Error("SEMANTIC_GROUNDED_ARGUMENTS_REQUIRED");
+                    }
+                }
+
+                return requireExecutablePlan({
+                    ...validated,
+                    provider: String(ai.lastProvider || "gemini"),
+                    model,
+                    catalogSize: phaseCatalog.length,
+                    planKind: phase
+                });
+            }
+            catch(error) {
+                lastPhaseError = error;
+            }
+        }
+
+        throw lastPhaseError ||
+            new Error(
+                phase === "GROUNDED_ARGUMENT_COMPLETION"
+                    ? "SEMANTIC_GROUNDED_ARGUMENTS_REQUIRED"
+                    : "SEMANTIC_COMPLETION_AUDIT_REQUIRED"
+            );
     }
 
     const request = {
@@ -1289,24 +1388,11 @@ async function runJarvisSemanticPlanner({
                     catalog: safeCatalog,
                     missionState
                 });
-            } catch (geminiError) {
-                if (typeof fetchImpl !== "function") throw geminiError;
-                try {
-                    return await runJarvisSemanticPlanner({
-                        fetchImpl,
-                        simpleFetchImpl,
-                        ai: null,
-                        input: instruction,
-                        catalog: safeCatalog,
-                        endpoint,
-                        timeoutMs,
-                        missionState
-                    });
-                } catch (fallbackError) {
-                    throw new Error(
-                        `SEMANTIC_GEMINI_${geminiError?.message || "FAILED"}__FALLBACK_${fallbackError?.message || "FAILED"}`
-                    );
-                }
+            }
+            catch(geminiError) {
+                throw new Error(
+                    `SEMANTIC_AUTHENTICATED_PROVIDER_${geminiError?.message || "FAILED"}`
+                );
             }
         }
 

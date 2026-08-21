@@ -433,227 +433,17 @@ test("mixed attachment analysis plus explicit image creation is not collapsed to
     );
 });
 
-test("browser mission contract returns every model-selected high-level tool", async () => {
-    const originalFetch = globalThis.fetch;
-    let requestedUrl = "";
-    globalThis.fetch = async url => {
-        requestedUrl = String(url);
-        return {
-            ok: true,
-            text: async () => JSON.stringify({
-                toolCalls: [
-                    { name: "web.research", arguments: { query: "SUMM", allowedDomain: "www.summ.com.mx" } },
-                    { name: "marketing.plan", arguments: {} },
-                    { name: "page.plan", arguments: {} },
-                    { name: "image.plan", arguments: {} },
-                    { name: "reel.plan", arguments: { durationSeconds: 45 } }
-                ],
-                missionComplete: false
-            })
-        };
-    };
-    try {
-        const result = await plannerTest.callBrowserMissionContract(
-            "Investiga SUMM y entrega marketing, landing, imagen y reel sin escribir.",
-            semanticPlannerCatalog,
-            {
-                existingInitialTools: [
-                    "web.research",
-                    "marketing.plan",
-                    "page.plan",
-                    "image.plan",
-                    "reel.plan"
-                ]
-            }
-        );
-        assert.ok(requestedUrl.includes("text.pollinations.ai"));
-        assert.match(
-            decodeURIComponent(
-                requestedUrl
-            ),
-            /HERRAMIENTAS_INICIALES=web\.research,marketing\.plan,page\.plan,image\.plan,reel\.plan/
-        );
-        assert.equal(result.provider, "pollinations-browser-json");
-        assert.deepEqual(result.toolCalls.map(call => call.name), [
-            "web.research",
-            "marketing.plan",
-            "page.plan",
-            "image.plan",
-            "reel.plan"
-        ]);
+test("client planner keeps jarvisSemanticPlan as the single planning authority", () => {
+    const source = fs.readFileSync(
+        path.resolve("gestia-core/jarvis/jarvis.multifunction.planner.js"),
+        "utf8"
+    );
 
-        const trusted = plannerTest.trustedPlanCalls(result, semanticPlannerCatalog, {});
-        assert.equal(trusted[0].args.allowedDomain, "www.summ.com.mx");
-        assert.equal(trusted[4].args.durationSeconds, 45);
-
-        const recoveredPlan = await plannerTest.callBrowserSemanticPlan(
-            "Investiga SUMM y entrega landing.",
-            semanticPlannerCatalog
-        );
-        assert.equal(recoveredPlan.provider, "pollinations-browser-json");
-        assert.ok(recoveredPlan.toolCalls.some(call => call.name === "page.plan"));
-    } finally {
-        globalThis.fetch = originalFetch;
-    }
-});
-
-test("browser mission contract audits and restores a subject omitted by its first sample", async () => {
-    const originalFetch = globalThis.fetch;
-    let requestCount = 0;
-    const catalog = [{
-        name: "repo.search",
-        description: "Busca cada sujeto independiente.",
-        mutates: false,
-        requiresApproval: false,
-        inputSchema: {
-            type: "object",
-            required: ["query"],
-            properties: {
-                query: { type: "string" }
-            }
-        }
-    }];
-    globalThis.fetch = async url => {
-        requestCount += 1;
-        const decodedUrl = decodeURIComponent(String(url));
-        if (requestCount === 2) {
-            assert.match(decodedUrl, /AUDITORIA SEMANTICA DE COBERTURA/);
-            assert.match(decodedUrl, /BORRADOR_DE_CONTRATO/);
-        }
-        return {
-            ok: true,
-            text: async () => JSON.stringify({
-                toolCalls: requestCount === 1
-                    ? [
-                        { name: "repo.search", arguments: { query: "app-login.js" } },
-                        { name: "repo.search", arguments: { query: "firebase.js" } }
-                    ]
-                    : [
-                        { name: "repo.search", arguments: { query: "tecnico b2b" } }
-                    ],
-                missionComplete: false
-            })
-        };
-    };
-
-    try {
-        const result = await plannerTest.callBrowserMissionContract(
-            "Reviza tecnico b2b, app-login.js y firebase.js.",
-            catalog
-        );
-        assert.equal(requestCount, 2);
-        assert.equal(result.planKind, "MISSION_CONTRACT_AUDITED");
-        assert.deepEqual(
-            plannerTest.trustedPlanCalls(result, catalog, {}).map(call => call.args.query),
-            ["app-login.js", "firebase.js", "tecnico b2b"]
-        );
-    } finally {
-        globalThis.fetch = originalFetch;
-    }
-});
-
-test("browser mission coverage keeps one call per stable research objective", async () => {
-    const originalFetch =
-        globalThis.fetch;
-    let requestCount =
-        0;
-    const catalog = [{
-        name:
-            "web.research",
-        description:
-            "Investiga objetivos con fuentes.",
-        mutates:
-            false,
-        requiresApproval:
-            false,
-        missionDedupeBy: [
-            "researchGoal"
-        ],
-        inputSchema: {
-            type:
-                "object",
-            required: [
-                "query",
-                "researchGoal"
-            ],
-            properties: {
-                query: {
-                    type:
-                        "string"
-                },
-                researchGoal: {
-                    type:
-                        "string"
-                }
-            },
-            additionalProperties:
-                false
-        }
-    }];
-    globalThis.fetch =
-        async () => {
-            requestCount +=
-                1;
-            return {
-                ok:
-                    true,
-                text:
-                    async () =>
-                        JSON.stringify({
-                            toolCalls: requestCount === 1
-                                ? [{
-                                    name:
-                                        "web.research",
-                                    arguments: {
-                                        query:
-                                            "Firebase custom claims"
-                                    }
-                                }]
-                                : [{
-                                    name:
-                                        "web.research",
-                                    arguments: {
-                                        query:
-                                            "roles con Firebase claims"
-                                    }
-                                }],
-                            missionComplete:
-                                false
-                        })
-            };
-        };
-
-    try {
-        const result =
-            await plannerTest
-                .callBrowserMissionContract(
-                    "Investiga Firebase custom claims y roles.",
-                    catalog
-                );
-        assert.equal(
-            requestCount,
-            2
-        );
-        assert.equal(
-            result.toolCalls.length,
-            1
-        );
-        assert.equal(
-            result.toolCalls[0]
-                .args
-                .researchGoal,
-            "RESEARCH_1"
-        );
-        assert.equal(
-            result.toolCalls[0]
-                .missionDedupeKey,
-            'web.research:["RESEARCH_1"]'
-        );
-    }
-    finally {
-        globalThis.fetch =
-            originalFetch;
-    }
+    assert.match(source, /CLOUD_MISSION_CONTRACT_TIMEOUT_MS =\s*45000/);
+    assert.doesNotMatch(source, /text\.pollinations\.ai/);
+    assert.doesNotMatch(source, /callBrowserMissionContract/);
+    assert.doesNotMatch(source, /callBrowserSemanticPlan/);
+    assert.match(source, /const contractPlanner = context\.semanticPlanner/);
 });
 
 test("browser planner blocks tool calls with missing required arguments", () => {
@@ -2931,9 +2721,10 @@ test("semantic model planner replaces phrase gates and preserves terminal speech
     assert.doesNotMatch(core, /isExplicitCasualSocialRequest/);
     assert.match(planner, /jarvisSemanticPlan/);
     assert.match(planner, /trustedPlanCalls/);
-    assert.match(planner, /callBrowserMissionContract/);
-    assert.match(planner, /callBrowserSemanticPlan/);
-    assert.match(planner, /repo\.architectReview es autocontenida/);
+    assert.doesNotMatch(planner, /callBrowserMissionContract/);
+    assert.doesNotMatch(planner, /callBrowserSemanticPlan/);
+    assert.doesNotMatch(planner, /repo\.architectReview es autocontenida/);
+    assert.match(planner, /GENERALIST_CURRENT_TURN_POLICY/);
     assert.match(planner, /usesRegisteredToolAsRepositoryFile/);
     assert.match(core, /MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN/);
     assert.match(core, /allowedMissionTools/);
@@ -4412,218 +4203,24 @@ test("repo diagnosis accepts synchronous null discovery before loading fallback 
 });
 
 
-test("artifact edit missions keep specialized editors and defer certification until completion audit", () => {
-    const plannerSource =
-        fs.readFileSync(
-            path.join(
-                process.cwd(),
-                "gestia-core",
-                "jarvis",
-                "jarvis.multifunction.planner.js"
-            ),
-            "utf8"
-        );
+test("artifact edit missions stay catalog-driven and defer certification until completion audit", () => {
+    const plannerSource = fs.readFileSync(
+        path.join(process.cwd(), "gestia-core", "jarvis", "jarvis.multifunction.planner.js"),
+        "utf8"
+    );
+    const actuatorSource = fs.readFileSync(
+        path.join(process.cwd(), "gestia-core", "jarvis", "jarvis.actuator.pack.js"),
+        "utf8"
+    );
 
-    assert.match(
-        plannerSource,
-        /document\.pdf\.edit/
-    );
-    assert.match(
-        plannerSource,
-        /document\.xlsx\.edit/
-    );
-    assert.match(
-        plannerSource,
-        /image\.edit/
-    );
-    assert.match(
-        plannerSource,
-        /Nunca sustituyas una edicion solicitada/
-    );
-    assert.match(
-        plannerSource,
-        /tool\.name === "system\.certify"[\s\S]{0,160}COMPLETION_AUDIT/
-    );
+    assert.match(plannerSource, /extractExplicitGovernedToolPlan/);
+    assert.match(plannerSource, /catalogByName/);
+    assert.match(plannerSource, /isGovernedArtifact/);
+    assert.match(plannerSource, /COMPLETION_AUDIT/);
+    assert.match(plannerSource, /terminalCertificationAccounted/);
+    assert.match(actuatorSource, /name:\s*"document\.pdf\.edit"/);
+    assert.match(actuatorSource, /name:\s*"document\.xlsx\.edit"/);
 });
-
-
-test("browser mission fallback retries every semantic sample with an independent AbortSignal", async () => {
-    const previousFetch =
-        globalThis.fetch;
-
-    const signals =
-        [];
-
-    let attempt =
-        0;
-
-    try {
-        globalThis.fetch =
-            async (
-                _url,
-                options = {}
-            ) => {
-                signals.push(
-                    options.signal
-                );
-
-                attempt +=
-                    1;
-
-                if (attempt === 1) {
-                    throw new Error(
-                        "signal is aborted without reason"
-                    );
-                }
-
-                const toolCalls =
-                    attempt === 2
-                        ? [{
-                            name:
-                                "document.pdf.edit",
-                            args: {
-                                sourceOutput:
-                                    ".jarvis-artifacts/documents/source.pdf",
-                                output:
-                                    ".jarvis-artifacts/documents/output.pdf",
-                                safePlacement:
-                                    true,
-                                changes: [{
-                                    page:
-                                        1,
-                                    x:
-                                        9000,
-                                    y:
-                                        -200,
-                                    width:
-                                        9000,
-                                    height:
-                                        18,
-                                    text:
-                                        "Validacion V103",
-                                    fontSize:
-                                        8
-                                }]
-                            }
-                        }]
-                        : [];
-
-                return {
-                    ok:
-                        true,
-                    status:
-                        200,
-                    text:
-                        async () =>
-                            JSON.stringify({
-                                toolCalls,
-                                missionComplete:
-                                    false
-                            })
-                };
-            };
-
-        const plan =
-            await plannerTest
-                .callBrowserMissionContract(
-                    "Ejecuta document.pdf.edit una sola vez.",
-                    [{
-                        name:
-                            "document.pdf.edit",
-                        description:
-                            "Edita una copia local de un PDF.",
-                        mutates:
-                            true,
-                        requiresApproval:
-                            false,
-                        userArtifact:
-                            true,
-                        missionDedupeBy: [
-                            "sourceOutput",
-                            "output"
-                        ],
-                        inputSchema: {
-                            type:
-                                "object",
-                            required: [
-                                "sourceOutput",
-                                "output",
-                                "changes"
-                            ],
-                            properties: {
-                                sourceOutput: {
-                                    type:
-                                        "string"
-                                },
-                                output: {
-                                    type:
-                                        "string"
-                                },
-                                safePlacement: {
-                                    type:
-                                        "boolean"
-                                },
-                                changes: {
-                                    type:
-                                        "array",
-                                    minItems:
-                                        1,
-                                    items: {
-                                        type:
-                                            "object"
-                                    }
-                                }
-                            }
-                        }
-                    }],
-                    {
-                        phase:
-                            "MISSION_CONTRACT",
-                        existingInitialTools: [
-                            "document.pdf.edit"
-                        ]
-                    }
-                );
-
-        assert.equal(
-            signals.length,
-            3
-        );
-
-        assert.equal(
-            new Set(signals).size,
-            3
-        );
-
-        assert.equal(
-            signals.every(signal =>
-                signal &&
-                signal.aborted ===
-                    false
-            ),
-            true
-        );
-
-        assert.deepEqual(
-            plan.toolCalls.map(call =>
-                call.name
-            ),
-            [
-                "document.pdf.edit"
-            ]
-        );
-
-        assert.equal(
-            plan.planKind,
-            "MISSION_CONTRACT_AUDITED"
-        );
-    }
-    finally {
-        globalThis.fetch =
-            previousFetch;
-    }
-});
-
 
 test("governed explicit tool envelope runs without semantic providers and defers certification", async () => {
     const previousFetch =
@@ -5222,9 +4819,9 @@ test("semantic mission latency budgets are bounded and do not stack exhausted pr
     const plannerSource = fs.readFileSync(path.resolve("gestia-core/jarvis/jarvis.multifunction.planner.js"), "utf8");
     const coreSource = fs.readFileSync(path.resolve("gestia-core/gestia-core.js"), "utf8");
     const multitoolSource = fs.readFileSync(path.resolve("gestia-core/jarvis/jarvis.multitool.pack.js"), "utf8");
-    assert.match(plannerSource, /CLOUD_MISSION_CONTRACT_TIMEOUT_MS\s*=\s*\n\s*12000/);
-    assert.match(plannerSource, /BROWSER_MISSION_ATTEMPT_TIMEOUT_MS\s*=\s*\n\s*6000/);
-    assert.match(plannerSource, /BROWSER_PLAN_ATTEMPT_TIMEOUT_MS\s*=\s*\n\s*5000/);
+    assert.match(plannerSource, /CLOUD_MISSION_CONTRACT_TIMEOUT_MS\s*=\s*\n\s*45000/);
+    assert.doesNotMatch(plannerSource, /BROWSER_MISSION_ATTEMPT_TIMEOUT_MS\s*=\s*\n\s*6000/);
+    assert.doesNotMatch(plannerSource, /BROWSER_PLAN_ATTEMPT_TIMEOUT_MS\s*=\s*\n\s*5000/);
     assert.doesNotMatch(plannerSource, /:\s*110000;/);
     assert.match(coreSource, /providerFallbackExhausted[\s\S]{0,500}?__BROWSER_/);
     assert.match(coreSource, /attempt\s*<=\s*2/);
@@ -5260,10 +4857,23 @@ test("terminal core-first has no orphan brain route and semantic latency is boun
     assert.doesNotMatch(terminalSource, /terminalBrainRoute/);
     assert.doesNotMatch(terminalSource, /routeTerminalNaturalIntent/);
     assert.match(terminalSource, /await window\.GestiaCore\.procesarIntencion/);
-    assert.match(plannerSource, /CLOUD_MISSION_CONTRACT_TIMEOUT_MS\s*=\s*\n\s*12000/);
-    assert.match(plannerSource, /BROWSER_MISSION_ATTEMPT_TIMEOUT_MS\s*=\s*\n\s*6000/);
-    assert.match(plannerSource, /BROWSER_PLAN_ATTEMPT_TIMEOUT_MS\s*=\s*\n\s*5000/);
+    assert.match(plannerSource, /CLOUD_MISSION_CONTRACT_TIMEOUT_MS\s*=\s*\n\s*45000/);
+    assert.doesNotMatch(plannerSource, /BROWSER_MISSION_ATTEMPT_TIMEOUT_MS\s*=\s*\n\s*6000/);
+    assert.doesNotMatch(plannerSource, /BROWSER_PLAN_ATTEMPT_TIMEOUT_MS\s*=\s*\n\s*5000/);
     assert.doesNotMatch(plannerSource, /:\s*110000;/);
     assert.match(coreSource, /providerFallbackExhausted/);
     assert.match(multitoolSource, /\?\s*30000[\s\S]{0,80}?:\s*18000/);
+});
+
+
+test("entity-not-verified research cannot satisfy the mission objective", () => {
+    const source = fs.readFileSync(
+        path.resolve("gestia-core/jarvis/jarvis.multitool.pack.js"),
+        "utf8"
+    );
+
+    assert.match(source, /objectiveSatisfied:\s*!entityNotVerified/);
+    assert.match(source, /requiresInput:\s*entityNotVerified/);
+    assert.match(source, /const primaryEntityNotVerified/);
+    assert.match(source, /objectiveSatisfied:\s*false/);
 });
