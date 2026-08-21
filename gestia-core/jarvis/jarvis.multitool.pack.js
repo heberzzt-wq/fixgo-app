@@ -1674,6 +1674,99 @@ export async function fetchGroundedWebResearch(
                             ? "ENTITY_NOT_VERIFIED_CROSS_SOURCE_RECOVERY"
                             : "GROUNDED_CROSS_SOURCE_RECOVERY";
 
+                    if (
+                        entityNotVerified &&
+                        typeof globalThis?.JarvisLocalBridge?.requestJson === "function"
+                    ) {
+                        const localRecoveryQuery =
+                            buildCrossSourceResearchRecoveryQuery(
+                                query,
+                                trace
+                            );
+                        try {
+                            const localResult =
+                                await globalThis.JarvisLocalBridge.requestJson(
+                                    "/research",
+                                    {
+                                        query: localRecoveryQuery,
+                                        timeoutMs: 20000,
+                                        allowedDomain: "",
+                                        exactEntity: trace.exactEntity || "",
+                                        seedUrl: ""
+                                    },
+                                    {
+                                        timeoutMs: 25000
+                                    }
+                                );
+                            if (
+                                localResult?.ok === true &&
+                                localResult?.grounded === true &&
+                                Array.isArray(localResult?.sources) &&
+                                localResult.sources.length > 0
+                            ) {
+                                globalThis.__JARVIS_WEB_RESEARCH_HEALTH__ = recordCapabilityEvidence("web_research", {
+                                    ok: true,
+                                    grounded: true,
+                                    status: "GROUNDED_LOCAL_FALLBACK",
+                                    sourceCount: localResult.sources.length,
+                                    factCount: Array.isArray(localResult?.facts)
+                                        ? localResult.facts.length
+                                        : 0,
+                                    objectiveId: localResult?.objectiveId || trace.objectiveId || null,
+                                    caseId: localResult?.caseId || trace.caseId || null,
+                                    checkedAt: new Date().toISOString()
+                                });
+                                recordCapabilityEvidence("web_research_context", {
+                                    ok: true,
+                                    grounded: true,
+                                    query: localResult.query || localRecoveryQuery,
+                                    answer: String(localResult.answer || "").slice(0, 5000),
+                                    sources: localResult.sources.slice(0, 8),
+                                    facts: Array.isArray(localResult?.facts)
+                                        ? localResult.facts.slice(0, 24)
+                                        : [],
+                                    checkedAt: new Date().toISOString()
+                                });
+
+                                return {
+                                    ...localResult,
+                                    ok: true,
+                                    executionOk: true,
+                                    objectiveSatisfied: true,
+                                    blocked: false,
+                                    requiresInput: false,
+                                    retryable: false,
+                                    status: "GROUNDED_LOCAL_FALLBACK",
+                                    cloudStatus: recoveryStatus,
+                                    cloudError:
+                                        recoveryResult?.message ||
+                                        recoveryResult?.error ||
+                                        "ENTITY_NOT_VERIFIED",
+                                    source: "JARVIS_LOCAL_GROUNDED_WEB_RESEARCH",
+                                    readOnly: true,
+                                    sourceScopeRecovered: true,
+                                    exactAnchorVerified: false,
+                                    anchorStatus: "EXACT_ANCHOR_UNAVAILABLE_CROSS_SOURCE_GROUNDED",
+                                    anchor: {
+                                        seedUrl,
+                                        allowedDomain: String(trace.allowedDomain || ""),
+                                        verified: false,
+                                        primaryError: primaryMessage || null
+                                    }
+                                };
+                            }
+                        }
+                        catch(localError) {
+                            recoveryMessage = [
+                                recoveryMessage,
+                                localError?.message ||
+                                String(localError)
+                            ]
+                                .filter(Boolean)
+                                .join(" | ");
+                        }
+                    }
+
                     globalThis.__JARVIS_WEB_RESEARCH_HEALTH__ = recordCapabilityEvidence("web_research", {
                         ok: true,
                         grounded: recoveryResult?.grounded === true,

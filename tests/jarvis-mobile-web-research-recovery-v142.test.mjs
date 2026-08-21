@@ -305,3 +305,105 @@ test("v142 hard domain scope never relaxes an unrelated allowedDomain", async ()
         if (previousBridge === undefined) delete globalThis.JarvisLocalBridge; else globalThis.JarvisLocalBridge = previousBridge;
     }
 });
+
+
+test("v142 entity-not-verified cloud recovery gives the existing local research bridge a chance", async () => {
+    const previousAuth = globalThis.auth;
+    const previousWindow = globalThis.window;
+    const previousFetch = globalThis.fetch;
+    const previousBridge = globalThis.JarvisLocalBridge;
+    const cloudCalls = [];
+    const localCalls = [];
+
+    globalThis.auth = {
+        currentUser: {
+            getIdToken: async () => "firebase-user-token"
+        }
+    };
+    globalThis.window = globalThis.window || {};
+    globalThis.fetch = async (_url, options = {}) => {
+        const body = JSON.parse(String(options.body || "{}"));
+        cloudCalls.push(body?.data || {});
+        return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+                result: {
+                    ok: true,
+                    grounded: false,
+                    status: "ENTITY_NOT_VERIFIED",
+                    message: "No pude verificar la identidad exacta con las fuentes cloud consultadas.",
+                    answer: "",
+                    sources: [],
+                    facts: [],
+                    supports: []
+                }
+            })
+        };
+    };
+    globalThis.JarvisLocalBridge = {
+        requestJson: async (path, payload, options) => {
+            localCalls.push({ path, payload, options });
+            return {
+                ok: true,
+                grounded: true,
+                status: "GROUNDED_LOCAL_SEARCH",
+                query: payload.query,
+                answer: "Identidad recuperada con fuentes web locales atribuibles.",
+                sources: [
+                    {
+                        id: 1,
+                        title: "Taquería El Dorado Cancún",
+                        url: "https://example.com/taqueria-el-dorado-cancun"
+                    }
+                ],
+                supports: [
+                    {
+                        text: "Fuente atribuible a Taquería El Dorado.",
+                        sourceIds: [1]
+                    }
+                ]
+            };
+        }
+    };
+
+    try {
+        const result = await fetchGroundedWebResearch(
+            "Taquería El Dorado @taqueria.eldorado Cancún",
+            {
+                objectiveId: "OBJ-V142-LOCAL",
+                caseId: "CASE-V142-LOCAL",
+                allowedDomain: "tiktok.com",
+                exactEntity: "Taquería El Dorado",
+                seedUrl
+            }
+        );
+
+        assert.equal(cloudCalls.length, 2);
+        assert.equal(localCalls.length, 1);
+        assert.equal(localCalls[0].path, "/research");
+        assert.equal(localCalls[0].payload.allowedDomain, "");
+        assert.equal(localCalls[0].payload.exactEntity, "Taquería El Dorado");
+        assert.equal(localCalls[0].payload.seedUrl, "");
+        assert.doesNotMatch(localCalls[0].payload.query, /https?:\/\//i);
+        assert.match(localCalls[0].payload.query, /Taquería El Dorado/i);
+        assert.equal(result.ok, true);
+        assert.equal(result.executionOk, true);
+        assert.equal(result.objectiveSatisfied, true);
+        assert.equal(result.requiresInput, false);
+        assert.equal(result.status, "GROUNDED_LOCAL_FALLBACK");
+        assert.equal(result.source, "JARVIS_LOCAL_GROUNDED_WEB_RESEARCH");
+        assert.equal(result.sourceScopeRecovered, true);
+        assert.equal(result.exactAnchorVerified, false);
+    }
+    finally {
+        if (previousAuth === undefined) delete globalThis.auth;
+        else globalThis.auth = previousAuth;
+        if (previousWindow === undefined) delete globalThis.window;
+        else globalThis.window = previousWindow;
+        if (previousFetch === undefined) delete globalThis.fetch;
+        else globalThis.fetch = previousFetch;
+        if (previousBridge === undefined) delete globalThis.JarvisLocalBridge;
+        else globalThis.JarvisLocalBridge = previousBridge;
+    }
+});
