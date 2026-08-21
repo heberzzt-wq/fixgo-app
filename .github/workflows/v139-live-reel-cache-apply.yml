@@ -5,6 +5,7 @@ on:
     branches:
       - v94-media-v4n-negative-claims
     paths:
+      - '.github/workflows/v139-live-reel-cache-apply.yml'
       - '.github/scripts/v139-live-reel-cache-apply.py'
   workflow_dispatch:
 
