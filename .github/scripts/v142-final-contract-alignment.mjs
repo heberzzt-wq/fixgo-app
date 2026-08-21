@@ -2,6 +2,7 @@ import fs from "node:fs";
 
 const paths = {
   semanticPlanner: "functions/jarvis-semantic-planner.js",
+  multitool: "gestia-core/jarvis/jarvis.multitool.pack.js",
   multifunctionTest: "tests/jarvis-multifunction-tools.test.mjs",
   sourceGroundedTest: "tests/jarvis-source-grounded-research-v124.test.mjs"
 };
@@ -56,6 +57,41 @@ for (const marker of ["FUENTE ANCLA", "FUENTES_EXPLICITAS_USUARIO", "seedUrl", "
 }
 write(paths.semanticPlanner, semantic);
 
+let multitool = read(paths.multitool);
+const recoveryReturnOld = `                    return {\n                        ...recoveryResult,\n                        ok: true,\n                        status: recoveryStatus,`;
+const recoveryReturnNew = `                    return {\n                        ...recoveryResult,\n                        ok: true,\n                        executionOk: true,\n                        objectiveSatisfied: !entityNotVerified,\n                        blocked: entityNotVerified,\n                        requiresInput: entityNotVerified,\n                        retryable: false,\n                        ...(entityNotVerified\n                            ? {\n                                missingInputs: [\n                                    "informacion verificable adicional para confirmar la identidad exacta de la entidad"\n                                ]\n                            }\n                            : {}),\n                        status: recoveryStatus,`;
+multitool = replaceOnce(
+  multitool,
+  recoveryReturnOld,
+  recoveryReturnNew,
+  "cross-source-entity-objective-truth"
+);
+const primaryStatusOld = `            const resultStatus =\n                seedUrl && exactAnchorVerified !== true\n                    ? "GROUNDED_ANCHOR_UNVERIFIED_DOMAIN_ONLY"\n                    : primaryResult.status;`;
+const primaryStatusNew = `            const primaryEntityNotVerified =\n                primaryResult?.status ===\n                    "ENTITY_NOT_VERIFIED";\n            const resultStatus =\n                primaryEntityNotVerified\n                    ? "ENTITY_NOT_VERIFIED"\n                    : seedUrl && exactAnchorVerified !== true\n                        ? "GROUNDED_ANCHOR_UNVERIFIED_DOMAIN_ONLY"\n                        : primaryResult.status;`;
+multitool = replaceOnce(
+  multitool,
+  primaryStatusOld,
+  primaryStatusNew,
+  "primary-entity-status-truth"
+);
+const primaryReturnOld = `            return {\n                ...primaryResult,\n                status: resultStatus,`;
+const primaryReturnNew = `            return {\n                ...primaryResult,\n                ...(primaryEntityNotVerified\n                    ? {\n                        executionOk: true,\n                        objectiveSatisfied: false,\n                        blocked: true,\n                        requiresInput: true,\n                        retryable: false,\n                        missingInputs: [\n                            "informacion verificable adicional para confirmar la identidad exacta de la entidad"\n                        ]\n                    }\n                    : {}),\n                status: resultStatus,`;
+multitool = replaceOnce(
+  multitool,
+  primaryReturnOld,
+  primaryReturnNew,
+  "primary-entity-objective-truth"
+);
+for (const marker of [
+  "objectiveSatisfied: !entityNotVerified",
+  "requiresInput: entityNotVerified",
+  "primaryEntityNotVerified",
+  "objectiveSatisfied: false"
+]) {
+  if (!multitool.includes(marker)) throw new Error(`V142_RESEARCH_OBJECTIVE_TRUTH_MISSING:${marker}`);
+}
+write(paths.multitool, multitool);
+
 let multifunction = read(paths.multifunctionTest);
 const parsed = topLevelTestBlocks(multifunction);
 const legacyInvocation = /plannerTest[\s\S]{0,100}\.callBrowser(?:MissionContract|SemanticPlan)\s*\(/;
@@ -96,6 +132,9 @@ multifunction = multifunction
     "    assert.match(planner, /callBrowserSemanticPlan/);",
     "    assert.doesNotMatch(planner, /callBrowserSemanticPlan/);"
   );
+if (!multifunction.includes('test("entity-not-verified research cannot satisfy the mission objective"')) {
+  multifunction += `\n\ntest("entity-not-verified research cannot satisfy the mission objective", () => {\n    const source = fs.readFileSync(\n        path.resolve("gestia-core/jarvis/jarvis.multitool.pack.js"),\n        "utf8"\n    );\n\n    assert.match(source, /objectiveSatisfied:\s*!entityNotVerified/);\n    assert.match(source, /requiresInput:\s*entityNotVerified/);\n    assert.match(source, /const primaryEntityNotVerified/);\n    assert.match(source, /objectiveSatisfied:\s*false/);\n});\n`;
+}
 if (/plannerTest[\s\S]{0,100}\.callBrowser(?:MissionContract|SemanticPlan)\s*\(/.test(multifunction)) {
   throw new Error("V142_LEGACY_BROWSER_PLANNER_TEST_STILL_ACTIVE");
 }
@@ -140,5 +179,6 @@ console.log(JSON.stringify({
   status: "V142_FINAL_CONTRACT_ALIGNMENT_APPLIED",
   removedLegacyBrowserPlannerTests: removedLegacyBlocks,
   alignedLatencyBlocks,
+  researchObjectiveTruth: true,
   sourceAnchorAuthority: "functions/jarvis-semantic-planner.js"
 }));
