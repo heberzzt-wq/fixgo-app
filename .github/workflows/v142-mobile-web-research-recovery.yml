@@ -135,19 +135,29 @@ jobs:
           ! grep -Fq 'jarvis-local-web-research.js' jarvis-upload-bridge.js
           ! grep -Fq 'NEXO preparó una campaña específica' gestia-core/jarvis/jarvis.marketing.engine.js
 
-      - name: V142 focal contracts
-        shell: bash
-        run: |
-          set -euo pipefail
-          node --test --test-concurrency=1 \
-            tests/jarvis-mobile-web-research-recovery-v142.test.mjs \
-            tests/jarvis-genai-provider-chain.test.cjs \
-            tests/jarvis-web-research.test.cjs \
-            tests/jarvis-semantic-planner.test.cjs \
-            tests/jarvis-upload-bridge.test.mjs \
-            tests/jarvis-source-grounded-research-v124.test.mjs \
-            tests/jarvis-multifunction-tools.test.mjs \
-            tests/jarvis-mission-orchestrator.test.mjs
+      - name: V142 contract - mobile web research recovery
+        run: node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs
+
+      - name: V142 contract - genai provider chain
+        run: node --test --test-concurrency=1 tests/jarvis-genai-provider-chain.test.cjs
+
+      - name: V142 contract - web research
+        run: node --test --test-concurrency=1 tests/jarvis-web-research.test.cjs
+
+      - name: V142 contract - semantic planner
+        run: node --test --test-concurrency=1 tests/jarvis-semantic-planner.test.cjs
+
+      - name: V142 contract - upload bridge
+        run: node --test --test-concurrency=1 tests/jarvis-upload-bridge.test.mjs
+
+      - name: V142 contract - source grounded research v124
+        run: node --test --test-concurrency=1 tests/jarvis-source-grounded-research-v124.test.mjs
+
+      - name: V142 contract - multifunction tools
+        run: node --test --test-concurrency=1 tests/jarvis-multifunction-tools.test.mjs
+
+      - name: V142 contract - mission orchestrator
+        run: node --test --test-concurrency=1 tests/jarvis-mission-orchestrator.test.mjs
 
       - name: Full CI
         run: npm run ci:test
@@ -216,7 +226,7 @@ jobs:
             throw 'V142_EXISTING_WEB_CONTRACT_ASSERTION_NOT_FOUND'
           }
 
-      - name: Windows V142 contracts
+      - name: Windows V142 runtime syntax
         shell: pwsh
         run: |
           node --check gestia-core/gestia-core.js
@@ -237,8 +247,24 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'FUNCTIONS_INDEX_SYNTAX_FAILED' }
           node --check jarvis-upload-bridge.js
           if ($LASTEXITCODE -ne 0) { throw 'UPLOAD_BRIDGE_SYNTAX_FAILED' }
-          node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-genai-provider-chain.test.cjs tests/jarvis-web-research.test.cjs tests/jarvis-semantic-planner.test.cjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-multifunction-tools.test.mjs
-          if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_V142_CONTRACTS_FAILED' }
+
+      - name: Windows V142 contract - mobile web research recovery
+        run: node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs
+
+      - name: Windows V142 contract - genai provider chain
+        run: node --test --test-concurrency=1 tests/jarvis-genai-provider-chain.test.cjs
+
+      - name: Windows V142 contract - web research
+        run: node --test --test-concurrency=1 tests/jarvis-web-research.test.cjs
+
+      - name: Windows V142 contract - semantic planner
+        run: node --test --test-concurrency=1 tests/jarvis-semantic-planner.test.cjs
+
+      - name: Windows V142 contract - upload bridge
+        run: node --test --test-concurrency=1 tests/jarvis-upload-bridge.test.mjs
+
+      - name: Windows V142 contract - multifunction tools
+        run: node --test --test-concurrency=1 tests/jarvis-multifunction-tools.test.mjs
 
   materialize-v142:
     needs:
@@ -349,18 +375,6 @@ jobs:
 
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
-
-      - name: Deploy V142 Jarvis functions
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        run: |
-          set -euo pipefail
-          test -n "$FIREBASE_TOKEN"
-          firebase deploy \
-            --only functions:jarvisWebResearch,functions:jarvisSemanticPlan,functions:jarvisSemanticRespond \
-            --project "$FIREBASE_PROJECT_ID" \
-            --token "$FIREBASE_TOKEN" \
-            --non-interactive
 
       - name: Deploy V142 Hosting
         env:
