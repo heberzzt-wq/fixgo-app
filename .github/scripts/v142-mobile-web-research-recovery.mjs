@@ -14,7 +14,9 @@ const paths = {
   v142Test: "tests/jarvis-mobile-web-research-recovery-v142.test.mjs"
 };
 
-function read(file) { return fs.readFileSync(file, "utf8"); }
+function read(file) {
+  return fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
+}
 function write(file, value) { fs.writeFileSync(file, value, "utf8"); }
 function assertHas(source, needle, label) {
   if (!source.includes(needle)) throw new Error(`V142_PATCH_MARKER_MISSING:${label}`);
@@ -58,8 +60,10 @@ assertHas(clientPlanner, "        const contractPlanner = context.semanticPlanne
 const catchBrowserStart = `    } catch (error) {\n        if (\n            context?.missionState?.phase !== "MISSION_CONTRACT"`;
 if (clientPlanner.includes(catchBrowserStart)) {
   const start = clientPlanner.indexOf(catchBrowserStart);
-  const health = clientPlanner.indexOf("        globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__ = {", start);
-  if (health < 0) throw new Error("V142_PATCH_MARKER_MISSING:client-browser-catch-end");
+  const unavailable = clientPlanner.indexOf('            status: "SEMANTIC_PLANNER_UNAVAILABLE"', start);
+  if (unavailable < 0) throw new Error("V142_PATCH_MARKER_MISSING:client-unavailable-health-status");
+  const health = clientPlanner.lastIndexOf("        globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__ = {", unavailable);
+  if (health < start) throw new Error("V142_PATCH_MARKER_MISSING:client-browser-catch-end");
   clientPlanner = clientPlanner.slice(0, start) + "    } catch (error) {\n" + clientPlanner.slice(health);
 }
 const completionFn = clientPlanner.indexOf("export async function completeJarvisPlanningArguments({");
