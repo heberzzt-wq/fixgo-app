@@ -131,7 +131,8 @@ for (const block of parsed.blocks) {
       );
   }
   const isArtifactEditorContract =
-    block.startsWith('test("artifact edit missions keep specialized editors and defer certification until completion audit"');
+    block.startsWith('test("artifact edit missions keep specialized editors and defer certification until completion audit"') ||
+    block.startsWith('test("artifact edit missions stay catalog-driven and defer certification until completion audit"');
   if (isArtifactEditorContract) {
     alignedArtifactEditorBlocks += 1;
     keptBlock = `test("artifact edit missions stay catalog-driven and defer certification until completion audit", () => {\n    const plannerSource = fs.readFileSync(\n        path.join(process.cwd(), "gestia-core", "jarvis", "jarvis.multifunction.planner.js"),\n        "utf8"\n    );\n    const actuatorSource = fs.readFileSync(\n        path.join(process.cwd(), "gestia-core", "jarvis", "jarvis.actuator.pack.js"),\n        "utf8"\n    );\n\n    assert.match(plannerSource, /extractExplicitGovernedToolPlan/);\n    assert.match(plannerSource, /catalogByName/);\n    assert.match(plannerSource, /isGovernedArtifact/);\n    assert.match(plannerSource, /COMPLETION_AUDIT/);\n    assert.match(plannerSource, /terminalCertificationAccounted/);\n    assert.match(actuatorSource, /name:\\s*"document\\.pdf\\.edit"/);\n    assert.match(actuatorSource, /name:\\s*"document\\.xlsx\\.edit"/);\n});\n\n`;
