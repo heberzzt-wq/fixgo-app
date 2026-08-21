@@ -98,12 +98,30 @@ const legacyInvocation = /plannerTest[\s\S]{0,100}\.callBrowser(?:MissionContrac
 const keptBlocks = [];
 let removedLegacyBlocks = 0;
 let alignedLatencyBlocks = 0;
+let alignedSemanticAuthorityBlocks = 0;
+let alignedArtifactEditorBlocks = 0;
 for (const block of parsed.blocks) {
   if (legacyInvocation.test(block)) {
     removedLegacyBlocks += 1;
     continue;
   }
   let keptBlock = block;
+  const isSemanticAuthorityContract =
+    block.startsWith('test("semantic model planner replaces phrase gates and preserves terminal speech"');
+  if (isSemanticAuthorityContract) {
+    alignedSemanticAuthorityBlocks += 1;
+    keptBlock = keptBlock
+      .replace(
+        "    assert.match(planner, /repo\\.architectReview es autocontenida/);",
+        "    assert.doesNotMatch(planner, /repo\\.architectReview es autocontenida/);\n    assert.match(planner, /GENERALIST_CURRENT_TURN_POLICY/);"
+      );
+  }
+  const isArtifactEditorContract =
+    block.startsWith('test("artifact edit missions keep specialized editors and defer certification until completion audit"');
+  if (isArtifactEditorContract) {
+    alignedArtifactEditorBlocks += 1;
+    keptBlock = `test("artifact edit missions stay catalog-driven and defer certification until completion audit", () => {\n    const plannerSource = fs.readFileSync(\n        path.join(process.cwd(), "gestia-core", "jarvis", "jarvis.multifunction.planner.js"),\n        "utf8"\n    );\n    const actuatorSource = fs.readFileSync(\n        path.join(process.cwd(), "gestia-core", "jarvis", "jarvis.actuator.pack.js"),\n        "utf8"\n    );\n\n    assert.match(plannerSource, /extractExplicitGovernedToolPlan/);\n    assert.match(plannerSource, /catalogByName/);\n    assert.match(plannerSource, /isGovernedArtifact/);\n    assert.match(plannerSource, /COMPLETION_AUDIT/);\n    assert.match(plannerSource, /terminalCertificationAccounted/);\n    assert.match(actuatorSource, /name:\\s*"document\\.pdf\\.edit"/);\n    assert.match(actuatorSource, /name:\\s*"document\\.xlsx\\.edit"/);\n});\n\n`;
+  }
   const isV142LatencyContract =
     block.startsWith('test("semantic mission latency budgets are bounded and do not stack exhausted providers"') ||
     block.startsWith('test("terminal core-first has no orphan brain route and semantic latency is bounded"');
@@ -147,6 +165,12 @@ if (!multifunction.includes("assert.doesNotMatch(planner, /callBrowserMissionCon
 if (!multifunction.includes("assert.doesNotMatch(planner, /callBrowserSemanticPlan/);")) {
   throw new Error("V142_BROWSER_PLAN_NEGATIVE_ASSERTION_MISSING");
 }
+if (alignedSemanticAuthorityBlocks !== 1) {
+  throw new Error(`V142_SEMANTIC_AUTHORITY_CONTRACT_COUNT_MISMATCH:${alignedSemanticAuthorityBlocks}`);
+}
+if (alignedArtifactEditorBlocks !== 1) {
+  throw new Error(`V142_ARTIFACT_EDITOR_CONTRACT_COUNT_MISMATCH:${alignedArtifactEditorBlocks}`);
+}
 if (alignedLatencyBlocks !== 2) {
   throw new Error(`V142_LATENCY_CONTRACT_COUNT_MISMATCH:${alignedLatencyBlocks}`);
 }
@@ -155,6 +179,12 @@ if (multifunction.includes("assert.match(plannerSource, /BROWSER_MISSION_ATTEMPT
 }
 if (multifunction.includes("assert.match(plannerSource, /BROWSER_PLAN_ATTEMPT_TIMEOUT_MS")) {
   throw new Error("V142_LEGACY_BROWSER_PLAN_TIMEOUT_ASSERTION_ACTIVE");
+}
+if (multifunction.includes("assert.match(planner, /repo\\.architectReview es autocontenida/);")) {
+  throw new Error("V142_LEGACY_ARCHITECT_LITERAL_ASSERTION_ACTIVE");
+}
+if (multifunction.includes("assert.match(\n        plannerSource,\n        /document\\.pdf\\.edit/")) {
+  throw new Error("V142_LEGACY_CLIENT_EDITOR_LITERAL_ASSERTION_ACTIVE");
 }
 write(paths.multifunctionTest, multifunction);
 
@@ -178,6 +208,8 @@ console.log(JSON.stringify({
   ok: true,
   status: "V142_FINAL_CONTRACT_ALIGNMENT_APPLIED",
   removedLegacyBrowserPlannerTests: removedLegacyBlocks,
+  alignedSemanticAuthorityBlocks,
+  alignedArtifactEditorBlocks,
   alignedLatencyBlocks,
   researchObjectiveTruth: true,
   sourceAnchorAuthority: "functions/jarvis-semantic-planner.js"
