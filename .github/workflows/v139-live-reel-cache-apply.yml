@@ -5,7 +5,6 @@ on:
     branches:
       - v94-media-v4n-negative-claims
     paths:
-      - '.github/workflows/v139-live-reel-cache-apply.yml'
       - '.github/scripts/v139-live-reel-cache-apply.py'
   workflow_dispatch:
 
@@ -15,7 +14,7 @@ permissions:
 jobs:
   apply-v139-live-cache:
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 35
     steps:
       - name: Checkout isolated branch
         uses: actions/checkout@v4
@@ -28,55 +27,74 @@ jobs:
           cache: npm
       - name: Install root dependencies
         run: npm ci
-      - name: Guard branch and Functions before patch
+      - name: Guard branch and protected surfaces before patch
         shell: bash
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
           ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
-      - name: Apply deterministic v139 live cache patch
+          ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..HEAD | grep -E '^multiservicios-web/'
+      - name: Apply deterministic v139 reel execution recovery
         run: python .github/scripts/v139-live-reel-cache-apply.py
-      - name: Guard patch surface
+      - name: Guard exact existing-product patch surface
         shell: bash
         run: |
           set -euo pipefail
           mapfile -t changed < <({ git diff --name-only; git ls-files --others --exclude-standard; } | sort -u)
           printf '%s\n' "${changed[@]}"
+          test "${#changed[@]}" -gt 0
           for path in "${changed[@]}"; do
             case "$path" in
-              gestia-terminal.html|gestia-core/gestia-core.js|gestia-core/tools.runtime.js|tests/jarvis-reel-live-cache-v139.test.mjs|tests/jarvis-reel-media-source-recovery-v136.test.mjs) ;;
+              gestia-core/jarvis/jarvis.multitool.pack.js|jarvis-reel-artifact.js|gestia-core/jarvis/jarvis.marketing.engine.js|gestia-core/tools.bridge.js|gestia-core/tools.runtime.js|gestia-core/jarvis/jarvis.actuator.pack.js|gestia-core/jarvis/jarvis.mission.orchestrator.js|tests/jarvis-reel-artifact.test.mjs|tests/jarvis-reel-live-cache-v139.test.mjs) ;;
               *) echo "V139_UNEXPECTED_PATCH_SURFACE:$path" >&2; exit 1 ;;
             esac
           done
-          test "${#changed[@]}" -eq 5
-      - name: Syntax and focal v139 contracts
+      - name: Syntax and focal execution contracts
         shell: bash
         run: |
           set -euo pipefail
-          node --check gestia-core/gestia-core.js
+          node --check gestia-core/jarvis/jarvis.multitool.pack.js
+          node --check jarvis-reel-artifact.js
+          node --check gestia-core/jarvis/jarvis.marketing.engine.js
+          node --check gestia-core/tools.bridge.js
           node --check gestia-core/tools.runtime.js
-          node --test \
+          node --check gestia-core/jarvis/jarvis.actuator.pack.js
+          node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
+          node --test --test-concurrency=1 \
+            tests/jarvis-reel-artifact.test.mjs \
             tests/jarvis-reel-live-cache-v139.test.mjs \
             tests/jarvis-reel-native-mp4-v138.test.mjs \
             tests/jarvis-reel-speech-v137.test.mjs \
-            tests/jarvis-reel-media-source-recovery-v136.test.mjs \
-            tests/nexo-browser-media-fallback-v135.test.mjs \
-            tests/jarvis-reel-real-production-v134.test.mjs \
-            tests/jarvis-reel-mission-fidelity-v133.test.mjs \
-            tests/jarvis-reel-researched-media-v132.test.mjs \
-            tests/jarvis-mission-orchestrator.test.mjs
-      - name: Guard Functions after patch
+            tests/jarvis-v139-release-skew-safe-artifacts.test.mjs \
+            tests/jarvis-actuator-pack.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs \
+            tests/jarvis-marketing-engine-v2.test.mjs \
+            tests/jarvis-marketing-real-delivery.test.mjs
+      - name: Full CI
+        run: npm run ci:test
+      - name: Guard protected surfaces after patch
         shell: bash
         run: |
           set -euo pipefail
           ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
-      - name: Commit and push functional v139 cache fix
+          ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..HEAD | grep -E '^multiservicios-web/'
+          git diff --check
+      - name: Commit and push certified execution recovery
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add gestia-terminal.html gestia-core/gestia-core.js gestia-core/tools.runtime.js tests/jarvis-reel-live-cache-v139.test.mjs tests/jarvis-reel-media-source-recovery-v136.test.mjs
+          git add \
+            gestia-core/jarvis/jarvis.multitool.pack.js \
+            jarvis-reel-artifact.js \
+            gestia-core/jarvis/jarvis.marketing.engine.js \
+            gestia-core/tools.bridge.js \
+            gestia-core/tools.runtime.js \
+            gestia-core/jarvis/jarvis.actuator.pack.js \
+            gestia-core/jarvis/jarvis.mission.orchestrator.js \
+            tests/jarvis-reel-artifact.test.mjs \
+            tests/jarvis-reel-live-cache-v139.test.mjs
           git diff --cached --check
-          git commit -m '[v139] fix(adj): refresh live reel runtime cache chain'
+          git commit -m '[v139] fix(adj): close short reel and bridge artifact failures'
           git push origin HEAD:v94-media-v4n-negative-claims
