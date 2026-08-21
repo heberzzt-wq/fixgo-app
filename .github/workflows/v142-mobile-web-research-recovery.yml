@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/v142-mobile-web-research-recovery.yml'
       - '.github/scripts/v142-mobile-web-research-recovery.mjs'
+      - '.github/scripts/v142-final-contract-alignment.mjs'
       - 'gestia-core/gestia-core.js'
       - 'gestia-core/jarvis/jarvis.multitool.pack.js'
       - 'gestia-core/jarvis/jarvis.multifunction.planner.js'
@@ -22,6 +23,7 @@ on:
       - 'tests/jarvis-upload-bridge.test.mjs'
       - 'tests/jarvis-multifunction-tools.test.mjs'
       - 'tests/jarvis-semantic-planner.test.cjs'
+      - 'tests/jarvis-source-grounded-research-v124.test.mjs'
   workflow_dispatch:
 
 permissions:
@@ -90,6 +92,9 @@ jobs:
       - name: Apply deterministic V142 product patch
         run: node .github/scripts/v142-mobile-web-research-recovery.mjs
 
+      - name: Apply V142 final contract alignment
+        run: node .github/scripts/v142-final-contract-alignment.mjs
+
       - name: Align existing V142 web research assertion
         shell: bash
         run: |
@@ -128,6 +133,8 @@ jobs:
           ! grep -Fq 'callBrowserSemanticPlan' gestia-core/jarvis/jarvis.multifunction.planner.js
           grep -Fq 'simpleFetchImpl: null' functions/index.js
           grep -Fq 'SEMANTIC_AUTHENTICATED_PROVIDER_' functions/jarvis-semantic-planner.js
+          grep -Fq 'FUENTE ANCLA' functions/jarvis-semantic-planner.js
+          grep -Fq 'FUENTES_EXPLICITAS_USUARIO' functions/jarvis-semantic-planner.js
           grep -Fq 'compactProviderInputSchema' functions/jarvis-genai-provider-chain.js
           grep -Fq 'buildJsonPlanningFallbackRequest' functions/jarvis-genai-provider-chain.js
           grep -Fq 'canonicalizeGroundingRedirects' functions/jarvis-genai-provider-chain.js
@@ -178,7 +185,7 @@ jobs:
           fi
           while IFS= read -r file; do
             case "$file" in
-              gestia-core/gestia-core.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs) ;;
+              gestia-core/gestia-core.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs) ;;
               *) echo "Unexpected V142 diff: $file" >&2; exit 1 ;;
             esac
           done <<< "$changed"
@@ -211,6 +218,9 @@ jobs:
 
       - name: Apply deterministic V142 product patch
         run: node .github/scripts/v142-mobile-web-research-recovery.mjs
+
+      - name: Apply V142 final contract alignment
+        run: node .github/scripts/v142-final-contract-alignment.mjs
 
       - name: Align existing V142 web research assertion
         shell: pwsh
@@ -283,6 +293,9 @@ jobs:
       - name: Apply certified V142 patch
         run: node .github/scripts/v142-mobile-web-research-recovery.mjs
 
+      - name: Apply certified V142 final contract alignment
+        run: node .github/scripts/v142-final-contract-alignment.mjs
+
       - name: Align certified existing V142 assertion
         shell: bash
         run: |
@@ -307,7 +320,7 @@ jobs:
           test -n "$changed"
           while IFS= read -r file; do
             case "$file" in
-              gestia-core/gestia-core.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs) ;;
+              gestia-core/gestia-core.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs) ;;
               *) echo "Unexpected certified V142 diff: $file" >&2; exit 1 ;;
             esac
           done <<< "$changed"
@@ -325,7 +338,8 @@ jobs:
             tests/jarvis-multifunction-tools.test.mjs \
             tests/jarvis-semantic-planner.test.cjs \
             tests/jarvis-web-research.test.cjs \
-            tests/jarvis-mobile-web-research-recovery-v142.test.mjs
+            tests/jarvis-mobile-web-research-recovery-v142.test.mjs \
+            tests/jarvis-source-grounded-research-v124.test.mjs
           git commit -m 'fix(jarvis): materialize V142 single authority consolidation'
           git push origin "HEAD:${TARGET_BRANCH}"
 
@@ -371,6 +385,7 @@ jobs:
             tests/jarvis-web-research.test.cjs \
             tests/jarvis-semantic-planner.test.cjs \
             tests/jarvis-upload-bridge.test.mjs \
+            tests/jarvis-source-grounded-research-v124.test.mjs \
             tests/jarvis-multifunction-tools.test.mjs
 
       - name: Install Firebase CLI
