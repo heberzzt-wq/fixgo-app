@@ -7,18 +7,21 @@ on:
     paths:
       - '.github/workflows/v142-mobile-web-research-recovery.yml'
       - '.github/scripts/v142-mobile-web-research-recovery.mjs'
-      - 'tests/jarvis-mobile-web-research-recovery-v142.test.mjs'
-      - 'tests/jarvis-genai-provider-chain.test.cjs'
-      - 'tests/jarvis-web-research.test.cjs'
-      - 'tests/jarvis-upload-bridge.test.mjs'
-      - 'tests/jarvis-multifunction-tools.test.mjs'
+      - 'gestia-core/gestia-core.js'
       - 'gestia-core/jarvis/jarvis.multitool.pack.js'
       - 'gestia-core/jarvis/jarvis.multifunction.planner.js'
+      - 'gestia-core/jarvis/jarvis.marketing.engine.js'
       - 'functions/jarvis-genai-provider-chain.js'
       - 'functions/jarvis-web-research.js'
       - 'functions/jarvis-semantic-planner.js'
       - 'functions/index.js'
       - 'jarvis-upload-bridge.js'
+      - 'tests/jarvis-mobile-web-research-recovery-v142.test.mjs'
+      - 'tests/jarvis-genai-provider-chain.test.cjs'
+      - 'tests/jarvis-web-research.test.cjs'
+      - 'tests/jarvis-upload-bridge.test.mjs'
+      - 'tests/jarvis-multifunction-tools.test.mjs'
+      - 'tests/jarvis-semantic-planner.test.cjs'
   workflow_dispatch:
 
 permissions:
@@ -87,7 +90,7 @@ jobs:
       - name: Apply deterministic V142 product patch
         run: node .github/scripts/v142-mobile-web-research-recovery.mjs
 
-      - name: Align existing V142 web research contract
+      - name: Align existing V142 web research assertion
         shell: bash
         run: |
           set -euo pipefail
@@ -107,8 +110,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          node --check gestia-core/gestia-core.js
           node --check gestia-core/jarvis/jarvis.multitool.pack.js
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
+          node --check gestia-core/jarvis/jarvis.marketing.engine.js
           node --check functions/jarvis-genai-provider-chain.js
           node --check functions/jarvis-web-research.js
           node --check functions/jarvis-semantic-planner.js
@@ -116,12 +121,19 @@ jobs:
           node --check jarvis-upload-bridge.js
           grep -Fq 'GROUNDED_CROSS_SOURCE_RECOVERY' gestia-core/jarvis/jarvis.multitool.pack.js
           grep -Fq 'EXACT_ANCHOR_UNAVAILABLE_CROSS_SOURCE_GROUNDED' gestia-core/jarvis/jarvis.multitool.pack.js
-          ! grep -Fq 'if (seed && anchorUrls.has(seed.url)) return true;' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -Fq 'hardDomainScope' gestia-core/jarvis/jarvis.multitool.pack.js
+          grep -Eq 'CLOUD_MISSION_CONTRACT_TIMEOUT_MS =\s*45000|CLOUD_MISSION_CONTRACT_TIMEOUT_MS =[[:space:]]*$' gestia-core/jarvis/jarvis.multifunction.planner.js
+          ! grep -Fq 'text.pollinations.ai' gestia-core/jarvis/jarvis.multifunction.planner.js
+          ! grep -Fq 'callBrowserMissionContract' gestia-core/jarvis/jarvis.multifunction.planner.js
+          ! grep -Fq 'callBrowserSemanticPlan' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -Fq 'simpleFetchImpl: null' functions/index.js
+          grep -Fq 'SEMANTIC_AUTHENTICATED_PROVIDER_' functions/jarvis-semantic-planner.js
           grep -Fq 'compactProviderInputSchema' functions/jarvis-genai-provider-chain.js
           grep -Fq 'buildJsonPlanningFallbackRequest' functions/jarvis-genai-provider-chain.js
           grep -Fq 'canonicalizeGroundingRedirects' functions/jarvis-genai-provider-chain.js
           grep -Fq 'runResilientLocalWebResearch' jarvis-upload-bridge.js
           ! grep -Fq 'jarvis-local-web-research.js' jarvis-upload-bridge.js
+          ! grep -Fq 'NEXO preparó una campaña específica' gestia-core/jarvis/jarvis.marketing.engine.js
 
       - name: V142 focal contracts
         shell: bash
@@ -131,6 +143,7 @@ jobs:
             tests/jarvis-mobile-web-research-recovery-v142.test.mjs \
             tests/jarvis-genai-provider-chain.test.cjs \
             tests/jarvis-web-research.test.cjs \
+            tests/jarvis-semantic-planner.test.cjs \
             tests/jarvis-upload-bridge.test.mjs \
             tests/jarvis-source-grounded-research-v124.test.mjs \
             tests/jarvis-multifunction-tools.test.mjs \
@@ -147,22 +160,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet -- \
-            gestia-core/jarvis/jarvis.multitool.pack.js \
-            gestia-core/jarvis/jarvis.multifunction.planner.js \
-            tests/jarvis-multifunction-tools.test.mjs; then
+          changed=$(git diff --name-only)
+          if [ -z "$changed" ]; then
             echo 'product_changed=false' >> "$GITHUB_OUTPUT"
             echo 'V142_PRODUCT_ALREADY_MATERIALIZED=true'
-          else
-            unexpected=$(git diff --name-only | grep -Ev '^(gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|tests/jarvis-multifunction-tools.test.mjs)$' || true)
-            test -z "$unexpected"
-            echo 'product_changed=true' >> "$GITHUB_OUTPUT"
-            echo 'V142_PRODUCT_PATCH_NEEDS_COMMIT=true'
+            exit 0
           fi
+          while IFS= read -r file; do
+            case "$file" in
+              gestia-core/gestia-core.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs) ;;
+              *) echo "Unexpected V142 diff: $file" >&2; exit 1 ;;
+            esac
+          done <<< "$changed"
+          echo 'product_changed=true' >> "$GITHUB_OUTPUT"
+          echo 'V142_PRODUCT_PATCH_NEEDS_COMMIT=true'
 
   certify-windows:
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
     steps:
       - name: Checkout exact branch head
         uses: actions/checkout@v4
@@ -177,12 +192,17 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        shell: pwsh
+        run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { throw 'ROOT_NPM_CI_FAILED' }
+          npm ci --prefix functions
+          if ($LASTEXITCODE -ne 0) { throw 'FUNCTIONS_NPM_CI_FAILED' }
 
       - name: Apply deterministic V142 product patch
         run: node .github/scripts/v142-mobile-web-research-recovery.mjs
 
-      - name: Align existing V142 web research contract
+      - name: Align existing V142 web research assertion
         shell: pwsh
         run: |
           $path = 'tests/jarvis-multifunction-tools.test.mjs'
@@ -199,17 +219,25 @@ jobs:
       - name: Windows V142 contracts
         shell: pwsh
         run: |
+          node --check gestia-core/gestia-core.js
+          if ($LASTEXITCODE -ne 0) { throw 'CORE_SYNTAX_FAILED' }
           node --check gestia-core/jarvis/jarvis.multitool.pack.js
           if ($LASTEXITCODE -ne 0) { throw 'MULTITOOL_SYNTAX_FAILED' }
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
           if ($LASTEXITCODE -ne 0) { throw 'PLANNER_SYNTAX_FAILED' }
+          node --check gestia-core/jarvis/jarvis.marketing.engine.js
+          if ($LASTEXITCODE -ne 0) { throw 'MARKETING_SYNTAX_FAILED' }
           node --check functions/jarvis-genai-provider-chain.js
           if ($LASTEXITCODE -ne 0) { throw 'PROVIDER_CHAIN_SYNTAX_FAILED' }
           node --check functions/jarvis-web-research.js
           if ($LASTEXITCODE -ne 0) { throw 'WEB_RESEARCH_SYNTAX_FAILED' }
+          node --check functions/jarvis-semantic-planner.js
+          if ($LASTEXITCODE -ne 0) { throw 'SEMANTIC_PLANNER_SYNTAX_FAILED' }
+          node --check functions/index.js
+          if ($LASTEXITCODE -ne 0) { throw 'FUNCTIONS_INDEX_SYNTAX_FAILED' }
           node --check jarvis-upload-bridge.js
           if ($LASTEXITCODE -ne 0) { throw 'UPLOAD_BRIDGE_SYNTAX_FAILED' }
-          node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-genai-provider-chain.test.cjs tests/jarvis-web-research.test.cjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-multifunction-tools.test.mjs
+          node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-genai-provider-chain.test.cjs tests/jarvis-web-research.test.cjs tests/jarvis-semantic-planner.test.cjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-multifunction-tools.test.mjs
           if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_V142_CONTRACTS_FAILED' }
 
   materialize-v142:
@@ -229,7 +257,7 @@ jobs:
       - name: Apply certified V142 patch
         run: node .github/scripts/v142-mobile-web-research-recovery.mjs
 
-      - name: Align certified existing V142 contract
+      - name: Align certified existing V142 assertion
         shell: bash
         run: |
           set -euo pipefail
@@ -250,13 +278,29 @@ jobs:
         run: |
           set -euo pipefail
           changed=$(git diff --name-only)
-          unexpected=$(printf '%s\n' "$changed" | grep -Ev '^(gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|tests/jarvis-multifunction-tools.test.mjs)$' || true)
-          test -z "$unexpected"
+          test -n "$changed"
+          while IFS= read -r file; do
+            case "$file" in
+              gestia-core/gestia-core.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs) ;;
+              *) echo "Unexpected certified V142 diff: $file" >&2; exit 1 ;;
+            esac
+          done <<< "$changed"
           git diff --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add gestia-core/jarvis/jarvis.multitool.pack.js gestia-core/jarvis/jarvis.multifunction.planner.js tests/jarvis-multifunction-tools.test.mjs
-          git commit -m 'fix(jarvis): materialize V142 web research recovery'
+          git add \
+            gestia-core/gestia-core.js \
+            gestia-core/jarvis/jarvis.multitool.pack.js \
+            gestia-core/jarvis/jarvis.multifunction.planner.js \
+            gestia-core/jarvis/jarvis.marketing.engine.js \
+            functions/jarvis-semantic-planner.js \
+            functions/jarvis-web-research.js \
+            functions/index.js \
+            tests/jarvis-multifunction-tools.test.mjs \
+            tests/jarvis-semantic-planner.test.cjs \
+            tests/jarvis-web-research.test.cjs \
+            tests/jarvis-mobile-web-research-recovery-v142.test.mjs
+          git commit -m 'fix(jarvis): materialize V142 single authority consolidation'
           git push origin "HEAD:${TARGET_BRANCH}"
 
   deploy-v142:
@@ -289,14 +333,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
           node --check functions/jarvis-genai-provider-chain.js
           node --check functions/jarvis-web-research.js
           node --check functions/jarvis-semantic-planner.js
           node --check functions/index.js
           node --check jarvis-upload-bridge.js
           node --test --test-concurrency=1 \
+            tests/jarvis-mobile-web-research-recovery-v142.test.mjs \
             tests/jarvis-genai-provider-chain.test.cjs \
             tests/jarvis-web-research.test.cjs \
+            tests/jarvis-semantic-planner.test.cjs \
             tests/jarvis-upload-bridge.test.mjs \
             tests/jarvis-multifunction-tools.test.mjs
 
