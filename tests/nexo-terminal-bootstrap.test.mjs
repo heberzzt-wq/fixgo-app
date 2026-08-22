@@ -156,12 +156,35 @@ test("V142 real Chrome verifies the served loopback bootstrap and local research
     let cdp = null;
     t.after(async () => {
         try { cdp?.socket?.close(); } catch {}
+
+        let chromeExit = null;
         if (chrome.exitCode === null) {
+            chromeExit = new Promise(resolve => {
+                const timer = setTimeout(resolve, 5000);
+                chrome.once("exit", () => {
+                    clearTimeout(timer);
+                    resolve();
+                });
+            });
             try { chrome.kill("SIGKILL"); } catch {}
         }
+        if (chromeExit) {
+            await chromeExit;
+        }
+
         await new Promise(resolve => server.close(() => resolve()));
-        fs.rmSync(bridgeRoot, { recursive: true, force: true });
-        fs.rmSync(profile, { recursive: true, force: true });
+        fs.rmSync(bridgeRoot, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100
+        });
+        fs.rmSync(profile, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100
+        });
     });
 
     const pageTarget = await openCdpPage(chrome, targetUrl);
