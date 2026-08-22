@@ -20,6 +20,11 @@ async function write(file, source) {
 function replaceOnce(source, before, after, label) {
     if (source.includes(after)) return source;
     const count = source.split(before).length - 1;
+    if (
+        count === 0 &&
+        label === "RECOVERED_TOOL_ARCHIVE_HELPER" &&
+        source.includes("function archiveRecoveredToolAttempts(")
+    ) return source;
     if (count !== 1) throw new Error(`${label}_MATCH_COUNT_${count}`);
     return source.replace(before, after);
 }
