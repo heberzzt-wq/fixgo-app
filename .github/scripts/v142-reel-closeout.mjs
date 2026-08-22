@@ -5,6 +5,7 @@ const paths = {
     orchestrator: "gestia-core/jarvis/jarvis.mission.orchestrator.js",
     reelTest: "tests/jarvis-reel-native-mp4-v138.test.mjs",
     fsBridgeV2Test: "tests/jarvis-fs-bridge-v2.test.mjs",
+    semanticPlannerTest: "tests/jarvis-semantic-planner.test.cjs",
     missionTest: "tests/jarvis-mission-orchestrator.test.mjs"
 };
 
@@ -201,6 +202,13 @@ fsBridgeV2Test = replaceOnce(
     "FS_BRIDGE_V2_VERSION_CONTRACT"
 );
 await write(paths.fsBridgeV2Test, fsBridgeV2Test);
+
+let semanticPlannerTest = await read(paths.semanticPlannerTest);
+semanticPlannerTest = semanticPlannerTest.replace(
+    /\n{3,}(const catalog = \[)/,
+    "\n\n$1"
+);
+await write(paths.semanticPlannerTest, semanticPlannerTest);
 
 let missionTest = await read(paths.missionTest);
 missionTest = appendOnce(
