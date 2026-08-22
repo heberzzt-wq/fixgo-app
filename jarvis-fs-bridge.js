@@ -56,7 +56,7 @@ import {
 } from "./jarvis-speech-artifact.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.45.0-native-mp4-reel-export-v138";
+    "2.46.0-reel-export-completion-v142";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -617,11 +617,10 @@ export async function exportReelVideoWithChrome({
             throw new Error(String(startResult || "REEL_EXPORT_START_FAILED"));
         }
 
-        await sleepMs(duration * 1000 + 2600);
         const payloadText = await evaluateCdpExpression(
             target.webSocketDebuggerUrl,
-            `(() => new Promise(async (resolve, reject) => { try { const blob = window.__JARVIS_LAST_REEL_BLOB__; const detail = window.__JARVIS_LAST_REEL_DETAIL__; if (!blob || !detail) throw new Error('REEL_EXPORTED_BLOB_MISSING'); const bytes = new Uint8Array(await blob.arrayBuffer()); let binary = ''; const step = 0x8000; for (let index = 0; index < bytes.length; index += step) binary += String.fromCharCode(...bytes.subarray(index, index + step)); resolve(JSON.stringify({ ...detail, base64: btoa(binary) })); } catch (error) { reject(error); } }))()`,
-            Math.max(30000, duration * 1000)
+            `(() => new Promise((resolve, reject) => { const startedAt = Date.now(); const timeoutMs = ${Math.max(45000, duration * 1000 + 30000)}; const finish = async () => { try { const exportError = window.__JARVIS_REEL_EXPORT_ERROR__; if (exportError) throw new Error(String(exportError)); const blob = window.__JARVIS_LAST_REEL_BLOB__; const detail = window.__JARVIS_LAST_REEL_DETAIL__; if (blob && detail) { const bytes = new Uint8Array(await blob.arrayBuffer()); let binary = ''; const step = 0x8000; for (let index = 0; index < bytes.length; index += step) binary += String.fromCharCode(...bytes.subarray(index, index + step)); resolve(JSON.stringify({ ...detail, base64: btoa(binary) })); return; } if (Date.now() - startedAt >= timeoutMs) throw new Error('REEL_EXPORT_COMPLETION_TIMEOUT'); setTimeout(finish, 100); } catch (error) { reject(error); } }; finish(); }))()`,
+            Math.max(45000, duration * 1000 + 30000)
         );
         const payload = JSON.parse(String(payloadText || "{}"));
         const buffer = Buffer.from(String(payload.base64 || ""), "base64");

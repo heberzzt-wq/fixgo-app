@@ -1358,3 +1358,48 @@ test("media-only required mission closes immediately after successful media anal
     assert.deepEqual(mission.completedTasks.map(item => item.name), ["media.analyze"]);
     assert.deepEqual(mission.contractMissingTools, []);
 });
+
+test("mission archives an earlier blocked speech attempt after verified recovery", async () => {
+    let speechAttempt = 0;
+    const mission = await runJarvisMission({
+        instruction: "Genera una narracion verificable y recupera automaticamente una voz disponible.",
+        initialToolCalls: [
+            { name: "speech.synthesize", args: { text: "Primer intento", language: "es-MX" } },
+            { name: "speech.synthesize", args: { text: "Segundo intento", language: "es" } }
+        ],
+        requiredToolNames: ["speech.synthesize"],
+        planner: async () => ({ toolCalls: [], missionComplete: true }),
+        execute: async () => {
+            speechAttempt += 1;
+            if (speechAttempt === 1) {
+                return {
+                    ok: false,
+                    executionOk: true,
+                    objectiveSatisfied: false,
+                    blocked: true,
+                    retryable: false,
+                    status: "SPEECH_LANGUAGE_VOICE_NOT_FOUND",
+                    error: "SPEECH_LANGUAGE_VOICE_NOT_FOUND"
+                };
+            }
+            return {
+                ok: true,
+                executionOk: true,
+                objectiveSatisfied: true,
+                status: "SPEECH_AUDIO_CREATED_VERIFIED",
+                output: ".jarvis-artifacts/audio/recovered.wav",
+                mimeType: "audio/wav",
+                bytes: 2048,
+                sha256: "a".repeat(64)
+            };
+        },
+        storage: memoryStorage()
+    });
+
+    assert.equal(mission.completedTasks.some(item => item.name === "speech.synthesize"), true);
+    assert.equal(mission.blockedTasks.some(item => item.name === "speech.synthesize"), false);
+    assert.equal(mission.errors.some(item => item.tool === "speech.synthesize"), false);
+    assert.equal(mission.recoveredToolAttempts.length, 1);
+    assert.equal(mission.recoveredToolAttempts[0].observation.status, "SPEECH_LANGUAGE_VOICE_NOT_FOUND");
+    assert.equal(mission.reason, "ALL_EXECUTABLE_TASKS_COMPLETED");
+});

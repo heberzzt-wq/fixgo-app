@@ -118,8 +118,18 @@ test("v138 actuator advertises MP4 preference without removing verified WebM fal
     const bridge = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
     assert.match(actuator, /MP4 H\.264\/AAC cuando Chrome lo soporta/);
     assert.match(actuator, /WebM como fallback verificado/);
-    assert.match(runtime, /v138-native-mp4-reel-export-20260812/);
+    assert.match(runtime, /v139-transient-resilience-20260813/);
     assert.match(bridge, /exportReelVideoWithChrome/);
     assert.match(bridge, /REEL_VIDEO_SHA256_MISMATCH/);
     assert.doesNotMatch(bridge, /REEL_WEBM_BYTE_COUNT_INVALID/);
+});
+
+test("V142 waits for the real browser export completion state", () => {
+  const source = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
+  assert.match(source, /2\.46\.0-reel-export-completion-v142/);
+  assert.doesNotMatch(source, /await sleepMs\(duration \* 1000 \+ 2600\)/);
+  assert.match(source, /__JARVIS_REEL_EXPORT_ERROR__/);
+  assert.match(source, /REEL_EXPORT_COMPLETION_TIMEOUT/);
+  assert.match(source, /setTimeout\(finish, 100\)/);
+  assert.match(source, /Math\.max\(45000, duration \* 1000 \+ 30000\)/);
 });

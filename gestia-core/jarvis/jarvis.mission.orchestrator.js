@@ -1514,6 +1514,32 @@ function archiveRecoveredMediaSourceAttempts(mission = {}, now = () => new Date(
     };
 }
 
+function archiveRecoveredToolAttempts(mission = {}, toolName = "", now = () => new Date().toISOString()) {
+    const name = text(toolName, 120);
+    if (name !== "speech.synthesize") return;
+    const blocked = Array.isArray(mission?.blockedTasks) ? mission.blockedTasks : [];
+    const recovered = blocked.filter(item => item?.name === name);
+    const recoveredErrors = (Array.isArray(mission?.errors) ? mission.errors : [])
+        .filter(item => item?.tool === name);
+    if (recovered.length === 0 && recoveredErrors.length === 0) return;
+    mission.recoveredToolAttempts = [
+        ...(Array.isArray(mission.recoveredToolAttempts)
+            ? mission.recoveredToolAttempts
+            : []),
+        ...recovered.map(item => ({
+            name: item.name,
+            args: item.args,
+            reason: item.reason,
+            observation: item.observation,
+            errors: recoveredErrors,
+            recoveredAt: now()
+        }))
+    ].slice(-12);
+    mission.blockedTasks = blocked.filter(item => item?.name !== name);
+    mission.errors = (Array.isArray(mission?.errors) ? mission.errors : [])
+        .filter(item => item?.tool !== name);
+}
+
 export async function runJarvisMission({
     instruction,
     initialToolCalls = [],
@@ -1949,6 +1975,9 @@ export async function runJarvisMission({
             if (task.name === "web.media.collect") {
                 archiveRecoveredMediaSourceAttempts(mission, now);
             }
+            if (task.name === "speech.synthesize") {
+                archiveRecoveredToolAttempts(mission, task.name, now);
+            }
             mission.completedTasks.push(record);
             if (
                 task.name === "marketing.plan" &&
@@ -2068,5 +2097,6 @@ export const __test = {
     reelMediaRecoveryState,
     reelMediaRecoveryAllowedCalls,
     deterministicReelMediaRecoveryCall,
-    archiveRecoveredMediaSourceAttempts
+    archiveRecoveredMediaSourceAttempts,
+    archiveRecoveredToolAttempts
 };
