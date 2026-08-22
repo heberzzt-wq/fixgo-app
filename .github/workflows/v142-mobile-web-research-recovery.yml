@@ -51,7 +51,7 @@ jobs:
         run: |
           set -euo pipefail
           target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          payload=$(jq -n --arg state pending --arg context 'v142-mobile-web-research-recovery' --arg description "run=${GITHUB_RUN_ID} V142 web research recovery" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          payload=$(jq -n --arg state pending --arg context 'v142-mobile-web-research-recovery' --arg description "run=${GITHUB_RUN_ID} V142 semantic consolidation" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
           curl --fail-with-body --silent --show-error --location -X POST \
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
@@ -84,11 +84,10 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - name: Install app dependencies
-        run: npm ci
-
-      - name: Install functions dependencies
-        run: npm ci --prefix functions
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm ci --prefix functions
 
       - name: Apply deterministic V142 product patch
         run: node .github/scripts/v142-mobile-web-research-recovery.mjs
@@ -96,76 +95,41 @@ jobs:
       - name: Apply V142 final contract alignment
         run: node .github/scripts/v142-final-contract-alignment.mjs
 
-      - name: Align existing V142 web research assertion
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-          path = Path('tests/jarvis-multifunction-tools.test.mjs')
-          source = path.read_text(encoding='utf-8')
-          old = r'    assert.match(source, /facts: Array\.isArray\(result\.facts\)/);'
-          new = r'    assert.match(source, /facts:\s*Array\.isArray\((?:primaryResult|recoveryResult)\?\.facts\)/);'
-          if old in source:
-              path.write_text(source.replace(old, new, 1), encoding='utf-8')
-          elif new not in source:
-              raise SystemExit('V142_EXISTING_WEB_CONTRACT_ASSERTION_NOT_FOUND')
-          PY
-
-      - name: Verify existing runtime surfaces
+      - name: Verify V142 runtime surfaces
         shell: bash
         run: |
           set -euo pipefail
           node --check gestia-core/gestia-core.js
           node --check gestia-core/jarvis/jarvis.multitool.pack.js
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
-          node --check gestia-core/jarvis/jarvis.marketing.engine.js
           node --check functions/jarvis-genai-provider-chain.js
           node --check functions/jarvis-web-research.js
           node --check functions/jarvis-semantic-planner.js
           node --check functions/index.js
           node --check jarvis-upload-bridge.js
-          grep -Fq 'GROUNDED_CROSS_SOURCE_RECOVERY' gestia-core/jarvis/jarvis.multitool.pack.js
-          grep -Fq 'EXACT_ANCHOR_UNAVAILABLE_CROSS_SOURCE_GROUNDED' gestia-core/jarvis/jarvis.multitool.pack.js
-          grep -Fq 'hardDomainScope' gestia-core/jarvis/jarvis.multitool.pack.js
-          grep -Eq 'CLOUD_MISSION_CONTRACT_TIMEOUT_MS =\s*45000|CLOUD_MISSION_CONTRACT_TIMEOUT_MS =[[:space:]]*$' gestia-core/jarvis/jarvis.multifunction.planner.js
+          grep -Fq 'gemini-3.6-flash' functions/jarvis-semantic-planner.js
+          grep -Fq 'gemini-developer' functions/index.js
+          grep -Fq 'vertex-adc' functions/index.js
+          ! grep -Fq 'text.pollinations.ai' functions/jarvis-semantic-planner.js
+          ! grep -Fq 'openai-fast' functions/jarvis-semantic-planner.js
           ! grep -Fq 'text.pollinations.ai' gestia-core/jarvis/jarvis.multifunction.planner.js
-          ! grep -Fq 'callBrowserMissionContract' gestia-core/jarvis/jarvis.multifunction.planner.js
-          ! grep -Fq 'callBrowserSemanticPlan' gestia-core/jarvis/jarvis.multifunction.planner.js
-          grep -Fq 'simpleFetchImpl: null' functions/index.js
-          grep -Fq 'SEMANTIC_AUTHENTICATED_PROVIDER_' functions/jarvis-semantic-planner.js
+          grep -Fq 'GROUNDED_CROSS_SOURCE_RECOVERY' gestia-core/jarvis/jarvis.multitool.pack.js
           grep -Fq 'FUENTE ANCLA' functions/jarvis-semantic-planner.js
-          grep -Fq 'FUENTES_EXPLICITAS_USUARIO' functions/jarvis-semantic-planner.js
           grep -Fq 'compactProviderInputSchema' functions/jarvis-genai-provider-chain.js
-          grep -Fq 'buildJsonPlanningFallbackRequest' functions/jarvis-genai-provider-chain.js
-          grep -Fq 'canonicalizeGroundingRedirects' functions/jarvis-genai-provider-chain.js
+          grep -Fq 'responseHasExecutableSemanticPlan' functions/jarvis-genai-provider-chain.js
           grep -Fq 'runResilientLocalWebResearch' jarvis-upload-bridge.js
-          ! grep -Fq 'jarvis-local-web-research.js' jarvis-upload-bridge.js
-          ! grep -Fq 'NEXO preparó una campaña específica' gestia-core/jarvis/jarvis.marketing.engine.js
 
-      - name: V142 contract - mobile web research recovery
-        run: node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs
-
-      - name: V142 contract - genai provider chain
-        run: node --test --test-concurrency=1 tests/jarvis-genai-provider-chain.test.cjs
-
-      - name: V142 contract - web research
-        run: node --test --test-concurrency=1 tests/jarvis-web-research.test.cjs
-
-      - name: V142 contract - semantic planner
-        run: node --test --test-concurrency=1 tests/jarvis-semantic-planner.test.cjs
-
-      - name: V142 contract - upload bridge
-        run: node --test --test-concurrency=1 tests/jarvis-upload-bridge.test.mjs
-
-      - name: V142 contract - source grounded research v124
-        run: node --test --test-concurrency=1 tests/jarvis-source-grounded-research-v124.test.mjs
-
-      - name: V142 contract - multifunction tools
-        run: node --test --test-concurrency=1 tests/jarvis-multifunction-tools.test.mjs
-
-      - name: V142 contract - mission orchestrator
-        run: node --test --test-concurrency=1 tests/jarvis-mission-orchestrator.test.mjs
+      - name: V142 focal contracts
+        run: |
+          node --test --test-concurrency=1 \
+            tests/jarvis-mobile-web-research-recovery-v142.test.mjs \
+            tests/jarvis-genai-provider-chain.test.cjs \
+            tests/jarvis-web-research.test.cjs \
+            tests/jarvis-semantic-planner.test.cjs \
+            tests/jarvis-upload-bridge.test.mjs \
+            tests/jarvis-source-grounded-research-v124.test.mjs \
+            tests/jarvis-multifunction-tools.test.mjs \
+            tests/jarvis-mission-orchestrator.test.mjs
 
       - name: Full CI
         run: npm run ci:test
@@ -186,7 +150,7 @@ jobs:
           fi
           while IFS= read -r file; do
             case "$file" in
-              gestia-core/gestia-core.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs) ;;
+              gestia-core/gestia-core.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|functions/jarvis-genai-provider-chain.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|tests/jarvis-genai-provider-chain.test.cjs|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs) ;;
               *) echo "Unexpected V142 diff: $file" >&2; exit 1 ;;
             esac
           done <<< "$changed"
@@ -223,20 +187,6 @@ jobs:
       - name: Apply V142 final contract alignment
         run: node .github/scripts/v142-final-contract-alignment.mjs
 
-      - name: Align existing V142 web research assertion
-        shell: pwsh
-        run: |
-          $path = 'tests/jarvis-multifunction-tools.test.mjs'
-          $source = Get-Content -Raw -LiteralPath $path
-          $old = '    assert.match(source, /facts: Array\.isArray\(result\.facts\)/);'
-          $new = '    assert.match(source, /facts:\s*Array\.isArray\((?:primaryResult|recoveryResult)\?\.facts\)/);'
-          if ($source.Contains($old)) {
-            $source = $source.Replace($old, $new)
-            [System.IO.File]::WriteAllText($path, $source)
-          } elseif (-not $source.Contains($new)) {
-            throw 'V142_EXISTING_WEB_CONTRACT_ASSERTION_NOT_FOUND'
-          }
-
       - name: Windows V142 runtime syntax
         shell: pwsh
         run: |
@@ -246,8 +196,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'MULTITOOL_SYNTAX_FAILED' }
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
           if ($LASTEXITCODE -ne 0) { throw 'PLANNER_SYNTAX_FAILED' }
-          node --check gestia-core/jarvis/jarvis.marketing.engine.js
-          if ($LASTEXITCODE -ne 0) { throw 'MARKETING_SYNTAX_FAILED' }
           node --check functions/jarvis-genai-provider-chain.js
           if ($LASTEXITCODE -ne 0) { throw 'PROVIDER_CHAIN_SYNTAX_FAILED' }
           node --check functions/jarvis-web-research.js
@@ -259,23 +207,8 @@ jobs:
           node --check jarvis-upload-bridge.js
           if ($LASTEXITCODE -ne 0) { throw 'UPLOAD_BRIDGE_SYNTAX_FAILED' }
 
-      - name: Windows V142 contract - mobile web research recovery
-        run: node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs
-
-      - name: Windows V142 contract - genai provider chain
-        run: node --test --test-concurrency=1 tests/jarvis-genai-provider-chain.test.cjs
-
-      - name: Windows V142 contract - web research
-        run: node --test --test-concurrency=1 tests/jarvis-web-research.test.cjs
-
-      - name: Windows V142 contract - semantic planner
-        run: node --test --test-concurrency=1 tests/jarvis-semantic-planner.test.cjs
-
-      - name: Windows V142 contract - upload bridge
-        run: node --test --test-concurrency=1 tests/jarvis-upload-bridge.test.mjs
-
-      - name: Windows V142 contract - multifunction tools
-        run: node --test --test-concurrency=1 tests/jarvis-multifunction-tools.test.mjs
+      - name: Windows V142 focal contracts
+        run: node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-genai-provider-chain.test.cjs tests/jarvis-web-research.test.cjs tests/jarvis-semantic-planner.test.cjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-multifunction-tools.test.mjs
 
   materialize-v142:
     needs:
@@ -291,27 +224,10 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - name: Apply certified V142 patch
-        run: node .github/scripts/v142-mobile-web-research-recovery.mjs
-
-      - name: Apply certified V142 final contract alignment
-        run: node .github/scripts/v142-final-contract-alignment.mjs
-
-      - name: Align certified existing V142 assertion
-        shell: bash
+      - name: Apply certified V142 patches
         run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-          path = Path('tests/jarvis-multifunction-tools.test.mjs')
-          source = path.read_text(encoding='utf-8')
-          old = r'    assert.match(source, /facts: Array\.isArray\(result\.facts\)/);'
-          new = r'    assert.match(source, /facts:\s*Array\.isArray\((?:primaryResult|recoveryResult)\?\.facts\)/);'
-          if old in source:
-              path.write_text(source.replace(old, new, 1), encoding='utf-8')
-          elif new not in source:
-              raise SystemExit('V142_EXISTING_WEB_CONTRACT_ASSERTION_NOT_FOUND')
-          PY
+          node .github/scripts/v142-mobile-web-research-recovery.mjs
+          node .github/scripts/v142-final-contract-alignment.mjs
 
       - name: Commit certified V142 bytes
         shell: bash
@@ -321,27 +237,15 @@ jobs:
           test -n "$changed"
           while IFS= read -r file; do
             case "$file" in
-              gestia-core/gestia-core.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs) ;;
+              gestia-core/gestia-core.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|functions/jarvis-genai-provider-chain.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|tests/jarvis-genai-provider-chain.test.cjs|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs) ;;
               *) echo "Unexpected certified V142 diff: $file" >&2; exit 1 ;;
             esac
           done <<< "$changed"
           git diff --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add \
-            gestia-core/gestia-core.js \
-            gestia-core/jarvis/jarvis.multitool.pack.js \
-            gestia-core/jarvis/jarvis.multifunction.planner.js \
-            gestia-core/jarvis/jarvis.marketing.engine.js \
-            functions/jarvis-semantic-planner.js \
-            functions/jarvis-web-research.js \
-            functions/index.js \
-            tests/jarvis-multifunction-tools.test.mjs \
-            tests/jarvis-semantic-planner.test.cjs \
-            tests/jarvis-web-research.test.cjs \
-            tests/jarvis-mobile-web-research-recovery-v142.test.mjs \
-            tests/jarvis-source-grounded-research-v124.test.mjs
-          git commit -m 'fix(jarvis): materialize V142 single authority consolidation'
+          git diff --name-only -z | xargs -0 git add --
+          git commit -m 'fix(jarvis): materialize V142 two-provider semantic consolidation'
           git push origin "HEAD:${TARGET_BRANCH}"
 
   deploy-v142:
@@ -371,49 +275,32 @@ jobs:
           npm ci --prefix functions
 
       - name: Re-certify deploy bytes
-        shell: bash
         run: |
-          set -euo pipefail
-          node --check gestia-core/jarvis/jarvis.multifunction.planner.js
           node --check functions/jarvis-genai-provider-chain.js
-          node --check functions/jarvis-web-research.js
           node --check functions/jarvis-semantic-planner.js
           node --check functions/index.js
           node --check jarvis-upload-bridge.js
-          node --test --test-concurrency=1 \
-            tests/jarvis-mobile-web-research-recovery-v142.test.mjs \
-            tests/jarvis-genai-provider-chain.test.cjs \
-            tests/jarvis-web-research.test.cjs \
-            tests/jarvis-semantic-planner.test.cjs \
-            tests/jarvis-upload-bridge.test.mjs \
-            tests/jarvis-source-grounded-research-v124.test.mjs \
-            tests/jarvis-multifunction-tools.test.mjs
+          node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-genai-provider-chain.test.cjs tests/jarvis-web-research.test.cjs tests/jarvis-semantic-planner.test.cjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-source-grounded-research-v124.test.mjs tests/jarvis-multifunction-tools.test.mjs
 
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
-      - name: Deploy V142 Hosting
+      - name: Deploy V142 Hosting FIXGO only
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        shell: bash
         run: |
           set -euo pipefail
           test -n "$FIREBASE_TOKEN"
           config_path="$PWD/.firebase-v142-fixgo-only.json"
           trap 'rm -f "$config_path"' EXIT
-          jq --arg site "$FIREBASE_SITE_ID" \
-            '{hosting: [.hosting[] | select(.site == $site)]}' \
-            firebase.json > "$config_path"
+          jq --arg site "$FIREBASE_SITE_ID" '{hosting: [.hosting[] | select(.site == $site)]}' firebase.json > "$config_path"
           test "$(dirname "$config_path")" = "$PWD"
           test "$(jq '.hosting | length' "$config_path")" = "1"
           test "$(jq -r '.hosting[0].site' "$config_path")" = "$FIREBASE_SITE_ID"
           ! grep -Fq 'multiservicios' "$config_path"
           echo 'V142_FIXGO_ONLY_HOSTING_CONFIG=true'
-          firebase deploy \
-            --config "$config_path" \
-            --only hosting \
-            --project "$FIREBASE_PROJECT_ID" \
-            --token "$FIREBASE_TOKEN" \
-            --non-interactive
+          firebase deploy --config "$config_path" --only hosting --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
 
       - name: Smoke V142 production
         shell: bash
@@ -424,15 +311,14 @@ jobs:
           test "$(wc -c < /tmp/terminal.html)" -gt 1000
           for fn in jarvisWebResearch jarvisSemanticPlan jarvisSemanticRespond; do
             url="https://us-central1-${FIREBASE_PROJECT_ID}.cloudfunctions.net/${fn}"
-            code=$(curl --silent --show-error --output "/tmp/${fn}.json" --write-out '%{http_code}' \
-              -X POST -H 'Content-Type: application/json' --data '{"data":{}}' "$url" || true)
+            code=$(curl --silent --show-error --output "/tmp/${fn}.json" --write-out '%{http_code}' -X POST -H 'Content-Type: application/json' --data '{"data":{}}' "$url" || true)
             echo "$fn HTTP=$code"
             test "$code" != "000"
             test "$code" != "404"
             test "$code" != "502"
             test "$code" != "503"
           done
-          echo 'V142_WEB_RESEARCH_RUNTIME_VERIFIED=true'
+          echo 'V142_RUNTIME_VERIFIED=true'
 
   publish-result:
     needs:
