@@ -12,7 +12,7 @@ const bootstrap = fs.readFileSync(
 );
 
 const PRODUCTION_ORIGIN = "https://fixgo-44e4d.web.app";
-const PRODUCTION_BOOTSTRAP_VERSION = "1.11.0-local-bridge-transport-v142";
+const PRODUCTION_BOOTSTRAP_VERSION = "1.12.0-loopback-transport-v142";
 
 test("NEXO bootstrap keeps tools but installs no alternate semantic authority", () => {
     assert.match(bootstrap, /installNexoRealMediaTools/);
@@ -26,13 +26,15 @@ test("NEXO bootstrap remains inert outside the browser", () => {
     assert.match(bootstrap, /active:\s*false/);
 });
 
-test("NEXO bootstrap hydrates the existing local bridge transport from the runtime contract", () => {
+test("NEXO bootstrap hydrates the existing localhost bridge as loopback from the runtime contract", () => {
     assert.match(bootstrap, /globalThis\.JarvisLocalBridge\s*=\s*bridge/);
     assert.match(bootstrap, /http:\/\/localhost:3344/);
     assert.match(bootstrap, /jarvis-runtime-contract\.json/);
     assert.match(bootstrap, /"X-Jarvis-Release-Id": contract\.releaseId/);
-    assert.match(bootstrap, /targetAddressSpace:\s*"local"/);
+    assert.match(bootstrap, /targetAddressSpace:\s*"loopback"/);
+    assert.match(bootstrap, /localBridgeTargetAddressSpace:\s*"loopback"/);
     assert.match(bootstrap, /localBridgeActive/);
+    assert.doesNotMatch(bootstrap, /targetAddressSpace:\s*"local"/);
     assert.doesNotMatch(bootstrap, /releaseId:\s*"v94-/);
 });
 
