@@ -4,6 +4,7 @@ const paths = {
     bridge: "jarvis-fs-bridge.js",
     orchestrator: "gestia-core/jarvis/jarvis.mission.orchestrator.js",
     reelTest: "tests/jarvis-reel-native-mp4-v138.test.mjs",
+    fsBridgeV2Test: "tests/jarvis-fs-bridge-v2.test.mjs",
     missionTest: "tests/jarvis-mission-orchestrator.test.mjs"
 };
 
@@ -191,6 +192,15 @@ reelTest = appendOnce(
 });`
 );
 await write(paths.reelTest, reelTest);
+
+let fsBridgeV2Test = await read(paths.fsBridgeV2Test);
+fsBridgeV2Test = replaceOnce(
+    fsBridgeV2Test,
+`    assert.equal(description.version, "2.45.0-native-mp4-reel-export-v138");`,
+`    assert.equal(description.version, "2.46.0-reel-export-completion-v142");`,
+    "FS_BRIDGE_V2_VERSION_CONTRACT"
+);
+await write(paths.fsBridgeV2Test, fsBridgeV2Test);
 
 let missionTest = await read(paths.missionTest);
 missionTest = appendOnce(
