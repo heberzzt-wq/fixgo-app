@@ -53,6 +53,32 @@ bridge = replaceOnce(
         );`,
     "REEL_EXPORT_COMPLETION_WAIT"
 );
+bridge = replaceOnce(
+    bridge,
+`    app.post("/speech/synthesize", async (req, res) => {
+        try {
+            const speech = synthesizeSpeechArtifact({
+                ...(req.body || {}),
+                root
+            });`,
+`    app.post("/speech/synthesize", async (req, res) => {
+        try {
+            const requestedSpeechOutput = String(req.body?.output || "")
+                .trim()
+                .replaceAll("\\\\", "/");
+            const speechOutput =
+                requestedSpeechOutput.startsWith(".jarvis-artifacts/audio/") &&
+                !requestedSpeechOutput.includes("../") &&
+                requestedSpeechOutput.toLowerCase().endsWith(".wav")
+                    ? requestedSpeechOutput
+                    : "";
+            const speech = synthesizeSpeechArtifact({
+                ...(req.body || {}),
+                output: speechOutput,
+                root
+            });`,
+    "SPEECH_OUTPUT_PHYSICAL_CANONICALIZATION"
+);
 await write(paths.bridge, bridge);
 
 let orchestrator = await read(paths.orchestrator);
@@ -144,6 +170,113 @@ export async function runJarvisMission({`,
 );
 orchestrator = replaceOnce(
     orchestrator,
+`function archiveRecoveredToolAttempts(mission = {}, toolName = "", now = () => new Date().toISOString()) {
+    const name = text(toolName, 120);
+    if (name !== "speech.synthesize") return;
+    const blocked = Array.isArray(mission?.blockedTasks) ? mission.blockedTasks : [];
+    const recovered = blocked.filter(item => item?.name === name);
+    const recoveredErrors = (Array.isArray(mission?.errors) ? mission.errors : [])
+        .filter(item => item?.tool === name);
+    if (recovered.length === 0 && recoveredErrors.length === 0) return;
+    mission.recoveredToolAttempts = [
+        ...(Array.isArray(mission.recoveredToolAttempts)
+            ? mission.recoveredToolAttempts
+            : []),
+        ...recovered.map(item => ({
+            name: item.name,
+            args: item.args,
+            reason: item.reason,
+            observation: item.observation,
+            errors: recoveredErrors,
+            recoveredAt: now()
+        }))
+    ].slice(-12);
+    mission.blockedTasks = blocked.filter(item => item?.name !== name);
+    mission.errors = (Array.isArray(mission?.errors) ? mission.errors : [])
+        .filter(item => item?.tool !== name);
+}
+
+export async function runJarvisMission({`,
+`function archiveRecoveredToolAttempts(mission = {}, toolName = "", now = () => new Date().toISOString()) {
+    const name = text(toolName, 120);
+    if (name !== "speech.synthesize") return;
+    const blocked = Array.isArray(mission?.blockedTasks) ? mission.blockedTasks : [];
+    const recovered = blocked.filter(item => item?.name === name);
+    const recoveredErrors = (Array.isArray(mission?.errors) ? mission.errors : [])
+        .filter(item => item?.tool === name);
+    if (recovered.length === 0 && recoveredErrors.length === 0) return;
+    mission.recoveredToolAttempts = [
+        ...(Array.isArray(mission.recoveredToolAttempts)
+            ? mission.recoveredToolAttempts
+            : []),
+        ...recovered.map(item => ({
+            name: item.name,
+            args: item.args,
+            reason: item.reason,
+            observation: item.observation,
+            errors: recoveredErrors,
+            recoveredAt: now()
+        }))
+    ].slice(-12);
+    mission.blockedTasks = blocked.filter(item => item?.name !== name);
+    mission.errors = (Array.isArray(mission?.errors) ? mission.errors : [])
+        .filter(item => item?.tool !== name);
+}
+
+function verifiedSpeechArtifactForReel(mission = {}) {
+    const completed = Array.isArray(mission?.completedTasks)
+        ? mission.completedTasks
+        : [];
+    const speech = [...completed].reverse().find(item =>
+        item?.name === "speech.synthesize" &&
+        item?.observation?.objectiveSatisfied === true &&
+        item?.observation?.status === "SPEECH_AUDIO_CREATED_VERIFIED"
+    );
+    const output = text(
+        speech?.observation?.artifact ||
+        speech?.observation?.evidence?.output ||
+        "",
+        500
+    ).replaceAll("\\\\", "/");
+    if (
+        !output.startsWith(".jarvis-artifacts/audio/") ||
+        output.includes("../") ||
+        !output.toLowerCase().endsWith(".wav")
+    ) {
+        return "";
+    }
+    return output;
+}
+
+export async function runJarvisMission({`,
+    "VERIFIED_SPEECH_REEL_HANDOFF_HELPER"
+);
+orchestrator = replaceOnce(
+    orchestrator,
+`        mission.iterations += 1;
+        task.attempts += 1;
+        let result;
+        try {
+            result = await execute({ name: task.name, args: task.args, approved: false }, {`,
+`        mission.iterations += 1;
+        task.attempts += 1;
+        if (task.name === "reel.create") {
+            const verifiedSpeechOutput = verifiedSpeechArtifactForReel(mission);
+            if (verifiedSpeechOutput) {
+                task.args = {
+                    ...(task.args || {}),
+                    audioOutput: verifiedSpeechOutput
+                };
+                task.signature = callSignature({ name: task.name, args: task.args });
+            }
+        }
+        let result;
+        try {
+            result = await execute({ name: task.name, args: task.args, approved: false }, {`,
+    "VERIFIED_SPEECH_REEL_HANDOFF_CALL"
+);
+orchestrator = replaceOnce(
+    orchestrator,
 `        if (observation.objectiveSatisfied) {
             if (task.name === "web.media.collect") {
                 archiveRecoveredMediaSourceAttempts(mission, now);
@@ -166,7 +299,8 @@ orchestrator = replaceOnce(
 };`,
 `    deterministicReelMediaRecoveryCall,
     archiveRecoveredMediaSourceAttempts,
-    archiveRecoveredToolAttempts
+    archiveRecoveredToolAttempts,
+    verifiedSpeechArtifactForReel
 };`,
     "RECOVERED_TOOL_TEST_EXPORT"
 );
@@ -190,6 +324,17 @@ reelTest = appendOnce(
   assert.match(source, /REEL_EXPORT_COMPLETION_TIMEOUT/);
   assert.match(source, /setTimeout\\(finish, 100\\)/);
   assert.match(source, /Math\\.max\\(45000, duration \\* 1000 \\+ 30000\\)/);
+});`
+);
+reelTest = appendOnce(
+    reelTest,
+    "V142 canonicalizes planner speech output at the physical bridge boundary",
+`test("V142 canonicalizes planner speech output at the physical bridge boundary", () => {
+  const source = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
+  assert.match(source, /const requestedSpeechOutput = String\\(req\\.body\\?\\.output \\|\\| ""\\)/);
+  assert.match(source, /requestedSpeechOutput\\.startsWith\\("\\.jarvis-artifacts\\/audio\\/"\\)/);
+  assert.match(source, /requestedSpeechOutput\\.toLowerCase\\(\\)\\.endsWith\\("\\.wav"\\)/);
+  assert.match(source, /output: speechOutput/);
 });`
 );
 await write(paths.reelTest, reelTest);
@@ -257,6 +402,77 @@ missionTest = appendOnce(
     assert.equal(mission.recoveredToolAttempts.length, 1);
     assert.equal(mission.recoveredToolAttempts[0].observation.status, "SPEECH_LANGUAGE_VOICE_NOT_FOUND");
     assert.equal(mission.reason, "ALL_EXECUTABLE_TASKS_COMPLETED");
+});`
+);
+missionTest = appendOnce(
+    missionTest,
+    "reel creation receives the verified speech artifact instead of a stale planned path",
+`test("reel creation receives the verified speech artifact instead of a stale planned path", async () => {
+    let reelArgs = null;
+    const verifiedAudio = ".jarvis-artifacts/audio/physical-verified.wav";
+    const mission = await runJarvisMission({
+        instruction: "Produce narracion y reel fisico usando el audio verificado de esta misma mision.",
+        initialToolCalls: [
+            {
+                name: "speech.synthesize",
+                args: {
+                    text: "Narracion real",
+                    output: "audio-inventado.wav"
+                }
+            },
+            {
+                name: "reel.create",
+                args: {
+                    brandName: "Taqueria El Dorado",
+                    title: "Taco Macho",
+                    cta: "Visitanos",
+                    durationSeconds: 30,
+                    audioOutput: ".jarvis-artifacts/audio/stale-missing.wav",
+                    scenes: [
+                        { durationSeconds: 10, overlay: "Uno" },
+                        { durationSeconds: 10, overlay: "Dos" },
+                        { durationSeconds: 10, overlay: "Tres" }
+                    ]
+                }
+            }
+        ],
+        requiredToolNames: ["speech.synthesize", "reel.create"],
+        planner: async () => ({ toolCalls: [], missionComplete: true }),
+        execute: async call => {
+            if (call.name === "speech.synthesize") {
+                return {
+                    ok: true,
+                    executionOk: true,
+                    objectiveSatisfied: true,
+                    status: "SPEECH_AUDIO_CREATED_VERIFIED",
+                    output: verifiedAudio,
+                    mimeType: "audio/wav",
+                    bytes: 4096,
+                    sha256: "b".repeat(64)
+                };
+            }
+            if (call.name === "reel.create") {
+                reelArgs = structuredClone(call.args);
+                return {
+                    ok: true,
+                    executionOk: true,
+                    objectiveSatisfied: true,
+                    status: "REEL_VIDEO_CREATED_VERIFIED",
+                    output: ".jarvis-artifacts/reels/taco-macho.mp4",
+                    mimeType: "video/mp4",
+                    bytes: 8192,
+                    sha256: "c".repeat(64)
+                };
+            }
+            return { ok: false, status: "UNEXPECTED_TOOL" };
+        },
+        storage: memoryStorage()
+    });
+
+    assert.equal(reelArgs?.audioOutput, verifiedAudio);
+    assert.equal(mission.completedTasks.some(item => item.name === "speech.synthesize"), true);
+    assert.equal(mission.completedTasks.some(item => item.name === "reel.create"), true);
+    assert.equal(mission.blockedTasks.length, 0);
 });`
 );
 await write(paths.missionTest, missionTest);
