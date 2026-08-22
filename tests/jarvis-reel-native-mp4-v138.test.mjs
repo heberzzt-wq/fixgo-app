@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { test } from "node:test";
 
 import { buildReelStudioHtml, describeReelStudio } from "../jarvis-reel-artifact.js";
 import {
     assertReelVideoContainer,
+    createJarvisFsBridgeApp,
     reelVideoExtensionFromMime,
     reelVideoFormatFromMime,
     reelVideoOutputTarget
@@ -140,4 +142,75 @@ test("V142 canonicalizes planner speech output at the physical bridge boundary",
   assert.match(source, /requestedSpeechOutput\.startsWith\("\.jarvis-artifacts\/audio\/"\)/);
   assert.match(source, /requestedSpeechOutput\.toLowerCase\(\)\.endsWith\("\.wav"\)/);
   assert.match(source, /output: speechOutput/);
+});
+
+test("V142 accepts detached bridge identity only at the contract remote-tracking head", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-v142-detached-identity-"));
+  const branch = "v94-media-v4n-negative-claims";
+  const releaseId = "v94-source-grounded-research-v124-20260810";
+  const runGit = args => execFileSync("git", args, {
+    cwd: root,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"]
+  }).trim();
+
+  let server;
+  try {
+    runGit(["init", "-b", branch]);
+    runGit(["config", "user.email", "v142@example.test"]);
+    runGit(["config", "user.name", "V142 Test"]);
+    fs.writeFileSync(
+      path.join(root, "jarvis-runtime-contract.json"),
+      JSON.stringify({ projectId: "fixgo-test", branch, releaseId }),
+      "utf8"
+    );
+    const marker = path.join(root, "identity-marker.txt");
+    fs.writeFileSync(marker, "certified detached worktree\n", "utf8");
+    runGit(["add", "."]);
+    runGit(["commit", "-m", "certified head"]);
+    const certifiedHead = runGit(["rev-parse", "HEAD"]);
+    runGit(["update-ref", `refs/remotes/origin/${branch}`, certifiedHead]);
+    runGit(["checkout", "--detach", certifiedHead]);
+
+    server = createJarvisFsBridgeApp({ root }).listen(0);
+    await new Promise(resolve => server.once("listening", resolve));
+    const base = `http://127.0.0.1:${server.address().port}`;
+
+    const health = await fetch(`${base}/health`).then(response => response.json());
+    assert.equal(health.identity.ok, true);
+    assert.equal(health.identity.identityMode, "detached_contract_head");
+    assert.equal(health.identity.contractHead, certifiedHead);
+
+    const accepted = await fetch(`${base}/grep`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-jarvis-release-id": releaseId
+      },
+      body: JSON.stringify({ term: "certified", cwd: "." })
+    });
+    assert.notEqual(accepted.status, 503);
+
+    fs.writeFileSync(marker, "diverged detached worktree\n", "utf8");
+    runGit(["add", "identity-marker.txt"]);
+    runGit(["commit", "-m", "diverged head"]);
+
+    const rejected = await fetch(`${base}/grep`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-jarvis-release-id": releaseId
+      },
+      body: JSON.stringify({ term: "diverged", cwd: "." })
+    });
+    const rejectedBody = await rejected.json();
+    assert.equal(rejected.status, 503);
+    assert.equal(rejectedBody.status, "BRIDGE_IDENTITY_INVALID");
+  }
+  finally {
+    if (server) {
+      await new Promise(resolve => server.close(resolve));
+    }
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
