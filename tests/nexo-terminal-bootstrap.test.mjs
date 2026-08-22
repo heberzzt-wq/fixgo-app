@@ -151,7 +151,10 @@ test("V142 real Chrome verifies the served loopback bootstrap and local research
         "--remote-debugging-port=9222",
         `--user-data-dir=${profile}`,
         targetUrl
-    ], { stdio: "ignore" });
+    ], {
+        stdio: "ignore",
+        detached: process.platform === "linux"
+    });
 
     let cdp = null;
     t.after(async () => {
@@ -160,14 +163,29 @@ test("V142 real Chrome verifies the served loopback bootstrap and local research
         let chromeExit = null;
         if (chrome.exitCode === null) {
             chromeExit = new Promise(resolve => {
-                const timer = setTimeout(resolve, 5000);
+                const timer = setTimeout(resolve, 8000);
                 chrome.once("exit", () => {
                     clearTimeout(timer);
                     resolve();
                 });
             });
-            try { chrome.kill("SIGKILL"); } catch {}
         }
+
+        try {
+            if (process.platform === "linux" && Number.isInteger(chrome.pid)) {
+                process.kill(-chrome.pid, "SIGKILL");
+            }
+            else if (chrome.exitCode === null) {
+                chrome.kill("SIGKILL");
+            }
+        }
+        catch {
+            try {
+                if (chrome.exitCode === null) chrome.kill("SIGKILL");
+            }
+            catch {}
+        }
+
         if (chromeExit) {
             await chromeExit;
         }
@@ -176,15 +194,24 @@ test("V142 real Chrome verifies the served loopback bootstrap and local research
         fs.rmSync(bridgeRoot, {
             recursive: true,
             force: true,
-            maxRetries: 10,
-            retryDelay: 100
+            maxRetries: 20,
+            retryDelay: 200
         });
-        fs.rmSync(profile, {
-            recursive: true,
-            force: true,
-            maxRetries: 10,
-            retryDelay: 100
-        });
+        try {
+            fs.rmSync(profile, {
+                recursive: true,
+                force: true,
+                maxRetries: 20,
+                retryDelay: 200
+            });
+        }
+        catch(error) {
+            if (error?.code !== "ENOTEMPTY") throw error;
+            console.warn(
+                "V142_CHROME_PROFILE_CLEANUP_DEFERRED",
+                error?.message || String(error)
+            );
+        }
     });
 
     const pageTarget = await openCdpPage(chrome, targetUrl);
