@@ -260,9 +260,43 @@ test("V142 production Hosting reaches the existing local research bridge from re
         });
 
     await cdp("Runtime.enable");
+
+    let stablePage = null;
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+        try {
+            const probe = await cdp(
+                "Runtime.evaluate",
+                {
+                    expression:
+                        `({ href: location.href, protocol: location.protocol, readyState: document.readyState })`,
+                    returnByValue: true
+                }
+            );
+            const value = probe?.result?.value || null;
+            if (
+                value?.protocol === "https:" &&
+                String(value?.href || "").startsWith("https://fixgo-44e4d.web.app/") &&
+                ["interactive", "complete"].includes(value?.readyState)
+            ) {
+                stablePage = value;
+                break;
+            }
+        }
+        catch(error) {
+            if (!/Execution context was destroyed|Cannot find context/i.test(String(error?.message || error))) {
+                throw error;
+            }
+        }
+        await sleep(250);
+    }
+    assert.ok(
+        stablePage?.href,
+        "V142 production browser never reached a stable HTTPS execution context"
+    );
+
     const expression = `
         (async () => {
-            const moduleUrl = "/modules/terminal/nexo-bootstrap.js?v=v142-production-browser-" + Date.now();
+            const moduleUrl = "https://fixgo-44e4d.web.app/modules/terminal/nexo-bootstrap.js?v=v142-production-browser-" + Date.now();
             const sourceResponse = await fetch(moduleUrl, { cache: "no-store" });
             const sourceText = await sourceResponse.text();
             const servedVersion = sourceText.includes("1.11.0-local-bridge-transport-v142")
@@ -370,7 +404,10 @@ test("V142 production Hosting reaches the existing local research bridge from re
 
     console.log(
         "V142_PRODUCTION_BROWSER_LOCAL_BRIDGE",
-        JSON.stringify(browserResult)
+        JSON.stringify({
+            stablePage,
+            ...browserResult
+        })
     );
 
     assert.equal(
