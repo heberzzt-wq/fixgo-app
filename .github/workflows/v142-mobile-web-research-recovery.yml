@@ -230,6 +230,18 @@ jobs:
           node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-mission-orchestrator.test.mjs tests/jarvis-reel-native-mp4-v138.test.mjs
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
+      - name: Deploy V142 Jarvis semantic Functions only
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy \
+            --only functions:jarvisSemanticPlan,functions:jarvisWebResearch \
+            --project "$FIREBASE_PROJECT_ID" \
+            --token "$FIREBASE_TOKEN" \
+            --non-interactive
       - name: Deploy V142 Hosting FIXGO only
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
@@ -255,7 +267,7 @@ jobs:
         run: |
           set -euo pipefail
           target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          payload=$(jq -n --arg state success --arg context 'v142-mobile-web-research-recovery' --arg description "run=${GITHUB_RUN_ID} V142 reel closeout green" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          payload=$(jq -n --arg state success --arg context 'v142-mobile-web-research-recovery' --arg description "run=${GITHUB_RUN_ID} V142 semantic functions + reel closeout green" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
           curl --fail-with-body --silent --show-error --location -X POST \
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
