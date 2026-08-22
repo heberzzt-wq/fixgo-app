@@ -384,7 +384,7 @@ test("v142 entity-not-verified cloud recovery gives the existing local research 
         assert.equal(localCalls[0].path, "/research");
         assert.equal(localCalls[0].payload.allowedDomain, "");
         assert.equal(localCalls[0].payload.exactEntity, "Taquería El Dorado");
-        assert.equal(localCalls[0].payload.seedUrl, "");
+        assert.equal(localCalls[0].payload.seedUrl, seedUrl);
         assert.doesNotMatch(localCalls[0].payload.query, /https?:\/\//i);
         assert.match(localCalls[0].payload.query, /Taquería El Dorado/i);
         assert.equal(result.ok, true);

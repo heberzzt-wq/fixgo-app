@@ -1692,7 +1692,7 @@ export async function fetchGroundedWebResearch(
                                         timeoutMs: 20000,
                                         allowedDomain: "",
                                         exactEntity: trace.exactEntity || "",
-                                        seedUrl: ""
+                                        seedUrl: seedUrl
                                     },
                                     {
                                         timeoutMs: 25000
