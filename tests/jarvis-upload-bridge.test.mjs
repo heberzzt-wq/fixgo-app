@@ -330,4 +330,4 @@ test("existing bridge exposes research route and rejects an empty research reque
     }
 });
 
-// V142 predeploy browser gate validates candidate loopback transport from the real production origin before Hosting publication.
+// V142 postdeploy browser gate verifies the served production bootstrap and localhost loopback transport.
