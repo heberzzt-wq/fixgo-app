@@ -397,7 +397,15 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$FIREBASE_TOKEN"
+          jq --arg site "$FIREBASE_SITE_ID" \
+            '{hosting: [.hosting[] | select(.site == $site)]}' \
+            firebase.json > /tmp/firebase-v142-fixgo-only.json
+          test "$(jq '.hosting | length' /tmp/firebase-v142-fixgo-only.json)" = "1"
+          test "$(jq -r '.hosting[0].site' /tmp/firebase-v142-fixgo-only.json)" = "$FIREBASE_SITE_ID"
+          ! grep -Fq 'multiservicios' /tmp/firebase-v142-fixgo-only.json
+          echo 'V142_FIXGO_ONLY_HOSTING_CONFIG=true'
           firebase deploy \
+            --config /tmp/firebase-v142-fixgo-only.json \
             --only hosting \
             --project "$FIREBASE_PROJECT_ID" \
             --token "$FIREBASE_TOKEN" \
