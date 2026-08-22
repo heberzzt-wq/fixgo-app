@@ -430,9 +430,9 @@ missionTest = appendOnce(
                     durationSeconds: 30,
                     audioOutput: ".jarvis-artifacts/audio/stale-missing.wav",
                     scenes: [
-                        { durationSeconds: 10, overlay: "Uno" },
-                        { durationSeconds: 10, overlay: "Dos" },
-                        { durationSeconds: 10, overlay: "Tres" }
+                        { durationSeconds: 10, overlay: "Uno", mediaType: "image", assetDataUrl: "data:image/jpeg;base64,/9j/" },
+                        { durationSeconds: 10, overlay: "Dos", mediaType: "image", assetDataUrl: "data:image/jpeg;base64,/9j/" },
+                        { durationSeconds: 10, overlay: "Tres", mediaType: "image", assetDataUrl: "data:image/jpeg;base64,/9j/" }
                     ]
                 }
             }
