@@ -1,29 +1,10 @@
 "use strict";
 
-const VERSION = "1.22.0-mission-isolation";
-const DEFAULT_ENDPOINT = "https://text.pollinations.ai/openai";
-const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
+const VERSION = "1.23.0-two-provider-failover-v142";
+const DEFAULT_GEMINI_MODEL = "gemini-3.6-flash";
 
 function wait(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function requestModel(fetchImpl, endpoint, options, maximumAttempts = 3) {
-    let response = null;
-
-    for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
-        response = await fetchImpl(endpoint, options);
-        const retryable = response.status === 429 || response.status >= 500;
-        if (!retryable || attempt === maximumAttempts) return response;
-
-        const retryAfterSeconds = Number(response.headers?.get?.("retry-after"));
-        const waitMs = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
-            ? Math.min(retryAfterSeconds * 1000, 10000)
-            : attempt * 1200;
-        await wait(waitMs);
-    }
-
-    return response;
 }
 
 function isSafeToolName(value = "") {
@@ -1167,455 +1148,77 @@ function extractToolCallPlan(payload = {}, catalog = []) {
     return toolCalls.length > 0 ? { toolCalls } : null;
 }
 
-async function runSimpleSemanticPlanner({
-    fetchImpl,
-    input = "",
-    catalog = [],
-    missionState = null,
-    timeoutMs = 25000
-} = {}) {
-    if (typeof fetchImpl !== "function") throw new Error("SIMPLE_SEMANTIC_FETCH_REQUIRED");
-    const instruction = String(input || "").trim();
-    const safeCatalog = normalizeCatalog(catalog);
-    const routingInstruction = instruction.length <= 12000
-        ? instruction
-        : `${instruction.slice(0, 8000)}\n[PARTE_MEDIA_PERSISTIDA]\n${instruction.slice(-3500)}`;
-    const compactMission = missionState ? {
-        phase: missionState.phase || null,
-        missionId: missionState.missionId || null,
-        completedTasks: (missionState.completedTasks || []).map(item => ({
-            name: item?.name || null,
-            evidence: compactMissionObservation(item?.observation || {})
-        })).filter(item => item.name),
-        pendingTasks: (missionState.pendingTasks || []).map(item => item?.name).filter(Boolean),
-        blockedTasks: (missionState.blockedTasks || []).map(item => item?.name).filter(Boolean),
-        existingInitialTools:
-            (missionState.existingInitialTools || [])
-                .map(String)
-                .filter(Boolean)
-                .slice(0, 20),
-        iterations: Number(missionState.iterations || 0),
-        writeAllowed: false
-    } : null;
-    const prompt = [
-        "Eres el planificador semantico de Jarvis V7.",
-        "Interpreta significado, errores ortograficos, negaciones y ordenes mixtas.",
-        "Selecciona solo nombres del catalogo. Nunca autorices escrituras.",
-        "En misiones, no repitas herramientas completadas y usa herramientas especializadas, no conversation.respond, para entregables operativos.",
-        "Conserva cada sujeto y objetivo independiente. Una herramienta puede aparecer varias veces cuando los argumentos sean distintos.",
-        "Devuelve unicamente JSON valido con toolCalls, explanation, missionComplete y completionAssessment. missionComplete solo puede ser true al auditar que todos los entregables de la mision ya estan satisfechos.",
-        "Si la instruccion limita fuentes a un dominio, copia el dominio exacto en allowedDomain de web.research.",
-        "En web.research, query debe ser una consulta focalizada con solo el objetivo investigable y sus terminos tecnicos distintivos; no copies la instruccion mixta completa ni sus otros entregables.",
-        "En web.research usa researchGoal=RESEARCH_1, RESEARCH_2, etc. segun el orden inmutable de objetivos independientes y reutiliza la misma identidad al reformular el mismo objetivo.",
-        "Si la instruccion pide hechos de una entidad nombrada sin dominio, copia su nombre exacto en exactEntity de web.research.",
-        "Si la instruccion pide referencias, usos o pruebas de un archivo concreto, usa repo.search con la ruta exacta o basename como query, no con una pregunta completa.",
-        missionState?.phase === "MISSION_CONTRACT"
-            ? "CONTRATO COMPLETO: enumera en toolCalls todas las herramientas read-only y userArtifact necesarias para TODOS los entregables, no solo la primera etapa. HERRAMIENTAS_INICIALES es un borrador semantico ya seleccionado: agrega solo herramientas para objetivos independientes pedidos de forma explicita y no cubiertos por ese borrador; no agregues capacidades adyacentes solo porque existan en el catalogo. Para una landing creada usa page.plan, page.compose y page.create; para un documento usa document.compose y document.create; para una hoja estructurada usa spreadsheet.compose y document.create. Para cada artefacto usa exactamente una composicion y una creacion salvo que el usuario pida variantes. No omitas imagen, reel, inventario o autoevaluacion cuando se pidan. Conserva el orden de dependencias y usa missionComplete=false."
-            : "",
-        missionState?.phase === "COMPLETION_AUDIT"
-            ? "AUDITORIA DE CIERRE: no estas obligado a elegir una herramienta. Compara todos los entregables con la evidencia. Si estan satisfechos usa toolCalls=[] y missionComplete=true; si falta algo usa exactamente una herramienta pertinente con argumentos completos. No explores capacidades no solicitadas. Si repo.search entrego sourceDefinitions o definitionFiles, prioriza esas rutas ejecutables sobre archivos que solo mencionan el simbolo y permite repetir lectura o diagnostico cuando el archivo sea distinto."
-            : "",
-        `CATALOGO_NOMBRES=${safeCatalog.map(tool => tool.name).join(",")}`,
-        missionState?.phase === "COMPLETION_AUDIT"
-            ? `CATALOGO_DE_AUDITORIA=${JSON.stringify(safeCatalog.map(tool => ({
-                name: tool.name,
-                description: tool.description,
-                inputSchema: tool.inputSchema
-            })))}`
-            : "",
-        `HERRAMIENTAS_MUTANTES_NO_AUTORIZADAS=${safeCatalog.filter(tool => tool.mutates).map(tool => tool.name).join(",")}`,
-        compactMission ? `ESTADO_DE_MISION=${JSON.stringify(compactMission)}` : "",
-        `INSTRUCCION=${routingInstruction}`
-    ].join("\n");
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), Math.max(5000, Number(timeoutMs) || 25000));
-    try {
-        const contractMode = missionState?.phase === "MISSION_CONTRACT";
-        const seeds = contractMode ? [84, 85, 86] : [42, 43];
-        let validatedPlan = null;
-        let lastPlanError = null;
-        for (const [attemptIndex, seed] of seeds.entries()) {
-            const attemptPrompt = contractMode && validatedPlan
-                ? [
-                    prompt,
-                    `BORRADOR_DE_CONTRATO=${JSON.stringify({
-                        toolCalls: validatedPlan.toolCalls,
-                        completionAssessment: validatedPlan.completionAssessment
-                    }).slice(0, 16000)}`,
-                    "AUDITORIA SEMANTICA DE COBERTURA: descompone la instruccion por significado en todos sus sujetos, archivos, entidades, preguntas y entregables independientes. Devuelve solamente toolCalls read-only o userArtifact faltantes. No elimines ni sustituyas llamadas del borrador. Si todo esta cubierto devuelve toolCalls=[] y missionComplete=false."
-                ].join("\n")
-                : attemptIndex === 0
-                    ? prompt
-                    : [
-                    prompt,
-                    contractMode
-                        ? "REINTENTO DE CONTRATO: la salida anterior fue invalida. Enumera ahora TODAS las herramientas exactas del catalogo necesarias para cada entregable y usa missionComplete=false."
-                        : "REINTENTO DE PLAN: la salida anterior fue invalida. Devuelve JSON valido con al menos una herramienta exacta del catalogo, salvo que una auditoria de mision demuestre missionComplete=true."
-                ].join("\n");
-            const url = `https://text.pollinations.ai/${encodeURIComponent(attemptPrompt)}?model=openai-fast&seed=${seed}&json=true`;
-            try {
-                const response = await fetchImpl(url, { signal: controller.signal });
-                if (!response?.ok) throw new Error(`SIMPLE_SEMANTIC_HTTP_${response?.status || 0}`);
-                const candidatePlan = extractJsonObject(await response.text());
-                const candidateValidated = validatePlan(
-                    candidatePlan,
-                    safeCatalog,
-                    instruction,
-                    {
-                        allowDeferred:
-                            contractMode
-                    }
-                );
-                if (
-                    contractMode &&
-                    validatedPlan &&
-                    Array.isArray(candidatePlan?.toolCalls)
-                ) {
-                    validatedPlan = {
-                        ...validatedPlan,
-                        toolCalls: mergePlanToolCalls(
-                            validatedPlan.toolCalls,
-                            candidateValidated.toolCalls
-                        ),
-                        completionAssessment: {
-                            draft: validatedPlan.completionAssessment,
-                            coverageAudit: candidateValidated.completionAssessment
-                        },
-                        missionComplete: false,
-                        planKind: "MISSION_CONTRACT_AUDITED"
-                    };
-                    break;
-                }
-                if (candidateValidated.toolCalls.length > 0 || candidateValidated.missionComplete === true) {
-                    validatedPlan = candidateValidated;
-                    if (contractMode) continue;
-                    break;
-                }
-                lastPlanError = new Error("SEMANTIC_PLAN_EMPTY");
-            } catch (error) {
-                lastPlanError = error;
-            }
-        }
-        if (!validatedPlan) throw lastPlanError || new Error("SEMANTIC_PLAN_EMPTY");
-        const selectedCatalog = validatedPlan.toolCalls
-            .map(call => safeCatalog.find(tool => tool.name === call.name))
-            .filter(tool => tool?.inputSchema);
-
-        if (selectedCatalog.length > 0) {
-            try {
-                const enrichmentPrompt = [
-                    "Completa argumentos semanticos para las herramientas ya seleccionadas por Jarvis.",
-                    "Usa solamente la instruccion y evidencia entregadas; omite datos desconocidos y no inventes.",
-                    "Devuelve unicamente JSON valido con forma {\"toolCalls\":[{\"name\":\"nombre.exacto\",\"args\":{},\"reason\":\"\"}]}",
-                    `HERRAMIENTAS_Y_ESQUEMAS=${JSON.stringify(selectedCatalog.map(tool => ({ name: tool.name, inputSchema: tool.inputSchema })))}`,
-                    compactMission ? `EVIDENCIA_DE_MISION=${JSON.stringify(compactMission).slice(0, 7000)}` : "",
-                    `INSTRUCCION=${routingInstruction}`
-                ].join("\n");
-                const enrichmentUrl = `https://text.pollinations.ai/${encodeURIComponent(enrichmentPrompt)}?model=openai-fast&seed=43&json=true`;
-                const enrichmentResponse = await fetchImpl(enrichmentUrl, { signal: controller.signal });
-                if (enrichmentResponse?.ok) {
-                    const enrichmentPlan = extractJsonObject(await enrichmentResponse.text());
-                    const enriched = validatePlan(enrichmentPlan, selectedCatalog, instruction);
-                    const enrichedByName = new Map();
-                    for (const call of enriched.toolCalls) {
-                        const queue = enrichedByName.get(call.name) || [];
-                        queue.push(call);
-                        enrichedByName.set(call.name, queue);
-                    }
-                    validatedPlan = {
-                        ...validatedPlan,
-                        toolCalls: validatedPlan.toolCalls.map(call => {
-                            const queue = enrichedByName.get(call.name) || [];
-                            return queue.shift() || call;
-                        })
-                    };
-                }
-            }
-            catch(error) {
-                validatedPlan = {
-                    ...validatedPlan,
-                    enrichmentWarning: error?.message || "SIMPLE_ARGUMENT_ENRICHMENT_UNAVAILABLE"
-                };
-            }
-        }
-        return requireExecutablePlan({
-            ...validatedPlan,
-            provider: "pollinations-simple-json",
-            model: "openai-fast",
-            catalogSize: safeCatalog.length
-        });
-    } finally {
-        clearTimeout(timer);
-    }
-}
-
 async function runJarvisSemanticPlanner({
-    fetchImpl = globalThis.fetch,
-    simpleFetchImpl = null,
     ai = null,
     input = "",
     catalog = [],
-    endpoint = DEFAULT_ENDPOINT,
     timeoutMs = 45000,
     missionState = null
 } = {}) {
     const instruction = String(input || "").trim();
     const safeCatalog = normalizeCatalog(catalog);
-
-    if (instruction.length < 1 || instruction.length > 120000) {
-        throw new Error("SEMANTIC_PLAN_INPUT_OUT_OF_RANGE");
-    }
-    if (safeCatalog.length === 0) {
-        throw new Error("SEMANTIC_PLAN_CATALOG_REQUIRED");
-    }
-    if (typeof fetchImpl !== "function") {
-        throw new Error("SEMANTIC_PLAN_FETCH_REQUIRED");
-    }
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), Math.max(5000, Number(timeoutMs) || 45000));
-    const systemInstruction = [
-        buildSemanticSystemInstruction(safeCatalog, missionState)
-    ].join("\n");
-    let simpleFailure = null;
-
+    if (instruction.length < 1 || instruction.length > 120000) throw new Error("SEMANTIC_PLAN_INPUT_OUT_OF_RANGE");
+    if (safeCatalog.length === 0) throw new Error("SEMANTIC_PLAN_CATALOG_REQUIRED");
+    if (!ai?.models?.generateContent) throw new Error("SEMANTIC_AUTHENTICATED_PROVIDER_REQUIRED");
+    let timer = null;
+    const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("SEMANTIC_PROVIDER_TIMEOUT")), Math.max(5000, Number(timeoutMs) || 45000)); });
     try {
-        if (ai?.models?.generateContent) {
-            try {
-                return await runGeminiSemanticPlanner({
-                    ai,
-                    input: instruction,
-                    catalog: safeCatalog,
-                    missionState
-                });
-            }
-            catch(geminiError) {
-                throw new Error(
-                    `SEMANTIC_AUTHENTICATED_PROVIDER_${geminiError?.message || "FAILED"}`
-                );
-            }
-        }
-
-        if (typeof simpleFetchImpl === "function") {
-            try {
-                return await runSimpleSemanticPlanner({
-                    fetchImpl: simpleFetchImpl,
-                    input: instruction,
-                    catalog: safeCatalog,
-                    missionState,
-                    timeoutMs: Math.min(Number(timeoutMs) || 25000, 25000)
-                });
-            } catch (simpleError) {
-                simpleFailure = simpleError;
-                if (typeof fetchImpl !== "function") throw simpleError;
-            }
-        }
-
-        const completionAuditMode = missionState?.phase === "COMPLETION_AUDIT";
-        const requestPayload = {
-            model: "openai-fast",
-            ...(completionAuditMode
-                ? {}
-                : {
-                    tools: buildModelTools(safeCatalog),
-                    tool_choice: "required",
-                    parallel_tool_calls: true
-                }),
-            response_format: {
-                type: "json_object"
-            },
-            messages: [
-                { role: "system", content: systemInstruction },
-                { role: "user", content: instruction }
-            ],
-            temperature: 0,
-            max_tokens: 1600
-        };
-
-        for (let outputAttempt = 1; outputAttempt <= 2; outputAttempt += 1) {
-            const response = await requestModel(fetchImpl, endpoint, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    ...requestPayload,
-                    messages: [
-                        ...requestPayload.messages,
-                        {
-                            role: "system",
-                            content: completionAuditMode
-                                ? `Intento de auditoria ${outputAttempt}: cierra solo con evidencia completa; de lo contrario devuelve una sola herramienta pertinente y ejecutable.`
-                                : `Intento de salida ${outputAttempt}: selecciona las funciones ahora.`
-                        }
-                    ]
-                }),
-                signal: controller.signal
-            });
-
-            if (!response.ok) {
-                throw new Error(`SEMANTIC_PLAN_HTTP_${response.status}`);
-            }
-
-            const payload = await response.json();
-            const content = payload?.choices?.[0]?.message?.content;
-
-            try {
-                const plan = completionAuditMode
-                    ? extractJsonObject(content)
-                    : extractToolCallPlan(payload, safeCatalog) || extractJsonObject(content);
-                const validated = validatePlan(plan, safeCatalog, instruction);
-                return requireExecutablePlan({
-                    ...validated,
-                    provider: "pollinations",
-                    model: String(payload?.model || "openai"),
-                    catalogSize: safeCatalog.length
-                });
-            } catch (error) {
-                if (outputAttempt === 2) {
-                    if (simpleFailure) {
-                        throw new Error(
-                            `SIMPLE_${simpleFailure?.message || "FAILED"}__OPENAI_COMPATIBLE_${error?.message || "FAILED"}`
-                        );
-                    }
-                    throw error;
-                }
-                await wait(500);
-            }
-        }
-
-        throw new Error("SEMANTIC_PLAN_JSON_REQUIRED");
+        return await Promise.race([runGeminiSemanticPlanner({ ai, input: instruction, catalog: safeCatalog, missionState }), timeout]);
+    } catch(error) {
+        const message = String(error?.message || error || "FAILED");
+        if (message.startsWith("SEMANTIC_AUTHENTICATED_PROVIDER_")) throw error;
+        throw new Error(`SEMANTIC_AUTHENTICATED_PROVIDER_${message}`);
     } finally {
-        clearTimeout(timer);
+        if (timer) clearTimeout(timer);
     }
 }
 
 async function runJarvisSemanticResponse({
-    fetchImpl = globalThis.fetch,
     ai = null,
     input = "",
-    endpoint = DEFAULT_ENDPOINT,
     timeoutMs = null,
     maxOutputTokens = 3500
 } = {}) {
     const instruction = String(input || "").trim();
-    const outputTokenBudget =
-        Math.max(
-            500,
-            Math.min(
-                8000,
-                Number(maxOutputTokens) ||
-                3500
-            )
-        );
-    if (instruction.length < 1 || instruction.length > 120000) {
-        throw new Error("SEMANTIC_RESPONSE_INPUT_OUT_OF_RANGE");
-    }
-
-    const effectiveTimeoutMs =
-        Number(timeoutMs) > 0
-            ? Math.max(
-                5000,
-                Number(timeoutMs)
-            )
-            : outputTokenBudget >= 6000
-                ? 120000
-                : 45000;
-    const controller = new AbortController();
-    const timer =
-        setTimeout(
-            () => controller.abort(),
-            effectiveTimeoutMs
-        );
-    let primaryFailure = null;
-
+    const budget = Math.max(500, Math.min(8000, Number(maxOutputTokens) || 3500));
+    if (instruction.length < 1 || instruction.length > 120000) throw new Error("SEMANTIC_RESPONSE_INPUT_OUT_OF_RANGE");
+    if (!ai?.models?.generateContent) throw new Error("SEMANTIC_AUTHENTICATED_PROVIDER_REQUIRED");
+    const deadline = Number(timeoutMs) > 0 ? Math.max(5000, Number(timeoutMs)) : budget >= 6000 ? 120000 : 45000;
+    let timer = null;
+    const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("SEMANTIC_RESPONSE_TIMEOUT")), deadline); });
     try {
-        if (ai?.models?.generateContent) {
-            try {
-                const response = await ai.models.generateContent({
-                    model: DEFAULT_GEMINI_MODEL,
-                    contents: instruction,
-                    config: {
-                        temperature: 0.2,
-                        maxOutputTokens: outputTokenBudget,
-                        thinkingConfig: {
-                            thinkingBudget: 0
-                        },
-                        systemInstruction: [
-                            "Eres Jarvis, asistente multifuncional privado de Heberto Mendoza.",
-                            "Responde en espanol natural, completo, directo y verificable.",
-                            "Usa solamente la evidencia incluida en la solicitud.",
-                            "No inventes ejecuciones, archivos, accesos, fuentes ni resultados.",
-                            "Distingue claramente lo ejecutado, lo planeado y lo bloqueado."
-                        ].join("\n")
-                    }
-                });
-                const message = String(response?.text || "").trim();
-                if (!message) throw new Error("SEMANTIC_RESPONSE_EMPTY");
-                return {
-                    ok: true,
-                    status: "SEMANTIC_RESPONSE_READY",
-                    version: VERSION,
-                    provider: String(ai.lastProvider || "gemini"),
-                    model: DEFAULT_GEMINI_MODEL,
-                    message
-                };
-            }
-            catch(error) {
-                primaryFailure = error;
-            }
-        }
-
-        const response = await requestModel(fetchImpl, endpoint, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                model: "openai",
-                messages: [
-                    {
-                        role: "system",
-                        content: [
-                            "Eres Jarvis, asistente multifuncional de GestiaPremium.",
-                            "Responde en espanol natural, directo y honesto.",
-                            "No inventes ejecuciones, archivos, accesos, fuentes ni resultados.",
-                            "Si el usuario solo conversa o pregunta, responde sin fingir herramientas.",
-                            "Si falta evidencia operativa, dilo claramente."
-                        ].join("\n")
-                    },
-                    { role: "user", content: instruction }
-                ],
-                temperature: 0.3,
-                max_tokens: outputTokenBudget
+        const response = await Promise.race([
+            ai.models.generateContent({
+                model: DEFAULT_GEMINI_MODEL,
+                contents: instruction,
+                config: {
+                    maxOutputTokens: budget,
+                    thinkingConfig: { thinkingBudget: 0 },
+                    systemInstruction: [
+                        "Eres Jarvis, asistente multifuncional privado de Heberto Mendoza.",
+                        "Responde en espanol natural, completo, directo y verificable.",
+                        "Usa solamente la evidencia incluida en la solicitud.",
+                        "No inventes ejecuciones, archivos, accesos, fuentes ni resultados.",
+                        "Distingue claramente lo ejecutado, lo planeado y lo bloqueado."
+                    ].join("\n")
+                }
             }),
-            signal: controller.signal
-        });
-
-        if (!response.ok) {
-            throw new Error(
-                `${primaryFailure ? `PRIMARY_${primaryFailure?.message || "FAILED"}__` : ""}SEMANTIC_RESPONSE_HTTP_${response.status}`
-            );
-        }
-
-        const payload = await response.json();
-        const message = String(payload?.choices?.[0]?.message?.content || "").trim();
-        if (!message) {
-            throw new Error("SEMANTIC_RESPONSE_EMPTY");
-        }
-
-        return {
-            ok: true,
-            status: "SEMANTIC_RESPONSE_READY",
-            version: VERSION,
-            provider: "pollinations",
-            model: String(payload?.model || "openai"),
-            message
-        };
+            timeout
+        ]);
+        const message = String(response?.text || "").trim();
+        if (!message) throw new Error("SEMANTIC_RESPONSE_EMPTY");
+        return { ok: true, status: "SEMANTIC_RESPONSE_READY", version: VERSION, provider: String(ai.lastProvider || "gemini"), model: DEFAULT_GEMINI_MODEL, message };
+    } catch(error) {
+        const message = String(error?.message || error || "FAILED");
+        if (message.startsWith("SEMANTIC_AUTHENTICATED_PROVIDER_")) throw error;
+        throw new Error(`SEMANTIC_AUTHENTICATED_PROVIDER_${message}`);
     } finally {
-        clearTimeout(timer);
+        if (timer) clearTimeout(timer);
     }
 }
 
 module.exports = {
     DEFAULT_GEMINI_MODEL,
-    DEFAULT_ENDPOINT,
     VERSION,
     extractGeminiToolCallPlan,
     extractJsonObject,
@@ -1627,9 +1230,7 @@ module.exports = {
     isSafeToolName,
     normalizeCatalog,
     compactMissionObservation,
-    requestModel,
     runGeminiSemanticPlanner,
-    runSimpleSemanticPlanner,
     runJarvisSemanticPlanner,
     runJarvisSemanticResponse,
     validatePlan

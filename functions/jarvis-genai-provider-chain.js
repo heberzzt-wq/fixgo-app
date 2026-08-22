@@ -189,31 +189,24 @@ function compactFunctionDeclaration(declaration = {}) {
 }
 
 function sanitizeGenerateContentRequest(request) {
-    const guardedRequest =
-        applyFreshnessGuardToGroundedRequest(request);
-    const tools = guardedRequest?.config?.tools;
-    if (!Array.isArray(tools)) return guardedRequest;
-
-    let changed = false;
+    const guardedRequest = applyFreshnessGuardToGroundedRequest(request);
+    const sourceConfig = guardedRequest?.config && typeof guardedRequest.config === "object" ? guardedRequest.config : null;
+    let sanitizedConfig = sourceConfig;
+    if (sourceConfig && String(guardedRequest?.model || "").startsWith("gemini-3.")) {
+        const { temperature: _temperature, topP: _topP, topK: _topK, frequencyPenalty: _frequencyPenalty, presencePenalty: _presencePenalty, ...supported } = sourceConfig;
+        sanitizedConfig = supported;
+    }
+    const tools = sanitizedConfig?.tools;
+    if (!Array.isArray(tools)) return sanitizedConfig === sourceConfig ? guardedRequest : { ...guardedRequest, config: sanitizedConfig };
+    let changed = sanitizedConfig !== sourceConfig;
     const compactTools = tools.map(tool => {
         const declarations = tool?.functionDeclarations;
         if (!Array.isArray(declarations)) return tool;
         changed = true;
-        return {
-            ...tool,
-            functionDeclarations: declarations.map(compactFunctionDeclaration)
-        };
+        return { ...tool, functionDeclarations: declarations.map(compactFunctionDeclaration) };
     });
-
     if (!changed) return guardedRequest;
-
-    return {
-        ...guardedRequest,
-        config: {
-            ...guardedRequest.config,
-            tools: compactTools
-        }
-    };
+    return { ...guardedRequest, config: { ...(sanitizedConfig || {}), tools: compactTools } };
 }
 
 function isPermanentProviderFailure(error) {
@@ -557,6 +550,25 @@ async function canonicalizeGroundingRedirects(
     return response;
 }
 
+function requestRequiresExecutableSemanticPlan(request = {}) {
+    if (requestUsesFunctionDeclarations(request)) return true;
+    const text = collectRequestText(request?.contents);
+    return /CONTRATO_DE_MISION|MISSION_CONTRACT|GROUNDED_ARGUMENT_COMPLETION|COMPLETION_AUDIT|AUDITORIA_FINAL_OBLIGATORIA|AUDITORIA_DE_CIERRE_CONTROLADA/.test(text);
+}
+
+function responseHasExecutableSemanticPlan(response = {}, request = {}) {
+    if (!requestRequiresExecutableSemanticPlan(request)) return true;
+    if (Array.isArray(response?.functionCalls) && response.functionCalls.length > 0) return true;
+    const parts = Array.isArray(response?.candidates?.[0]?.content?.parts) ? response.candidates[0].content.parts : [];
+    if (parts.some(part => part?.functionCall?.name)) return true;
+    const text = String(response?.text || "").trim();
+    if (!text) return false;
+    try {
+        const payload = JSON.parse(text);
+        return (Array.isArray(payload?.toolCalls) && payload.toolCalls.length > 0) || payload?.missionComplete === true;
+    } catch { return false; }
+}
+
 function createJarvisGenAIProviderChain({ providers = [] } = {}) {
     const availableProviders = normalizeProviders(providers);
     const disabledProviders = new Map();
@@ -596,6 +608,9 @@ function createJarvisGenAIProviderChain({ providers = [] } = {}) {
                             const response = await provider.ai.models.generateContent(activeRequest);
                             if (!response) {
                                 throw new Error("EMPTY_PROVIDER_RESPONSE");
+                            }
+                            if (!responseHasExecutableSemanticPlan(response, providerRequest)) {
+                                throw new Error("SEMANTIC_PLAN_EMPTY");
                             }
 
                             if (
@@ -672,6 +687,9 @@ function createJarvisGenAIProviderChain({ providers = [] } = {}) {
                                     if (!fallbackResponse) {
                                         throw new Error("EMPTY_SCHEMA_JSON_FALLBACK_RESPONSE");
                                     }
+                                    if (!responseHasExecutableSemanticPlan(fallbackResponse, jsonFallbackRequest)) {
+                                        throw new Error("SEMANTIC_PLAN_EMPTY");
+                                    }
                                     await canonicalizeGroundingRedirects(fallbackResponse);
                                     lastProvider = providerName;
                                     return fallbackResponse;
@@ -742,6 +760,7 @@ module.exports = {
     requestUsesFunctionDeclarations,
     requestUsesGoogleSearch,
     resolveGroundingRedirectUrl,
+    responseHasExecutableSemanticPlan,
     responseHasGroundingEvidence,
     sanitizeGenerateContentRequest
 };

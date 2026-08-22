@@ -58,41 +58,15 @@ globalThis.fetch = async (url, options = {}) => {
     throw new Error("TEST_FETCH_UNAVAILABLE");
 };
 
-test("provider chain continues from an invalid developer key to Vertex AI", async () => {
+test("provider chain continues from an empty developer plan to Vertex AI", async () => {
     const calls = [];
-    const chain = createJarvisGenAIProviderChain({
-        providers: [
-            {
-                name: "gemini-developer",
-                ai: {
-                    models: {
-                        generateContent: async () => {
-                            calls.push("developer");
-                            throw new Error("API_KEY_INVALID");
-                        }
-                    }
-                }
-            },
-            {
-                name: "vertex-adc",
-                ai: {
-                    models: {
-                        generateContent: async request => {
-                            calls.push("vertex");
-                            return { text: "ok", request };
-                        }
-                    }
-                }
-            }
-        ]
-    });
-
-    const request = { model: "gemini-2.5-flash", contents: "plan" };
-    const result = await chain.models.generateContent(request);
-
+    const chain = createJarvisGenAIProviderChain({ providers: [
+        { name: "gemini-developer", ai: { models: { generateContent: async () => { calls.push("developer"); return { text: JSON.stringify({ toolCalls: [], missionComplete: false }) }; } } } },
+        { name: "vertex-adc", ai: { models: { generateContent: async () => { calls.push("vertex"); return { functionCalls: [{ name: "jarvis_tool_0", args: { query: "ok" } }] }; } } } }
+    ] });
+    const result = await chain.models.generateContent({ model: "gemini-3.6-flash", contents: "INSTRUCCION_ORIGINAL_INMUTABLE=plan", config: { tools: [{ functionDeclarations: [{ name: "jarvis_tool_0", parametersJsonSchema: { type: "object" } }] }], toolConfig: { functionCallingConfig: { mode: "ANY" } } } });
     assert.deepEqual(calls, ["developer", "vertex"]);
-    assert.equal(result.text, "ok");
-    assert.equal(result.request, request);
+    assert.equal(result.functionCalls[0].name, "jarvis_tool_0");
     assert.equal(chain.lastProvider, "vertex-adc");
 });
 

@@ -239,11 +239,6 @@ function getPlannerGenAI() {
 
     const providers = [];
 
-    providers.push({
-        name: "vertex-adc",
-        ai: getVertexGenAI()
-    });
-
     try {
         providers.push({
             name: "gemini-developer",
@@ -257,6 +252,11 @@ function getPlannerGenAI() {
             error: error?.message || String(error)
         }));
     }
+
+    providers.push({
+        name: "vertex-adc",
+        ai: getVertexGenAI()
+    });
 
     plannerGenAI = createJarvisGenAIProviderChain({ providers });
     return plannerGenAI;
@@ -440,7 +440,7 @@ Input: "${input}"
 `;
 
         const model = genAI.getGenerativeModel({
-            model: "gemini-2.5-flash",
+            model: "gemini-3.6-flash",
             generationConfig: {
                 temperature: 0.1,
                 responseMimeType: "application/json"
@@ -1478,7 +1478,7 @@ exports.gestiaArchitectV5 = functions
 
         if (operationMode === "tool_planner") {
           const plannerModel = genAI.getGenerativeModel({
-            model: "gemini-2.5-flash",
+            model: "gemini-3.6-flash",
             generationConfig: {
               temperature: 0.05,
               maxOutputTokens: 1800,
@@ -1603,7 +1603,7 @@ MODULOS ACTUALES: [${modulos.join(", ")}]
 
         // 🧠 6. Invocación IA V5.55 (Gemini 2.5 Flash)
         const model = genAI.getGenerativeModel({
-          model: "gemini-2.5-flash",
+          model: "gemini-3.6-flash",
           generationConfig: {
             temperature: 0.1,
             maxOutputTokens: 3200,
@@ -3279,7 +3279,7 @@ exports.jarvisConversacional = functions
 
             // 🧠 INVOCACIÓN IA V5.56 (Gemini 2.5 Flash)
             const model = genAI.getGenerativeModel({
-                model: "gemini-2.5-flash",
+                model: "gemini-3.6-flash",
                 systemInstruction: systemInstruction,
                 generationConfig: {
                     temperature: 0.6,
