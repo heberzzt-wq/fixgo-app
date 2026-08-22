@@ -312,18 +312,20 @@ test("existing upload bridge keeps resilient local web research without a separa
     assert.match(calls[0], /duckduckgo/i);
 });
 
-test("resilient local research binds same-name candidates to the exact seed identity", async () => {
-    const calls = [];
-    const expectedUrl =
+test("resilient local research keeps seed identity while cross-source scope stays explicit", async () => {
+    const seedUrl =
         "https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004";
+    const externalUrl =
+        "https://directorio.example/taqueria-el-dorado-cancun";
+    const calls = [];
+
     const result = await runResilientLocalWebResearch(
         "Taquería El Dorado Cancún",
         5000,
         {
             exactEntity:
                 "Taquería El Dorado",
-            seedUrl:
-                expectedUrl
+            seedUrl
         },
         async url => {
             calls.push(String(url));
@@ -334,7 +336,7 @@ test("resilient local research binds same-name candidates to the exact seed iden
                 async text() {
                     return [
                         '<div class="result results_links"><a class="result__a" href="https://www.tiktok.com/@el.dorado509/video/7639882768356248839">Taquería El Dorado (@el.dorado509) | TikTok</a><a class="result__snippet">Taquería El Dorado buffet y hamburguesas.</a></div>',
-                        `<div class="result results_links"><a class="result__a" href="${expectedUrl}">Taquería El Dorado (@taqueria.eldorado) | TikTok</a><a class="result__snippet">Publicación de la cuenta exacta @taqueria.eldorado.</a></div>`
+                        `<div class="result results_links"><a class="result__a" href="${externalUrl}">Taquería El Dorado Cancún</a><a class="result__snippet">Fuente externa atribuible a la cuenta exacta @taqueria.eldorado.</a></div>`
                     ].join("");
                 }
             };
@@ -344,16 +346,48 @@ test("resilient local research binds same-name candidates to the exact seed iden
     assert.equal(result.ok, true);
     assert.equal(result.grounded, true);
     assert.equal(result.sources.length, 1);
-    assert.equal(result.sources[0].url, expectedUrl);
+    assert.equal(result.sources[0].url, externalUrl);
     assert.doesNotMatch(
         JSON.stringify(result.sources),
         /@el\.dorado509/i
     );
 
-    const firstQuery =
+    const crossSourceQuery =
         new URL(calls[0]).searchParams.get("q") || "";
-    assert.match(firstQuery, /@taqueria\.eldorado/i);
-    assert.match(firstQuery, /site:tiktok\.com/i);
+    assert.match(crossSourceQuery, /@taqueria\.eldorado/i);
+    assert.doesNotMatch(crossSourceQuery, /site:tiktok\.com/i);
+
+    const scopedCalls = [];
+    const scoped = await runResilientLocalWebResearch(
+        "Taquería El Dorado Cancún",
+        5000,
+        {
+            exactEntity:
+                "Taquería El Dorado",
+            seedUrl,
+            allowedDomain:
+                "tiktok.com"
+        },
+        async url => {
+            scopedCalls.push(String(url));
+            return {
+                ok: true,
+                status: 200,
+                url: String(url),
+                async text() {
+                    return `<div class="result results_links"><a class="result__a" href="${seedUrl}">Taquería El Dorado (@taqueria.eldorado) | TikTok</a><a class="result__snippet">Publicación de la cuenta exacta @taqueria.eldorado.</a></div>`;
+                }
+            };
+        }
+    );
+
+    assert.equal(scoped.ok, true);
+    assert.equal(scoped.sources.length, 1);
+    assert.equal(scoped.sources[0].url, seedUrl);
+
+    const hardScopedQuery =
+        new URL(scopedCalls[0]).searchParams.get("q") || "";
+    assert.match(hardScopedQuery, /site:tiktok\.com/i);
 });
 
 test("existing bridge exposes research route and rejects an empty research request without network access", async () => {
