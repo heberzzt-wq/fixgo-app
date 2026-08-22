@@ -20,3 +20,13 @@ test("NEXO bootstrap remains inert outside the browser", () => {
     assert.match(bootstrap, /environment:\s*"non_browser"/);
     assert.match(bootstrap, /active:\s*false/);
 });
+
+test("NEXO bootstrap hydrates the existing local bridge transport from the runtime contract", () => {
+    assert.match(bootstrap, /globalThis\.JarvisLocalBridge\s*=\s*bridge/);
+    assert.match(bootstrap, /http:\/\/localhost:3344/);
+    assert.match(bootstrap, /jarvis-runtime-contract\.json/);
+    assert.match(bootstrap, /"X-Jarvis-Release-Id": contract\.releaseId/);
+    assert.match(bootstrap, /targetAddressSpace:\s*"local"/);
+    assert.match(bootstrap, /localBridgeActive/);
+    assert.doesNotMatch(bootstrap, /releaseId:\s*"v94-/);
+});
