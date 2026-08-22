@@ -141,7 +141,7 @@ test("V142 production Hosting reaches the existing local research bridge from re
     );
 
     const targetUrl =
-        `https://fixgo-44e4d.web.app/gestia-terminal.html?v142-browser=${Date.now()}`;
+        `https://fixgo-44e4d.web.app/manual.html?v142-browser=${Date.now()}`;
     chrome = spawn(
         chromePath,
         [
@@ -180,7 +180,7 @@ test("V142 production Hosting reaches the existing local research bridge from re
                 targets.find(item =>
                     item?.type === "page" &&
                     String(item?.url || "")
-                        .includes("gestia-terminal.html") &&
+                        .startsWith("https://fixgo-44e4d.web.app/") &&
                     item?.webSocketDebuggerUrl
                 ) || null;
             if (pageTarget) break;
@@ -190,7 +190,7 @@ test("V142 production Hosting reaches the existing local research bridge from re
     }
     assert.ok(
         pageTarget?.webSocketDebuggerUrl,
-        "V142 production Terminal page did not become available through Chrome DevTools"
+        "V142 production same-origin page did not become available through Chrome DevTools"
     );
 
     const socket =
@@ -260,78 +260,106 @@ test("V142 production Hosting reaches the existing local research bridge from re
         });
 
     await cdp("Runtime.enable");
-    const evaluated =
-        await cdp(
-            "Runtime.evaluate",
-            {
-                expression: `
-                    (async () => {
-                        const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-                        for (let attempt = 0; attempt < 120; attempt += 1) {
-                            if (
-                                globalThis.__NEXO_TERMINAL_BOOTSTRAP__?.localBridgeActive === true &&
-                                typeof globalThis.JarvisLocalBridge?.requestJson === "function"
-                            ) break;
-                            await sleep(250);
-                        }
-                        const bootstrap = globalThis.__NEXO_TERMINAL_BOOTSTRAP__ || null;
-                        const hasBridge = typeof globalThis.JarvisLocalBridge?.requestJson === "function";
-                        let result = null;
-                        let transportError = null;
-                        if (hasBridge) {
-                            try {
-                                const value = await globalThis.JarvisLocalBridge.requestJson(
-                                    "/research",
-                                    {
-                                        query: "Taquería El Dorado @taqueria.eldorado Cancún",
-                                        timeoutMs: 30000,
-                                        allowedDomain: "",
-                                        exactEntity: "Taquería El Dorado",
-                                        seedUrl: ""
-                                    },
-                                    {
-                                        timeoutMs: 40000
-                                    }
-                                );
-                                result = {
-                                    ok: value?.ok === true,
-                                    grounded: value?.grounded === true,
-                                    status: value?.status || null,
-                                    error: value?.error || null,
-                                    sourceCount: Array.isArray(value?.sources)
-                                        ? value.sources.length
-                                        : Number(value?.sourceCount || 0),
-                                    httpStatus: value?.httpStatus || null
-                                };
-                            }
-                            catch(error) {
-                                transportError = {
-                                    name: error?.name || null,
-                                    message: error?.message || String(error)
-                                };
-                            }
-                        }
-                        return {
-                            href: location.href,
-                            origin: location.origin,
-                            bootstrap: bootstrap
-                                ? {
-                                    version: bootstrap.version || null,
-                                    active: bootstrap.active === true,
-                                    localBridgeActive: bootstrap.localBridgeActive === true,
-                                    localBridgeBaseUrl: bootstrap.localBridgeBaseUrl || null
-                                }
-                                : null,
-                            hasBridge,
-                            result,
-                            transportError
-                        };
-                    })()
-                `,
-                awaitPromise: true,
-                returnByValue: true
+    const expression = `
+        (async () => {
+            const moduleUrl = "/modules/terminal/nexo-bootstrap.js?v=v142-production-browser-" + Date.now();
+            const sourceResponse = await fetch(moduleUrl, { cache: "no-store" });
+            const sourceText = await sourceResponse.text();
+            const servedVersion = sourceText.includes("1.11.0-local-bridge-transport-v142")
+                ? "1.11.0-local-bridge-transport-v142"
+                : null;
+            let importError = null;
+            try {
+                await import(moduleUrl);
             }
-        );
+            catch(error) {
+                importError = {
+                    name: error?.name || null,
+                    message: error?.message || String(error)
+                };
+            }
+            const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+            for (let attempt = 0; attempt < 80; attempt += 1) {
+                if (typeof globalThis.JarvisLocalBridge?.requestJson === "function") break;
+                await sleep(250);
+            }
+            const hasBridge = typeof globalThis.JarvisLocalBridge?.requestJson === "function";
+            let result = null;
+            let transportError = null;
+            if (hasBridge) {
+                try {
+                    const value = await globalThis.JarvisLocalBridge.requestJson(
+                        "/research",
+                        {
+                            query: "Taquería El Dorado @taqueria.eldorado Cancún",
+                            timeoutMs: 30000,
+                            allowedDomain: "",
+                            exactEntity: "Taquería El Dorado",
+                            seedUrl: ""
+                        },
+                        {
+                            timeoutMs: 40000
+                        }
+                    );
+                    result = {
+                        ok: value?.ok === true,
+                        grounded: value?.grounded === true,
+                        status: value?.status || null,
+                        error: value?.error || null,
+                        sourceCount: Array.isArray(value?.sources)
+                            ? value.sources.length
+                            : Number(value?.sourceCount || 0),
+                        httpStatus: value?.httpStatus || null
+                    };
+                }
+                catch(error) {
+                    transportError = {
+                        name: error?.name || null,
+                        message: error?.message || String(error)
+                    };
+                }
+            }
+            return {
+                href: location.href,
+                origin: location.origin,
+                sourceHttpOk: sourceResponse.ok,
+                sourceHttpStatus: sourceResponse.status,
+                servedVersion,
+                importError,
+                hasBridge,
+                result,
+                transportError
+            };
+        })()
+    `;
+
+    let evaluated = null;
+    let lastContextError = null;
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+        try {
+            evaluated =
+                await cdp(
+                    "Runtime.evaluate",
+                    {
+                        expression,
+                        awaitPromise: true,
+                        returnByValue: true
+                    }
+                );
+            lastContextError = null;
+            break;
+        }
+        catch(error) {
+            if (!/Execution context was destroyed|Cannot find context/i.test(String(error?.message || error))) {
+                throw error;
+            }
+            lastContextError = error;
+            await sleep(500);
+        }
+    }
+    if (!evaluated && lastContextError) {
+        throw lastContextError;
+    }
     if (evaluated?.exceptionDetails) {
         throw new Error(
             `V142_PRODUCTION_BROWSER_EXCEPTION:${evaluated.exceptionDetails.text || "unknown"}`
@@ -350,12 +378,12 @@ test("V142 production Hosting reaches the existing local research bridge from re
         "https://fixgo-44e4d.web.app"
     );
     assert.equal(
-        browserResult?.bootstrap?.version,
-        "1.11.0-local-bridge-transport-v142"
+        browserResult?.sourceHttpOk,
+        true
     );
     assert.equal(
-        browserResult?.bootstrap?.localBridgeActive,
-        true
+        browserResult?.servedVersion,
+        "1.11.0-local-bridge-transport-v142"
     );
     assert.equal(
         browserResult?.hasBridge,
@@ -367,6 +395,6 @@ test("V142 production Hosting reaches the existing local research bridge from re
     );
     assert.ok(
         browserResult?.result?.status,
-        "The production page must receive a JSON status from /research"
+        "The production browser must receive a JSON status from /research"
     );
 });
