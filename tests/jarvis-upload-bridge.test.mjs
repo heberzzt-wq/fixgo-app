@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { test } from "node:test";
 
 import {
@@ -11,6 +11,8 @@ import {
     JARVIS_UPLOAD_BRIDGE_VERSION,
     runResilientLocalWebResearch
 } from "../jarvis-upload-bridge.js";
+
+const root = process.cwd();
 
 function initializeBridgeRoot() {
     const root =
@@ -80,12 +82,70 @@ async function postJson(
     };
 }
 
+function collectProcessOutput(child) {
+    let stdout = "";
+    let stderr = "";
+    const cap = 2_000_000;
+    const append = (current, chunk) =>
+        (current + String(chunk || "")).slice(-cap);
+
+    child.stdout?.on("data", chunk => {
+        stdout = append(stdout, chunk);
+    });
+    child.stderr?.on("data", chunk => {
+        stderr = append(stderr, chunk);
+    });
+
+    return {
+        stdout: () => stdout,
+        stderr: () => stderr
+    };
+}
+
+async function waitForBridge(child, output, timeoutMs = 20000) {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+        if (child.exitCode !== null) {
+            throw new Error(
+                `V142_CANONICAL_BRIDGE_EXITED:${child.exitCode}\n${output.stdout()}\n${output.stderr()}`
+            );
+        }
+        try {
+            const response = await fetch(
+                "http://127.0.0.1:3344/health",
+                { cache: "no-store" }
+            );
+            if (response.ok) return;
+        }
+        catch {}
+        await new Promise(resolve => setTimeout(resolve, 250));
+    }
+    throw new Error(
+        `V142_CANONICAL_BRIDGE_NOT_READY\n${output.stdout()}\n${output.stderr()}`
+    );
+}
+
+async function waitForExit(child) {
+    if (child.exitCode !== null) {
+        return {
+            code: child.exitCode,
+            signal: child.signalCode
+        };
+    }
+    return new Promise((resolve, reject) => {
+        child.once("error", reject);
+        child.once("exit", (code, signal) =>
+            resolve({ code, signal })
+        );
+    });
+}
+
 test("Jarvis upload bridge persists a real PDF through registered chunk routes", async () => {
-    const root =
+    const tempRoot =
         initializeBridgeRoot();
     const server =
         createJarvisUploadBridgeApp({
-            root
+            root: tempRoot
         }).listen(0);
 
     await new Promise(resolve =>
@@ -242,7 +302,7 @@ test("Jarvis upload bridge persists a real PDF through registered chunk routes",
         assert.deepEqual(
             fs.readFileSync(
                 path.join(
-                    root,
+                    tempRoot,
                     completed.body.output
                 )
             ),
@@ -274,7 +334,7 @@ test("Jarvis upload bridge persists a real PDF through registered chunk routes",
             server.close(resolve)
         );
         fs.rmSync(
-            root,
+            tempRoot,
             {
                 recursive:
                     true,
@@ -313,8 +373,8 @@ test("existing upload bridge keeps resilient local web research without a separa
 });
 
 test("existing bridge exposes research route and rejects an empty research request without network access", async () => {
-    const root = initializeBridgeRoot();
-    const server = createJarvisUploadBridgeApp({ root }).listen(0);
+    const tempRoot = initializeBridgeRoot();
+    const server = createJarvisUploadBridgeApp({ root: tempRoot }).listen(0);
     await new Promise(resolve => server.once("listening", resolve));
     const base = `http://127.0.0.1:${server.address().port}`;
 
@@ -326,7 +386,123 @@ test("existing bridge exposes research route and rejects an empty research reque
     }
     finally {
         await new Promise(resolve => server.close(resolve));
-        fs.rmSync(root, { recursive: true, force: true });
+        fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+});
+
+test("V142 Windows CI executes the canonical Taqueria human reel mission through the official upload bridge", {
+    skip:
+        process.env.GITHUB_ACTIONS !== "true" ||
+        process.platform !== "win32",
+    timeout: 900000
+}, async () => {
+    execFileSync(
+        "ffmpeg",
+        ["-version"],
+        {
+            cwd: root,
+            stdio: "pipe",
+            windowsHide: true
+        }
+    );
+
+    const bridge = spawn(
+        process.execPath,
+        [path.join(root, "jarvis-upload-bridge.js")],
+        {
+            cwd: root,
+            env: process.env,
+            windowsHide: true,
+            stdio: ["ignore", "pipe", "pipe"]
+        }
+    );
+    const bridgeOutput = collectProcessOutput(bridge);
+
+    try {
+        await waitForBridge(bridge, bridgeOutput);
+
+        const mission = spawn(
+            process.execPath,
+            [path.join(root, ".github", "scripts", "v139-canonical-real-reel.mjs")],
+            {
+                cwd: root,
+                env: {
+                    ...process.env,
+                    V142_CANONICAL_HUMAN_E2E: "true"
+                },
+                windowsHide: true,
+                stdio: ["ignore", "pipe", "pipe"]
+            }
+        );
+        const missionOutput = collectProcessOutput(mission);
+        const exit = await waitForExit(mission);
+        const stdout = missionOutput.stdout();
+        const stderr = missionOutput.stderr();
+
+        console.log(
+            "V142_CANONICAL_HUMAN_REEL_STDOUT",
+            stdout.slice(-120000)
+        );
+        if (stderr.trim()) {
+            console.error(
+                "V142_CANONICAL_HUMAN_REEL_STDERR",
+                stderr.slice(-120000)
+            );
+        }
+
+        assert.equal(
+            exit.code,
+            0,
+            `Canonical mission exited ${exit.code ?? exit.signal}: ${stderr || stdout}`
+        );
+        assert.match(
+            stdout,
+            /V139_CANONICAL_REAL_REEL_E2E_COMPLETE/
+        );
+        assert.match(
+            stdout,
+            /"web\.research"/
+        );
+        assert.match(
+            stdout,
+            /"marketing\.plan"/
+        );
+        assert.match(
+            stdout,
+            /"speech\.synthesize"/
+        );
+        assert.match(
+            stdout,
+            /"web\.media\.collect"/
+        );
+        assert.match(
+            stdout,
+            /"reel\.create"/
+        );
+    }
+    finally {
+        if (bridge.exitCode === null) {
+            bridge.kill("SIGTERM");
+            await Promise.race([
+                waitForExit(bridge),
+                new Promise(resolve => setTimeout(resolve, 3000))
+            ]);
+        }
+        if (bridge.exitCode === null) {
+            bridge.kill("SIGKILL");
+        }
+        const bridgeStdout = bridgeOutput.stdout();
+        const bridgeStderr = bridgeOutput.stderr();
+        console.log(
+            "V142_CANONICAL_UPLOAD_BRIDGE_STDOUT",
+            bridgeStdout.slice(-60000)
+        );
+        if (bridgeStderr.trim()) {
+            console.error(
+                "V142_CANONICAL_UPLOAD_BRIDGE_STDERR",
+                bridgeStderr.slice(-60000)
+            );
+        }
     }
 });
 
