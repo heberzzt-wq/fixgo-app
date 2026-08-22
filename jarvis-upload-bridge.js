@@ -200,8 +200,7 @@ function buildLocalResearchQuery(
         values.push(`"${identityHandle}"`);
     }
 
-    let domain = normalizeResearchDomain(allowedDomain);
-    if (!domain && seedUrl) domain = researchDomainFromUrl(seedUrl);
+    const domain = normalizeResearchDomain(allowedDomain);
     if (domain && !values.join(" ").toLowerCase().includes(`site:${domain}`)) {
         values.push(`site:${domain}`);
     }
@@ -284,8 +283,7 @@ function localResearchSourceMatchesSeedIdentity(source, seedUrl = "") {
 function normalizeLocalResearchSources(candidates = [], options = {}) {
     const seen = new Set();
     const effectiveDomain =
-        normalizeResearchDomain(options.allowedDomain) ||
-        researchDomainFromUrl(options.seedUrl);
+        normalizeResearchDomain(options.allowedDomain);
     return candidates
         .filter(source => {
             const url = String(source?.url || "").trim();
@@ -466,7 +464,7 @@ export async function runResilientLocalWebResearch(
 }
 
 export const JARVIS_UPLOAD_BRIDGE_VERSION =
-    "1.4.0-exact-seed-identity-v142";
+    "1.5.0-cross-source-seed-identity-v142";
 
 const MODULE_FILE =
     fileURLToPath(import.meta.url);
