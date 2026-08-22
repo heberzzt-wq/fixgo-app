@@ -104,7 +104,7 @@ async function connectCdp(webSocketDebuggerUrl) {
     };
 }
 
-test("V142 production Hosting reaches the existing local research bridge from real Chrome", {
+test("V142 real Chrome validates candidate loopback transport from production origin", {
     skip: process.env.GITHUB_ACTIONS !== "true" || process.platform !== "linux",
     timeout: 120000
 }, async t => {
@@ -211,68 +211,86 @@ test("V142 production Hosting reaches the existing local research bridge from re
         permissionMethod = "Browser.grantPermissions:loopbackNetwork";
     }
 
-    const moduleUrl = `${PRODUCTION_ORIGIN}/modules/terminal/nexo-bootstrap.js?v=v142-production-browser-${Date.now()}`;
     const evaluated = await cdp.call("Runtime.evaluate", {
         expression: `
             (async () => {
-                const moduleUrl = ${JSON.stringify(moduleUrl)};
-                const sourceResponse = await fetch(moduleUrl, {cache:"no-store"});
-                const sourceText = await sourceResponse.text();
-                const servedVersion = sourceText.includes(${JSON.stringify(PRODUCTION_BOOTSTRAP_VERSION)})
-                    ? ${JSON.stringify(PRODUCTION_BOOTSTRAP_VERSION)}
-                    : null;
-                let importError = null;
-                try { await import(moduleUrl); }
-                catch(error) { importError = {name:error?.name||null,message:error?.message||String(error)}; }
-                for (let attempt = 0; attempt < 80; attempt += 1) {
-                    if (typeof globalThis.JarvisLocalBridge?.requestJson === "function") break;
-                    await new Promise(resolve => setTimeout(resolve, 250));
-                }
+                const contractResponse = await fetch(
+                    ${JSON.stringify(PRODUCTION_ORIGIN + "/jarvis-runtime-contract.json")},
+                    {cache:"no-store"}
+                );
+                const contract = await contractResponse.json();
+                const requestJson = async (route, payload, timeoutMs) => {
+                    const controller = new AbortController();
+                    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+                    try {
+                        const response = await fetch(
+                            "http://localhost:3344" + route,
+                            {
+                                method:"POST",
+                                headers:{
+                                    "Content-Type":"application/json",
+                                    "X-Jarvis-Release-Id":contract.releaseId
+                                },
+                                body:JSON.stringify(payload),
+                                cache:"no-store",
+                                signal:controller.signal,
+                                targetAddressSpace:"loopback"
+                            }
+                        );
+                        const text = await response.text();
+                        const body = text ? JSON.parse(text) : {};
+                        return {...body,httpStatus:response.status};
+                    }
+                    finally {
+                        clearTimeout(timeout);
+                    }
+                };
                 let permissionState = null;
                 try {
                     permissionState = (await navigator.permissions.query({name:"loopback-network"})).state;
                 }
                 catch {}
-                const hasBridge = typeof globalThis.JarvisLocalBridge?.requestJson === "function";
                 let transportProbe = null;
                 let research = null;
                 let transportError = null;
-                if (hasBridge) {
-                    try {
-                        transportProbe = await globalThis.JarvisLocalBridge.requestJson(
-                            "/research",
-                            {query:"x"},
-                            {timeoutMs:10000}
-                        );
-                        research = await globalThis.JarvisLocalBridge.requestJson(
-                            "/research",
-                            {
-                                query:"Taquería El Dorado @taqueria.eldorado Cancún",
-                                timeoutMs:20000,
-                                allowedDomain:"",
-                                exactEntity:"Taquería El Dorado",
-                                seedUrl:""
-                            },
-                            {timeoutMs:30000}
-                        );
-                    }
-                    catch(error) {
-                        transportError = {name:error?.name||null,message:error?.message||String(error)};
-                    }
+                try {
+                    transportProbe = await requestJson("/research", {query:"x"}, 10000);
+                    research = await requestJson(
+                        "/research",
+                        {
+                            query:"Taquería El Dorado @taqueria.eldorado Cancún",
+                            timeoutMs:20000,
+                            allowedDomain:"",
+                            exactEntity:"Taquería El Dorado",
+                            seedUrl:""
+                        },
+                        30000
+                    );
                 }
+                catch(error) {
+                    transportError = {name:error?.name||null,message:error?.message||String(error)};
+                }
+                const servedSource = await (
+                    await fetch(
+                        ${JSON.stringify(PRODUCTION_ORIGIN + "/modules/terminal/nexo-bootstrap.js?v=v142-served-probe-")} + Date.now(),
+                        {cache:"no-store"}
+                    )
+                ).text();
                 return {
-                    origin: location.origin,
-                    sourceHttpOk: sourceResponse.ok,
-                    servedVersion,
-                    importError,
+                    origin:location.origin,
+                    contractHttpOk:contractResponse.ok,
+                    releaseId:contract.releaseId||null,
                     permissionState,
-                    hasBridge,
-                    transportProbe: transportProbe ? {
+                    candidateTargetAddressSpace:"loopback",
+                    servedVersion:servedSource.includes(${JSON.stringify(PRODUCTION_BOOTSTRAP_VERSION)})
+                        ? ${JSON.stringify(PRODUCTION_BOOTSTRAP_VERSION)}
+                        : null,
+                    transportProbe:transportProbe ? {
                         status:transportProbe.status||null,
                         error:transportProbe.error||null,
                         httpStatus:transportProbe.httpStatus||null
                     } : null,
-                    research: research ? {
+                    research:research ? {
                         ok:research.ok===true,
                         grounded:research.grounded===true,
                         status:research.status||null,
@@ -288,21 +306,21 @@ test("V142 production Hosting reaches the existing local research bridge from re
         returnByValue: true
     });
     if (evaluated?.exceptionDetails) {
-        throw new Error(`V142_PRODUCTION_BROWSER_EXCEPTION:${evaluated.exceptionDetails.text || "unknown"}`);
+        throw new Error(`V142_CANDIDATE_LOOPBACK_BROWSER_EXCEPTION:${evaluated.exceptionDetails.text || "unknown"}`);
     }
     const result = evaluated?.result?.value || null;
 
-    console.log("V142_PRODUCTION_BROWSER_LOCAL_BRIDGE", JSON.stringify({
+    console.log("V142_CANDIDATE_LOOPBACK_BROWSER", JSON.stringify({
         stable,
         permissionMethod,
         ...result
     }));
 
     assert.equal(result?.origin, PRODUCTION_ORIGIN);
-    assert.equal(result?.sourceHttpOk, true);
-    assert.equal(result?.servedVersion, PRODUCTION_BOOTSTRAP_VERSION);
-    assert.equal(result?.importError, null);
-    assert.equal(result?.hasBridge, true);
+    assert.equal(result?.contractHttpOk, true);
+    assert.equal(result?.releaseId, contract.releaseId);
+    assert.equal(result?.permissionState, "granted");
+    assert.equal(result?.candidateTargetAddressSpace, "loopback");
     assert.equal(result?.transportError, null);
     assert.equal(result?.transportProbe?.httpStatus, 400);
     assert.equal(result?.transportProbe?.error, "WEB_RESEARCH_QUERY_REQUIRED");
