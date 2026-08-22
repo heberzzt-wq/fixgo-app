@@ -9,7 +9,7 @@
  */
 
 export const NEXO_TERMINAL_BOOTSTRAP_VERSION =
-    "1.11.0-local-bridge-transport-v142";
+    "1.12.0-loopback-transport-v142";
 
 const INSTALL_KEY = "__NEXO_TERMINAL_BOOTSTRAP__";
 const LOCAL_BRIDGE_BASE_URL = "http://localhost:3344";
@@ -103,7 +103,7 @@ function installJarvisLocalBridgeTransport() {
                         ),
                         cache: "no-store",
                         signal: controller.signal,
-                        targetAddressSpace: "local"
+                        targetAddressSpace: "loopback"
                     }
                 );
                 const text = await response.text();
@@ -140,6 +140,7 @@ function installJarvisLocalBridgeTransport() {
 
     console.info("[JARVIS_LOCAL_BRIDGE_TRANSPORT_READY]", {
         baseUrl: LOCAL_BRIDGE_BASE_URL,
+        targetAddressSpace: "loopback",
         contractSource: "jarvis-runtime-contract.json"
     });
 
@@ -186,6 +187,8 @@ export async function instalarBootstrapTerminalNexo() {
             typeof localBridge?.requestJson === "function",
         localBridgeBaseUrl:
             LOCAL_BRIDGE_BASE_URL,
+        localBridgeTargetAddressSpace:
+            "loopback",
         realMediaToolsVersion:
             realMediaTools.NEXO_REAL_MEDIA_TOOLS_VERSION || null,
         runtimeMediaGuardVersion:
