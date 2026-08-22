@@ -295,7 +295,8 @@ orchestrator = replaceOnce(
 orchestrator = replaceOnce(
     orchestrator,
 `    deterministicReelMediaRecoveryCall,
-    archiveRecoveredMediaSourceAttempts
+    archiveRecoveredMediaSourceAttempts,
+    archiveRecoveredToolAttempts
 };`,
 `    deterministicReelMediaRecoveryCall,
     archiveRecoveredMediaSourceAttempts,
