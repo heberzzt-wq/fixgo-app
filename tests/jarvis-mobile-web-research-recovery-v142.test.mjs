@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 
 import {
     buildCrossSourceResearchRecoveryQuery,
@@ -65,6 +66,20 @@ function groundedCrossSourceResult() {
         caseId: "CASE-V142"
     };
 }
+
+test("v142 full ci runs the real loopback browser contract only once", () => {
+    const packageJson = JSON.parse(
+        fs.readFileSync(new URL("../package.json", import.meta.url), "utf8")
+    );
+    assert.match(
+        packageJson.scripts["test:nexo"],
+        /tests\/nexo-terminal-bootstrap\.test\.mjs/
+    );
+    assert.doesNotMatch(
+        packageJson.scripts.test,
+        /tests\/nexo-terminal-bootstrap\.test\.mjs/
+    );
+});
 
 test("v142 recovery query removes the inaccessible source anchor but preserves identity", () => {
     const query = buildCrossSourceResearchRecoveryQuery(
