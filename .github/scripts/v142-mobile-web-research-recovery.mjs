@@ -4,216 +4,264 @@ const paths = {
   clientPlanner: "gestia-core/jarvis/jarvis.multifunction.planner.js",
   core: "gestia-core/gestia-core.js",
   multitool: "gestia-core/jarvis/jarvis.multitool.pack.js",
-  marketing: "gestia-core/jarvis/jarvis.marketing.engine.js",
   semanticPlanner: "functions/jarvis-semantic-planner.js",
-  webResearch: "functions/jarvis-web-research.js",
+  providerChain: "functions/jarvis-genai-provider-chain.js",
   functionsIndex: "functions/index.js",
-  multifunctionTest: "tests/jarvis-multifunction-tools.test.mjs",
   semanticTest: "tests/jarvis-semantic-planner.test.cjs",
-  webTest: "tests/jarvis-web-research.test.cjs",
-  v142Test: "tests/jarvis-mobile-web-research-recovery-v142.test.mjs"
+  providerTest: "tests/jarvis-genai-provider-chain.test.cjs"
 };
 
 function read(file) {
   return fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
 }
-function write(file, value) { fs.writeFileSync(file, value, "utf8"); }
-function assertHas(source, needle, label) {
-  if (!source.includes(needle)) throw new Error(`V142_PATCH_MARKER_MISSING:${label}`);
+
+function write(file, value) {
+  fs.writeFileSync(file, value, "utf8");
 }
+
+function assertHas(source, needle, label) {
+  if (!source.includes(needle)) {
+    throw new Error(`V142_PATCH_MARKER_MISSING:${label}`);
+  }
+}
+
 function replaceOnce(source, from, to, label) {
   if (source.includes(to)) return source;
   const index = source.indexOf(from);
-  if (index < 0) throw new Error(`V142_PATCH_MARKER_MISSING:${label}`);
+  if (index < 0) {
+    throw new Error(`V142_PATCH_MARKER_MISSING:${label}`);
+  }
   return source.slice(0, index) + to + source.slice(index + from.length);
 }
 
-let clientPlanner = read(paths.clientPlanner);
-clientPlanner = replaceOnce(
-  clientPlanner,
-  'const CLOUD_MISSION_CONTRACT_TIMEOUT_MS =\n    12000;',
-  'const CLOUD_MISSION_CONTRACT_TIMEOUT_MS =\n    45000;',
-  'client-cloud-timeout'
-);
-clientPlanner = clientPlanner.replace(
-  /const BROWSER_MISSION_ATTEMPT_TIMEOUT_MS =\n\s*6000;\n\nconst BROWSER_PLAN_ATTEMPT_TIMEOUT_MS =\n\s*5000;\n\n/,
-  ""
-);
-if (clientPlanner.includes("async function fetchBrowserPlanText(")) {
-  const start = clientPlanner.indexOf("async function fetchBrowserPlanText(");
-  const end = clientPlanner.indexOf("function runtimeCatalog(", start);
-  if (end < 0) throw new Error("V142_PATCH_MARKER_MISSING:client-browser-planner-section");
-  clientPlanner = clientPlanner.slice(0, start) + clientPlanner.slice(end);
+function replaceSection(source, startMarker, endMarker, replacement, label) {
+  const start = source.indexOf(startMarker);
+  if (start < 0) throw new Error(`V142_PATCH_MARKER_MISSING:${label}:start`);
+  const end = source.indexOf(endMarker, start + startMarker.length);
+  if (end < 0) throw new Error(`V142_PATCH_MARKER_MISSING:${label}:end`);
+  return source.slice(0, start) + replacement + source.slice(end);
 }
-const timeoutOld = `    const timeoutMs =\n        missionState?.phase ===\n            "MISSION_CONTRACT"\n            ? CLOUD_MISSION_CONTRACT_TIMEOUT_MS\n            : 12000;`;
-const timeoutNew = `    const timeoutMs =\n        [\n            "MISSION_CONTRACT",\n            "COMPLETION_AUDIT",\n            "GROUNDED_ARGUMENT_COMPLETION"\n        ].includes(String(missionState?.phase || ""))\n            ? CLOUD_MISSION_CONTRACT_TIMEOUT_MS\n            : 30000;`;
-clientPlanner = replaceOnce(clientPlanner, timeoutOld, timeoutNew, "client-phase-timeout");
-if (clientPlanner.includes('        const contractPlanner = context?.missionState?.phase === "MISSION_CONTRACT"')) {
-  const start = clientPlanner.indexOf('        const contractPlanner = context?.missionState?.phase === "MISSION_CONTRACT"');
-  const end = clientPlanner.indexOf("        const plan = await resolveSemanticPlan(", start);
-  if (end < 0) throw new Error("V142_PATCH_MARKER_MISSING:client-contract-planner-end");
-  clientPlanner = clientPlanner.slice(0, start) +
-    "        const contractPlanner = context.semanticPlanner;\n" +
-    clientPlanner.slice(end);
+
+function topLevelTestBlocks(source) {
+  const marker = "\ntest(";
+  const starts = [];
+  let cursor = source.indexOf(marker);
+  while (cursor >= 0) {
+    starts.push(cursor + 1);
+    cursor = source.indexOf(marker, cursor + marker.length);
+  }
+  if (starts.length === 0) return { prefix: source, blocks: [] };
+  return {
+    prefix: source.slice(0, starts[0]),
+    blocks: starts.map((start, index) =>
+      source.slice(start, index + 1 < starts.length ? starts[index + 1] : source.length)
+    )
+  };
 }
-assertHas(clientPlanner, "        const contractPlanner = context.semanticPlanner;", "client-cloud-only-contract");
-const catchBrowserStart = `    } catch (error) {\n        if (\n            context?.missionState?.phase !== "MISSION_CONTRACT"`;
-if (clientPlanner.includes(catchBrowserStart)) {
-  const start = clientPlanner.indexOf(catchBrowserStart);
-  const unavailable = clientPlanner.indexOf('            status: "SEMANTIC_PLANNER_UNAVAILABLE"', start);
-  if (unavailable < 0) throw new Error("V142_PATCH_MARKER_MISSING:client-unavailable-health-status");
-  const health = clientPlanner.lastIndexOf("        globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__ = {", unavailable);
-  if (health < start) throw new Error("V142_PATCH_MARKER_MISSING:client-browser-catch-end");
-  clientPlanner = clientPlanner.slice(0, start) + "    } catch (error) {\n" + clientPlanner.slice(health);
-}
-const completionFn = clientPlanner.indexOf("export async function completeJarvisPlanningArguments({");
-if (completionFn < 0) throw new Error("V142_PATCH_MARKER_MISSING:client-completion-function");
-const completionPlanStart = clientPlanner.indexOf("    let plan;\n    try {\n        plan = await resolveSemanticPlan(", completionFn);
-if (completionPlanStart >= 0) {
-  const completionPlanEnd = clientPlanner.indexOf("\n\n    const call = trustedPlanCalls", completionPlanStart);
-  if (completionPlanEnd < 0) throw new Error("V142_PATCH_MARKER_MISSING:client-completion-plan-end");
-  const directPlan = `    const plan = await resolveSemanticPlan(\n        briefingInstruction,\n        catalog,\n        semanticPlanner,\n        {\n            phase: "GROUNDED_ARGUMENT_COMPLETION",\n            toolName: name,\n            sourceCount: sources.length,\n            writeAllowed: false\n        }\n    );`;
-  clientPlanner = clientPlanner.slice(0, completionPlanStart) + directPlan + clientPlanner.slice(completionPlanEnd);
-}
-clientPlanner = clientPlanner
-  .replace(/\n\s*callBrowserMissionContract,/, "")
-  .replace(/\n\s*callBrowserSemanticPlan,/, "");
-if (clientPlanner.includes("text.pollinations.ai") || clientPlanner.includes("callBrowserMissionContract") || clientPlanner.includes("callBrowserSemanticPlan")) {
+
+// Existing V142 architecture must already be materialized. Do not resurrect browser/public brains.
+const clientPlanner = read(paths.clientPlanner);
+assertHas(clientPlanner, "CLOUD_MISSION_CONTRACT_TIMEOUT_MS", "client-cloud-timeout");
+if (
+  clientPlanner.includes("text.pollinations.ai") ||
+  clientPlanner.includes("callBrowserMissionContract") ||
+  clientPlanner.includes("callBrowserSemanticPlan")
+) {
   throw new Error("V142_CLIENT_SECOND_PLANNER_STILL_ACTIVE");
 }
-write(paths.clientPlanner, clientPlanner);
 
-let core = read(paths.core);
-const auditMarker = 'phase:\n                                                "COMPLETION_AUDIT"';
-const auditStart = core.indexOf(auditMarker);
-if (auditStart < 0) throw new Error("V142_PATCH_MARKER_MISSING:completion-audit-state");
-const auditEnd = core.indexOf("                                        }\n                                    }\n                                );", auditStart);
-if (auditEnd < 0) throw new Error("V142_PATCH_MARKER_MISSING:completion-audit-state-end");
-let auditSlice = core.slice(auditStart, auditEnd);
-auditSlice = auditSlice.replace(
-  /,?\n\s*advisorySemanticContext:\s*compactJarvisSemanticMemoryForPlanner\(semanticMemoryContext\)/,
-  ""
-);
-core = core.slice(0, auditStart) + auditSlice + core.slice(auditEnd);
-write(paths.core, core);
+const core = read(paths.core);
+assertHas(core, 'call?.name === "speech.synthesize"', "physical-speech-grounding");
+assertHas(core, 'call?.name === "reel.plan"', "physical-reel-grounding");
 
-let semantic = read(paths.semanticPlanner);
-const genericRequestMarker = `    const request = {\n        model,\n        contents: [`;
-if (!semantic.includes('planKind: phase')) {
-  const genericPos = semantic.indexOf(genericRequestMarker, semantic.indexOf("async function runGeminiSemanticPlanner"));
-  if (genericPos < 0) throw new Error("V142_PATCH_MARKER_MISSING:semantic-generic-request");
-  const phaseBlock = `    const phase =\n        String(missionState?.phase || "");\n\n    if (\n        phase === "COMPLETION_AUDIT" ||\n        phase === "GROUNDED_ARGUMENT_COMPLETION"\n    ) {\n        const phaseCatalog =\n            phase === "GROUNDED_ARGUMENT_COMPLETION"\n                ? safeCatalog.slice(0, 1)\n                : safeCatalog;\n        if (\n            phase === "GROUNDED_ARGUMENT_COMPLETION" &&\n            phaseCatalog.length !== 1\n        ) {\n            throw new Error("SEMANTIC_GROUNDED_TOOL_REQUIRED");\n        }\n\n        let lastPhaseError = null;\n        for (let attempt = 1; attempt <= 2; attempt += 1) {\n            try {\n                const phaseResponse =\n                    await ai.models.generateContent({\n                        model,\n                        contents: [\n                            buildSemanticSystemInstruction(phaseCatalog, missionState),\n                            \`INSTRUCCION_ORIGINAL_INMUTABLE=\${instruction}\`,\n                            phase === "GROUNDED_ARGUMENT_COMPLETION"\n                                ? "COMPLETA solamente los argumentos de la herramienta ya seleccionada. Devuelve JSON con esa toolCall y missionComplete=false. No selecciones otra herramienta."\n                                : "AUDITORIA_DE_CIERRE_CONTROLADA: no estas obligado a llamar una herramienta. Compara la instruccion original con completedTasks y blockedTasks. Si falta un entregable devuelve exactamente una toolCall ejecutable. Solo si todo esta satisfecho devuelve toolCalls=[] y missionComplete=true.",\n                            attempt > 1\n                                ? "REINTENTO: la salida anterior no fue ejecutable. Conserva el mismo objetivo y devuelve JSON valido."\n                                : ""\n                        ].filter(Boolean).join("\\n\\n"),\n                        config: {\n                            temperature: 0,\n                            maxOutputTokens: 3000,\n                            thinkingConfig: {\n                                thinkingBudget: 0\n                            },\n                            responseMimeType: "application/json"\n                        }\n                    });\n                const payload =\n                    extractJsonObject(\n                        String(phaseResponse?.text || "")\n                    );\n                const validated =\n                    validatePlan(\n                        {\n                            ...(payload || {}),\n                            ...(phase === "GROUNDED_ARGUMENT_COMPLETION"\n                                ? { missionComplete: false }\n                                : {})\n                        },\n                        phaseCatalog,\n                        instruction\n                    );\n\n                if (phase === "GROUNDED_ARGUMENT_COMPLETION") {\n                    const selected =\n                        validated.toolCalls.find(call =>\n                            call.name === phaseCatalog[0].name\n                        );\n                    if (\n                        !selected ||\n                        !hasRequiredToolArguments(\n                            phaseCatalog[0],\n                            selected.args || {}\n                        )\n                    ) {\n                        throw new Error("SEMANTIC_GROUNDED_ARGUMENTS_REQUIRED");\n                    }\n                }\n\n                return requireExecutablePlan({\n                    ...validated,\n                    provider: String(ai.lastProvider || "gemini"),\n                    model,\n                    catalogSize: phaseCatalog.length,\n                    planKind: phase\n                });\n            }\n            catch(error) {\n                lastPhaseError = error;\n            }\n        }\n\n        throw lastPhaseError ||\n            new Error(\n                phase === "GROUNDED_ARGUMENT_COMPLETION"\n                    ? "SEMANTIC_GROUNDED_ARGUMENTS_REQUIRED"\n                    : "SEMANTIC_COMPLETION_AUDIT_REQUIRED"\n            );\n    }\n\n`;
-  semantic = semantic.slice(0, genericPos) + phaseBlock + semantic.slice(genericPos);
-}
-const aiFallbackStart = `        if (ai?.models?.generateContent) {\n            try {\n                return await runGeminiSemanticPlanner({`;
-const aiStart = semantic.indexOf(aiFallbackStart, semantic.indexOf("async function runJarvisSemanticPlanner"));
-if (aiStart >= 0) {
-  const simpleStart = semantic.indexOf("\n\n        if (typeof simpleFetchImpl === \"function\") {", aiStart);
-  if (simpleStart < 0) throw new Error("V142_PATCH_MARKER_MISSING:semantic-ai-fallback-end");
-  const authenticatedOnly = `        if (ai?.models?.generateContent) {\n            try {\n                return await runGeminiSemanticPlanner({\n                    ai,\n                    input: instruction,\n                    catalog: safeCatalog,\n                    missionState\n                });\n            }\n            catch(geminiError) {\n                throw new Error(\n                    \`SEMANTIC_AUTHENTICATED_PROVIDER_\${geminiError?.message || "FAILED"}\`\n                );\n            }\n        }`;
-  semantic = semantic.slice(0, aiStart) + authenticatedOnly + semantic.slice(simpleStart);
-}
-assertHas(semantic, "SEMANTIC_AUTHENTICATED_PROVIDER_", "semantic-authenticated-failclosed");
-assertHas(semantic, 'phase === "COMPLETION_AUDIT"', "semantic-json-audit");
-assertHas(semantic, 'phase === "GROUNDED_ARGUMENT_COMPLETION"', "semantic-json-arguments");
-write(paths.semanticPlanner, semantic);
+const multitool = read(paths.multitool);
+assertHas(multitool, 'status: "GROUNDED_LOCAL_FALLBACK"', "local-research-fallback");
 
+// One semantic authority, exactly two Google transports: Gemini Developer primary, Vertex ADC secondary.
 let index = read(paths.functionsIndex);
-index = replaceOnce(
-  index,
-  "                simpleFetchImpl: fetch,",
-  "                simpleFetchImpl: null,",
-  "index-disable-simple-planner"
-);
-const fallbackThrow = `                } catch (fallbackError) {\n                    throw new Error(\n                        [\n                            primaryMessage,\n                            fallbackError?.message ||\n                            String(fallbackError)\n                        ].join(" | ")\n                    );\n                }`;
-const fallbackEnvelope = `                } catch (fallbackError) {\n                    result = {\n                        ok: false,\n                        grounded: false,\n                        status: "WEB_RESEARCH_NOT_GROUNDED",\n                        error: "WEB_RESEARCH_UNAVAILABLE",\n                        message: [\n                            primaryMessage,\n                            fallbackError?.message ||\n                            String(fallbackError)\n                        ].filter(Boolean).join(" | "),\n                        query,\n                        requestedDomain,\n                        objectiveId: data?.objectiveId || "",\n                        caseId: data?.caseId || "",\n                        researchedAt: new Date().toISOString(),\n                        provider: "fail_closed",\n                        answer: "",\n                        sources: [],\n                        discardedSources: [],\n                        supports: [],\n                        facts: [],\n                        inferences: [],\n                        searchQueries: [],\n                        sourceCount: 0,\n                        readOnly: true,\n                        policy: {\n                            citationsRequired: true,\n                            consultedSourcesOnly: true,\n                            requestedDomainEnforced: Boolean(requestedDomain),\n                            factsSeparatedFromInference: true,\n                            codeWrite: false,\n                            externalSideEffects: false\n                        }\n                    };\n                }`;
-index = replaceOnce(index, fallbackThrow, fallbackEnvelope, "index-web-failclosed-envelope");
-index = index.replace(
-  "                searchQueryCount:\n                    result.searchQueries.length,\n                factCount: result.facts.length,",
-  "                searchQueryCount:\n                    Array.isArray(result.searchQueries) ? result.searchQueries.length : 0,\n                factCount:\n                    Array.isArray(result.facts) ? result.facts.length : 0,"
-);
-const postCheck = `            if (\n                !result.grounded &&\n                result?.status !==\n                    "ENTITY_NOT_VERIFIED"\n            ) {\n                throw new functions.https.HttpsError(\n                    "failed-precondition",\n                    "La investigacion no devolvio fuentes verificables."\n                );\n            }\n\n            return result;`;
-const postCheckNew = `            if (\n                !result.grounded &&\n                result?.status !==\n                    "ENTITY_NOT_VERIFIED"\n            ) {\n                return {\n                    ...result,\n                    ok: false,\n                    grounded: false,\n                    status:\n                        result?.status ||\n                        "WEB_RESEARCH_NOT_GROUNDED",\n                    transportOk: true\n                };\n            }\n\n            return result;`;
-index = replaceOnce(index, postCheck, postCheckNew, "index-web-transport-failclosed");
+const providerOrderOld = `    const providers = [];\n\n    providers.push({\n        name: "vertex-adc",\n        ai: getVertexGenAI()\n    });\n\n    try {\n        providers.push({\n            name: "gemini-developer",\n            ai: getGroundedGenAI()\n        });\n    }\n    catch(error) {\n        console.warn(JSON.stringify({\n            level: "WARNING",\n            message: "JARVIS_GEMINI_DEVELOPER_UNAVAILABLE",\n            error: error?.message || String(error)\n        }));\n    }`;
+const providerOrderNew = `    const providers = [];\n\n    try {\n        providers.push({\n            name: "gemini-developer",\n            ai: getGroundedGenAI()\n        });\n    }\n    catch(error) {\n        console.warn(JSON.stringify({\n            level: "WARNING",\n            message: "JARVIS_GEMINI_DEVELOPER_UNAVAILABLE",\n            error: error?.message || String(error)\n        }));\n    }\n\n    providers.push({\n        name: "vertex-adc",\n        ai: getVertexGenAI()\n    });`;
+index = replaceOnce(index, providerOrderOld, providerOrderNew, "two-provider-order");
+index = index.split('"gemini-2.5-flash"').join('"gemini-3.6-flash"');
+const developerIndex = index.indexOf('name: "gemini-developer"', index.indexOf("function getPlannerGenAI"));
+const vertexIndex = index.indexOf('name: "vertex-adc"', index.indexOf("function getPlannerGenAI"));
+if (developerIndex < 0 || vertexIndex < 0 || developerIndex > vertexIndex) {
+  throw new Error("V142_PROVIDER_ORDER_INVALID");
+}
 write(paths.functionsIndex, index);
 
-let web = read(paths.webResearch);
-const domainStart = web.indexOf("function requestedDomainFromQuery(");
-const domainEnd = web.indexOf("function requestedHostsFromQuery(", domainStart);
-if (domainStart < 0 || domainEnd < 0) throw new Error("V142_PATCH_MARKER_MISSING:web-domain-functions");
-const domainBlock = `function requestedDomainFromQuery(query = "", explicitDomain = "") {\n    const leading = new Set(["(", "[", "{", "<", "\\\"", "'"]);\n    const trailing = new Set([".", ",", ";", ":", ")", "]", "}", ">", "!", "?", "\\\"", "'"]);\n    const parseCandidate = value => {\n        let token = String(value || "").trim();\n        while (token && leading.has(token[0])) token = token.slice(1);\n        while (token && trailing.has(token.at(-1))) token = token.slice(0, -1);\n        if (!token || token.includes("@")) return "";\n        try {\n            const parsed = new URL(token.includes("://") ? token : \`https://\${token}\`);\n            if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return "";\n            const host = String(parsed.hostname || "").trim().toLowerCase();\n            if (!/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$/i.test(host)) return "";\n            return cleanHost(host);\n        }\n        catch {\n            return "";\n        }\n    };\n\n    if (explicitDomain) return parseCandidate(explicitDomain);\n\n    for (const rawToken of String(query || "").split(/\\s+/)) {\n        const domain = parseCandidate(rawToken);\n        if (domain) return domain;\n    }\n    return "";\n}\n\n`;
-web = web.slice(0, domainStart) + domainBlock + web.slice(domainEnd);
-const noPagesOld = '    if (pages.length === 0) throw new Error("DIRECT_RESEARCH_NO_PRIMARY_PAGES");';
-const noPagesNew = `    if (pages.length === 0) {\n        return {\n            ok: false,\n            grounded: false,\n            engine: "jarvis_direct_primary_domain_research",\n            model: null,\n            query: normalizedQuery,\n            requestedDomain: domain,\n            objectiveId: String(objectiveId || ""),\n            caseId: String(caseId || ""),\n            researchedAt: new Date().toISOString(),\n            provider: "direct_primary_domain_crawl",\n            answer: "",\n            sources: [],\n            discardedSources: [],\n            supports: [],\n            facts: [],\n            inferences: [],\n            searchQueries: [],\n            sourceCount: 0,\n            readOnly: true,\n            status: directFreshnessWindowDays\n                ? "FRESHNESS_NOT_VERIFIED"\n                : "DIRECT_RESEARCH_NO_PRIMARY_PAGES",\n            error: directFreshnessWindowDays\n                ? "FRESCURA_NO_VERIFICADA"\n                : "DIRECT_RESEARCH_NO_PRIMARY_PAGES",\n            policy: {\n                citationsRequired: true,\n                consultedSourcesOnly: true,\n                requestedDomainEnforced: true,\n                factsSeparatedFromInference: true,\n                duplicatesRemoved: true,\n                freshnessVerified: directFreshnessWindowDays ? false : null,\n                codeWrite: false,\n                externalSideEffects: false,\n                fallbackReason:\n                    String(fallbackReason || "")\n                        .trim()\n                        .slice(0, 160) ||\n                    "PRIMARY_GROUNDED_RESEARCH_UNAVAILABLE"\n            }\n        };\n    }`;
-web = replaceOnce(web, noPagesOld, noPagesNew, "web-no-pages-failclosed");
-write(paths.webResearch, web);
+let semantic = read(paths.semanticPlanner);
+semantic = semantic
+  .replace('const VERSION = "1.22.0-mission-isolation";', 'const VERSION = "1.23.0-two-provider-failover-v142";')
+  .replace('const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";', 'const DEFAULT_GEMINI_MODEL = "gemini-3.6-flash";')
+  .replace('const DEFAULT_ENDPOINT = "https://text.pollinations.ai/openai";\n', '');
 
-let multitool = read(paths.multitool);
-const scopeOld = `        const scopedAnchor = Boolean(seedUrl || trace.allowedDomain);\n        const needsCrossSourceRecovery =\n            scopedAnchor &&\n            (\n                !primaryResult ||\n                (seedUrl && exactAnchorVerified !== true)\n            );`;
-const scopeNew = `        let seedDomain = "";\n        try {\n            seedDomain = new URL(seedUrl).hostname\n                .toLowerCase()\n                .replace(/^www\\./, "");\n        } catch {}\n        const allowedDomain = String(trace.allowedDomain || "")\n            .trim()\n            .toLowerCase()\n            .replace(/^https?:\\/\\//, "")\n            .replace(/^www\\./, "")\n            .split("/")[0];\n        const allowedDomainDerivedFromSeed =\n            Boolean(seedDomain) &&\n            Boolean(allowedDomain) &&\n            seedDomain === allowedDomain;\n        const hardDomainScope =\n            Boolean(allowedDomain) &&\n            !allowedDomainDerivedFromSeed;\n        const needsCrossSourceRecovery =\n            Boolean(seedUrl) &&\n            !hardDomainScope &&\n            (\n                !primaryResult ||\n                exactAnchorVerified !== true\n            );`;
-multitool = replaceOnce(multitool, scopeOld, scopeNew, "client-hard-domain-scope");
-write(paths.multitool, multitool);
+if (semantic.includes("async function requestModel(")) {
+  semantic = replaceSection(
+    semantic,
+    "async function requestModel(",
+    "function isSafeToolName(",
+    "",
+    "remove-public-request-model"
+  );
+}
 
-let marketing = read(paths.marketing);
-marketing = marketing.replace(
-  '`NEXO preparó una campaña específica para ${brand.name}. `',
-  '`ADJUNTO preparó una campaña específica para ${brand.name}. `'
+if (semantic.includes("async function runSimpleSemanticPlanner(")) {
+  semantic = replaceSection(
+    semantic,
+    "async function runSimpleSemanticPlanner(",
+    "async function runJarvisSemanticPlanner(",
+    "",
+    "remove-pollinations-simple-planner"
+  );
+}
+
+const plannerStart = "async function runJarvisSemanticPlanner(";
+const responseStart = "async function runJarvisSemanticResponse(";
+const authenticatedPlanner = `async function runJarvisSemanticPlanner({\n    ai = null,\n    input = "",\n    catalog = [],\n    timeoutMs = 45000,\n    missionState = null\n} = {}) {\n    const instruction = String(input || "").trim();\n    const safeCatalog = normalizeCatalog(catalog);\n\n    if (instruction.length < 1 || instruction.length > 120000) {\n        throw new Error("SEMANTIC_PLAN_INPUT_OUT_OF_RANGE");\n    }\n    if (safeCatalog.length === 0) {\n        throw new Error("SEMANTIC_PLAN_CATALOG_REQUIRED");\n    }\n    if (!ai?.models?.generateContent) {\n        throw new Error("SEMANTIC_AUTHENTICATED_PROVIDER_REQUIRED");\n    }\n\n    let timeoutHandle = null;\n    const timeout = new Promise((_, reject) => {\n        timeoutHandle = setTimeout(\n            () => reject(new Error("SEMANTIC_PROVIDER_TIMEOUT")),\n            Math.max(5000, Number(timeoutMs) || 45000)\n        );\n    });\n\n    try {\n        return await Promise.race([\n            runGeminiSemanticPlanner({\n                ai,\n                input: instruction,\n                catalog: safeCatalog,\n                missionState\n            }),\n            timeout\n        ]);\n    }\n    catch(error) {\n        const message = String(error?.message || error || "FAILED");\n        if (message.startsWith("SEMANTIC_AUTHENTICATED_PROVIDER_")) {\n            throw error;\n        }\n        throw new Error(\`SEMANTIC_AUTHENTICATED_PROVIDER_\${message}\`);\n    }\n    finally {\n        if (timeoutHandle) clearTimeout(timeoutHandle);\n    }\n}\n\n`;
+semantic = replaceSection(
+  semantic,
+  plannerStart,
+  responseStart,
+  authenticatedPlanner,
+  "authenticated-planner-only"
 );
-write(paths.marketing, marketing);
 
-let multifunctionTest = read(paths.multifunctionTest);
-const browserTestsStart = multifunctionTest.indexOf('test("browser mission contract returns every model-selected high-level tool"');
-const browserTestsEnd = multifunctionTest.indexOf('test("browser planner blocks tool calls with missing required arguments"', browserTestsStart);
-if (browserTestsStart >= 0) {
-  if (browserTestsEnd < 0) throw new Error("V142_PATCH_MARKER_MISSING:browser-tests-end");
-  const singleAuthorityTest = `test("client planner keeps jarvisSemanticPlan as the single planning authority", () => {\n    const source = fs.readFileSync(\n        path.resolve("gestia-core/jarvis/jarvis.multifunction.planner.js"),\n        "utf8"\n    );\n\n    assert.match(source, /CLOUD_MISSION_CONTRACT_TIMEOUT_MS =\\s*45000/);\n    assert.doesNotMatch(source, /text\\.pollinations\\.ai/);\n    assert.doesNotMatch(source, /callBrowserMissionContract/);\n    assert.doesNotMatch(source, /callBrowserSemanticPlan/);\n    assert.match(source, /const contractPlanner = context\\.semanticPlanner/);\n});\n\n`;
-  multifunctionTest = multifunctionTest.slice(0, browserTestsStart) + singleAuthorityTest + multifunctionTest.slice(browserTestsEnd);
-}
-write(paths.multifunctionTest, multifunctionTest);
+const exportsMarker = "module.exports = {";
+const authenticatedResponse = `async function runJarvisSemanticResponse({\n    ai = null,\n    input = "",\n    timeoutMs = null,\n    maxOutputTokens = 3500\n} = {}) {\n    const instruction = String(input || "").trim();\n    const outputTokenBudget = Math.max(500, Math.min(8000, Number(maxOutputTokens) || 3500));\n    if (instruction.length < 1 || instruction.length > 120000) {\n        throw new Error("SEMANTIC_RESPONSE_INPUT_OUT_OF_RANGE");\n    }\n    if (!ai?.models?.generateContent) {\n        throw new Error("SEMANTIC_AUTHENTICATED_PROVIDER_REQUIRED");\n    }\n\n    const effectiveTimeoutMs = Number(timeoutMs) > 0\n        ? Math.max(5000, Number(timeoutMs))\n        : outputTokenBudget >= 6000\n            ? 120000\n            : 45000;\n    let timeoutHandle = null;\n    const timeout = new Promise((_, reject) => {\n        timeoutHandle = setTimeout(\n            () => reject(new Error("SEMANTIC_RESPONSE_TIMEOUT")),\n            effectiveTimeoutMs\n        );\n    });\n\n    try {\n        const response = await Promise.race([\n            ai.models.generateContent({\n                model: DEFAULT_GEMINI_MODEL,\n                contents: instruction,\n                config: {\n                    maxOutputTokens: outputTokenBudget,\n                    thinkingConfig: { thinkingBudget: 0 },\n                    systemInstruction: [\n                        "Eres Jarvis, asistente multifuncional privado de Heberto Mendoza.",\n                        "Responde en espanol natural, completo, directo y verificable.",\n                        "Usa solamente la evidencia incluida en la solicitud.",\n                        "No inventes ejecuciones, archivos, accesos, fuentes ni resultados.",\n                        "Distingue claramente lo ejecutado, lo planeado y lo bloqueado."\n                    ].join("\\n")\n                }\n            }),\n            timeout\n        ]);\n        const message = String(response?.text || "").trim();\n        if (!message) throw new Error("SEMANTIC_RESPONSE_EMPTY");\n        return {\n            ok: true,\n            status: "SEMANTIC_RESPONSE_READY",\n            version: VERSION,\n            provider: String(ai.lastProvider || "gemini"),\n            model: DEFAULT_GEMINI_MODEL,\n            message\n        };\n    }\n    catch(error) {\n        const message = String(error?.message || error || "FAILED");\n        if (message.startsWith("SEMANTIC_AUTHENTICATED_PROVIDER_")) throw error;\n        throw new Error(\`SEMANTIC_AUTHENTICATED_PROVIDER_\${message}\`);\n    }\n    finally {\n        if (timeoutHandle) clearTimeout(timeoutHandle);\n    }\n}\n\n`;
+semantic = replaceSection(
+  semantic,
+  responseStart,
+  exportsMarker,
+  authenticatedResponse,
+  "authenticated-response-only"
+);
 
-let semanticTest = read(paths.semanticTest);
-const legacySimpleContractStart = semanticTest.indexOf('test("mission contract uses the dedicated complete simple-model prompt"');
-if (legacySimpleContractStart >= 0) {
-  const legacySimpleContractEnd = semanticTest.indexOf('test("malformed mission contract retries with another semantic sample"', legacySimpleContractStart);
-  if (legacySimpleContractEnd < 0) throw new Error("V142_PATCH_MARKER_MISSING:legacy-simple-contract-test-end");
-  const authenticatedFailClosedTest = `test("mission contract fails closed when the authenticated provider is unavailable", async () => {\n    let simpleCalls = 0;\n    let compatibleCalls = 0;\n    await assert.rejects(\n        () => runJarvisSemanticPlanner({\n            input: "Investiga, entrega diagnostico y revisa conectores sin escribir.",\n            catalog,\n            missionState: {\n                phase: "MISSION_CONTRACT",\n                writeAllowed: false,\n                existingInitialTools: ["repo.search", "connector.list"]\n            },\n            ai: {\n                models: {\n                    generateContent: async () => {\n                        throw new Error("VERTEX_UNAVAILABLE");\n                    }\n                }\n            },\n            simpleFetchImpl: async () => {\n                simpleCalls += 1;\n                return { ok: true, text: async () => JSON.stringify({ toolCalls: [{ name: "repo.search", args: { query: "diagnostico" } }] }) };\n            },\n            fetchImpl: async () => {\n                compatibleCalls += 1;\n                throw new Error("PUBLIC_FALLBACK_MUST_NOT_RUN");\n            }\n        }),\n        /SEMANTIC_AUTHENTICATED_PROVIDER_VERTEX_UNAVAILABLE/\n    );\n    assert.equal(simpleCalls, 0);\n    assert.equal(compatibleCalls, 0);\n});\n\n`;
-  semanticTest = semanticTest.slice(0, legacySimpleContractStart) + authenticatedFailClosedTest + semanticTest.slice(legacySimpleContractEnd);
+semantic = semantic
+  .replace("    DEFAULT_ENDPOINT,\n", "")
+  .replace("    requestModel,\n", "")
+  .replace("    runSimpleSemanticPlanner,\n", "");
+
+for (const forbidden of [
+  "text.pollinations.ai",
+  "openai-fast",
+  "pollinations-simple-json",
+  'provider: "pollinations"',
+  "DEFAULT_ENDPOINT",
+  "runSimpleSemanticPlanner",
+  "requestModel"
+]) {
+  if (semantic.includes(forbidden)) {
+    throw new Error(`V142_THIRD_SEMANTIC_PROVIDER_STILL_ACTIVE:${forbidden}`);
+  }
 }
-if (!semanticTest.includes('test("authenticated completion audit uses JSON without function declarations"')) {
-  semanticTest += `\n\ntest("authenticated completion audit uses JSON without function declarations", async () => {\n    let request = null;\n    const catalog = [{\n        name: "marketing.plan",\n        description: "Completa marketing pendiente.",\n        mutates: false,\n        inputSchema: {\n            type: "object",\n            required: ["brandName"],\n            properties: { brandName: { type: "string" } }\n        }\n    }];\n    const result = await runGeminiSemanticPlanner({\n        input: "Completa la mision actual.",\n        catalog,\n        missionState: { phase: "COMPLETION_AUDIT", completedTasks: [] },\n        ai: {\n            lastProvider: "vertex-adc",\n            models: {\n                generateContent: async value => {\n                    request = value;\n                    return {\n                        text: JSON.stringify({\n                            toolCalls: [{ name: "marketing.plan", args: { brandName: "Taquería El Dorado" } }],\n                            missionComplete: false\n                        })\n                    };\n                }\n            }\n        }\n    });\n    assert.equal(request.config.responseMimeType, "application/json");\n    assert.equal(Object.prototype.hasOwnProperty.call(request.config, "tools"), false);\n    assert.equal(result.provider, "vertex-adc");\n    assert.equal(result.planKind, "COMPLETION_AUDIT");\n    assert.equal(result.toolCalls[0].name, "marketing.plan");\n});\n\ntest("authenticated grounded argument completion retries JSON and never needs the public planner", async () => {\n    let attempts = 0;\n    const reelTool = {\n        name: "reel.plan",\n        description: "Completa el reel seleccionado.",\n        mutates: false,\n        inputSchema: {\n            type: "object",\n            required: ["durationSeconds", "scenes"],\n            properties: {\n                durationSeconds: { type: "integer" },\n                scenes: {\n                    type: "array",\n                    minItems: 1,\n                    items: {\n                        type: "object",\n                        required: ["id", "durationSeconds"],\n                        properties: {\n                            id: { type: "string" },\n                            durationSeconds: { type: "integer" }\n                        }\n                    }\n                }\n            }\n        }\n    };\n    const result = await runGeminiSemanticPlanner({\n        input: "Prepara solo argumentos ejecutables para reel.plan.",\n        catalog: [reelTool],\n        missionState: { phase: "GROUNDED_ARGUMENT_COMPLETION", toolName: "reel.plan" },\n        ai: {\n            lastProvider: "vertex-adc",\n            models: {\n                generateContent: async request => {\n                    attempts += 1;\n                    assert.equal(request.config.responseMimeType, "application/json");\n                    assert.equal(Object.prototype.hasOwnProperty.call(request.config, "tools"), false);\n                    return {\n                        text: JSON.stringify(attempts === 1\n                            ? { toolCalls: [], missionComplete: false }\n                            : {\n                                toolCalls: [{\n                                    name: "reel.plan",\n                                    args: {\n                                        durationSeconds: 30,\n                                        scenes: [{ id: "scene-1", durationSeconds: 30 }]\n                                    }\n                                }],\n                                missionComplete: false\n                            })\n                    };\n                }\n            }\n        }\n    });\n    assert.equal(attempts, 2);\n    assert.equal(result.provider, "vertex-adc");\n    assert.equal(result.planKind, "GROUNDED_ARGUMENT_COMPLETION");\n    assert.equal(result.toolCalls[0].args.durationSeconds, 30);\n});\n`;
+assertHas(semantic, 'const DEFAULT_GEMINI_MODEL = "gemini-3.6-flash";', "gemini-3.6-model");
+write(paths.semanticPlanner, semantic);
+
+let provider = read(paths.providerChain);
+const sanitizeOld = `function sanitizeGenerateContentRequest(request) {\n    const guardedRequest =\n        applyFreshnessGuardToGroundedRequest(request);\n    const tools = guardedRequest?.config?.tools;\n    if (!Array.isArray(tools)) return guardedRequest;\n\n    let changed = false;\n    const compactTools = tools.map(tool => {\n        const declarations = tool?.functionDeclarations;\n        if (!Array.isArray(declarations)) return tool;\n        changed = true;\n        return {\n            ...tool,\n            functionDeclarations: declarations.map(compactFunctionDeclaration)\n        };\n    });\n\n    if (!changed) return guardedRequest;\n\n    return {\n        ...guardedRequest,\n        config: {\n            ...guardedRequest.config,\n            tools: compactTools\n        }\n    };\n}`;
+const sanitizeNew = `function sanitizeGenerateContentRequest(request) {\n    const guardedRequest =\n        applyFreshnessGuardToGroundedRequest(request);\n    const sourceConfig =\n        guardedRequest?.config &&\n        typeof guardedRequest.config === "object"\n            ? guardedRequest.config\n            : null;\n    let sanitizedConfig = sourceConfig;\n\n    if (\n        sourceConfig &&\n        String(guardedRequest?.model || "").startsWith("gemini-3.")\n    ) {\n        const {\n            temperature: _temperature,\n            topP: _topP,\n            topK: _topK,\n            frequencyPenalty: _frequencyPenalty,\n            presencePenalty: _presencePenalty,\n            ...supportedConfig\n        } = sourceConfig;\n        sanitizedConfig = supportedConfig;\n    }\n\n    const tools = sanitizedConfig?.tools;\n    if (!Array.isArray(tools)) {\n        return sanitizedConfig === sourceConfig\n            ? guardedRequest\n            : { ...guardedRequest, config: sanitizedConfig };\n    }\n\n    let changed = sanitizedConfig !== sourceConfig;\n    const compactTools = tools.map(tool => {\n        const declarations = tool?.functionDeclarations;\n        if (!Array.isArray(declarations)) return tool;\n        changed = true;\n        return {\n            ...tool,\n            functionDeclarations: declarations.map(compactFunctionDeclaration)\n        };\n    });\n\n    if (!changed) return guardedRequest;\n\n    return {\n        ...guardedRequest,\n        config: {\n            ...(sanitizedConfig || {}),\n            tools: compactTools\n        }\n    };\n}`;
+provider = replaceOnce(provider, sanitizeOld, sanitizeNew, "gemini3-request-sanitizer");
+
+const chainMarker = "function createJarvisGenAIProviderChain({ providers = [] } = {}) {";
+if (!provider.includes("function responseHasExecutableSemanticPlan(")) {
+  const chainIndex = provider.indexOf(chainMarker);
+  if (chainIndex < 0) throw new Error("V142_PATCH_MARKER_MISSING:provider-chain");
+  const validator = `function requestRequiresExecutableSemanticPlan(request = {}) {\n    if (requestUsesFunctionDeclarations(request)) return true;\n    const text = collectRequestText(request?.contents);\n    return /CONTRATO_DE_MISION|MISSION_CONTRACT|GROUNDED_ARGUMENT_COMPLETION|COMPLETION_AUDIT|AUDITORIA_FINAL_OBLIGATORIA|AUDITORIA_DE_CIERRE_CONTROLADA/.test(text);\n}\n\nfunction responseHasExecutableSemanticPlan(response = {}, request = {}) {\n    if (!requestRequiresExecutableSemanticPlan(request)) return true;\n\n    if (Array.isArray(response?.functionCalls) && response.functionCalls.length > 0) {\n        return true;\n    }\n    const parts = Array.isArray(response?.candidates?.[0]?.content?.parts)\n        ? response.candidates[0].content.parts\n        : [];\n    if (parts.some(part => part?.functionCall?.name)) return true;\n\n    const text = String(response?.text || "").trim();\n    if (!text) return false;\n    try {\n        const payload = JSON.parse(text);\n        const calls = Array.isArray(payload?.toolCalls) ? payload.toolCalls : [];\n        return calls.length > 0 || payload?.missionComplete === true;\n    }\n    catch {\n        return false;\n    }\n}\n\n`;
+  provider = provider.slice(0, chainIndex) + validator + provider.slice(chainIndex);
+}
+
+const responseGuardOld = `                            if (!response) {\n                                throw new Error("EMPTY_PROVIDER_RESPONSE");\n                            }`;
+const responseGuardNew = `                            if (!response) {\n                                throw new Error("EMPTY_PROVIDER_RESPONSE");\n                            }\n                            if (!responseHasExecutableSemanticPlan(response, providerRequest)) {\n                                throw new Error("SEMANTIC_PLAN_EMPTY");\n                            }`;
+provider = replaceOnce(provider, responseGuardOld, responseGuardNew, "provider-semantic-empty-failover");
+
+const fallbackGuardOld = `                                    if (!fallbackResponse) {\n                                        throw new Error("EMPTY_SCHEMA_JSON_FALLBACK_RESPONSE");\n                                    }`;
+const fallbackGuardNew = `                                    if (!fallbackResponse) {\n                                        throw new Error("EMPTY_SCHEMA_JSON_FALLBACK_RESPONSE");\n                                    }\n                                    if (!responseHasExecutableSemanticPlan(fallbackResponse, jsonFallbackRequest)) {\n                                        throw new Error("SEMANTIC_PLAN_EMPTY");\n                                    }`;
+provider = replaceOnce(provider, fallbackGuardOld, fallbackGuardNew, "provider-schema-fallback-semantic-check");
+
+if (!provider.includes("    responseHasExecutableSemanticPlan,")) {
+  provider = provider.replace(
+    "    resolveGroundingRedirectUrl,\n",
+    "    resolveGroundingRedirectUrl,\n    responseHasExecutableSemanticPlan,\n"
+  );
+}
+assertHas(provider, "SEMANTIC_PLAN_EMPTY", "provider-semantic-failover");
+write(paths.providerChain, provider);
+
+let semanticTest = read(paths.semanticTest)
+  .replace("    requestModel,\n", "")
+  .replace("    runSimpleSemanticPlanner,\n", "")
+  .split('"gemini-2.5-flash"').join('"gemini-3.6-flash"');
+const semanticParsed = topLevelTestBlocks(semanticTest);
+const semanticKept = [];
+const obsoleteTests = [
+  'test("public semantic fallback consumes native provider tool calls"',
+  'test("simple anonymous planner returns a validated compact semantic plan"',
+  'test("empty simple plan cannot terminate the real provider chain"',
+  'test("malformed mission contract retries with another semantic sample"',
+  'test("simple mission contract unions independent semantic coverage samples"',
+  'test("simple planner keeps the complete seventy-tool catalog inside a safe URL budget"',
+  'test("simple planner enriches selected specialized tools with grounded schema arguments"',
+  'test("semantic provider retries bounded transient throttling"',
+  'test("semantic planner retries one malformed model output"'
+];
+for (const block of semanticParsed.blocks) {
+  if (obsoleteTests.some(marker => block.startsWith(marker))) continue;
+
+  if (block.startsWith('test("semantic response falls back when the authenticated providers are unavailable"')) {
+    semanticKept.push(`test("semantic response fails closed when both authenticated providers are unavailable", async () => {\n    await assert.rejects(\n        () => runJarvisSemanticResponse({\n            input: "Integra evidencia.",\n            ai: {\n                models: {\n                    generateContent: async () => {\n                        throw new Error("PROVIDERS_UNAVAILABLE");\n                    }\n                }\n            }\n        }),\n        /SEMANTIC_AUTHENTICATED_PROVIDER_PROVIDERS_UNAVAILABLE/\n    );\n});\n\n`);
+    continue;
+  }
+
+  if (block.startsWith('test("semantic planner preserves mixed tools and never grants prompt approval"')) {
+    semanticKept.push(`test("semantic planner preserves mixed tools and never grants prompt approval", async () => {\n    const result = await runJarvisSemanticPlanner({\n        input: "analisa el repo y revisa conectores sin modificar nada",\n        catalog,\n        ai: {\n            lastProvider: "gemini-developer",\n            models: {\n                generateContent: async request => {\n                    assert.equal(request.model, "gemini-3.6-flash");\n                    return {\n                        functionCalls: [\n                            { name: "jarvis_tool_0", args: { query: "repo" } },\n                            { name: "jarvis_tool_1", args: {} },\n                            { name: "jarvis_tool_2", args: {} }\n                        ]\n                    };\n                }\n            }\n        }\n    });\n\n    assert.deepEqual(result.toolCalls.map(call => call.name), [\n        "repo.search",\n        "connector.list",\n        "system.supervision.runNow"\n    ]);\n    assert.equal(result.toolCalls[2].mutates, true);\n    assert.equal(result.toolCalls[2].approved, false);\n});\n\n`);
+    continue;
+  }
+
+  semanticKept.push(block);
+}
+semanticTest = semanticParsed.prefix + semanticKept.join("");
+semanticTest = semanticTest.replace(
+  'test("semantic planner uses authenticated Gemini before the public fallback"',
+  'test("semantic planner uses the authenticated two-provider authority without a public fallback"'
+);
+for (const forbidden of ["pollinations", "runSimpleSemanticPlanner", "requestModel", "openai-fast"]) {
+  if (semanticTest.includes(forbidden)) {
+    throw new Error(`V142_OBSOLETE_SEMANTIC_TEST_STILL_ACTIVE:${forbidden}`);
+  }
 }
 write(paths.semanticTest, semanticTest);
 
-let webTest = read(paths.webTest);
-const domainAssertion = '    assert.equal(requestedDomainFromQuery("Investiga https://www.summ.com.mx/ para una campana"), "summ.com.mx");';
-if (webTest.includes(domainAssertion) && !webTest.includes('requestedDomainFromQuery("Investiga únicamente en openai.com las novedades actuales"')) {
-  webTest = webTest.replace(
-    domainAssertion,
-    `${domainAssertion}\n    assert.equal(requestedDomainFromQuery("Investiga únicamente en openai.com las novedades actuales"), "openai.com");`
-  );
+let providerTest = read(paths.providerTest)
+  .split('"gemini-2.5-flash"').join('"gemini-3.6-flash"');
+const providerParsed = topLevelTestBlocks(providerTest);
+const providerKept = [];
+for (const block of providerParsed.blocks) {
+  if (block.startsWith('test("provider chain continues from an invalid developer key to Vertex AI"')) {
+    providerKept.push(`test("provider chain continues from an empty developer plan to Vertex AI", async () => {\n    const calls = [];\n    const chain = createJarvisGenAIProviderChain({\n        providers: [\n            {\n                name: "gemini-developer",\n                ai: {\n                    models: {\n                        generateContent: async () => {\n                            calls.push("developer");\n                            return {\n                                text: JSON.stringify({\n                                    toolCalls: [],\n                                    missionComplete: false\n                                })\n                            };\n                        }\n                    }\n                }\n            },\n            {\n                name: "vertex-adc",\n                ai: {\n                    models: {\n                        generateContent: async () => {\n                            calls.push("vertex");\n                            return {\n                                functionCalls: [{\n                                    name: "jarvis_tool_0",\n                                    args: { query: "ok" }\n                                }]\n                            };\n                        }\n                    }\n                }\n            }\n        ]\n    });\n\n    const result = await chain.models.generateContent({\n        model: "gemini-3.6-flash",\n        contents: "INSTRUCCION_ORIGINAL_INMUTABLE=plan",\n        config: {\n            tools: [{\n                functionDeclarations: [{\n                    name: "jarvis_tool_0",\n                    parametersJsonSchema: { type: "object" }\n                }]\n            }],\n            toolConfig: {\n                functionCallingConfig: { mode: "ANY" }\n            }\n        }\n    });\n\n    assert.deepEqual(calls, ["developer", "vertex"]);\n    assert.equal(result.functionCalls[0].name, "jarvis_tool_0");\n    assert.equal(chain.lastProvider, "vertex-adc");\n});\n\n`);
+    continue;
+  }
+  providerKept.push(block);
 }
-if (!webTest.includes('test("direct domain freshness miss returns a fail-closed envelope instead of throwing"')) {
-  webTest += `\n\ntest("direct domain freshness miss returns a fail-closed envelope instead of throwing", async () => {\n    const result = await runJarvisDirectDomainResearch({\n        query: "novedades actuales openai.com",\n        allowedDomain: "openai.com",\n        fetchImpl: async url => ({\n            ok: true,\n            url: String(url),\n            headers: { get: () => "text/html; charset=utf-8" },\n            text: async () => "<html><head><title>OpenAI</title></head><body><h1>API</h1><p>Pagina sin fecha verificable para este contrato de actualidad.</p></body></html>"\n        })\n    });\n    assert.equal(result.ok, false);\n    assert.equal(result.grounded, false);\n    assert.equal(result.status, "FRESHNESS_NOT_VERIFIED");\n    assert.equal(result.error, "FRESCURA_NO_VERIFICADA");\n    assert.deepEqual(result.facts, []);\n});\n`;
-}
-write(paths.webTest, webTest);
+providerTest = providerParsed.prefix + providerKept.join("");
+providerTest = providerTest.replace(
+  "    const functionRequest = {\n        config: {",
+  "    const functionRequest = {\n        model: \"gemini-3.6-flash\",\n        config: {\n            temperature: 0,\n            topP: 0.9,"
+);
+providerTest = providerTest.replace(
+  "    const declaration = sanitized.config.tools[0].functionDeclarations[0];\n\n    assert.notEqual(sanitized, functionRequest);",
+  "    const declaration = sanitized.config.tools[0].functionDeclarations[0];\n\n    assert.notEqual(sanitized, functionRequest);\n    assert.equal(sanitized.config.temperature, undefined);\n    assert.equal(sanitized.config.topP, undefined);"
+);
+write(paths.providerTest, providerTest);
 
-let v142Test = read(paths.v142Test);
-if (!v142Test.includes('test("v142 hard domain scope never relaxes an unrelated allowedDomain"')) {
-  v142Test += `\n\ntest("v142 hard domain scope never relaxes an unrelated allowedDomain", async () => {\n    const previousAuth = globalThis.auth;\n    const previousWindow = globalThis.window;\n    const previousFetch = globalThis.fetch;\n    const previousBridge = globalThis.JarvisLocalBridge;\n    const calls = [];\n    globalThis.auth = { currentUser: { getIdToken: async () => "firebase-user-token" } };\n    globalThis.window = globalThis.window || {};\n    globalThis.JarvisLocalBridge = undefined;\n    globalThis.fetch = async (_url, options = {}) => {\n        const body = JSON.parse(String(options.body || "{}"));\n        calls.push(body?.data || {});\n        return {\n            ok: false,\n            status: 200,\n            json: async () => ({ result: { ok: false, grounded: false, status: "WEB_RESEARCH_NOT_GROUNDED", message: "scope unavailable", sources: [] } })\n        };\n    };\n    try {\n        const result = await fetchGroundedWebResearch(\n            "Facebook oficial de la empresa",\n            {\n                allowedDomain: "multiserviciospeninsulareshmh.com",\n                seedUrl,\n                exactEntity: "Taquería El Dorado"\n            }\n        );\n        assert.equal(calls.length, 1);\n        assert.equal(calls[0].allowedDomain, "multiserviciospeninsulareshmh.com");\n        assert.equal(result.ok, false);\n        assert.equal(result.error, "WEB_RESEARCH_UNAVAILABLE");\n    } finally {\n        if (previousAuth === undefined) delete globalThis.auth; else globalThis.auth = previousAuth;\n        if (previousWindow === undefined) delete globalThis.window; else globalThis.window = previousWindow;\n        if (previousFetch === undefined) delete globalThis.fetch; else globalThis.fetch = previousFetch;\n        if (previousBridge === undefined) delete globalThis.JarvisLocalBridge; else globalThis.JarvisLocalBridge = previousBridge;\n    }\n});\n`;
-}
-write(paths.v142Test, v142Test);
-
-const finalClient = read(paths.clientPlanner);
-const finalSemantic = read(paths.semanticPlanner);
-const finalIndex = read(paths.functionsIndex);
-const finalMultitool = read(paths.multitool);
-const finalMarketing = read(paths.marketing);
-if (/text\.pollinations\.ai/.test(finalClient)) throw new Error("V142_CLIENT_PUBLIC_PLANNER_PRESENT");
-if (!finalSemantic.includes("SEMANTIC_AUTHENTICATED_PROVIDER_")) throw new Error("V142_SERVER_PROVIDER_FAILCLOSED_MISSING");
-if (!finalIndex.includes("simpleFetchImpl: null")) throw new Error("V142_INDEX_SIMPLE_PLANNER_STILL_ENABLED");
-if (!finalMultitool.includes("hardDomainScope")) throw new Error("V142_HARD_DOMAIN_SCOPE_MISSING");
-if (finalMarketing.includes("NEXO preparó una campaña específica")) throw new Error("V142_PUBLIC_NEXO_MARKETING_STRING_PRESENT");
-
-console.log("V142_EXISTING_CONTRACT_CONSOLIDATION_APPLIED=true");
-
-// V142 local bridge hydration certification trigger.
+console.log(JSON.stringify({
+  ok: true,
+  status: "V142_TWO_PROVIDER_SEMANTIC_CONSOLIDATION_APPLIED",
+  primaryProvider: "gemini-developer",
+  secondaryProvider: "vertex-adc",
+  model: "gemini-3.6-flash",
+  publicFallbackRemoved: true,
+  semanticEmptyTriggersFailover: true,
+  newFiles: false,
+  newBrains: false
+}));
