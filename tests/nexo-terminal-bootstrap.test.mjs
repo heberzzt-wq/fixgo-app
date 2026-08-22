@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { execFileSync, spawn } from "node:child_process";
 import { test } from "node:test";
 
 const root = process.cwd();
@@ -8,6 +10,9 @@ const bootstrap = fs.readFileSync(
     path.join(root, "modules/terminal/nexo-bootstrap.js"),
     "utf8"
 );
+
+const PRODUCTION_ORIGIN = "https://fixgo-44e4d.web.app";
+const PRODUCTION_BOOTSTRAP_VERSION = "1.11.0-local-bridge-transport-v142";
 
 test("NEXO bootstrap keeps tools but installs no alternate semantic authority", () => {
     assert.match(bootstrap, /installNexoRealMediaTools/);
@@ -31,254 +36,150 @@ test("NEXO bootstrap hydrates the existing local bridge transport from the runti
     assert.doesNotMatch(bootstrap, /releaseId:\s*"v94-/);
 });
 
-test("V142 production Hosting reaches the existing local research bridge from real Chrome", {
-    skip:
-        process.env.GITHUB_ACTIONS !== "true" ||
-        process.platform !== "linux",
-    timeout: 120000
-}, async t => {
-    const os = await import("node:os");
-    const {
-        execFileSync,
-        spawn
-    } = await import("node:child_process");
-    const {
-        createJarvisUploadBridgeApp
-    } = await import("../jarvis-upload-bridge.js");
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 
-    const branch =
-        "v94-media-v4n-negative-claims";
-    const contract =
-        JSON.parse(
-            fs.readFileSync(
-                path.join(root, "jarvis-runtime-contract.json"),
-                "utf8"
-            )
-        );
-    const bridgeRoot =
-        fs.mkdtempSync(
-            path.join(
-                os.tmpdir(),
-                "v142-production-browser-bridge-"
-            )
-        );
-    const chromeProfile =
-        fs.mkdtempSync(
-            path.join(
-                os.tmpdir(),
-                "v142-production-browser-profile-"
-            )
-        );
-
-    execFileSync(
-        "git",
-        ["init", "-b", branch],
-        {
-            cwd: bridgeRoot,
-            stdio: "ignore"
-        }
-    );
-    fs.writeFileSync(
-        path.join(
-            bridgeRoot,
-            "jarvis-runtime-contract.json"
-        ),
-        JSON.stringify(
-            {
-                ...contract,
-                branch
-            },
-            null,
-            2
-        ),
-        "utf8"
-    );
-
-    const server =
-        createJarvisUploadBridgeApp({
-            root: bridgeRoot
-        }).listen(3344);
-    await new Promise((resolve, reject) => {
-        server.once("listening", resolve);
-        server.once("error", reject);
-    });
-
-    let chrome = null;
-    t.after(async () => {
-        if (chrome && chrome.exitCode === null) {
-            try {
-                chrome.kill("SIGKILL");
-            }
-            catch {}
-        }
-        await new Promise(resolve =>
-            server.close(() => resolve())
-        );
-        fs.rmSync(bridgeRoot, {
-            recursive: true,
-            force: true
-        });
-        fs.rmSync(chromeProfile, {
-            recursive: true,
-            force: true
-        });
-    });
-
-    const chromePath =
-        execFileSync(
-            "bash",
-            [
-                "-lc",
-                "command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser"
-            ],
-            {
-                encoding: "utf8"
-            }
-        ).trim();
-    assert.ok(
-        chromePath,
-        "Chrome/Chromium is required for the V142 production browser contract"
-    );
-
-    const targetUrl =
-        `https://fixgo-44e4d.web.app/manual.html?v142-browser=${Date.now()}`;
-    chrome = spawn(
-        chromePath,
-        [
-            "--headless=new",
-            "--no-sandbox",
-            "--disable-gpu",
-            "--disable-dev-shm-usage",
-            "--remote-debugging-port=9222",
-            `--user-data-dir=${chromeProfile}`,
-            targetUrl
-        ],
-        {
-            stdio: "ignore"
-        }
-    );
-
-    const sleep = ms =>
-        new Promise(resolve =>
-            setTimeout(resolve, ms)
-        );
-    let pageTarget = null;
-    for (let attempt = 0; attempt < 100; attempt += 1) {
+async function openCdpPage(chrome, url) {
+    for (let attempt = 0; attempt < 120; attempt += 1) {
         if (chrome.exitCode !== null) {
-            throw new Error(
-                `V142_PRODUCTION_CHROME_EXITED:${chrome.exitCode}`
-            );
+            throw new Error(`V142_PRODUCTION_CHROME_EXITED:${chrome.exitCode}`);
         }
         try {
-            const response =
-                await fetch(
-                    "http://127.0.0.1:9222/json"
-                );
-            const targets =
-                await response.json();
-            pageTarget =
-                targets.find(item =>
-                    item?.type === "page" &&
-                    String(item?.url || "")
-                        .startsWith("https://fixgo-44e4d.web.app/") &&
-                    item?.webSocketDebuggerUrl
-                ) || null;
-            if (pageTarget) break;
+            const response = await fetch("http://127.0.0.1:9222/json");
+            const targets = await response.json();
+            const target = targets.find(item =>
+                item?.type === "page" &&
+                String(item?.url || "").startsWith(PRODUCTION_ORIGIN) &&
+                item?.webSocketDebuggerUrl
+            );
+            if (target) return target;
         }
         catch {}
         await sleep(250);
     }
-    assert.ok(
-        pageTarget?.webSocketDebuggerUrl,
-        "V142 production same-origin page did not become available through Chrome DevTools"
-    );
+    throw new Error(`V142_PRODUCTION_PAGE_NOT_FOUND:${url}`);
+}
 
-    const socket =
-        new WebSocket(
-            pageTarget.webSocketDebuggerUrl
-        );
-    const pending =
-        new Map();
+async function connectCdp(webSocketDebuggerUrl) {
+    const socket = new WebSocket(webSocketDebuggerUrl);
+    const pending = new Map();
     let nextId = 1;
+
     await new Promise((resolve, reject) => {
         socket.onopen = resolve;
-        socket.onerror = () =>
-            reject(
-                new Error(
-                    "V142_PRODUCTION_CDP_OPEN_FAILED"
-                )
-            );
+        socket.onerror = () => reject(new Error("V142_PRODUCTION_CDP_OPEN_FAILED"));
     });
-    t.after(() => {
-        try {
-            socket.close();
-        }
-        catch {}
-    });
+
     socket.onmessage = event => {
         let message;
         try {
-            message = JSON.parse(
-                String(event.data)
-            );
+            message = JSON.parse(String(event.data));
         }
         catch {
             return;
         }
-        if (!message?.id || !pending.has(message.id)) {
-            return;
-        }
-        const request =
-            pending.get(message.id);
+        if (!message?.id || !pending.has(message.id)) return;
+        const request = pending.get(message.id);
         pending.delete(message.id);
         if (message.error) {
-            request.reject(
-                new Error(
-                    message.error.message ||
-                    "V142_PRODUCTION_CDP_ERROR"
-                )
-            );
+            request.reject(new Error(message.error.message || "V142_PRODUCTION_CDP_ERROR"));
         }
         else {
             request.resolve(message.result);
         }
     };
-    const cdp = (method, params = {}) =>
-        new Promise((resolve, reject) => {
-            const id = nextId++;
-            pending.set(id, {
-                resolve,
-                reject
+
+    return {
+        socket,
+        call(method, params = {}) {
+            return new Promise((resolve, reject) => {
+                const id = nextId++;
+                pending.set(id, { resolve, reject });
+                socket.send(JSON.stringify({ id, method, params }));
             });
-            socket.send(
-                JSON.stringify({
-                    id,
-                    method,
-                    params
-                })
-            );
-        });
+        }
+    };
+}
 
-    await cdp("Runtime.enable");
+test("V142 production Hosting reaches the existing local research bridge from real Chrome", {
+    skip: process.env.GITHUB_ACTIONS !== "true" || process.platform !== "linux",
+    timeout: 120000
+}, async t => {
+    const { createJarvisUploadBridgeApp } = await import("../jarvis-upload-bridge.js");
+    const contract = JSON.parse(
+        fs.readFileSync(path.join(root, "jarvis-runtime-contract.json"), "utf8")
+    );
+    const bridgeRoot = fs.mkdtempSync(
+        path.join(os.tmpdir(), "v142-production-browser-bridge-")
+    );
+    const profile = fs.mkdtempSync(
+        path.join(os.tmpdir(), "v142-production-browser-profile-")
+    );
 
-    let stablePage = null;
+    execFileSync("git", ["init", "-b", "v94-media-v4n-negative-claims"], {
+        cwd: bridgeRoot,
+        stdio: "ignore"
+    });
+    fs.writeFileSync(
+        path.join(bridgeRoot, "jarvis-runtime-contract.json"),
+        JSON.stringify(contract, null, 2),
+        "utf8"
+    );
+
+    const server = createJarvisUploadBridgeApp({ root: bridgeRoot }).listen(3344);
+    await new Promise((resolve, reject) => {
+        server.once("listening", resolve);
+        server.once("error", reject);
+    });
+
+    const chromePath = execFileSync(
+        "bash",
+        ["-lc", "command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser"],
+        { encoding: "utf8" }
+    ).trim();
+    assert.ok(chromePath, "Chrome/Chromium is required for the production browser contract");
+
+    const targetUrl = `${PRODUCTION_ORIGIN}/manual.html?v142-browser=${Date.now()}`;
+    const chrome = spawn(chromePath, [
+        "--headless=new",
+        "--no-sandbox",
+        "--disable-gpu",
+        "--disable-dev-shm-usage",
+        "--remote-debugging-port=9222",
+        `--user-data-dir=${profile}`,
+        targetUrl
+    ], { stdio: "ignore" });
+
+    let cdp = null;
+    t.after(async () => {
+        try { cdp?.socket?.close(); } catch {}
+        if (chrome.exitCode === null) {
+            try { chrome.kill("SIGKILL"); } catch {}
+        }
+        await new Promise(resolve => server.close(() => resolve()));
+        fs.rmSync(bridgeRoot, { recursive: true, force: true });
+        fs.rmSync(profile, { recursive: true, force: true });
+    });
+
+    const pageTarget = await openCdpPage(chrome, targetUrl);
+    cdp = await connectCdp(pageTarget.webSocketDebuggerUrl);
+    await cdp.call("Runtime.enable");
+
+    let stable = null;
     for (let attempt = 0; attempt < 80; attempt += 1) {
         try {
-            const probe = await cdp(
-                "Runtime.evaluate",
-                {
-                    expression:
-                        `({ href: location.href, protocol: location.protocol, readyState: document.readyState })`,
-                    returnByValue: true
-                }
-            );
+            const probe = await cdp.call("Runtime.evaluate", {
+                expression: `({href:location.href,protocol:location.protocol,readyState:document.readyState})`,
+                returnByValue: true
+            });
             const value = probe?.result?.value || null;
             if (
                 value?.protocol === "https:" &&
-                String(value?.href || "").startsWith("https://fixgo-44e4d.web.app/") &&
+                String(value?.href || "").startsWith(PRODUCTION_ORIGIN) &&
                 ["interactive", "complete"].includes(value?.readyState)
             ) {
-                stablePage = value;
+                stable = value;
                 break;
             }
         }
@@ -289,149 +190,119 @@ test("V142 production Hosting reaches the existing local research bridge from re
         }
         await sleep(250);
     }
-    assert.ok(
-        stablePage?.href,
-        "V142 production browser never reached a stable HTTPS execution context"
-    );
+    assert.ok(stable?.href, "Production browser never reached a stable HTTPS context");
 
-    const expression = `
-        (async () => {
-            const moduleUrl = "https://fixgo-44e4d.web.app/modules/terminal/nexo-bootstrap.js?v=v142-production-browser-" + Date.now();
-            const sourceResponse = await fetch(moduleUrl, { cache: "no-store" });
-            const sourceText = await sourceResponse.text();
-            const servedVersion = sourceText.includes("1.11.0-local-bridge-transport-v142")
-                ? "1.11.0-local-bridge-transport-v142"
-                : null;
-            let importError = null;
-            try {
-                await import(moduleUrl);
-            }
-            catch(error) {
-                importError = {
-                    name: error?.name || null,
-                    message: error?.message || String(error)
-                };
-            }
-            const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-            for (let attempt = 0; attempt < 80; attempt += 1) {
-                if (typeof globalThis.JarvisLocalBridge?.requestJson === "function") break;
-                await sleep(250);
-            }
-            const hasBridge = typeof globalThis.JarvisLocalBridge?.requestJson === "function";
-            let result = null;
-            let transportError = null;
-            if (hasBridge) {
+    let permissionMethod = null;
+    try {
+        await cdp.call("Browser.setPermission", {
+            permission: { name: "loopback-network" },
+            setting: "granted",
+            origin: PRODUCTION_ORIGIN
+        });
+        permissionMethod = "Browser.setPermission:loopback-network";
+    }
+    catch(firstError) {
+        await cdp.call("Browser.grantPermissions", {
+            permissions: ["loopbackNetwork"],
+            origin: PRODUCTION_ORIGIN
+        });
+        permissionMethod = "Browser.grantPermissions:loopbackNetwork";
+    }
+
+    const moduleUrl = `${PRODUCTION_ORIGIN}/modules/terminal/nexo-bootstrap.js?v=v142-production-browser-${Date.now()}`;
+    const evaluated = await cdp.call("Runtime.evaluate", {
+        expression: `
+            (async () => {
+                const moduleUrl = ${JSON.stringify(moduleUrl)};
+                const sourceResponse = await fetch(moduleUrl, {cache:"no-store"});
+                const sourceText = await sourceResponse.text();
+                const servedVersion = sourceText.includes(${JSON.stringify(PRODUCTION_BOOTSTRAP_VERSION)})
+                    ? ${JSON.stringify(PRODUCTION_BOOTSTRAP_VERSION)}
+                    : null;
+                let importError = null;
+                try { await import(moduleUrl); }
+                catch(error) { importError = {name:error?.name||null,message:error?.message||String(error)}; }
+                for (let attempt = 0; attempt < 80; attempt += 1) {
+                    if (typeof globalThis.JarvisLocalBridge?.requestJson === "function") break;
+                    await new Promise(resolve => setTimeout(resolve, 250));
+                }
+                let permissionState = null;
                 try {
-                    const value = await globalThis.JarvisLocalBridge.requestJson(
-                        "/research",
-                        {
-                            query: "Taquería El Dorado @taqueria.eldorado Cancún",
-                            timeoutMs: 30000,
-                            allowedDomain: "",
-                            exactEntity: "Taquería El Dorado",
-                            seedUrl: ""
-                        },
-                        {
-                            timeoutMs: 40000
-                        }
-                    );
-                    result = {
-                        ok: value?.ok === true,
-                        grounded: value?.grounded === true,
-                        status: value?.status || null,
-                        error: value?.error || null,
-                        sourceCount: Array.isArray(value?.sources)
-                            ? value.sources.length
-                            : Number(value?.sourceCount || 0),
-                        httpStatus: value?.httpStatus || null
-                    };
+                    permissionState = (await navigator.permissions.query({name:"loopback-network"})).state;
                 }
-                catch(error) {
-                    transportError = {
-                        name: error?.name || null,
-                        message: error?.message || String(error)
-                    };
-                }
-            }
-            return {
-                href: location.href,
-                origin: location.origin,
-                sourceHttpOk: sourceResponse.ok,
-                sourceHttpStatus: sourceResponse.status,
-                servedVersion,
-                importError,
-                hasBridge,
-                result,
-                transportError
-            };
-        })()
-    `;
-
-    let evaluated = null;
-    let lastContextError = null;
-    for (let attempt = 0; attempt < 6; attempt += 1) {
-        try {
-            evaluated =
-                await cdp(
-                    "Runtime.evaluate",
-                    {
-                        expression,
-                        awaitPromise: true,
-                        returnByValue: true
+                catch {}
+                const hasBridge = typeof globalThis.JarvisLocalBridge?.requestJson === "function";
+                let transportProbe = null;
+                let research = null;
+                let transportError = null;
+                if (hasBridge) {
+                    try {
+                        transportProbe = await globalThis.JarvisLocalBridge.requestJson(
+                            "/research",
+                            {query:"x"},
+                            {timeoutMs:10000}
+                        );
+                        research = await globalThis.JarvisLocalBridge.requestJson(
+                            "/research",
+                            {
+                                query:"Taquería El Dorado @taqueria.eldorado Cancún",
+                                timeoutMs:20000,
+                                allowedDomain:"",
+                                exactEntity:"Taquería El Dorado",
+                                seedUrl:""
+                            },
+                            {timeoutMs:30000}
+                        );
                     }
-                );
-            lastContextError = null;
-            break;
-        }
-        catch(error) {
-            if (!/Execution context was destroyed|Cannot find context/i.test(String(error?.message || error))) {
-                throw error;
-            }
-            lastContextError = error;
-            await sleep(500);
-        }
-    }
-    if (!evaluated && lastContextError) {
-        throw lastContextError;
-    }
+                    catch(error) {
+                        transportError = {name:error?.name||null,message:error?.message||String(error)};
+                    }
+                }
+                return {
+                    origin: location.origin,
+                    sourceHttpOk: sourceResponse.ok,
+                    servedVersion,
+                    importError,
+                    permissionState,
+                    hasBridge,
+                    transportProbe: transportProbe ? {
+                        status:transportProbe.status||null,
+                        error:transportProbe.error||null,
+                        httpStatus:transportProbe.httpStatus||null
+                    } : null,
+                    research: research ? {
+                        ok:research.ok===true,
+                        grounded:research.grounded===true,
+                        status:research.status||null,
+                        error:research.error||null,
+                        sourceCount:Array.isArray(research.sources)?research.sources.length:Number(research.sourceCount||0),
+                        httpStatus:research.httpStatus||null
+                    } : null,
+                    transportError
+                };
+            })()
+        `,
+        awaitPromise: true,
+        returnByValue: true
+    });
     if (evaluated?.exceptionDetails) {
-        throw new Error(
-            `V142_PRODUCTION_BROWSER_EXCEPTION:${evaluated.exceptionDetails.text || "unknown"}`
-        );
+        throw new Error(`V142_PRODUCTION_BROWSER_EXCEPTION:${evaluated.exceptionDetails.text || "unknown"}`);
     }
-    const browserResult =
-        evaluated?.result?.value || null;
+    const result = evaluated?.result?.value || null;
 
-    console.log(
-        "V142_PRODUCTION_BROWSER_LOCAL_BRIDGE",
-        JSON.stringify({
-            stablePage,
-            ...browserResult
-        })
-    );
+    console.log("V142_PRODUCTION_BROWSER_LOCAL_BRIDGE", JSON.stringify({
+        stable,
+        permissionMethod,
+        ...result
+    }));
 
-    assert.equal(
-        browserResult?.origin,
-        "https://fixgo-44e4d.web.app"
-    );
-    assert.equal(
-        browserResult?.sourceHttpOk,
-        true
-    );
-    assert.equal(
-        browserResult?.servedVersion,
-        "1.11.0-local-bridge-transport-v142"
-    );
-    assert.equal(
-        browserResult?.hasBridge,
-        true
-    );
-    assert.equal(
-        browserResult?.transportError,
-        null
-    );
-    assert.ok(
-        browserResult?.result?.status,
-        "The production browser must receive a JSON status from /research"
-    );
+    assert.equal(result?.origin, PRODUCTION_ORIGIN);
+    assert.equal(result?.sourceHttpOk, true);
+    assert.equal(result?.servedVersion, PRODUCTION_BOOTSTRAP_VERSION);
+    assert.equal(result?.importError, null);
+    assert.equal(result?.hasBridge, true);
+    assert.equal(result?.transportError, null);
+    assert.equal(result?.transportProbe?.httpStatus, 400);
+    assert.equal(result?.transportProbe?.error, "WEB_RESEARCH_QUERY_REQUIRED");
+    assert.ok(result?.research?.status, "Taquería El Dorado research must return a real bridge JSON status");
 });
