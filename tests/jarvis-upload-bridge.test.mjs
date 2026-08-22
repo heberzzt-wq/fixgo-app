@@ -330,4 +330,4 @@ test("existing bridge exposes research route and rejects an empty research reque
     }
 });
 
-// V142 production-browser transport is exercised by the existing NEXO bootstrap contract suite.
+// V142 production-browser transport retry uses a stable same-origin Hosting page.
