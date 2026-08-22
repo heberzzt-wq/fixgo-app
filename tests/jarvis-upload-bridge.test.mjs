@@ -352,8 +352,15 @@ test("resilient local research keeps seed identity while cross-source scope stay
         /@el\.dorado509/i
     );
 
+    const crossSourceSearchUrl =
+        calls.find(value =>
+            /duckduckgo\.com/i.test(value) &&
+            /[?&]q=/i.test(value)
+        ) || "";
     const crossSourceQuery =
-        new URL(calls[0]).searchParams.get("q") || "";
+        new URL(crossSourceSearchUrl)
+            .searchParams
+            .get("q") || "";
     assert.match(crossSourceQuery, /@taqueria\.eldorado/i);
     assert.doesNotMatch(crossSourceQuery, /site:tiktok\.com/i);
 
@@ -385,9 +392,182 @@ test("resilient local research keeps seed identity while cross-source scope stay
     assert.equal(scoped.sources.length, 1);
     assert.equal(scoped.sources[0].url, seedUrl);
 
+    const hardScopedSearchUrl =
+        scopedCalls.find(value =>
+            /duckduckgo\.com/i.test(value) &&
+            /[?&]q=/i.test(value)
+        ) || "";
     const hardScopedQuery =
-        new URL(scopedCalls[0]).searchParams.get("q") || "";
+        new URL(hardScopedSearchUrl)
+            .searchParams
+            .get("q") || "";
     assert.match(hardScopedQuery, /site:tiktok\.com/i);
+});
+
+test("tiktok oEmbed verifies the exact seed author before generic search", async () => {
+    const seedUrl =
+        "https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004";
+    const calls = [];
+
+    const result =
+        await runResilientLocalWebResearch(
+            "Taquer?a El Dorado Canc?n",
+            5000,
+            {
+                exactEntity:
+                    "Taquer?a El Dorado",
+                seedUrl
+            },
+            async url => {
+                calls.push(
+                    String(url)
+                );
+
+                if (
+                    String(url)
+                        .startsWith(
+                            "https://www.tiktok.com/oembed?"
+                        )
+                ) {
+                    return {
+                        ok:
+                            true,
+                        status:
+                            200,
+                        url:
+                            String(url),
+                        async json() {
+                            return {
+                                title:
+                                    "Publicaci?n exacta",
+                                author_name:
+                                    "Taquer?a El Dorado",
+                                author_url:
+                                    "https://www.tiktok.com/@taqueria.eldorado"
+                            };
+                        }
+                    };
+                }
+
+                throw new Error(
+                    "GENERIC_SEARCH_MUST_NOT_RUN"
+                );
+            }
+        );
+
+    assert.equal(
+        result.ok,
+        true
+    );
+    assert.equal(
+        result.engine,
+        "jarvis_local_tiktok_oembed_anchor"
+    );
+    assert.equal(
+        result.sources.length,
+        1
+    );
+    assert.equal(
+        result.sources[0].url,
+        seedUrl
+    );
+    assert.equal(
+        calls.length,
+        1
+    );
+});
+
+test("tiktok oEmbed 429 falls through to canonical seed metadata", async () => {
+    const seedUrl =
+        "https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004";
+    const calls = [];
+
+    const result =
+        await runResilientLocalWebResearch(
+            "Taquer?a El Dorado Canc?n",
+            5000,
+            {
+                exactEntity:
+                    "Taquer?a El Dorado",
+                seedUrl
+            },
+            async url => {
+                calls.push(
+                    String(url)
+                );
+
+                if (
+                    String(url)
+                        .startsWith(
+                            "https://www.tiktok.com/oembed?"
+                        )
+                ) {
+                    return {
+                        ok:
+                            false,
+                        status:
+                            429,
+                        url:
+                            String(url)
+                    };
+                }
+
+                if (
+                    String(url) ===
+                    seedUrl
+                ) {
+                    return {
+                        ok:
+                            true,
+                        status:
+                            200,
+                        url:
+                            seedUrl,
+                        async text() {
+                            return [
+                                "<html><head>",
+                                '<title>Taquer?a El Dorado</title>',
+                                '<link rel="canonical" href="' +
+                                    seedUrl +
+                                    '">',
+                                '<meta property="og:description" content="Publicaci?n de @taqueria.eldorado">',
+                                "</head><body></body></html>"
+                            ].join("");
+                        }
+                    };
+                }
+
+                throw new Error(
+                    "GENERIC_SEARCH_MUST_NOT_RUN"
+                );
+            }
+        );
+
+    assert.equal(
+        result.ok,
+        true
+    );
+    assert.equal(
+        result.engine,
+        "jarvis_local_seed_metadata_anchor"
+    );
+    assert.equal(
+        result.sources.length,
+        1
+    );
+    assert.equal(
+        result.sources[0].url,
+        seedUrl
+    );
+    assert.equal(
+        result.attempts[0].provider,
+        "jarvis_local_tiktok_oembed_anchor"
+    );
+    assert.match(
+        result.attempts[0].error ||
+            "",
+        /HTTP_429/
+    );
 });
 
 test("existing bridge exposes research route and rejects an empty research request without network access", async () => {

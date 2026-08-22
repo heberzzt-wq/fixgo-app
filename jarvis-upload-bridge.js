@@ -93,6 +93,147 @@ function researchIdentityHandleFromUrl(value = "") {
     return "";
 }
 
+function researchVideoIdFromUrl(value = "") {
+    try {
+        const parsed =
+            new URL(
+                String(value || "")
+            );
+        const segments =
+            parsed.pathname
+                .split("/")
+                .filter(Boolean);
+
+        const videoIndex =
+            segments.findIndex(
+                segment =>
+                    segment.toLowerCase() ===
+                    "video"
+            );
+
+        return (
+            videoIndex >= 0 &&
+            segments[videoIndex + 1]
+        )
+            ? String(
+                segments[
+                    videoIndex + 1
+                ]
+            ).trim()
+            : "";
+    }
+    catch {
+        return "";
+    }
+}
+
+function researchUrlMatchesSeedAnchor(
+    candidate = "",
+    seedUrl = ""
+) {
+    const candidateDomain =
+        researchDomainFromUrl(
+            candidate
+        );
+    const seedDomain =
+        researchDomainFromUrl(
+            seedUrl
+        );
+
+    if (
+        !candidateDomain ||
+        !seedDomain ||
+        candidateDomain !==
+            seedDomain
+    ) {
+        return false;
+    }
+
+    const expectedHandle =
+        researchIdentityHandleFromUrl(
+            seedUrl
+        );
+    const actualHandle =
+        researchIdentityHandleFromUrl(
+            candidate
+        );
+
+    if (
+        expectedHandle &&
+        actualHandle !==
+            expectedHandle
+    ) {
+        return false;
+    }
+
+    const expectedVideoId =
+        researchVideoIdFromUrl(
+            seedUrl
+        );
+    const actualVideoId =
+        researchVideoIdFromUrl(
+            candidate
+        );
+
+    if (
+        expectedVideoId &&
+        actualVideoId !==
+            expectedVideoId
+    ) {
+        return false;
+    }
+
+    return Boolean(
+        expectedHandle ||
+        expectedVideoId
+    );
+}
+
+function isTikTokResearchUrl(
+    value = ""
+) {
+    const domain =
+        researchDomainFromUrl(
+            value
+        );
+
+    return (
+        domain === "tiktok.com" ||
+        domain.endsWith(
+            ".tiktok.com"
+        )
+    );
+}
+
+function extractResearchMetadataUrl(
+    html = ""
+) {
+    const source =
+        String(html || "");
+
+    const patterns = [
+        /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i,
+        /<link[^>]+href=["']([^"']+)["'][^>]+rel=["']canonical["']/i,
+        /<meta[^>]+property=["']og:url["'][^>]+content=["']([^"']+)["']/i,
+        /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:url["']/i
+    ];
+
+    for (const pattern of patterns) {
+        const match =
+            source.match(
+                pattern
+            );
+
+        if (match?.[1]) {
+            return decodeResearchHtml(
+                match[1]
+            ).trim();
+        }
+    }
+
+    return "";
+}
+
 function normalizeDuckDuckGoResearchUrl(value = "") {
     const decoded = decodeResearchHtml(String(value || "").trim());
     if (!decoded) return "";
@@ -240,6 +381,247 @@ async function fetchLocalResearchText(
     };
 }
 
+async function fetchLocalResearchJson(
+    fetchImpl,
+    url,
+    {
+        timeoutMs,
+        headers = {}
+    } = {}
+) {
+    const response =
+        await fetchImpl(
+            url,
+            {
+                headers: {
+                    "User-Agent":
+                        "Mozilla/5.0 JarvisLocalResearch/1.0",
+                    Accept:
+                        "application/json,*/*;q=0.8",
+                    ...headers
+                },
+                redirect:
+                    "follow",
+                signal:
+                    AbortSignal.timeout(
+                        timeoutMs
+                    )
+            }
+        );
+
+    if (!response.ok) {
+        throw new Error(
+            `HTTP_${response.status}`
+        );
+    }
+
+    return {
+        json:
+            await response.json(),
+        url:
+            response.url || url,
+        status:
+            response.status
+    };
+}
+
+async function directTikTokOembedResearchFallback(
+    fetchImpl,
+    options,
+    timeoutMs
+) {
+    const seedUrl =
+        String(
+            options?.seedUrl ||
+            ""
+        ).trim();
+
+    if (
+        !seedUrl ||
+        !isTikTokResearchUrl(
+            seedUrl
+        )
+    ) {
+        return [];
+    }
+
+    const expectedHandle =
+        researchIdentityHandleFromUrl(
+            seedUrl
+        );
+
+    if (!expectedHandle) {
+        return [];
+    }
+
+    const endpoint =
+        "https://www.tiktok.com/oembed?url=" +
+        encodeURIComponent(
+            seedUrl
+        );
+
+    const result =
+        await fetchLocalResearchJson(
+            fetchImpl,
+            endpoint,
+            {
+                timeoutMs
+            }
+        );
+
+    const payload =
+        result.json &&
+        typeof result.json ===
+            "object"
+            ? result.json
+            : {};
+
+    const authorUrl =
+        String(
+            payload.author_url ||
+            ""
+        ).trim();
+
+    const actualHandle =
+        researchIdentityHandleFromUrl(
+            authorUrl
+        );
+
+    if (
+        !actualHandle ||
+        actualHandle !==
+            expectedHandle
+    ) {
+        return [];
+    }
+
+    const authorName =
+        String(
+            payload.author_name ||
+            ""
+        ).trim();
+
+    const title =
+        String(
+            payload.title ||
+            authorName ||
+            expectedHandle
+        )
+            .replace(
+                /\s+/g,
+                " "
+            )
+            .trim()
+            .slice(
+                0,
+                220
+            );
+
+    return [
+        {
+            title,
+            url:
+                seedUrl,
+            summary: [
+                "TikTok oEmbed verific? la fuente ancla.",
+                authorName
+                    ? `Autor: ${authorName}.`
+                    : "",
+                `Identidad: ${actualHandle}.`,
+                `author_url: ${authorUrl}`
+            ]
+                .filter(Boolean)
+                .join(" ")
+                .slice(
+                    0,
+                    700
+                )
+        }
+    ];
+}
+
+async function directLocalResearchSeedMetadataFallback(
+    fetchImpl,
+    options,
+    timeoutMs
+) {
+    const seedUrl =
+        String(
+            options?.seedUrl ||
+            ""
+        ).trim();
+
+    if (!seedUrl) {
+        return [];
+    }
+
+    const result =
+        await fetchLocalResearchText(
+            fetchImpl,
+            seedUrl,
+            {
+                timeoutMs
+            }
+        );
+
+    const metadataUrl =
+        extractResearchMetadataUrl(
+            result.text
+        );
+
+    if (
+        !metadataUrl ||
+        !researchUrlMatchesSeedAnchor(
+            metadataUrl,
+            seedUrl
+        )
+    ) {
+        return [];
+    }
+
+    const title =
+        stripResearchMarkup(
+            result.text.match(
+                /<title[^>]*>([\s\S]*?)<\/title>/i
+            )?.[1] ||
+            researchIdentityHandleFromUrl(
+                seedUrl
+            ) ||
+            researchDomainFromUrl(
+                seedUrl
+            )
+        );
+
+    const description =
+        stripResearchMarkup(
+            result.text.match(
+                /<meta[^>]+(?:name|property)=["'](?:description|og:description)["'][^>]+content=["']([^"']+)["']/i
+            )?.[1] ||
+            ""
+        );
+
+    return [
+        {
+            title:
+                title ||
+                metadataUrl,
+            url:
+                seedUrl,
+            summary: [
+                "La metadata p?blica del documento confirm? la fuente ancla.",
+                `canonical/og:url: ${metadataUrl}.`,
+                description
+            ]
+                .filter(Boolean)
+                .join(" ")
+                .slice(
+                    0,
+                    700
+                )
+        }
+    ];
+}
+
 function localResearchSourceMatchesDomain(source, domain = "") {
     const expected = normalizeResearchDomain(domain);
     if (!expected) return true;
@@ -347,6 +729,87 @@ export async function runResilientLocalWebResearch(
     let candidates = [];
     let engine = "";
 
+    if (
+        options?.seedUrl
+    ) {
+        const anchorVerifiers = [
+            {
+                name:
+                    "jarvis_local_tiktok_oembed_anchor",
+                run:
+                    () =>
+                        directTikTokOembedResearchFallback(
+                            fetchImpl,
+                            options,
+                            boundedTimeoutMs
+                        )
+            },
+            {
+                name:
+                    "jarvis_local_seed_metadata_anchor",
+                run:
+                    () =>
+                        directLocalResearchSeedMetadataFallback(
+                            fetchImpl,
+                            options,
+                            boundedTimeoutMs
+                        )
+            }
+        ];
+
+        for (
+            const verifier
+            of anchorVerifiers
+        ) {
+            try {
+                const verified =
+                    normalizeLocalResearchSources(
+                        await verifier.run(),
+                        {
+                            ...options,
+                            exactEntity:
+                                ""
+                        }
+                    );
+
+                attempts.push({
+                    provider:
+                        verifier.name,
+                    ok:
+                        verified.length >
+                        0,
+                    sourceCount:
+                        verified.length
+                });
+
+                if (
+                    verified.length >
+                    0
+                ) {
+                    candidates =
+                        verified;
+                    engine =
+                        verifier.name;
+                    break;
+                }
+            }
+            catch(error) {
+                attempts.push({
+                    provider:
+                        verifier.name,
+                    ok:
+                        false,
+                    error:
+                        String(
+                            error?.message ||
+                            error ||
+                            "FAILED"
+                        )
+                });
+            }
+        }
+    }
+
     const providers = [
         {
             name: "jarvis_local_duckduckgo_html_research",
@@ -368,7 +831,8 @@ export async function runResilientLocalWebResearch(
         }
     ];
 
-    for (const provider of providers) {
+    if (candidates.length === 0) {
+        for (const provider of providers) {
         try {
             const result = await fetchLocalResearchText(fetchImpl, provider.url, {
                 timeoutMs: boundedTimeoutMs,
@@ -395,6 +859,7 @@ export async function runResilientLocalWebResearch(
                 error: String(error?.message || error || "FAILED")
             });
         }
+    }
     }
 
     if (candidates.length === 0) {
@@ -464,7 +929,7 @@ export async function runResilientLocalWebResearch(
 }
 
 export const JARVIS_UPLOAD_BRIDGE_VERSION =
-    "1.5.0-cross-source-seed-identity-v142";
+    "1.6.0-direct-anchor-verification-v142";
 
 const MODULE_FILE =
     fileURLToPath(import.meta.url);
