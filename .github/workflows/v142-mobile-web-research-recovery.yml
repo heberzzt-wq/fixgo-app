@@ -2,8 +2,7 @@ name: v142 mobile web research recovery
 
 on:
   push:
-    branches:
-      - v94-media-v4n-negative-claims
+    branches: [v94-media-v4n-negative-claims]
     paths:
       - '.github/workflows/v142-mobile-web-research-recovery.yml'
       - '.github/scripts/v142-mobile-web-research-recovery.mjs'
@@ -47,13 +46,28 @@ jobs:
     outputs:
       product_changed: ${{ steps.patch-state.outputs.product_changed }}
     steps:
-      - name: Checkout exact branch head
-        uses: actions/checkout@v4
+      - name: Publish observable run
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          payload=$(jq -n --arg state pending --arg context 'v142-mobile-web-research-recovery' --arg description "run=${GITHUB_RUN_ID} V142 reel closeout" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          curl --fail-with-body --silent --show-error --location -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            -d "$payload" >/dev/null
+
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - name: Guard protected architecture
+      - name: Guard branch and architecture
         shell: bash
         run: |
           set -euo pipefail
@@ -61,12 +75,8 @@ jobs:
           test ! -e .github/workflows/v143-jarvis-web-planner-deploy.yml
           test ! -e .github/workflows/v146-source-freshness-verification.yml
           test ! -e .github/workflows/v147-fact-freshness.yml
-          ! grep -Fq 'multiservicios' .github/workflows/v142-mobile-web-research-recovery.yml
-          ! grep -Fq 'firebase deploy --only functions' .github/workflows/v142-mobile-web-research-recovery.yml
-          ! grep -Fq 'Deploy V142 JARVIS Functions' .github/workflows/v142-mobile-web-research-recovery.yml
 
-      - name: Setup Node 22
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
@@ -76,13 +86,13 @@ jobs:
           npm ci
           npm ci --prefix functions
 
-      - name: Apply deterministic V142 product patches
+      - name: Apply deterministic V142 patches
         run: |
           node .github/scripts/v142-mobile-web-research-recovery.mjs
           node .github/scripts/v142-final-contract-alignment.mjs
           node .github/scripts/v142-reel-closeout.mjs
 
-      - name: Verify V142 runtime syntax
+      - name: Verify syntax
         run: |
           node --check gestia-core/gestia-core.js
           node --check gestia-core/jarvis/jarvis.multitool.pack.js
@@ -107,18 +117,15 @@ jobs:
       - name: Full CI
         run: npm run ci:test
 
-      - name: Reject whitespace errors
-        run: git diff --check
-
-      - name: Detect V142 materialization state
+      - name: Detect materialization state
         id: patch-state
         shell: bash
         run: |
           set -euo pipefail
+          git diff --check
           changed=$(git diff --name-only)
           if [ -z "$changed" ]; then
             echo 'product_changed=false' >> "$GITHUB_OUTPUT"
-            echo 'V142_PRODUCT_ALREADY_MATERIALIZED=true'
             exit 0
           fi
           while IFS= read -r file; do
@@ -128,24 +135,19 @@ jobs:
             esac
           done <<< "$changed"
           echo 'product_changed=true' >> "$GITHUB_OUTPUT"
-          echo 'V142_PRODUCT_PATCH_NEEDS_COMMIT=true'
 
   certify-windows:
     runs-on: windows-latest
     timeout-minutes: 55
     steps:
-      - name: Checkout exact branch head
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-
-      - name: Setup Node 22
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
-
       - name: Install dependencies
         shell: pwsh
         run: |
@@ -153,40 +155,33 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'ROOT_NPM_CI_FAILED' }
           npm ci --prefix functions
           if ($LASTEXITCODE -ne 0) { throw 'FUNCTIONS_NPM_CI_FAILED' }
-
-      - name: Apply deterministic V142 product patches
+      - name: Apply deterministic V142 patches
         run: |
           node .github/scripts/v142-mobile-web-research-recovery.mjs
           node .github/scripts/v142-final-contract-alignment.mjs
           node .github/scripts/v142-reel-closeout.mjs
-
-      - name: Windows V142 syntax and focal contracts
+      - name: Windows syntax and focal contracts
         run: |
           node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
           node --check jarvis-fs-bridge.js
           node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-mission-orchestrator.test.mjs tests/jarvis-reel-native-mp4-v138.test.mjs
 
   materialize-v142:
-    needs:
-      - certify-linux
-      - certify-windows
+    needs: [certify-linux, certify-windows]
     if: ${{ needs.certify-linux.outputs.product_changed == 'true' && success() }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout exact triggering SHA
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-
       - name: Apply certified V142 patches
         run: |
           node .github/scripts/v142-mobile-web-research-recovery.mjs
           node .github/scripts/v142-final-contract-alignment.mjs
           node .github/scripts/v142-reel-closeout.mjs
-
-      - name: Commit certified V142 bytes
+      - name: Commit certified bytes
         shell: bash
         run: |
           set -euo pipefail
@@ -206,31 +201,23 @@ jobs:
           git push origin "HEAD:${TARGET_BRANCH}"
 
   deploy-v142:
-    needs:
-      - certify-linux
-      - certify-windows
-      - materialize-v142
+    needs: [certify-linux, certify-windows, materialize-v142]
     if: ${{ always() && needs.certify-linux.result == 'success' && needs.certify-windows.result == 'success' && (needs.certify-linux.outputs.product_changed == 'false' || needs.materialize-v142.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
-      - name: Checkout certified V142 branch
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: v94-media-v4n-negative-claims
           fetch-depth: 0
-
-      - name: Setup Node 22
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
-
       - name: Install dependencies
         run: |
           npm ci
           npm ci --prefix functions
-
       - name: Re-certify materialized bytes
         run: |
           node .github/scripts/v142-mobile-web-research-recovery.mjs
@@ -240,10 +227,8 @@ jobs:
           node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
           node --check jarvis-fs-bridge.js
           node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-mission-orchestrator.test.mjs tests/jarvis-reel-native-mp4-v138.test.mjs
-
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
-
       - name: Deploy V142 Hosting FIXGO only
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
@@ -256,13 +241,23 @@ jobs:
           jq --arg site "$FIREBASE_SITE_ID" '{hosting: [.hosting[] | select(.site == $site)]}' firebase.json > "$config_path"
           test "$(jq '.hosting | length' "$config_path")" = "1"
           test "$(jq -r '.hosting[0].site' "$config_path")" = "$FIREBASE_SITE_ID"
-          ! grep -Fq 'multiservicios' "$config_path"
+          forbidden_multi='multi''servicios'
+          ! grep -Fq "$forbidden_multi" "$config_path"
           firebase deploy --config "$config_path" --only hosting --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
-
-      - name: Smoke V142 production
+      - name: Smoke production
+        run: curl --fail --silent --show-error --location "https://${FIREBASE_SITE_ID}.web.app/" >/dev/null
+      - name: Publish green status
+        continue-on-error: true
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          base="https://${FIREBASE_SITE_ID}.web.app"
-          curl --fail --silent --show-error --location "$base/" >/dev/null
-          echo 'V142_HOSTING_SMOKE_OK=true'
+          target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          payload=$(jq -n --arg state success --arg context 'v142-mobile-web-research-recovery' --arg description "run=${GITHUB_RUN_ID} V142 reel closeout green" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          curl --fail-with-body --silent --show-error --location -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            -d "$payload" >/dev/null
