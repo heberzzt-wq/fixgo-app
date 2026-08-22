@@ -330,4 +330,4 @@ test("existing bridge exposes research route and rejects an empty research reque
     }
 });
 
-// V142 production-browser transport retry waits for a stable HTTPS execution context.
+// V142 production-browser transport E2E grants Chrome's loopback-network permission before probing localhost.
