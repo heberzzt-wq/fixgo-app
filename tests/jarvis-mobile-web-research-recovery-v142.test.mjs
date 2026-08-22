@@ -422,3 +422,30 @@ test("v142 entity-not-verified cloud recovery gives the existing local research 
         else globalThis.JarvisLocalBridge = previousBridge;
     }
 });
+
+
+test("v142 physical reel reuses completed marketing evidence before semantic argument audit", () => {
+    const core = fs.readFileSync(
+        new URL("../gestia-core/gestia-core.js", import.meta.url),
+        "utf8"
+    );
+    const speechIndex = core.indexOf(
+        'call?.name === "speech.synthesize"'
+    );
+    const reelIndex = core.indexOf(
+        'call?.name === "reel.plan"'
+    );
+    const genericAuditIndex = core.indexOf(
+        "toolDefinition?.inputSchema &&",
+        reelIndex
+    );
+
+    assert.ok(speechIndex >= 0);
+    assert.ok(reelIndex > speechIndex);
+    assert.ok(genericAuditIndex > reelIndex);
+    assert.match(core, /!String\(\s*executionCall\.args\?\.output/);
+    assert.match(core, /\.jarvis-artifacts\/audio\//);
+    assert.match(core, /reelArtifactArgsFromCompletedTasks\(/);
+    assert.match(core, /marketingReelScenes/);
+    assert.match(core, /marketing\.plan:videoPackage/);
+});

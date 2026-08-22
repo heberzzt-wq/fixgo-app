@@ -5315,6 +5315,135 @@ if (
                     }
 
                     if (
+                        call?.name === "speech.synthesize" &&
+                        !String(
+                            executionCall.args?.output ||
+                            ""
+                        ).trim()
+                    ) {
+                        const speechArtifactIdentity =
+                            String(
+                                executionCall.args?.objectiveId ||
+                                missionContext?.objectiveId ||
+                                executionCall.args?.caseId ||
+                                missionContext?.caseId ||
+                                "jarvis-speech"
+                            )
+                                .normalize("NFD")
+                                .replace(/[\u0300-\u036f]/g, "")
+                                .replace(/[^a-zA-Z0-9_-]+/g, "-")
+                                .replace(/^-+|-+$/g, "")
+                                .slice(0, 80) ||
+                            "jarvis-speech";
+                        executionCall.args = {
+                            ...executionCall.args,
+                            output:
+                                `.jarvis-artifacts/audio/${speechArtifactIdentity}.wav`
+                        };
+                    }
+
+                    if (
+                        !argumentGrounded &&
+                        call?.name === "reel.plan" &&
+                        Array.isArray(missionContext?.completedTasks)
+                    ) {
+                        const marketingReelArgs =
+                            reelArtifactArgsFromCompletedTasks(
+                                missionContext.completedTasks,
+                                executionCall.args
+                            );
+                        const marketingReelScenes =
+                            Array.isArray(marketingReelArgs?.scenes)
+                                ? marketingReelArgs.scenes.map(scene => ({
+                                    durationSeconds:
+                                        Number(scene?.durationSeconds),
+                                    visual:
+                                        String(
+                                            scene?.visualDescription ||
+                                            ""
+                                        ).trim(),
+                                    overlay:
+                                        String(
+                                            scene?.overlay ||
+                                            ""
+                                        ).trim(),
+                                    voiceover:
+                                        String(
+                                            scene?.subtitle ||
+                                            ""
+                                        ).trim(),
+                                    evidence:
+                                        "marketing.plan:videoPackage",
+                                    transition:
+                                        String(
+                                            scene?.transition ||
+                                            "fade"
+                                        ).trim() ||
+                                        "fade"
+                                }))
+                                : [];
+                        const marketingReelTimeline =
+                            marketingReelScenes.reduce(
+                                (sum, scene) =>
+                                    sum +
+                                    (Number.isFinite(
+                                        scene.durationSeconds
+                                    )
+                                        ? scene.durationSeconds
+                                        : 0),
+                                0
+                            );
+                        if (
+                            marketingReelArgs?.brandName &&
+                            marketingReelArgs?.title &&
+                            marketingReelArgs?.cta &&
+                            Number.isFinite(
+                                Number(
+                                    marketingReelArgs
+                                        .durationSeconds
+                                )
+                            ) &&
+                            marketingReelScenes.length >= 3 &&
+                            Math.abs(
+                                marketingReelTimeline -
+                                Number(
+                                    marketingReelArgs
+                                        .durationSeconds
+                                )
+                            ) <= 0.01 &&
+                            marketingReelScenes.every(scene =>
+                                Number.isFinite(
+                                    scene.durationSeconds
+                                ) &&
+                                scene.durationSeconds > 0 &&
+                                scene.visual &&
+                                scene.overlay &&
+                                scene.voiceover &&
+                                scene.evidence
+                            )
+                        ) {
+                            executionCall.args = {
+                                ...executionCall.args,
+                                brandName:
+                                    marketingReelArgs.brandName,
+                                title:
+                                    marketingReelArgs.title,
+                                cta:
+                                    marketingReelArgs.cta,
+                                durationSeconds:
+                                    Number(
+                                        marketingReelArgs
+                                            .durationSeconds
+                                    ),
+                                scenes:
+                                    marketingReelScenes
+                            };
+                            argumentGrounded =
+                                true;
+                        }
+                    }
+
+                    if (
                         !argumentGrounded &&
                         toolDefinition?.inputSchema &&
                         Array.isArray(missionContext?.completedTasks) &&
