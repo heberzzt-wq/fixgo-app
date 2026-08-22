@@ -8,7 +8,7 @@ const paths = {
 };
 
 async function read(file) {
-    return fs.readFile(file, "utf8");
+    return (await fs.readFile(file, "utf8")).replace(/\r\n/g, "\n");
 }
 
 async function write(file, source) {
@@ -171,11 +171,17 @@ orchestrator = replaceOnce(
 await write(paths.orchestrator, orchestrator);
 
 let reelTest = await read(paths.reelTest);
+reelTest = replaceOnce(
+    reelTest,
+`    assert.match(runtime, /v138-native-mp4-reel-export-20260812/);`,
+`    assert.match(runtime, /v139-transient-resilience-20260813/);`,
+    "REEL_RUNTIME_BASELINE_MARKER"
+);
 reelTest = appendOnce(
     reelTest,
     "V142 waits for the real browser export completion state",
-`test("V142 waits for the real browser export completion state", async () => {
-  const source = await read("jarvis-fs-bridge.js");
+`test("V142 waits for the real browser export completion state", () => {
+  const source = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
   assert.match(source, /2\\.46\\.0-reel-export-completion-v142/);
   assert.doesNotMatch(source, /await sleepMs\\(duration \\* 1000 \\+ 2600\\)/);
   assert.match(source, /__JARVIS_REEL_EXPORT_ERROR__/);
