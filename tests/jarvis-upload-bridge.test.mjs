@@ -312,6 +312,50 @@ test("existing upload bridge keeps resilient local web research without a separa
     assert.match(calls[0], /duckduckgo/i);
 });
 
+test("resilient local research binds same-name candidates to the exact seed identity", async () => {
+    const calls = [];
+    const expectedUrl =
+        "https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004";
+    const result = await runResilientLocalWebResearch(
+        "Taquería El Dorado Cancún",
+        5000,
+        {
+            exactEntity:
+                "Taquería El Dorado",
+            seedUrl:
+                expectedUrl
+        },
+        async url => {
+            calls.push(String(url));
+            return {
+                ok: true,
+                status: 200,
+                url: String(url),
+                async text() {
+                    return [
+                        '<div class="result results_links"><a class="result__a" href="https://www.tiktok.com/@el.dorado509/video/7639882768356248839">Taquería El Dorado (@el.dorado509) | TikTok</a><a class="result__snippet">Taquería El Dorado buffet y hamburguesas.</a></div>',
+                        `<div class="result results_links"><a class="result__a" href="${expectedUrl}">Taquería El Dorado (@taqueria.eldorado) | TikTok</a><a class="result__snippet">Publicación de la cuenta exacta @taqueria.eldorado.</a></div>`
+                    ].join("");
+                }
+            };
+        }
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.grounded, true);
+    assert.equal(result.sources.length, 1);
+    assert.equal(result.sources[0].url, expectedUrl);
+    assert.doesNotMatch(
+        JSON.stringify(result.sources),
+        /@el\.dorado509/i
+    );
+
+    const firstQuery =
+        new URL(calls[0]).searchParams.get("q") || "";
+    assert.match(firstQuery, /@taqueria\.eldorado/i);
+    assert.match(firstQuery, /site:tiktok\.com/i);
+});
+
 test("existing bridge exposes research route and rejects an empty research request without network access", async () => {
     const root = initializeBridgeRoot();
     const server = createJarvisUploadBridgeApp({ root }).listen(0);
