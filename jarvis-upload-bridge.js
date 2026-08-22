@@ -68,6 +68,31 @@ function researchDomainFromUrl(value = "") {
     }
 }
 
+function researchIdentityHandleFromUrl(value = "") {
+    try {
+        const parsed = new URL(String(value || ""));
+        for (const rawSegment of parsed.pathname.split("/")) {
+            let segment = rawSegment;
+            try {
+                segment = decodeURIComponent(rawSegment);
+            }
+            catch {
+                // Preserve the raw path segment if decoding fails.
+            }
+            const normalized = String(segment || "")
+                .trim()
+                .toLowerCase();
+            if (normalized.startsWith("@") && normalized.length > 1) {
+                return normalized;
+            }
+        }
+    }
+    catch {
+        // Invalid or missing URLs simply do not carry an identity handle.
+    }
+    return "";
+}
+
 function normalizeDuckDuckGoResearchUrl(value = "") {
     const decoded = decodeResearchHtml(String(value || "").trim());
     if (!decoded) return "";
@@ -167,6 +192,14 @@ function buildLocalResearchQuery(
         values.push(`"${entity}"`);
     }
 
+    const identityHandle = researchIdentityHandleFromUrl(seedUrl);
+    if (
+        identityHandle &&
+        !values.join(" ").toLowerCase().includes(identityHandle)
+    ) {
+        values.push(`"${identityHandle}"`);
+    }
+
     let domain = normalizeResearchDomain(allowedDomain);
     if (!domain && seedUrl) domain = researchDomainFromUrl(seedUrl);
     if (domain && !values.join(" ").toLowerCase().includes(`site:${domain}`)) {
@@ -231,14 +264,35 @@ function localResearchSourceMatchesEntity(source, exactEntity = "") {
     return tokens.every(token => haystack.includes(token));
 }
 
+function localResearchSourceMatchesSeedIdentity(source, seedUrl = "") {
+    const expectedHandle = researchIdentityHandleFromUrl(seedUrl);
+    if (!expectedHandle) return true;
+
+    const actualHandle = researchIdentityHandleFromUrl(source?.url);
+    if (actualHandle) {
+        return actualHandle === expectedHandle;
+    }
+
+    const haystack = [
+        source?.title,
+        source?.url,
+        source?.summary
+    ].join(" ").toLowerCase();
+    return haystack.includes(expectedHandle);
+}
+
 function normalizeLocalResearchSources(candidates = [], options = {}) {
     const seen = new Set();
+    const effectiveDomain =
+        normalizeResearchDomain(options.allowedDomain) ||
+        researchDomainFromUrl(options.seedUrl);
     return candidates
         .filter(source => {
             const url = String(source?.url || "").trim();
             if (!/^https?:\/\//i.test(url) || seen.has(url)) return false;
-            if (!localResearchSourceMatchesDomain(source, options.allowedDomain)) return false;
+            if (!localResearchSourceMatchesDomain(source, effectiveDomain)) return false;
             if (!localResearchSourceMatchesEntity(source, options.exactEntity)) return false;
+            if (!localResearchSourceMatchesSeedIdentity(source, options.seedUrl)) return false;
             seen.add(url);
             return true;
         })
@@ -412,7 +466,7 @@ export async function runResilientLocalWebResearch(
 }
 
 export const JARVIS_UPLOAD_BRIDGE_VERSION =
-    "1.3.0-resilient-local-research-v123";
+    "1.4.0-exact-seed-identity-v142";
 
 const MODULE_FILE =
     fileURLToPath(import.meta.url);
