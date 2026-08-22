@@ -276,6 +276,35 @@ jobs:
       - name: Windows V142 contract - multifunction tools
         run: node --test --test-concurrency=1 tests/jarvis-multifunction-tools.test.mjs
 
+      - name: Windows V142 canonical human reel E2E
+        shell: pwsh
+        run: |
+          $stdout = Join-Path $env:RUNNER_TEMP 'v142-canonical-bridge.stdout.log'
+          $stderr = Join-Path $env:RUNNER_TEMP 'v142-canonical-bridge.stderr.log'
+          $process = Start-Process -FilePath node -ArgumentList 'jarvis-upload-bridge.js' -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          try {
+            $ready = $false
+            for ($i = 0; $i -lt 40; $i++) {
+              Start-Sleep -Milliseconds 250
+              $probe = Test-NetConnection -ComputerName 127.0.0.1 -Port 3344 -WarningAction SilentlyContinue
+              if ($probe.TcpTestSucceeded) { $ready = $true; break }
+              if ($process.HasExited) { break }
+            }
+            if (-not $ready) {
+              Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue
+              Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue
+              throw 'V142_LOCAL_BRIDGE_NOT_READY'
+            }
+            & node '.github/scripts/v139-canonical-real-reel.mjs'
+            if ($LASTEXITCODE -ne 0) { throw "V142_CANONICAL_MISSION_FAILED:$LASTEXITCODE" }
+            Write-Host 'V142_REUSED_CANONICAL_REAL_REEL_E2E_GREEN=true'
+          }
+          finally {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue | Select-Object -Last 120
+            Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue | Select-Object -Last 120
+          }
+
   materialize-v142:
     needs:
       - certify-linux
