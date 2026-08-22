@@ -329,3 +329,5 @@ test("existing bridge exposes research route and rejects an empty research reque
         fs.rmSync(root, { recursive: true, force: true });
     }
 });
+
+// V142 production-browser transport is exercised by the existing NEXO bootstrap contract suite.
