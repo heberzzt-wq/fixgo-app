@@ -255,7 +255,7 @@ jobs:
       - materialize-v142
     if: ${{ always() && needs.certify-linux.result == 'success' && needs.certify-windows.result == 'success' && (needs.certify-linux.outputs.product_changed == 'false' || needs.materialize-v142.result == 'success') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - name: Checkout certified V142 branch
         uses: actions/checkout@v4
@@ -301,6 +301,21 @@ jobs:
           ! grep -Fq 'multiservicios' "$config_path"
           echo 'V142_FIXGO_ONLY_HOSTING_CONFIG=true'
           firebase deploy --config "$config_path" --only hosting --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
+
+      - name: Deploy V142 JARVIS Functions only
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_TOKEN"
+          for fn in jarvisWebResearch jarvisSemanticPlan jarvisSemanticRespond; do
+            grep -Eq "exports\.${fn}[[:space:]]*=" functions/index.js
+          done
+          target_functions='functions:jarvisWebResearch,functions:jarvisSemanticPlan,functions:jarvisSemanticRespond'
+          test "$target_functions" = 'functions:jarvisWebResearch,functions:jarvisSemanticPlan,functions:jarvisSemanticRespond'
+          echo "V142_JARVIS_FUNCTION_SCOPE=${target_functions}"
+          firebase deploy --only "$target_functions" --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
 
       - name: Smoke V142 production
         shell: bash
