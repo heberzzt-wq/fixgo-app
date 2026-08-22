@@ -1540,6 +1540,31 @@ function archiveRecoveredToolAttempts(mission = {}, toolName = "", now = () => n
         .filter(item => item?.tool !== name);
 }
 
+function verifiedSpeechArtifactForReel(mission = {}) {
+    const completed = Array.isArray(mission?.completedTasks)
+        ? mission.completedTasks
+        : [];
+    const speech = [...completed].reverse().find(item =>
+        item?.name === "speech.synthesize" &&
+        item?.observation?.objectiveSatisfied === true &&
+        item?.observation?.status === "SPEECH_AUDIO_CREATED_VERIFIED"
+    );
+    const output = text(
+        speech?.observation?.artifact ||
+        speech?.observation?.evidence?.output ||
+        "",
+        500
+    ).replaceAll("\\", "/");
+    if (
+        !output.startsWith(".jarvis-artifacts/audio/") ||
+        output.includes("../") ||
+        !output.toLowerCase().endsWith(".wav")
+    ) {
+        return "";
+    }
+    return output;
+}
+
 export async function runJarvisMission({
     instruction,
     initialToolCalls = [],
@@ -1896,6 +1921,16 @@ export async function runJarvisMission({
         }
         mission.iterations += 1;
         task.attempts += 1;
+        if (task.name === "reel.create") {
+            const verifiedSpeechOutput = verifiedSpeechArtifactForReel(mission);
+            if (verifiedSpeechOutput) {
+                task.args = {
+                    ...(task.args || {}),
+                    audioOutput: verifiedSpeechOutput
+                };
+                task.signature = callSignature({ name: task.name, args: task.args });
+            }
+        }
         let result;
         try {
             result = await execute({ name: task.name, args: task.args, approved: false }, {
@@ -2098,5 +2133,6 @@ export const __test = {
     reelMediaRecoveryAllowedCalls,
     deterministicReelMediaRecoveryCall,
     archiveRecoveredMediaSourceAttempts,
-    archiveRecoveredToolAttempts
+    archiveRecoveredToolAttempts,
+    verifiedSpeechArtifactForReel
 };

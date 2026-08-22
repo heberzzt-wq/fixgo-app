@@ -1403,3 +1403,71 @@ test("mission archives an earlier blocked speech attempt after verified recovery
     assert.equal(mission.recoveredToolAttempts[0].observation.status, "SPEECH_LANGUAGE_VOICE_NOT_FOUND");
     assert.equal(mission.reason, "ALL_EXECUTABLE_TASKS_COMPLETED");
 });
+
+test("reel creation receives the verified speech artifact instead of a stale planned path", async () => {
+    let reelArgs = null;
+    const verifiedAudio = ".jarvis-artifacts/audio/physical-verified.wav";
+    const mission = await runJarvisMission({
+        instruction: "Produce narracion y reel fisico usando el audio verificado de esta misma mision.",
+        initialToolCalls: [
+            {
+                name: "speech.synthesize",
+                args: {
+                    text: "Narracion real",
+                    output: "audio-inventado.wav"
+                }
+            },
+            {
+                name: "reel.create",
+                args: {
+                    brandName: "Taqueria El Dorado",
+                    title: "Taco Macho",
+                    cta: "Visitanos",
+                    durationSeconds: 30,
+                    audioOutput: ".jarvis-artifacts/audio/stale-missing.wav",
+                    scenes: [
+                        { durationSeconds: 10, overlay: "Uno", mediaType: "image", assetDataUrl: "data:image/jpeg;base64,/9j/" },
+                        { durationSeconds: 10, overlay: "Dos", mediaType: "image", assetDataUrl: "data:image/jpeg;base64,/9j/" },
+                        { durationSeconds: 10, overlay: "Tres", mediaType: "image", assetDataUrl: "data:image/jpeg;base64,/9j/" }
+                    ]
+                }
+            }
+        ],
+        requiredToolNames: ["speech.synthesize", "reel.create"],
+        planner: async () => ({ toolCalls: [], missionComplete: true }),
+        execute: async call => {
+            if (call.name === "speech.synthesize") {
+                return {
+                    ok: true,
+                    executionOk: true,
+                    objectiveSatisfied: true,
+                    status: "SPEECH_AUDIO_CREATED_VERIFIED",
+                    output: verifiedAudio,
+                    mimeType: "audio/wav",
+                    bytes: 4096,
+                    sha256: "b".repeat(64)
+                };
+            }
+            if (call.name === "reel.create") {
+                reelArgs = structuredClone(call.args);
+                return {
+                    ok: true,
+                    executionOk: true,
+                    objectiveSatisfied: true,
+                    status: "REEL_VIDEO_CREATED_VERIFIED",
+                    output: ".jarvis-artifacts/reels/taco-macho.mp4",
+                    mimeType: "video/mp4",
+                    bytes: 8192,
+                    sha256: "c".repeat(64)
+                };
+            }
+            return { ok: false, status: "UNEXPECTED_TOOL" };
+        },
+        storage: memoryStorage()
+    });
+
+    assert.equal(reelArgs?.audioOutput, verifiedAudio);
+    assert.equal(mission.completedTasks.some(item => item.name === "speech.synthesize"), true);
+    assert.equal(mission.completedTasks.some(item => item.name === "reel.create"), true);
+    assert.equal(mission.blockedTasks.length, 0);
+});

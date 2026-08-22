@@ -133,3 +133,11 @@ test("V142 waits for the real browser export completion state", () => {
   assert.match(source, /setTimeout\(finish, 100\)/);
   assert.match(source, /Math\.max\(45000, duration \* 1000 \+ 30000\)/);
 });
+
+test("V142 canonicalizes planner speech output at the physical bridge boundary", () => {
+  const source = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
+  assert.match(source, /const requestedSpeechOutput = String\(req\.body\?\.output \|\| ""\)/);
+  assert.match(source, /requestedSpeechOutput\.startsWith\("\.jarvis-artifacts\/audio\/"\)/);
+  assert.match(source, /requestedSpeechOutput\.toLowerCase\(\)\.endsWith\("\.wav"\)/);
+  assert.match(source, /output: speechOutput/);
+});

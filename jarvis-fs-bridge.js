@@ -4536,8 +4536,18 @@ export function createJarvisFsBridgeApp({
 
     app.post("/speech/synthesize", async (req, res) => {
         try {
+            const requestedSpeechOutput = String(req.body?.output || "")
+                .trim()
+                .replaceAll("\\", "/");
+            const speechOutput =
+                requestedSpeechOutput.startsWith(".jarvis-artifacts/audio/") &&
+                !requestedSpeechOutput.includes("../") &&
+                requestedSpeechOutput.toLowerCase().endsWith(".wav")
+                    ? requestedSpeechOutput
+                    : "";
             const speech = synthesizeSpeechArtifact({
                 ...(req.body || {}),
+                output: speechOutput,
                 root
             });
             const artifact = registerArtifact({
