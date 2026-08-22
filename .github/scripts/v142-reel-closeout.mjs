@@ -18,9 +18,7 @@ async function write(file, source) {
 function replaceOnce(source, before, after, label) {
     if (source.includes(after)) return source;
     const count = source.split(before).length - 1;
-    if (count !== 1) {
-        throw new Error(`${label}_MATCH_COUNT_${count}`);
-    }
+    if (count !== 1) throw new Error(`${label}_MATCH_COUNT_${count}`);
     return source.replace(before, after);
 }
 
@@ -32,8 +30,10 @@ function appendOnce(source, marker, addition) {
 let bridge = await read(paths.bridge);
 bridge = replaceOnce(
     bridge,
-    'const JARVIS_FS_BRIDGE_VERSION = "2.45.0-native-mp4-reel-export-v138";',
-    'const JARVIS_FS_BRIDGE_VERSION = "2.46.0-reel-export-completion-v142";',
+`export const JARVIS_FS_BRIDGE_VERSION =
+    "2.45.0-native-mp4-reel-export-v138";`,
+`export const JARVIS_FS_BRIDGE_VERSION =
+    "2.46.0-reel-export-completion-v142";`,
     "BRIDGE_VERSION"
 );
 bridge = replaceOnce(
