@@ -215,3 +215,5 @@ if (!finalMultitool.includes("hardDomainScope")) throw new Error("V142_HARD_DOMA
 if (finalMarketing.includes("NEXO preparó una campaña específica")) throw new Error("V142_PUBLIC_NEXO_MARKETING_STRING_PRESENT");
 
 console.log("V142_EXISTING_CONTRACT_CONSOLIDATION_APPLIED=true");
+
+// V142 local bridge hydration certification trigger.
