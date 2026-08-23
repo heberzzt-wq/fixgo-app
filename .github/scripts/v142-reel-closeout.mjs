@@ -147,6 +147,116 @@ core = replaceOnce(
                     ) {`,
     "DEFERRED_FIRST_STEP_ARGUMENT_COMPLETION"
 );
+
+core = replaceOnce(
+    core,
+`        const lightMultifunctionCalls =
+            await buildJarvisMultifunctionToolCalls(
+                inputRaw,
+                {
+                    state,
+                    missionState: {
+                        phase: "CURRENT_TURN",
+                        semanticMemoryAvailable: Boolean(semanticMemory),
+                        advisorySemanticContext: compactJarvisSemanticMemoryForPlanner(semanticMemory),
+                        writeAllowed: false
+                    }
+                }
+            );`,
+`        let lightMultifunctionCalls = [];
+        let lastCurrentTurnPlannerError = null;
+        for (let attempt = 1; attempt <= 2; attempt += 1) {
+            try {
+                lightMultifunctionCalls =
+                    await buildJarvisMultifunctionToolCalls(
+                        inputRaw,
+                        {
+                            state,
+                            throwOnUnavailable: true,
+                            missionState: {
+                                phase: "CURRENT_TURN",
+                                semanticMemoryAvailable: Boolean(semanticMemory),
+                                advisorySemanticContext: compactJarvisSemanticMemoryForPlanner(semanticMemory),
+                                writeAllowed: false
+                            }
+                        }
+                    );
+                lastCurrentTurnPlannerError = null;
+                break;
+            }
+            catch(error) {
+                lastCurrentTurnPlannerError = error;
+                const message = String(
+                    error?.message ||
+                    "SEMANTIC_PLANNER_UNAVAILABLE"
+                );
+                const providerFallbackExhausted =
+                    message.includes("__BROWSER_") ||
+                    message.includes("TIMEOUT_") ||
+                    message.includes("AUTH_REQUIRED");
+                if (
+                    attempt >= 2 ||
+                    providerFallbackExhausted
+                ) {
+                    throw error;
+                }
+                console.warn(
+                    "[CURRENT_TURN_SEMANTIC_PLANNER_TRANSIENT_RETRY]",
+                    attempt,
+                    message
+                );
+                await new Promise(resolve =>
+                    setTimeout(resolve, 350)
+                );
+            }
+        }
+        if (lastCurrentTurnPlannerError) {
+            throw lastCurrentTurnPlannerError;
+        }`,
+    "CURRENT_TURN_SEMANTIC_PLANNER_RETRY"
+);
+
+core = replaceOnce(
+    core,
+`        const terminalSemanticPlan =
+            await this.analizarIntencionLigera(
+                inputRaw,
+                {
+                    ...context,
+                    tenantId
+                }
+            );`,
+`        let terminalSemanticPlan;
+        try {
+            terminalSemanticPlan =
+                await this.analizarIntencionLigera(
+                    inputRaw,
+                    {
+                        ...context,
+                        tenantId
+                    }
+                );
+        }
+        catch(error) {
+            const semanticPlannerError =
+                String(
+                    error?.message ||
+                    "SEMANTIC_PLANNER_UNAVAILABLE"
+                );
+            console.error(
+                "[CURRENT_TURN_SEMANTIC_PLANNER_UNAVAILABLE]",
+                semanticPlannerError
+            );
+            return {
+                status: "halted",
+                reason: "SEMANTIC_PLANNER_UNAVAILABLE",
+                error: semanticPlannerError,
+                message:
+                    "El planner semantico unico no esta disponible; no se degradara este fallo a un falso plan vacio."
+            };
+        }`,
+    "CURRENT_TURN_SEMANTIC_PLANNER_TRUTH"
+);
 await write(paths.core, core);
 
 const orchestrator = await read(paths.orchestrator);
@@ -232,6 +342,22 @@ reelTest = appendOnce(
   assert.equal(coreSource.includes("const shouldCompletePlanningArguments ="), true);
   assert.equal(coreSource.includes("call?.deferred === true"), true);
   assert.equal(coreSource.includes("SEMANTIC_PLANNER_NO_EXECUTABLE_PLAN"), true);
+});`
+);
+
+reelTest = appendOnce(
+    reelTest,
+    "V142 current turn preserves semantic planner outage truth",
+`test("V142 current turn preserves semantic planner outage truth", () => {
+  const coreSource = fs.readFileSync(
+    new URL("../gestia-core/gestia-core.js", import.meta.url),
+    "utf8"
+  );
+  assert.equal(coreSource.includes("[CURRENT_TURN_SEMANTIC_PLANNER_TRANSIENT_RETRY]"), true);
+  assert.equal(coreSource.includes("throwOnUnavailable: true"), true);
+  assert.equal(coreSource.includes("[CURRENT_TURN_SEMANTIC_PLANNER_UNAVAILABLE]"), true);
+  assert.equal(coreSource.includes('reason: "SEMANTIC_PLANNER_UNAVAILABLE"'), true);
+  assert.equal(coreSource.includes("no se degradara este fallo a un falso plan vacio"), true);
 });`
 );
 
