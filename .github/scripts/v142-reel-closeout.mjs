@@ -280,12 +280,12 @@ reelTest = appendOnce(reelTest,
         if (reelPlanAttempts === 1) return { ok: true, executionOk: true, objectiveSatisfied: false, blocked: true, retryable: false, requiresInput: false, status: "REEL_VERIFIED_SCENE_MEDIA_REQUIRED" };
         return { ok: true, executionOk: true, objectiveSatisfied: true, status: "REEL_PLAN_READY", ...planArgs, timelineSeconds: 30, scenes: planArgs.scenes.map(scene => ({ ...scene, assetOutput: ".jarvis-artifacts/web-media/www-tiktok-com/taqueria-el-dorado/taco.jpg", mediaType: "image", sourceMedia: { origin: "web.media.collect", sha256: "b".repeat(64) } })) };
       }
-      if (name === "speech.synthesize") return { ok: true, executionOk: true, objectiveSatisfied: true, status: "SPEECH_AUDIO_CREATED_VERIFIED", artifact: ".jarvis-artifacts/audio/narration-taqueria.wav", evidence: { output: ".jarvis-artifacts/audio/narration-taqueria.wav", mimeType: "audio/wav", bytes: 180000, sha256: "a".repeat(64) } };
+      if (name === "speech.synthesize") return { ok: true, executionOk: true, objectiveSatisfied: true, status: "SPEECH_AUDIO_CREATED_VERIFIED", output: ".jarvis-artifacts/audio/narration-taqueria.wav", mimeType: "audio/wav", bytes: 180000, sha256: "a".repeat(64), durationSeconds: 18 };
       if (name === "reel.create") {
         assert.equal(args.audioOutput, ".jarvis-artifacts/audio/narration-taqueria.wav");
         assert.equal(Array.isArray(args.scenes), true);
         assert.equal(args.scenes.length, 3);
-        return { ok: true, executionOk: true, objectiveSatisfied: true, status: "REEL_VIDEO_CREATED_VERIFIED", artifact: ".jarvis-artifacts/reels/taqueria-el-dorado.mp4", evidence: { output: ".jarvis-artifacts/reels/taqueria-el-dorado.mp4", mimeType: "video/mp4", bytes: 900000, sha256: "c".repeat(64), durationSeconds: 30, renderedFrameCount: 900, averageRenderedFps: 30 } };
+        return { ok: true, executionOk: true, objectiveSatisfied: true, status: "REEL_VIDEO_CREATED_VERIFIED", output: ".jarvis-artifacts/reels/taqueria-el-dorado.mp4", mimeType: "video/mp4", bytes: 900000, sha256: "c".repeat(64), durationSeconds: 30, renderedFrameCount: 900, averageRenderedFps: 30 };
       }
       throw new Error("UNEXPECTED_TOOL_" + name);
     }
