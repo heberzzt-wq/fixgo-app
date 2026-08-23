@@ -1,14 +1,12 @@
 import fs from "node:fs/promises";
 
 const paths = {
-    bridge: "jarvis-fs-bridge.js",
     core: "gestia-core/gestia-core.js",
     planner: "gestia-core/jarvis/jarvis.multifunction.planner.js",
     orchestrator: "gestia-core/jarvis/jarvis.mission.orchestrator.js",
+    bridge: "jarvis-fs-bridge.js",
     reelArtifact: "jarvis-reel-artifact.js",
-    reelTest: "tests/jarvis-reel-native-mp4-v138.test.mjs",
-    fsBridgeTest: "tests/jarvis-fs-bridge-v2.test.mjs",
-    semanticPlannerTest: "tests/jarvis-semantic-planner.test.cjs"
+    reelTest: "tests/jarvis-reel-native-mp4-v138.test.mjs"
 };
 
 async function read(file) {
@@ -31,296 +29,25 @@ function appendOnce(source, marker, addition) {
     return `${source.trimEnd()}\n\n${addition.trim()}\n`;
 }
 
-function removeReelLexicalContentGate(source) {
-    const semanticTextBlock = `    const semanticText = [
-        input.brandName,
-        input.title,
-        input.cta,
-        ...(Array.isArray(input.scenes)
-            ? input.scenes.flatMap(scene => [scene?.overlay, scene?.subtitle, scene?.visualDescription])
-            : [])
-    ].map(value => clean(value)).filter(Boolean).join("\\n");
-`;
-    if (source.includes(semanticTextBlock)) {
-        source = source.replace(semanticTextBlock, "");
-    }
-
-    const lexicalChecks = [
-        `            noPlaceholders: !/\\bTODO\\b/i.test(semanticText) && !/Lorem ipsum/i.test(semanticText)`,
-        `            noPlaceholders: !/\\bTODO\\b/.test(semanticText) && !/Lorem ipsum/i.test(semanticText)`
-    ];
-    let removed = false;
-    for (const check of lexicalChecks) {
-        if (!source.includes(check)) continue;
-        source = source.replace(`,\n${check}`, "");
-        removed = true;
-    }
-    if (!removed && source.includes("noPlaceholders:")) {
-        throw new Error("REEL_LEXICAL_CONTENT_GATE_UNKNOWN_SHAPE");
-    }
-    return source;
-}
-
-let bridge = await read(paths.bridge);
-bridge = replaceOnce(
-    bridge,
-    '"2.46.0-reel-export-completion-v142"',
-    '"2.47.0-dual-human-recovery-v142"',
-    "V142_BRIDGE_DUAL_HUMAN_RELEASE"
-);
+const bridge = await read(paths.bridge);
 for (const marker of [
+    "2.47.0-dual-human-recovery-v142",
+    "REEL_STUDIO_POST_VERIFY_FAILED:",
     "detached_contract_head",
     "speechSynthesisRecoveryInputs",
-    "canonicalSeedUrl",
-    "tiktokOembedVisualSeed",
-    "speechRecovery"
+    "tiktokOembedVisualSeed"
 ]) {
-    if (!bridge.includes(marker)) {
-        throw new Error(`V142_BRIDGE_MATERIALIZATION_REQUIRED:${marker}`);
-    }
+    if (!bridge.includes(marker)) throw new Error(`V142_BRIDGE_STATE_REQUIRED:${marker}`);
 }
 
-bridge = replaceOnce(
-    bridge,
-`            const verification = describeReelStudio(hydrated, html);
-            if (!Object.values(verification.checks).every(Boolean)) throw new Error("REEL_STUDIO_POST_VERIFY_FAILED");`,
-`            const verification = describeReelStudio(hydrated, html);
-            const failedChecks = Object.entries(verification.checks)
-                .filter(([, passed]) => passed !== true)
-                .map(([name]) => name);
-            if (failedChecks.length > 0) {
-                throw new Error(
-                    "REEL_STUDIO_POST_VERIFY_FAILED:" + failedChecks.join(",")
-                );
-            }`,
-    "REEL_POST_VERIFY_EXACT_CHECK"
-);
-await write(paths.bridge, bridge);
-
-let planner = await read(paths.planner);
-planner = replaceOnce(
-    planner,
-`    "Distingue entre objetos de entrada, temas mencionados y resultados realmente solicitados: mencionar una capacidad, formato, archivo o tema no equivale a pedir que se ejecute o produzca.",
-    "Selecciona solamente las herramientas necesarias para satisfacer la intencion actual y conserva cada objetivo independiente pedido por el usuario.",`,
-`    "Distingue entre objetos de entrada, temas mencionados y resultados realmente solicitados: mencionar una capacidad, formato, archivo o tema no equivale a pedir que se ejecute o produzca.",
-    "Cuando la instruccion actual aporte material de produccion listo para ejecutar y el contexto semantico asesor de esta conversacion confirme de forma inequivoca una produccion activa, interpreta ese material como continuacion de la misma produccion y selecciona las herramientas necesarias sin exigir que el usuario repita un verbo de ejecucion. El contenido o su formato, por si solos y sin esa continuidad semantica, no autorizan ejecutar nada.",
-    "Selecciona solamente las herramientas necesarias para satisfacer la intencion actual y conserva cada objetivo independiente pedido por el usuario.",`,
-    "SEMANTIC_STRUCTURED_PRODUCTION_CONTINUATION"
-);
-planner = replaceOnce(
-    planner,
-`            body: JSON.stringify({ data: { input, catalog, missionState } }),`,
-`            body: JSON.stringify({
-                data: {
-                    input,
-                    catalog,
-                    missionState: {
-                        ...(missionState && typeof missionState === "object" ? missionState : {}),
-                        generalistCurrentTurnPolicy: GENERALIST_CURRENT_TURN_POLICY
-                    }
-                }
-            }),`,
-    "GENERALIST_POLICY_DELIVERY"
-);
-await write(paths.planner, planner);
-
-let core = await read(paths.core);
-core = replaceOnce(
-    core,
-`                    if (
-                        !argumentGrounded &&
-                        toolDefinition?.inputSchema &&
-                        Array.isArray(missionContext?.completedTasks) &&
-                        missionContext.completedTasks.length > 0
-                    ) {`,
-`                    const shouldCompletePlanningArguments =
-                        call?.deferred === true ||
-                        (
-                            Array.isArray(missionContext?.completedTasks) &&
-                            missionContext.completedTasks.length > 0
-                        );
-
-                    if (
-                        !argumentGrounded &&
-                        toolDefinition?.inputSchema &&
-                        shouldCompletePlanningArguments
-                    ) {`,
-    "DEFERRED_FIRST_STEP_ARGUMENT_COMPLETION"
-);
-
-const currentTurnPlannerLegacy = `        const lightMultifunctionCalls =
-            await buildJarvisMultifunctionToolCalls(
-                inputRaw,
-                {
-                    state,
-                    missionState: {
-                        phase: "CURRENT_TURN",
-                        semanticMemoryAvailable: Boolean(semanticMemory),
-                        advisorySemanticContext: compactJarvisSemanticMemoryForPlanner(semanticMemory),
-                        writeAllowed: false
-                    }
-                }
-            );`;
-const currentTurnPlannerTwoAttempts = `        let lightMultifunctionCalls = [];
-        let lastCurrentTurnPlannerError = null;
-        for (let attempt = 1; attempt <= 2; attempt += 1) {
-            try {
-                lightMultifunctionCalls =
-                    await buildJarvisMultifunctionToolCalls(
-                        inputRaw,
-                        {
-                            state,
-                            throwOnUnavailable: true,
-                            missionState: {
-                                phase: "CURRENT_TURN",
-                                semanticMemoryAvailable: Boolean(semanticMemory),
-                                advisorySemanticContext: compactJarvisSemanticMemoryForPlanner(semanticMemory),
-                                writeAllowed: false
-                            }
-                        }
-                    );
-                lastCurrentTurnPlannerError = null;
-                break;
-            }
-            catch(error) {
-                lastCurrentTurnPlannerError = error;
-                const message = String(
-                    error?.message ||
-                    "SEMANTIC_PLANNER_UNAVAILABLE"
-                );
-                const providerFallbackExhausted =
-                    message.includes("__BROWSER_") ||
-                    message.includes("TIMEOUT_") ||
-                    message.includes("AUTH_REQUIRED");
-                if (
-                    attempt >= 2 ||
-                    providerFallbackExhausted
-                ) {
-                    throw error;
-                }
-                console.warn(
-                    "[CURRENT_TURN_SEMANTIC_PLANNER_TRANSIENT_RETRY]",
-                    attempt,
-                    message
-                );
-                await new Promise(resolve =>
-                    setTimeout(resolve, 350)
-                );
-            }
-        }
-        if (lastCurrentTurnPlannerError) {
-            throw lastCurrentTurnPlannerError;
-        }`;
-const currentTurnPlannerThreeAttempts = `        let lightMultifunctionCalls = [];
-        let lastCurrentTurnPlannerError = null;
-        for (let attempt = 1; attempt <= 3; attempt += 1) {
-            try {
-                lightMultifunctionCalls =
-                    await buildJarvisMultifunctionToolCalls(
-                        inputRaw,
-                        {
-                            state,
-                            throwOnUnavailable: true,
-                            missionState: {
-                                phase: "CURRENT_TURN",
-                                semanticMemoryAvailable: Boolean(semanticMemory),
-                                advisorySemanticContext: compactJarvisSemanticMemoryForPlanner(semanticMemory),
-                                writeAllowed: false
-                            }
-                        }
-                    );
-                lastCurrentTurnPlannerError = null;
-                break;
-            }
-            catch(error) {
-                lastCurrentTurnPlannerError = error;
-                const message = String(
-                    error?.message ||
-                    "SEMANTIC_PLANNER_UNAVAILABLE"
-                );
-                const providerFallbackExhausted =
-                    message.includes("__BROWSER_") ||
-                    message.includes("TIMEOUT_") ||
-                    message.includes("AUTH_REQUIRED");
-                if (
-                    attempt >= 3 ||
-                    providerFallbackExhausted
-                ) {
-                    throw error;
-                }
-                const retryDelayMs =
-                    attempt === 1 ? 500 : 1500;
-                console.warn(
-                    "[CURRENT_TURN_SEMANTIC_PLANNER_TRANSIENT_RETRY]",
-                    attempt,
-                    message,
-                    retryDelayMs
-                );
-                await new Promise(resolve =>
-                    setTimeout(resolve, retryDelayMs)
-                );
-            }
-        }
-        if (lastCurrentTurnPlannerError) {
-            throw lastCurrentTurnPlannerError;
-        }`;
-if (!core.includes(currentTurnPlannerThreeAttempts)) {
-    core = replaceOnce(
-        core,
-        currentTurnPlannerLegacy,
-        currentTurnPlannerTwoAttempts,
-        "CURRENT_TURN_SEMANTIC_PLANNER_RETRY"
-    );
+const planner = await read(paths.planner);
+for (const marker of [
+    "generalistCurrentTurnPolicy: GENERALIST_CURRENT_TURN_POLICY",
+    "contexto semantico asesor de esta conversacion confirme de forma inequivoca una produccion activa",
+    "por si solos y sin esa continuidad semantica, no autorizan ejecutar nada"
+]) {
+    if (!planner.includes(marker)) throw new Error(`V142_PLANNER_STATE_REQUIRED:${marker}`);
 }
-core = replaceOnce(
-    core,
-    currentTurnPlannerTwoAttempts,
-    currentTurnPlannerThreeAttempts,
-    "CURRENT_TURN_SEMANTIC_PLANNER_TRANSPORT_HARDENING"
-);
-
-core = replaceOnce(
-    core,
-`        const terminalSemanticPlan =
-            await this.analizarIntencionLigera(
-                inputRaw,
-                {
-                    ...context,
-                    tenantId
-                }
-            );`,
-`        let terminalSemanticPlan;
-        try {
-            terminalSemanticPlan =
-                await this.analizarIntencionLigera(
-                    inputRaw,
-                    {
-                        ...context,
-                        tenantId
-                    }
-                );
-        }
-        catch(error) {
-            const semanticPlannerError =
-                String(
-                    error?.message ||
-                    "SEMANTIC_PLANNER_UNAVAILABLE"
-                );
-            console.error(
-                "[CURRENT_TURN_SEMANTIC_PLANNER_UNAVAILABLE]",
-                semanticPlannerError
-            );
-            return {
-                status: "halted",
-                reason: "SEMANTIC_PLANNER_UNAVAILABLE",
-                error: semanticPlannerError,
-                message:
-                    "El planner semantico unico no esta disponible; no se degradara este fallo a un falso plan vacio."
-            };
-        }`,
-    "CURRENT_TURN_SEMANTIC_PLANNER_TRUTH"
-);
-await write(paths.core, core);
 
 const orchestrator = await read(paths.orchestrator);
 for (const marker of [
@@ -328,128 +55,144 @@ for (const marker of [
     "REEL_PLAN_RETRY_AFTER_MEDIA_RECOVERY",
     "reelCreateArgsFromVerifiedPlan"
 ]) {
-    if (!orchestrator.includes(marker)) {
-        throw new Error(`V142_ORCHESTRATOR_MATERIALIZATION_REQUIRED:${marker}`);
-    }
+    if (!orchestrator.includes(marker)) throw new Error(`V142_ORCHESTRATOR_STATE_REQUIRED:${marker}`);
 }
 
-let reelArtifact = await read(paths.reelArtifact);
-reelArtifact = removeReelLexicalContentGate(reelArtifact);
-await write(paths.reelArtifact, reelArtifact);
+const reelArtifact = await read(paths.reelArtifact);
+if (reelArtifact.includes("noPlaceholders:")) {
+    throw new Error("V142_REEL_LEXICAL_CONTENT_GATE_REGRESSION");
+}
+
+let core = await read(paths.core);
+for (const marker of [
+    "[CURRENT_TURN_SEMANTIC_PLANNER_TRANSIENT_RETRY]",
+    "attempt <= 3",
+    "call?.deferred === true",
+    "reason: \"SEMANTIC_PLANNER_UNAVAILABLE\""
+]) {
+    if (!core.includes(marker)) throw new Error(`V142_CORE_STATE_REQUIRED:${marker}`);
+}
+
+const missionContractBefore = `    let missionContractToolCalls;
+    try {
+        missionContractToolCalls =
+            await buildJarvisMultifunctionToolCalls(
+                inputRaw.slice(0, 120000),
+                {
+                    ...context,
+                    throwOnUnavailable: true,
+                    toolCatalog: missionToolCatalog,
+                    missionState: {
+                        phase: "MISSION_CONTRACT",
+                        writeAllowed: false,
+                        userArtifactAllowed: true,
+                        existingInitialTools: operationalInitialToolCalls.map(call => call?.name).filter(Boolean),
+                        semanticMemoryAvailable: Boolean(semanticMemoryContext),
+                        advisorySemanticContext: compactJarvisSemanticMemoryForPlanner(semanticMemoryContext)
+                    }
+                }
+            );
+    } catch (contractError) {
+        console.warn("[MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN]", contractError);
+        const allowedMissionTools = new Set(missionToolCatalog.map(tool => tool.name));
+        missionContractToolCalls = operationalInitialToolCalls.filter(
+            call => allowedMissionTools.has(call?.name)
+        );
+        if (missionContractToolCalls.length === 0) throw contractError;
+    }`;
+
+const missionContractAfter = `    let missionContractToolCalls;
+    let lastMissionContractError = null;
+    for (let missionContractAttempt = 1; missionContractAttempt <= 3; missionContractAttempt += 1) {
+        try {
+            missionContractToolCalls =
+                await buildJarvisMultifunctionToolCalls(
+                    inputRaw.slice(0, 120000),
+                    {
+                        ...context,
+                        throwOnUnavailable: true,
+                        toolCatalog: missionToolCatalog,
+                        missionState: {
+                            phase: "MISSION_CONTRACT",
+                            writeAllowed: false,
+                            userArtifactAllowed: true,
+                            existingInitialTools: operationalInitialToolCalls.map(call => call?.name).filter(Boolean),
+                            semanticMemoryAvailable: Boolean(semanticMemoryContext),
+                            advisorySemanticContext: compactJarvisSemanticMemoryForPlanner(semanticMemoryContext)
+                        }
+                    }
+                );
+            lastMissionContractError = null;
+            break;
+        }
+        catch(error) {
+            lastMissionContractError = error;
+            if (missionContractAttempt >= 3) break;
+            const retryDelayMs = missionContractAttempt === 1 ? 500 : 1500;
+            console.warn(
+                "[MISSION_CONTRACT_SEMANTIC_PLANNER_TRANSIENT_RETRY]",
+                missionContractAttempt,
+                String(error?.message || error),
+                retryDelayMs
+            );
+            await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+        }
+    }
+    if (lastMissionContractError) {
+        console.warn("[MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN]", lastMissionContractError);
+        const allowedMissionTools = new Set(missionToolCatalog.map(tool => tool.name));
+        const recoveredInitialToolCalls = operationalInitialToolCalls.filter(
+            call => allowedMissionTools.has(call?.name)
+        );
+        const incompleteProductionFallback = recoveredInitialToolCalls.some(call =>
+            call?.name === "marketing.plan" &&
+            call?.args?.productionRequested === true &&
+            (
+                !Array.isArray(call?.args?.productionArtifacts) ||
+                call.args.productionArtifacts.length === 0
+            )
+        );
+        if (recoveredInitialToolCalls.length === 0 || incompleteProductionFallback) {
+            throw lastMissionContractError;
+        }
+        missionContractToolCalls = recoveredInitialToolCalls;
+    }`;
+
+core = replaceOnce(
+    core,
+    missionContractBefore,
+    missionContractAfter,
+    "MISSION_CONTRACT_RETRY_AND_FAIL_CLOSED"
+);
+await write(paths.core, core);
 
 let reelTest = await read(paths.reelTest);
-for (const marker of [
-    "V142 recovers a language-only speech request when the requested culture is unavailable",
-    "V142 requeues the same reel plan after verified media recovery",
-    "V142 hands verified semantically bound reel-plan scenes to reel.create"
-]) {
-    if (!reelTest.includes(marker)) {
-        throw new Error(`V142_REEL_TEST_MATERIALIZATION_REQUIRED:${marker}`);
-    }
-}
-
-reelTest = replaceOnce(
-    reelTest,
-    `  assert.match(source, /2\\.46\\.0-reel-export-completion-v142/);`,
-    `  assert.match(source, /2\\.47\\.0-dual-human-recovery-v142/);`,
-    "V142_REEL_EXPORT_RELEASE_EXPECTATION"
-);
-
 reelTest = appendOnce(
     reelTest,
-    "V142 reel Studio does not lexically block user content",
-`test("V142 reel Studio does not lexically block user content", () => {
-  for (const phrase of [
-    "Mostrar todo el taco y el queso derretido",
-    "TODO reemplazar esta toma",
-    "Lorem ipsum puede ser texto intencional del usuario",
-    "ToDo, TODO, todo: cualquier texto es contenido, no un gate fisico"
-  ]) {
-    const candidate = input();
-    candidate.scenes[0].visualDescription = phrase;
-    candidate.scenes[0].subtitle = phrase;
-    const html = buildReelStudioHtml(candidate);
-    const verification = describeReelStudio(candidate, html);
-    assert.equal(Object.hasOwn(verification.checks, "noPlaceholders"), false);
-    assert.equal(Object.values(verification.checks).every(Boolean), true);
-  }
-});`
-);
-
-reelTest = appendOnce(
-    reelTest,
-    "V142 reel bridge reports the exact failed Studio post-verification checks",
-`test("V142 reel bridge reports the exact failed Studio post-verification checks", () => {
-  const source = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
-  assert.equal(source.includes("const failedChecks = Object.entries(verification.checks)"), true);
-  assert.equal(source.includes("REEL_STUDIO_POST_VERIFY_FAILED:"), true);
-  assert.equal(source.includes('failedChecks.join(",")'), true);
-});`
-);
-
-reelTest = appendOnce(
-    reelTest,
-    "V142 structured production continuation reaches the semantic planner and deferred first step",
-`test("V142 structured production continuation reaches the semantic planner and deferred first step", () => {
-  const plannerSource = fs.readFileSync(
-    new URL("../gestia-core/jarvis/jarvis.multifunction.planner.js", import.meta.url),
-    "utf8"
-  );
+    "V142 mission contract retries the same semantic authority and rejects amputated production fallback",
+`test("V142 mission contract retries the same semantic authority and rejects amputated production fallback", () => {
   const coreSource = fs.readFileSync(
     new URL("../gestia-core/gestia-core.js", import.meta.url),
     "utf8"
   );
-  assert.equal(plannerSource.includes("generalistCurrentTurnPolicy: GENERALIST_CURRENT_TURN_POLICY"), true);
-  assert.equal(plannerSource.includes("contexto semantico asesor de esta conversacion confirme de forma inequivoca una produccion activa"), true);
-  assert.equal(plannerSource.includes("por si solos y sin esa continuidad semantica, no autorizan ejecutar nada"), true);
-  assert.equal(coreSource.includes("const shouldCompletePlanningArguments ="), true);
-  assert.equal(coreSource.includes("call?.deferred === true"), true);
-  assert.equal(coreSource.includes("SEMANTIC_PLANNER_NO_EXECUTABLE_PLAN"), true);
-});`
-);
-
-reelTest = appendOnce(
-    reelTest,
-    "V142 current turn preserves semantic planner outage truth",
-`test("V142 current turn preserves semantic planner outage truth", () => {
-  const coreSource = fs.readFileSync(
-    new URL("../gestia-core/gestia-core.js", import.meta.url),
-    "utf8"
-  );
-  assert.equal(coreSource.includes("[CURRENT_TURN_SEMANTIC_PLANNER_TRANSIENT_RETRY]"), true);
-  assert.equal(coreSource.includes("throwOnUnavailable: true"), true);
-  assert.equal(coreSource.includes("attempt <= 3"), true);
-  assert.equal(coreSource.includes("attempt === 1 ? 500 : 1500"), true);
-  assert.equal(coreSource.includes("[CURRENT_TURN_SEMANTIC_PLANNER_UNAVAILABLE]"), true);
-  assert.equal(coreSource.includes('reason: "SEMANTIC_PLANNER_UNAVAILABLE"'), true);
-  assert.equal(coreSource.includes("no se degradara este fallo a un falso plan vacio"), true);
-});`
-);
-
-reelTest = appendOnce(
-    reelTest,
-    "V142 bridge release identifies the dual human-red recovery bytes",
-`test("V142 bridge release identifies the dual human-red recovery bytes", () => {
-  const source = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
-  assert.equal(source.includes("2.47.0-dual-human-recovery-v142"), true);
+  assert.equal(coreSource.includes("missionContractAttempt <= 3"), true);
+  assert.equal(coreSource.includes("[MISSION_CONTRACT_SEMANTIC_PLANNER_TRANSIENT_RETRY]"), true);
+  assert.equal(coreSource.includes("const incompleteProductionFallback = recoveredInitialToolCalls.some"), true);
+  assert.equal(coreSource.includes('call?.name === "marketing.plan"'), true);
+  assert.equal(coreSource.includes("call?.args?.productionRequested === true"), true);
+  assert.equal(coreSource.includes("call.args.productionArtifacts.length === 0"), true);
+  assert.equal(coreSource.includes("throw lastMissionContractError"), true);
 });`
 );
 await write(paths.reelTest, reelTest);
 
-let fsBridgeTest = await read(paths.fsBridgeTest);
-fsBridgeTest = replaceOnce(
-    fsBridgeTest,
-    `    assert.equal(description.version, "2.46.0-reel-export-completion-v142");`,
-    `    assert.equal(description.version, "2.47.0-dual-human-recovery-v142");`,
-    "V142_FS_BRIDGE_RELEASE_EXPECTATION"
-);
-await write(paths.fsBridgeTest, fsBridgeTest);
-
-let semanticPlannerTest = await read(paths.semanticPlannerTest);
-semanticPlannerTest = semanticPlannerTest.replace(
-    /\n{3,}(const catalog = \[)/,
-    "\n\n$1"
-);
-await write(paths.semanticPlannerTest, semanticPlannerTest);
-
-console.log("V142_REEL_CLOSEOUT_APPLIED=true");
+console.log(JSON.stringify({
+    ok: true,
+    status: "V142_REEL_CLOSEOUT_APPLIED",
+    sameSemanticAuthority: true,
+    missionContractAttempts: 3,
+    partialProductionFallbackRejected: true,
+    newFiles: false,
+    newContracts: false,
+    newBrains: false
+}));
