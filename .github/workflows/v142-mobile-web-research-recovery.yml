@@ -20,6 +20,7 @@ on:
       - 'jarvis-upload-bridge.js'
       - 'jarvis-fs-bridge.js'
       - 'jarvis-reel-artifact.js'
+      - 'modules/terminal/jarvis-attachments.js'
       - 'tests/jarvis-mobile-web-research-recovery-v142.test.mjs'
       - 'tests/jarvis-genai-provider-chain.test.cjs'
       - 'tests/jarvis-web-research.test.cjs'
@@ -102,6 +103,33 @@ jobs:
           node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
           node --check jarvis-upload-bridge.js
           node --check jarvis-fs-bridge.js
+          node --check modules/terminal/jarvis-attachments.js
+
+      - name: Verify persistent artifact download lifecycle
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const source = fs.readFileSync('modules/terminal/jarvis-attachments.js', 'utf8');
+          const required = [
+            '2.5.0-artifact-download-lifecycle-v142',
+            'previewObjectUrls: new Set()',
+            'artifactObjectUrls: new Set()',
+            'state.previewObjectUrls.forEach(url => URL.revokeObjectURL(url))',
+            'state.artifactObjectUrls.add(objectUrl)',
+            'persistentArtifactDownloads: true',
+            'window.addEventListener("beforeunload"'
+          ];
+          for (const marker of required) {
+            if (!source.includes(marker)) throw new Error(`V142_ARTIFACT_DOWNLOAD_LIFECYCLE_MISSING:${marker}`);
+          }
+          const clearStart = source.indexOf('function clear()');
+          const clearEnd = source.indexOf('\n}\n\nfunction observationTool', clearStart);
+          if (clearStart < 0 || clearEnd < 0) throw new Error('V142_ARTIFACT_CLEAR_BLOCK_MISSING');
+          const clearSource = source.slice(clearStart, clearEnd);
+          if (clearSource.includes('artifactObjectUrls')) throw new Error('V142_CLEAR_REVOKES_DELIVERED_ARTIFACTS');
+          if (source.includes('state.objectUrls.add(objectUrl)')) throw new Error('V142_SHARED_OBJECT_URL_BUCKET_REGRESSION');
+          NODE
 
       - name: V142 focal contracts
         run: |
@@ -132,7 +160,7 @@ jobs:
           fi
           while IFS= read -r file; do
             case "$file" in
-              gestia-core/gestia-core.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|gestia-core/jarvis/jarvis.mission.orchestrator.js|functions/jarvis-genai-provider-chain.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|jarvis-fs-bridge.js|jarvis-reel-artifact.js|tests/jarvis-genai-provider-chain.test.cjs|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs|tests/jarvis-mission-orchestrator.test.mjs|tests/jarvis-reel-native-mp4-v138.test.mjs|tests/jarvis-fs-bridge-v2.test.mjs) ;;
+              gestia-core/gestia-core.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|gestia-core/jarvis/jarvis.mission.orchestrator.js|functions/jarvis-genai-provider-chain.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|jarvis-fs-bridge.js|jarvis-reel-artifact.js|modules/terminal/jarvis-attachments.js|tests/jarvis-genai-provider-chain.test.cjs|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs|tests/jarvis-mission-orchestrator.test.mjs|tests/jarvis-reel-native-mp4-v138.test.mjs|tests/jarvis-fs-bridge-v2.test.mjs) ;;
               *) echo "Unexpected V142 diff: $file" >&2; exit 1 ;;
             esac
           done <<< "$changed"
@@ -166,7 +194,12 @@ jobs:
         run: |
           node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
           node --check jarvis-fs-bridge.js
+          node --check modules/terminal/jarvis-attachments.js
           node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-mission-orchestrator.test.mjs tests/jarvis-reel-native-mp4-v138.test.mjs
+      - name: Windows persistent artifact download lifecycle
+        shell: pwsh
+        run: |
+          node --input-type=module -e "import fs from 'node:fs'; const s=fs.readFileSync('modules/terminal/jarvis-attachments.js','utf8'); const c=s.slice(s.indexOf('function clear()'),s.indexOf('function observationTool')); if(!s.includes('artifactObjectUrls: new Set()')||!s.includes('state.artifactObjectUrls.add(objectUrl)')||!s.includes('persistentArtifactDownloads: true')||c.includes('artifactObjectUrls')) throw new Error('V142_ARTIFACT_DOWNLOAD_LIFECYCLE_INVALID');"
 
   materialize-v142:
     needs: [certify-linux, certify-windows]
@@ -191,7 +224,7 @@ jobs:
           test -n "$changed"
           while IFS= read -r file; do
             case "$file" in
-              gestia-core/gestia-core.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|gestia-core/jarvis/jarvis.mission.orchestrator.js|functions/jarvis-genai-provider-chain.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|jarvis-fs-bridge.js|jarvis-reel-artifact.js|tests/jarvis-genai-provider-chain.test.cjs|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs|tests/jarvis-mission-orchestrator.test.mjs|tests/jarvis-reel-native-mp4-v138.test.mjs|tests/jarvis-fs-bridge-v2.test.mjs) ;;
+              gestia-core/gestia-core.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|gestia-core/jarvis/jarvis.mission.orchestrator.js|functions/jarvis-genai-provider-chain.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|jarvis-fs-bridge.js|jarvis-reel-artifact.js|modules/terminal/jarvis-attachments.js|tests/jarvis-genai-provider-chain.test.cjs|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs|tests/jarvis-mission-orchestrator.test.mjs|tests/jarvis-reel-native-mp4-v138.test.mjs|tests/jarvis-fs-bridge-v2.test.mjs) ;;
               *) echo "Unexpected certified V142 diff: $file" >&2; exit 1 ;;
             esac
           done <<< "$changed"
@@ -228,6 +261,8 @@ jobs:
           git diff --exit-code
           node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
           node --check jarvis-fs-bridge.js
+          node --check modules/terminal/jarvis-attachments.js
+          node --input-type=module -e "import fs from 'node:fs'; const s=fs.readFileSync('modules/terminal/jarvis-attachments.js','utf8'); const c=s.slice(s.indexOf('function clear()'),s.indexOf('function observationTool')); if(!s.includes('artifactObjectUrls: new Set()')||!s.includes('state.artifactObjectUrls.add(objectUrl)')||!s.includes('persistentArtifactDownloads: true')||c.includes('artifactObjectUrls')) throw new Error('V142_ARTIFACT_DOWNLOAD_LIFECYCLE_INVALID');"
           node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-mission-orchestrator.test.mjs tests/jarvis-reel-native-mp4-v138.test.mjs
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
