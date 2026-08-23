@@ -1849,12 +1849,18 @@ async function resolveSemanticPlan(input = "", catalog = [], semanticPlanner = n
             ? semanticPlanner({ input, catalog, missionState })
             : callSemanticPlanner(input, catalog, missionState))
         .then(plan => {
-            const executablePlan =
-                plan?.missionComplete === true ||
-                (
-                    Array.isArray(plan?.toolCalls) &&
-                    plan.toolCalls.some(call => call && typeof call.name === "string" && call.name.trim())
+            const currentTurn =
+                String(missionState?.phase || "") === "CURRENT_TURN";
+            const hasExecutableToolCalls =
+                Array.isArray(plan?.toolCalls) &&
+                plan.toolCalls.some(call =>
+                    call &&
+                    typeof call.name === "string" &&
+                    call.name.trim()
                 );
+            const executablePlan =
+                hasExecutableToolCalls ||
+                (plan?.missionComplete === true && !currentTurn);
             if (executablePlan) {
                 planCache.set(key, { plan, savedAt: Date.now() });
             }
@@ -2083,13 +2089,15 @@ export async function buildJarvisMultifunctionToolCalls(input = "", context = {}
 
     try {
         const contractPlanner = context.semanticPlanner;
-        const plan = await resolveSemanticPlan(
+        let activeMissionState =
+            context.missionState || null;
+        let plan = await resolveSemanticPlan(
             instruction,
             catalog,
             contractPlanner,
-            context.missionState || null
+            activeMissionState
         );
-        const calls = trustedPlanCalls(
+        let calls = trustedPlanCalls(
             plan,
             catalog,
             {
@@ -2098,6 +2106,74 @@ export async function buildJarvisMultifunctionToolCalls(input = "", context = {}
                     instruction
             }
         );
+        const currentTurn =
+            String(activeMissionState?.phase || "") === "CURRENT_TURN";
+
+        if (currentTurn && calls.length === 0) {
+            planCache.delete(
+                planCacheKey(
+                    instruction,
+                    catalog,
+                    activeMissionState
+                )
+            );
+            const previousToolNames =
+                Array.isArray(plan?.toolCalls)
+                    ? plan.toolCalls
+                        .map(call => String(call?.name || "").trim())
+                        .filter(Boolean)
+                        .slice(0, 12)
+                    : [];
+            activeMissionState = {
+                ...(activeMissionState || {}),
+                phase: "CURRENT_TURN",
+                currentTurnValidationFeedback: {
+                    status:
+                        plan?.missionComplete === true
+                            ? "CURRENT_TURN_SILENT_COMPLETION_REJECTED"
+                            : "CURRENT_TURN_PLAN_REJECTED_AFTER_CATALOG_VALIDATION",
+                    previousToolNames,
+                    previousMissionComplete:
+                        plan?.missionComplete === true,
+                    requirement:
+                        "Reevalua el mismo turno con el mismo catalogo y contexto semantico. Devuelve una toolCall ejecutable con todos sus argumentos requeridos. Si el turno es solamente conversacional usa conversation.respond. Si el contexto semantico confirma una produccion activa, continua esa produccion. No cierres silenciosamente un CURRENT_TURN antes de ejecutar o responder."
+                }
+            };
+            console.warn(
+                "[CURRENT_TURN_SEMANTIC_SELF_REPAIR]",
+                activeMissionState.currentTurnValidationFeedback
+            );
+            plan = await resolveSemanticPlan(
+                instruction,
+                catalog,
+                contractPlanner,
+                activeMissionState
+            );
+            calls = trustedPlanCalls(
+                plan,
+                catalog,
+                {
+                    ...context,
+                    missionState:
+                        activeMissionState,
+                    originalInstruction:
+                        instruction
+                }
+            );
+        }
+
+        if (currentTurn && calls.length === 0) {
+            planCache.delete(
+                planCacheKey(
+                    instruction,
+                    catalog,
+                    activeMissionState
+                )
+            );
+            throw new Error(
+                "SEMANTIC_AUTHENTICATED_PROVIDER_SEMANTIC_PLAN_EMPTY"
+            );
+        }
 
         globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__ = {
             ok: plan?.ok === true,

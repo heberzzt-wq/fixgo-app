@@ -540,10 +540,15 @@ test("V142 mission contract retries the same semantic authority and rejects ampu
 test("V142 keeps one semantic brain when the current-turn plan is empty", () => {
   const coreSource = fs.readFileSync(new URL("../gestia-core/gestia-core.js", import.meta.url), "utf8");
   const plannerSource = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.multifunction.planner.js", import.meta.url), "utf8");
-  assert.equal(coreSource.includes("[CURRENT_TURN_SEMANTIC_EMPTY_RETRY]"), true);
-  assert.equal(coreSource.includes("semanticEmptyAttempt <= 2"), true);
-  assert.equal(plannerSource.includes("const executablePlan ="), true);
-  assert.equal(plannerSource.includes("if (executablePlan)"), true);
+  assert.equal(coreSource.includes("[CURRENT_TURN_SEMANTIC_EMPTY_RETRY]"), false);
+  assert.equal(coreSource.includes("V142 current-turn empty plans are repaired by the same semantic planner"), true);
+  assert.equal(plannerSource.includes("[CURRENT_TURN_SEMANTIC_SELF_REPAIR]"), true);
+  assert.equal(plannerSource.includes("currentTurnValidationFeedback"), true);
+  assert.equal(plannerSource.includes("CURRENT_TURN_SILENT_COMPLETION_REJECTED"), true);
+  assert.equal(plannerSource.includes("CURRENT_TURN_PLAN_REJECTED_AFTER_CATALOG_VALIDATION"), true);
+  assert.equal(plannerSource.includes("planCache.delete("), true);
+  assert.equal(plannerSource.includes("plan?.missionComplete === true && !currentTurn"), true);
+  assert.equal(plannerSource.includes("SEMANTIC_AUTHENTICATED_PROVIDER_SEMANTIC_PLAN_EMPTY"), true);
   assert.equal(plannerSource.includes("Los medios recopilados desde publicaciones o fuentes externas son evidencia y referencia"), true);
   assert.equal(plannerSource.includes("un adjunto no convierte una solicitud ejecutable en una conversacion vacia"), true);
 });

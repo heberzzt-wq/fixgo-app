@@ -4022,37 +4022,7 @@ export const GestiaCore = {
                         tenantId
                     }
                 );
-            for (let semanticEmptyAttempt = 1; semanticEmptyAttempt <= 2; semanticEmptyAttempt += 1) {
-                const executableToolCalls =
-                    Array.isArray(terminalSemanticPlan?.toolCalls)
-                        ? terminalSemanticPlan.toolCalls.filter(call =>
-                            call &&
-                            typeof call.name === "string" &&
-                            call.name.trim()
-                        )
-                        : [];
-                if (
-                    executableToolCalls.length > 0 ||
-                    terminalSemanticPlan?.missionComplete === true
-                ) {
-                    break;
-                }
-                const retryDelayMs = semanticEmptyAttempt === 1 ? 350 : 900;
-                console.warn(
-                    "[CURRENT_TURN_SEMANTIC_EMPTY_RETRY]",
-                    semanticEmptyAttempt,
-                    retryDelayMs
-                );
-                await new Promise(resolve => setTimeout(resolve, retryDelayMs));
-                terminalSemanticPlan =
-                    await this.analizarIntencionLigera(
-                        inputRaw,
-                        {
-                            ...context,
-                            tenantId
-                        }
-                    );
-            }
+            // V142 current-turn empty plans are repaired by the same semantic planner before returning here.
         }
         catch(error) {
             const semanticPlannerError =
