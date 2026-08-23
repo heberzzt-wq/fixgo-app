@@ -6,6 +6,7 @@ import { execFileSync } from "node:child_process";
 import { test } from "node:test";
 
 import { buildReelStudioHtml, describeReelStudio } from "../jarvis-reel-artifact.js";
+import { __test as missionOrchestratorTest } from "../gestia-core/jarvis/jarvis.mission.orchestrator.js";
 import {
     assertReelVideoContainer,
     createJarvisFsBridgeApp,
@@ -247,7 +248,7 @@ test("V142 reuses installed speech capability when semantic voice is unavailable
 });
 
 test("V142 reuses verified TikTok oEmbed thumbnail as input to the existing media collector", async () => {
-  const seedUrl = "https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004";
+  const seedUrl = "https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004?q=taqueria%20el%20dorado&t=1786405369711";
   const jpeg = Buffer.alloc(22000);
   jpeg[0] = 0xff;
   jpeg[1] = 0xd8;
@@ -308,6 +309,10 @@ test("V142 reuses verified TikTok oEmbed thumbnail as input to the existing medi
   );
   assert.equal(discovered[0].sourcePageUrl, seedUrl);
   assert.equal(calls.length, 2);
+  assert.equal(
+    decodeURIComponent(calls[0].split("?url=")[1]),
+    "https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004"
+  );
 
   const rejected = await tiktokOembedVisualSeed(
     seedUrl,
@@ -324,4 +329,138 @@ test("V142 reuses verified TikTok oEmbed thumbnail as input to the existing medi
     }
   );
   assert.equal(rejected.length, 0);
+});
+
+test("V142 recovers a language-only speech request when the requested culture is unavailable", () => {
+  const attempts = speechSynthesisRecoveryInputs(
+    {
+      text: "Narracion",
+      language: "es-MX"
+    },
+    new Error("SPEECH_LANGUAGE_VOICE_NOT_FOUND")
+  );
+  assert.deepEqual(
+    attempts.map(item => ({
+      voice: item.voice,
+      language: item.language
+    })),
+    [
+      { voice: "", language: "es-MX" },
+      { voice: "", language: "" }
+    ]
+  );
+});
+
+test("V142 requeues the same reel plan after verified media recovery", () => {
+  const blockedPlanArgs = {
+    brandName: "Taqueria El Dorado",
+    title: "Taco Macho",
+    cta: "Visitanos",
+    durationSeconds: 30,
+    scenes: [
+      { durationSeconds: 10, visual: "Taco", overlay: "Uno", voiceover: "Uno", evidence: "post" },
+      { durationSeconds: 10, visual: "Queso", overlay: "Dos", voiceover: "Dos", evidence: "post" },
+      { durationSeconds: 10, visual: "CTA", overlay: "Tres", voiceover: "Tres", evidence: "post" }
+    ]
+  };
+  const mission = {
+    blockedTasks: [
+      {
+        name: "web.media.collect",
+        args: {
+          url: "https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004",
+          requireVideos: true
+        },
+        reason: "WEB_REAL_MEDIA_REQUIREMENTS_UNMET",
+        observation: {
+          status: "WEB_REAL_MEDIA_REQUIREMENTS_UNMET",
+          objectiveSatisfied: false
+        }
+      },
+      {
+        name: "reel.plan",
+        args: blockedPlanArgs,
+        reason: "REEL_VERIFIED_SCENE_MEDIA_REQUIRED",
+        observation: {
+          status: "REEL_VERIFIED_SCENE_MEDIA_REQUIRED",
+          objectiveSatisfied: false
+        }
+      }
+    ],
+    completedTasks: [],
+    pendingTasks: [
+      {
+        name: "reel.create",
+        args: { videoOutput: ".jarvis-artifacts/reels/taco.mp4" }
+      }
+    ],
+    errors: [
+      { tool: "web.media.collect", status: "WEB_REAL_MEDIA_REQUIREMENTS_UNMET" },
+      { tool: "reel.plan", status: "REEL_VERIFIED_SCENE_MEDIA_REQUIRED" }
+    ]
+  };
+
+  missionOrchestratorTest.archiveRecoveredMediaSourceAttempts(
+    mission,
+    () => "2026-08-23T01:00:00.000Z"
+  );
+
+  assert.equal(mission.blockedTasks.some(item => item.name === "web.media.collect"), false);
+  assert.equal(mission.blockedTasks.some(item => item.name === "reel.plan"), false);
+  assert.equal(mission.pendingTasks[0].name, "reel.plan");
+  assert.deepEqual(mission.pendingTasks[0].args, blockedPlanArgs);
+  assert.equal(mission.reelMediaRecovery.reelPlanRequeued, true);
+  assert.equal(
+    mission.recoveredToolAttempts.some(item => item.name === "reel.plan"),
+    true
+  );
+});
+
+test("V142 hands verified semantically bound reel-plan scenes to reel.create", () => {
+  const verifiedScene = {
+    durationSeconds: 30,
+    visual: "Taco Macho",
+    overlay: "Pruebalo",
+    voiceover: "Prueba El Taco Macho",
+    evidence: "TikTok exacto",
+    assetOutput: ".jarvis-artifacts/web-media/www-tiktok-com/post/taco.jpg",
+    mediaType: "image",
+    sourceMedia: {
+      origin: "web.media.collect",
+      sha256: "a".repeat(64)
+    }
+  };
+  const handoff = missionOrchestratorTest.reelCreateArgsFromVerifiedPlan(
+    {
+      videoOutput: ".jarvis-artifacts/reels/taco.mp4",
+      scenes: [{ overlay: "stale" }]
+    },
+    {
+      completedTasks: [
+        {
+          name: "reel.plan",
+          observation: {
+            objectiveSatisfied: true,
+            status: "REEL_PLAN_READY",
+            preparedArtifact: {
+              kind: "reel",
+              brandName: "Taqueria El Dorado",
+              title: "El Taco Macho",
+              cta: "Visitanos",
+              durationSeconds: 30,
+              scenes: [verifiedScene]
+            }
+          }
+        }
+      ]
+    }
+  );
+
+  assert.equal(handoff.hydrated, true);
+  assert.equal(handoff.source, "reel.plan");
+  assert.equal(handoff.args.videoOutput, ".jarvis-artifacts/reels/taco.mp4");
+  assert.equal(handoff.args.title, "El Taco Macho");
+  assert.equal(handoff.args.scenes.length, 1);
+  assert.equal(handoff.args.scenes[0].assetOutput, verifiedScene.assetOutput);
+  assert.equal(handoff.args.scenes[0].sourceMedia.sha256, "a".repeat(64));
 });

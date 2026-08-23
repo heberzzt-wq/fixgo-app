@@ -3442,12 +3442,18 @@ export function speechSynthesisRecoveryInputs(input = {}, error = null) {
     const requestedLanguage = String(input?.language || "").trim();
     const message = String(error?.message || error || "");
     const recoverableVoiceFailure =
-        Boolean(requestedVoice) &&
         (
-            /SelectVoice/i.test(message) ||
-            /SPEECH_LANGUAGE_VOICE_NOT_FOUND/i.test(message) ||
-            /voz coincidente/i.test(message) ||
-            /matching voice/i.test(message)
+            Boolean(requestedVoice) &&
+            (
+                /SelectVoice/i.test(message) ||
+                /SPEECH_LANGUAGE_VOICE_NOT_FOUND/i.test(message) ||
+                /voz coincidente/i.test(message) ||
+                /matching voice/i.test(message)
+            )
+        ) ||
+        (
+            Boolean(requestedLanguage) &&
+            /SPEECH_LANGUAGE_VOICE_NOT_FOUND/i.test(message)
         );
 
     if (!recoverableVoiceFailure) return [];
@@ -3499,7 +3505,32 @@ export async function tiktokOembedVisualSeed(
     } = {}
 ) {
     const seedUrl = String(sourceUrl || "").trim();
-    const expectedHandle = jarvisTikTokHandleFromUrl(seedUrl);
+    const canonicalSeedUrl = (() => {
+        try {
+            const parsed = new URL(seedUrl);
+            const segments = parsed.pathname
+                .split("/")
+                .map(item => item.trim())
+                .filter(Boolean);
+            const handle = segments.find(item => item.startsWith("@")) || "";
+            const videoIndex = segments.findIndex(item => item.toLowerCase() === "video");
+            const videoId =
+                videoIndex >= 0 && videoIndex + 1 < segments.length
+                    ? segments[videoIndex + 1]
+                    : "";
+            const videoIdValid =
+                Boolean(videoId) &&
+                [...videoId].every(character =>
+                    character >= "0" && character <= "9"
+                );
+            if (!handle || !videoIdValid) return seedUrl;
+            return "https://www.tiktok.com/" + handle + "/video/" + videoId;
+        }
+        catch {
+            return seedUrl;
+        }
+    })();
+    const expectedHandle = jarvisTikTokHandleFromUrl(canonicalSeedUrl);
     if (!expectedHandle || typeof fetchImpl !== "function") return [];
 
     const boundedTimeout = Math.min(
@@ -3508,7 +3539,7 @@ export async function tiktokOembedVisualSeed(
     );
     const oembedUrl =
         "https://www.tiktok.com/oembed?url=" +
-        encodeURIComponent(seedUrl);
+        encodeURIComponent(canonicalSeedUrl);
 
     const oembedResponse = await fetchImpl(oembedUrl, {
         headers: {

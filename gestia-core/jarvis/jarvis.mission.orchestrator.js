@@ -1491,6 +1491,15 @@ function archiveRecoveredMediaSourceAttempts(mission = {}, now = () => new Date(
     const blocked = Array.isArray(mission?.blockedTasks) ? mission.blockedTasks : [];
     const recovered = blocked.filter(item => item?.name === "web.media.collect");
     if (recovered.length === 0) return;
+
+    const recoverableReelPlan = [...blocked].reverse().find(item =>
+        item?.name === "reel.plan" &&
+        [
+            "REEL_VERIFIED_SCENE_MEDIA_REQUIRED",
+            "REEL_MEDIA_COLLECTION_REQUIRED_BEFORE_PLAN"
+        ].includes(String(item?.observation?.status || ""))
+    ) || null;
+
     mission.recoveredMediaSourceAttempts = [
         ...(Array.isArray(mission.recoveredMediaSourceAttempts)
             ? mission.recoveredMediaSourceAttempts
@@ -1506,17 +1515,53 @@ function archiveRecoveredMediaSourceAttempts(mission = {}, now = () => new Date(
     mission.blockedTasks = blocked.filter(item => item?.name !== "web.media.collect");
     mission.errors = (Array.isArray(mission?.errors) ? mission.errors : [])
         .filter(item => item?.tool !== "web.media.collect");
+
+    let reelPlanRequeued = false;
+    if (recoverableReelPlan) {
+        archiveRecoveredToolAttempts(mission, "reel.plan", now);
+        const reelPlanReady = (Array.isArray(mission?.completedTasks) ? mission.completedTasks : [])
+            .some(item =>
+                item?.name === "reel.plan" &&
+                item?.observation?.objectiveSatisfied === true &&
+                item?.observation?.status === "REEL_PLAN_READY"
+            );
+        const reelPlanPending = (Array.isArray(mission?.pendingTasks) ? mission.pendingTasks : [])
+            .some(item => item?.name === "reel.plan");
+        if (!reelPlanReady && !reelPlanPending) {
+            const args =
+                recoverableReelPlan?.args &&
+                typeof recoverableReelPlan.args === "object" &&
+                !Array.isArray(recoverableReelPlan.args)
+                    ? { ...recoverableReelPlan.args }
+                    : {};
+            mission.pendingTasks = Array.isArray(mission?.pendingTasks)
+                ? mission.pendingTasks
+                : [];
+            mission.pendingTasks.unshift({
+                name: "reel.plan",
+                args,
+                approved: false,
+                signature: callSignature({ name: "reel.plan", args }),
+                attempts: 0,
+                status: "PENDING",
+                reason: "REEL_PLAN_RETRY_AFTER_MEDIA_RECOVERY"
+            });
+            reelPlanRequeued = true;
+        }
+    }
+
     mission.reelMediaRecovery = {
         ...(mission.reelMediaRecovery || {}),
         active: false,
         recovered: true,
+        reelPlanRequeued,
         recoveredAt: now()
     };
 }
 
 function archiveRecoveredToolAttempts(mission = {}, toolName = "", now = () => new Date().toISOString()) {
     const name = text(toolName, 120);
-    if (name !== "speech.synthesize") return;
+    if (!["speech.synthesize", "reel.plan"].includes(name)) return;
     const blocked = Array.isArray(mission?.blockedTasks) ? mission.blockedTasks : [];
     const recovered = blocked.filter(item => item?.name === name);
     const recoveredErrors = (Array.isArray(mission?.errors) ? mission.errors : [])
@@ -1563,6 +1608,57 @@ function verifiedSpeechArtifactForReel(mission = {}) {
         return "";
     }
     return output;
+}
+
+function reelCreateArgsFromVerifiedPlan(args = {}, mission = {}) {
+    const current =
+        args && typeof args === "object" && !Array.isArray(args)
+            ? { ...args }
+            : {};
+    const completed = Array.isArray(mission?.completedTasks)
+        ? mission.completedTasks
+        : [];
+    const task = [...completed].reverse().find(item =>
+        item?.name === "reel.plan" &&
+        item?.observation?.objectiveSatisfied === true &&
+        item?.observation?.status === "REEL_PLAN_READY" &&
+        item?.observation?.preparedArtifact?.kind === "reel"
+    );
+    const prepared = task?.observation?.preparedArtifact || null;
+    const scenes = Array.isArray(prepared?.scenes)
+        ? prepared.scenes.map(scene =>
+            scene && typeof scene === "object" && !Array.isArray(scene)
+                ? { ...scene }
+                : scene
+        )
+        : [];
+    if (!prepared || scenes.length < 1) {
+        return {
+            args: current,
+            hydrated: false,
+            source: null
+        };
+    }
+
+    const next = {
+        ...current,
+        scenes
+    };
+    for (const field of ["brandName", "title", "cta"]) {
+        const value = text(prepared?.[field], 500);
+        if (value) next[field] = value;
+    }
+    const durationSeconds = Number(prepared?.durationSeconds || 0);
+    if (Number.isFinite(durationSeconds) && durationSeconds > 0) {
+        next.durationSeconds = durationSeconds;
+    }
+
+    return {
+        args: next,
+        hydrated: true,
+        source: "reel.plan",
+        sceneCount: scenes.length
+    };
 }
 
 export async function runJarvisMission({
@@ -1922,14 +2018,20 @@ export async function runJarvisMission({
         mission.iterations += 1;
         task.attempts += 1;
         if (task.name === "reel.create") {
+            const reelPlanHandoff =
+                reelCreateArgsFromVerifiedPlan(
+                    task.args,
+                    mission
+                );
+            task.args = reelPlanHandoff.args;
             const verifiedSpeechOutput = verifiedSpeechArtifactForReel(mission);
             if (verifiedSpeechOutput) {
                 task.args = {
                     ...(task.args || {}),
                     audioOutput: verifiedSpeechOutput
                 };
-                task.signature = callSignature({ name: task.name, args: task.args });
             }
+            task.signature = callSignature({ name: task.name, args: task.args });
         }
         let result;
         try {
@@ -2134,5 +2236,6 @@ export const __test = {
     deterministicReelMediaRecoveryCall,
     archiveRecoveredMediaSourceAttempts,
     archiveRecoveredToolAttempts,
-    verifiedSpeechArtifactForReel
+    verifiedSpeechArtifactForReel,
+    reelCreateArgsFromVerifiedPlan
 };
