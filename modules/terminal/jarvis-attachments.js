@@ -5,7 +5,7 @@ import {
     JarvisCaseLedger
 } from "../../gestia-core/jarvis/jarvis.case.ledger.js";
 
-const VERSION = "2.4.0-user-artifact-preview-download";
+const VERSION = "2.5.0-artifact-download-lifecycle-v142";
 const MAX_FILES = 30;
 const MAX_FILE_BYTES = 250 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 500 * 1024 * 1024;
@@ -15,7 +15,8 @@ const STORAGE_KEY = "jarvis.multimodal.completed.v2";
 const TEXT_EXTENSIONS = new Set(["txt", "md", "csv", "json", "xml", "yaml", "yml", "js", "mjs", "cjs", "ts", "tsx", "jsx", "css", "html", "py", "sql"]);
 const state = {
     items: [],
-    objectUrls: new Set(),
+    previewObjectUrls: new Set(),
+    artifactObjectUrls: new Set(),
     renderingOutputs: new Set(),
     renderedOutputs: new Set(),
     batchId: `batch-${crypto.randomUUID?.() || Date.now()}`,
@@ -112,7 +113,7 @@ async function removeItem(id) {
     }
     if (item.previewUrl) {
         URL.revokeObjectURL(item.previewUrl);
-        state.objectUrls.delete(item.previewUrl);
+        state.previewObjectUrls.delete(item.previewUrl);
     }
     persistReadyItems();
     renderTray();
@@ -182,7 +183,7 @@ async function prepareFile(file, existingItem = null) {
         extractedText: ""
     };
     if (!existingItem) state.items.push(item);
-    if (item.previewUrl) state.objectUrls.add(item.previewUrl);
+    if (item.previewUrl) state.previewObjectUrls.add(item.previewUrl);
     item.cancelled = false;
     item.status = "uploading";
     item.error = "";
@@ -293,7 +294,7 @@ async function acceptFiles(fileList) {
         }
         known.add(dedupeKey);
         state.items.push(item);
-        if (item.previewUrl) state.objectUrls.add(item.previewUrl);
+        if (item.previewUrl) state.previewObjectUrls.add(item.previewUrl);
     }
     renderTray();
     let cursor = 0;
@@ -375,8 +376,8 @@ async function composePrompt(rawPrompt = "") {
 
 function clear() {
     state.items.forEach(item => { item.cancelled = true; });
-    state.objectUrls.forEach(url => URL.revokeObjectURL(url));
-    state.objectUrls.clear();
+    state.previewObjectUrls.forEach(url => URL.revokeObjectURL(url));
+    state.previewObjectUrls.clear();
     state.items = [];
     if (state.caseRecord?.caseId) JarvisCaseLedger.close(state.caseRecord.caseId, "CLEARED");
     state.caseRecord = null;
@@ -450,7 +451,7 @@ async function renderArtifact(output, mimeType = "", toolName = "") {
         if (payload?.ok !== true || !payload?.dataBase64) return;
         const blob = base64ToBlob(payload.dataBase64, payload.mimeType || mimeType);
         const objectUrl = URL.createObjectURL(blob);
-        state.objectUrls.add(objectUrl);
+        state.artifactObjectUrls.add(objectUrl);
         const host = outputContainer.lastElementChild?.querySelector(".bg-gestia-panel") || outputContainer.lastElementChild;
         if (!host) return;
         const card = createElement("div", "mt-4 rounded-xl border border-slate-600 bg-slate-900/80 p-3");
@@ -471,40 +472,40 @@ async function renderArtifact(output, mimeType = "", toolName = "") {
             frame.dataset.testid = "jarvis-html-preview";
             card.appendChild(frame);
         }
-    else if ((payload.mimeType || mimeType) === "application/pdf") {
-        const frame = document.createElement("iframe");
-        frame.src = objectUrl;
-        frame.title = payload.fileName || "Vista previa del PDF creado por NEXO";
-        frame.className = "w-full h-[32rem] rounded-lg bg-white mb-3 border border-slate-700";
-        frame.dataset.testid = "jarvis-pdf-preview";
-        card.appendChild(frame);
-    }
+        else if ((payload.mimeType || mimeType) === "application/pdf") {
+            const frame = document.createElement("iframe");
+            frame.src = objectUrl;
+            frame.title = payload.fileName || "Vista previa del PDF creado por NEXO";
+            frame.className = "w-full h-[32rem] rounded-lg bg-white mb-3 border border-slate-700";
+            frame.dataset.testid = "jarvis-pdf-preview";
+            card.appendChild(frame);
+        }
         const row = createElement("div", "flex items-center justify-between gap-3");
         const details = createElement("div", "min-w-0");
         details.appendChild(createElement("div", "text-sm text-white truncate", payload.fileName || output));
         details.appendChild(createElement("div", "text-xs text-slate-400", `${formatBytes(payload.bytes)} · ${toolName || "artefacto"}`));
         row.appendChild(details);
         const actions = createElement("div", "shrink-0 flex items-center gap-2");
-    const resolvedMimeType = String(payload.mimeType || mimeType || "").toLowerCase();
-    const canOpen =
-        resolvedMimeType === "application/pdf" ||
-        resolvedMimeType === "text/html" ||
-        resolvedMimeType.startsWith("image/") ||
-        resolvedMimeType.startsWith("text/");
-    if (canOpen) {
-        const open = createElement("a", "inline-flex items-center gap-2 rounded-lg border border-slate-500 hover:border-slate-300 px-3 py-2 text-xs font-semibold text-slate-100", "Abrir");
-        open.href = objectUrl;
-        open.target = "_blank";
-        open.rel = "noopener noreferrer";
-        open.dataset.testid = "jarvis-artifact-open";
-        actions.appendChild(open);
-    }
-    const download = createElement("a", "inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-2 text-xs font-semibold text-white", "Descargar");
-    download.href = objectUrl;
-    download.download = payload.fileName || "nexo-artifact";
-    download.dataset.testid = "jarvis-artifact-download";
-    actions.appendChild(download);
-    row.appendChild(actions);
+        const resolvedMimeType = String(payload.mimeType || mimeType || "").toLowerCase();
+        const canOpen =
+            resolvedMimeType === "application/pdf" ||
+            resolvedMimeType === "text/html" ||
+            resolvedMimeType.startsWith("image/") ||
+            resolvedMimeType.startsWith("text/");
+        if (canOpen) {
+            const open = createElement("a", "inline-flex items-center gap-2 rounded-lg border border-slate-500 hover:border-slate-300 px-3 py-2 text-xs font-semibold text-slate-100", "Abrir");
+            open.href = objectUrl;
+            open.target = "_blank";
+            open.rel = "noopener noreferrer";
+            open.dataset.testid = "jarvis-artifact-open";
+            actions.appendChild(open);
+        }
+        const download = createElement("a", "inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-2 text-xs font-semibold text-white", "Descargar");
+        download.href = objectUrl;
+        download.download = payload.fileName || "nexo-artifact";
+        download.dataset.testid = "jarvis-artifact-download";
+        actions.appendChild(download);
+        row.appendChild(actions);
         card.appendChild(row);
         host.appendChild(card);
         state.renderedOutputs.add(output);
@@ -586,12 +587,17 @@ export const JarvisAttachments = {
         maxTotalBytes: MAX_TOTAL_BYTES,
         chunkBytes: CHUNK_BYTES,
         concurrency: UPLOAD_CONCURRENCY,
-        recoverableCompletedArtifacts: true
+        recoverableCompletedArtifacts: true,
+        persistentArtifactDownloads: true
     })
 };
 
 if (typeof window !== "undefined") {
     window.JarvisAttachments = JarvisAttachments;
+    window.addEventListener("beforeunload", () => {
+        state.artifactObjectUrls.forEach(url => URL.revokeObjectURL(url));
+        state.artifactObjectUrls.clear();
+    }, { once: true });
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initialize, { once: true });
     else initialize();
 }
