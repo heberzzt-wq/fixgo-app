@@ -577,6 +577,10 @@ export async function exportReelVideoWithChrome({
             "--headless=new",
             "--no-sandbox",
             "--disable-gpu",
+            "--disable-background-timer-throttling",
+            "--disable-renderer-backgrounding",
+            "--disable-backgrounding-occluded-windows",
+            "--disable-features=CalculateNativeWinOcclusion",
             "--disable-dev-shm-usage",
             "--autoplay-policy=no-user-gesture-required",
             "--allow-file-access-from-files",
@@ -628,6 +632,18 @@ export async function exportReelVideoWithChrome({
             throw new Error("REEL_VIDEO_BYTE_COUNT_INVALID");
         }
         const actualMimeType = String(payload.mimeType || "").trim();
+        const renderedFrameCount = Number(payload.renderedFrameCount || 0);
+        const averageRenderedFps = Number(payload.averageRenderedFps || 0);
+        if (
+            renderedFrameCount < Math.floor(duration * 20) ||
+            averageRenderedFps < 20
+        ) {
+            throw new Error(
+                "REEL_VIDEO_FRAME_DENSITY_LOW:" +
+                renderedFrameCount + ":" +
+                averageRenderedFps.toFixed(2)
+            );
+        }
         const container = assertReelVideoContainer(buffer, actualMimeType);
         const sha256 = createHash("sha256").update(buffer).digest("hex");
         if (sha256 !== String(payload.sha256 || "").toLowerCase()) {
@@ -686,6 +702,8 @@ export async function exportReelVideoWithChrome({
             audioMixMode: String(payload.audioMixMode || "silent_visual"),
             audioTracksAdded: Number(payload.audioTracksAdded || 0),
             audioGraphAvailable: payload.audioGraphAvailable === true,
+            renderedFrameCount,
+            averageRenderedFps,
             artifact
         };
     }

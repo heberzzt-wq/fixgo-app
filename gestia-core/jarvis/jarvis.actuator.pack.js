@@ -839,6 +839,11 @@ export function registerJarvisActuatorTools(runtime) {
                     persisted: artifact?.ok === true,
                     output: artifact?.output || null,
                     bytes: artifact?.bytes || null,
+                    mimeType: result?.mimeType || artifact?.mimeType || null,
+                    sha256:
+                        result?.ok === true && result?.imageBase64
+                            ? await sha256Base64(result.imageBase64)
+                            : null,
                     persistenceStatus: artifact?.status || null,
                     persistenceError: artifact?.ok === false ? artifact.error : null
                 };

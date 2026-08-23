@@ -25,7 +25,10 @@ function verifiedSceneAsset(asset = {}) {
     if (
         !["image", "video"].includes(kind) ||
         mediaRole === "brand_logo" ||
-        !output.startsWith(".jarvis-artifacts/web-media/") ||
+        !(
+            output.startsWith(".jarvis-artifacts/web-media/") ||
+            output.startsWith(".jarvis-artifacts/images/")
+        ) ||
         output.includes("../") ||
         !mimeType.startsWith(`${kind}/`) ||
         !Number.isFinite(bytes) ||
@@ -43,6 +46,11 @@ function verifiedSceneAsset(asset = {}) {
         mediaRole,
         sourceUrl: clean(asset?.sourceUrl),
         sourceTag: clean(asset?.sourceTag),
+        origin:
+            clean(asset?.origin) ||
+            (output.startsWith(".jarvis-artifacts/images/")
+                ? clean(asset?.sourceTag) || "image.generate"
+                : "web.media.collect"),
         alt: clean(asset?.alt)
     };
 }
@@ -71,21 +79,52 @@ function dedupeAssets(assets = []) {
 }
 
 export function reelMediaCollectionState(context = {}) {
-    const tasks = [
+    const allTasks = [
         ...(Array.isArray(context?.completedTasks) ? context.completedTasks : []),
         ...(Array.isArray(context?.blockedTasks) ? context.blockedTasks : [])
-    ].filter(task => String(task?.name || "") === "web.media.collect");
-    const assets = [];
-    for (const task of tasks) {
-        assets.push(...payloadAssets(task?.observation || {}));
-        assets.push(...payloadAssets(task?.observation?.evidence || {}));
+    ];
+    const collectionTasks = allTasks.filter(task =>
+        String(task?.name || "") === "web.media.collect"
+    );
+    const creativeTasks = allTasks.filter(task =>
+        ["image.generate", "image.edit"].includes(String(task?.name || ""))
+    );
+    const collectedAssets = [];
+    for (const task of collectionTasks) {
+        collectedAssets.push(...payloadAssets(task?.observation || {}));
+        collectedAssets.push(...payloadAssets(task?.observation?.evidence || {}));
     }
+    const verifiedCreativeAssets = creativeTasks
+        .map(task => {
+            const observation = task?.observation && typeof task.observation === "object"
+                ? task.observation
+                : {};
+            const toolName = String(task?.name || "");
+            return verifiedSceneAsset({
+                kind: "image",
+                output: observation.output,
+                mimeType: observation.mimeType || observation.outputMimeType,
+                bytes: observation.bytes || observation.outputBytes,
+                sha256: observation.sha256 || observation.outputSha256,
+                mediaRole: "scene",
+                sourceTag: toolName,
+                origin: toolName,
+                alt:
+                    clean(observation.prompt) ||
+                    clean(observation.variantId) ||
+                    "Visual creativo generado y verificado"
+            });
+        })
+        .filter(Boolean);
+    const verifiedCollectedAssets = collectedAssets
+        .map(verifiedSceneAsset)
+        .filter(Boolean);
     return {
-        attempted: tasks.length > 0,
+        attempted: collectionTasks.length > 0 || creativeTasks.length > 0,
         assets: dedupeAssets(
-            assets
-                .map(verifiedSceneAsset)
-                .filter(Boolean)
+            verifiedCreativeAssets.length > 0
+                ? verifiedCreativeAssets
+                : verifiedCollectedAssets
         )
     };
 }
@@ -203,7 +242,7 @@ export function validateReelMediaBindings({
             assetOutput: binding.asset.output,
             mediaType: binding.asset.kind,
             sourceMedia: {
-                origin: "web.media.collect",
+                origin: binding.asset.origin || "web.media.collect",
                 selection: "semantic_scene_media_binding_v131",
                 mediaId: binding.mediaId,
                 sourceUrl: binding.asset.sourceUrl || null,

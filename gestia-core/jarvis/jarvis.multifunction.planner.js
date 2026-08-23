@@ -17,6 +17,8 @@ const GENERALIST_CURRENT_TURN_POLICY = [
     "Los nombres propios y las identidades explícitas de la solicitud actual se conservan fielmente: no los abrevies, renombres ni corrijas por aproximación. La creatividad puede producir identidades nuevas cuando esa sea realmente la intención, pero una copia casi igual de una identidad explícita no es una identidad nueva válida.",
     "Distingue entre objetos de entrada, temas mencionados y resultados realmente solicitados: mencionar una capacidad, formato, archivo o tema no equivale a pedir que se ejecute o produzca.",
     "Cuando la instruccion actual aporte material de produccion listo para ejecutar y el contexto semantico asesor de esta conversacion confirme de forma inequivoca una produccion activa, interpreta ese material como continuacion de la misma produccion y selecciona las herramientas necesarias sin exigir que el usuario repita un verbo de ejecucion. El contenido o su formato, por si solos y sin esa continuidad semantica, no autorizan ejecutar nada.",
+    "Los medios recopilados desde publicaciones o fuentes externas son evidencia y referencia. Cuando la intencion semantica actual pide una pieza nueva u original basada en esa evidencia y no pide reutilizar literalmente el medio fuente, conserva los hechos verificados pero selecciona las capacidades existentes de generacion para crear visuales nuevos; usa image.edit solamente cuando la intencion sea transformar o adaptar un medio existente.",
+    "Cuando el usuario aporta adjuntos y pide transformarlos, editarlos o producir una pieza a partir de ellos, trata esos adjuntos como objetos de entrada y selecciona las capacidades existentes de analisis, edicion o produccion necesarias; un adjunto no convierte una solicitud ejecutable en una conversacion vacia.",
     "Selecciona solamente las herramientas necesarias para satisfacer la intencion actual y conserva cada objetivo independiente pedido por el usuario.",
     "Si la solicitud se resuelve conversacionalmente, mediante conocimiento o explicacion, no fabriques artefactos ni operaciones no solicitadas; usa la respuesta semantica disponible o declara la mision completa cuando no haga falta una herramienta."
 ].join(" ");
@@ -1847,7 +1849,15 @@ async function resolveSemanticPlan(input = "", catalog = [], semanticPlanner = n
             ? semanticPlanner({ input, catalog, missionState })
             : callSemanticPlanner(input, catalog, missionState))
         .then(plan => {
-            planCache.set(key, { plan, savedAt: Date.now() });
+            const executablePlan =
+                plan?.missionComplete === true ||
+                (
+                    Array.isArray(plan?.toolCalls) &&
+                    plan.toolCalls.some(call => call && typeof call.name === "string" && call.name.trim())
+                );
+            if (executablePlan) {
+                planCache.set(key, { plan, savedAt: Date.now() });
+            }
             return plan;
         })
         .finally(() => pendingPlans.delete(key));

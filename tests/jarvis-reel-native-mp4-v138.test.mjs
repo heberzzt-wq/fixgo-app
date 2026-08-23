@@ -536,3 +536,35 @@ test("V142 mission contract retries the same semantic authority and rejects ampu
   assert.equal(coreSource.includes("call.args.productionArtifacts.length === 0"), true);
   assert.equal(coreSource.includes("throw lastMissionContractError"), true);
 });
+
+test("V142 keeps one semantic brain when the current-turn plan is empty", () => {
+  const coreSource = fs.readFileSync(new URL("../gestia-core/gestia-core.js", import.meta.url), "utf8");
+  const plannerSource = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.multifunction.planner.js", import.meta.url), "utf8");
+  assert.equal(coreSource.includes("[CURRENT_TURN_SEMANTIC_EMPTY_RETRY]"), true);
+  assert.equal(coreSource.includes("semanticEmptyAttempt <= 2"), true);
+  assert.equal(plannerSource.includes("const executablePlan ="), true);
+  assert.equal(plannerSource.includes("if (executablePlan)"), true);
+  assert.equal(plannerSource.includes("Los medios recopilados desde publicaciones o fuentes externas son evidencia y referencia"), true);
+  assert.equal(plannerSource.includes("un adjunto no convierte una solicitud ejecutable en una conversacion vacia"), true);
+});
+
+test("V142 reel export enforces continuous physical frame density", () => {
+  const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
+  const reelSource = fs.readFileSync(new URL("../jarvis-reel-artifact.js", import.meta.url), "utf8");
+  assert.equal(bridgeSource.includes("--disable-background-timer-throttling"), true);
+  assert.equal(bridgeSource.includes("--disable-renderer-backgrounding"), true);
+  assert.equal(bridgeSource.includes("REEL_VIDEO_FRAME_DENSITY_LOW:"), true);
+  assert.equal(bridgeSource.includes("averageRenderedFps < 20"), true);
+  assert.equal(reelSource.includes("renderedFrameCount=0"), true);
+  assert.equal(reelSource.includes("exporting?setTimeout(()=>frame(performance.now()),1000/30):requestAnimationFrame(frame)"), true);
+  assert.equal(reelSource.includes("averageRenderedFps:renderedFrameCount/spec.durationSeconds"), true);
+});
+
+test("V142 original creative image is physically verifiable before reel planning", () => {
+  const dependenciesSource = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.mission.dependencies.js", import.meta.url), "utf8");
+  const actuatorSource = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.actuator.pack.js", import.meta.url), "utf8");
+  assert.equal(dependenciesSource.includes('"image.generate": 28'), true);
+  assert.equal(dependenciesSource.includes('"image.edit": 28'), true);
+  assert.equal(actuatorSource.includes("? await sha256Base64(result.imageBase64)"), true);
+  assert.equal(actuatorSource.includes("mimeType: result?.mimeType || artifact?.mimeType || null"), true);
+});

@@ -15,8 +15,8 @@ const MISSION_STAGE_BY_TOOL = Object.freeze({
     "reel.create": 40,
     "document.create": 40,
     "document.pdf": 40,
-    "image.generate": 40,
-    "image.edit": 40,
+    "image.generate": 28,
+    "image.edit": 28,
     "marketing.package.real-media": 40
 });
 

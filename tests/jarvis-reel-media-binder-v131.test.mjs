@@ -142,3 +142,43 @@ test("v131 rejects concentrated repetition when verified alternatives exist", ()
     assert.equal(validated.ok, false);
     assert.equal(validated.status, "REEL_MEDIA_BINDING_DIVERSITY_INVALID");
 });
+
+test("v142 prefers verified original creative media over collected source evidence", () => {
+    const generatedOutput = ".jarvis-artifacts/images/original-taco-macho.png";
+    const state = reelMediaCollectionState({
+        completedTasks: [
+            {
+                name: "web.media.collect",
+                observation: { mediaAssets: sceneAssets }
+            },
+            {
+                name: "image.generate",
+                observation: {
+                    output: generatedOutput,
+                    mimeType: "image/png",
+                    bytes: 480000,
+                    sha256: "e".repeat(64),
+                    prompt: "Escena original de Taco Macho creada para la campaña"
+                }
+            }
+        ]
+    });
+    assert.equal(state.attempted, true);
+    assert.equal(state.assets.length, 1);
+    assert.equal(state.assets[0].output, generatedOutput);
+    assert.equal(state.assets[0].origin, "image.generate");
+    const validated = validateReelMediaBindings({
+        scenes,
+        assets: state.assets,
+        decision: {
+            bindings: scenes.map(scene => ({
+                sceneId: scene.id,
+                mediaId: "MEDIA_1",
+                reason: "Visual original verificado"
+            }))
+        }
+    });
+    assert.equal(validated.ok, true);
+    assert.equal(validated.scenes.every(scene => scene.assetOutput === generatedOutput), true);
+    assert.equal(validated.scenes.every(scene => scene.sourceMedia.origin === "image.generate"), true);
+});
