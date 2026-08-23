@@ -9,6 +9,8 @@ import { buildReelStudioHtml, describeReelStudio } from "../jarvis-reel-artifact
 import {
     assertReelVideoContainer,
     createJarvisFsBridgeApp,
+    speechSynthesisRecoveryInputs,
+    tiktokOembedVisualSeed,
     reelVideoExtensionFromMime,
     reelVideoFormatFromMime,
     reelVideoOutputTarget
@@ -213,4 +215,113 @@ test("V142 accepts detached bridge identity only at the contract remote-tracking
     }
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("V142 reuses installed speech capability when semantic voice is unavailable", () => {
+  const attempts = speechSynthesisRecoveryInputs(
+    {
+      text: "Narracion",
+      voice: "Voz que no existe",
+      language: "es-ES"
+    },
+    new Error("SelectVoice: No se puede establecer voz. No hay una voz coincidente instalada.")
+  );
+  assert.deepEqual(
+    attempts.map(item => ({
+      voice: item.voice,
+      language: item.language
+    })),
+    [
+      { voice: "", language: "es-ES" },
+      { voice: "", language: "es-MX" },
+      { voice: "", language: "" }
+    ]
+  );
+  assert.equal(
+    speechSynthesisRecoveryInputs(
+      { text: "Narracion", voice: "Voz que no existe", language: "es-MX" },
+      new Error("SPEECH_OUTPUT_PATH_INVALID")
+    ).length,
+    0
+  );
+});
+
+test("V142 reuses verified TikTok oEmbed thumbnail as input to the existing media collector", async () => {
+  const seedUrl = "https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004";
+  const jpeg = Buffer.alloc(22000);
+  jpeg[0] = 0xff;
+  jpeg[1] = 0xd8;
+  jpeg[2] = 0xff;
+  const calls = [];
+  const fakeFetch = async url => {
+    calls.push(String(url));
+    if (String(url).startsWith("https://www.tiktok.com/oembed?")) {
+      return {
+        ok: true,
+        status: 200,
+        url: String(url),
+        async json() {
+          return {
+            title: "El Taco Macho",
+            author_name: "Taqueria ElDorado",
+            author_url: "https://www.tiktok.com/@taqueria.eldorado",
+            thumbnail_url: "https://1.1.1.1/taco-macho.jpg"
+          };
+        }
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      url: String(url),
+      headers: {
+        get(name) {
+          return String(name).toLowerCase() === "content-type"
+            ? "image/jpeg"
+            : null;
+        }
+      },
+      async arrayBuffer() {
+        return jpeg.buffer.slice(
+          jpeg.byteOffset,
+          jpeg.byteOffset + jpeg.byteLength
+        );
+      }
+    };
+  };
+
+  const discovered = await tiktokOembedVisualSeed(
+    seedUrl,
+    {
+      timeoutMs: 5000,
+      fetchImpl: fakeFetch
+    }
+  );
+  assert.equal(discovered.length, 1);
+  assert.equal(discovered[0].kind, "image");
+  assert.equal(discovered[0].resourceType, "Image");
+  assert.equal(discovered[0].bodyCaptured, true);
+  assert.equal(discovered[0].bodyBytes, jpeg.length);
+  assert.equal(
+    Buffer.from(discovered[0].bodyBase64, "base64").length,
+    jpeg.length
+  );
+  assert.equal(discovered[0].sourcePageUrl, seedUrl);
+  assert.equal(calls.length, 2);
+
+  const rejected = await tiktokOembedVisualSeed(
+    seedUrl,
+    {
+      fetchImpl: async () => ({
+        ok: true,
+        async json() {
+          return {
+            author_url: "https://www.tiktok.com/@otra.cuenta",
+            thumbnail_url: "https://1.1.1.1/otra.jpg"
+          };
+        }
+      })
+    }
+  );
+  assert.equal(rejected.length, 0);
 });

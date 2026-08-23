@@ -3414,6 +3414,167 @@ function xlsxFormulaIssue(formula = "", sheetNames = []) {
     return null;
 }
 
+function jarvisTikTokHandleFromUrl(value = "") {
+    try {
+        const parsed = new URL(String(value || ""));
+        if (
+            parsed.hostname.toLowerCase() !== "tiktok.com" &&
+            !parsed.hostname.toLowerCase().endsWith(".tiktok.com")
+        ) {
+            return "";
+        }
+        const segment = parsed.pathname
+            .split("/")
+            .map(item => {
+                try { return decodeURIComponent(item); }
+                catch { return item; }
+            })
+            .find(item => String(item || "").startsWith("@"));
+        return String(segment || "").trim().toLowerCase();
+    }
+    catch {
+        return "";
+    }
+}
+
+export function speechSynthesisRecoveryInputs(input = {}, error = null) {
+    const requestedVoice = String(input?.voice || "").trim();
+    const requestedLanguage = String(input?.language || "").trim();
+    const message = String(error?.message || error || "");
+    const recoverableVoiceFailure =
+        Boolean(requestedVoice) &&
+        (
+            /SelectVoice/i.test(message) ||
+            /SPEECH_LANGUAGE_VOICE_NOT_FOUND/i.test(message) ||
+            /voz coincidente/i.test(message) ||
+            /matching voice/i.test(message)
+        );
+
+    if (!recoverableVoiceFailure) return [];
+
+    const attempts = [
+        {
+            ...(input || {}),
+            voice: ""
+        }
+    ];
+
+    if (
+        requestedLanguage &&
+        /^es(?:-|$)/i.test(requestedLanguage) &&
+        requestedLanguage.toLowerCase() !== "es-mx"
+    ) {
+        attempts.push({
+            ...(input || {}),
+            voice: "",
+            language: "es-MX"
+        });
+    }
+
+    if (requestedLanguage) {
+        attempts.push({
+            ...(input || {}),
+            voice: "",
+            language: ""
+        });
+    }
+
+    const seen = new Set();
+    return attempts.filter(item => {
+        const key = JSON.stringify({
+            voice: String(item?.voice || ""),
+            language: String(item?.language || "")
+        });
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
+export async function tiktokOembedVisualSeed(
+    sourceUrl = "",
+    {
+        timeoutMs = 15000,
+        fetchImpl = globalThis.fetch
+    } = {}
+) {
+    const seedUrl = String(sourceUrl || "").trim();
+    const expectedHandle = jarvisTikTokHandleFromUrl(seedUrl);
+    if (!expectedHandle || typeof fetchImpl !== "function") return [];
+
+    const boundedTimeout = Math.min(
+        Math.max(Number(timeoutMs) || 15000, 3000),
+        30000
+    );
+    const oembedUrl =
+        "https://www.tiktok.com/oembed?url=" +
+        encodeURIComponent(seedUrl);
+
+    const oembedResponse = await fetchImpl(oembedUrl, {
+        headers: {
+            "User-Agent": "Mozilla/5.0 JarvisLocalResearch/1.0",
+            Accept: "application/json,*/*;q=0.8"
+        },
+        redirect: "follow",
+        signal: AbortSignal.timeout(boundedTimeout)
+    });
+
+    if (!oembedResponse?.ok) return [];
+    const payload = await oembedResponse.json();
+    const actualHandle = jarvisTikTokHandleFromUrl(
+        String(payload?.author_url || "")
+    );
+    if (!actualHandle || actualHandle !== expectedHandle) return [];
+
+    const thumbnailUrl = String(payload?.thumbnail_url || "").trim();
+    const thumbnailUrlLower = thumbnailUrl.toLowerCase();
+    if (
+        !thumbnailUrlLower.startsWith("http://") &&
+        !thumbnailUrlLower.startsWith("https://")
+    ) return [];
+
+    const thumbnailResponse = await fetchImpl(thumbnailUrl, {
+        headers: {
+            "User-Agent": "Mozilla/5.0 JarvisLocalResearch/1.0",
+            Accept: "image/*,*/*;q=0.8",
+            Referer: seedUrl
+        },
+        redirect: "follow",
+        signal: AbortSignal.timeout(boundedTimeout)
+    });
+
+    if (!thumbnailResponse?.ok) return [];
+    const mimeType = String(
+        thumbnailResponse.headers?.get?.("content-type") || ""
+    )
+        .split(";")[0]
+        .trim()
+        .toLowerCase();
+    if (!mimeType.startsWith("image/")) return [];
+
+    const bytes = Buffer.from(await thumbnailResponse.arrayBuffer());
+    if (bytes.length < 20000 || bytes.length > 12 * 1024 * 1024) {
+        return [];
+    }
+
+    return [
+        {
+            kind: "image",
+            url: String(thumbnailResponse.url || thumbnailUrl),
+            mimeType,
+            observedMimeType: mimeType,
+            resourceType: "Image",
+            declaredBytes: bytes.length,
+            bodyCaptured: true,
+            bodyBytes: bytes.length,
+            bodyBase64: bytes.toString("base64"),
+            sourcePageUrl: seedUrl,
+            sourceTag: "tiktok-oembed-thumbnail",
+            alt: String(payload?.title || "").slice(0, 300)
+        }
+    ];
+}
+
 export function createJarvisFsBridgeApp({
     root = DEFAULT_ROOT
 } = {}) {
@@ -3526,6 +3687,39 @@ export function createJarvisFsBridgeApp({
             });
         }
 
+        return next();
+    });
+
+    app.use("/web/media/collect", async (req, res, next) => {
+        if (req.method !== "POST") return next();
+        const body = req.body || {};
+        if (
+            Array.isArray(body.discoveredMedia) &&
+            body.discoveredMedia.length > 0
+        ) {
+            return next();
+        }
+        try {
+            const discoveredMedia = await tiktokOembedVisualSeed(
+                body.url,
+                {
+                    timeoutMs:
+                        Math.min(
+                            Math.max(Number(body.timeoutMs) || 15000, 3000),
+                            30000
+                        )
+                }
+            );
+            if (discoveredMedia.length > 0) {
+                req.body = {
+                    ...body,
+                    discoveredMedia
+                };
+            }
+        }
+        catch {
+            // Keep the existing static/CDP collector as the fallback.
+        }
         return next();
     });
 
@@ -4581,11 +4775,52 @@ export function createJarvisFsBridgeApp({
                 requestedSpeechOutput.toLowerCase().endsWith(".wav")
                     ? requestedSpeechOutput
                     : "";
-            const speech = synthesizeSpeechArtifact({
+            const speechInput = {
                 ...(req.body || {}),
                 output: speechOutput,
                 root
-            });
+            };
+            let speech;
+            let speechRecovery = null;
+            try {
+                speech = synthesizeSpeechArtifact(speechInput);
+            }
+            catch (initialSpeechError) {
+                const recoveryInputs =
+                    speechSynthesisRecoveryInputs(
+                        speechInput,
+                        initialSpeechError
+                    );
+                let lastSpeechError = initialSpeechError;
+                for (const recoveryInput of recoveryInputs) {
+                    try {
+                        speech =
+                            synthesizeSpeechArtifact(
+                                recoveryInput
+                            );
+                        speechRecovery = {
+                            recovered: true,
+                            requestedVoice:
+                                String(req.body?.voice || "") ||
+                                null,
+                            requestedLanguage:
+                                String(req.body?.language || "") ||
+                                null,
+                            fallbackVoice:
+                                String(recoveryInput?.voice || "") ||
+                                null,
+                            fallbackLanguage:
+                                String(recoveryInput?.language || "") ||
+                                null
+                        };
+                        break;
+                    }
+                    catch (recoveryError) {
+                        lastSpeechError = recoveryError;
+                    }
+                }
+                if (!speech) throw lastSpeechError;
+            }
             const artifact = registerArtifact({
                 root,
                 output: speech.output,
@@ -4613,6 +4848,7 @@ export function createJarvisFsBridgeApp({
             });
             return res.json({
                 ...speech,
+                ...(speechRecovery ? { speechRecovery } : {}),
                 artifact,
                 version: JARVIS_FS_BRIDGE_VERSION
             });
