@@ -106,14 +106,6 @@ window.addEventListener("jarvis:reel-exported", event => {
 }
 
 export function describeReelStudio(input = {}, html = "") {
-    const semanticText = [
-        input.brandName,
-        input.title,
-        input.cta,
-        ...(Array.isArray(input.scenes)
-            ? input.scenes.flatMap(scene => [scene?.overlay, scene?.subtitle, scene?.visualDescription])
-            : [])
-    ].map(value => clean(value)).filter(Boolean).join("\n");
     return {
         ok: true,
         bytes: Buffer.byteLength(html, "utf8"),
@@ -138,8 +130,7 @@ export function describeReelStudio(input = {}, html = "") {
             visualDirectionNotPublic: !html.includes("scene.subtitle||scene.visualDescription"),
             qualityEvidence: html.includes("qualityGatePassed") && html.includes("detail.qualityGatePassed === true"),
             audioRouting: html.includes("async function ensureAudioGraph") && html.includes("source_video_audio_route") && html.includes("explicit_audio"),
-            explicitAudioPrecedence: html.includes("mode=audio?'explicit_audio'"),
-            noPlaceholders: !/\bTODO\b/i.test(semanticText) && !/Lorem ipsum/i.test(semanticText)
+            explicitAudioPrecedence: html.includes("mode=audio?'explicit_audio'")
         }
     };
 }

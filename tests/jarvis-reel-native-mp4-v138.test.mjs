@@ -464,3 +464,27 @@ test("V142 hands verified semantically bound reel-plan scenes to reel.create", (
   assert.equal(handoff.args.scenes[0].assetOutput, verifiedScene.assetOutput);
   assert.equal(handoff.args.scenes[0].sourceMedia.sha256, "a".repeat(64));
 });
+
+test("V142 reel Studio does not lexically block user content", () => {
+  for (const phrase of [
+    "Mostrar todo el taco y el queso derretido",
+    "TODO reemplazar esta toma",
+    "Lorem ipsum puede ser texto intencional del usuario",
+    "ToDo, TODO, todo: cualquier texto es contenido, no un gate fisico"
+  ]) {
+    const candidate = input();
+    candidate.scenes[0].visualDescription = phrase;
+    candidate.scenes[0].subtitle = phrase;
+    const html = buildReelStudioHtml(candidate);
+    const verification = describeReelStudio(candidate, html);
+    assert.equal(Object.hasOwn(verification.checks, "noPlaceholders"), false);
+    assert.equal(Object.values(verification.checks).every(Boolean), true);
+  }
+});
+
+test("V142 reel bridge reports the exact failed Studio post-verification checks", () => {
+  const source = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
+  assert.equal(source.includes("const failedChecks = Object.entries(verification.checks)"), true);
+  assert.equal(source.includes("REEL_STUDIO_POST_VERIFY_FAILED:"), true);
+  assert.equal(source.includes('failedChecks.join(",")'), true);
+});

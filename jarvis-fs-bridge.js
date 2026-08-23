@@ -4927,7 +4927,14 @@ export function createJarvisFsBridgeApp({
             };
             const html = buildReelStudioHtml(hydrated);
             const verification = describeReelStudio(hydrated, html);
-            if (!Object.values(verification.checks).every(Boolean)) throw new Error("REEL_STUDIO_POST_VERIFY_FAILED");
+            const failedChecks = Object.entries(verification.checks)
+                .filter(([, passed]) => passed !== true)
+                .map(([name]) => name);
+            if (failedChecks.length > 0) {
+                throw new Error(
+                    "REEL_STUDIO_POST_VERIFY_FAILED:" + failedChecks.join(",")
+                );
+            }
             const slug = safeFileStem(req.body?.slug || req.body?.title || req.body?.brandName || "reel");
             const requestedOutput =
                 String(req.body?.output || "").trim().replaceAll("\\", "/");
