@@ -522,3 +522,17 @@ test("V142 current turn preserves semantic planner outage truth", () => {
   assert.equal(coreSource.includes('reason: "SEMANTIC_PLANNER_UNAVAILABLE"'), true);
   assert.equal(coreSource.includes("no se degradara este fallo a un falso plan vacio"), true);
 });
+
+test("V142 mission contract retries the same semantic authority and rejects amputated production fallback", () => {
+  const coreSource = fs.readFileSync(
+    new URL("../gestia-core/gestia-core.js", import.meta.url),
+    "utf8"
+  );
+  assert.equal(coreSource.includes("missionContractAttempt <= 3"), true);
+  assert.equal(coreSource.includes("[MISSION_CONTRACT_SEMANTIC_PLANNER_TRANSIENT_RETRY]"), true);
+  assert.equal(coreSource.includes("const incompleteProductionFallback = recoveredInitialToolCalls.some"), true);
+  assert.equal(coreSource.includes('call?.name === "marketing.plan"'), true);
+  assert.equal(coreSource.includes("call?.args?.productionRequested === true"), true);
+  assert.equal(coreSource.includes("call.args.productionArtifacts.length === 0"), true);
+  assert.equal(coreSource.includes("throw lastMissionContractError"), true);
+});

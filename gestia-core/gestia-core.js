@@ -4413,31 +4413,60 @@ if (
             ...registeredMissionTools.filter(tool => !operationalMissionToolNames.has(tool.name))
         ].slice(0, 80);
     let missionContractToolCalls;
-    try {
-        missionContractToolCalls =
-            await buildJarvisMultifunctionToolCalls(
-                inputRaw.slice(0, 120000),
-                {
-                    ...context,
-                    throwOnUnavailable: true,
-                    toolCatalog: missionToolCatalog,
-                    missionState: {
-                        phase: "MISSION_CONTRACT",
-                        writeAllowed: false,
-                        userArtifactAllowed: true,
-                        existingInitialTools: operationalInitialToolCalls.map(call => call?.name).filter(Boolean),
-                        semanticMemoryAvailable: Boolean(semanticMemoryContext),
-                        advisorySemanticContext: compactJarvisSemanticMemoryForPlanner(semanticMemoryContext)
+    let lastMissionContractError = null;
+    for (let missionContractAttempt = 1; missionContractAttempt <= 3; missionContractAttempt += 1) {
+        try {
+            missionContractToolCalls =
+                await buildJarvisMultifunctionToolCalls(
+                    inputRaw.slice(0, 120000),
+                    {
+                        ...context,
+                        throwOnUnavailable: true,
+                        toolCatalog: missionToolCatalog,
+                        missionState: {
+                            phase: "MISSION_CONTRACT",
+                            writeAllowed: false,
+                            userArtifactAllowed: true,
+                            existingInitialTools: operationalInitialToolCalls.map(call => call?.name).filter(Boolean),
+                            semanticMemoryAvailable: Boolean(semanticMemoryContext),
+                            advisorySemanticContext: compactJarvisSemanticMemoryForPlanner(semanticMemoryContext)
+                        }
                     }
-                }
+                );
+            lastMissionContractError = null;
+            break;
+        }
+        catch(error) {
+            lastMissionContractError = error;
+            if (missionContractAttempt >= 3) break;
+            const retryDelayMs = missionContractAttempt === 1 ? 500 : 1500;
+            console.warn(
+                "[MISSION_CONTRACT_SEMANTIC_PLANNER_TRANSIENT_RETRY]",
+                missionContractAttempt,
+                String(error?.message || error),
+                retryDelayMs
             );
-    } catch (contractError) {
-        console.warn("[MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN]", contractError);
+            await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+        }
+    }
+    if (lastMissionContractError) {
+        console.warn("[MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN]", lastMissionContractError);
         const allowedMissionTools = new Set(missionToolCatalog.map(tool => tool.name));
-        missionContractToolCalls = operationalInitialToolCalls.filter(
+        const recoveredInitialToolCalls = operationalInitialToolCalls.filter(
             call => allowedMissionTools.has(call?.name)
         );
-        if (missionContractToolCalls.length === 0) throw contractError;
+        const incompleteProductionFallback = recoveredInitialToolCalls.some(call =>
+            call?.name === "marketing.plan" &&
+            call?.args?.productionRequested === true &&
+            (
+                !Array.isArray(call?.args?.productionArtifacts) ||
+                call.args.productionArtifacts.length === 0
+            )
+        );
+        if (recoveredInitialToolCalls.length === 0 || incompleteProductionFallback) {
+            throw lastMissionContractError;
+        }
+        missionContractToolCalls = recoveredInitialToolCalls;
     }
     if (conversationalPlan.requiresFinalConversation) {
         missionContractToolCalls =
