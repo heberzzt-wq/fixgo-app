@@ -5443,11 +5443,17 @@ if (
                         }
                     }
 
+                    const shouldCompletePlanningArguments =
+                        call?.deferred === true ||
+                        (
+                            Array.isArray(missionContext?.completedTasks) &&
+                            missionContext.completedTasks.length > 0
+                        );
+
                     if (
                         !argumentGrounded &&
                         toolDefinition?.inputSchema &&
-                        Array.isArray(missionContext?.completedTasks) &&
-                        missionContext.completedTasks.length > 0
+                        shouldCompletePlanningArguments
                     ) {
                         try {
                             const grounded =

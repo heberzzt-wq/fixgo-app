@@ -131,7 +131,7 @@ test("v138 actuator advertises MP4 preference without removing verified WebM fal
 
 test("V142 waits for the real browser export completion state", () => {
   const source = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
-  assert.match(source, /2\.46\.0-reel-export-completion-v142/);
+  assert.match(source, /2\.47\.0-dual-human-recovery-v142/);
   assert.doesNotMatch(source, /await sleepMs\(duration \* 1000 \+ 2600\)/);
   assert.match(source, /__JARVIS_REEL_EXPORT_ERROR__/);
   assert.match(source, /REEL_EXPORT_COMPLETION_TIMEOUT/);
@@ -487,4 +487,26 @@ test("V142 reel bridge reports the exact failed Studio post-verification checks"
   assert.equal(source.includes("const failedChecks = Object.entries(verification.checks)"), true);
   assert.equal(source.includes("REEL_STUDIO_POST_VERIFY_FAILED:"), true);
   assert.equal(source.includes('failedChecks.join(",")'), true);
+});
+
+test("V142 structured production continuation reaches the semantic planner and deferred first step", () => {
+  const plannerSource = fs.readFileSync(
+    new URL("../gestia-core/jarvis/jarvis.multifunction.planner.js", import.meta.url),
+    "utf8"
+  );
+  const coreSource = fs.readFileSync(
+    new URL("../gestia-core/gestia-core.js", import.meta.url),
+    "utf8"
+  );
+  assert.equal(plannerSource.includes("generalistCurrentTurnPolicy: GENERALIST_CURRENT_TURN_POLICY"), true);
+  assert.equal(plannerSource.includes("contexto semantico asesor de esta conversacion confirme de forma inequivoca una produccion activa"), true);
+  assert.equal(plannerSource.includes("por si solos y sin esa continuidad semantica, no autorizan ejecutar nada"), true);
+  assert.equal(coreSource.includes("const shouldCompletePlanningArguments ="), true);
+  assert.equal(coreSource.includes("call?.deferred === true"), true);
+  assert.equal(coreSource.includes("SEMANTIC_PLANNER_NO_EXECUTABLE_PLAN"), true);
+});
+
+test("V142 bridge release identifies the dual human-red recovery bytes", () => {
+  const source = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
+  assert.equal(source.includes("2.47.0-dual-human-recovery-v142"), true);
 });

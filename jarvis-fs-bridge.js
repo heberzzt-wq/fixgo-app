@@ -56,7 +56,7 @@ import {
 } from "./jarvis-speech-artifact.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.46.0-reel-export-completion-v142";
+    "2.47.0-dual-human-recovery-v142";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
