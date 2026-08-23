@@ -3857,7 +3857,7 @@ export const GestiaCore = {
             });
         let lightMultifunctionCalls = [];
         let lastCurrentTurnPlannerError = null;
-        for (let attempt = 1; attempt <= 2; attempt += 1) {
+        for (let attempt = 1; attempt <= 3; attempt += 1) {
             try {
                 lightMultifunctionCalls =
                     await buildJarvisMultifunctionToolCalls(
@@ -3887,18 +3887,21 @@ export const GestiaCore = {
                     message.includes("TIMEOUT_") ||
                     message.includes("AUTH_REQUIRED");
                 if (
-                    attempt >= 2 ||
+                    attempt >= 3 ||
                     providerFallbackExhausted
                 ) {
                     throw error;
                 }
+                const retryDelayMs =
+                    attempt === 1 ? 500 : 1500;
                 console.warn(
                     "[CURRENT_TURN_SEMANTIC_PLANNER_TRANSIENT_RETRY]",
                     attempt,
-                    message
+                    message,
+                    retryDelayMs
                 );
                 await new Promise(resolve =>
-                    setTimeout(resolve, 350)
+                    setTimeout(resolve, retryDelayMs)
                 );
             }
         }
