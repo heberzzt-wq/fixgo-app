@@ -2,6 +2,8 @@ import fs from "node:fs/promises";
 
 const paths = {
     bridge: "jarvis-fs-bridge.js",
+    core: "gestia-core/gestia-core.js",
+    planner: "gestia-core/jarvis/jarvis.multifunction.planner.js",
     orchestrator: "gestia-core/jarvis/jarvis.mission.orchestrator.js",
     reelArtifact: "jarvis-reel-artifact.js",
     reelTest: "tests/jarvis-reel-native-mp4-v138.test.mjs",
@@ -59,8 +61,13 @@ function removeReelLexicalContentGate(source) {
 }
 
 let bridge = await read(paths.bridge);
+bridge = replaceOnce(
+    bridge,
+    '"2.46.0-reel-export-completion-v142"',
+    '"2.47.0-dual-human-recovery-v142"',
+    "V142_BRIDGE_DUAL_HUMAN_RELEASE"
+);
 for (const marker of [
-    "2.46.0-reel-export-completion-v142",
     "detached_contract_head",
     "speechSynthesisRecoveryInputs",
     "canonicalSeedUrl",
@@ -88,6 +95,58 @@ bridge = replaceOnce(
     "REEL_POST_VERIFY_EXACT_CHECK"
 );
 await write(paths.bridge, bridge);
+
+let planner = await read(paths.planner);
+planner = replaceOnce(
+    planner,
+`    "Distingue entre objetos de entrada, temas mencionados y resultados realmente solicitados: mencionar una capacidad, formato, archivo o tema no equivale a pedir que se ejecute o produzca.",
+    "Selecciona solamente las herramientas necesarias para satisfacer la intencion actual y conserva cada objetivo independiente pedido por el usuario.",`,
+`    "Distingue entre objetos de entrada, temas mencionados y resultados realmente solicitados: mencionar una capacidad, formato, archivo o tema no equivale a pedir que se ejecute o produzca.",
+    "Cuando la instruccion actual aporte material de produccion listo para ejecutar y el contexto semantico asesor de esta conversacion confirme de forma inequivoca una produccion activa, interpreta ese material como continuacion de la misma produccion y selecciona las herramientas necesarias sin exigir que el usuario repita un verbo de ejecucion. El contenido o su formato, por si solos y sin esa continuidad semantica, no autorizan ejecutar nada.",
+    "Selecciona solamente las herramientas necesarias para satisfacer la intencion actual y conserva cada objetivo independiente pedido por el usuario.",`,
+    "SEMANTIC_STRUCTURED_PRODUCTION_CONTINUATION"
+);
+planner = replaceOnce(
+    planner,
+`            body: JSON.stringify({ data: { input, catalog, missionState } }),`,
+`            body: JSON.stringify({
+                data: {
+                    input,
+                    catalog,
+                    missionState: {
+                        ...(missionState && typeof missionState === "object" ? missionState : {}),
+                        generalistCurrentTurnPolicy: GENERALIST_CURRENT_TURN_POLICY
+                    }
+                }
+            }),`,
+    "GENERALIST_POLICY_DELIVERY"
+);
+await write(paths.planner, planner);
+
+let core = await read(paths.core);
+core = replaceOnce(
+    core,
+`                    if (
+                        !argumentGrounded &&
+                        toolDefinition?.inputSchema &&
+                        Array.isArray(missionContext?.completedTasks) &&
+                        missionContext.completedTasks.length > 0
+                    ) {`,
+`                    const shouldCompletePlanningArguments =
+                        call?.deferred === true ||
+                        (
+                            Array.isArray(missionContext?.completedTasks) &&
+                            missionContext.completedTasks.length > 0
+                        );
+
+                    if (
+                        !argumentGrounded &&
+                        toolDefinition?.inputSchema &&
+                        shouldCompletePlanningArguments
+                    ) {`,
+    "DEFERRED_FIRST_STEP_ARGUMENT_COMPLETION"
+);
+await write(paths.core, core);
 
 const orchestrator = await read(paths.orchestrator);
 for (const marker of [
@@ -144,6 +203,36 @@ reelTest = appendOnce(
   assert.equal(source.includes("const failedChecks = Object.entries(verification.checks)"), true);
   assert.equal(source.includes("REEL_STUDIO_POST_VERIFY_FAILED:"), true);
   assert.equal(source.includes('failedChecks.join(",")'), true);
+});`
+);
+
+reelTest = appendOnce(
+    reelTest,
+    "V142 structured production continuation reaches the semantic planner and deferred first step",
+`test("V142 structured production continuation reaches the semantic planner and deferred first step", () => {
+  const plannerSource = fs.readFileSync(
+    new URL("../gestia-core/jarvis/jarvis.multifunction.planner.js", import.meta.url),
+    "utf8"
+  );
+  const coreSource = fs.readFileSync(
+    new URL("../gestia-core/gestia-core.js", import.meta.url),
+    "utf8"
+  );
+  assert.equal(plannerSource.includes("generalistCurrentTurnPolicy: GENERALIST_CURRENT_TURN_POLICY"), true);
+  assert.equal(plannerSource.includes("contexto semantico asesor de esta conversacion confirme de forma inequivoca una produccion activa"), true);
+  assert.equal(plannerSource.includes("por si solos y sin esa continuidad semantica, no autorizan ejecutar nada"), true);
+  assert.equal(coreSource.includes("const shouldCompletePlanningArguments ="), true);
+  assert.equal(coreSource.includes("call?.deferred === true"), true);
+  assert.equal(coreSource.includes("SEMANTIC_PLANNER_NO_EXECUTABLE_PLAN"), true);
+});`
+);
+
+reelTest = appendOnce(
+    reelTest,
+    "V142 bridge release identifies the dual human-red recovery bytes",
+`test("V142 bridge release identifies the dual human-red recovery bytes", () => {
+  const source = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
+  assert.equal(source.includes("2.47.0-dual-human-recovery-v142"), true);
 });`
 );
 await write(paths.reelTest, reelTest);
