@@ -21,6 +21,7 @@ on:
       - 'jarvis-fs-bridge.js'
       - 'jarvis-reel-artifact.js'
       - 'modules/terminal/jarvis-attachments.js'
+      - 'tests/jarvis-attachments.test.mjs'
       - 'tests/jarvis-mobile-web-research-recovery-v142.test.mjs'
       - 'tests/jarvis-genai-provider-chain.test.cjs'
       - 'tests/jarvis-web-research.test.cjs'
