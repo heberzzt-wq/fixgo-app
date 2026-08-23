@@ -6,7 +6,8 @@ const paths = {
     orchestrator: "gestia-core/jarvis/jarvis.mission.orchestrator.js",
     bridge: "jarvis-fs-bridge.js",
     reelArtifact: "jarvis-reel-artifact.js",
-    reelTest: "tests/jarvis-reel-native-mp4-v138.test.mjs"
+    reelTest: "tests/jarvis-reel-native-mp4-v138.test.mjs",
+    semanticPlannerTest: "tests/jarvis-semantic-planner.test.cjs"
 };
 
 async function read(file) {
@@ -186,12 +187,20 @@ reelTest = appendOnce(
 );
 await write(paths.reelTest, reelTest);
 
+let semanticPlannerTest = await read(paths.semanticPlannerTest);
+semanticPlannerTest = semanticPlannerTest.replace(
+    /(\} = require\("\.\.\/functions\/jarvis-semantic-planner"\);\n)\n+(const catalog = \[)/,
+    "$1\n$2"
+);
+await write(paths.semanticPlannerTest, semanticPlannerTest);
+
 console.log(JSON.stringify({
     ok: true,
     status: "V142_REEL_CLOSEOUT_APPLIED",
     sameSemanticAuthority: true,
     missionContractAttempts: 3,
     partialProductionFallbackRejected: true,
+    semanticPlannerTestWhitespaceCanonical: true,
     newFiles: false,
     newContracts: false,
     newBrains: false
