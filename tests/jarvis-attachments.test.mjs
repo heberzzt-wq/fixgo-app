@@ -14,7 +14,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 test("multimodal composer exposes bounded upload capabilities", () => {
     const description = JarvisAttachments.describe();
-    assert.equal(description.version, "2.4.0-user-artifact-preview-download");
+    assert.equal(description.version, "2.5.0-artifact-download-lifecycle-v142");
     assert.equal(description.transport, "chunked_progressive");
     assert.equal(description.maxFiles, 30);
     assert.equal(description.maxFileBytes, 250 * 1024 * 1024);
@@ -22,6 +22,28 @@ test("multimodal composer exposes bounded upload capabilities", () => {
     assert.equal(description.chunkBytes, 2 * 1024 * 1024);
     assert.equal(description.concurrency, 3);
     assert.equal(description.recoverableCompletedArtifacts, true);
+    assert.equal(description.persistentArtifactDownloads, true);
+});
+
+test("delivered artifact blob downloads outlive composer cleanup", () => {
+    const attachments = fs.readFileSync(
+        path.resolve(__dirname, "../modules/terminal/jarvis-attachments.js"),
+        "utf8"
+    );
+    assert.match(attachments, /previewObjectUrls: new Set\(\)/);
+    assert.match(attachments, /artifactObjectUrls: new Set\(\)/);
+    assert.match(attachments, /state\.previewObjectUrls\.forEach\(url => URL\.revokeObjectURL\(url\)\)/);
+    assert.match(attachments, /state\.artifactObjectUrls\.add\(objectUrl\)/);
+    assert.match(attachments, /persistentArtifactDownloads: true/);
+    assert.match(attachments, /window\.addEventListener\("beforeunload"/);
+
+    const clearStart = attachments.indexOf("function clear()");
+    const clearEnd = attachments.indexOf("\n}\n\nfunction observationTool", clearStart);
+    assert.notEqual(clearStart, -1);
+    assert.notEqual(clearEnd, -1);
+    const clearSource = attachments.slice(clearStart, clearEnd);
+    assert.doesNotMatch(clearSource, /artifactObjectUrls/);
+    assert.doesNotMatch(attachments, /state\.objectUrls\.add\(objectUrl\)/);
 });
 
 test("multimodal composer rejects incomplete selected batches", () => {
