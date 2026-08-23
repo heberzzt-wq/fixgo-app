@@ -56,7 +56,7 @@ const anchoredRules = [
   domainRule,
   '        "Si la instruccion original contiene una URL explicita entregada por el usuario, tratala como FUENTE ANCLA. FUENTES_EXPLICITAS_USUARIO identifica esas URLs inmutables: conserva la URL y la identidad exactas y nunca sustituyas el ancla por una publicacion, cuenta o entidad homonima.",',
   '        "Para web.research con FUENTE ANCLA, copia la URL exacta en seedUrl y su dominio exacto en allowedDomain. Si el ancla no puede verificarse, falla cerrado; no relajes allowedDomain ni presentes otra fuente como si fuera el ancla.",',
-  '        "Para web.media.collect con FUENTE ANCLA, copia la URL exacta en url. Si la investigacion verificada selecciono una fuente concreta, conserva exactamente esa URL y no la reemplaces por otra publicacion."
+  '        "Para web.media.collect con FUENTE ANCLA, copia la URL exacta en url. Si la investigacion verificada selecciono una fuente concreta, conserva exactamente esa URL y no la reemplaces por otra publicacion."'
 ].join("\n");
 semantic = replaceOnce(
   semantic,
