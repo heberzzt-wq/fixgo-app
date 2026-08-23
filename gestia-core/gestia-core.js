@@ -3855,19 +3855,56 @@ export const GestiaCore = {
                     projectId: "adjunto"
                 }
             });
-        const lightMultifunctionCalls =
-            await buildJarvisMultifunctionToolCalls(
-                inputRaw,
-                {
-                    state,
-                    missionState: {
-                        phase: "CURRENT_TURN",
-                        semanticMemoryAvailable: Boolean(semanticMemory),
-                        advisorySemanticContext: compactJarvisSemanticMemoryForPlanner(semanticMemory),
-                        writeAllowed: false
-                    }
+        let lightMultifunctionCalls = [];
+        let lastCurrentTurnPlannerError = null;
+        for (let attempt = 1; attempt <= 2; attempt += 1) {
+            try {
+                lightMultifunctionCalls =
+                    await buildJarvisMultifunctionToolCalls(
+                        inputRaw,
+                        {
+                            state,
+                            throwOnUnavailable: true,
+                            missionState: {
+                                phase: "CURRENT_TURN",
+                                semanticMemoryAvailable: Boolean(semanticMemory),
+                                advisorySemanticContext: compactJarvisSemanticMemoryForPlanner(semanticMemory),
+                                writeAllowed: false
+                            }
+                        }
+                    );
+                lastCurrentTurnPlannerError = null;
+                break;
+            }
+            catch(error) {
+                lastCurrentTurnPlannerError = error;
+                const message = String(
+                    error?.message ||
+                    "SEMANTIC_PLANNER_UNAVAILABLE"
+                );
+                const providerFallbackExhausted =
+                    message.includes("__BROWSER_") ||
+                    message.includes("TIMEOUT_") ||
+                    message.includes("AUTH_REQUIRED");
+                if (
+                    attempt >= 2 ||
+                    providerFallbackExhausted
+                ) {
+                    throw error;
                 }
-            );
+                console.warn(
+                    "[CURRENT_TURN_SEMANTIC_PLANNER_TRANSIENT_RETRY]",
+                    attempt,
+                    message
+                );
+                await new Promise(resolve =>
+                    setTimeout(resolve, 350)
+                );
+            }
+        }
+        if (lastCurrentTurnPlannerError) {
+            throw lastCurrentTurnPlannerError;
+        }
 
         if (
             lightMultifunctionCalls.length === 1 &&
@@ -3972,14 +4009,35 @@ export const GestiaCore = {
                 identity: semanticMemoryIdentity
             });
 
-        const terminalSemanticPlan =
-            await this.analizarIntencionLigera(
-                inputRaw,
-                {
-                    ...context,
-                    tenantId
-                }
+        let terminalSemanticPlan;
+        try {
+            terminalSemanticPlan =
+                await this.analizarIntencionLigera(
+                    inputRaw,
+                    {
+                        ...context,
+                        tenantId
+                    }
+                );
+        }
+        catch(error) {
+            const semanticPlannerError =
+                String(
+                    error?.message ||
+                    "SEMANTIC_PLANNER_UNAVAILABLE"
+                );
+            console.error(
+                "[CURRENT_TURN_SEMANTIC_PLANNER_UNAVAILABLE]",
+                semanticPlannerError
             );
+            return {
+                status: "halted",
+                reason: "SEMANTIC_PLANNER_UNAVAILABLE",
+                error: semanticPlannerError,
+                message:
+                    "El planner semantico unico no esta disponible; no se degradara este fallo a un falso plan vacio."
+            };
+        }
 
         let terminalPlannerSeed =
             Array.isArray(

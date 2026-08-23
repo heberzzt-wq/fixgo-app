@@ -510,3 +510,15 @@ test("V142 bridge release identifies the dual human-red recovery bytes", () => {
   const source = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
   assert.equal(source.includes("2.47.0-dual-human-recovery-v142"), true);
 });
+
+test("V142 current turn preserves semantic planner outage truth", () => {
+  const coreSource = fs.readFileSync(
+    new URL("../gestia-core/gestia-core.js", import.meta.url),
+    "utf8"
+  );
+  assert.equal(coreSource.includes("[CURRENT_TURN_SEMANTIC_PLANNER_TRANSIENT_RETRY]"), true);
+  assert.equal(coreSource.includes("throwOnUnavailable: true"), true);
+  assert.equal(coreSource.includes("[CURRENT_TURN_SEMANTIC_PLANNER_UNAVAILABLE]"), true);
+  assert.equal(coreSource.includes('reason: "SEMANTIC_PLANNER_UNAVAILABLE"'), true);
+  assert.equal(coreSource.includes("no se degradara este fallo a un falso plan vacio"), true);
+});
