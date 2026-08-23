@@ -174,6 +174,13 @@ for (const marker of [
     }
 }
 
+reelTest = replaceOnce(
+    reelTest,
+    `  assert.match(source, /2\\.46\\.0-reel-export-completion-v142/);`,
+    `  assert.match(source, /2\\.47\\.0-dual-human-recovery-v142/);`,
+    "V142_REEL_EXPORT_RELEASE_EXPECTATION"
+);
+
 reelTest = appendOnce(
     reelTest,
     "V142 reel Studio does not lexically block user content",
