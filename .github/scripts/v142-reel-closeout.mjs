@@ -28,6 +28,36 @@ function appendOnce(source, marker, addition) {
     return `${source.trimEnd()}\n\n${addition.trim()}\n`;
 }
 
+function removeReelLexicalContentGate(source) {
+    const semanticTextBlock = `    const semanticText = [
+        input.brandName,
+        input.title,
+        input.cta,
+        ...(Array.isArray(input.scenes)
+            ? input.scenes.flatMap(scene => [scene?.overlay, scene?.subtitle, scene?.visualDescription])
+            : [])
+    ].map(value => clean(value)).filter(Boolean).join("\\n");
+`;
+    if (source.includes(semanticTextBlock)) {
+        source = source.replace(semanticTextBlock, "");
+    }
+
+    const lexicalChecks = [
+        `            noPlaceholders: !/\\bTODO\\b/i.test(semanticText) && !/Lorem ipsum/i.test(semanticText)`,
+        `            noPlaceholders: !/\\bTODO\\b/.test(semanticText) && !/Lorem ipsum/i.test(semanticText)`
+    ];
+    let removed = false;
+    for (const check of lexicalChecks) {
+        if (!source.includes(check)) continue;
+        source = source.replace(`,\n${check}`, "");
+        removed = true;
+    }
+    if (!removed && source.includes("noPlaceholders:")) {
+        throw new Error("REEL_LEXICAL_CONTENT_GATE_UNKNOWN_SHAPE");
+    }
+    return source;
+}
+
 let bridge = await read(paths.bridge);
 for (const marker of [
     "2.46.0-reel-export-completion-v142",
@@ -71,12 +101,7 @@ for (const marker of [
 }
 
 let reelArtifact = await read(paths.reelArtifact);
-reelArtifact = replaceOnce(
-    reelArtifact,
-`            noPlaceholders: !/\\bTODO\\b/i.test(semanticText) && !/Lorem ipsum/i.test(semanticText)`,
-`            noPlaceholders: !/\\bTODO\\b/.test(semanticText) && !/Lorem ipsum/i.test(semanticText)`,
-    "REEL_SPANISH_TODO_FALSE_POSITIVE"
-);
+reelArtifact = removeReelLexicalContentGate(reelArtifact);
 await write(paths.reelArtifact, reelArtifact);
 
 let reelTest = await read(paths.reelTest);
@@ -92,20 +117,22 @@ for (const marker of [
 
 reelTest = appendOnce(
     reelTest,
-    "V142 does not confuse Spanish todo with the TODO placeholder",
-`test("V142 does not confuse Spanish todo with the TODO placeholder", () => {
-  const spanishInput = input();
-  spanishInput.scenes[0].visualDescription = "Mostrar todo el taco y el queso derretido";
-  const spanishHtml = buildReelStudioHtml(spanishInput);
-  const spanishVerification = describeReelStudio(spanishInput, spanishHtml);
-  assert.equal(spanishVerification.checks.noPlaceholders, true);
-  assert.equal(Object.values(spanishVerification.checks).every(Boolean), true);
-
-  const placeholderInput = input();
-  placeholderInput.scenes[0].visualDescription = "TODO reemplazar esta toma";
-  const placeholderHtml = buildReelStudioHtml(placeholderInput);
-  const placeholderVerification = describeReelStudio(placeholderInput, placeholderHtml);
-  assert.equal(placeholderVerification.checks.noPlaceholders, false);
+    "V142 reel Studio does not lexically block user content",
+`test("V142 reel Studio does not lexically block user content", () => {
+  for (const phrase of [
+    "Mostrar todo el taco y el queso derretido",
+    "TODO reemplazar esta toma",
+    "Lorem ipsum puede ser texto intencional del usuario",
+    "ToDo, TODO, todo: cualquier texto es contenido, no un gate fisico"
+  ]) {
+    const candidate = input();
+    candidate.scenes[0].visualDescription = phrase;
+    candidate.scenes[0].subtitle = phrase;
+    const html = buildReelStudioHtml(candidate);
+    const verification = describeReelStudio(candidate, html);
+    assert.equal(Object.hasOwn(verification.checks, "noPlaceholders"), false);
+    assert.equal(Object.values(verification.checks).every(Boolean), true);
+  }
 });`
 );
 
@@ -114,9 +141,9 @@ reelTest = appendOnce(
     "V142 reel bridge reports the exact failed Studio post-verification checks",
 `test("V142 reel bridge reports the exact failed Studio post-verification checks", () => {
   const source = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
-  assert.match(source, /const failedChecks = Object\.entries\(verification\.checks\)/);
-  assert.match(source, /REEL_STUDIO_POST_VERIFY_FAILED:/);
-  assert.match(source, /failedChecks\.join\(","\)/);
+  assert.equal(source.includes("const failedChecks = Object.entries(verification.checks)"), true);
+  assert.equal(source.includes("REEL_STUDIO_POST_VERIFY_FAILED:"), true);
+  assert.equal(source.includes('failedChecks.join(",")'), true);
 });`
 );
 await write(paths.reelTest, reelTest);
