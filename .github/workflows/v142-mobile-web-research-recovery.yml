@@ -231,15 +231,6 @@ jobs:
           node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-mission-orchestrator.test.mjs tests/jarvis-reel-native-mp4-v138.test.mjs
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
-      - name: Inspect Firebase Functions deployment state
-        continue-on-error: true
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "$FIREBASE_TOKEN"
-          firebase functions:list --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --json --non-interactive
       - name: Inspect jarvisSemanticPlan production logs
         continue-on-error: true
         env:
@@ -248,7 +239,7 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$FIREBASE_TOKEN"
-          firebase functions:log --only jarvisSemanticPlan --lines 500 --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
+          firebase functions:log --only jarvisSemanticPlan --lines 200 --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
       - name: Deploy V142 Hosting FIXGO only
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
