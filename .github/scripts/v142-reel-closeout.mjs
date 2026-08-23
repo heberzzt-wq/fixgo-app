@@ -157,7 +157,11 @@ export async function tiktokOembedVisualSeed(
     if (!actualHandle || actualHandle !== expectedHandle) return [];
 
     const thumbnailUrl = String(payload?.thumbnail_url || "").trim();
-    if (!/^https?:\/\//i.test(thumbnailUrl)) return [];
+    const thumbnailUrlLower = thumbnailUrl.toLowerCase();
+    if (
+        !thumbnailUrlLower.startsWith("http://") &&
+        !thumbnailUrlLower.startsWith("https://")
+    ) return [];
 
     const thumbnailResponse = await fetchImpl(thumbnailUrl, {
         headers: {
