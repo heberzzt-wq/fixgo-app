@@ -7,6 +7,7 @@ const paths = {
     orchestrator: "gestia-core/jarvis/jarvis.mission.orchestrator.js",
     reelArtifact: "jarvis-reel-artifact.js",
     reelTest: "tests/jarvis-reel-native-mp4-v138.test.mjs",
+    fsBridgeTest: "tests/jarvis-fs-bridge-v2.test.mjs",
     semanticPlannerTest: "tests/jarvis-semantic-planner.test.cjs"
 };
 
@@ -243,6 +244,15 @@ reelTest = appendOnce(
 });`
 );
 await write(paths.reelTest, reelTest);
+
+let fsBridgeTest = await read(paths.fsBridgeTest);
+fsBridgeTest = replaceOnce(
+    fsBridgeTest,
+    `    assert.equal(description.version, "2.46.0-reel-export-completion-v142");`,
+    `    assert.equal(description.version, "2.47.0-dual-human-recovery-v142");`,
+    "V142_FS_BRIDGE_RELEASE_EXPECTATION"
+);
+await write(paths.fsBridgeTest, fsBridgeTest);
 
 let semanticPlannerTest = await read(paths.semanticPlannerTest);
 semanticPlannerTest = semanticPlannerTest.replace(
