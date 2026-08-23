@@ -148,9 +148,7 @@ core = replaceOnce(
     "DEFERRED_FIRST_STEP_ARGUMENT_COMPLETION"
 );
 
-core = replaceOnce(
-    core,
-`        const lightMultifunctionCalls =
+const currentTurnPlannerLegacy = `        const lightMultifunctionCalls =
             await buildJarvisMultifunctionToolCalls(
                 inputRaw,
                 {
@@ -162,8 +160,8 @@ core = replaceOnce(
                         writeAllowed: false
                     }
                 }
-            );`,
-`        let lightMultifunctionCalls = [];
+            );`;
+const currentTurnPlannerTwoAttempts = `        let lightMultifunctionCalls = [];
         let lastCurrentTurnPlannerError = null;
         for (let attempt = 1; attempt <= 2; attempt += 1) {
             try {
@@ -212,8 +210,73 @@ core = replaceOnce(
         }
         if (lastCurrentTurnPlannerError) {
             throw lastCurrentTurnPlannerError;
-        }`,
-    "CURRENT_TURN_SEMANTIC_PLANNER_RETRY"
+        }`;
+const currentTurnPlannerThreeAttempts = `        let lightMultifunctionCalls = [];
+        let lastCurrentTurnPlannerError = null;
+        for (let attempt = 1; attempt <= 3; attempt += 1) {
+            try {
+                lightMultifunctionCalls =
+                    await buildJarvisMultifunctionToolCalls(
+                        inputRaw,
+                        {
+                            state,
+                            throwOnUnavailable: true,
+                            missionState: {
+                                phase: "CURRENT_TURN",
+                                semanticMemoryAvailable: Boolean(semanticMemory),
+                                advisorySemanticContext: compactJarvisSemanticMemoryForPlanner(semanticMemory),
+                                writeAllowed: false
+                            }
+                        }
+                    );
+                lastCurrentTurnPlannerError = null;
+                break;
+            }
+            catch(error) {
+                lastCurrentTurnPlannerError = error;
+                const message = String(
+                    error?.message ||
+                    "SEMANTIC_PLANNER_UNAVAILABLE"
+                );
+                const providerFallbackExhausted =
+                    message.includes("__BROWSER_") ||
+                    message.includes("TIMEOUT_") ||
+                    message.includes("AUTH_REQUIRED");
+                if (
+                    attempt >= 3 ||
+                    providerFallbackExhausted
+                ) {
+                    throw error;
+                }
+                const retryDelayMs =
+                    attempt === 1 ? 500 : 1500;
+                console.warn(
+                    "[CURRENT_TURN_SEMANTIC_PLANNER_TRANSIENT_RETRY]",
+                    attempt,
+                    message,
+                    retryDelayMs
+                );
+                await new Promise(resolve =>
+                    setTimeout(resolve, retryDelayMs)
+                );
+            }
+        }
+        if (lastCurrentTurnPlannerError) {
+            throw lastCurrentTurnPlannerError;
+        }`;
+if (!core.includes(currentTurnPlannerThreeAttempts)) {
+    core = replaceOnce(
+        core,
+        currentTurnPlannerLegacy,
+        currentTurnPlannerTwoAttempts,
+        "CURRENT_TURN_SEMANTIC_PLANNER_RETRY"
+    );
+}
+core = replaceOnce(
+    core,
+    currentTurnPlannerTwoAttempts,
+    currentTurnPlannerThreeAttempts,
+    "CURRENT_TURN_SEMANTIC_PLANNER_TRANSPORT_HARDENING"
 );
 
 core = replaceOnce(
@@ -355,6 +418,8 @@ reelTest = appendOnce(
   );
   assert.equal(coreSource.includes("[CURRENT_TURN_SEMANTIC_PLANNER_TRANSIENT_RETRY]"), true);
   assert.equal(coreSource.includes("throwOnUnavailable: true"), true);
+  assert.equal(coreSource.includes("attempt <= 3"), true);
+  assert.equal(coreSource.includes("attempt === 1 ? 500 : 1500"), true);
   assert.equal(coreSource.includes("[CURRENT_TURN_SEMANTIC_PLANNER_UNAVAILABLE]"), true);
   assert.equal(coreSource.includes('reason: "SEMANTIC_PLANNER_UNAVAILABLE"'), true);
   assert.equal(coreSource.includes("no se degradara este fallo a un falso plan vacio"), true);
