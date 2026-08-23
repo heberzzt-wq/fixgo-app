@@ -2,11 +2,8 @@ import fs from "node:fs/promises";
 
 const paths = {
     bridge: "jarvis-fs-bridge.js",
-    orchestrator: "gestia-core/jarvis/jarvis.mission.orchestrator.js",
     reelTest: "tests/jarvis-reel-native-mp4-v138.test.mjs",
-    fsBridgeV2Test: "tests/jarvis-fs-bridge-v2.test.mjs",
-    semanticPlannerTest: "tests/jarvis-semantic-planner.test.cjs",
-    missionTest: "tests/jarvis-mission-orchestrator.test.mjs"
+    orchestrator: "gestia-core/jarvis/jarvis.mission.orchestrator.js"
 };
 
 async function read(file) {
@@ -20,11 +17,6 @@ async function write(file, source) {
 function replaceOnce(source, before, after, label) {
     if (source.includes(after)) return source;
     const count = source.split(before).length - 1;
-    if (
-        count === 0 &&
-        label === "RECOVERED_TOOL_ARCHIVE_HELPER" &&
-        source.includes("function archiveRecoveredToolAttempts(")
-    ) return source;
     if (count !== 1) throw new Error(`${label}_MATCH_COUNT_${count}`);
     return source.replace(before, after);
 }
@@ -35,618 +27,450 @@ function appendOnce(source, marker, addition) {
 }
 
 let bridge = await read(paths.bridge);
+
+for (const marker of [
+    "2.46.0-reel-export-completion-v142",
+    "detached_contract_head",
+    "requestedSpeechOutput",
+    "REEL_EXPORT_COMPLETION_TIMEOUT"
+]) {
+    if (!bridge.includes(marker)) {
+        throw new Error(`V142_BASELINE_REQUIRED:${marker}`);
+    }
+}
+
 bridge = replaceOnce(
     bridge,
-`export const JARVIS_FS_BRIDGE_VERSION =
-    "2.45.0-native-mp4-reel-export-v138";`,
-`export const JARVIS_FS_BRIDGE_VERSION =
-    "2.46.0-reel-export-completion-v142";`,
-    "BRIDGE_VERSION"
+`export function createJarvisFsBridgeApp({
+    root = DEFAULT_ROOT
+} = {}) {`,
+`function jarvisTikTokHandleFromUrl(value = "") {
+    try {
+        const parsed = new URL(String(value || ""));
+        if (
+            parsed.hostname.toLowerCase() !== "tiktok.com" &&
+            !parsed.hostname.toLowerCase().endsWith(".tiktok.com")
+        ) {
+            return "";
+        }
+        const segment = parsed.pathname
+            .split("/")
+            .map(item => {
+                try { return decodeURIComponent(item); }
+                catch { return item; }
+            })
+            .find(item => String(item || "").startsWith("@"));
+        return String(segment || "").trim().toLowerCase();
+    }
+    catch {
+        return "";
+    }
+}
+
+export function speechSynthesisRecoveryInputs(input = {}, error = null) {
+    const requestedVoice = String(input?.voice || "").trim();
+    const requestedLanguage = String(input?.language || "").trim();
+    const message = String(error?.message || error || "");
+    const recoverableVoiceFailure =
+        Boolean(requestedVoice) &&
+        (
+            /SelectVoice/i.test(message) ||
+            /SPEECH_LANGUAGE_VOICE_NOT_FOUND/i.test(message) ||
+            /voz coincidente/i.test(message) ||
+            /matching voice/i.test(message)
+        );
+
+    if (!recoverableVoiceFailure) return [];
+
+    const attempts = [
+        {
+            ...(input || {}),
+            voice: ""
+        }
+    ];
+
+    if (
+        requestedLanguage &&
+        /^es(?:-|$)/i.test(requestedLanguage) &&
+        requestedLanguage.toLowerCase() !== "es-mx"
+    ) {
+        attempts.push({
+            ...(input || {}),
+            voice: "",
+            language: "es-MX"
+        });
+    }
+
+    if (requestedLanguage) {
+        attempts.push({
+            ...(input || {}),
+            voice: "",
+            language: ""
+        });
+    }
+
+    const seen = new Set();
+    return attempts.filter(item => {
+        const key = JSON.stringify({
+            voice: String(item?.voice || ""),
+            language: String(item?.language || "")
+        });
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
+export async function tiktokOembedVisualSeed(
+    sourceUrl = "",
+    {
+        timeoutMs = 15000,
+        fetchImpl = globalThis.fetch
+    } = {}
+) {
+    const seedUrl = String(sourceUrl || "").trim();
+    const expectedHandle = jarvisTikTokHandleFromUrl(seedUrl);
+    if (!expectedHandle || typeof fetchImpl !== "function") return [];
+
+    const boundedTimeout = Math.min(
+        Math.max(Number(timeoutMs) || 15000, 3000),
+        30000
+    );
+    const oembedUrl =
+        "https://www.tiktok.com/oembed?url=" +
+        encodeURIComponent(seedUrl);
+
+    const oembedResponse = await fetchImpl(oembedUrl, {
+        headers: {
+            "User-Agent": "Mozilla/5.0 JarvisLocalResearch/1.0",
+            Accept: "application/json,*/*;q=0.8"
+        },
+        redirect: "follow",
+        signal: AbortSignal.timeout(boundedTimeout)
+    });
+
+    if (!oembedResponse?.ok) return [];
+    const payload = await oembedResponse.json();
+    const actualHandle = jarvisTikTokHandleFromUrl(
+        String(payload?.author_url || "")
+    );
+    if (!actualHandle || actualHandle !== expectedHandle) return [];
+
+    const thumbnailUrl = String(payload?.thumbnail_url || "").trim();
+    if (!/^https?:\/\//i.test(thumbnailUrl)) return [];
+
+    const thumbnailResponse = await fetchImpl(thumbnailUrl, {
+        headers: {
+            "User-Agent": "Mozilla/5.0 JarvisLocalResearch/1.0",
+            Accept: "image/*,*/*;q=0.8",
+            Referer: seedUrl
+        },
+        redirect: "follow",
+        signal: AbortSignal.timeout(boundedTimeout)
+    });
+
+    if (!thumbnailResponse?.ok) return [];
+    const mimeType = String(
+        thumbnailResponse.headers?.get?.("content-type") || ""
+    )
+        .split(";")[0]
+        .trim()
+        .toLowerCase();
+    if (!mimeType.startsWith("image/")) return [];
+
+    const bytes = Buffer.from(await thumbnailResponse.arrayBuffer());
+    if (bytes.length < 20000 || bytes.length > 12 * 1024 * 1024) {
+        return [];
+    }
+
+    return [
+        {
+            kind: "image",
+            url: String(thumbnailResponse.url || thumbnailUrl),
+            mimeType,
+            observedMimeType: mimeType,
+            resourceType: "Image",
+            declaredBytes: bytes.length,
+            bodyCaptured: true,
+            bodyBytes: bytes.length,
+            bodyBase64: bytes.toString("base64"),
+            sourcePageUrl: seedUrl,
+            sourceTag: "tiktok-oembed-thumbnail",
+            alt: String(payload?.title || "").slice(0, 300)
+        }
+    ];
+}
+
+export function createJarvisFsBridgeApp({
+    root = DEFAULT_ROOT
+} = {}) {`,
+    "V142_EXISTING_BRIDGE_RECOVERY_HELPERS"
 );
+
 bridge = replaceOnce(
     bridge,
-`        await sleepMs(duration * 1000 + 2600);
-        const payloadText = await evaluateCdpExpression(
-            target.webSocketDebuggerUrl,
-            \`(() => new Promise(async (resolve, reject) => { try { const blob = window.__JARVIS_LAST_REEL_BLOB__; const detail = window.__JARVIS_LAST_REEL_DETAIL__; if (!blob || !detail) throw new Error('REEL_EXPORTED_BLOB_MISSING'); const bytes = new Uint8Array(await blob.arrayBuffer()); let binary = ''; const step = 0x8000; for (let index = 0; index < bytes.length; index += step) binary += String.fromCharCode(...bytes.subarray(index, index + step)); resolve(JSON.stringify({ ...detail, base64: btoa(binary) })); } catch (error) { reject(error); } }))()\`,
-            Math.max(30000, duration * 1000)
-        );`,
-`        const payloadText = await evaluateCdpExpression(
-            target.webSocketDebuggerUrl,
-            \`(() => new Promise((resolve, reject) => { const startedAt = Date.now(); const timeoutMs = ${'${'}Math.max(45000, duration * 1000 + 30000)}; const finish = async () => { try { const exportError = window.__JARVIS_REEL_EXPORT_ERROR__; if (exportError) throw new Error(String(exportError)); const blob = window.__JARVIS_LAST_REEL_BLOB__; const detail = window.__JARVIS_LAST_REEL_DETAIL__; if (blob && detail) { const bytes = new Uint8Array(await blob.arrayBuffer()); let binary = ''; const step = 0x8000; for (let index = 0; index < bytes.length; index += step) binary += String.fromCharCode(...bytes.subarray(index, index + step)); resolve(JSON.stringify({ ...detail, base64: btoa(binary) })); return; } if (Date.now() - startedAt >= timeoutMs) throw new Error('REEL_EXPORT_COMPLETION_TIMEOUT'); setTimeout(finish, 100); } catch (error) { reject(error); } }; finish(); }))()\`,
-            Math.max(45000, duration * 1000 + 30000)
-        );`,
-    "REEL_EXPORT_COMPLETION_WAIT"
+`        return next();
+    });
+
+    registerNexoWebMediaRoutes(app, { root });`,
+`        return next();
+    });
+
+    app.use("/web/media/collect", async (req, res, next) => {
+        if (req.method !== "POST") return next();
+        const body = req.body || {};
+        if (
+            Array.isArray(body.discoveredMedia) &&
+            body.discoveredMedia.length > 0
+        ) {
+            return next();
+        }
+        try {
+            const discoveredMedia = await tiktokOembedVisualSeed(
+                body.url,
+                {
+                    timeoutMs:
+                        Math.min(
+                            Math.max(Number(body.timeoutMs) || 15000, 3000),
+                            30000
+                        )
+                }
+            );
+            if (discoveredMedia.length > 0) {
+                req.body = {
+                    ...body,
+                    discoveredMedia
+                };
+            }
+        }
+        catch {
+            // Keep the existing static/CDP collector as the fallback.
+        }
+        return next();
+    });
+
+    registerNexoWebMediaRoutes(app, { root });`,
+    "V142_TIKTOK_OEMBED_EXISTING_MEDIA_ROUTE"
 );
+
 bridge = replaceOnce(
     bridge,
-`    app.post("/speech/synthesize", async (req, res) => {
-        try {
-            const speech = synthesizeSpeechArtifact({
-                ...(req.body || {}),
-                root
-            });`,
-`    app.post("/speech/synthesize", async (req, res) => {
-        try {
-            const requestedSpeechOutput = String(req.body?.output || "")
-                .trim()
-                .replaceAll("\\\\", "/");
-            const speechOutput =
-                requestedSpeechOutput.startsWith(".jarvis-artifacts/audio/") &&
-                !requestedSpeechOutput.includes("../") &&
-                requestedSpeechOutput.toLowerCase().endsWith(".wav")
-                    ? requestedSpeechOutput
-                    : "";
-            const speech = synthesizeSpeechArtifact({
+`            const speech = synthesizeSpeechArtifact({
                 ...(req.body || {}),
                 output: speechOutput,
                 root
-            });`,
-    "SPEECH_OUTPUT_PHYSICAL_CANONICALIZATION"
+            });
+            const artifact = registerArtifact({`,
+`            const speechInput = {
+                ...(req.body || {}),
+                output: speechOutput,
+                root
+            };
+            let speech;
+            let speechRecovery = null;
+            try {
+                speech = synthesizeSpeechArtifact(speechInput);
+            }
+            catch (initialSpeechError) {
+                const recoveryInputs =
+                    speechSynthesisRecoveryInputs(
+                        speechInput,
+                        initialSpeechError
+                    );
+                let lastSpeechError = initialSpeechError;
+                for (const recoveryInput of recoveryInputs) {
+                    try {
+                        speech =
+                            synthesizeSpeechArtifact(
+                                recoveryInput
+                            );
+                        speechRecovery = {
+                            recovered: true,
+                            requestedVoice:
+                                String(req.body?.voice || "") ||
+                                null,
+                            requestedLanguage:
+                                String(req.body?.language || "") ||
+                                null,
+                            fallbackVoice:
+                                String(recoveryInput?.voice || "") ||
+                                null,
+                            fallbackLanguage:
+                                String(recoveryInput?.language || "") ||
+                                null
+                        };
+                        break;
+                    }
+                    catch (recoveryError) {
+                        lastSpeechError = recoveryError;
+                    }
+                }
+                if (!speech) throw lastSpeechError;
+            }
+            const artifact = registerArtifact({`,
+    "V142_EXISTING_SPEECH_VOICE_RECOVERY"
 );
+
 bridge = replaceOnce(
     bridge,
-`    const compatible =
-        contract.ok === true &&
-        Boolean(git.root) &&
-        contract.branch === git.branch;
-
-    return {
-        ok: compatible,
-        status:
-            compatible
-                ? "BRIDGE_IDENTITY_OK"
-                : "BRIDGE_IDENTITY_INVALID",
-        root:
-            path.resolve(root),
-        contract,
-        git
-    };`,
-`    const branchMatches =
-        contract.ok === true &&
-        Boolean(git.root) &&
-        contract.branch === git.branch;
-
-    const detachedContractHead =
-        contract.ok === true &&
-        Boolean(git.root) &&
-        !git.branch &&
-        Boolean(git.head) &&
-        Boolean(contract.branch)
-            ? gitText(
-                [
-                    "rev-parse",
-                    "--verify",
-                    \`origin/${'${'}contract.branch}^{commit}\`
-                ],
-                root,
-                {
-                    allowFailure: true
-                }
-            )
-            : "";
-
-    const detachedMatchesContractHead =
-        Boolean(detachedContractHead) &&
-        detachedContractHead === git.head;
-
-    const compatible =
-        branchMatches ||
-        detachedMatchesContractHead;
-
-    return {
-        ok: compatible,
-        status:
-            compatible
-                ? "BRIDGE_IDENTITY_OK"
-                : "BRIDGE_IDENTITY_INVALID",
-        root:
-            path.resolve(root),
-        contract,
-        git,
-        identityMode:
-            branchMatches
-                ? "branch"
-                : detachedMatchesContractHead
-                    ? "detached_contract_head"
-                    : "invalid",
-        contractHead:
-            detachedContractHead ||
-            null
-    };`,
-    "DETACHED_CONTRACT_HEAD_IDENTITY"
+`            return res.json({
+                ...speech,
+                artifact,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });`,
+`            return res.json({
+                ...speech,
+                ...(speechRecovery ? { speechRecovery } : {}),
+                artifact,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });`,
+    "V142_SPEECH_RECOVERY_RECEIPT"
 );
+
 await write(paths.bridge, bridge);
 
-let orchestrator = await read(paths.orchestrator);
-orchestrator = replaceOnce(
-    orchestrator,
-`function archiveRecoveredMediaSourceAttempts(mission = {}, now = () => new Date().toISOString()) {
-    const blocked = Array.isArray(mission?.blockedTasks) ? mission.blockedTasks : [];
-    const recovered = blocked.filter(item => item?.name === "web.media.collect");
-    if (recovered.length === 0) return;
-    mission.recoveredMediaSourceAttempts = [
-        ...(Array.isArray(mission.recoveredMediaSourceAttempts)
-            ? mission.recoveredMediaSourceAttempts
-            : []),
-        ...recovered.map(item => ({
-            name: item.name,
-            args: item.args,
-            reason: item.reason,
-            observation: item.observation,
-            recoveredAt: now()
-        }))
-    ].slice(-12);
-    mission.blockedTasks = blocked.filter(item => item?.name !== "web.media.collect");
-    mission.errors = (Array.isArray(mission?.errors) ? mission.errors : [])
-        .filter(item => item?.tool !== "web.media.collect");
-    mission.reelMediaRecovery = {
-        ...(mission.reelMediaRecovery || {}),
-        active: false,
-        recovered: true,
-        recoveredAt: now()
-    };
-}
-
-export async function runJarvisMission({`,
-`function archiveRecoveredMediaSourceAttempts(mission = {}, now = () => new Date().toISOString()) {
-    const blocked = Array.isArray(mission?.blockedTasks) ? mission.blockedTasks : [];
-    const recovered = blocked.filter(item => item?.name === "web.media.collect");
-    if (recovered.length === 0) return;
-    mission.recoveredMediaSourceAttempts = [
-        ...(Array.isArray(mission.recoveredMediaSourceAttempts)
-            ? mission.recoveredMediaSourceAttempts
-            : []),
-        ...recovered.map(item => ({
-            name: item.name,
-            args: item.args,
-            reason: item.reason,
-            observation: item.observation,
-            recoveredAt: now()
-        }))
-    ].slice(-12);
-    mission.blockedTasks = blocked.filter(item => item?.name !== "web.media.collect");
-    mission.errors = (Array.isArray(mission?.errors) ? mission.errors : [])
-        .filter(item => item?.tool !== "web.media.collect");
-    mission.reelMediaRecovery = {
-        ...(mission.reelMediaRecovery || {}),
-        active: false,
-        recovered: true,
-        recoveredAt: now()
-    };
-}
-
-function archiveRecoveredToolAttempts(mission = {}, toolName = "", now = () => new Date().toISOString()) {
-    const name = text(toolName, 120);
-    if (name !== "speech.synthesize") return;
-    const blocked = Array.isArray(mission?.blockedTasks) ? mission.blockedTasks : [];
-    const recovered = blocked.filter(item => item?.name === name);
-    const recoveredErrors = (Array.isArray(mission?.errors) ? mission.errors : [])
-        .filter(item => item?.tool === name);
-    if (recovered.length === 0 && recoveredErrors.length === 0) return;
-    mission.recoveredToolAttempts = [
-        ...(Array.isArray(mission.recoveredToolAttempts)
-            ? mission.recoveredToolAttempts
-            : []),
-        ...recovered.map(item => ({
-            name: item.name,
-            args: item.args,
-            reason: item.reason,
-            observation: item.observation,
-            errors: recoveredErrors,
-            recoveredAt: now()
-        }))
-    ].slice(-12);
-    mission.blockedTasks = blocked.filter(item => item?.name !== name);
-    mission.errors = (Array.isArray(mission?.errors) ? mission.errors : [])
-        .filter(item => item?.tool !== name);
-}
-
-export async function runJarvisMission({`,
-    "RECOVERED_TOOL_ARCHIVE_HELPER"
-);
-orchestrator = replaceOnce(
-    orchestrator,
-`function archiveRecoveredToolAttempts(mission = {}, toolName = "", now = () => new Date().toISOString()) {
-    const name = text(toolName, 120);
-    if (name !== "speech.synthesize") return;
-    const blocked = Array.isArray(mission?.blockedTasks) ? mission.blockedTasks : [];
-    const recovered = blocked.filter(item => item?.name === name);
-    const recoveredErrors = (Array.isArray(mission?.errors) ? mission.errors : [])
-        .filter(item => item?.tool === name);
-    if (recovered.length === 0 && recoveredErrors.length === 0) return;
-    mission.recoveredToolAttempts = [
-        ...(Array.isArray(mission.recoveredToolAttempts)
-            ? mission.recoveredToolAttempts
-            : []),
-        ...recovered.map(item => ({
-            name: item.name,
-            args: item.args,
-            reason: item.reason,
-            observation: item.observation,
-            errors: recoveredErrors,
-            recoveredAt: now()
-        }))
-    ].slice(-12);
-    mission.blockedTasks = blocked.filter(item => item?.name !== name);
-    mission.errors = (Array.isArray(mission?.errors) ? mission.errors : [])
-        .filter(item => item?.tool !== name);
-}
-
-export async function runJarvisMission({`,
-`function archiveRecoveredToolAttempts(mission = {}, toolName = "", now = () => new Date().toISOString()) {
-    const name = text(toolName, 120);
-    if (name !== "speech.synthesize") return;
-    const blocked = Array.isArray(mission?.blockedTasks) ? mission.blockedTasks : [];
-    const recovered = blocked.filter(item => item?.name === name);
-    const recoveredErrors = (Array.isArray(mission?.errors) ? mission.errors : [])
-        .filter(item => item?.tool === name);
-    if (recovered.length === 0 && recoveredErrors.length === 0) return;
-    mission.recoveredToolAttempts = [
-        ...(Array.isArray(mission.recoveredToolAttempts)
-            ? mission.recoveredToolAttempts
-            : []),
-        ...recovered.map(item => ({
-            name: item.name,
-            args: item.args,
-            reason: item.reason,
-            observation: item.observation,
-            errors: recoveredErrors,
-            recoveredAt: now()
-        }))
-    ].slice(-12);
-    mission.blockedTasks = blocked.filter(item => item?.name !== name);
-    mission.errors = (Array.isArray(mission?.errors) ? mission.errors : [])
-        .filter(item => item?.tool !== name);
-}
-
-function verifiedSpeechArtifactForReel(mission = {}) {
-    const completed = Array.isArray(mission?.completedTasks)
-        ? mission.completedTasks
-        : [];
-    const speech = [...completed].reverse().find(item =>
-        item?.name === "speech.synthesize" &&
-        item?.observation?.objectiveSatisfied === true &&
-        item?.observation?.status === "SPEECH_AUDIO_CREATED_VERIFIED"
-    );
-    const output = text(
-        speech?.observation?.artifact ||
-        speech?.observation?.evidence?.output ||
-        "",
-        500
-    ).replaceAll("\\\\", "/");
-    if (
-        !output.startsWith(".jarvis-artifacts/audio/") ||
-        output.includes("../") ||
-        !output.toLowerCase().endsWith(".wav")
-    ) {
-        return "";
-    }
-    return output;
-}
-
-export async function runJarvisMission({`,
-    "VERIFIED_SPEECH_REEL_HANDOFF_HELPER"
-);
-orchestrator = replaceOnce(
-    orchestrator,
-`        mission.iterations += 1;
-        task.attempts += 1;
-        let result;
-        try {
-            result = await execute({ name: task.name, args: task.args, approved: false }, {`,
-`        mission.iterations += 1;
-        task.attempts += 1;
-        if (task.name === "reel.create") {
-            const verifiedSpeechOutput = verifiedSpeechArtifactForReel(mission);
-            if (verifiedSpeechOutput) {
-                task.args = {
-                    ...(task.args || {}),
-                    audioOutput: verifiedSpeechOutput
-                };
-                task.signature = callSignature({ name: task.name, args: task.args });
-            }
-        }
-        let result;
-        try {
-            result = await execute({ name: task.name, args: task.args, approved: false }, {`,
-    "VERIFIED_SPEECH_REEL_HANDOFF_CALL"
-);
-orchestrator = replaceOnce(
-    orchestrator,
-`        if (observation.objectiveSatisfied) {
-            if (task.name === "web.media.collect") {
-                archiveRecoveredMediaSourceAttempts(mission, now);
-            }
-            mission.completedTasks.push(record);`,
-`        if (observation.objectiveSatisfied) {
-            if (task.name === "web.media.collect") {
-                archiveRecoveredMediaSourceAttempts(mission, now);
-            }
-            if (task.name === "speech.synthesize") {
-                archiveRecoveredToolAttempts(mission, task.name, now);
-            }
-            mission.completedTasks.push(record);`,
-    "RECOVERED_TOOL_ARCHIVE_CALL"
-);
-orchestrator = replaceOnce(
-    orchestrator,
-`    deterministicReelMediaRecoveryCall,
-    archiveRecoveredMediaSourceAttempts,
-    archiveRecoveredToolAttempts
-};`,
-`    deterministicReelMediaRecoveryCall,
-    archiveRecoveredMediaSourceAttempts,
-    archiveRecoveredToolAttempts,
-    verifiedSpeechArtifactForReel
-};`,
-    "RECOVERED_TOOL_TEST_EXPORT"
-);
-await write(paths.orchestrator, orchestrator);
-
 let reelTest = await read(paths.reelTest);
+
 reelTest = replaceOnce(
     reelTest,
-`import path from "node:path";
-import { test } from "node:test";`,
-`import path from "node:path";
-import { execFileSync } from "node:child_process";
-import { test } from "node:test";`,
-    "REEL_TEST_GIT_IMPORT"
-);
-reelTest = replaceOnce(
-    reelTest,
-`import {
-    assertReelVideoContainer,
-    reelVideoExtensionFromMime,`,
-`import {
-    assertReelVideoContainer,
+`    assertReelVideoContainer,
     createJarvisFsBridgeApp,
     reelVideoExtensionFromMime,`,
-    "REEL_TEST_BRIDGE_APP_IMPORT"
+`    assertReelVideoContainer,
+    createJarvisFsBridgeApp,
+    speechSynthesisRecoveryInputs,
+    tiktokOembedVisualSeed,
+    reelVideoExtensionFromMime,`,
+    "V142_RECOVERY_TEST_IMPORTS"
 );
-reelTest = replaceOnce(
-    reelTest,
-`    assert.match(runtime, /v138-native-mp4-reel-export-20260812/);`,
-`    assert.match(runtime, /v139-transient-resilience-20260813/);`,
-    "REEL_RUNTIME_BASELINE_MARKER"
-);
+
 reelTest = appendOnce(
     reelTest,
-    "V142 waits for the real browser export completion state",
-`test("V142 waits for the real browser export completion state", () => {
-  const source = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
-  assert.match(source, /2\\.46\\.0-reel-export-completion-v142/);
-  assert.doesNotMatch(source, /await sleepMs\\(duration \\* 1000 \\+ 2600\\)/);
-  assert.match(source, /__JARVIS_REEL_EXPORT_ERROR__/);
-  assert.match(source, /REEL_EXPORT_COMPLETION_TIMEOUT/);
-  assert.match(source, /setTimeout\\(finish, 100\\)/);
-  assert.match(source, /Math\\.max\\(45000, duration \\* 1000 \\+ 30000\\)/);
+    "V142 reuses installed speech capability when semantic voice is unavailable",
+`test("V142 reuses installed speech capability when semantic voice is unavailable", () => {
+  const attempts = speechSynthesisRecoveryInputs(
+    {
+      text: "Narracion",
+      voice: "Voz que no existe",
+      language: "es-ES"
+    },
+    new Error("SelectVoice: No se puede establecer voz. No hay una voz coincidente instalada.")
+  );
+  assert.deepEqual(
+    attempts.map(item => ({
+      voice: item.voice,
+      language: item.language
+    })),
+    [
+      { voice: "", language: "es-ES" },
+      { voice: "", language: "es-MX" },
+      { voice: "", language: "" }
+    ]
+  );
+  assert.equal(
+    speechSynthesisRecoveryInputs(
+      { text: "Narracion", voice: "Voz que no existe", language: "es-MX" },
+      new Error("SPEECH_OUTPUT_PATH_INVALID")
+    ).length,
+    0
+  );
 });`
 );
+
 reelTest = appendOnce(
     reelTest,
-    "V142 canonicalizes planner speech output at the physical bridge boundary",
-`test("V142 canonicalizes planner speech output at the physical bridge boundary", () => {
-  const source = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
-  assert.match(source, /const requestedSpeechOutput = String\\(req\\.body\\?\\.output \\|\\| ""\\)/);
-  assert.match(source, /requestedSpeechOutput\\.startsWith\\("\\.jarvis-artifacts\\/audio\\/"\\)/);
-  assert.match(source, /requestedSpeechOutput\\.toLowerCase\\(\\)\\.endsWith\\("\\.wav"\\)/);
-  assert.match(source, /output: speechOutput/);
-});`
-);
-reelTest = appendOnce(
-    reelTest,
-    "V142 accepts detached bridge identity only at the contract remote-tracking head",
-`test("V142 accepts detached bridge identity only at the contract remote-tracking head", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-v142-detached-identity-"));
-  const branch = "v94-media-v4n-negative-claims";
-  const releaseId = "v94-source-grounded-research-v124-20260810";
-  const runGit = args => execFileSync("git", args, {
-    cwd: root,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"]
-  }).trim();
-
-  let server;
-  try {
-    runGit(["init", "-b", branch]);
-    runGit(["config", "user.email", "v142@example.test"]);
-    runGit(["config", "user.name", "V142 Test"]);
-    fs.writeFileSync(
-      path.join(root, "jarvis-runtime-contract.json"),
-      JSON.stringify({ projectId: "fixgo-test", branch, releaseId }),
-      "utf8"
-    );
-    const marker = path.join(root, "identity-marker.txt");
-    fs.writeFileSync(marker, "certified detached worktree\n", "utf8");
-    runGit(["add", "."]);
-    runGit(["commit", "-m", "certified head"]);
-    const certifiedHead = runGit(["rev-parse", "HEAD"]);
-    runGit(["update-ref", \`refs/remotes/origin/${'${'}branch}\`, certifiedHead]);
-    runGit(["checkout", "--detach", certifiedHead]);
-
-    server = createJarvisFsBridgeApp({ root }).listen(0);
-    await new Promise(resolve => server.once("listening", resolve));
-    const base = \`http://127.0.0.1:${'${'}server.address().port}\`;
-
-    const health = await fetch(\`${'${'}base}/health\`).then(response => response.json());
-    assert.equal(health.identity.ok, true);
-    assert.equal(health.identity.identityMode, "detached_contract_head");
-    assert.equal(health.identity.contractHead, certifiedHead);
-
-    const accepted = await fetch(\`${'${'}base}/grep\`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-jarvis-release-id": releaseId
-      },
-      body: JSON.stringify({ term: "certified", cwd: "." })
-    });
-    assert.notEqual(accepted.status, 503);
-
-    fs.writeFileSync(marker, "diverged detached worktree\n", "utf8");
-    runGit(["add", "identity-marker.txt"]);
-    runGit(["commit", "-m", "diverged head"]);
-
-    const rejected = await fetch(\`${'${'}base}/grep\`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-jarvis-release-id": releaseId
-      },
-      body: JSON.stringify({ term: "diverged", cwd: "." })
-    });
-    const rejectedBody = await rejected.json();
-    assert.equal(rejected.status, 503);
-    assert.equal(rejectedBody.status, "BRIDGE_IDENTITY_INVALID");
-  }
-  finally {
-    if (server) {
-      await new Promise(resolve => server.close(resolve));
+    "V142 reuses verified TikTok oEmbed thumbnail as input to the existing media collector",
+`test("V142 reuses verified TikTok oEmbed thumbnail as input to the existing media collector", async () => {
+  const seedUrl = "https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004";
+  const jpeg = Buffer.alloc(22000);
+  jpeg[0] = 0xff;
+  jpeg[1] = 0xd8;
+  jpeg[2] = 0xff;
+  const calls = [];
+  const fakeFetch = async url => {
+    calls.push(String(url));
+    if (String(url).startsWith("https://www.tiktok.com/oembed?")) {
+      return {
+        ok: true,
+        status: 200,
+        url: String(url),
+        async json() {
+          return {
+            title: "El Taco Macho",
+            author_name: "Taqueria ElDorado",
+            author_url: "https://www.tiktok.com/@taqueria.eldorado",
+            thumbnail_url: "https://1.1.1.1/taco-macho.jpg"
+          };
+        }
+      };
     }
-    fs.rmSync(root, { recursive: true, force: true });
-  }
+    return {
+      ok: true,
+      status: 200,
+      url: String(url),
+      headers: {
+        get(name) {
+          return String(name).toLowerCase() === "content-type"
+            ? "image/jpeg"
+            : null;
+        }
+      },
+      async arrayBuffer() {
+        return jpeg.buffer.slice(
+          jpeg.byteOffset,
+          jpeg.byteOffset + jpeg.byteLength
+        );
+      }
+    };
+  };
+
+  const discovered = await tiktokOembedVisualSeed(
+    seedUrl,
+    {
+      timeoutMs: 5000,
+      fetchImpl: fakeFetch
+    }
+  );
+  assert.equal(discovered.length, 1);
+  assert.equal(discovered[0].kind, "image");
+  assert.equal(discovered[0].resourceType, "Image");
+  assert.equal(discovered[0].bodyCaptured, true);
+  assert.equal(discovered[0].bodyBytes, jpeg.length);
+  assert.equal(
+    Buffer.from(discovered[0].bodyBase64, "base64").length,
+    jpeg.length
+  );
+  assert.equal(discovered[0].sourcePageUrl, seedUrl);
+  assert.equal(calls.length, 2);
+
+  const rejected = await tiktokOembedVisualSeed(
+    seedUrl,
+    {
+      fetchImpl: async () => ({
+        ok: true,
+        async json() {
+          return {
+            author_url: "https://www.tiktok.com/@otra.cuenta",
+            thumbnail_url: "https://1.1.1.1/otra.jpg"
+          };
+        }
+      })
+    }
+  );
+  assert.equal(rejected.length, 0);
 });`
 );
+
 await write(paths.reelTest, reelTest);
 
-let fsBridgeV2Test = await read(paths.fsBridgeV2Test);
-fsBridgeV2Test = replaceOnce(
-    fsBridgeV2Test,
-`    assert.equal(description.version, "2.45.0-native-mp4-reel-export-v138");`,
-`    assert.equal(description.version, "2.46.0-reel-export-completion-v142");`,
-    "FS_BRIDGE_V2_VERSION_CONTRACT"
-);
-await write(paths.fsBridgeV2Test, fsBridgeV2Test);
-
-let semanticPlannerTest = await read(paths.semanticPlannerTest);
-semanticPlannerTest = semanticPlannerTest.replace(
-    /\n{3,}(const catalog = \[)/,
-    "\n\n$1"
-);
-await write(paths.semanticPlannerTest, semanticPlannerTest);
-
-let missionTest = await read(paths.missionTest);
-missionTest = appendOnce(
-    missionTest,
-    "mission archives an earlier blocked speech attempt after verified recovery",
-`test("mission archives an earlier blocked speech attempt after verified recovery", async () => {
-    let speechAttempt = 0;
-    const mission = await runJarvisMission({
-        instruction: "Genera una narracion verificable y recupera automaticamente una voz disponible.",
-        initialToolCalls: [
-            { name: "speech.synthesize", args: { text: "Primer intento", language: "es-MX" } },
-            { name: "speech.synthesize", args: { text: "Segundo intento", language: "es" } }
-        ],
-        requiredToolNames: ["speech.synthesize"],
-        planner: async () => ({ toolCalls: [], missionComplete: true }),
-        execute: async () => {
-            speechAttempt += 1;
-            if (speechAttempt === 1) {
-                return {
-                    ok: false,
-                    executionOk: true,
-                    objectiveSatisfied: false,
-                    blocked: true,
-                    retryable: false,
-                    status: "SPEECH_LANGUAGE_VOICE_NOT_FOUND",
-                    error: "SPEECH_LANGUAGE_VOICE_NOT_FOUND"
-                };
-            }
-            return {
-                ok: true,
-                executionOk: true,
-                objectiveSatisfied: true,
-                status: "SPEECH_AUDIO_CREATED_VERIFIED",
-                output: ".jarvis-artifacts/audio/recovered.wav",
-                mimeType: "audio/wav",
-                bytes: 2048,
-                sha256: "a".repeat(64)
-            };
-        },
-        storage: memoryStorage()
-    });
-
-    assert.equal(mission.completedTasks.some(item => item.name === "speech.synthesize"), true);
-    assert.equal(mission.blockedTasks.some(item => item.name === "speech.synthesize"), false);
-    assert.equal(mission.errors.some(item => item.tool === "speech.synthesize"), false);
-    assert.equal(mission.recoveredToolAttempts.length, 1);
-    assert.equal(mission.recoveredToolAttempts[0].observation.status, "SPEECH_LANGUAGE_VOICE_NOT_FOUND");
-    assert.equal(mission.reason, "ALL_EXECUTABLE_TASKS_COMPLETED");
-});`
-);
-missionTest = appendOnce(
-    missionTest,
-    "reel creation receives the verified speech artifact instead of a stale planned path",
-`test("reel creation receives the verified speech artifact instead of a stale planned path", async () => {
-    let reelArgs = null;
-    const verifiedAudio = ".jarvis-artifacts/audio/physical-verified.wav";
-    const mission = await runJarvisMission({
-        instruction: "Produce narracion y reel fisico usando el audio verificado de esta misma mision.",
-        initialToolCalls: [
-            {
-                name: "speech.synthesize",
-                args: {
-                    text: "Narracion real",
-                    output: "audio-inventado.wav"
-                }
-            },
-            {
-                name: "reel.create",
-                args: {
-                    brandName: "Taqueria El Dorado",
-                    title: "Taco Macho",
-                    cta: "Visitanos",
-                    durationSeconds: 30,
-                    audioOutput: ".jarvis-artifacts/audio/stale-missing.wav",
-                    scenes: [
-                        { durationSeconds: 10, overlay: "Uno", mediaType: "image", assetDataUrl: "data:image/jpeg;base64,/9j/" },
-                        { durationSeconds: 10, overlay: "Dos", mediaType: "image", assetDataUrl: "data:image/jpeg;base64,/9j/" },
-                        { durationSeconds: 10, overlay: "Tres", mediaType: "image", assetDataUrl: "data:image/jpeg;base64,/9j/" }
-                    ]
-                }
-            }
-        ],
-        requiredToolNames: ["speech.synthesize", "reel.create"],
-        planner: async () => ({ toolCalls: [], missionComplete: true }),
-        execute: async call => {
-            if (call.name === "speech.synthesize") {
-                return {
-                    ok: true,
-                    executionOk: true,
-                    objectiveSatisfied: true,
-                    status: "SPEECH_AUDIO_CREATED_VERIFIED",
-                    output: verifiedAudio,
-                    mimeType: "audio/wav",
-                    bytes: 4096,
-                    sha256: "b".repeat(64)
-                };
-            }
-            if (call.name === "reel.create") {
-                reelArgs = structuredClone(call.args);
-                return {
-                    ok: true,
-                    executionOk: true,
-                    objectiveSatisfied: true,
-                    status: "REEL_VIDEO_CREATED_VERIFIED",
-                    output: ".jarvis-artifacts/reels/taco-macho.mp4",
-                    mimeType: "video/mp4",
-                    bytes: 8192,
-                    sha256: "c".repeat(64)
-                };
-            }
-            return { ok: false, status: "UNEXPECTED_TOOL" };
-        },
-        storage: memoryStorage()
-    });
-
-    assert.equal(reelArgs?.audioOutput, verifiedAudio);
-    assert.equal(mission.completedTasks.some(item => item.name === "speech.synthesize"), true);
-    assert.equal(mission.completedTasks.some(item => item.name === "reel.create"), true);
-    assert.equal(mission.blockedTasks.length, 0);
-});`
-);
-await write(paths.missionTest, missionTest);
+const orchestrator = await read(paths.orchestrator);
+for (const marker of [
+    "verifiedSpeechArtifactForReel",
+    "archiveRecoveredToolAttempts"
+]) {
+    if (!orchestrator.includes(marker)) {
+        throw new Error(`V142_ORCHESTRATOR_BASELINE_REQUIRED:${marker}`);
+    }
+}
 
 console.log("V142_REEL_CLOSEOUT_APPLIED=true");
