@@ -793,10 +793,37 @@ export function describeJarvisBridgeIdentity(
     const git =
         readGitIdentity(root);
 
-    const compatible =
+    const branchMatches =
         contract.ok === true &&
         Boolean(git.root) &&
         contract.branch === git.branch;
+
+    const detachedContractHead =
+        contract.ok === true &&
+        Boolean(git.root) &&
+        !git.branch &&
+        Boolean(git.head) &&
+        Boolean(contract.branch)
+            ? gitText(
+                [
+                    "rev-parse",
+                    "--verify",
+                    `origin/${contract.branch}^{commit}`
+                ],
+                root,
+                {
+                    allowFailure: true
+                }
+            )
+            : "";
+
+    const detachedMatchesContractHead =
+        Boolean(detachedContractHead) &&
+        detachedContractHead === git.head;
+
+    const compatible =
+        branchMatches ||
+        detachedMatchesContractHead;
 
     return {
         ok: compatible,
@@ -807,7 +834,16 @@ export function describeJarvisBridgeIdentity(
         root:
             path.resolve(root),
         contract,
-        git
+        git,
+        identityMode:
+            branchMatches
+                ? "branch"
+                : detachedMatchesContractHead
+                    ? "detached_contract_head"
+                    : "invalid",
+        contractHead:
+            detachedContractHead ||
+            null
     };
 }
 
