@@ -619,7 +619,7 @@ test("Jarvis verifies GitHub and Firebase connectors with read-only probes", asy
     assert.equal(result.connectors.every(item => item.connected), true);
 });
 
-test("Jarvis FS bridge loads the release identity contract", () => {
+test("Jarvis FS bridge loads the release identity contract", async () => {
     const contract =
         readJarvisRuntimeContract(
             process.cwd()
@@ -632,6 +632,124 @@ test("Jarvis FS bridge loads the release identity contract", () => {
         contract.releaseId,
         /^v94-source-grounded-research-v124-20260810$/
     );
+
+    const root =
+        fs.mkdtempSync(
+            path.join(
+                os.tmpdir(),
+                "jarvis-bridge-contract-head-"
+            )
+        );
+    let server = null;
+    try {
+        execFileSync(
+            "git",
+            ["init", "-b", "human-v142-worktree"],
+            { cwd: root, stdio: "ignore" }
+        );
+        execFileSync(
+            "git",
+            ["config", "user.email", "jarvis-test@example.invalid"],
+            { cwd: root }
+        );
+        execFileSync(
+            "git",
+            ["config", "user.name", "Jarvis Test"],
+            { cwd: root }
+        );
+        fs.writeFileSync(
+            path.join(root, "jarvis-runtime-contract.json"),
+            JSON.stringify({
+                projectId: "fixgo-test",
+                branch: "v94-media-v4n-negative-claims",
+                releaseId: "test-release"
+            })
+        );
+        fs.writeFileSync(
+            path.join(root, "identity-marker.txt"),
+            "same physical bytes"
+        );
+        execFileSync(
+            "git",
+            ["add", "jarvis-runtime-contract.json", "identity-marker.txt"],
+            { cwd: root }
+        );
+        execFileSync(
+            "git",
+            ["commit", "-m", "identity fixture"],
+            { cwd: root, stdio: "ignore" }
+        );
+        execFileSync(
+            "git",
+            [
+                "update-ref",
+                "refs/remotes/origin/v94-media-v4n-negative-claims",
+                "HEAD"
+            ],
+            { cwd: root }
+        );
+
+        server =
+            createJarvisFsBridgeApp({ root })
+                .listen(0);
+        await new Promise(resolve =>
+            server.once("listening", resolve)
+        );
+        const base =
+            `http://127.0.0.1:${server.address().port}`;
+        const healthResponse =
+            await fetch(`${base}/health`);
+        const health =
+            await healthResponse.json();
+
+        assert.equal(healthResponse.status, 200);
+        assert.equal(health.identity.ok, true);
+        assert.equal(
+            health.identity.identityMode,
+            "worktree_contract_head"
+        );
+        assert.equal(
+            health.identity.contractHead,
+            health.identity.git.head
+        );
+
+        const researchResponse =
+            await fetch(
+                `${base}/research`,
+                {
+                    method: "POST",
+                    headers: {
+                        "content-type": "application/json",
+                        "x-jarvis-release-id": "test-release"
+                    },
+                    body: JSON.stringify({
+                        query: "x"
+                    })
+                }
+            );
+        const research =
+            await researchResponse.json();
+
+        assert.equal(researchResponse.status, 400);
+        assert.equal(
+            research.error,
+            "WEB_RESEARCH_QUERY_REQUIRED"
+        );
+    }
+    finally {
+        if (server) {
+            await new Promise(resolve =>
+                server.close(resolve)
+            );
+        }
+        fs.rmSync(
+            root,
+            {
+                recursive: true,
+                force: true
+            }
+        );
+    }
 });
 
 test("Jarvis FS bridge V2 reads bounded line ranges", () => {

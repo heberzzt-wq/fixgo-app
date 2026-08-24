@@ -816,10 +816,9 @@ export function describeJarvisBridgeIdentity(
         Boolean(git.root) &&
         contract.branch === git.branch;
 
-    const detachedContractHead =
+    const contractHead =
         contract.ok === true &&
         Boolean(git.root) &&
-        !git.branch &&
         Boolean(git.head) &&
         Boolean(contract.branch)
             ? gitText(
@@ -835,13 +834,17 @@ export function describeJarvisBridgeIdentity(
             )
             : "";
 
-    const detachedMatchesContractHead =
-        Boolean(detachedContractHead) &&
-        detachedContractHead === git.head;
+    const headMatchesContractHead =
+        Boolean(contractHead) &&
+        contractHead === git.head;
+
+    const branchFallbackWithoutRemoteRef =
+        branchMatches &&
+        !contractHead;
 
     const compatible =
-        branchMatches ||
-        detachedMatchesContractHead;
+        headMatchesContractHead ||
+        branchFallbackWithoutRemoteRef;
 
     return {
         ok: compatible,
@@ -854,13 +857,17 @@ export function describeJarvisBridgeIdentity(
         contract,
         git,
         identityMode:
-            branchMatches
-                ? "branch"
-                : detachedMatchesContractHead
-                    ? "detached_contract_head"
+            headMatchesContractHead
+                ? git.branch === contract.branch
+                    ? "branch_contract_head"
+                    : git.branch
+                        ? "worktree_contract_head"
+                        : "detached_contract_head"
+                : branchFallbackWithoutRemoteRef
+                    ? "branch_unverified_no_remote_ref"
                     : "invalid",
         contractHead:
-            detachedContractHead ||
+            contractHead ||
             null
     };
 }
