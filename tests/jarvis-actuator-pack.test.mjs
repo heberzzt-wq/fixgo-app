@@ -45,6 +45,7 @@ test("actuator pack registers browser, documents, image, delegation and connecto
         "document.xlsx.edit",
         "document.docx.edit",
         "document.pptx.edit",
+        "video.generate",
         "image.generate",
         "image.edit",
         "image.adapt",
