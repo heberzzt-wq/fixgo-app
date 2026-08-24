@@ -164,6 +164,21 @@ jobs:
       - name: Diagnostic CI - mission failure precedence
         run: node --test tests/jarvis-mission-failure-precedence.test.mjs
 
+      - name: Diagnostic CI - check nexo
+        run: npm run check:nexo
+
+      - name: Diagnostic CI - entry syntax
+        run: npm run check:entry-syntax
+
+      - name: Diagnostic CI - full syntax
+        run: npm run check:syntax
+
+      - name: Diagnostic CI - multifunction
+        run: npm run test:multifunction
+
+      - name: Diagnostic CI - npm test
+        run: npm test
+
       - name: Full CI
         run: npm run ci:test
 
