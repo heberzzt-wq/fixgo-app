@@ -17,7 +17,25 @@ function normalizePlannerPolicyComma() {
   }
 }
 
+function normalizeLegacyGroundedReelFixture() {
+  const file = "tests/jarvis-multifunction-tools.test.mjs";
+  let source = fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
+  const before =
+    '            "reel.plan": {\n                brandName: "Summit Law Firm",\n                title: "Estrategia antes del conflicto",';
+  const after =
+    '            "reel.plan": {\n                brandName: "Summit Law Firm",\n                title: "Estrategia antes del conflicto",\n                sourceMediaPolicy: "reuse",';
+  if (!source.includes(after)) {
+    const count = source.split(before).length - 1;
+    if (count !== 1) {
+      throw new Error(`V142_LEGACY_REEL_FIXTURE_MATCH_COUNT_${count}`);
+    }
+    source = source.replace(before, after);
+    fs.writeFileSync(file, source, "utf8");
+  }
+}
+
 normalizePlannerPolicyComma();
+normalizeLegacyGroundedReelFixture();
 
 const checks = [
   ["gestia-core/gestia-core.js", [
@@ -72,6 +90,9 @@ const checks = [
     "getVideosOperation",
     "generatedFromScript: true"
   ]],
+  ["tests/jarvis-multifunction-tools.test.mjs", [
+    'title: "Estrategia antes del conflicto",\n                sourceMediaPolicy: "reuse",'
+  ]],
   ["tests/jarvis-reel-media-binder-v131.test.mjs", [
     "accepts verified video.generate output as original reel creative"
   ]],
@@ -99,6 +120,7 @@ console.log(JSON.stringify({
   verifiedLocalVideoImport: true,
   verifiedBrandLogoPropagation: true,
   plannerPolicySyntaxNormalized: true,
+  legacyReadOnlyReelFixtureExplicitReuse: true,
   minimumRenderedFps: 20,
   newFiles: false,
   newBrains: false,
