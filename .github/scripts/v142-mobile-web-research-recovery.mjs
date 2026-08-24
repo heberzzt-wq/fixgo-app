@@ -139,7 +139,8 @@ for (const block of parsed.blocks) {
     block.startsWith('test("semantic planner retries one malformed model output"');
   if (!legacyPublic) kept.push(block);
 }
-semanticTest = parsed.prefix + "\n" + sharedCatalog + "\n\n" + kept.join("");
+const normalizedSemanticPrefix = parsed.prefix.replace(/\n+$/, "\n");
+semanticTest = normalizedSemanticPrefix + "\n" + sharedCatalog + "\n\n" + kept.join("");
 semanticTest = semanticTest.replace('test("semantic planner uses authenticated Gemini before the public fallback"', 'test("semantic planner uses the authenticated two-provider authority without a public fallback"');
 for (const forbidden of ["pollinations", "runSimpleSemanticPlanner", "requestModel", "openai-fast"]) {
   if (semanticTest.toLowerCase().includes(forbidden.toLowerCase())) throw new Error(`V142_OBSOLETE_TEST_REMAINS:${forbidden}`);
