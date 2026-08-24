@@ -183,4 +183,4 @@ test("v142 prefers verified original creative media over collected source eviden
     assert.equal(validated.scenes.every(scene => scene.sourceMedia.origin === "image.generate"), true);
 });
 
-// V142 temporary CI diagnostic trigger: multifunction group B1.
+// V142 temporary CI diagnostic trigger: final multifunction quartet.
