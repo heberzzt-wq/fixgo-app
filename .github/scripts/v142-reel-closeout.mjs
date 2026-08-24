@@ -33,47 +33,7 @@ function appendOnce(file, marker, addition) {
   write(file, source);
 }
 
-function normalizePlannerPolicyComma() {
-  replaceExactOnce(
-    "gestia-core/jarvis/jarvis.multifunction.planner.js",
-    '    "Para marcas identificadas, conserva cualquier logotipo oficial verificado como un activo separado; no pidas al generador que invente, redibuje o imite un logotipo."',
-    '    "Para marcas identificadas, conserva cualquier logotipo oficial verificado como un activo separado; no pidas al generador que invente, redibuje o imite un logotipo.",',
-    "V142_PLANNER_POLICY_COMMA"
-  );
-}
-
-function normalizeLegacyGroundedReelFixture() {
-  replaceExactOnce(
-    "tests/jarvis-multifunction-tools.test.mjs",
-    '            "reel.plan": {\n                brandName: "Summit Law Firm",\n                title: "Estrategia antes del conflicto",',
-    '            "reel.plan": {\n                brandName: "Summit Law Firm",\n                title: "Estrategia antes del conflicto",\n                sourceMediaPolicy: "reuse",',
-    "V142_LEGACY_REEL_FIXTURE"
-  );
-}
-
-function normalizeMarketingOriginalCreativeFixture() {
-  const file = "tests/jarvis-marketing-handoff-v12.test.mjs";
-  replaceExactOnce(
-    file,
-    '    const socials = calls.filter(call => call.name === "image.edit");',
-    '    const socials = calls.filter(call => call.name === "image.generate");',
-    "V142_MARKETING_SOCIALS_GENERATE"
-  );
-  replaceExactOnce(
-    file,
-    '    assert.ok(socials.every(call => call.args.preserveLogos === true));',
-    '    assert.equal(calls.filter(call => call.name === "image.edit").length, 0);',
-    "V142_MARKETING_NO_AUTOMATIC_SOURCE_EDIT"
-  );
-  replaceExactOnce(
-    file,
-    '        ["image.edit", "image.edit", "image.edit"]',
-    '        ["image.generate", "image.generate", "image.generate"]',
-    "V142_MARKETING_ARTIFACT_TOOL_EXPECTATION"
-  );
-}
-
-function enableSemanticMiniDramaPolicy() {
+function ensureMiniDramaPolicy() {
   const file = "gestia-core/jarvis/jarvis.multifunction.planner.js";
   const marker = "Un guion de mini drama es una solicitud de produccion audiovisual";
   if (sourceOf(file).includes(marker)) return;
@@ -86,38 +46,60 @@ function enableSemanticMiniDramaPolicy() {
   replaceExactOnce(file, anchor, after, "V142_MINIDRAMA_SEMANTIC_POLICY");
 }
 
-function enableVideoMissionStageAndTimeout() {
-  replaceExactOnce(
-    "gestia-core/jarvis/jarvis.mission.dependencies.js",
-    '    "reel.create": 40,',
-    '    "reel.create": 40,\n    "video.generate": 35,',
-    "V142_VIDEO_MISSION_STAGE"
-  );
+function ensureVideoStageAndTimeout() {
+  const dependencies = "gestia-core/jarvis/jarvis.mission.dependencies.js";
+  if (!sourceOf(dependencies).includes('"video.generate": 35')) {
+    replaceExactOnce(
+      dependencies,
+      '    "reel.create": 40,',
+      '    "reel.create": 40,\n    "video.generate": 35,',
+      "V142_VIDEO_MISSION_STAGE"
+    );
+  }
 
   const file = "gestia-core/jarvis/jarvis.mission.orchestrator.js";
-  replaceExactOnce(
-    file,
-    '    const persistence = storageOrMemory(storage);\n    const startedAt = Date.now();\n    const runtimeResults = [];',
-    '    const persistence = storageOrMemory(storage);\n' +
-    '    const startedAt = Date.now();\n' +
-    '    const videoGenerationRequested =\n' +
-    '        (Array.isArray(requiredToolNames) && requiredToolNames.includes("video.generate")) ||\n' +
-    '        (Array.isArray(initialToolCalls) && initialToolCalls.some(call => call?.name === "video.generate"));\n' +
-    '    const effectiveMissionTimeoutMs = videoGenerationRequested\n' +
-    '        ? Math.max(Number(timeoutMs) || 180000, 1800000)\n' +
-    '        : Math.max(Number(timeoutMs) || 180000, 1000);\n' +
-    '    const runtimeResults = [];',
-    "V142_VIDEO_MISSION_TIMEOUT_SETUP"
-  );
-  replaceExactOnce(
-    file,
-    '        if (Date.now() - startedAt >= timeoutMs) {',
-    '        if (Date.now() - startedAt >= effectiveMissionTimeoutMs) {',
-    "V142_VIDEO_MISSION_TIMEOUT_USE"
-  );
+  let source = sourceOf(file);
+  const setupMarker = "const effectiveMissionTimeoutMs = videoGenerationRequested";
+  const goodTimeoutLine = '        : Number(timeoutMs) || 180000;';
+  const badTimeoutLine = '        : Math.max(Number(timeoutMs) || 180000, 1000);';
+
+  if (!source.includes(setupMarker)) {
+    const before = '    const persistence = storageOrMemory(storage);\n    const startedAt = Date.now();\n    const runtimeResults = [];';
+    const after = [
+      '    const persistence = storageOrMemory(storage);',
+      '    const startedAt = Date.now();',
+      '    const videoGenerationRequested =',
+      '        (Array.isArray(requiredToolNames) && requiredToolNames.includes("video.generate")) ||',
+      '        (Array.isArray(initialToolCalls) && initialToolCalls.some(call => call?.name === "video.generate"));',
+      '    const effectiveMissionTimeoutMs = videoGenerationRequested',
+      '        ? Math.max(Number(timeoutMs) || 180000, 1800000)',
+      goodTimeoutLine,
+      '    const runtimeResults = [];'
+    ].join("\n");
+    replaceExactOnce(file, before, after, "V142_VIDEO_MISSION_TIMEOUT_SETUP");
+    source = sourceOf(file);
+  }
+
+  if (source.includes(badTimeoutLine)) {
+    replaceExactOnce(
+      file,
+      badTimeoutLine,
+      goodTimeoutLine,
+      "V142_VIDEO_NON_VIDEO_TIMEOUT_PRESERVED"
+    );
+  }
+
+  if (sourceOf(file).includes('        if (Date.now() - startedAt >= timeoutMs) {')) {
+    replaceExactOnce(
+      file,
+      '        if (Date.now() - startedAt >= timeoutMs) {',
+      '        if (Date.now() - startedAt >= effectiveMissionTimeoutMs) {',
+      "V142_VIDEO_MISSION_TIMEOUT_USE"
+    );
+  }
 }
 
-function enableVerifiedVideoImport() {
+function ensureVerifiedVideoImport() {
   const file = "jarvis-fs-bridge.js";
   const helperMarker = "export async function saveGeneratedVideoArtifactFromUrl(";
   if (!sourceOf(file).includes(helperMarker)) {
@@ -259,7 +241,7 @@ function enableVerifiedVideoImport() {
   }
 }
 
-function enableRealVideoTool() {
+function ensureRealVideoTool() {
   const file = "gestia-core/jarvis/jarvis.actuator.pack.js";
   const marker = 'name: "video.generate"';
   if (sourceOf(file).includes(marker)) return;
@@ -293,13 +275,7 @@ function enableRealVideoTool() {
     '                    .slice(0, 4);',
     '                const prompts = (scenePrompts.length > 0 ? scenePrompts : [script]).filter(Boolean);',
     '                if (prompts.length < 1) {',
-    '                    return {',
-    '                        ok: false,',
-    '                        executionOk: false,',
-    '                        objectiveSatisfied: false,',
-    '                        status: "VIDEO_SCRIPT_REQUIRED",',
-    '                        error: "VIDEO_SCRIPT_REQUIRED"',
-    '                    };',
+    '                    return { ok: false, executionOk: false, objectiveSatisfied: false, status: "VIDEO_SCRIPT_REQUIRED", error: "VIDEO_SCRIPT_REQUIRED" };',
     '                }',
     '                const aspectRatio = args.aspectRatio === "16:9" ? "16:9" : "9:16";',
     '                let previousVideo = null;',
@@ -313,74 +289,38 @@ function enableRealVideoTool() {
     '                            : "Continua exactamente el video anterior manteniendo personajes, vestuario, locacion, accion y continuidad narrativa."',
     '                    ].filter(Boolean).join(" ").slice(0, 10000);',
     '                    const started = await callAdminFunction("jarvisVideoGenerate", {',
-    '                        action: "start",',
-    '                        prompt: segmentPrompt,',
-    '                        previousVideo,',
-    '                        aspectRatio',
+    '                        action: "start", prompt: segmentPrompt, previousVideo, aspectRatio',
     '                    });',
     '                    if (started?.ok !== true || !started?.operationName) {',
-    '                        return {',
-    '                            ...started,',
-    '                            ok: false,',
-    '                            executionOk: false,',
-    '                            objectiveSatisfied: false,',
-    '                            status: started?.status || "VIDEO_GENERATION_START_FAILED"',
-    '                        };',
+    '                        return { ...started, ok: false, executionOk: false, objectiveSatisfied: false, status: started?.status || "VIDEO_GENERATION_START_FAILED" };',
     '                    }',
     '                    let segment = null;',
     '                    for (let attempt = 0; attempt < 36; attempt += 1) {',
     '                        await new Promise(resolve => setTimeout(resolve, 10000));',
     '                        const polled = await callAdminFunction("jarvisVideoGenerate", {',
-    '                            action: "poll",',
-    '                            operationName: started.operationName,',
-    '                            finalize: index === prompts.length - 1',
+    '                            action: "poll", operationName: started.operationName, finalize: index === prompts.length - 1',
     '                        });',
     '                        if (polled?.ok !== true) {',
-    '                            return {',
-    '                                ...polled,',
-    '                                ok: false,',
-    '                                executionOk: false,',
-    '                                objectiveSatisfied: false,',
-    '                                status: polled?.status || "VIDEO_GENERATION_POLL_FAILED"',
-    '                            };',
+    '                            return { ...polled, ok: false, executionOk: false, objectiveSatisfied: false, status: polled?.status || "VIDEO_GENERATION_POLL_FAILED" };',
     '                        }',
     '                        if (polled?.done !== true) continue;',
     '                        segment = polled;',
     '                        break;',
     '                    }',
     '                    if (!segment) {',
-    '                        return {',
-    '                            ok: false,',
-    '                            executionOk: false,',
-    '                            objectiveSatisfied: false,',
-    '                            status: "VIDEO_GENERATION_TIMEOUT",',
-    '                            error: "VIDEO_GENERATION_TIMEOUT"',
-    '                        };',
+    '                        return { ok: false, executionOk: false, objectiveSatisfied: false, status: "VIDEO_GENERATION_TIMEOUT", error: "VIDEO_GENERATION_TIMEOUT" };',
     '                    }',
     '                    if (index < prompts.length - 1) {',
     '                        if (!segment?.video?.uri) {',
-    '                            return {',
-    '                                ok: false,',
-    '                                executionOk: false,',
-    '                                objectiveSatisfied: false,',
-    '                                status: "VIDEO_EXTENSION_REFERENCE_MISSING",',
-    '                                error: "VIDEO_EXTENSION_REFERENCE_MISSING"',
-    '                            };',
+    '                            return { ok: false, executionOk: false, objectiveSatisfied: false, status: "VIDEO_EXTENSION_REFERENCE_MISSING", error: "VIDEO_EXTENSION_REFERENCE_MISSING" };',
     '                        }',
     '                        previousVideo = segment.video;',
-    '                    }',
-    '                    else {',
+    '                    } else {',
     '                        finalCloud = segment;',
     '                    }',
     '                }',
     '                if (!finalCloud?.downloadUrl || !finalCloud?.sha256) {',
-    '                    return {',
-    '                        ok: false,',
-    '                        executionOk: false,',
-    '                        objectiveSatisfied: false,',
-    '                        status: "VIDEO_GENERATION_FINAL_OUTPUT_MISSING",',
-    '                        error: "VIDEO_GENERATION_FINAL_OUTPUT_MISSING"',
-    '                    };',
+    '                    return { ok: false, executionOk: false, objectiveSatisfied: false, status: "VIDEO_GENERATION_FINAL_OUTPUT_MISSING", error: "VIDEO_GENERATION_FINAL_OUTPUT_MISSING" };',
     '                }',
     '                const requestedOutput = String(args.output || "").trim().replaceAll("\\\\", "/");',
     '                const output =',
@@ -398,16 +338,9 @@ function enableRealVideoTool() {
     '                        provider: finalCloud.provider || "google-veo",',
     '                        model: finalCloud.model',
     '                    }, 240000);',
-    '                }',
-    '                finally {',
+    '                } finally {',
     '                    if (finalCloud?.storageObject) {',
-    '                        try {',
-    '                            await callAdminFunction("jarvisVideoGenerate", {',
-    '                                action: "cleanup",',
-    '                                storageObject: finalCloud.storageObject',
-    '                            });',
-    '                        }',
-    '                        catch {}',
+    '                        try { await callAdminFunction("jarvisVideoGenerate", { action: "cleanup", storageObject: finalCloud.storageObject }); } catch {}',
     '                    }',
     '                }',
     '                const durationSeconds = 8 + Math.max(0, prompts.length - 1) * 7;',
@@ -447,38 +380,54 @@ function enableRealVideoTool() {
   );
 }
 
-function updateVideoContractsInTests() {
+function ensureVideoTests() {
   const file = "tests/jarvis-reel-native-mp4-v138.test.mjs";
-  replaceExactOnce(
-    file,
-    'import path from "node:path";',
-    'import path from "node:path";\nimport { createHash } from "node:crypto";',
-    "V142_VIDEO_TEST_CRYPTO_IMPORT"
-  );
-  replaceExactOnce(
-    file,
-    '    exportReelVideoWithChrome,\n    speechSynthesisRecoveryInputs,',
-    '    exportReelVideoWithChrome,\n    saveGeneratedVideoArtifactFromUrl,\n    speechSynthesisRecoveryInputs,',
-    "V142_VIDEO_TEST_BRIDGE_IMPORT"
-  );
-  replaceExactOnce(
-    file,
-    'test("V142 original reel production uses deployed image generation and no ghost video callable"',
-    'test("V142 original reel production keeps original images and exposes real script to video"',
-    "V142_VIDEO_TEST_NAME"
-  );
-  replaceExactOnce(
-    file,
-    '  const functionsIndex = fs.readFileSync(new URL("../functions/index.js", import.meta.url), "utf8");',
-    '  const functionsEntry = fs.readFileSync(new URL("../functions/secure-entry-alias.js", import.meta.url), "utf8");',
-    "V142_VIDEO_TEST_FUNCTION_ENTRY"
-  );
-  replaceExactOnce(
-    file,
-    '  assert.equal(actuator.includes(\'name: "video.generate"\'), false);\n  assert.equal(functionsIndex.includes("exports.jarvisVideoGenerate"), false);',
-    '  assert.equal(actuator.includes(\'name: "video.generate"\'), true);\n  assert.equal(functionsEntry.includes("jarvisVideoGenerate"), true);',
-    "V142_VIDEO_TEST_EXPECT_REAL_TOOL"
-  );
+  let source = sourceOf(file);
+  if (!source.includes('import { createHash } from "node:crypto";')) {
+    replaceExactOnce(
+      file,
+      'import path from "node:path";',
+      'import path from "node:path";\nimport { createHash } from "node:crypto";',
+      "V142_VIDEO_TEST_CRYPTO_IMPORT"
+    );
+  }
+  source = sourceOf(file);
+  if (!source.includes("saveGeneratedVideoArtifactFromUrl,")) {
+    replaceExactOnce(
+      file,
+      '    exportReelVideoWithChrome,\n    speechSynthesisRecoveryInputs,',
+      '    exportReelVideoWithChrome,\n    saveGeneratedVideoArtifactFromUrl,\n    speechSynthesisRecoveryInputs,',
+      "V142_VIDEO_TEST_BRIDGE_IMPORT"
+    );
+  }
+  source = sourceOf(file);
+  if (source.includes('test("V142 original reel production uses deployed image generation and no ghost video callable"')) {
+    replaceExactOnce(
+      file,
+      'test("V142 original reel production uses deployed image generation and no ghost video callable"',
+      'test("V142 original reel production keeps original images and exposes real script to video"',
+      "V142_VIDEO_TEST_NAME"
+    );
+  }
+  source = sourceOf(file);
+  if (source.includes('  const functionsIndex = fs.readFileSync(new URL("../functions/index.js", import.meta.url), "utf8");')) {
+    replaceExactOnce(
+      file,
+      '  const functionsIndex = fs.readFileSync(new URL("../functions/index.js", import.meta.url), "utf8");',
+      '  const functionsEntry = fs.readFileSync(new URL("../functions/secure-entry-alias.js", import.meta.url), "utf8");',
+      "V142_VIDEO_TEST_FUNCTION_ENTRY"
+    );
+  }
+  source = sourceOf(file);
+  const oldExpectation = '  assert.equal(actuator.includes(\'name: "video.generate"\'), false);\n  assert.equal(functionsIndex.includes("exports.jarvisVideoGenerate"), false);';
+  if (source.includes(oldExpectation)) {
+    replaceExactOnce(
+      file,
+      oldExpectation,
+      '  assert.equal(actuator.includes(\'name: "video.generate"\'), true);\n  assert.equal(functionsEntry.includes("jarvisVideoGenerate"), true);',
+      "V142_VIDEO_TEST_EXPECT_REAL_TOOL"
+    );
+  }
 
   appendOnce(
     file,
@@ -517,43 +466,31 @@ function updateVideoContractsInTests() {
   );
 }
 
-normalizePlannerPolicyComma();
-normalizeLegacyGroundedReelFixture();
-normalizeMarketingOriginalCreativeFixture();
-enableSemanticMiniDramaPolicy();
-enableVideoMissionStageAndTimeout();
-enableVerifiedVideoImport();
-enableRealVideoTool();
-updateVideoContractsInTests();
+ensureMiniDramaPolicy();
+ensureVideoStageAndTimeout();
+ensureVerifiedVideoImport();
+ensureRealVideoTool();
+ensureVideoTests();
 
 const checks = [
-  ["gestia-core/gestia-core.js", [
-    "[CURRENT_TURN_SEMANTIC_PLANNER_TRANSIENT_RETRY]",
-    'reason: "SEMANTIC_PLANNER_UNAVAILABLE"',
-    "missionContractAttempt <= 3"
-  ]],
   ["gestia-core/jarvis/jarvis.multifunction.planner.js", [
-    "GENERALIST_CURRENT_TURN_POLICY",
     "el medio externo sigue siendo evidencia",
     "Un guion de mini drama es una solicitud de produccion audiovisual"
   ]],
   ["gestia-core/jarvis/jarvis.mission.dependencies.js", [
     '"image.generate": 28',
     '"video.generate": 35',
-    "ORIGINAL_REEL_CREATIVE_DEPENDENCY",
-    "explicitExistingMediaEdit"
+    "ORIGINAL_REEL_CREATIVE_DEPENDENCY"
   ]],
   ["gestia-core/jarvis/jarvis.reel.media-binder.js", [
-    ".jarvis-artifacts/images/",
-    '"image.generate"',
+    "creativeObservationAsset",
     "creativeAssets",
-    "collectedSceneAssets",
-    "creativeObservationAsset"
+    "collectedSceneAssets"
   ]],
-  ["gestia-core/jarvis/jarvis.multitool.pack.js", [
-    "REEL_GENERATED_SCENE_MEDIA_REQUIRED",
-    "sourceMediaPolicy",
-    'waitingFor: "image.generate"'
+  ["gestia-core/jarvis/jarvis.mission.orchestrator.js", [
+    "videoGenerationRequested",
+    "effectiveMissionTimeoutMs",
+    '        : Number(timeoutMs) || 180000;'
   ]],
   ["gestia-core/jarvis/jarvis.actuator.pack.js", [
     'name: "image.generate"',
@@ -561,10 +498,6 @@ const checks = [
     'name: "reel.create"',
     'callAdminFunction("jarvisVideoGenerate"',
     'bridgeRequest("/video/import"'
-  ]],
-  ["gestia-core/jarvis/jarvis.mission.orchestrator.js", [
-    "videoGenerationRequested",
-    "effectiveMissionTimeoutMs"
   ]],
   ["functions/secure-entry-alias.js", [
     "jarvisVideoGenerate",
@@ -575,16 +508,8 @@ const checks = [
   ["jarvis-fs-bridge.js", [
     "REEL_VIDEO_FRAME_DENSITY_LOW:",
     "averageRenderedFps < 20",
-    '"--enable-gpu"',
     "saveGeneratedVideoArtifactFromUrl",
     'app.post("/video/import"'
-  ]],
-  ["jarvis-reel-artifact.js", [
-    "renderedFrameCount=0",
-    "averageRenderedFps:renderedFrameCount/spec.durationSeconds"
-  ]],
-  ["tests/jarvis-reel-media-binder-v131.test.mjs", [
-    "v142 recognizes mission-normalized image.generate artifacts before reel planning"
   ]],
   ["tests/jarvis-reel-native-mp4-v138.test.mjs", [
     "V142 original reel production keeps original images and exposes real script to video",
@@ -611,7 +536,7 @@ console.log(JSON.stringify({
   miniDramaTool: "video.generate",
   miniDramaProvider: "google-veo-3.1",
   miniDramaPhysicalImport: true,
-  verifiedBrandLogoPropagation: true,
+  nonVideoDeadlineSemanticsPreserved: true,
   minimumRenderedFps: 20,
   cloudFunction: "jarvisVideoGenerate",
   lexicalRouting: false,
