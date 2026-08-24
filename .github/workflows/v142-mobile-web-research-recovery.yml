@@ -155,8 +155,23 @@ jobs:
             tests/jarvis-reel-media-binder-v131.test.mjs \
             tests/jarvis-reel-native-mp4-v138.test.mjs
 
-      - name: Full CI
-        run: npm run ci:test
+      - name: Full CI 1/6 - Mission contracts
+        run: npm run test:mission-contracts
+
+      - name: Full CI 2/6 - NEXO check
+        run: npm run check:nexo
+
+      - name: Full CI 3/6 - Entry syntax
+        run: npm run check:entry-syntax
+
+      - name: Full CI 4/6 - Syntax
+        run: npm run check:syntax
+
+      - name: Full CI 5/6 - Multifunction
+        run: npm run test:multifunction
+
+      - name: Full CI 6/6 - npm test
+        run: npm test
 
       - name: Detect materialization state
         id: patch-state
