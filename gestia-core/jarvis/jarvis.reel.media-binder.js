@@ -1,5 +1,5 @@
 export const JARVIS_REEL_MEDIA_BINDER_VERSION =
-    "1.0.0-semantic-scene-media-authority-v131";
+    "1.1.0-normalized-generated-media-v142";
 
 function clean(value = "") {
     return typeof value === "string" ? value.trim() : "";
@@ -68,6 +68,54 @@ function payloadAssets(payload = {}) {
         .flat();
 }
 
+function creativeObservationAsset(task = {}) {
+    const observation = task?.observation && typeof task.observation === "object"
+        ? task.observation
+        : {};
+    const evidence = observation?.evidence && typeof observation.evidence === "object"
+        ? observation.evidence
+        : {};
+    const nestedArtifact = evidence?.artifact && typeof evidence.artifact === "object"
+        ? evidence.artifact
+        : {};
+    const toolName = String(task?.name || "");
+    return verifiedSceneAsset({
+        kind: "image",
+        output:
+            observation.output ||
+            observation.artifact ||
+            evidence.output ||
+            nestedArtifact.output,
+        mimeType:
+            observation.mimeType ||
+            observation.outputMimeType ||
+            evidence.mimeType ||
+            evidence.outputMimeType ||
+            nestedArtifact.mimeType,
+        bytes:
+            observation.bytes ||
+            observation.outputBytes ||
+            evidence.bytes ||
+            evidence.outputBytes ||
+            nestedArtifact.bytes,
+        sha256:
+            observation.sha256 ||
+            observation.outputSha256 ||
+            evidence.sha256 ||
+            evidence.outputSha256 ||
+            nestedArtifact.sha256,
+        mediaRole: "scene",
+        sourceTag: toolName,
+        origin: toolName,
+        alt:
+            clean(observation.prompt) ||
+            clean(evidence.prompt) ||
+            clean(observation.variantId) ||
+            clean(evidence.variantId) ||
+            "Visual creativo generado y verificado"
+    });
+}
+
 function dedupeAssets(assets = []) {
     const seen = new Set();
     return assets.filter(asset => {
@@ -95,26 +143,7 @@ export function reelMediaCollectionState(context = {}) {
         collectedAssets.push(...payloadAssets(task?.observation?.evidence || {}));
     }
     const verifiedCreativeAssets = creativeTasks
-        .map(task => {
-            const observation = task?.observation && typeof task.observation === "object"
-                ? task.observation
-                : {};
-            const toolName = String(task?.name || "");
-            return verifiedSceneAsset({
-                kind: "image",
-                output: observation.output,
-                mimeType: observation.mimeType || observation.outputMimeType,
-                bytes: observation.bytes || observation.outputBytes,
-                sha256: observation.sha256 || observation.outputSha256,
-                mediaRole: "scene",
-                sourceTag: toolName,
-                origin: toolName,
-                alt:
-                    clean(observation.prompt) ||
-                    clean(observation.variantId) ||
-                    "Visual creativo generado y verificado"
-            });
-        })
+        .map(creativeObservationAsset)
         .filter(Boolean);
     const verifiedCollectedAssets = collectedAssets
         .map(verifiedSceneAsset)
