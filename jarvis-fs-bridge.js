@@ -576,7 +576,7 @@ export async function exportReelVideoWithChrome({
         [
             "--headless=new",
             "--no-sandbox",
-            "--disable-gpu",
+            "--enable-gpu",
             "--disable-background-timer-throttling",
             "--disable-renderer-backgrounding",
             "--disable-backgrounding-occluded-windows",

@@ -10,6 +10,7 @@ import { runJarvisMission, __test as missionOrchestratorTest } from "../gestia-c
 import {
     assertReelVideoContainer,
     createJarvisFsBridgeApp,
+    exportReelVideoWithChrome,
     speechSynthesisRecoveryInputs,
     tiktokOembedVisualSeed,
     reelVideoExtensionFromMime,
@@ -663,4 +664,182 @@ test("V142 exact Taqueria human mission reaches reel.create after verified media
   assert.equal(mission.completedTasks.some(item => item.name === "reel.create" && item.observation.artifact === ".jarvis-artifacts/reels/taqueria-el-dorado.mp4"), true);
   assert.equal(mission.blockedTasks.some(item => item.name === "reel.plan"), false);
   assert.equal(mission.recoveredToolAttempts.some(item => item.name === "reel.plan"), true);
+});
+
+
+test("V142 Windows physical reel export sustains the real 20 fps gate", {
+  skip: process.platform !== "win32",
+  timeout: 120000
+}, async () => {
+  const bridgeSource = fs.readFileSync(
+    new URL("../jarvis-fs-bridge.js", import.meta.url),
+    "utf8"
+  );
+
+  const start = bridgeSource.indexOf(
+    "export async function exportReelVideoWithChrome({"
+  );
+
+  const end = bridgeSource.indexOf(
+    "export function readJarvisRuntimeContract",
+    start
+  );
+
+  assert.ok(start >= 0);
+  assert.ok(end > start);
+
+  const exportSource =
+    bridgeSource.slice(start, end);
+
+  assert.equal(
+    exportSource.includes('"--enable-gpu"'),
+    true
+  );
+
+  assert.equal(
+    exportSource.includes('"--disable-gpu"'),
+    false
+  );
+
+  assert.equal(
+    exportSource.includes(
+      '"--disable-background-timer-throttling"'
+    ),
+    true
+  );
+
+  const root = fs.mkdtempSync(
+    path.join(
+      os.tmpdir(),
+      "jarvis-v142-physical-gpu-"
+    )
+  );
+
+  try {
+    const svg = [
+      '<svg xmlns="http://www.w3.org/2000/svg"',
+      ' width="1080" height="1920"',
+      ' viewBox="0 0 1080 1920">',
+      '<rect width="1080" height="1920"',
+      ' fill="#081525"/>',
+      '<circle cx="540" cy="680" r="330"',
+      ' fill="#f2b84b"/>',
+      '<circle cx="540" cy="680" r="230"',
+      ' fill="#6c2f20"/>',
+      '<rect x="170" y="1100"',
+      ' width="740" height="360"',
+      ' rx="80" fill="#111827"/>',
+      '</svg>'
+    ].join("");
+
+    const image =
+      "data:image/svg+xml;base64," +
+      Buffer.from(
+        svg,
+        "utf8"
+      ).toString("base64");
+
+    const spec = {
+      brandName: "V142 Physical Gate",
+      title: "Reel fisico 1080x1920",
+      cta: "Verificado",
+      durationSeconds: 30,
+      scenes: [
+        {
+          durationSeconds: 10,
+          overlay: "Render fisico uno",
+          subtitle: "1080 x 1920",
+          mediaType: "image",
+          assetDataUrl: image,
+          backgroundColor: "#07111f",
+          transition: "fade"
+        },
+        {
+          durationSeconds: 10,
+          overlay: "Render fisico dos",
+          subtitle: "Cadencia continua",
+          mediaType: "image",
+          assetDataUrl: image,
+          backgroundColor: "#07111f",
+          transition: "zoom"
+        },
+        {
+          durationSeconds: 10,
+          overlay: "Render fisico tres",
+          subtitle: "Gate minimo 20 fps",
+          mediaType: "image",
+          assetDataUrl: image,
+          backgroundColor: "#07111f",
+          transition: "slide"
+        }
+      ]
+    };
+
+    const studioPath =
+      path.join(root, "studio.html");
+
+    fs.writeFileSync(
+      studioPath,
+      buildReelStudioHtml(spec),
+      "utf8"
+    );
+
+    const result =
+      await exportReelVideoWithChrome({
+        studioPath,
+        output:
+          ".jarvis-artifacts/reels/" +
+          "v142-physical-frame-gate.mp4",
+        durationSeconds: 30,
+        root
+      });
+
+    console.log(
+      "[V142_PHYSICAL_REEL_RESULT]",
+      JSON.stringify(result)
+    );
+
+    assert.equal(
+      result.ok,
+      true,
+      result.error || JSON.stringify(result)
+    );
+
+    assert.ok(
+      Number(result.renderedFrameCount) >= 600,
+      "renderedFrameCount=" +
+      result.renderedFrameCount
+    );
+
+    assert.ok(
+      Number(result.averageRenderedFps) >= 20,
+      "averageRenderedFps=" +
+      result.averageRenderedFps
+    );
+
+    assert.equal(
+      result.durationSeconds,
+      30
+    );
+
+    assert.equal(result.width, 1080);
+    assert.equal(result.height, 1920);
+
+    assert.ok(
+      result.output &&
+      fs.existsSync(
+        path.join(root, result.output)
+      ),
+      "PHYSICAL_REEL_FILE_MISSING"
+    );
+  }
+  finally {
+    fs.rmSync(
+      root,
+      {
+        recursive: true,
+        force: true
+      }
+    );
+  }
 });
