@@ -10,12 +10,12 @@ function replaceExactOnce(file, before, after, label) {
 }
 
 function normalizePlannerPolicyComma() {
-  const file = "gestia-core/jarvis/jarvis.multifunction.planner.js";
-  const withoutComma =
-    '    "Para marcas identificadas, conserva cualquier logotipo oficial verificado como un activo separado; no pidas al generador que invente, redibuje o imite un logotipo."';
-  const withComma =
-    '    "Para marcas identificadas, conserva cualquier logotipo oficial verificado como un activo separado; no pidas al generador que invente, redibuje o imite un logotipo.",';
-  replaceExactOnce(file, withoutComma, withComma, "V142_PLANNER_POLICY_COMMA");
+  replaceExactOnce(
+    "gestia-core/jarvis/jarvis.multifunction.planner.js",
+    '    "Para marcas identificadas, conserva cualquier logotipo oficial verificado como un activo separado; no pidas al generador que invente, redibuje o imite un logotipo."',
+    '    "Para marcas identificadas, conserva cualquier logotipo oficial verificado como un activo separado; no pidas al generador que invente, redibuje o imite un logotipo.",',
+    "V142_PLANNER_POLICY_COMMA"
+  );
 }
 
 function normalizeLegacyGroundedReelFixture() {
@@ -24,21 +24,6 @@ function normalizeLegacyGroundedReelFixture() {
     '            "reel.plan": {\n                brandName: "Summit Law Firm",\n                title: "Estrategia antes del conflicto",',
     '            "reel.plan": {\n                brandName: "Summit Law Firm",\n                title: "Estrategia antes del conflicto",\n                sourceMediaPolicy: "reuse",',
     "V142_LEGACY_REEL_FIXTURE"
-  );
-}
-
-function normalizeActuatorRegistryFixture() {
-  replaceExactOnce(
-    "tests/jarvis-actuator-pack.test.mjs",
-    '        "speech.synthesize",\n        "reel.create",',
-    '        "speech.synthesize",\n        "video.generate",\n        "reel.create",',
-    "V142_VIDEO_GENERATE_REGISTRY_EXPECTATION"
-  );
-  replaceExactOnce(
-    "tests/jarvis-actuator-pack.test.mjs",
-    '    assert.equal(runtime.get("speech.synthesize").userArtifact, true);\n    assert.equal(runtime.get("reel.create").requiresApproval, false);',
-    '    assert.equal(runtime.get("speech.synthesize").userArtifact, true);\n    assert.equal(runtime.get("video.generate").requiresApproval, false);\n    assert.equal(runtime.get("video.generate").userArtifact, true);\n    assert.deepEqual(runtime.get("video.generate").missionDedupeBy, ["output"]);\n    assert.equal(runtime.get("reel.create").requiresApproval, false);',
-    "V142_VIDEO_GENERATE_REGISTRY_ASSERTIONS"
   );
 }
 
@@ -66,7 +51,6 @@ function normalizeMarketingOriginalCreativeFixture() {
 
 normalizePlannerPolicyComma();
 normalizeLegacyGroundedReelFixture();
-normalizeActuatorRegistryFixture();
 normalizeMarketingOriginalCreativeFixture();
 
 const checks = [
@@ -77,67 +61,53 @@ const checks = [
   ]],
   ["gestia-core/jarvis/jarvis.multifunction.planner.js", [
     "GENERALIST_CURRENT_TURN_POLICY",
-    "usa video.generate si esta disponible",
-    "No sustituyas una solicitud de video generativo por capturas",
+    "el medio externo sigue siendo evidencia",
     'imite un logotipo.",'
   ]],
   ["gestia-core/jarvis/jarvis.mission.dependencies.js", [
-    '"video.generate": 28',
+    '"image.generate": 28',
     "ORIGINAL_REEL_CREATIVE_DEPENDENCY",
     "explicitExistingMediaEdit"
   ]],
   ["gestia-core/jarvis/jarvis.reel.media-binder.js", [
     ".jarvis-artifacts/images/",
-    ".jarvis-artifacts/videos/",
-    '"video.generate"',
-    "creativeAssets"
+    '"image.generate"',
+    "creativeAssets",
+    "collectedSceneAssets"
   ]],
   ["gestia-core/jarvis/jarvis.multitool.pack.js", [
     "REEL_GENERATED_SCENE_MEDIA_REQUIRED",
     "sourceMediaPolicy",
-    "reelMediaCollectionState(context)"
+    'waitingFor: "image.generate"'
   ]],
   ["gestia-core/jarvis/jarvis.actuator.pack.js", [
-    'name: "video.generate"',
-    'callAdminFunction("jarvisVideoGenerate"',
-    'bridgeRequest("/video/import"',
+    'name: "image.generate"',
+    'name: "reel.create"',
     'asset?.mediaRole === "brand_logo"'
   ]],
   ["jarvis-fs-bridge.js", [
     "BRIDGE_IDENTITY_OK",
     "REEL_VIDEO_FRAME_DENSITY_LOW:",
     "averageRenderedFps < 20",
-    '"--enable-gpu"',
-    'app.post("/video/import"',
-    "VIDEO_IMPORT_MP4_SIGNATURE_INVALID"
+    '"--enable-gpu"'
   ]],
   ["jarvis-reel-artifact.js", [
     "renderedFrameCount=0",
     "averageRenderedFps:renderedFrameCount/spec.durationSeconds",
     "window.__JARVIS_REEL_EXPORT_ERROR__=null"
   ]],
-  ["functions/index.js", [
-    "exports.jarvisVideoGenerate = functions",
-    'veo-3.1-generate-preview',
-    "getVideosOperation",
-    "generatedFromScript: true"
-  ]],
   ["tests/jarvis-multifunction-tools.test.mjs", [
     'title: "Estrategia antes del conflicto",\n                sourceMediaPolicy: "reuse",'
-  ]],
-  ["tests/jarvis-actuator-pack.test.mjs", [
-    '"video.generate"',
-    'runtime.get("video.generate").userArtifact'
   ]],
   ["tests/jarvis-marketing-handoff-v12.test.mjs", [
     'const socials = calls.filter(call => call.name === "image.generate")',
     '["image.generate", "image.generate", "image.generate"]'
   ]],
   ["tests/jarvis-reel-media-binder-v131.test.mjs", [
-    "accepts verified video.generate output as original reel creative"
+    "v142 prefers verified original creative media over collected source evidence"
   ]],
   ["tests/jarvis-reel-native-mp4-v138.test.mjs", [
-    "audiovisual production exposes original video generation and verified local import"
+    "V142 original reel production uses deployed image generation and no ghost video callable"
   ]]
 ];
 
@@ -150,19 +120,36 @@ for (const [file, markers] of checks) {
   }
 }
 
+const actuator = fs.readFileSync(
+  "gestia-core/jarvis/jarvis.actuator.pack.js",
+  "utf8"
+);
+const functionsIndex = fs.readFileSync("functions/index.js", "utf8");
+const bridge = fs.readFileSync("jarvis-fs-bridge.js", "utf8");
+if (actuator.includes('name: "video.generate"')) {
+  throw new Error("V142_GHOST_VIDEO_TOOL_PRESENT");
+}
+if (functionsIndex.includes("exports.jarvisVideoGenerate")) {
+  throw new Error("V142_GHOST_VIDEO_FUNCTION_PRESENT");
+}
+if (bridge.includes('app.post("/video/import"')) {
+  throw new Error("V142_GHOST_VIDEO_IMPORT_ROUTE_PRESENT");
+}
+
 console.log(JSON.stringify({
   ok: true,
-  status: "V142_AUDIOVISUAL_CLOSEOUT_STATE_VERIFIED",
+  status: "V142_ORIGINAL_REEL_CLOSEOUT_STATE_VERIFIED",
   sameSemanticAuthority: true,
   originalReelCreativeDefault: true,
-  miniDramaFromScript: true,
-  veo31VideoGeneration: true,
-  verifiedLocalVideoImport: true,
+  sourceMediaEvidenceOnlyByDefault: true,
+  generatedCreativeTool: "image.generate",
+  finalVideoTool: "reel.create",
   verifiedBrandLogoPropagation: true,
   plannerPolicySyntaxNormalized: true,
   legacyReadOnlyReelFixtureExplicitReuse: true,
-  legacyActuatorRegistryIncludesVideoGenerate: true,
   marketingOriginalCreativeUsesGeneration: true,
+  ghostVideoTool: false,
+  cloudFunctionsChanged: false,
   minimumRenderedFps: 20,
   newFiles: false,
   newBrains: false,
