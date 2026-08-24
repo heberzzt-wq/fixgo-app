@@ -21,6 +21,7 @@ on:
       - 'functions/jarvis-web-research.js'
       - 'functions/jarvis-semantic-planner.js'
       - 'functions/index.js'
+      - 'functions/secure-entry-alias.js'
       - 'jarvis-upload-bridge.js'
       - 'jarvis-fs-bridge.js'
       - 'jarvis-reel-artifact.js'
@@ -53,7 +54,7 @@ env:
 jobs:
   certify-linux:
     runs-on: ubuntu-latest
-    timeout-minutes: 65
+    timeout-minutes: 70
     outputs:
       product_changed: ${{ steps.patch-state.outputs.product_changed }}
     steps:
@@ -65,7 +66,7 @@ jobs:
         run: |
           set -euo pipefail
           target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          payload=$(jq -n --arg state pending --arg context 'v142-mobile-web-research-recovery' --arg description "run=${GITHUB_RUN_ID} V142 reel closeout" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          payload=$(jq -n --arg state pending --arg context 'v142-mobile-web-research-recovery' --arg description "run=${GITHUB_RUN_ID} V142 audiovisual closeout" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
           curl --fail-with-body --silent --show-error --location -X POST \
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
@@ -113,6 +114,7 @@ jobs:
           node --check gestia-core/jarvis/jarvis.mission.dependencies.js
           node --check gestia-core/jarvis/jarvis.reel.media-binder.js
           node --check gestia-core/jarvis/jarvis.actuator.pack.js
+          node --check functions/secure-entry-alias.js
           node --check jarvis-upload-bridge.js
           node --check jarvis-fs-bridge.js
           node --check modules/terminal/jarvis-attachments.js
@@ -173,7 +175,7 @@ jobs:
           fi
           while IFS= read -r file; do
             case "$file" in
-              gestia-core/gestia-core.js|gestia-core/tools.bridge.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|gestia-core/jarvis/jarvis.mission.orchestrator.js|gestia-core/jarvis/jarvis.mission.dependencies.js|gestia-core/jarvis/jarvis.reel.media-binder.js|gestia-core/jarvis/jarvis.actuator.pack.js|functions/jarvis-genai-provider-chain.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|jarvis-fs-bridge.js|jarvis-reel-artifact.js|modules/terminal/jarvis-attachments.js|tests/jarvis-actuator-pack.test.mjs|tests/jarvis-marketing-handoff-v12.test.mjs|tests/jarvis-genai-provider-chain.test.cjs|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs|tests/jarvis-mission-orchestrator.test.mjs|tests/jarvis-reel-media-binder-v131.test.mjs|tests/jarvis-reel-native-mp4-v138.test.mjs|tests/jarvis-fs-bridge-v2.test.mjs) ;;
+              gestia-core/gestia-core.js|gestia-core/tools.bridge.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|gestia-core/jarvis/jarvis.mission.orchestrator.js|gestia-core/jarvis/jarvis.mission.dependencies.js|gestia-core/jarvis/jarvis.reel.media-binder.js|gestia-core/jarvis/jarvis.actuator.pack.js|functions/jarvis-genai-provider-chain.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|functions/secure-entry-alias.js|jarvis-fs-bridge.js|jarvis-reel-artifact.js|modules/terminal/jarvis-attachments.js|tests/jarvis-actuator-pack.test.mjs|tests/jarvis-marketing-handoff-v12.test.mjs|tests/jarvis-genai-provider-chain.test.cjs|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs|tests/jarvis-mission-orchestrator.test.mjs|tests/jarvis-reel-media-binder-v131.test.mjs|tests/jarvis-reel-native-mp4-v138.test.mjs|tests/jarvis-fs-bridge-v2.test.mjs) ;;
               *) echo "Unexpected V142 diff: $file" >&2; exit 1 ;;
             esac
           done <<< "$changed"
@@ -181,7 +183,7 @@ jobs:
 
   certify-windows:
     runs-on: windows-latest
-    timeout-minutes: 55
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -210,6 +212,7 @@ jobs:
           node --check gestia-core/jarvis/jarvis.mission.dependencies.js
           node --check gestia-core/jarvis/jarvis.reel.media-binder.js
           node --check gestia-core/jarvis/jarvis.actuator.pack.js
+          node --check functions/secure-entry-alias.js
           node --check jarvis-fs-bridge.js
           node --check modules/terminal/jarvis-attachments.js
           node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-mission-orchestrator.test.mjs tests/jarvis-reel-media-binder-v131.test.mjs tests/jarvis-reel-native-mp4-v138.test.mjs
@@ -241,7 +244,7 @@ jobs:
           test -n "$changed"
           while IFS= read -r file; do
             case "$file" in
-              gestia-core/gestia-core.js|gestia-core/tools.bridge.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|gestia-core/jarvis/jarvis.mission.orchestrator.js|gestia-core/jarvis/jarvis.mission.dependencies.js|gestia-core/jarvis/jarvis.reel.media-binder.js|gestia-core/jarvis/jarvis.actuator.pack.js|functions/jarvis-genai-provider-chain.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|jarvis-fs-bridge.js|jarvis-reel-artifact.js|modules/terminal/jarvis-attachments.js|tests/jarvis-actuator-pack.test.mjs|tests/jarvis-marketing-handoff-v12.test.mjs|tests/jarvis-genai-provider-chain.test.cjs|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs|tests/jarvis-mission-orchestrator.test.mjs|tests/jarvis-reel-media-binder-v131.test.mjs|tests/jarvis-reel-native-mp4-v138.test.mjs|tests/jarvis-fs-bridge-v2.test.mjs) ;;
+              gestia-core/gestia-core.js|gestia-core/tools.bridge.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|gestia-core/jarvis/jarvis.mission.orchestrator.js|gestia-core/jarvis/jarvis.mission.dependencies.js|gestia-core/jarvis/jarvis.reel.media-binder.js|gestia-core/jarvis/jarvis.actuator.pack.js|functions/jarvis-genai-provider-chain.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|functions/secure-entry-alias.js|jarvis-fs-bridge.js|jarvis-reel-artifact.js|modules/terminal/jarvis-attachments.js|tests/jarvis-actuator-pack.test.mjs|tests/jarvis-marketing-handoff-v12.test.mjs|tests/jarvis-genai-provider-chain.test.cjs|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs|tests/jarvis-mission-orchestrator.test.mjs|tests/jarvis-reel-media-binder-v131.test.mjs|tests/jarvis-reel-native-mp4-v138.test.mjs|tests/jarvis-fs-bridge-v2.test.mjs) ;;
               *) echo "Unexpected certified V142 diff: $file" >&2; exit 1 ;;
             esac
           done <<< "$changed"
@@ -249,14 +252,14 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git diff --name-only -z | xargs -0 git add --
-          git commit -m 'fix(jarvis): materialize V142 reel closeout'
+          git commit -m 'fix(jarvis): materialize V142 audiovisual closeout'
           git push origin "HEAD:${TARGET_BRANCH}"
 
   deploy-v142:
     needs: [certify-linux, certify-windows, materialize-v142]
     if: ${{ always() && needs.certify-linux.result == 'success' && needs.certify-windows.result == 'success' && (needs.certify-linux.outputs.product_changed == 'false' || needs.materialize-v142.result == 'success') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
         with:
@@ -281,6 +284,7 @@ jobs:
           node --check gestia-core/jarvis/jarvis.mission.dependencies.js
           node --check gestia-core/jarvis/jarvis.reel.media-binder.js
           node --check gestia-core/jarvis/jarvis.actuator.pack.js
+          node --check functions/secure-entry-alias.js
           node --check jarvis-fs-bridge.js
           node --check modules/terminal/jarvis-attachments.js
           node --input-type=module -e "import fs from 'node:fs'; const s=fs.readFileSync('modules/terminal/jarvis-attachments.js','utf8'); const c=s.slice(s.indexOf('function clear()'),s.indexOf('function observationTool')); if(!s.includes('artifactObjectUrls: new Set()')||!s.includes('state.artifactObjectUrls.add(objectUrl)')||!s.includes('persistentArtifactDownloads: true')||c.includes('artifactObjectUrls')) throw new Error('V142_ARTIFACT_DOWNLOAD_LIFECYCLE_INVALID');"
@@ -295,7 +299,22 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$FIREBASE_TOKEN"
-          firebase functions:log --only jarvisSemanticPlan --lines 200 --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
+          firebase functions:log --only jarvisSemanticPlan --lines 100 --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
+      - name: Deploy V142 jarvisVideoGenerate only
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy --only functions:jarvisVideoGenerate --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
+      - name: Verify jarvisVideoGenerate deployment
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          firebase functions:list --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive | grep -F 'jarvisVideoGenerate'
       - name: Deploy V142 Hosting FIXGO only
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
@@ -321,7 +340,7 @@ jobs:
         run: |
           set -euo pipefail
           target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          payload=$(jq -n --arg state success --arg context 'v142-mobile-web-research-recovery' --arg description "run=${GITHUB_RUN_ID} V142 hosting-only + reel closeout green" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          payload=$(jq -n --arg state success --arg context 'v142-mobile-web-research-recovery' --arg description "run=${GITHUB_RUN_ID} V142 reel + mini-drama production green" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
           curl --fail-with-body --silent --show-error --location -X POST \
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
