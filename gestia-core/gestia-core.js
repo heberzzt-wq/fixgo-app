@@ -3921,7 +3921,8 @@ export const GestiaCore = {
                 useRepoTools: false,
                 renderCard: false,
                 prepareCommand: false,
-                reason: "model_selected_conversation"
+                reason: "model_selected_conversation",
+                toolCalls: lightMultifunctionCalls
             };
         }
 
@@ -4041,6 +4042,32 @@ export const GestiaCore = {
                 message:
                     "El planner semantico unico no esta disponible; no se degradara este fallo a un falso plan vacio."
             };
+        }
+
+        if (
+            terminalSemanticPlan?.mode === "CASUAL_NOOP" &&
+            Array.isArray(terminalSemanticPlan?.toolCalls) &&
+            terminalSemanticPlan.toolCalls.length === 1 &&
+            terminalSemanticPlan.toolCalls[0]?.name === "conversation.respond"
+        ) {
+            if (!window.ToolsBridge?.executeAndCompose) {
+                throw new Error("TOOLS_BRIDGE_MISSING_FOR_CONVERSATION");
+            }
+            const conversationCall = terminalSemanticPlan.toolCalls[0];
+            console.info("[CURRENT_TURN_CONVERSATION_TOOL_EXECUTION]");
+            return await window.ToolsBridge.executeAndCompose(
+                "conversation.respond",
+                conversationCall.args || {},
+                {
+                    ...context,
+                    rawInput: inputRaw,
+                    tenantId,
+                    analysisId,
+                    semanticMemory: semanticMemoryContext,
+                    writeAllowed: false,
+                    approved: false
+                }
+            );
         }
 
         let terminalPlannerSeed =

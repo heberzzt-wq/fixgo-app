@@ -948,10 +948,16 @@ export const ToolsBridge = {
             );
         }
 
+        const semanticPayload =
+            result?.data &&
+            typeof result.data === "object" &&
+            !Array.isArray(result.data)
+                ? result.data
+                : result;
         const observation =
             window.ResponseComposer.composeToolObservation(
                 toolName,
-                result.data,
+                semanticPayload,
                 {
                     executionId:
                         result.executionId,
@@ -1039,11 +1045,11 @@ export const ToolsBridge = {
         const response =
             composeActuatorResponse(
                 toolName,
-                result.data,
+                semanticPayload,
                 context
             ) ||
             window.ResponseComposer.success(
-                result.data,
+                semanticPayload,
                 {
                     type:
                         "TOOL_RESULT",
