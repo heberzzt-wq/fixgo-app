@@ -91,11 +91,14 @@ test("planner semantic context is bounded to the current conversation and remain
     assert.equal(context.policy.noLexicalRouting, true);
 });
 
-test("terminal planner receives bounded advisory semantic context without raw mission memory authority", () => {
+test("terminal planner keeps mission memory advisory while direct conversation retains semantic continuity", () => {
     const core = fs.readFileSync(new URL("../gestia-core/gestia-core.js", import.meta.url), "utf8");
+    const pack = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.multitool.pack.js", import.meta.url), "utf8");
     assert.match(core, /phase: "CURRENT_TURN"[\s\S]{0,500}advisorySemanticContext: compactJarvisSemanticMemoryForPlanner\(semanticMemory\)/);
     assert.match(core, /phase: "MISSION_CONTRACT"[\s\S]{0,900}advisorySemanticContext: compactJarvisSemanticMemoryForPlanner\(semanticMemoryContext\)/);
-    assert.doesNotMatch(core, /semanticMemory\s*:\s*semanticMemoryContext/);
+    assert.match(core, /CURRENT_TURN_CONVERSATION_TOOL_EXECUTION[\s\S]{0,900}semanticMemory:\s*semanticMemoryContext/);
+    assert.match(pack, /Responde la instrucción actual usando memoria semántica únicamente como contexto asesor/);
+    assert.match(pack, /nunca se convierte por sí sola en evidencia factual de la misión actual/);
     assert.doesNotMatch(core, /lexicalRouting\s*:\s*true/);
 });
 
