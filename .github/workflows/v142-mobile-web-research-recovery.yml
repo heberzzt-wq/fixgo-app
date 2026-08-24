@@ -155,6 +155,15 @@ jobs:
             tests/jarvis-reel-media-binder-v131.test.mjs \
             tests/jarvis-reel-native-mp4-v138.test.mjs
 
+      - name: Diagnostic CI - response composer semantic contract
+        run: node --test tests/response-composer-semantic-contract.test.mjs
+
+      - name: Diagnostic CI - mission contract accounting
+        run: node --test tests/jarvis-mission-contract-accounting.test.mjs
+
+      - name: Diagnostic CI - mission failure precedence
+        run: node --test tests/jarvis-mission-failure-precedence.test.mjs
+
       - name: Full CI
         run: npm run ci:test
 
