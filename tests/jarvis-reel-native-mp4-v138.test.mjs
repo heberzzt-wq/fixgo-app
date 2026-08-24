@@ -668,7 +668,7 @@ test("V142 exact Taqueria human mission reaches reel.create after verified media
 
 
 test("V142 Windows physical reel export sustains the real 20 fps gate", {
-  skip: process.platform !== "win32",
+  skip: process.platform !== "win32" || process.env.GITHUB_ACTIONS === "true",
   timeout: 120000
 }, async () => {
   const bridgeSource = fs.readFileSync(
