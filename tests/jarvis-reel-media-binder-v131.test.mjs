@@ -182,3 +182,35 @@ test("v142 prefers verified original creative media over collected source eviden
     assert.equal(validated.scenes.every(scene => scene.assetOutput === generatedOutput), true);
     assert.equal(validated.scenes.every(scene => scene.sourceMedia.origin === "image.generate"), true);
 });
+
+test("v142 recognizes mission-normalized image.generate artifacts before reel planning", () => {
+    const generatedOutput = ".jarvis-artifacts/images/reel-original-scene-1.png";
+    const state = reelMediaCollectionState({
+        completedTasks: [
+            {
+                name: "image.generate",
+                observation: {
+                    artifact: generatedOutput,
+                    evidence: {
+                        ok: true,
+                        status: "IMAGE_GENERATED",
+                        output: generatedOutput,
+                        mimeType: "image/png",
+                        bytes: 1700000,
+                        sha256: "f".repeat(64),
+                        prompt: "Escena original vertical de tacos"
+                    }
+                }
+            }
+        ]
+    });
+
+    assert.equal(state.creativeAttempted, true);
+    assert.equal(state.creativeAssets.length, 1);
+    assert.equal(state.assets.length, 1);
+    assert.equal(state.assets[0].output, generatedOutput);
+    assert.equal(state.assets[0].mimeType, "image/png");
+    assert.equal(state.assets[0].bytes, 1700000);
+    assert.equal(state.assets[0].sha256, "f".repeat(64));
+    assert.equal(state.assets[0].origin, "image.generate");
+});
