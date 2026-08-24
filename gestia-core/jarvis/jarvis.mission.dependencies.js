@@ -13,6 +13,7 @@ const MISSION_STAGE_BY_TOOL = Object.freeze({
     "reel.plan": 30,
     "page.create": 40,
     "reel.create": 40,
+    "video.generate": 35,
     "document.create": 40,
     "document.pdf": 40,
     "image.generate": 28,

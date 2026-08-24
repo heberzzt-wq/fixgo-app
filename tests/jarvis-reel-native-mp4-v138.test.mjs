@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { test } from "node:test";
 
@@ -11,6 +12,7 @@ import {
     assertReelVideoContainer,
     createJarvisFsBridgeApp,
     exportReelVideoWithChrome,
+    saveGeneratedVideoArtifactFromUrl,
     speechSynthesisRecoveryInputs,
     tiktokOembedVisualSeed,
     reelVideoExtensionFromMime,
@@ -844,12 +846,12 @@ test("V142 Windows physical reel export sustains the real 20 fps gate", {
   }
 });
 
-test("V142 original reel production uses deployed image generation and no ghost video callable", () => {
+test("V142 original reel production keeps original images and exposes real script to video", () => {
   const planner = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.multifunction.planner.js", import.meta.url), "utf8");
   const dependencies = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.mission.dependencies.js", import.meta.url), "utf8");
   const multitool = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.multitool.pack.js", import.meta.url), "utf8");
   const actuator = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.actuator.pack.js", import.meta.url), "utf8");
-  const functionsIndex = fs.readFileSync(new URL("../functions/index.js", import.meta.url), "utf8");
+  const functionsEntry = fs.readFileSync(new URL("../functions/secure-entry-alias.js", import.meta.url), "utf8");
 
   assert.equal(planner.includes("el medio externo sigue siendo evidencia"), true);
   assert.equal(dependencies.includes("ORIGINAL_REEL_CREATIVE_DEPENDENCY"), true);
@@ -857,6 +859,38 @@ test("V142 original reel production uses deployed image generation and no ghost 
   assert.equal(multitool.includes("REEL_GENERATED_SCENE_MEDIA_REQUIRED"), true);
   assert.equal(multitool.includes('waitingFor: "image.generate"'), true);
   assert.equal(actuator.includes('asset?.mediaRole === "brand_logo"'), true);
-  assert.equal(actuator.includes('name: "video.generate"'), false);
-  assert.equal(functionsIndex.includes("exports.jarvisVideoGenerate"), false);
+  assert.equal(actuator.includes('name: "video.generate"'), true);
+  assert.equal(functionsEntry.includes("jarvisVideoGenerate"), true);
+});
+
+test("V142 imports generated Veo MP4 bytes into the physical artifact studio", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-v142-video-import-"));
+  try {
+    const bytes = Buffer.alloc(120000);
+    bytes.writeUInt32BE(24, 0);
+    bytes.write("ftyp", 4, "ascii");
+    bytes.write("isom", 8, "ascii");
+    const sha256 = createHash("sha256").update(bytes).digest("hex");
+    const saved = await saveGeneratedVideoArtifactFromUrl({
+      url: "https://storage.googleapis.com/fixgo-44e4d.firebasestorage.app/test.mp4?signature=v142",
+      expectedSha256: sha256,
+      output: ".jarvis-artifacts/videos/v142-mini-drama.mp4",
+      root,
+      fetchImpl: async () => ({
+        ok: true,
+        status: 200,
+        headers: { get: name => String(name).toLowerCase() === "content-type" ? "video/mp4" : null },
+        arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+      })
+    });
+    assert.equal(saved.ok, true);
+    assert.equal(saved.status, "VIDEO_IMPORTED_VERIFIED");
+    assert.equal(saved.sha256, sha256);
+    assert.equal(saved.bytes, bytes.length);
+    assert.equal(saved.physicallyWritten, true);
+    assert.equal(fs.existsSync(path.join(root, saved.output)), true);
+  }
+  finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

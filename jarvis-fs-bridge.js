@@ -2026,6 +2026,84 @@ export function saveGeneratedImageArtifact({
     };
 }
 
+export async function saveGeneratedVideoArtifactFromUrl({
+    url = "",
+    expectedSha256 = "",
+    output = "",
+    root = DEFAULT_ROOT,
+    fetchImpl = globalThis.fetch,
+    timeoutMs = 180000
+} = {}) {
+    const rawUrl = String(url || "").trim();
+    let parsed;
+    try { parsed = new URL(rawUrl); }
+    catch { throw new Error("VIDEO_IMPORT_URL_INVALID"); }
+    const host = parsed.hostname.toLowerCase();
+    if (
+        parsed.protocol !== "https:" ||
+        !(host === "storage.googleapis.com" || host.endsWith(".storage.googleapis.com"))
+    ) {
+        throw new Error("VIDEO_IMPORT_URL_NOT_ALLOWED");
+    }
+    const expected = String(expectedSha256 || "").trim().toLowerCase();
+    if (!/^[a-f0-9]{64}$/.test(expected)) {
+        throw new Error("VIDEO_IMPORT_SHA256_REQUIRED");
+    }
+    if (typeof fetchImpl !== "function") {
+        throw new Error("VIDEO_IMPORT_FETCH_UNAVAILABLE");
+    }
+    const response = await fetchImpl(rawUrl, {
+        method: "GET",
+        redirect: "follow",
+        signal: AbortSignal.timeout(Math.min(Math.max(Number(timeoutMs) || 180000, 10000), 240000))
+    });
+    if (!response?.ok) {
+        throw new Error(`VIDEO_IMPORT_HTTP_${response?.status || 0}`);
+    }
+    const mimeType = String(response.headers?.get?.("content-type") || "video/mp4")
+        .split(";")[0].trim().toLowerCase();
+    if (mimeType !== "video/mp4") {
+        throw new Error("VIDEO_IMPORT_MIME_INVALID");
+    }
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (bytes.length < 100000 || bytes.length > 90 * 1024 * 1024) {
+        throw new Error("VIDEO_IMPORT_BYTES_OUT_OF_RANGE");
+    }
+    if (bytes.subarray(4, 8).toString("ascii") !== "ftyp") {
+        throw new Error("VIDEO_IMPORT_MP4_SIGNATURE_INVALID");
+    }
+    const sha256 = createHash("sha256").update(bytes).digest("hex");
+    if (sha256 !== expected) {
+        throw new Error("VIDEO_IMPORT_SHA256_MISMATCH");
+    }
+    const relativeOutput = String(output || "").trim().replaceAll("\\", "/") ||
+        `.jarvis-artifacts/videos/jarvis-video-${Date.now()}-${sha256.slice(0, 12)}.mp4`;
+    if (
+        !relativeOutput.startsWith(".jarvis-artifacts/videos/") ||
+        relativeOutput.includes("../") ||
+        !relativeOutput.toLowerCase().endsWith(".mp4")
+    ) {
+        throw new Error("VIDEO_IMPORT_OUTPUT_INVALID");
+    }
+    const target = artifactPath(relativeOutput, root, [".mp4"]);
+    fs.writeFileSync(target, bytes);
+    const writtenBytes = fs.statSync(target).size;
+    const writtenSha256 = sha256FileBounded(target);
+    if (writtenBytes !== bytes.length || writtenSha256 !== sha256) {
+        fs.rmSync(target, { force: true });
+        throw new Error("VIDEO_IMPORT_POST_VERIFY_FAILED");
+    }
+    return {
+        ok: true,
+        status: "VIDEO_IMPORTED_VERIFIED",
+        output: path.relative(path.resolve(root), target).replace(/\\/g, "/"),
+        mimeType: "video/mp4",
+        bytes: writtenBytes,
+        sha256: writtenSha256,
+        physicallyWritten: true
+    };
+}
+
 function decodeBoundedBase64(dataBase64 = "", maxBytes = MAX_JARVIS_UPLOAD_BYTES) {
     const normalized = String(dataBase64 || "").trim();
     if (!normalized || normalized.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(normalized)) {
@@ -5518,6 +5596,43 @@ export function createJarvisFsBridgeApp({
                 ok: false,
                 grounded: false,
                 status: "WEB_RESEARCH_FAILED",
+                error: error.message,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+    });
+
+    app.post("/video/import", async (req, res) => {
+        try {
+            const saved = await saveGeneratedVideoArtifactFromUrl({
+                url: req.body?.url,
+                expectedSha256: req.body?.expectedSha256 || req.body?.sha256,
+                output: req.body?.output,
+                root
+            });
+            const artifact = registerArtifact({
+                root,
+                output: saved.output,
+                metadata: {
+                    source: "video.generate",
+                    provider: req.body?.provider || "google-veo",
+                    model: req.body?.model || null,
+                    mimeType: saved.mimeType,
+                    bytes: saved.bytes,
+                    sha256: saved.sha256,
+                    physicallyWritten: true
+                }
+            });
+            return res.json({
+                ...saved,
+                artifactId: artifact?.artifactId || artifact?.id || null,
+                artifact
+            });
+        }
+        catch(error) {
+            return res.status(400).json({
+                ok: false,
+                status: "VIDEO_IMPORT_FAILED",
                 error: error.message,
                 version: JARVIS_FS_BRIDGE_VERSION
             });

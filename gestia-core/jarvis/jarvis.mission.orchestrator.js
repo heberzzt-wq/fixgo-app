@@ -1685,6 +1685,12 @@ export async function runJarvisMission({
 
     const persistence = storageOrMemory(storage);
     const startedAt = Date.now();
+    const videoGenerationRequested =
+        (Array.isArray(requiredToolNames) && requiredToolNames.includes("video.generate")) ||
+        (Array.isArray(initialToolCalls) && initialToolCalls.some(call => call?.name === "video.generate"));
+    const effectiveMissionTimeoutMs = videoGenerationRequested
+        ? Math.max(Number(timeoutMs) || 180000, 1800000)
+        : Number(timeoutMs) || 180000;
     const runtimeResults = [];
     const recovered = resumeMissionId
         ? readMissions(persistence).find(item => item.missionId === resumeMissionId)
@@ -1760,7 +1766,7 @@ export async function runJarvisMission({
             mission.reason = "CANCELLED";
             break;
         }
-        if (Date.now() - startedAt >= timeoutMs) {
+        if (Date.now() - startedAt >= effectiveMissionTimeoutMs) {
             mission.reason = "DEADLINE_EXCEEDED";
             break;
         }

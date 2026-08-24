@@ -822,6 +822,129 @@ export function registerJarvisActuatorTools(runtime) {
             }
         }),
         register(runtime, {
+            name: "video.generate",
+            description: "Genera video NUEVO real desde un guion o escenas semanticas mediante Veo. Para mini dramas produce actuacion, movimiento y audio nativos; puede extender hasta cuatro escenas consecutivas. No reutiliza videos externos salvo que el usuario lo pida de forma explicita.",
+            output: "VIDEO_GENERATION_RESULT",
+            inputSchema: {
+                script: "string",
+                prompt: "string",
+                scenes: "array<{prompt|visual|description:string}>",
+                aspectRatio: "9:16|16:9",
+                output: "string",
+                caseId: "string",
+                objectiveId: "string"
+            },
+            mutates: true,
+            requiresApproval: false,
+            userArtifact: true,
+            missionDedupeBy: ["output"],
+            execute: async (args = {}, context = {}) => {
+                const script = String(args.script || args.prompt || context.rawInput || "").trim();
+                const rawScenes = Array.isArray(args.scenes) ? args.scenes : [];
+                const scenePrompts = rawScenes
+                    .map(scene => typeof scene === "string"
+                        ? scene.trim()
+                        : String(scene?.prompt || scene?.visual || scene?.description || "").trim())
+                    .filter(Boolean)
+                    .slice(0, 4);
+                const prompts = (scenePrompts.length > 0 ? scenePrompts : [script]).filter(Boolean);
+                if (prompts.length < 1) {
+                    return { ok: false, executionOk: false, objectiveSatisfied: false, status: "VIDEO_SCRIPT_REQUIRED", error: "VIDEO_SCRIPT_REQUIRED" };
+                }
+                const aspectRatio = args.aspectRatio === "16:9" ? "16:9" : "9:16";
+                let previousVideo = null;
+                let finalCloud = null;
+                for (let index = 0; index < prompts.length; index += 1) {
+                    const segmentPrompt = [
+                        index === 0 ? script : "",
+                        prompts[index],
+                        index === 0
+                            ? "Crea el inicio del mini drama como video cinematografico real con personas, accion, dialogo o audio coherente cuando el guion lo indique."
+                            : "Continua exactamente el video anterior manteniendo personajes, vestuario, locacion, accion y continuidad narrativa."
+                    ].filter(Boolean).join(" ").slice(0, 10000);
+                    const started = await callAdminFunction("jarvisVideoGenerate", {
+                        action: "start", prompt: segmentPrompt, previousVideo, aspectRatio
+                    });
+                    if (started?.ok !== true || !started?.operationName) {
+                        return { ...started, ok: false, executionOk: false, objectiveSatisfied: false, status: started?.status || "VIDEO_GENERATION_START_FAILED" };
+                    }
+                    let segment = null;
+                    for (let attempt = 0; attempt < 36; attempt += 1) {
+                        await new Promise(resolve => setTimeout(resolve, 10000));
+                        const polled = await callAdminFunction("jarvisVideoGenerate", {
+                            action: "poll", operationName: started.operationName, finalize: index === prompts.length - 1
+                        });
+                        if (polled?.ok !== true) {
+                            return { ...polled, ok: false, executionOk: false, objectiveSatisfied: false, status: polled?.status || "VIDEO_GENERATION_POLL_FAILED" };
+                        }
+                        if (polled?.done !== true) continue;
+                        segment = polled;
+                        break;
+                    }
+                    if (!segment) {
+                        return { ok: false, executionOk: false, objectiveSatisfied: false, status: "VIDEO_GENERATION_TIMEOUT", error: "VIDEO_GENERATION_TIMEOUT" };
+                    }
+                    if (index < prompts.length - 1) {
+                        if (!segment?.video?.uri) {
+                            return { ok: false, executionOk: false, objectiveSatisfied: false, status: "VIDEO_EXTENSION_REFERENCE_MISSING", error: "VIDEO_EXTENSION_REFERENCE_MISSING" };
+                        }
+                        previousVideo = segment.video;
+                    } else {
+                        finalCloud = segment;
+                    }
+                }
+                if (!finalCloud?.downloadUrl || !finalCloud?.sha256) {
+                    return { ok: false, executionOk: false, objectiveSatisfied: false, status: "VIDEO_GENERATION_FINAL_OUTPUT_MISSING", error: "VIDEO_GENERATION_FINAL_OUTPUT_MISSING" };
+                }
+                const requestedOutput = String(args.output || "").trim().replaceAll("\\", "/");
+                const output =
+                    requestedOutput.startsWith(".jarvis-artifacts/videos/") &&
+                    requestedOutput.toLowerCase().endsWith(".mp4") &&
+                    !requestedOutput.includes("../")
+                        ? requestedOutput
+                        : `.jarvis-artifacts/videos/mini-drama-${Date.now()}.mp4`;
+                let artifact;
+                try {
+                    artifact = await bridgeRequest("/video/import", {
+                        url: finalCloud.downloadUrl,
+                        expectedSha256: finalCloud.sha256,
+                        output,
+                        provider: finalCloud.provider || "google-veo",
+                        model: finalCloud.model
+                    }, 240000);
+                } finally {
+                    if (finalCloud?.storageObject) {
+                        try { await callAdminFunction("jarvisVideoGenerate", { action: "cleanup", storageObject: finalCloud.storageObject }); } catch {}
+                    }
+                }
+                const durationSeconds = 8 + Math.max(0, prompts.length - 1) * 7;
+                const finalResult = {
+                    ...artifact,
+                    ok: artifact?.ok === true,
+                    executionOk: artifact?.ok === true,
+                    objectiveSatisfied: artifact?.ok === true,
+                    status: artifact?.ok === true ? "VIDEO_GENERATED_VERIFIED" : (artifact?.status || "VIDEO_IMPORT_FAILED"),
+                    provider: finalCloud.provider || "google-veo",
+                    model: finalCloud.model,
+                    durationSeconds,
+                    sceneCount: prompts.length,
+                    sourceMode: "script_to_video",
+                    physicallyWritten: artifact?.physicallyWritten === true
+                };
+                recordCapabilityEvidence("video_generation", {
+                    ok: finalResult.ok === true && finalResult.physicallyWritten === true,
+                    status: finalResult.status,
+                    output: finalResult.output || null,
+                    bytes: finalResult.bytes || null,
+                    sha256: finalResult.sha256 || null,
+                    model: finalResult.model || null,
+                    checkedAt: new Date().toISOString()
+                });
+                return finalResult;
+            }
+        }),
+
+        register(runtime, {
             name: "image.generate",
             description: "Genera una imagen local nueva y descargable dentro de .jarvis-artifacts; no publica ni modifica una imagen existente.",
             output: "IMAGE_GENERATION_RESULT",
