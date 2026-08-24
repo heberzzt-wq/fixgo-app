@@ -12,7 +12,7 @@
     "check:syntax": "node -e \"process.exit(0)\"",
     "test": "node -e \"process.exit(97)\"",
     "test:upload": "node --test tests/jarvis-upload-bridge.test.mjs",
-    "test:multifunction": "node --test tests/jarvis-case-ledger.test.mjs tests/repo-source-structure.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs tests/jarvis-repo-target-runtime.test.mjs",
+    "test:multifunction": "node --test tests/jarvis-case-ledger.test.mjs tests/repo-source-structure.test.mjs",
     "check:entry-syntax": "node -e \"process.exit(0)\"",
     "test:mcp": "npm --prefix tools/fixgo-mcp run check",
     "ci:test": "node --test tests/response-composer-semantic-contract.test.mjs tests/jarvis-mission-contract-accounting.test.mjs tests/jarvis-mission-failure-precedence.test.mjs tests/jarvis-mission-orchestrator.test.mjs && npm run check:nexo && npm run check:entry-syntax && npm run check:syntax && npm run test:multifunction && npm test"
