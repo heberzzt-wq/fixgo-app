@@ -326,3 +326,297 @@ console.log(JSON.stringify({
     newContracts: false,
     newBrains: false
 }));
+
+const identityBridgePath = "jarvis-fs-bridge.js";
+const identityBridgeTestPath = "tests/jarvis-fs-bridge-v2.test.mjs";
+
+let identityBridge = await read(identityBridgePath);
+identityBridge = replaceOnce(
+    identityBridge,
+`export function describeJarvisBridgeIdentity(
+    root = DEFAULT_ROOT
+) {
+    const contract =
+        readJarvisRuntimeContract(root);
+
+    const git =
+        readGitIdentity(root);
+
+    const branchMatches =
+        contract.ok === true &&
+        Boolean(git.root) &&
+        contract.branch === git.branch;
+
+    const detachedContractHead =
+        contract.ok === true &&
+        Boolean(git.root) &&
+        !git.branch &&
+        Boolean(git.head) &&
+        Boolean(contract.branch)
+            ? gitText(
+                [
+                    "rev-parse",
+                    "--verify",
+                    \`origin/\${contract.branch}^{commit}\`
+                ],
+                root,
+                {
+                    allowFailure: true
+                }
+            )
+            : "";
+
+    const detachedMatchesContractHead =
+        Boolean(detachedContractHead) &&
+        detachedContractHead === git.head;
+
+    const compatible =
+        branchMatches ||
+        detachedMatchesContractHead;
+
+    return {
+        ok: compatible,
+        status:
+            compatible
+                ? "BRIDGE_IDENTITY_OK"
+                : "BRIDGE_IDENTITY_INVALID",
+        root:
+            path.resolve(root),
+        contract,
+        git,
+        identityMode:
+            branchMatches
+                ? "branch"
+                : detachedMatchesContractHead
+                    ? "detached_contract_head"
+                    : "invalid",
+        contractHead:
+            detachedContractHead ||
+            null
+    };
+}`,
+`export function describeJarvisBridgeIdentity(
+    root = DEFAULT_ROOT
+) {
+    const contract =
+        readJarvisRuntimeContract(root);
+
+    const git =
+        readGitIdentity(root);
+
+    const branchMatches =
+        contract.ok === true &&
+        Boolean(git.root) &&
+        contract.branch === git.branch;
+
+    const contractHead =
+        contract.ok === true &&
+        Boolean(git.root) &&
+        Boolean(git.head) &&
+        Boolean(contract.branch)
+            ? gitText(
+                [
+                    "rev-parse",
+                    "--verify",
+                    \`origin/\${contract.branch}^{commit}\`
+                ],
+                root,
+                {
+                    allowFailure: true
+                }
+            )
+            : "";
+
+    const headMatchesContractHead =
+        Boolean(contractHead) &&
+        contractHead === git.head;
+
+    const branchFallbackWithoutRemoteRef =
+        branchMatches &&
+        !contractHead;
+
+    const compatible =
+        headMatchesContractHead ||
+        branchFallbackWithoutRemoteRef;
+
+    return {
+        ok: compatible,
+        status:
+            compatible
+                ? "BRIDGE_IDENTITY_OK"
+                : "BRIDGE_IDENTITY_INVALID",
+        root:
+            path.resolve(root),
+        contract,
+        git,
+        identityMode:
+            headMatchesContractHead
+                ? git.branch === contract.branch
+                    ? "branch_contract_head"
+                    : git.branch
+                        ? "worktree_contract_head"
+                        : "detached_contract_head"
+                : branchFallbackWithoutRemoteRef
+                    ? "branch_unverified_no_remote_ref"
+                    : "invalid",
+        contractHead:
+            contractHead ||
+            null
+    };
+}`,
+    "V142_BRIDGE_IDENTITY_CONTRACT_HEAD"
+);
+await write(identityBridgePath, identityBridge);
+
+let identityBridgeTest = await read(identityBridgeTestPath);
+identityBridgeTest = replaceOnce(
+    identityBridgeTest,
+`test("Jarvis FS bridge loads the release identity contract", () => {
+    const contract =
+        readJarvisRuntimeContract(
+            process.cwd()
+        );
+
+    assert.equal(contract.ok, true);
+    assert.equal(contract.projectId, "fixgo-app");
+    assert.equal(contract.branch, "v94-media-v4n-negative-claims");
+    assert.match(
+        contract.releaseId,
+        /^v94-source-grounded-research-v124-20260810$/
+    );
+});`,
+`test("Jarvis FS bridge loads the release identity contract", async () => {
+    const contract =
+        readJarvisRuntimeContract(
+            process.cwd()
+        );
+
+    assert.equal(contract.ok, true);
+    assert.equal(contract.projectId, "fixgo-app");
+    assert.equal(contract.branch, "v94-media-v4n-negative-claims");
+    assert.match(
+        contract.releaseId,
+        /^v94-source-grounded-research-v124-20260810$/
+    );
+
+    const root =
+        fs.mkdtempSync(
+            path.join(
+                os.tmpdir(),
+                "jarvis-bridge-contract-head-"
+            )
+        );
+    let server = null;
+    try {
+        execFileSync(
+            "git",
+            ["init", "-b", "human-v142-worktree"],
+            { cwd: root, stdio: "ignore" }
+        );
+        execFileSync(
+            "git",
+            ["config", "user.email", "jarvis-test@example.invalid"],
+            { cwd: root }
+        );
+        execFileSync(
+            "git",
+            ["config", "user.name", "Jarvis Test"],
+            { cwd: root }
+        );
+        fs.writeFileSync(
+            path.join(root, "jarvis-runtime-contract.json"),
+            JSON.stringify({
+                projectId: "fixgo-test",
+                branch: "v94-media-v4n-negative-claims",
+                releaseId: "test-release"
+            })
+        );
+        fs.writeFileSync(
+            path.join(root, "identity-marker.txt"),
+            "same physical bytes\n"
+        );
+        execFileSync(
+            "git",
+            ["add", "jarvis-runtime-contract.json", "identity-marker.txt"],
+            { cwd: root }
+        );
+        execFileSync(
+            "git",
+            ["commit", "-m", "identity fixture"],
+            { cwd: root, stdio: "ignore" }
+        );
+        execFileSync(
+            "git",
+            [
+                "update-ref",
+                "refs/remotes/origin/v94-media-v4n-negative-claims",
+                "HEAD"
+            ],
+            { cwd: root }
+        );
+
+        server =
+            createJarvisFsBridgeApp({ root })
+                .listen(0);
+        await new Promise(resolve =>
+            server.once("listening", resolve)
+        );
+        const base =
+            \`http://127.0.0.1:\${server.address().port}\`;
+        const healthResponse =
+            await fetch(\`\${base}/health\`);
+        const health =
+            await healthResponse.json();
+
+        assert.equal(healthResponse.status, 200);
+        assert.equal(health.identity.ok, true);
+        assert.equal(
+            health.identity.identityMode,
+            "worktree_contract_head"
+        );
+        assert.equal(
+            health.identity.contractHead,
+            health.identity.git.head
+        );
+
+        const researchResponse =
+            await fetch(
+                \`\${base}/research\`,
+                {
+                    method: "POST",
+                    headers: {
+                        "content-type": "application/json",
+                        "x-jarvis-release-id": "test-release"
+                    },
+                    body: JSON.stringify({
+                        query: "x"
+                    })
+                }
+            );
+        const research =
+            await researchResponse.json();
+
+        assert.equal(researchResponse.status, 400);
+        assert.equal(
+            research.error,
+            "WEB_RESEARCH_QUERY_REQUIRED"
+        );
+    }
+    finally {
+        if (server) {
+            await new Promise(resolve =>
+                server.close(resolve)
+            );
+        }
+        fs.rmSync(
+            root,
+            {
+                recursive: true,
+                force: true
+            }
+        );
+    }
+});`,
+    "V142_BRIDGE_IDENTITY_WORKTREE_EXISTING_TEST"
+);
+await write(identityBridgeTestPath, identityBridgeTest);
