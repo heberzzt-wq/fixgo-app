@@ -26,6 +26,8 @@ on:
       - 'jarvis-reel-artifact.js'
       - 'modules/terminal/jarvis-attachments.js'
       - 'tests/jarvis-attachments.test.mjs'
+      - 'tests/jarvis-actuator-pack.test.mjs'
+      - 'tests/jarvis-marketing-handoff-v12.test.mjs'
       - 'tests/jarvis-mobile-web-research-recovery-v142.test.mjs'
       - 'tests/jarvis-genai-provider-chain.test.cjs'
       - 'tests/jarvis-web-research.test.cjs'
@@ -171,7 +173,7 @@ jobs:
           fi
           while IFS= read -r file; do
             case "$file" in
-              gestia-core/gestia-core.js|gestia-core/tools.bridge.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|gestia-core/jarvis/jarvis.mission.orchestrator.js|gestia-core/jarvis/jarvis.mission.dependencies.js|gestia-core/jarvis/jarvis.reel.media-binder.js|gestia-core/jarvis/jarvis.actuator.pack.js|functions/jarvis-genai-provider-chain.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|jarvis-fs-bridge.js|jarvis-reel-artifact.js|modules/terminal/jarvis-attachments.js|tests/jarvis-genai-provider-chain.test.cjs|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs|tests/jarvis-mission-orchestrator.test.mjs|tests/jarvis-reel-media-binder-v131.test.mjs|tests/jarvis-reel-native-mp4-v138.test.mjs|tests/jarvis-fs-bridge-v2.test.mjs) ;;
+              gestia-core/gestia-core.js|gestia-core/tools.bridge.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|gestia-core/jarvis/jarvis.mission.orchestrator.js|gestia-core/jarvis/jarvis.mission.dependencies.js|gestia-core/jarvis/jarvis.reel.media-binder.js|gestia-core/jarvis/jarvis.actuator.pack.js|functions/jarvis-genai-provider-chain.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|jarvis-fs-bridge.js|jarvis-reel-artifact.js|modules/terminal/jarvis-attachments.js|tests/jarvis-actuator-pack.test.mjs|tests/jarvis-marketing-handoff-v12.test.mjs|tests/jarvis-genai-provider-chain.test.cjs|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs|tests/jarvis-mission-orchestrator.test.mjs|tests/jarvis-reel-media-binder-v131.test.mjs|tests/jarvis-reel-native-mp4-v138.test.mjs|tests/jarvis-fs-bridge-v2.test.mjs) ;;
               *) echo "Unexpected V142 diff: $file" >&2; exit 1 ;;
             esac
           done <<< "$changed"
@@ -239,7 +241,7 @@ jobs:
           test -n "$changed"
           while IFS= read -r file; do
             case "$file" in
-              gestia-core/gestia-core.js|gestia-core/tools.bridge.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|gestia-core/jarvis/jarvis.mission.orchestrator.js|gestia-core/jarvis/jarvis.mission.dependencies.js|gestia-core/jarvis/jarvis.reel.media-binder.js|gestia-core/jarvis/jarvis.actuator.pack.js|functions/jarvis-genai-provider-chain.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|jarvis-fs-bridge.js|jarvis-reel-artifact.js|modules/terminal/jarvis-attachments.js|tests/jarvis-genai-provider-chain.test.cjs|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs|tests/jarvis-mission-orchestrator.test.mjs|tests/jarvis-reel-media-binder-v131.test.mjs|tests/jarvis-reel-native-mp4-v138.test.mjs|tests/jarvis-fs-bridge-v2.test.mjs) ;;
+              gestia-core/gestia-core.js|gestia-core/tools.bridge.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|gestia-core/jarvis/jarvis.mission.orchestrator.js|gestia-core/jarvis/jarvis.mission.dependencies.js|gestia-core/jarvis/jarvis.reel.media-binder.js|gestia-core/jarvis/jarvis.actuator.pack.js|functions/jarvis-genai-provider-chain.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|jarvis-fs-bridge.js|jarvis-reel-artifact.js|modules/terminal/jarvis-attachments.js|tests/jarvis-actuator-pack.test.mjs|tests/jarvis-marketing-handoff-v12.test.mjs|tests/jarvis-genai-provider-chain.test.cjs|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs|tests/jarvis-mission-orchestrator.test.mjs|tests/jarvis-reel-media-binder-v131.test.mjs|tests/jarvis-reel-native-mp4-v138.test.mjs|tests/jarvis-fs-bridge-v2.test.mjs) ;;
               *) echo "Unexpected certified V142 diff: $file" >&2; exit 1 ;;
             esac
           done <<< "$changed"
