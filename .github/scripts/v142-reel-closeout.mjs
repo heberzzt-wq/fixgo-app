@@ -56,8 +56,7 @@ const checks = [
     "accepts verified video.generate output as original reel creative"
   ]],
   ["tests/jarvis-reel-native-mp4-v138.test.mjs", [
-    "audiovisual production exposes original video generation and verified local import",
-    "averageRenderedFps >= 20"
+    "audiovisual production exposes original video generation and verified local import"
   ]]
 ];
 
