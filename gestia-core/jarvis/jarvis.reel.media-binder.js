@@ -119,13 +119,16 @@ export function reelMediaCollectionState(context = {}) {
     const verifiedCollectedAssets = collectedAssets
         .map(verifiedSceneAsset)
         .filter(Boolean);
+    const creativeAssets = dedupeAssets(verifiedCreativeAssets);
+    const collectedSceneAssets = dedupeAssets(verifiedCollectedAssets);
     return {
         attempted: collectionTasks.length > 0 || creativeTasks.length > 0,
-        assets: dedupeAssets(
-            verifiedCreativeAssets.length > 0
-                ? verifiedCreativeAssets
-                : verifiedCollectedAssets
-        )
+        creativeAttempted: creativeTasks.length > 0,
+        creativeAssets,
+        collectedSceneAssets,
+        assets: creativeAssets.length > 0
+            ? creativeAssets
+            : collectedSceneAssets
     };
 }
 

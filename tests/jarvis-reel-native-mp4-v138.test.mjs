@@ -843,3 +843,20 @@ test("V142 Windows physical reel export sustains the real 20 fps gate", {
     );
   }
 });
+
+test("V142 original reel production uses deployed image generation and no ghost video callable", () => {
+  const planner = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.multifunction.planner.js", import.meta.url), "utf8");
+  const dependencies = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.mission.dependencies.js", import.meta.url), "utf8");
+  const multitool = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.multitool.pack.js", import.meta.url), "utf8");
+  const actuator = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.actuator.pack.js", import.meta.url), "utf8");
+  const functionsIndex = fs.readFileSync(new URL("../functions/index.js", import.meta.url), "utf8");
+
+  assert.equal(planner.includes("el medio externo sigue siendo evidencia"), true);
+  assert.equal(dependencies.includes("ORIGINAL_REEL_CREATIVE_DEPENDENCY"), true);
+  assert.equal(dependencies.includes("!explicitExistingMediaEdit"), true);
+  assert.equal(multitool.includes("REEL_GENERATED_SCENE_MEDIA_REQUIRED"), true);
+  assert.equal(multitool.includes('waitingFor: "image.generate"'), true);
+  assert.equal(actuator.includes('asset?.mediaRole === "brand_logo"'), true);
+  assert.equal(actuator.includes('name: "video.generate"'), false);
+  assert.equal(functionsIndex.includes("exports.jarvisVideoGenerate"), false);
+});

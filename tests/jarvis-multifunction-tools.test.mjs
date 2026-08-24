@@ -2859,6 +2859,7 @@ test("grounded missions complete semantic arguments for marketing, page, image a
             "reel.plan": {
                 brandName: "Summit Law Firm",
                 title: "Estrategia antes del conflicto",
+                sourceMediaPolicy: "reuse",
                 cta: "Solicita una reunión",
                 durationSeconds: 45,
                 scenes: [

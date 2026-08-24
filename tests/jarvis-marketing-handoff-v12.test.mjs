@@ -141,21 +141,21 @@ test("marketing contract is ordered before media/artifacts and every physical ou
     );
     assert.ok(documents.every(call => call.args.contentSource === "marketing.plan"));
 
-    const socials = calls.filter(call => call.name === "image.edit");
+    const socials = calls.filter(call => call.name === "image.generate");
     assert.equal(socials.length, 3);
     assert.deepEqual(
         socials.map(call => call.args.marketingRequirementId).sort(),
         ["social-facebook", "social-instagram", "social-tiktok"].sort()
     );
     assert.equal(new Set(socials.map(call => call.args.variantId)).size, 3);
-    assert.ok(socials.every(call => call.args.preserveLogos === true));
+    assert.equal(calls.filter(call => call.name === "image.edit").length, 0);
 
     const marketingCall = calls.find(call => call.name === "marketing.plan");
     assert.deepEqual(
         marketingCall.args.productionArtifacts
             .filter(item => item.type === "social")
             .map(item => item.toolName),
-        ["image.edit", "image.edit", "image.edit"]
+        ["image.generate", "image.generate", "image.generate"]
     );
 
     const reel = calls.find(call => call.name === "reel.create");

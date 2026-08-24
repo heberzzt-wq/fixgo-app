@@ -102,7 +102,11 @@ function marketingProductionRequirements(calls = []) {
 
 function promoteMarketingImageEdits(calls = [], available = new Set()) {
     const mediaAvailable = calls.some(call => call?.name === "web.media.collect");
-    if (!mediaAvailable || !available.has("image.edit")) return calls;
+    const explicitExistingMediaEdit = calls.some(call =>
+        call?.name === "image.edit" ||
+        clean(call?.args?.sourceOutput)
+    );
+    if (!mediaAvailable || !available.has("image.edit") || !explicitExistingMediaEdit) return calls;
     const marketingIndex = calls.findIndex(call => call?.name === "marketing.plan");
     if (marketingIndex < 0) return calls;
     const marketing = calls[marketingIndex];
@@ -288,6 +292,40 @@ export function ensureExecutableArtifactDependencies({
     );
 
     calls = promoteMarketingImageEdits(calls, available);
+    const reelPlanIndex = calls.findIndex(call => call?.name === "reel.plan");
+    const hasGeneratedCreative = calls.some(call =>
+        String(call?.name || "") === "image.generate"
+    );
+    if (reelPlanIndex >= 0 && !hasGeneratedCreative && available.has("image.generate")) {
+        const reelPlan = calls[reelPlanIndex];
+        const policy = clean(reelPlan?.args?.sourceMediaPolicy).toLowerCase() || "generated";
+        if (policy !== "reuse") {
+            const scenes = Array.isArray(reelPlan?.args?.scenes)
+                ? reelPlan.args.scenes.filter(Boolean).slice(0, 3)
+                : [];
+            const brandName = clean(reelPlan?.args?.brandName);
+            const generatedCalls = (scenes.length > 0 ? scenes : [{ visual: reelPlan?.args?.title || brandName }])
+                .map((scene, index) => ({
+                    name: "image.generate",
+                    args: {
+                        prompt: [
+                            "Crea una escena vertical ORIGINAL para un reel profesional.",
+                            brandName ? `Marca: ${brandName}.` : "",
+                            clean(scene?.visual) ? `Escena: ${clean(scene.visual)}.` : "",
+                            clean(scene?.overlay) ? `Intencion visual: ${clean(scene.overlay)}.` : "",
+                            "No copies capturas, thumbnails ni fotogramas de publicaciones de referencia.",
+                            "No generes logotipos, marcas de agua ni texto incrustado; el logotipo oficial se compone por separado cuando exista evidencia verificada."
+                        ].filter(Boolean).join(" "),
+                        aspectRatio: "9:16",
+                        imageSize: "1K",
+                        output: `.jarvis-artifacts/images/reel-original-scene-${index + 1}.png`
+                    },
+                    approved: false,
+                    reason: "ORIGINAL_REEL_CREATIVE_DEPENDENCY"
+                }));
+            calls.splice(reelPlanIndex, 0, ...generatedCalls);
+        }
+    }
     calls = tagMarketingProductionCalls(calls);
     calls = removeRedundantMarketingComposers(calls);
     calls = injectPageComposeDependency(calls, available);

@@ -522,8 +522,29 @@ export function registerJarvisActuatorTools(runtime) {
             userArtifact: true,
             missionDedupeBy: [],
             execute: async (args = {}, context = {}) => {
+                let logoOutput = String(args.logoOutput || "").trim();
+                if (!logoOutput && Array.isArray(context?.completedTasks)) {
+                    for (const task of [...context.completedTasks].reverse()) {
+                        if (String(task?.name || "") !== "web.media.collect") continue;
+                        const candidates = [
+                            task?.observation?.mediaAssets,
+                            task?.observation?.assets,
+                            task?.observation?.evidence?.mediaAssets
+                        ].filter(Array.isArray).flat();
+                        const logo = candidates.find(asset =>
+                            asset?.mediaRole === "brand_logo" &&
+                            String(asset?.mimeType || "").startsWith("image/") &&
+                            String(asset?.output || "").startsWith(".jarvis-artifacts/")
+                        );
+                        if (logo?.output) {
+                            logoOutput = String(logo.output);
+                            break;
+                        }
+                    }
+                }
                 const result = await bridgeRequest("/reel/create", {
                     ...args,
+                    ...(logoOutput ? { logoOutput } : {}),
                     caseId: args.caseId || context.caseId || "",
                     objectiveId: args.objectiveId || context.objectiveId || ""
                 }, Math.max(

@@ -362,6 +362,7 @@ const REEL_PLAN_ARGUMENT_SCHEMA = {
         title: { type: "string" },
         cta: { type: "string" },
         durationSeconds: { type: "number" },
+        sourceMediaPolicy: { type: "string" },
         scenes: {
             type: "array",
             items: {
@@ -4378,6 +4379,9 @@ export function buildReelPlanningSpec(args = {}, context = {}) {
     const title = clean(args.title);
     const cta = clean(args.cta);
     const durationSeconds = Number(args.durationSeconds);
+    const sourceMediaPolicy = clean(args.sourceMediaPolicy).toLowerCase() === "reuse"
+        ? "reuse"
+        : "generated";
     const scenes = Array.isArray(args.scenes)
         ? args.scenes.filter(item => item && typeof item === "object").slice(0, 18).map((item, index) => ({
             id: index + 1,
@@ -4400,6 +4404,7 @@ export function buildReelPlanningSpec(args = {}, context = {}) {
         title,
         cta,
         durationSeconds,
+        sourceMediaPolicy,
         format: { width: 1080, height: 1920, aspectRatio: "9:16" },
         scenes,
         timelineSeconds,
@@ -6038,6 +6043,27 @@ export function registerJarvisMultifunctionTools(runtime) {
                         : [];
                     const collectionRequired = requiredTools.includes("web.media.collect");
                     const collection = reelMediaCollectionState(context);
+                    const generatedMediaRequired =
+                        String(result?.sourceMediaPolicy || "generated") !== "reuse";
+                    if (generatedMediaRequired && collection.creativeAssets.length < 1) {
+                        return {
+                            ...result,
+                            ok: false,
+                            executionOk: true,
+                            objectiveSatisfied: false,
+                            blocked: false,
+                            retryable: true,
+                            requiresInput: false,
+                            status: "REEL_GENERATED_SCENE_MEDIA_REQUIRED",
+                            error: "ORIGINAL_CREATIVE_REQUIRED_BEFORE_REEL_PLAN",
+                            missingInputs: [],
+                            semanticMediaBinding: {
+                                used: false,
+                                waitingFor: "image.generate",
+                                collectedEvidenceCount: collection.collectedSceneAssets.length
+                            }
+                        };
+                    }
                     if (collectionRequired && collection.attempted !== true) {
                         return {
                             ...result,
