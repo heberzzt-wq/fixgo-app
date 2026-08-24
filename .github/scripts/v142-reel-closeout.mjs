@@ -4,9 +4,9 @@ function normalizePlannerPolicyComma() {
   const file = "gestia-core/jarvis/jarvis.multifunction.planner.js";
   let source = fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
   const withoutComma =
-    '    "Para marcas identificadas, conserva cualquier logotipo oficial verificado como un activo separado; no pidas al generador que invente, redibuje o imite un logotipo."\n];';
+    '    "Para marcas identificadas, conserva cualquier logotipo oficial verificado como un activo separado; no pidas al generador que invente, redibuje o imite un logotipo."';
   const withComma =
-    '    "Para marcas identificadas, conserva cualquier logotipo oficial verificado como un activo separado; no pidas al generador que invente, redibuje o imite un logotipo.",\n];';
+    '    "Para marcas identificadas, conserva cualquier logotipo oficial verificado como un activo separado; no pidas al generador que invente, redibuje o imite un logotipo.",';
   if (!source.includes(withComma)) {
     const count = source.split(withoutComma).length - 1;
     if (count !== 1) {
@@ -29,7 +29,7 @@ const checks = [
     "GENERALIST_CURRENT_TURN_POLICY",
     "usa video.generate si esta disponible",
     "No sustituyas una solicitud de video generativo por capturas",
-    'imite un logotipo.",\n];'
+    'imite un logotipo.",'
   ]],
   ["gestia-core/jarvis/jarvis.mission.dependencies.js", [
     '"video.generate": 28',
