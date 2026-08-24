@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+﻿import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -19,15 +19,15 @@ import {
 
 function input(audioDataUrl = "") {
     return {
-        brandName: "Taquería El Dorado",
-        title: "Sabor que sí se ve",
-        cta: "Visítanos",
+        brandName: "TaquerÃ­a El Dorado",
+        title: "Sabor que sÃ­ se ve",
+        cta: "VisÃ­tanos",
         durationSeconds: 30,
         audioDataUrl,
         scenes: [
-            { durationSeconds: 10, overlay: "Tacos al momento", subtitle: "Cancún", mediaType: "video", assetDataUrl: "data:video/mp4;base64,AAAA" },
+            { durationSeconds: 10, overlay: "Tacos al momento", subtitle: "CancÃºn", mediaType: "video", assetDataUrl: "data:video/mp4;base64,AAAA" },
             { durationSeconds: 10, overlay: "Sabor dorado", subtitle: "Hecho para antojar", assetDataUrl: "data:image/jpeg;base64,/9j/" },
-            { durationSeconds: 10, overlay: "Ven por los tuyos", subtitle: "Taquería El Dorado", assetDataUrl: "data:image/jpeg;base64,/9j/" }
+            { durationSeconds: 10, overlay: "Ven por los tuyos", subtitle: "TaquerÃ­a El Dorado", assetDataUrl: "data:image/jpeg;base64,/9j/" }
         ]
     };
 }
@@ -563,6 +563,9 @@ test("V142 reel export enforces continuous physical frame density", () => {
   assert.equal(reelSource.includes("renderedFrameCount=0"), true);
   assert.equal(reelSource.includes("exporting?setTimeout(()=>frame(performance.now()),1000/30):requestAnimationFrame(frame)"), true);
   assert.equal(reelSource.includes("averageRenderedFps:renderedFrameCount/spec.durationSeconds"), true);
+  assert.equal(reelSource.includes("async function probeMediaReadiness()"), true);
+  assert.equal(reelSource.includes("window.__JARVIS_REEL_EXPORT_ERROR__=null"), true);
+  assert.equal(bridgeSource.includes("JSON.stringify(exportError)"), true);
 });
 
 test("V142 original creative image is physically verifiable before reel planning", () => {
@@ -586,25 +589,25 @@ test("V142 preserves a blocked direct tool payload instead of completing it acci
 });
 
 test("V142 exact Taqueria human mission reaches reel.create after verified media recovery", async () => {
-  const instruction = "Investiga esta publicación exacta de TikTok: https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004. La empresa es Taquería El Dorado, Cancún. Quiero que ejecutes la misión completa, no sólo que me expliques cómo hacerlo. Primero investiga la publicación y el negocio utilizando únicamente información que puedas verificar. Identifica correctamente qué negocio corresponde a la publicación y evita confundirlo con otros establecimientos de nombre parecido. Investiga por tu cuenta toda la información pública útil que encuentres y no inventes datos. Después de investigar, crea una propuesta de marketing basada únicamente en los hechos realmente encontrados. Crea un reel vertical profesional de aproximadamente 30 segundos, incluye voz y produce el archivo final real. No consideres éxito si el archivo final no existe realmente.";
+  const instruction = "Investiga esta publicaciÃ³n exacta de TikTok: https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004. La empresa es TaquerÃ­a El Dorado, CancÃºn. Quiero que ejecutes la misiÃ³n completa, no sÃ³lo que me expliques cÃ³mo hacerlo. Primero investiga la publicaciÃ³n y el negocio utilizando Ãºnicamente informaciÃ³n que puedas verificar. Identifica correctamente quÃ© negocio corresponde a la publicaciÃ³n y evita confundirlo con otros establecimientos de nombre parecido. Investiga por tu cuenta toda la informaciÃ³n pÃºblica Ãºtil que encuentres y no inventes datos. DespuÃ©s de investigar, crea una propuesta de marketing basada Ãºnicamente en los hechos realmente encontrados. Crea un reel vertical profesional de aproximadamente 30 segundos, incluye voz y produce el archivo final real. No consideres Ã©xito si el archivo final no existe realmente.";
   const sourceUrl = "https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004";
   const planArgs = {
-    brandName: "Taquería El Dorado",
+    brandName: "TaquerÃ­a El Dorado",
     title: "Taco Macho",
     cta: "Prueba el Taco Macho",
     durationSeconds: 30,
     scenes: [
       { durationSeconds: 10, visual: "Taco Macho", overlay: "Sabor sinaloense", voiceover: "Conoce el Taco Macho", evidence: sourceUrl },
-      { durationSeconds: 10, visual: "Queso y carne", overlay: "Calientito y rellenito", voiceover: "Queso derretido y carne a elección", evidence: sourceUrl },
-      { durationSeconds: 10, visual: "Cierre", overlay: "Taquería El Dorado", voiceover: "Prueba el Taco Macho en Cancún", evidence: sourceUrl }
+      { durationSeconds: 10, visual: "Queso y carne", overlay: "Calientito y rellenito", voiceover: "Queso derretido y carne a elecciÃ³n", evidence: sourceUrl },
+      { durationSeconds: 10, visual: "Cierre", overlay: "TaquerÃ­a El Dorado", voiceover: "Prueba el Taco Macho en CancÃºn", evidence: sourceUrl }
     ]
   };
   const initialToolCalls = [
-    { name: "web.research", args: { query: "Taquería El Dorado Cancún Taco Macho", seedUrl: sourceUrl, researchGoal: "RESEARCH_1" } },
-    { name: "marketing.plan", args: { brandName: "Taquería El Dorado", productionRequested: true, productionArtifacts: [{ id: "reel-main", type: "reel", toolName: "reel.create", label: "Reel vertical 30 segundos" }] } },
+    { name: "web.research", args: { query: "TaquerÃ­a El Dorado CancÃºn Taco Macho", seedUrl: sourceUrl, researchGoal: "RESEARCH_1" } },
+    { name: "marketing.plan", args: { brandName: "TaquerÃ­a El Dorado", productionRequested: true, productionArtifacts: [{ id: "reel-main", type: "reel", toolName: "reel.create", label: "Reel vertical 30 segundos" }] } },
     { name: "web.media.collect", args: { url: sourceUrl, requireVideos: true } },
     { name: "reel.plan", args: planArgs },
-    { name: "speech.synthesize", args: { text: "Conoce el Taco Macho de Taquería El Dorado" } },
+    { name: "speech.synthesize", args: { text: "Conoce el Taco Macho de TaquerÃ­a El Dorado" } },
     { name: "reel.create", args: { videoOutput: ".jarvis-artifacts/reels/taqueria-el-dorado.mp4" } }
   ];
   const trace = [];
@@ -630,7 +633,7 @@ test("V142 exact Taqueria human mission reaches reel.create after verified media
     },
     execute: async ({ name, args }) => {
       trace.push(name);
-      if (name === "web.research") return { ok: true, executionOk: true, objectiveSatisfied: true, status: "GROUNDED_LOCAL_FALLBACK", sources: [{ title: "Taquería El Dorado", url: sourceUrl }], sourceCount: 1, summary: "Identidad verificada." };
+      if (name === "web.research") return { ok: true, executionOk: true, objectiveSatisfied: true, status: "GROUNDED_LOCAL_FALLBACK", sources: [{ title: "TaquerÃ­a El Dorado", url: sourceUrl }], sourceCount: 1, summary: "Identidad verificada." };
       if (name === "marketing.plan") return { ok: true, executionOk: true, objectiveSatisfied: true, status: "MARKETING_PACKAGE_READY", productionRequested: true, requiredArtifacts: [{ id: "reel-main", type: "reel", toolName: "reel.create", label: "Reel vertical 30 segundos" }], plan: marketingPlan, userVisible: "Plan de marketing verificado.", planReady: true, readyForProduction: true };
       if (name === "web.media.collect") {
         mediaAttempts += 1;
