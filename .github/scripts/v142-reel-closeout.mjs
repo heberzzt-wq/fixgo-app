@@ -1,5 +1,24 @@
 import fs from "node:fs";
 
+function normalizePlannerPolicyComma() {
+  const file = "gestia-core/jarvis/jarvis.multifunction.planner.js";
+  let source = fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
+  const withoutComma =
+    '    "Para marcas identificadas, conserva cualquier logotipo oficial verificado como un activo separado; no pidas al generador que invente, redibuje o imite un logotipo."\n];';
+  const withComma =
+    '    "Para marcas identificadas, conserva cualquier logotipo oficial verificado como un activo separado; no pidas al generador que invente, redibuje o imite un logotipo.",\n];';
+  if (!source.includes(withComma)) {
+    const count = source.split(withoutComma).length - 1;
+    if (count !== 1) {
+      throw new Error(`V142_PLANNER_POLICY_COMMA_MATCH_COUNT_${count}`);
+    }
+    source = source.replace(withoutComma, withComma);
+    fs.writeFileSync(file, source, "utf8");
+  }
+}
+
+normalizePlannerPolicyComma();
+
 const checks = [
   ["gestia-core/gestia-core.js", [
     "[CURRENT_TURN_SEMANTIC_PLANNER_TRANSIENT_RETRY]",
@@ -9,7 +28,8 @@ const checks = [
   ["gestia-core/jarvis/jarvis.multifunction.planner.js", [
     "GENERALIST_CURRENT_TURN_POLICY",
     "usa video.generate si esta disponible",
-    "No sustituyas una solicitud de video generativo por capturas"
+    "No sustituyas una solicitud de video generativo por capturas",
+    'imite un logotipo.",\n];'
   ]],
   ["gestia-core/jarvis/jarvis.mission.dependencies.js", [
     '"video.generate": 28',
@@ -78,6 +98,7 @@ console.log(JSON.stringify({
   veo31VideoGeneration: true,
   verifiedLocalVideoImport: true,
   verifiedBrandLogoPropagation: true,
+  plannerPolicySyntaxNormalized: true,
   minimumRenderedFps: 20,
   newFiles: false,
   newBrains: false,
