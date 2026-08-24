@@ -533,7 +533,7 @@ identityBridgeTest = replaceOnce(
         );
         fs.writeFileSync(
             path.join(root, "identity-marker.txt"),
-            "same physical bytes\n"
+            "same physical bytes"
         );
         execFileSync(
             "git",
