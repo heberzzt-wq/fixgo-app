@@ -64,11 +64,12 @@ import {
 } from "./jarvis-speech-artifact.js";
 import {
     createLocalVideoEngine,
+    resolveLocalExecutable,
     writeLocalAiCapabilityReport
 } from "./jarvis-local-video-engine.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.48.0-internal-first-video-v142";
+    "2.49.0-reel-mp4-master-v142";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -541,7 +542,10 @@ export function assertReelVideoContainer(buffer, mimeType = "") {
 }
 
 export function reelVideoOutputTarget(output = "", mimeType = "", root = DEFAULT_ROOT) {
-    const extension = reelVideoExtensionFromMime(mimeType);
+    // MediaRecorder may emit MP4 or WebM, but reel.create has one final contract.
+    // Keep the MIME argument for compatibility with existing internal callers.
+    void mimeType;
+    const extension = ".mp4";
     const requested = String(output || "").trim().replaceAll("\\", "/");
     let stem = `.jarvis-artifacts/reels/reel-${Date.now()}`;
     if (
@@ -558,6 +562,430 @@ export function reelVideoOutputTarget(output = "", mimeType = "", root = DEFAULT
         extension,
         format: extension.slice(1)
     };
+}
+
+function parseReelFrameRate(value = "") {
+    const [numerator, denominator = "1"] = String(value || "0/1")
+        .split("/")
+        .map(Number);
+    return Number.isFinite(numerator) && Number.isFinite(denominator) && denominator > 0
+        ? numerator / denominator
+        : 0;
+}
+
+function reelMp4Faststart(file = "") {
+    const descriptor = fs.openSync(file, "r");
+    try {
+        const size = fs.fstatSync(descriptor).size;
+        let offset = 0;
+        let moovOffset = -1;
+        let mediaOffset = -1;
+        let atoms = 0;
+        while (offset + 8 <= size && atoms < 100000) {
+            const header = Buffer.alloc(16);
+            const bytes = fs.readSync(descriptor, header, 0, 16, offset);
+            if (bytes < 8) break;
+            let atomSize = header.readUInt32BE(0);
+            const atomType = header.toString("ascii", 4, 8);
+            let headerBytes = 8;
+            if (atomSize === 1) {
+                if (bytes < 16) break;
+                const extended = header.readBigUInt64BE(8);
+                if (extended > BigInt(Number.MAX_SAFE_INTEGER)) break;
+                atomSize = Number(extended);
+                headerBytes = 16;
+            }
+            else if (atomSize === 0) {
+                atomSize = size - offset;
+            }
+            if (atomSize < headerBytes || offset + atomSize > size) break;
+            if (atomType === "moov" && moovOffset < 0) moovOffset = offset;
+            if ((atomType === "mdat" || atomType === "moof") && mediaOffset < 0) {
+                mediaOffset = offset;
+            }
+            offset += atomSize;
+            atoms += 1;
+        }
+        return moovOffset >= 0 && (mediaOffset < 0 || moovOffset < mediaOffset);
+    }
+    finally {
+        fs.closeSync(descriptor);
+    }
+}
+
+export function inspectReelVideoFile({
+    file = "",
+    ffprobe = "",
+    env = process.env
+} = {}) {
+    const probe = resolveLocalExecutable(
+        ffprobe || env.JARVIS_FFPROBE_PATH || "ffprobe",
+        env
+    );
+    if (!probe) throw new Error("REEL_FFPROBE_UNAVAILABLE");
+    let parsed;
+    try {
+        const raw = execFileSync(probe, [
+            "-v", "error",
+            "-show_entries",
+            "stream=index,codec_type,codec_name,pix_fmt,width,height,avg_frame_rate,r_frame_rate,sample_rate,channels:format=format_name,duration,size",
+            "-of", "json",
+            file
+        ], {
+            encoding: "utf8",
+            windowsHide: true,
+            stdio: ["ignore", "pipe", "pipe"],
+            timeout: 45000,
+            maxBuffer: 4 * 1024 * 1024
+        });
+        parsed = JSON.parse(raw);
+    }
+    catch(error) {
+        const providerMessage = String(error?.stderr || error?.message || error)
+            .trim()
+            .slice(-1200);
+        throw new Error(`REEL_FFPROBE_FAILED:${providerMessage}`);
+    }
+    const streams = Array.isArray(parsed?.streams) ? parsed.streams : [];
+    const video = streams.find(stream => stream?.codec_type === "video") || null;
+    const audio = streams.find(stream => stream?.codec_type === "audio") || null;
+    const frameRate = parseReelFrameRate(
+        video?.avg_frame_rate || video?.r_frame_rate || "0/1"
+    );
+    const extension = path.extname(file).toLowerCase();
+    const formatName = String(parsed?.format?.format_name || "").toLowerCase();
+    return {
+        file,
+        extension,
+        bytes: fs.existsSync(file) ? fs.statSync(file).size : 0,
+        formatName,
+        durationSeconds: Number(parsed?.format?.duration || 0),
+        video: video
+            ? {
+                codec: String(video.codec_name || "").toLowerCase(),
+                pixelFormat: String(video.pix_fmt || "").toLowerCase(),
+                width: Number(video.width || 0),
+                height: Number(video.height || 0),
+                fps: frameRate
+            }
+            : null,
+        audio: audio
+            ? {
+                codec: String(audio.codec_name || "").toLowerCase(),
+                sampleRate: Number(audio.sample_rate || 0),
+                channels: Number(audio.channels || 0)
+            }
+            : null,
+        faststart: extension === ".mp4" && reelMp4Faststart(file),
+        ffprobe: path.basename(probe)
+    };
+}
+
+export function validateReelMp4Master(inspection = {}, {
+    durationSeconds = 0,
+    audioRequired = false
+} = {}) {
+    const duration = Number(durationSeconds);
+    const actualDuration = Number(inspection?.durationSeconds || 0);
+    const toleranceSeconds = Math.max(1, duration * 0.05);
+    const video = inspection?.video || null;
+    const audio = inspection?.audio || null;
+    const checks = {
+        bytesPositive: Number(inspection?.bytes || 0) > 0,
+        extensionMp4: inspection?.extension === ".mp4",
+        containerMp4: String(inspection?.formatName || "")
+            .split(",")
+            .some(value => value === "mp4" || value === "mov"),
+        validVideoStream: Boolean(video),
+        videoCodecH264: video?.codec === "h264",
+        pixelFormatYuv420p: video?.pixelFormat === "yuv420p",
+        professionalResolution: video?.width === 1080 && video?.height === 1920,
+        verticalAspectRatio: video?.width > 0 && video?.height > 0 &&
+            Math.abs((video.width / video.height) - (9 / 16)) < 0.0001,
+        fpsAtLeast20: Number(video?.fps || 0) >= 20,
+        durationWithinTolerance: duration > 0 && actualDuration > 0 &&
+            Math.abs(actualDuration - duration) <= toleranceSeconds,
+        requiredAudioPresent: audioRequired !== true || Boolean(audio),
+        audioCodecAac: !audio || audio.codec === "aac",
+        audioSampleRateProfessional: !audio ||
+            (audio.sampleRate >= 44100 && audio.sampleRate <= 192000),
+        faststart: inspection?.faststart === true
+    };
+    const failedChecks = Object.entries(checks)
+        .filter(([, passed]) => passed !== true)
+        .map(([name]) => name);
+    return {
+        ok: failedChecks.length === 0,
+        status: failedChecks.length === 0
+            ? "REEL_MP4_MASTER_VERIFIED"
+            : "REEL_MP4_MASTER_INVALID",
+        checks,
+        failedChecks,
+        toleranceSeconds,
+        inspection
+    };
+}
+
+async function normalizeReelVideoWithFfmpeg({
+    input = "",
+    output = "",
+    sourceInspection = {},
+    durationSeconds = 0,
+    audioRequired = false,
+    ffmpeg = "",
+    env = process.env,
+    root = DEFAULT_ROOT
+} = {}) {
+    const encoder = resolveLocalExecutable(
+        ffmpeg || env.JARVIS_FFMPEG_PATH || "ffmpeg",
+        env
+    );
+    if (!encoder) throw new Error("REEL_FFMPEG_UNAVAILABLE");
+    if (!sourceInspection?.video) throw new Error("REEL_SOURCE_VIDEO_STREAM_REQUIRED");
+    if (audioRequired === true && !sourceInspection?.audio) {
+        throw new Error("REEL_SOURCE_AUDIO_STREAM_REQUIRED");
+    }
+    const args = [
+        "-hide_banner", "-nostdin", "-y",
+        "-i", input,
+        "-map", "0:v:0",
+        "-map", audioRequired === true ? "0:a:0" : "0:a?",
+        "-vf", "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30",
+        "-c:v", "libx264",
+        "-preset", "veryfast",
+        "-crf", "20",
+        "-pix_fmt", "yuv420p"
+    ];
+    if (sourceInspection?.audio) {
+        args.push(
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-ar", "48000",
+            "-af", "loudnorm=I=-16:TP=-1.5:LRA=11"
+        );
+    }
+    args.push(
+        "-movflags", "+faststart",
+        "-f", "mp4",
+        output
+    );
+    const execution = await runProcess(encoder, args, {
+        cwd: root,
+        timeoutMs: Math.max(180000, Number(durationSeconds || 0) * 12000)
+    });
+    if (execution.ok !== true) {
+        const providerMessage = String(execution.stderr || execution.status || "")
+            .trim()
+            .slice(-1600);
+        throw new Error(`REEL_FFMPEG_NORMALIZATION_FAILED:${providerMessage}`);
+    }
+    return {
+        encoder: path.basename(encoder),
+        durationMs: execution.durationMs
+    };
+}
+
+export async function persistReelMasterArtifact({
+    buffer,
+    payload = {},
+    output = "",
+    durationSeconds = 0,
+    root = DEFAULT_ROOT,
+    provider = "browser_media_recorder",
+    env = process.env,
+    ffmpeg = "",
+    ffprobe = ""
+} = {}) {
+    const duration = Number(durationSeconds);
+    if (!Buffer.isBuffer(buffer) || buffer.length < 1000 ||
+        buffer.length !== Number(payload.bytes || 0)) {
+        throw new Error("REEL_VIDEO_BYTE_COUNT_INVALID");
+    }
+    const actualMimeType = String(payload.mimeType || "").trim();
+    const container = assertReelVideoContainer(buffer, actualMimeType);
+    const browserSha256 = createHash("sha256").update(buffer).digest("hex");
+    if (browserSha256 !== String(payload.sha256 || "").toLowerCase()) {
+        throw new Error("REEL_VIDEO_SHA256_MISMATCH");
+    }
+    const outputTarget = reelVideoOutputTarget(output, "video/mp4", root);
+    const finalTarget = outputTarget.target;
+    const temporaryId = `${process.pid}-${randomUUID()}`;
+    const provisional = path.join(
+        path.dirname(finalTarget),
+        `.${path.basename(finalTarget, ".mp4")}.${temporaryId}.provisional${container.extension}`
+    );
+    const normalized = path.join(
+        path.dirname(finalTarget),
+        `.${path.basename(finalTarget, ".mp4")}.${temporaryId}.master.mp4`
+    );
+    const backup = path.join(
+        path.dirname(finalTarget),
+        `.${path.basename(finalTarget, ".mp4")}.${temporaryId}.previous.mp4`
+    );
+    const audioRequired = payload.audioExpected === true ||
+        Number(payload.audioTracksAdded || 0) > 0;
+    let masteringMode = "ffmpeg_normalized";
+    let masteringProvider = "";
+    let finalWriteAttempted = false;
+    try {
+        fs.mkdirSync(path.dirname(finalTarget), { recursive: true });
+        fs.writeFileSync(provisional, buffer);
+        const sourceInspection = inspectReelVideoFile({ file: provisional, ffprobe, env });
+        if (!sourceInspection.video) throw new Error("REEL_SOURCE_VIDEO_STREAM_REQUIRED");
+        if (audioRequired && !sourceInspection.audio) {
+            throw new Error("REEL_SOURCE_AUDIO_STREAM_REQUIRED");
+        }
+        const sourceValidation = container.format === "mp4"
+            ? validateReelMp4Master(sourceInspection, { durationSeconds: duration, audioRequired })
+            : { ok: false, failedChecks: ["containerMp4"] };
+        let candidate = provisional;
+        if (sourceValidation.ok === true) {
+            masteringMode = "passthrough";
+            masteringProvider = path.basename(provider);
+        }
+        else {
+            const normalizedResult = await normalizeReelVideoWithFfmpeg({
+                input: provisional,
+                output: normalized,
+                sourceInspection,
+                durationSeconds: duration,
+                audioRequired,
+                ffmpeg,
+                env,
+                root
+            });
+            masteringProvider = normalizedResult.encoder;
+            candidate = normalized;
+        }
+        const candidateInspection = inspectReelVideoFile({ file: candidate, ffprobe, env });
+        const candidateValidation = validateReelMp4Master(candidateInspection, {
+            durationSeconds: duration,
+            audioRequired
+        });
+        if (candidateValidation.ok !== true) {
+            throw new Error(
+                `REEL_MP4_MASTER_VALIDATION_FAILED:${candidateValidation.failedChecks.join(",")}`
+            );
+        }
+        if (fs.existsSync(finalTarget)) fs.copyFileSync(finalTarget, backup);
+        finalWriteAttempted = true;
+        fs.copyFileSync(candidate, finalTarget);
+        const finalInspection = inspectReelVideoFile({ file: finalTarget, ffprobe, env });
+        const finalValidation = validateReelMp4Master(finalInspection, {
+            durationSeconds: duration,
+            audioRequired
+        });
+        if (finalValidation.ok !== true) {
+            throw new Error(
+                `REEL_FINAL_MP4_VERIFY_FAILED:${finalValidation.failedChecks.join(",")}`
+            );
+        }
+        const sha256 = createHash("sha256")
+            .update(fs.readFileSync(finalTarget))
+            .digest("hex");
+        const bytes = fs.statSync(finalTarget).size;
+        const artifact = registerArtifact({
+            root,
+            output: outputTarget.relativeOutput,
+            metadata: {
+                type: "video",
+                origin: "reel.create",
+                provider: masteringProvider,
+                captureProvider: path.basename(provider),
+                mimeType: "video/mp4",
+                container: "mp4",
+                formatFallback: false,
+                masteringMode,
+                status: "REEL_VIDEO_CREATED_VERIFIED",
+                approvalRequired: false,
+                approved: true,
+                approvedBy: "LOCAL_ARTIFACT_POLICY",
+                editable: false,
+                preview: true,
+                downloadable: true,
+                publishable: false,
+                sha256,
+                durationSeconds: finalInspection.durationSeconds,
+                width: finalInspection.video.width,
+                height: finalInspection.video.height,
+                fps: finalInspection.video.fps,
+                videoCodec: finalInspection.video.codec,
+                pixelFormat: finalInspection.video.pixelFormat,
+                audioCodec: finalInspection.audio?.codec || null,
+                audioSampleRate: finalInspection.audio?.sampleRate || null,
+                faststart: finalInspection.faststart,
+                audioRequired,
+                audioMixMode: String(payload.audioMixMode || "silent_visual"),
+                audioTracksAdded: Number(payload.audioTracksAdded || 0),
+                audioGraphAvailable: payload.audioGraphAvailable === true,
+                externalApiUsed: false,
+                externalEstimatedCostUsd: 0,
+                editingAuthority: "local_ffmpeg",
+                transformations: [{
+                    type: "reel_mp4_master",
+                    masteringMode,
+                    captureProvider: path.basename(provider),
+                    masteringProvider,
+                    provisionalContainer: container.format,
+                    container: "mp4",
+                    videoCodec: finalInspection.video.codec,
+                    pixelFormat: finalInspection.video.pixelFormat,
+                    width: finalInspection.video.width,
+                    height: finalInspection.video.height,
+                    fps: finalInspection.video.fps,
+                    audioCodec: finalInspection.audio?.codec || null,
+                    audioSampleRate: finalInspection.audio?.sampleRate || null,
+                    faststart: finalInspection.faststart,
+                    externalApiUsed: false,
+                    externalEstimatedCostUsd: 0
+                }]
+            }
+        });
+        return {
+            ok: true,
+            status: "REEL_VIDEO_CREATED_VERIFIED",
+            output: outputTarget.relativeOutput,
+            mimeType: "video/mp4",
+            container: "mp4",
+            formatFallback: false,
+            masteringMode,
+            masteringProvider,
+            provisionalContainer: container.format,
+            bytes,
+            sha256,
+            durationSeconds: finalInspection.durationSeconds,
+            width: finalInspection.video.width,
+            height: finalInspection.video.height,
+            fps: finalInspection.video.fps,
+            videoCodec: finalInspection.video.codec,
+            pixelFormat: finalInspection.video.pixelFormat,
+            audioCodec: finalInspection.audio?.codec || null,
+            audioSampleRate: finalInspection.audio?.sampleRate || null,
+            faststart: finalInspection.faststart,
+            audioRequired,
+            audioMixMode: String(payload.audioMixMode || "silent_visual"),
+            audioTracksAdded: Number(payload.audioTracksAdded || 0),
+            audioGraphAvailable: payload.audioGraphAvailable === true,
+            externalApiUsed: false,
+            externalEstimatedCostUsd: 0,
+            artifact,
+            validation: finalValidation
+        };
+    }
+    catch(error) {
+        try {
+            if (finalWriteAttempted) {
+                if (fs.existsSync(backup)) fs.copyFileSync(backup, finalTarget);
+                else fs.rmSync(finalTarget, { force: true });
+            }
+        } catch {}
+        throw error;
+    }
+    finally {
+        try { fs.rmSync(provisional, { force: true }); } catch {}
+        try { fs.rmSync(normalized, { force: true }); } catch {}
+        try { fs.rmSync(backup, { force: true }); } catch {}
+    }
 }
 
 export async function exportReelVideoWithChrome({
@@ -640,10 +1068,6 @@ export async function exportReelVideoWithChrome({
         );
         const payload = JSON.parse(String(payloadText || "{}"));
         const buffer = Buffer.from(String(payload.base64 || ""), "base64");
-        if (buffer.length < 1000 || buffer.length !== Number(payload.bytes || 0)) {
-            throw new Error("REEL_VIDEO_BYTE_COUNT_INVALID");
-        }
-        const actualMimeType = String(payload.mimeType || "").trim();
         const renderedFrameCount = Number(payload.renderedFrameCount || 0);
         const averageRenderedFps = Number(payload.averageRenderedFps || 0);
         if (
@@ -656,67 +1080,20 @@ export async function exportReelVideoWithChrome({
                 averageRenderedFps.toFixed(2)
             );
         }
-        const container = assertReelVideoContainer(buffer, actualMimeType);
-        const sha256 = createHash("sha256").update(buffer).digest("hex");
-        if (sha256 !== String(payload.sha256 || "").toLowerCase()) {
-            throw new Error("REEL_VIDEO_SHA256_MISMATCH");
-        }
-        const outputTarget = reelVideoOutputTarget(requestedOutput, actualMimeType, root);
-        videoTarget = outputTarget.target;
-        relativeOutput = outputTarget.relativeOutput;
-        fs.mkdirSync(path.dirname(videoTarget), { recursive: true });
-        fs.writeFileSync(videoTarget, buffer);
-        if (!fs.existsSync(videoTarget) || fs.statSync(videoTarget).size !== buffer.length) {
-            throw new Error("REEL_VIDEO_WRITE_VERIFY_FAILED");
-        }
-        if (path.extname(videoTarget).toLowerCase() !== container.extension) {
-            throw new Error("REEL_VIDEO_EXTENSION_MISMATCH");
-        }
-        const artifact = registerArtifact({
-            root,
-            output: relativeOutput,
-            metadata: {
-                type: "video",
-                origin: "reel.create",
-                provider: path.basename(chrome),
-                mimeType: actualMimeType,
-                container: container.format,
-                formatFallback: container.format !== "mp4",
-                status: "REEL_VIDEO_CREATED_VERIFIED",
-                approvalRequired: false,
-                approved: true,
-                approvedBy: "LOCAL_ARTIFACT_POLICY",
-                editable: false,
-                preview: true,
-                downloadable: true,
-                publishable: false,
-                sha256,
-                durationSeconds: duration,
-                width: Number(payload.width || 1080),
-                height: Number(payload.height || 1920),
-                audioMixMode: String(payload.audioMixMode || "silent_visual"),
-                audioTracksAdded: Number(payload.audioTracksAdded || 0),
-                audioGraphAvailable: payload.audioGraphAvailable === true
-            }
-        });
-        return {
-            ok: true,
-            status: "REEL_VIDEO_CREATED_VERIFIED",
-            output: relativeOutput,
-            mimeType: actualMimeType,
-            container: container.format,
-            formatFallback: container.format !== "mp4",
-            bytes: buffer.length,
-            sha256,
+        const master = await persistReelMasterArtifact({
+            buffer,
+            payload,
+            output: requestedOutput,
             durationSeconds: duration,
-            width: Number(payload.width || 1080),
-            height: Number(payload.height || 1920),
-            audioMixMode: String(payload.audioMixMode || "silent_visual"),
-            audioTracksAdded: Number(payload.audioTracksAdded || 0),
-            audioGraphAvailable: payload.audioGraphAvailable === true,
+            root,
+            provider: chrome
+        });
+        videoTarget = path.resolve(root, master.output);
+        relativeOutput = master.output;
+        return {
+            ...master,
             renderedFrameCount,
-            averageRenderedFps,
-            artifact
+            averageRenderedFps
         };
     }
     catch(error) {
@@ -5114,9 +5491,20 @@ export function createJarvisFsBridgeApp({
                 durationSeconds: Number(hydrated.durationSeconds),
                 width: videoExport.width,
                 height: videoExport.height,
+                fps: videoExport.fps,
+                videoCodec: videoExport.videoCodec,
+                pixelFormat: videoExport.pixelFormat,
+                audioCodec: videoExport.audioCodec,
+                audioSampleRate: videoExport.audioSampleRate,
+                faststart: videoExport.faststart,
+                masteringMode: videoExport.masteringMode,
+                masteringProvider: videoExport.masteringProvider,
+                provisionalContainer: videoExport.provisionalContainer,
                 audioMixMode: videoExport.audioMixMode,
                 audioTracksAdded: videoExport.audioTracksAdded,
                 audioGraphAvailable: videoExport.audioGraphAvailable,
+                externalApiUsed: false,
+                externalEstimatedCostUsd: 0,
                 downloadable: true,
                 previewable: true,
                 videoExportStatus: "VERIFIED",

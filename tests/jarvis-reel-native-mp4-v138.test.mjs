@@ -95,7 +95,7 @@ test("v138 bridge validates physical MP4 and WebM container signatures", () => {
     assert.throws(() => assertReelVideoContainer(mp4Buffer(), "video/webm"), /REEL_WEBM_SIGNATURE_INVALID/);
 });
 
-test("v138 never writes MP4 bytes under a WebM extension or vice versa", () => {
+test("V142 always reserves an MP4 final target regardless of provisional MIME", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-v138-output-"));
     try {
         const mp4 = reelVideoOutputTarget(
@@ -112,20 +112,21 @@ test("v138 never writes MP4 bytes under a WebM extension or vice versa", () => {
             "video/webm;codecs=vp9",
             root
         );
-        assert.equal(webm.relativeOutput, ".jarvis-artifacts/reels/social.webm");
-        assert.equal(path.extname(webm.target), ".webm");
-        assert.equal(webm.format, "webm");
+        assert.equal(webm.relativeOutput, ".jarvis-artifacts/reels/social.mp4");
+        assert.equal(path.extname(webm.target), ".mp4");
+        assert.equal(webm.format, "mp4");
     } finally {
         fs.rmSync(root, { recursive: true, force: true });
     }
 });
 
-test("v138 actuator advertises MP4 preference without removing verified WebM fallback", () => {
+test("V142 actuator advertises mandatory MP4 and provisional-only WebM", () => {
     const actuator = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.actuator.pack.js", import.meta.url), "utf8");
     const runtime = fs.readFileSync(new URL("../gestia-core/tools.runtime.js", import.meta.url), "utf8");
     const bridge = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
-    assert.match(actuator, /MP4 H\.264\/AAC cuando Chrome lo soporta/);
-    assert.match(actuator, /WebM como fallback verificado/);
+    assert.match(actuator, /entrega obligatoriamente un MP4 H\.264\/AAC profesional verificado/);
+    assert.match(actuator, /Chrome puede producir MP4 o WebM provisional/);
+    assert.doesNotMatch(actuator, /WebM como fallback verificado/);
     assert.match(runtime, /v139-transient-resilience-20260813/);
     assert.match(bridge, /exportReelVideoWithChrome/);
     assert.match(bridge, /REEL_VIDEO_SHA256_MISMATCH/);
@@ -134,7 +135,7 @@ test("v138 actuator advertises MP4 preference without removing verified WebM fal
 
 test("V142 waits for the real browser export completion state", () => {
   const source = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
-  assert.match(source, /2\.47\.0-dual-human-recovery-v142/);
+    assert.match(source, /2\.49\.0-reel-mp4-master-v142/);
   assert.doesNotMatch(source, /await sleepMs\(duration \* 1000 \+ 2600\)/);
   assert.match(source, /__JARVIS_REEL_EXPORT_ERROR__/);
   assert.match(source, /REEL_EXPORT_COMPLETION_TIMEOUT/);
@@ -509,9 +510,9 @@ test("V142 structured production continuation reaches the semantic planner and d
   assert.equal(coreSource.includes("SEMANTIC_PLANNER_NO_EXECUTABLE_PLAN"), true);
 });
 
-test("V142 bridge release identifies the dual human-red recovery bytes", () => {
+test("V142 bridge release identifies the professional MP4 master bytes", () => {
   const source = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
-  assert.equal(source.includes("2.47.0-dual-human-recovery-v142"), true);
+  assert.equal(source.includes("2.49.0-reel-mp4-master-v142"), true);
 });
 
 test("V142 current turn preserves semantic planner outage truth", () => {
@@ -819,13 +820,17 @@ test("V142 Windows physical reel export sustains the real 20 fps gate", {
       result.averageRenderedFps
     );
 
-    assert.equal(
-      result.durationSeconds,
-      30
-    );
+    assert.ok(Math.abs(Number(result.durationSeconds) - 30) <= 1.5);
 
     assert.equal(result.width, 1080);
     assert.equal(result.height, 1920);
+    assert.equal(result.container, "mp4");
+    assert.equal(result.videoCodec, "h264");
+    assert.equal(result.pixelFormat, "yuv420p");
+    assert.ok(Number(result.fps) >= 20);
+    assert.equal(result.faststart, true);
+    assert.equal(result.externalApiUsed, false);
+    assert.equal(result.externalEstimatedCostUsd, 0);
 
     assert.ok(
       result.output &&

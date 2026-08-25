@@ -648,7 +648,7 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "reel.create",
-            description: "Crea un reel 9:16 local, genera su estudio editable y exporta automáticamente MP4 H.264/AAC cuando Chrome lo soporta, con WebM como fallback verificado. Mezcla audioOutput explícito o el WAV verificado producido por speech.synthesize en la misma misión. No publica.",
+            description: "Crea un reel 9:16 local, genera su estudio editable y entrega obligatoriamente un MP4 H.264/AAC profesional verificado. Chrome puede producir MP4 o WebM provisional; el bridge conserva sólo un MP4 conforme o lo normaliza localmente con FFmpeg. Mezcla audioOutput explícito o el WAV verificado producido por speech.synthesize en la misma misión. No publica ni usa APIs externas de edición.",
             output: "REEL_VIDEO_ARTIFACT",
             inputSchema: {
                 brandName: "string", title: "string", cta: "string", durationSeconds: "number",
@@ -701,11 +701,22 @@ export function registerJarvisActuatorTools(runtime) {
                         durationSeconds: result.durationSeconds,
                         width: result.width,
                         height: result.height,
+                        fps: result.fps,
+                        videoCodec: result.videoCodec,
+                        pixelFormat: result.pixelFormat,
+                        audioCodec: result.audioCodec,
+                        audioSampleRate: result.audioSampleRate,
+                        faststart: result.faststart,
+                        masteringMode: result.masteringMode,
+                        masteringProvider: result.masteringProvider,
+                        provisionalContainer: result.provisionalContainer,
                         audioMixMode: result.audioMixMode,
                         audioTracksAdded: result.audioTracksAdded,
                         audioGraphAvailable: result.audioGraphAvailable,
                         checks: result.checks,
                         videoExportStatus: result.videoExportStatus,
+                        externalApiUsed: result.externalApiUsed,
+                        externalEstimatedCostUsd: result.externalEstimatedCostUsd,
                         checkedAt: new Date().toISOString()
                     });
                 }

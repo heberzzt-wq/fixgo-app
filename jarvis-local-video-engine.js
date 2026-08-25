@@ -156,7 +156,7 @@ export function resolveVideoEngine({ policy, health } = {}) {
     };
 }
 
-function commandPath(command, env = process.env) {
+export function resolveLocalExecutable(command, env = process.env) {
     const candidate = String(command || "").trim();
     if (!candidate) return null;
     if (path.isAbsolute(candidate)) return fs.existsSync(candidate) ? candidate : null;
@@ -171,6 +171,8 @@ function commandPath(command, env = process.env) {
     }
     return null;
 }
+
+const commandPath = resolveLocalExecutable;
 
 function offlineLocalVideoEnvironment(env = process.env) {
     const sanitized = { ...env };
