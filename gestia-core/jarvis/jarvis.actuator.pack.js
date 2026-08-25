@@ -321,7 +321,12 @@ async function callAdminFunction(name, data = {}) {
             ok: false,
             status: `CLOUD_FUNCTION_HTTP_${response.status}`,
             error: errorMessage,
-            cloudCode: payload?.error?.status || payload?.error?.code || null
+            cloudCode: payload?.error?.status || payload?.error?.code || null,
+            errorDetails:
+                errorDetails && typeof errorDetails === "object"
+                    ? errorDetails
+                    : null,
+            retryable: response.status >= 500
         };
     }
 
@@ -869,17 +874,32 @@ export function registerJarvisActuatorTools(runtime) {
                         return { ...started, ok: false, executionOk: false, objectiveSatisfied: false, status: started?.status || "VIDEO_GENERATION_START_FAILED" };
                     }
                     let segment = null;
+                    let consecutivePollFailures = 0;
+                    let lastPollFailure = null;
                     for (let attempt = 0; attempt < 36; attempt += 1) {
                         await new Promise(resolve => setTimeout(resolve, 10000));
                         const polled = await callAdminFunction("jarvisVideoGenerate", {
                             action: "poll", operationName: started.operationName, finalize: index === prompts.length - 1
                         });
                         if (polled?.ok !== true) {
+                            lastPollFailure = polled;
+                            const transientPollFailure =
+                                polled?.retryable === true ||
+                                String(polled?.status || "").startsWith("CLOUD_FUNCTION_HTTP_5");
+                            consecutivePollFailures += 1;
+                            if (transientPollFailure && consecutivePollFailures <= 3) {
+                                continue;
+                            }
                             return { ...polled, ok: false, executionOk: false, objectiveSatisfied: false, status: polled?.status || "VIDEO_GENERATION_POLL_FAILED" };
                         }
+                        consecutivePollFailures = 0;
+                        lastPollFailure = null;
                         if (polled?.done !== true) continue;
                         segment = polled;
                         break;
+                    }
+                    if (!segment && lastPollFailure) {
+                        return { ...lastPollFailure, ok: false, executionOk: false, objectiveSatisfied: false, status: lastPollFailure?.status || "VIDEO_GENERATION_POLL_FAILED" };
                     }
                     if (!segment) {
                         return { ok: false, executionOk: false, objectiveSatisfied: false, status: "VIDEO_GENERATION_TIMEOUT", error: "VIDEO_GENERATION_TIMEOUT" };

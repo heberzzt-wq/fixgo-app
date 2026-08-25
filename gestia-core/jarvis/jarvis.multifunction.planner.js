@@ -21,7 +21,7 @@ const GENERALIST_CURRENT_TURN_POLICY = [
     "Para reels nuevos basados en investigacion o publicaciones externas, el medio externo sigue siendo evidencia. El flujo de produccion debe crear visuales originales con las capacidades generativas realmente registradas antes de reel.plan, salvo que la intencion semantica haya pedido reutilizar o editar literalmente el material fuente.",
     "Para marcas identificadas, conserva cualquier logotipo oficial verificado como un activo separado; no pidas al generador que invente, redibuje o imite un logotipo.",
     "Un guion de mini drama es una solicitud de produccion audiovisual cuando la intencion semantica pide crear el video. Si video.generate esta registrado, usalo para producir actuacion y movimiento nuevos desde el guion; conversation.respond, un slideshow, una captura o un video encontrado no satisfacen esa produccion.",
-    "Para mini dramas nuevos, divide semanticamente el guion en hasta cuatro escenas consecutivas cuando ayude a la continuidad. video.generate puede extender el video generado entre escenas; los medios externos siguen siendo solo evidencia o referencia salvo reutilizacion solicitada de forma inequivoca.",
+    "Para un mismo mini drama nuevo, selecciona UNA sola llamada video.generate y entrega dentro de scenes hasta cuatro escenas consecutivas cuando ayude a la continuidad. No emitas una llamada video.generate independiente por escena: la herramienta conserva previousVideo y extiende el mismo video entre escenas. Los medios externos siguen siendo solo evidencia o referencia salvo reutilizacion solicitada de forma inequivoca.",
     "Cuando el usuario aporta adjuntos y pide transformarlos, editarlos o producir una pieza a partir de ellos, trata esos adjuntos como objetos de entrada y selecciona las capacidades existentes de analisis, edicion o produccion necesarias; un adjunto no convierte una solicitud ejecutable en una conversacion vacia.",
     "Selecciona solamente las herramientas necesarias para satisfacer la intencion actual y conserva cada objetivo independiente pedido por el usuario.",
     "Si la solicitud se resuelve conversacionalmente, mediante conocimiento o explicacion, no fabriques artefactos ni operaciones no solicitadas; usa la respuesta semantica disponible o declara la mision completa cuando no haga falta una herramienta."
@@ -1496,10 +1496,43 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
         });
     }
 
-    return enforceMissionIsolation(
+    const isolatedCalls = enforceMissionIsolation(
         calls,
         allowed
     );
+    const videoCalls = isolatedCalls.filter(call => call?.name === "video.generate");
+    if (videoCalls.length <= 1) {
+        return isolatedCalls;
+    }
+    const videoTool = allowed.get("video.generate");
+    const firstVideoIndex = isolatedCalls.findIndex(call => call?.name === "video.generate");
+    const scenePrompts = videoCalls.flatMap(call => {
+        const args = call?.args || {};
+        const declaredScenes = Array.isArray(args.scenes) ? args.scenes : [];
+        if (declaredScenes.length > 0) {
+            return declaredScenes.map(scene =>
+                typeof scene === "string"
+                    ? scene.trim()
+                    : String(scene?.prompt || scene?.visual || scene?.description || "").trim()
+            );
+        }
+        return [String(args.prompt || args.script || "").trim()];
+    }).filter(Boolean).filter((value, index, values) => values.indexOf(value) === index).slice(0, 4);
+    const firstVideo = videoCalls[0];
+    const combinedArgs = {
+        ...(firstVideo?.args || {}),
+        script: String(firstVideo?.args?.script || context?.originalInstruction || firstVideo?.args?.prompt || "").trim(),
+        scenes: scenePrompts.map(prompt => ({ prompt }))
+    };
+    const combinedVideo = {
+        ...firstVideo,
+        args: combinedArgs,
+        reason: "SEMANTIC_MINIDRAMA_SCENES_CONSOLIDATED",
+        ...(videoTool ? { missionDedupeKey: missionDedupeKey(videoTool, combinedArgs) } : {})
+    };
+    const consolidated = isolatedCalls.filter(call => call?.name !== "video.generate");
+    consolidated.splice(Math.max(0, firstVideoIndex), 0, combinedVideo);
+    return consolidated;
 }
 
 function enforceMissionIsolation(

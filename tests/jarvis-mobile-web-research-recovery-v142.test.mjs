@@ -465,3 +465,46 @@ test("V142 reel media dependency evaluates the verified reel-plan handoff before
     assert.ok(recoveryIndex > dependencyIndex);
     assert.ok(executionHandoffIndex > recoveryIndex);
 });
+
+test("V142 mini-drama consolidates semantic scene calls into one video.generate execution", () => {
+    const videoTool = {
+        name: "video.generate",
+        mutates: true,
+        requiresApproval: false,
+        userArtifact: true,
+        missionDedupeBy: ["output"],
+        inputSchema: {}
+    };
+    const calls = plannerTest.trustedPlanCalls({
+        planKind: "MISSION_CONTRACT",
+        toolCalls: [
+            { name: "video.generate", args: { prompt: "escena uno", output: ".jarvis-artifacts/videos/scene-1.mp4" } },
+            { name: "video.generate", args: { prompt: "escena dos", output: ".jarvis-artifacts/videos/scene-2.mp4" } },
+            { name: "video.generate", args: { prompt: "escena tres", output: ".jarvis-artifacts/videos/scene-3.mp4" } },
+            { name: "video.generate", args: { prompt: "escena cuatro", output: ".jarvis-artifacts/videos/scene-4.mp4" } }
+        ]
+    }, [videoTool], {
+        originalInstruction: "Produce un mini drama continuo con cuatro escenas.",
+        missionState: { phase: "MISSION_CONTRACT" }
+    });
+
+    const videos = calls.filter(call => call.name === "video.generate");
+    assert.equal(videos.length, 1);
+    assert.equal(videos[0].reason, "SEMANTIC_MINIDRAMA_SCENES_CONSOLIDATED");
+    assert.equal(videos[0].args.scenes.length, 4);
+    assert.deepEqual(
+        videos[0].args.scenes.map(scene => scene.prompt),
+        ["escena uno", "escena dos", "escena tres", "escena cuatro"]
+    );
+});
+
+test("V142 video actuator keeps the same Veo operation across transient poll failures", () => {
+    const source = fs.readFileSync(
+        new URL("../gestia-core/jarvis/jarvis.actuator.pack.js", import.meta.url),
+        "utf8"
+    );
+    assert.match(source, /consecutivePollFailures/);
+    assert.match(source, /lastPollFailure/);
+    assert.match(source, /retryable: response.status >= 500/);
+    assert.match(source, /started.operationName/);
+});
