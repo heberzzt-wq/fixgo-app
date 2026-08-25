@@ -1,8 +1,12 @@
-"""Offline Wan2.2 TI2V-5B runner for the Jarvis local video worker.
+"""Offline Wan runner for the Jarvis V142 local video worker.
 
 This process never calls a hosted inference API. It delegates generation to a
-locally checked-out official Wan2.2 repository and writes a deterministic result
-manifest consumed and independently verified by the Node bridge.
+locally checked-out official Wan repository and writes a durable result manifest
+consumed and independently verified by the Node bridge.
+
+The filename is retained for V142/backward compatibility. The worker now accepts
+both the existing Wan2.2 TI2V-5B backend and an explicit lightweight Wan2.1
+T2V-1.3B backend without changing the public video.generate contract.
 """
 
 from __future__ import annotations
@@ -18,7 +22,33 @@ import tempfile
 from typing import Any
 
 
-RUNNER_VERSION = "1.0.0-v142-wan22-ti2v5b-offline"
+RUNNER_VERSION = "1.1.0-v142-wan-multibackend-offline"
+DEFAULT_BACKEND = "wan22-ti2v-5b"
+BACKENDS: dict[str, dict[str, Any]] = {
+    "wan22-ti2v-5b": {
+        "model": "Wan2.2-TI2V-5B",
+        "repo_env": "JARVIS_WAN22_REPO_DIR",
+        "task": "ti2v-5B",
+        "portrait_size": "720*1280",
+        "landscape_size": "1280*720",
+        "reference_assets": True,
+        "extra_args": ["--offload_model", "True", "--t5_cpu", "--convert_model_dtype"],
+    },
+    "wan21-t2v-1.3b": {
+        "model": "Wan2.1-T2V-1.3B",
+        "repo_env": "JARVIS_WAN21_REPO_DIR",
+        "task": "t2v-1.3B",
+        "portrait_size": "480*832",
+        "landscape_size": "832*480",
+        "reference_assets": False,
+        "extra_args": [
+            "--offload_model", "True",
+            "--t5_cpu",
+            "--sample_shift", "8",
+            "--sample_guide_scale", "6",
+        ],
+    },
+}
 
 
 def read_json(file: Path) -> dict[str, Any]:
@@ -84,6 +114,39 @@ def build_prompt(job: dict[str, Any]) -> str:
     return " ".join(value for value in parts if value)[:10000]
 
 
+def resolve_backend(job: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    backend = str(job.get("backend") or DEFAULT_BACKEND).strip().lower()
+    config = BACKENDS.get(backend)
+    if config is None:
+        raise RuntimeError("LOCAL_VIDEO_BACKEND_UNSUPPORTED")
+    expected_model = str(config["model"])
+    requested_model = str(job.get("model") or expected_model).strip()
+    if requested_model != expected_model:
+        raise RuntimeError("LOCAL_VIDEO_BACKEND_MODEL_MISMATCH")
+    return backend, config
+
+
+def offline_environment() -> dict[str, str]:
+    environment = dict(os.environ)
+    for key in (
+        "DASHSCOPE_API_KEY",
+        "GOOGLE_API_KEY",
+        "OPENAI_API_KEY",
+        "GOOGLE_APPLICATION_CREDENTIALS",
+        "GEMINI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "AZURE_OPENAI_API_KEY",
+        "HF_TOKEN",
+        "HUGGING_FACE_HUB_TOKEN",
+    ):
+        environment.pop(key, None)
+    environment["JARVIS_LOCAL_VIDEO_EXTERNAL_API_ALLOWED"] = "false"
+    environment["HF_HUB_OFFLINE"] = "1"
+    environment["TRANSFORMERS_OFFLINE"] = "1"
+    environment["WANDB_MODE"] = "offline"
+    return environment
+
+
 def run(job_file: Path, result_file: Path) -> int:
     job = read_json(job_file)
     if job.get("externalApiAllowed") is not False:
@@ -91,63 +154,61 @@ def run(job_file: Path, result_file: Path) -> int:
     if os.environ.get("JARVIS_LOCAL_VIDEO_EXTERNAL_API_ALLOWED", "false").lower() != "false":
         raise RuntimeError("LOCAL_VIDEO_PROCESS_NETWORK_POLICY_INVALID")
 
-    wan_root = Path(os.environ.get("JARVIS_WAN22_REPO_DIR", "")).resolve()
+    backend, config = resolve_backend(job)
+    repo_env = str(config["repo_env"])
+    wan_root_raw = str(os.environ.get(repo_env, "")).strip()
+    if not wan_root_raw:
+        raise RuntimeError("LOCAL_VIDEO_WAN_REPOSITORY_NOT_CONFIGURED")
+    wan_root = Path(wan_root_raw).resolve()
     generate_script = wan_root / "generate.py"
     checkpoint_dir = Path(str(job.get("modelDirectory") or "")).resolve()
     output_file = Path(str(job.get("outputFile") or "")).resolve()
     if not generate_script.is_file():
-        raise RuntimeError("LOCAL_VIDEO_WAN22_REPOSITORY_NOT_READY")
+        raise RuntimeError("LOCAL_VIDEO_WAN_REPOSITORY_NOT_READY")
     if not checkpoint_dir.is_dir():
         raise RuntimeError("LOCAL_VIDEO_MODEL_NOT_READY")
+
+    reference_files = [
+        Path(str(value)).resolve()
+        for value in job.get("referenceFiles") or []
+        if str(value).strip()
+    ]
+    if reference_files and not bool(config["reference_assets"]):
+        raise RuntimeError("LOCAL_VIDEO_REFERENCES_UNSUPPORTED_BY_BACKEND")
+    for reference_file in reference_files:
+        if not reference_file.is_file():
+            raise RuntimeError("LOCAL_VIDEO_REFERENCE_NOT_FOUND")
 
     ffprobe = os.environ.get("JARVIS_FFPROBE_PATH") or shutil.which("ffprobe")
     if not ffprobe:
         raise RuntimeError("LOCAL_VIDEO_FFPROBE_UNAVAILABLE")
     output_file.parent.mkdir(parents=True, exist_ok=True)
     aspect_ratio = "16:9" if job.get("aspectRatio") == "16:9" else "9:16"
-    size = "1280*720" if aspect_ratio == "16:9" else "720*1280"
+    size = str(
+        config["landscape_size"] if aspect_ratio == "16:9" else config["portrait_size"]
+    )
     command = [
         sys.executable,
         str(generate_script),
-        "--task", "ti2v-5B",
+        "--task", str(config["task"]),
         "--size", size,
         "--ckpt_dir", str(checkpoint_dir),
-        "--offload_model", "True",
-        "--t5_cpu",
-        "--convert_model_dtype",
+        *[str(value) for value in config["extra_args"]],
         "--save_file", str(output_file),
         "--prompt", build_prompt(job),
     ]
-    reference_files = [
-        Path(str(value)).resolve()
-        for value in job.get("referenceFiles") or []
-        if str(value).strip()
-    ]
     if reference_files:
-        if not reference_files[0].is_file():
-            raise RuntimeError("LOCAL_VIDEO_PRIMARY_REFERENCE_NOT_FOUND")
         command.extend(["--image", str(reference_files[0])])
 
-    environment = dict(os.environ)
-    environment.pop("DASHSCOPE_API_KEY", None)
-    environment.pop("GOOGLE_API_KEY", None)
-    environment.pop("OPENAI_API_KEY", None)
-    environment.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
-    environment.pop("GEMINI_API_KEY", None)
-    environment.pop("HF_TOKEN", None)
-    environment.pop("HUGGING_FACE_HUB_TOKEN", None)
-    environment["HF_HUB_OFFLINE"] = "1"
-    environment["TRANSFORMERS_OFFLINE"] = "1"
-    environment["WANDB_MODE"] = "offline"
     completed = subprocess.run(
         command,
         cwd=wan_root,
-        env=environment,
+        env=offline_environment(),
         check=False,
         timeout=int(os.environ.get("JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS", "7200")),
     )
     if completed.returncode != 0:
-        raise RuntimeError(f"LOCAL_VIDEO_WAN22_EXIT_{completed.returncode}")
+        raise RuntimeError(f"LOCAL_VIDEO_WAN_EXIT_{completed.returncode}")
     if not output_file.is_file() or output_file.stat().st_size < 100000:
         raise RuntimeError("LOCAL_VIDEO_PHYSICAL_OUTPUT_INVALID")
     media = inspect_video(output_file, ffprobe)
@@ -159,7 +220,8 @@ def run(job_file: Path, result_file: Path) -> int:
             "runnerVersion": RUNNER_VERSION,
             "output": str(job.get("output") or ""),
             "mimeType": "video/mp4",
-            "model": "Wan2.2-TI2V-5B",
+            "backend": backend,
+            "model": str(config["model"]),
             "engine": "local",
             "provider": "local",
             "externalApiUsed": False,
@@ -179,12 +241,14 @@ def main() -> int:
     args = parser.parse_args()
     job_file = Path(args.job).resolve()
     result_file = Path(args.result).resolve()
+    job: dict[str, Any] = {}
     try:
+        job = read_json(job_file)
         return run(job_file, result_file)
-    except Exception as error:  # the durable manifest is the worker contract
+    except Exception as error:  # durable manifest is the worker contract
         error_text = str(error) or "LOCAL_VIDEO_RUNNER_FAILED"
         retryable = (
-            error_text.startswith("LOCAL_VIDEO_WAN22_EXIT_")
+            error_text.startswith("LOCAL_VIDEO_WAN_EXIT_")
             or "timed out" in error_text.lower()
             or "out of memory" in error_text.lower()
         )
@@ -196,6 +260,8 @@ def main() -> int:
                 "error": error_text,
                 "retryable": retryable,
                 "runnerVersion": RUNNER_VERSION,
+                "backend": str(job.get("backend") or DEFAULT_BACKEND),
+                "model": str(job.get("model") or ""),
                 "engine": "local",
                 "provider": "local",
                 "externalApiUsed": False,
