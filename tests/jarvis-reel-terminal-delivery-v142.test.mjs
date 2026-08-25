@@ -4,6 +4,7 @@ import path from "node:path";
 import { test } from "node:test";
 
 const root = process.cwd();
+// V142 certification trigger: this source-level contract belongs to the native MP4 gate.
 
 function read(relativePath) {
     return fs.readFileSync(path.join(root, relativePath), "utf8").replace(/\r\n/g, "\n");
