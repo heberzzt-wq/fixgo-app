@@ -300,21 +300,23 @@ jobs:
           set -euo pipefail
           test -n "$FIREBASE_TOKEN"
           firebase functions:log --only jarvisSemanticPlan --lines 100 --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
-      - name: Deploy V142 jarvisVideoGenerate only
+      - name: Deploy V142 video and semantic functions only
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
           test -n "$FIREBASE_TOKEN"
-          firebase deploy --only functions:jarvisVideoGenerate --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
-      - name: Verify jarvisVideoGenerate deployment
+          firebase deploy --only functions:jarvisVideoGenerate,functions:jarvisSemanticPlan --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
+      - name: Verify V142 function deployments
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          firebase functions:list --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive | grep -F 'jarvisVideoGenerate'
+          deployed=$(firebase functions:list --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive)
+          grep -F 'jarvisVideoGenerate' <<<"$deployed"
+          grep -F 'jarvisSemanticPlan' <<<"$deployed"
       - name: Deploy V142 Hosting FIXGO only
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
