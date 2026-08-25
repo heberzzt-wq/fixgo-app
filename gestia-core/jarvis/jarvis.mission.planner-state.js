@@ -1,6 +1,7 @@
 const MAX_PLANNER_TEXT = 700;
 const MAX_PLANNER_SOURCES = 3;
 const MAX_PLANNER_MEDIA_ASSETS = 8;
+const MAX_PLANNER_PERSISTED_ARTIFACTS = 8;
 
 function object(value) {
     return value && typeof value === "object" && !Array.isArray(value)
@@ -73,6 +74,16 @@ export function compactMissionPlannerObservation(observation = {}) {
         .slice(0, MAX_PLANNER_MEDIA_ASSETS)
         .map(compactMediaAsset)
         .filter(Boolean);
+    const rawPersistedArtifacts =
+        Array.isArray(source.persistedArtifacts)
+            ? source.persistedArtifacts
+            : Array.isArray(evidence.persistedArtifacts)
+                ? evidence.persistedArtifacts
+                : [];
+    const persistedArtifacts = rawPersistedArtifacts
+        .map(value => text(value, 500))
+        .filter((value, index, values) => Boolean(value) && values.indexOf(value) === index)
+        .slice(0, MAX_PLANNER_PERSISTED_ARTIFACTS);
     const sourceCount = Number(
         source.sourceCount ??
         source.sourcesCount ??
@@ -122,6 +133,7 @@ export function compactMissionPlannerObservation(observation = {}) {
         ...(summary ? { summary } : {}),
         ...(sources.length ? { sources } : {}),
         ...(mediaAssets.length ? { mediaAssets } : {}),
+        ...(persistedArtifacts.length ? { persistedArtifacts } : {}),
         ...(mediaAssets.length || requirementsMet !== null
             ? { counts }
             : {}),

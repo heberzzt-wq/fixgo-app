@@ -1311,7 +1311,7 @@ test("mission observations preserve nested diagnostic errors instead of object c
 
 
 
-test("media-only required mission closes immediately after successful media analysis without replanning", async () => {
+test("media-only required mission closes after semantic completion audit without forcing another artifact", async () => {
     let plannerCalls = 0;
     const executed = [];
     const mission = await runJarvisMission({
@@ -1324,8 +1324,12 @@ test("media-only required mission closes immediately after successful media anal
         planner: async () => {
             plannerCalls += 1;
             return {
-                toolCalls: [{ name: "system.certify", args: { deep: true } }],
-                missionComplete: false
+                toolCalls: [],
+                missionComplete: true,
+                completionAssessment: {
+                    completed: ["media.analyze"],
+                    missing: []
+                }
             };
         },
         execute: async call => {
@@ -1352,7 +1356,7 @@ test("media-only required mission closes immediately after successful media anal
     });
 
     assert.deepEqual(executed, ["media.analyze"]);
-    assert.equal(plannerCalls, 0);
+    assert.equal(plannerCalls, 1);
     assert.equal(mission.status, "COMPLETED");
     assert.equal(mission.reason, "ALL_EXECUTABLE_TASKS_COMPLETED");
     assert.deepEqual(mission.completedTasks.map(item => item.name), ["media.analyze"]);
