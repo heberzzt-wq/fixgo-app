@@ -449,3 +449,19 @@ test("v142 physical reel reuses completed marketing evidence before semantic arg
     assert.match(core, /marketingReelScenes/);
     assert.match(core, /marketing\.plan:videoPackage/);
 });
+
+test("V142 reel media dependency evaluates the verified reel-plan handoff before external recovery", () => {
+    const source = fs.readFileSync(
+        new URL("../gestia-core/jarvis/jarvis.mission.orchestrator.js", import.meta.url),
+        "utf8"
+    );
+    const handoffIndex = source.indexOf("const reelDependencyTask =");
+    const dependencyIndex = source.indexOf("reelMediaDependencyCall(\n                reelDependencyTask");
+    const recoveryIndex = source.indexOf("reelMediaRecoveryState(\n                reelDependencyTask");
+    const executionHandoffIndex = source.indexOf("const reelPlanHandoff =", dependencyIndex);
+
+    assert.ok(handoffIndex >= 0);
+    assert.ok(dependencyIndex > handoffIndex);
+    assert.ok(recoveryIndex > dependencyIndex);
+    assert.ok(executionHandoffIndex > recoveryIndex);
+});

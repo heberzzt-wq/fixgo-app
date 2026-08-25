@@ -1863,9 +1863,20 @@ export async function runJarvisMission({
             }
         }
 
+        const reelDependencyTask =
+            task?.name === "reel.create"
+                ? {
+                    ...task,
+                    args:
+                        reelCreateArgsFromVerifiedPlan(
+                            task.args,
+                            mission
+                        ).args
+                }
+                : task;
         const mediaDependency =
             reelMediaDependencyCall(
-                task,
+                reelDependencyTask,
                 mission
             );
         if (mediaDependency) {
@@ -1889,7 +1900,7 @@ export async function runJarvisMission({
 
         const mediaRecovery =
             reelMediaRecoveryState(
-                task,
+                reelDependencyTask,
                 mission
             );
         if (mediaRecovery) {
