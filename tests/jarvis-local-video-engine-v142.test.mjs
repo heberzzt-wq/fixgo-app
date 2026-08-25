@@ -41,6 +41,36 @@ function healthyCapability() {
     };
 }
 
+function physicalFixture(file) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const fixture = Buffer.alloc(120000, 7);
+    fixture.write("0000ftypisom", 0, "ascii");
+    fs.writeFileSync(file, fixture);
+}
+
+function successReceipt(job, overrides = {}) {
+    return {
+        ok: true,
+        status: "LOCAL_VIDEO_RUNNER_COMPLETED",
+        operationId: job.operationId,
+        operationName: job.operationName,
+        output: job.output,
+        mimeType: "video/mp4",
+        backend: job.backend,
+        model: job.model,
+        engine: "local",
+        provider: "local",
+        externalApiUsed: false,
+        externalEstimatedCostUsd: 0,
+        referenceAssetCount: job.referenceFiles.length,
+        durationSeconds: 8,
+        fps: 24,
+        width: 704,
+        height: 1280,
+        ...overrides
+    };
+}
+
 test("V142 local video policy defaults to CURRENT_STABLE without changing the public tool", () => {
     const policy = describeLocalVideoPolicy({});
     const resolved = resolveVideoEngine({ policy, health: { ok: false } });
@@ -263,25 +293,12 @@ test("local worker persists one operation and registers a verified physical MP4"
         inspectHardware: healthyCapability,
         launch({ job, resultFile, onExit, env }) {
             launchEnvironment = env;
-            const outputFile = path.resolve(root, job.output);
-            fs.mkdirSync(path.dirname(outputFile), { recursive: true });
-            const fixture = Buffer.alloc(120000, 7);
-            fixture.write("0000ftypisom", 0, "ascii");
-            fs.writeFileSync(outputFile, fixture);
-            fs.writeFileSync(resultFile, JSON.stringify({
-                ok: true,
-                output: job.output,
-                durationSeconds: 8,
-                fps: 24,
-                width: 720,
-                height: 1280,
-                mimeType: "video/mp4",
-                model: "Wan2.2-TI2V-5B"
-            }));
+            physicalFixture(path.resolve(root, job.output));
+            fs.writeFileSync(resultFile, JSON.stringify(successReceipt(job)));
             queueMicrotask(() => onExit(0));
             return { pid: 4242, kill() {} };
         },
-        inspectVideo: () => ({ durationSeconds: 8, fps: 24, width: 720, height: 1280 })
+        inspectVideo: () => ({ durationSeconds: 8, fps: 24, width: 704, height: 1280 })
     });
 
     const started = await engine.start({
@@ -298,6 +315,7 @@ test("local worker persists one operation and registers a verified physical MP4"
     assert.equal(completed.status, "VIDEO_GENERATED_VERIFIED");
     assert.equal(completed.provider, "local");
     assert.equal(completed.engine, "local");
+    assert.equal(completed.backend, "wan22-ti2v-5b");
     assert.equal(completed.externalApiUsed, false);
     assert.equal(completed.externalEstimatedCostUsd, 0);
     assert.equal(launchEnvironment.GOOGLE_API_KEY, undefined);
@@ -305,6 +323,8 @@ test("local worker persists one operation and registers a verified physical MP4"
     assert.equal(launchEnvironment.TRANSFORMERS_OFFLINE, "1");
     assert.equal(completed.physicallyWritten, true);
     assert.equal(completed.bytes, 120000);
+    assert.equal(completed.width, 704);
+    assert.equal(completed.height, 1280);
     assert.match(completed.sha256, /^[a-f0-9]{64}$/);
     assert.equal(fs.existsSync(path.join(root, completed.output)), true);
     assert.equal(
@@ -319,6 +339,91 @@ test("local worker persists one operation and registers a verified physical MP4"
     );
     assert.equal(fs.existsSync(operationFile), true);
     assert.equal(JSON.parse(fs.readFileSync(operationFile, "utf8")).state, "SUCCEEDED");
+});
+
+test("local worker rejects a crossed success receipt before certifying an MP4", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-local-video-crossed-"));
+    const runner = path.join(root, "runner.py");
+    const model = path.join(root, "wan-model");
+    fs.writeFileSync(runner, "# controlled test runner\n");
+    fs.mkdirSync(model, { recursive: true });
+
+    const engine = createLocalVideoEngine({
+        root,
+        env: {
+            JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_TEST",
+            JARVIS_LOCAL_VIDEO_ENABLED: "true",
+            JARVIS_LOCAL_VIDEO_RUNNER: process.execPath,
+            JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT: runner,
+            JARVIS_LOCAL_VIDEO_MODEL_DIR: model
+        },
+        inspectHardware: healthyCapability,
+        launch({ job, resultFile, onExit }) {
+            physicalFixture(path.resolve(root, job.output));
+            fs.writeFileSync(resultFile, JSON.stringify(successReceipt(job, {
+                operationId: "00000000-0000-0000-0000-000000000000"
+            })));
+            queueMicrotask(() => onExit(0));
+            return { pid: 4343, kill() {} };
+        },
+        inspectVideo: () => ({ durationSeconds: 8, fps: 24, width: 704, height: 1280 })
+    });
+
+    const started = await engine.start({
+        script: "Crossed receipt must never certify.",
+        prompts: ["One local scene."],
+        output: ".jarvis-artifacts/videos/crossed.mp4"
+    });
+    const completed = await engine.poll({ operationName: started.operationName });
+
+    assert.equal(started.ok, true);
+    assert.equal(completed.ok, false);
+    assert.equal(completed.done, true);
+    assert.equal(completed.status, "LOCAL_VIDEO_RESULT_RECEIPT_MISMATCH");
+    assert.equal(listArtifacts({ root, type: "video" }).length, 0);
+});
+
+test("local worker expires and kills a stale RUNNING operation", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-local-video-stale-"));
+    const runner = path.join(root, "runner.py");
+    const model = path.join(root, "wan-model");
+    fs.writeFileSync(runner, "# controlled test runner\n");
+    fs.mkdirSync(model, { recursive: true });
+    let clock = new Date("2026-08-25T12:00:00.000Z");
+    let killed = false;
+
+    const engine = createLocalVideoEngine({
+        root,
+        env: {
+            JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_TEST",
+            JARVIS_LOCAL_VIDEO_ENABLED: "true",
+            JARVIS_LOCAL_VIDEO_RUNNER: process.execPath,
+            JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT: runner,
+            JARVIS_LOCAL_VIDEO_MODEL_DIR: model,
+            JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS: "30"
+        },
+        inspectHardware: healthyCapability,
+        now: () => new Date(clock),
+        launch() {
+            return { pid: 4444, kill() { killed = true; } };
+        }
+    });
+
+    const started = await engine.start({
+        script: "Stale worker fixture.",
+        prompts: ["One pending local scene."],
+        output: ".jarvis-artifacts/videos/stale.mp4"
+    });
+    clock = new Date(clock.getTime() + 91_000);
+    const completed = await engine.poll({ operationName: started.operationName });
+
+    assert.equal(started.ok, true);
+    assert.equal(completed.ok, false);
+    assert.equal(completed.done, true);
+    assert.equal(completed.state, "FAILED");
+    assert.equal(completed.status, "LOCAL_VIDEO_OPERATION_STALE");
+    assert.equal(completed.retryable, true);
+    assert.equal(killed, true);
 });
 
 test("local worker cancel and cleanup preserve the durable receipt", async () => {
@@ -415,9 +520,10 @@ test("video.generate LOCAL_TEST executes one local operation with zero cloud cal
                         physicallyWritten: true,
                         durationSeconds: 8,
                         fps: 24,
-                        width: 720,
+                        width: 704,
                         height: 1280,
                         provider: "local",
+                        backend: "wan22-ti2v-5b",
                         model: "Wan2.2-TI2V-5B",
                         engine: "local",
                         externalApiUsed: false,
