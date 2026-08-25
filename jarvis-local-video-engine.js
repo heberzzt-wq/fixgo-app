@@ -6,7 +6,7 @@ import { execFileSync, spawn } from "node:child_process";
 
 import { registerArtifact } from "./jarvis-artifact-studio.js";
 
-export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.1.0-v142-multibackend-internal-first";
+export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.2.0-v142-physical-integrity";
 export const VIDEO_ENGINE_MODES = Object.freeze([
     "CURRENT_STABLE",
     "LOCAL_TEST",
@@ -23,8 +23,11 @@ const WAN22_TI2V_5B = Object.freeze({
     textToVideo: true,
     imageToVideo: true,
     referenceAssets: true,
+    maximumReferenceAssets: 1,
     targetResolution: "720p",
     targetFps: 24,
+    portraitSize: Object.freeze({ width: 704, height: 1280 }),
+    landscapeSize: Object.freeze({ width: 1280, height: 704 }),
     minimumVramGb: 24,
     checkpointSizeGb: 34.2,
     minimumFreeDiskGb: 45,
@@ -41,13 +44,36 @@ const WAN21_T2V_1_3B = Object.freeze({
     textToVideo: true,
     imageToVideo: false,
     referenceAssets: false,
+    maximumReferenceAssets: 0,
     targetResolution: "480p",
     targetFps: 16,
+    portraitSize: Object.freeze({ width: 480, height: 832 }),
+    landscapeSize: Object.freeze({ width: 832, height: 480 }),
     minimumVramGb: 8.19,
     checkpointSizeGb: 17.6,
     minimumFreeDiskGb: 25,
     officialRepository: "https://github.com/Wan-Video/Wan2.1",
     officialWeights: "https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B"
+});
+
+const UNSUPPORTED_LOCAL_VIDEO_MODEL_PROFILE = Object.freeze({
+    backend: null,
+    id: null,
+    model: null,
+    provider: "local",
+    license: null,
+    textToVideo: false,
+    imageToVideo: false,
+    referenceAssets: false,
+    maximumReferenceAssets: 0,
+    targetResolution: null,
+    targetFps: 0,
+    portraitSize: null,
+    landscapeSize: null,
+    minimumVramGb: Number.POSITIVE_INFINITY,
+    checkpointSizeGb: 0,
+    minimumFreeDiskGb: Number.POSITIVE_INFINITY,
+    unsupported: true
 });
 
 export const LOCAL_VIDEO_MODEL_PROFILES = Object.freeze({
@@ -116,7 +142,12 @@ export function resolveLocalVideoModelProfile({ env = process.env, hardware = nu
         return LOCAL_VIDEO_MODEL_PROFILE;
     }
     const backend = LOCAL_VIDEO_MODEL_ALIASES[requested] || requested;
-    return LOCAL_VIDEO_MODEL_PROFILES[backend] || LOCAL_VIDEO_MODEL_PROFILE;
+    const profile = LOCAL_VIDEO_MODEL_PROFILES[backend];
+    if (profile) return profile;
+    return Object.freeze({
+        ...UNSUPPORTED_LOCAL_VIDEO_MODEL_PROFILE,
+        requestedBackend: backend
+    });
 }
 
 export function describeLocalVideoPolicy(env = process.env) {
@@ -285,21 +316,44 @@ function diskFreeGb(root) {
 export function inspectLocalVideoHardware({ root = process.cwd(), env = process.env } = {}) {
     const nvidiaSmi = commandPath(env.JARVIS_NVIDIA_SMI_PATH || "nvidia-smi", env);
     let gpuName = null;
+    let gpuIndex = null;
     let driver = null;
     let vramGb = 0;
+    let gpuInventory = [];
     if (nvidiaSmi) {
         try {
-            const raw = execFileSync(nvidiaSmi, [
-                "--query-gpu=name,memory.total,driver_version",
+            gpuInventory = execFileSync(nvidiaSmi, [
+                "--query-gpu=index,name,memory.total,driver_version",
                 "--format=csv,noheader,nounits"
             ], { encoding: "utf8", windowsHide: true, timeout: 10000 })
                 .split(/\r?\n/)
                 .map(value => value.trim())
-                .filter(Boolean)[0];
-            const [name, memoryMb, driverVersion] = String(raw || "").split(",").map(value => value.trim());
-            gpuName = name || null;
-            vramGb = Number(memoryMb || 0) / 1024;
-            driver = driverVersion || null;
+                .filter(Boolean)
+                .map(raw => {
+                    const [index, name, memoryMb, driverVersion] = raw
+                        .split(",")
+                        .map(value => value.trim());
+                    return {
+                        index: Number(index),
+                        name: name || null,
+                        memoryMb: Number(memoryMb || 0),
+                        vramGb: Number(memoryMb || 0) / 1024,
+                        driver: driverVersion || null
+                    };
+                })
+                .filter(item =>
+                    Number.isInteger(item.index) &&
+                    Number.isFinite(item.vramGb) &&
+                    item.vramGb > 0
+                )
+                .sort((left, right) =>
+                    right.vramGb - left.vramGb || left.index - right.index
+                );
+            const selected = gpuInventory[0] || null;
+            gpuIndex = selected?.index ?? null;
+            gpuName = selected?.name || null;
+            vramGb = Number(selected?.vramGb || 0);
+            driver = selected?.driver || null;
         }
         catch {}
     }
@@ -309,22 +363,26 @@ export function inspectLocalVideoHardware({ root = process.cwd(), env = process.
     const docker = commandPath("docker", env);
     const wsl = commandPath("wsl", env);
     const freeDiskGb = diskFreeGb(root);
-    const cudaAvailable = Boolean(nvidiaSmi && vramGb > 0);
+    const cudaAvailable = gpuInventory.length > 0 && vramGb > 0;
     const model = resolveLocalVideoModelProfile({
         env,
         hardware: { cudaAvailable, vramGb, freeDiskGb }
     });
-    const ready = cudaAvailable &&
+    const backendSupported = model.unsupported !== true;
+    const ready = backendSupported &&
+        cudaAvailable &&
         vramGb >= model.minimumVramGb &&
         freeDiskGb >= model.minimumFreeDiskGb &&
         Boolean(ffmpeg) && Boolean(ffprobe);
     const blockingReasons = [];
+    if (!backendSupported) blockingReasons.push("LOCAL_VIDEO_BACKEND_UNSUPPORTED");
     if (!cudaAvailable) blockingReasons.push("LOCAL_VIDEO_CUDA_UNAVAILABLE");
-    if (vramGb < model.minimumVramGb) blockingReasons.push("LOCAL_VIDEO_VRAM_INSUFFICIENT");
-    if (freeDiskGb < model.minimumFreeDiskGb) blockingReasons.push("LOCAL_VIDEO_DISK_INSUFFICIENT");
+    if (backendSupported && vramGb < model.minimumVramGb) blockingReasons.push("LOCAL_VIDEO_VRAM_INSUFFICIENT");
+    if (backendSupported && freeDiskGb < model.minimumFreeDiskGb) blockingReasons.push("LOCAL_VIDEO_DISK_INSUFFICIENT");
     if (!ffmpeg || !ffprobe) blockingReasons.push("LOCAL_VIDEO_FFMPEG_UNAVAILABLE");
     let status = "LOCAL_VIDEO_HARDWARE_READY";
-    if (!cudaAvailable) status = "LOCAL_VIDEO_CUDA_UNAVAILABLE";
+    if (!backendSupported) status = "LOCAL_VIDEO_BACKEND_UNSUPPORTED";
+    else if (!cudaAvailable) status = "LOCAL_VIDEO_CUDA_UNAVAILABLE";
     else if (vramGb < model.minimumVramGb) status = "LOCAL_VIDEO_VRAM_INSUFFICIENT";
     else if (freeDiskGb < model.minimumFreeDiskGb) status = "LOCAL_VIDEO_DISK_INSUFFICIENT";
     else if (!ffmpeg || !ffprobe) status = "LOCAL_VIDEO_FFMPEG_UNAVAILABLE";
@@ -332,6 +390,8 @@ export function inspectLocalVideoHardware({ root = process.cwd(), env = process.
         ok: ready,
         status,
         gpuName,
+        gpuIndex,
+        gpuInventory,
         driver,
         cudaAvailable,
         vramGb: Number(vramGb.toFixed(2)),
@@ -352,7 +412,7 @@ export function inspectLocalVideoHardware({ root = process.cwd(), env = process.
         ramGb: Number((os.totalmem() / (1024 ** 3)).toFixed(2)),
         platform: process.platform,
         requestedModel: requestedLocalModel(env),
-        selectedBackend: model.backend,
+        selectedBackend: backendSupported ? model.backend : null,
         modelRequirements: model
     };
 }
@@ -369,6 +429,8 @@ function compatibleModelProfiles(hardware = {}) {
         minimumVramGb: profile.minimumVramGb,
         minimumFreeDiskGb: profile.minimumFreeDiskGb,
         targetResolution: profile.targetResolution,
+        targetFps: profile.targetFps,
+        maximumReferenceAssets: profile.maximumReferenceAssets,
         imageToVideo: profile.imageToVideo
     }));
 }
@@ -380,7 +442,7 @@ export function buildLocalAiCapabilityReport({
 } = {}) {
     const policy = describeLocalVideoPolicy(env);
     const selectedVideoModel = hardware.modelRequirements || resolveLocalVideoModelProfile({ env, hardware });
-    const localVideoSupported = hardware.ok === true;
+    const localVideoSupported = hardware.ok === true && selectedVideoModel.unsupported !== true;
     return {
         reportType: "LOCAL_AI_CAPABILITY_REPORT",
         schemaVersion: JARVIS_LOCAL_VIDEO_ENGINE_VERSION,
@@ -392,12 +454,16 @@ export function buildLocalAiCapabilityReport({
         candidateVideoModels: compatibleModelProfiles(hardware),
         localVideoReadiness: {
             supported: localVideoSupported,
-            status: hardware.status,
+            status: selectedVideoModel.unsupported === true
+                ? "LOCAL_VIDEO_BACKEND_UNSUPPORTED"
+                : hardware.status,
             physicalMp4Authorized: localVideoSupported,
             installationAuthorized: false,
-            reason: localVideoSupported
-                ? "HARDWARE_GATE_PASSED_MODEL_AND_RUNNER_STILL_REQUIRE_EXPLICIT_INSTALLATION"
-                : hardware.status
+            reason: selectedVideoModel.unsupported === true
+                ? "LOCAL_VIDEO_BACKEND_UNSUPPORTED"
+                : localVideoSupported
+                    ? "HARDWARE_GATE_PASSED_MODEL_AND_RUNNER_STILL_REQUIRE_EXPLICIT_INSTALLATION"
+                    : hardware.status
         },
         capabilityInventory: {
             deterministicInternal: [
@@ -600,8 +666,10 @@ export function createLocalVideoEngine({
         const runner = commandPath(env.JARVIS_LOCAL_VIDEO_RUNNER, env);
         const runnerScript = path.resolve(String(env.JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT || ""));
         const modelDirectory = path.resolve(String(env.JARVIS_LOCAL_VIDEO_MODEL_DIR || ""));
-        let status = hardware.status;
-        let ok = hardware.ok === true;
+        let status = model.unsupported === true
+            ? "LOCAL_VIDEO_BACKEND_UNSUPPORTED"
+            : hardware.status;
+        let ok = hardware.ok === true && model.unsupported !== true;
         if (!policy.localVideoEnabled) {
             ok = false;
             status = "LOCAL_VIDEO_DISABLED";
@@ -625,7 +693,7 @@ export function createLocalVideoEngine({
             runner: runner || null,
             runnerScript: env.JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT ? runnerScript : null,
             modelDirectory: env.JARVIS_LOCAL_VIDEO_MODEL_DIR ? modelDirectory : null,
-            selectedBackend: model.backend,
+            selectedBackend: model.unsupported === true ? null : model.backend,
             model
         };
     }
@@ -671,6 +739,20 @@ export function createLocalVideoEngine({
                 externalEstimatedCostUsd: 0
             };
         }
+        if (references.length > Number(model.maximumReferenceAssets || 0)) {
+            return {
+                ok: false,
+                status: "LOCAL_VIDEO_REFERENCE_LIMIT_EXCEEDED",
+                error: "LOCAL_VIDEO_REFERENCE_LIMIT_EXCEEDED",
+                backend: model.backend,
+                model: model.model,
+                referenceAssetCount: references.length,
+                maximumReferenceAssets: Number(model.maximumReferenceAssets || 0),
+                retryable: false,
+                externalApiUsed: false,
+                externalEstimatedCostUsd: 0
+            };
+        }
 
         const operationId = randomUUID();
         const operationName = `local-video/${operationId}`;
@@ -708,6 +790,8 @@ export function createLocalVideoEngine({
             jobFile,
             resultFile,
             output: output.normalized,
+            aspectRatio: job.aspectRatio,
+            referenceAssetCount: references.length,
             createdAt: now().toISOString(),
             updatedAt: now().toISOString(),
             engine: "local",
@@ -723,6 +807,9 @@ export function createLocalVideoEngine({
         const runnerScript = path.resolve(env.JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT);
         const args = [runnerScript, "--job", jobFile, "--result", resultFile];
         const runnerEnvironment = offlineLocalVideoEnvironment(env);
+        if (currentHealth.gpuIndex !== null && currentHealth.gpuIndex !== undefined) {
+            runnerEnvironment.CUDA_VISIBLE_DEVICES = String(currentHealth.gpuIndex);
+        }
         const onExit = exitCode => {
             try {
                 const current = readJson(operationPath);
