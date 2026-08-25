@@ -25,6 +25,9 @@ on:
 permissions:
   contents: read
 
+env:
+  V142_REEL_MASTER_BASE_SHA: ec2943fe750e481f4907a4adf6e5bb446489635e
+
 jobs:
   certify-v138:
     runs-on: ubuntu-latest
@@ -48,7 +51,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
-          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
+          ! git diff --name-only "${V142_REEL_MASTER_BASE_SHA}..HEAD" | grep -E '^functions/'
       - name: Guard clean v138 staging
         shell: bash
         run: |
@@ -62,6 +65,10 @@ jobs:
           do
             test ! -e "$temporary"
           done
+      - name: Verify local mastering runtime
+        run: |
+          ffmpeg -version
+          ffprobe -version
       - name: Focal v138 plus reel compatibility contracts
         shell: bash
         run: |
@@ -73,6 +80,7 @@ jobs:
           node --check gestia-core/tools.bridge.js
           node --test \
             tests/jarvis-reel-native-mp4-v138.test.mjs \
+            tests/jarvis-reel-mp4-master-v142.test.mjs \
             tests/jarvis-reel-artifact.test.mjs \
             tests/jarvis-fs-bridge-v2.test.mjs \
             tests/jarvis-live-human-reds-v113.test.mjs \
@@ -92,14 +100,13 @@ jobs:
         run: git diff --check
       - name: Certification marker
         run: |
-          echo 'V138_NATIVE_MP4_PREFERRED=true'
-          echo 'V138_WEBM_FALLBACK_RETAINED=true'
-          echo 'V138_ACTUAL_MIME_DRIVES_EXTENSION=true'
-          echo 'V138_CONTAINER_SIGNATURE_VERIFIED=true'
-          echo 'V138_SHA256_VERIFIED=true'
-          echo 'V138_HUMAN_RESPONSE_FORMAT_COHERENT=true'
-          echo 'V138_FUNCTIONS_UNCHANGED=true'
-          echo 'V138_STAGING_CLEAN=true'
+          echo 'V142_REEL_FINAL_MP4_REQUIRED=true'
+          echo 'V142_WEBM_PROVISIONAL_ONLY=true'
+          echo 'V142_FFPROBE_MASTER_VERIFIED=true'
+          echo 'V142_SHA256_VERIFIED=true'
+          echo 'V142_EXTERNAL_EDITING_API_USED=false'
+          echo 'V142_FUNCTIONS_UNCHANGED=true'
+          echo 'V142_STAGING_CLEAN=true'
 
   windows-real-mp4:
     runs-on: windows-latest
@@ -120,7 +127,7 @@ jobs:
         shell: pwsh
         run: |
           if ($env:GITHUB_REF_NAME -ne 'v94-media-v4n-negative-claims') { throw 'WRONG_BRANCH' }
-          $changed = git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD
+          $changed = git diff --name-only "$($env:V142_REEL_MASTER_BASE_SHA)..HEAD"
           if ($changed -match '^functions/') { throw 'FUNCTIONS_CHANGED' }
       - name: Guard clean v138 staging on Windows
         shell: pwsh
@@ -138,6 +145,8 @@ jobs:
       - name: Export real 30-second MP4 with audio through product renderer and bridge
         shell: pwsh
         run: |
+          Get-Command ffmpeg
+          Get-Command ffprobe
           @'
           import fs from 'node:fs';
           import path from 'node:path';
@@ -202,6 +211,14 @@ jobs:
           if (!String(result.mimeType || '').startsWith('video/mp4')) throw new Error(`MP4_MIME_REQUIRED:${result.mimeType}`);
           if (result.container !== 'mp4' || result.formatFallback !== false) throw new Error('MP4_CONTAINER_REQUIRED');
           if (!String(result.output || '').endsWith('.mp4')) throw new Error(`MP4_EXTENSION_REQUIRED:${result.output}`);
+          if (result.videoCodec !== 'h264') throw new Error(`H264_REQUIRED:${result.videoCodec}`);
+          if (result.pixelFormat !== 'yuv420p') throw new Error(`YUV420P_REQUIRED:${result.pixelFormat}`);
+          if (Number(result.width) !== 1080 || Number(result.height) !== 1920) throw new Error('PROFESSIONAL_VERTICAL_RESOLUTION_REQUIRED');
+          if (Number(result.fps || 0) < 20) throw new Error(`REAL_FPS_TOO_LOW:${result.fps}`);
+          if (result.audioCodec !== 'aac') throw new Error(`AAC_REQUIRED:${result.audioCodec}`);
+          if (Number(result.audioSampleRate || 0) < 44100) throw new Error(`PROFESSIONAL_AUDIO_RATE_REQUIRED:${result.audioSampleRate}`);
+          if (result.faststart !== true) throw new Error('FASTSTART_REQUIRED');
+          if (result.externalApiUsed !== false || Number(result.externalEstimatedCostUsd) !== 0) throw new Error('EXTERNAL_EDITING_COST_FORBIDDEN');
           if (Number(result.audioTracksAdded || 0) < 1) throw new Error('PRODUCT_AUDIO_TRACK_REQUIRED');
           if (!Number.isFinite(Number(result.bytes)) || Number(result.bytes) < 1000) throw new Error('PRODUCT_MP4_BYTES_INVALID');
           if (!/^[a-f0-9]{64}$/.test(String(result.sha256 || ''))) throw new Error('PRODUCT_MP4_SHA_INVALID');
