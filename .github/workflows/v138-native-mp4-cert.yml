@@ -16,7 +16,10 @@ on:
       - 'gestia-core/jarvis/jarvis.actuator.pack.js'
       - 'gestia-core/tools.runtime.js'
       - 'gestia-core/tools.bridge.js'
+      - 'modules/terminal/jarvis-attachments.js'
       - 'tests/jarvis-reel-native-mp4-v138.test.mjs'
+      - 'tests/jarvis-reel-mp4-master-v142.test.mjs'
+      - 'tests/jarvis-reel-terminal-delivery-v142.test.mjs'
       - 'tests/jarvis-reel-artifact.test.mjs'
       - 'tests/jarvis-fs-bridge-v2.test.mjs'
       - 'tests/jarvis-live-human-reds-v113.test.mjs'
@@ -82,9 +85,11 @@ jobs:
           node --check gestia-core/jarvis/jarvis.actuator.pack.js
           node --check gestia-core/tools.runtime.js
           node --check gestia-core/tools.bridge.js
+          node --check modules/terminal/jarvis-attachments.js
           node --test \
             tests/jarvis-reel-native-mp4-v138.test.mjs \
             tests/jarvis-reel-mp4-master-v142.test.mjs \
+            tests/jarvis-reel-terminal-delivery-v142.test.mjs \
             tests/jarvis-reel-artifact.test.mjs \
             tests/jarvis-fs-bridge-v2.test.mjs \
             tests/jarvis-reel-speech-v137.test.mjs \
@@ -107,6 +112,7 @@ jobs:
           echo 'V142_FFPROBE_MASTER_VERIFIED=true'
           echo 'V142_SHA256_VERIFIED=true'
           echo 'V142_EXTERNAL_EDITING_API_USED=false'
+          echo 'V142_TERMINAL_MP4_OPEN_DOWNLOAD=true'
           echo 'V142_FUNCTIONS_UNCHANGED=true'
           echo 'V142_STAGING_CLEAN=true'
 
@@ -144,6 +150,9 @@ jobs:
           foreach ($path in $temporary) {
             if (Test-Path $path) { throw "V138_TEMPORARY_FILE_PRESENT:$path" }
           }
+      - name: Verify terminal MP4 delivery contract
+        shell: pwsh
+        run: node --test tests/jarvis-reel-terminal-delivery-v142.test.mjs
       - name: Export real 30-second MP4 with audio through product renderer and bridge
         shell: pwsh
         run: |
