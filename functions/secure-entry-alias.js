@@ -12,7 +12,7 @@ const crypto = require("node:crypto");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { GoogleGenAI } = require("@google/genai");
+const { GoogleGenAI, GenerateVideosOperation } = require("@google/genai");
 const secureExports = require("./secure-entry.js");
 
 const stripeWebhookProxy = functions.https.onRequest((req, res) => {
@@ -138,6 +138,15 @@ function normalizeOperationName(value = "") {
         );
     }
     return name;
+}
+
+function rehydrateVideoOperation(operationName) {
+    const operation = new GenerateVideosOperation();
+    operation.name = normalizeOperationName(operationName);
+    if (typeof operation._fromAPIResponse !== "function") {
+        throw new Error("VIDEO_OPERATION_REHYDRATION_INVALID");
+    }
+    return operation;
 }
 
 function normalizePreviousVideo(value) {
@@ -388,8 +397,9 @@ const jarvisVideoGenerate = functions
             if (action === "poll") {
                 stage = "VIDEO_GENERATION_POLL";
                 const operationName = normalizeOperationName(data?.operationName);
+                const operationReference = rehydrateVideoOperation(operationName);
                 const operation = await ai.operations.getVideosOperation({
-                    operation: { name: operationName }
+                    operation: operationReference
                 });
                 if (!operation?.done) {
                     return {
