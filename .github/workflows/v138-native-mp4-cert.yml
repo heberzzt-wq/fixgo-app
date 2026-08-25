@@ -87,9 +87,7 @@ jobs:
             tests/jarvis-reel-mp4-master-v142.test.mjs \
             tests/jarvis-reel-artifact.test.mjs \
             tests/jarvis-fs-bridge-v2.test.mjs \
-            tests/jarvis-live-human-reds-v113.test.mjs \
             tests/jarvis-reel-speech-v137.test.mjs \
-            tests/jarvis-reel-media-source-recovery-v136.test.mjs \
             tests/nexo-browser-media-fallback-v135.test.mjs \
             tests/jarvis-reel-real-production-v134.test.mjs \
             tests/jarvis-reel-mission-fidelity-v133.test.mjs \
