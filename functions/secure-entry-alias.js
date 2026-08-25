@@ -390,7 +390,7 @@ const jarvisVideoGenerate = functions
                         ? {
                             numberOfVideos: 1,
                             resolution: "720p",
-                            durationSeconds: 8,
+                            durationSeconds: 7,
                             outputGcsUri
                         }
                         : {
