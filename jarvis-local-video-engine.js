@@ -6,7 +6,7 @@ import { execFileSync, spawn } from "node:child_process";
 
 import { registerArtifact } from "./jarvis-artifact-studio.js";
 
-export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.2.0-v142-physical-integrity";
+export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.3.0-v142-receipt-bound";
 export const VIDEO_ENGINE_MODES = Object.freeze([
     "CURRENT_STABLE",
     "LOCAL_TEST",
@@ -106,6 +106,12 @@ function finiteBudget(value, fallback = Number.POSITIVE_INFINITY) {
     if (value === undefined || value === null || value === "") return fallback;
     const number = Number(value);
     return Number.isFinite(number) && number >= 0 ? number : fallback;
+}
+
+function localVideoTimeoutSeconds(env = process.env) {
+    const configured = Number(env.JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS || 7200);
+    if (!Number.isFinite(configured) || configured <= 0) return 7200;
+    return Math.min(Math.max(configured, 30), 86400);
 }
 
 function normalizedMode(value) {
@@ -625,6 +631,52 @@ function verifyMp4Container(file) {
     }
 }
 
+function verifyResultReceipt(operation, result) {
+    const expected = {
+        operationId: operation.operationId,
+        operationName: operation.operationName,
+        output: operation.output,
+        backend: operation.backend,
+        model: operation.model
+    };
+    for (const [field, value] of Object.entries(expected)) {
+        if (String(result?.[field] || "") !== String(value || "")) {
+            throw new Error("LOCAL_VIDEO_RESULT_RECEIPT_MISMATCH");
+        }
+    }
+    if (
+        result?.mimeType !== "video/mp4" ||
+        result?.engine !== "local" ||
+        result?.provider !== "local" ||
+        result?.externalApiUsed !== false ||
+        Number(result?.externalEstimatedCostUsd || 0) !== 0
+    ) {
+        throw new Error("LOCAL_VIDEO_RESULT_RECEIPT_MISMATCH");
+    }
+    const expectedReferences = Number(operation.referenceAssetCount || 0);
+    const actualReferences = Number(result?.referenceAssetCount);
+    if (!Number.isInteger(actualReferences) || actualReferences !== expectedReferences) {
+        throw new Error("LOCAL_VIDEO_RESULT_RECEIPT_MISMATCH");
+    }
+}
+
+function verifyMediaAgainstOperation(operation, media) {
+    const profile = LOCAL_VIDEO_MODEL_PROFILES[operation.backend];
+    if (!profile) throw new Error("LOCAL_VIDEO_BACKEND_UNSUPPORTED");
+    const expectedSize = operation.aspectRatio === "16:9"
+        ? profile.landscapeSize
+        : profile.portraitSize;
+    if (
+        Number(media.width) !== Number(expectedSize.width) ||
+        Number(media.height) !== Number(expectedSize.height)
+    ) {
+        throw new Error("LOCAL_VIDEO_DIMENSIONS_MISMATCH");
+    }
+    if (Number(media.fps) + 0.01 < Number(profile.targetFps)) {
+        throw new Error("LOCAL_VIDEO_FPS_BELOW_BACKEND_TARGET");
+    }
+}
+
 export function createLocalVideoEngine({
     root = process.cwd(),
     env = process.env,
@@ -658,6 +710,25 @@ export function createLocalVideoEngine({
         const next = { ...operation, ...patch, updatedAt: now().toISOString() };
         atomicJsonWrite(file, next);
         return next;
+    }
+
+    function isOperationStale(operation) {
+        const createdAt = Date.parse(String(operation.createdAt || ""));
+        if (!Number.isFinite(createdAt)) return true;
+        const ageMs = Math.max(0, now().getTime() - createdAt);
+        return ageMs > (localVideoTimeoutSeconds(env) + 60) * 1000;
+    }
+
+    function failStaleOperation(file, operation) {
+        const child = children.get(operation.operationId);
+        try { if (child?.kill) child.kill(); } catch {}
+        children.delete(operation.operationId);
+        return saveOperation(file, operation, {
+            state: "FAILED",
+            status: "LOCAL_VIDEO_OPERATION_STALE",
+            error: "LOCAL_VIDEO_OPERATION_STALE",
+            retryable: true
+        });
     }
 
     function health() {
@@ -886,6 +957,10 @@ export function createLocalVideoEngine({
             return { ...operation, ok: false, done: true, error: operation.error || operation.status };
         }
         if (!fs.existsSync(operation.resultFile)) {
+            if (operation.state === "RUNNING" && isOperationStale(operation)) {
+                operation = failStaleOperation(loaded.file, operation);
+                return { ...operation, ok: false, done: true };
+            }
             return { ...operation, ok: true, done: false };
         }
         let result;
@@ -908,7 +983,8 @@ export function createLocalVideoEngine({
             return { ...operation, ok: false, done: true };
         }
         try {
-            const output = safeOutput(resolvedRoot, result.output || operation.output);
+            verifyResultReceipt(operation, result);
+            const output = safeOutput(resolvedRoot, result.output);
             const stat = fs.statSync(output.resolved);
             if (!stat.isFile() || stat.size < 100000) throw new Error("LOCAL_VIDEO_PHYSICAL_OUTPUT_INVALID");
             if (!verifyMp4Container(output.resolved)) throw new Error("LOCAL_VIDEO_MP4_CONTAINER_INVALID");
@@ -924,9 +1000,10 @@ export function createLocalVideoEngine({
             ) {
                 throw new Error("LOCAL_VIDEO_MEDIA_METADATA_INVALID");
             }
+            verifyMediaAgainstOperation(operation, media);
             const sha256 = createHash("sha256").update(fs.readFileSync(output.resolved)).digest("hex");
-            const model = result.model || operation.model || LOCAL_VIDEO_MODEL_PROFILE.model;
-            const backend = result.backend || operation.backend || LOCAL_VIDEO_MODEL_PROFILE.backend;
+            const model = operation.model;
+            const backend = operation.backend;
             const artifact = registerArtifact({
                 root: resolvedRoot,
                 output: output.normalized,
