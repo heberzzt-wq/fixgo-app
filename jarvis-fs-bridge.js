@@ -62,9 +62,13 @@ import {
     describeLocalSpeechCapability,
     synthesizeSpeechArtifact
 } from "./jarvis-speech-artifact.js";
+import {
+    createLocalVideoEngine,
+    writeLocalAiCapabilityReport
+} from "./jarvis-local-video-engine.js";
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.47.0-dual-human-recovery-v142";
+    "2.48.0-internal-first-video-v142";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -3726,10 +3730,12 @@ export async function tiktokOembedVisualSeed(
 }
 
 export function createJarvisFsBridgeApp({
-    root = DEFAULT_ROOT
+    root = DEFAULT_ROOT,
+    localVideoEngine = null
 } = {}) {
     const app =
         express();
+    const videoEngine = localVideoEngine || createLocalVideoEngine({ root });
 
     let repoGraphCache = null;
     const preparedWrites = new Map();
@@ -5617,6 +5623,85 @@ export function createJarvisFsBridgeApp({
             });
         }
     });
+
+    app.post("/video/engine/resolve", (req, res) => {
+        try {
+            return res.json(videoEngine.resolve());
+        }
+        catch(error) {
+            return res.status(503).json({
+                ok: false,
+                status: "VIDEO_ENGINE_RESOLUTION_FAILED",
+                error: error.message,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+    });
+
+    app.post("/local-ai/capability-report", (_req, res) => {
+        try {
+            return res.json(writeLocalAiCapabilityReport({ root }));
+        }
+        catch(error) {
+            return res.status(500).json({
+                ok: false,
+                status: "LOCAL_AI_CAPABILITY_REPORT_FAILED",
+                error: error.message,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+    });
+
+    app.post("/video/engine/authorize-external", (req, res) => {
+        try {
+            const result = videoEngine.authorizeExternalCall(req.body || {});
+            return res.status(result.ok === true ? 200 : 429).json(result);
+        }
+        catch(error) {
+            return res.status(400).json({
+                ok: false,
+                status: "EXTERNAL_VIDEO_AUTHORIZATION_FAILED",
+                error: error.message,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+    });
+
+    app.post("/video/local/health", (_req, res) => {
+        try {
+            return res.json(videoEngine.health());
+        }
+        catch(error) {
+            return res.status(503).json({
+                ok: false,
+                status: "LOCAL_VIDEO_HEALTH_FAILED",
+                error: error.message,
+                version: JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+    });
+
+    for (const [route, action] of [
+        ["/video/local/start", "start"],
+        ["/video/local/poll", "poll"],
+        ["/video/local/cancel", "cancel"],
+        ["/video/local/cleanup", "cleanup"]
+    ]) {
+        app.post(route, async (req, res) => {
+            try {
+                const result = await videoEngine[action](req.body || {});
+                return res.status(result.ok === true ? 200 : 400).json(result);
+            }
+            catch(error) {
+                return res.status(500).json({
+                    ok: false,
+                    status: `LOCAL_VIDEO_${action.toUpperCase()}_FAILED`,
+                    error: error.message,
+                    version: JARVIS_FS_BRIDGE_VERSION
+                });
+            }
+        });
+    }
 
     app.post("/video/import", async (req, res) => {
         try {

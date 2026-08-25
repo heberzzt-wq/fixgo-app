@@ -11,7 +11,7 @@ import {
     overlayBrandLogo
 } from "./jarvis.image.adapter.js?v=jarvis-official-brand-logo-v12-20260819";
 
-const VERSION = "7.27.0-v142-video-operation-recovery";
+const VERSION = "7.28.0-v142-progressive-local-video";
 const VIDEO_REFERENCE_MIME_TYPES = new Set([
     "image/jpeg",
     "image/png",
@@ -1018,7 +1018,7 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "video.generate",
-            description: "Genera video NUEVO real desde un guion o escenas semanticas mediante Veo. Para mini dramas produce actuacion, movimiento y audio nativos; puede extender hasta cuatro escenas consecutivas. referenceOutputs acepta hasta tres artefactos de imagen locales verificados como referencias persistentes de identidad o assets. Si recibe seriesId+episodeId, carga guion, beats y reparto desde el canon durable; no identifica rostros ni acepta reemplazos silenciosos de referencias.",
+            description: "Genera video NUEVO real desde un guion o escenas semanticas mediante el motor fisico seleccionado por la politica de infraestructura. El proveedor certificado actual se conserva y el motor local solo se usa en modos explicitos. referenceOutputs acepta hasta tres artefactos de imagen locales verificados como referencias persistentes de identidad o assets. Si recibe seriesId+episodeId, carga guion, beats y reparto desde el canon durable; no identifica rostros ni acepta reemplazos silenciosos de referencias.",
             output: "VIDEO_GENERATION_RESULT",
             inputSchema: {
                 script: "string",
@@ -1119,8 +1119,265 @@ export function registerJarvisActuatorTools(runtime) {
                     return { ok: false, executionOk: false, objectiveSatisfied: false, status: "VIDEO_SCRIPT_REQUIRED", error: "VIDEO_SCRIPT_REQUIRED" };
                 }
                 const aspectRatio = args.aspectRatio === "16:9" ? "16:9" : "9:16";
+                const requestedOutput = String(args.output || "").trim().replaceAll("\\", "/");
+                const output =
+                    requestedOutput.startsWith(".jarvis-artifacts/videos/") &&
+                    requestedOutput.toLowerCase().endsWith(".mp4") &&
+                    !requestedOutput.includes("../")
+                        ? requestedOutput
+                        : `.jarvis-artifacts/videos/mini-drama-${Date.now()}.mp4`;
+                let engineDecision;
+                try {
+                    engineDecision = await bridgeRequest("/video/engine/resolve", {
+                        capability: "video.generate",
+                        sceneCount: prompts.length,
+                        seriesId: seriesId || null,
+                        episodeId: episodeId || null
+                    }, 30000);
+                }
+                catch {
+                    engineDecision = null;
+                }
+                if (!engineDecision || !engineDecision.policy) {
+                    engineDecision = {
+                        ok: true,
+                        status: "VIDEO_ENGINE_CURRENT_STABLE_COMPATIBILITY",
+                        policy: "CURRENT_STABLE",
+                        engineRequested: "CURRENT_STABLE",
+                        engineUsed: "external",
+                        fallbackUsed: false,
+                        fallbackReason: null,
+                        externalApiUsed: false,
+                        externalEstimatedCostUsd: 0
+                    };
+                }
+                if (engineDecision.ok !== true || !engineDecision.engineUsed) {
+                    return {
+                        ...engineDecision,
+                        ok: false,
+                        executionOk: false,
+                        objectiveSatisfied: false,
+                        blocked: true,
+                        retryable: false,
+                        externalApiUsed: false,
+                        externalEstimatedCostUsd: 0
+                    };
+                }
+
+                if (engineDecision.engineUsed === "local") {
+                    const localAttempt = await (async () => {
+                    let started;
+                    try {
+                        started = await bridgeRequest("/video/local/start", {
+                            script,
+                            prompts,
+                            aspectRatio,
+                            output,
+                            referenceOutputs: referenceImages.map(reference => reference.sourceOutput),
+                            seriesId: seriesId || null,
+                            episodeId: episodeId || null
+                        }, 60000);
+                    }
+                    catch(error) {
+                        started = {
+                            ok: false,
+                            status: "LOCAL_VIDEO_BRIDGE_START_FAILED",
+                            error: error?.message || "LOCAL_VIDEO_BRIDGE_START_FAILED",
+                            retryable: true
+                        };
+                    }
+                    if (started?.ok !== true || !started?.operationName) {
+                        return {
+                            ...started,
+                            ok: false,
+                            executionOk: false,
+                            objectiveSatisfied: false,
+                            blocked: true,
+                            retryable: started?.retryable === true,
+                            engineRequested: engineDecision.engineRequested,
+                            engineUsed: "local",
+                            fallbackUsed: false,
+                            fallbackReason: null,
+                            externalApiUsed: false,
+                            externalEstimatedCostUsd: 0,
+                            status: started?.status || "LOCAL_VIDEO_GENERATION_START_FAILED"
+                        };
+                    }
+                    let localResult = null;
+                    for (let attempt = 0; attempt < 120; attempt += 1) {
+                        await waitForVideoPoll(5000);
+                        let polled;
+                        try {
+                            polled = await bridgeRequest("/video/local/poll", {
+                                operationName: started.operationName
+                            }, 30000);
+                        }
+                        catch(error) {
+                            polled = {
+                                ok: false,
+                                status: "LOCAL_VIDEO_BRIDGE_POLL_FAILED",
+                                error: error?.message || "LOCAL_VIDEO_BRIDGE_POLL_FAILED",
+                                retryable: true,
+                                operationName: started.operationName
+                            };
+                        }
+                        if (polled?.ok !== true) {
+                            return {
+                                ...polled,
+                                ok: false,
+                                executionOk: false,
+                                objectiveSatisfied: false,
+                                blocked: true,
+                                retryable: polled?.retryable === true,
+                                engineRequested: engineDecision.engineRequested,
+                                engineUsed: "local",
+                                fallbackUsed: false,
+                                fallbackReason: null,
+                                externalApiUsed: false,
+                                externalEstimatedCostUsd: 0,
+                                operationName: polled?.operationName || started.operationName
+                            };
+                        }
+                        if (polled.done !== true) continue;
+                        localResult = polled;
+                        break;
+                    }
+                    if (!localResult) {
+                        return {
+                            ok: false,
+                            executionOk: false,
+                            objectiveSatisfied: false,
+                            blocked: true,
+                            retryable: true,
+                            status: "LOCAL_VIDEO_GENERATION_TIMEOUT",
+                            error: "LOCAL_VIDEO_GENERATION_TIMEOUT",
+                            operationName: started.operationName,
+                            engineRequested: engineDecision.engineRequested,
+                            engineUsed: "local",
+                            fallbackUsed: false,
+                            fallbackReason: null,
+                            externalApiUsed: false,
+                            externalEstimatedCostUsd: 0
+                        };
+                    }
+                    const physicalArtifactVerified =
+                        localResult?.ok === true &&
+                        localResult?.physicallyWritten === true &&
+                        Number(localResult?.bytes || 0) >= 100000 &&
+                        /^[a-f0-9]{64}$/i.test(String(localResult?.sha256 || "")) &&
+                        String(localResult?.output || "").replaceAll("\\", "/") === output;
+                    if (!physicalArtifactVerified) {
+                        return {
+                            ...localResult,
+                            ok: false,
+                            executionOk: false,
+                            objectiveSatisfied: false,
+                            blocked: true,
+                            retryable: false,
+                            status: "LOCAL_VIDEO_PHYSICAL_VERIFICATION_FAILED",
+                            error: "LOCAL_VIDEO_PHYSICAL_VERIFICATION_FAILED",
+                            engineRequested: engineDecision.engineRequested,
+                            engineUsed: "local",
+                            fallbackUsed: false,
+                            fallbackReason: null,
+                            externalApiUsed: false,
+                            externalEstimatedCostUsd: 0,
+                            verifiedArtifactDelivery: false
+                        };
+                    }
+                    let recordedSeriesResult = null;
+                    if (seriesRequested) {
+                        recordedSeriesResult = await bridgeRequest("/series/episode/generated", {
+                            seriesId,
+                            episodeId,
+                            physicalArtifact: output,
+                            artifactSha256: localResult.sha256
+                        });
+                        if (recordedSeriesResult?.ok !== true) {
+                            return {
+                                ...localResult,
+                                ok: false,
+                                executionOk: false,
+                                objectiveSatisfied: false,
+                                blocked: true,
+                                requiresInput: true,
+                                retryable: false,
+                                status: recordedSeriesResult?.status || "SERIES_EPISODE_GENERATED_RECORD_FAILED",
+                                error: recordedSeriesResult?.error || "SERIES_EPISODE_GENERATED_RECORD_FAILED",
+                                engineRequested: engineDecision.engineRequested,
+                                engineUsed: "local",
+                                externalApiUsed: false,
+                                externalEstimatedCostUsd: 0,
+                                verifiedArtifactDelivery: true
+                            };
+                        }
+                    }
+                    const finalLocalResult = {
+                        ...localResult,
+                        ok: true,
+                        executionOk: true,
+                        objectiveSatisfied: true,
+                        status: "VIDEO_GENERATED_VERIFIED",
+                        sceneCount: prompts.length,
+                        sourceMode: referenceImages.length > 0
+                            ? "identity_reference_to_video"
+                            : "script_to_video",
+                        referenceImageCount: referenceImages.length,
+                        referenceOutputs: referenceImages.map(reference => reference.sourceOutput),
+                        identityReferencesVerified: referenceImages.length > 0,
+                        identityContinuityMode: referenceImages.length > 0
+                            ? "local_asset_references"
+                            : "not_requested",
+                        physicalArtifactVerified: true,
+                        verifiedArtifactDelivery: true,
+                        engineRequested: engineDecision.engineRequested,
+                        engineUsed: "local",
+                        fallbackUsed: false,
+                        fallbackReason: null,
+                        externalApiUsed: false,
+                        externalEstimatedCostUsd: 0,
+                        ...(seriesRequested
+                            ? {
+                                seriesId,
+                                episodeId,
+                                seriesCanonRevision: recordedSeriesResult?.canonRevision ??
+                                    seriesContext.canonRevision ?? null
+                            }
+                            : {})
+                    };
+                    recordCapabilityEvidence("video_generation", {
+                        ok: true,
+                        status: finalLocalResult.status,
+                        output: finalLocalResult.output,
+                        bytes: finalLocalResult.bytes,
+                        sha256: finalLocalResult.sha256,
+                        model: finalLocalResult.model,
+                        engineUsed: "local",
+                        externalApiUsed: false,
+                        externalEstimatedCostUsd: 0,
+                        checkedAt: new Date().toISOString()
+                    });
+                    return finalLocalResult;
+                    })();
+                    if (localAttempt.ok === true) return localAttempt;
+                    const recoverableFallback =
+                        engineDecision.policy === "LOCAL_PREFERRED" &&
+                        engineDecision.externalFallbackEnabled === true &&
+                        localAttempt.retryable === true;
+                    if (!recoverableFallback) return localAttempt;
+                    engineDecision = {
+                        ...engineDecision,
+                        status: "VIDEO_ENGINE_EXTERNAL_FALLBACK",
+                        engineUsed: "external",
+                        fallbackUsed: true,
+                        fallbackReason: localAttempt.status || localAttempt.error ||
+                            "LOCAL_VIDEO_RECOVERABLE_FAILURE"
+                    };
+                }
+
                 let previousVideo = null;
                 let finalCloud = null;
+                let externalEstimatedCostUsd = 0;
                 for (let index = 0; index < prompts.length; index += 1) {
                     const segmentPrompt = [
                         index === 0 ? script : "",
@@ -1129,6 +1386,46 @@ export function registerJarvisActuatorTools(runtime) {
                             ? "Crea el inicio del mini drama como video cinematografico real con personas, accion, dialogo o audio coherente cuando el guion lo indique."
                             : "Continua exactamente el video anterior manteniendo personajes, vestuario, locacion, accion y continuidad narrativa."
                     ].filter(Boolean).join(" ").slice(0, 10000);
+                    let externalAuthorization = null;
+                    try {
+                        externalAuthorization = await bridgeRequest("/video/engine/authorize-external", {
+                            operationKey: seriesRequested
+                                ? `${seriesId}:${episodeId}`
+                                : `video.generate:${output}`,
+                            segmentIndex: index,
+                            sceneCount: prompts.length,
+                            reasonForExternalUse: engineDecision.fallbackUsed === true
+                                ? engineDecision.fallbackReason
+                                : "CURRENT_STABLE"
+                        }, 30000);
+                    }
+                    catch {
+                        externalAuthorization = null;
+                    }
+                    if (
+                        externalAuthorization?.ok !== true &&
+                        engineDecision.policy !== "CURRENT_STABLE"
+                    ) {
+                        return {
+                            ...(externalAuthorization || {}),
+                            ok: false,
+                            executionOk: false,
+                            objectiveSatisfied: false,
+                            blocked: true,
+                            retryable: false,
+                            status: externalAuthorization?.status || "EXTERNAL_VIDEO_AUTHORIZATION_REQUIRED",
+                            error: externalAuthorization?.error || "EXTERNAL_VIDEO_AUTHORIZATION_REQUIRED",
+                            engineRequested: engineDecision.engineRequested,
+                            engineUsed: "external",
+                            fallbackUsed: engineDecision.fallbackUsed === true,
+                            fallbackReason: engineDecision.fallbackReason || null,
+                            externalApiUsed: false,
+                            externalEstimatedCostUsd: 0
+                        };
+                    }
+                    externalEstimatedCostUsd += Number(
+                        externalAuthorization?.externalEstimatedCostUsd || 0
+                    );
                     const started = await callAdminFunction("jarvisVideoGenerate", {
                         action: "start",
                         prompt: segmentPrompt,
@@ -1228,13 +1525,6 @@ export function registerJarvisActuatorTools(runtime) {
                 if (!finalCloud?.downloadUrl || !finalCloud?.sha256) {
                     return { ok: false, executionOk: false, objectiveSatisfied: false, status: "VIDEO_GENERATION_FINAL_OUTPUT_MISSING", error: "VIDEO_GENERATION_FINAL_OUTPUT_MISSING" };
                 }
-                const requestedOutput = String(args.output || "").trim().replaceAll("\\", "/");
-                const output =
-                    requestedOutput.startsWith(".jarvis-artifacts/videos/") &&
-                    requestedOutput.toLowerCase().endsWith(".mp4") &&
-                    !requestedOutput.includes("../")
-                        ? requestedOutput
-                        : `.jarvis-artifacts/videos/mini-drama-${Date.now()}.mp4`;
                 const artifact = await bridgeRequest("/video/import", {
                     url: finalCloud.downloadUrl,
                     expectedSha256: finalCloud.sha256,
@@ -1317,6 +1607,17 @@ export function registerJarvisActuatorTools(runtime) {
                             : "asset_references")
                         : "not_requested",
                     physicallyWritten: artifact?.physicallyWritten === true,
+                    physicalArtifactVerified,
+                    verifiedArtifactDelivery: physicalArtifactVerified,
+                    engineRequested: engineDecision.engineRequested,
+                    engineUsed: "external",
+                    fallbackUsed: engineDecision.fallbackUsed === true,
+                    fallbackReason: engineDecision.fallbackReason || null,
+                    externalApiUsed: true,
+                    externalEstimatedCostUsd,
+                    reasonForExternalUse: engineDecision.fallbackUsed === true
+                        ? "LOCAL_FALLBACK"
+                        : "CURRENT_STABLE",
                     ...(seriesRequested
                         ? {
                             seriesId,
@@ -1337,6 +1638,11 @@ export function registerJarvisActuatorTools(runtime) {
                     referenceImageCount: finalResult.referenceImageCount,
                     identityReferencesVerified: finalResult.identityReferencesVerified,
                     identityContinuityMode: finalResult.identityContinuityMode,
+                    engineUsed: finalResult.engineUsed,
+                    fallbackUsed: finalResult.fallbackUsed,
+                    fallbackReason: finalResult.fallbackReason,
+                    externalApiUsed: finalResult.externalApiUsed,
+                    externalEstimatedCostUsd: finalResult.externalEstimatedCostUsd,
                     checkedAt: new Date().toISOString()
                 });
                 return finalResult;

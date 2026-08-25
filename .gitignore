@@ -1,6 +1,8 @@
 ﻿# Dependencies
 node_modules/
 bower_components/
+__pycache__/
+*.py[cod]
 
 # Secrets and credentials
 .env
