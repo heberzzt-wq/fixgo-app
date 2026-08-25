@@ -537,3 +537,17 @@ test("V142 video cloud cleanup happens only after the physical import succeeds",
         /finallys*{/
     );
 });
+
+test("V142 video engine resolver receives semantic media requirements before local start", () => {
+    const actuator = fs.readFileSync(
+        new URL("../gestia-core/jarvis/jarvis.actuator.pack.js", import.meta.url),
+        "utf8"
+    );
+    const bridge = fs.readFileSync(
+        new URL("../jarvis-fs-bridge.js", import.meta.url),
+        "utf8"
+    );
+    assert.match(actuator, /referenceCount: referenceImages\.length/);
+    assert.match(actuator, /requiresImageToVideo: referenceImages\.length > 0/);
+    assert.match(bridge, /videoEngine\.resolve\(req\.body \|\| \{\}\)/);
+});

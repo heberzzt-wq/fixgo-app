@@ -1142,6 +1142,9 @@ export function registerJarvisActuatorTools(runtime) {
                     engineDecision = await bridgeRequest("/video/engine/resolve", {
                         capability: "video.generate",
                         sceneCount: prompts.length,
+                        referenceCount: referenceImages.length,
+                        requiresImageToVideo: referenceImages.length > 0,
+                        aspectRatio,
                         seriesId: seriesId || null,
                         episodeId: episodeId || null
                     }, 30000);

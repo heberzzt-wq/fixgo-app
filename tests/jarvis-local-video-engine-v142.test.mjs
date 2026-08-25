@@ -656,3 +656,56 @@ test("LOCAL_PREFERRED uses an explicit budgeted fallback after a recoverable loc
         globalThis.auth = previousAuth;
     }
 });
+
+test("V142 resolve gates local backends by mission reference requirements", () => {
+    const preferred = describeLocalVideoPolicy({
+        JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_PREFERRED",
+        JARVIS_LOCAL_VIDEO_ENABLED: "true",
+        JARVIS_LOCAL_VIDEO_CERTIFIED: "true",
+        JARVIS_EXTERNAL_FALLBACK_ENABLED: "true"
+    });
+    const lightHealth = {
+        ok: true,
+        status: "LOCAL_VIDEO_HARDWARE_READY",
+        selectedBackend: "wan21-t2v-1.3b",
+        model: {
+            backend: "wan21-t2v-1.3b",
+            model: "Wan2.1-T2V-1.3B",
+            imageToVideo: false,
+            maximumReferenceAssets: 0
+        }
+    };
+    const lightFallback = resolveVideoEngine({
+        policy: preferred,
+        health: lightHealth,
+        requirements: { referenceCount: 1, requiresImageToVideo: true }
+    });
+    assert.equal(lightFallback.ok, true);
+    assert.equal(lightFallback.engineUsed, "external");
+    assert.equal(lightFallback.fallbackUsed, true);
+    assert.equal(lightFallback.fallbackReason, "LOCAL_VIDEO_REFERENCES_UNSUPPORTED_BY_BACKEND");
+
+    const localOnly = describeLocalVideoPolicy({
+        JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_ONLY",
+        JARVIS_LOCAL_VIDEO_ENABLED: "true"
+    });
+    const fullHealth = {
+        ok: true,
+        status: "LOCAL_VIDEO_HARDWARE_READY",
+        selectedBackend: "wan22-ti2v-5b",
+        model: {
+            backend: "wan22-ti2v-5b",
+            model: "Wan2.2-TI2V-5B",
+            imageToVideo: true,
+            maximumReferenceAssets: 1
+        }
+    };
+    const tooMany = resolveVideoEngine({
+        policy: localOnly,
+        health: fullHealth,
+        requirements: { referenceCount: 2, requiresImageToVideo: true }
+    });
+    assert.equal(tooMany.ok, false);
+    assert.equal(tooMany.engineUsed, null);
+    assert.equal(tooMany.status, "LOCAL_VIDEO_REFERENCE_LIMIT_EXCEEDED");
+});

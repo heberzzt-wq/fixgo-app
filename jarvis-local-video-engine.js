@@ -185,13 +185,31 @@ export function describeLocalVideoPolicy(env = process.env) {
     };
 }
 
-export function resolveVideoEngine({ policy, health } = {}) {
+export function resolveVideoEngine({ policy, health, requirements = {} } = {}) {
     const effectivePolicy = policy || describeLocalVideoPolicy();
     const mode = normalizedMode(effectivePolicy.mode);
     const localReady = effectivePolicy.localVideoEnabled === true && health?.ok === true;
+    const referenceCount = Math.max(0, Number(requirements.referenceCount || 0));
+    const requiresImageToVideo = requirements.requiresImageToVideo === true || referenceCount > 0;
+    const selectedModel = health?.model || health?.modelRequirements || null;
+    let requirementFailure = null;
+    if (localReady && selectedModel) {
+        if (requiresImageToVideo && selectedModel.imageToVideo !== true) {
+            requirementFailure = "LOCAL_VIDEO_REFERENCES_UNSUPPORTED_BY_BACKEND";
+        }
+        else if (referenceCount > Number(selectedModel.maximumReferenceAssets || 0)) {
+            requirementFailure = "LOCAL_VIDEO_REFERENCE_LIMIT_EXCEEDED";
+        }
+    }
+    const localSuitable = localReady && requirementFailure === null;
     const common = {
         policy: mode,
         engineRequested: mode,
+        selectedBackend: health?.selectedBackend || selectedModel?.backend || null,
+        selectedModel: selectedModel?.model || null,
+        imageToVideoSupported: selectedModel?.imageToVideo === true,
+        maximumReferenceAssets: Number(selectedModel?.maximumReferenceAssets || 0),
+        referenceCount,
         externalFallbackEnabled: effectivePolicy.externalFallbackEnabled === true,
         fallbackUsed: false,
         fallbackReason: null,
@@ -210,12 +228,13 @@ export function resolveVideoEngine({ policy, health } = {}) {
     }
 
     if (mode === "LOCAL_TEST" || mode === "LOCAL_ONLY") {
-        if (!localReady) {
+        if (!localSuitable) {
+            const reason = requirementFailure || health?.status || "LOCAL_VIDEO_WORKER_UNAVAILABLE";
             return {
                 ...common,
                 ok: false,
-                status: health?.status || "LOCAL_VIDEO_WORKER_UNAVAILABLE",
-                error: health?.status || "LOCAL_VIDEO_WORKER_UNAVAILABLE",
+                status: reason,
+                error: reason,
                 engineUsed: null,
                 provider: null,
                 retryable: false
@@ -232,7 +251,7 @@ export function resolveVideoEngine({ policy, health } = {}) {
         };
     }
 
-    const certifiedReady = localReady && effectivePolicy.localVideoCertified === true;
+    const certifiedReady = localSuitable && effectivePolicy.localVideoCertified === true;
     if (certifiedReady) {
         return {
             ...common,
@@ -242,7 +261,7 @@ export function resolveVideoEngine({ policy, health } = {}) {
             provider: "local"
         };
     }
-    const reason = health?.status || (
+    const reason = requirementFailure || health?.status || (
         localReady ? "LOCAL_VIDEO_NOT_CERTIFIED" : "LOCAL_VIDEO_WORKER_UNAVAILABLE"
     );
     if (effectivePolicy.externalFallbackEnabled === true) {
@@ -1158,7 +1177,7 @@ export function createLocalVideoEngine({
         version: JARVIS_LOCAL_VIDEO_ENGINE_VERSION,
         policy,
         health,
-        resolve: () => resolveVideoEngine({ policy, health: health() }),
+        resolve: requirements => resolveVideoEngine({ policy, health: health(), requirements }),
         authorizeExternalCall,
         start,
         poll,

@@ -6014,7 +6014,7 @@ export function createJarvisFsBridgeApp({
 
     app.post("/video/engine/resolve", (req, res) => {
         try {
-            return res.json(videoEngine.resolve());
+            return res.json(videoEngine.resolve(req.body || {}));
         }
         catch(error) {
             return res.status(503).json({
