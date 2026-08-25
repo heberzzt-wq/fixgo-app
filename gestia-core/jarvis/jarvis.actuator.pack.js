@@ -960,8 +960,65 @@ export function registerJarvisActuatorTools(runtime) {
             }
         }),
         register(runtime, {
+            name: "series.create",
+            description: "Crea una Biblia de Serie durable dentro de Artifact Studio. El primer numero de episodio no se infiere y debe declararse al preparar el episodio.",
+            output: "SERIES_CANON_RESULT",
+            inputSchema: { seriesId: "string", title: "string", storyArc: "string", status: "string" },
+            mutates: true,
+            requiresApproval: false,
+            execute: async (args = {}) => await bridgeRequest("/series/create", args)
+        }),
+        register(runtime, {
+            name: "series.character.upsert",
+            description: "Registra un personaje mediante asignacion explicita del usuario y referencias fisicas versionadas. No identifica rostros ni infiere personas.",
+            output: "SERIES_CHARACTER_RESULT",
+            inputSchema: {
+                seriesId: "string", characterId: "string", displayName: "string",
+                assignmentConfirmed: "boolean", referenceAssets: "array<{sourceOutput,mimeType,bytes,sha256,approvedForVeo}>",
+                role: "string", visualDescription: "string", wardrobeState: "object|string",
+                voiceProfile: "object", relationships: "object", knownFacts: "array",
+                secretsNotKnown: "array", recurringProps: "array", active: "boolean"
+            },
+            mutates: true,
+            requiresApproval: true,
+            execute: async (args = {}) => await bridgeRequest("/series/character/upsert", args)
+        }),
+        register(runtime, {
+            name: "series.episode.prepare",
+            description: "Prepara un episodio estructurado contra el canon persistido y bloquea contradicciones antes de generar video.",
+            output: "SERIES_EPISODE_READY_RESULT",
+            inputSchema: {
+                seriesId: "string", episodeId: "string", episodeNumber: "number", title: "string",
+                script: "string", castIds: "array", storyBeats: "array<{initialState,exactAction,dialogueIntent,dialogue,requiredBeat,finalState,revelations}>",
+                continuityStart: "object"
+            },
+            mutates: true,
+            requiresApproval: false,
+            execute: async (args = {}) => await bridgeRequest("/series/episode/prepare", args)
+        }),
+        register(runtime, {
+            name: "series.episode.accept",
+            description: "Acepta humanamente un MP4 ya generado y solo entonces avanza el numero y el canon del episodio.",
+            output: "SERIES_EPISODE_ACCEPT_RESULT",
+            inputSchema: {
+                seriesId: "string", episodeId: "string", humanAccepted: "boolean",
+                continuityEnd: "object", cliffhanger: "string", canonFacts: "array"
+            },
+            mutates: true,
+            requiresApproval: true,
+            execute: async (args = {}) => await bridgeRequest("/series/episode/accept", args)
+        }),
+        register(runtime, {
+            name: "series.resume",
+            description: "Recupera desde Artifact Studio el ultimo episodio aceptado, continuidad, reparto activo y siguiente numero derivable.",
+            output: "SERIES_RESUME_CONTEXT",
+            inputSchema: { seriesId: "string" },
+            mutates: false,
+            execute: async (args = {}) => await bridgeRequest("/series/resume", args)
+        }),
+        register(runtime, {
             name: "video.generate",
-            description: "Genera video NUEVO real desde un guion o escenas semanticas mediante Veo. Para mini dramas produce actuacion, movimiento y audio nativos; puede extender hasta cuatro escenas consecutivas. referenceOutputs acepta hasta tres artefactos de imagen locales verificados como referencias persistentes de identidad o assets: no son escenas, no disparan image.generate y no convierten el video en reel.",
+            description: "Genera video NUEVO real desde un guion o escenas semanticas mediante Veo. Para mini dramas produce actuacion, movimiento y audio nativos; puede extender hasta cuatro escenas consecutivas. referenceOutputs acepta hasta tres artefactos de imagen locales verificados como referencias persistentes de identidad o assets. Si recibe seriesId+episodeId, carga guion, beats y reparto desde el canon durable; no identifica rostros ni acepta reemplazos silenciosos de referencias.",
             output: "VIDEO_GENERATION_RESULT",
             inputSchema: {
                 script: "string",
@@ -971,7 +1028,9 @@ export function registerJarvisActuatorTools(runtime) {
                 aspectRatio: "9:16|16:9",
                 output: "string",
                 caseId: "string",
-                objectiveId: "string"
+                objectiveId: "string",
+                seriesId: "string",
+                episodeId: "string"
             },
             mutates: true,
             requiresApproval: false,
@@ -981,7 +1040,43 @@ export function registerJarvisActuatorTools(runtime) {
                 const waitForVideoPoll = typeof context?.waitForVideoPoll === "function"
                     ? context.waitForVideoPoll
                     : delayMs => new Promise(resolve => setTimeout(resolve, delayMs));
-                const referenceResult = await readVerifiedVideoReferences(args.referenceOutputs);
+                const seriesId = String(args.seriesId || "").trim();
+                const episodeId = String(args.episodeId || "").trim();
+                const seriesRequested = Boolean(seriesId || episodeId);
+                if (seriesRequested && (!seriesId || !episodeId)) {
+                    return {
+                        ok: false, executionOk: false, objectiveSatisfied: false, blocked: true,
+                        requiresInput: true, retryable: false,
+                        status: "SERIES_CONTEXT_IDS_REQUIRED", error: "SERIES_CONTEXT_IDS_REQUIRED"
+                    };
+                }
+                if (seriesRequested && Array.isArray(args.referenceOutputs) && args.referenceOutputs.length > 0) {
+                    return {
+                        ok: false, executionOk: false, objectiveSatisfied: false, blocked: true,
+                        requiresInput: true, retryable: false,
+                        status: "SERIES_REFERENCE_OVERRIDE_FORBIDDEN",
+                        error: "SERIES_REFERENCE_OVERRIDE_FORBIDDEN"
+                    };
+                }
+                let seriesContext = null;
+                if (seriesRequested) {
+                    seriesContext = await bridgeRequest("/series/episode/generation-context", {
+                        seriesId,
+                        episodeId
+                    });
+                    if (seriesContext?.ok !== true) {
+                        return {
+                            ...seriesContext,
+                            ok: false, executionOk: false, objectiveSatisfied: false, blocked: true,
+                            requiresInput: true, retryable: false,
+                            status: seriesContext?.status || "SERIES_EPISODE_GENERATION_CONTEXT_FAILED"
+                        };
+                    }
+                }
+                const effectiveReferenceOutputs = seriesRequested
+                    ? seriesContext.referenceOutputs
+                    : args.referenceOutputs;
+                const referenceResult = await readVerifiedVideoReferences(effectiveReferenceOutputs);
                 if (referenceResult.ok !== true) {
                     return {
                         ...referenceResult,
@@ -994,12 +1089,29 @@ export function registerJarvisActuatorTools(runtime) {
                     };
                 }
                 const referenceImages = referenceResult.references;
-                const script = String(args.script || args.prompt || context.rawInput || "").trim();
-                const rawScenes = Array.isArray(args.scenes) ? args.scenes : [];
+                const script = String(seriesRequested
+                    ? seriesContext.script
+                    : (args.script || args.prompt || context.rawInput || "")).trim();
+                const rawScenes = seriesRequested
+                    ? (Array.isArray(seriesContext.storyBeats) ? seriesContext.storyBeats : [])
+                    : (Array.isArray(args.scenes) ? args.scenes : []);
+                if (seriesRequested && rawScenes.length > 4) {
+                    return {
+                        ok: false, executionOk: false, objectiveSatisfied: false, blocked: true,
+                        requiresInput: true, retryable: false,
+                        status: `SERIES_VIDEO_SEGMENT_LIMIT_EXCEEDED:${rawScenes.length}:4`,
+                        error: "SERIES_VIDEO_SEGMENT_LIMIT_EXCEEDED"
+                    };
+                }
                 const scenePrompts = rawScenes
                     .map(scene => typeof scene === "string"
                         ? scene.trim()
-                        : String(scene?.prompt || scene?.visual || scene?.description || "").trim())
+                        : String(
+                            scene?.prompt || scene?.visual || scene?.description ||
+                            [scene?.exactAction, scene?.dialogueIntent, scene?.dialogue, scene?.requiredBeat]
+                                .filter(Boolean)
+                                .join(" ")
+                        ).trim())
                     .filter(Boolean)
                     .slice(0, 4);
                 const prompts = (scenePrompts.length > 0 ? scenePrompts : [script]).filter(Boolean);
@@ -1153,6 +1265,32 @@ export function registerJarvisActuatorTools(runtime) {
                         operationName: finalCloud.operationName || null
                     };
                 }
+                let recordedSeriesResult = null;
+                if (seriesRequested) {
+                    recordedSeriesResult = await bridgeRequest("/series/episode/generated", {
+                        seriesId,
+                        episodeId,
+                        physicalArtifact: output,
+                        artifactSha256: artifact.sha256
+                    });
+                    if (recordedSeriesResult?.ok !== true) {
+                        return {
+                            ...artifact,
+                            ok: false,
+                            executionOk: false,
+                            objectiveSatisfied: false,
+                            blocked: true,
+                            requiresInput: true,
+                            retryable: false,
+                            fullRestartAllowed: false,
+                            status: recordedSeriesResult?.status || "SERIES_EPISODE_GENERATED_RECORD_FAILED",
+                            error: recordedSeriesResult?.error || "SERIES_EPISODE_GENERATED_RECORD_FAILED",
+                            seriesId,
+                            episodeId,
+                            physicalArtifactVerified: true
+                        };
+                    }
+                }
                 if (finalCloud?.storageObject) {
                     try { await callAdminFunction("jarvisVideoGenerate", { action: "cleanup", storageObject: finalCloud.storageObject }); } catch {}
                 }
@@ -1178,7 +1316,16 @@ export function registerJarvisActuatorTools(runtime) {
                             ? "initial_asset_references_then_previous_video"
                             : "asset_references")
                         : "not_requested",
-                    physicallyWritten: artifact?.physicallyWritten === true
+                    physicallyWritten: artifact?.physicallyWritten === true,
+                    ...(seriesRequested
+                        ? {
+                            seriesId,
+                            episodeId,
+                            seriesCanonRevision: recordedSeriesResult?.canonRevision ??
+                                seriesContext.canonRevision ??
+                                null
+                        }
+                        : {})
                 };
                 recordCapabilityEvidence("video_generation", {
                     ok: finalResult.ok === true && finalResult.physicallyWritten === true,

@@ -59,6 +59,11 @@ test("actuator pack registers browser, documents, image, delegation and connecto
         "document.xlsx.edit",
         "document.docx.edit",
         "document.pptx.edit",
+        "series.create",
+        "series.character.upsert",
+        "series.episode.prepare",
+        "series.episode.accept",
+        "series.resume",
         "video.generate",
         "image.generate",
         "image.edit",
@@ -85,6 +90,9 @@ test("actuator pack registers browser, documents, image, delegation and connecto
     assert.equal(runtime.get("image.generate").userArtifact, true);
     assert.equal(runtime.get("video.generate").requiresApproval, false);
     assert.equal(runtime.get("video.generate").userArtifact, true);
+    assert.equal(runtime.get("series.character.upsert").requiresApproval, true);
+    assert.equal(runtime.get("series.episode.accept").requiresApproval, true);
+    assert.equal(runtime.get("series.resume").mutates, false);
     assert.equal(
         runtime.get("video.generate").inputSchema.referenceOutputs,
         "array"
@@ -1047,6 +1055,148 @@ test("video generation stays blocked when import does not prove a physical MP4",
         globalThis.auth = previousAuth;
         globalThis.fetch = previousFetch;
         globalThis.JarvisLocalBridge = previousBridge;
+    }
+});
+
+test("series video loads canonical episode context before Veo and records only the physical result", async () => {
+    const runtime = createRuntime();
+    registerJarvisActuatorTools(runtime);
+    const previousAuth = globalThis.auth;
+    const previousFetch = globalThis.fetch;
+    const previousBridge = globalThis.JarvisLocalBridge;
+    const bytes = Buffer.from("explicit-character-reference");
+    const referenceOutput = ".jarvis-artifacts/uploads/series-character.jpg";
+    const bridgeCalls = [];
+    const functionCalls = [];
+
+    try {
+        globalThis.auth = { currentUser: { getIdToken: async () => "series-token" } };
+        globalThis.JarvisLocalBridge = {
+            async requestJson(route, payload) {
+                bridgeCalls.push({ route, payload });
+                if (route === "/series/episode/generation-context") {
+                    return {
+                        ok: true,
+                        status: "SERIES_EPISODE_GENERATION_CONTEXT_VERIFIED",
+                        seriesId: "SERIES_RUNTIME",
+                        episodeId: "EP-SERIES_RUNTIME-12",
+                        script: "Guion canonico persistido.",
+                        scriptSha256: createHash("sha256").update("Guion canonico persistido.").digest("hex"),
+                        referenceOutputs: [referenceOutput],
+                        storyBeats: [{ exactAction: "Accion canonica." }]
+                    };
+                }
+                if (route === "/artifact/read") {
+                    return {
+                        ok: true,
+                        output: referenceOutput,
+                        mimeType: "image/jpeg",
+                        dataBase64: bytes.toString("base64"),
+                        sha256: createHash("sha256").update(bytes).digest("hex")
+                    };
+                }
+                if (route === "/video/import") {
+                    return {
+                        ok: true,
+                        output: payload.output,
+                        mimeType: "video/mp4",
+                        physicallyWritten: true,
+                        bytes: 120000,
+                        sha256: payload.expectedSha256
+                    };
+                }
+                if (route === "/series/episode/generated") {
+                    return {
+                        ok: true,
+                        status: "SERIES_EPISODE_GENERATED_RECORDED",
+                        episodeId: payload.episodeId
+                    };
+                }
+                throw new Error(`Unexpected bridge route: ${route}`);
+            }
+        };
+        globalThis.fetch = async (_url, options = {}) => {
+            const data = JSON.parse(options.body).data;
+            functionCalls.push(data);
+            const result = data.action === "start"
+                ? { ok: true, operationName: "operations/series-runtime" }
+                : data.action === "poll"
+                    ? {
+                        ok: true,
+                        done: true,
+                        operationName: data.operationName,
+                        downloadUrl: "https://firebasestorage.googleapis.com/series.mp4",
+                        sha256: "a".repeat(64),
+                        provider: "google-veo-vertex",
+                        model: "veo-3.1-generate-001"
+                    }
+                    : { ok: true };
+            return { ok: true, status: 200, text: async () => JSON.stringify({ result }) };
+        };
+
+        const result = await runtime.get("video.generate").execute({
+            seriesId: "SERIES_RUNTIME",
+            episodeId: "EP-SERIES_RUNTIME-12",
+            prompt: "Este prompt no puede reemplazar el guion canonico.",
+            output: ".jarvis-artifacts/videos/series-runtime.mp4"
+        }, { waitForVideoPoll: async () => {} });
+
+        assert.equal(result.status, "VIDEO_GENERATED_VERIFIED");
+        assert.equal(result.seriesId, "SERIES_RUNTIME");
+        assert.equal(result.episodeId, "EP-SERIES_RUNTIME-12");
+        assert.equal(bridgeCalls[0].route, "/series/episode/generation-context");
+        assert.equal(functionCalls.filter(call => call.action === "start").length, 1);
+        assert.equal(functionCalls[0].referenceImages.length, 1);
+        assert.match(functionCalls[0].prompt, /Guion canonico persistido/);
+        assert.equal(
+            bridgeCalls.filter(call => call.route === "/series/episode/generated").length,
+            1
+        );
+    }
+    finally {
+        globalThis.auth = previousAuth;
+        globalThis.fetch = previousFetch;
+        globalThis.JarvisLocalBridge = previousBridge;
+    }
+});
+
+test("series video blocks unsupported segment count before spending a Veo generation", async () => {
+    const runtime = createRuntime();
+    registerJarvisActuatorTools(runtime);
+    const previousBridge = globalThis.JarvisLocalBridge;
+    const previousFetch = globalThis.fetch;
+    let cloudCalls = 0;
+    try {
+        globalThis.JarvisLocalBridge = {
+            async requestJson(route) {
+                assert.equal(route, "/series/episode/generation-context");
+                return {
+                    ok: true,
+                    seriesId: "SERIES_SEGMENTS",
+                    episodeId: "EP-SERIES-SEGMENTS-1",
+                    script: "Cinco unidades no se descartan.",
+                    referenceOutputs: [],
+                    storyBeats: Array.from({ length: 5 }, (_, index) => ({
+                        exactAction: `Accion ${index + 1}`
+                    }))
+                };
+            }
+        };
+        globalThis.fetch = async () => {
+            cloudCalls += 1;
+            throw new Error("VEO_MUST_NOT_START");
+        };
+        const result = await runtime.get("video.generate").execute({
+            seriesId: "SERIES_SEGMENTS",
+            episodeId: "EP-SERIES-SEGMENTS-1"
+        });
+        assert.equal(result.status, "SERIES_VIDEO_SEGMENT_LIMIT_EXCEEDED:5:4");
+        assert.equal(result.blocked, true);
+        assert.equal(cloudCalls, 0);
+    }
+    finally {
+        globalThis.JarvisLocalBridge = previousBridge;
+        globalThis.fetch = previousFetch;
     }
 });
 

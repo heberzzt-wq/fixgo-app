@@ -32,9 +32,17 @@ import {
     describeReelStudio
 } from "./jarvis-reel-artifact.js";
 import {
+    acceptSeriesEpisode,
+    createSeriesBible,
     findArtifact,
+    getSeriesBible,
+    getSeriesGenerationContext,
+    getSeriesResumeContext,
     listArtifacts,
-    registerArtifact
+    markSeriesEpisodeGenerated,
+    prepareSeriesEpisode,
+    registerArtifact,
+    upsertSeriesCharacter
 } from "./jarvis-artifact-studio.js";
 import {
     appendObservation,
@@ -5622,13 +5630,19 @@ export function createJarvisFsBridgeApp({
                 root,
                 output: saved.output,
                 metadata: {
-                    source: "video.generate",
+                    type: "video",
+                    origin: "video.generate",
                     provider: req.body?.provider || "google-veo",
                     model: req.body?.model || null,
                     mimeType: saved.mimeType,
-                    bytes: saved.bytes,
-                    sha256: saved.sha256,
-                    physicallyWritten: true
+                    status: "VIDEO_GENERATED_VERIFIED",
+                    approvalRequired: false,
+                    approved: true,
+                    approvedBy: "LOCAL_ARTIFACT_POLICY",
+                    editable: true,
+                    preview: true,
+                    downloadable: true,
+                    publishable: false
                 }
             });
             return res.json({
@@ -5844,6 +5858,47 @@ export function createJarvisFsBridgeApp({
             return res.status(400).json({ ok: false, status: "ARTIFACT_LEDGER_READ_FAILED", error: error.message, version: JARVIS_FS_BRIDGE_VERSION });
         }
     });
+
+    const seriesRoute = (route, operation, failureStatus) => {
+        app.post(route, (req, res) => {
+            try {
+                const result = operation({ ...(req.body || {}), root });
+                return res.json({
+                    ok: result?.ok !== false,
+                    ...result,
+                    version: JARVIS_FS_BRIDGE_VERSION
+                });
+            }
+            catch (error) {
+                const message = error?.message || String(error);
+                return res.status(400).json({
+                    ok: false,
+                    status: /^SERIES_[A-Z0-9_:-]+$/.test(message)
+                        ? message
+                        : failureStatus,
+                    error: message,
+                    version: JARVIS_FS_BRIDGE_VERSION
+                });
+            }
+        });
+    };
+
+    seriesRoute("/series/create", createSeriesBible, "SERIES_CANON_CREATE_FAILED");
+    seriesRoute("/series/get", getSeriesBible, "SERIES_CANON_READ_FAILED");
+    seriesRoute("/series/character/upsert", upsertSeriesCharacter, "SERIES_CHARACTER_UPSERT_FAILED");
+    seriesRoute("/series/episode/prepare", prepareSeriesEpisode, "SERIES_EPISODE_PREPARE_FAILED");
+    seriesRoute(
+        "/series/episode/generation-context",
+        getSeriesGenerationContext,
+        "SERIES_EPISODE_GENERATION_CONTEXT_FAILED"
+    );
+    seriesRoute(
+        "/series/episode/generated",
+        markSeriesEpisodeGenerated,
+        "SERIES_EPISODE_GENERATED_RECORD_FAILED"
+    );
+    seriesRoute("/series/episode/accept", acceptSeriesEpisode, "SERIES_EPISODE_ACCEPT_FAILED");
+    seriesRoute("/series/resume", getSeriesResumeContext, "SERIES_RESUME_FAILED");
 
     app.post("/artifact/json/create", (req, res) => {
         try {

@@ -25,6 +25,7 @@ on:
       - 'functions/index.js'
       - 'functions/secure-entry-alias.js'
       - 'functions/jarvis-video-operation-contract.js'
+      - 'jarvis-artifact-studio.js'
       - 'jarvis-upload-bridge.js'
       - 'jarvis-fs-bridge.js'
       - 'jarvis-reel-artifact.js'
@@ -46,6 +47,7 @@ on:
       - 'tests/jarvis-reel-native-mp4-v138.test.mjs'
       - 'tests/jarvis-reel-media-binder-v131.test.mjs'
       - 'tests/jarvis-fs-bridge-v2.test.mjs'
+      - 'tests/jarvis-series-continuity-v142.test.mjs'
   workflow_dispatch:
 
 permissions:
@@ -170,6 +172,7 @@ jobs:
             tests/jarvis-mission-orchestrator.test.mjs \
             tests/jarvis-video-reference-mission-continuity-v142.test.mjs \
             tests/jarvis-video-operation-contract-v142.test.cjs \
+            tests/jarvis-series-continuity-v142.test.mjs \
             tests/jarvis-reel-media-binder-v131.test.mjs \
             tests/jarvis-reel-native-mp4-v138.test.mjs
 
@@ -209,7 +212,7 @@ jobs:
           fi
           while IFS= read -r file; do
             case "$file" in
-              .github/scripts/v142-final-contract-alignment.mjs|gestia-core/gestia-core.js|gestia-core/tools.bridge.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|gestia-core/jarvis/jarvis.mission.orchestrator.js|gestia-core/jarvis/jarvis.mission.dependencies.js|gestia-core/jarvis/jarvis.reel.media-binder.js|gestia-core/jarvis/jarvis.actuator.pack.js|functions/jarvis-genai-provider-chain.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|functions/secure-entry-alias.js|functions/jarvis-video-operation-contract.js|jarvis-fs-bridge.js|jarvis-reel-artifact.js|modules/terminal/jarvis-attachments.js|tests/jarvis-actuator-pack.test.mjs|tests/jarvis-marketing-handoff-v12.test.mjs|tests/jarvis-genai-provider-chain.test.cjs|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs|tests/jarvis-mission-orchestrator.test.mjs|tests/jarvis-video-operation-contract-v142.test.cjs|tests/jarvis-reel-media-binder-v131.test.mjs|tests/jarvis-reel-native-mp4-v138.test.mjs|tests/jarvis-fs-bridge-v2.test.mjs) ;;
+              .github/scripts/v142-final-contract-alignment.mjs|gestia-core/gestia-core.js|gestia-core/tools.bridge.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|gestia-core/jarvis/jarvis.mission.orchestrator.js|gestia-core/jarvis/jarvis.mission.dependencies.js|gestia-core/jarvis/jarvis.reel.media-binder.js|gestia-core/jarvis/jarvis.actuator.pack.js|functions/jarvis-genai-provider-chain.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|functions/secure-entry-alias.js|functions/jarvis-video-operation-contract.js|jarvis-artifact-studio.js|jarvis-fs-bridge.js|jarvis-reel-artifact.js|modules/terminal/jarvis-attachments.js|tests/jarvis-actuator-pack.test.mjs|tests/jarvis-marketing-handoff-v12.test.mjs|tests/jarvis-genai-provider-chain.test.cjs|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs|tests/jarvis-mission-orchestrator.test.mjs|tests/jarvis-video-operation-contract-v142.test.cjs|tests/jarvis-series-continuity-v142.test.mjs|tests/jarvis-reel-media-binder-v131.test.mjs|tests/jarvis-reel-native-mp4-v138.test.mjs|tests/jarvis-fs-bridge-v2.test.mjs|package.json) ;;
               *) echo "Unexpected V142 diff: $file" >&2; exit 1 ;;
             esac
           done <<< "$changed"
@@ -250,9 +253,10 @@ jobs:
           node --check gestia-core/jarvis/jarvis.actuator.pack.js
           node --check functions/secure-entry-alias.js
           node --check functions/jarvis-video-operation-contract.js
+          node --check jarvis-artifact-studio.js
           node --check jarvis-fs-bridge.js
           node --check modules/terminal/jarvis-attachments.js
-          node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-mission-orchestrator.test.mjs tests/jarvis-video-reference-mission-continuity-v142.test.mjs tests/jarvis-video-operation-contract-v142.test.cjs tests/jarvis-reel-media-binder-v131.test.mjs tests/jarvis-reel-native-mp4-v138.test.mjs
+          node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-mission-orchestrator.test.mjs tests/jarvis-video-reference-mission-continuity-v142.test.mjs tests/jarvis-video-operation-contract-v142.test.cjs tests/jarvis-series-continuity-v142.test.mjs tests/jarvis-reel-media-binder-v131.test.mjs tests/jarvis-reel-native-mp4-v138.test.mjs
       - name: Windows persistent artifact download lifecycle
         shell: pwsh
         run: |
@@ -281,7 +285,7 @@ jobs:
           test -n "$changed"
           while IFS= read -r file; do
             case "$file" in
-              .github/scripts/v142-final-contract-alignment.mjs|gestia-core/gestia-core.js|gestia-core/tools.bridge.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|gestia-core/jarvis/jarvis.mission.orchestrator.js|gestia-core/jarvis/jarvis.mission.dependencies.js|gestia-core/jarvis/jarvis.reel.media-binder.js|gestia-core/jarvis/jarvis.actuator.pack.js|functions/jarvis-genai-provider-chain.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|functions/secure-entry-alias.js|functions/jarvis-video-operation-contract.js|jarvis-fs-bridge.js|jarvis-reel-artifact.js|modules/terminal/jarvis-attachments.js|tests/jarvis-actuator-pack.test.mjs|tests/jarvis-marketing-handoff-v12.test.mjs|tests/jarvis-genai-provider-chain.test.cjs|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs|tests/jarvis-mission-orchestrator.test.mjs|tests/jarvis-video-operation-contract-v142.test.cjs|tests/jarvis-reel-media-binder-v131.test.mjs|tests/jarvis-reel-native-mp4-v138.test.mjs|tests/jarvis-fs-bridge-v2.test.mjs) ;;
+              .github/scripts/v142-final-contract-alignment.mjs|gestia-core/gestia-core.js|gestia-core/tools.bridge.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|gestia-core/jarvis/jarvis.mission.orchestrator.js|gestia-core/jarvis/jarvis.mission.dependencies.js|gestia-core/jarvis/jarvis.reel.media-binder.js|gestia-core/jarvis/jarvis.actuator.pack.js|functions/jarvis-genai-provider-chain.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|functions/secure-entry-alias.js|functions/jarvis-video-operation-contract.js|jarvis-artifact-studio.js|jarvis-fs-bridge.js|jarvis-reel-artifact.js|modules/terminal/jarvis-attachments.js|tests/jarvis-actuator-pack.test.mjs|tests/jarvis-marketing-handoff-v12.test.mjs|tests/jarvis-genai-provider-chain.test.cjs|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs|tests/jarvis-mission-orchestrator.test.mjs|tests/jarvis-video-operation-contract-v142.test.cjs|tests/jarvis-series-continuity-v142.test.mjs|tests/jarvis-reel-media-binder-v131.test.mjs|tests/jarvis-reel-native-mp4-v138.test.mjs|tests/jarvis-fs-bridge-v2.test.mjs|package.json) ;;
               *) echo "Unexpected certified V142 diff: $file" >&2; exit 1 ;;
             esac
           done <<< "$changed"
@@ -325,10 +329,11 @@ jobs:
           node --check gestia-core/jarvis/jarvis.actuator.pack.js
           node --check functions/secure-entry-alias.js
           node --check functions/jarvis-video-operation-contract.js
+          node --check jarvis-artifact-studio.js
           node --check jarvis-fs-bridge.js
           node --check modules/terminal/jarvis-attachments.js
           node --input-type=module -e "import fs from 'node:fs'; const s=fs.readFileSync('modules/terminal/jarvis-attachments.js','utf8'); const c=s.slice(s.indexOf('function clear()'),s.indexOf('function observationTool')); if(!s.includes('artifactObjectUrls: new Set()')||!s.includes('state.artifactObjectUrls.add(objectUrl)')||!s.includes('persistentArtifactDownloads: true')||c.includes('artifactObjectUrls')) throw new Error('V142_ARTIFACT_DOWNLOAD_LIFECYCLE_INVALID');"
-          node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-mission-orchestrator.test.mjs tests/jarvis-video-reference-mission-continuity-v142.test.mjs tests/jarvis-video-operation-contract-v142.test.cjs tests/jarvis-reel-media-binder-v131.test.mjs tests/jarvis-reel-native-mp4-v138.test.mjs
+          node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-mission-orchestrator.test.mjs tests/jarvis-video-reference-mission-continuity-v142.test.mjs tests/jarvis-video-operation-contract-v142.test.cjs tests/jarvis-series-continuity-v142.test.mjs tests/jarvis-reel-media-binder-v131.test.mjs tests/jarvis-reel-native-mp4-v138.test.mjs
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
       - name: Inspect jarvisVideoGenerate production logs
