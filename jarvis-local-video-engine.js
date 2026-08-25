@@ -6,14 +6,16 @@ import { execFileSync, spawn } from "node:child_process";
 
 import { registerArtifact } from "./jarvis-artifact-studio.js";
 
-export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.0.0-v142-progressive-internal-first";
+export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.1.0-v142-multibackend-internal-first";
 export const VIDEO_ENGINE_MODES = Object.freeze([
     "CURRENT_STABLE",
     "LOCAL_TEST",
     "LOCAL_PREFERRED",
     "LOCAL_ONLY"
 ]);
-export const LOCAL_VIDEO_MODEL_PROFILE = Object.freeze({
+
+const WAN22_TI2V_5B = Object.freeze({
+    backend: "wan22-ti2v-5b",
     id: "Wan-AI/Wan2.2-TI2V-5B",
     model: "Wan2.2-TI2V-5B",
     provider: "local",
@@ -28,6 +30,45 @@ export const LOCAL_VIDEO_MODEL_PROFILE = Object.freeze({
     minimumFreeDiskGb: 45,
     officialRepository: "https://github.com/Wan-Video/Wan2.2",
     officialWeights: "https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B"
+});
+
+const WAN21_T2V_1_3B = Object.freeze({
+    backend: "wan21-t2v-1.3b",
+    id: "Wan-AI/Wan2.1-T2V-1.3B",
+    model: "Wan2.1-T2V-1.3B",
+    provider: "local",
+    license: "Apache-2.0",
+    textToVideo: true,
+    imageToVideo: false,
+    referenceAssets: false,
+    targetResolution: "480p",
+    targetFps: 16,
+    minimumVramGb: 8.19,
+    checkpointSizeGb: 17.6,
+    minimumFreeDiskGb: 25,
+    officialRepository: "https://github.com/Wan-Video/Wan2.1",
+    officialWeights: "https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B"
+});
+
+export const LOCAL_VIDEO_MODEL_PROFILES = Object.freeze({
+    [WAN22_TI2V_5B.backend]: WAN22_TI2V_5B,
+    [WAN21_T2V_1_3B.backend]: WAN21_T2V_1_3B
+});
+
+// Backward-compatible default. No existing deployment changes model unless explicitly configured.
+export const LOCAL_VIDEO_MODEL_PROFILE = WAN22_TI2V_5B;
+
+const LOCAL_VIDEO_MODEL_ALIASES = Object.freeze({
+    "wan22": WAN22_TI2V_5B.backend,
+    "wan2.2": WAN22_TI2V_5B.backend,
+    "wan2.2-ti2v-5b": WAN22_TI2V_5B.backend,
+    "wan22-ti2v-5b": WAN22_TI2V_5B.backend,
+    "wan21": WAN21_T2V_1_3B.backend,
+    "wan2.1": WAN21_T2V_1_3B.backend,
+    "wan2.1-t2v-1.3b": WAN21_T2V_1_3B.backend,
+    "wan21-t2v-1.3b": WAN21_T2V_1_3B.backend,
+    "light": WAN21_T2V_1_3B.backend,
+    "local-light": WAN21_T2V_1_3B.backend
 });
 
 function booleanValue(value, fallback) {
@@ -46,6 +87,38 @@ function normalizedMode(value) {
     return VIDEO_ENGINE_MODES.includes(mode) ? mode : "CURRENT_STABLE";
 }
 
+function requestedLocalModel(env = process.env) {
+    return String(
+        env.JARVIS_LOCAL_VIDEO_MODEL ||
+        env.JARVIS_LOCAL_VIDEO_BACKEND ||
+        LOCAL_VIDEO_MODEL_PROFILE.backend
+    ).trim().toLowerCase();
+}
+
+export function resolveLocalVideoModelProfile({ env = process.env, hardware = null } = {}) {
+    const requested = requestedLocalModel(env);
+    if (requested === "auto") {
+        if (hardware) {
+            const vramGb = Number(hardware.vramGb || 0);
+            const freeDiskGb = Number(hardware.freeDiskGb || 0);
+            const candidates = [WAN22_TI2V_5B, WAN21_T2V_1_3B];
+            const compatible = candidates.find(profile =>
+                hardware.cudaAvailable !== false &&
+                vramGb >= profile.minimumVramGb &&
+                freeDiskGb >= profile.minimumFreeDiskGb
+            );
+            if (compatible) return compatible;
+            const vramCompatible = candidates.find(profile =>
+                hardware.cudaAvailable !== false && vramGb >= profile.minimumVramGb
+            );
+            if (vramCompatible) return vramCompatible;
+        }
+        return LOCAL_VIDEO_MODEL_PROFILE;
+    }
+    const backend = LOCAL_VIDEO_MODEL_ALIASES[requested] || requested;
+    return LOCAL_VIDEO_MODEL_PROFILES[backend] || LOCAL_VIDEO_MODEL_PROFILE;
+}
+
 export function describeLocalVideoPolicy(env = process.env) {
     const mode = normalizedMode(env.JARVIS_VIDEO_ENGINE_POLICY);
     return {
@@ -55,6 +128,7 @@ export function describeLocalVideoPolicy(env = process.env) {
         localImageEnabled: booleanValue(env.JARVIS_LOCAL_IMAGE_ENABLED, false),
         localSpeechEnabled: booleanValue(env.JARVIS_LOCAL_SPEECH_ENABLED, false),
         localVideoCertified: booleanValue(env.JARVIS_LOCAL_VIDEO_CERTIFIED, false),
+        localVideoModel: requestedLocalModel(env),
         externalFallbackEnabled: booleanValue(env.JARVIS_EXTERNAL_FALLBACK_ENABLED, true),
         externalBudgetUsdPerOperation: mode === "LOCAL_TEST"
             ? 0
@@ -236,19 +310,23 @@ export function inspectLocalVideoHardware({ root = process.cwd(), env = process.
     const wsl = commandPath("wsl", env);
     const freeDiskGb = diskFreeGb(root);
     const cudaAvailable = Boolean(nvidiaSmi && vramGb > 0);
+    const model = resolveLocalVideoModelProfile({
+        env,
+        hardware: { cudaAvailable, vramGb, freeDiskGb }
+    });
     const ready = cudaAvailable &&
-        vramGb >= LOCAL_VIDEO_MODEL_PROFILE.minimumVramGb &&
-        freeDiskGb >= LOCAL_VIDEO_MODEL_PROFILE.minimumFreeDiskGb &&
+        vramGb >= model.minimumVramGb &&
+        freeDiskGb >= model.minimumFreeDiskGb &&
         Boolean(ffmpeg) && Boolean(ffprobe);
     const blockingReasons = [];
     if (!cudaAvailable) blockingReasons.push("LOCAL_VIDEO_CUDA_UNAVAILABLE");
-    if (vramGb < LOCAL_VIDEO_MODEL_PROFILE.minimumVramGb) blockingReasons.push("LOCAL_VIDEO_VRAM_INSUFFICIENT");
-    if (freeDiskGb < LOCAL_VIDEO_MODEL_PROFILE.minimumFreeDiskGb) blockingReasons.push("LOCAL_VIDEO_DISK_INSUFFICIENT");
+    if (vramGb < model.minimumVramGb) blockingReasons.push("LOCAL_VIDEO_VRAM_INSUFFICIENT");
+    if (freeDiskGb < model.minimumFreeDiskGb) blockingReasons.push("LOCAL_VIDEO_DISK_INSUFFICIENT");
     if (!ffmpeg || !ffprobe) blockingReasons.push("LOCAL_VIDEO_FFMPEG_UNAVAILABLE");
     let status = "LOCAL_VIDEO_HARDWARE_READY";
     if (!cudaAvailable) status = "LOCAL_VIDEO_CUDA_UNAVAILABLE";
-    else if (vramGb < LOCAL_VIDEO_MODEL_PROFILE.minimumVramGb) status = "LOCAL_VIDEO_VRAM_INSUFFICIENT";
-    else if (freeDiskGb < LOCAL_VIDEO_MODEL_PROFILE.minimumFreeDiskGb) status = "LOCAL_VIDEO_DISK_INSUFFICIENT";
+    else if (vramGb < model.minimumVramGb) status = "LOCAL_VIDEO_VRAM_INSUFFICIENT";
+    else if (freeDiskGb < model.minimumFreeDiskGb) status = "LOCAL_VIDEO_DISK_INSUFFICIENT";
     else if (!ffmpeg || !ffprobe) status = "LOCAL_VIDEO_FFMPEG_UNAVAILABLE";
     return {
         ok: ready,
@@ -273,8 +351,26 @@ export function inspectLocalVideoHardware({ root = process.cwd(), env = process.
         cpuLogicalCores: os.cpus().length,
         ramGb: Number((os.totalmem() / (1024 ** 3)).toFixed(2)),
         platform: process.platform,
-        modelRequirements: LOCAL_VIDEO_MODEL_PROFILE
+        requestedModel: requestedLocalModel(env),
+        selectedBackend: model.backend,
+        modelRequirements: model
     };
+}
+
+function compatibleModelProfiles(hardware = {}) {
+    const vramGb = Number(hardware.vramGb || 0);
+    const freeDiskGb = Number(hardware.freeDiskGb || 0);
+    return Object.values(LOCAL_VIDEO_MODEL_PROFILES).map(profile => ({
+        backend: profile.backend,
+        model: profile.model,
+        compatible: hardware.cudaAvailable !== false &&
+            vramGb >= profile.minimumVramGb &&
+            freeDiskGb >= profile.minimumFreeDiskGb,
+        minimumVramGb: profile.minimumVramGb,
+        minimumFreeDiskGb: profile.minimumFreeDiskGb,
+        targetResolution: profile.targetResolution,
+        imageToVideo: profile.imageToVideo
+    }));
 }
 
 export function buildLocalAiCapabilityReport({
@@ -283,6 +379,7 @@ export function buildLocalAiCapabilityReport({
     hardware = inspectLocalVideoHardware({ root, env })
 } = {}) {
     const policy = describeLocalVideoPolicy(env);
+    const selectedVideoModel = hardware.modelRequirements || resolveLocalVideoModelProfile({ env, hardware });
     const localVideoSupported = hardware.ok === true;
     return {
         reportType: "LOCAL_AI_CAPABILITY_REPORT",
@@ -291,7 +388,8 @@ export function buildLocalAiCapabilityReport({
         root: path.resolve(root),
         policy,
         hardware,
-        selectedVideoModel: LOCAL_VIDEO_MODEL_PROFILE,
+        selectedVideoModel,
+        candidateVideoModels: compatibleModelProfiles(hardware),
         localVideoReadiness: {
             supported: localVideoSupported,
             status: hardware.status,
@@ -498,6 +596,7 @@ export function createLocalVideoEngine({
 
     function health() {
         const hardware = inspectHardware();
+        const model = resolveLocalVideoModelProfile({ env, hardware });
         const runner = commandPath(env.JARVIS_LOCAL_VIDEO_RUNNER, env);
         const runnerScript = path.resolve(String(env.JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT || ""));
         const modelDirectory = path.resolve(String(env.JARVIS_LOCAL_VIDEO_MODEL_DIR || ""));
@@ -526,7 +625,8 @@ export function createLocalVideoEngine({
             runner: runner || null,
             runnerScript: env.JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT ? runnerScript : null,
             modelDirectory: env.JARVIS_LOCAL_VIDEO_MODEL_DIR ? modelDirectory : null,
-            model: LOCAL_VIDEO_MODEL_PROFILE
+            selectedBackend: model.backend,
+            model
         };
     }
 
@@ -558,6 +658,19 @@ export function createLocalVideoEngine({
         catch(error) {
             return { ok: false, status: error.message, error: error.message };
         }
+        const model = currentHealth.model || resolveLocalVideoModelProfile({ env, hardware: currentHealth });
+        if (references.length > 0 && model.referenceAssets !== true) {
+            return {
+                ok: false,
+                status: "LOCAL_VIDEO_REFERENCES_UNSUPPORTED_BY_BACKEND",
+                error: "LOCAL_VIDEO_REFERENCES_UNSUPPORTED_BY_BACKEND",
+                backend: model.backend,
+                model: model.model,
+                retryable: false,
+                externalApiUsed: false,
+                externalEstimatedCostUsd: 0
+            };
+        }
 
         const operationId = randomUUID();
         const operationName = `local-video/${operationId}`;
@@ -571,7 +684,8 @@ export function createLocalVideoEngine({
             operationName,
             engine: "local",
             provider: "local",
-            model: LOCAL_VIDEO_MODEL_PROFILE.model,
+            backend: model.backend,
+            model: model.model,
             modelDirectory: path.resolve(env.JARVIS_LOCAL_VIDEO_MODEL_DIR),
             script,
             prompts,
@@ -598,7 +712,8 @@ export function createLocalVideoEngine({
             updatedAt: now().toISOString(),
             engine: "local",
             provider: "local",
-            model: LOCAL_VIDEO_MODEL_PROFILE.model,
+            backend: model.backend,
+            model: model.model,
             externalApiUsed: false,
             externalEstimatedCostUsd: 0
         };
@@ -723,6 +838,8 @@ export function createLocalVideoEngine({
                 throw new Error("LOCAL_VIDEO_MEDIA_METADATA_INVALID");
             }
             const sha256 = createHash("sha256").update(fs.readFileSync(output.resolved)).digest("hex");
+            const model = result.model || operation.model || LOCAL_VIDEO_MODEL_PROFILE.model;
+            const backend = result.backend || operation.backend || LOCAL_VIDEO_MODEL_PROFILE.backend;
             const artifact = registerArtifact({
                 root: resolvedRoot,
                 output: output.normalized,
@@ -730,7 +847,8 @@ export function createLocalVideoEngine({
                     type: "video",
                     origin: "video.generate",
                     provider: "local",
-                    model: result.model || LOCAL_VIDEO_MODEL_PROFILE.model,
+                    backend,
+                    model,
                     mimeType: "video/mp4",
                     status: "VIDEO_GENERATED_VERIFIED",
                     approvalRequired: false,
@@ -756,7 +874,8 @@ export function createLocalVideoEngine({
                 fps: Number(media.fps),
                 width: Number(media.width),
                 height: Number(media.height),
-                model: result.model || LOCAL_VIDEO_MODEL_PROFILE.model,
+                backend,
+                model,
                 engine: "local",
                 provider: "local",
                 physicallyWritten: true,
