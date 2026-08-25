@@ -454,7 +454,7 @@ test("V142 reel media dependency evaluates the verified reel-plan handoff before
     const source = fs.readFileSync(
         new URL("../gestia-core/jarvis/jarvis.mission.orchestrator.js", import.meta.url),
         "utf8"
-    );
+    ).replace(/\r\n/g, "\n");
     const handoffIndex = source.indexOf("const reelDependencyTask =");
     const dependencyIndex = source.indexOf("reelMediaDependencyCall(\n                reelDependencyTask");
     const recoveryIndex = source.indexOf("reelMediaRecoveryState(\n                reelDependencyTask");
