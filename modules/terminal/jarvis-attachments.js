@@ -491,7 +491,8 @@ async function renderArtifact(output, mimeType = "", toolName = "") {
             resolvedMimeType === "application/pdf" ||
             resolvedMimeType === "text/html" ||
             resolvedMimeType.startsWith("image/") ||
-            resolvedMimeType.startsWith("text/");
+            resolvedMimeType.startsWith("text/") ||
+            resolvedMimeType.startsWith("video/");
         if (canOpen) {
             const open = createElement("a", "inline-flex items-center gap-2 rounded-lg border border-slate-500 hover:border-slate-300 px-3 py-2 text-xs font-semibold text-slate-100", "Abrir");
             open.href = objectUrl;
