@@ -1,9 +1,16 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 import test from "node:test";
 
 import { runJarvisMission } from "../gestia-core/jarvis/jarvis.mission.orchestrator.js";
 import { compactMissionPlannerObservation } from "../gestia-core/jarvis/jarvis.mission.planner-state.js";
 import { registerJarvisActuatorTools } from "../gestia-core/jarvis/jarvis.actuator.pack.js";
+import {
+    buildLocalAiCapabilityReport,
+    LOCAL_VIDEO_MODEL_PROFILE,
+    resolveLocalVideoModelProfile
+} from "../jarvis-local-video-engine.js";
 
 function memoryStorage() {
     const values = new Map();
@@ -203,4 +210,83 @@ test("v142 four verified references reach video.generate and fail closed with th
         mission.blockedTasks[0].observation.status,
         "VIDEO_REFERENCE_IMAGE_LIMIT_EXCEEDED"
     );
+});
+
+test("v142 local video keeps Wan2.2 as the deterministic default and exposes a light backend explicitly", () => {
+    const stable = resolveLocalVideoModelProfile({ env: {} });
+    const light = resolveLocalVideoModelProfile({
+        env: { JARVIS_LOCAL_VIDEO_MODEL: "wan21-t2v-1.3b" },
+        hardware: { cudaAvailable: true, vramGb: 12, freeDiskGb: 80 }
+    });
+
+    assert.equal(stable, LOCAL_VIDEO_MODEL_PROFILE);
+    assert.equal(stable.backend, "wan22-ti2v-5b");
+    assert.equal(stable.minimumVramGb, 24);
+    assert.equal(light.backend, "wan21-t2v-1.3b");
+    assert.equal(light.model, "Wan2.1-T2V-1.3B");
+    assert.equal(light.minimumVramGb, 8.19);
+    assert.equal(light.targetResolution, "480p");
+    assert.equal(light.imageToVideo, false);
+    assert.equal(light.referenceAssets, false);
+});
+
+test("v142 AUTO selects the strongest compatible local backend without changing CURRENT_STABLE", () => {
+    const twelveGb = resolveLocalVideoModelProfile({
+        env: { JARVIS_LOCAL_VIDEO_MODEL: "auto" },
+        hardware: { cudaAvailable: true, vramGb: 12, freeDiskGb: 80 }
+    });
+    const twentyFourGb = resolveLocalVideoModelProfile({
+        env: { JARVIS_LOCAL_VIDEO_MODEL: "auto" },
+        hardware: { cudaAvailable: true, vramGb: 24, freeDiskGb: 80 }
+    });
+    const report = buildLocalAiCapabilityReport({
+        root: process.cwd(),
+        env: { JARVIS_LOCAL_VIDEO_MODEL: "auto" },
+        hardware: {
+            ok: true,
+            status: "LOCAL_VIDEO_HARDWARE_READY",
+            cudaAvailable: true,
+            gpuName: "TEST_GPU_12GB",
+            vramGb: 12,
+            freeDiskGb: 80,
+            ffmpegAvailable: true,
+            ffprobeAvailable: true
+        }
+    });
+
+    assert.equal(twelveGb.backend, "wan21-t2v-1.3b");
+    assert.equal(twentyFourGb.backend, "wan22-ti2v-5b");
+    assert.equal(report.selectedVideoModel.backend, "wan21-t2v-1.3b");
+    assert.equal(
+        report.candidateVideoModels.find(item => item.backend === "wan21-t2v-1.3b").compatible,
+        true
+    );
+    assert.equal(
+        report.candidateVideoModels.find(item => item.backend === "wan22-ti2v-5b").compatible,
+        false
+    );
+    assert.equal(report.promotion.current, "CURRENT_STABLE");
+});
+
+test("v142 offline Wan runner contains both certified backends and parses as Python", () => {
+    const runner = "scripts/jarvis-local-video-wan22.py";
+    const source = fs.readFileSync(runner, "utf8");
+    for (const marker of [
+        "wan22-ti2v-5b",
+        "wan21-t2v-1.3b",
+        "JARVIS_WAN22_REPO_DIR",
+        "JARVIS_WAN21_REPO_DIR",
+        "--sample_shift",
+        "--sample_guide_scale",
+        "LOCAL_VIDEO_REFERENCES_UNSUPPORTED_BY_BACKEND",
+        'environment["HF_HUB_OFFLINE"] = "1"',
+        'environment["TRANSFORMERS_OFFLINE"] = "1"'
+    ]) {
+        assert.equal(source.includes(marker), true, `missing runner marker: ${marker}`);
+    }
+    const python = process.platform === "win32" ? "python" : "python3";
+    execFileSync(python, [
+        "-c",
+        `import ast,pathlib; ast.parse(pathlib.Path(${JSON.stringify(runner)}).read_text(encoding='utf-8'))`
+    ], { stdio: "pipe" });
 });
