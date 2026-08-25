@@ -923,19 +923,15 @@ export function registerJarvisActuatorTools(runtime) {
                     !requestedOutput.includes("../")
                         ? requestedOutput
                         : `.jarvis-artifacts/videos/mini-drama-${Date.now()}.mp4`;
-                let artifact;
-                try {
-                    artifact = await bridgeRequest("/video/import", {
-                        url: finalCloud.downloadUrl,
-                        expectedSha256: finalCloud.sha256,
-                        output,
-                        provider: finalCloud.provider || "google-veo",
-                        model: finalCloud.model
-                    }, 240000);
-                } finally {
-                    if (finalCloud?.storageObject) {
-                        try { await callAdminFunction("jarvisVideoGenerate", { action: "cleanup", storageObject: finalCloud.storageObject }); } catch {}
-                    }
+                const artifact = await bridgeRequest("/video/import", {
+                    url: finalCloud.downloadUrl,
+                    expectedSha256: finalCloud.sha256,
+                    output,
+                    provider: finalCloud.provider || "google-veo",
+                    model: finalCloud.model
+                }, 240000);
+                if (finalCloud?.storageObject) {
+                    try { await callAdminFunction("jarvisVideoGenerate", { action: "cleanup", storageObject: finalCloud.storageObject }); } catch {}
                 }
                 const durationSeconds = 8 + Math.max(0, prompts.length - 1) * 7;
                 const finalResult = {

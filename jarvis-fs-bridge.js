@@ -2039,9 +2039,17 @@ export async function saveGeneratedVideoArtifactFromUrl({
     try { parsed = new URL(rawUrl); }
     catch { throw new Error("VIDEO_IMPORT_URL_INVALID"); }
     const host = parsed.hostname.toLowerCase();
+    const googleStorageHost =
+        host === "storage.googleapis.com" ||
+        host.endsWith(".storage.googleapis.com");
+    const firebaseStorageDownload =
+        host === "firebasestorage.googleapis.com" &&
+        parsed.pathname.startsWith("/v0/b/fixgo-44e4d.firebasestorage.app/o/") &&
+        parsed.searchParams.get("alt") === "media" &&
+        Boolean(parsed.searchParams.get("token"));
     if (
         parsed.protocol !== "https:" ||
-        !(host === "storage.googleapis.com" || host.endsWith(".storage.googleapis.com"))
+        !(googleStorageHost || firebaseStorageDownload)
     ) {
         throw new Error("VIDEO_IMPORT_URL_NOT_ALLOWED");
     }

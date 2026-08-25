@@ -508,3 +508,30 @@ test("V142 video actuator keeps the same Veo operation across transient poll fai
     assert.match(source, /retryable: response.status >= 500/);
     assert.match(source, /started.operationName/);
 });
+
+test("V142 video import accepts only the controlled Firebase Storage download URL", () => {
+    const source = fs.readFileSync(
+        new URL("../jarvis-fs-bridge.js", import.meta.url),
+        "utf8"
+    );
+    assert.match(source, /host === "firebasestorage\.googleapis\.com"/);
+    assert.match(source, /fixgo-44e4d\.firebasestorage\.app/);
+    assert.match(source, /parsed\.searchParams\.get\("alt"\) === "media"/);
+    assert.match(source, /parsed\.searchParams\.get\("token"\)/);
+    assert.match(source, /VIDEO_IMPORT_SHA256_REQUIRED/);
+});
+
+test("V142 video cloud cleanup happens only after the physical import succeeds", () => {
+    const source = fs.readFileSync(
+        new URL("../gestia-core/jarvis/jarvis.actuator.pack.js", import.meta.url),
+        "utf8"
+    );
+    const importIndex = source.indexOf('const artifact = await bridgeRequest("/video/import"');
+    const cleanupIndex = source.indexOf('action: "cleanup"', importIndex);
+    assert.ok(importIndex >= 0);
+    assert.ok(cleanupIndex > importIndex);
+    assert.doesNotMatch(
+        source.slice(importIndex, cleanupIndex),
+        /finallys*{/
+    );
+});
