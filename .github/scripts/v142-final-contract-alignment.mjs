@@ -24,354 +24,150 @@ function appendOnce(file, marker, addition) {
   write(file, source);
 }
 
-function ensureVerifiedReelPlanHandoffPrecedesMediaRecovery() {
-  const file = "gestia-core/jarvis/jarvis.mission.orchestrator.js";
-  const marker = "const reelDependencyTask =";
-
-  if (!sourceOf(file).includes(marker)) {
-    replaceExactOnce(
-      file,
-      [
-        "        const mediaDependency =",
-        "            reelMediaDependencyCall(",
-        "                task,",
-        "                mission",
-        "            );"
-      ].join("\n"),
-      [
-        "        const reelDependencyTask =",
-        "            task?.name === \"reel.create\"",
-        "                ? {",
-        "                    ...task,",
-        "                    args:",
-        "                        reelCreateArgsFromVerifiedPlan(",
-        "                            task.args,",
-        "                            mission",
-        "                        ).args",
-        "                }",
-        "                : task;",
-        "        const mediaDependency =",
-        "            reelMediaDependencyCall(",
-        "                reelDependencyTask,",
-        "                mission",
-        "            );"
-      ].join("\n"),
-      "V142_REEL_VERIFIED_PLAN_BEFORE_MEDIA_DEPENDENCY"
-    );
-  }
-
-  replaceExactOnce(
-    file,
-    [
-      "            reelMediaRecoveryState(",
-      "                task,",
-      "                mission",
-      "            );"
-    ].join("\n"),
-    [
-      "            reelMediaRecoveryState(",
-      "                reelDependencyTask,",
-      "                mission",
-      "            );"
-    ].join("\n"),
-    "V142_REEL_VERIFIED_PLAN_BEFORE_MEDIA_RECOVERY"
-  );
-}
-
-function ensureMiniDramaSingleVideoCallPolicy() {
-  const file = "gestia-core/jarvis/jarvis.multifunction.planner.js";
-  const before = '    "Para mini dramas nuevos, divide semanticamente el guion en hasta cuatro escenas consecutivas cuando ayude a la continuidad. video.generate puede extender el video generado entre escenas; los medios externos siguen siendo solo evidencia o referencia salvo reutilizacion solicitada de forma inequivoca.",';
-  const after = '    "Para un mismo mini drama nuevo, selecciona UNA sola llamada video.generate y entrega dentro de scenes hasta cuatro escenas consecutivas cuando ayude a la continuidad. No emitas una llamada video.generate independiente por escena: la herramienta conserva previousVideo y extiende el mismo video entre escenas. Los medios externos siguen siendo solo evidencia o referencia salvo reutilizacion solicitada de forma inequivoca.",';
-  if (sourceOf(file).includes(before)) {
-    replaceExactOnce(
-      file,
-      before,
-      after,
-      "V142_MINIDRAMA_SINGLE_VIDEO_CALL_POLICY"
-    );
-  }
-}
-
-function ensureMiniDramaSceneConsolidation() {
-  const file = "gestia-core/jarvis/jarvis.multifunction.planner.js";
-  const marker = "SEMANTIC_MINIDRAMA_SCENES_CONSOLIDATED";
-  if (sourceOf(file).includes(marker)) return;
-
+function ensureFirebaseVideoImportContract() {
+  const file = "jarvis-fs-bridge.js";
   const before = [
-    "    return enforceMissionIsolation(",
-    "        calls,",
-    "        allowed",
-    "    );",
-    "}"
+    "    const host = parsed.hostname.toLowerCase();",
+    "    if (",
+    "        parsed.protocol !== \"https:\" ||",
+    "        !(host === \"storage.googleapis.com\" || host.endsWith(\".storage.googleapis.com\"))",
+    "    ) {",
+    "        throw new Error(\"VIDEO_IMPORT_URL_NOT_ALLOWED\");",
+    "    }"
   ].join("\n");
-
   const after = [
-    "    const isolatedCalls = enforceMissionIsolation(",
-    "        calls,",
-    "        allowed",
-    "    );",
-    "    const videoCalls = isolatedCalls.filter(call => call?.name === \"video.generate\");",
-    "    if (videoCalls.length <= 1) {",
-    "        return isolatedCalls;",
-    "    }",
-    "    const videoTool = allowed.get(\"video.generate\");",
-    "    const firstVideoIndex = isolatedCalls.findIndex(call => call?.name === \"video.generate\");",
-    "    const scenePrompts = videoCalls.flatMap(call => {",
-    "        const args = call?.args || {};",
-    "        const declaredScenes = Array.isArray(args.scenes) ? args.scenes : [];",
-    "        if (declaredScenes.length > 0) {",
-    "            return declaredScenes.map(scene =>",
-    "                typeof scene === \"string\"",
-    "                    ? scene.trim()",
-    "                    : String(scene?.prompt || scene?.visual || scene?.description || \"\").trim()",
-    "            );",
-    "        }",
-    "        return [String(args.prompt || args.script || \"\").trim()];",
-    "    }).filter(Boolean).filter((value, index, values) => values.indexOf(value) === index).slice(0, 4);",
-    "    const firstVideo = videoCalls[0];",
-    "    const combinedArgs = {",
-    "        ...(firstVideo?.args || {}),",
-    "        script: String(firstVideo?.args?.script || context?.originalInstruction || firstVideo?.args?.prompt || \"\").trim(),",
-    "        scenes: scenePrompts.map(prompt => ({ prompt }))",
-    "    };",
-    "    const combinedVideo = {",
-    "        ...firstVideo,",
-    "        args: combinedArgs,",
-    "        reason: \"SEMANTIC_MINIDRAMA_SCENES_CONSOLIDATED\",",
-    "        ...(videoTool ? { missionDedupeKey: missionDedupeKey(videoTool, combinedArgs) } : {})",
-    "    };",
-    "    const consolidated = isolatedCalls.filter(call => call?.name !== \"video.generate\");",
-    "    consolidated.splice(Math.max(0, firstVideoIndex), 0, combinedVideo);",
-    "    return consolidated;",
-    "}"
+    "    const host = parsed.hostname.toLowerCase();",
+    "    const googleStorageHost =",
+    "        host === \"storage.googleapis.com\" ||",
+    "        host.endsWith(\".storage.googleapis.com\");",
+    "    const firebaseStorageDownload =",
+    "        host === \"firebasestorage.googleapis.com\" &&",
+    "        parsed.pathname.startsWith(\"/v0/b/fixgo-44e4d.firebasestorage.app/o/\") &&",
+    "        parsed.searchParams.get(\"alt\") === \"media\" &&",
+    "        Boolean(parsed.searchParams.get(\"token\"));",
+    "    if (",
+    "        parsed.protocol !== \"https:\" ||",
+    "        !(googleStorageHost || firebaseStorageDownload)",
+    "    ) {",
+    "        throw new Error(\"VIDEO_IMPORT_URL_NOT_ALLOWED\");",
+    "    }"
   ].join("\n");
 
   replaceExactOnce(
     file,
     before,
     after,
-    "V142_MINIDRAMA_SCENE_CONSOLIDATION"
+    "V142_FIREBASE_VIDEO_IMPORT_ALLOWLIST"
   );
 }
 
-function ensureVideoPollClientResilience() {
+function ensureCloudCleanupAfterPhysicalImport() {
   const file = "gestia-core/jarvis/jarvis.actuator.pack.js";
-  let source = sourceOf(file);
-
-  const oldErrorReturn = [
-    "        return {",
-    "            ok: false,",
-    "            status: `CLOUD_FUNCTION_HTTP_${response.status}`,",
-    "            error: errorMessage,",
-    "            cloudCode: payload?.error?.status || payload?.error?.code || null",
-    "        };"
-  ].join("\n");
-  const newErrorReturn = [
-    "        return {",
-    "            ok: false,",
-    "            status: `CLOUD_FUNCTION_HTTP_${response.status}`,",
-    "            error: errorMessage,",
-    "            cloudCode: payload?.error?.status || payload?.error?.code || null,",
-    "            errorDetails:",
-    "                errorDetails && typeof errorDetails === \"object\"",
-    "                    ? errorDetails",
-    "                    : null,",
-    "            retryable: response.status >= 500",
-    "        };"
-  ].join("\n");
-  if (source.includes(oldErrorReturn)) {
-    replaceExactOnce(
-      file,
-      oldErrorReturn,
-      newErrorReturn,
-      "V142_VIDEO_FUNCTION_ERROR_DETAILS"
-    );
-    source = sourceOf(file);
-  }
-
-  const pollMarker = "consecutivePollFailures";
-  if (source.includes(pollMarker)) return;
-  const oldPoll = [
-    "                    let segment = null;",
-    "                    for (let attempt = 0; attempt < 36; attempt += 1) {",
-    "                        await new Promise(resolve => setTimeout(resolve, 10000));",
-    "                        const polled = await callAdminFunction(\"jarvisVideoGenerate\", {",
-    "                            action: \"poll\", operationName: started.operationName, finalize: index === prompts.length - 1",
-    "                        });",
-    "                        if (polled?.ok !== true) {",
-    "                            return { ...polled, ok: false, executionOk: false, objectiveSatisfied: false, status: polled?.status || \"VIDEO_GENERATION_POLL_FAILED\" };",
-    "                        }",
-    "                        if (polled?.done !== true) continue;",
-    "                        segment = polled;",
-    "                        break;",
-    "                    }"
-  ].join("\n");
-  const newPoll = [
-    "                    let segment = null;",
-    "                    let consecutivePollFailures = 0;",
-    "                    let lastPollFailure = null;",
-    "                    for (let attempt = 0; attempt < 36; attempt += 1) {",
-    "                        await new Promise(resolve => setTimeout(resolve, 10000));",
-    "                        const polled = await callAdminFunction(\"jarvisVideoGenerate\", {",
-    "                            action: \"poll\", operationName: started.operationName, finalize: index === prompts.length - 1",
-    "                        });",
-    "                        if (polled?.ok !== true) {",
-    "                            lastPollFailure = polled;",
-    "                            const transientPollFailure =",
-    "                                polled?.retryable === true ||",
-    "                                String(polled?.status || \"\").startsWith(\"CLOUD_FUNCTION_HTTP_5\");",
-    "                            consecutivePollFailures += 1;",
-    "                            if (transientPollFailure && consecutivePollFailures <= 3) {",
-    "                                continue;",
-    "                            }",
-    "                            return { ...polled, ok: false, executionOk: false, objectiveSatisfied: false, status: polled?.status || \"VIDEO_GENERATION_POLL_FAILED\" };",
-    "                        }",
-    "                        consecutivePollFailures = 0;",
-    "                        lastPollFailure = null;",
-    "                        if (polled?.done !== true) continue;",
-    "                        segment = polled;",
-    "                        break;",
+  const before = [
+    "                let artifact;",
+    "                try {",
+    "                    artifact = await bridgeRequest(\"/video/import\", {",
+    "                        url: finalCloud.downloadUrl,",
+    "                        expectedSha256: finalCloud.sha256,",
+    "                        output,",
+    "                        provider: finalCloud.provider || \"google-veo\",",
+    "                        model: finalCloud.model",
+    "                    }, 240000);",
+    "                } finally {",
+    "                    if (finalCloud?.storageObject) {",
+    "                        try { await callAdminFunction(\"jarvisVideoGenerate\", { action: \"cleanup\", storageObject: finalCloud.storageObject }); } catch {}",
     "                    }",
-    "                    if (!segment && lastPollFailure) {",
-    "                        return { ...lastPollFailure, ok: false, executionOk: false, objectiveSatisfied: false, status: lastPollFailure?.status || \"VIDEO_GENERATION_POLL_FAILED\" };",
-    "                    }"
+    "                }"
   ].join("\n");
+  const after = [
+    "                const artifact = await bridgeRequest(\"/video/import\", {",
+    "                    url: finalCloud.downloadUrl,",
+    "                    expectedSha256: finalCloud.sha256,",
+    "                    output,",
+    "                    provider: finalCloud.provider || \"google-veo\",",
+    "                    model: finalCloud.model",
+    "                }, 240000);",
+    "                if (finalCloud?.storageObject) {",
+    "                    try { await callAdminFunction(\"jarvisVideoGenerate\", { action: \"cleanup\", storageObject: finalCloud.storageObject }); } catch {}",
+    "                }"
+  ].join("\n");
+
   replaceExactOnce(
     file,
-    oldPoll,
-    newPoll,
-    "V142_VIDEO_POLL_SAME_OPERATION_RETRY"
+    before,
+    after,
+    "V142_VIDEO_CLEANUP_AFTER_PHYSICAL_IMPORT"
   );
 }
 
 function ensureRegressionContract() {
   const file = "tests/jarvis-mobile-web-research-recovery-v142.test.mjs";
-  const marker = "V142 reel media dependency evaluates the verified reel-plan handoff before external recovery";
+
+  const allowlistMarker =
+    "V142 video import accepts only the controlled Firebase Storage download URL";
   appendOnce(
     file,
-    marker,
-    `test("${marker}", () => {
+    allowlistMarker,
+    `test("${allowlistMarker}", () => {
     const source = fs.readFileSync(
-        new URL("../gestia-core/jarvis/jarvis.mission.orchestrator.js", import.meta.url),
+        new URL("../jarvis-fs-bridge.js", import.meta.url),
         "utf8"
     );
-    const normalized = source.replace(/\\r\\n/g, "\\n");
-    const handoffIndex = normalized.indexOf("const reelDependencyTask =");
-    const dependencyIndex = normalized.indexOf("reelMediaDependencyCall(\\n                reelDependencyTask");
-    const recoveryIndex = normalized.indexOf("reelMediaRecoveryState(\\n                reelDependencyTask");
-    const executionHandoffIndex = normalized.indexOf("const reelPlanHandoff =", dependencyIndex);
-
-    assert.ok(handoffIndex >= 0);
-    assert.ok(dependencyIndex > handoffIndex);
-    assert.ok(recoveryIndex > dependencyIndex);
-    assert.ok(executionHandoffIndex > recoveryIndex);
+    assert.match(source, /host === \"firebasestorage\\.googleapis\\.com\"/);
+    assert.match(source, /fixgo-44e4d\\.firebasestorage\\.app/);
+    assert.match(source, /parsed\\.searchParams\\.get\\(\"alt\"\\) === \"media\"/);
+    assert.match(source, /parsed\\.searchParams\\.get\\(\"token\"\\)/);
+    assert.match(source, /VIDEO_IMPORT_SHA256_REQUIRED/);
 });`
   );
 
-  const miniDramaMarker = "V142 mini-drama consolidates semantic scene calls into one video.generate execution";
+  const cleanupMarker =
+    "V142 video cloud cleanup happens only after the physical import succeeds";
   appendOnce(
     file,
-    miniDramaMarker,
-    `test("${miniDramaMarker}", () => {
-    const videoTool = {
-        name: "video.generate",
-        mutates: true,
-        requiresApproval: false,
-        userArtifact: true,
-        missionDedupeBy: ["output"],
-        inputSchema: {}
-    };
-    const calls = plannerTest.trustedPlanCalls({
-        planKind: "MISSION_CONTRACT",
-        toolCalls: [
-            { name: "video.generate", args: { prompt: "escena uno", output: ".jarvis-artifacts/videos/scene-1.mp4" } },
-            { name: "video.generate", args: { prompt: "escena dos", output: ".jarvis-artifacts/videos/scene-2.mp4" } },
-            { name: "video.generate", args: { prompt: "escena tres", output: ".jarvis-artifacts/videos/scene-3.mp4" } },
-            { name: "video.generate", args: { prompt: "escena cuatro", output: ".jarvis-artifacts/videos/scene-4.mp4" } }
-        ]
-    }, [videoTool], {
-        originalInstruction: "Produce un mini drama continuo con cuatro escenas.",
-        missionState: { phase: "MISSION_CONTRACT" }
-    });
-
-    const videos = calls.filter(call => call.name === "video.generate");
-    assert.equal(videos.length, 1);
-    assert.equal(videos[0].reason, "SEMANTIC_MINIDRAMA_SCENES_CONSOLIDATED");
-    assert.equal(videos[0].args.scenes.length, 4);
-    assert.deepEqual(
-        videos[0].args.scenes.map(scene => scene.prompt),
-        ["escena uno", "escena dos", "escena tres", "escena cuatro"]
-    );
-});`
-  );
-
-  const pollMarker = "V142 video actuator keeps the same Veo operation across transient poll failures";
-  appendOnce(
-    file,
-    pollMarker,
-    `test("${pollMarker}", () => {
+    cleanupMarker,
+    `test("${cleanupMarker}", () => {
     const source = fs.readFileSync(
         new URL("../gestia-core/jarvis/jarvis.actuator.pack.js", import.meta.url),
         "utf8"
     );
-    assert.match(source, /consecutivePollFailures/);
-    assert.match(source, /lastPollFailure/);
-    assert.match(source, /retryable: response\.status >= 500/);
-    assert.match(source, /started\.operationName/);
+    const importIndex = source.indexOf('const artifact = await bridgeRequest("/video/import"');
+    const cleanupIndex = source.indexOf('action: "cleanup"', importIndex);
+    assert.ok(importIndex >= 0);
+    assert.ok(cleanupIndex > importIndex);
+    assert.doesNotMatch(
+        source.slice(importIndex, cleanupIndex),
+        /finally\s*\{/
+    );
 });`
   );
 }
 
-ensureVerifiedReelPlanHandoffPrecedesMediaRecovery();
-ensureMiniDramaSingleVideoCallPolicy();
-ensureMiniDramaSceneConsolidation();
-ensureVideoPollClientResilience();
+ensureFirebaseVideoImportContract();
+ensureCloudCleanupAfterPhysicalImport();
 ensureRegressionContract();
 
 const checks = [
   ["gestia-core/jarvis/jarvis.multifunction.planner.js", [
     "GENERALIST_CURRENT_TURN_POLICY",
-    "Los medios recopilados desde publicaciones o fuentes externas son evidencia y referencia",
-    "el medio externo sigue siendo evidencia",
-    "logotipo oficial verificado",
     "SEMANTIC_MINIDRAMA_SCENES_CONSOLIDATED",
     "UNA sola llamada video.generate"
   ]],
-  ["gestia-core/jarvis/jarvis.mission.dependencies.js", [
-    '"image.generate": 28',
-    "ORIGINAL_REEL_CREATIVE_DEPENDENCY",
-    "explicitExistingMediaEdit"
-  ]],
-  ["gestia-core/jarvis/jarvis.reel.media-binder.js", [
-    "reelMediaCollectionState",
-    '".jarvis-artifacts/images/"',
-    '"image.generate"',
-    "creativeAssets",
-    "collectedSceneAssets"
-  ]],
-  ["gestia-core/jarvis/jarvis.multitool.pack.js", [
-    "REEL_GENERATED_SCENE_MEDIA_REQUIRED",
-    "sourceMediaPolicy",
-    'waitingFor: "image.generate"'
-  ]],
   ["gestia-core/jarvis/jarvis.actuator.pack.js", [
-    'name: "image.generate"',
-    'name: "reel.create"',
     'name: "video.generate"',
-    'asset?.mediaRole === "brand_logo"',
     "consecutivePollFailures",
-    "errorDetails",
-    "retryable: response.status >= 500"
-  ]],
-  ["gestia-core/jarvis/jarvis.mission.orchestrator.js", [
-    "const reelDependencyTask =",
-    "reelMediaDependencyCall(\n                reelDependencyTask",
-    "reelMediaRecoveryState(\n                reelDependencyTask"
+    'const artifact = await bridgeRequest("/video/import"',
+    'action: "cleanup"'
   ]],
   ["jarvis-fs-bridge.js", [
+    'app.post("/video/import"',
+    'host === "firebasestorage.googleapis.com"',
+    'fixgo-44e4d.firebasestorage.app',
+    'parsed.searchParams.get("alt") === "media"',
+    'parsed.searchParams.get("token")',
+    "VIDEO_IMPORT_SHA256_REQUIRED",
     "REEL_VIDEO_FRAME_DENSITY_LOW:",
-    "averageRenderedFps < 20",
-    '"--enable-gpu"'
+    "averageRenderedFps < 20"
   ]]
 ];
 
@@ -379,7 +175,7 @@ for (const [file, markers] of checks) {
   const source = sourceOf(file);
   for (const marker of markers) {
     if (!source.includes(marker)) {
-      throw new Error(`V142_ORIGINAL_REEL_CONTRACT_MISSING:${file}:${marker}`);
+      throw new Error(`V142_AUDIOVISUAL_CONTRACT_MISSING:${file}:${marker}`);
     }
   }
 }
@@ -392,10 +188,11 @@ console.log(JSON.stringify({
   sourceMediaEvidenceOnlyByDefault: true,
   generatedCreativeTool: "image.generate",
   finalVideoTool: "reel.create",
+  miniDramaTool: "video.generate",
   miniDramaSingleVideoCall: true,
   miniDramaSameOperationPollRetry: true,
-  verifiedReelPlanHandoffBeforeLegacyMediaRecovery: true,
-  verifiedBrandLogoPropagation: true,
+  firebaseVideoImportStrictAllowlist: true,
+  cloudCleanupAfterPhysicalImport: true,
   minimumRenderedFps: 20,
   lexicalRouting: false,
   newFiles: false,
