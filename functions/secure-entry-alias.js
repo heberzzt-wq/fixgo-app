@@ -20,6 +20,11 @@ const stripeWebhookProxy = functions.https.onRequest((req, res) => {
 });
 
 const JARVIS_VEO_MODEL = "veo-3.1-generate-001";
+const JARVIS_VEO_MIGRATION = Object.freeze({
+    retiredModel: "veo-3.1-generate-preview",
+    currentModel: JARVIS_VEO_MODEL,
+    provider: "vertex-adc"
+});
 const JARVIS_VIDEO_BUCKET = "fixgo-44e4d.firebasestorage.app";
 const JARVIS_VIDEO_TEMP_PREFIX = "jarvis-video-temp";
 const JARVIS_VIDEO_LOCATION = "global";
@@ -101,8 +106,9 @@ function jarvisVideoProviderError(stage, error) {
         level: "ERROR",
         message: "JARVIS_VIDEO_PROVIDER_ERROR",
         stage,
-        provider: "vertex-adc",
+        provider: JARVIS_VEO_MIGRATION.provider,
         model: JARVIS_VEO_MODEL,
+        retiredModel: JARVIS_VEO_MIGRATION.retiredModel,
         providerCode,
         providerMessage
     }));
@@ -112,7 +118,7 @@ function jarvisVideoProviderError(stage, error) {
         `${stage}_FAILED`,
         {
             stage,
-            provider: "vertex-adc",
+            provider: JARVIS_VEO_MIGRATION.provider,
             model: JARVIS_VEO_MODEL,
             providerCode,
             providerMessage
@@ -208,7 +214,7 @@ async function finalizeJarvisVeoVideo({ ai, video, actor }) {
             cacheControl: "private,max-age=0,no-store",
             metadata: {
                 source: "jarvisVideoGenerate",
-                provider: "vertex-adc",
+                provider: JARVIS_VEO_MIGRATION.provider,
                 model: JARVIS_VEO_MODEL,
                 sha256,
                 ownerUid: actor.uid
@@ -258,7 +264,7 @@ async function finalizeJarvisVeoVideo({ ai, video, actor }) {
                 cacheControl: "private,max-age=0,no-store",
                 metadata: {
                     source: "jarvisVideoGenerate",
-                    provider: "vertex-adc",
+                    provider: JARVIS_VEO_MIGRATION.provider,
                     model: JARVIS_VEO_MODEL,
                     sha256,
                     ownerUid: actor.uid
@@ -364,7 +370,7 @@ const jarvisVideoGenerate = functions
                     uid: actor.uid,
                     operationName,
                     extension: Boolean(previousVideo),
-                    provider: "vertex-adc",
+                    provider: JARVIS_VEO_MIGRATION.provider,
                     model: JARVIS_VEO_MODEL
                 }));
                 return {
@@ -372,7 +378,7 @@ const jarvisVideoGenerate = functions
                     status: "VIDEO_GENERATION_STARTED",
                     done: false,
                     operationName,
-                    provider: "vertex-adc",
+                    provider: JARVIS_VEO_MIGRATION.provider,
                     model: JARVIS_VEO_MODEL,
                     aspectRatio,
                     extension: Boolean(previousVideo)
@@ -391,7 +397,7 @@ const jarvisVideoGenerate = functions
                         status: "VIDEO_GENERATION_PENDING",
                         done: false,
                         operationName,
-                        provider: "vertex-adc",
+                        provider: JARVIS_VEO_MIGRATION.provider,
                         model: JARVIS_VEO_MODEL
                     };
                 }
@@ -415,7 +421,7 @@ const jarvisVideoGenerate = functions
                         status: "VIDEO_SEGMENT_READY_FOR_EXTENSION",
                         done: true,
                         operationName,
-                        provider: "vertex-adc",
+                        provider: JARVIS_VEO_MIGRATION.provider,
                         model: JARVIS_VEO_MODEL,
                         video: {
                             uri: cleanText(video?.uri || video?.videoUri, 2000),
@@ -437,7 +443,7 @@ const jarvisVideoGenerate = functions
                     operationName,
                     bytes: finalized.bytes,
                     sha256: finalized.sha256,
-                    provider: "vertex-adc",
+                    provider: JARVIS_VEO_MIGRATION.provider,
                     model: JARVIS_VEO_MODEL
                 }));
                 return {
