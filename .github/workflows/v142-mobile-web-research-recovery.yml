@@ -14,6 +14,7 @@ on:
       - 'gestia-core/jarvis/jarvis.multifunction.planner.js'
       - 'gestia-core/jarvis/jarvis.marketing.engine.js'
       - 'gestia-core/jarvis/jarvis.mission.orchestrator.js'
+      - 'gestia-core/jarvis/jarvis.mission.planner-state.js'
       - 'gestia-core/jarvis/jarvis.mission.dependencies.js'
       - 'gestia-core/jarvis/jarvis.reel.media-binder.js'
       - 'gestia-core/jarvis/jarvis.actuator.pack.js'
@@ -26,6 +27,7 @@ on:
       - 'jarvis-fs-bridge.js'
       - 'jarvis-reel-artifact.js'
       - 'modules/terminal/jarvis-attachments.js'
+      - 'package.json'
       - 'tests/jarvis-attachments.test.mjs'
       - 'tests/jarvis-actuator-pack.test.mjs'
       - 'tests/jarvis-marketing-handoff-v12.test.mjs'
@@ -37,6 +39,7 @@ on:
       - 'tests/jarvis-semantic-planner.test.cjs'
       - 'tests/jarvis-source-grounded-research-v124.test.mjs'
       - 'tests/jarvis-mission-orchestrator.test.mjs'
+      - 'tests/jarvis-video-reference-mission-continuity-v142.test.mjs'
       - 'tests/jarvis-reel-native-mp4-v138.test.mjs'
       - 'tests/jarvis-reel-media-binder-v131.test.mjs'
       - 'tests/jarvis-fs-bridge-v2.test.mjs'
@@ -57,6 +60,7 @@ jobs:
     timeout-minutes: 70
     outputs:
       product_changed: ${{ steps.patch-state.outputs.product_changed }}
+      functions_changed: ${{ steps.patch-state.outputs.functions_changed }}
     steps:
       - name: Publish observable run
         continue-on-error: true
@@ -111,6 +115,7 @@ jobs:
           node --check gestia-core/jarvis/jarvis.multitool.pack.js
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
           node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
+          node --check gestia-core/jarvis/jarvis.mission.planner-state.js
           node --check gestia-core/jarvis/jarvis.mission.dependencies.js
           node --check gestia-core/jarvis/jarvis.reel.media-binder.js
           node --check gestia-core/jarvis/jarvis.actuator.pack.js
@@ -156,6 +161,7 @@ jobs:
             tests/jarvis-source-grounded-research-v124.test.mjs \
             tests/jarvis-multifunction-tools.test.mjs \
             tests/jarvis-mission-orchestrator.test.mjs \
+            tests/jarvis-video-reference-mission-continuity-v142.test.mjs \
             tests/jarvis-reel-media-binder-v131.test.mjs \
             tests/jarvis-reel-native-mp4-v138.test.mjs
 
@@ -168,7 +174,17 @@ jobs:
         run: |
           set -euo pipefail
           git diff --check
+          base="${{ github.event.before }}"
+          if [ "${{ github.event_name }}" != 'push' ] || [ -z "$base" ] || [ "$base" = '0000000000000000000000000000000000000000' ] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            base="$(git rev-parse HEAD^)"
+          fi
+          committed_changed=$(git diff --name-only "$base" "$GITHUB_SHA")
           changed=$(git diff --name-only)
+          if printf '%s\n%s\n' "$committed_changed" "$changed" | grep -Eq '^functions/'; then
+            echo 'functions_changed=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'functions_changed=false' >> "$GITHUB_OUTPUT"
+          fi
           if [ -z "$changed" ]; then
             echo 'product_changed=false' >> "$GITHUB_OUTPUT"
             exit 0
@@ -209,13 +225,14 @@ jobs:
         run: |
           node --check gestia-core/tools.bridge.js
           node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
+          node --check gestia-core/jarvis/jarvis.mission.planner-state.js
           node --check gestia-core/jarvis/jarvis.mission.dependencies.js
           node --check gestia-core/jarvis/jarvis.reel.media-binder.js
           node --check gestia-core/jarvis/jarvis.actuator.pack.js
           node --check functions/secure-entry-alias.js
           node --check jarvis-fs-bridge.js
           node --check modules/terminal/jarvis-attachments.js
-          node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-mission-orchestrator.test.mjs tests/jarvis-reel-media-binder-v131.test.mjs tests/jarvis-reel-native-mp4-v138.test.mjs
+          node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-mission-orchestrator.test.mjs tests/jarvis-video-reference-mission-continuity-v142.test.mjs tests/jarvis-reel-media-binder-v131.test.mjs tests/jarvis-reel-native-mp4-v138.test.mjs
       - name: Windows persistent artifact download lifecycle
         shell: pwsh
         run: |
@@ -281,6 +298,7 @@ jobs:
           git diff --exit-code
           node --check gestia-core/tools.bridge.js
           node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
+          node --check gestia-core/jarvis/jarvis.mission.planner-state.js
           node --check gestia-core/jarvis/jarvis.mission.dependencies.js
           node --check gestia-core/jarvis/jarvis.reel.media-binder.js
           node --check gestia-core/jarvis/jarvis.actuator.pack.js
@@ -288,7 +306,7 @@ jobs:
           node --check jarvis-fs-bridge.js
           node --check modules/terminal/jarvis-attachments.js
           node --input-type=module -e "import fs from 'node:fs'; const s=fs.readFileSync('modules/terminal/jarvis-attachments.js','utf8'); const c=s.slice(s.indexOf('function clear()'),s.indexOf('function observationTool')); if(!s.includes('artifactObjectUrls: new Set()')||!s.includes('state.artifactObjectUrls.add(objectUrl)')||!s.includes('persistentArtifactDownloads: true')||c.includes('artifactObjectUrls')) throw new Error('V142_ARTIFACT_DOWNLOAD_LIFECYCLE_INVALID');"
-          node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-mission-orchestrator.test.mjs tests/jarvis-reel-media-binder-v131.test.mjs tests/jarvis-reel-native-mp4-v138.test.mjs
+          node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-mission-orchestrator.test.mjs tests/jarvis-video-reference-mission-continuity-v142.test.mjs tests/jarvis-reel-media-binder-v131.test.mjs tests/jarvis-reel-native-mp4-v138.test.mjs
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
       - name: Inspect jarvisSemanticPlan production logs
@@ -301,6 +319,7 @@ jobs:
           test -n "$FIREBASE_TOKEN"
           firebase functions:log --only jarvisSemanticPlan --lines 100 --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
       - name: Deploy V142 video and semantic functions only
+        if: ${{ needs.certify-linux.outputs.functions_changed == 'true' }}
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         shell: bash
@@ -309,6 +328,7 @@ jobs:
           test -n "$FIREBASE_TOKEN"
           firebase deploy --only functions:jarvisVideoGenerate,functions:jarvisSemanticPlan --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
       - name: Verify V142 function deployments
+        if: ${{ needs.certify-linux.outputs.functions_changed == 'true' }}
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         shell: bash
