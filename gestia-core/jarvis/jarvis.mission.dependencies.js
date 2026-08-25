@@ -1,4 +1,4 @@
-const VERSION = "1.4.0-grounded-social-edit-contract-v12";
+const VERSION = "1.5.0-scene-complete-reel-creative-v142";
 
 const MISSION_STAGE_BY_TOOL = Object.freeze({
     "web.research": 10,
@@ -265,8 +265,7 @@ function injectPageComposeDependency(calls = [], available = new Set()) {
             ...(String(seed.brandName || "").trim() ? { brandName: String(seed.brandName).trim() } : {}),
             ...(String(seed.title || "").trim() ? { title: String(seed.title).trim() } : {}),
             ...(String(seed.contactEmail || "").trim() ? { contactEmail: String(seed.contactEmail).trim() } : {}),
-            ...(String(seed.whatsapp || "").trim() ? { whatsapp: String(seed.whatsapp).trim() } : {}),
-            ...(seed.whatsappRequested === true ? { whatsappRequested: true } : {})
+            ...(String(seed.whatsapp || "").trim() ? { whatsapp: String(seed.whatsapp).trim() } : {})
         },
         approved: false,
         reason: "STRUCTURAL_PAGE_CREATE_DEPENDENCY"
@@ -302,7 +301,7 @@ export function ensureExecutableArtifactDependencies({
         const policy = clean(reelPlan?.args?.sourceMediaPolicy).toLowerCase() || "generated";
         if (policy !== "reuse") {
             const scenes = Array.isArray(reelPlan?.args?.scenes)
-                ? reelPlan.args.scenes.filter(Boolean).slice(0, 3)
+                ? reelPlan.args.scenes.filter(Boolean).slice(0, 8)
                 : [];
             const brandName = clean(reelPlan?.args?.brandName);
             const generatedCalls = (scenes.length > 0 ? scenes : [{ visual: reelPlan?.args?.title || brandName }])
@@ -314,6 +313,7 @@ export function ensureExecutableArtifactDependencies({
                             brandName ? `Marca: ${brandName}.` : "",
                             clean(scene?.visual) ? `Escena: ${clean(scene.visual)}.` : "",
                             clean(scene?.overlay) ? `Intencion visual: ${clean(scene.overlay)}.` : "",
+                            "La composicion debe variar claramente de las otras escenas: cambia encuadre, escala, angulo o accion sugerida segun la funcion narrativa de esta escena.",
                             "No copies capturas, thumbnails ni fotogramas de publicaciones de referencia.",
                             "No generes logotipos, marcas de agua ni texto incrustado; el logotipo oficial se compone por separado cuando exista evidencia verificada."
                         ].filter(Boolean).join(" "),
@@ -343,6 +343,8 @@ export function describeMissionDependencies() {
         currentDependency: "research -> marketing.plan -> verified media -> composition -> uniquely identified physical artifacts",
         marketingArtifactIdentity: true,
         groundedSocialEdits: true,
+        sceneCompleteReelCreative: true,
+        reelCreativeSceneCap: 8,
         stages: { ...MISSION_STAGE_BY_TOOL }
     };
 }
