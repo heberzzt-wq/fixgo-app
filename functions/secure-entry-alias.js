@@ -8,6 +8,7 @@
 
 const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
+const { getDownloadURL } = require("firebase-admin/storage");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const os = require("node:os");
@@ -101,6 +102,10 @@ function jarvisVideoProviderError(stage, error) {
         error,
         900
     ) || "VIDEO_PROVIDER_ERROR";
+    const clientMessage = cleanText(
+        `${stage}_FAILED | ${providerCode} | ${providerMessage}`,
+        1100
+    );
 
     console.error(JSON.stringify({
         level: "ERROR",
@@ -115,7 +120,7 @@ function jarvisVideoProviderError(stage, error) {
 
     return new functions.https.HttpsError(
         "internal",
-        `${stage}_FAILED`,
+        clientMessage,
         {
             stage,
             provider: JARVIS_VEO_MIGRATION.provider,
@@ -147,6 +152,33 @@ function rehydrateVideoOperation(operationName) {
         throw new Error("VIDEO_OPERATION_REHYDRATION_INVALID");
     }
     return operation;
+}
+
+async function pollJarvisVideoOperation(ai, operationName) {
+    let lastError = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+            const operationReference = rehydrateVideoOperation(operationName);
+            return await ai.operations.get({
+                operation: operationReference
+            });
+        }
+        catch(error) {
+            lastError = error;
+            console.warn(JSON.stringify({
+                level: "WARN",
+                message: "JARVIS_VIDEO_POLL_RETRY",
+                operationName: normalizeOperationName(operationName),
+                attempt: attempt + 1,
+                providerCode: cleanText(error?.code || error?.status || error?.name, 160) || "UNKNOWN",
+                providerMessage: cleanText(error?.message || error, 500) || "VIDEO_POLL_ERROR"
+            }));
+            if (attempt < 2) {
+                await new Promise(resolve => setTimeout(resolve, 750 * (attempt + 1)));
+            }
+        }
+    }
+    throw lastError || new Error("VIDEO_GENERATION_POLL_TRANSPORT_FAILED");
 }
 
 function normalizePreviousVideo(value) {
@@ -218,6 +250,7 @@ async function finalizeJarvisVeoVideo({ ai, video, actor }) {
         const file = bucket.file(ownedStorageObject);
         const [bytes] = await file.download();
         const sha256 = verifyJarvisVideoBytes(bytes);
+        const downloadToken = crypto.randomUUID();
         await file.setMetadata({
             contentType: "video/mp4",
             cacheControl: "private,max-age=0,no-store",
@@ -226,13 +259,11 @@ async function finalizeJarvisVeoVideo({ ai, video, actor }) {
                 provider: JARVIS_VEO_MIGRATION.provider,
                 model: JARVIS_VEO_MODEL,
                 sha256,
-                ownerUid: actor.uid
+                ownerUid: actor.uid,
+                firebaseStorageDownloadTokens: downloadToken
             }
         });
-        const [downloadUrl] = await file.getSignedUrl({
-            action: "read",
-            expires: Date.now() + 15 * 60 * 1000
-        });
+        const downloadUrl = await getDownloadURL(file);
         return {
             downloadUrl,
             storageObject: ownedStorageObject,
@@ -265,6 +296,7 @@ async function finalizeJarvisVeoVideo({ ai, video, actor }) {
             `${Date.now()}-${sha256.slice(0, 16)}.mp4`
         ].join("/");
         const file = bucket.file(storageObject);
+        const downloadToken = crypto.randomUUID();
 
         await file.save(bytes, {
             resumable: false,
@@ -276,15 +308,13 @@ async function finalizeJarvisVeoVideo({ ai, video, actor }) {
                     provider: JARVIS_VEO_MIGRATION.provider,
                     model: JARVIS_VEO_MODEL,
                     sha256,
-                    ownerUid: actor.uid
+                    ownerUid: actor.uid,
+                    firebaseStorageDownloadTokens: downloadToken
                 }
             }
         });
 
-        const [downloadUrl] = await file.getSignedUrl({
-            action: "read",
-            expires: Date.now() + 15 * 60 * 1000
-        });
+        const downloadUrl = await getDownloadURL(file);
 
         return {
             downloadUrl,
@@ -397,10 +427,7 @@ const jarvisVideoGenerate = functions
             if (action === "poll") {
                 stage = "VIDEO_GENERATION_POLL";
                 const operationName = normalizeOperationName(data?.operationName);
-                const operationReference = rehydrateVideoOperation(operationName);
-                const operation = await ai.operations.getVideosOperation({
-                    operation: operationReference
-                });
+                const operation = await pollJarvisVideoOperation(ai, operationName);
                 if (!operation?.done) {
                     return {
                         ok: true,
