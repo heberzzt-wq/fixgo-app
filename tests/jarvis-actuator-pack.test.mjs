@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import {
@@ -23,6 +24,19 @@ function createRuntime() {
         }
     };
 }
+
+test("cloud video adapter maps verified identity references to Veo assets and keeps extensions video-only", () => {
+    const source = readFileSync(
+        new URL("../functions/secure-entry-alias.js", import.meta.url),
+        "utf8"
+    );
+
+    assert.match(source, /function normalizeVideoReferenceImages\(/);
+    assert.match(source, /referenceType:\s*"ASSET"/);
+    assert.match(source, /referenceImages:\s*referenceImages\.map\(/);
+    assert.match(source, /VIDEO_REFERENCE_IMAGES_UNSUPPORTED_FOR_EXTENSION/);
+    assert.match(source, /const JARVIS_VEO_MODEL = "veo-3\.1-generate-001"/);
+});
 
 test("actuator pack registers browser, documents, image, delegation and connectors", () => {
     const runtime = createRuntime();
@@ -69,6 +83,12 @@ test("actuator pack registers browser, documents, image, delegation and connecto
     assert.equal(runtime.get("document.create").userArtifact, true);
     assert.equal(runtime.get("image.generate").requiresApproval, false);
     assert.equal(runtime.get("image.generate").userArtifact, true);
+    assert.equal(runtime.get("video.generate").requiresApproval, false);
+    assert.equal(runtime.get("video.generate").userArtifact, true);
+    assert.equal(
+        runtime.get("video.generate").inputSchema.referenceOutputs,
+        "array"
+    );
     assert.equal(runtime.get("document.pdf.edit").requiresApproval, false);
     assert.equal(runtime.get("document.pdf.edit").userArtifact, true);
     assert.deepEqual(
@@ -673,4 +693,142 @@ test("document.create rejects an unresolved marketing.plan source before bridge 
     finally {
         globalThis.JarvisLocalBridge = previousBridge;
     }
+});
+
+test("video generation sends three verified identity references only to the initial Veo segment", async () => {
+    const runtime = createRuntime();
+    registerJarvisActuatorTools(runtime);
+    const previousAuth = globalThis.auth;
+    const previousFetch = globalThis.fetch;
+    const previousBridge = globalThis.JarvisLocalBridge;
+    const references = ["front", "profile", "expression"].map(name => {
+        const bytes = Buffer.from(`verified-${name}-identity-reference`);
+        return {
+            output: `.jarvis-artifacts/uploads/${name}.jpg`,
+            dataBase64: bytes.toString("base64"),
+            sha256: createHash("sha256").update(bytes).digest("hex")
+        };
+    });
+    const functionCalls = [];
+
+    try {
+        globalThis.auth = {
+            currentUser: {
+                getIdToken: async () => "video-reference-token"
+            }
+        };
+        globalThis.fetch = async (_url, options = {}) => {
+            const data = JSON.parse(options.body).data;
+            functionCalls.push(data);
+            let result;
+            if (data.action === "start" && !data.previousVideo) {
+                result = { ok: true, operationName: "operations/initial-reference-video" };
+            } else if (data.action === "poll" && data.operationName.includes("initial")) {
+                result = {
+                    ok: true,
+                    done: true,
+                    video: { uri: "gs://fixgo-44e4d.firebasestorage.app/jarvis-video-temp/test/initial.mp4", mimeType: "video/mp4" }
+                };
+            } else if (data.action === "start" && data.previousVideo) {
+                result = { ok: true, operationName: "operations/extended-reference-video" };
+            } else if (data.action === "poll" && data.operationName.includes("extended")) {
+                result = {
+                    ok: true,
+                    done: true,
+                    downloadUrl: "https://firebasestorage.googleapis.com/v0/b/fixgo-44e4d.firebasestorage.app/o/video.mp4?alt=media&token=test",
+                    storageObject: "jarvis-video-temp/test/final.mp4",
+                    sha256: "a".repeat(64),
+                    provider: "google-veo-vertex",
+                    model: "veo-3.1-generate-001"
+                };
+            } else if (data.action === "cleanup") {
+                result = { ok: true, status: "VIDEO_TEMP_CLEANED" };
+            } else {
+                throw new Error(`Unexpected video function call: ${JSON.stringify(data)}`);
+            }
+            return {
+                ok: true,
+                status: 200,
+                text: async () => JSON.stringify({ result })
+            };
+        };
+        globalThis.JarvisLocalBridge = {
+            async requestJson(path, payload) {
+                if (path === "/artifact/read") {
+                    const reference = references.find(item => item.output === payload.output);
+                    return reference
+                        ? {
+                            ok: true,
+                            output: reference.output,
+                            mimeType: "image/jpeg",
+                            dataBase64: reference.dataBase64,
+                            sha256: reference.sha256
+                        }
+                        : { ok: false };
+                }
+                if (path === "/video/import") {
+                    return {
+                        ok: true,
+                        status: "VIDEO_IMPORTED_VERIFIED",
+                        output: payload.output,
+                        bytes: 120000,
+                        sha256: payload.expectedSha256,
+                        physicallyWritten: true
+                    };
+                }
+                throw new Error(`Unexpected bridge path: ${path}`);
+            }
+        };
+
+        const result = await runtime.get("video.generate").execute({
+            script: "A cinematic protagonist enters the room and continues the scene.",
+            scenes: [
+                { prompt: "The protagonist enters the room." },
+                { prompt: "The same protagonist continues toward the window." }
+            ],
+            referenceOutputs: references.map(item => item.output),
+            output: ".jarvis-artifacts/videos/identity-mini-drama.mp4"
+        }, {
+            waitForVideoPoll: async () => {}
+        });
+
+        assert.equal(result.ok, true);
+        assert.equal(result.physicallyWritten, true);
+        assert.equal(result.referenceImageCount, 3);
+        assert.equal(result.identityReferencesVerified, true);
+        assert.equal(
+            result.identityContinuityMode,
+            "initial_asset_references_then_previous_video"
+        );
+        const starts = functionCalls.filter(call => call.action === "start");
+        assert.equal(starts.length, 2);
+        assert.equal(starts[0].referenceImages.length, 3);
+        assert.deepEqual(
+            starts[0].referenceImages.map(item => item.mimeType),
+            ["image/jpeg", "image/jpeg", "image/jpeg"]
+        );
+        assert.equal(Object.hasOwn(starts[0], "previousVideo"), true);
+        assert.equal(starts[0].previousVideo, null);
+        assert.equal(Object.hasOwn(starts[1], "referenceImages"), false);
+        assert.equal(starts[1].previousVideo.uri.includes("initial.mp4"), true);
+    }
+    finally {
+        globalThis.auth = previousAuth;
+        globalThis.fetch = previousFetch;
+        globalThis.JarvisLocalBridge = previousBridge;
+    }
+});
+
+test("video generation fails closed when more than three identity references are requested", async () => {
+    const runtime = createRuntime();
+    registerJarvisActuatorTools(runtime);
+    const result = await runtime.get("video.generate").execute({
+        prompt: "Generate a cinematic video.",
+        referenceOutputs: ["one.jpg", "two.jpg", "three.jpg", "four.jpg"]
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.status, "VIDEO_REFERENCE_IMAGE_LIMIT_EXCEEDED");
+    assert.equal(result.blocked, true);
+    assert.equal(result.retryable, false);
 });

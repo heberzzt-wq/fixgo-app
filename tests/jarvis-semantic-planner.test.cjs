@@ -88,6 +88,34 @@ test("semantic planner treats search as discovery rather than completed inspecti
     );
 });
 
+test("semantic planner keeps identity photographs on generated video instead of image or reel substitutes", () => {
+    const instruction = buildSemanticSystemInstruction([
+        { name: "media.analyze", mutates: false },
+        { name: "video.generate", mutates: true },
+        { name: "image.generate", mutates: true },
+        { name: "reel.plan", mutates: false }
+    ], {
+        phase: "MISSION_CONTRACT"
+    });
+
+    assert.match(
+        instruction,
+        /fotografias de identidad[\s\S]*referencias visuales de video/
+    );
+    assert.match(
+        instruction,
+        /referenceOutputs/
+    );
+    assert.match(
+        instruction,
+        /una sola llamada video\.generate[\s\S]*scenes/
+    );
+    assert.match(
+        instruction,
+        /collage o reel de imagenes[\s\S]*reel\.plan/
+    );
+});
+
 test("semantic planner rejects calls missing schema-required arguments", () => {
     const readTool = {
         name: "repo.read",

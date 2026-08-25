@@ -29,6 +29,14 @@ const JARVIS_VEO_MIGRATION = Object.freeze({
 const JARVIS_VIDEO_BUCKET = "fixgo-44e4d.firebasestorage.app";
 const JARVIS_VIDEO_TEMP_PREFIX = "jarvis-video-temp";
 const JARVIS_VIDEO_LOCATION = "global";
+const JARVIS_VIDEO_REFERENCE_MIME_TYPES = new Set([
+    "image/jpeg",
+    "image/png",
+    "image/webp"
+]);
+const JARVIS_VIDEO_REFERENCE_MAX_COUNT = 3;
+const JARVIS_VIDEO_REFERENCE_MAX_BYTES = 7 * 1024 * 1024;
+const JARVIS_VIDEO_REFERENCE_BATCH_MAX_BYTES = 9 * 1024 * 1024;
 
 function cleanText(value = "", maxLength = 8000) {
     return String(value ?? "")
@@ -199,6 +207,89 @@ function normalizePreviousVideo(value) {
         uri,
         mimeType
     };
+}
+
+function normalizeVideoReferenceImages(value) {
+    if (value == null) return [];
+    if (!Array.isArray(value)) {
+        throw new functions.https.HttpsError(
+            "invalid-argument",
+            "VIDEO_REFERENCE_IMAGES_INVALID"
+        );
+    }
+    if (value.length > JARVIS_VIDEO_REFERENCE_MAX_COUNT) {
+        throw new functions.https.HttpsError(
+            "invalid-argument",
+            "VIDEO_REFERENCE_IMAGE_LIMIT_EXCEEDED"
+        );
+    }
+
+    let totalBytes = 0;
+    return value.map((item, index) => {
+        if (!item || typeof item !== "object" || Array.isArray(item)) {
+            throw new functions.https.HttpsError(
+                "invalid-argument",
+                "VIDEO_REFERENCE_IMAGE_INVALID"
+            );
+        }
+        const mimeType = cleanText(item.mimeType, 80).toLowerCase();
+        if (!JARVIS_VIDEO_REFERENCE_MIME_TYPES.has(mimeType)) {
+            throw new functions.https.HttpsError(
+                "invalid-argument",
+                "VIDEO_REFERENCE_IMAGE_FORMAT_UNSUPPORTED"
+            );
+        }
+        const imageBytes = String(item.imageBytes || item.dataBase64 || "")
+            .replace(/\s+/g, "")
+            .trim();
+        if (
+            !imageBytes ||
+            imageBytes.length % 4 !== 0 ||
+            !/^[A-Za-z0-9+/]*={0,2}$/.test(imageBytes)
+        ) {
+            throw new functions.https.HttpsError(
+                "invalid-argument",
+                "VIDEO_REFERENCE_IMAGE_BASE64_INVALID"
+            );
+        }
+        const bytes = Buffer.from(imageBytes, "base64");
+        if (bytes.length < 1 || bytes.toString("base64") !== imageBytes) {
+            throw new functions.https.HttpsError(
+                "invalid-argument",
+                "VIDEO_REFERENCE_IMAGE_BASE64_INVALID"
+            );
+        }
+        if (bytes.length > JARVIS_VIDEO_REFERENCE_MAX_BYTES) {
+            throw new functions.https.HttpsError(
+                "invalid-argument",
+                "VIDEO_REFERENCE_IMAGE_TOO_LARGE"
+            );
+        }
+        totalBytes += bytes.length;
+        if (totalBytes > JARVIS_VIDEO_REFERENCE_BATCH_MAX_BYTES) {
+            throw new functions.https.HttpsError(
+                "invalid-argument",
+                "VIDEO_REFERENCE_IMAGE_BATCH_TOO_LARGE"
+            );
+        }
+        const sha256 = crypto.createHash("sha256").update(bytes).digest("hex");
+        const declaredSha256 = cleanText(item.sha256, 80).toLowerCase();
+        if (declaredSha256 && declaredSha256 !== sha256) {
+            throw new functions.https.HttpsError(
+                "invalid-argument",
+                "VIDEO_REFERENCE_IMAGE_HASH_MISMATCH"
+            );
+        }
+        return {
+            image: {
+                imageBytes,
+                mimeType
+            },
+            referenceType: "ASSET",
+            index,
+            sha256
+        };
+    });
 }
 
 function ownedJarvisStorageObject(uri = "", actor = {}) {
@@ -374,6 +465,13 @@ const jarvisVideoGenerate = functions
                     );
                 }
                 const previousVideo = normalizePreviousVideo(data?.previousVideo);
+                const referenceImages = normalizeVideoReferenceImages(data?.referenceImages);
+                if (previousVideo && referenceImages.length > 0) {
+                    throw new functions.https.HttpsError(
+                        "invalid-argument",
+                        "VIDEO_REFERENCE_IMAGES_UNSUPPORTED_FOR_EXTENSION"
+                    );
+                }
                 const aspectRatio = data?.aspectRatio === "16:9" ? "16:9" : "9:16";
                 const outputPrefix = [
                     JARVIS_VIDEO_TEMP_PREFIX,
@@ -398,7 +496,15 @@ const jarvisVideoGenerate = functions
                             resolution: "720p",
                             aspectRatio,
                             durationSeconds: 8,
-                            outputGcsUri
+                            outputGcsUri,
+                            ...(referenceImages.length > 0
+                                ? {
+                                    referenceImages: referenceImages.map(reference => ({
+                                        image: reference.image,
+                                        referenceType: reference.referenceType
+                                    }))
+                                }
+                                : {})
                         }
                 };
                 const operation = await ai.models.generateVideos(request);
@@ -409,6 +515,7 @@ const jarvisVideoGenerate = functions
                     uid: actor.uid,
                     operationName,
                     extension: Boolean(previousVideo),
+                    referenceImageCount: referenceImages.length,
                     provider: JARVIS_VEO_MIGRATION.provider,
                     model: JARVIS_VEO_MODEL
                 }));
@@ -420,7 +527,13 @@ const jarvisVideoGenerate = functions
                     provider: JARVIS_VEO_MIGRATION.provider,
                     model: JARVIS_VEO_MODEL,
                     aspectRatio,
-                    extension: Boolean(previousVideo)
+                    extension: Boolean(previousVideo),
+                    referenceImageCount: referenceImages.length,
+                    identityContinuityMode: referenceImages.length > 0
+                        ? "asset_references"
+                        : previousVideo
+                            ? "previous_video"
+                            : "not_requested"
                 };
             }
 

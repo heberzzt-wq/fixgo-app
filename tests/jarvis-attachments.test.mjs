@@ -29,7 +29,7 @@ test("delivered artifact blob downloads outlive composer cleanup", () => {
     const attachments = fs.readFileSync(
         path.resolve(__dirname, "../modules/terminal/jarvis-attachments.js"),
         "utf8"
-    );
+    ).replace(/\r\n/g, "\n");
     assert.match(attachments, /previewObjectUrls: new Set\(\)/);
     assert.match(attachments, /artifactObjectUrls: new Set\(\)/);
     assert.match(attachments, /state\.previewObjectUrls\.forEach\(url => URL\.revokeObjectURL\(url\)\)/);

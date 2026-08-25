@@ -4878,3 +4878,76 @@ test("entity-not-verified research cannot satisfy the mission objective", () => 
     assert.match(source, /const primaryEntityNotVerified/);
     assert.match(source, /objectiveSatisfied:\s*false/);
 });
+
+test("identity-photo video policy preserves one generated video while image reels remain available", () => {
+    assert.match(
+        plannerTest.GENERALIST_CURRENT_TURN_POLICY,
+        /fotografias adjuntas como identidad[\s\S]*referenceOutputs/
+    );
+    assert.match(
+        plannerTest.GENERALIST_CURRENT_TURN_POLICY,
+        /collage o un reel de imagenes/
+    );
+
+    const videoTool = {
+        name: "video.generate",
+        mutates: true,
+        requiresApproval: false,
+        userArtifact: true,
+        missionDedupeBy: ["output"],
+        inputSchema: {}
+    };
+    const referenceOutputs = [
+        ".jarvis-artifacts/uploads/person-front.jpg",
+        ".jarvis-artifacts/uploads/person-profile.jpg",
+        ".jarvis-artifacts/uploads/person-expression.jpg"
+    ];
+    const calls = plannerTest.trustedPlanCalls({
+        planKind: "MISSION_CONTRACT",
+        toolCalls: [
+            {
+                name: "video.generate",
+                args: {
+                    prompt: "opening scene",
+                    referenceOutputs,
+                    output: ".jarvis-artifacts/videos/chapter.mp4"
+                }
+            },
+            {
+                name: "video.generate",
+                args: {
+                    prompt: "continuation scene",
+                    referenceOutputs,
+                    output: ".jarvis-artifacts/videos/chapter-continuation.mp4"
+                }
+            }
+        ]
+    }, [videoTool], {
+        originalInstruction: "Create a cinematic mini drama with the attached identity photographs.",
+        missionState: { phase: "MISSION_CONTRACT" }
+    });
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].name, "video.generate");
+    assert.deepEqual(calls[0].args.referenceOutputs, referenceOutputs);
+    assert.deepEqual(
+        calls[0].args.scenes.map(scene => scene.prompt),
+        ["opening scene", "continuation scene"]
+    );
+
+    const reelTool = {
+        name: "reel.plan",
+        mutates: false,
+        requiresApproval: false,
+        inputSchema: {}
+    };
+    const reelCalls = plannerTest.trustedPlanCalls({
+        planKind: "MISSION_CONTRACT",
+        toolCalls: [{ name: "reel.plan", args: { title: "Image collage reel" } }]
+    }, [reelTool], {
+        originalInstruction: "Use these photos to create an image collage reel.",
+        missionState: { phase: "MISSION_CONTRACT" }
+    });
+    assert.equal(reelCalls.length, 1);
+    assert.equal(reelCalls[0].name, "reel.plan");
+});

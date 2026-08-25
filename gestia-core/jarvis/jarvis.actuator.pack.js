@@ -12,6 +12,14 @@ import {
 } from "./jarvis.image.adapter.js?v=jarvis-official-brand-logo-v12-20260819";
 
 const VERSION = "7.26.0-official-brand-logo-v12";
+const VIDEO_REFERENCE_MIME_TYPES = new Set([
+    "image/jpeg",
+    "image/png",
+    "image/webp"
+]);
+const VIDEO_REFERENCE_MAX_COUNT = 3;
+const VIDEO_REFERENCE_MAX_BYTES = 7 * 1024 * 1024;
+const VIDEO_REFERENCE_BATCH_MAX_BYTES = 9 * 1024 * 1024;
 
 export function normalizeImageArtifactOutput(output, mimeType) {
     const extensions = {
@@ -117,6 +125,118 @@ async function sha256Base64(
         .join(
             ""
         );
+}
+
+async function readVerifiedVideoReferences(referenceOutputs = []) {
+    const outputs = (Array.isArray(referenceOutputs) ? referenceOutputs : [])
+        .map(value => String(value || "").trim())
+        .filter((value, index, values) => Boolean(value) && values.indexOf(value) === index);
+    if (outputs.length > VIDEO_REFERENCE_MAX_COUNT) {
+        return {
+            ok: false,
+            status: "VIDEO_REFERENCE_IMAGE_LIMIT_EXCEEDED",
+            error: "VIDEO_REFERENCE_IMAGE_LIMIT_EXCEEDED",
+            message: `Veo 3.1 admite como maximo ${VIDEO_REFERENCE_MAX_COUNT} referencias visuales de tipo asset.`
+        };
+    }
+
+    const references = [];
+    let totalBytes = 0;
+    for (const output of outputs) {
+        let artifact;
+        try {
+            artifact = await bridgeRequest("/artifact/read", { output }, 30000);
+        }
+        catch(error) {
+            return {
+                ok: false,
+                status: "VIDEO_REFERENCE_IMAGE_ARTIFACT_INVALID",
+                error: error?.message || "VIDEO_REFERENCE_IMAGE_ARTIFACT_INVALID",
+                referenceOutput: output
+            };
+        }
+        if (artifact?.ok !== true || !artifact?.dataBase64) {
+            return {
+                ok: false,
+                status: "VIDEO_REFERENCE_IMAGE_ARTIFACT_INVALID",
+                error: "VIDEO_REFERENCE_IMAGE_ARTIFACT_INVALID",
+                referenceOutput: output
+            };
+        }
+        const mimeType = String(artifact.mimeType || "").trim().toLowerCase();
+        if (!VIDEO_REFERENCE_MIME_TYPES.has(mimeType)) {
+            return {
+                ok: false,
+                status: "VIDEO_REFERENCE_IMAGE_FORMAT_UNSUPPORTED",
+                error: "VIDEO_REFERENCE_IMAGE_FORMAT_UNSUPPORTED",
+                referenceOutput: output,
+                mimeType: mimeType || null
+            };
+        }
+        const dataBase64 = String(artifact.dataBase64 || "")
+            .replaceAll("\r", "")
+            .replaceAll("\n", "")
+            .trim();
+        let bytes;
+        try {
+            bytes = atob(dataBase64).length;
+        }
+        catch {
+            return {
+                ok: false,
+                status: "VIDEO_REFERENCE_IMAGE_BASE64_INVALID",
+                error: "VIDEO_REFERENCE_IMAGE_BASE64_INVALID",
+                referenceOutput: output
+            };
+        }
+        if (bytes < 1 || bytes > VIDEO_REFERENCE_MAX_BYTES) {
+            return {
+                ok: false,
+                status: "VIDEO_REFERENCE_IMAGE_TOO_LARGE",
+                error: "VIDEO_REFERENCE_IMAGE_TOO_LARGE",
+                referenceOutput: output,
+                bytes,
+                maximumBytes: VIDEO_REFERENCE_MAX_BYTES
+            };
+        }
+        totalBytes += bytes;
+        if (totalBytes > VIDEO_REFERENCE_BATCH_MAX_BYTES) {
+            return {
+                ok: false,
+                status: "VIDEO_REFERENCE_IMAGE_BATCH_TOO_LARGE",
+                error: "VIDEO_REFERENCE_IMAGE_BATCH_TOO_LARGE",
+                bytes: totalBytes,
+                maximumBytes: VIDEO_REFERENCE_BATCH_MAX_BYTES
+            };
+        }
+        const sha256 = await sha256Base64(dataBase64);
+        const declaredSha256 = String(artifact.sha256 || "").trim().toLowerCase();
+        if (declaredSha256 && declaredSha256 !== sha256) {
+            return {
+                ok: false,
+                status: "VIDEO_REFERENCE_IMAGE_HASH_MISMATCH",
+                error: "VIDEO_REFERENCE_IMAGE_HASH_MISMATCH",
+                referenceOutput: output,
+                expectedSha256: declaredSha256,
+                receivedSha256: sha256
+            };
+        }
+        references.push({
+            sourceOutput: artifact.output || output,
+            imageBytes: dataBase64,
+            mimeType,
+            bytes,
+            sha256
+        });
+    }
+    return {
+        ok: true,
+        status: outputs.length > 0
+            ? "VIDEO_REFERENCE_IMAGES_VERIFIED"
+            : "VIDEO_REFERENCE_IMAGES_NOT_REQUESTED",
+        references,
+        totalBytes
+    };
 }
 
 function bridgeRequest(path, payload, timeoutMs = 60000) {
@@ -828,12 +948,13 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "video.generate",
-            description: "Genera video NUEVO real desde un guion o escenas semanticas mediante Veo. Para mini dramas produce actuacion, movimiento y audio nativos; puede extender hasta cuatro escenas consecutivas. No reutiliza videos externos salvo que el usuario lo pida de forma explicita.",
+            description: "Genera video NUEVO real desde un guion o escenas semanticas mediante Veo. Para mini dramas produce actuacion, movimiento y audio nativos; puede extender hasta cuatro escenas consecutivas. referenceOutputs acepta hasta tres artefactos de imagen locales verificados como referencias persistentes de identidad o assets: no son escenas, no disparan image.generate y no convierten el video en reel.",
             output: "VIDEO_GENERATION_RESULT",
             inputSchema: {
                 script: "string",
                 prompt: "string",
                 scenes: "array<{prompt|visual|description:string}>",
+                referenceOutputs: "array",
                 aspectRatio: "9:16|16:9",
                 output: "string",
                 caseId: "string",
@@ -844,6 +965,22 @@ export function registerJarvisActuatorTools(runtime) {
             userArtifact: true,
             missionDedupeBy: ["output"],
             execute: async (args = {}, context = {}) => {
+                const waitForVideoPoll = typeof context?.waitForVideoPoll === "function"
+                    ? context.waitForVideoPoll
+                    : delayMs => new Promise(resolve => setTimeout(resolve, delayMs));
+                const referenceResult = await readVerifiedVideoReferences(args.referenceOutputs);
+                if (referenceResult.ok !== true) {
+                    return {
+                        ...referenceResult,
+                        ok: false,
+                        executionOk: false,
+                        objectiveSatisfied: false,
+                        blocked: true,
+                        requiresInput: true,
+                        retryable: false
+                    };
+                }
+                const referenceImages = referenceResult.references;
                 const script = String(args.script || args.prompt || context.rawInput || "").trim();
                 const rawScenes = Array.isArray(args.scenes) ? args.scenes : [];
                 const scenePrompts = rawScenes
@@ -868,7 +1005,20 @@ export function registerJarvisActuatorTools(runtime) {
                             : "Continua exactamente el video anterior manteniendo personajes, vestuario, locacion, accion y continuidad narrativa."
                     ].filter(Boolean).join(" ").slice(0, 10000);
                     const started = await callAdminFunction("jarvisVideoGenerate", {
-                        action: "start", prompt: segmentPrompt, previousVideo, aspectRatio
+                        action: "start",
+                        prompt: segmentPrompt,
+                        previousVideo,
+                        aspectRatio,
+                        ...(index === 0 && referenceImages.length > 0
+                            ? {
+                                referenceImages: referenceImages.map(reference => ({
+                                    imageBytes: reference.imageBytes,
+                                    mimeType: reference.mimeType,
+                                    bytes: reference.bytes,
+                                    sha256: reference.sha256
+                                }))
+                            }
+                            : {})
                     });
                     if (started?.ok !== true || !started?.operationName) {
                         return { ...started, ok: false, executionOk: false, objectiveSatisfied: false, status: started?.status || "VIDEO_GENERATION_START_FAILED" };
@@ -877,7 +1027,7 @@ export function registerJarvisActuatorTools(runtime) {
                     let consecutivePollFailures = 0;
                     let lastPollFailure = null;
                     for (let attempt = 0; attempt < 36; attempt += 1) {
-                        await new Promise(resolve => setTimeout(resolve, 10000));
+                        await waitForVideoPoll(10000);
                         const polled = await callAdminFunction("jarvisVideoGenerate", {
                             action: "poll", operationName: started.operationName, finalize: index === prompts.length - 1
                         });
@@ -944,7 +1094,17 @@ export function registerJarvisActuatorTools(runtime) {
                     model: finalCloud.model,
                     durationSeconds,
                     sceneCount: prompts.length,
-                    sourceMode: "script_to_video",
+                    sourceMode: referenceImages.length > 0
+                        ? "identity_reference_to_video"
+                        : "script_to_video",
+                    referenceImageCount: referenceImages.length,
+                    referenceOutputs: referenceImages.map(reference => reference.sourceOutput),
+                    identityReferencesVerified: referenceImages.length > 0,
+                    identityContinuityMode: referenceImages.length > 0
+                        ? (prompts.length > 1
+                            ? "initial_asset_references_then_previous_video"
+                            : "asset_references")
+                        : "not_requested",
                     physicallyWritten: artifact?.physicallyWritten === true
                 };
                 recordCapabilityEvidence("video_generation", {
@@ -954,6 +1114,9 @@ export function registerJarvisActuatorTools(runtime) {
                     bytes: finalResult.bytes || null,
                     sha256: finalResult.sha256 || null,
                     model: finalResult.model || null,
+                    referenceImageCount: finalResult.referenceImageCount,
+                    identityReferencesVerified: finalResult.identityReferencesVerified,
+                    identityContinuityMode: finalResult.identityContinuityMode,
                     checkedAt: new Date().toISOString()
                 });
                 return finalResult;
