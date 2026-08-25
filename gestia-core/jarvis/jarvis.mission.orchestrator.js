@@ -112,6 +112,59 @@ function callSignature(call = {}) {
     return JSON.stringify(stable({ name: text(call.name, 100), args: call.args || {} }));
 }
 
+function explicitObligationId(task = {}) {
+    const args = task?.args && typeof task.args === "object" && !Array.isArray(task.args)
+        ? task.args
+        : {};
+    return text(
+        task?.artifactRequirementId ||
+        task?.obligationId ||
+        args.artifactRequirementId ||
+        args.obligationId ||
+        args.generationObligationId,
+        300
+    );
+}
+
+function logicalObligationKey(task = {}) {
+    const name = text(task?.name, 120);
+    const obligationId = explicitObligationId(task);
+    return obligationId ? `${name}::${obligationId}` : name;
+}
+
+export function verifiedArtifactDeliveryForMission({
+    completedUserArtifactTasks = [],
+    unresolvedUserArtifactTasks = []
+} = {}) {
+    const completed = Array.isArray(completedUserArtifactTasks)
+        ? completedUserArtifactTasks
+        : [];
+    const unresolved = Array.isArray(unresolvedUserArtifactTasks)
+        ? unresolvedUserArtifactTasks
+        : [];
+    if (completed.length === 0 || unresolved.length > 0) return false;
+
+    return completed.every(task => {
+        const observation = task?.observation || {};
+        const evidence = observation?.evidence && typeof observation.evidence === "object"
+            ? observation.evidence
+            : {};
+        if (observation.objectiveSatisfied !== true) return false;
+        const output = text(
+            observation.output ||
+            observation.artifact ||
+            evidence.output,
+            500
+        ).replaceAll("\\", "/");
+        const mimeType = text(observation.mimeType || evidence.mimeType, 120).toLowerCase();
+        const videoArtifact = mimeType === "video/mp4" || output.toLowerCase().endsWith(".mp4");
+        if (!videoArtifact) return true;
+        return (observation.physicallyWritten === true || evidence.physicallyWritten === true) &&
+            Number(observation.bytes || evidence.bytes || 0) > 0 &&
+            /^[a-f0-9]{64}$/i.test(text(observation.sha256 || evidence.sha256, 80));
+    });
+}
+
 function marketingArtifactOutput(task = {}) {
     return text(
         task?.observation?.artifact ||
@@ -698,6 +751,12 @@ function safeObservation(result = {}) {
             : typeof result?.retryable === "boolean"
                 ? result.retryable
                 : null;
+    const explicitFullRestartAllowed =
+        typeof payload?.fullRestartAllowed === "boolean"
+            ? payload.fullRestartAllowed
+            : typeof result?.fullRestartAllowed === "boolean"
+                ? result.fullRestartAllowed
+                : null;
     const retryable =
         explicitRetryable !== null
             ? explicitRetryable
@@ -919,6 +978,22 @@ function safeObservation(result = {}) {
         blocked,
         degraded,
         retryable,
+        fullRestartAllowed: explicitFullRestartAllowed,
+        operationName: text(payload?.operationName || result?.operationName, 800) || null,
+        stage: text(payload?.stage || result?.stage, 160) || null,
+        providerCode: text(payload?.providerCode || result?.providerCode, 160) || null,
+        providerMessage: text(payload?.providerMessage || result?.providerMessage, 1000) || null,
+        raiMediaFilteredCount: Number(payload?.raiMediaFilteredCount || result?.raiMediaFilteredCount || 0),
+        raiMediaFilteredReasons: [
+            ...new Set([
+                ...(Array.isArray(payload?.raiMediaFilteredReasons) ? payload.raiMediaFilteredReasons : []),
+                ...(Array.isArray(result?.raiMediaFilteredReasons) ? result.raiMediaFilteredReasons : [])
+            ].map(value => text(value, 500)).filter(Boolean))
+        ].slice(0, 20),
+        mimeType: text(payload?.mimeType || result?.mimeType, 120) || null,
+        physicallyWritten: payload?.physicallyWritten === true || result?.physicallyWritten === true,
+        bytes: Number(payload?.bytes || result?.bytes || 0),
+        sha256: text(payload?.sha256 || result?.sha256, 80) || null,
         sourceCount: Number(payload?.sourceCount || payload?.sources?.length || 0),
         validSources: Array.isArray(payload?.sources) ? payload.sources.slice(0, 12) : [],
         discardedSources: Array.isArray(payload?.discardedSources) ? payload.discardedSources.slice(0, 12) : [],
@@ -1122,12 +1197,30 @@ function trustedCalls(calls = [], mission) {
         mission.completedTasks
             .map(item => item.name)
     );
+    const restartGuarded = (Array.isArray(mission.blockedTasks) ? mission.blockedTasks : [])
+        .filter(item => item?.observation?.fullRestartAllowed === false);
     for (const candidate of Array.isArray(calls) ? calls : []) {
         const name = text(candidate?.name, 100);
         if (!name) continue;
         if (SINGLETON_MISSION_TOOLS.has(name) && scheduledNames.has(name)) continue;
         if (COMPLETED_SINGLETON_MISSION_TOOLS.has(name) && completedNames.has(name)) continue;
         const call = { name, args: candidate?.args && typeof candidate.args === "object" ? candidate.args : {}, approved: false };
+        const independentReplanReason = text(candidate?.independentReplanReason, 500);
+        const guardedAttempt = restartGuarded.find(item =>
+            logicalObligationKey(item) === logicalObligationKey(call)
+        );
+        if (guardedAttempt) continue;
+        const sameToolGuardedAttempt = restartGuarded.find(item => item?.name === name);
+        if (
+            sameToolGuardedAttempt &&
+            (
+                !independentReplanReason ||
+                !explicitObligationId(call) ||
+                explicitObligationId(call) === explicitObligationId(sameToolGuardedAttempt)
+            )
+        ) {
+            continue;
+        }
         const missionDedupeKey =
             text(
                 candidate?.missionDedupeKey,
@@ -1148,6 +1241,7 @@ function trustedCalls(calls = [], mission) {
         accepted.push({
             ...call,
             ...(missionDedupeKey ? { missionDedupeKey } : {}),
+            ...(independentReplanReason ? { independentReplanReason } : {}),
             signature,
             attempts: 0,
             status: "PENDING"
@@ -1490,7 +1584,7 @@ function archiveRecoveredMediaSourceAttempts(mission = {}, now = () => new Date(
 
     let reelPlanRequeued = false;
     if (recoverableReelPlan) {
-        archiveRecoveredToolAttempts(mission, "reel.plan", now);
+        archiveRecoveredToolAttempts(mission, recoverableReelPlan, now);
         const reelPlanReady = (Array.isArray(mission?.completedTasks) ? mission.completedTasks : [])
             .some(item =>
                 item?.name === "reel.plan" &&
@@ -1531,14 +1625,23 @@ function archiveRecoveredMediaSourceAttempts(mission = {}, now = () => new Date(
     };
 }
 
-function archiveRecoveredToolAttempts(mission = {}, toolName = "", now = () => new Date().toISOString()) {
-    const name = text(toolName, 120);
-    if (!["speech.synthesize", "reel.plan"].includes(name)) return;
+function archiveRecoveredToolAttempts(mission = {}, recoveredTask = "", now = () => new Date().toISOString()) {
+    const target = typeof recoveredTask === "string"
+        ? { name: recoveredTask, args: {} }
+        : recoveredTask || {};
+    const name = text(target?.name, 120);
+    if (!name) return;
+    const obligationKey = logicalObligationKey(target);
     const blocked = Array.isArray(mission?.blockedTasks) ? mission.blockedTasks : [];
-    const recovered = blocked.filter(item => item?.name === name);
+    const recovered = blocked.filter(item =>
+        item?.name === name && logicalObligationKey(item) === obligationKey
+    );
     const recoveredErrors = (Array.isArray(mission?.errors) ? mission.errors : [])
-        .filter(item => item?.tool === name);
-    if (recovered.length === 0 && recoveredErrors.length === 0) return;
+        .filter(item =>
+            item?.tool === name &&
+            (item?.obligationKey || name) === obligationKey
+        );
+    if (recovered.length === 0) return;
     mission.recoveredToolAttempts = [
         ...(Array.isArray(mission.recoveredToolAttempts)
             ? mission.recoveredToolAttempts
@@ -1549,12 +1652,17 @@ function archiveRecoveredToolAttempts(mission = {}, toolName = "", now = () => n
             reason: item.reason,
             observation: item.observation,
             errors: recoveredErrors,
+            obligationKey,
             recoveredAt: now()
         }))
     ].slice(-12);
-    mission.blockedTasks = blocked.filter(item => item?.name !== name);
+    mission.blockedTasks = blocked.filter(item =>
+        item?.name !== name || logicalObligationKey(item) !== obligationKey
+    );
     mission.errors = (Array.isArray(mission?.errors) ? mission.errors : [])
-        .filter(item => item?.tool !== name);
+        .filter(item =>
+            item?.tool !== name || (item?.obligationKey || name) !== obligationKey
+        );
 }
 
 function verifiedSpeechArtifactForReel(mission = {}) {
@@ -2100,9 +2208,7 @@ export async function runJarvisMission({
             if (task.name === "web.media.collect") {
                 archiveRecoveredMediaSourceAttempts(mission, now);
             }
-            if (task.name === "speech.synthesize") {
-                archiveRecoveredToolAttempts(mission, task.name, now);
-            }
+            archiveRecoveredToolAttempts(mission, record, now);
             mission.completedTasks.push(record);
             if (
                 task.name === "marketing.plan" &&
@@ -2135,6 +2241,7 @@ export async function runJarvisMission({
             mission.errors.push({
                 tool: task.name,
                 status: observation.status,
+                obligationKey: logicalObligationKey(record),
                 retryable: false,
                 requiresInput: observation.requiresInput,
                 requiresApproval: observation.requiresApproval,
@@ -2169,6 +2276,7 @@ export async function runJarvisMission({
             mission.errors.push({
                 tool: task.name,
                 status: observation.status,
+                obligationKey: logicalObligationKey(record),
                 retryable: true,
                 at: now()
             });
@@ -2180,6 +2288,7 @@ export async function runJarvisMission({
             mission.errors.push({
                 tool: task.name,
                 status: observation.status,
+                obligationKey: logicalObligationKey(record),
                 retryable: false,
                 at: now()
             });
@@ -2204,6 +2313,8 @@ export function recoverJarvisMission(missionId, { storage } = {}) {
 
 export const __test = {
     callSignature,
+    explicitObligationId,
+    logicalObligationKey,
     compactRoutingInstruction,
     isFailureStatus,
     safeObservation,

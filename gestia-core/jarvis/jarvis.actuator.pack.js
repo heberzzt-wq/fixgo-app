@@ -11,7 +11,7 @@ import {
     overlayBrandLogo
 } from "./jarvis.image.adapter.js?v=jarvis-official-brand-logo-v12-20260819";
 
-const VERSION = "7.26.0-official-brand-logo-v12";
+const VERSION = "7.27.0-v142-video-operation-recovery";
 const VIDEO_REFERENCE_MIME_TYPES = new Set([
     "image/jpeg",
     "image/png",
@@ -437,16 +437,29 @@ async function callAdminFunction(name, data = {}) {
             errorDetails?.error ||
             (typeof errorDetails === "string" ? errorDetails : "") ||
             `CLOUD_FUNCTION_HTTP_${response.status}`;
+        const structuredDetails =
+            errorDetails && typeof errorDetails === "object"
+                ? errorDetails
+                : null;
+        const retryable = typeof structuredDetails?.retryable === "boolean"
+            ? structuredDetails.retryable
+            : response.status >= 500;
         return {
             ok: false,
-            status: `CLOUD_FUNCTION_HTTP_${response.status}`,
+            status: String(structuredDetails?.status || `CLOUD_FUNCTION_HTTP_${response.status}`),
             error: errorMessage,
             cloudCode: payload?.error?.status || payload?.error?.code || null,
-            errorDetails:
-                errorDetails && typeof errorDetails === "object"
-                    ? errorDetails
-                    : null,
-            retryable: response.status >= 500
+            errorDetails: structuredDetails,
+            stage: structuredDetails?.stage || null,
+            providerCode: structuredDetails?.providerCode || null,
+            providerMessage: structuredDetails?.providerMessage || null,
+            operationName: structuredDetails?.operationName || null,
+            raiMediaFilteredCount: structuredDetails?.raiMediaFilteredCount,
+            raiMediaFilteredReasons: Array.isArray(structuredDetails?.raiMediaFilteredReasons)
+                ? structuredDetails.raiMediaFilteredReasons
+                : [],
+            fullRestartAllowed: structuredDetails?.fullRestartAllowed !== false,
+            retryable
         };
     }
 
@@ -1024,8 +1037,8 @@ export function registerJarvisActuatorTools(runtime) {
                         return { ...started, ok: false, executionOk: false, objectiveSatisfied: false, status: started?.status || "VIDEO_GENERATION_START_FAILED" };
                     }
                     let segment = null;
-                    let consecutivePollFailures = 0;
                     let lastPollFailure = null;
+                    let transientPollFailures = 0;
                     for (let attempt = 0; attempt < 36; attempt += 1) {
                         await waitForVideoPoll(10000);
                         const polled = await callAdminFunction("jarvisVideoGenerate", {
@@ -1036,23 +1049,60 @@ export function registerJarvisActuatorTools(runtime) {
                             const transientPollFailure =
                                 polled?.retryable === true ||
                                 String(polled?.status || "").startsWith("CLOUD_FUNCTION_HTTP_5");
-                            consecutivePollFailures += 1;
-                            if (transientPollFailure && consecutivePollFailures <= 3) {
+                            if (transientPollFailure) {
+                                transientPollFailures += 1;
                                 continue;
                             }
-                            return { ...polled, ok: false, executionOk: false, objectiveSatisfied: false, status: polled?.status || "VIDEO_GENERATION_POLL_FAILED" };
+                            return {
+                                ...polled,
+                                ok: false,
+                                executionOk: false,
+                                objectiveSatisfied: false,
+                                blocked: true,
+                                retryable: false,
+                                fullRestartAllowed: false,
+                                operationName: polled?.operationName || started.operationName,
+                                status: polled?.status || "VIDEO_GENERATION_POLL_FAILED"
+                            };
                         }
-                        consecutivePollFailures = 0;
                         lastPollFailure = null;
                         if (polled?.done !== true) continue;
                         segment = polled;
                         break;
                     }
                     if (!segment && lastPollFailure) {
-                        return { ...lastPollFailure, ok: false, executionOk: false, objectiveSatisfied: false, status: lastPollFailure?.status || "VIDEO_GENERATION_POLL_FAILED" };
+                        return {
+                            ...lastPollFailure,
+                            ok: false,
+                            executionOk: false,
+                            objectiveSatisfied: false,
+                            blocked: true,
+                            retryable: false,
+                            fullRestartAllowed: false,
+                            stage: "VIDEO_GENERATION_POLL",
+                            providerCode: lastPollFailure?.providerCode || "POLL_TRANSPORT_TIMEOUT",
+                            providerMessage: lastPollFailure?.providerMessage ||
+                                `Polling did not recover after ${transientPollFailures} transient failures.`,
+                            operationName: started.operationName,
+                            status: "VIDEO_GENERATION_POLL_TRANSPORT_TIMEOUT",
+                            error: "VIDEO_GENERATION_POLL_TRANSPORT_TIMEOUT"
+                        };
                     }
                     if (!segment) {
-                        return { ok: false, executionOk: false, objectiveSatisfied: false, status: "VIDEO_GENERATION_TIMEOUT", error: "VIDEO_GENERATION_TIMEOUT" };
+                        return {
+                            ok: false,
+                            executionOk: false,
+                            objectiveSatisfied: false,
+                            blocked: true,
+                            retryable: false,
+                            fullRestartAllowed: false,
+                            status: "VIDEO_GENERATION_TIMEOUT",
+                            error: "VIDEO_GENERATION_TIMEOUT",
+                            stage: "VIDEO_GENERATION_POLL",
+                            providerCode: "DEADLINE_EXCEEDED",
+                            providerMessage: "The video operation remained pending until the polling deadline.",
+                            operationName: started.operationName
+                        };
                     }
                     if (index < prompts.length - 1) {
                         if (!segment?.video?.uri) {
@@ -1080,16 +1130,39 @@ export function registerJarvisActuatorTools(runtime) {
                     provider: finalCloud.provider || "google-veo",
                     model: finalCloud.model
                 }, 240000);
+                const physicalArtifactVerified =
+                    artifact?.ok === true &&
+                    artifact?.physicallyWritten === true &&
+                    Number(artifact?.bytes || 0) >= 100000 &&
+                    /^[a-f0-9]{64}$/i.test(String(artifact?.sha256 || "")) &&
+                    String(artifact?.output || "").replaceAll("\\", "/") === output;
+                if (!physicalArtifactVerified) {
+                    return {
+                        ...artifact,
+                        ok: false,
+                        executionOk: false,
+                        objectiveSatisfied: false,
+                        blocked: true,
+                        retryable: false,
+                        fullRestartAllowed: false,
+                        status: "VIDEO_IMPORT_PHYSICAL_VERIFICATION_FAILED",
+                        error: "VIDEO_IMPORT_PHYSICAL_VERIFICATION_FAILED",
+                        stage: "VIDEO_IMPORT_PHYSICAL_VERIFICATION",
+                        providerCode: "PHYSICAL_MP4_NOT_VERIFIED",
+                        providerMessage: "The local import did not prove a physical MP4 with bytes and SHA-256.",
+                        operationName: finalCloud.operationName || null
+                    };
+                }
                 if (finalCloud?.storageObject) {
                     try { await callAdminFunction("jarvisVideoGenerate", { action: "cleanup", storageObject: finalCloud.storageObject }); } catch {}
                 }
                 const durationSeconds = 8 + Math.max(0, prompts.length - 1) * 7;
                 const finalResult = {
                     ...artifact,
-                    ok: artifact?.ok === true,
-                    executionOk: artifact?.ok === true,
-                    objectiveSatisfied: artifact?.ok === true,
-                    status: artifact?.ok === true ? "VIDEO_GENERATED_VERIFIED" : (artifact?.status || "VIDEO_IMPORT_FAILED"),
+                    ok: physicalArtifactVerified,
+                    executionOk: physicalArtifactVerified,
+                    objectiveSatisfied: physicalArtifactVerified,
+                    status: physicalArtifactVerified ? "VIDEO_GENERATED_VERIFIED" : (artifact?.status || "VIDEO_IMPORT_FAILED"),
                     provider: finalCloud.provider || "google-veo",
                     model: finalCloud.model,
                     durationSeconds,

@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { recoverJarvisMission, runJarvisMission, __test } from "../gestia-core/jarvis/jarvis.mission.orchestrator.js";
+import {
+    recoverJarvisMission,
+    runJarvisMission,
+    verifiedArtifactDeliveryForMission,
+    __test
+} from "../gestia-core/jarvis/jarvis.mission.orchestrator.js";
 import { planMarketingRequest } from "../gestia-core/jarvis/jarvis.marketing.engine.js";
 
 function memoryStorage() {
@@ -1406,6 +1411,127 @@ test("mission archives an earlier blocked speech attempt after verified recovery
     assert.equal(mission.recoveredToolAttempts.length, 1);
     assert.equal(mission.recoveredToolAttempts[0].observation.status, "SPEECH_LANGUAGE_VOICE_NOT_FOUND");
     assert.equal(mission.reason, "ALL_EXECUTABLE_TASKS_COMPLETED");
+});
+
+test("mission generically archives an earlier blocked attempt after the same obligation is verified", async () => {
+    let attempt = 0;
+    const mission = await runJarvisMission({
+        instruction: "Entrega un artefacto fisico y conserva el primer fallo solamente como historial.",
+        initialToolCalls: [
+            {
+                name: "artifact.render",
+                args: { artifactRequirementId: "REQUIREMENT_PRIMARY", format: "mp4", quality: "draft" }
+            },
+            {
+                name: "artifact.render",
+                args: { artifactRequirementId: "REQUIREMENT_PRIMARY", format: "mp4", quality: "final" }
+            }
+        ],
+        requiredToolNames: ["artifact.render"],
+        planner: async () => ({ toolCalls: [], missionComplete: true }),
+        execute: async call => {
+            attempt += 1;
+            if (attempt === 1) {
+                return {
+                    ok: false,
+                    executionOk: false,
+                    objectiveSatisfied: false,
+                    blocked: true,
+                    retryable: false,
+                    status: "ARTIFACT_PROVIDER_TEMPORARILY_BLOCKED",
+                    error: "ARTIFACT_PROVIDER_TEMPORARILY_BLOCKED"
+                };
+            }
+            return {
+                ok: true,
+                executionOk: true,
+                objectiveSatisfied: true,
+                status: "ARTIFACT_RENDERED_VERIFIED",
+                output: ".jarvis-artifacts/videos/recovered.mp4",
+                mimeType: "video/mp4",
+                physicallyWritten: true,
+                bytes: 120000,
+                sha256: "d".repeat(64),
+                artifactRequirementId: call.args.artifactRequirementId
+            };
+        },
+        storage: memoryStorage()
+    });
+
+    assert.equal(mission.completedTasks.length, 1);
+    assert.equal(mission.blockedTasks.length, 0);
+    assert.equal(mission.errors.length, 0);
+    assert.equal(mission.recoveredToolAttempts.length, 1);
+    assert.equal(
+        mission.recoveredToolAttempts[0].observation.status,
+        "ARTIFACT_PROVIDER_TEMPORARILY_BLOCKED"
+    );
+    assert.equal(mission.reason, "ALL_EXECUTABLE_TASKS_COMPLETED");
+    assert.equal(mission.status, "COMPLETED");
+    assert.equal(verifiedArtifactDeliveryForMission({
+        completedUserArtifactTasks: mission.completedTasks,
+        unresolvedUserArtifactTasks: [
+            ...mission.blockedTasks,
+            ...mission.pendingTasks
+        ]
+    }), true);
+});
+
+test("verified artifact delivery remains false without a physical MP4", () => {
+    assert.equal(verifiedArtifactDeliveryForMission({
+        completedUserArtifactTasks: [{
+            name: "video.generate",
+            observation: {
+                objectiveSatisfied: true,
+                output: ".jarvis-artifacts/videos/missing.mp4",
+                mimeType: "video/mp4",
+                physicallyWritten: false,
+                bytes: 0,
+                sha256: ""
+            }
+        }],
+        unresolvedUserArtifactTasks: []
+    }), false);
+});
+
+test("restart guard rejects a second full generation for the same obligation without an independent replan", () => {
+    const blocked = {
+        name: "video.generate",
+        args: {
+            artifactRequirementId: "VIDEO_PRIMARY",
+            output: ".jarvis-artifacts/videos/primary.mp4"
+        },
+        signature: "blocked-signature",
+        observation: {
+            status: "VIDEO_GENERATION_RAI_FILTERED",
+            operationName: "operations/primary",
+            fullRestartAllowed: false
+        }
+    };
+    const mission = {
+        completedTasks: [],
+        pendingTasks: [],
+        blockedTasks: [blocked]
+    };
+
+    assert.deepEqual(__test.trustedCalls([{
+        name: "video.generate",
+        args: {
+            artifactRequirementId: "VIDEO_PRIMARY",
+            output: ".jarvis-artifacts/videos/primary-retry.mp4"
+        }
+    }], mission), []);
+
+    const independent = __test.trustedCalls([{
+        name: "video.generate",
+        args: {
+            artifactRequirementId: "VIDEO_INDEPENDENT",
+            output: ".jarvis-artifacts/videos/independent.mp4"
+        },
+        independentReplanReason: "USER_REQUESTED_DISTINCT_ARTIFACT"
+    }], mission);
+    assert.equal(independent.length, 1);
+    assert.equal(independent[0].independentReplanReason, "USER_REQUESTED_DISTINCT_ARTIFACT");
 });
 
 test("reel creation receives the verified speech artifact instead of a stale planned path", async () => {

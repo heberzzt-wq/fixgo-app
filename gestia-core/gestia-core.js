@@ -48,8 +48,9 @@ import {
     prepareEvidenceGroundedConversationPlan
 } from '/gestia-core/jarvis/jarvis.conversation.composer.js?v=v94-semantic-only-evidence-v100-20260809';
 import {
-    runJarvisMission
-} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=v12-marketing-handoff-20260819';
+    runJarvisMission,
+    verifiedArtifactDeliveryForMission
+} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=v142-attempt-recovery-20260825';
 import {
     marketingArtifactArgsFromCompletedTasks,
     marketingFinalResponseFromMission
@@ -218,7 +219,7 @@ import {
     compactJarvisSemanticMemoryForPlanner
 } from '/gestia-core/jarvis/jarvis.semantic.memory.js?v=v139-semantic-continuity-20260813';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=v12-marketing-handoff-20260819';
+import '/gestia-core/tools.runtime.js?v=v142-video-operation-recovery-20260825';
 import '/gestia-core/response.composer.js?v=v94-live-human-reds-v113-20260809';
 import '/gestia-core/tools.bridge.js?v=v139-real-reel-e2e-20260812';
 
@@ -5720,12 +5721,10 @@ if (
                 true
             );
     const verifiedArtifactDelivery =
-        completedUserArtifactTasksForTitle
-            .length >
-        0 &&
-        unresolvedUserArtifactTasksForTitle
-            .length ===
-        0;
+        verifiedArtifactDeliveryForMission({
+            completedUserArtifactTasks: completedUserArtifactTasksForTitle,
+            unresolvedUserArtifactTasks: unresolvedUserArtifactTasksForTitle
+        });
     console.info(
         "[JARVIS_MISSION_OUTCOME]",
         JSON.stringify({

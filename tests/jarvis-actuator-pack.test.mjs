@@ -819,6 +819,237 @@ test("video generation sends three verified identity references only to the init
     }
 });
 
+test("video generation recovers a transient poll on the same operation without a second start", async () => {
+    const runtime = createRuntime();
+    registerJarvisActuatorTools(runtime);
+    const previousAuth = globalThis.auth;
+    const previousFetch = globalThis.fetch;
+    const previousBridge = globalThis.JarvisLocalBridge;
+    const calls = [];
+
+    try {
+        globalThis.auth = {
+            currentUser: { getIdToken: async () => "same-operation-token" }
+        };
+        globalThis.fetch = async (_url, options = {}) => {
+            const data = JSON.parse(options.body).data;
+            calls.push(data);
+            if (data.action === "start") {
+                return {
+                    ok: true,
+                    status: 200,
+                    text: async () => JSON.stringify({
+                        result: {
+                            ok: true,
+                            status: "VIDEO_GENERATION_STARTED",
+                            operationName: "operations/recover-same-operation"
+                        }
+                    })
+                };
+            }
+            const pollCount = calls.filter(call => call.action === "poll").length;
+            if (data.action === "poll" && pollCount === 1) {
+                return {
+                    ok: false,
+                    status: 500,
+                    text: async () => JSON.stringify({
+                        error: {
+                            status: "INTERNAL",
+                            message: "VIDEO_GENERATION_POLL_TRANSPORT_FAILED",
+                            details: {
+                                status: "VIDEO_GENERATION_POLL_TRANSPORT_FAILED",
+                                stage: "VIDEO_GENERATION_POLL",
+                                providerCode: "UNAVAILABLE",
+                                providerMessage: "temporary provider transport failure",
+                                retryable: true,
+                                operationName: data.operationName
+                            }
+                        }
+                    })
+                };
+            }
+            if (data.action === "poll") {
+                return {
+                    ok: true,
+                    status: 200,
+                    text: async () => JSON.stringify({
+                        result: {
+                            ok: true,
+                            status: "VIDEO_GENERATED_CLOUD_VERIFIED",
+                            done: true,
+                            operationName: data.operationName,
+                            downloadUrl: "https://firebasestorage.googleapis.com/video.mp4",
+                            storageObject: "jarvis-video-temp/test/recovered.mp4",
+                            sha256: "e".repeat(64),
+                            provider: "google-veo-vertex",
+                            model: "veo-3.1-generate-001"
+                        }
+                    })
+                };
+            }
+            return {
+                ok: true,
+                status: 200,
+                text: async () => JSON.stringify({ result: { ok: true } })
+            };
+        };
+        globalThis.JarvisLocalBridge = {
+            async requestJson(path, payload) {
+                assert.equal(path, "/video/import");
+                return {
+                    ok: true,
+                    status: "VIDEO_IMPORTED_VERIFIED",
+                    output: payload.output,
+                    physicallyWritten: true,
+                    bytes: 120000,
+                    sha256: payload.expectedSha256
+                };
+            }
+        };
+
+        const result = await runtime.get("video.generate").execute({
+            prompt: "Video verificable de un segmento.",
+            output: ".jarvis-artifacts/videos/recovered-same-operation.mp4"
+        }, { waitForVideoPoll: async () => {} });
+
+        assert.equal(result.status, "VIDEO_GENERATED_VERIFIED");
+        assert.equal(result.objectiveSatisfied, true);
+        assert.equal(result.physicallyWritten, true);
+        assert.equal(calls.filter(call => call.action === "start").length, 1);
+        const polls = calls.filter(call => call.action === "poll");
+        assert.equal(polls.length, 2);
+        assert.deepEqual(
+            polls.map(call => call.operationName),
+            ["operations/recover-same-operation", "operations/recover-same-operation"]
+        );
+    }
+    finally {
+        globalThis.auth = previousAuth;
+        globalThis.fetch = previousFetch;
+        globalThis.JarvisLocalBridge = previousBridge;
+    }
+});
+
+test("video generation surfaces RAI reasons and never restarts from zero", async () => {
+    const runtime = createRuntime();
+    registerJarvisActuatorTools(runtime);
+    const previousAuth = globalThis.auth;
+    const previousFetch = globalThis.fetch;
+    const calls = [];
+
+    try {
+        globalThis.auth = {
+            currentUser: { getIdToken: async () => "rai-token" }
+        };
+        globalThis.fetch = async (_url, options = {}) => {
+            const data = JSON.parse(options.body).data;
+            calls.push(data);
+            if (data.action === "start") {
+                return {
+                    ok: true,
+                    status: 200,
+                    text: async () => JSON.stringify({
+                        result: { ok: true, operationName: "operations/rai-filtered" }
+                    })
+                };
+            }
+            return {
+                ok: false,
+                status: 412,
+                text: async () => JSON.stringify({
+                    error: {
+                        status: "FAILED_PRECONDITION",
+                        message: "VIDEO_GENERATION_RAI_FILTERED",
+                        details: {
+                            status: "VIDEO_GENERATION_RAI_FILTERED",
+                            stage: "VIDEO_GENERATION_RESULT",
+                            providerCode: "RAI_MEDIA_FILTERED",
+                            providerMessage: "Generated media was filtered.",
+                            retryable: false,
+                            operationName: data.operationName,
+                            raiMediaFilteredReasons: ["VIOLENCE"]
+                        }
+                    }
+                })
+            };
+        };
+
+        const result = await runtime.get("video.generate").execute({
+            prompt: "Prompt que el proveedor filtro."
+        }, { waitForVideoPoll: async () => {} });
+
+        assert.equal(result.status, "VIDEO_GENERATION_RAI_FILTERED");
+        assert.equal(result.retryable, false);
+        assert.equal(result.fullRestartAllowed, false);
+        assert.deepEqual(result.raiMediaFilteredReasons, ["VIOLENCE"]);
+        assert.equal(calls.filter(call => call.action === "start").length, 1);
+        assert.equal(calls.filter(call => call.action === "poll").length, 1);
+    }
+    finally {
+        globalThis.auth = previousAuth;
+        globalThis.fetch = previousFetch;
+    }
+});
+
+test("video generation stays blocked when import does not prove a physical MP4", async () => {
+    const runtime = createRuntime();
+    registerJarvisActuatorTools(runtime);
+    const previousAuth = globalThis.auth;
+    const previousFetch = globalThis.fetch;
+    const previousBridge = globalThis.JarvisLocalBridge;
+
+    try {
+        globalThis.auth = {
+            currentUser: { getIdToken: async () => "missing-mp4-token" }
+        };
+        globalThis.fetch = async (_url, options = {}) => {
+            const data = JSON.parse(options.body).data;
+            const result = data.action === "start"
+                ? { ok: true, operationName: "operations/missing-physical-mp4" }
+                : {
+                    ok: true,
+                    done: true,
+                    operationName: data.operationName,
+                    downloadUrl: "https://firebasestorage.googleapis.com/missing.mp4",
+                    sha256: "f".repeat(64),
+                    provider: "google-veo-vertex",
+                    model: "veo-3.1-generate-001"
+                };
+            return {
+                ok: true,
+                status: 200,
+                text: async () => JSON.stringify({ result })
+            };
+        };
+        globalThis.JarvisLocalBridge = {
+            async requestJson() {
+                return {
+                    ok: true,
+                    status: "VIDEO_IMPORT_REPORTED_WITHOUT_FILE",
+                    output: ".jarvis-artifacts/videos/missing.mp4",
+                    physicallyWritten: false,
+                    bytes: 0,
+                    sha256: ""
+                };
+            }
+        };
+
+        const result = await runtime.get("video.generate").execute({
+            prompt: "No aceptes un archivo inexistente."
+        }, { waitForVideoPoll: async () => {} });
+
+        assert.equal(result.ok, false);
+        assert.equal(result.objectiveSatisfied, false);
+        assert.equal(result.blocked, true);
+        assert.equal(result.status, "VIDEO_IMPORT_PHYSICAL_VERIFICATION_FAILED");
+    }
+    finally {
+        globalThis.auth = previousAuth;
+        globalThis.fetch = previousFetch;
+        globalThis.JarvisLocalBridge = previousBridge;
+    }
+});
+
 test("video generation fails closed when more than three identity references are requested", async () => {
     const runtime = createRuntime();
     registerJarvisActuatorTools(runtime);

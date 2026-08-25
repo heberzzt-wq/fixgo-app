@@ -10,6 +10,7 @@ on:
       - '.github/scripts/v142-reel-closeout.mjs'
       - 'gestia-core/gestia-core.js'
       - 'gestia-core/tools.bridge.js'
+      - 'gestia-core/tools.runtime.js'
       - 'gestia-core/jarvis/jarvis.multitool.pack.js'
       - 'gestia-core/jarvis/jarvis.multifunction.planner.js'
       - 'gestia-core/jarvis/jarvis.marketing.engine.js'
@@ -23,6 +24,7 @@ on:
       - 'functions/jarvis-semantic-planner.js'
       - 'functions/index.js'
       - 'functions/secure-entry-alias.js'
+      - 'functions/jarvis-video-operation-contract.js'
       - 'jarvis-upload-bridge.js'
       - 'jarvis-fs-bridge.js'
       - 'jarvis-reel-artifact.js'
@@ -40,6 +42,7 @@ on:
       - 'tests/jarvis-source-grounded-research-v124.test.mjs'
       - 'tests/jarvis-mission-orchestrator.test.mjs'
       - 'tests/jarvis-video-reference-mission-continuity-v142.test.mjs'
+      - 'tests/jarvis-video-operation-contract-v142.test.cjs'
       - 'tests/jarvis-reel-native-mp4-v138.test.mjs'
       - 'tests/jarvis-reel-media-binder-v131.test.mjs'
       - 'tests/jarvis-fs-bridge-v2.test.mjs'
@@ -61,6 +64,8 @@ jobs:
     outputs:
       product_changed: ${{ steps.patch-state.outputs.product_changed }}
       functions_changed: ${{ steps.patch-state.outputs.functions_changed }}
+      video_function_changed: ${{ steps.patch-state.outputs.video_function_changed }}
+      semantic_function_changed: ${{ steps.patch-state.outputs.semantic_function_changed }}
     steps:
       - name: Publish observable run
         continue-on-error: true
@@ -112,6 +117,7 @@ jobs:
         run: |
           node --check gestia-core/gestia-core.js
           node --check gestia-core/tools.bridge.js
+          node --check gestia-core/tools.runtime.js
           node --check gestia-core/jarvis/jarvis.multitool.pack.js
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
           node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
@@ -120,6 +126,7 @@ jobs:
           node --check gestia-core/jarvis/jarvis.reel.media-binder.js
           node --check gestia-core/jarvis/jarvis.actuator.pack.js
           node --check functions/secure-entry-alias.js
+          node --check functions/jarvis-video-operation-contract.js
           node --check jarvis-upload-bridge.js
           node --check jarvis-fs-bridge.js
           node --check modules/terminal/jarvis-attachments.js
@@ -162,6 +169,7 @@ jobs:
             tests/jarvis-multifunction-tools.test.mjs \
             tests/jarvis-mission-orchestrator.test.mjs \
             tests/jarvis-video-reference-mission-continuity-v142.test.mjs \
+            tests/jarvis-video-operation-contract-v142.test.cjs \
             tests/jarvis-reel-media-binder-v131.test.mjs \
             tests/jarvis-reel-native-mp4-v138.test.mjs
 
@@ -185,13 +193,23 @@ jobs:
           else
             echo 'functions_changed=false' >> "$GITHUB_OUTPUT"
           fi
+          if printf '%s\n%s\n' "$committed_changed" "$changed" | grep -Eq '^functions/(secure-entry-alias\.js|jarvis-video-operation-contract\.js|index\.js)$'; then
+            echo 'video_function_changed=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'video_function_changed=false' >> "$GITHUB_OUTPUT"
+          fi
+          if printf '%s\n%s\n' "$committed_changed" "$changed" | grep -Eq '^functions/(jarvis-semantic-planner\.js|jarvis-genai-provider-chain\.js|index\.js)$'; then
+            echo 'semantic_function_changed=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'semantic_function_changed=false' >> "$GITHUB_OUTPUT"
+          fi
           if [ -z "$changed" ]; then
             echo 'product_changed=false' >> "$GITHUB_OUTPUT"
             exit 0
           fi
           while IFS= read -r file; do
             case "$file" in
-              gestia-core/gestia-core.js|gestia-core/tools.bridge.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|gestia-core/jarvis/jarvis.mission.orchestrator.js|gestia-core/jarvis/jarvis.mission.dependencies.js|gestia-core/jarvis/jarvis.reel.media-binder.js|gestia-core/jarvis/jarvis.actuator.pack.js|functions/jarvis-genai-provider-chain.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|functions/secure-entry-alias.js|jarvis-fs-bridge.js|jarvis-reel-artifact.js|modules/terminal/jarvis-attachments.js|tests/jarvis-actuator-pack.test.mjs|tests/jarvis-marketing-handoff-v12.test.mjs|tests/jarvis-genai-provider-chain.test.cjs|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs|tests/jarvis-mission-orchestrator.test.mjs|tests/jarvis-reel-media-binder-v131.test.mjs|tests/jarvis-reel-native-mp4-v138.test.mjs|tests/jarvis-fs-bridge-v2.test.mjs) ;;
+              .github/scripts/v142-final-contract-alignment.mjs|gestia-core/gestia-core.js|gestia-core/tools.bridge.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|gestia-core/jarvis/jarvis.mission.orchestrator.js|gestia-core/jarvis/jarvis.mission.dependencies.js|gestia-core/jarvis/jarvis.reel.media-binder.js|gestia-core/jarvis/jarvis.actuator.pack.js|functions/jarvis-genai-provider-chain.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|functions/secure-entry-alias.js|functions/jarvis-video-operation-contract.js|jarvis-fs-bridge.js|jarvis-reel-artifact.js|modules/terminal/jarvis-attachments.js|tests/jarvis-actuator-pack.test.mjs|tests/jarvis-marketing-handoff-v12.test.mjs|tests/jarvis-genai-provider-chain.test.cjs|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs|tests/jarvis-mission-orchestrator.test.mjs|tests/jarvis-video-operation-contract-v142.test.cjs|tests/jarvis-reel-media-binder-v131.test.mjs|tests/jarvis-reel-native-mp4-v138.test.mjs|tests/jarvis-fs-bridge-v2.test.mjs) ;;
               *) echo "Unexpected V142 diff: $file" >&2; exit 1 ;;
             esac
           done <<< "$changed"
@@ -224,15 +242,17 @@ jobs:
       - name: Windows syntax and focal contracts
         run: |
           node --check gestia-core/tools.bridge.js
+          node --check gestia-core/tools.runtime.js
           node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
           node --check gestia-core/jarvis/jarvis.mission.planner-state.js
           node --check gestia-core/jarvis/jarvis.mission.dependencies.js
           node --check gestia-core/jarvis/jarvis.reel.media-binder.js
           node --check gestia-core/jarvis/jarvis.actuator.pack.js
           node --check functions/secure-entry-alias.js
+          node --check functions/jarvis-video-operation-contract.js
           node --check jarvis-fs-bridge.js
           node --check modules/terminal/jarvis-attachments.js
-          node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-mission-orchestrator.test.mjs tests/jarvis-video-reference-mission-continuity-v142.test.mjs tests/jarvis-reel-media-binder-v131.test.mjs tests/jarvis-reel-native-mp4-v138.test.mjs
+          node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-mission-orchestrator.test.mjs tests/jarvis-video-reference-mission-continuity-v142.test.mjs tests/jarvis-video-operation-contract-v142.test.cjs tests/jarvis-reel-media-binder-v131.test.mjs tests/jarvis-reel-native-mp4-v138.test.mjs
       - name: Windows persistent artifact download lifecycle
         shell: pwsh
         run: |
@@ -261,7 +281,7 @@ jobs:
           test -n "$changed"
           while IFS= read -r file; do
             case "$file" in
-              gestia-core/gestia-core.js|gestia-core/tools.bridge.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|gestia-core/jarvis/jarvis.mission.orchestrator.js|gestia-core/jarvis/jarvis.mission.dependencies.js|gestia-core/jarvis/jarvis.reel.media-binder.js|gestia-core/jarvis/jarvis.actuator.pack.js|functions/jarvis-genai-provider-chain.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|functions/secure-entry-alias.js|jarvis-fs-bridge.js|jarvis-reel-artifact.js|modules/terminal/jarvis-attachments.js|tests/jarvis-actuator-pack.test.mjs|tests/jarvis-marketing-handoff-v12.test.mjs|tests/jarvis-genai-provider-chain.test.cjs|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs|tests/jarvis-mission-orchestrator.test.mjs|tests/jarvis-reel-media-binder-v131.test.mjs|tests/jarvis-reel-native-mp4-v138.test.mjs|tests/jarvis-fs-bridge-v2.test.mjs) ;;
+              .github/scripts/v142-final-contract-alignment.mjs|gestia-core/gestia-core.js|gestia-core/tools.bridge.js|gestia-core/jarvis/jarvis.multitool.pack.js|gestia-core/jarvis/jarvis.multifunction.planner.js|gestia-core/jarvis/jarvis.marketing.engine.js|gestia-core/jarvis/jarvis.mission.orchestrator.js|gestia-core/jarvis/jarvis.mission.dependencies.js|gestia-core/jarvis/jarvis.reel.media-binder.js|gestia-core/jarvis/jarvis.actuator.pack.js|functions/jarvis-genai-provider-chain.js|functions/jarvis-semantic-planner.js|functions/jarvis-web-research.js|functions/index.js|functions/secure-entry-alias.js|functions/jarvis-video-operation-contract.js|jarvis-fs-bridge.js|jarvis-reel-artifact.js|modules/terminal/jarvis-attachments.js|tests/jarvis-actuator-pack.test.mjs|tests/jarvis-marketing-handoff-v12.test.mjs|tests/jarvis-genai-provider-chain.test.cjs|tests/jarvis-multifunction-tools.test.mjs|tests/jarvis-semantic-planner.test.cjs|tests/jarvis-web-research.test.cjs|tests/jarvis-mobile-web-research-recovery-v142.test.mjs|tests/jarvis-source-grounded-research-v124.test.mjs|tests/jarvis-mission-orchestrator.test.mjs|tests/jarvis-video-operation-contract-v142.test.cjs|tests/jarvis-reel-media-binder-v131.test.mjs|tests/jarvis-reel-native-mp4-v138.test.mjs|tests/jarvis-fs-bridge-v2.test.mjs) ;;
               *) echo "Unexpected certified V142 diff: $file" >&2; exit 1 ;;
             esac
           done <<< "$changed"
@@ -297,19 +317,22 @@ jobs:
           node .github/scripts/v142-reel-closeout.mjs
           git diff --exit-code
           node --check gestia-core/tools.bridge.js
+          node --check gestia-core/tools.runtime.js
           node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
           node --check gestia-core/jarvis/jarvis.mission.planner-state.js
           node --check gestia-core/jarvis/jarvis.mission.dependencies.js
           node --check gestia-core/jarvis/jarvis.reel.media-binder.js
           node --check gestia-core/jarvis/jarvis.actuator.pack.js
           node --check functions/secure-entry-alias.js
+          node --check functions/jarvis-video-operation-contract.js
           node --check jarvis-fs-bridge.js
           node --check modules/terminal/jarvis-attachments.js
           node --input-type=module -e "import fs from 'node:fs'; const s=fs.readFileSync('modules/terminal/jarvis-attachments.js','utf8'); const c=s.slice(s.indexOf('function clear()'),s.indexOf('function observationTool')); if(!s.includes('artifactObjectUrls: new Set()')||!s.includes('state.artifactObjectUrls.add(objectUrl)')||!s.includes('persistentArtifactDownloads: true')||c.includes('artifactObjectUrls')) throw new Error('V142_ARTIFACT_DOWNLOAD_LIFECYCLE_INVALID');"
-          node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-mission-orchestrator.test.mjs tests/jarvis-video-reference-mission-continuity-v142.test.mjs tests/jarvis-reel-media-binder-v131.test.mjs tests/jarvis-reel-native-mp4-v138.test.mjs
+          node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-mission-orchestrator.test.mjs tests/jarvis-video-reference-mission-continuity-v142.test.mjs tests/jarvis-video-operation-contract-v142.test.cjs tests/jarvis-reel-media-binder-v131.test.mjs tests/jarvis-reel-native-mp4-v138.test.mjs
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
-      - name: Inspect jarvisSemanticPlan production logs
+      - name: Inspect jarvisVideoGenerate production logs
+        if: ${{ needs.certify-linux.outputs.video_function_changed == 'true' }}
         continue-on-error: true
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
@@ -317,18 +340,18 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$FIREBASE_TOKEN"
-          firebase functions:log --only jarvisSemanticPlan --lines 100 --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
-      - name: Deploy V142 video and semantic functions only
-        if: ${{ needs.certify-linux.outputs.functions_changed == 'true' }}
+          firebase functions:log --only jarvisVideoGenerate --lines 100 --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
+      - name: Deploy V142 video function only
+        if: ${{ needs.certify-linux.outputs.video_function_changed == 'true' }}
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
           test -n "$FIREBASE_TOKEN"
-          firebase deploy --only functions:jarvisVideoGenerate,functions:jarvisSemanticPlan --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
-      - name: Verify V142 function deployments
-        if: ${{ needs.certify-linux.outputs.functions_changed == 'true' }}
+          firebase deploy --only functions:jarvisVideoGenerate --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
+      - name: Verify V142 video function deployment
+        if: ${{ needs.certify-linux.outputs.video_function_changed == 'true' }}
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         shell: bash
@@ -336,6 +359,23 @@ jobs:
           set -euo pipefail
           deployed=$(firebase functions:list --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive)
           grep -F 'jarvisVideoGenerate' <<<"$deployed"
+      - name: Deploy V142 semantic function only
+        if: ${{ needs.certify-linux.outputs.semantic_function_changed == 'true' }}
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy --only functions:jarvisSemanticPlan --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
+      - name: Verify V142 semantic function deployment
+        if: ${{ needs.certify-linux.outputs.semantic_function_changed == 'true' }}
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          deployed=$(firebase functions:list --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive)
           grep -F 'jarvisSemanticPlan' <<<"$deployed"
       - name: Deploy V142 Hosting FIXGO only
         env:

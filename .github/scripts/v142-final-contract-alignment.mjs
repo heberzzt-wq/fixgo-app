@@ -63,6 +63,17 @@ function ensureFirebaseVideoImportContract() {
 
 function ensureCloudCleanupAfterPhysicalImport() {
   const file = "gestia-core/jarvis/jarvis.actuator.pack.js";
+  const current = sourceOf(file);
+  const importIndex = current.indexOf('const artifact = await bridgeRequest("/video/import"');
+  const physicalVerificationIndex = current.indexOf("const physicalArtifactVerified =", importIndex);
+  const cleanupIndex = current.indexOf('action: "cleanup"', importIndex);
+  if (
+    importIndex >= 0 &&
+    physicalVerificationIndex > importIndex &&
+    cleanupIndex > physicalVerificationIndex
+  ) {
+    return;
+  }
   const before = [
     "                let artifact;",
     "                try {",
@@ -155,7 +166,9 @@ const checks = [
   ]],
   ["gestia-core/jarvis/jarvis.actuator.pack.js", [
     'name: "video.generate"',
-    "consecutivePollFailures",
+    "transientPollFailures",
+    "VIDEO_GENERATION_POLL_TRANSPORT_TIMEOUT",
+    "VIDEO_IMPORT_PHYSICAL_VERIFICATION_FAILED",
     'const artifact = await bridgeRequest("/video/import"',
     'action: "cleanup"'
   ]],

@@ -503,9 +503,11 @@ test("V142 video actuator keeps the same Veo operation across transient poll fai
         new URL("../gestia-core/jarvis/jarvis.actuator.pack.js", import.meta.url),
         "utf8"
     );
-    assert.match(source, /consecutivePollFailures/);
+    assert.match(source, /transientPollFailures/);
     assert.match(source, /lastPollFailure/);
-    assert.match(source, /retryable: response.status >= 500/);
+    assert.match(source, /structuredDetails\?\.retryable/);
+    assert.match(source, /VIDEO_GENERATION_POLL_TRANSPORT_TIMEOUT/);
+    assert.doesNotMatch(source, /consecutivePollFailures <= 3/);
     assert.match(source, /started.operationName/);
 });
 

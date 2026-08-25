@@ -15,6 +15,9 @@ const os = require("node:os");
 const path = require("node:path");
 const { GoogleGenAI, GenerateVideosOperation } = require("@google/genai");
 const secureExports = require("./secure-entry.js");
+const {
+    classifyCompletedVideoOperation
+} = require("./jarvis-video-operation-contract.js");
 
 const stripeWebhookProxy = functions.https.onRequest((req, res) => {
     return secureExports.api(req, res);
@@ -114,6 +117,26 @@ function jarvisVideoProviderError(stage, error) {
         `${stage}_FAILED | ${providerCode} | ${providerMessage}`,
         1100
     );
+    const numericCode = Number(error?.code || error?.status || 0);
+    const retryable = stage === "VIDEO_GENERATION_POLL" && (
+        [4, 8, 10, 13, 14, 408, 409, 425, 429, 500, 502, 503, 504].includes(numericCode) ||
+        [
+            "ABORT_ERR",
+            "DEADLINE_EXCEEDED",
+            "ECONNRESET",
+            "ETIMEDOUT",
+            "FETCH_ERROR",
+            "INTERNAL",
+            "NETWORK_ERROR",
+            "RESOURCE_EXHAUSTED",
+            "SERVICE_UNAVAILABLE",
+            "UNAVAILABLE"
+        ].includes(providerCode.toUpperCase())
+    );
+    const status = retryable
+        ? "VIDEO_GENERATION_POLL_TRANSPORT_FAILED"
+        : `${stage}_FAILED`;
+    const operationName = cleanText(error?.operationName, 800) || undefined;
 
     console.error(JSON.stringify({
         level: "ERROR",
@@ -123,18 +146,24 @@ function jarvisVideoProviderError(stage, error) {
         model: JARVIS_VEO_MODEL,
         retiredModel: JARVIS_VEO_MIGRATION.retiredModel,
         providerCode,
-        providerMessage
+        providerMessage,
+        retryable,
+        ...(operationName ? { operationName } : {})
     }));
 
     return new functions.https.HttpsError(
         "internal",
         clientMessage,
         {
+            status,
             stage,
             provider: JARVIS_VEO_MIGRATION.provider,
             model: JARVIS_VEO_MODEL,
             providerCode,
-            providerMessage
+            providerMessage,
+            retryable,
+            fullRestartAllowed: operationName ? false : retryable,
+            ...(operationName ? { operationName } : {})
         }
     );
 }
@@ -186,7 +215,33 @@ async function pollJarvisVideoOperation(ai, operationName) {
             }
         }
     }
-    throw lastError || new Error("VIDEO_GENERATION_POLL_TRANSPORT_FAILED");
+    const exhausted = lastError || new Error("VIDEO_GENERATION_POLL_TRANSPORT_FAILED");
+    exhausted.operationName = normalizeOperationName(operationName);
+    throw exhausted;
+}
+
+function throwVideoOperationResult(result, operationName) {
+    throw new functions.https.HttpsError(
+        "failed-precondition",
+        result.status,
+        {
+            status: result.status,
+            stage: "VIDEO_GENERATION_RESULT",
+            provider: JARVIS_VEO_MIGRATION.provider,
+            model: JARVIS_VEO_MODEL,
+            providerCode: result.providerCode,
+            providerMessage: result.providerMessage,
+            retryable: result.retryable === true,
+            fullRestartAllowed: false,
+            operationName,
+            ...(Number.isFinite(result.raiMediaFilteredCount)
+                ? { raiMediaFilteredCount: result.raiMediaFilteredCount }
+                : {}),
+            ...(Array.isArray(result.raiMediaFilteredReasons)
+                ? { raiMediaFilteredReasons: result.raiMediaFilteredReasons }
+                : {})
+        }
+    );
 }
 
 function normalizePreviousVideo(value) {
@@ -551,19 +606,11 @@ const jarvisVideoGenerate = functions
                         model: JARVIS_VEO_MODEL
                     };
                 }
-                if (operation?.error) {
-                    throw new Error(
-                        cleanText(
-                            operation.error?.message || operation.error,
-                            1000
-                        ) || "VIDEO_GENERATION_OPERATION_FAILED"
-                    );
+                const classified = classifyCompletedVideoOperation(operation);
+                if (classified.ok !== true) {
+                    throwVideoOperationResult(classified, operationName);
                 }
-                const generated = operation?.response?.generatedVideos?.[0];
-                const video = generated?.video;
-                if (!video) {
-                    throw new Error("VIDEO_GENERATION_RESULT_MISSING");
-                }
+                const video = classified.video;
 
                 if (data?.finalize !== true) {
                     return {
