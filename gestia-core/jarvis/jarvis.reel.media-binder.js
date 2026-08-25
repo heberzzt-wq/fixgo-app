@@ -1,5 +1,5 @@
 export const JARVIS_REEL_MEDIA_BINDER_VERSION =
-    "1.1.0-normalized-generated-media-v142";
+    "1.2.0-reject-generic-fallback-v142";
 
 function clean(value = "") {
     return typeof value === "string" ? value.trim() : "";
@@ -68,7 +68,28 @@ function payloadAssets(payload = {}) {
         .flat();
 }
 
+function creativeObservationIsGenericFallback(task = {}) {
+    const observation = task?.observation && typeof task.observation === "object"
+        ? task.observation
+        : {};
+    const evidence = observation?.evidence && typeof observation.evidence === "object"
+        ? observation.evidence
+        : {};
+    const status = clean(
+        observation?.status ||
+        evidence?.status
+    ).toUpperCase();
+    return (
+        status === "IMAGE_GENERATED_FALLBACK" ||
+        observation?.policy?.fallback === true ||
+        evidence?.policy?.fallback === true
+    );
+}
+
 function creativeObservationAsset(task = {}) {
+    if (creativeObservationIsGenericFallback(task)) {
+        return null;
+    }
     const observation = task?.observation && typeof task.observation === "object"
         ? task.observation
         : {};
@@ -137,6 +158,9 @@ export function reelMediaCollectionState(context = {}) {
     const creativeTasks = allTasks.filter(task =>
         ["image.generate", "image.edit"].includes(String(task?.name || ""))
     );
+    const rejectedGenericFallbacks = creativeTasks.filter(
+        creativeObservationIsGenericFallback
+    );
     const collectedAssets = [];
     for (const task of collectionTasks) {
         collectedAssets.push(...payloadAssets(task?.observation || {}));
@@ -153,6 +177,8 @@ export function reelMediaCollectionState(context = {}) {
     return {
         attempted: collectionTasks.length > 0 || creativeTasks.length > 0,
         creativeAttempted: creativeTasks.length > 0,
+        creativeFallbackRejected: rejectedGenericFallbacks.length > 0,
+        rejectedGenericFallbackCount: rejectedGenericFallbacks.length,
         creativeAssets,
         collectedSceneAssets,
         assets: creativeAssets.length > 0
