@@ -561,7 +561,7 @@ function composeActuatorResponse(
             output: videoOutput,
             mimeType:
                 data?.mimeType ||
-                "video/webm"
+                "video/mp4"
         };
         queueActuatorArtifact(toolName, reelData);
         return composer.composeJarvis(
@@ -570,7 +570,7 @@ function composeActuatorResponse(
                 "",
                 `Estado: **${data?.status || "COMPLETED"}**.`,
                 `Video: **${videoOutput || "sin ruta"}**.`,
-                `Formato: **${data?.mimeType || "video"}**.`,
+                `Formato: **${reelData.mimeType}**.`,
                 `Tamano: ${Number(data?.bytes || 0)} bytes.`,
                 data?.sha256
                     ? `SHA-256: **${data.sha256}**.`
