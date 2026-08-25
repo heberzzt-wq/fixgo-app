@@ -4,7 +4,7 @@ This process never calls a hosted inference API. It delegates generation to a
 locally checked-out official Wan repository and writes a durable result manifest
 consumed and independently verified by the Node bridge.
 
-The filename is retained for V142/backward compatibility. The worker now accepts
+The filename is retained for V142/backward compatibility. The worker accepts
 both the existing Wan2.2 TI2V-5B backend and an explicit lightweight Wan2.1
 T2V-1.3B backend without changing the public video.generate contract.
 """
@@ -22,16 +22,19 @@ import tempfile
 from typing import Any
 
 
-RUNNER_VERSION = "1.1.0-v142-wan-multibackend-offline"
+RUNNER_VERSION = "1.2.0-v142-wan-physical-integrity"
 DEFAULT_BACKEND = "wan22-ti2v-5b"
 BACKENDS: dict[str, dict[str, Any]] = {
     "wan22-ti2v-5b": {
         "model": "Wan2.2-TI2V-5B",
         "repo_env": "JARVIS_WAN22_REPO_DIR",
         "task": "ti2v-5B",
-        "portrait_size": "720*1280",
-        "landscape_size": "1280*720",
+        # Official TI2V-5B 720P geometry is 1280*704 / 704*1280.
+        "portrait_size": "704*1280",
+        "landscape_size": "1280*704",
+        "target_fps": 24.0,
         "reference_assets": True,
+        "max_reference_assets": 1,
         "extra_args": ["--offload_model", "True", "--t5_cpu", "--convert_model_dtype"],
     },
     "wan21-t2v-1.3b": {
@@ -40,7 +43,9 @@ BACKENDS: dict[str, dict[str, Any]] = {
         "task": "t2v-1.3B",
         "portrait_size": "480*832",
         "landscape_size": "832*480",
+        "target_fps": 16.0,
         "reference_assets": False,
+        "max_reference_assets": 0,
         "extra_args": [
             "--offload_model", "True",
             "--t5_cpu",
@@ -102,6 +107,23 @@ def inspect_video(file: Path, ffprobe: str) -> dict[str, Any]:
         "width": int(stream.get("width") or 0),
         "height": int(stream.get("height") or 0),
     }
+
+
+def parse_size(value: str) -> tuple[int, int]:
+    width, separator, height = str(value).partition("*")
+    if separator != "*" or not width.isdigit() or not height.isdigit():
+        raise RuntimeError("LOCAL_VIDEO_BACKEND_SIZE_INVALID")
+    return int(width), int(height)
+
+
+def verify_backend_media(media: dict[str, Any], config: dict[str, Any], size: str) -> None:
+    expected_width, expected_height = parse_size(size)
+    if int(media.get("width") or 0) != expected_width or int(media.get("height") or 0) != expected_height:
+        raise RuntimeError("LOCAL_VIDEO_DIMENSIONS_MISMATCH")
+    if float(media.get("durationSeconds") or 0) <= 0:
+        raise RuntimeError("LOCAL_VIDEO_DURATION_INVALID")
+    if float(media.get("fps") or 0) + 0.01 < float(config["target_fps"]):
+        raise RuntimeError("LOCAL_VIDEO_FPS_BELOW_BACKEND_TARGET")
 
 
 def build_prompt(job: dict[str, Any]) -> str:
@@ -175,6 +197,8 @@ def run(job_file: Path, result_file: Path) -> int:
     ]
     if reference_files and not bool(config["reference_assets"]):
         raise RuntimeError("LOCAL_VIDEO_REFERENCES_UNSUPPORTED_BY_BACKEND")
+    if len(reference_files) > int(config["max_reference_assets"]):
+        raise RuntimeError("LOCAL_VIDEO_REFERENCE_LIMIT_EXCEEDED")
     for reference_file in reference_files:
         if not reference_file.is_file():
             raise RuntimeError("LOCAL_VIDEO_REFERENCE_NOT_FOUND")
@@ -212,12 +236,15 @@ def run(job_file: Path, result_file: Path) -> int:
     if not output_file.is_file() or output_file.stat().st_size < 100000:
         raise RuntimeError("LOCAL_VIDEO_PHYSICAL_OUTPUT_INVALID")
     media = inspect_video(output_file, ffprobe)
+    verify_backend_media(media, config, size)
     write_json_atomic(
         result_file,
         {
             "ok": True,
             "status": "LOCAL_VIDEO_RUNNER_COMPLETED",
             "runnerVersion": RUNNER_VERSION,
+            "operationId": str(job.get("operationId") or ""),
+            "operationName": str(job.get("operationName") or ""),
             "output": str(job.get("output") or ""),
             "mimeType": "video/mp4",
             "backend": backend,
@@ -227,6 +254,7 @@ def run(job_file: Path, result_file: Path) -> int:
             "externalApiUsed": False,
             "externalEstimatedCostUsd": 0,
             "referenceAssetCount": len(reference_files),
+            "referenceAssetLimit": int(config["max_reference_assets"]),
             "primaryReferenceUsed": str(reference_files[0]) if reference_files else None,
             **media,
         },
@@ -260,6 +288,8 @@ def main() -> int:
                 "error": error_text,
                 "retryable": retryable,
                 "runnerVersion": RUNNER_VERSION,
+                "operationId": str(job.get("operationId") or ""),
+                "operationName": str(job.get("operationName") or ""),
                 "backend": str(job.get("backend") or DEFAULT_BACKEND),
                 "model": str(job.get("model") or ""),
                 "engine": "local",
