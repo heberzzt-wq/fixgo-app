@@ -222,12 +222,18 @@ test("v142 local video keeps Wan2.2 as the deterministic default and exposes a l
     assert.equal(stable, LOCAL_VIDEO_MODEL_PROFILE);
     assert.equal(stable.backend, "wan22-ti2v-5b");
     assert.equal(stable.minimumVramGb, 24);
+    assert.deepEqual(stable.portraitSize, { width: 704, height: 1280 });
+    assert.equal(stable.targetFps, 24);
+    assert.equal(stable.maximumReferenceAssets, 1);
     assert.equal(light.backend, "wan21-t2v-1.3b");
     assert.equal(light.model, "Wan2.1-T2V-1.3B");
     assert.equal(light.minimumVramGb, 8.19);
     assert.equal(light.targetResolution, "480p");
+    assert.equal(light.targetFps, 16);
+    assert.deepEqual(light.portraitSize, { width: 480, height: 832 });
     assert.equal(light.imageToVideo, false);
     assert.equal(light.referenceAssets, false);
+    assert.equal(light.maximumReferenceAssets, 0);
 });
 
 test("v142 AUTO selects the strongest compatible local backend without changing CURRENT_STABLE", () => {
@@ -268,7 +274,34 @@ test("v142 AUTO selects the strongest compatible local backend without changing 
     assert.equal(report.promotion.current, "CURRENT_STABLE");
 });
 
-test("v142 offline Wan runner contains both certified backends and parses as Python", () => {
+test("v142 unknown local backend fails closed instead of silently selecting Wan2.2", () => {
+    const invalid = resolveLocalVideoModelProfile({
+        env: { JARVIS_LOCAL_VIDEO_MODEL: "invented-video-backend" },
+        hardware: { cudaAvailable: true, vramGb: 32, freeDiskGb: 100 }
+    });
+    const report = buildLocalAiCapabilityReport({
+        root: process.cwd(),
+        env: { JARVIS_LOCAL_VIDEO_MODEL: "invented-video-backend" },
+        hardware: {
+            ok: true,
+            status: "LOCAL_VIDEO_HARDWARE_READY",
+            cudaAvailable: true,
+            gpuName: "TEST_GPU_32GB",
+            vramGb: 32,
+            freeDiskGb: 100,
+            ffmpegAvailable: true,
+            ffprobeAvailable: true
+        }
+    });
+
+    assert.equal(invalid.unsupported, true);
+    assert.equal(invalid.backend, null);
+    assert.equal(invalid.requestedBackend, "invented-video-backend");
+    assert.equal(report.localVideoReadiness.supported, false);
+    assert.equal(report.localVideoReadiness.status, "LOCAL_VIDEO_BACKEND_UNSUPPORTED");
+});
+
+test("v142 offline Wan runner uses official geometry, one-reference truth and physical media gates", () => {
     const runner = "scripts/jarvis-local-video-wan22.py";
     const source = fs.readFileSync(runner, "utf8");
     for (const marker of [
@@ -276,9 +309,16 @@ test("v142 offline Wan runner contains both certified backends and parses as Pyt
         "wan21-t2v-1.3b",
         "JARVIS_WAN22_REPO_DIR",
         "JARVIS_WAN21_REPO_DIR",
-        "--sample_shift",
-        "--sample_guide_scale",
-        "LOCAL_VIDEO_REFERENCES_UNSUPPORTED_BY_BACKEND",
+        '"portrait_size": "704*1280"',
+        '"landscape_size": "1280*704"',
+        '"target_fps": 24.0',
+        '"max_reference_assets": 1',
+        '"target_fps": 16.0',
+        '"max_reference_assets": 0',
+        "LOCAL_VIDEO_REFERENCE_LIMIT_EXCEEDED",
+        "LOCAL_VIDEO_DIMENSIONS_MISMATCH",
+        "LOCAL_VIDEO_FPS_BELOW_BACKEND_TARGET",
+        "verify_backend_media(media, config, size)",
         'environment["HF_HUB_OFFLINE"] = "1"',
         'environment["TRANSFORMERS_OFFLINE"] = "1"'
     ]) {
@@ -289,4 +329,20 @@ test("v142 offline Wan runner contains both certified backends and parses as Pyt
         "-c",
         `import ast,pathlib; ast.parse(pathlib.Path(${JSON.stringify(runner)}).read_text(encoding='utf-8'))`
     ], { stdio: "pipe" });
+});
+
+test("v142 local engine records best-GPU selection and pins the spawned worker to it", () => {
+    const source = fs.readFileSync("jarvis-local-video-engine.js", "utf8");
+    for (const marker of [
+        "--query-gpu=index,name,memory.total,driver_version",
+        "right.vramGb - left.vramGb",
+        "gpuIndex",
+        "gpuInventory",
+        "CUDA_VISIBLE_DEVICES",
+        "LOCAL_VIDEO_BACKEND_UNSUPPORTED",
+        "LOCAL_VIDEO_REFERENCE_LIMIT_EXCEEDED",
+        "maximumReferenceAssets"
+    ]) {
+        assert.equal(source.includes(marker), true, `missing local engine marker: ${marker}`);
+    }
 });
