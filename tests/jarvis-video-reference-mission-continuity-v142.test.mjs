@@ -236,7 +236,7 @@ test("v142 local video keeps Wan2.2 as the deterministic default and exposes a l
     assert.equal(light.maximumReferenceAssets, 0);
 });
 
-test("v142 AUTO selects the strongest compatible local backend without changing CURRENT_STABLE", () => {
+test("v142 AUTO selects the strongest compatible local backend under LOCAL_PREFERRED", () => {
     const twelveGb = resolveLocalVideoModelProfile({
         env: { JARVIS_LOCAL_VIDEO_MODEL: "auto" },
         hardware: { cudaAvailable: true, vramGb: 12, freeDiskGb: 80 }
@@ -271,7 +271,8 @@ test("v142 AUTO selects the strongest compatible local backend without changing 
         report.candidateVideoModels.find(item => item.backend === "wan22-ti2v-5b").compatible,
         false
     );
-    assert.equal(report.promotion.current, "CURRENT_STABLE");
+    assert.equal(report.promotion.current, "LOCAL_PREFERRED");
+    assert.equal(report.promotion.rollback, "CURRENT_STABLE");
 });
 
 test("v142 unknown local backend fails closed instead of silently selecting Wan2.2", () => {

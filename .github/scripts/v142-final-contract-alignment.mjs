@@ -113,6 +113,19 @@ function ensureCloudCleanupAfterPhysicalImport() {
 
 function ensureLocalVideoRequirementRouting() {
   const engineFile = "jarvis-local-video-engine.js";
+  const engineSource = sourceOf(engineFile);
+  const bridgeSource = sourceOf("jarvis-fs-bridge.js");
+  const actuatorSource = sourceOf("gestia-core/jarvis/jarvis.actuator.pack.js");
+  if (
+    engineSource.includes("export function resolveVideoEngine({ policy, health, requirements = {} } = {})") &&
+    engineSource.includes("const LOCAL_VIDEO_BACKEND_ORDER = Object.freeze([") &&
+    engineSource.includes("resolve: requirements => resolveVideoEngine({ policy, health: health(), requirements })") &&
+    bridgeSource.includes("return res.json(videoEngine.resolve(req.body || {}));") &&
+    actuatorSource.includes("const engineRequirements = {") &&
+    actuatorSource.includes("referenceCount: referenceImages.length")
+  ) {
+    return;
+  }
   const beforeResolver = `export function resolveVideoEngine({ policy, health } = {}) {
     const effectivePolicy = policy || describeLocalVideoPolicy();
     const mode = normalizedMode(effectivePolicy.mode);

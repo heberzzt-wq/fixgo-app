@@ -6,7 +6,7 @@ import { execFileSync, spawn } from "node:child_process";
 
 import { registerArtifact } from "./jarvis-artifact-studio.js";
 
-export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.3.0-v142-receipt-bound";
+export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.4.0-v142-local-first-fallback";
 export const VIDEO_ENGINE_MODES = Object.freeze([
     "CURRENT_STABLE",
     "LOCAL_TEST",
@@ -115,15 +115,15 @@ function localVideoTimeoutSeconds(env = process.env) {
 }
 
 function normalizedMode(value) {
-    const mode = String(value || "CURRENT_STABLE").trim().toUpperCase();
-    return VIDEO_ENGINE_MODES.includes(mode) ? mode : "CURRENT_STABLE";
+    const mode = String(value || "LOCAL_PREFERRED").trim().toUpperCase();
+    return VIDEO_ENGINE_MODES.includes(mode) ? mode : "LOCAL_PREFERRED";
 }
 
 function requestedLocalModel(env = process.env) {
     return String(
         env.JARVIS_LOCAL_VIDEO_MODEL ||
         env.JARVIS_LOCAL_VIDEO_BACKEND ||
-        LOCAL_VIDEO_MODEL_PROFILE.backend
+        "auto"
     ).trim().toLowerCase();
 }
 
@@ -161,7 +161,10 @@ export function describeLocalVideoPolicy(env = process.env) {
     return {
         version: JARVIS_LOCAL_VIDEO_ENGINE_VERSION,
         mode,
-        localVideoEnabled: booleanValue(env.JARVIS_LOCAL_VIDEO_ENABLED, false),
+        localVideoEnabled: booleanValue(
+            env.JARVIS_LOCAL_VIDEO_ENABLED,
+            mode !== "CURRENT_STABLE"
+        ),
         localImageEnabled: booleanValue(env.JARVIS_LOCAL_IMAGE_ENABLED, false),
         localSpeechEnabled: booleanValue(env.JARVIS_LOCAL_SPEECH_ENABLED, false),
         localVideoCertified: booleanValue(env.JARVIS_LOCAL_VIDEO_CERTIFIED, false),
@@ -180,36 +183,118 @@ export function describeLocalVideoPolicy(env = process.env) {
             env.JARVIS_EXTERNAL_VIDEO_ESTIMATED_COST_USD_PER_CALL,
             0
         ),
-        defaultIsCurrentStable: true,
+        defaultIsCurrentStable: false,
+        defaultMode: "LOCAL_PREFERRED",
         promptRoutingAllowed: false
     };
+}
+
+const LOCAL_VIDEO_BACKEND_ORDER = Object.freeze([
+    WAN22_TI2V_5B.backend,
+    WAN21_T2V_1_3B.backend
+]);
+
+function orderedBackendHealth(health = {}) {
+    if (Array.isArray(health?.backends)) {
+        const byBackend = new Map(
+            health.backends
+                .filter(item => item && typeof item === "object")
+                .map(item => [String(item.backend || ""), item])
+        );
+        return LOCAL_VIDEO_BACKEND_ORDER
+            .map(backend => byBackend.get(backend))
+            .filter(Boolean);
+    }
+    const model = health?.model || health?.modelRequirements || null;
+    const backend = health?.selectedBackend || model?.backend || null;
+    return backend
+        ? [{
+            ...health,
+            backend,
+            model: model?.model || health?.model || null,
+            imageToVideo: model?.imageToVideo === true,
+            maximumReferenceAssets: Number(model?.maximumReferenceAssets || 0)
+        }]
+        : [];
+}
+
+function backendRequirementFailure(backend = {}, requirements = {}) {
+    const referenceCount = Math.max(0, Number(requirements.referenceCount || 0));
+    const requiresImageToVideo = requirements.requiresImageToVideo === true || referenceCount > 0;
+    if (requiresImageToVideo && backend.imageToVideo !== true) {
+        return "LOCAL_VIDEO_REFERENCES_UNSUPPORTED_BY_BACKEND";
+    }
+    if (referenceCount > Number(backend.maximumReferenceAssets || 0)) {
+        return "LOCAL_VIDEO_REFERENCE_LIMIT_EXCEEDED";
+    }
+    return null;
+}
+
+function backendFailureReason(attempts = [], fallback = "LOCAL_VIDEO_WORKER_UNAVAILABLE") {
+    if (attempts.length === 0) return fallback;
+    return `LOCAL_VIDEO_BACKENDS_UNAVAILABLE:${attempts
+        .map(item => `${item.backend}=${item.reason}`)
+        .join(";")}`;
 }
 
 export function resolveVideoEngine({ policy, health, requirements = {} } = {}) {
     const effectivePolicy = policy || describeLocalVideoPolicy();
     const mode = normalizedMode(effectivePolicy.mode);
-    const localReady = effectivePolicy.localVideoEnabled === true && health?.ok === true;
     const referenceCount = Math.max(0, Number(requirements.referenceCount || 0));
     const requiresImageToVideo = requirements.requiresImageToVideo === true || referenceCount > 0;
-    const selectedModel = health?.model || health?.modelRequirements || null;
-    let requirementFailure = null;
-    if (localReady && selectedModel) {
-        if (requiresImageToVideo && selectedModel.imageToVideo !== true) {
-            requirementFailure = "LOCAL_VIDEO_REFERENCES_UNSUPPORTED_BY_BACKEND";
+    const excludedBackends = new Set(
+        (Array.isArray(requirements.excludedBackends) ? requirements.excludedBackends : [])
+            .map(String)
+            .filter(Boolean)
+    );
+    const requestedBackend = String(requirements.selectedBackend || "").trim();
+    const candidates = orderedBackendHealth(health).filter(candidate =>
+        !requestedBackend || candidate.backend === requestedBackend
+    );
+    const attempts = [];
+    let selected = null;
+    for (const candidate of candidates) {
+        let reason = null;
+        if (excludedBackends.has(candidate.backend)) {
+            reason = requirements.backendFailures?.[candidate.backend] ||
+                "LOCAL_VIDEO_BACKEND_EXCLUDED_AFTER_RECOVERABLE_FAILURE";
         }
-        else if (referenceCount > Number(selectedModel.maximumReferenceAssets || 0)) {
-            requirementFailure = "LOCAL_VIDEO_REFERENCE_LIMIT_EXCEEDED";
+        else if (effectivePolicy.localVideoEnabled !== true) {
+            reason = "LOCAL_VIDEO_DISABLED";
         }
+        else if (candidate.ok !== true) {
+            reason = candidate.status || "LOCAL_VIDEO_WORKER_UNAVAILABLE";
+        }
+        else if (
+            mode !== "LOCAL_TEST" &&
+            candidate.certified !== true &&
+            effectivePolicy.localVideoCertified !== true
+        ) {
+            reason = "LOCAL_VIDEO_NOT_CERTIFIED";
+        }
+        else {
+            reason = backendRequirementFailure(candidate, requirements);
+        }
+        if (!reason) {
+            selected = candidate;
+            break;
+        }
+        attempts.push({ backend: candidate.backend, reason });
     }
-    const localSuitable = localReady && requirementFailure === null;
-    const common = {
+    const legacyReason = candidates.length === 0
+        ? (health?.status || "LOCAL_VIDEO_WORKER_UNAVAILABLE")
+        : null;
+    const unavailableReason = backendFailureReason(attempts, legacyReason || "LOCAL_VIDEO_WORKER_UNAVAILABLE");
+    const base = {
         policy: mode,
         engineRequested: mode,
-        selectedBackend: health?.selectedBackend || selectedModel?.backend || null,
-        selectedModel: selectedModel?.model || null,
-        imageToVideoSupported: selectedModel?.imageToVideo === true,
-        maximumReferenceAssets: Number(selectedModel?.maximumReferenceAssets || 0),
         referenceCount,
+        requiresImageToVideo,
+        aspectRatio: requirements.aspectRatio || null,
+        sceneCount: Math.max(0, Number(requirements.sceneCount || 0)),
+        seriesId: requirements.seriesId || null,
+        episodeId: requirements.episodeId || null,
+        attemptedLocalBackends: attempts,
         externalFallbackEnabled: effectivePolicy.externalFallbackEnabled === true,
         fallbackUsed: false,
         fallbackReason: null,
@@ -219,69 +304,88 @@ export function resolveVideoEngine({ policy, health, requirements = {} } = {}) {
 
     if (mode === "CURRENT_STABLE") {
         return {
-            ...common,
+            ...base,
             ok: true,
             status: "VIDEO_ENGINE_CURRENT_STABLE",
             engineUsed: "external",
-            provider: "google-veo"
+            provider: "google-veo",
+            selectedBackend: "google-veo",
+            selectedModel: null,
+            imageToVideoSupported: true,
+            maximumReferenceAssets: 3
         };
     }
 
     if (mode === "LOCAL_TEST" || mode === "LOCAL_ONLY") {
-        if (!localSuitable) {
-            const reason = requirementFailure || health?.status || "LOCAL_VIDEO_WORKER_UNAVAILABLE";
+        if (!selected) {
             return {
-                ...common,
+                ...base,
                 ok: false,
-                status: reason,
-                error: reason,
+                status: unavailableReason,
+                error: unavailableReason,
                 engineUsed: null,
                 provider: null,
+                selectedBackend: null,
+                selectedModel: null,
+                imageToVideoSupported: false,
+                maximumReferenceAssets: 0,
                 retryable: false
             };
         }
         return {
-            ...common,
+            ...base,
             ok: true,
             status: mode === "LOCAL_TEST"
                 ? "VIDEO_ENGINE_LOCAL_TEST"
                 : "VIDEO_ENGINE_LOCAL_ONLY",
             engineUsed: "local",
-            provider: "local"
+            provider: "local",
+            selectedBackend: selected.backend,
+            selectedModel: selected.model,
+            imageToVideoSupported: selected.imageToVideo === true,
+            maximumReferenceAssets: Number(selected.maximumReferenceAssets || 0)
         };
     }
 
-    const certifiedReady = localSuitable && effectivePolicy.localVideoCertified === true;
-    if (certifiedReady) {
+    if (selected) {
         return {
-            ...common,
+            ...base,
             ok: true,
             status: "VIDEO_ENGINE_LOCAL_PREFERRED",
             engineUsed: "local",
-            provider: "local"
+            provider: "local",
+            selectedBackend: selected.backend,
+            selectedModel: selected.model,
+            imageToVideoSupported: selected.imageToVideo === true,
+            maximumReferenceAssets: Number(selected.maximumReferenceAssets || 0)
         };
     }
-    const reason = requirementFailure || health?.status || (
-        localReady ? "LOCAL_VIDEO_NOT_CERTIFIED" : "LOCAL_VIDEO_WORKER_UNAVAILABLE"
-    );
     if (effectivePolicy.externalFallbackEnabled === true) {
         return {
-            ...common,
+            ...base,
             ok: true,
             status: "VIDEO_ENGINE_EXTERNAL_FALLBACK",
             engineUsed: "external",
             provider: "google-veo",
+            selectedBackend: "google-veo",
+            selectedModel: null,
+            imageToVideoSupported: true,
+            maximumReferenceAssets: 3,
             fallbackUsed: true,
-            fallbackReason: reason
+            fallbackReason: unavailableReason
         };
     }
     return {
-        ...common,
+        ...base,
         ok: false,
-        status: reason,
-        error: reason,
+        status: unavailableReason,
+        error: unavailableReason,
         engineUsed: null,
         provider: null,
+        selectedBackend: null,
+        selectedModel: null,
+        imageToVideoSupported: false,
+        maximumReferenceAssets: 0,
         retryable: false
     };
 }
@@ -460,35 +564,145 @@ function compatibleModelProfiles(hardware = {}) {
     }));
 }
 
+const LOCAL_VIDEO_BACKEND_ENVIRONMENT = Object.freeze({
+    [WAN22_TI2V_5B.backend]: Object.freeze({
+        modelDirectory: "JARVIS_WAN22_MODEL_DIR",
+        repositoryDirectory: "JARVIS_WAN22_REPO_DIR",
+        certified: "JARVIS_WAN22_CERTIFIED"
+    }),
+    [WAN21_T2V_1_3B.backend]: Object.freeze({
+        modelDirectory: "JARVIS_WAN21_MODEL_DIR",
+        repositoryDirectory: "JARVIS_WAN21_REPO_DIR",
+        certified: "JARVIS_WAN21_CERTIFIED"
+    })
+});
+
+function containsModelWeights(directory, depth = 0) {
+    if (!directory || !fs.existsSync(directory) || depth > 3) return false;
+    let entries;
+    try {
+        entries = fs.readdirSync(directory, { withFileTypes: true });
+    }
+    catch {
+        return false;
+    }
+    for (const entry of entries.slice(0, 500)) {
+        if (entry.isFile() && /\.(?:safetensors|bin|pt|pth|ckpt)$/i.test(entry.name)) return true;
+        if (entry.isDirectory() && containsModelWeights(path.join(directory, entry.name), depth + 1)) return true;
+    }
+    return false;
+}
+
+function localBackendHealth({ profile, hardware, policy, env }) {
+    const configuration = LOCAL_VIDEO_BACKEND_ENVIRONMENT[profile.backend];
+    const explicitlyRequested = requestedLocalModel(env) !== "auto";
+    const legacyConfiguration = (
+        explicitlyRequested &&
+        resolveLocalVideoModelProfile({ env, hardware }).backend === profile.backend
+    ) || (
+        !explicitlyRequested &&
+        profile.backend === WAN22_TI2V_5B.backend &&
+        Boolean(env.JARVIS_LOCAL_VIDEO_MODEL_DIR) &&
+        !env[configuration.modelDirectory]
+    );
+    const configuredModelDirectory = env[configuration.modelDirectory] ||
+        (legacyConfiguration ? env.JARVIS_LOCAL_VIDEO_MODEL_DIR : null);
+    const configuredRepositoryDirectory = env[configuration.repositoryDirectory] || null;
+    const modelDirectory = configuredModelDirectory
+        ? path.resolve(String(configuredModelDirectory))
+        : null;
+    const repositoryDirectory = configuredRepositoryDirectory
+        ? path.resolve(String(configuredRepositoryDirectory))
+        : null;
+    const runner = commandPath(env.JARVIS_LOCAL_VIDEO_RUNNER, env);
+    const runnerScript = env.JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT
+        ? path.resolve(String(env.JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT))
+        : null;
+    const runnerReady = Boolean(runner && runnerScript && fs.existsSync(runnerScript));
+    const repositoryReady = legacyConfiguration || Boolean(
+        repositoryDirectory && fs.existsSync(path.join(repositoryDirectory, "generate.py"))
+    );
+    const weightsReady = legacyConfiguration
+        ? Boolean(modelDirectory && fs.existsSync(modelDirectory))
+        : containsModelWeights(modelDirectory);
+    const dependenciesReady = runnerReady && repositoryReady;
+    const certified = booleanValue(
+        env[configuration.certified],
+        policy.localVideoCertified === true
+    );
+    const blockingReasons = [];
+    if (policy.localVideoEnabled !== true) blockingReasons.push("LOCAL_VIDEO_DISABLED");
+    if (hardware.cudaAvailable !== true) blockingReasons.push("LOCAL_VIDEO_CUDA_UNAVAILABLE");
+    if (Number(hardware.vramGb || 0) < profile.minimumVramGb) blockingReasons.push("LOCAL_VIDEO_VRAM_INSUFFICIENT");
+    if (Number(hardware.freeDiskGb || 0) < profile.minimumFreeDiskGb) blockingReasons.push("LOCAL_VIDEO_DISK_INSUFFICIENT");
+    if (hardware.ffmpegAvailable !== true || hardware.ffprobeAvailable !== true) {
+        blockingReasons.push("LOCAL_VIDEO_FFMPEG_UNAVAILABLE");
+    }
+    if (!runnerReady) blockingReasons.push("LOCAL_VIDEO_RUNNER_UNCONFIGURED");
+    else if (!repositoryReady) blockingReasons.push("LOCAL_VIDEO_DEPENDENCIES_UNAVAILABLE");
+    if (!weightsReady) blockingReasons.push("LOCAL_VIDEO_MODEL_WEIGHTS_MISSING");
+    const status = blockingReasons[0] || "LOCAL_VIDEO_BACKEND_READY";
+    return {
+        ...profile,
+        ok: blockingReasons.length === 0,
+        status,
+        certified,
+        runner,
+        runnerScript,
+        runnerReady,
+        repositoryDirectory,
+        repositoryReady,
+        dependenciesReady,
+        modelDirectory,
+        weightsReady,
+        blockingReasons
+    };
+}
+
 export function buildLocalAiCapabilityReport({
     root = process.cwd(),
     env = process.env,
     hardware = inspectLocalVideoHardware({ root, env })
 } = {}) {
     const policy = describeLocalVideoPolicy(env);
-    const selectedVideoModel = hardware.modelRequirements || resolveLocalVideoModelProfile({ env, hardware });
-    const localVideoSupported = hardware.ok === true && selectedVideoModel.unsupported !== true;
+    const requested = requestedLocalModel(env);
+    const requestedProfile = hardware.modelRequirements || resolveLocalVideoModelProfile({ env, hardware });
+    const profiles = requested === "auto"
+        ? LOCAL_VIDEO_BACKEND_ORDER.map(backend => LOCAL_VIDEO_MODEL_PROFILES[backend])
+        : (requestedProfile.unsupported === true ? [] : [requestedProfile]);
+    const backendHealth = profiles.map(profile => localBackendHealth({
+        profile,
+        hardware,
+        policy,
+        env
+    }));
+    const selectedVideoModel = backendHealth.find(candidate => candidate.ok === true) ||
+        requestedProfile || backendHealth[0];
+    const selectedBackendHealth = backendHealth.find(candidate =>
+        candidate.backend === selectedVideoModel?.backend
+    ) || backendHealth[0] || null;
+    const localVideoSupported = backendHealth.some(candidate => candidate.ok === true);
     return {
         reportType: "LOCAL_AI_CAPABILITY_REPORT",
         schemaVersion: JARVIS_LOCAL_VIDEO_ENGINE_VERSION,
         generatedAt: new Date().toISOString(),
         root: path.resolve(root),
         policy,
-        hardware,
+        hardware: { ...hardware, backends: backendHealth },
         selectedVideoModel,
         candidateVideoModels: compatibleModelProfiles(hardware),
         localVideoReadiness: {
             supported: localVideoSupported,
             status: selectedVideoModel.unsupported === true
                 ? "LOCAL_VIDEO_BACKEND_UNSUPPORTED"
-                : hardware.status,
+                : selectedBackendHealth?.status || hardware.status,
             physicalMp4Authorized: localVideoSupported,
             installationAuthorized: false,
             reason: selectedVideoModel.unsupported === true
                 ? "LOCAL_VIDEO_BACKEND_UNSUPPORTED"
                 : localVideoSupported
                     ? "HARDWARE_GATE_PASSED_MODEL_AND_RUNNER_STILL_REQUIRE_EXPLICIT_INSTALLATION"
-                    : hardware.status
+                    : selectedBackendHealth?.status || hardware.status
         },
         capabilityInventory: {
             deterministicInternal: [
@@ -501,16 +715,17 @@ export function buildLocalAiCapabilityReport({
                 "video.generate", "music.generate", "audio.effects"
             ],
             temporarilyExternal: [
-                "video.generate:CURRENT_STABLE",
+                `video.generate:${policy.mode}:${localVideoSupported ? "LOCAL_AVAILABLE" : "VEO_EXPLICIT_FALLBACK"}`,
                 "image.generate:CURRENT_STABLE",
                 "speech.synthesize:CURRENT_STABLE_WHEN_LOCAL_UNAVAILABLE"
             ]
         },
         promotion: {
-            current: "CURRENT_STABLE",
-            localTestCertified: false,
-            localPreferredAuthorized: false,
-            localOnlyAuthorized: false
+            current: policy.mode,
+            rollback: "CURRENT_STABLE",
+            localTestCertified: backendHealth.some(candidate => candidate.ok === true),
+            localPreferredAuthorized: policy.mode === "LOCAL_PREFERRED",
+            localOnlyAuthorized: policy.mode === "LOCAL_ONLY"
         }
     };
 }
@@ -752,45 +967,51 @@ export function createLocalVideoEngine({
 
     function health() {
         const hardware = inspectHardware();
-        const model = resolveLocalVideoModelProfile({ env, hardware });
-        const runner = commandPath(env.JARVIS_LOCAL_VIDEO_RUNNER, env);
-        const runnerScript = path.resolve(String(env.JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT || ""));
-        const modelDirectory = path.resolve(String(env.JARVIS_LOCAL_VIDEO_MODEL_DIR || ""));
-        let status = model.unsupported === true
+        const requested = requestedLocalModel(env);
+        const requestedProfile = resolveLocalVideoModelProfile({ env, hardware });
+        const profiles = requested === "auto"
+            ? LOCAL_VIDEO_BACKEND_ORDER.map(backend => LOCAL_VIDEO_MODEL_PROFILES[backend])
+            : (requestedProfile.unsupported === true ? [] : [requestedProfile]);
+        const backends = profiles.map(profile => localBackendHealth({
+            profile,
+            hardware,
+            policy,
+            env
+        }));
+        const selected = backends.find(candidate => candidate.ok === true) || backends[0] || null;
+        const status = requestedProfile.unsupported === true
             ? "LOCAL_VIDEO_BACKEND_UNSUPPORTED"
-            : hardware.status;
-        let ok = hardware.ok === true && model.unsupported !== true;
-        if (!policy.localVideoEnabled) {
-            ok = false;
-            status = "LOCAL_VIDEO_DISABLED";
-        }
-        else if (ok && (!runner || !env.JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT || !fs.existsSync(runnerScript))) {
-            ok = false;
-            status = "LOCAL_VIDEO_RUNNER_UNCONFIGURED";
-        }
-        else if (ok && (!env.JARVIS_LOCAL_VIDEO_MODEL_DIR || !fs.existsSync(modelDirectory))) {
-            ok = false;
-            status = "LOCAL_VIDEO_MODEL_NOT_READY";
-        }
+            : selected?.status || hardware.status || "LOCAL_VIDEO_WORKER_UNAVAILABLE";
         return {
             ...hardware,
-            ok,
+            ok: backends.some(candidate => candidate.ok === true),
             status,
             version: JARVIS_LOCAL_VIDEO_ENGINE_VERSION,
             policy: policy.mode,
             enabled: policy.localVideoEnabled,
             certified: policy.localVideoCertified,
-            runner: runner || null,
-            runnerScript: env.JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT ? runnerScript : null,
-            modelDirectory: env.JARVIS_LOCAL_VIDEO_MODEL_DIR ? modelDirectory : null,
-            selectedBackend: model.unsupported === true ? null : model.backend,
-            model
+            runner: selected?.runner || null,
+            runnerScript: selected?.runnerScript || null,
+            modelDirectory: selected?.modelDirectory || null,
+            selectedBackend: selected?.backend || null,
+            model: selected || requestedProfile,
+            backends
         };
     }
 
     async function start(payload = {}) {
         const currentHealth = health();
-        const decision = resolveVideoEngine({ policy, health: currentHealth });
+        const referenceOutputs = Array.isArray(payload.referenceOutputs) ? payload.referenceOutputs : [];
+        const requirements = {
+            sceneCount: Array.isArray(payload.prompts) ? payload.prompts.length : 0,
+            referenceCount: referenceOutputs.length,
+            requiresImageToVideo: referenceOutputs.length > 0,
+            aspectRatio: payload.aspectRatio === "16:9" ? "16:9" : "9:16",
+            seriesId: payload.seriesId || null,
+            episodeId: payload.episodeId || null,
+            selectedBackend: payload.selectedBackend || null
+        };
+        const decision = resolveVideoEngine({ policy, health: currentHealth, requirements });
         if (decision.ok !== true || decision.engineUsed !== "local") {
             return {
                 ...decision,
@@ -816,7 +1037,9 @@ export function createLocalVideoEngine({
         catch(error) {
             return { ok: false, status: error.message, error: error.message };
         }
-        const model = currentHealth.model || resolveLocalVideoModelProfile({ env, hardware: currentHealth });
+        const model = currentHealth.backends?.find(candidate =>
+            candidate.backend === decision.selectedBackend
+        ) || currentHealth.model || resolveLocalVideoModelProfile({ env, hardware: currentHealth });
         if (references.length > 0 && model.referenceAssets !== true) {
             return {
                 ok: false,
@@ -858,7 +1081,7 @@ export function createLocalVideoEngine({
             provider: "local",
             backend: model.backend,
             model: model.model,
-            modelDirectory: path.resolve(env.JARVIS_LOCAL_VIDEO_MODEL_DIR),
+            modelDirectory: model.modelDirectory,
             script,
             prompts,
             aspectRatio: payload.aspectRatio === "16:9" ? "16:9" : "9:16",
@@ -893,8 +1116,8 @@ export function createLocalVideoEngine({
         };
         atomicJsonWrite(operationPath, operation);
 
-        const runner = commandPath(env.JARVIS_LOCAL_VIDEO_RUNNER, env);
-        const runnerScript = path.resolve(env.JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT);
+        const runner = model.runner || commandPath(env.JARVIS_LOCAL_VIDEO_RUNNER, env);
+        const runnerScript = model.runnerScript || path.resolve(env.JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT);
         const args = [runnerScript, "--job", jobFile, "--result", resultFile];
         const runnerEnvironment = offlineLocalVideoEnvironment(env);
         if (currentHealth.gpuIndex !== null && currentHealth.gpuIndex !== undefined) {

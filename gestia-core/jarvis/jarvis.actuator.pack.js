@@ -1138,16 +1138,17 @@ export function registerJarvisActuatorTools(runtime) {
                         ? requestedOutput
                         : `.jarvis-artifacts/videos/mini-drama-${Date.now()}.mp4`;
                 let engineDecision;
+                const engineRequirements = {
+                    capability: "video.generate",
+                    sceneCount: prompts.length,
+                    referenceCount: referenceImages.length,
+                    requiresImageToVideo: referenceImages.length > 0,
+                    aspectRatio,
+                    seriesId: seriesId || null,
+                    episodeId: episodeId || null
+                };
                 try {
-                    engineDecision = await bridgeRequest("/video/engine/resolve", {
-                        capability: "video.generate",
-                        sceneCount: prompts.length,
-                        referenceCount: referenceImages.length,
-                        requiresImageToVideo: referenceImages.length > 0,
-                        aspectRatio,
-                        seriesId: seriesId || null,
-                        episodeId: episodeId || null
-                    }, 30000);
+                    engineDecision = await bridgeRequest("/video/engine/resolve", engineRequirements, 30000);
                 }
                 catch {
                     engineDecision = null;
@@ -1178,7 +1179,9 @@ export function registerJarvisActuatorTools(runtime) {
                     };
                 }
 
-                if (engineDecision.engineUsed === "local") {
+                const excludedLocalBackends = [];
+                const localBackendFailures = {};
+                while (engineDecision.engineUsed === "local") {
                     const localAttempt = await (async () => {
                     let started;
                     try {
@@ -1189,7 +1192,8 @@ export function registerJarvisActuatorTools(runtime) {
                             output,
                             referenceOutputs: referenceImages.map(reference => reference.sourceOutput),
                             seriesId: seriesId || null,
-                            episodeId: episodeId || null
+                            episodeId: episodeId || null,
+                            selectedBackend: engineDecision.selectedBackend || null
                         }, 60000);
                     }
                     catch(error) {
@@ -1346,8 +1350,9 @@ export function registerJarvisActuatorTools(runtime) {
                         verifiedArtifactDelivery: true,
                         engineRequested: engineDecision.engineRequested,
                         engineUsed: "local",
-                        fallbackUsed: false,
-                        fallbackReason: null,
+                        selectedBackend: engineDecision.selectedBackend || localResult.backend || null,
+                        fallbackUsed: engineDecision.fallbackUsed === true,
+                        fallbackReason: engineDecision.fallbackReason || null,
                         externalApiUsed: false,
                         externalEstimatedCostUsd: 0,
                         ...(seriesRequested
@@ -1379,13 +1384,71 @@ export function registerJarvisActuatorTools(runtime) {
                         engineDecision.externalFallbackEnabled === true &&
                         localAttempt.retryable === true;
                     if (!recoverableFallback) return localAttempt;
+                    const failedBackend = String(
+                        engineDecision.selectedBackend || localAttempt.backend || "unknown-local-backend"
+                    );
+                    const failureReason = String(
+                        localAttempt.status || localAttempt.error || "LOCAL_VIDEO_RECOVERABLE_FAILURE"
+                    );
+                    if (!excludedLocalBackends.includes(failedBackend)) {
+                        excludedLocalBackends.push(failedBackend);
+                    }
+                    localBackendFailures[failedBackend] = failureReason;
+                    let nextDecision;
+                    try {
+                        nextDecision = await bridgeRequest("/video/engine/resolve", {
+                            ...engineRequirements,
+                            excludedBackends: excludedLocalBackends,
+                            backendFailures: localBackendFailures
+                        }, 30000);
+                    }
+                    catch(error) {
+                        return {
+                            ...localAttempt,
+                            status: "LOCAL_VIDEO_FALLBACK_RESOLUTION_FAILED",
+                            error: error?.message || "LOCAL_VIDEO_FALLBACK_RESOLUTION_FAILED",
+                            retryable: true,
+                            fallbackUsed: true,
+                            fallbackReason: `${failedBackend}=${failureReason}`
+                        };
+                    }
+                    if (nextDecision?.ok !== true || !nextDecision?.engineUsed) {
+                        return {
+                            ...localAttempt,
+                            ...nextDecision,
+                            ok: false,
+                            executionOk: false,
+                            objectiveSatisfied: false,
+                            blocked: true,
+                            fallbackUsed: true,
+                            fallbackReason: nextDecision?.fallbackReason || `${failedBackend}=${failureReason}`,
+                            externalApiUsed: false,
+                            externalEstimatedCostUsd: 0
+                        };
+                    }
+                    if (
+                        nextDecision.engineUsed === "local" &&
+                        excludedLocalBackends.includes(String(nextDecision.selectedBackend || ""))
+                    ) {
+                        return {
+                            ...localAttempt,
+                            ok: false,
+                            executionOk: false,
+                            objectiveSatisfied: false,
+                            blocked: true,
+                            status: "LOCAL_VIDEO_FALLBACK_RESELECTED_FAILED_BACKEND",
+                            error: "LOCAL_VIDEO_FALLBACK_RESELECTED_FAILED_BACKEND",
+                            retryable: false,
+                            fallbackUsed: true,
+                            fallbackReason: `${failedBackend}=${failureReason}`,
+                            externalApiUsed: false,
+                            externalEstimatedCostUsd: 0
+                        };
+                    }
                     engineDecision = {
-                        ...engineDecision,
-                        status: "VIDEO_ENGINE_EXTERNAL_FALLBACK",
-                        engineUsed: "external",
+                        ...nextDecision,
                         fallbackUsed: true,
-                        fallbackReason: localAttempt.status || localAttempt.error ||
-                            "LOCAL_VIDEO_RECOVERABLE_FAILURE"
+                        fallbackReason: nextDecision.fallbackReason || `${failedBackend}=${failureReason}`
                     };
                 }
 

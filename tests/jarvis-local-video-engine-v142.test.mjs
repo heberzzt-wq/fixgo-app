@@ -71,16 +71,225 @@ function successReceipt(job, overrides = {}) {
     };
 }
 
-test("V142 local video policy defaults to CURRENT_STABLE without changing the public tool", () => {
+test("V142 local video policy defaults to LOCAL_PREFERRED without changing the public tool", () => {
     const policy = describeLocalVideoPolicy({});
     const resolved = resolveVideoEngine({ policy, health: { ok: false } });
 
-    assert.equal(policy.mode, "CURRENT_STABLE");
-    assert.equal(policy.localVideoEnabled, false);
+    assert.equal(policy.mode, "LOCAL_PREFERRED");
+    assert.equal(policy.localVideoEnabled, true);
     assert.equal(policy.externalFallbackEnabled, true);
     assert.equal(resolved.ok, true);
+    assert.equal(resolved.engineRequested, "LOCAL_PREFERRED");
+    assert.equal(resolved.engineUsed, "external");
+    assert.equal(resolved.provider, "google-veo");
+    assert.equal(resolved.fallbackUsed, true);
+    assert.equal(resolved.fallbackReason, "LOCAL_VIDEO_WORKER_UNAVAILABLE");
+});
+
+function localBackend({
+    backend,
+    model,
+    ok = true,
+    certified = true,
+    status = "LOCAL_VIDEO_BACKEND_READY",
+    imageToVideo,
+    maximumReferenceAssets
+}) {
+    return {
+        backend,
+        model,
+        ok,
+        certified,
+        status,
+        imageToVideo,
+        maximumReferenceAssets
+    };
+}
+
+function automaticLocalHealth(overrides = {}) {
+    return {
+        ok: true,
+        status: "LOCAL_VIDEO_BACKEND_READY",
+        backends: [
+            localBackend({
+                backend: "wan22-ti2v-5b",
+                model: "Wan2.2-TI2V-5B",
+                imageToVideo: true,
+                maximumReferenceAssets: 1,
+                ...(overrides.wan22 || {})
+            }),
+            localBackend({
+                backend: "wan21-t2v-1.3b",
+                model: "Wan2.1-T2V-1.3B",
+                imageToVideo: false,
+                maximumReferenceAssets: 0,
+                ...(overrides.wan21 || {})
+            })
+        ]
+    };
+}
+
+test("LOCAL_PREFERRED automatically selects Wan2.2 before Wan2.1 for T2V and references", () => {
+    const policy = describeLocalVideoPolicy({
+        JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_PREFERRED",
+        JARVIS_LOCAL_VIDEO_ENABLED: "true",
+        JARVIS_LOCAL_VIDEO_CERTIFIED: "true"
+    });
+    const t2v = resolveVideoEngine({
+        policy,
+        health: automaticLocalHealth(),
+        requirements: { referenceCount: 0, requiresImageToVideo: false }
+    });
+    const referenced = resolveVideoEngine({
+        policy,
+        health: automaticLocalHealth(),
+        requirements: { referenceCount: 1, requiresImageToVideo: true }
+    });
+
+    for (const result of [t2v, referenced]) {
+        assert.equal(result.engineUsed, "local");
+        assert.equal(result.selectedBackend, "wan22-ti2v-5b");
+        assert.equal(result.selectedModel, "Wan2.2-TI2V-5B");
+        assert.equal(result.externalApiUsed, false);
+        assert.equal(result.externalEstimatedCostUsd, 0);
+    }
+});
+
+test("LOCAL_PREFERRED selects Wan2.1 only for compatible T2V when Wan2.2 is unavailable", () => {
+    const policy = describeLocalVideoPolicy({
+        JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_PREFERRED",
+        JARVIS_LOCAL_VIDEO_ENABLED: "true",
+        JARVIS_LOCAL_VIDEO_CERTIFIED: "true"
+    });
+    const health = automaticLocalHealth({
+        wan22: { ok: false, status: "LOCAL_VIDEO_MODEL_NOT_READY" }
+    });
+    const t2v = resolveVideoEngine({
+        policy,
+        health,
+        requirements: { referenceCount: 0, requiresImageToVideo: false }
+    });
+    const referenced = resolveVideoEngine({
+        policy,
+        health,
+        requirements: { referenceCount: 1, requiresImageToVideo: true }
+    });
+
+    assert.equal(t2v.engineUsed, "local");
+    assert.equal(t2v.selectedBackend, "wan21-t2v-1.3b");
+    assert.equal(referenced.engineUsed, "external");
+    assert.equal(referenced.selectedBackend, "google-veo");
+    assert.equal(referenced.fallbackUsed, true);
+    assert.match(referenced.fallbackReason, /wan22-ti2v-5b=LOCAL_VIDEO_MODEL_NOT_READY/);
+    assert.match(referenced.fallbackReason, /wan21-t2v-1\.3b=LOCAL_VIDEO_REFERENCES_UNSUPPORTED_BY_BACKEND/);
+});
+
+test("automatic local selection rejects missing weights, runner and dependencies despite sufficient VRAM", () => {
+    const policy = describeLocalVideoPolicy({
+        JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_PREFERRED",
+        JARVIS_LOCAL_VIDEO_ENABLED: "true",
+        JARVIS_LOCAL_VIDEO_CERTIFIED: "true"
+    });
+    for (const status of [
+        "LOCAL_VIDEO_MODEL_WEIGHTS_MISSING",
+        "LOCAL_VIDEO_RUNNER_UNCONFIGURED",
+        "LOCAL_VIDEO_DEPENDENCIES_UNAVAILABLE"
+    ]) {
+        const resolved = resolveVideoEngine({
+            policy,
+            health: automaticLocalHealth({
+                wan22: { ok: false, status },
+                wan21: { ok: false, status: "LOCAL_VIDEO_CUDA_UNAVAILABLE" }
+            }),
+            requirements: { referenceCount: 0, requiresImageToVideo: false }
+        });
+        assert.equal(resolved.engineUsed, "external");
+        assert.equal(resolved.selectedBackend, "google-veo");
+        assert.match(resolved.fallbackReason, new RegExp(`wan22-ti2v-5b=${status}`));
+    }
+});
+
+test("physical backend health requires runner, repository dependencies and weights per Wan backend", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-local-health-"));
+    const runner = path.join(root, "runner.py");
+    const wan22Model = path.join(root, "wan22-model");
+    const wan21Model = path.join(root, "wan21-model");
+    const wan22Repo = path.join(root, "wan22-repo");
+    const wan21Repo = path.join(root, "wan21-repo");
+    fs.writeFileSync(runner, "# controlled runner\n");
+    for (const directory of [wan22Model, wan21Model, wan22Repo, wan21Repo]) {
+        fs.mkdirSync(directory, { recursive: true });
+    }
+    fs.writeFileSync(path.join(wan22Model, "model.safetensors"), "weights");
+    fs.writeFileSync(path.join(wan21Model, "model.safetensors"), "weights");
+    fs.writeFileSync(path.join(wan22Repo, "generate.py"), "# wan22\n");
+    fs.writeFileSync(path.join(wan21Repo, "generate.py"), "# wan21\n");
+    const env = {
+        JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_PREFERRED",
+        JARVIS_LOCAL_VIDEO_ENABLED: "true",
+        JARVIS_LOCAL_VIDEO_RUNNER: process.execPath,
+        JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT: runner,
+        JARVIS_WAN22_MODEL_DIR: wan22Model,
+        JARVIS_WAN21_MODEL_DIR: wan21Model,
+        JARVIS_WAN22_REPO_DIR: wan22Repo,
+        JARVIS_WAN21_REPO_DIR: wan21Repo,
+        JARVIS_WAN22_CERTIFIED: "true",
+        JARVIS_WAN21_CERTIFIED: "true"
+    };
+    const engine = createLocalVideoEngine({ root, env, inspectHardware: healthyCapability });
+    const healthy = engine.health();
+    assert.deepEqual(healthy.backends.map(item => [item.backend, item.ok]), [
+        ["wan22-ti2v-5b", true],
+        ["wan21-t2v-1.3b", true]
+    ]);
+    assert.equal(engine.resolve({ referenceCount: 1 }).selectedBackend, "wan22-ti2v-5b");
+
+    fs.rmSync(path.join(wan22Model, "model.safetensors"));
+    const withoutWan22Weights = engine.health();
+    assert.equal(withoutWan22Weights.backends[0].status, "LOCAL_VIDEO_MODEL_WEIGHTS_MISSING");
+    assert.equal(engine.resolve({ referenceCount: 0 }).selectedBackend, "wan21-t2v-1.3b");
+    const referencedFallback = engine.resolve({ referenceCount: 1, requiresImageToVideo: true });
+    assert.equal(referencedFallback.engineUsed, "external");
+    assert.match(referencedFallback.fallbackReason, /wan22-ti2v-5b=LOCAL_VIDEO_MODEL_WEIGHTS_MISSING/);
+    assert.match(referencedFallback.fallbackReason, /wan21-t2v-1\.3b=LOCAL_VIDEO_REFERENCES_UNSUPPORTED_BY_BACKEND/);
+
+    fs.rmSync(path.join(wan21Repo, "generate.py"));
+    assert.equal(engine.health().backends[1].status, "LOCAL_VIDEO_DEPENDENCIES_UNAVAILABLE");
+    fs.rmSync(runner);
+    assert.equal(engine.health().backends[1].status, "LOCAL_VIDEO_RUNNER_UNCONFIGURED");
+});
+
+test("LOCAL_ONLY fails closed and LOCAL_TEST never selects Veo when no compatible backend exists", () => {
+    const unavailable = automaticLocalHealth({
+        wan22: { ok: false, status: "LOCAL_VIDEO_CUDA_UNAVAILABLE" },
+        wan21: { ok: false, status: "LOCAL_VIDEO_CUDA_UNAVAILABLE" }
+    });
+    for (const mode of ["LOCAL_ONLY", "LOCAL_TEST"]) {
+        const resolved = resolveVideoEngine({
+            policy: describeLocalVideoPolicy({
+                JARVIS_VIDEO_ENGINE_POLICY: mode,
+                JARVIS_LOCAL_VIDEO_ENABLED: "true",
+                JARVIS_LOCAL_VIDEO_CERTIFIED: "true"
+            }),
+            health: unavailable,
+            requirements: { referenceCount: 0, requiresImageToVideo: false }
+        });
+        assert.equal(resolved.ok, false);
+        assert.equal(resolved.engineUsed, null);
+        assert.equal(resolved.selectedBackend, null);
+        assert.equal(resolved.externalApiUsed, false);
+    }
+});
+
+test("CURRENT_STABLE remains an explicit Veo rollback", () => {
+    const resolved = resolveVideoEngine({
+        policy: describeLocalVideoPolicy({ JARVIS_VIDEO_ENGINE_POLICY: "CURRENT_STABLE" }),
+        health: automaticLocalHealth(),
+        requirements: { referenceCount: 1, requiresImageToVideo: true }
+    });
     assert.equal(resolved.engineRequested, "CURRENT_STABLE");
     assert.equal(resolved.engineUsed, "external");
+    assert.equal(resolved.selectedBackend, "google-veo");
     assert.equal(resolved.provider, "google-veo");
     assert.equal(resolved.fallbackUsed, false);
 });
@@ -101,7 +310,8 @@ test("LOCAL_AI_CAPABILITY_REPORT is physical, hashed and registered in Artifact 
 
     assert.equal(report.reportType, "LOCAL_AI_CAPABILITY_REPORT");
     assert.equal(report.localVideoReadiness.supported, false);
-    assert.equal(report.promotion.current, "CURRENT_STABLE");
+    assert.equal(report.promotion.current, "LOCAL_PREFERRED");
+    assert.equal(report.promotion.rollback, "CURRENT_STABLE");
     assert.equal(written.ok, true);
     assert.equal(written.physicallyWritten, true);
     assert.match(written.sha256, /^[a-f0-9]{64}$/);
@@ -556,7 +766,7 @@ test("video.generate LOCAL_TEST executes one local operation with zero cloud cal
     }
 });
 
-test("LOCAL_PREFERRED uses an explicit budgeted fallback after a recoverable local runtime failure", async () => {
+test("LOCAL_PREFERRED retries a recoverable Wan2.2 failure on compatible Wan2.1 before Veo", async () => {
     const runtime = runtimeFixture();
     registerJarvisActuatorTools(runtime);
     const previousBridge = globalThis.JarvisLocalBridge;
@@ -594,18 +804,28 @@ test("LOCAL_PREFERRED uses an explicit budgeted fallback after a recoverable loc
             async requestJson(route, payload) {
                 routes.push({ route, payload });
                 if (route === "/video/engine/resolve") {
+                    const wan21 = payload.excludedBackends?.includes("wan22-ti2v-5b");
                     return {
                         ok: true,
                         policy: "LOCAL_PREFERRED",
                         engineRequested: "LOCAL_PREFERRED",
                         engineUsed: "local",
+                        selectedBackend: wan21 ? "wan21-t2v-1.3b" : "wan22-ti2v-5b",
                         externalFallbackEnabled: true,
-                        fallbackUsed: false,
+                        fallbackUsed: wan21,
+                        fallbackReason: wan21 ? "wan22-ti2v-5b=LOCAL_VIDEO_RUNNER_START_FAILED" : null,
                         externalApiUsed: false,
                         externalEstimatedCostUsd: 0
                     };
                 }
                 if (route === "/video/local/start") {
+                    if (payload.selectedBackend === "wan21-t2v-1.3b") {
+                        return {
+                            ok: true,
+                            status: "LOCAL_VIDEO_GENERATION_STARTED",
+                            operationName: "local-video/wan21-recovery"
+                        };
+                    }
                     return {
                         ok: false,
                         status: "LOCAL_VIDEO_RUNNER_START_FAILED",
@@ -613,13 +833,116 @@ test("LOCAL_PREFERRED uses an explicit budgeted fallback after a recoverable loc
                         retryable: true
                     };
                 }
-                if (route === "/video/engine/authorize-external") {
+                if (route === "/video/local/poll") {
                     return {
                         ok: true,
-                        status: "EXTERNAL_VIDEO_CALL_AUTHORIZED",
-                        externalApiUsed: true,
-                        externalEstimatedCostUsd: 0.25
+                        done: true,
+                        status: "VIDEO_GENERATED_VERIFIED",
+                        operationName: payload.operationName,
+                        output: ".jarvis-artifacts/videos/explicit-fallback.mp4",
+                        bytes: 120000,
+                        sha256: "b".repeat(64),
+                        physicallyWritten: true,
+                        backend: "wan21-t2v-1.3b",
+                        model: "Wan2.1-T2V-1.3B",
+                        provider: "local"
                     };
+                }
+                throw new Error(`Unexpected bridge route: ${route}`);
+            }
+        };
+
+        const result = await runtime.get("video.generate").execute({
+            prompt: "Recover explicitly without hiding the provider.",
+            output: ".jarvis-artifacts/videos/explicit-fallback.mp4"
+        }, { waitForVideoPoll: async () => {} });
+
+        assert.equal(result.ok, true);
+        assert.equal(result.engineRequested, "LOCAL_PREFERRED");
+        assert.equal(result.engineUsed, "local");
+        assert.equal(result.selectedBackend, "wan21-t2v-1.3b");
+        assert.equal(result.fallbackUsed, true);
+        assert.equal(result.fallbackReason, "wan22-ti2v-5b=LOCAL_VIDEO_RUNNER_START_FAILED");
+        assert.equal(result.externalApiUsed, false);
+        assert.equal(result.externalEstimatedCostUsd, 0);
+        assert.equal(cloudCalls.length, 0);
+        assert.equal(routes.filter(item => item.route === "/video/local/start").length, 2);
+        assert.equal(routes.filter(item => item.route === "/video/engine/resolve").length, 2);
+        assert.equal(routes.filter(item => item.route === "/video/engine/authorize-external").length, 0);
+    }
+    finally {
+        globalThis.JarvisLocalBridge = previousBridge;
+        globalThis.fetch = previousFetch;
+        globalThis.auth = previousAuth;
+    }
+});
+
+test("recoverable Wan2.2 reference failure skips Wan2.1 and preserves the asset on explicit Veo fallback", async () => {
+    const runtime = runtimeFixture();
+    registerJarvisActuatorTools(runtime);
+    const previousBridge = globalThis.JarvisLocalBridge;
+    const previousFetch = globalThis.fetch;
+    const previousAuth = globalThis.auth;
+    const routes = [];
+    const cloudCalls = [];
+    const referenceOutput = ".jarvis-artifacts/images/identity.png";
+    const imageBytes = Buffer.from("verified-reference-image").toString("base64");
+    try {
+        globalThis.auth = { currentUser: { getIdToken: async () => "reference-fallback-token" } };
+        globalThis.fetch = async (_url, options = {}) => {
+            const data = JSON.parse(options.body).data;
+            cloudCalls.push(data);
+            const result = data.action === "start"
+                ? { ok: true, operationName: "operations/reference-fallback" }
+                : {
+                    ok: true,
+                    done: true,
+                    operationName: data.operationName,
+                    downloadUrl: "https://firebasestorage.googleapis.com/reference-fallback.mp4",
+                    storageObject: "jarvis-video-temp/reference-fallback.mp4",
+                    sha256: "e".repeat(64),
+                    provider: "google-veo-vertex",
+                    model: "veo-3.1-generate-001"
+                };
+            return { ok: true, status: 200, text: async () => JSON.stringify({ result }) };
+        };
+        globalThis.JarvisLocalBridge = {
+            async requestJson(route, payload) {
+                routes.push({ route, payload });
+                if (route === "/artifact/read") {
+                    return { ok: true, output: referenceOutput, mimeType: "image/png", dataBase64: imageBytes };
+                }
+                if (route === "/video/engine/resolve") {
+                    if (payload.excludedBackends?.includes("wan22-ti2v-5b")) {
+                        assert.equal(payload.referenceCount, 1);
+                        assert.equal(payload.requiresImageToVideo, true);
+                        return {
+                            ok: true,
+                            policy: "LOCAL_PREFERRED",
+                            engineRequested: "LOCAL_PREFERRED",
+                            engineUsed: "external",
+                            selectedBackend: "google-veo",
+                            externalFallbackEnabled: true,
+                            fallbackUsed: true,
+                            fallbackReason: "LOCAL_VIDEO_BACKENDS_UNAVAILABLE:wan22-ti2v-5b=LOCAL_VIDEO_RUNNER_START_FAILED;wan21-t2v-1.3b=LOCAL_VIDEO_REFERENCES_UNSUPPORTED_BY_BACKEND"
+                        };
+                    }
+                    return {
+                        ok: true,
+                        policy: "LOCAL_PREFERRED",
+                        engineRequested: "LOCAL_PREFERRED",
+                        engineUsed: "local",
+                        selectedBackend: "wan22-ti2v-5b",
+                        externalFallbackEnabled: true,
+                        fallbackUsed: false
+                    };
+                }
+                if (route === "/video/local/start") {
+                    assert.deepEqual(payload.referenceOutputs, [referenceOutput]);
+                    return { ok: false, status: "LOCAL_VIDEO_RUNNER_START_FAILED", retryable: true };
+                }
+                if (route === "/video/engine/authorize-external") {
+                    return { ok: true, externalApiUsed: true, externalEstimatedCostUsd: 0.25 };
                 }
                 if (route === "/video/import") {
                     return {
@@ -635,26 +958,37 @@ test("LOCAL_PREFERRED uses an explicit budgeted fallback after a recoverable loc
         };
 
         const result = await runtime.get("video.generate").execute({
-            prompt: "Recover explicitly without hiding the provider.",
-            output: ".jarvis-artifacts/videos/explicit-fallback.mp4"
+            prompt: "Preserve the verified identity reference.",
+            referenceOutputs: [referenceOutput],
+            output: ".jarvis-artifacts/videos/reference-fallback.mp4"
         }, { waitForVideoPoll: async () => {} });
 
+        const cloudStart = cloudCalls.find(call => call.action === "start");
         assert.equal(result.ok, true);
-        assert.equal(result.engineRequested, "LOCAL_PREFERRED");
         assert.equal(result.engineUsed, "external");
         assert.equal(result.fallbackUsed, true);
-        assert.equal(result.fallbackReason, "LOCAL_VIDEO_RUNNER_START_FAILED");
-        assert.equal(result.externalApiUsed, true);
-        assert.equal(result.externalEstimatedCostUsd, 0.25);
+        assert.match(result.fallbackReason, /wan21-t2v-1\.3b=LOCAL_VIDEO_REFERENCES_UNSUPPORTED_BY_BACKEND/);
+        assert.equal(result.referenceImageCount, 1);
+        assert.equal(result.verifiedArtifactDelivery, true);
         assert.equal(cloudCalls.filter(call => call.action === "start").length, 1);
+        assert.equal(cloudStart.referenceImages.length, 1);
+        assert.equal(cloudStart.referenceImages[0].imageBytes, imageBytes);
         assert.equal(routes.filter(item => item.route === "/video/local/start").length, 1);
-        assert.equal(routes.filter(item => item.route === "/video/engine/authorize-external").length, 1);
     }
     finally {
         globalThis.JarvisLocalBridge = previousBridge;
         globalThis.fetch = previousFetch;
         globalThis.auth = previousAuth;
     }
+});
+
+test("video.generate public input contract remains unchanged", () => {
+    const runtime = runtimeFixture();
+    registerJarvisActuatorTools(runtime);
+    assert.deepEqual(Object.keys(runtime.get("video.generate").inputSchema), [
+        "script", "prompt", "scenes", "referenceOutputs", "aspectRatio", "output",
+        "caseId", "objectiveId", "seriesId", "episodeId"
+    ]);
 });
 
 test("V142 resolve gates local backends by mission reference requirements", () => {
@@ -683,11 +1017,15 @@ test("V142 resolve gates local backends by mission reference requirements", () =
     assert.equal(lightFallback.ok, true);
     assert.equal(lightFallback.engineUsed, "external");
     assert.equal(lightFallback.fallbackUsed, true);
-    assert.equal(lightFallback.fallbackReason, "LOCAL_VIDEO_REFERENCES_UNSUPPORTED_BY_BACKEND");
+    assert.equal(
+        lightFallback.fallbackReason,
+        "LOCAL_VIDEO_BACKENDS_UNAVAILABLE:wan21-t2v-1.3b=LOCAL_VIDEO_REFERENCES_UNSUPPORTED_BY_BACKEND"
+    );
 
     const localOnly = describeLocalVideoPolicy({
         JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_ONLY",
-        JARVIS_LOCAL_VIDEO_ENABLED: "true"
+        JARVIS_LOCAL_VIDEO_ENABLED: "true",
+        JARVIS_LOCAL_VIDEO_CERTIFIED: "true"
     });
     const fullHealth = {
         ok: true,
@@ -707,5 +1045,8 @@ test("V142 resolve gates local backends by mission reference requirements", () =
     });
     assert.equal(tooMany.ok, false);
     assert.equal(tooMany.engineUsed, null);
-    assert.equal(tooMany.status, "LOCAL_VIDEO_REFERENCE_LIMIT_EXCEEDED");
+    assert.equal(
+        tooMany.status,
+        "LOCAL_VIDEO_BACKENDS_UNAVAILABLE:wan22-ti2v-5b=LOCAL_VIDEO_REFERENCE_LIMIT_EXCEEDED"
+    );
 });
