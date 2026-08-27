@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import {
     buildLocalAiCapabilityReport,
     createLocalVideoEngine,
+    createRunpodRemoteVideoAdapter,
     describeLocalVideoPolicy,
     estimateExternalVideoGeneration,
     resolveVideoEngine,
@@ -112,6 +113,355 @@ function localBackend({
         maximumReferenceAssets
     };
 }
+
+function mockHttpResponse(status, payload = null) {
+    return {
+        status,
+        text: async () => payload === null ? "" : JSON.stringify(payload)
+    };
+}
+
+function runpodPhysicalHarness({ scenario = "success", clock = null } = {}) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), `jarvis-runpod-${scenario}-`));
+    const runner = path.join(root, "jarvis-local-video-wan22.py");
+    fs.writeFileSync(runner, "# controlled existing V142 runner\n");
+    const referenceOutput = ".jarvis-artifacts/images/runpod-reference.png";
+    const referenceFile = path.join(root, referenceOutput);
+    fs.mkdirSync(path.dirname(referenceFile), { recursive: true });
+    fs.writeFileSync(referenceFile, Buffer.from("physical-runpod-reference"));
+    const env = {
+        JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_TEST",
+        JARVIS_LOCAL_VIDEO_ENABLED: "true",
+        JARVIS_LOCAL_VIDEO_EXECUTION_TARGET: "remote",
+        JARVIS_LOCAL_VIDEO_MODEL: "wan22-ti2v-5b",
+        JARVIS_LOCAL_VIDEO_RUNNER: process.execPath,
+        JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT: runner,
+        JARVIS_REMOTE_GPU_PROVIDER: "runpod",
+        JARVIS_RUNPOD_GPU_TYPE_ID: "NVIDIA A40",
+        JARVIS_RUNPOD_CLOUD_TYPE: "COMMUNITY",
+        JARVIS_REMOTE_GPU_HARD_BUDGET_USD: "2",
+        JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS: "7200",
+        JARVIS_SSH_PATH: process.execPath,
+        JARVIS_SCP_PATH: process.execPath,
+        JARVIS_SSH_KEYGEN_PATH: process.execPath,
+        RUNPOD_API_KEY: "test-runpod-api-key-never-persist",
+        PATH: process.env.PATH,
+        PATHEXT: process.env.PATHEXT
+    };
+    const calls = [];
+    let deleted = false;
+    let podGets = 0;
+    let createdBody = null;
+    let capturedJob = null;
+    let healthCalls = 0;
+    let transportTimeouts = 0;
+    const remoteAssets = new Map();
+    const goodVideo = Buffer.alloc(120000, 7);
+    goodVideo.write("0000ftypisom", 0, "ascii");
+    const badVideo = Buffer.alloc(120000, 9);
+    const outputBytes = scenario === "bad-mp4" ? badVideo : goodVideo;
+    const outputSha = createHash("sha256").update(outputBytes).digest("hex");
+
+    const fetchImpl = async (url, options = {}) => {
+        const safeUrl = String(url).replace(env.RUNPOD_API_KEY, "[REDACTED]");
+        calls.push({ kind: "http", url: safeUrl, method: options.method || "GET" });
+        if (String(url).includes("/graphql")) {
+            return mockHttpResponse(200, {
+                data: {
+                    gpuTypes: [{
+                        id: "NVIDIA A40",
+                        displayName: "A40",
+                        memoryInGb: 48,
+                        lowestPrice: {
+                            stockStatus: "High",
+                            uninterruptablePrice: 0.44,
+                            availableGpuCounts: [1]
+                        }
+                    }]
+                }
+            });
+        }
+        if (String(url).endsWith("/pods") && options.method === "POST") {
+            createdBody = JSON.parse(options.body);
+            if (scenario === "provision-fail") return mockHttpResponse(503, { error: "controlled" });
+            return mockHttpResponse(201, {
+                id: "pod-a40-v142",
+                desiredStatus: "RUNNING",
+                costPerHr: "0.44",
+                gpu: { id: "NVIDIA A40", memoryInGb: 48 }
+            });
+        }
+        if (String(url).includes("/billing/pods")) return mockHttpResponse(200, []);
+        if (String(url).includes("/pods/pod-a40-v142") && options.method === "DELETE") {
+            if (scenario === "release-fail") return mockHttpResponse(500, { error: "controlled" });
+            deleted = true;
+            return mockHttpResponse(204);
+        }
+        if (String(url).includes("/pods/pod-a40-v142")) {
+            podGets += 1;
+            if (scenario === "poll-timeout" && transportTimeouts++ === 0) {
+                const error = new Error("ETIMEDOUT controlled");
+                error.code = "ETIMEDOUT";
+                throw error;
+            }
+            if (deleted) return mockHttpResponse(404);
+            return mockHttpResponse(200, {
+                id: "pod-a40-v142",
+                desiredStatus: "RUNNING",
+                publicIp: "203.0.113.42",
+                portMappings: { "22": 22122 }
+            });
+        }
+        throw new Error(`unexpected mock URL: ${safeUrl}`);
+    };
+
+    const execute = async (_command, args) => {
+        calls.push({ kind: args.includes("-P") ? "scp" : "ssh" });
+        if (args.includes("-P")) {
+            const source = args.at(-2);
+            const destination = args.at(-1);
+            if (String(source).startsWith("root@")) {
+                fs.mkdirSync(path.dirname(destination), { recursive: true });
+                fs.writeFileSync(destination, outputBytes);
+            }
+            else {
+                const remote = String(destination).slice(String(destination).indexOf(":") + 1);
+                if (String(source).endsWith("job.json")) capturedJob = JSON.parse(fs.readFileSync(source, "utf8"));
+                if (fs.existsSync(source)) {
+                    remoteAssets.set(remote, createHash("sha256").update(fs.readFileSync(source)).digest("hex"));
+                }
+            }
+            return { stdout: "", stderr: "", exitCode: 0 };
+        }
+        const command = String(args.at(-1) || "");
+        if (command.includes("python3 -c")) {
+            healthCalls += 1;
+            const health = scenario === "health-fail" && healthCalls === 1
+                ? { python: true, torch: true, cuda: false, gpuName: "", vramGb: 0, freeDiskGb: 100 }
+                : {
+                    python: true,
+                    torch: true,
+                    cuda: true,
+                    gpuName: "NVIDIA A40",
+                    vramGb: 48,
+                    freeDiskGb: 100,
+                    ffmpeg: true,
+                    ffprobe: true,
+                    runner: true,
+                    wanRepository: true,
+                    wanModel: true
+                };
+            return { stdout: `${JSON.stringify(health)}\n`, stderr: "", exitCode: 0 };
+        }
+        if (command.includes("sha256sum") && command.includes("stat -c")) {
+            const sha = scenario === "bad-sha" ? "0".repeat(64) : outputSha;
+            return { stdout: `${sha}  output.mp4\n${outputBytes.length}\n`, stderr: "", exitCode: 0 };
+        }
+        if (command.includes("sha256sum")) {
+            const remoteFile = [...remoteAssets.keys()].find(file => command.includes(file));
+            return { stdout: `${remoteAssets.get(remoteFile)}  ${remoteFile}\n`, stderr: "", exitCode: 0 };
+        }
+        if (command.includes("bootstrap.ready")) {
+            return { stdout: "READY\n", stderr: "", exitCode: 0 };
+        }
+        if (command.includes("echo $!")) return { stdout: "4242\n", stderr: "", exitCode: 0 };
+        if (command.includes("kill -0")) return { stdout: "RESULT\n", stderr: "", exitCode: 0 };
+        if (command.startsWith("cat ")) {
+            const result = scenario === "job-failure"
+                ? {
+                    ok: false,
+                    status: "RUNPOD_WAN_GENERATION_FAILED",
+                    error: "RUNPOD_WAN_GENERATION_FAILED",
+                    retryable: false
+                }
+                : {
+                    ok: true,
+                    status: "LOCAL_VIDEO_RUNNER_COMPLETED",
+                    operationId: capturedJob.operationId,
+                    operationName: capturedJob.operationName,
+                    output: capturedJob.output,
+                    mimeType: "video/mp4",
+                    backend: capturedJob.backend,
+                    model: capturedJob.model,
+                    engine: "local",
+                    provider: "local",
+                    externalApiUsed: false,
+                    externalEstimatedCostUsd: 0,
+                    referenceAssetCount: capturedJob.referenceFiles.length,
+                    durationSeconds: 8,
+                    fps: 24,
+                    width: 704,
+                    height: 1280
+                };
+            return { stdout: JSON.stringify(result), stderr: "", exitCode: 0 };
+        }
+        return { stdout: "", stderr: "", exitCode: 0 };
+    };
+
+    const generateKeyPair = ({ privateKeyFile, publicKeyFile }) => {
+        fs.writeFileSync(privateKeyFile, "controlled-private-key");
+        fs.writeFileSync(publicKeyFile, "ssh-ed25519 controlled-public-key jarvis-test\n");
+    };
+    const now = () => new Date(clock?.value || "2026-08-27T12:00:00.000Z");
+    const adapter = createRunpodRemoteVideoAdapter({ root, env, fetchImpl, execute, generateKeyPair, now });
+    const engine = createLocalVideoEngine({
+        root,
+        env,
+        inspectHardware: adapter.inspectHardware,
+        launch: adapter.launch,
+        pollRemote: adapter.poll,
+        release: adapter.release,
+        inspectVideo: () => ({ durationSeconds: 8, fps: 24, width: 704, height: 1280 }),
+        now
+    });
+    const payload = {
+        script: "Use the verified reference in one short Wan2.2 clip.",
+        prompts: ["A short controlled vertical shot."],
+        referenceOutputs: [referenceOutput],
+        output: `.jarvis-artifacts/videos/runpod-${scenario}.mp4`,
+        missionId: `MISSION-RUNPOD-${scenario}`,
+        objectiveId: `OBJECTIVE-RUNPOD-${scenario}`,
+        obligationId: `video.generate:runpod-${scenario}`,
+        rootInstructionHash: createHash("sha256").update(`root-${scenario}`).digest("hex")
+    };
+    return {
+        root,
+        env,
+        adapter,
+        engine,
+        payload,
+        calls,
+        get createdBody() { return createdBody; },
+        get podGets() { return podGets; },
+        get deleted() { return deleted; }
+    };
+}
+
+async function pollRunpodUntilDone(engine, operationName, maximumPolls = 8) {
+    let current = null;
+    for (let index = 0; index < maximumPolls; index += 1) {
+        current = await engine.poll({ operationName });
+        if (current.done === true) return current;
+    }
+    assert.fail(`RunPod mock did not finish: ${JSON.stringify(current)}`);
+}
+
+test("V142 RunPod adapter provisions one A40 Pod, transfers physical assets, returns verified MP4, and deletes the Pod", async () => {
+    const harness = runpodPhysicalHarness();
+    const started = await harness.engine.start(harness.payload);
+    assert.equal(started.ok, true, JSON.stringify(started));
+    assert.equal(started.podId, "pod-a40-v142");
+    assert.match(started.remoteJobId, /^runpod\/pod-a40-v142\//);
+
+    const completed = await pollRunpodUntilDone(harness.engine, started.operationName);
+    assert.equal(completed.ok, true, JSON.stringify(completed));
+    assert.equal(completed.status, "VIDEO_GENERATED_VERIFIED");
+    assert.equal(completed.verifiedArtifactDelivery, true);
+    assert.equal(completed.workerRelease.status, "RUNPOD_POD_TERMINATED_VERIFIED");
+    assert.equal(completed.workerRelease.terminationVerified, true);
+    assert.equal(harness.deleted, true);
+    assert.equal(harness.createdBody.gpuCount, 1);
+    assert.deepEqual(harness.createdBody.gpuTypeIds, ["NVIDIA A40"]);
+    assert.equal(harness.createdBody.containerDiskInGb, 30);
+    assert.equal(harness.createdBody.volumeInGb, 100);
+    assert.equal(harness.createdBody.minRAMPerGPU, 50);
+    assert.equal(harness.createdBody.minVCPUPerGPU, 9);
+    assert.equal("RUNPOD_API_KEY" in harness.createdBody.env, false);
+    assert.equal(JSON.stringify(harness.createdBody).includes(harness.env.RUNPOD_API_KEY), false);
+    const stateBase = path.join(harness.root, ".jarvis-artifacts", ".video-worker", "runpod");
+    const stateFiles = fs.readdirSync(stateBase, { recursive: true })
+        .filter(file => String(file).endsWith(".json"));
+    for (const stateFile of stateFiles) {
+        assert.equal(
+            fs.readFileSync(path.join(stateBase, stateFile), "utf8").includes(harness.env.RUNPOD_API_KEY),
+            false
+        );
+    }
+    assert.equal(listArtifacts({ root: harness.root, type: "video" }).length, 1);
+});
+
+test("V142 RunPod adapter fails closed on provision and real worker health failures", async t => {
+    await t.test("provision failure creates no successful operation", async () => {
+        const harness = runpodPhysicalHarness({ scenario: "provision-fail" });
+        const started = await harness.engine.start(harness.payload);
+        assert.equal(started.ok, false);
+        assert.equal(started.status, "LOCAL_VIDEO_RUNNER_START_FAILED");
+        assert.equal(started.error, "RUNPOD_API_HTTP_503");
+        assert.equal(harness.calls.filter(call => call.kind === "http" && call.method === "POST").length, 2);
+        assert.equal(harness.calls.some(call => call.method === "DELETE"), false);
+        assert.equal(listArtifacts({ root: harness.root, type: "video" }).length, 0);
+    });
+
+    await t.test("RUNNING is not READY until CUDA, NVIDIA, VRAM and disk pass", async () => {
+        const harness = runpodPhysicalHarness({ scenario: "health-fail" });
+        const started = await harness.engine.start(harness.payload);
+        const failed = await pollRunpodUntilDone(harness.engine, started.operationName);
+        assert.equal(failed.ok, false);
+        assert.equal(failed.status, "RUNPOD_WORKER_HEALTH_FAILED");
+        assert.equal(failed.workerRelease.terminationVerified, true);
+        assert.equal(harness.deleted, true);
+        assert.equal(listArtifacts({ root: harness.root, type: "video" }).length, 0);
+    });
+});
+
+test("V142 RunPod polling retries transport on the same Pod/job and durable obligation never provisions twice", async () => {
+    const harness = runpodPhysicalHarness({ scenario: "poll-timeout" });
+    const started = await harness.engine.start(harness.payload);
+    const duplicate = await harness.engine.start(harness.payload);
+    assert.equal(duplicate.reusedOperation, true);
+    assert.equal(duplicate.operationName, started.operationName);
+    assert.equal(duplicate.remoteJobId, started.remoteJobId);
+
+    const firstPoll = await harness.engine.poll({ operationName: started.operationName });
+    assert.equal(firstPoll.ok, true);
+    assert.equal(firstPoll.done, false);
+    assert.equal(firstPoll.remotePoll.status, "RUNPOD_POLL_TRANSPORT_RETRYABLE");
+    assert.equal(firstPoll.remotePoll.retryable, true);
+    const completed = await pollRunpodUntilDone(harness.engine, started.operationName);
+    assert.equal(completed.ok, true);
+    assert.equal(harness.calls.filter(call => call.kind === "http" && call.method === "POST").length, 2);
+    assert.equal(harness.createdBody.name.includes(started.operationId), true);
+});
+
+test("V142 RunPod adapter handles job failure, bad SHA, bad MP4 and mandatory delete failure honestly", async t => {
+    const expected = {
+        "job-failure": "RUNPOD_WAN_GENERATION_FAILED",
+        "bad-sha": "REMOTE_VIDEO_RESULT_SHA256_MISMATCH",
+        "bad-mp4": "LOCAL_VIDEO_MP4_CONTAINER_INVALID",
+        "release-fail": "REMOTE_VIDEO_WORKER_RELEASE_FAILED"
+    };
+    for (const [scenario, status] of Object.entries(expected)) {
+        await t.test(scenario, async () => {
+            const harness = runpodPhysicalHarness({ scenario });
+            const started = await harness.engine.start(harness.payload);
+            const completed = await pollRunpodUntilDone(harness.engine, started.operationName);
+            assert.equal(completed.ok, false);
+            assert.equal(completed.status, status, JSON.stringify(completed));
+            assert.equal(listArtifacts({ root: harness.root, type: "video" }).length, 0);
+            if (scenario === "release-fail") {
+                assert.equal(completed.workerRelease.ok, false);
+                assert.equal(harness.deleted, false);
+            }
+            else {
+                assert.equal(completed.workerRelease.terminationVerified, true);
+                assert.equal(harness.deleted, true);
+            }
+        });
+    }
+});
+
+test("V142 RunPod hard cap cancels before USD 2 and still deletes the Pod", async () => {
+    const clock = { value: "2026-08-27T12:00:00.000Z" };
+    const harness = runpodPhysicalHarness({ scenario: "budget", clock });
+    const started = await harness.engine.start(harness.payload);
+    clock.value = "2026-08-27T16:20:00.000Z";
+    const completed = await pollRunpodUntilDone(harness.engine, started.operationName);
+    assert.equal(completed.ok, false);
+    assert.equal(completed.status, "RUNPOD_HARD_BUDGET_EXCEEDED");
+    assert.equal(completed.workerRelease.terminationVerified, true);
+    assert.ok(completed.gpuRentalEstimatedCost < 2);
+    assert.equal(harness.deleted, true);
+});
 
 function remoteWanFixture(prefix = "jarvis-remote-contract-") {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), prefix));

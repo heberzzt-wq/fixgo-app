@@ -2,11 +2,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
-import { execFileSync, spawn } from "node:child_process";
+import { execFile, execFileSync, spawn } from "node:child_process";
 
 import { registerArtifact } from "./jarvis-artifact-studio.js";
 
-export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.6.0-v142-remote-lifecycle-cost-guard";
+export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.7.0-v142-runpod-physical-adapter";
+export const JARVIS_RUNPOD_ADAPTER_VERSION = "1.0.0-v142-runpod-pod-ssh";
 export const VIDEO_ENGINE_MODES = Object.freeze([
     "CURRENT_STABLE",
     "LOCAL_TEST",
@@ -694,21 +695,25 @@ function localBackendHealth({ profile, hardware, policy, env }) {
     const configuredModelDirectory = env[configuration.modelDirectory] ||
         (legacyConfiguration ? env.JARVIS_LOCAL_VIDEO_MODEL_DIR : null);
     const configuredRepositoryDirectory = env[configuration.repositoryDirectory] || null;
+    const remoteExecution = String(env.JARVIS_LOCAL_VIDEO_EXECUTION_TARGET || "local")
+        .trim().toLowerCase() === "remote";
     const modelDirectory = configuredModelDirectory
         ? path.resolve(String(configuredModelDirectory))
-        : null;
+        : (remoteExecution ? "/workspace/models/Wan2.2-TI2V-5B" : null);
     const repositoryDirectory = configuredRepositoryDirectory
         ? path.resolve(String(configuredRepositoryDirectory))
         : null;
-    const runner = commandPath(env.JARVIS_LOCAL_VIDEO_RUNNER, env);
+    const runner = remoteExecution
+        ? "python3"
+        : commandPath(env.JARVIS_LOCAL_VIDEO_RUNNER, env);
     const runnerScript = env.JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT
         ? path.resolve(String(env.JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT))
         : null;
     const runnerReady = Boolean(runner && runnerScript && fs.existsSync(runnerScript));
-    const repositoryReady = legacyConfiguration || Boolean(
+    const repositoryReady = remoteExecution || legacyConfiguration || Boolean(
         repositoryDirectory && fs.existsSync(path.join(repositoryDirectory, "generate.py"))
     );
-    const weightsReady = legacyConfiguration
+    const weightsReady = remoteExecution ? true : legacyConfiguration
         ? Boolean(modelDirectory && fs.existsSync(modelDirectory))
         : containsModelWeights(modelDirectory);
     const dependenciesReady = runnerReady && repositoryReady;
@@ -718,6 +723,9 @@ function localBackendHealth({ profile, hardware, policy, env }) {
     );
     const blockingReasons = [];
     if (policy.localVideoEnabled !== true) blockingReasons.push("LOCAL_VIDEO_DISABLED");
+    if (remoteExecution && hardware.ok !== true) {
+        blockingReasons.push(hardware.status || "REMOTE_VIDEO_PROVIDER_UNAVAILABLE");
+    }
     if (hardware.cudaAvailable !== true) blockingReasons.push("LOCAL_VIDEO_CUDA_UNAVAILABLE");
     if (Number(hardware.vramGb || 0) < profile.minimumVramGb) blockingReasons.push("LOCAL_VIDEO_VRAM_INSUFFICIENT");
     if (Number(hardware.freeDiskGb || 0) < profile.minimumFreeDiskGb) blockingReasons.push("LOCAL_VIDEO_DISK_INSUFFICIENT");
@@ -727,7 +735,9 @@ function localBackendHealth({ profile, hardware, policy, env }) {
     if (!runnerReady) blockingReasons.push("LOCAL_VIDEO_RUNNER_UNCONFIGURED");
     else if (!repositoryReady) blockingReasons.push("LOCAL_VIDEO_DEPENDENCIES_UNAVAILABLE");
     if (!weightsReady) blockingReasons.push("LOCAL_VIDEO_MODEL_WEIGHTS_MISSING");
-    const status = blockingReasons[0] || "LOCAL_VIDEO_BACKEND_READY";
+    const status = blockingReasons[0] || (
+        remoteExecution ? "REMOTE_VIDEO_PROVISIONING_CONFIGURED" : "LOCAL_VIDEO_BACKEND_READY"
+    );
     return {
         ...profile,
         ok: blockingReasons.length === 0,
@@ -1062,12 +1072,753 @@ function verifyMediaAgainstOperation(operation, media) {
     }
 }
 
+function runProcess(command, args, options = {}) {
+    return new Promise((resolve, reject) => {
+        execFile(command, args, {
+            windowsHide: true,
+            encoding: "utf8",
+            maxBuffer: 8 * 1024 * 1024,
+            ...options
+        }, (error, stdout, stderr) => {
+            if (error) {
+                error.stdout = stdout;
+                error.stderr = stderr;
+                reject(error);
+                return;
+            }
+            resolve({ stdout: String(stdout || ""), stderr: String(stderr || ""), exitCode: 0 });
+        });
+    });
+}
+
+function runpodPositiveNumber(value, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) && number > 0 ? number : fallback;
+}
+
+function runpodPublicWorker(state = {}) {
+    return {
+        provider: "runpod",
+        podId: state.podId || null,
+        remoteJobId: state.remoteJobId || null,
+        phase: state.phase || null,
+        gpuTypeId: state.gpuTypeId || null,
+        vramGb: Number(state.vramGb || 0),
+        hourlyRateUsd: Number(state.hourlyRateUsd || 0),
+        hardBudgetUsd: Number(state.hardBudgetUsd || 0),
+        createdAt: state.createdAt || null,
+        missionId: state.missionId || null,
+        objectiveId: state.objectiveId || null,
+        obligationId: state.obligationId || null,
+        operationName: state.operationName || null,
+        rootInstructionHash: state.rootInstructionHash || null,
+        assetManifest: Array.isArray(state.assetManifest)
+            ? state.assetManifest.map(asset => ({
+                output: asset.output,
+                remoteFile: asset.remoteFile,
+                bytes: asset.bytes,
+                sha256: asset.sha256
+            }))
+            : []
+    };
+}
+
+function shellSingleQuote(value) {
+    return `'${String(value).replaceAll("'", `'"'"'`)}'`;
+}
+
+/**
+ * Physical RunPod infrastructure adapter behind the existing V142 video engine.
+ * It uses RunPod only for Pod lifecycle and an ephemeral SSH key for byte transfer.
+ * The API credential never leaves this server-side closure.
+ */
+export function createRunpodRemoteVideoAdapter({
+    root = process.cwd(),
+    env = process.env,
+    fetchImpl = globalThis.fetch,
+    execute = runProcess,
+    generateKeyPair = null,
+    now = () => new Date()
+} = {}) {
+    const resolvedRoot = path.resolve(root);
+    const apiBase = String(env.JARVIS_RUNPOD_API_BASE || "https://rest.runpod.io/v1").replace(/\/$/, "");
+    const graphQlBase = String(env.JARVIS_RUNPOD_GRAPHQL_URL || "https://api.runpod.io/graphql");
+    const apiKey = String(env.RUNPOD_API_KEY || "").trim();
+    const provider = String(env.JARVIS_REMOTE_GPU_PROVIDER || "").trim().toLowerCase();
+    const gpuTypeId = String(env.JARVIS_RUNPOD_GPU_TYPE_ID || "NVIDIA A40").trim();
+    const imageName = String(
+        env.JARVIS_RUNPOD_IMAGE || "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404"
+    ).trim();
+    const cloudType = String(env.JARVIS_RUNPOD_CLOUD_TYPE || "COMMUNITY").trim().toUpperCase() === "SECURE"
+        ? "SECURE"
+        : "COMMUNITY";
+    const hardBudgetUsd = Math.min(
+        2,
+        runpodPositiveNumber(env.JARVIS_REMOTE_GPU_HARD_BUDGET_USD, 2)
+    );
+    const budgetStopRatio = Math.min(
+        0.99,
+        Math.max(0.8, runpodPositiveNumber(env.JARVIS_REMOTE_GPU_BUDGET_STOP_RATIO, 0.95))
+    );
+    const containerDiskInGb = Math.ceil(runpodPositiveNumber(env.JARVIS_RUNPOD_CONTAINER_DISK_GB, 30));
+    const volumeInGb = Math.ceil(runpodPositiveNumber(env.JARVIS_RUNPOD_VOLUME_DISK_GB, 100));
+    const minimumRamGb = Math.ceil(runpodPositiveNumber(env.JARVIS_RUNPOD_MIN_RAM_GB, 50));
+    const minimumVcpu = Math.ceil(runpodPositiveNumber(env.JARVIS_RUNPOD_MIN_VCPU, 9));
+    const expectedVramGb = runpodPositiveNumber(env.JARVIS_RUNPOD_EXPECTED_VRAM_GB, 48);
+    const configuredTotalHourlyRateUsd = runpodPositiveNumber(
+        env.JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD,
+        0.46
+    );
+    const remoteBase = "/workspace/jarvis-v142";
+    const stateRoot = path.join(resolvedRoot, ".jarvis-artifacts", ".video-worker", "runpod");
+    const ssh = resolveLocalExecutable(env.JARVIS_SSH_PATH || "ssh", env);
+    const scp = resolveLocalExecutable(env.JARVIS_SCP_PATH || "scp", env);
+    const sshKeygen = resolveLocalExecutable(env.JARVIS_SSH_KEYGEN_PATH || "ssh-keygen", env);
+
+    function assertConfigured() {
+        if (provider !== "runpod") throw new Error("RUNPOD_PROVIDER_NOT_ENABLED");
+        if (!apiKey) throw new Error("RUNPOD_API_KEY_REQUIRED");
+        if (typeof fetchImpl !== "function") throw new Error("RUNPOD_FETCH_UNAVAILABLE");
+        if (!ssh || !scp || !sshKeygen) throw new Error("RUNPOD_SSH_TOOLCHAIN_UNAVAILABLE");
+        if (gpuTypeId !== "NVIDIA A40") throw new Error("RUNPOD_GPU_TYPE_NOT_APPROVED_FOR_V142");
+    }
+
+    function stateFile(operationId) {
+        if (!/^[a-f0-9-]{20,}$/i.test(String(operationId || ""))) {
+            throw new Error("RUNPOD_OPERATION_ID_INVALID");
+        }
+        return path.join(stateRoot, `${operationId}.json`);
+    }
+
+    function readState(operation) {
+        const file = stateFile(operation?.operationId);
+        if (!fs.existsSync(file)) throw new Error("RUNPOD_OPERATION_STATE_NOT_FOUND");
+        const state = readJson(file);
+        if (
+            state.operationName !== operation.operationName ||
+            state.missionId !== operation.missionId ||
+            state.objectiveId !== operation.objectiveId ||
+            state.obligationId !== operation.obligationId ||
+            state.rootInstructionHash !== operation.rootInstructionHash
+        ) {
+            throw new Error("RUNPOD_DURABLE_IDENTITY_MISMATCH");
+        }
+        return { file, state };
+    }
+
+    function writeState(file, state, patch = {}) {
+        const next = { ...state, ...patch, updatedAt: now().toISOString() };
+        atomicJsonWrite(file, next);
+        return next;
+    }
+
+    async function apiRequest(url, options = {}, accepted = [200]) {
+        let response;
+        try {
+            response = await fetchImpl(url, {
+                ...options,
+                headers: {
+                    Authorization: `Bearer ${apiKey}`,
+                    ...(options.body ? { "Content-Type": "application/json" } : {}),
+                    ...(options.headers || {})
+                }
+            });
+        }
+        catch(error) {
+            const failure = new Error("RUNPOD_API_TRANSPORT_FAILED");
+            failure.cause = error;
+            failure.retryable = true;
+            throw failure;
+        }
+        if (!accepted.includes(Number(response.status))) {
+            const failure = new Error(`RUNPOD_API_HTTP_${Number(response.status || 0)}`);
+            failure.retryable = Number(response.status) >= 500 || Number(response.status) === 429;
+            failure.httpStatus = Number(response.status || 0);
+            throw failure;
+        }
+        if (Number(response.status) === 204) return null;
+        const text = await response.text();
+        if (!text) return null;
+        try { return JSON.parse(text); }
+        catch { throw new Error("RUNPOD_API_RESPONSE_INVALID"); }
+    }
+
+    async function queryAvailability() {
+        const secureCloud = cloudType === "SECURE" ? "true" : "false";
+        const query = `query { gpuTypes(input: { id: \"NVIDIA A40\" }) { id displayName memoryInGb lowestPrice(input: { gpuCount: 1, secureCloud: ${secureCloud} }) { stockStatus uninterruptablePrice availableGpuCounts } } }`;
+        const separator = graphQlBase.includes("?") ? "&" : "?";
+        const payload = await apiRequest(
+            `${graphQlBase}${separator}api_key=${encodeURIComponent(apiKey)}`,
+            { method: "POST", body: JSON.stringify({ query }) }
+        );
+        if (Array.isArray(payload?.errors) && payload.errors.length > 0) {
+            throw new Error("RUNPOD_AVAILABILITY_QUERY_FAILED");
+        }
+        const gpu = payload?.data?.gpuTypes?.[0];
+        const price = gpu?.lowestPrice || {};
+        if (
+            gpu?.id !== gpuTypeId ||
+            Number(gpu?.memoryInGb || 0) < 24 ||
+            String(price.stockStatus || "None") === "None" ||
+            !Array.isArray(price.availableGpuCounts) ||
+            !price.availableGpuCounts.map(Number).includes(1)
+        ) {
+            throw new Error("RUNPOD_COMPATIBLE_GPU_UNAVAILABLE");
+        }
+        const hourlyRateUsd = Number(price.uninterruptablePrice || 0);
+        if (!(hourlyRateUsd > 0)) throw new Error("RUNPOD_HOURLY_RATE_INVALID");
+        return {
+            gpuTypeId: gpu.id,
+            displayName: gpu.displayName || gpu.id,
+            vramGb: Number(gpu.memoryInGb),
+            hourlyRateUsd,
+            stockStatus: price.stockStatus
+        };
+    }
+
+    function buildAssetManifest(job, operationDir) {
+        const seen = new Set();
+        const candidates = [
+            ...(job.sourceReferenceFiles || []).map((file, index) => ({
+                file,
+                output: job.sourceReferenceOutputs?.[index] || null,
+                role: "source"
+            })),
+            ...(job.referenceFiles || []).map((file, index) => ({
+                file,
+                output: job.referenceOutputs?.[index] || null,
+                role: "generation"
+            }))
+        ];
+        return candidates.filter(item => {
+            const resolved = path.resolve(String(item.file || ""));
+            if (!fs.existsSync(resolved) || !fs.statSync(resolved).isFile()) {
+                throw new Error("RUNPOD_REFERENCE_ASSET_NOT_FOUND");
+            }
+            if (seen.has(resolved)) return false;
+            seen.add(resolved);
+            item.file = resolved;
+            return true;
+        }).map((item, index) => {
+            const bytes = fs.readFileSync(item.file);
+            return {
+                ...item,
+                bytes: bytes.length,
+                sha256: createHash("sha256").update(bytes).digest("hex"),
+                remoteFile: `${remoteBase}/operations/${job.operationId}/assets/${index}-${path.basename(item.file).replace(/[^a-z0-9._-]/gi, "_")}`,
+                stagingFile: path.join(operationDir, "assets", `${index}-${path.basename(item.file).replace(/[^a-z0-9._-]/gi, "_")}`)
+            };
+        });
+    }
+
+    function prepareRemoteFiles(job) {
+        const operationDir = path.join(stateRoot, job.operationId);
+        fs.mkdirSync(path.join(operationDir, "assets"), { recursive: true });
+        const privateKeyFile = path.join(operationDir, "ssh-key");
+        const publicKeyFile = `${privateKeyFile}.pub`;
+        const knownHostsFile = path.join(operationDir, "known-hosts");
+        if (typeof generateKeyPair === "function") {
+            generateKeyPair({ privateKeyFile, publicKeyFile, operationId: job.operationId });
+        }
+        else {
+            execFileSync(sshKeygen, ["-q", "-t", "ed25519", "-N", "", "-C", `jarvis-${job.operationId}`, "-f", privateKeyFile], {
+                windowsHide: true,
+                stdio: "ignore"
+            });
+        }
+        const publicKey = fs.readFileSync(publicKeyFile, "utf8").trim();
+        const assets = buildAssetManifest(job, operationDir);
+        for (const asset of assets) fs.copyFileSync(asset.file, asset.stagingFile);
+        const generationAssets = (job.referenceFiles || []).map(file => {
+            const resolved = path.resolve(file);
+            return assets.find(asset => asset.file === resolved)?.remoteFile;
+        }).filter(Boolean);
+        const sourceAssets = (job.sourceReferenceFiles || []).map(file => {
+            const resolved = path.resolve(file);
+            return assets.find(asset => asset.file === resolved)?.remoteFile;
+        }).filter(Boolean);
+        const remoteOperationDir = `${remoteBase}/operations/${job.operationId}`;
+        const remoteJob = {
+            ...job,
+            modelDirectory: `${remoteBase}/models/Wan2.2-TI2V-5B`,
+            outputFile: `${remoteOperationDir}/output.mp4`,
+            referenceFiles: generationAssets,
+            sourceReferenceFiles: sourceAssets
+        };
+        const localJobFile = path.join(operationDir, "job.json");
+        const localRunnerFile = path.join(operationDir, "jarvis-local-video-wan22.py");
+        const runnerSource = path.resolve(String(env.JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT || ""));
+        if (!fs.existsSync(runnerSource)) throw new Error("RUNPOD_RUNNER_SOURCE_NOT_FOUND");
+        atomicJsonWrite(localJobFile, remoteJob);
+        fs.copyFileSync(runnerSource, localRunnerFile);
+        const bootstrapFile = path.join(operationDir, "bootstrap.sh");
+        const bootstrap = `#!/usr/bin/env bash\nset -euo pipefail\n` +
+            `export DEBIAN_FRONTEND=noninteractive\n` +
+            `apt-get update -qq\napt-get install -y -qq git ffmpeg\n` +
+            `test -f ${remoteBase}/Wan2.2/generate.py || git clone --depth 1 https://github.com/Wan-Video/Wan2.2.git ${remoteBase}/Wan2.2\n` +
+            `python3 -m pip install --no-cache-dir -r ${remoteBase}/Wan2.2/requirements.txt 'huggingface_hub[cli]'\n` +
+            `mkdir -p ${remoteBase}/models/Wan2.2-TI2V-5B\n` +
+            `find ${remoteBase}/models/Wan2.2-TI2V-5B -type f -name '*.safetensors' -print -quit | grep -q . || hf download Wan-AI/Wan2.2-TI2V-5B --local-dir ${remoteBase}/models/Wan2.2-TI2V-5B\n`;
+        fs.writeFileSync(bootstrapFile, bootstrap, { encoding: "utf8", mode: 0o700 });
+        return {
+            operationDir,
+            privateKeyFile,
+            publicKeyFile,
+            publicKey,
+            knownHostsFile,
+            localJobFile,
+            localRunnerFile,
+            bootstrapFile,
+            remoteOperationDir,
+            remoteResultFile: `${remoteOperationDir}/result.json`,
+            remoteOutputFile: `${remoteOperationDir}/output.mp4`,
+            assets
+        };
+    }
+
+    function sshArgs(state, command) {
+        return [
+            "-i", state.privateKeyFile,
+            "-p", String(state.sshPort),
+            "-o", "BatchMode=yes",
+            "-o", "ConnectTimeout=20",
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", `UserKnownHostsFile=${state.knownHostsFile}`,
+            `root@${state.publicIp}`,
+            command
+        ];
+    }
+
+    async function sshCommand(state, command, timeout = 30000) {
+        return execute(ssh, sshArgs(state, command), { timeout });
+    }
+
+    async function scpFile(state, source, destination, timeout = 300000) {
+        return execute(scp, [
+            "-i", state.privateKeyFile,
+            "-P", String(state.sshPort),
+            "-o", "BatchMode=yes",
+            "-o", "ConnectTimeout=20",
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", `UserKnownHostsFile=${state.knownHostsFile}`,
+            source,
+            `root@${state.publicIp}:${destination}`
+        ], { timeout });
+    }
+
+    async function scpDownload(state, source, destination, timeout = 300000) {
+        return execute(scp, [
+            "-i", state.privateKeyFile,
+            "-P", String(state.sshPort),
+            "-o", "BatchMode=yes",
+            "-o", "ConnectTimeout=20",
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", `UserKnownHostsFile=${state.knownHostsFile}`,
+            `root@${state.publicIp}:${source}`,
+            destination
+        ], { timeout });
+    }
+
+    async function remoteHealth(state, full = false) {
+        const command = `python3 -c ${shellSingleQuote(
+            "import json,shutil,torch,os; p=shutil.disk_usage('/workspace'); " +
+            "d={'python':True,'torch':bool(torch.__version__),'cuda':torch.cuda.is_available(),'gpuName':torch.cuda.get_device_name(0) if torch.cuda.is_available() else ''," +
+            "'vramGb':round(torch.cuda.get_device_properties(0).total_memory/1073741824,2) if torch.cuda.is_available() else 0,'freeDiskGb':round(p.free/1073741824,2)," +
+            "'ffmpeg':bool(shutil.which('ffmpeg')),'ffprobe':bool(shutil.which('ffprobe'))," +
+            `'runner':os.path.isfile('${state.remoteOperationDir}/jarvis-local-video-wan22.py'),'wanRepository':os.path.isfile('${remoteBase}/Wan2.2/generate.py'),` +
+            `'wanModel':any(x.endswith(('.safetensors','.bin','.pt','.pth','.ckpt')) for _,_,f in os.walk('${remoteBase}/models/Wan2.2-TI2V-5B') for x in f)}; print(json.dumps(d))`
+        )}`;
+        const result = await sshCommand(state, command, 60000);
+        let health;
+        try { health = JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1)); }
+        catch { throw new Error("RUNPOD_HEALTH_RESPONSE_INVALID"); }
+        if (
+            health.python !== true || health.torch !== true || health.cuda !== true ||
+            !/nvidia/i.test(String(health.gpuName || "")) ||
+            Number(health.vramGb || 0) < 24 || Number(health.freeDiskGb || 0) < 45
+        ) {
+            throw new Error("RUNPOD_WORKER_HEALTH_FAILED");
+        }
+        if (full && (
+            health.ffmpeg !== true || health.ffprobe !== true || health.runner !== true ||
+            health.wanRepository !== true || health.wanModel !== true
+        )) {
+            throw new Error("RUNPOD_WAN22_HEALTH_FAILED");
+        }
+        return health;
+    }
+
+    async function launch({ job }) {
+        assertConfigured();
+        if (
+            job.executionTarget !== "remote" || job.backend !== WAN22_TI2V_5B.backend ||
+            !job.missionId || !job.objectiveId || !job.obligationId || !job.rootInstructionHash
+        ) {
+            throw new Error("RUNPOD_DURABLE_IDENTITY_REQUIRED");
+        }
+        const file = stateFile(job.operationId);
+        if (fs.existsSync(file)) {
+            const existing = readJson(file);
+            if (existing.podId) throw new Error("RUNPOD_DUPLICATE_OBLIGATION_BLOCKED");
+        }
+        const prepared = prepareRemoteFiles(job);
+        let podId = null;
+        try {
+            const availability = await queryAvailability();
+            const createdAt = now().toISOString();
+            const body = {
+                cloudType,
+                computeType: "GPU",
+                containerDiskInGb,
+                volumeInGb,
+                volumeMountPath: "/workspace",
+                gpuCount: 1,
+                gpuTypeIds: [gpuTypeId],
+                gpuTypePriority: "custom",
+                imageName,
+                interruptible: false,
+                minRAMPerGPU: minimumRamGb,
+                minVCPUPerGPU: minimumVcpu,
+                ports: ["22/tcp"],
+                supportPublicIp: true,
+                name: `jarvis-v142-${job.operationId}`,
+                env: {
+                    PUBLIC_KEY: prepared.publicKey,
+                    JARVIS_OPERATION_ID: job.operationId,
+                    JARVIS_OBLIGATION_FINGERPRINT: createHash("sha256")
+                        .update(`${job.missionId}\n${job.objectiveId}\n${job.obligationId}\n${job.rootInstructionHash}`)
+                        .digest("hex")
+                }
+            };
+            const pod = await apiRequest(`${apiBase}/pods`, {
+                method: "POST",
+                body: JSON.stringify(body)
+            }, [200, 201]);
+            podId = String(pod?.id || "").trim();
+            if (!podId) throw new Error("RUNPOD_PROVISION_RESPONSE_INVALID");
+            const actualGpu = String(pod?.gpu?.id || pod?.machine?.gpuTypeId || gpuTypeId);
+            const actualVram = Number(pod?.gpu?.memoryInGb || availability.vramGb || expectedVramGb);
+            if (actualGpu !== gpuTypeId || actualVram < 24) throw new Error("RUNPOD_PROVISIONED_GPU_INCOMPATIBLE");
+            const hourlyRateUsd = Math.max(
+                Number(pod?.adjustedCostPerHr || pod?.costPerHr || availability.hourlyRateUsd),
+                configuredTotalHourlyRateUsd
+            );
+            if (!(hourlyRateUsd > 0)) throw new Error("RUNPOD_HOURLY_RATE_INVALID");
+            const state = {
+                schemaVersion: JARVIS_RUNPOD_ADAPTER_VERSION,
+                provider: "runpod",
+                podId,
+                remoteJobId: `runpod/${podId}/${job.operationId}`,
+                phase: "PROVISIONED",
+                gpuTypeId,
+                vramGb: actualVram,
+                hourlyRateUsd,
+                hardBudgetUsd,
+                createdAt,
+                operationId: job.operationId,
+                operationName: job.operationName,
+                missionId: job.missionId,
+                objectiveId: job.objectiveId,
+                obligationId: job.obligationId,
+                rootInstructionHash: job.rootInstructionHash,
+                ...prepared,
+                assetManifest: prepared.assets.map(asset => ({
+                    output: asset.output,
+                    localFile: asset.stagingFile,
+                    remoteFile: asset.remoteFile,
+                    bytes: asset.bytes,
+                    sha256: asset.sha256,
+                    role: asset.role
+                }))
+            };
+            atomicJsonWrite(file, state);
+            return { pid: null, remoteWorker: runpodPublicWorker(state), kill() {} };
+        }
+        catch(error) {
+            if (podId) {
+                try {
+                    await apiRequest(`${apiBase}/pods/${encodeURIComponent(podId)}`, { method: "DELETE" }, [200, 204, 404]);
+                }
+                catch {}
+            }
+            try {
+                const cleanupTarget = path.resolve(prepared.operationDir);
+                const cleanupRoot = path.resolve(stateRoot);
+                if (cleanupTarget.startsWith(`${cleanupRoot}${path.sep}`)) {
+                    fs.rmSync(cleanupTarget, { recursive: true, force: true });
+                }
+            }
+            catch {}
+            throw error;
+        }
+    }
+
+    function rentalCost(state) {
+        const start = Date.parse(String(state.createdAt || ""));
+        const seconds = Number.isFinite(start) ? Math.max(0, (now().getTime() - start) / 1000) : 0;
+        return {
+            seconds,
+            estimatedCostUsd: seconds * Number(state.hourlyRateUsd || 0) / 3600
+        };
+    }
+
+    async function uploadOperation(state) {
+        await sshCommand(state, `mkdir -p ${shellSingleQuote(state.remoteOperationDir + "/assets")}`);
+        await scpFile(state, state.localJobFile, `${state.remoteOperationDir}/job.json`);
+        await scpFile(state, state.localRunnerFile, `${state.remoteOperationDir}/jarvis-local-video-wan22.py`);
+        await scpFile(state, state.bootstrapFile, `${state.remoteOperationDir}/bootstrap.sh`);
+        for (const asset of state.assetManifest) await scpFile(state, asset.localFile, asset.remoteFile);
+        for (const asset of state.assetManifest) {
+            const checked = await sshCommand(state, `sha256sum ${shellSingleQuote(asset.remoteFile)}`);
+            const actual = checked.stdout.trim().split(/\s+/)[0]?.toLowerCase();
+            if (actual !== asset.sha256) throw new Error("RUNPOD_ASSET_SHA256_MISMATCH");
+        }
+    }
+
+    async function writeLocalFailure(operation, resultFile, status, retryable = false) {
+        atomicJsonWrite(resultFile, {
+            ok: false,
+            status,
+            error: status,
+            retryable,
+            operationId: operation.operationId,
+            operationName: operation.operationName,
+            backend: operation.backend,
+            model: operation.model,
+            engine: "local",
+            provider: "local",
+            externalApiUsed: false,
+            externalEstimatedCostUsd: 0
+        });
+    }
+
+    async function pollRemote({ operation, resultFile }) {
+        assertConfigured();
+        const loaded = readState(operation);
+        let state = loaded.state;
+        const cost = rentalCost(state);
+        if (cost.estimatedCostUsd >= state.hardBudgetUsd * budgetStopRatio) {
+            await writeLocalFailure(operation, resultFile, "RUNPOD_HARD_BUDGET_EXCEEDED", false);
+            state = writeState(loaded.file, state, { phase: "BUDGET_EXCEEDED" });
+            return { ok: false, done: true, status: "RUNPOD_HARD_BUDGET_EXCEEDED", remoteWorker: runpodPublicWorker(state) };
+        }
+        try {
+            if (state.phase === "PROVISIONED") {
+                const pod = await apiRequest(`${apiBase}/pods/${encodeURIComponent(state.podId)}?includeMachine=true`, { method: "GET" });
+                if (String(pod?.id || "") !== state.podId) throw new Error("RUNPOD_POD_IDENTITY_MISMATCH");
+                if (String(pod?.desiredStatus || "") !== "RUNNING") {
+                    return { ok: true, done: false, status: "RUNPOD_POD_STARTING", remoteWorker: runpodPublicWorker(state) };
+                }
+                const publicIp = String(pod?.publicIp || "").trim();
+                const sshPort = Number(pod?.portMappings?.["22"] || 0);
+                if (!publicIp || !sshPort) {
+                    return { ok: true, done: false, status: "RUNPOD_SSH_STARTING", remoteWorker: runpodPublicWorker(state) };
+                }
+                state = writeState(loaded.file, state, { publicIp, sshPort, phase: "POD_RUNNING" });
+            }
+            if (state.phase === "POD_RUNNING") {
+                const health = await remoteHealth(state, false);
+                await uploadOperation(state);
+                const command = `(bash ${shellSingleQuote(state.remoteOperationDir + "/bootstrap.sh")} > ${shellSingleQuote(state.remoteOperationDir + "/bootstrap.log")} 2>&1 && touch ${shellSingleQuote(state.remoteOperationDir + "/bootstrap.ready")}) || { code=$?; echo $code > ${shellSingleQuote(state.remoteOperationDir + "/bootstrap.failed")}; }`;
+                await sshCommand(state, `nohup bash -lc ${shellSingleQuote(command)} >/dev/null 2>&1 &`, 30000);
+                state = writeState(loaded.file, state, { phase: "BOOTSTRAPPING", baseHealth: health });
+                return { ok: true, done: false, status: "RUNPOD_WAN22_BOOTSTRAPPING", remoteWorker: runpodPublicWorker(state) };
+            }
+            if (state.phase === "BOOTSTRAPPING") {
+                const marker = await sshCommand(state,
+                    `if test -f ${shellSingleQuote(state.remoteOperationDir + "/bootstrap.ready")}; then echo READY; elif test -f ${shellSingleQuote(state.remoteOperationDir + "/bootstrap.failed")}; then echo FAILED; else echo RUNNING; fi`
+                );
+                const status = marker.stdout.trim().split(/\r?\n/).at(-1);
+                if (status === "FAILED") {
+                    await writeLocalFailure(operation, resultFile, "RUNPOD_WAN22_BOOTSTRAP_FAILED", false);
+                    state = writeState(loaded.file, state, { phase: "BOOTSTRAP_FAILED" });
+                    return { ok: false, done: true, status: "RUNPOD_WAN22_BOOTSTRAP_FAILED", remoteWorker: runpodPublicWorker(state) };
+                }
+                if (status !== "READY") {
+                    return { ok: true, done: false, status: "RUNPOD_WAN22_BOOTSTRAPPING", remoteWorker: runpodPublicWorker(state) };
+                }
+                const health = await remoteHealth(state, true);
+                const runner = `env JARVIS_WAN22_REPO_DIR=${shellSingleQuote(remoteBase + "/Wan2.2")} JARVIS_LOCAL_VIDEO_EXTERNAL_API_ALLOWED=false JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS=${Math.floor(localVideoTimeoutSeconds(env))} python3 ${shellSingleQuote(state.remoteOperationDir + "/jarvis-local-video-wan22.py")} --job ${shellSingleQuote(state.remoteOperationDir + "/job.json")} --result ${shellSingleQuote(state.remoteResultFile)}`;
+                const started = await sshCommand(state, `nohup bash -lc ${shellSingleQuote(runner)} > ${shellSingleQuote(state.remoteOperationDir + "/runner.log")} 2>&1 & echo $!`);
+                const remotePid = Number(started.stdout.trim().split(/\r?\n/).at(-1));
+                if (!Number.isInteger(remotePid) || remotePid < 1) throw new Error("RUNPOD_REMOTE_JOB_START_FAILED");
+                state = writeState(loaded.file, state, { phase: "JOB_RUNNING", remotePid, fullHealth: health });
+                return { ok: true, done: false, status: "RUNPOD_REMOTE_JOB_RUNNING", remoteWorker: runpodPublicWorker(state) };
+            }
+            if (state.phase === "JOB_RUNNING") {
+                const check = await sshCommand(state,
+                    `if test -f ${shellSingleQuote(state.remoteResultFile)}; then echo RESULT; elif kill -0 ${Number(state.remotePid)} 2>/dev/null; then echo RUNNING; else echo LOST; fi`
+                );
+                const status = check.stdout.trim().split(/\r?\n/).at(-1);
+                if (status === "RUNNING") {
+                    return { ok: true, done: false, status: "RUNPOD_REMOTE_JOB_RUNNING", remoteWorker: runpodPublicWorker(state) };
+                }
+                if (status !== "RESULT") {
+                    await writeLocalFailure(operation, resultFile, "RUNPOD_REMOTE_WORKER_LOST", true);
+                    state = writeState(loaded.file, state, { phase: "WORKER_LOST" });
+                    return { ok: false, done: true, status: "RUNPOD_REMOTE_WORKER_LOST", remoteWorker: runpodPublicWorker(state) };
+                }
+                const resultPayload = await sshCommand(state, `cat ${shellSingleQuote(state.remoteResultFile)}`);
+                let result;
+                try { result = JSON.parse(resultPayload.stdout); }
+                catch { throw new Error("RUNPOD_REMOTE_RESULT_INVALID"); }
+                if (result?.ok !== true) {
+                    atomicJsonWrite(resultFile, result);
+                    state = writeState(loaded.file, state, { phase: "JOB_FAILED" });
+                    return { ok: false, done: true, status: result.status || "RUNPOD_REMOTE_JOB_FAILED", remoteWorker: runpodPublicWorker(state) };
+                }
+                const remoteIntegrity = await sshCommand(state,
+                    `sha256sum ${shellSingleQuote(state.remoteOutputFile)} && stat -c %s ${shellSingleQuote(state.remoteOutputFile)}`
+                );
+                const integrityLines = remoteIntegrity.stdout.trim().split(/\r?\n/);
+                const remoteSha256 = integrityLines[0]?.trim().split(/\s+/)[0]?.toLowerCase();
+                const remoteBytes = Number(integrityLines.at(-1));
+                if (!/^[a-f0-9]{64}$/.test(String(remoteSha256 || "")) || !(remoteBytes > 0)) {
+                    throw new Error("RUNPOD_REMOTE_RESULT_INTEGRITY_INVALID");
+                }
+                fs.mkdirSync(path.dirname(operation.outputFile || path.resolve(resolvedRoot, operation.output)), { recursive: true });
+                const localOutput = path.resolve(resolvedRoot, operation.output);
+                await scpDownload(state, state.remoteOutputFile, localOutput);
+                const localBytes = fs.readFileSync(localOutput);
+                const localSha256 = createHash("sha256").update(localBytes).digest("hex");
+                if (localBytes.length !== remoteBytes) throw new Error("REMOTE_VIDEO_RESULT_BYTES_MISMATCH");
+                if (localSha256 !== remoteSha256) throw new Error("REMOTE_VIDEO_RESULT_SHA256_MISMATCH");
+                atomicJsonWrite(resultFile, { ...result, bytes: remoteBytes, sha256: remoteSha256 });
+                state = writeState(loaded.file, state, { phase: "RESULT_DOWNLOADED" });
+                return { ok: true, done: true, status: "RUNPOD_REMOTE_RESULT_DOWNLOADED", remoteWorker: runpodPublicWorker(state) };
+            }
+            return { ok: true, done: false, status: `RUNPOD_${state.phase || "UNKNOWN"}`, remoteWorker: runpodPublicWorker(state) };
+        }
+        catch(error) {
+            if (error?.retryable === true || /timed? ?out|ECONN|ETIMEDOUT|connection/i.test(String(error?.message || error))) {
+                return {
+                    ok: true,
+                    done: false,
+                    status: "RUNPOD_POLL_TRANSPORT_RETRYABLE",
+                    retryable: true,
+                    remoteJobId: state.remoteJobId,
+                    remoteWorker: runpodPublicWorker(state)
+                };
+            }
+            await writeLocalFailure(operation, resultFile, error?.message || "RUNPOD_REMOTE_POLL_FAILED", false);
+            state = writeState(loaded.file, state, { phase: "FAILED", error: error?.message || "RUNPOD_REMOTE_POLL_FAILED" });
+            return { ok: false, done: true, status: state.error, remoteWorker: runpodPublicWorker(state) };
+        }
+    }
+
+    async function release(receipt = {}) {
+        assertConfigured();
+        let loaded;
+        try {
+            loaded = readState(receipt);
+        }
+        catch(error) {
+            return { ok: false, status: error.message, error: error.message };
+        }
+        let state = loaded.state;
+        const cost = rentalCost(state);
+        try {
+            await apiRequest(`${apiBase}/pods/${encodeURIComponent(state.podId)}`, { method: "DELETE" }, [200, 204, 404]);
+            let terminationVerified = false;
+            try {
+                const pod = await apiRequest(`${apiBase}/pods/${encodeURIComponent(state.podId)}`, { method: "GET" }, [200, 404]);
+                terminationVerified = !pod || String(pod.desiredStatus || "") === "TERMINATED";
+            }
+            catch(error) {
+                terminationVerified = error?.httpStatus === 404;
+            }
+            if (!terminationVerified) throw new Error("RUNPOD_DELETE_NOT_VERIFIED");
+            let actualCostUsd = 0;
+            try {
+                const billing = await apiRequest(
+                    `${apiBase}/billing/pods?podId=${encodeURIComponent(state.podId)}&grouping=podId&bucketSize=hour`,
+                    { method: "GET" }
+                );
+                actualCostUsd = (Array.isArray(billing) ? billing : [])
+                    .filter(item => item?.podId === state.podId)
+                    .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+            }
+            catch {}
+            state = writeState(loaded.file, state, {
+                phase: "TERMINATED",
+                releasedAt: now().toISOString(),
+                releaseReason: receipt.reason || null,
+                terminationVerified,
+                gpuRentalSeconds: cost.seconds,
+                gpuRentalEstimatedCost: cost.estimatedCostUsd,
+                gpuRentalActualCost: actualCostUsd
+            });
+            for (const sensitive of [state.privateKeyFile, state.publicKeyFile, state.knownHostsFile]) {
+                try { if (sensitive && fs.existsSync(sensitive)) fs.unlinkSync(sensitive); } catch {}
+            }
+            return {
+                ok: true,
+                status: "RUNPOD_POD_TERMINATED_VERIFIED",
+                receiptId: `runpod-delete/${state.podId}`,
+                provider: "runpod",
+                podId: state.podId,
+                remoteJobId: state.remoteJobId,
+                terminationVerified: true,
+                gpuRentalSeconds: cost.seconds,
+                gpuRentalEstimatedCost: cost.estimatedCostUsd,
+                gpuRentalActualCost: actualCostUsd
+            };
+        }
+        catch(error) {
+            state = writeState(loaded.file, state, {
+                phase: "RELEASE_FAILED",
+                releaseError: error?.message || "RUNPOD_POD_TERMINATION_FAILED"
+            });
+            return {
+                ok: false,
+                status: "RUNPOD_POD_TERMINATION_FAILED",
+                error: state.releaseError,
+                provider: "runpod",
+                podId: state.podId,
+                gpuRentalSeconds: cost.seconds,
+                gpuRentalEstimatedCost: cost.estimatedCostUsd
+            };
+        }
+    }
+
+    function inspectHardware() {
+        return {
+            ok: provider === "runpod" && Boolean(apiKey) && Boolean(ssh && scp && sshKeygen),
+            status: provider === "runpod" && apiKey
+                ? "RUNPOD_PROVISIONING_CONFIGURED"
+                : "RUNPOD_API_KEY_REQUIRED",
+            cudaAvailable: true,
+            gpuName: gpuTypeId,
+            gpuIndex: 0,
+            vramGb: expectedVramGb,
+            freeDiskGb: containerDiskInGb + volumeInGb,
+            ffmpegAvailable: true,
+            ffprobeAvailable: true,
+            pythonAvailable: true,
+            remoteProvisioning: true,
+            provider: "runpod",
+            hardBudgetUsd
+        };
+    }
+
+    return {
+        version: JARVIS_RUNPOD_ADAPTER_VERSION,
+        provider: "runpod",
+        configured: provider === "runpod" && Boolean(apiKey),
+        inspectHardware,
+        launch,
+        poll: pollRemote,
+        release
+    };
+}
+
 export function createLocalVideoEngine({
     root = process.cwd(),
     env = process.env,
     inspectHardware = () => inspectLocalVideoHardware({ root, env }),
     inspectVideo = null,
     launch = null,
+    pollRemote = null,
     release = null,
     prepareReferenceSheet = prepareVideoReferenceSheet,
     now = () => new Date()
@@ -1114,11 +1865,23 @@ export function createLocalVideoEngine({
                 operationId: operation.operationId,
                 operationName: operation.operationName,
                 backend: operation.backend,
+                missionId: operation.missionId,
+                objectiveId: operation.objectiveId,
+                obligationId: operation.obligationId,
+                rootInstructionHash: operation.rootInstructionHash,
+                remoteWorker: operation.remoteWorker || null,
                 reason
             });
             if (receipt?.ok !== true) {
                 throw new Error(receipt?.error || receipt?.status || "REMOTE_VIDEO_WORKER_RELEASE_FAILED");
             }
+            const receiptSeconds = Number(receipt.gpuRentalSeconds);
+            const receiptEstimatedCost = Number(receipt.gpuRentalEstimatedCost);
+            const effectiveSeconds = Number.isFinite(receiptSeconds) ? receiptSeconds : gpuRentalSeconds;
+            const effectiveEstimatedCost = Number.isFinite(receiptEstimatedCost)
+                ? receiptEstimatedCost
+                : gpuRentalEstimatedCost;
+            const actualCost = Number(receipt.gpuRentalActualCost || receipt.actualCostUsd || 0);
             return {
                 ok: true,
                 operation: saveOperation(file, operation, {
@@ -1128,13 +1891,16 @@ export function createLocalVideoEngine({
                         reason,
                         releasedAt: endedAt.toISOString(),
                         receiptId: receipt.receiptId || null,
-                        gpuRentalSeconds,
-                        gpuRentalEstimatedCost,
-                        gpuRentalActualCost: Number(receipt.gpuRentalActualCost || receipt.actualCostUsd || 0)
+                        provider: receipt.provider || operation.remoteWorker?.provider || null,
+                        podId: receipt.podId || operation.remoteWorker?.podId || null,
+                        terminationVerified: receipt.terminationVerified === true,
+                        gpuRentalSeconds: effectiveSeconds,
+                        gpuRentalEstimatedCost: effectiveEstimatedCost,
+                        gpuRentalActualCost: actualCost
                     },
-                    gpuRentalSeconds,
-                    gpuRentalEstimatedCost,
-                    gpuRentalActualCost: Number(receipt.gpuRentalActualCost || receipt.actualCostUsd || 0)
+                    gpuRentalSeconds: effectiveSeconds,
+                    gpuRentalEstimatedCost: effectiveEstimatedCost,
+                    gpuRentalActualCost: actualCost
                 })
             };
         }
@@ -1490,7 +2256,7 @@ export function createLocalVideoEngine({
             children.delete(operationId);
         };
         try {
-            const child = launch
+            const launched = launch
                 ? launch({
                     command: runner,
                     args,
@@ -1508,12 +2274,20 @@ export function createLocalVideoEngine({
                     windowsHide: true,
                     env: runnerEnvironment
                 });
+            const child = launched && typeof launched.then === "function"
+                ? await launched
+                : launched;
             if (!launch) {
                 child.once("exit", onExit);
                 child.once("error", onError);
             }
             children.set(operationId, child);
-            operation = saveOperation(operationPath, operation, { pid: Number(child?.pid || 0) || null });
+            operation = saveOperation(operationPath, operation, {
+                pid: Number(child?.pid || 0) || null,
+                remoteWorker: child?.remoteWorker || null,
+                remoteJobId: child?.remoteWorker?.remoteJobId || null,
+                podId: child?.remoteWorker?.podId || null
+            });
         }
         catch(error) {
             operation = saveOperation(operationPath, operation, {
@@ -1547,6 +2321,39 @@ export function createLocalVideoEngine({
             );
             operation = released.operation;
             return { ...operation, ok: false, done: true, error: operation.error || operation.status };
+        }
+        if (
+            operation.executionTarget === "remote" &&
+            !fs.existsSync(operation.resultFile) &&
+            typeof pollRemote === "function"
+        ) {
+            try {
+                const remote = await pollRemote({
+                    operation,
+                    job: readJson(operation.jobFile),
+                    jobFile: operation.jobFile,
+                    resultFile: operation.resultFile
+                });
+                operation = saveOperation(loaded.file, operation, {
+                    remoteWorker: remote?.remoteWorker || operation.remoteWorker || null,
+                    remoteJobId: remote?.remoteJobId || remote?.remoteWorker?.remoteJobId || operation.remoteJobId || null,
+                    remotePoll: {
+                        status: remote?.status || null,
+                        retryable: remote?.retryable === true,
+                        checkedAt: now().toISOString()
+                    }
+                });
+            }
+            catch(error) {
+                operation = saveOperation(loaded.file, operation, {
+                    remotePoll: {
+                        status: "REMOTE_VIDEO_POLL_TRANSPORT_FAILED",
+                        error: error?.message || "REMOTE_VIDEO_POLL_TRANSPORT_FAILED",
+                        retryable: true,
+                        checkedAt: now().toISOString()
+                    }
+                });
+            }
         }
         if (!fs.existsSync(operation.resultFile)) {
             if (operation.state === "RUNNING" && isOperationStale(operation)) {
@@ -1625,27 +2432,7 @@ export function createLocalVideoEngine({
             }
             const model = operation.model;
             const backend = operation.backend;
-            const artifact = registerArtifact({
-                root: resolvedRoot,
-                output: output.normalized,
-                metadata: {
-                    type: "video",
-                    origin: "video.generate",
-                    provider: "local",
-                    backend,
-                    model,
-                    mimeType: "video/mp4",
-                    status: "VIDEO_GENERATED_VERIFIED",
-                    approvalRequired: false,
-                    approved: true,
-                    approvedBy: "LOCAL_ARTIFACT_POLICY",
-                    editable: true,
-                    preview: true,
-                    downloadable: true,
-                    publishable: false
-                }
-            });
-            const verified = {
+            const verifiedPhysical = {
                 ok: true,
                 done: true,
                 status: "VIDEO_GENERATED_VERIFIED",
@@ -1670,15 +2457,8 @@ export function createLocalVideoEngine({
                 externalEstimatedCostUsd: 0,
                 gpuRentalSeconds: Number(operation.gpuRentalSeconds || 0),
                 gpuRentalEstimatedCost: Number(operation.gpuRentalEstimatedCost || 0),
-                gpuRentalActualCost: Number(operation.gpuRentalActualCost || 0),
-                artifactId: artifact.artifactId,
-                artifact
+                gpuRentalActualCost: Number(operation.gpuRentalActualCost || 0)
             };
-            operation = saveOperation(loaded.file, operation, {
-                state: "SUCCEEDED",
-                status: verified.status,
-                result: verified
-            });
             const released = await releaseWorker(
                 loaded.file,
                 operation,
@@ -1693,14 +2473,44 @@ export function createLocalVideoEngine({
                 return { ...operation, ok: false, done: true };
             }
             operation = released.operation;
+            const artifact = registerArtifact({
+                root: resolvedRoot,
+                output: output.normalized,
+                metadata: {
+                    type: "video",
+                    origin: "video.generate",
+                    provider: "local",
+                    gpuProvider: operation.remoteWorker?.provider || null,
+                    podId: operation.remoteWorker?.podId || null,
+                    remoteJobId: operation.remoteJobId || null,
+                    backend,
+                    model,
+                    mimeType: "video/mp4",
+                    status: "VIDEO_GENERATED_VERIFIED",
+                    approvalRequired: false,
+                    approved: true,
+                    approvedBy: "LOCAL_ARTIFACT_POLICY",
+                    editable: true,
+                    preview: true,
+                    downloadable: true,
+                    publishable: false
+                }
+            });
             const finalVerified = {
-                ...verified,
+                ...verifiedPhysical,
                 workerRelease: operation.workerRelease || null,
                 gpuRentalSeconds: Number(operation.gpuRentalSeconds || 0),
                 gpuRentalEstimatedCost: Number(operation.gpuRentalEstimatedCost || 0),
-                gpuRentalActualCost: Number(operation.gpuRentalActualCost || 0)
+                gpuRentalActualCost: Number(operation.gpuRentalActualCost || 0),
+                gpuProvider: operation.remoteWorker?.provider || null,
+                podId: operation.remoteWorker?.podId || null,
+                remoteJobId: operation.remoteJobId || null,
+                artifactId: artifact.artifactId,
+                artifact
             };
             operation = saveOperation(loaded.file, operation, {
+                state: "SUCCEEDED",
+                status: finalVerified.status,
                 result: finalVerified
             });
             return finalVerified;

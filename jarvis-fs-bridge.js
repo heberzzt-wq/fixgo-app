@@ -65,6 +65,7 @@ import {
 } from "./jarvis-speech-artifact.js";
 import {
     createLocalVideoEngine,
+    createRunpodRemoteVideoAdapter,
     resolveLocalExecutable,
     writeLocalAiCapabilityReport
 } from "./jarvis-local-video-engine.js";
@@ -4547,7 +4548,20 @@ export function createJarvisFsBridgeApp({
 } = {}) {
     const app =
         express();
-    const videoEngine = localVideoEngine || createLocalVideoEngine({ root });
+    const runpodEnabled = String(process.env.JARVIS_REMOTE_GPU_PROVIDER || "")
+        .trim().toLowerCase() === "runpod";
+    const runpod = runpodEnabled
+        ? createRunpodRemoteVideoAdapter({ root, env: process.env })
+        : null;
+    const videoEngine = localVideoEngine || createLocalVideoEngine({
+        root,
+        ...(runpod ? {
+            inspectHardware: runpod.inspectHardware,
+            launch: runpod.launch,
+            pollRemote: runpod.poll,
+            release: runpod.release
+        } : {})
+    });
     const semanticEngine = localSemanticEngine || createSelfHostedSemanticEngine();
 
     let repoGraphCache = null;

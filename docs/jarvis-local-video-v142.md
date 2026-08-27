@@ -103,6 +103,58 @@ and cost zero in the final receipt. TI2V uses the first user-assigned reference
 as the initialization image while preserving every assigned reference in the
 durable job; multi-reference visual parity is not certified yet.
 
+## RunPod physical adapter (remote execution)
+
+RunPod is connected behind the same `/video/local/*` routes and the same
+`video.generate` obligation. It is enabled only in the bridge process:
+
+```text
+JARVIS_REMOTE_GPU_PROVIDER=runpod
+RUNPOD_API_KEY=<server-side secret>
+JARVIS_LOCAL_VIDEO_EXECUTION_TARGET=remote
+JARVIS_VIDEO_ENGINE_POLICY=LOCAL_TEST
+JARVIS_LOCAL_VIDEO_MODEL=wan22-ti2v-5b
+JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT=<repo>/scripts/jarvis-local-video-wan22.py
+JARVIS_REMOTE_GPU_HARD_BUDGET_USD=2
+JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD=0.46
+```
+
+The credential belongs in the environment of the process that starts
+`jarvis-fs-bridge.js`; it must not be placed in browser configuration, HTML,
+Artifact Studio metadata, a mission payload, or a committed `.env` file.
+
+The adapter performs this single durable lifecycle:
+
+1. Query official RunPod GPU availability and on-demand price for one
+   `NVIDIA A40` with at least 24 GB VRAM.
+2. `POST https://rest.runpod.io/v1/pods` for exactly one on-demand Pod using
+   the PyTorch 2.8 image, 30 GB container disk, 100 GB volume, 50 GB minimum
+   RAM, nine minimum vCPUs, and TCP 22.
+3. Generate an ephemeral SSH keypair, pass only its public key to the Pod, and
+   bind the local receipt to `missionId`, `objectiveId`, `obligationId`,
+   `operationName`, and `rootInstructionHash`.
+4. Verify live NVIDIA/CUDA/VRAM/disk/Python/PyTorch health. Transfer the
+   existing V142 runner, durable job JSON, and physical references with an
+   SHA-256 manifest. Windows paths are rewritten to Pod paths.
+5. Install/verify the official Wan2.2 repository and
+   `Wan-AI/Wan2.2-TI2V-5B`, then start exactly one remote job. Every poll uses
+   the same `remoteJobId`; a transport timeout remains retryable and never
+   provisions another Pod.
+6. Download the MP4, compare remote and local bytes/SHA-256, then let the
+   existing engine verify MP4/media metadata. Artifact Studio registration
+   happens only after physical verification and verified Pod deletion.
+7. `DELETE https://rest.runpod.io/v1/pods/{podId}` on success, failure,
+   timeout, cancel, bad SHA, invalid MP4, lost worker, or bridge-handled
+   exception. `STOP` is not used as release. The ephemeral private key is
+   removed after verified deletion.
+
+The first physical trial is capped at USD 2. Polling cancels at 95% of that
+cap so the delete request has headroom. Estimated rental cost is calculated
+from the greater of RunPod's returned Pod price and the configured total hourly
+rate (GPU plus the displayed storage allowance); actual cost is queried from
+`GET /billing/pods?podId=...` when RunPod has exposed it. `LOCAL_TEST` prevents
+Veo and Gemini recovery calls during certification.
+
 ## Current hardware gate
 
 The audited host has Intel HD Graphics 5500 without NVIDIA CUDA, roughly 1 GB
