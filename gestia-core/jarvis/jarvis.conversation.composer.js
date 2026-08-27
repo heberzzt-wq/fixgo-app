@@ -1020,6 +1020,25 @@ export async function composeEvidenceGroundedConversation({
                 "No conviertas ausencia visual en hecho si la evidencia no la demuestra y no agregues recomendaciones cuando la política estructurada las suprima."
             ].join(" ")
             : "";
+    const pendingCreativeAcceptance =
+        (Array.isArray(evidenceItems) ? evidenceItems : [])
+            .some(item => {
+                const observation =
+                    item?.observation || item?.response || item?.data || {};
+                return observation?.creativeAcceptanceRequired === true &&
+                    observation?.identityFidelityVerified !== true;
+            });
+    const creativeAcceptanceInstruction = pendingCreativeAcceptance
+        ? "Un MP4 fisicamente verificado prueba entrega tecnica, no fidelidad facial ni aceptacion creativa. Como identityFidelityVerified no es true, no afirmes fidelidad facial, que las fotos quedaron aplicadas correctamente ni que la produccion fue aceptada; informa que la revision humana sigue pendiente."
+        : "";
+    const missionOutcomeObservation =
+        (Array.isArray(evidenceItems) ? evidenceItems : [])
+            .find(item => String(item?.name || item?.tool || "") === "mission.outcome")
+            ?.observation;
+    const missionOutcomeInstruction =
+        missionOutcomeObservation && missionOutcomeObservation.status !== "COMPLETED"
+            ? `El estado canonico de la mision es ${String(missionOutcomeObservation.status || "INCOMPLETE")} con razon ${String(missionOutcomeObservation.reason || "UNRESOLVED")}; no declares la mision completada aunque una herramienta individual haya entregado un artefacto.`
+            : "";
     const prompt = [
         "Responde al usuario como Jarvis en lenguaje natural y directo.",
         "Usa exclusivamente la evidencia estructurada incluida; no inventes capacidades, estados ni ejecuciones.",
@@ -1033,6 +1052,8 @@ export async function composeEvidenceGroundedConversation({
         "RESULTADOS_HERRAMIENTAS_AUTORITATIVOS es el estado operativo definitivo: nunca describas como bloqueada una herramienta con objectiveSatisfied=true ni como completada una herramienta marcada blocked=true o requiresInput=true.",
         "La falta de un dato factual no bloquea entregables independientes que si tienen evidencia suficiente. Despues de agotar la investigacion disponible, enumera solamente los datos realmente faltantes que impiden una parte solicitada y pregunta al usuario si puede proporcionarlos o si prefiere continuar sin ellos; conserva todo lo ya verificado.",
         precisionGroundingInstruction,
+        creativeAcceptanceInstruction,
+        missionOutcomeInstruction,
         `SOLICITUD_USUARIO=${String(instruction || "").slice(0, 12000)}`,
         `RESUMEN_CAPACIDADES_Y_LIMITES=${capabilityBriefing}`,
         `RESULTADOS_HERRAMIENTAS_AUTORITATIVOS=${JSON.stringify(authoritativeOutcomes)}`,

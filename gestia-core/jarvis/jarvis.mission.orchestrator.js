@@ -1,5 +1,5 @@
 const VERSION =
-    "1.19.0-unique-marketing-artifacts-v12";
+    "1.20.0-v142-deadline-reconciliation";
 const REEL_MEDIA_RECOVERY_MAX_ATTEMPTS = 3;
 const STORAGE_KEY = "jarvis.missions.v1";
 const SINGLETON_MISSION_TOOLS = new Set(["marketing.plan", "reel.plan"]);
@@ -983,6 +983,47 @@ function safeObservation(result = {}) {
         stage: text(payload?.stage || result?.stage, 160) || null,
         providerCode: text(payload?.providerCode || result?.providerCode, 160) || null,
         providerMessage: text(payload?.providerMessage || result?.providerMessage, 1000) || null,
+        provider: text(payload?.provider || result?.provider, 160) || null,
+        backend: text(payload?.backend || payload?.selectedBackend || result?.backend || result?.selectedBackend, 160) || null,
+        fallbackReason: text(payload?.fallbackReason || result?.fallbackReason, 1000) || null,
+        reasonForPaidExternalUse: text(
+            payload?.reasonForPaidExternalUse || result?.reasonForPaidExternalUse,
+            1000
+        ) || null,
+        localSemanticInferenceCalls: Number(
+            payload?.localSemanticInferenceCalls ||
+            payload?.inferenceReceipt?.counters?.localSemanticInferenceCalls ||
+            result?.localSemanticInferenceCalls ||
+            result?.inferenceReceipt?.counters?.localSemanticInferenceCalls ||
+            0
+        ),
+        semanticExternalCalls: Number(
+            payload?.semanticExternalCalls ||
+            payload?.inferenceReceipt?.counters?.semanticExternalCalls ||
+            result?.semanticExternalCalls ||
+            result?.inferenceReceipt?.counters?.semanticExternalCalls ||
+            0
+        ),
+        paidExternalCalls: Number(
+            payload?.paidExternalCalls ||
+            payload?.inferenceReceipt?.counters?.paidExternalCalls ||
+            result?.paidExternalCalls ||
+            result?.inferenceReceipt?.counters?.paidExternalCalls ||
+            0
+        ),
+        externalEstimatedCostUsd: Number(
+            payload?.externalEstimatedCostUsd || result?.externalEstimatedCostUsd || 0
+        ),
+        externalActualCostUsd: Number(
+            payload?.externalActualCostUsd || result?.externalActualCostUsd || 0
+        ),
+        gpuRentalSeconds: Number(payload?.gpuRentalSeconds || result?.gpuRentalSeconds || 0),
+        gpuRentalEstimatedCost: Number(
+            payload?.gpuRentalEstimatedCost || result?.gpuRentalEstimatedCost || 0
+        ),
+        gpuRentalActualCost: Number(
+            payload?.gpuRentalActualCost || result?.gpuRentalActualCost || 0
+        ),
         raiMediaFilteredCount: Number(payload?.raiMediaFilteredCount || result?.raiMediaFilteredCount || 0),
         raiMediaFilteredReasons: [
             ...new Set([
@@ -1205,6 +1246,25 @@ function trustedCalls(calls = [], mission) {
         if (SINGLETON_MISSION_TOOLS.has(name) && scheduledNames.has(name)) continue;
         if (COMPLETED_SINGLETON_MISSION_TOOLS.has(name) && completedNames.has(name)) continue;
         const call = { name, args: candidate?.args && typeof candidate.args === "object" ? candidate.args : {}, approved: false };
+        const candidateRepoTarget = durableRepositoryTarget([call]);
+        if (!mission.repositoryTarget && candidateRepoTarget) {
+            mission.repositoryTarget = candidateRepoTarget;
+        }
+        if (
+            mission.repositoryTarget &&
+            candidateRepoTarget &&
+            repositoryTargetsConflict(mission.repositoryTarget, candidateRepoTarget)
+        ) {
+            mission.authorityViolations = [
+                ...(Array.isArray(mission.authorityViolations) ? mission.authorityViolations : []),
+                {
+                    status: "MISSION_REPOSITORY_TARGET_MUTATION_BLOCKED",
+                    requested: candidateRepoTarget,
+                    authorized: mission.repositoryTarget
+                }
+            ].slice(-20);
+            continue;
+        }
         const independentReplanReason = text(candidate?.independentReplanReason, 500);
         const guardedAttempt = restartGuarded.find(item =>
             logicalObligationKey(item) === logicalObligationKey(call)
@@ -1240,6 +1300,10 @@ function trustedCalls(calls = [], mission) {
         }
         accepted.push({
             ...call,
+            obligationId:
+                explicitObligationId(candidate) ||
+                text(candidate?.missionDedupeKey, 200) ||
+                name,
             ...(missionDedupeKey ? { missionDedupeKey } : {}),
             ...(independentReplanReason ? { independentReplanReason } : {}),
             signature,
@@ -1249,6 +1313,184 @@ function trustedCalls(calls = [], mission) {
         scheduledNames.add(name);
     }
     return accepted;
+}
+
+function durableRepositoryTarget(calls = []) {
+    for (const call of Array.isArray(calls) ? calls : []) {
+        const args = call?.args || {};
+        const repository = text(
+            args.repository || args.repo || args.repositoryTarget || args.repoTarget,
+            500
+        );
+        const branch = text(args.branch || args.targetBranch, 300);
+        const baseSha = text(args.baseSha || args.baseSHA || args.base, 80);
+        const headSha = text(args.headSha || args.headSHA || args.head, 80);
+        if (repository || branch || baseSha || headSha) {
+            return {
+                repository: repository || null,
+                branch: branch || null,
+                baseSha: baseSha || null,
+                headSha: headSha || null
+            };
+        }
+    }
+    return null;
+}
+
+function repositoryTargetsConflict(authorized = {}, candidate = {}) {
+    return ["repository", "branch", "baseSha"].some(field =>
+        authorized?.[field] &&
+        candidate?.[field] &&
+        authorized[field] !== candidate[field]
+    );
+}
+
+function durableApprovedInputs(calls = []) {
+    const inputs = [];
+    const seenSha256 = new Set();
+    const seenOutputs = new Set();
+    for (const call of Array.isArray(calls) ? calls : []) {
+        const args = call?.args || {};
+        const candidates = [
+            ...(Array.isArray(args.attachments) ? args.attachments : []),
+            ...(Array.isArray(args.referenceOutputs)
+                ? args.referenceOutputs.map(output => ({ output }))
+                : []),
+            ...(args.sourceOutput ? [{ output: args.sourceOutput }] : [])
+        ];
+        for (const candidate of candidates) {
+            const output = text(candidate?.artifact || candidate?.output, 500);
+            const sha256 = text(candidate?.sha256, 64).toLowerCase();
+            if (!sha256 && !output) continue;
+            if (
+                (sha256 && seenSha256.has(sha256)) ||
+                (output && seenOutputs.has(output))
+            ) continue;
+            if (sha256) seenSha256.add(sha256);
+            if (output) seenOutputs.add(output);
+            inputs.push({
+                name: text(candidate?.name, 255) || null,
+                mimeType: text(candidate?.mimeType, 160) || null,
+                output: output || null,
+                sha256: /^[a-f0-9]{64}$/.test(sha256) ? sha256 : null,
+                approved: true
+            });
+        }
+    }
+    return inputs.slice(0, 60);
+}
+
+function refreshDurableMissionAuthority(mission) {
+    const tasks = [
+        ...(Array.isArray(mission.completedTasks) ? mission.completedTasks : []),
+        ...(Array.isArray(mission.blockedTasks) ? mission.blockedTasks : []),
+        ...(Array.isArray(mission.pendingTasks) ? mission.pendingTasks : [])
+    ];
+    const byId = new Map();
+    for (const task of tasks) {
+        const obligationId = text(
+            task?.obligationId || task?.missionDedupeKey || task?.signature,
+            1000
+        );
+        if (!obligationId) continue;
+        byId.set(obligationId, {
+            obligationId,
+            tool: text(task?.name, 120),
+            status: text(task?.status, 80) || "PENDING",
+            attempts: Number(task?.attempts || 0),
+            output: text(
+                task?.observation?.artifact ||
+                task?.observation?.evidence?.output ||
+                task?.args?.output,
+                500
+            ) || null
+        });
+    }
+    mission.obligations = [...byId.values()];
+    mission.completedObligations = mission.obligations.filter(item => item.status === "COMPLETED");
+    mission.blockedObligations = mission.obligations.filter(item => item.status === "BLOCKED");
+    mission.pendingObligations = mission.obligations.filter(item =>
+        !["COMPLETED", "BLOCKED"].includes(item.status)
+    );
+    mission.currentExecutionState = {
+        status: mission.status,
+        reason: mission.reason,
+        iterations: Number(mission.iterations || 0),
+        lastValidAction: text(mission.executedTools?.at?.(-1), 120) || null,
+        nextObligation: mission.pendingObligations[0]?.obligationId || null
+    };
+    mission.artifactLineage = mission.completedTasks
+        .map(task => ({
+            obligationId: task.obligationId || task.signature,
+            tool: task.name,
+            output: text(
+                task?.observation?.artifact ||
+                task?.observation?.evidence?.output ||
+                task?.args?.output,
+                500
+            ) || null,
+            sha256: text(
+                task?.observation?.evidence?.sha256 ||
+                task?.observation?.evidence?.outputSha256,
+                64
+            ) || null
+        }))
+        .filter(item => item.output)
+        .slice(-100);
+    return mission;
+}
+
+function emptyMissionAccounting() {
+    return {
+        localSemanticInferenceCalls: 0,
+        semanticExternalCalls: 0,
+        paidExternalCalls: 0,
+        externalEstimatedCostUsd: 0,
+        externalActualCostUsd: 0,
+        gpuRentalSeconds: 0,
+        gpuRentalEstimatedCost: 0,
+        gpuRentalActualCost: 0,
+        providers: [],
+        backends: [],
+        fallbackReasons: [],
+        reasonsForPaidExternalUse: []
+    };
+}
+
+function recordMissionAccounting(mission, source = {}) {
+    const counters = source?.inferenceReceipt?.counters || source?.counters || source || {};
+    const current = {
+        ...emptyMissionAccounting(),
+        ...(mission.accounting && typeof mission.accounting === "object"
+            ? mission.accounting
+            : {})
+    };
+    for (const field of [
+        "localSemanticInferenceCalls",
+        "semanticExternalCalls",
+        "paidExternalCalls",
+        "externalEstimatedCostUsd",
+        "externalActualCostUsd",
+        "gpuRentalSeconds",
+        "gpuRentalEstimatedCost",
+        "gpuRentalActualCost"
+    ]) {
+        const increment = Number(counters?.[field] ?? source?.[field] ?? 0);
+        current[field] = Number(current[field] || 0) + (Number.isFinite(increment) ? increment : 0);
+    }
+    const appendUnique = (field, value) => {
+        const normalized = text(value, 1000);
+        current[field] = [...new Set([
+            ...(Array.isArray(current[field]) ? current[field] : []),
+            ...(normalized ? [normalized] : [])
+        ])].slice(-50);
+    };
+    appendUnique("providers", source?.provider || source?.inferenceReceipt?.provider);
+    appendUnique("backends", source?.backend || source?.selectedBackend);
+    appendUnique("fallbackReasons", source?.fallbackReason);
+    appendUnique("reasonsForPaidExternalUse", source?.reasonForPaidExternalUse);
+    mission.accounting = current;
+    return current;
 }
 
 function normalizedHttpSourceUrl(value = "") {
@@ -1641,12 +1883,9 @@ function archiveRecoveredToolAttempts(mission = {}, recoveredTask = "", now = ()
             item?.tool === name &&
             (item?.obligationKey || name) === obligationKey
         );
-    if (recovered.length === 0) return;
-    mission.recoveredToolAttempts = [
-        ...(Array.isArray(mission.recoveredToolAttempts)
-            ? mission.recoveredToolAttempts
-            : []),
-        ...recovered.map(item => ({
+    if (recovered.length === 0 && recoveredErrors.length === 0) return;
+    const historicalAttempts = recovered.length > 0
+        ? recovered.map(item => ({
             name: item.name,
             args: item.args,
             reason: item.reason,
@@ -1655,6 +1894,24 @@ function archiveRecoveredToolAttempts(mission = {}, recoveredTask = "", now = ()
             obligationKey,
             recoveredAt: now()
         }))
+        : recoveredErrors.map(item => ({
+            name,
+            args: target.args,
+            reason: item.status,
+            observation: {
+                status: item.status,
+                retryable: item.retryable === true,
+                objectiveSatisfied: false
+            },
+            errors: [item],
+            obligationKey,
+            recoveredAt: now()
+        }));
+    mission.recoveredToolAttempts = [
+        ...(Array.isArray(mission.recoveredToolAttempts)
+            ? mission.recoveredToolAttempts
+            : []),
+        ...historicalAttempts
     ].slice(-12);
     mission.blockedTasks = blocked.filter(item =>
         item?.name !== name || logicalObligationKey(item) !== obligationKey
@@ -1741,10 +1998,102 @@ function reelCreateArgsFromVerifiedPlan(args = {}, mission = {}) {
     };
 }
 
+function reelCreateArgsFromMissionLineage(args = {}, mission = {}) {
+    const current =
+        args && typeof args === "object" && !Array.isArray(args)
+            ? { ...args }
+            : {};
+    if (reelArgsHaveExplicitVisualMedia(current)) {
+        return { args: current, hydrated: false, source: null };
+    }
+
+    const candidates = [];
+    const seen = new Set();
+    for (const task of [...(Array.isArray(mission?.completedTasks) ? mission.completedTasks : [])].reverse()) {
+        if (task?.observation?.objectiveSatisfied !== true) continue;
+        const evidence = task?.observation?.evidence || {};
+        const output = text(
+            task?.observation?.artifact ||
+            evidence?.output ||
+            evidence?.artifact?.output,
+            500
+        ).replaceAll("\\", "/");
+        const mimeType = text(
+            task?.observation?.mimeType ||
+            evidence?.mimeType ||
+            evidence?.artifact?.mimeType,
+            120
+        ).toLowerCase();
+        const visual =
+            mimeType.startsWith("image/") ||
+            mimeType.startsWith("video/") ||
+            /\.(png|jpe?g|webp|gif|mp4|webm|mov)$/i.test(output);
+        const bytes = Number(task?.observation?.bytes || evidence?.bytes || evidence?.artifact?.bytes || 0);
+        const sha256 = text(
+            task?.observation?.sha256 ||
+            evidence?.sha256 ||
+            evidence?.artifact?.sha256,
+            80
+        ).toLowerCase();
+        const physicallyWritten =
+            task?.observation?.physicallyWritten === true ||
+            evidence?.physicallyWritten === true ||
+            evidence?.artifact?.physicallyWritten === true;
+        if (
+            !visual ||
+            !output ||
+            seen.has(output) ||
+            !physicallyWritten ||
+            bytes <= 0 ||
+            !/^[a-f0-9]{64}$/.test(sha256)
+        ) continue;
+        seen.add(output);
+        candidates.push({
+            assetOutput: output,
+            sourceTool: text(task?.name, 120),
+            sourceSha256: sha256,
+            verifiedMissionArtifact: true
+        });
+    }
+    for (const input of Array.isArray(mission?.approvedInputs) ? mission.approvedInputs : []) {
+        const output = text(input?.output, 500).replaceAll("\\", "/");
+        const mimeType = text(input?.mimeType, 120).toLowerCase();
+        const visual =
+            mimeType.startsWith("image/") ||
+            mimeType.startsWith("video/") ||
+            /\.(png|jpe?g|webp|gif|mp4|webm|mov)$/i.test(output);
+        const sha256 = text(input?.sha256, 80).toLowerCase();
+        if (
+            !visual ||
+            !output ||
+            seen.has(output) ||
+            input?.approved !== true ||
+            !/^[a-f0-9]{64}$/.test(sha256)
+        ) continue;
+        seen.add(output);
+        candidates.push({
+            assetOutput: output,
+            sourceTool: "mission.approvedInput",
+            sourceSha256: sha256,
+            verifiedMissionInput: true
+        });
+    }
+    if (candidates.length === 0) {
+        return { args: current, hydrated: false, source: null };
+    }
+    return {
+        args: { ...current, scenes: candidates.slice(0, 18) },
+        hydrated: true,
+        source: "mission.artifactLineage",
+        sceneCount: Math.min(candidates.length, 18)
+    };
+}
+
 export async function runJarvisMission({
     instruction,
     initialToolCalls = [],
     requiredToolNames = [],
+    executionContractLocked = false,
     planner,
     execute,
     storage,
@@ -1757,6 +2106,7 @@ export async function runJarvisMission({
     signal,
     resumeMissionId,
     continuationContext = {},
+    trustedMissionAuthorizations = {},
     memoryContext = null
 } = {}) {
     const originalInstruction = String(instruction ?? "").trim();
@@ -1772,6 +2122,7 @@ export async function runJarvisMission({
         ? Math.max(Number(timeoutMs) || 180000, 1800000)
         : Number(timeoutMs) || 180000;
     const runtimeResults = [];
+    const rootInstructionHash = await sha256(originalInstruction);
     const recovered = resumeMissionId
         ? readMissions(persistence).find(item => item.missionId === resumeMissionId)
         : null;
@@ -1781,7 +2132,9 @@ export async function runJarvisMission({
         missionId: identifier("MISSION"),
         caseId: text(caseId, 160) || identifier("CASE"),
         objectiveId: text(objectiveId, 160) || identifier("OBJ"),
-        instructionHash: await sha256(originalInstruction),
+        instructionHash: rootInstructionHash,
+        rootInstruction: originalInstruction,
+        rootInstructionHash,
         originalInstruction,
         rawInstructionLength: originalInstruction.length,
         routingInstruction: compactRoutingInstruction(originalInstruction),
@@ -1789,6 +2142,8 @@ export async function runJarvisMission({
         status: "RUNNING",
         reason: null,
         plannedTools: [],
+        planRevision: 0,
+        executionContractLocked: executionContractLocked === true,
         requiredToolNames: [...new Set(
             (Array.isArray(requiredToolNames) ? requiredToolNames : [])
                 .map(name => text(name, 100))
@@ -1800,14 +2155,103 @@ export async function runJarvisMission({
         blockedTasks: [],
         observations: [],
         errors: [],
+        accounting: emptyMissionAccounting(),
         iterations: 0,
         writeAllowed: false,
+        authorityScope: {
+            authority: "MISSION_AUTHORITY",
+            allowedTools: [...new Set(
+                (Array.isArray(requiredToolNames) ? requiredToolNames : [])
+                    .map(name => text(name, 100))
+                    .filter(Boolean)
+            )],
+            rootIntentImmutable: true,
+            paidExternalAuthoritySeparate: true
+        },
+        paidExternalAuthority: null,
+        approvedInputs: durableApprovedInputs(initialToolCalls),
+        requiredOutputs: (Array.isArray(initialToolCalls) ? initialToolCalls : [])
+            .map(call => ({
+                tool: text(call?.name, 120),
+                output: text(call?.args?.output, 500) || null
+            }))
+            .filter(item => item.output),
+        repositoryTarget: durableRepositoryTarget(initialToolCalls),
         approvalRequiredForWrite: true,
         startedAt: now(),
         updatedAt: now()
     };
+    mission.rootInstruction = text(
+        mission.rootInstruction || mission.originalInstruction,
+        200000
+    );
+    mission.rootInstructionHash = text(
+        mission.rootInstructionHash || mission.instructionHash,
+        128
+    );
+    mission.instructionHash = mission.rootInstructionHash;
+    mission.planRevision = Number(mission.planRevision || 0);
+    mission.executionContractLocked =
+        typeof mission.executionContractLocked === "boolean"
+            ? mission.executionContractLocked
+            : false;
+    mission.accounting = {
+        ...emptyMissionAccounting(),
+        ...(mission.accounting && typeof mission.accounting === "object"
+            ? mission.accounting
+            : {})
+    };
+    mission.authorityScope = {
+        authority: "MISSION_AUTHORITY",
+        allowedTools: [...new Set([
+            ...(Array.isArray(mission.authorityScope?.allowedTools)
+                ? mission.authorityScope.allowedTools
+                : []),
+            ...(Array.isArray(mission.requiredToolNames)
+                ? mission.requiredToolNames
+                : [])
+        ].map(name => text(name, 100)).filter(Boolean))],
+        rootIntentImmutable: true,
+        paidExternalAuthoritySeparate: true
+    };
+    const externalVideoAuthorization =
+        trustedMissionAuthorizations?.externalVideo?.approved === true &&
+        text(trustedMissionAuthorizations?.externalVideo?.approvedBy, 160)
+            ? {
+                approved: true,
+                approvedBy: text(trustedMissionAuthorizations.externalVideo.approvedBy, 160),
+                approvedAt: text(trustedMissionAuthorizations.externalVideo.approvedAt, 80) || now(),
+                approvalSource: "trusted_runtime_context",
+                missionId: mission.missionId,
+                objectiveId: mission.objectiveId,
+                operationKey: text(
+                    trustedMissionAuthorizations.externalVideo.operationKey,
+                    300
+                ) || null
+            }
+            : null;
+    mission.authorizations = {
+        ...(mission.authorizations && typeof mission.authorizations === "object"
+            ? mission.authorizations
+            : {}),
+        ...(externalVideoAuthorization
+            ? { externalVideo: externalVideoAuthorization }
+            : {})
+    };
+    if (externalVideoAuthorization) {
+        mission.paidExternalAuthority = {
+            authority: "PAID_EXTERNAL_AUTHORITY",
+            ...externalVideoAuthorization
+        };
+    }
     if (recovered) {
-        const resumable = mission.blockedTasks.filter(item => item?.observation?.requiresInput === true);
+        const resumable = mission.blockedTasks.filter(item =>
+            item?.observation?.requiresInput === true ||
+            (
+                item?.observation?.requiresApproval === true &&
+                mission.authorizations?.externalVideo?.approved === true
+            )
+        );
         const resumableNames = new Set(resumable.map(item => item.name));
         mission.inputHistory = [
             ...(Array.isArray(mission.inputHistory) ? mission.inputHistory : []),
@@ -1818,11 +2262,11 @@ export async function runJarvisMission({
                 at: item.completedAt || now()
             }))
         ];
-        mission.blockedTasks = mission.blockedTasks.filter(item => item?.observation?.requiresInput !== true);
-        mission.errors = mission.errors.filter(item => item?.requiresInput !== true);
+        mission.blockedTasks = mission.blockedTasks.filter(item => !resumableNames.has(item?.name));
+        mission.errors = mission.errors.filter(item => !resumableNames.has(item?.tool));
         mission.executedTools = mission.executedTools.filter(name => !resumableNames.has(name));
         mission.observations = mission.observations.filter(item =>
-            !(resumableNames.has(item?.tool) && item?.requiresInput === true)
+            !resumableNames.has(item?.tool)
         );
         mission.pendingTasks = mission.pendingTasks.filter(item => !resumableNames.has(item?.name));
         mission.pendingTasks.unshift(...resumable.map(item => ({
@@ -1839,6 +2283,7 @@ export async function runJarvisMission({
     } else {
         mission.pendingTasks.push(...trustedCalls(initialToolCalls, mission));
     }
+    refreshDurableMissionAuthority(mission);
     saveMission(persistence, mission);
 
     while (mission.iterations < maximumSteps) {
@@ -1847,21 +2292,56 @@ export async function runJarvisMission({
             break;
         }
         if (Date.now() - startedAt >= effectiveMissionTimeoutMs) {
-            mission.reason = "DEADLINE_EXCEEDED";
+            const completedNames = new Set(
+                mission.completedTasks.map(item => item.name)
+            );
+            const allRequiredCompleted =
+                mission.requiredToolNames.length > 0 &&
+                mission.requiredToolNames.every(name => completedNames.has(name));
+            const unresolvedProductionArtifacts =
+                unresolvedMarketingProductionRequirements(mission);
+            mission.reason =
+                mission.pendingTasks.length === 0 &&
+                mission.blockedTasks.length === 0 &&
+                allRequiredCompleted &&
+                unresolvedProductionArtifacts.length === 0
+                    ? "ALL_EXECUTABLE_TASKS_COMPLETED"
+                    : "DEADLINE_EXCEEDED";
             break;
         }
 
         if (mission.pendingTasks.length === 0) {
+            const completedNames = new Set(
+                mission.completedTasks.map(item => item.name)
+            );
+            const allRequiredCompleted =
+                mission.requiredToolNames.length > 0 &&
+                mission.requiredToolNames.every(name => completedNames.has(name));
+            const unresolvedProductionArtifacts =
+                unresolvedMarketingProductionRequirements(mission);
+            if (
+                mission.executionContractLocked === true &&
+                allRequiredCompleted &&
+                mission.blockedTasks.length === 0 &&
+                unresolvedProductionArtifacts.length === 0
+            ) {
+                mission.contractMissingTools = [];
+                mission.unresolvedProductionArtifacts = [];
+                mission.reason = "ALL_EXECUTABLE_TASKS_COMPLETED";
+                break;
+            }
             let plan;
             try {
                 plan = await planner({
-                    originalInstruction,
+                    originalInstruction: mission.rootInstruction || mission.originalInstruction,
+                    followupInstruction: recovered ? originalInstruction : null,
                     routingInstruction: mission.routingInstruction,
                     mission: structuredClone(mission),
                     memoryContext: memoryContext && typeof memoryContext === "object"
                         ? structuredClone(memoryContext)
                         : null
                 });
+                recordMissionAccounting(mission, plan || {});
             } catch (error) {
                 mission.reason = "PLANNER_UNAVAILABLE";
                 mission.errors.push({
@@ -1873,14 +2353,31 @@ export async function runJarvisMission({
                 break;
             }
             const additions = trustedCalls(plan?.toolCalls || plan || [], mission);
+            mission.planRevision = Number(mission.planRevision || 0) + 1;
             mission.pendingTasks.push(...additions);
             mission.plannedTools.push(...additions.map(item => item.name));
             for (const addition of additions) {
                 if (!mission.requiredToolNames.includes(addition.name)) {
                     mission.requiredToolNames.push(addition.name);
                 }
+                if (!mission.authorityScope.allowedTools.includes(addition.name)) {
+                    mission.authorityScope.allowedTools.push(addition.name);
+                }
+                const requiredOutput = text(addition?.args?.output, 500);
+                if (
+                    requiredOutput &&
+                    !mission.requiredOutputs.some(item =>
+                        item.tool === addition.name && item.output === requiredOutput
+                    )
+                ) {
+                    mission.requiredOutputs.push({
+                        tool: addition.name,
+                        output: requiredOutput
+                    });
+                }
             }
             mission.updatedAt = now();
+            refreshDurableMissionAuthority(mission);
             saveMission(persistence, mission);
             if (additions.length === 0) {
                 const completedNames = new Set(mission.completedTasks.map(item => item.name));
@@ -1947,8 +2444,11 @@ export async function runJarvisMission({
                 ? {
                     ...task,
                     args:
-                        reelCreateArgsFromVerifiedPlan(
-                            task.args,
+                        reelCreateArgsFromMissionLineage(
+                            reelCreateArgsFromVerifiedPlan(
+                                task.args,
+                                mission
+                            ).args,
                             mission
                         ).args
                 }
@@ -2119,7 +2619,12 @@ export async function runJarvisMission({
                     task.args,
                     mission
                 );
-            task.args = reelPlanHandoff.args;
+            const missionLineageHandoff =
+                reelCreateArgsFromMissionLineage(
+                    reelPlanHandoff.args,
+                    mission
+                );
+            task.args = missionLineageHandoff.args;
             const verifiedSpeechOutput = verifiedSpeechArtifactForReel(mission);
             if (verifiedSpeechOutput) {
                 task.args = {
@@ -2135,7 +2640,11 @@ export async function runJarvisMission({
                 missionId: mission.missionId,
                 caseId: mission.caseId,
                 objectiveId: mission.objectiveId,
+                obligationId: task.obligationId || task.signature,
                 rawInput: originalInstruction,
+                rootInstruction: mission.rootInstruction || mission.originalInstruction,
+                rootInstructionHash: mission.rootInstructionHash || mission.instructionHash,
+                planRevision: Number(mission.planRevision || 0),
                 requiredToolNames:
                     [...mission.requiredToolNames],
                 completedTasks: mission.completedTasks.map(item => ({
@@ -2153,10 +2662,23 @@ export async function runJarvisMission({
                     .flatMap(item => item.observation?.validSources || [])
                     .slice(0, 20),
                 marketingContext: continuationContext,
+                continuationContext,
+                missionAuthorizations: structuredClone(mission.authorizations || {}),
+                externalVideoAuthorization:
+                    mission.authorizations?.externalVideo
+                        ? structuredClone(mission.authorizations.externalVideo)
+                        : null,
                 semanticMemory: memoryContext && typeof memoryContext === "object"
                     ? structuredClone(memoryContext)
                     : null,
                 canonicalEvidence: canonicalMissionEvidence(mission),
+                approvedInputs: structuredClone(mission.approvedInputs || []),
+                requiredOutputs: structuredClone(mission.requiredOutputs || []),
+                artifactLineage: structuredClone(mission.artifactLineage || []),
+                repositoryTarget: mission.repositoryTarget
+                    ? structuredClone(mission.repositoryTarget)
+                    : null,
+                authorityScope: structuredClone(mission.authorityScope || {}),
                 writeAllowed: false,
                 approved: false
             });
@@ -2165,6 +2687,7 @@ export async function runJarvisMission({
         }
 
         const observation = safeObservation(result);
+        recordMissionAccounting(mission, observation);
         if (
             task.name === "marketing.plan" &&
             observation.productionRequested === true
@@ -2269,7 +2792,7 @@ export async function runJarvisMission({
             observation.retryable &&
             task.attempts <= maximumRetries
         ) {
-            mission.pendingTasks.push({
+            mission.pendingTasks.unshift({
                 ...task,
                 status: "RETRY_PENDING"
             });
@@ -2295,6 +2818,7 @@ export async function runJarvisMission({
         }
 
         mission.updatedAt = now();
+        refreshDurableMissionAuthority(mission);
         saveMission(persistence, mission);
     }
 
@@ -2303,6 +2827,7 @@ export async function runJarvisMission({
     mission.durationMs = Date.now() - startedAt;
     mission.pendingTasks = mission.pendingTasks.map(item => ({ ...item, status: "PENDING" }));
     mission.updatedAt = now();
+    refreshDurableMissionAuthority(mission);
     saveMission(persistence, mission);
     return { ...mission, runtimeResults };
 }

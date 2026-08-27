@@ -2,7 +2,7 @@ import {
     rejectCorruptedIdentityArgs
 } from "./jarvis.identity.integrity.js?v=v94-generalist-page-integrity-v120-20260810";
 
-const VERSION = "4.19.0-reel-media-source-recovery-v136";
+const VERSION = "4.21.0-v142-self-hosted-semantic-backend";
 const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
@@ -21,7 +21,7 @@ const GENERALIST_CURRENT_TURN_POLICY = [
     "Para reels nuevos basados en investigacion o publicaciones externas, el medio externo sigue siendo evidencia. El flujo de produccion debe crear visuales originales con las capacidades generativas realmente registradas antes de reel.plan, salvo que la intencion semantica haya pedido reutilizar o editar literalmente el material fuente.",
     "Para marcas identificadas, conserva cualquier logotipo oficial verificado como un activo separado; no pidas al generador que invente, redibuje o imite un logotipo.",
     "Un guion de mini drama es una solicitud de produccion audiovisual cuando la intencion semantica pide crear el video. Si video.generate esta registrado, usalo para producir actuacion y movimiento nuevos desde el guion; conversation.respond, un slideshow, una captura o un video encontrado no satisfacen esa produccion.",
-    "Para un mismo mini drama nuevo, selecciona UNA sola llamada video.generate y entrega dentro de scenes hasta cuatro escenas consecutivas cuando ayude a la continuidad. No emitas una llamada video.generate independiente por escena: la herramienta conserva previousVideo y extiende el mismo video entre escenas. Los medios externos siguen siendo solo evidencia o referencia salvo reutilizacion solicitada de forma inequivoca.",
+    "Para un mismo mini drama nuevo, selecciona UNA sola llamada video.generate y conserva en scenes todas las escenas consecutivas pedidas. No descartes ni comprimas silenciosamente escenas para ajustarlas al motor: video.generate debe fallar de forma explicita antes de gastar si el capitulo no cabe en una sola generacion encadenada. No emitas una llamada video.generate independiente por escena. Los medios externos siguen siendo solo evidencia o referencia salvo reutilizacion solicitada de forma inequivoca.",
     "Cuando el significado completo pida crear un capitulo, mini drama, actuacion o video cinematografico generado desde cero usando fotografias adjuntas como identidad, esas fotografias son referencias visuales del personaje y no escenas finales: selecciona media.analyze cuando falte verificarlas y despues UNA sola video.generate con sus artefactos verificados en referenceOutputs y las escenas consecutivas en scenes.",
     "No sustituyas esa produccion de video por image.generate, reel.plan ni un slideshow. Conserva image.generate y reel.plan cuando la intencion real sea crear imagenes, un collage o un reel de imagenes, no una actuacion cinematografica generada.",
     "Cuando el usuario aporta adjuntos y pide transformarlos, editarlos o producir una pieza a partir de ellos, trata esos adjuntos como objetos de entrada y selecciona las capacidades existentes de analisis, edicion o produccion necesarias; un adjunto no convierte una solicitud ejecutable en una conversacion vacia.",
@@ -1519,7 +1519,7 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
             );
         }
         return [String(args.prompt || args.script || "").trim()];
-    }).filter(Boolean).filter((value, index, values) => values.indexOf(value) === index).slice(0, 4);
+    }).filter(Boolean).filter((value, index, values) => values.indexOf(value) === index);
     const firstVideo = videoCalls[0];
     const combinedArgs = {
         ...(firstVideo?.args || {}),
@@ -1775,6 +1775,52 @@ function attachPlanMetadata(calls = [], plan = {}) {
 }
 
 async function callSemanticPlanner(input = "", catalog = [], missionState = null) {
+    const timeoutMs =
+        [
+            "MISSION_CONTRACT",
+            "COMPLETION_AUDIT",
+            "GROUNDED_ARGUMENT_COMPLETION"
+        ].includes(String(missionState?.phase || ""))
+            ? CLOUD_MISSION_CONTRACT_TIMEOUT_MS
+            : 30000;
+    const bridge =
+        globalThis?.JarvisLocalBridge ||
+        globalThis?.window?.JarvisLocalBridge ||
+        null;
+    if (typeof bridge?.requestJson === "function") {
+        try {
+            const localResult = await bridge.requestJson(
+                "/semantic/plan",
+                {
+                    input,
+                    catalog,
+                    missionState: {
+                        ...(missionState && typeof missionState === "object" ? missionState : {}),
+                        generalistCurrentTurnPolicy: GENERALIST_CURRENT_TURN_POLICY
+                    },
+                    timeoutMs
+                },
+                { timeoutMs: Math.min(timeoutMs + 5000, 50000) }
+            );
+            globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__ = {
+                ...localResult,
+                checkedAt: new Date().toISOString()
+            };
+            if (localResult?.ok === true) return localResult;
+            if (localResult?.fallbackAllowed === false) {
+                const failure = new Error(
+                    localResult?.error ||
+                    localResult?.status ||
+                    "LOCAL_SEMANTIC_PLAN_REQUIRED"
+                );
+                failure.code = "LOCAL_SEMANTIC_PLAN_REQUIRED";
+                throw failure;
+            }
+        } catch (error) {
+            if (error?.code === "LOCAL_SEMANTIC_PLAN_REQUIRED") throw error;
+        }
+    }
+
     const user = globalThis?.auth?.currentUser || globalThis?.window?.auth?.currentUser || null;
     if (!user) {
         throw new Error("SEMANTIC_PLANNER_AUTH_REQUIRED");
@@ -1785,15 +1831,6 @@ async function callSemanticPlanner(input = "", catalog = [], missionState = null
 
     const controller =
         new AbortController();
-
-    const timeoutMs =
-        [
-            "MISSION_CONTRACT",
-            "COMPLETION_AUDIT",
-            "GROUNDED_ARGUMENT_COMPLETION"
-        ].includes(String(missionState?.phase || ""))
-            ? CLOUD_MISSION_CONTRACT_TIMEOUT_MS
-            : 30000;
 
     const timer =
         setTimeout(

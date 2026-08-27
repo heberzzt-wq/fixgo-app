@@ -8,7 +8,7 @@ import {
 } from "./jarvis/jarvis.multitool.pack.js?v=v139-real-reel-e2e-20260812";
 import {
     registerJarvisActuatorTools
-} from "./jarvis/jarvis.actuator.pack.js?v=v142-video-operation-recovery-20260825";
+} from "./jarvis/jarvis.actuator.pack.js?v=v142-video-truthful-delivery-20260826";
 import {
     reviewChiefArchitectPlan
 } from "./jarvis/jarvis.chief.architect.js?v=sia7-chief-architect-v92-20260726";

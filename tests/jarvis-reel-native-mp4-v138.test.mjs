@@ -135,7 +135,7 @@ test("V142 actuator advertises mandatory MP4 and provisional-only WebM", () => {
 
 test("V142 waits for the real browser export completion state", () => {
   const source = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
-    assert.match(source, /2\.49\.0-reel-mp4-master-v142/);
+    assert.match(source, /2\.51\.0-temporal-media-self-hosted-v142/);
   assert.doesNotMatch(source, /await sleepMs\(duration \* 1000 \+ 2600\)/);
   assert.match(source, /__JARVIS_REEL_EXPORT_ERROR__/);
   assert.match(source, /REEL_EXPORT_COMPLETION_TIMEOUT/);
@@ -512,7 +512,7 @@ test("V142 structured production continuation reaches the semantic planner and d
 
 test("V142 bridge release identifies the professional MP4 master bytes", () => {
   const source = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
-  assert.equal(source.includes("2.49.0-reel-mp4-master-v142"), true);
+  assert.equal(source.includes("2.51.0-temporal-media-self-hosted-v142"), true);
 });
 
 test("V142 current turn preserves semantic planner outage truth", () => {
@@ -894,6 +894,43 @@ test("V142 imports generated Veo MP4 bytes into the physical artifact studio", a
     assert.equal(saved.bytes, bytes.length);
     assert.equal(saved.physicallyWritten, true);
     assert.equal(fs.existsSync(path.join(root, saved.output)), true);
+  }
+  finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("V142 video import bootstraps system certificates before the remote MP4 fetch", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-v142-video-import-ca-"));
+  try {
+    const bytes = Buffer.alloc(120000);
+    bytes.writeUInt32BE(24, 0);
+    bytes.write("ftyp", 4, "ascii");
+    bytes.write("isom", 8, "ascii");
+    const sha256 = createHash("sha256").update(bytes).digest("hex");
+    let certificatesReady = false;
+
+    const saved = await saveGeneratedVideoArtifactFromUrl({
+      url: "https://storage.googleapis.com/fixgo-44e4d.firebasestorage.app/ca-recovery.mp4?signature=v142",
+      expectedSha256: sha256,
+      output: ".jarvis-artifacts/videos/v142-ca-recovery.mp4",
+      root,
+      certificateBootstrap: () => {
+        certificatesReady = true;
+      },
+      fetchImpl: async () => {
+        assert.equal(certificatesReady, true);
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: name => String(name).toLowerCase() === "content-type" ? "video/mp4" : null },
+          arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+        };
+      }
+    });
+
+    assert.equal(saved.status, "VIDEO_IMPORTED_VERIFIED");
+    assert.equal(saved.sha256, sha256);
   }
   finally {
     fs.rmSync(root, { recursive: true, force: true });

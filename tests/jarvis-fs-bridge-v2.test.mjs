@@ -12,11 +12,13 @@ import {
     cancelChunkedUpload,
     completeChunkedUpload,
     createJarvisFsBridgeApp,
+    createSelfHostedSemanticEngine,
     describeJarvisFsBridge,
     editDocxArtifact,
     editPdfOverlayArtifact,
     editPptxArtifact,
     editXlsxArtifact,
+    extractTemporalMediaArtifact,
     inspectLocalConnectors,
     normalizeReadLineRange,
     readJarvisRuntimeContract,
@@ -28,12 +30,63 @@ import {
     readArtifactPayload
 } from "../jarvis-fs-bridge.js";
 
+function commandAvailable(command) {
+    try {
+        execFileSync(command, ["-version"], { stdio: "ignore", windowsHide: true });
+        return true;
+    }
+    catch {
+        return false;
+    }
+}
+
+const temporalMediaToolsAvailable = commandAvailable("ffmpeg") && commandAvailable("ffprobe");
+
+test("canonical artifact extraction prepares physical video frames and audio with zero external calls", {
+    skip: temporalMediaToolsAvailable ? false : "FFmpeg and ffprobe are not installed"
+}, async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-temporal-media-"));
+    const output = ".jarvis-artifacts/uploads/input.mp4";
+    const target = path.join(root, output);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    execFileSync("ffmpeg", [
+        "-hide_banner", "-nostdin", "-y",
+        "-f", "lavfi", "-i", "testsrc=size=360x640:rate=24:duration=1.5",
+        "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=1.5",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-shortest", "-movflags", "+faststart",
+        target
+    ], { stdio: "ignore", windowsHide: true, timeout: 60000 });
+
+    const extracted = await extractTemporalMediaArtifact({
+        output,
+        sourceName: "input.mp4",
+        mimeType: "video/mp4",
+        root
+    });
+
+    assert.equal(extracted.ok, true);
+    assert.equal(extracted.status, "TEMPORAL_MEDIA_PHYSICAL_EVIDENCE_READY");
+    assert.equal(extracted.mediaType, "video");
+    assert.equal(extracted.externalApiUsed, false);
+    assert.equal(extracted.externalEstimatedCostUsd, 0);
+    assert.match(extracted.sha256, /^[a-f0-9]{64}$/);
+    assert.ok(extracted.temporal.durationSeconds > 0);
+    assert.ok(extracted.temporal.samples.length >= 2);
+    assert.ok(extracted.temporal.samples.every(sample =>
+        fs.existsSync(path.join(root, sample.output)) && /^[a-f0-9]{64}$/.test(sample.sha256)
+    ));
+    assert.ok(fs.existsSync(path.join(root, extracted.temporal.audioEvidence.output)));
+    assert.equal(extracted.temporal.semanticVisualAnalysisVerified, false);
+    assert.equal(extracted.temporal.transcriptionVerified, false);
+});
+
 test("Jarvis FS bridge V2 describes safe full repo policy", () => {
     const description =
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.49.0-reel-mp4-master-v142");
+    assert.equal(description.version, "2.51.0-temporal-media-self-hosted-v142");
     assert.equal(typeof description.actuators.speech.available, "boolean");
     assert.deepEqual(description.actuators.speech.outputFormats, ["wav"]);
     assert.equal(description.policy.authority, "full_repo_private_owner");
@@ -52,6 +105,105 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
     assert.equal(description.actuators.multimodalUploads.maxBatchBytes, 500 * 1024 * 1024);
     assert.equal(typeof description.actuators.imageGeneration.verifiedCount, "number");
     assert.deepEqual(description.actuators.connectors.adapters, ["github", "firebase"]);
+});
+
+test("self-hosted semantic backend feeds the canonical planner without paid API calls", async () => {
+    const requests = [];
+    const engine = createSelfHostedSemanticEngine({
+        env: {
+            JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
+            JARVIS_LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434/v1",
+            JARVIS_LOCAL_LLM_MODEL: "qwen-local",
+            JARVIS_LOCAL_LLM_TOKEN: "test-token"
+        },
+        fetchImpl: async (url, options) => {
+            requests.push({ url, options, body: JSON.parse(options.body) });
+            return {
+                ok: true,
+                status: 200,
+                text: async () => JSON.stringify({
+                    choices: [{
+                        message: {
+                            content: "",
+                            tool_calls: [{
+                                function: {
+                                    name: "jarvis_tool_0",
+                                    arguments: JSON.stringify({ query: "estado del repositorio" })
+                                }
+                            }]
+                        }
+                    }]
+                })
+            };
+        }
+    });
+
+    const plan = await engine.plan({
+        input: "Revisa el estado del repositorio",
+        catalog: [{
+            name: "repo.search",
+            description: "Busca evidencia dentro del repositorio",
+            inputSchema: {
+                type: "object",
+                properties: { query: { type: "string" } },
+                required: ["query"],
+                additionalProperties: false
+            },
+            mutates: false
+        }]
+    });
+
+    assert.equal(plan.ok, true);
+    assert.equal(plan.provider, "self-hosted-openai-compatible");
+    assert.equal(plan.model, "qwen-local");
+    assert.equal(plan.toolCalls[0].name, "repo.search");
+    assert.equal(plan.toolCalls[0].args.query, "estado del repositorio");
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].url, "http://127.0.0.1:11434/v1/chat/completions");
+    assert.equal(requests[0].options.headers.Authorization, "Bearer test-token");
+    assert.equal(requests[0].body.tools[0].function.name, "jarvis_tool_0");
+    assert.equal(plan.inferenceReceipt.counters.localSemanticInferenceCalls, 1);
+    assert.equal(plan.inferenceReceipt.counters.semanticExternalCalls, 0);
+    assert.equal(plan.inferenceReceipt.counters.paidExternalCalls, 0);
+    assert.equal(plan.inferenceReceipt.fallbackAllowed, false);
+});
+
+test("self-hosted semantic response uses one local inference and reports zero external spend", async () => {
+    const engine = createSelfHostedSemanticEngine({
+        env: {
+            JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_PREFERRED",
+            JARVIS_LOCAL_LLM_BASE_URL: "https://gpu.example.test/v1",
+            JARVIS_LOCAL_LLM_MODEL: "local-reasoner"
+        },
+        fetchImpl: async () => ({
+            ok: true,
+            status: 200,
+            text: async () => JSON.stringify({
+                choices: [{ message: { content: "Respuesta local verificable." } }]
+            })
+        })
+    });
+
+    const result = await engine.respond({ input: "Explica la evidencia." });
+    assert.equal(result.message, "Respuesta local verificable.");
+    assert.equal(result.inferenceReceipt.counters.localSemanticInferenceCalls, 1);
+    assert.equal(result.inferenceReceipt.counters.semanticExternalCalls, 0);
+    assert.equal(result.inferenceReceipt.counters.paidExternalCalls, 0);
+    assert.equal(result.externalApiUsed, false);
+});
+
+test("self-hosted semantic backend fails closed for unsafe remote HTTP and LOCAL_ONLY", () => {
+    const engine = createSelfHostedSemanticEngine({
+        env: {
+            JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
+            JARVIS_LOCAL_LLM_BASE_URL: "http://gpu.example.test/v1",
+            JARVIS_LOCAL_LLM_MODEL: "unsafe-model"
+        }
+    });
+    const health = engine.describe();
+    assert.equal(health.ok, false);
+    assert.equal(health.status, "LOCAL_SEMANTIC_ENDPOINT_MUST_BE_LOOPBACK_OR_HTTPS");
+    assert.equal(health.fallbackAllowed, false);
 });
 
 test("Jarvis creates a multi-sheet XLSX with executable formulas", async () => {

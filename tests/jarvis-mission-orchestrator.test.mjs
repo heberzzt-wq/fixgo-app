@@ -291,7 +291,6 @@ test("mission retries artifact creation while its document blueprint is pending"
         executed,
         [
             "document.compose",
-            "document.create",
             "document.compose",
             "document.create"
         ]
@@ -696,6 +695,387 @@ test("mission cancellation and deadline close without another tool", async () =>
         timeoutMs: -1
     });
     assert.equal(deadline.reason, "DEADLINE_EXCEEDED");
+});
+
+test("external video authorization is mission-scoped, durable across resume and reused by the same obligation", async () => {
+    const storage = memoryStorage();
+    let executions = 0;
+    const execute = async (_call, context) => {
+        executions += 1;
+        if (executions === 1) {
+            return {
+                ok: false,
+                status: "EXTERNAL_VIDEO_HUMAN_AUTHORIZATION_REQUIRED",
+                blocked: true,
+                requiresApproval: true,
+                requiresInput: false,
+                externalApiUsed: false,
+                externalEstimatedCostUsd: 0
+            };
+        }
+        assert.equal(context.externalVideoAuthorization.approved, true);
+        assert.equal(context.externalVideoAuthorization.approvedBy, "HEBERTO_MENDOZA");
+        assert.equal(context.externalVideoAuthorization.approvalSource, "trusted_runtime_context");
+        assert.equal(context.externalVideoAuthorization.missionId, context.missionId);
+        assert.equal(context.externalVideoAuthorization.objectiveId, context.objectiveId);
+        assert.deepEqual(
+            context.missionAuthorizations.externalVideo,
+            context.externalVideoAuthorization
+        );
+        return {
+            ok: true,
+            executionOk: true,
+            objectiveSatisfied: true,
+            status: "VIDEO_GENERATED_VERIFIED",
+            output: ".jarvis-artifacts/videos/authorized.mp4",
+            bytes: 120000,
+            sha256: "a".repeat(64),
+            physicallyWritten: true,
+            verifiedArtifactDelivery: true,
+            externalApiUsed: true,
+            externalEstimatedCostUsd: 0.25
+        };
+    };
+    const initial = await runJarvisMission({
+        instruction: "Genera el video y pide autorización antes de usar Veo.",
+        initialToolCalls: [{
+            name: "video.generate",
+            args: { output: ".jarvis-artifacts/videos/authorized.mp4" }
+        }],
+        requiredToolNames: ["video.generate"],
+        planner: async () => ({ toolCalls: [], missionComplete: true }),
+        execute,
+        storage
+    });
+    assert.equal(initial.reason, "MISSION_APPROVAL_REQUIRED");
+    assert.equal(initial.blockedTasks.length, 1);
+
+    const resumed = await runJarvisMission({
+        instruction: "Autorizo expresamente Veo para esta misma obligación.",
+        resumeMissionId: initial.missionId,
+        trustedMissionAuthorizations: {
+            externalVideo: {
+                approved: true,
+                approvedBy: "HEBERTO_MENDOZA",
+                approvedAt: "2026-08-26T20:00:00.000Z",
+                operationKey: "video.generate:.jarvis-artifacts/videos/authorized.mp4"
+            }
+        },
+        planner: async () => ({ toolCalls: [], missionComplete: true }),
+        execute,
+        storage
+    });
+
+    assert.equal(resumed.missionId, initial.missionId);
+    assert.equal(resumed.status, "COMPLETED", JSON.stringify({
+        reason: resumed.reason,
+        pending: resumed.pendingTasks.map(item => [item.name, item.status]),
+        blocked: resumed.blockedTasks.map(item => [item.name, item.reason]),
+        completed: resumed.completedTasks.map(item => item.name),
+        errors: resumed.errors
+    }));
+    assert.equal(resumed.reason, "ALL_EXECUTABLE_TASKS_COMPLETED");
+    assert.equal(resumed.blockedTasks.length, 0);
+    assert.equal(resumed.completedTasks.length, 1);
+    assert.equal(resumed.authorizations.externalVideo.missionId, initial.missionId);
+    assert.equal(resumed.authorizations.externalVideo.operationKey, "video.generate:.jarvis-artifacts/videos/authorized.mp4");
+    assert.equal(executions, 2);
+});
+
+test("generalist mission resumes a multimodal tool chain without changing root authority or replanning", async () => {
+    const storage = memoryStorage();
+    let plannerCalls = 0;
+    let researchAttempts = 0;
+    let videoAttempts = 0;
+    const executedCalls = [];
+    const executionContexts = [];
+    const attachments = [
+        { name: "input.mp4", mimeType: "video/mp4", artifact: ".jarvis-artifacts/uploads/input.mp4", sha256: "1".repeat(64) },
+        { name: "narration.wav", mimeType: "audio/wav", artifact: ".jarvis-artifacts/uploads/narration.wav", sha256: "7".repeat(64) },
+        { name: "identity-1.png", mimeType: "image/png", artifact: ".jarvis-artifacts/uploads/identity-1.png", sha256: "2".repeat(64) },
+        { name: "identity-2.png", mimeType: "image/png", artifact: ".jarvis-artifacts/uploads/identity-2.png", sha256: "3".repeat(64) },
+        { name: "identity-3.png", mimeType: "image/png", artifact: ".jarvis-artifacts/uploads/identity-3.png", sha256: "4".repeat(64) },
+        { name: "brief.pdf", mimeType: "application/pdf", artifact: ".jarvis-artifacts/uploads/brief.pdf", sha256: "5".repeat(64) },
+        { name: "prices.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", artifact: ".jarvis-artifacts/uploads/prices.xlsx", sha256: "6".repeat(64) }
+    ];
+    const rootInstruction = "Analiza los archivos, investiga la URL, crea campaña, página, video y reel final sin cambiar alcance ni gastar APIs externas.";
+    const calls = [
+        { name: "media.analyze", args: { attachments } },
+        { name: "web.research", args: { query: "competencia", url: "https://example.com" } },
+        { name: "marketing.plan", args: { campaignId: "CAMPAIGN-1" } },
+        { name: "page.create", args: { output: ".jarvis-artifacts/pages/campaign.html" } },
+        { name: "image.generate", args: { output: ".jarvis-artifacts/images/campaign.png" } },
+        { name: "video.generate", args: { output: ".jarvis-artifacts/videos/campaign.mp4", referenceOutputs: attachments.slice(2, 5).map(item => item.artifact) } },
+        { name: "reel.create", args: { output: ".jarvis-artifacts/reels/campaign.mp4" } }
+    ];
+    const execute = async (call, context) => {
+        executedCalls.push(structuredClone(call));
+        executionContexts.push(structuredClone(context));
+        if (call.name === "web.research" && researchAttempts++ === 0) {
+            return { ok: false, status: "WEB_RESEARCH_TIMEOUT", retryable: true };
+        }
+        if (call.name === "video.generate" && videoAttempts++ === 0) {
+            return {
+                ok: false,
+                status: "REMOTE_WAN_WORKER_INPUT_REQUIRED",
+                blocked: true,
+                requiresInput: true,
+                missingInputs: ["workerReady"],
+                externalApiUsed: false,
+                externalEstimatedCostUsd: 0
+            };
+        }
+        const output = call.args?.output || null;
+        return {
+            ok: true,
+            executionOk: true,
+            objectiveSatisfied: true,
+            status: call.name === "reel.create"
+                ? "REEL_VIDEO_CREATED_VERIFIED"
+                : call.name === "video.generate"
+                    ? "VIDEO_GENERATED_VERIFIED"
+                    : "TOOL_COMPLETED_VERIFIED",
+            ...(output ? {
+                output,
+                artifact: output,
+                bytes: 120000,
+                sha256: "a".repeat(64),
+                physicallyWritten: true,
+                verifiedArtifactDelivery: true
+            } : {}),
+            externalApiUsed: false,
+            externalEstimatedCostUsd: 0
+        };
+    };
+    const initial = await runJarvisMission({
+        instruction: rootInstruction,
+        initialToolCalls: calls,
+        requiredToolNames: calls.map(call => call.name),
+        executionContractLocked: true,
+        planner: async () => {
+            plannerCalls += 1;
+            return { toolCalls: [], missionComplete: true };
+        },
+        execute,
+        storage,
+        maximumRetries: 1
+    });
+    assert.equal(initial.reason, "MISSION_INPUT_REQUIRED");
+    assert.equal(initial.blockedTasks[0].name, "video.generate");
+    assert.equal(initial.approvedInputs.length, 7);
+    const rootHash = initial.rootInstructionHash;
+
+    const resumed = await runJarvisMission({
+        instruction: "El worker Wan ya está listo; continúa exactamente la misma misión.",
+        resumeMissionId: initial.missionId,
+        continuationContext: { workerReady: true },
+        planner: async () => {
+            plannerCalls += 1;
+            return { toolCalls: [], missionComplete: true };
+        },
+        execute,
+        storage,
+        maximumRetries: 1
+    });
+
+    assert.equal(resumed.status, "COMPLETED", JSON.stringify({
+        reason: resumed.reason,
+        pending: resumed.pendingTasks.map(item => [item.name, item.status]),
+        blocked: resumed.blockedTasks.map(item => [item.name, item.reason]),
+        completed: resumed.completedTasks.map(item => item.name),
+        errors: resumed.errors
+    }));
+    assert.equal(resumed.missionId, initial.missionId);
+    assert.equal(resumed.objectiveId, initial.objectiveId);
+    assert.equal(resumed.rootInstruction, rootInstruction);
+    assert.equal(resumed.rootInstructionHash, rootHash);
+    assert.equal(resumed.instructionHash, rootHash);
+    assert.equal(resumed.planRevision, 0);
+    assert.equal(plannerCalls, 0);
+    assert.equal(resumed.accounting.semanticExternalCalls, 0);
+    assert.equal(resumed.accounting.paidExternalCalls, 0);
+    assert.equal(resumed.accounting.externalEstimatedCostUsd, 0);
+    assert.equal(researchAttempts, 2);
+    assert.equal(videoAttempts, 2);
+    assert.equal(resumed.pendingObligations.length, 0);
+    assert.equal(resumed.blockedObligations.length, 0);
+    assert.equal(resumed.completedObligations.length, 7);
+    assert.ok(resumed.artifactLineage.some(item => item.output === ".jarvis-artifacts/videos/campaign.mp4"));
+    assert.ok(resumed.artifactLineage.some(item => item.output === ".jarvis-artifacts/reels/campaign.mp4"));
+    const reelCall = executedCalls.find(call => call.name === "reel.create");
+    assert.ok(reelCall.args.scenes.some(scene => scene.assetOutput === ".jarvis-artifacts/images/campaign.png"));
+    assert.ok(reelCall.args.scenes.some(scene => scene.assetOutput === ".jarvis-artifacts/videos/campaign.mp4"));
+    const reelContext = executionContexts[executedCalls.findIndex(call => call.name === "reel.create")];
+    assert.equal(reelContext.approvedInputs.length, 7);
+    assert.ok(reelContext.artifactLineage.some(item => item.output === ".jarvis-artifacts/pages/campaign.html"));
+    assert.ok(reelContext.artifactLineage.some(item => item.output === ".jarvis-artifacts/images/campaign.png"));
+});
+
+test("repo repair keeps repository branch base SHA and root instruction through patch retry and green tests", async () => {
+    const storage = memoryStorage();
+    let patchAttempts = 0;
+    let semanticCalls = 0;
+    const rootInstruction = "Corrige la regresión de carga sin tocar main y cierra con tests verdes.";
+    const target = {
+        repository: "heberzzt-wq/fixgo-app",
+        branch: "v94-media-v4n-negative-claims",
+        baseSha: "2e2d5fea927f1ae2e282a22477892cecfbd1e193"
+    };
+    const mission = await runJarvisMission({
+        instruction: rootInstruction,
+        initialToolCalls: [
+            { name: "repo.read", args: { ...target, file: "jarvis-fs-bridge.js" } },
+            { name: "repo.patch", args: { ...target, file: "jarvis-fs-bridge.js", patchId: "PATCH-1" } },
+            { name: "tests.run", args: { ...target, command: "npm.cmd run ci:test" } }
+        ],
+        requiredToolNames: ["repo.read", "repo.patch", "tests.run"],
+        executionContractLocked: true,
+        planner: async () => {
+            semanticCalls += 1;
+            return { toolCalls: [], missionComplete: true };
+        },
+        execute: async call => {
+            if (call.name === "repo.patch" && patchAttempts++ === 0) {
+                return {
+                    ok: false,
+                    status: "PATCH_TEST_RED",
+                    error: "focused assertion failed",
+                    retryable: true,
+                    cause: "upload sequence lost durable context"
+                };
+            }
+            return {
+                ok: true,
+                executionOk: true,
+                objectiveSatisfied: true,
+                status: call.name === "tests.run" ? "TESTS_GREEN" : "REPO_ACTION_VERIFIED",
+                repository: target.repository,
+                branch: target.branch,
+                baseSha: target.baseSha,
+                headSha: "b".repeat(40)
+            };
+        },
+        storage,
+        maximumRetries: 1
+    });
+
+    assert.equal(mission.status, "COMPLETED", JSON.stringify({
+        reason: mission.reason,
+        pending: mission.pendingTasks.map(item => [item.name, item.status]),
+        blocked: mission.blockedTasks.map(item => [item.name, item.reason]),
+        completed: mission.completedTasks.map(item => item.name),
+        errors: mission.errors
+    }));
+    assert.equal(mission.rootInstruction, rootInstruction);
+    assert.deepEqual(mission.repositoryTarget, { ...target, headSha: null });
+    assert.equal(mission.completedTasks.find(item => item.name === "repo.patch").attempts, 2);
+    assert.equal(patchAttempts, 2);
+    assert.equal(semanticCalls, 0);
+    assert.equal(mission.blockedObligations.length, 0);
+    assert.equal(mission.currentExecutionState.lastValidAction, "tests.run");
+});
+
+test("series episode preserves canon references and mission authority across an intermediate video retry", async () => {
+    const storage = memoryStorage();
+    let videoAttempts = 0;
+    const references = [
+        ".jarvis-artifacts/series/SERIES-1/characters/HEBERTO-1.png",
+        ".jarvis-artifacts/series/SERIES-1/characters/HEBERTO-2.png",
+        ".jarvis-artifacts/series/SERIES-1/characters/HEBERTO-3.png"
+    ];
+    const rootInstruction = "Genera el episodio 8 respetando canon, personajes y continuidad y entrega el MP4 físico.";
+    const seen = [];
+    const mission = await runJarvisMission({
+        instruction: rootInstruction,
+        initialToolCalls: [
+            { name: "series.resume", args: { seriesId: "SERIES-1", episodeId: "EP-8" } },
+            { name: "video.generate", args: { seriesId: "SERIES-1", episodeId: "EP-8", referenceOutputs: references, output: ".jarvis-artifacts/videos/series-1-ep-8.mp4" } },
+            { name: "reel.create", args: { seriesId: "SERIES-1", episodeId: "EP-8", output: ".jarvis-artifacts/reels/series-1-ep-8.mp4" } }
+        ],
+        requiredToolNames: ["series.resume", "video.generate", "reel.create"],
+        executionContractLocked: true,
+        planner: async () => ({ toolCalls: [], missionComplete: true }),
+        execute: async call => {
+            seen.push(structuredClone(call));
+            if (call.name === "video.generate" && videoAttempts++ === 0) {
+                return { ok: false, status: "REMOTE_WAN_POLL_TIMEOUT", retryable: true };
+            }
+            const output = call.args?.output || null;
+            return {
+                ok: true,
+                executionOk: true,
+                objectiveSatisfied: true,
+                status: output ? "VIDEO_GENERATED_VERIFIED" : "SERIES_CONTEXT_VERIFIED",
+                seriesId: "SERIES-1",
+                episodeId: "EP-8",
+                referenceOutputs: references,
+                ...(output ? {
+                    output,
+                    artifact: output,
+                    bytes: 120000,
+                    sha256: "c".repeat(64),
+                    physicallyWritten: true,
+                    verifiedArtifactDelivery: true
+                } : {})
+            };
+        },
+        storage,
+        maximumRetries: 1
+    });
+
+    const videoCalls = seen.filter(call => call.name === "video.generate");
+    assert.equal(mission.status, "COMPLETED", JSON.stringify({
+        reason: mission.reason,
+        pending: mission.pendingTasks.map(item => [item.name, item.status]),
+        blocked: mission.blockedTasks.map(item => [item.name, item.reason]),
+        completed: mission.completedTasks.map(item => item.name),
+        errors: mission.errors
+    }));
+    assert.equal(videoCalls.length, 2);
+    assert.deepEqual(videoCalls[0].args.referenceOutputs, references);
+    assert.deepEqual(videoCalls[1].args.referenceOutputs, references);
+    assert.equal(videoCalls[0].args.seriesId, "SERIES-1");
+    assert.equal(videoCalls[1].args.episodeId, "EP-8");
+    const reelCall = seen.find(call => call.name === "reel.create");
+    assert.ok(reelCall.args.scenes.some(scene =>
+        scene.assetOutput === ".jarvis-artifacts/videos/series-1-ep-8.mp4" &&
+        scene.verifiedMissionArtifact === true
+    ));
+    assert.equal(mission.rootInstruction, rootInstruction);
+    assert.equal(mission.blockedObligations.length, 0);
+    assert.ok(mission.artifactLineage.some(item => item.output === ".jarvis-artifacts/videos/series-1-ep-8.mp4"));
+    assert.ok(mission.artifactLineage.some(item => item.output === ".jarvis-artifacts/reels/series-1-ep-8.mp4"));
+});
+
+test("deadline after the final verified obligation reconciles as completed", async () => {
+    const mission = await runJarvisMission({
+        instruction: "Genera y entrega un artefacto fisico.",
+        initialToolCalls: [{ name: "artifact.create", args: { title: "Entrega" } }],
+        requiredToolNames: ["artifact.create"],
+        executionContractLocked: true,
+        planner: async () => assert.fail("completed contract must reconcile before replanning"),
+        execute: async () => {
+            await new Promise(resolve => setTimeout(resolve, 150));
+            return {
+                ok: true,
+                executionOk: true,
+                objectiveSatisfied: true,
+                status: "VIDEO_GENERATED_VERIFIED",
+                physicallyWritten: true,
+                verifiedArtifactDelivery: true,
+                output: ".jarvis-artifacts/videos/final.mp4",
+                bytes: 120000,
+                sha256: "a".repeat(64)
+            };
+        },
+        storage: memoryStorage(),
+        timeoutMs: 100
+    });
+
+    assert.equal(mission.status, "COMPLETED");
+    assert.equal(mission.reason, "ALL_EXECUTABLE_TASKS_COMPLETED");
+    assert.equal(mission.completedTasks.length, 1);
+    assert.equal(mission.blockedTasks.length, 0);
 });
 
 test("mission never reports completion when the semantic planner is unavailable", async () => {
@@ -1316,7 +1696,7 @@ test("mission observations preserve nested diagnostic errors instead of object c
 
 
 
-test("media-only required mission closes after semantic completion audit without forcing another artifact", async () => {
+test("media-only required mission closes deterministically without another semantic audit", async () => {
     let plannerCalls = 0;
     const executed = [];
     const mission = await runJarvisMission({
@@ -1326,6 +1706,7 @@ test("media-only required mission closes after semantic completion audit without
             args: { attachments: [{ name: "one.png" }, { name: "two.png" }] }
         }],
         requiredToolNames: ["media.analyze"],
+        executionContractLocked: true,
         planner: async () => {
             plannerCalls += 1;
             return {
@@ -1361,7 +1742,7 @@ test("media-only required mission closes after semantic completion audit without
     });
 
     assert.deepEqual(executed, ["media.analyze"]);
-    assert.equal(plannerCalls, 1);
+    assert.equal(plannerCalls, 0);
     assert.equal(mission.status, "COMPLETED");
     assert.equal(mission.reason, "ALL_EXECUTABLE_TASKS_COMPLETED");
     assert.deepEqual(mission.completedTasks.map(item => item.name), ["media.analyze"]);
@@ -1600,4 +1981,58 @@ test("reel creation receives the verified speech artifact instead of a stale pla
     assert.equal(mission.completedTasks.some(item => item.name === "speech.synthesize"), true);
     assert.equal(mission.completedTasks.some(item => item.name === "reel.create"), true);
     assert.equal(mission.blockedTasks.length, 0);
+});
+
+test("mission accounting keeps local inference, paid calls and GPU rental distinct", async () => {
+    let receivedContext = null;
+    const mission = await runJarvisMission({
+        instruction: "Ejecuta una capacidad conocida sin APIs pagadas y registra su costo real.",
+        initialToolCalls: [{
+            name: "video.generate",
+            obligationId: "VIDEO_ZERO_API",
+            args: { output: ".jarvis-artifacts/videos/zero-api.mp4" }
+        }],
+        requiredToolNames: ["video.generate"],
+        executionContractLocked: true,
+        planner: async () => {
+            throw new Error("PLANNER_MUST_NOT_RUN_FOR_LOCKED_CONTRACT");
+        },
+        execute: async (_call, context) => {
+            receivedContext = context;
+            return {
+                ok: true,
+                executionOk: true,
+                objectiveSatisfied: true,
+                status: "VIDEO_GENERATED_VERIFIED",
+                output: ".jarvis-artifacts/videos/zero-api.mp4",
+                mimeType: "video/mp4",
+                bytes: 120000,
+                sha256: "9".repeat(64),
+                physicallyWritten: true,
+                provider: "self-hosted",
+                backend: "wan22-ti2v-5b",
+                localSemanticInferenceCalls: 1,
+                semanticExternalCalls: 0,
+                paidExternalCalls: 0,
+                externalEstimatedCostUsd: 0,
+                externalActualCostUsd: 0,
+                gpuRentalSeconds: 42,
+                gpuRentalEstimatedCost: 0.021,
+                gpuRentalActualCost: 0.02
+            };
+        },
+        storage: memoryStorage()
+    });
+
+    assert.equal(receivedContext.obligationId, "VIDEO_ZERO_API");
+    assert.equal(mission.status, "COMPLETED");
+    assert.equal(mission.accounting.localSemanticInferenceCalls, 1);
+    assert.equal(mission.accounting.semanticExternalCalls, 0);
+    assert.equal(mission.accounting.paidExternalCalls, 0);
+    assert.equal(mission.accounting.externalEstimatedCostUsd, 0);
+    assert.equal(mission.accounting.gpuRentalSeconds, 42);
+    assert.equal(mission.accounting.gpuRentalEstimatedCost, 0.021);
+    assert.equal(mission.accounting.gpuRentalActualCost, 0.02);
+    assert.deepEqual(mission.accounting.providers, ["self-hosted"]);
+    assert.deepEqual(mission.accounting.backends, ["wan22-ti2v-5b"]);
 });

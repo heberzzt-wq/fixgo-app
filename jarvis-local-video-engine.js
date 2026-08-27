@@ -6,7 +6,7 @@ import { execFileSync, spawn } from "node:child_process";
 
 import { registerArtifact } from "./jarvis-artifact-studio.js";
 
-export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.4.0-v142-local-first-fallback";
+export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.6.0-v142-remote-lifecycle-cost-guard";
 export const VIDEO_ENGINE_MODES = Object.freeze([
     "CURRENT_STABLE",
     "LOCAL_TEST",
@@ -24,6 +24,7 @@ const WAN22_TI2V_5B = Object.freeze({
     imageToVideo: true,
     referenceAssets: true,
     maximumReferenceAssets: 1,
+    maximumSourceReferenceAssets: 3,
     targetResolution: "720p",
     targetFps: 24,
     portraitSize: Object.freeze({ width: 704, height: 1280 }),
@@ -45,6 +46,7 @@ const WAN21_T2V_1_3B = Object.freeze({
     imageToVideo: false,
     referenceAssets: false,
     maximumReferenceAssets: 0,
+    maximumSourceReferenceAssets: 0,
     targetResolution: "480p",
     targetFps: 16,
     portraitSize: Object.freeze({ width: 480, height: 832 }),
@@ -97,6 +99,19 @@ const LOCAL_VIDEO_MODEL_ALIASES = Object.freeze({
     "local-light": WAN21_T2V_1_3B.backend
 });
 
+export const EXTERNAL_VIDEO_PRICING_PROFILE = Object.freeze({
+    provider: "google-veo",
+    model: "veo-3.1-generate-001",
+    resolution: "720p",
+    audioIncluded: true,
+    initialSegmentSeconds: 8,
+    extensionSegmentSeconds: 7,
+    maximumSegmentCount: 4,
+    usdPerSecond: 0.40,
+    currency: "USD",
+    pricingSource: "https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing"
+});
+
 function booleanValue(value, fallback) {
     if (value === undefined || value === null || value === "") return fallback;
     return ["1", "true", "yes", "on"].includes(String(value).trim().toLowerCase());
@@ -117,6 +132,72 @@ function localVideoTimeoutSeconds(env = process.env) {
 function normalizedMode(value) {
     const mode = String(value || "LOCAL_PREFERRED").trim().toUpperCase();
     return VIDEO_ENGINE_MODES.includes(mode) ? mode : "LOCAL_PREFERRED";
+}
+
+function budgetConfigured(value) {
+    if (value === undefined || value === null || value === "") return false;
+    const number = Number(value);
+    return Number.isFinite(number) && number >= 0;
+}
+
+export function estimateExternalVideoGeneration({
+    segmentCount,
+    model = EXTERNAL_VIDEO_PRICING_PROFILE.model,
+    resolution = EXTERNAL_VIDEO_PRICING_PROFILE.resolution,
+    audioIncluded = EXTERNAL_VIDEO_PRICING_PROFILE.audioIncluded
+} = {}) {
+    const count = Number(segmentCount);
+    if (
+        model !== EXTERNAL_VIDEO_PRICING_PROFILE.model ||
+        resolution !== EXTERNAL_VIDEO_PRICING_PROFILE.resolution ||
+        audioIncluded !== true
+    ) {
+        return {
+            ok: false,
+            status: "EXTERNAL_VIDEO_PRICING_PROFILE_UNSUPPORTED",
+            error: "EXTERNAL_VIDEO_PRICING_PROFILE_UNSUPPORTED",
+            externalApiUsed: false,
+            externalEstimatedCostUsd: 0,
+            model,
+            resolution,
+            audioIncluded
+        };
+    }
+    if (
+        !Number.isInteger(count) ||
+        count < 1 ||
+        count > EXTERNAL_VIDEO_PRICING_PROFILE.maximumSegmentCount
+    ) {
+        return {
+            ok: false,
+            status: "EXTERNAL_VIDEO_SEGMENT_PLAN_INVALID",
+            error: "EXTERNAL_VIDEO_SEGMENT_PLAN_INVALID",
+            externalApiUsed: false,
+            externalEstimatedCostUsd: 0,
+            segmentCount
+        };
+    }
+    const plannedDurationSeconds =
+        EXTERNAL_VIDEO_PRICING_PROFILE.initialSegmentSeconds +
+        Math.max(0, count - 1) * EXTERNAL_VIDEO_PRICING_PROFILE.extensionSegmentSeconds;
+    const externalEstimatedCostUsd = Number(
+        (plannedDurationSeconds * EXTERNAL_VIDEO_PRICING_PROFILE.usdPerSecond).toFixed(2)
+    );
+    return {
+        ok: true,
+        status: "EXTERNAL_VIDEO_COST_ESTIMATED",
+        provider: EXTERNAL_VIDEO_PRICING_PROFILE.provider,
+        model: EXTERNAL_VIDEO_PRICING_PROFILE.model,
+        resolution: EXTERNAL_VIDEO_PRICING_PROFILE.resolution,
+        audioIncluded: true,
+        segmentCount: count,
+        plannedDurationSeconds,
+        usdPerSecond: EXTERNAL_VIDEO_PRICING_PROFILE.usdPerSecond,
+        currency: EXTERNAL_VIDEO_PRICING_PROFILE.currency,
+        pricingSource: EXTERNAL_VIDEO_PRICING_PROFILE.pricingSource,
+        externalApiUsed: false,
+        externalEstimatedCostUsd
+    };
 }
 
 function requestedLocalModel(env = process.env) {
@@ -158,6 +239,11 @@ export function resolveLocalVideoModelProfile({ env = process.env, hardware = nu
 
 export function describeLocalVideoPolicy(env = process.env) {
     const mode = normalizedMode(env.JARVIS_VIDEO_ENGINE_POLICY);
+    const externalBudgetConfigured = [
+        env.JARVIS_EXTERNAL_BUDGET_USD_PER_OPERATION,
+        env.JARVIS_EXTERNAL_BUDGET_USD_PER_EPISODE,
+        env.JARVIS_EXTERNAL_BUDGET_USD_PER_DAY
+    ].every(budgetConfigured);
     return {
         version: JARVIS_LOCAL_VIDEO_ENGINE_VERSION,
         mode,
@@ -172,17 +258,15 @@ export function describeLocalVideoPolicy(env = process.env) {
         externalFallbackEnabled: booleanValue(env.JARVIS_EXTERNAL_FALLBACK_ENABLED, true),
         externalBudgetUsdPerOperation: mode === "LOCAL_TEST"
             ? 0
-            : finiteBudget(env.JARVIS_EXTERNAL_BUDGET_USD_PER_OPERATION),
+            : finiteBudget(env.JARVIS_EXTERNAL_BUDGET_USD_PER_OPERATION, 0),
         externalBudgetUsdPerEpisode: mode === "LOCAL_TEST"
             ? 0
-            : finiteBudget(env.JARVIS_EXTERNAL_BUDGET_USD_PER_EPISODE),
+            : finiteBudget(env.JARVIS_EXTERNAL_BUDGET_USD_PER_EPISODE, 0),
         externalBudgetUsdPerDay: mode === "LOCAL_TEST"
             ? 0
-            : finiteBudget(env.JARVIS_EXTERNAL_BUDGET_USD_PER_DAY),
-        externalEstimatedCostUsdPerCall: finiteBudget(
-            env.JARVIS_EXTERNAL_VIDEO_ESTIMATED_COST_USD_PER_CALL,
-            0
-        ),
+            : finiteBudget(env.JARVIS_EXTERNAL_BUDGET_USD_PER_DAY, 0),
+        externalBudgetConfigured: mode !== "LOCAL_TEST" && externalBudgetConfigured,
+        externalPricing: EXTERNAL_VIDEO_PRICING_PROFILE,
         defaultIsCurrentStable: false,
         defaultMode: "LOCAL_PREFERRED",
         promptRoutingAllowed: false
@@ -224,7 +308,9 @@ function backendRequirementFailure(backend = {}, requirements = {}) {
     if (requiresImageToVideo && backend.imageToVideo !== true) {
         return "LOCAL_VIDEO_REFERENCES_UNSUPPORTED_BY_BACKEND";
     }
-    if (referenceCount > Number(backend.maximumReferenceAssets || 0)) {
+    if (referenceCount > Number(
+        backend.maximumSourceReferenceAssets ?? backend.maximumReferenceAssets ?? 0
+    )) {
         return "LOCAL_VIDEO_REFERENCE_LIMIT_EXCEEDED";
     }
     return null;
@@ -812,6 +898,71 @@ function safeReference(root, output) {
     return { output: normalized, file: resolved };
 }
 
+function prepareVideoReferenceSheet(root, references, ffmpeg) {
+    if (!Array.isArray(references) || references.length < 2 || references.length > 3) {
+        throw new Error("LOCAL_VIDEO_REFERENCE_SHEET_INPUT_INVALID");
+    }
+    if (!ffmpeg) throw new Error("LOCAL_VIDEO_REFERENCE_SHEET_FFMPEG_REQUIRED");
+    const identity = createHash("sha256")
+        .update(references.map(reference => reference.output).join("\n"))
+        .digest("hex")
+        .slice(0, 24);
+    const output = `.jarvis-artifacts/video-references/identity-sheet-${identity}.png`;
+    const file = path.resolve(root, output);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const columnWidth = references.length === 2 ? 512 : 340;
+    const filters = references.map((_, index) =>
+        `[${index}:v]scale=${columnWidth}:1024:force_original_aspect_ratio=decrease,` +
+        `pad=${columnWidth}:1024:(ow-iw)/2:(oh-ih)/2:color=white[v${index}]`
+    );
+    filters.push(
+        `${references.map((_, index) => `[v${index}]`).join("")}hstack=inputs=${references.length}[out]`
+    );
+    const args = ["-hide_banner", "-nostdin", "-y"];
+    for (const reference of references) args.push("-i", reference.file);
+    args.push(
+        "-filter_complex", filters.join(";"),
+        "-map", "[out]",
+        "-frames:v", "1",
+        file
+    );
+    try {
+        execFileSync(ffmpeg, args, {
+            cwd: root,
+            windowsHide: true,
+            stdio: ["ignore", "ignore", "pipe"],
+            timeout: 90000,
+            maxBuffer: 4 * 1024 * 1024
+        });
+    }
+    catch(error) {
+        throw new Error(`LOCAL_VIDEO_REFERENCE_SHEET_FAILED:${String(error?.stderr || error?.message || error).slice(-1000)}`);
+    }
+    if (!fs.existsSync(file) || fs.statSync(file).size < 1) {
+        throw new Error("LOCAL_VIDEO_REFERENCE_SHEET_EMPTY");
+    }
+    const artifact = registerArtifact({
+        root,
+        output,
+        metadata: {
+            type: "image",
+            origin: "video.generate",
+            provider: "ffmpeg",
+            mimeType: "image/png",
+            status: "LOCAL_VIDEO_REFERENCE_SHEET_VERIFIED",
+            approvalRequired: false,
+            approved: true,
+            approvedBy: "LOCAL_ARTIFACT_POLICY",
+            preview: true,
+            downloadable: true,
+            publishable: false,
+            originalFile: references[0].output,
+            transformations: references.map(reference => `identity_reference:${reference.output}`)
+        }
+    });
+    return { output, file, artifact, sourceReferenceCount: references.length };
+}
+
 function operationDirectories(root) {
     const base = path.resolve(root, ".jarvis-artifacts/.video-worker");
     return {
@@ -917,12 +1068,94 @@ export function createLocalVideoEngine({
     inspectHardware = () => inspectLocalVideoHardware({ root, env }),
     inspectVideo = null,
     launch = null,
+    release = null,
     now = () => new Date()
 } = {}) {
     const resolvedRoot = path.resolve(root);
     const policy = describeLocalVideoPolicy(env);
     const directories = operationDirectories(resolvedRoot);
     const children = new Map();
+
+    async function releaseWorker(file, operation, reason) {
+        if (operation?.executionTarget !== "remote" || operation?.workerRelease?.ok === true) {
+            return { ok: true, operation };
+        }
+        const startedAt = Date.parse(String(operation?.createdAt || ""));
+        const endedAt = now();
+        const gpuRentalSeconds = Number.isFinite(startedAt)
+            ? Math.max(0, (endedAt.getTime() - startedAt) / 1000)
+            : 0;
+        const hourlyRate = Number(env.JARVIS_REMOTE_GPU_HOURLY_RATE_USD || 0);
+        const gpuRentalEstimatedCost = Number.isFinite(hourlyRate) && hourlyRate > 0
+            ? gpuRentalSeconds * hourlyRate / 3600
+            : 0;
+        if (typeof release !== "function") {
+            const error = "REMOTE_VIDEO_WORKER_RELEASE_HANDLER_REQUIRED";
+            return {
+                ok: false,
+                operation: saveOperation(file, operation, {
+                    gpuRentalSeconds,
+                    gpuRentalEstimatedCost,
+                    gpuRentalActualCost: 0,
+                    workerRelease: {
+                        ok: false,
+                        status: error,
+                        error,
+                        reason,
+                        releasedAt: null
+                    }
+                }),
+                error
+            };
+        }
+        try {
+            const receipt = await release({
+                operationId: operation.operationId,
+                operationName: operation.operationName,
+                backend: operation.backend,
+                reason
+            });
+            if (receipt?.ok !== true) {
+                throw new Error(receipt?.error || receipt?.status || "REMOTE_VIDEO_WORKER_RELEASE_FAILED");
+            }
+            return {
+                ok: true,
+                operation: saveOperation(file, operation, {
+                    workerRelease: {
+                        ok: true,
+                        status: receipt.status || "REMOTE_VIDEO_WORKER_RELEASED",
+                        reason,
+                        releasedAt: endedAt.toISOString(),
+                        receiptId: receipt.receiptId || null,
+                        gpuRentalSeconds,
+                        gpuRentalEstimatedCost,
+                        gpuRentalActualCost: Number(receipt.gpuRentalActualCost || receipt.actualCostUsd || 0)
+                    },
+                    gpuRentalSeconds,
+                    gpuRentalEstimatedCost,
+                    gpuRentalActualCost: Number(receipt.gpuRentalActualCost || receipt.actualCostUsd || 0)
+                })
+            };
+        }
+        catch(error) {
+            return {
+                ok: false,
+                operation: saveOperation(file, operation, {
+                    workerRelease: {
+                        ok: false,
+                        status: "REMOTE_VIDEO_WORKER_RELEASE_FAILED",
+                        error: error?.message || "REMOTE_VIDEO_WORKER_RELEASE_FAILED",
+                        reason,
+                        releasedAt: null
+                    },
+                    gpuRentalSeconds,
+                    gpuRentalEstimatedCost,
+                    gpuRentalActualCost: 0
+                }),
+                error: error?.message || "REMOTE_VIDEO_WORKER_RELEASE_FAILED"
+            };
+        }
+    }
 
     function operationFile(operationId) {
         if (!/^[a-f0-9-]{20,}$/i.test(String(operationId || ""))) {
@@ -999,6 +1232,31 @@ export function createLocalVideoEngine({
         };
     }
 
+    function boundOperation(payload = {}) {
+        const missionId = String(payload.missionId || "").trim().slice(0, 200);
+        const objectiveId = String(payload.objectiveId || "").trim().slice(0, 200);
+        const obligationId = String(payload.obligationId || "").trim().slice(0, 1000);
+        if (!missionId || !objectiveId || !obligationId) return null;
+        const files = fs.existsSync(directories.operations)
+            ? fs.readdirSync(directories.operations).filter(file => file.endsWith(".json"))
+            : [];
+        for (const name of files) {
+            try {
+                const file = path.join(directories.operations, name);
+                const operation = readJson(file);
+                if (
+                    operation.missionId === missionId &&
+                    operation.objectiveId === objectiveId &&
+                    operation.obligationId === obligationId
+                ) {
+                    return { file, operation };
+                }
+            }
+            catch {}
+        }
+        return null;
+    }
+
     async function start(payload = {}) {
         const currentHealth = health();
         const referenceOutputs = Array.isArray(payload.referenceOutputs) ? payload.referenceOutputs : [];
@@ -1052,7 +1310,10 @@ export function createLocalVideoEngine({
                 externalEstimatedCostUsd: 0
             };
         }
-        if (references.length > Number(model.maximumReferenceAssets || 0)) {
+        const sourceReferences = [...references];
+        if (references.length > Number(
+            model.maximumSourceReferenceAssets ?? model.maximumReferenceAssets ?? 0
+        )) {
             return {
                 ok: false,
                 status: "LOCAL_VIDEO_REFERENCE_LIMIT_EXCEEDED",
@@ -1060,11 +1321,71 @@ export function createLocalVideoEngine({
                 backend: model.backend,
                 model: model.model,
                 referenceAssetCount: references.length,
-                maximumReferenceAssets: Number(model.maximumReferenceAssets || 0),
+                maximumReferenceAssets: Number(
+                    model.maximumSourceReferenceAssets ?? model.maximumReferenceAssets ?? 0
+                ),
                 retryable: false,
                 externalApiUsed: false,
                 externalEstimatedCostUsd: 0
             };
+        }
+        const existing = boundOperation(payload);
+        if (existing) {
+            const requestedOutput = String(payload.output || "").trim().replaceAll("\\", "/");
+            if (requestedOutput && requestedOutput !== existing.operation.output) {
+                return {
+                    ...existing.operation,
+                    ok: false,
+                    done: true,
+                    reusedOperation: true,
+                    status: "LOCAL_VIDEO_OBLIGATION_OUTPUT_MUTATION_BLOCKED",
+                    error: "LOCAL_VIDEO_OBLIGATION_OUTPUT_MUTATION_BLOCKED"
+                };
+            }
+            if (existing.operation.state === "SUCCEEDED") {
+                return { ...existing.operation.result, ok: true, done: true, reusedOperation: true };
+            }
+            const terminal = ["FAILED", "CANCELLED"].includes(existing.operation.state);
+            return {
+                ...existing.operation,
+                ok: !terminal,
+                done: terminal,
+                reusedOperation: true,
+                ...(terminal ? { error: existing.operation.error || existing.operation.status } : {})
+            };
+        }
+        let referencePreparation = null;
+        if (references.length > Number(model.maximumReferenceAssets || 0)) {
+            try {
+                const sheet = prepareVideoReferenceSheet(
+                    resolvedRoot,
+                    references,
+                    currentHealth.ffmpeg || resolveLocalExecutable(
+                        env.JARVIS_FFMPEG_PATH || "ffmpeg",
+                        env
+                    )
+                );
+                references = [{ output: sheet.output, file: sheet.file }];
+                referencePreparation = {
+                    mode: "identity_reference_sheet",
+                    sourceReferenceOutputs: sourceReferences.map(item => item.output),
+                    preparedReferenceOutput: sheet.output,
+                    sourceReferenceCount: sourceReferences.length,
+                    preparedReferenceCount: 1,
+                    sha256: sheet.artifact.sha256,
+                    bytes: sheet.artifact.bytes
+                };
+            }
+            catch(error) {
+                return {
+                    ok: false,
+                    status: error?.message || "LOCAL_VIDEO_REFERENCE_PREPARATION_FAILED",
+                    error: error?.message || "LOCAL_VIDEO_REFERENCE_PREPARATION_FAILED",
+                    retryable: false,
+                    externalApiUsed: false,
+                    externalEstimatedCostUsd: 0
+                };
+            }
         }
 
         const operationId = randomUUID();
@@ -1089,6 +1410,15 @@ export function createLocalVideoEngine({
             outputFile: output.resolved,
             referenceOutputs: references.map(item => item.output),
             referenceFiles: references.map(item => item.file),
+            sourceReferenceOutputs: sourceReferences.map(item => item.output),
+            sourceReferenceFiles: sourceReferences.map(item => item.file),
+            referencePreparation,
+            executionTarget: String(env.JARVIS_LOCAL_VIDEO_EXECUTION_TARGET || "local")
+                .trim().toLowerCase() === "remote" ? "remote" : "local",
+            missionId: String(payload.missionId || "").trim().slice(0, 200) || null,
+            objectiveId: String(payload.objectiveId || "").trim().slice(0, 200) || null,
+            obligationId: String(payload.obligationId || "").trim().slice(0, 1000) || null,
+            rootInstructionHash: String(payload.rootInstructionHash || "").trim().slice(0, 128) || null,
             externalApiAllowed: false,
             externalBudgetUsd: 0,
             createdAt: now().toISOString()
@@ -1105,12 +1435,19 @@ export function createLocalVideoEngine({
             output: output.normalized,
             aspectRatio: job.aspectRatio,
             referenceAssetCount: references.length,
+            sourceReferenceAssetCount: sourceReferences.length,
+            referencePreparation,
             createdAt: now().toISOString(),
             updatedAt: now().toISOString(),
             engine: "local",
             provider: "local",
             backend: model.backend,
             model: model.model,
+            executionTarget: job.executionTarget,
+            missionId: job.missionId,
+            objectiveId: job.objectiveId,
+            obligationId: job.obligationId,
+            rootInstructionHash: job.rootInstructionHash,
             externalApiUsed: false,
             externalEstimatedCostUsd: 0
         };
@@ -1184,6 +1521,12 @@ export function createLocalVideoEngine({
                 error: error?.message || "LOCAL_VIDEO_RUNNER_START_FAILED",
                 retryable: true
             });
+            const released = await releaseWorker(
+                operationPath,
+                operation,
+                "runner_start_failed"
+            );
+            operation = released.operation;
             return { ...operation, ok: false, done: true };
         }
         return { ...operation, ok: true, done: false };
@@ -1196,11 +1539,23 @@ export function createLocalVideoEngine({
         let { operation } = loaded;
         if (operation.state === "SUCCEEDED") return { ...operation.result, ok: true, done: true };
         if (["FAILED", "CANCELLED"].includes(operation.state) && !fs.existsSync(operation.resultFile)) {
+            const released = await releaseWorker(
+                loaded.file,
+                operation,
+                operation.state.toLowerCase()
+            );
+            operation = released.operation;
             return { ...operation, ok: false, done: true, error: operation.error || operation.status };
         }
         if (!fs.existsSync(operation.resultFile)) {
             if (operation.state === "RUNNING" && isOperationStale(operation)) {
                 operation = failStaleOperation(loaded.file, operation);
+                const released = await releaseWorker(
+                    loaded.file,
+                    operation,
+                    "operation_stale"
+                );
+                operation = released.operation;
                 return { ...operation, ok: false, done: true };
             }
             return { ...operation, ok: true, done: false };
@@ -1213,6 +1568,12 @@ export function createLocalVideoEngine({
                 status: "LOCAL_VIDEO_RESULT_INVALID",
                 error: error.message
             });
+            const released = await releaseWorker(
+                loaded.file,
+                operation,
+                "result_invalid"
+            );
+            operation = released.operation;
             return { ...operation, ok: false, done: true };
         }
         if (result?.ok !== true) {
@@ -1222,6 +1583,12 @@ export function createLocalVideoEngine({
                 error: result?.error || result?.status || "LOCAL_VIDEO_GENERATION_FAILED",
                 retryable: result?.retryable === true
             });
+            const released = await releaseWorker(
+                loaded.file,
+                operation,
+                "generation_failed"
+            );
+            operation = released.operation;
             return { ...operation, ok: false, done: true };
         }
         try {
@@ -1244,6 +1611,17 @@ export function createLocalVideoEngine({
             }
             verifyMediaAgainstOperation(operation, media);
             const sha256 = createHash("sha256").update(fs.readFileSync(output.resolved)).digest("hex");
+            if (operation.executionTarget === "remote") {
+                if (!/^[a-f0-9]{64}$/i.test(String(result.sha256 || ""))) {
+                    throw new Error("REMOTE_VIDEO_RESULT_SHA256_REQUIRED");
+                }
+                if (String(result.sha256).toLowerCase() !== sha256) {
+                    throw new Error("REMOTE_VIDEO_RESULT_SHA256_MISMATCH");
+                }
+                if (Number(result.bytes || 0) !== stat.size) {
+                    throw new Error("REMOTE_VIDEO_RESULT_BYTES_MISMATCH");
+                }
+            }
             const model = operation.model;
             const backend = operation.backend;
             const artifact = registerArtifact({
@@ -1289,6 +1667,9 @@ export function createLocalVideoEngine({
                 verifiedArtifactDelivery: true,
                 externalApiUsed: false,
                 externalEstimatedCostUsd: 0,
+                gpuRentalSeconds: Number(operation.gpuRentalSeconds || 0),
+                gpuRentalEstimatedCost: Number(operation.gpuRentalEstimatedCost || 0),
+                gpuRentalActualCost: Number(operation.gpuRentalActualCost || 0),
                 artifactId: artifact.artifactId,
                 artifact
             };
@@ -1297,7 +1678,31 @@ export function createLocalVideoEngine({
                 status: verified.status,
                 result: verified
             });
-            return verified;
+            const released = await releaseWorker(
+                loaded.file,
+                operation,
+                "generation_succeeded"
+            );
+            if (released.ok !== true) {
+                operation = saveOperation(loaded.file, released.operation, {
+                    state: "FAILED",
+                    status: "REMOTE_VIDEO_WORKER_RELEASE_FAILED",
+                    error: released.error
+                });
+                return { ...operation, ok: false, done: true };
+            }
+            operation = released.operation;
+            const finalVerified = {
+                ...verified,
+                workerRelease: operation.workerRelease || null,
+                gpuRentalSeconds: Number(operation.gpuRentalSeconds || 0),
+                gpuRentalEstimatedCost: Number(operation.gpuRentalEstimatedCost || 0),
+                gpuRentalActualCost: Number(operation.gpuRentalActualCost || 0)
+            };
+            operation = saveOperation(loaded.file, operation, {
+                result: finalVerified
+            });
+            return finalVerified;
         }
         catch(error) {
             operation = saveOperation(loaded.file, operation, {
@@ -1305,6 +1710,12 @@ export function createLocalVideoEngine({
                 status: error.message || "LOCAL_VIDEO_PHYSICAL_VERIFICATION_FAILED",
                 error: error.message || "LOCAL_VIDEO_PHYSICAL_VERIFICATION_FAILED"
             });
+            const released = await releaseWorker(
+                loaded.file,
+                operation,
+                "physical_verification_failed"
+            );
+            operation = released.operation;
             return { ...operation, ok: false, done: true };
         }
     }
@@ -1326,7 +1737,17 @@ export function createLocalVideoEngine({
             state: "CANCELLED",
             status: "LOCAL_VIDEO_GENERATION_CANCELLED"
         });
-        return { ...operation, ok: true, done: true };
+        const released = await releaseWorker(
+            loaded.file,
+            operation,
+            "cancelled"
+        );
+        return {
+            ...released.operation,
+            ok: released.ok === true,
+            done: true,
+            ...(released.ok === true ? {} : { error: released.error })
+        };
     }
 
     async function cleanup({ operationName } = {}) {
@@ -1346,8 +1767,13 @@ export function createLocalVideoEngine({
         return { ...operation, ok: true, done: true };
     }
 
-    function authorizeExternalCall({ operationKey = "video.generate", estimatedCostUsd } = {}) {
-        const cost = finiteBudget(estimatedCostUsd, policy.externalEstimatedCostUsdPerCall);
+    function authorizeExternalCall({
+        operationKey = "video.generate",
+        segmentCount,
+        model = EXTERNAL_VIDEO_PRICING_PROFILE.model,
+        resolution = EXTERNAL_VIDEO_PRICING_PROFILE.resolution,
+        audioIncluded = EXTERNAL_VIDEO_PRICING_PROFILE.audioIncluded
+    } = {}) {
         if (policy.mode === "LOCAL_TEST" || policy.mode === "LOCAL_ONLY") {
             return {
                 ok: false,
@@ -1355,6 +1781,28 @@ export function createLocalVideoEngine({
                 error: "EXTERNAL_VIDEO_CALL_FORBIDDEN_BY_POLICY",
                 externalApiUsed: false,
                 externalEstimatedCostUsd: 0
+            };
+        }
+        const estimate = estimateExternalVideoGeneration({
+            segmentCount,
+            model,
+            resolution,
+            audioIncluded
+        });
+        if (estimate.ok !== true) return estimate;
+        const cost = estimate.externalEstimatedCostUsd;
+        if (policy.externalBudgetConfigured !== true) {
+            return {
+                ...estimate,
+                ok: false,
+                status: "EXTERNAL_VIDEO_BUDGET_NOT_CONFIGURED",
+                error: "EXTERNAL_VIDEO_BUDGET_NOT_CONFIGURED",
+                externalApiUsed: false,
+                budgets: {
+                    perOperationUsd: policy.externalBudgetUsdPerOperation,
+                    perEpisodeUsd: policy.externalBudgetUsdPerEpisode,
+                    perDayUsd: policy.externalBudgetUsdPerDay
+                }
             };
         }
         const date = now().toISOString().slice(0, 10);
@@ -1370,11 +1818,18 @@ export function createLocalVideoEngine({
             nextDailyCost > policy.externalBudgetUsdPerDay
         ) {
             return {
+                ...estimate,
                 ok: false,
                 status: "EXTERNAL_VIDEO_BUDGET_EXCEEDED",
                 error: "EXTERNAL_VIDEO_BUDGET_EXCEEDED",
                 externalApiUsed: false,
-                externalEstimatedCostUsd: cost
+                budgets: {
+                    perOperationUsd: policy.externalBudgetUsdPerOperation,
+                    perEpisodeUsd: policy.externalBudgetUsdPerEpisode,
+                    perDayUsd: policy.externalBudgetUsdPerDay
+                },
+                projectedOperationCostUsd: nextOperationCost,
+                projectedDailyCostUsd: nextDailyCost
             };
         }
         daily.calls += 1;
@@ -1382,15 +1837,13 @@ export function createLocalVideoEngine({
         daily.operations[safeKey] = { calls: current.calls + 1, costUsd: nextOperationCost };
         atomicJsonWrite(file, daily);
         return {
+            ...estimate,
             ok: true,
-            status: "EXTERNAL_VIDEO_CALL_AUTHORIZED",
-            provider: "google-veo",
-            model: "veo-3.1-generate-001",
+            status: "EXTERNAL_VIDEO_OBLIGATION_AUTHORIZED",
             reasonForExternalUse: policy.mode === "CURRENT_STABLE"
                 ? "CURRENT_STABLE"
                 : "LOCAL_FALLBACK",
             externalApiUsed: true,
-            externalEstimatedCostUsd: cost,
             dailyCostUsd: nextDailyCost,
             operationCostUsd: nextOperationCost
         };

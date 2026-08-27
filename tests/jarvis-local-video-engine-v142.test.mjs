@@ -4,11 +4,13 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 
 import {
     buildLocalAiCapabilityReport,
     createLocalVideoEngine,
     describeLocalVideoPolicy,
+    estimateExternalVideoGeneration,
     resolveVideoEngine,
     writeLocalAiCapabilityReport
 } from "../jarvis-local-video-engine.js";
@@ -49,6 +51,7 @@ function physicalFixture(file) {
 }
 
 function successReceipt(job, overrides = {}) {
+    const physicalBytes = fs.existsSync(job.outputFile) ? fs.readFileSync(job.outputFile) : Buffer.alloc(0);
     return {
         ok: true,
         status: "LOCAL_VIDEO_RUNNER_COMPLETED",
@@ -62,6 +65,10 @@ function successReceipt(job, overrides = {}) {
         provider: "local",
         externalApiUsed: false,
         externalEstimatedCostUsd: 0,
+        bytes: physicalBytes.length,
+        sha256: physicalBytes.length > 0
+            ? createHash("sha256").update(physicalBytes).digest("hex")
+            : null,
         referenceAssetCount: job.referenceFiles.length,
         durationSeconds: 8,
         fps: 24,
@@ -103,6 +110,29 @@ function localBackend({
         status,
         imageToVideo,
         maximumReferenceAssets
+    };
+}
+
+function remoteWanFixture(prefix = "jarvis-remote-contract-") {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+    const runner = path.join(root, "runner.py");
+    const model = path.join(root, "wan-model");
+    fs.writeFileSync(runner, "# controlled remote runner\n");
+    fs.mkdirSync(model, { recursive: true });
+    return {
+        root,
+        env: {
+            JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_TEST",
+            JARVIS_LOCAL_VIDEO_ENABLED: "true",
+            JARVIS_LOCAL_VIDEO_EXECUTION_TARGET: "remote",
+            JARVIS_LOCAL_VIDEO_RUNNER: process.execPath,
+            JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT: runner,
+            JARVIS_LOCAL_VIDEO_MODEL_DIR: model,
+            JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS: "30",
+            JARVIS_REMOTE_GPU_HOURLY_RATE_USD: "1.8",
+            PATH: process.env.PATH,
+            PATHEXT: process.env.PATHEXT
+        }
     };
 }
 
@@ -381,23 +411,53 @@ test("LOCAL_ONLY cannot silently fall back to an external provider", () => {
     assert.equal(resolved.externalApiUsed, false);
 });
 
-test("external budget is enforced before a provider call and LOCAL_TEST budget is zero", () => {
+test("external Veo cost is derived from the complete segment plan before provider use", () => {
+    const oneSegment = estimateExternalVideoGeneration({ segmentCount: 1 });
+    const fourSegments = estimateExternalVideoGeneration({ segmentCount: 4 });
+    const invalid = estimateExternalVideoGeneration({
+        segmentCount: 2,
+        model: "unknown-paid-model"
+    });
+
+    assert.equal(oneSegment.ok, true);
+    assert.equal(oneSegment.plannedDurationSeconds, 8);
+    assert.equal(oneSegment.externalEstimatedCostUsd, 3.2);
+    assert.equal(fourSegments.plannedDurationSeconds, 29);
+    assert.equal(fourSegments.externalEstimatedCostUsd, 11.6);
+    assert.equal(invalid.ok, false);
+    assert.equal(invalid.status, "EXTERNAL_VIDEO_PRICING_PROFILE_UNSUPPORTED");
+});
+
+test("external budget is fail-closed, reserves the full obligation once and LOCAL_TEST forbids it", () => {
+    const unconfigured = createLocalVideoEngine({
+        root: fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-video-budget-unconfigured-")),
+        env: { JARVIS_VIDEO_ENGINE_POLICY: "CURRENT_STABLE" }
+    });
+    const unconfiguredResult = unconfigured.authorizeExternalCall({
+        operationKey: "EP-UNCONFIGURED",
+        segmentCount: 1
+    });
+    assert.equal(unconfiguredResult.ok, false);
+    assert.equal(unconfiguredResult.status, "EXTERNAL_VIDEO_BUDGET_NOT_CONFIGURED");
+    assert.equal(unconfiguredResult.externalEstimatedCostUsd, 3.2);
+
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-video-budget-"));
     const stable = createLocalVideoEngine({
         root,
         env: {
             JARVIS_VIDEO_ENGINE_POLICY: "CURRENT_STABLE",
-            JARVIS_EXTERNAL_BUDGET_USD_PER_OPERATION: "0.50",
-            JARVIS_EXTERNAL_BUDGET_USD_PER_EPISODE: "0.50",
-            JARVIS_EXTERNAL_BUDGET_USD_PER_DAY: "1.00",
-            JARVIS_EXTERNAL_VIDEO_ESTIMATED_COST_USD_PER_CALL: "0.30"
+            JARVIS_EXTERNAL_BUDGET_USD_PER_OPERATION: "12.00",
+            JARVIS_EXTERNAL_BUDGET_USD_PER_EPISODE: "12.00",
+            JARVIS_EXTERNAL_BUDGET_USD_PER_DAY: "15.00"
         }
     });
-    const first = stable.authorizeExternalCall({ operationKey: "EP-1" });
-    const second = stable.authorizeExternalCall({ operationKey: "EP-1" });
+    const first = stable.authorizeExternalCall({ operationKey: "EP-1", segmentCount: 4 });
+    const second = stable.authorizeExternalCall({ operationKey: "EP-1", segmentCount: 1 });
 
     assert.equal(first.ok, true);
-    assert.equal(first.externalEstimatedCostUsd, 0.3);
+    assert.equal(first.externalEstimatedCostUsd, 11.6);
+    assert.equal(first.plannedDurationSeconds, 29);
+    assert.equal(first.segmentCount, 4);
     assert.equal(second.ok, false);
     assert.equal(second.status, "EXTERNAL_VIDEO_BUDGET_EXCEEDED");
 
@@ -405,7 +465,7 @@ test("external budget is enforced before a provider call and LOCAL_TEST budget i
         root: fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-video-budget-local-")),
         env: { JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_TEST" }
     });
-    const forbidden = localTest.authorizeExternalCall({ operationKey: "EP-LOCAL" });
+    const forbidden = localTest.authorizeExternalCall({ operationKey: "EP-LOCAL", segmentCount: 1 });
     assert.equal(forbidden.ok, false);
     assert.equal(forbidden.status, "EXTERNAL_VIDEO_CALL_FORBIDDEN_BY_POLICY");
     assert.equal(forbidden.externalEstimatedCostUsd, 0);
@@ -877,6 +937,379 @@ test("LOCAL_PREFERRED retries a recoverable Wan2.2 failure on compatible Wan2.1 
     }
 });
 
+test("video.generate recovers transient local polling on the same operation and cancels a real poll failure", async t => {
+    for (const recover of [true, false]) {
+        await t.test(recover ? "same operation recovers" : "bounded failure cancels", async () => {
+            const runtime = runtimeFixture();
+            registerJarvisActuatorTools(runtime);
+            const previousBridge = globalThis.JarvisLocalBridge;
+            const previousFetch = globalThis.fetch;
+            let starts = 0;
+            let polls = 0;
+            let cancels = 0;
+            try {
+                globalThis.fetch = async () => {
+                    throw new Error("EXTERNAL_PROVIDER_MUST_NOT_RUN");
+                };
+                globalThis.JarvisLocalBridge = {
+                    async requestJson(route, payload) {
+                        if (route === "/video/engine/resolve") {
+                            return {
+                                ok: true,
+                                policy: "LOCAL_TEST",
+                                engineRequested: "LOCAL_TEST",
+                                engineUsed: "local",
+                                selectedBackend: "wan22-ti2v-5b",
+                                fallbackUsed: false
+                            };
+                        }
+                        if (route === "/video/local/start") {
+                            starts += 1;
+                            return { ok: true, operationName: "local-video/stable-operation" };
+                        }
+                        if (route === "/video/local/poll") {
+                            polls += 1;
+                            assert.equal(payload.operationName, "local-video/stable-operation");
+                            if (!recover || polls === 1) throw new Error("TRANSIENT_POLL_TRANSPORT");
+                            return {
+                                ok: true,
+                                done: true,
+                                status: "VIDEO_GENERATED_VERIFIED",
+                                operationName: payload.operationName,
+                                output: ".jarvis-artifacts/videos/stable-operation.mp4",
+                                bytes: 120000,
+                                sha256: "d".repeat(64),
+                                physicallyWritten: true,
+                                provider: "local",
+                                backend: "wan22-ti2v-5b",
+                                externalApiUsed: false,
+                                externalEstimatedCostUsd: 0
+                            };
+                        }
+                        if (route === "/video/local/cancel") {
+                            cancels += 1;
+                            assert.equal(payload.operationName, "local-video/stable-operation");
+                            return { ok: true, done: true, status: "LOCAL_VIDEO_GENERATION_CANCELLED" };
+                        }
+                        throw new Error(`Unexpected bridge route: ${route}`);
+                    }
+                };
+                const result = await runtime.get("video.generate").execute({
+                    prompt: "Keep one logical local generation.",
+                    output: ".jarvis-artifacts/videos/stable-operation.mp4"
+                }, { waitForVideoPoll: async () => {} });
+                assert.equal(starts, 1);
+                if (recover) {
+                    assert.equal(result.ok, true);
+                    assert.equal(result.verifiedArtifactDelivery, true);
+                    assert.equal(polls, 2);
+                    assert.equal(cancels, 0);
+                }
+                else {
+                    assert.equal(result.ok, false);
+                    assert.equal(result.status, "LOCAL_VIDEO_BRIDGE_POLL_FAILED");
+                    assert.equal(polls, 4);
+                    assert.equal(cancels, 1);
+                    assert.equal(result.cancellation.ok, true);
+                }
+            }
+            finally {
+                globalThis.JarvisLocalBridge = previousBridge;
+                globalThis.fetch = previousFetch;
+            }
+        });
+    }
+});
+
+test("simulated remote Wan receives three physical assets, returns a verified MP4 and releases the worker", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-remote-wan-"));
+    const runner = path.join(root, "runner.py");
+    const model = path.join(root, "wan-model");
+    fs.writeFileSync(runner, "# controlled remote runner\n");
+    fs.mkdirSync(model, { recursive: true });
+    const referenceOutputs = [1, 2, 3].map(index => {
+        const output = `.jarvis-artifacts/images/identity-${index}.png`;
+        const target = path.join(root, output);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.writeFileSync(target, `P3\n1 1\n255\n${index * 60} 40 160\n`);
+        return output;
+    });
+    const releases = [];
+    let receivedJob = null;
+    const engine = createLocalVideoEngine({
+        root,
+        env: {
+            JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_TEST",
+            JARVIS_LOCAL_VIDEO_ENABLED: "true",
+            JARVIS_LOCAL_VIDEO_EXECUTION_TARGET: "remote",
+            JARVIS_LOCAL_VIDEO_RUNNER: process.execPath,
+            JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT: runner,
+            JARVIS_LOCAL_VIDEO_MODEL_DIR: model,
+            PATH: process.env.PATH,
+            PATHEXT: process.env.PATHEXT
+        },
+        inspectHardware: healthyCapability,
+        launch({ job, resultFile, onExit }) {
+            receivedJob = job;
+            assert.equal(job.executionTarget, "remote");
+            assert.equal(job.sourceReferenceFiles.length, 3);
+            assert.ok(job.sourceReferenceFiles.every(file => fs.existsSync(file)));
+            assert.equal(job.referenceFiles.length, 1);
+            assert.ok(fs.existsSync(job.referenceFiles[0]));
+            physicalFixture(path.resolve(root, job.output));
+            fs.writeFileSync(resultFile, JSON.stringify(successReceipt(job)));
+            queueMicrotask(() => onExit(0));
+            return { pid: 6262, kill() {} };
+        },
+        release: async receipt => {
+            releases.push(receipt);
+            return { ok: true, status: "REMOTE_VIDEO_WORKER_RELEASED", receiptId: "lease-closed-1" };
+        },
+        inspectVideo: () => ({ durationSeconds: 8, fps: 24, width: 704, height: 1280 })
+    });
+
+    const started = await engine.start({
+        script: "Use all physical identity references.",
+        prompts: ["One controlled remote Wan scene."],
+        referenceOutputs,
+        output: ".jarvis-artifacts/videos/remote-wan.mp4"
+    });
+    const completed = await engine.poll({ operationName: started.operationName });
+
+    assert.equal(started.ok, true, JSON.stringify(started));
+    assert.ok(receivedJob, "remote job was not launched");
+    assert.equal(receivedJob.sourceReferenceOutputs.length, 3);
+    assert.equal(receivedJob.referencePreparation.mode, "identity_reference_sheet");
+    assert.equal(receivedJob.referenceOutputs.length, 1);
+    assert.equal(completed.ok, true);
+    assert.equal(completed.verifiedArtifactDelivery, true);
+    assert.equal(completed.externalApiUsed, false);
+    assert.equal(completed.externalEstimatedCostUsd, 0);
+    assert.equal(completed.workerRelease.ok, true);
+    assert.equal(completed.workerRelease.receiptId, "lease-closed-1");
+    assert.equal(releases.length, 1);
+    assert.equal(releases[0].reason, "generation_succeeded");
+    assert.equal(fs.existsSync(path.join(root, completed.output)), true);
+    assert.match(completed.sha256, /^[a-f0-9]{64}$/);
+});
+
+test("simulated remote Wan releases the worker when generation fails", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-remote-wan-failure-"));
+    const runner = path.join(root, "runner.py");
+    const model = path.join(root, "wan-model");
+    fs.writeFileSync(runner, "# controlled remote runner\n");
+    fs.mkdirSync(model, { recursive: true });
+    const releases = [];
+    const engine = createLocalVideoEngine({
+        root,
+        env: {
+            JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_TEST",
+            JARVIS_LOCAL_VIDEO_ENABLED: "true",
+            JARVIS_LOCAL_VIDEO_EXECUTION_TARGET: "remote",
+            JARVIS_LOCAL_VIDEO_RUNNER: process.execPath,
+            JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT: runner,
+            JARVIS_LOCAL_VIDEO_MODEL_DIR: model
+        },
+        inspectHardware: healthyCapability,
+        launch({ resultFile, onExit }) {
+            fs.writeFileSync(resultFile, JSON.stringify({
+                ok: false,
+                status: "REMOTE_WAN_GENERATION_FAILED",
+                error: "controlled failure",
+                retryable: true
+            }));
+            queueMicrotask(() => onExit(1));
+            return { pid: 6363, kill() {} };
+        },
+        release: async receipt => {
+            releases.push(receipt);
+            return { ok: true, status: "REMOTE_VIDEO_WORKER_RELEASED" };
+        }
+    });
+    const started = await engine.start({
+        script: "Fail safely.",
+        prompts: ["One failing scene."],
+        output: ".jarvis-artifacts/videos/remote-failed.mp4"
+    });
+    const completed = await engine.poll({ operationName: started.operationName });
+
+    assert.equal(completed.ok, false);
+    assert.equal(completed.status, "REMOTE_WAN_GENERATION_FAILED");
+    assert.equal(completed.workerRelease.ok, true);
+    assert.equal(releases.length, 1);
+    assert.equal(releases[0].reason, "generation_failed");
+    assert.equal(listArtifacts({ root, type: "video" }).length, 0);
+});
+
+test("simulated remote Wan binds one worker to one durable obligation and releases it on cancel", async () => {
+    const { root, env } = remoteWanFixture("jarvis-remote-obligation-");
+    let launches = 0;
+    const releases = [];
+    const engine = createLocalVideoEngine({
+        root,
+        env,
+        inspectHardware: healthyCapability,
+        launch() {
+            launches += 1;
+            return { pid: 6464, kill() {} };
+        },
+        release: async receipt => {
+            releases.push(receipt);
+            return { ok: true, status: "REMOTE_VIDEO_WORKER_RELEASED" };
+        }
+    });
+    const payload = {
+        script: "One durable remote obligation.",
+        prompts: ["One durable remote scene."],
+        output: ".jarvis-artifacts/videos/remote-obligation.mp4",
+        missionId: "MISSION-REMOTE-ONE",
+        objectiveId: "OBJECTIVE-REMOTE-ONE",
+        obligationId: "video.generate:remote-one",
+        rootInstructionHash: "a".repeat(64)
+    };
+
+    const first = await engine.start(payload);
+    const duplicate = await engine.start(payload);
+    assert.equal(first.ok, true);
+    assert.equal(duplicate.ok, true);
+    assert.equal(duplicate.reusedOperation, true);
+    assert.equal(duplicate.operationName, first.operationName);
+    assert.equal(launches, 1);
+    const cancelled = await engine.cancel({ operationName: first.operationName });
+    assert.equal(cancelled.ok, true);
+    assert.equal(cancelled.state, "CANCELLED");
+    assert.equal(cancelled.workerRelease.ok, true);
+    assert.equal(releases.length, 1);
+    assert.equal(releases[0].reason, "cancelled");
+    const afterCancel = await engine.start(payload);
+    assert.equal(afterCancel.ok, false);
+    assert.equal(afterCancel.reusedOperation, true);
+    assert.equal(afterCancel.operationName, first.operationName);
+    assert.equal(launches, 1);
+});
+
+test("simulated remote Wan timeout and worker loss both release the rented worker", async t => {
+    await t.test("timeout", async () => {
+        const { root, env } = remoteWanFixture("jarvis-remote-timeout-");
+        let clock = new Date("2026-08-27T00:00:00.000Z");
+        const releases = [];
+        const engine = createLocalVideoEngine({
+            root,
+            env,
+            inspectHardware: healthyCapability,
+            now: () => new Date(clock),
+            launch: () => ({ pid: 6565, kill() {} }),
+            release: async receipt => {
+                releases.push(receipt);
+                return { ok: true, status: "REMOTE_VIDEO_WORKER_RELEASED" };
+            }
+        });
+        const started = await engine.start({
+            script: "Timeout safely.",
+            prompts: ["One timed scene."],
+            output: ".jarvis-artifacts/videos/remote-timeout.mp4",
+            missionId: "MISSION-REMOTE-TIMEOUT",
+            objectiveId: "OBJECTIVE-REMOTE-TIMEOUT",
+            obligationId: "video.generate:remote-timeout"
+        });
+        clock = new Date(clock.getTime() + 91_000);
+        const timedOut = await engine.poll({ operationName: started.operationName });
+        assert.equal(timedOut.ok, false);
+        assert.equal(timedOut.status, "LOCAL_VIDEO_OPERATION_STALE");
+        assert.equal(timedOut.workerRelease.ok, true);
+        assert.equal(releases.length, 1);
+        assert.equal(releases[0].reason, "operation_stale");
+        assert.ok(timedOut.gpuRentalSeconds >= 91);
+        assert.ok(timedOut.gpuRentalEstimatedCost > 0);
+    });
+
+    await t.test("worker lost", async () => {
+        const { root, env } = remoteWanFixture("jarvis-remote-lost-");
+        const releases = [];
+        const engine = createLocalVideoEngine({
+            root,
+            env,
+            inspectHardware: healthyCapability,
+            launch({ onExit }) {
+                queueMicrotask(() => onExit(1));
+                return { pid: 6666, kill() {} };
+            },
+            release: async receipt => {
+                releases.push(receipt);
+                return { ok: true, status: "REMOTE_VIDEO_WORKER_RELEASED" };
+            }
+        });
+        const started = await engine.start({
+            script: "Detect a lost worker.",
+            prompts: ["One lost-worker scene."],
+            output: ".jarvis-artifacts/videos/remote-lost.mp4"
+        });
+        await new Promise(resolve => setImmediate(resolve));
+        const lost = await engine.poll({ operationName: started.operationName });
+        assert.equal(lost.ok, false);
+        assert.equal(lost.status, "LOCAL_VIDEO_RUNNER_EXITED_WITHOUT_RESULT");
+        assert.equal(lost.workerRelease.ok, true);
+        assert.equal(releases.length, 1);
+        assert.equal(releases[0].reason, "failed");
+    });
+});
+
+test("simulated remote Wan rejects bad SHA and bad MP4 and fails closed on shutdown failure", async t => {
+    for (const scenario of ["bad-sha", "bad-mp4", "shutdown-failure"]) {
+        await t.test(scenario, async () => {
+            const { root, env } = remoteWanFixture(`jarvis-remote-${scenario}-`);
+            const releases = [];
+            const engine = createLocalVideoEngine({
+                root,
+                env,
+                inspectHardware: healthyCapability,
+                launch({ job, resultFile, onExit }) {
+                    if (scenario === "bad-mp4") {
+                        fs.mkdirSync(path.dirname(job.outputFile), { recursive: true });
+                        fs.writeFileSync(job.outputFile, Buffer.alloc(120000, 9));
+                    }
+                    else {
+                        physicalFixture(job.outputFile);
+                    }
+                    const receipt = successReceipt(job, scenario === "bad-sha"
+                        ? { sha256: "0".repeat(64) }
+                        : {});
+                    fs.writeFileSync(resultFile, JSON.stringify(receipt));
+                    queueMicrotask(() => onExit(0));
+                    return { pid: 6767, kill() {} };
+                },
+                release: async receipt => {
+                    releases.push(receipt);
+                    return scenario === "shutdown-failure"
+                        ? { ok: false, status: "REMOTE_PROVIDER_SHUTDOWN_FAILED" }
+                        : { ok: true, status: "REMOTE_VIDEO_WORKER_RELEASED" };
+                },
+                inspectVideo: () => ({ durationSeconds: 8, fps: 24, width: 704, height: 1280 })
+            });
+            const started = await engine.start({
+                script: `Validate ${scenario}.`,
+                prompts: [`One ${scenario} scene.`],
+                output: `.jarvis-artifacts/videos/remote-${scenario}.mp4`
+            });
+            const completed = await engine.poll({ operationName: started.operationName });
+            assert.equal(completed.ok, false);
+            assert.equal(releases.length, 1);
+            if (scenario === "bad-sha") {
+                assert.equal(completed.status, "REMOTE_VIDEO_RESULT_SHA256_MISMATCH");
+                assert.equal(completed.workerRelease.ok, true);
+            }
+            if (scenario === "bad-mp4") {
+                assert.equal(completed.status, "LOCAL_VIDEO_MP4_CONTAINER_INVALID");
+                assert.equal(completed.workerRelease.ok, true);
+            }
+            if (scenario === "shutdown-failure") {
+                assert.equal(completed.status, "REMOTE_VIDEO_WORKER_RELEASE_FAILED");
+                assert.equal(completed.workerRelease.ok, false);
+            }
+        });
+    }
+});
+
 test("recoverable Wan2.2 reference failure skips Wan2.1 and preserves the asset on explicit Veo fallback", async () => {
     const runtime = runtimeFixture();
     registerJarvisActuatorTools(runtime);
@@ -961,7 +1394,14 @@ test("recoverable Wan2.2 reference failure skips Wan2.1 and preserves the asset 
             prompt: "Preserve the verified identity reference.",
             referenceOutputs: [referenceOutput],
             output: ".jarvis-artifacts/videos/reference-fallback.mp4"
-        }, { waitForVideoPoll: async () => {} });
+        }, {
+            waitForVideoPoll: async () => {},
+            externalVideoAuthorization: {
+                approved: true,
+                approvedBy: "HEBERTO_MENDOZA",
+                approvalSource: "trusted_runtime_context"
+            }
+        });
 
         const cloudStart = cloudCalls.find(call => call.action === "start");
         assert.equal(result.ok, true);
@@ -989,6 +1429,84 @@ test("video.generate public input contract remains unchanged", () => {
         "script", "prompt", "scenes", "referenceOutputs", "aspectRatio", "output",
         "caseId", "objectiveId", "seriesId", "episodeId"
     ]);
+});
+
+test("LOCAL_PREFERRED Wan failure fails closed before Veo without explicit human authorization", async () => {
+    const runtime = runtimeFixture();
+    registerJarvisActuatorTools(runtime);
+    const previousBridge = globalThis.JarvisLocalBridge;
+    const previousFetch = globalThis.fetch;
+    const routes = [];
+    let cloudCalls = 0;
+    try {
+        globalThis.fetch = async () => {
+            cloudCalls += 1;
+            throw new Error("Veo must not be called");
+        };
+        globalThis.JarvisLocalBridge = {
+            async requestJson(route, payload) {
+                routes.push({ route, payload });
+                if (route === "/video/engine/resolve") {
+                    if (payload.excludedBackends?.includes("wan22-ti2v-5b")) {
+                        return {
+                            ok: true,
+                            policy: "LOCAL_PREFERRED",
+                            engineRequested: "LOCAL_PREFERRED",
+                            engineUsed: "external",
+                            selectedBackend: "google-veo",
+                            externalFallbackEnabled: true,
+                            fallbackUsed: true,
+                            fallbackReason: "LOCAL_VIDEO_BACKENDS_UNAVAILABLE"
+                        };
+                    }
+                    return {
+                        ok: true,
+                        policy: "LOCAL_PREFERRED",
+                        engineRequested: "LOCAL_PREFERRED",
+                        engineUsed: "local",
+                        selectedBackend: "wan22-ti2v-5b",
+                        externalFallbackEnabled: true
+                    };
+                }
+                if (route === "/video/local/start") {
+                    assert.equal(payload.missionId, "MISSION-LOCAL-ONE");
+                    assert.equal(payload.objectiveId, "OBJECTIVE-LOCAL-ONE");
+                    assert.equal(payload.obligationId, "video.generate:offline-one");
+                    assert.equal(payload.rootInstructionHash, "f".repeat(64));
+                    return {
+                        ok: false,
+                        status: "LOCAL_VIDEO_REMOTE_WORKER_UNAVAILABLE",
+                        error: "LOCAL_VIDEO_REMOTE_WORKER_UNAVAILABLE",
+                        retryable: true
+                    };
+                }
+                throw new Error(`Unexpected bridge route: ${route}`);
+            }
+        };
+        const result = await runtime.get("video.generate").execute({
+            prompt: "Do not spend externally after the remote worker fails.",
+            output: ".jarvis-artifacts/videos/fail-closed.mp4"
+        }, {
+            waitForVideoPoll: async () => {},
+            missionId: "MISSION-LOCAL-ONE",
+            objectiveId: "OBJECTIVE-LOCAL-ONE",
+            obligationId: "video.generate:offline-one",
+            rootInstructionHash: "f".repeat(64)
+        });
+
+        assert.equal(result.ok, false);
+        assert.equal(result.status, "EXTERNAL_VIDEO_HUMAN_AUTHORIZATION_REQUIRED");
+        assert.equal(result.requiresInput, false);
+        assert.equal(result.requiresApproval, true);
+        assert.equal(result.externalApiUsed, false);
+        assert.equal(result.externalEstimatedCostUsd, 0);
+        assert.equal(cloudCalls, 0);
+        assert.equal(routes.filter(item => item.route === "/video/engine/authorize-external").length, 0);
+    }
+    finally {
+        globalThis.JarvisLocalBridge = previousBridge;
+        globalThis.fetch = previousFetch;
+    }
 });
 
 test("V142 resolve gates local backends by mission reference requirements", () => {

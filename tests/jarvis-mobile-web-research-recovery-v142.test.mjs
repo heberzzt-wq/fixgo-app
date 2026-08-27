@@ -322,7 +322,7 @@ test("v142 hard domain scope never relaxes an unrelated allowedDomain", async ()
 });
 
 
-test("v142 entity-not-verified cloud recovery gives the existing local research bridge a chance", async () => {
+test("v142 local-first research uses the existing bridge before any cloud recovery", async () => {
     const previousAuth = globalThis.auth;
     const previousWindow = globalThis.window;
     const previousFetch = globalThis.fetch;
@@ -369,7 +369,7 @@ test("v142 entity-not-verified cloud recovery gives the existing local research 
                     {
                         id: 1,
                         title: "Taquería El Dorado Cancún",
-                        url: "https://example.com/taqueria-el-dorado-cancun"
+                        url: seedUrl
                     }
                 ],
                 supports: [
@@ -394,22 +394,22 @@ test("v142 entity-not-verified cloud recovery gives the existing local research 
             }
         );
 
-        assert.equal(cloudCalls.length, 2);
+        assert.equal(cloudCalls.length, 0);
         assert.equal(localCalls.length, 1);
         assert.equal(localCalls[0].path, "/research");
-        assert.equal(localCalls[0].payload.allowedDomain, "");
+        assert.equal(localCalls[0].payload.allowedDomain, "tiktok.com");
         assert.equal(localCalls[0].payload.exactEntity, "Taquería El Dorado");
         assert.equal(localCalls[0].payload.seedUrl, seedUrl);
-        assert.doesNotMatch(localCalls[0].payload.query, /https?:\/\//i);
+        assert.match(localCalls[0].payload.query, /https?:\/\//i);
         assert.match(localCalls[0].payload.query, /Taquería El Dorado/i);
         assert.equal(result.ok, true);
         assert.equal(result.executionOk, true);
         assert.equal(result.objectiveSatisfied, true);
         assert.equal(result.requiresInput, false);
-        assert.equal(result.status, "GROUNDED_LOCAL_FALLBACK");
+        assert.equal(result.status, "GROUNDED_LOCAL_PRIMARY");
         assert.equal(result.source, "JARVIS_LOCAL_GROUNDED_WEB_RESEARCH");
-        assert.equal(result.sourceScopeRecovered, true);
-        assert.equal(result.exactAnchorVerified, false);
+        assert.equal(result.sourceScopeRecovered ?? false, false);
+        assert.equal(result.exactAnchorVerified, true);
     }
     finally {
         if (previousAuth === undefined) delete globalThis.auth;
@@ -466,7 +466,7 @@ test("V142 reel media dependency evaluates the verified reel-plan handoff before
     assert.ok(executionHandoffIndex > recoveryIndex);
 });
 
-test("V142 mini-drama consolidates semantic scene calls into one video.generate execution", () => {
+test("V142 mini-drama consolidates one execution without silently discarding extra scenes", () => {
     const videoTool = {
         name: "video.generate",
         mutates: true,
@@ -481,20 +481,22 @@ test("V142 mini-drama consolidates semantic scene calls into one video.generate 
             { name: "video.generate", args: { prompt: "escena uno", output: ".jarvis-artifacts/videos/scene-1.mp4" } },
             { name: "video.generate", args: { prompt: "escena dos", output: ".jarvis-artifacts/videos/scene-2.mp4" } },
             { name: "video.generate", args: { prompt: "escena tres", output: ".jarvis-artifacts/videos/scene-3.mp4" } },
-            { name: "video.generate", args: { prompt: "escena cuatro", output: ".jarvis-artifacts/videos/scene-4.mp4" } }
+            { name: "video.generate", args: { prompt: "escena cuatro", output: ".jarvis-artifacts/videos/scene-4.mp4" } },
+            { name: "video.generate", args: { prompt: "escena cinco", output: ".jarvis-artifacts/videos/scene-5.mp4" } },
+            { name: "video.generate", args: { prompt: "escena seis", output: ".jarvis-artifacts/videos/scene-6.mp4" } }
         ]
     }, [videoTool], {
-        originalInstruction: "Produce un mini drama continuo con cuatro escenas.",
+        originalInstruction: "Produce un mini drama continuo con seis escenas.",
         missionState: { phase: "MISSION_CONTRACT" }
     });
 
     const videos = calls.filter(call => call.name === "video.generate");
     assert.equal(videos.length, 1);
     assert.equal(videos[0].reason, "SEMANTIC_MINIDRAMA_SCENES_CONSOLIDATED");
-    assert.equal(videos[0].args.scenes.length, 4);
+    assert.equal(videos[0].args.scenes.length, 6);
     assert.deepEqual(
         videos[0].args.scenes.map(scene => scene.prompt),
-        ["escena uno", "escena dos", "escena tres", "escena cuatro"]
+        ["escena uno", "escena dos", "escena tres", "escena cuatro", "escena cinco", "escena seis"]
     );
 });
 

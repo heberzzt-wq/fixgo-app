@@ -8,6 +8,7 @@ import {
     buildImageRequirementsPlan,
     buildReelPlanningSpec,
     describeJarvisMultifunctionTools,
+    fetchGroundedWebResearch,
     registerJarvisMultifunctionTools
 } from "../gestia-core/jarvis/jarvis.multitool.pack.js";
 
@@ -28,6 +29,9 @@ import {
 import {
     normalizeImageArtifactOutput
 } from "../gestia-core/jarvis/jarvis.actuator.pack.js";
+import {
+    recordCapabilityEvidence
+} from "../gestia-core/jarvis/jarvis.capability.evidence.js";
 
 const __dirname =
     path.dirname(
@@ -145,6 +149,120 @@ async function planWithModel(input, toolCalls, { approved = false } = {}) {
         })
     });
 }
+
+test("browser mission uses the self-hosted semantic backend before auth or cloud", async () => {
+    const previousBridge = globalThis.JarvisLocalBridge;
+    const previousAuth = globalThis.auth;
+    const previousFetch = globalThis.fetch;
+    let localCalls = 0;
+    let cloudCalls = 0;
+    try {
+        globalThis.auth = { currentUser: null };
+        globalThis.fetch = async () => {
+            cloudCalls += 1;
+            throw new Error("CLOUD_MUST_NOT_BE_CALLED");
+        };
+        globalThis.JarvisLocalBridge = {
+            async requestJson(route, payload) {
+                localCalls += 1;
+                assert.equal(route, "/semantic/plan");
+                assert.equal(payload.input, "Busca el contrato economico local unico.");
+                return {
+                    ok: true,
+                    status: "SEMANTIC_PLAN_READY",
+                    provider: "self-hosted-openai-compatible",
+                    model: "local-reasoner",
+                    toolCalls: [{
+                        name: "repo.search",
+                        args: { query: "contrato economico local" }
+                    }],
+                    inferenceReceipt: {
+                        counters: {
+                            localSemanticInferenceCalls: 1,
+                            semanticExternalCalls: 0,
+                            paidExternalCalls: 0
+                        }
+                    }
+                };
+            }
+        };
+        const calls = await buildJarvisMultifunctionToolCalls(
+            "Busca el contrato economico local unico.",
+            {
+                throwOnUnavailable: true,
+                toolCatalog: [{
+                    name: "repo.search",
+                    description: "Busca evidencia en el repositorio",
+                    inputSchema: {
+                        type: "object",
+                        properties: { query: { type: "string" } },
+                        required: ["query"]
+                    },
+                    mutates: false
+                }]
+            }
+        );
+        assert.equal(calls.length, 1);
+        assert.equal(calls[0].name, "repo.search");
+        assert.equal(localCalls, 1);
+        assert.equal(cloudCalls, 0);
+        assert.equal(globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__.provider, "self-hosted-openai-compatible");
+    } finally {
+        globalThis.JarvisLocalBridge = previousBridge;
+        globalThis.auth = previousAuth;
+        globalThis.fetch = previousFetch;
+    }
+});
+
+test("web research uses the local bridge before Firebase auth or cloud", async () => {
+    const previousBridge = globalThis.JarvisLocalBridge;
+    const previousAuth = globalThis.auth;
+    const previousFetch = globalThis.fetch;
+    let localCalls = 0;
+    let cloudCalls = 0;
+    try {
+        globalThis.auth = { currentUser: null };
+        globalThis.fetch = async () => {
+            cloudCalls += 1;
+            throw new Error("CLOUD_RESEARCH_MUST_NOT_BE_CALLED");
+        };
+        globalThis.JarvisLocalBridge = {
+            async requestJson(route, payload) {
+                localCalls += 1;
+                assert.equal(route, "/research");
+                assert.match(payload.query, /Wan2\.2/);
+                return {
+                    ok: true,
+                    grounded: true,
+                    query: payload.query,
+                    answer: "Wan2.2 se verifico en la fuente indicada.",
+                    sources: [{ title: "Fuente", url: "https://example.test/wan22" }],
+                    facts: [{ claim: "Wan2.2", sourceIds: ["source-1"] }]
+                };
+            }
+        };
+        const result = await fetchGroundedWebResearch("Investiga Wan2.2", {});
+        assert.equal(result.ok, true);
+        assert.equal(result.status, "GROUNDED_LOCAL_PRIMARY");
+        assert.equal(result.localResearchUsed, true);
+        assert.equal(result.cloudResearchUsed, false);
+        assert.equal(result.externalApiUsed, false);
+        assert.equal(result.externalEstimatedCostUsd, 0);
+        assert.equal(localCalls, 1);
+        assert.equal(cloudCalls, 0);
+    } finally {
+        globalThis.JarvisLocalBridge = previousBridge;
+        globalThis.auth = previousAuth;
+        globalThis.fetch = previousFetch;
+        recordCapabilityEvidence("web_research", {
+            ok: false,
+            grounded: false,
+            status: "TEST_FIXTURE_RESET",
+            sourceCount: 0,
+            factCount: 0
+        });
+    }
+});
 
 test("media analysis is a mission-wide singleton despite question variants", () => {
     const source = fs.readFileSync(
@@ -4126,7 +4244,7 @@ test("multifunction descriptor remains approval-bound", () => {
     assert.equal(planner.mutates, false);
     assert.equal(
         planner.version,
-        "4.19.0-reel-media-source-recovery-v136"
+        "4.21.0-v142-self-hosted-semantic-backend"
     );
     assert.equal(planner.maximumToolCalls, 12);
     assert.equal(planner.architecture, "model_selected_runtime_catalog");
@@ -4827,6 +4945,98 @@ test("semantic mission latency budgets are bounded and do not stack exhausted pr
     assert.match(coreSource, /providerFallbackExhausted[\s\S]{0,500}?__BROWSER_/);
     assert.match(coreSource, /attempt\s*<=\s*2/);
     assert.match(multitoolSource, /Number\(maxOutputTokens\)\s*>=\s*6000[\s\S]{0,100}?\?\s*30000[\s\S]{0,100}?:\s*18000/);
+});
+
+test("media.analyze accepts video through the canonical local extractor and withholds unverified content", async () => {
+    const previousBridge = globalThis.JarvisLocalBridge;
+    const previousFetch = globalThis.fetch;
+    const runtime = createRuntime();
+    registerJarvisMultifunctionTools(runtime);
+    let cloudCalls = 0;
+    const sha256 = "d".repeat(64);
+    try {
+        globalThis.fetch = async () => {
+            cloudCalls += 1;
+            throw new Error("cloud media analysis must not run");
+        };
+        globalThis.JarvisLocalBridge = {
+            requestJson: async (route, request) => {
+                assert.equal(route, "/artifact/extract");
+                assert.equal(request.output, ".jarvis-artifacts/uploads/scene.mp4");
+                return {
+                    ok: true,
+                    status: "TEMPORAL_MEDIA_PHYSICAL_EVIDENCE_READY",
+                    sourceName: "scene.mp4",
+                    mimeType: "video/mp4",
+                    mediaType: "video",
+                    sha256,
+                    extractor: "ffprobe_ffmpeg_local",
+                    temporal: {
+                        durationSeconds: 8,
+                        container: "mov,mp4",
+                        video: { codec: "h264", width: 1080, height: 1920, fps: 30 },
+                        audio: { codec: "aac", sampleRate: 48000, channels: 2 },
+                        samples: [{
+                            timestampSeconds: 0,
+                            output: ".jarvis-artifacts/media-evidence/d/frame-001.jpg",
+                            sha256: "e".repeat(64)
+                        }],
+                        audioEvidence: {
+                            output: ".jarvis-artifacts/media-evidence/d/audio.wav",
+                            sha256: "f".repeat(64)
+                        },
+                        semanticVisualAnalysisVerified: false,
+                        transcriptionVerified: false
+                    },
+                    externalApiUsed: false,
+                    externalEstimatedCostUsd: 0
+                };
+            }
+        };
+        const analysis = await runtime.execute("media.analyze", {
+            prompt: "Analiza el video sin inventar.",
+            attachments: [{
+                name: "scene.mp4",
+                mimeType: "video/mp4",
+                artifact: ".jarvis-artifacts/uploads/scene.mp4",
+                sha256
+            }]
+        }, { analysisId: "MULTI-MEDIA-VIDEO" });
+
+        assert.equal(analysis.ok, true);
+        assert.equal(analysis.objectiveSatisfied, false);
+        assert.equal(analysis.status, "LOCAL_TEMPORAL_MEDIA_EVIDENCE_PARTIAL_VERIFIED");
+        assert.equal(analysis.sources[0].quality.physicalMediaVerified, true);
+        assert.equal(analysis.sources[0].quality.semanticVisualAnalysisVerified, false);
+        assert.equal(analysis.sources[0].quality.transcriptionVerified, false);
+        assert.deepEqual(analysis.sources[0].frameArtifacts, [
+            ".jarvis-artifacts/media-evidence/d/frame-001.jpg"
+        ]);
+        assert.equal(analysis.sources[0].audioArtifact, ".jarvis-artifacts/media-evidence/d/audio.wav");
+        assert.equal(analysis.externalApiUsed, false);
+        assert.equal(cloudCalls, 0);
+    }
+    finally {
+        globalThis.JarvisLocalBridge = previousBridge;
+        globalThis.fetch = previousFetch;
+    }
+});
+
+test("semantic planner retries stop when every authenticated provider failure is permanent", () => {
+    const coreSource = fs.readFileSync(path.resolve("gestia-core/gestia-core.js"), "utf8");
+
+    assert.match(
+        coreSource,
+        /function\s+isPermanentSemanticPlannerFailure[\s\S]{0,1800}?lightning dunning decision is deny/
+    );
+    assert.match(
+        coreSource,
+        /const providerFallbackExhausted\s*=\s*[\s\S]{0,220}?isPermanentSemanticPlannerFailure\(message\)/
+    );
+    assert.equal(
+        (coreSource.match(/isPermanentSemanticPlannerFailure\(message\)/g) || []).length,
+        2
+    );
 });
 
 test("GestiaCore always builds an honest mission final response when the mission produced state", () => {

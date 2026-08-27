@@ -80,6 +80,7 @@ test("mission retries false-positive ok TOOL_FAILED and then completes", async (
     assert.deepEqual(mission.contractMissingTools, []);
     assert.equal(mission.reason, "ALL_EXECUTABLE_TASKS_COMPLETED");
     assert.equal(mission.status, "COMPLETED");
-    assert.equal(mission.errors[0].status, "TOOL_FAILED");
-    assert.equal(mission.errors[0].retryable, true);
+    assert.equal(mission.errors.length, 0);
+    assert.equal(mission.recoveredToolAttempts[0].observation.status, "TOOL_FAILED");
+    assert.equal(mission.recoveredToolAttempts[0].observation.retryable, true);
 });

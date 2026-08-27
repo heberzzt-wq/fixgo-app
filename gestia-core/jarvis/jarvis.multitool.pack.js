@@ -1546,7 +1546,6 @@ export async function fetchGroundedWebResearch(
     query = "",
     trace = {}
 ) {
-    const user = await waitForAuthenticatedUser();
     const seedUrl = String(trace?.seedUrl || "").trim();
     const normalizedQuery =
         [query, seedUrl]
@@ -1558,19 +1557,99 @@ export async function fetchGroundedWebResearch(
             .trim()
             .slice(0, 600);
 
-    if (!user) {
-        return {
-            ok: false,
-            error: "AUTH_REQUIRED",
-            message: "Necesito una sesion valida para investigar en la web."
-        };
-    }
-
     if (normalizedQuery.length < 5) {
         return {
             ok: false,
             error: "WEB_RESEARCH_QUERY_REQUIRED",
             message: "Dime que tema debo investigar en la web."
+        };
+    }
+
+    const localBridge =
+        globalThis?.JarvisLocalBridge ||
+        globalThis?.window?.JarvisLocalBridge ||
+        null;
+    let localPrimaryMessage = "";
+    if (typeof localBridge?.requestJson === "function") {
+        try {
+            const localResult = await localBridge.requestJson(
+                "/research",
+                {
+                    query: normalizedQuery,
+                    timeoutMs: 20000,
+                    allowedDomain: trace.allowedDomain || "",
+                    exactEntity: trace.exactEntity || "",
+                    seedUrl
+                },
+                { timeoutMs: 25000 }
+            );
+            if (
+                localResult?.ok === true &&
+                localResult?.grounded === true &&
+                Array.isArray(localResult?.sources) &&
+                localResult.sources.length > 0
+            ) {
+                const exactAnchorVerified = seedUrl
+                    ? webResearchExactAnchorVerified(localResult, seedUrl)
+                    : null;
+                globalThis.__JARVIS_WEB_RESEARCH_HEALTH__ = recordCapabilityEvidence("web_research", {
+                    ok: true,
+                    grounded: true,
+                    status: "GROUNDED_LOCAL_PRIMARY",
+                    sourceCount: localResult.sources.length,
+                    factCount: Array.isArray(localResult?.facts) ? localResult.facts.length : 0,
+                    objectiveId: localResult?.objectiveId || trace.objectiveId || null,
+                    caseId: localResult?.caseId || trace.caseId || null,
+                    externalApiUsed: false,
+                    externalEstimatedCostUsd: 0,
+                    checkedAt: new Date().toISOString()
+                });
+                recordCapabilityEvidence("web_research_context", {
+                    ok: true,
+                    grounded: true,
+                    query: localResult.query || normalizedQuery,
+                    answer: String(localResult.answer || "").slice(0, 5000),
+                    sources: localResult.sources.slice(0, 8),
+                    facts: Array.isArray(localResult?.facts) ? localResult.facts.slice(0, 24) : [],
+                    checkedAt: new Date().toISOString()
+                });
+                return {
+                    ...localResult,
+                    ok: true,
+                    executionOk: true,
+                    objectiveSatisfied: true,
+                    blocked: false,
+                    requiresInput: false,
+                    retryable: false,
+                    status: "GROUNDED_LOCAL_PRIMARY",
+                    source: "JARVIS_LOCAL_GROUNDED_WEB_RESEARCH",
+                    readOnly: true,
+                    localResearchUsed: true,
+                    cloudResearchUsed: false,
+                    externalApiUsed: false,
+                    externalEstimatedCostUsd: 0,
+                    exactAnchorVerified,
+                    anchorStatus: !seedUrl
+                        ? "NOT_REQUIRED"
+                        : exactAnchorVerified
+                            ? "EXACT_ANCHOR_VERIFIED"
+                            : "EXACT_ANCHOR_UNAVAILABLE_CROSS_SOURCE_GROUNDED"
+                };
+            }
+            localPrimaryMessage = localResult?.error || localResult?.status || "LOCAL_RESEARCH_UNAVAILABLE";
+        } catch (error) {
+            localPrimaryMessage = error?.message || String(error);
+        }
+    }
+
+    const user = await waitForAuthenticatedUser();
+    if (!user) {
+        return {
+            ok: false,
+            error: "AUTH_REQUIRED",
+            message: localPrimaryMessage
+                ? `La investigacion local no estuvo disponible: ${localPrimaryMessage}`
+                : "Necesito una sesion valida para investigar en la web."
         };
     }
 
@@ -2810,6 +2889,45 @@ async function fetchSemanticConversation(
         maxOutputTokens = 3500
     } = {}
 ) {
+    const bridge =
+        globalThis?.JarvisLocalBridge ||
+        globalThis?.window?.JarvisLocalBridge ||
+        null;
+    if (typeof bridge?.requestJson === "function") {
+        try {
+            const localTimeoutMs = Number(maxOutputTokens) >= 6000
+                ? 120000
+                : 90000;
+            const localResult = await bridge.requestJson(
+                "/semantic/respond",
+                {
+                    input: instruction,
+                    maxOutputTokens,
+                    timeoutMs: localTimeoutMs
+                },
+                { timeoutMs: localTimeoutMs + 5000 }
+            );
+            globalThis.__JARVIS_SEMANTIC_CONVERSATION_HEALTH__ = {
+                ...localResult,
+                checkedAt: new Date().toISOString()
+            };
+            if (localResult?.ok === true && localResult?.message) {
+                return recordCapabilityEvidence("semantic_conversation", {
+                    ...localResult,
+                    checkedAt: new Date().toISOString()
+                });
+            }
+            if (localResult?.fallbackAllowed === false) {
+                return {
+                    ...localResult,
+                    ok: false,
+                    status: localResult?.status || "LOCAL_SEMANTIC_RESPONSE_REQUIRED",
+                    error: localResult?.error || "LOCAL_SEMANTIC_RESPONSE_REQUIRED"
+                };
+            }
+        } catch {}
+    }
+
     const user = await waitForAuthenticatedUser();
     if (!user) {
         const result = { ok: false, status: "AUTH_REQUIRED", error: "AUTH_REQUIRED" };
@@ -3971,6 +4089,9 @@ const LOCAL_DOCUMENT_EXTENSIONS = new Set([
     ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".css", ".html",
     ".py", ".java", ".kt", ".c", ".h", ".cpp", ".hpp", ".sql"
 ]);
+const LOCAL_TEMPORAL_MEDIA_EXTENSIONS = new Set([
+    ".mp4", ".webm", ".mov", ".mp3", ".wav", ".m4a"
+]);
 
 function attachmentExtension(attachment = {}) {
     const name = String(attachment?.name || attachment?.artifact || "")
@@ -3989,6 +4110,10 @@ function isCloudVisualAttachment(attachment = {}) {
 
 function isLocalDocumentAttachment(attachment = {}) {
     return LOCAL_DOCUMENT_EXTENSIONS.has(attachmentExtension(attachment));
+}
+
+function isLocalTemporalMediaAttachment(attachment = {}) {
+    return LOCAL_TEMPORAL_MEDIA_EXTENSIONS.has(attachmentExtension(attachment));
 }
 
 function exactDocumentTextChunks(value = "", maxChars = 3500) {
@@ -4210,6 +4335,178 @@ async function fetchLocalDocumentAnalysis(
     };
 }
 
+async function fetchLocalTemporalMediaAnalysis(
+    attachments = [],
+    question = "",
+    authority = {}
+) {
+    if (typeof globalThis?.JarvisLocalBridge?.requestJson !== "function") {
+        return { ok: false, status: "LOCAL_BRIDGE_REQUIRED", error: "LOCAL_BRIDGE_REQUIRED" };
+    }
+    const sources = [];
+    for (let subsetIndex = 0; subsetIndex < attachments.length; subsetIndex += 1) {
+        const attachment = attachments[subsetIndex];
+        const sourceIndex = Number.isInteger(attachment?.__sourceIndex)
+            ? attachment.__sourceIndex
+            : subsetIndex;
+        let extracted;
+        try {
+            extracted = await globalThis.JarvisLocalBridge.requestJson(
+                "/artifact/extract",
+                {
+                    output: attachment?.artifact,
+                    sourceName: attachment?.name,
+                    mimeType: attachment?.mimeType
+                },
+                { timeoutMs: 180000 }
+            );
+        }
+        catch(error) {
+            return {
+                ok: false,
+                status: "TEMPORAL_MEDIA_ANALYSIS_EXTRACTION_FAILED",
+                error: error?.message || "TEMPORAL_MEDIA_ANALYSIS_EXTRACTION_FAILED",
+                fileName: attachment?.name || "archivo"
+            };
+        }
+        if (extracted?.ok !== true || !extracted?.temporal) {
+            return {
+                ok: false,
+                status: extracted?.status || "TEMPORAL_MEDIA_ANALYSIS_EXTRACTION_FAILED",
+                error: extracted?.error || "TEMPORAL_MEDIA_ANALYSIS_EXTRACTION_FAILED",
+                fileName: attachment?.name || "archivo"
+            };
+        }
+        const expectedSha256 = String(attachment?.sha256 || "").trim().toLowerCase();
+        const receivedSha256 = String(extracted?.sha256 || "").trim().toLowerCase();
+        if (!receivedSha256 || (expectedSha256 && receivedSha256 !== expectedSha256)) {
+            return {
+                ok: false,
+                status: "TEMPORAL_MEDIA_ANALYSIS_SOURCE_HASH_MISMATCH",
+                error: "TEMPORAL_MEDIA_ANALYSIS_SOURCE_HASH_MISMATCH",
+                fileName: attachment?.name || "archivo",
+                expectedSha256: expectedSha256 || null,
+                receivedSha256: receivedSha256 || null
+            };
+        }
+        const sourceId = `SOURCE_${sourceIndex + 1}`;
+        const record = createMediaIngestionRecord({
+            sourceId,
+            sourceName: extracted.sourceName || attachment?.name || "archivo",
+            mimeType: extracted.mimeType,
+            sha256: receivedSha256,
+            temporal: extracted.temporal,
+            extractor: extracted.extractor || "ffprobe_ffmpeg_local",
+            coverageUnit: "timeline",
+            physicalPageCountKnown: false
+        }, authority);
+        const analysis = buildMediaAnalysis(record, {
+            questions: [question].filter(Boolean)
+        });
+        const temporal = extracted.temporal;
+        const metadataValue = JSON.stringify({
+            durationSeconds: temporal.durationSeconds,
+            container: temporal.container,
+            video: temporal.video || null,
+            audio: temporal.audio || null
+        });
+        const visibleData = [{
+            kind: "media_metadata",
+            value: metadataValue,
+            evidence: "LOCAL_FFPROBE:STREAM_AND_FORMAT_METADATA",
+            confidence: 1,
+            legibility: "VERIFIED",
+            timestampSeconds: 0,
+            sourceId
+        }];
+        const uncertainty = [];
+        if (temporal.semanticVisualAnalysisVerified !== true && temporal.video) {
+            uncertainty.push("Los fotogramas físicos fueron extraídos, pero su contenido visual no fue comprendido por un modelo multimodal local certificado.");
+        }
+        if (temporal.transcriptionVerified !== true && temporal.audio) {
+            uncertainty.push("La pista de audio física fue extraída, pero habla, música y sonidos no fueron transcritos ni clasificados por un motor local certificado.");
+        }
+        sources.push({
+            sourceId,
+            sourceOrder: sourceIndex,
+            fileName: extracted.sourceName || attachment?.name || "archivo",
+            name: extracted.sourceName || attachment?.name || "archivo",
+            mimeType: extracted.mimeType,
+            sha256: receivedSha256,
+            mediaType: extracted.mediaType,
+            durationSeconds: temporal.durationSeconds,
+            temporal,
+            frameArtifacts: (temporal.samples || []).map(sample => sample.output),
+            audioArtifact: temporal.audioEvidence?.output || null,
+            visibleData,
+            evidence: visibleData,
+            observations: [],
+            inferences: [],
+            description: "",
+            composition: [],
+            objects: [],
+            marketingUse: [],
+            quality: {
+                physicalMediaVerified: true,
+                sourceHashVerified: true,
+                metadataVerified: true,
+                semanticVisualAnalysisVerified: temporal.semanticVisualAnalysisVerified === true,
+                transcriptionVerified: temporal.transcriptionVerified === true
+            },
+            uncertainty,
+            coverage: analysis?.analysis?.coverage || null,
+            claimIntegrity: analysis?.analysis?.claimIntegrity || null,
+            strictVisualOnly: false
+        });
+    }
+    const sortedSources = sources.sort((left, right) => left.sourceOrder - right.sourceOrder);
+    const objectiveSatisfied = sortedSources.every(source =>
+        source?.coverage?.mayClaimFullTemporalCoverage === true
+    );
+    return {
+        ok: true,
+        objectiveSatisfied,
+        status: objectiveSatisfied
+            ? "LOCAL_TEMPORAL_MEDIA_ANALYSIS_READY"
+            : "LOCAL_TEMPORAL_MEDIA_EVIDENCE_PARTIAL_VERIFIED",
+        source: "JARVIS_LOCAL_TEMPORAL_MEDIA_ANALYSIS",
+        version: "1.0.0-source-scoped-temporal-media-evidence",
+        strictVisualOnly: false,
+        sources: sortedSources,
+        sourceManifest: sortedSources.map(source => ({
+            sourceId: source.sourceId,
+            fileName: source.fileName,
+            sha256: source.sha256,
+            mimeType: source.mimeType,
+            durationSeconds: source.durationSeconds,
+            coverage: source.coverage
+        })),
+        comparison: { differences: [] },
+        recommendations: [],
+        verifiedVisualClaims: sortedSources.flatMap(source => source.visibleData),
+        precisionAudit: {
+            ok: true,
+            status: "LOCAL_TEMPORAL_PHYSICAL_EVIDENCE_VERIFIED",
+            sourceIdentityVerified: true,
+            sha256Verified: true,
+            ffprobeMetadataVerified: true,
+            ffmpegEvidenceExtractionVerified: true,
+            semanticContentClaimsWithheld: !objectiveSatisfied
+        },
+        policy: {
+            literalReadingsRequireStructuredEvidence: true,
+            unverifiedLiteralValuesAreWithheld: true,
+            sourceNarrativeClaimsRequireStructuredEvidence: true,
+            negativeVisualClaimsRequireStructuredEvidence: true,
+            localTemporalMediaExtraction: true,
+            semanticVisualClaimsRequireCertifiedLocalModel: true,
+            transcriptionClaimsRequireCertifiedLocalModel: true
+        },
+        externalApiUsed: false,
+        externalEstimatedCostUsd: 0
+    };
+}
+
 function remapCloudMediaSources(result = {}, attachments = []) {
     const sourceIdMap = new Map(
         attachments.map((attachment, subsetIndex) => [
@@ -4243,6 +4540,49 @@ function remapCloudMediaSources(result = {}, attachments = []) {
                 ...item,
                 sourceId: sourceIdMap.get(String(item?.sourceId || "")) || item?.sourceId
             }))
+    };
+}
+
+function mergeLocalVerifiedSourceAnalyses(...results) {
+    const valid = results.filter(result => result?.ok === true);
+    if (valid.length === 0) return null;
+    if (valid.length === 1) return valid[0];
+    const sources = valid.flatMap(result => result.sources || [])
+        .sort((left, right) => Number(left?.sourceOrder || 0) - Number(right?.sourceOrder || 0));
+    const objectiveSatisfied = valid.every(result => result.objectiveSatisfied === true);
+    return {
+        ok: true,
+        objectiveSatisfied,
+        status: objectiveSatisfied
+            ? "LOCAL_MULTIMODAL_ANALYSIS_READY"
+            : "LOCAL_MULTIMODAL_EVIDENCE_PARTIAL_VERIFIED",
+        source: "JARVIS_LOCAL_VERIFIED_SOURCE_ANALYSIS",
+        version: "1.0.0-canonical-local-multimodal-merge",
+        strictVisualOnly: false,
+        sources,
+        sourceManifest: sources.map(source => ({
+            sourceId: source.sourceId,
+            fileName: source.fileName || source.name,
+            sha256: source.sha256,
+            mimeType: source.mimeType || null,
+            coverage: source.coverage || null
+        })),
+        comparison: { differences: [] },
+        recommendations: [],
+        verifiedVisualClaims: valid.flatMap(result => result.verifiedVisualClaims || []),
+        precisionAudit: {
+            ok: true,
+            status: "LOCAL_MULTIMODAL_SOURCE_EVIDENCE_VERIFIED",
+            sourceIdentityVerified: true,
+            sha256Verified: true,
+            localAnalysisCount: valid.length
+        },
+        policy: Object.assign({
+            sourceNarrativeClaimsRequireStructuredEvidence: true,
+            unverifiedLiteralValuesAreWithheld: true
+        }, ...valid.map(result => result.policy || {})),
+        externalApiUsed: false,
+        externalEstimatedCostUsd: 0
     };
 }
 
@@ -6205,7 +6545,7 @@ export function registerJarvisMultifunctionTools(runtime) {
         }),
         register(runtime, {
             name: "media.analyze",
-            description: "Analiza PDF e imagenes con doble verificacion visual y extrae de forma read-only DOCX, XLSX, PPTX, TXT, Markdown, CSV, JSON, XML, YAML y codigo textual con hash y trazabilidad por fuente.",
+            description: "Analiza PDF e imagenes con doble verificacion visual; extrae documentos digitales y evidencia física temporal de video/audio de forma read-only con hash y trazabilidad por fuente.",
             output: "SIA7_MEDIA_ANALYSIS",
             missionDedupeBy: [],
             inputSchema: {
@@ -6266,9 +6606,14 @@ export function registerJarvisMultifunctionTools(runtime) {
                         !isCloudVisualAttachment(attachment) &&
                         isLocalDocumentAttachment(attachment)
                     );
+                    const localTemporalMedia = indexedMedia.filter(attachment =>
+                        !isCloudVisualAttachment(attachment) &&
+                        isLocalTemporalMediaAttachment(attachment)
+                    );
                     const unsupported = indexedMedia.filter(attachment =>
                         !isCloudVisualAttachment(attachment) &&
-                        !isLocalDocumentAttachment(attachment)
+                        !isLocalDocumentAttachment(attachment) &&
+                        !isLocalTemporalMediaAttachment(attachment)
                     );
                     if (unsupported.length > 0) {
                         return {
@@ -6300,6 +6645,25 @@ export function registerJarvisMultifunctionTools(runtime) {
                             persistedArtifacts: persistedMedia.map(item => item.artifact)
                         };
                     }
+                    const temporalResult = localTemporalMedia.length > 0
+                        ? await fetchLocalTemporalMediaAnalysis(
+                            localTemporalMedia,
+                            instruction,
+                            authority
+                        )
+                        : null;
+                    if (temporalResult && temporalResult?.ok !== true) {
+                        return {
+                            ...temporalResult,
+                            attachments,
+                            ...batchAccounting,
+                            persistedArtifacts: persistedMedia.map(item => item.artifact)
+                        };
+                    }
+                    localResult = mergeLocalVerifiedSourceAnalyses(
+                        localResult,
+                        temporalResult
+                    );
                     let cloudResult = null;
                     if (cloudMedia.length > 0) {
                         cloudResult = await fetchGroundedMediaAnalysis(

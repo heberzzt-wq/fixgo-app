@@ -718,6 +718,7 @@ test("video generation sends three verified identity references only to the init
         };
     });
     const functionCalls = [];
+    const authorizationCalls = [];
 
     try {
         globalThis.auth = {
@@ -762,6 +763,27 @@ test("video generation sends three verified identity references only to the init
         };
         globalThis.JarvisLocalBridge = {
             async requestJson(path, payload) {
+                if (path === "/video/engine/resolve") {
+                    return {
+                        ok: true,
+                        policy: "CURRENT_STABLE",
+                        engineRequested: "CURRENT_STABLE",
+                        engineUsed: "external",
+                        fallbackUsed: false
+                    };
+                }
+                if (path === "/video/engine/authorize-external") {
+                    authorizationCalls.push(payload);
+                    return {
+                        ok: true,
+                        status: "EXTERNAL_VIDEO_OBLIGATION_AUTHORIZED",
+                        model: "veo-3.1-generate-001",
+                        pricingSource: "https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing",
+                        segmentCount: 2,
+                        plannedDurationSeconds: 15,
+                        externalEstimatedCostUsd: 6
+                    };
+                }
                 if (path === "/artifact/read") {
                     const reference = references.find(item => item.output === payload.output);
                     return reference
@@ -802,11 +824,18 @@ test("video generation sends three verified identity references only to the init
 
         assert.equal(result.ok, true);
         assert.equal(result.physicallyWritten, true);
+        assert.equal(result.externalEstimatedCostUsd, 6);
+        assert.equal(authorizationCalls.length, 1);
+        assert.equal(authorizationCalls[0].segmentCount, 2);
+        assert.equal(authorizationCalls[0].model, "veo-3.1-generate-001");
         assert.equal(result.referenceImageCount, 3);
-        assert.equal(result.identityReferencesVerified, true);
+        assert.equal(result.referenceArtifactsVerified, true);
+        assert.equal(result.identityFidelityVerified, false);
+        assert.equal(result.creativeAcceptanceRequired, true);
+        assert.equal(result.creativeAcceptanceStatus, "PENDING_HUMAN_REVIEW");
         assert.equal(
             result.identityContinuityMode,
-            "initial_asset_references_then_previous_video"
+            "initial_reference_guidance_then_previous_video"
         );
         const starts = functionCalls.filter(call => call.action === "start");
         assert.equal(starts.length, 2);
@@ -817,8 +846,136 @@ test("video generation sends three verified identity references only to the init
         );
         assert.equal(Object.hasOwn(starts[0], "previousVideo"), true);
         assert.equal(starts[0].previousVideo, null);
+        assert.match(starts[0].prompt, /persona mostrada en las referencias es el protagonista/i);
+        assert.match(starts[0].prompt, /no transfieras sus acciones, dialogo ni objetos/i);
         assert.equal(Object.hasOwn(starts[1], "referenceImages"), false);
         assert.equal(starts[1].previousVideo.uri.includes("initial.mp4"), true);
+        assert.match(starts[1].prompt, /no intercambies roles ni personajes/i);
+    }
+    finally {
+        globalThis.auth = previousAuth;
+        globalThis.fetch = previousFetch;
+        globalThis.JarvisLocalBridge = previousBridge;
+    }
+});
+
+test("video generation rejects six requested scenes before silently truncating or spending", async () => {
+    const runtime = createRuntime();
+    registerJarvisActuatorTools(runtime);
+    const previousFetch = globalThis.fetch;
+    const previousBridge = globalThis.JarvisLocalBridge;
+    let cloudCalls = 0;
+    let engineCalls = 0;
+
+    try {
+        globalThis.fetch = async () => {
+            cloudCalls += 1;
+            throw new Error("VIDEO_PROVIDER_MUST_NOT_START");
+        };
+        globalThis.JarvisLocalBridge = {
+            async requestJson() {
+                engineCalls += 1;
+                throw new Error("VIDEO_ENGINE_MUST_NOT_RESOLVE");
+            }
+        };
+
+        const result = await runtime.get("video.generate").execute({
+            script: "Capitulo de seis escenas que no puede recortarse.",
+            scenes: Array.from({ length: 6 }, (_, index) => ({
+                prompt: `Escena ${index + 1}`,
+                durationSeconds: 30
+            }))
+        });
+
+        assert.equal(result.ok, false);
+        assert.equal(result.status, "VIDEO_SEGMENT_LIMIT_EXCEEDED:6:4");
+        assert.equal(result.error, "VIDEO_SEGMENT_LIMIT_EXCEEDED");
+        assert.equal(result.requestedSceneCount, 6);
+        assert.equal(result.maximumSceneCount, 4);
+        assert.equal(result.maximumGeneratedDurationSeconds, 29);
+        assert.equal(result.blocked, true);
+        assert.equal(result.requiresInput, true);
+        assert.equal(cloudCalls, 0);
+        assert.equal(engineCalls, 0);
+    }
+    finally {
+        globalThis.fetch = previousFetch;
+        globalThis.JarvisLocalBridge = previousBridge;
+    }
+});
+
+test("video generation rejects an explicit chapter duration beyond one chained generation", async () => {
+    const runtime = createRuntime();
+    registerJarvisActuatorTools(runtime);
+    const previousFetch = globalThis.fetch;
+    let cloudCalls = 0;
+    try {
+        globalThis.fetch = async () => {
+            cloudCalls += 1;
+            throw new Error("VIDEO_PROVIDER_MUST_NOT_START");
+        };
+        const result = await runtime.get("video.generate").execute({
+            script: "Capitulo largo.",
+            durationSeconds: 180,
+            scenes: Array.from({ length: 4 }, (_, index) => ({
+                prompt: `Unidad ${index + 1}`
+            }))
+        });
+
+        assert.equal(result.status, "VIDEO_DURATION_LIMIT_EXCEEDED:180:29");
+        assert.equal(result.error, "VIDEO_DURATION_LIMIT_EXCEEDED");
+        assert.equal(result.requestedDurationSeconds, 180);
+        assert.equal(result.maximumGeneratedDurationSeconds, 29);
+        assert.equal(result.blocked, true);
+        assert.equal(cloudCalls, 0);
+    }
+    finally {
+        globalThis.fetch = previousFetch;
+    }
+});
+
+test("CURRENT_STABLE fails closed when external cost authorization is unavailable", async () => {
+    const runtime = createRuntime();
+    registerJarvisActuatorTools(runtime);
+    const previousAuth = globalThis.auth;
+    const previousFetch = globalThis.fetch;
+    const previousBridge = globalThis.JarvisLocalBridge;
+    let cloudCalls = 0;
+    try {
+        globalThis.auth = {
+            currentUser: { getIdToken: async () => "cost-guard-token" }
+        };
+        globalThis.fetch = async () => {
+            cloudCalls += 1;
+            throw new Error("PAID_PROVIDER_MUST_NOT_START");
+        };
+        globalThis.JarvisLocalBridge = {
+            async requestJson(route) {
+                if (route === "/video/engine/resolve") {
+                    return {
+                        ok: true,
+                        policy: "CURRENT_STABLE",
+                        engineRequested: "CURRENT_STABLE",
+                        engineUsed: "external",
+                        fallbackUsed: false
+                    };
+                }
+                if (route === "/video/engine/authorize-external") {
+                    throw new Error("BRIDGE_AUTHORIZATION_UNAVAILABLE");
+                }
+                throw new Error(`Unexpected bridge route: ${route}`);
+            }
+        };
+
+        const result = await runtime.get("video.generate").execute({
+            script: "Do not spend without a verified reservation."
+        });
+
+        assert.equal(result.ok, false);
+        assert.equal(result.blocked, true);
+        assert.equal(result.status, "EXTERNAL_VIDEO_AUTHORIZATION_REQUIRED");
+        assert.equal(result.externalApiUsed, false);
+        assert.equal(cloudCalls, 0);
     }
     finally {
         globalThis.auth = previousAuth;
@@ -903,6 +1060,15 @@ test("video generation recovers a transient poll on the same operation without a
         };
         globalThis.JarvisLocalBridge = {
             async requestJson(path, payload) {
+                if (path === "/video/engine/authorize-external") {
+                    assert.equal(payload.segmentCount, 1);
+                    return {
+                        ok: true,
+                        model: "veo-3.1-generate-001",
+                        plannedDurationSeconds: 8,
+                        externalEstimatedCostUsd: 3.2
+                    };
+                }
                 assert.equal(path, "/video/import");
                 return {
                     ok: true,
@@ -943,6 +1109,7 @@ test("video generation surfaces RAI reasons and never restarts from zero", async
     registerJarvisActuatorTools(runtime);
     const previousAuth = globalThis.auth;
     const previousFetch = globalThis.fetch;
+    const previousBridge = globalThis.JarvisLocalBridge;
     const calls = [];
 
     try {
@@ -981,6 +1148,29 @@ test("video generation surfaces RAI reasons and never restarts from zero", async
                 })
             };
         };
+        globalThis.JarvisLocalBridge = {
+            async requestJson(route, payload) {
+                if (route === "/video/engine/resolve") {
+                    return {
+                        ok: true,
+                        policy: "CURRENT_STABLE",
+                        engineRequested: "CURRENT_STABLE",
+                        engineUsed: "external",
+                        fallbackUsed: false
+                    };
+                }
+                if (route === "/video/engine/authorize-external") {
+                    assert.equal(payload.segmentCount, 1);
+                    return {
+                        ok: true,
+                        model: "veo-3.1-generate-001",
+                        plannedDurationSeconds: 8,
+                        externalEstimatedCostUsd: 3.2
+                    };
+                }
+                throw new Error(`Unexpected bridge route: ${route}`);
+            }
+        };
 
         const result = await runtime.get("video.generate").execute({
             prompt: "Prompt que el proveedor filtro."
@@ -996,6 +1186,7 @@ test("video generation surfaces RAI reasons and never restarts from zero", async
     finally {
         globalThis.auth = previousAuth;
         globalThis.fetch = previousFetch;
+        globalThis.JarvisLocalBridge = previousBridge;
     }
 });
 
@@ -1050,6 +1241,8 @@ test("video generation stays blocked when import does not prove a physical MP4",
         assert.equal(result.objectiveSatisfied, false);
         assert.equal(result.blocked, true);
         assert.equal(result.status, "VIDEO_IMPORT_PHYSICAL_VERIFICATION_FAILED");
+        assert.equal(result.providerCode, "VIDEO_IMPORT_REPORTED_WITHOUT_FILE");
+        assert.match(result.providerMessage, /VIDEO_IMPORT_REPORTED_WITHOUT_FILE/);
     }
     finally {
         globalThis.auth = previousAuth;
@@ -1093,6 +1286,24 @@ test("series video loads canonical episode context before Veo and records only t
                         mimeType: "image/jpeg",
                         dataBase64: bytes.toString("base64"),
                         sha256: createHash("sha256").update(bytes).digest("hex")
+                    };
+                }
+                if (route === "/video/engine/resolve") {
+                    return {
+                        ok: true,
+                        policy: "CURRENT_STABLE",
+                        engineRequested: "CURRENT_STABLE",
+                        engineUsed: "external",
+                        fallbackUsed: false
+                    };
+                }
+                if (route === "/video/engine/authorize-external") {
+                    assert.equal(payload.segmentCount, 1);
+                    return {
+                        ok: true,
+                        model: "veo-3.1-generate-001",
+                        plannedDurationSeconds: 8,
+                        externalEstimatedCostUsd: 3.2
                     };
                 }
                 if (route === "/video/import") {

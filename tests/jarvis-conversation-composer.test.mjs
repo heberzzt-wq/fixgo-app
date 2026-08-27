@@ -461,6 +461,57 @@ test("non-JSON composition rejects a raw tool payload", async () => {
     assert.equal(result.status, "RAW_TOOL_PAYLOAD_REJECTED");
 });
 
+test("video evidence distinguishes physical delivery from unverified facial fidelity", async () => {
+    let capturedPrompt = "";
+    const result = await composeEvidenceGroundedConversation({
+        instruction: "Usa mis fotos y crea el capitulo.",
+        evidenceItems: [{
+            name: "mission.outcome",
+            observation: {
+                ok: false,
+                executionOk: true,
+                objectiveSatisfied: false,
+                status: "PARTIAL",
+                reason: "DEADLINE_EXCEEDED",
+                blocked: false,
+                verifiedArtifactDelivery: true
+            }
+        }, {
+            name: "video.generate",
+            observation: {
+                ok: true,
+                executionOk: true,
+                objectiveSatisfied: true,
+                status: "VIDEO_GENERATED_VERIFIED",
+                physicalArtifactVerified: true,
+                verifiedArtifactDelivery: true,
+                referenceImageCount: 3,
+                referenceArtifactsVerified: true,
+                identityFidelityVerified: false,
+                creativeAcceptanceRequired: true,
+                creativeAcceptanceStatus: "PENDING_HUMAN_REVIEW",
+                durationSeconds: 29,
+                requestedSceneCount: 4,
+                generatedSceneCount: 4
+            }
+        }],
+        executeConversation: async prompt => {
+            capturedPrompt = prompt;
+            return {
+                ok: true,
+                message: "El MP4 fue entregado; la fidelidad facial sigue pendiente de revisión humana."
+            };
+        }
+    });
+
+    assert.equal(result.ok, true);
+    assert.match(capturedPrompt, /identityFidelityVerified/);
+    assert.match(capturedPrompt, /PENDING_HUMAN_REVIEW/);
+    assert.match(capturedPrompt, /no afirmes fidelidad facial/i);
+    assert.match(capturedPrompt, /estado canonico de la mision es PARTIAL/i);
+    assert.match(capturedPrompt, /no declares la mision completada/i);
+});
+
 test("precision-audited media is composed once by the single semantic brain", async () => {
     let semanticCalls = 0;
     let capturedPrompt = "";

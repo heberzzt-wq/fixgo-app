@@ -11,7 +11,7 @@ import {
     overlayBrandLogo
 } from "./jarvis.image.adapter.js?v=jarvis-official-brand-logo-v12-20260819";
 
-const VERSION = "7.28.0-v142-progressive-local-video";
+const VERSION = "7.29.0-v142-video-truthful-delivery";
 const VIDEO_REFERENCE_MIME_TYPES = new Set([
     "image/jpeg",
     "image/png",
@@ -1029,7 +1029,7 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "video.generate",
-            description: "Genera video NUEVO real desde un guion o escenas semanticas mediante el motor fisico seleccionado por la politica de infraestructura. El proveedor certificado actual se conserva y el motor local solo se usa en modos explicitos. referenceOutputs acepta hasta tres artefactos de imagen locales verificados como referencias persistentes de identidad o assets. Si recibe seriesId+episodeId, carga guion, beats y reparto desde el canon durable; no identifica rostros ni acepta reemplazos silenciosos de referencias.",
+            description: "Genera video NUEVO real desde un guion o escenas semanticas mediante el motor fisico seleccionado por la politica de infraestructura. El proveedor certificado actual se conserva y el motor local solo se usa en modos explicitos. referenceOutputs acepta hasta tres artefactos de imagen locales verificados como guia visual del sujeto; su envio no certifica fidelidad facial ni aceptacion creativa. Si recibe seriesId+episodeId, carga guion, beats y reparto desde el canon durable; no identifica rostros ni acepta reemplazos silenciosos de referencias.",
             output: "VIDEO_GENERATION_RESULT",
             inputSchema: {
                 script: "string",
@@ -1106,12 +1106,21 @@ export function registerJarvisActuatorTools(runtime) {
                 const rawScenes = seriesRequested
                     ? (Array.isArray(seriesContext.storyBeats) ? seriesContext.storyBeats : [])
                     : (Array.isArray(args.scenes) ? args.scenes : []);
-                if (seriesRequested && rawScenes.length > 4) {
+                const maximumSceneCount = 4;
+                const maximumGeneratedDurationSeconds =
+                    8 + (maximumSceneCount - 1) * 7;
+                if (rawScenes.length > maximumSceneCount) {
+                    const statusPrefix = seriesRequested
+                        ? "SERIES_VIDEO_SEGMENT_LIMIT_EXCEEDED"
+                        : "VIDEO_SEGMENT_LIMIT_EXCEEDED";
                     return {
                         ok: false, executionOk: false, objectiveSatisfied: false, blocked: true,
                         requiresInput: true, retryable: false,
-                        status: `SERIES_VIDEO_SEGMENT_LIMIT_EXCEEDED:${rawScenes.length}:4`,
-                        error: "SERIES_VIDEO_SEGMENT_LIMIT_EXCEEDED"
+                        status: `${statusPrefix}:${rawScenes.length}:${maximumSceneCount}`,
+                        error: statusPrefix,
+                        requestedSceneCount: rawScenes.length,
+                        maximumSceneCount,
+                        maximumGeneratedDurationSeconds
                     };
                 }
                 const scenePrompts = rawScenes
@@ -1123,11 +1132,36 @@ export function registerJarvisActuatorTools(runtime) {
                                 .filter(Boolean)
                                 .join(" ")
                         ).trim())
-                    .filter(Boolean)
-                    .slice(0, 4);
+                    .filter(Boolean);
                 const prompts = (scenePrompts.length > 0 ? scenePrompts : [script]).filter(Boolean);
                 if (prompts.length < 1) {
                     return { ok: false, executionOk: false, objectiveSatisfied: false, status: "VIDEO_SCRIPT_REQUIRED", error: "VIDEO_SCRIPT_REQUIRED" };
+                }
+                const requestedDurationSeconds = Number(args.durationSeconds || 0) > 0
+                    ? Number(args.durationSeconds)
+                    : rawScenes.length > 0 && rawScenes.every(scene =>
+                        Number(scene?.durationSeconds || 0) > 0
+                    )
+                        ? rawScenes.reduce(
+                            (sum, scene) => sum + Number(scene.durationSeconds),
+                            0
+                        )
+                        : null;
+                const plannedGeneratedDurationSeconds =
+                    8 + Math.max(0, prompts.length - 1) * 7;
+                if (
+                    Number.isFinite(requestedDurationSeconds) &&
+                    requestedDurationSeconds > plannedGeneratedDurationSeconds + 3
+                ) {
+                    return {
+                        ok: false, executionOk: false, objectiveSatisfied: false, blocked: true,
+                        requiresInput: true, retryable: false,
+                        status: `VIDEO_DURATION_LIMIT_EXCEEDED:${requestedDurationSeconds}:${plannedGeneratedDurationSeconds}`,
+                        error: "VIDEO_DURATION_LIMIT_EXCEEDED",
+                        requestedDurationSeconds,
+                        plannedGeneratedDurationSeconds,
+                        maximumGeneratedDurationSeconds
+                    };
                 }
                 const aspectRatio = args.aspectRatio === "16:9" ? "16:9" : "9:16";
                 const requestedOutput = String(args.output || "").trim().replaceAll("\\", "/");
@@ -1193,7 +1227,11 @@ export function registerJarvisActuatorTools(runtime) {
                             referenceOutputs: referenceImages.map(reference => reference.sourceOutput),
                             seriesId: seriesId || null,
                             episodeId: episodeId || null,
-                            selectedBackend: engineDecision.selectedBackend || null
+                            selectedBackend: engineDecision.selectedBackend || null,
+                            missionId: context?.missionId || null,
+                            objectiveId: context?.objectiveId || null,
+                            obligationId: context?.obligationId || null,
+                            rootInstructionHash: context?.rootInstructionHash || null
                         }, 60000);
                     }
                     catch(error) {
@@ -1222,6 +1260,22 @@ export function registerJarvisActuatorTools(runtime) {
                         };
                     }
                     let localResult = null;
+                    let localPollTransportFailures = 0;
+                    const cancelLocalOperation = async reason => {
+                        try {
+                            return await bridgeRequest("/video/local/cancel", {
+                                operationName: started.operationName,
+                                reason
+                            }, 30000);
+                        }
+                        catch(error) {
+                            return {
+                                ok: false,
+                                status: "LOCAL_VIDEO_CANCEL_FAILED",
+                                error: error?.message || "LOCAL_VIDEO_CANCEL_FAILED"
+                            };
+                        }
+                    };
                     for (let attempt = 0; attempt < 120; attempt += 1) {
                         await waitForVideoPoll(5000);
                         let polled;
@@ -1231,14 +1285,28 @@ export function registerJarvisActuatorTools(runtime) {
                             }, 30000);
                         }
                         catch(error) {
-                            polled = {
+                            localPollTransportFailures += 1;
+                            if (localPollTransportFailures <= 3) continue;
+                            const cancellation = await cancelLocalOperation("poll_transport_failed");
+                            return {
                                 ok: false,
+                                executionOk: false,
+                                objectiveSatisfied: false,
+                                blocked: true,
+                                retryable: true,
                                 status: "LOCAL_VIDEO_BRIDGE_POLL_FAILED",
                                 error: error?.message || "LOCAL_VIDEO_BRIDGE_POLL_FAILED",
-                                retryable: true,
-                                operationName: started.operationName
+                                operationName: started.operationName,
+                                engineRequested: engineDecision.engineRequested,
+                                engineUsed: "local",
+                                fallbackUsed: false,
+                                fallbackReason: null,
+                                externalApiUsed: false,
+                                externalEstimatedCostUsd: 0,
+                                cancellation
                             };
                         }
+                        localPollTransportFailures = 0;
                         if (polled?.ok !== true) {
                             return {
                                 ...polled,
@@ -1261,6 +1329,7 @@ export function registerJarvisActuatorTools(runtime) {
                         break;
                     }
                     if (!localResult) {
+                        const cancellation = await cancelLocalOperation("poll_deadline_exceeded");
                         return {
                             ok: false,
                             executionOk: false,
@@ -1342,9 +1411,14 @@ export function registerJarvisActuatorTools(runtime) {
                             : "script_to_video",
                         referenceImageCount: referenceImages.length,
                         referenceOutputs: referenceImages.map(reference => reference.sourceOutput),
-                        identityReferencesVerified: referenceImages.length > 0,
+                        referenceArtifactsVerified: referenceImages.length > 0,
+                        identityFidelityVerified: false,
+                        creativeAcceptanceRequired: referenceImages.length > 0,
+                        creativeAcceptanceStatus: referenceImages.length > 0
+                            ? "PENDING_HUMAN_REVIEW"
+                            : "NOT_REQUIRED",
                         identityContinuityMode: referenceImages.length > 0
-                            ? "local_asset_references"
+                            ? "local_reference_guidance"
                             : "not_requested",
                         physicalArtifactVerified: true,
                         verifiedArtifactDelivery: true,
@@ -1423,7 +1497,8 @@ export function registerJarvisActuatorTools(runtime) {
                             fallbackUsed: true,
                             fallbackReason: nextDecision?.fallbackReason || `${failedBackend}=${failureReason}`,
                             externalApiUsed: false,
-                            externalEstimatedCostUsd: 0
+                            externalEstimatedCostUsd: 0,
+                            cancellation
                         };
                     }
                     if (
@@ -1454,55 +1529,107 @@ export function registerJarvisActuatorTools(runtime) {
 
                 let previousVideo = null;
                 let finalCloud = null;
-                let externalEstimatedCostUsd = 0;
+                let externalAuthorization = null;
+                const externalOperationKey = seriesRequested
+                    ? `${seriesId}:${episodeId}`
+                    : `video.generate:${output}`;
+                const trustedExternalVideoAuthorization =
+                    context?.externalVideoAuthorization ||
+                    context?.missionAuthorizations?.externalVideo ||
+                    null;
+                const explicitExternalVideoAuthorization =
+                    trustedExternalVideoAuthorization?.approved === true &&
+                    trustedExternalVideoAuthorization?.approvalSource === "trusted_runtime_context" &&
+                    Boolean(String(trustedExternalVideoAuthorization?.approvedBy || "").trim()) &&
+                    (
+                        !trustedExternalVideoAuthorization?.missionId ||
+                        trustedExternalVideoAuthorization.missionId === context?.missionId
+                    ) &&
+                    (
+                        !trustedExternalVideoAuthorization?.objectiveId ||
+                        trustedExternalVideoAuthorization.objectiveId === context?.objectiveId
+                    ) &&
+                    (
+                        !trustedExternalVideoAuthorization?.operationKey ||
+                        trustedExternalVideoAuthorization.operationKey === externalOperationKey
+                    );
+                if (
+                    engineDecision.policy === "LOCAL_PREFERRED" &&
+                    engineDecision.engineUsed === "external" &&
+                    explicitExternalVideoAuthorization !== true
+                ) {
+                    return {
+                        ok: false,
+                        executionOk: false,
+                        objectiveSatisfied: false,
+                        blocked: true,
+                        requiresInput: false,
+                        requiresApproval: true,
+                        retryable: false,
+                        status: "EXTERNAL_VIDEO_HUMAN_AUTHORIZATION_REQUIRED",
+                        error: "EXTERNAL_VIDEO_HUMAN_AUTHORIZATION_REQUIRED",
+                        engineRequested: engineDecision.engineRequested,
+                        engineUsed: "external",
+                        fallbackUsed: engineDecision.fallbackUsed === true,
+                        fallbackReason: engineDecision.fallbackReason || null,
+                        externalApiUsed: false,
+                        externalEstimatedCostUsd: 0
+                    };
+                }
+                try {
+                    externalAuthorization = await bridgeRequest("/video/engine/authorize-external", {
+                        operationKey: externalOperationKey,
+                        segmentCount: prompts.length,
+                        model: "veo-3.1-generate-001",
+                        resolution: "720p",
+                        audioIncluded: true,
+                        humanAuthorized:
+                            engineDecision.policy === "CURRENT_STABLE" ||
+                            explicitExternalVideoAuthorization === true,
+                        reasonForExternalUse: engineDecision.fallbackUsed === true
+                            ? engineDecision.fallbackReason
+                            : "CURRENT_STABLE"
+                    }, 30000);
+                }
+                catch {
+                    externalAuthorization = null;
+                }
+                if (externalAuthorization?.ok !== true) {
+                    return {
+                        ...(externalAuthorization || {}),
+                        ok: false,
+                        executionOk: false,
+                        objectiveSatisfied: false,
+                        blocked: true,
+                        retryable: false,
+                        status: externalAuthorization?.status || "EXTERNAL_VIDEO_AUTHORIZATION_REQUIRED",
+                        error: externalAuthorization?.error || "EXTERNAL_VIDEO_AUTHORIZATION_REQUIRED",
+                        engineRequested: engineDecision.engineRequested,
+                        engineUsed: "external",
+                        fallbackUsed: engineDecision.fallbackUsed === true,
+                        fallbackReason: engineDecision.fallbackReason || null,
+                        externalApiUsed: false,
+                        externalEstimatedCostUsd: Number(
+                            externalAuthorization?.externalEstimatedCostUsd || 0
+                        )
+                    };
+                }
+                const externalEstimatedCostUsd = Number(
+                    externalAuthorization.externalEstimatedCostUsd || 0
+                );
                 for (let index = 0; index < prompts.length; index += 1) {
                     const segmentPrompt = [
                         index === 0 ? script : "",
                         prompts[index],
                         index === 0
                             ? "Crea el inicio del mini drama como video cinematografico real con personas, accion, dialogo o audio coherente cuando el guion lo indique."
-                            : "Continua exactamente el video anterior manteniendo personajes, vestuario, locacion, accion y continuidad narrativa."
+                            : "Continua exactamente el video anterior manteniendo personajes, vestuario, locacion, accion y continuidad narrativa.",
+                        referenceImages.length > 0
+                            ? index === 0
+                                ? "La persona mostrada en las referencias es el protagonista principal del guion. Conserva sus rasgos faciales, cabello, complexión y accesorios visibles; no transfieras sus acciones, dialogo ni objetos a otro personaje."
+                                : "Conserva al mismo protagonista establecido en el video anterior; no intercambies roles ni personajes y no transfieras sus acciones, dialogo ni objetos a otra persona."
+                            : ""
                     ].filter(Boolean).join(" ").slice(0, 10000);
-                    let externalAuthorization = null;
-                    try {
-                        externalAuthorization = await bridgeRequest("/video/engine/authorize-external", {
-                            operationKey: seriesRequested
-                                ? `${seriesId}:${episodeId}`
-                                : `video.generate:${output}`,
-                            segmentIndex: index,
-                            sceneCount: prompts.length,
-                            reasonForExternalUse: engineDecision.fallbackUsed === true
-                                ? engineDecision.fallbackReason
-                                : "CURRENT_STABLE"
-                        }, 30000);
-                    }
-                    catch {
-                        externalAuthorization = null;
-                    }
-                    if (
-                        externalAuthorization?.ok !== true &&
-                        engineDecision.policy !== "CURRENT_STABLE"
-                    ) {
-                        return {
-                            ...(externalAuthorization || {}),
-                            ok: false,
-                            executionOk: false,
-                            objectiveSatisfied: false,
-                            blocked: true,
-                            retryable: false,
-                            status: externalAuthorization?.status || "EXTERNAL_VIDEO_AUTHORIZATION_REQUIRED",
-                            error: externalAuthorization?.error || "EXTERNAL_VIDEO_AUTHORIZATION_REQUIRED",
-                            engineRequested: engineDecision.engineRequested,
-                            engineUsed: "external",
-                            fallbackUsed: engineDecision.fallbackUsed === true,
-                            fallbackReason: engineDecision.fallbackReason || null,
-                            externalApiUsed: false,
-                            externalEstimatedCostUsd: 0
-                        };
-                    }
-                    externalEstimatedCostUsd += Number(
-                        externalAuthorization?.externalEstimatedCostUsd || 0
-                    );
                     const started = await callAdminFunction("jarvisVideoGenerate", {
                         action: "start",
                         prompt: segmentPrompt,
@@ -1616,6 +1743,11 @@ export function registerJarvisActuatorTools(runtime) {
                     /^[a-f0-9]{64}$/i.test(String(artifact?.sha256 || "")) &&
                     String(artifact?.output || "").replaceAll("\\", "/") === output;
                 if (!physicalArtifactVerified) {
+                    const importFailureCode = String(
+                        artifact?.error ||
+                        artifact?.status ||
+                        "PHYSICAL_MP4_NOT_VERIFIED"
+                    );
                     return {
                         ...artifact,
                         ok: false,
@@ -1627,8 +1759,11 @@ export function registerJarvisActuatorTools(runtime) {
                         status: "VIDEO_IMPORT_PHYSICAL_VERIFICATION_FAILED",
                         error: "VIDEO_IMPORT_PHYSICAL_VERIFICATION_FAILED",
                         stage: "VIDEO_IMPORT_PHYSICAL_VERIFICATION",
-                        providerCode: "PHYSICAL_MP4_NOT_VERIFIED",
-                        providerMessage: "The local import did not prove a physical MP4 with bytes and SHA-256.",
+                        providerCode: importFailureCode,
+                        providerMessage:
+                            `The local import did not prove a physical MP4 with bytes and SHA-256: ${importFailureCode}.`,
+                        importStatus: artifact?.status || null,
+                        importError: artifact?.error || null,
                         operationName: finalCloud.operationName || null
                     };
                 }
@@ -1677,12 +1812,23 @@ export function registerJarvisActuatorTools(runtime) {
                         : "script_to_video",
                     referenceImageCount: referenceImages.length,
                     referenceOutputs: referenceImages.map(reference => reference.sourceOutput),
-                    identityReferencesVerified: referenceImages.length > 0,
+                    referenceArtifactsVerified: referenceImages.length > 0,
+                    identityFidelityVerified: false,
+                    creativeAcceptanceRequired: referenceImages.length > 0,
+                    creativeAcceptanceStatus: referenceImages.length > 0
+                        ? "PENDING_HUMAN_REVIEW"
+                        : "NOT_REQUIRED",
                     identityContinuityMode: referenceImages.length > 0
                         ? (prompts.length > 1
-                            ? "initial_asset_references_then_previous_video"
-                            : "asset_references")
+                            ? "initial_reference_guidance_then_previous_video"
+                            : "reference_guidance")
                         : "not_requested",
+                    requestedSceneCount: rawScenes.length || 1,
+                    generatedSceneCount: prompts.length,
+                    requestedDurationSeconds,
+                    durationContractSatisfied: requestedDurationSeconds == null
+                        ? null
+                        : Math.abs(durationSeconds - requestedDurationSeconds) <= 3,
                     physicallyWritten: artifact?.physicallyWritten === true,
                     physicalArtifactVerified,
                     verifiedArtifactDelivery: physicalArtifactVerified,
@@ -1692,6 +1838,10 @@ export function registerJarvisActuatorTools(runtime) {
                     fallbackReason: engineDecision.fallbackReason || null,
                     externalApiUsed: true,
                     externalEstimatedCostUsd,
+                    externalPlannedDurationSeconds:
+                        externalAuthorization.plannedDurationSeconds,
+                    externalPricingModel: externalAuthorization.model,
+                    externalPricingSource: externalAuthorization.pricingSource,
                     reasonForExternalUse: engineDecision.fallbackUsed === true
                         ? "LOCAL_FALLBACK"
                         : "CURRENT_STABLE",
@@ -1713,7 +1863,10 @@ export function registerJarvisActuatorTools(runtime) {
                     sha256: finalResult.sha256 || null,
                     model: finalResult.model || null,
                     referenceImageCount: finalResult.referenceImageCount,
-                    identityReferencesVerified: finalResult.identityReferencesVerified,
+                    referenceArtifactsVerified: finalResult.referenceArtifactsVerified,
+                    identityFidelityVerified: finalResult.identityFidelityVerified,
+                    creativeAcceptanceRequired: finalResult.creativeAcceptanceRequired,
+                    creativeAcceptanceStatus: finalResult.creativeAcceptanceStatus,
                     identityContinuityMode: finalResult.identityContinuityMode,
                     engineUsed: finalResult.engineUsed,
                     fallbackUsed: finalResult.fallbackUsed,

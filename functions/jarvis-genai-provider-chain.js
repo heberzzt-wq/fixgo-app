@@ -209,13 +209,34 @@ function sanitizeGenerateContentRequest(request) {
     return { ...guardedRequest, config: { ...(sanitizedConfig || {}), tools: compactTools } };
 }
 
-function isPermanentProviderFailure(error) {
+function permanentProviderFailureReason(error) {
     const message = String(error?.message || error || "").toLowerCase();
-    return (
+    if (
         message.includes("api_key_invalid") ||
         message.includes("api key not valid") ||
         message.includes("gemini_key_missing")
-    );
+    ) {
+        return "INVALID_CREDENTIAL";
+    }
+    if (
+        message.includes("lightning dunning decision is deny") ||
+        message.includes("billing account is disabled") ||
+        message.includes("billing is disabled") ||
+        message.includes("project_billing_disabled")
+    ) {
+        return "BILLING_DUNNING";
+    }
+    if (
+        message.includes("permission_denied") ||
+        message.includes("permission denied")
+    ) {
+        return "PERMISSION_DENIED";
+    }
+    return null;
+}
+
+function isPermanentProviderFailure(error) {
+    return permanentProviderFailureReason(error) !== null;
 }
 
 function isTransientProviderFailure(error) {
@@ -703,15 +724,19 @@ function createJarvisGenAIProviderChain({ providers = [] } = {}) {
                                             "FAILED"
                                         )}`
                                     });
-                                    if (isPermanentProviderFailure(fallbackError)) {
-                                        disabledProviders.set(providerName, "INVALID_CREDENTIAL");
+                                    const permanentFailureReason =
+                                        permanentProviderFailureReason(fallbackError);
+                                    if (permanentFailureReason) {
+                                        disabledProviders.set(providerName, permanentFailureReason);
                                     }
                                     break;
                                 }
                             }
 
-                            if (isPermanentProviderFailure(error)) {
-                                disabledProviders.set(providerName, "INVALID_CREDENTIAL");
+                            const permanentFailureReason =
+                                permanentProviderFailureReason(error);
+                            if (permanentFailureReason) {
+                                disabledProviders.set(providerName, permanentFailureReason);
                                 break;
                             }
 
@@ -756,6 +781,7 @@ module.exports = {
     isSchemaStateExplosion,
     isTransientProviderFailure,
     normalizeProviders,
+    permanentProviderFailureReason,
     requestNeedsFreshness,
     requestUsesFunctionDeclarations,
     requestUsesGoogleSearch,

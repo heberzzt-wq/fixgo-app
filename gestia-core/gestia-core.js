@@ -41,16 +41,16 @@ import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     buildJarvisMultifunctionToolCalls,
     completeJarvisPlanningArguments
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=v136-reel-media-source-recovery-20260812';
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=v142-video-scene-integrity-20260826';
 import {
     composeEvidenceGroundedConversation,
     mergeEvidenceGroundedToolCalls,
     prepareEvidenceGroundedConversationPlan
-} from '/gestia-core/jarvis/jarvis.conversation.composer.js?v=v94-semantic-only-evidence-v100-20260809';
+} from '/gestia-core/jarvis/jarvis.conversation.composer.js?v=v142-video-truthful-delivery-20260826';
 import {
     runJarvisMission,
     verifiedArtifactDeliveryForMission
-} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=v142-attempt-recovery-20260825';
+} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=v142-deadline-reconciliation-20260826';
 import {
     marketingArtifactArgsFromCompletedTasks,
     marketingFinalResponseFromMission
@@ -219,12 +219,48 @@ import {
     compactJarvisSemanticMemoryForPlanner
 } from '/gestia-core/jarvis/jarvis.semantic.memory.js?v=v139-semantic-continuity-20260813';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
-import '/gestia-core/tools.runtime.js?v=v142-video-operation-recovery-20260825';
+import '/gestia-core/tools.runtime.js?v=v142-video-truthful-delivery-20260826';
 import '/gestia-core/response.composer.js?v=v94-live-human-reds-v113-20260809';
 import '/gestia-core/tools.bridge.js?v=v139-real-reel-e2e-20260812';
 
 const AUTH_RESTORE_TIMEOUT_MS =
     2500;
+
+function isPermanentSemanticPlannerFailure(message = "") {
+    const normalized = String(message || "").toLowerCase();
+    const permanentMarkers = [
+        "api_key_invalid",
+        "api key not valid",
+        "gemini_key_missing",
+        "disabled_invalid_credential",
+        "lightning dunning decision is deny",
+        "billing account is disabled",
+        "billing is disabled",
+        "project_billing_disabled",
+        "disabled_billing_dunning",
+        "permission_denied",
+        "permission denied",
+        "disabled_permission_denied"
+    ];
+    const isPermanentSegment = segment =>
+        permanentMarkers.some(marker => segment.includes(marker));
+    const chainPrefix = "jarvis_genai_provider_chain_failed";
+
+    if (!normalized.includes(chainPrefix)) {
+        return isPermanentSegment(normalized);
+    }
+
+    const providerFailures = normalized
+        .slice(normalized.indexOf(chainPrefix) + chainPrefix.length)
+        .split(/\s+\|\s+/)
+        .map(segment => segment.trim())
+        .filter(Boolean);
+
+    return (
+        providerFailures.length > 0 &&
+        providerFailures.every(isPermanentSegment)
+    );
+}
 
 async function waitForAuthenticatedUser(
     timeoutMs = AUTH_RESTORE_TIMEOUT_MS
@@ -3886,7 +3922,8 @@ export const GestiaCore = {
                 const providerFallbackExhausted =
                     message.includes("__BROWSER_") ||
                     message.includes("TIMEOUT_") ||
-                    message.includes("AUTH_REQUIRED");
+                    message.includes("AUTH_REQUIRED") ||
+                    isPermanentSemanticPlannerFailure(message);
                 if (
                     attempt >= 3 ||
                     providerFallbackExhausted
@@ -4628,7 +4665,8 @@ if (
                     const providerFallbackExhausted =
                         message.includes("__BROWSER_") ||
                         message.includes("TIMEOUT_") ||
-                        message.includes("AUTH_REQUIRED");
+                        message.includes("AUTH_REQUIRED") ||
+                        isPermanentSemanticPlannerFailure(message);
                     if (
                         attempt >= 2 ||
                         providerFallbackExhausted
@@ -4655,6 +4693,9 @@ if (
                 missionInitialToolCalls,
             requiredToolNames:
                 [...new Set(missionInitialToolCalls.map(call => call.name))],
+            executionContractLocked:
+                missionIsIsolated ||
+                missionInitialToolCalls.length > 1,
             caseId:
                 context.caseId || null,
             objectiveId:
@@ -4662,6 +4703,11 @@ if (
             resumeMissionId:
                 pendingMissionId,
             continuationContext,
+            trustedMissionAuthorizations:
+                context?.trustedMissionAuthorizations &&
+                typeof context.trustedMissionAuthorizations === "object"
+                    ? context.trustedMissionAuthorizations
+                    : {},
             memoryContext: semanticMemoryContext,
             maximumSteps:
                 20,
@@ -5933,7 +5979,18 @@ if (
                 instruction:
                     inputRaw,
                 evidenceItems:
-                    missionEvidenceItems,
+                    [{
+                        name: "mission.outcome",
+                        observation: {
+                            ok: missionResult.status === "COMPLETED",
+                            executionOk: true,
+                            objectiveSatisfied: missionResult.status === "COMPLETED",
+                            status: missionResult.status,
+                            reason: missionResult.reason,
+                            blocked: missionResult.blockedTasks.length > 0,
+                            verifiedArtifactDelivery
+                        }
+                    }, ...missionEvidenceItems],
                 executeConversation:
                     async prompt => {
                         const observations =

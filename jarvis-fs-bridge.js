@@ -5,6 +5,7 @@ import os from "os";
 import path from "path";
 import * as tls from "node:tls";
 import { createHash, randomUUID } from "node:crypto";
+import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "url";
 import { execFileSync, spawn } from "child_process";
 import {
@@ -68,8 +69,14 @@ import {
     writeLocalAiCapabilityReport
 } from "./jarvis-local-video-engine.js";
 
+const require = createRequire(import.meta.url);
+const {
+    runJarvisSemanticPlanner,
+    runJarvisSemanticResponse
+} = require("./functions/jarvis-semantic-planner.js");
+
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.49.0-reel-mp4-master-v142";
+    "2.51.0-temporal-media-self-hosted-v142";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -135,6 +142,240 @@ function cleanMediaFamily(value = "") {
 
 function sleepMs(ms = 0) {
     return new Promise(resolve => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+}
+
+const SEMANTIC_PROVIDER_MODES = new Set([
+    "CURRENT_STABLE",
+    "LOCAL_PREFERRED",
+    "LOCAL_ONLY"
+]);
+
+function semanticProviderMode(env = process.env) {
+    const requested = String(
+        env.JARVIS_SEMANTIC_PROVIDER_MODE || "LOCAL_PREFERRED"
+    ).trim().toUpperCase();
+    return SEMANTIC_PROVIDER_MODES.has(requested)
+        ? requested
+        : "LOCAL_PREFERRED";
+}
+
+function normalizeSelfHostedSemanticUrl(value = "") {
+    const raw = String(value || "").trim().replace(/\/+$/, "");
+    if (!raw) return "";
+    const parsed = new URL(raw);
+    const loopback = ["127.0.0.1", "localhost", "::1"].includes(
+        parsed.hostname.toLowerCase()
+    );
+    if (parsed.protocol !== "https:" && !(loopback && parsed.protocol === "http:")) {
+        throw new Error("LOCAL_SEMANTIC_ENDPOINT_MUST_BE_LOOPBACK_OR_HTTPS");
+    }
+    if (parsed.username || parsed.password || parsed.search || parsed.hash) {
+        throw new Error("LOCAL_SEMANTIC_ENDPOINT_INVALID");
+    }
+    return parsed.toString().replace(/\/$/, "");
+}
+
+function semanticContentsText(contents = "") {
+    if (typeof contents === "string") return contents;
+    if (!Array.isArray(contents)) return String(contents || "");
+    return contents.map(item => {
+        if (typeof item === "string") return item;
+        if (typeof item?.text === "string") return item.text;
+        if (Array.isArray(item?.parts)) {
+            return item.parts.map(part => String(part?.text || "")).filter(Boolean).join("\n");
+        }
+        return "";
+    }).filter(Boolean).join("\n\n");
+}
+
+function openAiToolsFromGemini(config = {}) {
+    const declarations = Array.isArray(config?.tools?.[0]?.functionDeclarations)
+        ? config.tools[0].functionDeclarations
+        : [];
+    return declarations.map(declaration => ({
+        type: "function",
+        function: {
+            name: String(declaration?.name || ""),
+            description: String(declaration?.description || "").slice(0, 900),
+            parameters: declaration?.parametersJsonSchema || {
+                type: "object",
+                properties: {},
+                additionalProperties: false
+            }
+        }
+    })).filter(tool => tool.function.name);
+}
+
+function parseOpenAiFunctionCalls(message = {}) {
+    return (Array.isArray(message?.tool_calls) ? message.tool_calls : [])
+        .map(call => {
+            const name = String(call?.function?.name || "");
+            if (!name) return null;
+            let args = {};
+            try {
+                const parsed = JSON.parse(String(call?.function?.arguments || "{}"));
+                if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) args = parsed;
+            } catch {}
+            return { name, args };
+        })
+        .filter(Boolean);
+}
+
+export function createSelfHostedSemanticEngine({
+    fetchImpl = globalThis.fetch,
+    env = process.env
+} = {}) {
+    const mode = semanticProviderMode(env);
+    const model = String(env.JARVIS_LOCAL_LLM_MODEL || "").trim();
+    const rawBaseUrl = String(env.JARVIS_LOCAL_LLM_BASE_URL || "").trim();
+    const token = String(env.JARVIS_LOCAL_LLM_TOKEN || "").trim();
+    const timeoutMs = Math.min(
+        Math.max(Number(env.JARVIS_LOCAL_LLM_TIMEOUT_MS) || 90000, 5000),
+        180000
+    );
+    const counters = {
+        localSemanticInferenceCalls: 0,
+        semanticExternalCalls: 0,
+        paidExternalCalls: 0,
+        failedLocalSemanticInferenceCalls: 0
+    };
+
+    let baseUrl = "";
+    let configurationError = "";
+    try {
+        baseUrl = normalizeSelfHostedSemanticUrl(rawBaseUrl);
+    } catch (error) {
+        configurationError = error?.message || String(error);
+    }
+
+    function describe() {
+        const configured = Boolean(model && baseUrl && !configurationError);
+        return {
+            ok: configured && typeof fetchImpl === "function",
+            status: configurationError || (configured
+                ? "LOCAL_SEMANTIC_BACKEND_CONFIGURED"
+                : "LOCAL_SEMANTIC_BACKEND_NOT_CONFIGURED"),
+            mode,
+            provider: "self-hosted-openai-compatible",
+            model: model || null,
+            endpointConfigured: Boolean(baseUrl),
+            endpointOrigin: baseUrl ? new URL(baseUrl).origin : null,
+            tokenConfigured: Boolean(token),
+            fallbackAllowed: mode !== "LOCAL_ONLY",
+            selfHosted: true,
+            paidModelApiUsed: false,
+            externalApiUsed: false,
+            estimatedExternalCostUsd: 0,
+            counters: { ...counters }
+        };
+    }
+
+    async function generateContent(request = {}) {
+        const health = describe();
+        if (health.ok !== true) throw new Error(health.status);
+        const tools = openAiToolsFromGemini(request?.config || {});
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        counters.localSemanticInferenceCalls += 1;
+        try {
+            const headers = { "Content-Type": "application/json" };
+            if (token) headers.Authorization = `Bearer ${token}`;
+            const payload = {
+                model,
+                messages: [
+                    ...(request?.config?.systemInstruction
+                        ? [{ role: "system", content: String(request.config.systemInstruction) }]
+                        : []),
+                    { role: "user", content: semanticContentsText(request?.contents) }
+                ],
+                temperature: Number(request?.config?.temperature) || 0,
+                max_tokens: Math.max(256, Math.min(16000, Number(request?.config?.maxOutputTokens) || 3000)),
+                stream: false,
+                ...(tools.length > 0 ? { tools, tool_choice: "auto" } : {}),
+                ...(request?.config?.responseMimeType === "application/json"
+                    ? { response_format: { type: "json_object" } }
+                    : {})
+            };
+            const response = await fetchImpl(`${baseUrl}/chat/completions`, {
+                method: "POST",
+                headers,
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            });
+            const raw = await response.text();
+            let data = null;
+            try { data = JSON.parse(raw); } catch {}
+            if (!response.ok || !data) {
+                throw new Error(
+                    String(data?.error?.message || data?.error || `LOCAL_SEMANTIC_HTTP_${response.status}`)
+                );
+            }
+            const message = data?.choices?.[0]?.message || {};
+            const text = typeof message.content === "string"
+                ? message.content
+                : Array.isArray(message.content)
+                    ? message.content.map(part => String(part?.text || "")).join("")
+                    : "";
+            const functionCalls = parseOpenAiFunctionCalls(message);
+            if (!text.trim() && functionCalls.length === 0) {
+                throw new Error("LOCAL_SEMANTIC_RESPONSE_EMPTY");
+            }
+            return { text, functionCalls };
+        } catch (error) {
+            counters.failedLocalSemanticInferenceCalls += 1;
+            if (controller.signal.aborted) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
+            throw error;
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    const ai = {
+        lastProvider: "self-hosted-openai-compatible",
+        models: { generateContent }
+    };
+
+    return {
+        mode,
+        describe,
+        async plan({ input, catalog, missionState = null, timeoutMs: requestTimeoutMs } = {}) {
+            const result = await runJarvisSemanticPlanner({
+                ai,
+                input,
+                catalog,
+                missionState,
+                timeoutMs: requestTimeoutMs || timeoutMs
+            });
+            return {
+                ...result,
+                provider: ai.lastProvider,
+                model,
+                localSemanticInferenceUsed: true,
+                cloudSemanticInferenceUsed: false,
+                externalApiUsed: false,
+                externalEstimatedCostUsd: 0,
+                inferenceReceipt: describe()
+            };
+        },
+        async respond({ input, maxOutputTokens = 3500, timeoutMs: requestTimeoutMs } = {}) {
+            const result = await runJarvisSemanticResponse({
+                ai,
+                input,
+                maxOutputTokens,
+                timeoutMs: requestTimeoutMs || timeoutMs
+            });
+            return {
+                ...result,
+                provider: ai.lastProvider,
+                model,
+                localSemanticInferenceUsed: true,
+                cloudSemanticInferenceUsed: false,
+                externalApiUsed: false,
+                externalEstimatedCostUsd: 0,
+                inferenceReceipt: describe()
+            };
+        }
+    };
 }
 
 async function readChromeDevToolsPort(profileDir, child, timeoutMs = 12000) {
@@ -681,6 +922,182 @@ export function inspectReelVideoFile({
     };
 }
 
+const TEMPORAL_MEDIA_EXTENSIONS = [
+    ".mp4", ".webm", ".mov", ".mp3", ".wav", ".m4a"
+];
+
+const TEMPORAL_MEDIA_MIME_BY_EXTENSION = {
+    ".mp4": "video/mp4",
+    ".webm": "video/webm",
+    ".mov": "video/quicktime",
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".m4a": "audio/mp4"
+};
+
+export async function extractTemporalMediaArtifact({
+    output = "",
+    sourceName = "",
+    mimeType = "",
+    root = DEFAULT_ROOT,
+    env = process.env,
+    ffmpeg = "",
+    ffprobe = ""
+} = {}) {
+    const target = artifactPath(output, root, TEMPORAL_MEDIA_EXTENSIONS);
+    if (!fs.existsSync(target) || !fs.statSync(target).isFile()) {
+        throw new Error("ARTIFACT_NOT_FOUND");
+    }
+    const stat = fs.statSync(target);
+    if (stat.size < 1) throw new Error("TEMPORAL_MEDIA_EMPTY");
+    const extension = path.extname(target).toLowerCase();
+    const normalizedMimeType = String(
+        mimeType || TEMPORAL_MEDIA_MIME_BY_EXTENSION[extension] || ""
+    ).trim().toLowerCase();
+    const expectedFamily = normalizedMimeType.startsWith("audio/") ||
+        [".mp3", ".wav", ".m4a"].includes(extension)
+        ? "audio"
+        : "video";
+    if (!normalizedMimeType.startsWith(`${expectedFamily}/`)) {
+        throw new Error("TEMPORAL_MEDIA_MIME_MISMATCH");
+    }
+    const inspection = inspectReelVideoFile({ file: target, ffprobe, env });
+    if (expectedFamily === "video" && !inspection.video) {
+        throw new Error("TEMPORAL_MEDIA_VIDEO_STREAM_REQUIRED");
+    }
+    if (expectedFamily === "audio" && !inspection.audio) {
+        throw new Error("TEMPORAL_MEDIA_AUDIO_STREAM_REQUIRED");
+    }
+    if (!(Number(inspection.durationSeconds) > 0)) {
+        throw new Error("TEMPORAL_MEDIA_DURATION_INVALID");
+    }
+    const sha256 = createHash("sha256").update(fs.readFileSync(target)).digest("hex");
+    const evidenceRoot = `.jarvis-artifacts/media-evidence/${sha256.slice(0, 20)}`;
+    const encoder = resolveLocalExecutable(
+        ffmpeg || env.JARVIS_FFMPEG_PATH || "ffmpeg",
+        env
+    );
+    if (!encoder) throw new Error("TEMPORAL_MEDIA_FFMPEG_UNAVAILABLE");
+    const samples = [];
+    if (inspection.video) {
+        const duration = Number(inspection.durationSeconds);
+        const timestamps = [...new Set([
+            0,
+            Math.max(0, duration / 2),
+            Math.max(0, duration - Math.min(0.25, duration / 4))
+        ].map(value => Number(value.toFixed(3))))];
+        for (let index = 0; index < timestamps.length; index += 1) {
+            const frameOutput = `${evidenceRoot}/frame-${String(index + 1).padStart(3, "0")}.jpg`;
+            const frameTarget = artifactPath(frameOutput, root, [".jpg"]);
+            const execution = await runProcess(encoder, [
+                "-hide_banner", "-nostdin", "-y",
+                "-ss", String(timestamps[index]),
+                "-i", target,
+                "-frames:v", "1",
+                "-vf", "scale='min(1280,iw)':-2",
+                "-q:v", "2",
+                frameTarget
+            ], { cwd: root, timeoutMs: 60000 });
+            if (execution.ok !== true || !fs.existsSync(frameTarget) || fs.statSync(frameTarget).size < 1) {
+                throw new Error(`TEMPORAL_MEDIA_FRAME_EXTRACTION_FAILED:${index + 1}`);
+            }
+            const artifact = registerArtifact({
+                root,
+                output: frameOutput,
+                metadata: {
+                    type: "image",
+                    origin: "media.analyze",
+                    provider: "ffmpeg",
+                    mimeType: "image/jpeg",
+                    status: "TEMPORAL_MEDIA_FRAME_VERIFIED",
+                    approvalRequired: false,
+                    approved: true,
+                    approvedBy: "LOCAL_ARTIFACT_POLICY",
+                    preview: true,
+                    downloadable: true,
+                    publishable: false,
+                    originalFile: output,
+                    transformations: [`frame_at_${timestamps[index]}s`]
+                }
+            });
+            samples.push({
+                sampleNumber: index + 1,
+                timestampSeconds: timestamps[index],
+                output: frameOutput,
+                bytes: artifact.bytes,
+                sha256: artifact.sha256,
+                mimeType: "image/jpeg",
+                semanticVisualAnalysisVerified: false
+            });
+        }
+    }
+    let audioEvidence = null;
+    if (inspection.audio) {
+        const audioOutput = `${evidenceRoot}/audio-evidence.wav`;
+        const audioTarget = artifactPath(audioOutput, root, [".wav"]);
+        const execution = await runProcess(encoder, [
+            "-hide_banner", "-nostdin", "-y",
+            "-i", target,
+            "-vn", "-t", String(Math.min(60, Number(inspection.durationSeconds))),
+            "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le",
+            audioTarget
+        ], { cwd: root, timeoutMs: 90000 });
+        if (execution.ok !== true || !fs.existsSync(audioTarget) || fs.statSync(audioTarget).size < 1) {
+            throw new Error("TEMPORAL_MEDIA_AUDIO_EXTRACTION_FAILED");
+        }
+        const artifact = registerArtifact({
+            root,
+            output: audioOutput,
+            metadata: {
+                type: "audio",
+                origin: "media.analyze",
+                provider: "ffmpeg",
+                mimeType: "audio/wav",
+                status: "TEMPORAL_MEDIA_AUDIO_TRACK_VERIFIED",
+                approvalRequired: false,
+                approved: true,
+                approvedBy: "LOCAL_ARTIFACT_POLICY",
+                preview: true,
+                downloadable: true,
+                publishable: false,
+                originalFile: output,
+                transformations: ["mono_16000hz", `bounded_${Math.min(60, Number(inspection.durationSeconds))}s`]
+            }
+        });
+        audioEvidence = {
+            output: audioOutput,
+            bytes: artifact.bytes,
+            sha256: artifact.sha256,
+            mimeType: "audio/wav",
+            durationSeconds: Math.min(60, Number(inspection.durationSeconds)),
+            transcriptionVerified: false
+        };
+    }
+    return {
+        ok: true,
+        status: "TEMPORAL_MEDIA_PHYSICAL_EVIDENCE_READY",
+        sourceName: String(sourceName || path.basename(target)),
+        mimeType: normalizedMimeType,
+        mediaType: expectedFamily,
+        output: String(output || "").replaceAll("\\", "/"),
+        bytes: stat.size,
+        sha256,
+        extractor: "ffprobe_ffmpeg_local",
+        temporal: {
+            durationSeconds: Number(inspection.durationSeconds),
+            container: inspection.formatName,
+            video: inspection.video,
+            audio: inspection.audio,
+            samples,
+            audioEvidence,
+            semanticVisualAnalysisVerified: false,
+            transcriptionVerified: false
+        },
+        externalApiUsed: false,
+        externalEstimatedCostUsd: 0
+    };
+}
+
 export function validateReelMp4Master(inspection = {}, {
     durationSeconds = 0,
     audioRequired = false
@@ -1051,12 +1468,25 @@ export async function exportReelVideoWithChrome({
             throw new Error("REEL_CDP_PAGE_WS_REQUIRED");
         }
 
-        await sleepMs(1200);
-        const startResult = await evaluateCdpExpression(
-            target.webSocketDebuggerUrl,
-            `(() => { window.__JARVIS_HEADLESS_EXPORT__ = true; const button = document.querySelector('#export'); if (!button) return 'REEL_EXPORT_BUTTON_MISSING'; button.click(); return 'REEL_EXPORT_STARTED'; })()`,
-            12000
-        );
+        const startDeadline = Date.now() + 15000;
+        let startResult = "REEL_EXPORT_BUTTON_MISSING";
+        while (Date.now() < startDeadline && startResult !== "REEL_EXPORT_STARTED") {
+            try {
+                startResult = await evaluateCdpExpression(
+                    target.webSocketDebuggerUrl,
+                    `(() => { const button = document.querySelector('#export'); if (!button) return 'REEL_EXPORT_BUTTON_MISSING'; window.__JARVIS_HEADLESS_EXPORT__ = true; button.click(); return 'REEL_EXPORT_STARTED'; })()`,
+                    3000
+                );
+            }
+            catch(error) {
+                const message = String(error?.message || error || "");
+                if (!/execution context was destroyed|cannot find context|inspected target navigated/i.test(message)) {
+                    throw error;
+                }
+                startResult = "REEL_EXPORT_PAGE_NAVIGATING";
+            }
+            if (startResult !== "REEL_EXPORT_STARTED") await sleepMs(100);
+        }
         if (startResult !== "REEL_EXPORT_STARTED") {
             throw new Error(String(startResult || "REEL_EXPORT_START_FAILED"));
         }
@@ -2421,6 +2851,7 @@ export async function saveGeneratedVideoArtifactFromUrl({
     output = "",
     root = DEFAULT_ROOT,
     fetchImpl = globalThis.fetch,
+    certificateBootstrap = ensureSystemCertificates,
     timeoutMs = 180000
 } = {}) {
     const rawUrl = String(url || "").trim();
@@ -2448,6 +2879,9 @@ export async function saveGeneratedVideoArtifactFromUrl({
     }
     if (typeof fetchImpl !== "function") {
         throw new Error("VIDEO_IMPORT_FETCH_UNAVAILABLE");
+    }
+    if (typeof certificateBootstrap === "function") {
+        certificateBootstrap();
     }
     const response = await fetchImpl(rawUrl, {
         method: "GET",
@@ -4108,11 +4542,13 @@ export async function tiktokOembedVisualSeed(
 
 export function createJarvisFsBridgeApp({
     root = DEFAULT_ROOT,
-    localVideoEngine = null
+    localVideoEngine = null,
+    localSemanticEngine = null
 } = {}) {
     const app =
         express();
     const videoEngine = localVideoEngine || createLocalVideoEngine({ root });
+    const semanticEngine = localSemanticEngine || createSelfHostedSemanticEngine();
 
     let repoGraphCache = null;
     const preparedWrites = new Map();
@@ -4257,6 +4693,55 @@ export function createJarvisFsBridgeApp({
     });
 
     registerNexoWebMediaRoutes(app, { root });
+
+    app.post("/semantic/local/health", (_req, res) => {
+        const health = semanticEngine.describe();
+        return res.status(health.ok === true ? 200 : 503).json(health);
+    });
+
+    app.post("/semantic/plan", async (req, res) => {
+        const health = semanticEngine.describe();
+        if (health.ok !== true) return res.status(503).json(health);
+        try {
+            const result = await semanticEngine.plan(req.body || {});
+            return res.json({
+                ...result,
+                localSemanticInferenceUsed: true,
+                cloudSemanticInferenceUsed: false,
+                fallbackAllowed: health.fallbackAllowed
+            });
+        } catch (error) {
+            return res.status(502).json({
+                ok: false,
+                status: "LOCAL_SEMANTIC_PLAN_FAILED",
+                error: error?.message || String(error),
+                fallbackAllowed: health.fallbackAllowed,
+                inferenceReceipt: semanticEngine.describe()
+            });
+        }
+    });
+
+    app.post("/semantic/respond", async (req, res) => {
+        const health = semanticEngine.describe();
+        if (health.ok !== true) return res.status(503).json(health);
+        try {
+            const result = await semanticEngine.respond(req.body || {});
+            return res.json({
+                ...result,
+                localSemanticInferenceUsed: true,
+                cloudSemanticInferenceUsed: false,
+                fallbackAllowed: health.fallbackAllowed
+            });
+        } catch (error) {
+            return res.status(502).json({
+                ok: false,
+                status: "LOCAL_SEMANTIC_RESPONSE_FAILED",
+                error: error?.message || String(error),
+                fallbackAllowed: health.fallbackAllowed,
+                inferenceReceipt: semanticEngine.describe()
+            });
+        }
+    });
 
     app.post("/observability/snapshot", (req, res) => {
         try {
@@ -6299,12 +6784,20 @@ export function createJarvisFsBridgeApp({
 
     app.post("/artifact/extract", async (req, res) => {
         try {
-            const extracted = await extractJarvisDocumentArtifact({
-                output: req.body?.output,
-                sourceName: req.body?.sourceName,
-                mimeType: req.body?.mimeType,
-                root
-            });
+            const extension = path.extname(String(req.body?.output || "")).toLowerCase();
+            const extracted = TEMPORAL_MEDIA_EXTENSIONS.includes(extension)
+                ? await extractTemporalMediaArtifact({
+                    output: req.body?.output,
+                    sourceName: req.body?.sourceName,
+                    mimeType: req.body?.mimeType,
+                    root
+                })
+                : await extractJarvisDocumentArtifact({
+                    output: req.body?.output,
+                    sourceName: req.body?.sourceName,
+                    mimeType: req.body?.mimeType,
+                    root
+                });
             return res.status(extracted?.ok === true ? 200 : 415).json({
                 ...extracted,
                 bridgeVersion: JARVIS_FS_BRIDGE_VERSION

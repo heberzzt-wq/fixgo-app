@@ -124,4 +124,47 @@ test("media ingestion advertises fail-closed precision capabilities", () => {
     assert.ok(description.capabilities.includes("source_scoped_claim_provenance"));
     assert.ok(description.capabilities.includes("page_coverage_accounting"));
     assert.ok(description.capabilities.includes("fail_closed_full_document_claims"));
+    assert.ok(description.supportedTypes.includes("video/mp4"));
+    assert.ok(description.supportedTypes.includes("audio/wav"));
+    assert.ok(description.capabilities.includes("temporal_semantic_blind_spot_guard"));
+});
+
+test("temporal media preserves physical evidence while semantic vision and transcription fail closed", () => {
+    const record = createMediaIngestionRecord({
+        sourceId: "SOURCE_VIDEO_1",
+        sourceName: "mission.mp4",
+        mimeType: "video/mp4",
+        sha256: "c".repeat(64),
+        temporal: {
+            durationSeconds: 12,
+            container: "mov,mp4",
+            video: { codec: "h264", width: 1080, height: 1920, fps: 30 },
+            audio: { codec: "aac", sampleRate: 48000, channels: 2 },
+            samples: [
+                { timestampSeconds: 0, output: ".jarvis-artifacts/media-evidence/a/frame-001.jpg" },
+                { timestampSeconds: 6, output: ".jarvis-artifacts/media-evidence/a/frame-002.jpg" }
+            ],
+            audioEvidence: { output: ".jarvis-artifacts/media-evidence/a/audio.wav" },
+            semanticVisualAnalysisVerified: false,
+            transcriptionVerified: false
+        }
+    }, authority());
+    const analysis = buildMediaAnalysis(record, {
+        evidence: [{
+            value: "12 seconds",
+            timestampSeconds: 0,
+            confidence: 1,
+            verified: true
+        }]
+    });
+
+    assert.equal(record.mediaType, "video");
+    assert.equal(analysis.analysis.coverage.mediaMetadataVerified, true);
+    assert.equal(analysis.analysis.coverage.sampledFrames, 2);
+    assert.equal(analysis.analysis.coverage.semanticVisualAnalysisVerified, false);
+    assert.equal(analysis.analysis.coverage.transcriptionVerified, false);
+    assert.equal(analysis.analysis.coverage.mayClaimFullTemporalCoverage, false);
+    assert.equal(analysis.policy.mayClaimFullDocumentCoverage, false);
+    assert.equal(analysis.analysis.claimIntegrity.verifiedClaims, 1);
+    assert.equal(analysis.analysis.claimIntegrity.evidence[0].timestampSeconds, 0);
 });

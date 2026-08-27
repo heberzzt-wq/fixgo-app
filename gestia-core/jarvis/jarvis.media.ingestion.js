@@ -5,6 +5,16 @@ const SUPPORTED_TYPES = new Set([
     "image/png",
     "image/jpeg",
     "image/webp",
+    "video/mp4",
+    "video/x-m4v",
+    "video/webm",
+    "video/quicktime",
+    "audio/mpeg",
+    "audio/wav",
+    "audio/x-wav",
+    "audio/mp4",
+    "audio/x-m4a",
+    "audio/webm",
     "text/plain",
     "text/markdown",
     "text/csv",
@@ -49,6 +59,39 @@ function pageHasAnalyzableEvidence(page = {}) {
 }
 
 function buildCoverage(record = {}) {
+    if (record?.mediaType === "video" || record?.mediaType === "audio") {
+        const temporal = record?.extraction?.temporal || {};
+        const samples = Array.isArray(temporal.samples) ? temporal.samples : [];
+        const durationSeconds = Number(temporal.durationSeconds || 0);
+        const semanticVisualAnalysisVerified =
+            record.mediaType === "audio" || temporal.semanticVisualAnalysisVerified === true;
+        const transcriptionVerified =
+            !temporal.audio || temporal.transcriptionVerified === true;
+        const exhaustive =
+            durationSeconds > 0 &&
+            semanticVisualAnalysisVerified &&
+            transcriptionVerified;
+        return {
+            coverageUnit: "timeline",
+            expectedPages: 0,
+            analyzedPages: 0,
+            analyzedPageNumbers: [],
+            unreadablePageNumbers: [],
+            lowConfidencePageNumbers: [],
+            physicalPageCountKnown: false,
+            embeddedImagesRequireVisualAnalysis: false,
+            durationSeconds,
+            sampledTimestamps: samples.map(sample => Number(sample?.timestampSeconds || 0)),
+            sampledFrames: samples.length,
+            mediaMetadataVerified: durationSeconds > 0,
+            semanticVisualAnalysisVerified,
+            transcriptionVerified,
+            exhaustive,
+            mayClaimFullDocumentCoverage: false,
+            mayClaimAllPhysicalPages: false,
+            mayClaimFullTemporalCoverage: exhaustive
+        };
+    }
     const pages = Array.isArray(record?.extraction?.pages)
         ? record.extraction.pages
         : [];
@@ -118,6 +161,13 @@ function normalizeClaimProvenance(item, index, record = {}, type = "evidence") {
             ? pages[0]?.pageNumber || 1
             : null;
     const pageExists = pageNumber != null && pages.some(page => page.pageNumber === pageNumber);
+    const timestampSeconds = structured && Number.isFinite(Number(item.timestampSeconds))
+        ? Number(item.timestampSeconds)
+        : null;
+    const temporalLocatorExists =
+        timestampSeconds != null &&
+        timestampSeconds >= 0 &&
+        timestampSeconds <= Number(record?.extraction?.temporal?.durationSeconds || 0);
     const locator = structured
         ? item.region || item.locator || item.boundingBox || item.evidence || null
         : null;
@@ -129,7 +179,7 @@ function normalizeClaimProvenance(item, index, record = {}, type = "evidence") {
         item.verified === true ||
         String(item.legibility || "").toUpperCase() === "VERIFIED"
     );
-    const sourceScoped = Boolean(sourceId && pageExists);
+    const sourceScoped = Boolean(sourceId && (pageExists || temporalLocatorExists));
 
     return {
         id: `${sourceId || "SOURCE"}:${type}:${index + 1}`,
@@ -139,6 +189,7 @@ function normalizeClaimProvenance(item, index, record = {}, type = "evidence") {
         sourceName,
         sha256: record?.trace?.sha256 || "",
         pageNumber,
+        timestampSeconds,
         locator,
         confidence: itemConfidence,
         structured,
@@ -189,7 +240,11 @@ export function createMediaIngestionRecord(input = {}, authority = {}) {
         ? "pdf"
         : mimeType.startsWith("image/")
             ? "image"
-            : "document";
+            : mimeType.startsWith("video/")
+                ? "video"
+                : mimeType.startsWith("audio/")
+                    ? "audio"
+                    : "document";
     const sha256 = /^[a-f0-9]{64}$/i.test(clean(input.sha256))
         ? clean(input.sha256).toLowerCase()
         : "";
@@ -212,6 +267,25 @@ export function createMediaIngestionRecord(input = {}, authority = {}) {
         mediaType,
         extraction: {
             pages,
+            temporal: mediaType === "video" || mediaType === "audio"
+                ? {
+                    durationSeconds: Number(input?.temporal?.durationSeconds || 0),
+                    container: clean(input?.temporal?.container),
+                    video: input?.temporal?.video || null,
+                    audio: input?.temporal?.audio || null,
+                    samples: Array.isArray(input?.temporal?.samples)
+                        ? input.temporal.samples
+                        : [],
+                    audioEvidence: input?.temporal?.audioEvidence || null,
+                    transcript: Array.isArray(input?.temporal?.transcript)
+                        ? input.temporal.transcript
+                        : [],
+                    semanticVisualAnalysisVerified:
+                        input?.temporal?.semanticVisualAnalysisVerified === true,
+                    transcriptionVerified:
+                        input?.temporal?.transcriptionVerified === true
+                }
+                : null,
             fullText: pages.map(page => page.text).filter(Boolean).join("\n\n"),
             tables: pages.flatMap(page => page.tables),
             images: pages.flatMap(page => page.images),
@@ -285,6 +359,7 @@ export function buildMediaAnalysis(record, input = {}) {
             tables: record.extraction.tables,
             images: record.extraction.images,
             regions: record.extraction.regions || [],
+            temporal: record.extraction.temporal || null,
             summary: clean(input.summary, record.context.summary),
             findings,
             evidence,
@@ -319,6 +394,10 @@ export function describeMediaIngestion() {
         capabilities: [
             "pdf_text_structure",
             "image_context_structure",
+            "video_timeline_physical_evidence",
+            "audio_track_physical_evidence",
+            "temporal_semantic_blind_spot_guard",
+            "transcription_blind_spot_guard",
             "table_and_image_evidence",
             "source_traceability",
             "source_scoped_claim_provenance",

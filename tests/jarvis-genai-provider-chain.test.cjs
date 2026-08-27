@@ -7,6 +7,7 @@ const {
     compactProviderInputSchema,
     createJarvisGenAIProviderChain,
     isGroundingRedirectUrl,
+    isPermanentProviderFailure,
     normalizeProviders,
     requestNeedsFreshness,
     resolveGroundingRedirectUrl,
@@ -104,6 +105,35 @@ test("provider chain quarantines a permanently invalid credential after first fa
 
     assert.deepEqual(calls, ["developer", "vertex", "vertex"]);
     assert.equal(chain.disabledProviders.developer, "INVALID_CREDENTIAL");
+});
+
+test("provider chain classifies Vertex billing dunning as permanent and does not retry it", async () => {
+    let attempts = 0;
+    const dunningError = new Error(
+        "403 PERMISSION_DENIED: Lightning dunning decision is deny for project: projects/1005526685116"
+    );
+    const chain = createJarvisGenAIProviderChain({
+        providers: [{
+            name: "vertex-adc",
+            ai: {
+                models: {
+                    generateContent: async () => {
+                        attempts += 1;
+                        throw dunningError;
+                    }
+                }
+            }
+        }]
+    });
+
+    assert.equal(isPermanentProviderFailure(dunningError), true);
+    await assert.rejects(
+        () => chain.models.generateContent({ contents: "billing blocked" }),
+        /JARVIS_GENAI_PROVIDER_CHAIN_FAILED/
+    );
+
+    assert.equal(attempts, 1);
+    assert.equal(chain.disabledProviders["vertex-adc"], "BILLING_DUNNING");
 });
 
 test("provider chain retries a transient provider failure once", async () => {
