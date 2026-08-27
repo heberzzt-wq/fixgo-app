@@ -1069,6 +1069,7 @@ export function createLocalVideoEngine({
     inspectVideo = null,
     launch = null,
     release = null,
+    prepareReferenceSheet = prepareVideoReferenceSheet,
     now = () => new Date()
 } = {}) {
     const resolvedRoot = path.resolve(root);
@@ -1357,7 +1358,7 @@ export function createLocalVideoEngine({
         let referencePreparation = null;
         if (references.length > Number(model.maximumReferenceAssets || 0)) {
             try {
-                const sheet = prepareVideoReferenceSheet(
+                const sheet = prepareReferenceSheet(
                     resolvedRoot,
                     references,
                     currentHealth.ffmpeg || resolveLocalExecutable(

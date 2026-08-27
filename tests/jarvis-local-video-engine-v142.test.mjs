@@ -1036,6 +1036,24 @@ test("simulated remote Wan receives three physical assets, returns a verified MP
     });
     const releases = [];
     let receivedJob = null;
+    const prepareReferenceSheet = (sheetRoot, references) => {
+        const identity = createHash("sha256")
+            .update(references.map(reference => reference.output).join("\n"))
+            .digest("hex")
+            .slice(0, 24);
+        const output = `.jarvis-artifacts/video-references/identity-sheet-${identity}.png`;
+        const file = path.resolve(sheetRoot, output);
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, Buffer.concat(references.map(reference => fs.readFileSync(reference.file))));
+        const bytes = fs.statSync(file).size;
+        const sha256 = createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+        return {
+            output,
+            file,
+            artifact: { bytes, sha256 },
+            sourceReferenceCount: references.length
+        };
+    };
     const engine = createLocalVideoEngine({
         root,
         env: {
@@ -1065,6 +1083,7 @@ test("simulated remote Wan receives three physical assets, returns a verified MP
             releases.push(receipt);
             return { ok: true, status: "REMOTE_VIDEO_WORKER_RELEASED", receiptId: "lease-closed-1" };
         },
+        prepareReferenceSheet,
         inspectVideo: () => ({ durationSeconds: 8, fps: 24, width: 704, height: 1280 })
     });
 
@@ -1091,6 +1110,51 @@ test("simulated remote Wan receives three physical assets, returns a verified MP
     assert.equal(releases[0].reason, "generation_succeeded");
     assert.equal(fs.existsSync(path.join(root, completed.output)), true);
     assert.match(completed.sha256, /^[a-f0-9]{64}$/);
+});
+
+test("reference-sheet preparation still fails closed when the production FFmpeg binary is unavailable", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-reference-sheet-no-ffmpeg-"));
+    const runner = path.join(root, "runner.py");
+    const model = path.join(root, "wan-model");
+    fs.writeFileSync(runner, "# controlled runner\n");
+    fs.mkdirSync(model, { recursive: true });
+    const referenceOutputs = [1, 2, 3].map(index => {
+        const output = `.jarvis-artifacts/images/no-ffmpeg-${index}.png`;
+        const target = path.join(root, output);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.writeFileSync(target, `P3\n1 1\n255\n${index * 40} 60 120\n`);
+        return output;
+    });
+    const engine = createLocalVideoEngine({
+        root,
+        env: {
+            JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_TEST",
+            JARVIS_LOCAL_VIDEO_ENABLED: "true",
+            JARVIS_LOCAL_VIDEO_EXECUTION_TARGET: "remote",
+            JARVIS_LOCAL_VIDEO_RUNNER: process.execPath,
+            JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT: runner,
+            JARVIS_LOCAL_VIDEO_MODEL_DIR: model,
+            PATH: "",
+            PATHEXT: process.env.PATHEXT
+        },
+        inspectHardware: healthyCapability,
+        launch() {
+            assert.fail("worker must not launch without a verified reference sheet");
+        },
+        release: async () => ({ ok: true })
+    });
+
+    const started = await engine.start({
+        script: "Use all identity references.",
+        prompts: ["One controlled scene."],
+        referenceOutputs,
+        output: ".jarvis-artifacts/videos/no-ffmpeg.mp4"
+    });
+
+    assert.equal(started.ok, false);
+    assert.equal(started.status, "LOCAL_VIDEO_REFERENCE_SHEET_FFMPEG_REQUIRED");
+    assert.equal(started.retryable, false);
+    assert.equal(started.externalApiUsed, false);
 });
 
 test("simulated remote Wan releases the worker when generation fails", async () => {
