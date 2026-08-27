@@ -1,9 +1,6 @@
 name: v139 focal failure diagnostic
 
 on:
-  push:
-    branches:
-      - v94-media-v4n-negative-claims
   workflow_dispatch:
 
 permissions:
