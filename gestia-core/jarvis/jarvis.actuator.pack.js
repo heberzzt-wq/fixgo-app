@@ -986,6 +986,7 @@ export function registerJarvisActuatorTools(runtime) {
             inputSchema: {
                 seriesId: "string", characterId: "string", displayName: "string",
                 assignmentConfirmed: "boolean", referenceAssets: "array<{sourceOutput,mimeType,bytes,sha256,approvedForVeo}>",
+                referenceAssetsPending: "boolean",
                 role: "string", visualDescription: "string", wardrobeState: "object|string",
                 voiceProfile: "object", relationships: "object", knownFacts: "array",
                 secretsNotKnown: "array", recurringProps: "array", active: "boolean"
@@ -1009,11 +1010,13 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "series.episode.accept",
-            description: "Acepta humanamente un MP4 ya generado y solo entonces avanza el numero y el canon del episodio.",
+            description: "Acepta humanamente el lock narrativo de preproduccion o, en la etapa de produccion, un MP4 ya generado. Ambos estados permanecen separados dentro del canon durable.",
             output: "SERIES_EPISODE_ACCEPT_RESULT",
             inputSchema: {
-                seriesId: "string", episodeId: "string", humanAccepted: "boolean",
-                continuityEnd: "object", cliffhanger: "string", canonFacts: "array"
+                seriesId: "string", episodeId: "string", humanAccepted: "boolean", acceptanceStage: "PREPRODUCTION|PRODUCTION",
+                continuityEnd: "object", hook: "string", conflict: "string", progression: "string",
+                revelationsAllowed: "array", revealRestrictions: "array", durableProps: "array",
+                cliffhanger: "string", nextEpisodeOpeningObligation: "string", canonFacts: "array"
             },
             mutates: true,
             requiresApproval: true,
@@ -1073,7 +1076,9 @@ export function registerJarvisActuatorTools(runtime) {
                 if (seriesRequested) {
                     seriesContext = await bridgeRequest("/series/episode/generation-context", {
                         seriesId,
-                        episodeId
+                        episodeId,
+                        referenceSelectionPolicy: "ACTIVE_CAST_COVERAGE",
+                        maximumReferenceImages: VIDEO_REFERENCE_MAX_COUNT
                     });
                     if (seriesContext?.ok !== true) {
                         return {

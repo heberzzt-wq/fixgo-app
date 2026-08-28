@@ -5,6 +5,8 @@ import { createHash, randomUUID } from "node:crypto";
 export const JARVIS_ARTIFACT_STUDIO_VERSION = "1.0.0-versioned-ledger";
 export const JARVIS_SERIES_CANON_VERSION = "1.0.0-v142-artifact-studio-series-canon";
 const SERIES_REFERENCE_MAX_COUNT = 3;
+const SERIES_COMMERCIAL_CLEARANCE_STATUS =
+    "PUBLIC_SEARCH_PASS_FORMAL_REGISTRATION_PENDING";
 const SERIES_CHARACTER_STATE_FIELDS = [
     "wardrobeState",
     "physicalState",
@@ -266,12 +268,15 @@ function verifySeriesReferenceArtifact(root, value = {}) {
     };
 }
 
-function activeCastReferences(root, canon, castIds = []) {
+function activeCastReferences(root, canon, castIds = [], { requireGenerationReady = false } = {}) {
     const references = [];
     for (const characterId of castIds) {
         const character = canon.characters?.[characterId];
         if (!character) throw new Error(`SERIES_CHARACTER_NOT_FOUND:${characterId}`);
         if (character.active !== true) throw new Error(`SERIES_CHARACTER_INACTIVE:${characterId}`);
+        if (requireGenerationReady && character.referenceAssetsPending === true) {
+            throw new Error(`SERIES_CHARACTER_REFERENCE_ASSETS_PENDING:${characterId}`);
+        }
         for (const reference of character.referenceAssets || []) {
             if (reference.approvedForVeo !== true) continue;
             references.push({
@@ -286,12 +291,38 @@ function activeCastReferences(root, canon, castIds = []) {
             candidate.sha256 === item.sha256
         ) === index
     );
-    if (deduplicated.length > SERIES_REFERENCE_MAX_COUNT) {
+    if (requireGenerationReady && deduplicated.length > SERIES_REFERENCE_MAX_COUNT) {
         throw new Error(
             `SERIES_VEO_REFERENCE_LIMIT_EXCEEDED:${deduplicated.length}:${SERIES_REFERENCE_MAX_COUNT}`
         );
     }
     return deduplicated;
+}
+
+function selectActiveCastCoverageReferences(references, castIds, maximum) {
+    if (references.length <= maximum) return references;
+    const characterIds = castIds.filter((characterId, index, values) =>
+        values.indexOf(characterId) === index &&
+        references.some(reference => reference.characterId === characterId)
+    );
+    if (characterIds.length > maximum) {
+        throw new Error(
+            `SERIES_REFERENCE_CAST_COVERAGE_EXCEEDED:${characterIds.length}:${maximum}`
+        );
+    }
+    const selected = characterIds
+        .map(characterId => references.find(reference => reference.characterId === characterId))
+        .filter(Boolean);
+    for (const reference of references) {
+        if (selected.length >= maximum) break;
+        if (!selected.some(candidate =>
+            candidate.characterId === reference.characterId &&
+            candidate.sha256 === reference.sha256
+        )) {
+            selected.push(reference);
+        }
+    }
+    return selected;
 }
 
 function episodeById(canon, episodeId) {
@@ -345,6 +376,62 @@ function normalizeStoryBeats(value) {
     });
 }
 
+function normalizeNarrativeLock({
+    hook,
+    conflict,
+    progression,
+    revelationsAllowed,
+    revealRestrictions,
+    durableProps,
+    cliffhanger,
+    nextEpisodeOpeningObligation
+} = {}) {
+    const normalized = {
+        status: "HUMAN_ACCEPTED_PREPRODUCTION",
+        hook: boundedClean(hook, 10000),
+        conflict: boundedClean(conflict, 20000),
+        progression: boundedClean(progression, 30000),
+        revelationsAllowed: cleanStringList(revelationsAllowed, 500),
+        revealRestrictions: cleanStringList(revealRestrictions, 500),
+        durableProps: cleanStringList(durableProps, 500),
+        cliffhanger: boundedClean(cliffhanger, 10000),
+        nextEpisodeOpeningObligation: boundedClean(nextEpisodeOpeningObligation, 10000)
+    };
+    for (const [field, value] of Object.entries({
+        hook: normalized.hook,
+        conflict: normalized.conflict,
+        progression: normalized.progression,
+        cliffhanger: normalized.cliffhanger,
+        nextEpisodeOpeningObligation: normalized.nextEpisodeOpeningObligation
+    })) {
+        if (!value) throw new Error(`SERIES_PREPRODUCTION_${field.replaceAll(/[A-Z]/g, match => `_${match}`).toUpperCase()}_REQUIRED`);
+    }
+    for (const [field, value] of Object.entries({
+        revelationsAllowed: normalized.revelationsAllowed,
+        revealRestrictions: normalized.revealRestrictions,
+        durableProps: normalized.durableProps
+    })) {
+        if (value.length === 0) {
+            throw new Error(`SERIES_PREPRODUCTION_${field.replaceAll(/[A-Z]/g, match => `_${match}`).toUpperCase()}_REQUIRED`);
+        }
+    }
+    return normalized;
+}
+
+function assertNarrativeRevelationConsistency(narrativeLock, storyBeats = []) {
+    const restricted = new Set(narrativeLock?.revealRestrictions || []);
+    const disclosed = [
+        ...(narrativeLock?.revelationsAllowed || []),
+        ...(Array.isArray(storyBeats) ? storyBeats : [])
+            .flatMap(beat => cleanStringList(beat?.revelations))
+    ];
+    for (const fact of disclosed) {
+        if (restricted.has(fact)) {
+            throw new Error(`SERIES_PREPRODUCTION_REVELATION_CONFLICT:${fact}`);
+        }
+    }
+}
+
 export function createSeriesBible({
     root,
     seriesId,
@@ -369,8 +456,13 @@ export function createSeriesBible({
         characters: {},
         episodes: [],
         continuityState: {},
+        lockedContinuityState: {},
         cliffhanger: "",
+        lockedCliffhanger: "",
         canonFacts: [],
+        lockedCanonFacts: [],
+        currentLockedEpisodeNumber: null,
+        lastLockedEpisodeNumber: null,
         revision: 0,
         createdAt: now,
         updatedAt: now,
@@ -395,6 +487,45 @@ export function getSeriesBible({ root, seriesId } = {}) {
     return clone(readSeriesCanon(root, seriesId).canon);
 }
 
+export function updateSeriesCommercialIdentity({
+    root,
+    seriesId,
+    commercialTitle,
+    clearanceStatus
+} = {}) {
+    const loaded = readSeriesCanon(root, seriesId);
+    const canon = loaded.canon;
+    const normalizedCommercialTitle = clean(commercialTitle).slice(0, 300);
+    if (!normalizedCommercialTitle) {
+        throw new Error("SERIES_COMMERCIAL_TITLE_REQUIRED");
+    }
+    if (/(?:®|M\s*\.?\s*R\s*\.?)/iu.test(normalizedCommercialTitle)) {
+        throw new Error("SERIES_COMMERCIAL_TITLE_REGISTRATION_CLAIM_FORBIDDEN");
+    }
+    const normalizedClearanceStatus = clean(clearanceStatus).toUpperCase();
+    if (normalizedClearanceStatus !== SERIES_COMMERCIAL_CLEARANCE_STATUS) {
+        throw new Error("SERIES_COMMERCIAL_CLEARANCE_STATUS_UNSUPPORTED");
+    }
+
+    canon.commercialTitle = normalizedCommercialTitle;
+    canon.clearanceStatus = normalizedClearanceStatus;
+    canon.productionBrandingPolicy = {
+        generativeFootageTitleBurnInAllowed: false,
+        brandingAssemblyStage: "POST_GENERATION_MASTERING",
+        formalRegistrationPending: true,
+        registrationClaimAllowed: false,
+        footageRegenerationRequiredForBrandingChange: false
+    };
+    const saved = writeSeriesCanon(root, canon, "series.commercial-identity.update");
+    return {
+        ok: true,
+        status: "SERIES_COMMERCIAL_IDENTITY_PERSISTED_VERIFIED",
+        seriesId: canon.seriesId,
+        canon: clone(saved.canon),
+        artifact: saved.artifact
+    };
+}
+
 export function upsertSeriesCharacter({
     root,
     seriesId,
@@ -410,6 +541,7 @@ export function upsertSeriesCharacter({
     knownFacts = [],
     secretsNotKnown = [],
     recurringProps = [],
+    referenceAssetsPending = false,
     active = true
 } = {}) {
     if (assignmentConfirmed !== true) {
@@ -420,7 +552,10 @@ export function upsertSeriesCharacter({
     const id = cleanIdentifier(characterId, "SERIES_CHARACTER_ID");
     const name = clean(displayName).slice(0, 300);
     if (!name) throw new Error("SERIES_CHARACTER_DISPLAY_NAME_REQUIRED");
-    if (!Array.isArray(referenceAssets) || referenceAssets.length === 0) {
+    if (!Array.isArray(referenceAssets)) {
+        throw new Error("SERIES_CHARACTER_REFERENCE_ASSETS_REQUIRED");
+    }
+    if (referenceAssets.length === 0 && referenceAssetsPending !== true) {
         throw new Error("SERIES_CHARACTER_REFERENCE_ASSETS_REQUIRED");
     }
     const verifiedReferences = referenceAssets
@@ -436,6 +571,7 @@ export function upsertSeriesCharacter({
         displayName: name,
         role: clean(role).slice(0, 1000),
         referenceAssets: verifiedReferences,
+        referenceAssetsPending: verifiedReferences.length === 0,
         visualDescription: clean(visualDescription).slice(0, 5000),
         wardrobeState: clone(wardrobeState),
         voiceProfile: voiceProfile && typeof voiceProfile === "object"
@@ -478,19 +614,23 @@ export function prepareSeriesEpisode({
 } = {}) {
     const loaded = readSeriesCanon(root, seriesId);
     const canon = loaded.canon;
-    const lastCompleted = Number.isInteger(canon.lastCompletedEpisodeNumber)
-        ? canon.lastCompletedEpisodeNumber
+    const acceptedEpisodeNumbers = [
+        canon.lastCompletedEpisodeNumber,
+        canon.lastLockedEpisodeNumber
+    ].filter(Number.isInteger);
+    const lastAccepted = acceptedEpisodeNumbers.length > 0
+        ? Math.max(...acceptedEpisodeNumbers)
         : null;
     const requested = Number(episodeNumber);
     let resolvedNumber;
-    if (lastCompleted === null) {
+    if (lastAccepted === null) {
         if (!Number.isInteger(requested) || requested < 1) {
             throw new Error("SERIES_FIRST_EPISODE_NUMBER_REQUIRED");
         }
         resolvedNumber = requested;
     }
     else {
-        resolvedNumber = lastCompleted + 1;
+        resolvedNumber = lastAccepted + 1;
         if (episodeNumber !== null && episodeNumber !== undefined && requested !== resolvedNumber) {
             throw new Error(`SERIES_EPISODE_NUMBER_MISMATCH:${requested}:${resolvedNumber}`);
         }
@@ -506,9 +646,13 @@ export function prepareSeriesEpisode({
         .map(value => cleanIdentifier(value, "SERIES_CHARACTER_ID")))];
     if (normalizedCastIds.length === 0) throw new Error("SERIES_EPISODE_CAST_REQUIRED");
     activeCastReferences(root, canon, normalizedCastIds);
+    const inheritedContinuity = Number.isInteger(canon.lastLockedEpisodeNumber) &&
+        (!Number.isInteger(canon.lastCompletedEpisodeNumber) || canon.lastLockedEpisodeNumber >= canon.lastCompletedEpisodeNumber)
+        ? canon.lockedContinuityState
+        : canon.continuityState;
     const initialState = continuityStart && typeof continuityStart === "object"
         ? clone(continuityStart)
-        : clone(canon.continuityState || {});
+        : clone(inheritedContinuity || {});
     assertKnownFacts(canon, initialState);
     const normalizedBeats = normalizeStoryBeats(storyBeats);
     let rollingState = clone(initialState);
@@ -519,7 +663,7 @@ export function prepareSeriesEpisode({
         beat.finalState = clone(rollingState);
     });
     const previousEpisode = [...(canon.episodes || [])]
-        .filter(item => item?.status === "HUMAN_ACCEPTED")
+        .filter(item => item?.status === "HUMAN_ACCEPTED" || item?.narrativeLock?.status === "HUMAN_ACCEPTED_PREPRODUCTION")
         .sort((a, b) => Number(b.episodeNumber) - Number(a.episodeNumber))[0] || null;
     const id = episodeId
         ? cleanIdentifier(episodeId, "SERIES_EPISODE_ID", 160)
@@ -537,6 +681,10 @@ export function prepareSeriesEpisode({
         scriptSha256: createHash("sha256").update(normalizedScript).digest("hex"),
         status: "READY",
         previousEpisodeId: previousEpisode?.episodeId || null,
+        openingObligation: boundedClean(
+            previousEpisode?.narrativeLock?.nextEpisodeOpeningObligation,
+            10000
+        ),
         castIds: normalizedCastIds,
         storyBeats: normalizedBeats,
         continuityStart: initialState,
@@ -546,6 +694,8 @@ export function prepareSeriesEpisode({
         generatedResult: null,
         continuityEnd: null,
         cliffhanger: "",
+        narrativeLock: null,
+        lockedContinuityEnd: null,
         physicalArtifact: null,
         artifactSha256: null,
         createdAt: now,
@@ -564,14 +714,49 @@ export function prepareSeriesEpisode({
     };
 }
 
-export function getSeriesGenerationContext({ root, seriesId, episodeId } = {}) {
+export function getSeriesGenerationContext({
+    root,
+    seriesId,
+    episodeId,
+    referenceSelectionPolicy = "",
+    maximumReferenceImages = SERIES_REFERENCE_MAX_COUNT
+} = {}) {
     const canon = readSeriesCanon(root, seriesId).canon;
     const episode = episodeById(canon, episodeId);
-    if (!new Set(["READY", "GENERATING"]).has(episode.status)) {
+    if (!new Set(["READY", "PREPRODUCTION_ACCEPTED", "GENERATING"]).has(episode.status)) {
         throw new Error(`SERIES_EPISODE_NOT_GENERATABLE:${episode.status}`);
     }
     assertKnownFacts(canon, episode.continuityStart || {});
-    const references = activeCastReferences(root, canon, episode.castIds || []);
+    const availableReferences = activeCastReferences(
+        root,
+        canon,
+        episode.castIds || [],
+        { requireGenerationReady: false }
+    );
+    for (const characterId of episode.castIds || []) {
+        const character = canon.characters?.[characterId];
+        if (character?.referenceAssetsPending === true) {
+            throw new Error(`SERIES_CHARACTER_REFERENCE_ASSETS_PENDING:${characterId}`);
+        }
+    }
+    const normalizedMaximum = Number(maximumReferenceImages);
+    const allowCoverageSelection =
+        referenceSelectionPolicy === "ACTIVE_CAST_COVERAGE" &&
+        Number.isInteger(normalizedMaximum) &&
+        normalizedMaximum > 0 &&
+        normalizedMaximum <= SERIES_REFERENCE_MAX_COUNT;
+    if (availableReferences.length > SERIES_REFERENCE_MAX_COUNT && !allowCoverageSelection) {
+        throw new Error(
+            `SERIES_VEO_REFERENCE_LIMIT_EXCEEDED:${availableReferences.length}:${SERIES_REFERENCE_MAX_COUNT}`
+        );
+    }
+    const references = allowCoverageSelection
+        ? selectActiveCastCoverageReferences(
+            availableReferences,
+            episode.castIds || [],
+            normalizedMaximum
+        )
+        : availableReferences;
     return {
         ok: true,
         status: "SERIES_EPISODE_GENERATION_CONTEXT_VERIFIED",
@@ -584,8 +769,20 @@ export function getSeriesGenerationContext({ root, seriesId, episodeId } = {}) {
         castIds: clone(episode.castIds),
         storyBeats: clone(episode.storyBeats),
         continuityStart: clone(episode.continuityStart),
+        openingObligation: clean(episode.openingObligation),
+        narrativeLock: clone(episode.narrativeLock),
+        lockedContinuityEnd: clone(episode.lockedContinuityEnd),
+        revealRestrictions: clone(episode.narrativeLock?.revealRestrictions || []),
+        durableProps: clone(episode.narrativeLock?.durableProps || []),
+        nextEpisodeOpeningObligation: clean(episode.narrativeLock?.nextEpisodeOpeningObligation),
         referenceAssets: references,
         referenceOutputs: references.map(item => item.sourceOutput),
+        referenceSelection: {
+            policy: allowCoverageSelection ? "ACTIVE_CAST_COVERAGE" : "ALL_VERIFIED_WITHIN_LIMIT",
+            availableCount: availableReferences.length,
+            selectedCount: references.length,
+            selectedCharacterIds: [...new Set(references.map(item => item.characterId))]
+        },
         cliffhangerPrevious: clean(canon.cliffhanger),
         canonRevision: canon.revision,
         policy: {
@@ -637,7 +834,7 @@ export function markSeriesEpisodeGenerated({
     const loaded = readSeriesCanon(root, seriesId);
     const canon = loaded.canon;
     const episode = episodeById(canon, episodeId);
-    if (!new Set(["READY", "GENERATING"]).has(episode.status)) {
+    if (!new Set(["READY", "PREPRODUCTION_ACCEPTED", "GENERATING"]).has(episode.status)) {
         throw new Error(`SERIES_EPISODE_GENERATED_TRANSITION_INVALID:${episode.status}`);
     }
     const physical = verifyGeneratedEpisodeArtifact(root, physicalArtifact, artifactSha256);
@@ -685,8 +882,16 @@ export function acceptSeriesEpisode({
     seriesId,
     episodeId,
     humanAccepted = false,
+    acceptanceStage = "PRODUCTION",
     continuityEnd,
+    hook = "",
+    conflict = "",
+    progression = "",
+    revelationsAllowed = [],
+    revealRestrictions = [],
+    durableProps = [],
     cliffhanger = "",
+    nextEpisodeOpeningObligation = "",
     canonFacts = []
 } = {}) {
     if (humanAccepted !== true) throw new Error("SERIES_EPISODE_HUMAN_ACCEPTANCE_REQUIRED");
@@ -696,6 +901,57 @@ export function acceptSeriesEpisode({
     const loaded = readSeriesCanon(root, seriesId);
     const canon = loaded.canon;
     const episode = episodeById(canon, episodeId);
+    const normalizedStage = clean(acceptanceStage).toUpperCase() || "PRODUCTION";
+    if (normalizedStage === "PREPRODUCTION") {
+        if (episode.status !== "READY") {
+            throw new Error(`SERIES_EPISODE_PREPRODUCTION_TRANSITION_INVALID:${episode.status}`);
+        }
+        const acceptedStateForValidation = clone(continuityEnd);
+        assertKnownFacts(canon, acceptedStateForValidation);
+        const acceptedContinuity = mergeContinuity(episode.continuityStart || {}, continuityEnd);
+        const narrativeLock = normalizeNarrativeLock({
+            hook,
+            conflict,
+            progression,
+            revelationsAllowed,
+            revealRestrictions,
+            durableProps,
+            cliffhanger,
+            nextEpisodeOpeningObligation
+        });
+        assertNarrativeRevelationConsistency(narrativeLock, episode.storyBeats);
+        narrativeLock.acceptedAt = new Date().toISOString();
+        episode.status = "PREPRODUCTION_ACCEPTED";
+        episode.lockedContinuityEnd = clone(acceptedContinuity);
+        episode.narrativeLock = clone(narrativeLock);
+        episode.cliffhanger = narrativeLock.cliffhanger;
+        episode.acceptedCanonFacts = cleanStringList(canonFacts, 500);
+        episode.preproductionAcceptedAt = narrativeLock.acceptedAt;
+        canon.currentLockedEpisodeNumber = episode.episodeNumber;
+        canon.lastLockedEpisodeNumber = episode.episodeNumber;
+        canon.lockedContinuityState = clone(acceptedContinuity);
+        canon.lockedCliffhanger = narrativeLock.cliffhanger;
+        canon.lockedCanonFacts = cleanStringList([
+            ...(canon.lockedCanonFacts || []),
+            ...episode.acceptedCanonFacts
+        ], 2000);
+        applyAcceptedCharacterContinuity(canon, acceptedContinuity);
+        const saved = writeSeriesCanon(root, canon, "series.episode.accept.preproduction");
+        return {
+            ok: true,
+            status: "SERIES_EPISODE_PREPRODUCTION_ACCEPTED",
+            seriesId: canon.seriesId,
+            episodeId: episode.episodeId,
+            currentLockedEpisodeNumber: canon.currentLockedEpisodeNumber,
+            lastLockedEpisodeNumber: canon.lastLockedEpisodeNumber,
+            episode: clone(episode),
+            canonRevision: saved.canon.revision,
+            artifact: saved.artifact
+        };
+    }
+    if (normalizedStage !== "PRODUCTION") {
+        throw new Error("SERIES_EPISODE_ACCEPTANCE_STAGE_INVALID");
+    }
     if (episode.status !== "GENERATED") {
         throw new Error(`SERIES_EPISODE_ACCEPT_TRANSITION_INVALID:${episode.status}`);
     }
@@ -718,13 +974,31 @@ export function acceptSeriesEpisode({
     episode.completedAt = new Date().toISOString();
     canon.currentEpisodeNumber = episode.episodeNumber;
     canon.lastCompletedEpisodeNumber = episode.episodeNumber;
+    const advancesNarrativeLock = !Number.isInteger(canon.lastLockedEpisodeNumber) ||
+        episode.episodeNumber >= canon.lastLockedEpisodeNumber;
+    canon.currentLockedEpisodeNumber = Math.max(
+        Number(canon.currentLockedEpisodeNumber) || 0,
+        episode.episodeNumber
+    );
+    canon.lastLockedEpisodeNumber = Math.max(
+        Number(canon.lastLockedEpisodeNumber) || 0,
+        episode.episodeNumber
+    );
     canon.continuityState = clone(acceptedContinuity);
     canon.cliffhanger = episode.cliffhanger;
     canon.canonFacts = cleanStringList([
         ...(canon.canonFacts || []),
         ...episode.acceptedCanonFacts
     ], 2000);
-    applyAcceptedCharacterContinuity(canon, acceptedContinuity);
+    if (advancesNarrativeLock) {
+        canon.lockedContinuityState = clone(acceptedContinuity);
+        canon.lockedCliffhanger = episode.cliffhanger;
+        canon.lockedCanonFacts = cleanStringList([
+            ...(canon.lockedCanonFacts || []),
+            ...episode.acceptedCanonFacts
+        ], 2000);
+        applyAcceptedCharacterContinuity(canon, acceptedContinuity);
+    }
     const saved = writeSeriesCanon(root, canon, "series.episode.accept");
     return {
         ok: true,
@@ -742,17 +1016,28 @@ export function acceptSeriesEpisode({
 export function getSeriesResumeContext({ root, seriesId } = {}) {
     const canon = readSeriesCanon(root, seriesId).canon;
     const lastEpisode = [...(canon.episodes || [])]
-        .filter(item => item?.status === "HUMAN_ACCEPTED")
+        .filter(item => item?.status === "HUMAN_ACCEPTED" || item?.narrativeLock?.status === "HUMAN_ACCEPTED_PREPRODUCTION")
         .sort((a, b) => Number(b.episodeNumber) - Number(a.episodeNumber))[0] || null;
+    const lastLockedEpisodeNumber = Number.isInteger(canon.lastLockedEpisodeNumber)
+        ? canon.lastLockedEpisodeNumber
+        : canon.lastCompletedEpisodeNumber;
+    const lockedContinuityState = canon.lockedContinuityState || canon.continuityState || {};
+    const narrativeLock = clone(lastEpisode?.narrativeLock || null);
     return {
         ok: true,
         status: "SERIES_RESUME_CONTEXT_VERIFIED",
         seriesId: canon.seriesId,
         title: canon.title,
+        commercialTitle: clean(canon.commercialTitle) || null,
+        displayTitle: clean(canon.commercialTitle) || canon.title,
+        clearanceStatus: clean(canon.clearanceStatus) || null,
+        productionBrandingPolicy: clone(canon.productionBrandingPolicy || null),
         currentEpisodeNumber: canon.currentEpisodeNumber,
         lastCompletedEpisodeNumber: canon.lastCompletedEpisodeNumber,
-        nextEpisodeNumber: Number.isInteger(canon.lastCompletedEpisodeNumber)
-            ? canon.lastCompletedEpisodeNumber + 1
+        currentLockedEpisodeNumber: canon.currentLockedEpisodeNumber ?? canon.currentEpisodeNumber,
+        lastLockedEpisodeNumber,
+        nextEpisodeNumber: Number.isInteger(lastLockedEpisodeNumber)
+            ? lastLockedEpisodeNumber + 1
             : null,
         lastEpisode: clone(lastEpisode),
         activeCharacters: Object.values(canon.characters || {})
@@ -760,15 +1045,26 @@ export function getSeriesResumeContext({ root, seriesId } = {}) {
             .map(character => ({
                 characterId: character.characterId,
                 displayName: character.displayName,
+                role: character.role,
+                visualDescription: character.visualDescription,
                 referenceAssets: clone(character.referenceAssets),
+                referenceAssetsPending: character.referenceAssetsPending === true,
                 wardrobeState: clone(character.wardrobeState),
+                physicalState: clone(character.physicalState),
+                positionNarrative: clone(character.positionNarrative),
                 recurringProps: clone(character.recurringProps),
+                relationships: clone(character.relationships),
                 knownFacts: clone(character.knownFacts),
                 secretsNotKnown: clone(character.secretsNotKnown)
             })),
-        continuityState: clone(canon.continuityState || {}),
-        cliffhanger: canon.cliffhanger,
-        canonFacts: clone(canon.canonFacts || []),
+        continuityState: clone(lockedContinuityState),
+        cliffhanger: clean(narrativeLock?.cliffhanger || canon.lockedCliffhanger || canon.cliffhanger),
+        canonFacts: clone(canon.lockedCanonFacts || canon.canonFacts || []),
+        narrativeLock,
+        revelationsAllowed: clone(narrativeLock?.revelationsAllowed || []),
+        revealRestrictions: clone(narrativeLock?.revealRestrictions || []),
+        durableProps: clone(narrativeLock?.durableProps || []),
+        nextEpisodeOpeningObligation: clean(narrativeLock?.nextEpisodeOpeningObligation),
         canonRevision: canon.revision,
         authority: canon.authority
     };
