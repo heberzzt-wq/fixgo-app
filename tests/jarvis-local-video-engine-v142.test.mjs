@@ -121,7 +121,7 @@ function mockHttpResponse(status, payload = null) {
     };
 }
 
-function runpodPhysicalHarness({ scenario = "success", clock = null } = {}) {
+function runpodPhysicalHarness({ scenario = "success", clock = null, availability = {} } = {}) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), `jarvis-runpod-${scenario}-`));
     const runner = path.join(root, "jarvis-local-video-wan22.py");
     fs.writeFileSync(runner, "# controlled existing V142 runner\n");
@@ -166,16 +166,23 @@ function runpodPhysicalHarness({ scenario = "success", clock = null } = {}) {
         const safeUrl = String(url).replace(env.RUNPOD_API_KEY, "[REDACTED]");
         calls.push({ kind: "http", url: safeUrl, method: options.method || "GET" });
         if (String(url).includes("/graphql")) {
+            const query = JSON.parse(options.body || "{}").query || "";
+            const availableGpuCounts = Object.hasOwn(availability, "availableGpuCounts")
+                ? availability.availableGpuCounts
+                : [1];
             return mockHttpResponse(200, {
                 data: {
+                    myself: availability.authenticated === false || !query.includes("myself { id }")
+                        ? null
+                        : { id: "runpod-user-v142" },
                     gpuTypes: [{
-                        id: "NVIDIA A40",
+                        id: availability.gpuId || "NVIDIA A40",
                         displayName: "A40",
-                        memoryInGb: 48,
+                        memoryInGb: availability.vramGb ?? 48,
                         lowestPrice: {
-                            stockStatus: "High",
-                            uninterruptablePrice: 0.44,
-                            availableGpuCounts: [1]
+                            stockStatus: availability.stockStatus || "High",
+                            uninterruptablePrice: availability.hourlyRateUsd ?? 0.44,
+                            availableGpuCounts
                         }
                     }]
                 }
@@ -378,6 +385,59 @@ test("V142 RunPod adapter provisions one A40 Pod, transfers physical assets, ret
         );
     }
     assert.equal(listArtifacts({ root: harness.root, type: "video" }).length, 1);
+});
+
+test("V142 RunPod availability follows authenticated stockStatus while preserving count, GPU, VRAM and price guards", async t => {
+    await t.test("availableGpuCounts [1] is available", async () => {
+        const harness = runpodPhysicalHarness({
+            availability: { availableGpuCounts: [1] }
+        });
+        const started = await harness.engine.start(harness.payload);
+        assert.equal(started.ok, true, JSON.stringify(started));
+        await harness.engine.cancel({ operationName: started.operationName });
+        assert.equal(harness.deleted, true);
+    });
+
+    for (const stockStatus of ["Low", "Medium", "High"]) {
+        await t.test(`availableGpuCounts null with ${stockStatus} stock is available`, async () => {
+            const harness = runpodPhysicalHarness({
+                scenario: `null-counts-${stockStatus.toLowerCase()}`,
+                availability: {
+                    availableGpuCounts: null,
+                    stockStatus
+                }
+            });
+            const started = await harness.engine.start(harness.payload);
+            assert.equal(started.ok, true, JSON.stringify(started));
+            await harness.engine.cancel({ operationName: started.operationName });
+            assert.equal(harness.deleted, true);
+        });
+    }
+
+    for (const [name, availability, expectedError] of [
+        ["stock None", { stockStatus: "None" }, "RUNPOD_COMPATIBLE_GPU_UNAVAILABLE"],
+        ["insufficient VRAM", { vramGb: 16 }, "RUNPOD_COMPATIBLE_GPU_UNAVAILABLE"],
+        ["invalid price", { hourlyRateUsd: 0 }, "RUNPOD_HOURLY_RATE_INVALID"],
+        ["different GPU", { gpuId: "NVIDIA RTX A6000" }, "RUNPOD_COMPATIBLE_GPU_UNAVAILABLE"],
+        ["count one absent", { availableGpuCounts: [2, 4] }, "RUNPOD_COMPATIBLE_GPU_UNAVAILABLE"],
+        ["ambiguous stock", { stockStatus: "Unknown" }, "RUNPOD_COMPATIBLE_GPU_UNAVAILABLE"],
+        ["unauthenticated response", { authenticated: false }, "RUNPOD_AVAILABILITY_UNAUTHENTICATED"]
+    ]) {
+        await t.test(`${name} fails closed before Pod creation`, async () => {
+            const harness = runpodPhysicalHarness({
+                scenario: `availability-${name.replaceAll(" ", "-")}`,
+                availability
+            });
+            const started = await harness.engine.start(harness.payload);
+            assert.equal(started.ok, false, JSON.stringify(started));
+            assert.equal(started.error, expectedError);
+            assert.equal(
+                harness.calls.filter(call => call.url.endsWith("/pods") && call.method === "POST").length,
+                0
+            );
+            assert.equal(harness.createdBody, null);
+        });
+    }
 });
 
 test("V142 RunPod adapter fails closed on provision and real worker health failures", async t => {

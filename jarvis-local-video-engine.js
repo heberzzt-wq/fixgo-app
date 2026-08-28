@@ -1245,7 +1245,7 @@ export function createRunpodRemoteVideoAdapter({
 
     async function queryAvailability() {
         const secureCloud = cloudType === "SECURE" ? "true" : "false";
-        const query = `query { gpuTypes(input: { id: \"NVIDIA A40\" }) { id displayName memoryInGb lowestPrice(input: { gpuCount: 1, secureCloud: ${secureCloud} }) { stockStatus uninterruptablePrice availableGpuCounts } } }`;
+        const query = `query { myself { id } gpuTypes(input: { id: \"NVIDIA A40\" }) { id displayName memoryInGb lowestPrice(input: { gpuCount: 1, secureCloud: ${secureCloud} }) { stockStatus uninterruptablePrice availableGpuCounts } } }`;
         const separator = graphQlBase.includes("?") ? "&" : "?";
         const payload = await apiRequest(
             `${graphQlBase}${separator}api_key=${encodeURIComponent(apiKey)}`,
@@ -1254,19 +1254,29 @@ export function createRunpodRemoteVideoAdapter({
         if (Array.isArray(payload?.errors) && payload.errors.length > 0) {
             throw new Error("RUNPOD_AVAILABILITY_QUERY_FAILED");
         }
+        if (!String(payload?.data?.myself?.id || "").trim()) {
+            throw new Error("RUNPOD_AVAILABILITY_UNAUTHENTICATED");
+        }
         const gpu = payload?.data?.gpuTypes?.[0];
         const price = gpu?.lowestPrice || {};
+        const stockStatus = String(price.stockStatus || "").trim();
+        const documentedAvailableStock = new Set(["High", "Medium", "Low"]);
+        const availableGpuCounts = price.availableGpuCounts;
+        const requestedCountAvailable = availableGpuCounts == null
+            ? true
+            : Array.isArray(availableGpuCounts) && availableGpuCounts.map(Number).includes(1);
         if (
             gpu?.id !== gpuTypeId ||
             Number(gpu?.memoryInGb || 0) < 24 ||
-            String(price.stockStatus || "None") === "None" ||
-            !Array.isArray(price.availableGpuCounts) ||
-            !price.availableGpuCounts.map(Number).includes(1)
+            !documentedAvailableStock.has(stockStatus) ||
+            !requestedCountAvailable
         ) {
             throw new Error("RUNPOD_COMPATIBLE_GPU_UNAVAILABLE");
         }
-        const hourlyRateUsd = Number(price.uninterruptablePrice || 0);
-        if (!(hourlyRateUsd > 0)) throw new Error("RUNPOD_HOURLY_RATE_INVALID");
+        const hourlyRateUsd = Number(price.uninterruptablePrice);
+        if (!Number.isFinite(hourlyRateUsd) || !(hourlyRateUsd > 0)) {
+            throw new Error("RUNPOD_HOURLY_RATE_INVALID");
+        }
         return {
             gpuTypeId: gpu.id,
             displayName: gpu.displayName || gpu.id,
