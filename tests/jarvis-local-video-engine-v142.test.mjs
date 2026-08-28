@@ -127,8 +127,10 @@ function runpodPhysicalHarness({
     clock = null,
     availability = {},
     apiKey = "test-runpod-api-key-never-persist",
+    gpuTypeId = "NVIDIA A40",
     networkVolumeId = "",
     networkVolumeSizeGb = 50,
+    networkVolumeDataCenterId = gpuTypeId === "NVIDIA L40S" ? "US-TX-3" : "CA-MTL-1",
     bootstrapProgressSequence = [],
     baseHealthOverrides = {},
     runtimeHealthOverrides = {},
@@ -153,7 +155,7 @@ function runpodPhysicalHarness({
         JARVIS_LOCAL_VIDEO_RUNNER: process.execPath,
         JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT: runner,
         JARVIS_REMOTE_GPU_PROVIDER: "runpod",
-        JARVIS_RUNPOD_GPU_TYPE_ID: "NVIDIA A40",
+        JARVIS_RUNPOD_GPU_TYPE_ID: gpuTypeId,
         JARVIS_RUNPOD_CLOUD_TYPE: networkVolumeId ? "SECURE" : "COMMUNITY",
         JARVIS_REMOTE_GPU_HARD_BUDGET_USD: "2",
         JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "true",
@@ -218,20 +220,20 @@ function runpodPhysicalHarness({
                         ? null
                         : { id: "runpod-user-v142" },
                     gpuTypes: [{
-                        id: availability.gpuId || "NVIDIA A40",
-                        displayName: "A40",
+                        id: availability.gpuId || gpuTypeId,
+                        displayName: gpuTypeId.replace("NVIDIA ", ""),
                         memoryInGb: availability.vramGb ?? 48,
                         lowestPrice: {
                             stockStatus: availability.stockStatus || "High",
-                            uninterruptablePrice: availability.hourlyRateUsd ?? 0.44,
+                            uninterruptablePrice: availability.hourlyRateUsd ?? (gpuTypeId === "NVIDIA L40S" ? 0.99 : 0.44),
                             availableGpuCounts
                         }
                     }],
                     ...(query.includes("dataCenters") ? {
                         dataCenters: [{
-                            id: "CA-MTL-1",
+                            id: networkVolumeDataCenterId,
                             gpuAvailability: [{
-                                gpuTypeId: "NVIDIA A40",
+                                gpuTypeId,
                                 stockStatus: "Low",
                                 available: true
                             }]
@@ -256,7 +258,7 @@ function runpodPhysicalHarness({
         if (String(url).includes("/networkvolumes/") && (options.method || "GET") === "GET") {
             return mockHttpResponse(200, {
                 id: networkVolumeId,
-                dataCenterId: "CA-MTL-1",
+                dataCenterId: networkVolumeDataCenterId,
                 size: networkVolumeSizeGb
             });
         }
@@ -266,8 +268,8 @@ function runpodPhysicalHarness({
             return mockHttpResponse(201, {
                 id: "pod-a40-v142",
                 desiredStatus: "RUNNING",
-                costPerHr: "0.44",
-                gpu: { id: "NVIDIA A40", memoryInGb: 48 }
+                costPerHr: String(gpuTypeId === "NVIDIA L40S" ? 0.99 : 0.44),
+                gpu: { id: gpuTypeId, memoryInGb: 48 }
             });
         }
         if (String(url).includes("/billing/pods")) return mockHttpResponse(200, []);
@@ -333,8 +335,8 @@ function runpodPhysicalHarness({
                     torchVersion: "2.8.0+cu128",
                     torchCudaVersion: "12.8",
                     cuda: true,
-                    gpuName: "NVIDIA A40",
-                    computeCapability: "8.6",
+                    gpuName: gpuTypeId,
+                    computeCapability: gpuTypeId === "NVIDIA L40S" ? "8.9" : "8.6",
                     vramGb: 48,
                     freeDiskGb: 100,
                     ffmpeg: true,
@@ -347,6 +349,7 @@ function runpodPhysicalHarness({
                     pipCheck: scenario === "runtime-health-fail" && healthCalls > 1 ? false : true,
                     wanCliImport: scenario === "runtime-health-fail" && healthCalls > 1 ? false : true,
                     flashAttention: scenario === "runtime-health-fail" && healthCalls > 1 ? false : true,
+                    flashAttentionCudaProbe: scenario === "runtime-health-fail" && healthCalls > 1 ? false : true,
                     imports: scenario === "runtime-health-fail" && healthCalls > 1 ? false : true,
                     cudaProbe: true,
                     runtimeCudaProbe: scenario === "runtime-health-fail" && healthCalls > 1 ? false : true
@@ -540,6 +543,155 @@ test("V142 RunPod zero-cost dry run exposes the exact sanitized future Pod paylo
     assert.equal(harness.calls.length, 0);
 });
 
+test("V142 RunPod accepts only the explicitly selected L40S 48GB / CC 8.9 profile in US-TX-3", () => {
+    const volumeId = "future-network-volume-l40s-v142";
+    const harness = runpodPhysicalHarness({
+        scenario: "l40s-zero-cost-dry-run",
+        gpuTypeId: "NVIDIA L40S",
+        networkVolumeId: volumeId,
+        envOverrides: { JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false" }
+    });
+    const report = harness.adapter.inspectZeroCostPrecheck({
+        job: harness.dryRunJob,
+        networkVolume: { id: volumeId, dataCenterId: "US-TX-3", sizeGb: 50 },
+        availability: {
+            gpuTypeId: "NVIDIA L40S",
+            vramGb: 48,
+            hourlyRateUsd: 0.99,
+            stockStatus: "Low"
+        }
+    });
+    assert.equal(report.ok, true, JSON.stringify(report));
+    assert.deepEqual(report.payload.gpuTypeIds, ["NVIDIA L40S"]);
+    assert.deepEqual(report.payload.dataCenterIds, ["US-TX-3"]);
+    assert.equal(report.payload.minRAMPerGPU, 62);
+    assert.equal(report.payload.minVCPUPerGPU, 16);
+    assert.equal(report.contract.gpuTypeId, "NVIDIA L40S");
+    assert.equal(report.contract.computeCapability, "8.9");
+    assert.equal(report.cache.profile, "wan22-ti2v-5b-l40s-v1");
+    assert.equal(report.paidResourceCreationAuthorized, false);
+    assert.equal(harness.calls.length, 0);
+});
+
+test("V142 RunPod never substitutes A40 or another GPU for an explicitly authorized L40S obligation", async t => {
+    for (const [name, gpuId] of [["A40", "NVIDIA A40"], ["other GPU", "NVIDIA RTX 6000 Ada"]]) {
+        await t.test(name, async () => {
+            const harness = runpodPhysicalHarness({
+                scenario: `l40s-no-fallback-${name.replaceAll(" ", "-")}`,
+                gpuTypeId: "NVIDIA L40S",
+                networkVolumeId: "network-volume-l40s-v142",
+                availability: { gpuId }
+            });
+            const started = await harness.engine.start(harness.payload);
+            assert.equal(started.ok, false, JSON.stringify(started));
+            assert.equal(started.error, "RUNPOD_COMPATIBLE_GPU_UNAVAILABLE");
+            assert.equal(harness.createdBody, null);
+        });
+    }
+});
+
+test("V142 L40S Network Volume is pinned to US-TX-3 before any paid request", () => {
+    const volumeId = "network-volume-l40s-wrong-dc";
+    const harness = runpodPhysicalHarness({
+        scenario: "l40s-wrong-datacenter",
+        gpuTypeId: "NVIDIA L40S",
+        networkVolumeId: volumeId,
+        networkVolumeDataCenterId: "EU-NL-1",
+        envOverrides: { JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false" }
+    });
+    const report = harness.adapter.inspectZeroCostPrecheck({
+        job: harness.dryRunJob,
+        networkVolume: { id: volumeId, dataCenterId: "EU-NL-1", sizeGb: 50 },
+        availability: {
+            gpuTypeId: "NVIDIA L40S",
+            vramGb: 48,
+            hourlyRateUsd: 0.99,
+            stockStatus: "Low"
+        }
+    });
+    assert.equal(report.ok, false);
+    assert.equal(report.error, "RUNPOD_GPU_NETWORK_VOLUME_DATACENTER_NOT_APPROVED");
+    assert.equal(harness.calls.length, 0);
+});
+
+test("V142 CPU staging in US-TX-3 can prepare model bytes but cannot certify GPU runtime", () => {
+    const volumeId = "network-volume-cpu-stage-v142";
+    const harness = runpodPhysicalHarness({
+        scenario: "cpu-staging-read-only",
+        gpuTypeId: "NVIDIA L40S",
+        networkVolumeId: volumeId,
+        envOverrides: { JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false" }
+    });
+    const report = harness.adapter.inspectCpuStagingPrecheck({
+        networkVolume: { id: volumeId, dataCenterId: "US-TX-3", sizeGb: 50 },
+        inventory: {
+            cpuFlavorId: "cpu3c",
+            dataCenterId: "US-TX-3",
+            minimumVcpu: 2,
+            ramMultiplier: 2,
+            securePriceUsdPerHour: 0.06,
+            stockStatus: null
+        }
+    });
+    assert.equal(report.ok, true, JSON.stringify(report));
+    assert.equal(report.status, "CPU_STAGING_COMPATIBLE_CAPACITY_UNCONFIRMED");
+    assert.equal(report.liveCapacityConfirmed, false);
+    assert.equal(report.resourceCreationPossible, false);
+    assert.equal(report.paidResourceCreationAuthorized, false);
+    assert.equal(report.payload.computeType, "CPU");
+    assert.deepEqual(report.payload.cpuFlavorIds, ["cpu3c"]);
+    assert.deepEqual(report.payload.dataCenterIds, ["US-TX-3"]);
+    assert.equal(report.payload.vcpuCount, 2);
+    assert.equal(report.cache.cpuCompletionStatus, "CACHE_MODEL_READY");
+    assert.equal(report.cache.runtimeVerificationStatus, "CACHE_RUNTIME_PHYSICALLY_UNVERIFIED");
+    assert.ok(report.cache.allowedStages.includes("hf_download"));
+    assert.ok(report.cache.forbiddenCertifications.includes("flash_attention_cuda"));
+    assert.ok(report.cache.forbiddenCertifications.includes("CACHE_HIT"));
+    assert.equal(harness.calls.length, 0);
+});
+
+test("V142 CPU model-ready cache remains physically unverified and never becomes CACHE_HIT", () => {
+    const volumeId = "network-volume-model-ready-v142";
+    const harness = runpodPhysicalHarness({
+        scenario: "cpu-model-ready-not-hit",
+        gpuTypeId: "NVIDIA L40S",
+        networkVolumeId: volumeId,
+        envOverrides: { JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false" }
+    });
+    const stateRoot = path.join(harness.root, ".jarvis-artifacts", ".video-worker", "runpod");
+    fs.mkdirSync(stateRoot, { recursive: true });
+    fs.writeFileSync(path.join(stateRoot, "cpu-model-ready.json"), JSON.stringify({
+        networkVolumeId: volumeId,
+        modelContractRevision: "921dbaf3f1674a56f47e83fb80a34bac8a8f203e",
+        modelIntegrityVerified: true,
+        runtimePreflightVerified: false,
+        cacheStatus: "CACHE_MODEL_READY"
+    }));
+    const report = harness.adapter.inspectZeroCostPrecheck({
+        job: harness.dryRunJob,
+        networkVolume: { id: volumeId, dataCenterId: "US-TX-3", sizeGb: 50 },
+        availability: {
+            gpuTypeId: "NVIDIA L40S",
+            vramGb: 48,
+            hourlyRateUsd: 0.99,
+            stockStatus: "Low"
+        }
+    });
+    assert.equal(report.ok, true, JSON.stringify(report));
+    assert.equal(report.cache.expectedStatus, "CACHE_MODEL_READY_PHYSICAL_VERIFY_REQUIRED");
+    assert.notEqual(report.cache.expectedStatus, "CACHE_HIT");
+});
+
+test("V142 RunPod paid resource creation remains false when authorization is omitted", () => {
+    const harness = runpodPhysicalHarness({
+        scenario: "paid-authority-omitted",
+        envOverrides: { JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: undefined }
+    });
+    const health = harness.adapter.inspectHardware();
+    assert.equal(health.paidResourceCreationAuthorized, false);
+    assert.equal(health.paidResourceCreationPossible, false);
+});
+
 test("V142 RunPod paid creation authority defaults closed and blocks before all provider traffic", async () => {
     const harness = runpodPhysicalHarness({
         scenario: "paid-authority-closed",
@@ -570,6 +722,8 @@ test("V142 RunPod zero-cost precheck fails closed on every static pre-Pod contra
         ["bridge identity invalid", { bridgeIdentity: { ok: false, status: "BRIDGE_IDENTITY_INVALID" } }, null, "RUNPOD_BRIDGE_IDENTITY_REQUIRED"],
         ["policy is not LOCAL_TEST", { envOverrides: { JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_PREFERRED" } }, null, "RUNPOD_LOCAL_TEST_POLICY_REQUIRED"],
         ["backend is not Wan2.2", { envOverrides: { JARVIS_LOCAL_VIDEO_MODEL: "wan21-t2v-1.3b" } }, null, "RUNPOD_WAN22_BACKEND_REQUIRED"],
+        ["GPU authorization is missing", { envOverrides: { JARVIS_RUNPOD_GPU_TYPE_ID: undefined } }, null, "RUNPOD_GPU_TYPE_EXPLICIT_AUTHORIZATION_REQUIRED"],
+        ["GPU is not approved", { envOverrides: { JARVIS_RUNPOD_GPU_TYPE_ID: "NVIDIA RTX 6000 Ada" } }, null, "RUNPOD_GPU_TYPE_NOT_APPROVED_FOR_V142"],
         ["job model is not approved", {}, job => { job.model = "Wan2.2-unapproved"; }, "RUNPOD_WAN22_JOB_CONTRACT_INVALID"],
         ["durable root hash is missing", {}, job => { job.rootInstructionHash = ""; }, "RUNPOD_DURABLE_IDENTITY_REQUIRED"],
         ["reference asset is missing", {}, job => { job.referenceFiles = [path.join(os.tmpdir(), "missing-v142-reference.png")]; }, "RUNPOD_REFERENCE_ASSET_NOT_FOUND"],
@@ -677,6 +831,7 @@ test("V142 RunPod adapter provisions one A40 Pod, transfers physical assets, ret
     assert.doesNotMatch(bootstrap, /\npython3 -m pip install/);
     assert.match(bootstrap, /CACHE_MISS/);
     assert.match(bootstrap, /CACHE_POPULATING/);
+    assert.match(bootstrap, /CACHE_MODEL_READY/);
     assert.match(bootstrap, /CACHE_READY/);
     assert.match(bootstrap, /CACHE_HIT/);
     assert.match(bootstrap, /921dbaf3f1674a56f47e83fb80a34bac8a8f203e/);
@@ -697,6 +852,16 @@ test("V142 RunPod adapter provisions one A40 Pod, transfers physical assets, ret
     assert.match(bootstrap, /export PIP_NO_CACHE_DIR=1/);
     assert.match(bootstrap, /8338a62490c93cfbf908bb289bbaa3fb104e5606415bb48cca6cae5175313c44/);
     assert.match(bootstrap, /flash-attn==2\.8\.3\.post1.*--no-build-isolation/);
+    assert.match(bootstrap, /flash_attn_func/);
+    assert.match(bootstrap, /flashAttentionCudaProbe/);
+    assert.match(bootstrap, /MODEL_MANIFEST/);
+    assert.match(bootstrap, /MODEL_CACHE_VALID/);
+    assert.match(bootstrap, /if test "\$MODEL_CACHE_VALID" = 1; then/);
+    assert.ok(
+        bootstrap.indexOf('if test "$MODEL_CACHE_VALID" = 1; then')
+            < bootstrap.indexOf('  "$VENV/bin/hf" download'),
+        "a CPU-staged model manifest must be verified before any GPU model download"
+    );
     assert.match(bootstrap, /MAX_JOBS=4/);
     assert.match(bootstrap, /pip check/);
     assert.match(bootstrap, /importlib\.import_module\(name\)/);
@@ -718,6 +883,52 @@ test("V142 RunPod refuses a mutable image tag before creating billable capacity"
     assert.equal(started.ok, false, JSON.stringify(started));
     assert.equal(started.error, "RUNPOD_IMAGE_DIGEST_REQUIRED");
     assert.equal(harness.createdBody, null);
+});
+
+test("V142 L40S physical mock requires exact CC 8.9, 48GB and a working FlashAttention CUDA kernel", async t => {
+    await t.test("exact L40S profile completes", async () => {
+        const harness = runpodPhysicalHarness({
+            scenario: "l40s-physical-success",
+            gpuTypeId: "NVIDIA L40S",
+            networkVolumeId: "network-volume-l40s-physical"
+        });
+        const started = await harness.engine.start(harness.payload);
+        assert.equal(started.ok, true, JSON.stringify(started));
+        const completed = await pollRunpodUntilDone(harness.engine, started.operationName);
+        assert.equal(completed.status, "VIDEO_GENERATED_VERIFIED");
+        assert.equal(completed.verifiedArtifactDelivery, true);
+        assert.deepEqual(harness.createdBody.gpuTypeIds, ["NVIDIA L40S"]);
+        assert.deepEqual(harness.createdBody.dataCenterIds, ["US-TX-3"]);
+        assert.equal(harness.createdBody.minRAMPerGPU, 62);
+        assert.equal(harness.createdBody.minVCPUPerGPU, 16);
+        assert.equal(harness.deleted, true);
+    });
+
+    const failures = [
+        ["CC 8.6 binary/profile", { baseHealthOverrides: { computeCapability: "8.6" } }],
+        ["47 GB VRAM", { baseHealthOverrides: { vramGb: 47 } }],
+        ["FlashAttention sm_89 CUDA operation", {
+            runtimeHealthOverrides: { flashAttentionCudaProbe: false, dependencyContract: false }
+        }]
+    ];
+    for (const [name, overrides] of failures) {
+        await t.test(name, async () => {
+            const harness = runpodPhysicalHarness({
+                scenario: `l40s-physical-${name.replace(/[^a-z0-9]+/gi, "-")}`,
+                gpuTypeId: "NVIDIA L40S",
+                networkVolumeId: "network-volume-l40s-physical",
+                ...overrides
+            });
+            const started = await harness.engine.start(harness.payload);
+            assert.equal(started.ok, true, JSON.stringify(started));
+            const failed = await pollRunpodUntilDone(harness.engine, started.operationName);
+            assert.equal(failed.ok, false, JSON.stringify(failed));
+            assert.equal(harness.inferenceStarts, 0);
+            assert.equal(failed.workerRelease.terminationVerified, true);
+            assert.equal(harness.deleted, true);
+            assert.equal(listArtifacts({ root: harness.root, type: "video" }).length, 0);
+        });
+    }
 });
 
 test("V142 RunPod refuses an unapproved immutable image before creating billable capacity", async () => {
@@ -779,6 +990,7 @@ test("V142 RunPod persists cache progress and only promotes a validated cache to
     const progress = [
         { stage: "CACHE_VALIDATE", status: "INCOMPLETE", cacheStatus: "CACHE_MISS", modelBytes: 0, at: "2026-08-27T12:00:01.000Z" },
         { stage: "MODEL_DOWNLOAD", status: "RUNNING", cacheStatus: "CACHE_POPULATING", modelBytes: 12000000000, at: "2026-08-27T12:00:02.000Z" },
+        { stage: "MODEL_VALIDATION", status: "READY", cacheStatus: "CACHE_MODEL_READY", modelBytes: 34203123497, at: "2026-08-27T12:00:02.500Z" },
         { stage: "RUNNER_READY", status: "READY", cacheStatus: "CACHE_READY", modelBytes: 34203123497, at: "2026-08-27T12:00:03.000Z" }
     ];
     const harness = runpodPhysicalHarness({
@@ -792,6 +1004,8 @@ test("V142 RunPod persists cache progress and only promotes a validated cache to
     assert.equal(miss.remoteWorker.cacheStatus, "CACHE_MISS");
     const populating = await harness.engine.poll({ operationName: started.operationName });
     assert.equal(populating.remoteWorker.cacheStatus, "CACHE_POPULATING");
+    const modelReady = await harness.engine.poll({ operationName: started.operationName });
+    assert.equal(modelReady.remoteWorker.cacheStatus, "CACHE_MODEL_READY");
     const completed = await pollRunpodUntilDone(harness.engine, started.operationName, 8);
     assert.equal(completed.status, "VIDEO_GENERATED_VERIFIED");
 });

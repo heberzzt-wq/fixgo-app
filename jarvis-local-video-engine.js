@@ -6,8 +6,8 @@ import { execFile, execFileSync, spawn } from "node:child_process";
 
 import { registerArtifact } from "./jarvis-artifact-studio.js";
 
-export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.10.0-v142-runpod-zero-cost-precheck";
-export const JARVIS_RUNPOD_ADAPTER_VERSION = "1.3.0-v142-runpod-zero-cost-precheck";
+export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.11.0-v142-runpod-l40s-cpu-staging";
+export const JARVIS_RUNPOD_ADAPTER_VERSION = "1.4.0-v142-runpod-l40s-cpu-staging";
 export const VIDEO_ENGINE_MODES = Object.freeze([
     "CURRENT_STABLE",
     "LOCAL_TEST",
@@ -117,7 +117,7 @@ export const RUNPOD_ZERO_COST_PRECHECKS = Object.freeze([
     "workspaceCapacity",
     "networkVolumeContract",
     "dataCenterCompatibility",
-    "a40Request",
+    "explicitGpuRequest",
     "economicBudget",
     "noExternalFallback",
     "referenceAssetIntegrity",
@@ -127,14 +127,15 @@ export const RUNPOD_ZERO_COST_PRECHECKS = Object.freeze([
 ]);
 
 export const RUNPOD_PHYSICAL_PAID_PREFLIGHTS = Object.freeze([
-    "physicalA40",
-    "computeCapability86",
+    "physicalSelectedGpu",
+    "exactComputeCapability",
     "cuda",
     "nvcc",
     "python312",
     "torch28Cu128",
     "ffmpeg",
     "flashAttention",
+    "flashAttentionCudaOperation",
     "pythonImports",
     "pipCheck",
     "cudaOperation",
@@ -143,13 +144,11 @@ export const RUNPOD_PHYSICAL_PAID_PREFLIGHTS = Object.freeze([
     "physicalModelIntegrity"
 ]);
 
-const RUNPOD_WAN22_CACHE_CONTRACT = Object.freeze({
-    profile: "wan22-ti2v-5b-a40-v2",
+const RUNPOD_WAN22_CACHE_BASE = Object.freeze({
     imageReference: "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404@sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35",
     pythonVersionPrefix: "3.12.",
     torchVersionPrefix: "2.8.0+cu128",
     torchCudaVersionPrefix: "12.8",
-    computeCapability: "8.6",
     requirementsSha256: "8338a62490c93cfbf908bb289bbaa3fb104e5606415bb48cca6cae5175313c44",
     flashAttentionVersion: "2.8.3.post1",
     modelRepository: "Wan-AI/Wan2.2-TI2V-5B",
@@ -173,6 +172,59 @@ const RUNPOD_WAN22_CACHE_CONTRACT = Object.freeze({
         Object.freeze({ path: "google/umt5-xxl/tokenizer.json", bytes: 16837417, sha256: "6e197b4d3dbd71da14b4eb255f4fa91c9c1f2068b20a2de2472967ca3d22602b" }),
         Object.freeze({ path: "google/umt5-xxl/tokenizer_config.json", bytes: 61728, sha256: "ed9a3a8b0faa71a70a32847e0435fe036e6e112d4df4edb7bb48a921e344dc05" }),
         Object.freeze({ path: "models_t5_umt5-xxl-enc-bf16.pth", bytes: 11361920418, sha256: "7cace0da2b446bbbbc57d031ab6cf163a3d59b366da94e5afe36745b746fd81d" })
+    ])
+});
+
+export const RUNPOD_WAN22_GPU_PROFILES = Object.freeze({
+    "NVIDIA A40": Object.freeze({
+        ...RUNPOD_WAN22_CACHE_BASE,
+        gpuTypeId: "NVIDIA A40",
+        profile: "wan22-ti2v-5b-a40-v2",
+        computeCapability: "8.6",
+        minimumVramGb: 48,
+        minimumRamGb: 50,
+        minimumVcpu: 9,
+        expectedTotalHourlyRateUsd: 0.46,
+        requiredNetworkVolumeDataCenterId: null
+    }),
+    "NVIDIA L40S": Object.freeze({
+        ...RUNPOD_WAN22_CACHE_BASE,
+        gpuTypeId: "NVIDIA L40S",
+        profile: "wan22-ti2v-5b-l40s-v1",
+        computeCapability: "8.9",
+        minimumVramGb: 48,
+        minimumRamGb: 62,
+        minimumVcpu: 16,
+        expectedTotalHourlyRateUsd: 0.99,
+        requiredNetworkVolumeDataCenterId: "US-TX-3"
+    })
+});
+
+export const RUNPOD_CPU_STAGING_PROFILE = Object.freeze({
+    computeType: "CPU",
+    cpuFlavorId: "cpu3c",
+    dataCenterId: "US-TX-3",
+    minimumVcpu: 2,
+    ramGb: 4,
+    networkVolumeMountPath: "/workspace",
+    cacheStatus: "CACHE_MODEL_READY",
+    runtimeStatus: "CACHE_RUNTIME_PHYSICALLY_UNVERIFIED",
+    allowedStages: Object.freeze([
+        "git",
+        "hf_download",
+        "model_sha256_verification",
+        "repository_revision_verification",
+        "model_manifest_write"
+    ]),
+    forbiddenCertifications: Object.freeze([
+        "cuda",
+        "nvcc",
+        "pytorch_cuda",
+        "flash_attention_cuda",
+        "compute_capability",
+        "wan_generate_runtime",
+        "CACHE_READY",
+        "CACHE_HIT"
     ])
 });
 
@@ -1254,9 +1306,10 @@ export function createRunpodRemoteVideoAdapter({
     const graphQlBase = String(env.JARVIS_RUNPOD_GRAPHQL_URL || "https://api.runpod.io/graphql");
     const apiKey = typeof env.RUNPOD_API_KEY === "string" ? env.RUNPOD_API_KEY : "";
     const provider = String(env.JARVIS_REMOTE_GPU_PROVIDER || "").trim().toLowerCase();
-    const gpuTypeId = String(env.JARVIS_RUNPOD_GPU_TYPE_ID || "NVIDIA A40").trim();
+    const gpuTypeId = String(env.JARVIS_RUNPOD_GPU_TYPE_ID || "").trim();
+    const cacheContract = RUNPOD_WAN22_GPU_PROFILES[gpuTypeId] || null;
     const imageName = String(
-        env.JARVIS_RUNPOD_IMAGE || RUNPOD_WAN22_CACHE_CONTRACT.imageReference
+        env.JARVIS_RUNPOD_IMAGE || cacheContract?.imageReference || RUNPOD_WAN22_CACHE_BASE.imageReference
     ).trim();
     const cloudType = String(env.JARVIS_RUNPOD_CLOUD_TYPE || "COMMUNITY").trim().toUpperCase() === "SECURE"
         ? "SECURE"
@@ -1287,12 +1340,21 @@ export function createRunpodRemoteVideoAdapter({
         env.JARVIS_RUNPOD_INFERENCE_TIMEOUT_SECONDS,
         localVideoTimeoutSeconds(env)
     );
-    const minimumRamGb = Math.ceil(runpodPositiveNumber(env.JARVIS_RUNPOD_MIN_RAM_GB, 50));
-    const minimumVcpu = Math.ceil(runpodPositiveNumber(env.JARVIS_RUNPOD_MIN_VCPU, 9));
-    const expectedVramGb = runpodPositiveNumber(env.JARVIS_RUNPOD_EXPECTED_VRAM_GB, 48);
+    const minimumRamGb = Math.ceil(runpodPositiveNumber(
+        env.JARVIS_RUNPOD_MIN_RAM_GB,
+        cacheContract?.minimumRamGb || 50
+    ));
+    const minimumVcpu = Math.ceil(runpodPositiveNumber(
+        env.JARVIS_RUNPOD_MIN_VCPU,
+        cacheContract?.minimumVcpu || 9
+    ));
+    const expectedVramGb = runpodPositiveNumber(
+        env.JARVIS_RUNPOD_EXPECTED_VRAM_GB,
+        cacheContract?.minimumVramGb || 48
+    );
     const configuredTotalHourlyRateUsd = runpodPositiveNumber(
         env.JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD,
-        0.46
+        cacheContract?.expectedTotalHourlyRateUsd || 0.46
     );
     const remoteBase = "/workspace/jarvis-v142";
     const stateRoot = path.join(resolvedRoot, ".jarvis-artifacts", ".video-worker", "runpod");
@@ -1336,12 +1398,16 @@ export function createRunpodRemoteVideoAdapter({
         if (configuredPolicy !== "LOCAL_TEST") throw new Error("RUNPOD_LOCAL_TEST_POLICY_REQUIRED");
         if (configuredBackend !== WAN22_TI2V_5B.backend) throw new Error("RUNPOD_WAN22_BACKEND_REQUIRED");
         if (!hardBudgetExplicit) throw new Error("RUNPOD_HARD_BUDGET_REQUIRED");
-        if (gpuTypeId !== "NVIDIA A40") throw new Error("RUNPOD_GPU_TYPE_NOT_APPROVED_FOR_V142");
+        if (!gpuTypeId) throw new Error("RUNPOD_GPU_TYPE_EXPLICIT_AUTHORIZATION_REQUIRED");
+        if (!cacheContract) throw new Error("RUNPOD_GPU_TYPE_NOT_APPROVED_FOR_V142");
         if (!/@sha256:[a-f0-9]{64}$/i.test(imageName)) {
             throw new Error("RUNPOD_IMAGE_DIGEST_REQUIRED");
         }
-        if (imageName !== RUNPOD_WAN22_CACHE_CONTRACT.imageReference) {
+        if (imageName !== cacheContract.imageReference) {
             throw new Error("RUNPOD_IMAGE_NOT_APPROVED_FOR_V142");
+        }
+        if (minimumRamGb < cacheContract.minimumRamGb || minimumVcpu < cacheContract.minimumVcpu) {
+            throw new Error("RUNPOD_GPU_RESOURCE_PROFILE_INSUFFICIENT");
         }
         if (networkVolumeId && cloudType !== "SECURE") {
             throw new Error("RUNPOD_NETWORK_VOLUME_SECURE_CLOUD_REQUIRED");
@@ -1431,7 +1497,7 @@ export function createRunpodRemoteVideoAdapter({
 
     function expectedCacheStatus(networkVolume) {
         if (!networkVolume?.id) return "CACHE_MISS";
-        const reusable = fs.existsSync(stateRoot)
+        const states = fs.existsSync(stateRoot)
             ? fs.readdirSync(stateRoot)
                 .filter(name => name.endsWith(".json"))
                 .map(name => {
@@ -1439,14 +1505,22 @@ export function createRunpodRemoteVideoAdapter({
                     catch { return null; }
                 })
                 .filter(Boolean)
-                .some(state =>
-                    state.networkVolumeId === networkVolume.id &&
-                    state.cacheProfile === RUNPOD_WAN22_CACHE_CONTRACT.profile &&
-                    state.runtimePreflightVerified === true &&
-                    ["CACHE_READY", "CACHE_HIT"].includes(String(state.cacheStatus || ""))
-                )
-            : false;
-        return reusable ? "CACHE_HIT_EXPECTED_PHYSICAL_VERIFY_REQUIRED" : "CACHE_MISS";
+            : [];
+        const reusable = states.some(state =>
+            state.networkVolumeId === networkVolume.id &&
+            state.cacheProfile === cacheContract.profile &&
+            state.runtimePreflightVerified === true &&
+            ["CACHE_READY", "CACHE_HIT"].includes(String(state.cacheStatus || ""))
+        );
+        if (reusable) return "CACHE_HIT_EXPECTED_PHYSICAL_VERIFY_REQUIRED";
+        const modelReady = states.some(state =>
+            state.networkVolumeId === networkVolume.id &&
+            state.modelContractRevision === cacheContract.modelRevision &&
+            state.modelIntegrityVerified === true &&
+            state.runtimePreflightVerified !== true &&
+            state.cacheStatus === "CACHE_MODEL_READY"
+        );
+        return modelReady ? "CACHE_MODEL_READY_PHYSICAL_VERIFY_REQUIRED" : "CACHE_MISS";
     }
 
     function normalizedPlannedNetworkVolume(networkVolume) {
@@ -1457,8 +1531,14 @@ export function createRunpodRemoteVideoAdapter({
         if (id !== networkVolumeId || !dataCenterId || !Number.isFinite(sizeGb)) {
             throw new Error("RUNPOD_NETWORK_VOLUME_RESPONSE_INVALID");
         }
-        if (sizeGb < RUNPOD_WAN22_CACHE_CONTRACT.minimumNetworkVolumeGb) {
+        if (sizeGb < cacheContract.minimumNetworkVolumeGb) {
             throw new Error("RUNPOD_NETWORK_VOLUME_CAPACITY_INSUFFICIENT");
+        }
+        if (
+            cacheContract.requiredNetworkVolumeDataCenterId &&
+            dataCenterId !== cacheContract.requiredNetworkVolumeDataCenterId
+        ) {
+            throw new Error("RUNPOD_GPU_NETWORK_VOLUME_DATACENTER_NOT_APPROVED");
         }
         return { id, dataCenterId, sizeGb };
     }
@@ -1499,9 +1579,10 @@ export function createRunpodRemoteVideoAdapter({
         if (
             body.cloudType !== cloudType || body.computeType !== "GPU" ||
             body.containerDiskInGb !== containerDiskInGb || body.volumeMountPath !== "/workspace" ||
-            body.gpuCount !== 1 || body.gpuTypeIds?.length !== 1 || body.gpuTypeIds[0] !== "NVIDIA A40" ||
-            body.imageName !== RUNPOD_WAN22_CACHE_CONTRACT.imageReference ||
-            body.interruptible !== false || body.minRAMPerGPU < 50 || body.minVCPUPerGPU < 9 ||
+            body.gpuCount !== 1 || body.gpuTypeIds?.length !== 1 ||
+            body.gpuTypeIds[0] !== gpuTypeId || body.imageName !== cacheContract.imageReference ||
+            body.interruptible !== false || body.minRAMPerGPU < cacheContract.minimumRamGb ||
+            body.minVCPUPerGPU < cacheContract.minimumVcpu ||
             !Array.isArray(body.ports) || !body.ports.includes("22/tcp") ||
             !String(body.env?.PUBLIC_KEY || "").trim() ||
             !String(body.env?.JARVIS_OPERATION_ID || "").trim() ||
@@ -1530,7 +1611,8 @@ export function createRunpodRemoteVideoAdapter({
             const plannedVolume = normalizedPlannedNetworkVolume(networkVolume);
             if (availability) {
                 if (
-                    availability.gpuTypeId !== gpuTypeId || Number(availability.vramGb || 0) < 24 ||
+                    availability.gpuTypeId !== gpuTypeId ||
+                    Number(availability.vramGb || 0) < cacheContract.minimumVramGb ||
                     !["High", "Medium", "Low"].includes(String(availability.stockStatus || "")) ||
                     !Number.isFinite(Number(availability.hourlyRateUsd)) || Number(availability.hourlyRateUsd) <= 0
                 ) {
@@ -1571,12 +1653,12 @@ export function createRunpodRemoteVideoAdapter({
                     maximumAuthorizedSeconds
                 },
                 cache: {
-                    profile: RUNPOD_WAN22_CACHE_CONTRACT.profile,
+                    profile: cacheContract.profile,
                     expectedStatus: expectedCacheStatus(plannedVolume),
-                    modelBytes: RUNPOD_WAN22_CACHE_CONTRACT.expectedModelBytes,
-                    workspaceReserveBytes: RUNPOD_WAN22_CACHE_CONTRACT.workspaceReserveBytes,
-                    peakWorkspaceBytes: RUNPOD_WAN22_CACHE_CONTRACT.peakWorkspaceBytes,
-                    minimumNetworkVolumeGb: RUNPOD_WAN22_CACHE_CONTRACT.minimumNetworkVolumeGb,
+                    modelBytes: cacheContract.expectedModelBytes,
+                    workspaceReserveBytes: cacheContract.workspaceReserveBytes,
+                    peakWorkspaceBytes: cacheContract.peakWorkspaceBytes,
+                    minimumNetworkVolumeGb: cacheContract.minimumNetworkVolumeGb,
                     modelPath: `${remoteBase}/cache/wan22-ti2v-5b/model`,
                     repositoryPath: `${remoteBase}/cache/wan22-ti2v-5b/Wan2.2`,
                     virtualEnvironmentPath: `${remoteBase}/cache/wan22-ti2v-5b/venv`,
@@ -1591,12 +1673,14 @@ export function createRunpodRemoteVideoAdapter({
                     remoteFile: asset.remoteFile
                 })),
                 contract: {
-                    imageReference: RUNPOD_WAN22_CACHE_CONTRACT.imageReference,
-                    modelRepository: RUNPOD_WAN22_CACHE_CONTRACT.modelRepository,
-                    modelRevision: RUNPOD_WAN22_CACHE_CONTRACT.modelRevision,
-                    wanRepositoryRevision: RUNPOD_WAN22_CACHE_CONTRACT.wanRepositoryRevision,
-                    requirementsSha256: RUNPOD_WAN22_CACHE_CONTRACT.requirementsSha256,
-                    requiredFiles: RUNPOD_WAN22_CACHE_CONTRACT.requiredFiles.map(item => ({ ...item }))
+                    gpuTypeId,
+                    computeCapability: cacheContract.computeCapability,
+                    imageReference: cacheContract.imageReference,
+                    modelRepository: cacheContract.modelRepository,
+                    modelRevision: cacheContract.modelRevision,
+                    wanRepositoryRevision: cacheContract.wanRepositoryRevision,
+                    requirementsSha256: cacheContract.requirementsSha256,
+                    requiredFiles: cacheContract.requiredFiles.map(item => ({ ...item }))
                 }
             };
         }
@@ -1608,6 +1692,93 @@ export function createRunpodRemoteVideoAdapter({
                 error: error?.message || "RUNPOD_ZERO_COST_PRECHECK_FAILED",
                 paidResourceCreationAuthorized,
                 paidResourceCreationPossible: false
+            };
+        }
+    }
+
+    function inspectCpuStagingPrecheck({ networkVolume = null, inventory = null } = {}) {
+        try {
+            assertZeroCostConfiguration();
+            if (paidResourceCreationAuthorized !== false) {
+                throw new Error("RUNPOD_CPU_STAGING_READ_ONLY_AUTHORITY_REQUIRED");
+            }
+            if (gpuTypeId !== "NVIDIA L40S" || cacheContract?.computeCapability !== "8.9") {
+                throw new Error("RUNPOD_CPU_STAGING_L40S_PROFILE_REQUIRED");
+            }
+            const plannedVolume = normalizedPlannedNetworkVolume(networkVolume);
+            if (!plannedVolume || plannedVolume.dataCenterId !== RUNPOD_CPU_STAGING_PROFILE.dataCenterId) {
+                throw new Error("RUNPOD_CPU_STAGING_NETWORK_VOLUME_REQUIRED");
+            }
+            const flavor = String(inventory?.cpuFlavorId || "");
+            const dataCenterId = String(inventory?.dataCenterId || "");
+            const minimumVcpuAvailable = Number(inventory?.minimumVcpu || 0);
+            const ramMultiplier = Number(inventory?.ramMultiplier || 0);
+            const securePriceUsdPerHour = Number(inventory?.securePriceUsdPerHour);
+            const stockStatus = inventory?.stockStatus ?? null;
+            if (
+                flavor !== RUNPOD_CPU_STAGING_PROFILE.cpuFlavorId ||
+                dataCenterId !== RUNPOD_CPU_STAGING_PROFILE.dataCenterId ||
+                minimumVcpuAvailable !== RUNPOD_CPU_STAGING_PROFILE.minimumVcpu ||
+                ramMultiplier * RUNPOD_CPU_STAGING_PROFILE.minimumVcpu < RUNPOD_CPU_STAGING_PROFILE.ramGb ||
+                !Number.isFinite(securePriceUsdPerHour) || securePriceUsdPerHour <= 0
+            ) {
+                throw new Error("RUNPOD_CPU_STAGING_INVENTORY_INCOMPATIBLE");
+            }
+            const documentedStock = new Set(["High", "Medium", "Low"]);
+            if (stockStatus !== null && !documentedStock.has(String(stockStatus))) {
+                throw new Error("RUNPOD_CPU_STAGING_STOCK_CONTRACT_AMBIGUOUS");
+            }
+            const liveCapacityConfirmed = documentedStock.has(String(stockStatus));
+            const payload = {
+                cloudType: "SECURE",
+                computeType: "CPU",
+                containerDiskInGb: 30,
+                cpuFlavorIds: [RUNPOD_CPU_STAGING_PROFILE.cpuFlavorId],
+                cpuFlavorPriority: "custom",
+                dataCenterIds: [RUNPOD_CPU_STAGING_PROFILE.dataCenterId],
+                dataCenterPriority: "custom",
+                imageName: cacheContract.imageReference,
+                interruptible: false,
+                networkVolumeId: plannedVolume.id,
+                ports: ["22/tcp"],
+                supportPublicIp: true,
+                vcpuCount: RUNPOD_CPU_STAGING_PROFILE.minimumVcpu,
+                volumeMountPath: RUNPOD_CPU_STAGING_PROFILE.networkVolumeMountPath
+            };
+            return {
+                ok: true,
+                phase: "CPU_STAGING_READ_ONLY_PRECHECK",
+                status: liveCapacityConfirmed
+                    ? "CPU_STAGING_AVAILABLE_READ_ONLY"
+                    : "CPU_STAGING_COMPATIBLE_CAPACITY_UNCONFIRMED",
+                paidResourceCreationAuthorized: false,
+                resourceCreationPossible: false,
+                liveCapacityConfirmed,
+                stockStatus,
+                payload,
+                economics: {
+                    hourlyRateUsd: securePriceUsdPerHour,
+                    estimatedThirtyMinutesUsd: Number((securePriceUsdPerHour / 2).toFixed(6)),
+                    networkVolumeStorageExcluded: true
+                },
+                cache: {
+                    profile: cacheContract.profile,
+                    cpuCompletionStatus: RUNPOD_CPU_STAGING_PROFILE.cacheStatus,
+                    runtimeVerificationStatus: RUNPOD_CPU_STAGING_PROFILE.runtimeStatus,
+                    allowedStages: [...RUNPOD_CPU_STAGING_PROFILE.allowedStages],
+                    forbiddenCertifications: [...RUNPOD_CPU_STAGING_PROFILE.forbiddenCertifications]
+                }
+            };
+        }
+        catch(error) {
+            return {
+                ok: false,
+                phase: "CPU_STAGING_READ_ONLY_PRECHECK",
+                status: error?.message || "RUNPOD_CPU_STAGING_PRECHECK_FAILED",
+                error: error?.message || "RUNPOD_CPU_STAGING_PRECHECK_FAILED",
+                paidResourceCreationAuthorized: false,
+                resourceCreationPossible: false,
+                liveCapacityConfirmed: false
             };
         }
     }
@@ -1694,7 +1865,7 @@ export function createRunpodRemoteVideoAdapter({
         const dataCenterSelection = dataCenterId
             ? ` dataCenters { id gpuAvailability(input: { gpuCount: 1, secureCloud: true }) { gpuTypeId stockStatus available } }`
             : "";
-        const query = `query { myself { id } gpuTypes(input: { id: \"NVIDIA A40\" }) { id displayName memoryInGb lowestPrice(input: { gpuCount: 1, secureCloud: ${secureCloud} }) { stockStatus uninterruptablePrice availableGpuCounts } }${dataCenterSelection} }`;
+        const query = `query { myself { id } gpuTypes(input: { id: ${JSON.stringify(gpuTypeId)} }) { id displayName memoryInGb lowestPrice(input: { gpuCount: 1, secureCloud: ${secureCloud} }) { stockStatus uninterruptablePrice availableGpuCounts } }${dataCenterSelection} }`;
         const separator = graphQlBase.includes("?") ? "&" : "?";
         const payload = await apiRequest(
             `${graphQlBase}${separator}api_key=${encodeURIComponent(apiKey)}`,
@@ -1718,7 +1889,7 @@ export function createRunpodRemoteVideoAdapter({
             : Array.isArray(availableGpuCounts) && availableGpuCounts.map(Number).includes(1);
         if (
             gpu?.id !== gpuTypeId ||
-            Number(gpu?.memoryInGb || 0) < 24 ||
+            Number(gpu?.memoryInGb || 0) < cacheContract.minimumVramGb ||
             !documentedAvailableStock.has(stockStatus) ||
             !requestedCountAvailable
         ) {
@@ -1760,8 +1931,14 @@ export function createRunpodRemoteVideoAdapter({
         if (id !== networkVolumeId || !dataCenterId || !Number.isFinite(sizeGb)) {
             throw new Error("RUNPOD_NETWORK_VOLUME_RESPONSE_INVALID");
         }
-        if (sizeGb < RUNPOD_WAN22_CACHE_CONTRACT.minimumNetworkVolumeGb) {
+        if (sizeGb < cacheContract.minimumNetworkVolumeGb) {
             throw new Error("RUNPOD_NETWORK_VOLUME_CAPACITY_INSUFFICIENT");
+        }
+        if (
+            cacheContract.requiredNetworkVolumeDataCenterId &&
+            dataCenterId !== cacheContract.requiredNetworkVolumeDataCenterId
+        ) {
+            throw new Error("RUNPOD_GPU_NETWORK_VOLUME_DATACENTER_NOT_APPROVED");
         }
         return { id, dataCenterId, sizeGb };
     }
@@ -1870,28 +2047,37 @@ export function createRunpodRemoteVideoAdapter({
         const remoteRepository = `${cacheRoot}/Wan2.2`;
         const remoteModel = `${cacheRoot}/model`;
         const manifestFile = `${cacheRoot}/cache-manifest.json`;
+        const modelManifestFile = `${cacheRoot}/model-manifest.json`;
+        const modelPreflightFile = `${cacheRoot}/model-preflight.py`;
         const preflightFile = `${cacheRoot}/runtime-preflight.py`;
         const preflightResultFile = `${cacheRoot}/runtime-preflight.json`;
         const constraintsFile = `${cacheRoot}/constraints.txt`;
         const filteredRequirementsFile = `${cacheRoot}/requirements-without-flash-attn.txt`;
-        const requiredJson = JSON.stringify(RUNPOD_WAN22_CACHE_CONTRACT.requiredFiles);
         const contractJson = JSON.stringify({
-            profile: RUNPOD_WAN22_CACHE_CONTRACT.profile,
-            imageReference: RUNPOD_WAN22_CACHE_CONTRACT.imageReference,
-            pythonVersionPrefix: RUNPOD_WAN22_CACHE_CONTRACT.pythonVersionPrefix,
-            torchVersionPrefix: RUNPOD_WAN22_CACHE_CONTRACT.torchVersionPrefix,
-            torchCudaVersionPrefix: RUNPOD_WAN22_CACHE_CONTRACT.torchCudaVersionPrefix,
-            computeCapability: RUNPOD_WAN22_CACHE_CONTRACT.computeCapability,
-            requirementsSha256: RUNPOD_WAN22_CACHE_CONTRACT.requirementsSha256,
-            flashAttentionVersion: RUNPOD_WAN22_CACHE_CONTRACT.flashAttentionVersion,
-            modelRepository: RUNPOD_WAN22_CACHE_CONTRACT.modelRepository,
-            modelRevision: RUNPOD_WAN22_CACHE_CONTRACT.modelRevision,
-            wanRepositoryRevision: RUNPOD_WAN22_CACHE_CONTRACT.wanRepositoryRevision,
-            expectedModelBytes: RUNPOD_WAN22_CACHE_CONTRACT.expectedModelBytes,
-            requiredRuntimeModelBytes: RUNPOD_WAN22_CACHE_CONTRACT.requiredRuntimeModelBytes,
-            workspaceReserveBytes: RUNPOD_WAN22_CACHE_CONTRACT.workspaceReserveBytes,
-            peakWorkspaceBytes: RUNPOD_WAN22_CACHE_CONTRACT.peakWorkspaceBytes,
-            requiredFiles: RUNPOD_WAN22_CACHE_CONTRACT.requiredFiles
+            profile: cacheContract.profile,
+            gpuTypeId: cacheContract.gpuTypeId,
+            imageReference: cacheContract.imageReference,
+            pythonVersionPrefix: cacheContract.pythonVersionPrefix,
+            torchVersionPrefix: cacheContract.torchVersionPrefix,
+            torchCudaVersionPrefix: cacheContract.torchCudaVersionPrefix,
+            computeCapability: cacheContract.computeCapability,
+            requirementsSha256: cacheContract.requirementsSha256,
+            flashAttentionVersion: cacheContract.flashAttentionVersion,
+            modelRepository: cacheContract.modelRepository,
+            modelRevision: cacheContract.modelRevision,
+            wanRepositoryRevision: cacheContract.wanRepositoryRevision,
+            expectedModelBytes: cacheContract.expectedModelBytes,
+            requiredRuntimeModelBytes: cacheContract.requiredRuntimeModelBytes,
+            workspaceReserveBytes: cacheContract.workspaceReserveBytes,
+            peakWorkspaceBytes: cacheContract.peakWorkspaceBytes,
+            requiredFiles: cacheContract.requiredFiles
+        });
+        const modelContractJson = JSON.stringify({
+            modelRepository: cacheContract.modelRepository,
+            modelRevision: cacheContract.modelRevision,
+            expectedModelBytes: cacheContract.expectedModelBytes,
+            requiredRuntimeModelBytes: cacheContract.requiredRuntimeModelBytes,
+            requiredFiles: cacheContract.requiredFiles
         });
         const bootstrap = [
             "#!/usr/bin/env bash",
@@ -1902,6 +2088,8 @@ export function createRunpodRemoteVideoAdapter({
             `WAN_REPO=${shellSingleQuote(remoteRepository)}`,
             `MODEL_DIR=${shellSingleQuote(remoteModel)}`,
             `CACHE_MANIFEST=${shellSingleQuote(manifestFile)}`,
+            `MODEL_MANIFEST=${shellSingleQuote(modelManifestFile)}`,
+            `MODEL_PREFLIGHT=${shellSingleQuote(modelPreflightFile)}`,
             `PREFLIGHT=${shellSingleQuote(preflightFile)}`,
             `PREFLIGHT_RESULT=${shellSingleQuote(preflightResultFile)}`,
             `CONSTRAINTS=${shellSingleQuote(constraintsFile)}`,
@@ -1916,7 +2104,8 @@ export function createRunpodRemoteVideoAdapter({
             `export JARVIS_OPERATION_ID=${shellSingleQuote(path.basename(path.dirname(bootstrapFile)))}`,
             `PROGRESS=${shellSingleQuote(`${remoteBase}/operations`)}/$JARVIS_OPERATION_ID/bootstrap-progress.json`,
             "mkdir -p \"$CACHE_ROOT\" \"$(dirname \"$PROGRESS\")\"",
-            "progress() { local stage=\"$1\" status=\"$2\" cache=\"$3\" bytes=0; test -d \"$MODEL_DIR\" && bytes=$(du -sb \"$MODEL_DIR\" 2>/dev/null | awk '{print $1}') || true; python3 - \"$PROGRESS\" \"$stage\" \"$status\" \"$cache\" \"$bytes\" <<'PY'",
+            "CURRENT_CACHE_STATUS=CACHE_MISS",
+            "progress() { local stage=\"$1\" status=\"$2\" cache=\"$3\" bytes=0; CURRENT_CACHE_STATUS=\"$cache\"; test -d \"$MODEL_DIR\" && bytes=$(du -sb \"$MODEL_DIR\" 2>/dev/null | awk '{print $1}') || true; python3 - \"$PROGRESS\" \"$stage\" \"$status\" \"$cache\" \"$bytes\" <<'PY'",
             "import json,os,sys,tempfile,datetime",
             "target,stage,status,cache,raw=sys.argv[1:]",
             "payload={'stage':stage,'status':status,'cacheStatus':cache,'modelBytes':int(raw or 0),'at':datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z')}",
@@ -1924,7 +2113,7 @@ export function createRunpodRemoteVideoAdapter({
             "open(tmp,'w',encoding='utf-8').write(json.dumps(payload,separators=(',',':'))+'\\n'); os.replace(tmp,target)",
             "PY",
             "}",
-            "trap 'progress BOOTSTRAP FAILED CACHE_MISS' ERR",
+            "trap 'progress BOOTSTRAP FAILED \"${CURRENT_CACHE_STATUS:-CACHE_MISS}\"' ERR",
             "progress SYSTEM_DEPENDENCIES RUNNING CACHE_MISS",
             "missing=(); for tool in git ffmpeg ffprobe nvcc; do command -v \"$tool\" >/dev/null || missing+=(\"$tool\"); done; python3 -m venv --help >/dev/null 2>&1 || missing+=(python3-venv)",
             "if test ${#missing[@]} -gt 0; then apt-get update -qq; apt-get install -y -qq git ffmpeg python3-venv build-essential; fi",
@@ -1939,16 +2128,40 @@ export function createRunpodRemoteVideoAdapter({
             "    except Exception as error: imports[name]=False",
             "torch=importlib.import_module('torch')",
             "cuda_probe=False",
+            "flash_attention_cuda_probe=False",
             "if torch.cuda.is_available():",
             "    try: cuda_probe=bool((torch.ones(1,device='cuda')+1).item()==2); torch.cuda.synchronize()",
             "    except Exception: cuda_probe=False",
+            "    try:",
+            "        flash_attn_func=importlib.import_module('flash_attn').flash_attn_func",
+            "        q=torch.randn((1,4,2,64),device='cuda',dtype=torch.float16)",
+            "        out=flash_attn_func(q,q,q); torch.cuda.synchronize()",
+            "        flash_attention_cuda_probe=bool(out.is_cuda and out.shape==q.shape)",
+            "    except Exception: flash_attention_cuda_probe=False",
             "pip_check=subprocess.run([sys.executable,'-m','pip','check'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=120).returncode==0",
             "probe_env=dict(os.environ); probe_env.update({'HF_HUB_OFFLINE':'1','TRANSFORMERS_OFFLINE':'1','WANDB_MODE':'offline'})",
             "cli=subprocess.run([sys.executable,os.path.join(repo,'generate.py'),'--help'],cwd=repo,env=probe_env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=120).returncode==0",
-            "payload={'pythonVersion':platform.python_version(),'torchVersion':str(torch.__version__),'torchCudaVersion':str(torch.version.cuda or ''),'cuda':torch.cuda.is_available(),'gpuName':torch.cuda.get_device_name(0) if torch.cuda.is_available() else '', 'computeCapability':'.'.join(map(str,torch.cuda.get_device_capability(0))) if torch.cuda.is_available() else '', 'cudaProbe':cuda_probe,'pipCheck':pip_check,'wanCliImport':cli,'imports':imports,'flashAttentionVersion':importlib.metadata.version('flash-attn') if imports.get('flash_attn') else ''}",
-            "payload['ok']=bool(payload['pythonVersion'].startswith(expected['pythonVersionPrefix']) and payload['torchVersion'].startswith(expected['torchVersionPrefix']) and payload['torchCudaVersion'].startswith(expected['torchCudaVersionPrefix']) and payload['computeCapability']==expected['computeCapability'] and payload['cudaProbe'] and payload['pipCheck'] and payload['wanCliImport'] and all(imports.values()) and payload['flashAttentionVersion']==expected['flashAttentionVersion'])",
+            "payload={'pythonVersion':platform.python_version(),'torchVersion':str(torch.__version__),'torchCudaVersion':str(torch.version.cuda or ''),'cuda':torch.cuda.is_available(),'gpuName':torch.cuda.get_device_name(0) if torch.cuda.is_available() else '', 'computeCapability':'.'.join(map(str,torch.cuda.get_device_capability(0))) if torch.cuda.is_available() else '', 'cudaProbe':cuda_probe,'flashAttentionCudaProbe':flash_attention_cuda_probe,'pipCheck':pip_check,'wanCliImport':cli,'imports':imports,'flashAttentionVersion':importlib.metadata.version('flash-attn') if imports.get('flash_attn') else ''}",
+            "payload['ok']=bool(payload['pythonVersion'].startswith(expected['pythonVersionPrefix']) and payload['torchVersion'].startswith(expected['torchVersionPrefix']) and payload['torchCudaVersion'].startswith(expected['torchCudaVersionPrefix']) and payload['computeCapability']==expected['computeCapability'] and payload['cudaProbe'] and payload['flashAttentionCudaProbe'] and payload['pipCheck'] and payload['wanCliImport'] and all(imports.values()) and payload['flashAttentionVersion']==expected['flashAttentionVersion'])",
             "open(target,'w',encoding='utf-8').write(json.dumps(payload,sort_keys=True,separators=(',',':'))+'\\n')",
             "raise SystemExit(0 if payload['ok'] else 1)",
+            "PY",
+            `cat > "$MODEL_PREFLIGHT" <<'PY'`,
+            "import hashlib,json,os,sys,tempfile",
+            "expected=json.loads(sys.argv[1]); model_dir=sys.argv[2]; manifest_path=sys.argv[3]; write=len(sys.argv)>4 and sys.argv[4]=='write'",
+            "assert sum(item['bytes'] for item in expected['requiredFiles'])==expected['requiredRuntimeModelBytes']",
+            "for item in expected['requiredFiles']:",
+            "    target=os.path.join(model_dir,item['path']); assert os.path.getsize(target)==item['bytes']",
+            "    digest=hashlib.sha256(); f=open(target,'rb')",
+            "    for chunk in iter(lambda:f.read(8*1024*1024),b''): digest.update(chunk)",
+            "    assert digest.hexdigest()==item['sha256']",
+            "if write:",
+            "    fd,tmp=tempfile.mkstemp(prefix='.model-manifest-',dir=os.path.dirname(manifest_path)); os.close(fd)",
+            "    open(tmp,'w',encoding='utf-8').write(json.dumps(expected,sort_keys=True,separators=(',',':'))+'\\n'); os.replace(tmp,manifest_path)",
+            "else:",
+            "    actual=json.load(open(manifest_path,encoding='utf-8'))",
+            "    keys=('modelRepository','modelRevision','expectedModelBytes','requiredRuntimeModelBytes')",
+            "    assert all(actual.get(k)==expected.get(k) for k in keys) and actual.get('requiredFiles')==expected.get('requiredFiles')",
             "PY",
             "CACHE_VALID=0",
             `python3 - \"$CACHE_MANIFEST\" \"$MODEL_DIR\" \"$WAN_REPO\" \"$VENV\" ${shellSingleQuote(contractJson)} <<'PY' && CACHE_VALID=1 || true`,
@@ -1956,7 +2169,7 @@ export function createRunpodRemoteVideoAdapter({
             "manifest_path,model_dir,repo_dir,venv_dir,expected_raw=sys.argv[1:]",
             "expected=json.loads(expected_raw)",
             "actual=json.load(open(manifest_path,encoding='utf-8'))",
-            "keys=('profile','imageReference','pythonVersionPrefix','torchVersionPrefix','torchCudaVersionPrefix','computeCapability','requirementsSha256','flashAttentionVersion','modelRepository','modelRevision','wanRepositoryRevision','expectedModelBytes','requiredRuntimeModelBytes','workspaceReserveBytes','peakWorkspaceBytes')",
+            "keys=('profile','gpuTypeId','imageReference','pythonVersionPrefix','torchVersionPrefix','torchCudaVersionPrefix','computeCapability','requirementsSha256','flashAttentionVersion','modelRepository','modelRevision','wanRepositoryRevision','expectedModelBytes','requiredRuntimeModelBytes','workspaceReserveBytes','peakWorkspaceBytes')",
             "assert all(actual.get(k)==expected.get(k) for k in keys)",
             "assert os.path.isfile(os.path.join(repo_dir,'generate.py')) and os.path.isfile(os.path.join(venv_dir,'bin','python'))",
             "assert subprocess.check_output(['git','-C',repo_dir,'rev-parse','HEAD'],text=True).strip()==expected['wanRepositoryRevision']",
@@ -1972,13 +2185,13 @@ export function createRunpodRemoteVideoAdapter({
             "progress CACHE_VALIDATE INCOMPLETE CACHE_MISS",
             "progress WAN_REPOSITORY RUNNING CACHE_POPULATING",
             `if test ! -d \"$WAN_REPO/.git\"; then git clone --filter=blob:none https://github.com/Wan-Video/Wan2.2.git \"$WAN_REPO\"; fi`,
-            `git -C \"$WAN_REPO\" fetch --depth 1 origin ${RUNPOD_WAN22_CACHE_CONTRACT.wanRepositoryRevision}`,
-            `git -C \"$WAN_REPO\" checkout --detach ${RUNPOD_WAN22_CACHE_CONTRACT.wanRepositoryRevision}`,
+            `git -C \"$WAN_REPO\" fetch --depth 1 origin ${cacheContract.wanRepositoryRevision}`,
+            `git -C \"$WAN_REPO\" checkout --detach ${cacheContract.wanRepositoryRevision}`,
             "progress WAN_REPOSITORY READY CACHE_POPULATING",
             "progress PYTHON_REQUIREMENTS RUNNING CACHE_POPULATING",
             "test -x \"$VENV/bin/python\" || python3 -m venv --system-site-packages \"$VENV\"",
             "REQ_SHA=$(sha256sum \"$WAN_REPO/requirements.txt\" | awk '{print $1}')",
-            `test \"$REQ_SHA\" = ${shellSingleQuote(RUNPOD_WAN22_CACHE_CONTRACT.requirementsSha256)}`,
+            `test \"$REQ_SHA\" = ${shellSingleQuote(cacheContract.requirementsSha256)}`,
             "cat > \"$CONSTRAINTS\" <<'EOF'",
             "torch==2.8.0",
             "torchvision==0.23.0",
@@ -1986,43 +2199,42 @@ export function createRunpodRemoteVideoAdapter({
             "transformers==4.51.3",
             "tokenizers==0.21.4",
             "numpy==1.26.4",
-            `flash-attn==${RUNPOD_WAN22_CACHE_CONTRACT.flashAttentionVersion}`,
+            `flash-attn==${cacheContract.flashAttentionVersion}`,
             "huggingface-hub>=0.30,<1",
             "EOF",
             "grep -v -E '^(flash_attn|flash-attn)([<>=!~].*)?$' \"$WAN_REPO/requirements.txt\" > \"$FILTERED_REQUIREMENTS\"",
             "\"$VENV/bin/python\" -m pip install --upgrade pip setuptools wheel packaging psutil ninja",
             "\"$VENV/bin/python\" -m pip install --constraint \"$CONSTRAINTS\" --requirement \"$FILTERED_REQUIREMENTS\" 'huggingface_hub[cli]>=0.30,<1'",
-            `MAX_JOBS=4 \"$VENV/bin/python\" -m pip install \"flash-attn==${RUNPOD_WAN22_CACHE_CONTRACT.flashAttentionVersion}\" --no-build-isolation`,
+            `MAX_JOBS=4 \"$VENV/bin/python\" -m pip install \"flash-attn==${cacheContract.flashAttentionVersion}\" --no-build-isolation`,
             `\"$VENV/bin/python\" \"$PREFLIGHT\" ${shellSingleQuote(contractJson)} \"$WAN_REPO\" \"$PREFLIGHT_RESULT\"`,
             "\"$VENV/bin/python\" -m pip check",
             "printf '%s\\n' \"$REQ_SHA\" > \"$CACHE_ROOT/requirements.sha256\"",
             "progress PYTHON_REQUIREMENTS READY CACHE_POPULATING",
-            "progress MODEL_DOWNLOAD RUNNING CACHE_POPULATING",
             "mkdir -p \"$MODEL_DIR\"",
-            `\"$VENV/bin/hf\" download ${RUNPOD_WAN22_CACHE_CONTRACT.modelRepository} --revision ${RUNPOD_WAN22_CACHE_CONTRACT.modelRevision} --local-dir \"$MODEL_DIR\" &`,
-            "DOWNLOAD_PID=$!",
-            "while kill -0 \"$DOWNLOAD_PID\" 2>/dev/null; do progress MODEL_DOWNLOAD RUNNING CACHE_POPULATING; sleep 20; done",
-            "wait \"$DOWNLOAD_PID\"",
-            "progress MODEL_DOWNLOAD READY CACHE_POPULATING",
-            "progress MODEL_VALIDATION RUNNING CACHE_POPULATING",
-            `python3 - \"$MODEL_DIR\" ${shellSingleQuote(requiredJson)} <<'PY'`,
-            "import hashlib,json,os,sys",
-            `root=sys.argv[1]; required=json.loads(sys.argv[2]); assert sum(item['bytes'] for item in required)==${RUNPOD_WAN22_CACHE_CONTRACT.requiredRuntimeModelBytes}`,
-            "for item in required:",
-            "    target=os.path.join(root,item['path']); assert os.path.getsize(target)==item['bytes']",
-            "    digest=hashlib.sha256(); f=open(target,'rb')",
-            "    for chunk in iter(lambda:f.read(8*1024*1024),b''): digest.update(chunk)",
-            "    assert digest.hexdigest()==item['sha256']",
-            "PY",
-            "progress RUNTIME_PREFLIGHT RUNNING CACHE_POPULATING",
+            "MODEL_CACHE_VALID=0",
+            `python3 "$MODEL_PREFLIGHT" ${shellSingleQuote(modelContractJson)} "$MODEL_DIR" "$MODEL_MANIFEST" && MODEL_CACHE_VALID=1 || true`,
+            "if test \"$MODEL_CACHE_VALID\" = 1; then",
+            "  progress MODEL_VALIDATION READY CACHE_MODEL_READY",
+            "else",
+            "  rm -f \"$MODEL_MANIFEST\"",
+            "  progress MODEL_DOWNLOAD RUNNING CACHE_POPULATING",
+            `  \"$VENV/bin/hf\" download ${cacheContract.modelRepository} --revision ${cacheContract.modelRevision} --local-dir \"$MODEL_DIR\" &`,
+            "  DOWNLOAD_PID=$!",
+            "  while kill -0 \"$DOWNLOAD_PID\" 2>/dev/null; do progress MODEL_DOWNLOAD RUNNING CACHE_POPULATING; sleep 20; done",
+            "  wait \"$DOWNLOAD_PID\"",
+            "  progress MODEL_DOWNLOAD READY CACHE_POPULATING",
+            "  progress MODEL_VALIDATION RUNNING CACHE_POPULATING",
+            `  python3 "$MODEL_PREFLIGHT" ${shellSingleQuote(modelContractJson)} "$MODEL_DIR" "$MODEL_MANIFEST" write`,
+            "  progress MODEL_VALIDATION READY CACHE_MODEL_READY",
+            "fi",
+            "progress RUNTIME_PREFLIGHT RUNNING CACHE_MODEL_READY",
             `\"$VENV/bin/python\" \"$PREFLIGHT\" ${shellSingleQuote(contractJson)} \"$WAN_REPO\" \"$PREFLIGHT_RESULT\"`,
-            "progress RUNTIME_PREFLIGHT READY CACHE_POPULATING",
+            "progress RUNTIME_PREFLIGHT READY CACHE_MODEL_READY",
             `python3 - \"$CACHE_MANIFEST\" ${shellSingleQuote(contractJson)} <<'PY'`,
             "import json,os,sys,tempfile",
             "target=sys.argv[1]; payload=json.loads(sys.argv[2]); fd,tmp=tempfile.mkstemp(prefix='.manifest-',dir=os.path.dirname(target)); os.close(fd)",
             "open(tmp,'w',encoding='utf-8').write(json.dumps(payload,sort_keys=True,separators=(',',':'))+'\\n'); os.replace(tmp,target)",
             "PY",
-            "progress MODEL_VALIDATION READY CACHE_READY",
             "progress RUNNER_READY READY CACHE_READY"
         ].join("\n") + "\n";
         fs.writeFileSync(bootstrapFile, bootstrap, { encoding: "utf8", mode: 0o700 });
@@ -2141,7 +2353,7 @@ export function createRunpodRemoteVideoAdapter({
             "'cudaProbe':probe,'vramGb':round(torch.cuda.get_device_properties(0).total_memory/1073741824,2) if cuda else 0,'freeDiskGb':round(p.free/1073741824,2)," +
             "'ffmpeg':bool(shutil.which('ffmpeg')),'ffprobe':bool(shutil.which('ffprobe')),'nvcc':bool(shutil.which('nvcc'))}; " +
             (full
-                ? `r=json.load(open('${runtimePreflightFile}',encoding='utf-8')) if os.path.isfile('${runtimePreflightFile}') else {}; d.update({'runner':os.path.isfile('${state.remoteOperationDir}/jarvis-local-video-wan22.py'),'wanRepository':os.path.isfile('${cacheRoot}/Wan2.2/generate.py'),'wanModel':os.path.isfile('${cacheRoot}/cache-manifest.json'),'dependencyContract':r.get('ok') is True,'pipCheck':r.get('pipCheck') is True,'wanCliImport':r.get('wanCliImport') is True,'runtimeCudaProbe':r.get('cudaProbe') is True,'flashAttention':r.get('flashAttentionVersion')=='${RUNPOD_WAN22_CACHE_CONTRACT.flashAttentionVersion}','imports':bool(r.get('imports')) and all(r.get('imports',{}).values())}); `
+                ? `r=json.load(open('${runtimePreflightFile}',encoding='utf-8')) if os.path.isfile('${runtimePreflightFile}') else {}; d.update({'runner':os.path.isfile('${state.remoteOperationDir}/jarvis-local-video-wan22.py'),'wanRepository':os.path.isfile('${cacheRoot}/Wan2.2/generate.py'),'wanModel':os.path.isfile('${cacheRoot}/cache-manifest.json'),'dependencyContract':r.get('ok') is True,'pipCheck':r.get('pipCheck') is True,'wanCliImport':r.get('wanCliImport') is True,'runtimeCudaProbe':r.get('cudaProbe') is True,'flashAttentionCudaProbe':r.get('flashAttentionCudaProbe') is True,'flashAttention':r.get('flashAttentionVersion')=='${cacheContract.flashAttentionVersion}','imports':bool(r.get('imports')) and all(r.get('imports',{}).values())}); `
                 : "") +
             "print(json.dumps(d))"
         )}`;
@@ -2150,14 +2362,15 @@ export function createRunpodRemoteVideoAdapter({
         try { health = JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1)); }
         catch { throw new Error("RUNPOD_HEALTH_RESPONSE_INVALID"); }
         const baseReady = health.python === true &&
-            String(health.pythonVersion || "").startsWith(RUNPOD_WAN22_CACHE_CONTRACT.pythonVersionPrefix) &&
+            String(health.pythonVersion || "").startsWith(cacheContract.pythonVersionPrefix) &&
             health.torch === true &&
-            String(health.torchVersion || "").startsWith(RUNPOD_WAN22_CACHE_CONTRACT.torchVersionPrefix) &&
-            String(health.torchCudaVersion || "").startsWith(RUNPOD_WAN22_CACHE_CONTRACT.torchCudaVersionPrefix) &&
+            String(health.torchVersion || "").startsWith(cacheContract.torchVersionPrefix) &&
+            String(health.torchCudaVersion || "").startsWith(cacheContract.torchCudaVersionPrefix) &&
             health.cuda === true && health.cudaProbe === true &&
             String(health.gpuName || "").trim() === gpuTypeId &&
-            String(health.computeCapability || "") === RUNPOD_WAN22_CACHE_CONTRACT.computeCapability &&
-            Number(health.vramGb || 0) >= 24 && Number(health.freeDiskGb || 0) >= 45 &&
+            String(health.computeCapability || "") === cacheContract.computeCapability &&
+            Number(health.vramGb || 0) >= cacheContract.minimumVramGb &&
+            Number(health.freeDiskGb || 0) >= 45 &&
             health.ffmpeg === true && health.ffprobe === true && health.nvcc === true;
         if (!baseReady) throw new Error("RUNPOD_IMAGE_RUNTIME_MISMATCH");
         if (full && (
@@ -2165,6 +2378,7 @@ export function createRunpodRemoteVideoAdapter({
             health.wanRepository !== true || health.wanModel !== true ||
             health.dependencyContract !== true || health.pipCheck !== true ||
             health.wanCliImport !== true || health.flashAttention !== true ||
+            health.flashAttentionCudaProbe !== true ||
             health.imports !== true ||
             (health.runtimeCudaProbe !== true && health.cudaProbe !== true)
         )) {
@@ -2203,7 +2417,9 @@ export function createRunpodRemoteVideoAdapter({
             if (!podId) throw new Error("RUNPOD_PROVISION_RESPONSE_INVALID");
             const actualGpu = String(pod?.gpu?.id || pod?.machine?.gpuTypeId || gpuTypeId);
             const actualVram = Number(pod?.gpu?.memoryInGb || availability.vramGb || expectedVramGb);
-            if (actualGpu !== gpuTypeId || actualVram < 24) throw new Error("RUNPOD_PROVISIONED_GPU_INCOMPATIBLE");
+            if (actualGpu !== gpuTypeId || actualVram < cacheContract.minimumVramGb) {
+                throw new Error("RUNPOD_PROVISIONED_GPU_INCOMPATIBLE");
+            }
             const hourlyRateUsd = Math.max(
                 Number(pod?.adjustedCostPerHr || pod?.costPerHr || availability.hourlyRateUsd),
                 configuredTotalHourlyRateUsd
@@ -2225,7 +2441,9 @@ export function createRunpodRemoteVideoAdapter({
                 networkVolumeId: networkVolume?.id || null,
                 networkVolumeDataCenterId: networkVolume?.dataCenterId || null,
                 networkVolumeSizeGb: networkVolume?.sizeGb || null,
-                cacheProfile: RUNPOD_WAN22_CACHE_CONTRACT.profile,
+                cacheProfile: cacheContract.profile,
+                modelContractRevision: cacheContract.modelRevision,
+                computeCapabilityRequired: cacheContract.computeCapability,
                 expectedCacheStatus: zeroCostPrecheck.cache.expectedStatus,
                 imageReference: imageName,
                 cacheStatus: "CACHE_MISS",
@@ -2319,7 +2537,7 @@ export function createRunpodRemoteVideoAdapter({
         try { progress = JSON.parse(raw.split(/\r?\n/).at(-1)); }
         catch { throw new Error("RUNPOD_BOOTSTRAP_PROGRESS_INVALID"); }
         if (
-            !["CACHE_MISS", "CACHE_POPULATING", "CACHE_READY", "CACHE_HIT"].includes(progress.cacheStatus) ||
+            !["CACHE_MISS", "CACHE_POPULATING", "CACHE_MODEL_READY", "CACHE_READY", "CACHE_HIT"].includes(progress.cacheStatus) ||
             !String(progress.stage || "").trim() || !Number.isFinite(Date.parse(String(progress.at || "")))
         ) {
             throw new Error("RUNPOD_BOOTSTRAP_PROGRESS_INVALID");
@@ -2669,7 +2887,7 @@ export function createRunpodRemoteVideoAdapter({
             requestedGpuName: gpuTypeId,
             requestedVramGb: expectedVramGb,
             requestedStorageGb: networkVolumeId
-                ? RUNPOD_WAN22_CACHE_CONTRACT.minimumNetworkVolumeGb
+                ? (cacheContract?.minimumNetworkVolumeGb || RUNPOD_WAN22_CACHE_BASE.minimumNetworkVolumeGb)
                 : containerDiskInGb + volumeInGb,
             physicalHealthVerified: false,
             runtimePreflightVerified: false,
@@ -2684,7 +2902,7 @@ export function createRunpodRemoteVideoAdapter({
             budgetStopRatio,
             maximumSpendBeforeCleanupUsd: Number((hardBudgetUsd * budgetStopRatio).toFixed(6)),
             networkVolumeId: networkVolumeId || null,
-            cacheProfile: RUNPOD_WAN22_CACHE_CONTRACT.profile,
+            cacheProfile: cacheContract?.profile || null,
             bootstrapTimeoutSeconds,
             inferenceTimeoutSeconds
         };
@@ -2696,6 +2914,7 @@ export function createRunpodRemoteVideoAdapter({
         configured: provider === "runpod" && Boolean(apiKey) && paidResourceCreationAuthorized,
         inspectHardware,
         inspectZeroCostPrecheck,
+        inspectCpuStagingPrecheck,
         launch,
         poll: pollRemote,
         release

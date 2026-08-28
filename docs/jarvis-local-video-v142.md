@@ -111,6 +111,9 @@ RunPod is connected behind the same `/video/local/*` routes and the same
 ```text
 JARVIS_REMOTE_GPU_PROVIDER=runpod
 RUNPOD_API_KEY=<server-side secret>
+JARVIS_RUNPOD_GPU_TYPE_ID=NVIDIA L40S
+JARVIS_RUNPOD_CLOUD_TYPE=SECURE
+JARVIS_RUNPOD_NETWORK_VOLUME_ID=<existing-volume-in-US-TX-3>
 JARVIS_LOCAL_VIDEO_EXECUTION_TARGET=remote
 JARVIS_VIDEO_ENGINE_POLICY=LOCAL_TEST
 JARVIS_LOCAL_VIDEO_MODEL=wan22-ti2v-5b
@@ -118,7 +121,7 @@ JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT=<repo>/scripts/jarvis-local-video-wan22.py
 JARVIS_RUNPOD_CANONICAL_SHA=<40-hex SHA returned by git rev-parse HEAD>
 JARVIS_REMOTE_GPU_HARD_BUDGET_USD=2
 JARVIS_REMOTE_GPU_BUDGET_STOP_RATIO=0.95
-JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD=0.46
+JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD=0.99
 JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED=false
 ```
 
@@ -139,10 +142,10 @@ The adapter separates two evidence levels:
 
 | `ZERO_COST_PRECHECK` (before credentials or billable creation) | `PHYSICAL_PAID_PREFLIGHT` (only after one Pod exists) |
 | --- | --- |
-| Canonical Git SHA equals the configured SHA and bridge identity is `BRIDGE_IDENTITY_OK`. | The allocated GPU is physically an A40 with compute capability 8.6 and sufficient VRAM. |
+| Canonical Git SHA equals the configured SHA and bridge identity is `BRIDGE_IDENTITY_OK`. | The allocated GPU exactly matches the explicitly authorized A40/CC 8.6 or L40S/CC 8.9 profile and has at least 48 GB VRAM. |
 | Policy is exactly `LOCAL_TEST`, backend is exactly `wan22-ti2v-5b`, and external fallback is forbidden. | CUDA, NVCC, Python 3.12, PyTorch 2.8/CUDA 12.8, FFmpeg, and FlashAttention work on that Pod. |
 | OCI image digest, Wan repo revision, model revision, requirements SHA, and every required model file are immutable. | Required Python imports, `pip check`, a real CUDA tensor operation, and offline `generate.py --help` pass. |
-| Durable identity, reference bytes/SHA, local duplicate-obligation state, A40 request, volume/data-center contract, exact budget, and the sanitized Pod body are valid. | The mounted cache and every physical model file match the manifest. |
+| Durable identity, reference bytes/SHA, local duplicate-obligation state, explicit GPU request, volume/data-center contract, exact budget, and the sanitized Pod body are valid. | The mounted cache and every physical model file match the manifest; FlashAttention must execute a real CUDA kernel on the selected compute capability. |
 
 `inspectZeroCostPrecheck` builds and validates the same provision body later
 used by `POST /pods`, but substitutes `[EPHEMERAL_PUBLIC_KEY]` and performs no
@@ -158,17 +161,17 @@ For a persistent network volume, the sanitized future body is equivalent to:
   "containerDiskInGb": 30,
   "volumeMountPath": "/workspace",
   "gpuCount": 1,
-  "gpuTypeIds": ["NVIDIA A40"],
+  "gpuTypeIds": ["NVIDIA L40S"],
   "gpuTypePriority": "custom",
   "imageName": "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404@sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35",
   "interruptible": false,
-  "minRAMPerGPU": 50,
-  "minVCPUPerGPU": 9,
+  "minRAMPerGPU": 62,
+  "minVCPUPerGPU": 16,
   "ports": ["22/tcp"],
   "supportPublicIp": true,
   "name": "jarvis-v142-<durable-obligation-prefix>",
   "networkVolumeId": "<existing-verified-volume-id>",
-  "dataCenterIds": ["<same-volume-data-center>"],
+  "dataCenterIds": ["US-TX-3"],
   "env": {
     "PUBLIC_KEY": "[EPHEMERAL_PUBLIC_KEY]",
     "JARVIS_OPERATION_ID": "<durable-operation-id>",
@@ -205,19 +208,45 @@ SHA-256, and the complete runtime preflight. Missing, partial, or merely
 expected cache state remains `CACHE_MISS`/`CACHE_POPULATING`; a new runtime can
 reuse `CACHE_READY` only after repeating physical verification.
 
+The cache profile is GPU-specific even though the model bytes and pinned
+repository revisions are shared. `wan22-ti2v-5b-a40-v2` requires CC 8.6;
+`wan22-ti2v-5b-l40s-v1` requires CC 8.9. An A40 manifest or a FlashAttention
+binary that only works on sm_86 cannot become an L40S cache hit. The L40S
+physical preflight imports FlashAttention and executes `flash_attn_func` on
+CUDA before it can set `CACHE_READY` or `CACHE_HIT`.
+
+### CPU model staging without GPU-readiness claims
+
+The same adapter exposes a read-only CPU staging precheck; it does not create a
+second workflow or provision anything. The current candidate is `cpu3c` in
+`US-TX-3`, 2 vCPU, 4 GB RAM, with the same 50 GB Network Volume mounted at
+`/workspace`. RunPod's authenticated flavor query exposes USD 0.06/hour but
+does not expose CPU stock (`stockStatus=null`). Therefore the report is
+`CPU_STAGING_COMPATIBLE_CAPACITY_UNCONFIRMED`, keeps resource creation disabled,
+and a later paid authority must let RunPod decide actual placement.
+
+CPU staging may clone the pinned Wan repository, run `hf download`, verify the
+repository revision and every model byte/SHA-256, and write the model manifest.
+Its maximum state is `CACHE_MODEL_READY`. It cannot certify CUDA, NVCC,
+PyTorch-CUDA, compute capability, FlashAttention CUDA kernels, Wan runtime help,
+`CACHE_READY`, or `CACHE_HIT`. Those remain mandatory L40S physical checks.
+At USD 0.06/hour, 30 minutes of CPU staging is USD 0.03 compute, excluding the
+separately billed persistent Network Volume.
+
 The adapter performs this single durable lifecycle:
 
-1. Query official RunPod GPU availability and on-demand price for one
-   `NVIDIA A40` with at least 24 GB VRAM.
+1. Query official RunPod GPU availability and on-demand price for the one
+   explicitly selected profile. No A40-to-L40S or L40S-to-other-GPU fallback
+   exists.
 2. `POST https://rest.runpod.io/v1/pods` for exactly one on-demand Pod using
    the approved PyTorch 2.8/CUDA 12.8 image pinned by immutable OCI digest,
-   30 GB container disk, 100 GB volume, 50 GB minimum RAM, nine minimum vCPUs,
+   30 GB container disk and the selected profile's minimum RAM/vCPU,
    and TCP 22. A mutable image tag is rejected before billable capacity is
    created.
 3. Generate an ephemeral SSH keypair, pass only its public key to the Pod, and
    bind the local receipt to `missionId`, `objectiveId`, `obligationId`,
    `operationName`, and `rootInstructionHash`.
-4. Verify live A40/CUDA/VRAM/disk/Python/PyTorch/FFmpeg/NVCC health. Transfer the
+4. Verify the exact live GPU/CC/CUDA/VRAM/disk/Python/PyTorch/FFmpeg/NVCC health. Transfer the
    existing V142 runner, durable job JSON, and physical references with an
    SHA-256 manifest. Windows paths are rewritten to Pod paths.
 5. Install/verify the official Wan2.2 repository and
@@ -226,7 +255,8 @@ The adapter performs this single durable lifecycle:
    SHA-256 values are pinned. FlashAttention is installed separately using its
    supported no-build-isolation path. A cache hit is accepted only after
    `pip check`, all required Python imports, a real CUDA tensor operation, the
-   expected Python/Torch/CUDA/A40 compute-capability versions, and offline
+   expected Python/Torch/CUDA/GPU compute-capability versions, a real
+   FlashAttention CUDA operation, and offline
    `generate.py --help` all pass. Every poll uses the same `remoteJobId`; a
    transport timeout remains retryable and never provisions another Pod.
 6. Download the MP4, compare remote and local bytes/SHA-256, then let the
@@ -245,7 +275,7 @@ rate (GPU plus the displayed storage allowance); actual cost is queried from
 Veo and Gemini recovery calls during certification.
 
 Configuration readiness is deliberately different from physical readiness.
-Before a Pod exists, the bridge records the requested A40, VRAM, storage, and
+Before a Pod exists, the bridge records the explicitly requested GPU, VRAM, storage, and
 immutable image, but it does not claim that CUDA, Python, FFmpeg, the Wan CLI,
 or model dependencies are healthy. Those become verified only from the live
 worker probes above. Any mismatch fails closed before inference and triggers
