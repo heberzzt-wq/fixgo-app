@@ -697,13 +697,22 @@ test("V142 CPU staging in US-TX-3 can prepare model bytes but cannot certify GPU
     assert.equal(report.liveCapacityConfirmed, false);
     assert.equal(report.resourceCreationPossible, false);
     assert.equal(report.paidResourceCreationAuthorized, false);
-    assert.equal(report.payload.computeType, "CPU");
-    assert.deepEqual(report.payload.cpuFlavorIds, ["cpu3c"]);
-    assert.deepEqual(report.payload.dataCenterIds, ["US-TX-3"]);
-    assert.equal(report.payload.vcpuCount, 2);
-    assert.equal(report.payload.networkVolumeId, volumeId);
-    assert.equal(report.payload.volumeMountPath, "/workspace");
-    assert.equal(report.payload.imageName, "ubuntu:22.04");
+    assert.deepEqual(report.payload, {
+        cloudType: "SECURE",
+        computeType: "CPU",
+        containerDiskInGb: 20,
+        cpuFlavorIds: ["cpu3c"],
+        cpuFlavorPriority: "custom",
+        dataCenterIds: ["US-TX-3"],
+        dataCenterPriority: "custom",
+        imageName: "ubuntu:22.04",
+        interruptible: false,
+        networkVolumeId: volumeId,
+        ports: ["22/tcp"],
+        supportPublicIp: true,
+        vcpuCount: 2,
+        volumeMountPath: "/workspace"
+    });
     assert.doesNotMatch(report.payload.imageName, /@sha256:/i);
     assert.notEqual(
         report.payload.imageName,
@@ -723,7 +732,48 @@ test("V142 CPU staging in US-TX-3 can prepare model bytes but cannot certify GPU
     assert.equal(JSON.stringify(report.contract.runtimeIdentity).includes("torchVersionPrefix"), false);
     assert.equal(RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].computeCapability, "8.9");
     assert.equal(report.contract.registryVerification.status, "REGISTRY_DIGEST_VERIFIED");
+    assert.equal(report.contract.maximumContainerDiskGb, 20);
+    assert.deepEqual(report.contract.supportedVcpuCounts, [1, 2, 4, 8]);
+    assert.equal(report.contract.ramGbPerVcpu, 2);
     assert.equal(harness.calls.length, 0);
+});
+
+test("V142 CPU3C container disk provider limit blocks the physical 30 GB incident before POST", () => {
+    const volumeId = "hvjazpozb6";
+    const harness = runpodPhysicalHarness({
+        scenario: "cpu3c-container-disk-provider-limit",
+        gpuTypeId: "NVIDIA L40S",
+        networkVolumeId: volumeId,
+        envOverrides: { JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false" }
+    });
+    const precheck = containerDiskInGb => harness.adapter.inspectCpuStagingPrecheck({
+        containerDiskInGb,
+        registryVerification: harness.cpuRegistryVerification,
+        networkVolume: { id: volumeId, dataCenterId: "US-TX-3", sizeGb: 50 },
+        inventory: {
+            cpuFlavorId: "cpu3c",
+            dataCenterId: "US-TX-3",
+            minimumVcpu: 2,
+            ramMultiplier: 2,
+            securePriceUsdPerHour: 0.06,
+            stockStatus: "Low"
+        }
+    });
+
+    for (const invalid of [30, 21]) {
+        const report = precheck(invalid);
+        assert.equal(report.ok, false);
+        assert.equal(report.error, "RUNPOD_CPU_CONTAINER_DISK_EXCEEDS_PROVIDER_LIMIT");
+        assert.equal(harness.calls.length, 0);
+    }
+
+    for (const valid of [20, 10]) {
+        const report = precheck(valid);
+        assert.equal(report.ok, true, JSON.stringify(report));
+        assert.equal(report.payload.containerDiskInGb, valid);
+        assert.equal(report.contract.maximumContainerDiskGb, 20);
+        assert.equal(harness.calls.length, 0);
+    }
 });
 
 test("V142 CPU model-ready cache remains physically unverified and never becomes CACHE_HIT", () => {

@@ -215,9 +215,12 @@ export const RUNPOD_WAN22_GPU_PROFILES = Object.freeze({
 });
 
 export const RUNPOD_CPU_STAGING_PROFILE = Object.freeze({
+    cloudType: "SECURE",
     computeType: "CPU",
     cpuFlavorId: "cpu3c",
+    cpuFlavorPriority: "custom",
     dataCenterId: "US-TX-3",
+    dataCenterPriority: "custom",
     registry: "registry-1.docker.io",
     repository: "library/ubuntu",
     tag: "22.04",
@@ -225,7 +228,14 @@ export const RUNPOD_CPU_STAGING_PROFILE = Object.freeze({
     expectedRegistryDigest: "sha256:2edbbc5dc405e9612ba3584ce95480277e3eb374407b5505fe26f17df77c7dbc",
     officialImageSource: "https://github.com/runpod/runpod-plugins-official/blob/main/plugins/runpod/skills/runpodctl/SKILL.md",
     minimumVcpu: 2,
+    supportedVcpuCounts: Object.freeze([1, 2, 4, 8]),
+    ramGbPerVcpu: 2,
     ramGb: 4,
+    containerDiskInGb: 20,
+    maximumContainerDiskGb: 20,
+    interruptible: false,
+    ports: Object.freeze(["22/tcp"]),
+    supportPublicIp: true,
     networkVolumeMountPath: "/workspace",
     cacheStatus: "CACHE_MODEL_READY",
     runtimeStatus: "CACHE_RUNTIME_PHYSICALLY_UNVERIFIED",
@@ -1831,6 +1841,7 @@ export function createRunpodRemoteVideoAdapter({
     }
 
     function inspectCpuStagingPrecheck({
+        containerDiskInGb = RUNPOD_CPU_STAGING_PROFILE.containerDiskInGb,
         networkVolume = null,
         inventory = null,
         registryVerification = null
@@ -1861,10 +1872,19 @@ export function createRunpodRemoteVideoAdapter({
                 flavor !== RUNPOD_CPU_STAGING_PROFILE.cpuFlavorId ||
                 dataCenterId !== RUNPOD_CPU_STAGING_PROFILE.dataCenterId ||
                 minimumVcpuAvailable !== RUNPOD_CPU_STAGING_PROFILE.minimumVcpu ||
+                !RUNPOD_CPU_STAGING_PROFILE.supportedVcpuCounts.includes(minimumVcpuAvailable) ||
+                ramMultiplier !== RUNPOD_CPU_STAGING_PROFILE.ramGbPerVcpu ||
                 ramMultiplier * RUNPOD_CPU_STAGING_PROFILE.minimumVcpu < RUNPOD_CPU_STAGING_PROFILE.ramGb ||
                 !Number.isFinite(securePriceUsdPerHour) || securePriceUsdPerHour <= 0
             ) {
                 throw new Error("RUNPOD_CPU_STAGING_INVENTORY_INCOMPATIBLE");
+            }
+            const requestedContainerDiskGb = Number(containerDiskInGb);
+            if (!Number.isInteger(requestedContainerDiskGb) || requestedContainerDiskGb <= 0) {
+                throw new Error("RUNPOD_CPU_CONTAINER_DISK_INVALID");
+            }
+            if (requestedContainerDiskGb > RUNPOD_CPU_STAGING_PROFILE.maximumContainerDiskGb) {
+                throw new Error("RUNPOD_CPU_CONTAINER_DISK_EXCEEDS_PROVIDER_LIMIT");
             }
             const documentedStock = new Set(["High", "Medium", "Low"]);
             if (stockStatus !== null && !documentedStock.has(String(stockStatus))) {
@@ -1872,18 +1892,18 @@ export function createRunpodRemoteVideoAdapter({
             }
             const liveCapacityConfirmed = documentedStock.has(String(stockStatus));
             const payload = {
-                cloudType: "SECURE",
-                computeType: "CPU",
-                containerDiskInGb: 30,
+                cloudType: RUNPOD_CPU_STAGING_PROFILE.cloudType,
+                computeType: RUNPOD_CPU_STAGING_PROFILE.computeType,
+                containerDiskInGb: requestedContainerDiskGb,
                 cpuFlavorIds: [RUNPOD_CPU_STAGING_PROFILE.cpuFlavorId],
-                cpuFlavorPriority: "custom",
+                cpuFlavorPriority: RUNPOD_CPU_STAGING_PROFILE.cpuFlavorPriority,
                 dataCenterIds: [RUNPOD_CPU_STAGING_PROFILE.dataCenterId],
-                dataCenterPriority: "custom",
+                dataCenterPriority: RUNPOD_CPU_STAGING_PROFILE.dataCenterPriority,
                 imageName: RUNPOD_CPU_STAGING_PROFILE.provisionImageTag,
-                interruptible: false,
+                interruptible: RUNPOD_CPU_STAGING_PROFILE.interruptible,
                 networkVolumeId: plannedVolume.id,
-                ports: ["22/tcp"],
-                supportPublicIp: true,
+                ports: [...RUNPOD_CPU_STAGING_PROFILE.ports],
+                supportPublicIp: RUNPOD_CPU_STAGING_PROFILE.supportPublicIp,
                 vcpuCount: RUNPOD_CPU_STAGING_PROFILE.minimumVcpu,
                 volumeMountPath: RUNPOD_CPU_STAGING_PROFILE.networkVolumeMountPath
             };
@@ -1911,6 +1931,9 @@ export function createRunpodRemoteVideoAdapter({
                     forbiddenCertifications: [...RUNPOD_CPU_STAGING_PROFILE.forbiddenCertifications]
                 },
                 contract: {
+                    maximumContainerDiskGb: RUNPOD_CPU_STAGING_PROFILE.maximumContainerDiskGb,
+                    supportedVcpuCounts: [...RUNPOD_CPU_STAGING_PROFILE.supportedVcpuCounts],
+                    ramGbPerVcpu: RUNPOD_CPU_STAGING_PROFILE.ramGbPerVcpu,
                     provisionImageTag: RUNPOD_CPU_STAGING_PROFILE.provisionImageTag,
                     expectedRegistryDigest: RUNPOD_CPU_STAGING_PROFILE.expectedRegistryDigest,
                     registryVerification: verifiedRegistry,

@@ -261,6 +261,15 @@ does not expose CPU stock (`stockStatus=null`). Therefore the report is
 `CPU_STAGING_COMPATIBLE_CAPACITY_UNCONFIRMED`, keeps resource creation disabled,
 and a later paid authority must let RunPod decide actual placement.
 
+The physical CPU provisioning attempt on 2026-08-28 returned HTTP 500 with
+`Container Disk must be less than or equal to 20` (provider request
+`req_01c8f11d-1108-4f15-9cb4-4e3db4c48a75`) before any Pod was created. The
+same CPU staging profile therefore records `maximumContainerDiskGb=20`, and
+its default dry-run requests 20 GB. Values above that limit fail closed in the
+zero-cost precheck as `RUNPOD_CPU_CONTAINER_DISK_EXCEEDS_PROVIDER_LIMIT` and
+cannot reach `POST /pods`. This CPU-specific ceiling does not modify the L40S
+GPU container-disk contract.
+
 CPU staging may clone the pinned Wan repository, run `hf download`, verify the
 repository revision and every model byte/SHA-256, and write the model manifest.
 It may bootstrap shell, Git, Python, CA certificates, Hugging Face CLI, and
@@ -279,7 +288,7 @@ The sanitized CPU dry-run is:
 {
   "cloudType": "SECURE",
   "computeType": "CPU",
-  "containerDiskInGb": 30,
+  "containerDiskInGb": 20,
   "cpuFlavorIds": ["cpu3c"],
   "cpuFlavorPriority": "custom",
   "dataCenterIds": ["US-TX-3"],
