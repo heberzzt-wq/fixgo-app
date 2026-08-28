@@ -1143,7 +1143,7 @@ export function createRunpodRemoteVideoAdapter({
     const resolvedRoot = path.resolve(root);
     const apiBase = String(env.JARVIS_RUNPOD_API_BASE || "https://rest.runpod.io/v1").replace(/\/$/, "");
     const graphQlBase = String(env.JARVIS_RUNPOD_GRAPHQL_URL || "https://api.runpod.io/graphql");
-    const apiKey = String(env.RUNPOD_API_KEY || "").trim();
+    const apiKey = typeof env.RUNPOD_API_KEY === "string" ? env.RUNPOD_API_KEY : "";
     const provider = String(env.JARVIS_REMOTE_GPU_PROVIDER || "").trim().toLowerCase();
     const gpuTypeId = String(env.JARVIS_RUNPOD_GPU_TYPE_ID || "NVIDIA A40").trim();
     const imageName = String(

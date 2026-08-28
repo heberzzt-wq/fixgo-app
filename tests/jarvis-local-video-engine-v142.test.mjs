@@ -121,7 +121,12 @@ function mockHttpResponse(status, payload = null) {
     };
 }
 
-function runpodPhysicalHarness({ scenario = "success", clock = null, availability = {} } = {}) {
+function runpodPhysicalHarness({
+    scenario = "success",
+    clock = null,
+    availability = {},
+    apiKey = "test-runpod-api-key-never-persist"
+} = {}) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), `jarvis-runpod-${scenario}-`));
     const runner = path.join(root, "jarvis-local-video-wan22.py");
     fs.writeFileSync(runner, "# controlled existing V142 runner\n");
@@ -144,7 +149,7 @@ function runpodPhysicalHarness({ scenario = "success", clock = null, availabilit
         JARVIS_SSH_PATH: process.execPath,
         JARVIS_SCP_PATH: process.execPath,
         JARVIS_SSH_KEYGEN_PATH: process.execPath,
-        RUNPOD_API_KEY: "test-runpod-api-key-never-persist",
+        RUNPOD_API_KEY: apiKey,
         PATH: process.env.PATH,
         PATHEXT: process.env.PATHEXT
     };
@@ -164,8 +169,16 @@ function runpodPhysicalHarness({ scenario = "success", clock = null, availabilit
     const outputSha = createHash("sha256").update(outputBytes).digest("hex");
 
     const fetchImpl = async (url, options = {}) => {
-        const safeUrl = String(url).replace(env.RUNPOD_API_KEY, "[REDACTED]");
-        calls.push({ kind: "http", url: safeUrl, method: options.method || "GET" });
+        const safeUrl = String(url)
+            .replace(env.RUNPOD_API_KEY, "[REDACTED]")
+            .replace(encodeURIComponent(env.RUNPOD_API_KEY), "[REDACTED]");
+        calls.push({
+            kind: "http",
+            url: safeUrl,
+            method: options.method || "GET",
+            authorizationMatches: options.headers?.Authorization === `Bearer ${env.RUNPOD_API_KEY}`,
+            encodedKeyMatches: String(url).includes(encodeURIComponent(env.RUNPOD_API_KEY))
+        });
         if (String(url).includes("/graphql")) {
             if (availabilityTransportFailures > 0) {
                 availabilityTransportFailures -= 1;
@@ -395,6 +408,24 @@ test("V142 RunPod adapter provisions one A40 Pod, transfers physical assets, ret
         );
     }
     assert.equal(listArtifacts({ root: harness.root, type: "video" }).length, 1);
+});
+
+test("V142 RunPod API key reaches the provider byte-for-byte without local normalization", async () => {
+    const exactKey = " controlled-runpod-key-with-boundary-spaces ";
+    const harness = runpodPhysicalHarness({
+        scenario: "key-byte-preservation",
+        apiKey: exactKey
+    });
+    const started = await harness.engine.start(harness.payload);
+    assert.equal(started.ok, true, JSON.stringify(started));
+    const httpCalls = harness.calls.filter(call => call.kind === "http");
+    assert.ok(httpCalls.length > 0);
+    assert.ok(httpCalls.every(call => call.authorizationMatches === true));
+    const availabilityCall = httpCalls.find(call => call.encodedKeyMatches === true);
+    assert.ok(availabilityCall, "RunPod availability must receive the exact encoded API key");
+    assert.equal(JSON.stringify(httpCalls).includes(exactKey), false);
+    await harness.engine.cancel({ operationName: started.operationName });
+    assert.equal(harness.deleted, true);
 });
 
 test("V142 RunPod availability follows authenticated stockStatus while preserving count, GPU, VRAM and price guards", async t => {
