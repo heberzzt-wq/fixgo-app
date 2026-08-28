@@ -129,6 +129,23 @@ The credential belongs in the environment of the process that starts
 `jarvis-fs-bridge.js`; it must not be placed in browser configuration, HTML,
 Artifact Studio metadata, a mission payload, or a committed `.env` file.
 
+### Sanitized provider HTTP evidence
+
+Every non-accepted RunPod HTTP response is captured before the adapter throws.
+The durable operation and the adapter receipt retain the HTTP status, sanitized
+provider body, safe response headers, provider request/correlation ID when one
+is present, stage, operation ID, endpoint without query parameters, method,
+response content type, and UTC receipt time. Authorization, API-key, cookie,
+and set-cookie values are never persisted; the in-memory RunPod key and its URL
+encoding are redacted from provider text. Diagnostics are bounded and retain at
+most the ten latest HTTP failures for the operation.
+
+This evidence does not make an HTTP 5xx retryable by itself and does not grant
+resource-creation authority. A failed provisioning response remains
+`PROVISION_FAILED`, and recovery still follows the existing durable obligation
+and explicit paid authority. In particular, observability tests use mocks and
+must never repeat a live `POST /pods` merely to obtain an error body.
+
 ### Zero-cost gate versus paid physical preflight
 
 `JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED` defaults to `false`. It may

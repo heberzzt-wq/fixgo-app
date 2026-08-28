@@ -114,9 +114,16 @@ function localBackend({
     };
 }
 
-function mockHttpResponse(status, payload = null) {
+function mockHttpResponse(status, payload = null, responseHeaders = {}) {
+    const normalizedHeaders = new Map(
+        Object.entries(responseHeaders).map(([name, value]) => [String(name).toLowerCase(), String(value)])
+    );
     return {
         status,
+        headers: {
+            entries: () => normalizedHeaders.entries(),
+            get: name => normalizedHeaders.get(String(name).toLowerCase()) || null
+        },
         text: async () => payload === null ? "" : JSON.stringify(payload)
     };
 }
@@ -265,6 +272,16 @@ function runpodPhysicalHarness({
         if (String(url).endsWith("/pods") && options.method === "POST") {
             createdBody = JSON.parse(options.body);
             if (scenario === "provision-fail") return mockHttpResponse(503, { error: "controlled" });
+            if (scenario === "provision-http-500-diagnostic") {
+                return mockHttpResponse(500, {
+                    error: "internal scheduling error",
+                    credential: env.RUNPOD_API_KEY
+                }, {
+                    "content-type": "application/json; charset=utf-8",
+                    "x-request-id": "req-v142-cpu-500",
+                    "set-cookie": "provider-session-must-not-persist"
+                });
+            }
             return mockHttpResponse(201, {
                 id: "pod-a40-v142",
                 desiredStatus: "RUNNING",
@@ -1266,6 +1283,42 @@ test("V142 RunPod adapter fails closed on provision and real worker health failu
         assert.equal(harness.calls.filter(call => call.kind === "http" && call.method === "POST").length, 2);
         assert.equal(harness.calls.some(call => call.method === "DELETE"), false);
         assert.equal(listArtifacts({ root: harness.root, type: "video" }).length, 0);
+    });
+
+    await t.test("HTTP provisioning failures persist sanitized provider diagnostics", async () => {
+        const harness = runpodPhysicalHarness({ scenario: "provision-http-500-diagnostic" });
+        const started = await harness.engine.start(harness.payload);
+        assert.equal(started.ok, false, JSON.stringify(started));
+        assert.equal(started.error, "RUNPOD_API_HTTP_500");
+        assert.equal(started.failureStage, "provision");
+        assert.equal(started.providerHttp.status, 500);
+        assert.equal(started.providerHttp.stage, "provision");
+        assert.equal(started.providerHttp.operationId, started.operationId);
+        assert.equal(started.providerHttp.endpoint, "https://rest.runpod.io/v1/pods");
+        assert.equal(started.providerHttp.method, "POST");
+        assert.equal(started.providerHttp.contentType, "application/json; charset=utf-8");
+        assert.equal(started.providerHttp.requestId, "req-v142-cpu-500");
+        assert.equal(started.providerHttp.timestampUtc, "2026-08-27T12:00:00.000Z");
+        assert.match(started.providerHttp.body, /internal scheduling error/);
+        assert.match(started.providerHttp.body, /\[REDACTED\]/);
+        assert.equal(started.providerHttp.headers["x-request-id"], "req-v142-cpu-500");
+        assert.equal(Object.hasOwn(started.providerHttp.headers, "set-cookie"), false);
+
+        const persisted = JSON.parse(fs.readFileSync(path.join(
+            harness.root,
+            ".jarvis-artifacts",
+            ".video-worker",
+            "runpod",
+            `${started.operationId}.json`
+        ), "utf8"));
+        assert.equal(persisted.phase, "PROVISION_FAILED");
+        assert.deepEqual(persisted.providerHttp, started.providerHttp);
+        assert.equal(JSON.stringify(persisted).includes(harness.env.RUNPOD_API_KEY), false);
+        assert.equal(JSON.stringify(started).includes(harness.env.RUNPOD_API_KEY), false);
+        assert.equal(
+            harness.calls.filter(call => call.url.endsWith("/pods") && call.method === "POST").length,
+            1
+        );
     });
 
     await t.test("RUNNING is not READY until CUDA, NVIDIA, VRAM and disk pass", async () => {

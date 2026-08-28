@@ -6,8 +6,8 @@ import { execFile, execFileSync, spawn } from "node:child_process";
 
 import { registerArtifact } from "./jarvis-artifact-studio.js";
 
-export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.11.0-v142-runpod-l40s-cpu-staging";
-export const JARVIS_RUNPOD_ADAPTER_VERSION = "1.4.0-v142-runpod-l40s-cpu-staging";
+export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.11.1-v142-runpod-http-observability";
+export const JARVIS_RUNPOD_ADAPTER_VERSION = "1.4.1-v142-runpod-http-observability";
 export const VIDEO_ENGINE_MODES = Object.freeze([
     "CURRENT_STABLE",
     "LOCAL_TEST",
@@ -1805,6 +1805,17 @@ export function createRunpodRemoteVideoAdapter({
         return next;
     }
 
+    function providerHttpPatch(state, error) {
+        if (!error?.providerHttp) return {};
+        return {
+            providerHttp: error.providerHttp,
+            providerHttpHistory: [
+                ...(Array.isArray(state?.providerHttpHistory) ? state.providerHttpHistory : []),
+                error.providerHttp
+            ].slice(-10)
+        };
+    }
+
     function safeProviderDiagnostic(error) {
         const cause = error?.cause || error;
         const rawCode = String(cause?.code || error?.code || cause?.name || error?.name || "UNKNOWN");
@@ -1826,7 +1837,76 @@ export function createRunpodRemoteVideoAdapter({
         };
     }
 
-    async function apiRequest(url, options = {}, accepted = [200], stage = "runpod_api") {
+    function sanitizeProviderText(value, maximumLength = 4000) {
+        let text = String(value ?? "");
+        for (const secret of [apiKey, encodeURIComponent(apiKey)]) {
+            if (secret) text = text.split(secret).join("[REDACTED]");
+        }
+        text = text
+            .replace(/\bBearer\s+[^\s"',;]+/gi, "Bearer [REDACTED]")
+            .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, " ")
+            .trim();
+        return text.slice(0, maximumLength);
+    }
+
+    function sanitizeProviderHeaders(headers) {
+        const sanitized = {};
+        const sensitiveNames = new Set([
+            "authorization",
+            "proxy-authorization",
+            "cookie",
+            "set-cookie",
+            "x-api-key"
+        ]);
+        let entries = [];
+        try {
+            if (headers && typeof headers.entries === "function") entries = [...headers.entries()];
+            else if (headers && typeof headers === "object") entries = Object.entries(headers);
+        }
+        catch {}
+        for (const [rawName, rawValue] of entries.slice(0, 64)) {
+            const name = String(rawName || "").trim().toLowerCase();
+            if (!name || sensitiveNames.has(name)) continue;
+            sanitized[name] = sanitizeProviderText(rawValue, 1000);
+        }
+        return sanitized;
+    }
+
+    function providerRequestId(headers) {
+        for (const name of [
+            "x-request-id",
+            "request-id",
+            "x-runpod-request-id",
+            "runpod-request-id",
+            "x-correlation-id",
+            "correlation-id",
+            "x-trace-id",
+            "trace-id",
+            "cf-ray"
+        ]) {
+            const value = String(headers?.[name] || "").trim();
+            if (value) return value;
+        }
+        return null;
+    }
+
+    function safeProviderEndpoint(url) {
+        try {
+            const parsed = new URL(String(url));
+            return `${parsed.origin}${parsed.pathname}`;
+        }
+        catch {
+            return sanitizeProviderText(url, 1000).split("?")[0];
+        }
+    }
+
+    async function apiRequest(
+        url,
+        options = {},
+        accepted = [200],
+        stage = "runpod_api",
+        operationId = null
+    ) {
         let response;
         try {
             response = await fetchImpl(url, {
@@ -1846,21 +1926,41 @@ export function createRunpodRemoteVideoAdapter({
             failure.stage = stage;
             throw failure;
         }
+        let text = "";
+        if (Number(response.status) !== 204 && typeof response.text === "function") {
+            try { text = await response.text(); }
+            catch {}
+        }
+        const headers = sanitizeProviderHeaders(response.headers);
+        const providerHttp = {
+            status: Number(response.status || 0),
+            body: sanitizeProviderText(text) || null,
+            headers,
+            requestId: providerRequestId(headers),
+            stage,
+            operationId: operationId || null,
+            endpoint: safeProviderEndpoint(url),
+            method: String(options.method || "GET").toUpperCase(),
+            contentType: headers["content-type"] || null,
+            timestampUtc: now().toISOString()
+        };
         if (!accepted.includes(Number(response.status))) {
             const failure = new Error(`RUNPOD_API_HTTP_${Number(response.status || 0)}`);
             failure.retryable = Number(response.status) >= 500 || Number(response.status) === 429;
             failure.httpStatus = Number(response.status || 0);
             failure.stage = stage;
+            failure.providerCode = `HTTP_${Number(response.status || 0)}`;
+            failure.providerMessage = providerHttp.body || failure.message;
+            failure.providerHttp = providerHttp;
             throw failure;
         }
         if (Number(response.status) === 204) return null;
-        const text = await response.text();
         if (!text) return null;
         try { return JSON.parse(text); }
         catch { throw new Error("RUNPOD_API_RESPONSE_INVALID"); }
     }
 
-    async function queryAvailability(dataCenterId = null) {
+    async function queryAvailability(dataCenterId = null, operationId = null) {
         const secureCloud = cloudType === "SECURE" ? "true" : "false";
         const dataCenterSelection = dataCenterId
             ? ` dataCenters { id gpuAvailability(input: { gpuCount: 1, secureCloud: true }) { gpuTypeId stockStatus available } }`
@@ -1871,7 +1971,8 @@ export function createRunpodRemoteVideoAdapter({
             `${graphQlBase}${separator}api_key=${encodeURIComponent(apiKey)}`,
             { method: "POST", body: JSON.stringify({ query }) },
             [200],
-            "availability"
+            "availability",
+            operationId
         );
         if (Array.isArray(payload?.errors) && payload.errors.length > 0) {
             throw new Error("RUNPOD_AVAILABILITY_QUERY_FAILED");
@@ -1917,13 +2018,14 @@ export function createRunpodRemoteVideoAdapter({
         };
     }
 
-    async function resolveNetworkVolume() {
+    async function resolveNetworkVolume(operationId = null) {
         if (!networkVolumeId) return null;
         const volume = await apiRequest(
             `${apiBase}/networkvolumes/${encodeURIComponent(networkVolumeId)}`,
             { method: "GET" },
             [200],
-            "network_volume"
+            "network_volume",
+            operationId
         );
         const id = String(volume?.id || "").trim();
         const dataCenterId = String(volume?.dataCenterId || volume?.dataCenter?.id || "").trim();
@@ -1948,7 +2050,8 @@ export function createRunpodRemoteVideoAdapter({
             `${apiBase}/pods`,
             { method: "GET" },
             [200],
-            "duplicate_guard"
+            "duplicate_guard",
+            job.operationId
         );
         const pods = Array.isArray(payload) ? payload : (Array.isArray(payload?.pods) ? payload.pods : null);
         if (!pods) {
@@ -1978,7 +2081,8 @@ export function createRunpodRemoteVideoAdapter({
                     `${apiBase}/pods/${encodeURIComponent(podId)}`,
                     { method: "DELETE" },
                     [200, 204, 404],
-                    "orphan_cleanup"
+                    "orphan_cleanup",
+                    job.operationId
                 );
                 let remaining = null;
                 try {
@@ -1986,7 +2090,8 @@ export function createRunpodRemoteVideoAdapter({
                         `${apiBase}/pods/${encodeURIComponent(podId)}`,
                         { method: "GET" },
                         [200],
-                        "orphan_cleanup_verify"
+                        "orphan_cleanup_verify",
+                        job.operationId
                     );
                 }
                 catch(error) {
@@ -2400,8 +2505,8 @@ export function createRunpodRemoteVideoAdapter({
         let podId = null;
         try {
             await assertNoExistingOperationPod(job);
-            const networkVolume = await resolveNetworkVolume();
-            const availability = await queryAvailability(networkVolume?.dataCenterId || null);
+            const networkVolume = await resolveNetworkVolume(job.operationId);
+            const availability = await queryAvailability(networkVolume?.dataCenterId || null, job.operationId);
             const zeroCostPrecheck = inspectZeroCostPrecheck({ job, networkVolume, availability });
             if (zeroCostPrecheck.ok !== true) {
                 throw new Error(zeroCostPrecheck.error || "RUNPOD_ZERO_COST_PRECHECK_FAILED");
@@ -2412,7 +2517,7 @@ export function createRunpodRemoteVideoAdapter({
             const pod = await apiRequest(`${apiBase}/pods`, {
                 method: "POST",
                 body: JSON.stringify(body)
-            }, [200, 201], "provision");
+            }, [200, 201], "provision", job.operationId);
             podId = String(pod?.id || "").trim();
             if (!podId) throw new Error("RUNPOD_PROVISION_RESPONSE_INVALID");
             const actualGpu = String(pod?.gpu?.id || pod?.machine?.gpuTypeId || gpuTypeId);
@@ -2480,9 +2585,43 @@ export function createRunpodRemoteVideoAdapter({
         catch(error) {
             if (podId) {
                 try {
-                    await apiRequest(`${apiBase}/pods/${encodeURIComponent(podId)}`, { method: "DELETE" }, [200, 204, 404]);
+                    await apiRequest(
+                        `${apiBase}/pods/${encodeURIComponent(podId)}`,
+                        { method: "DELETE" },
+                        [200, 204, 404],
+                        "provision_cleanup",
+                        job.operationId
+                    );
                 }
                 catch {}
+            }
+            if (error?.providerHttp) {
+                let previous = null;
+                try { if (fs.existsSync(file)) previous = readJson(file); }
+                catch {}
+                const providerHttpHistory = [
+                    ...(Array.isArray(previous?.providerHttpHistory) ? previous.providerHttpHistory : []),
+                    error.providerHttp
+                ].slice(-10);
+                atomicJsonWrite(file, {
+                    schemaVersion: JARVIS_RUNPOD_ADAPTER_VERSION,
+                    provider: "runpod",
+                    phase: "PROVISION_FAILED",
+                    operationId: job.operationId,
+                    operationName: job.operationName,
+                    missionId: job.missionId,
+                    objectiveId: job.objectiveId,
+                    obligationId: job.obligationId,
+                    rootInstructionHash: job.rootInstructionHash,
+                    error: error?.message || "RUNPOD_PROVISION_FAILED",
+                    retryable: error?.retryable === true,
+                    providerCode: error?.providerCode || null,
+                    providerMessage: error?.providerMessage || null,
+                    providerHttp: error.providerHttp,
+                    providerHttpHistory,
+                    createdAt: previous?.createdAt || now().toISOString(),
+                    updatedAt: now().toISOString()
+                });
             }
             try {
                 const cleanupTarget = path.resolve(prepared.operationDir);
@@ -2588,7 +2727,13 @@ export function createRunpodRemoteVideoAdapter({
         }
         try {
             if (state.phase === "PROVISIONED") {
-                const pod = await apiRequest(`${apiBase}/pods/${encodeURIComponent(state.podId)}?includeMachine=true`, { method: "GET" });
+                const pod = await apiRequest(
+                    `${apiBase}/pods/${encodeURIComponent(state.podId)}?includeMachine=true`,
+                    { method: "GET" },
+                    [200],
+                    "poll_pod",
+                    state.operationId
+                );
                 if (String(pod?.id || "") !== state.podId) throw new Error("RUNPOD_POD_IDENTITY_MISMATCH");
                 if (String(pod?.desiredStatus || "") !== "RUNNING") {
                     return { ok: true, done: false, status: "RUNPOD_POD_STARTING", remoteWorker: runpodPublicWorker(state) };
@@ -2777,7 +2922,8 @@ export function createRunpodRemoteVideoAdapter({
             state = writeState(loaded.file, state, {
                 phase: failurePhase,
                 error: failureStatus,
-                stageTimeline: state.stageTimeline
+                stageTimeline: state.stageTimeline,
+                ...providerHttpPatch(state, error)
             });
             return { ok: false, done: true, status: state.error, remoteWorker: runpodPublicWorker(state) };
         }
@@ -2795,10 +2941,22 @@ export function createRunpodRemoteVideoAdapter({
         let state = loaded.state;
         const cost = rentalCost(state);
         try {
-            await apiRequest(`${apiBase}/pods/${encodeURIComponent(state.podId)}`, { method: "DELETE" }, [200, 204, 404]);
+            await apiRequest(
+                `${apiBase}/pods/${encodeURIComponent(state.podId)}`,
+                { method: "DELETE" },
+                [200, 204, 404],
+                "release",
+                state.operationId
+            );
             let terminationVerified = false;
             try {
-                const pod = await apiRequest(`${apiBase}/pods/${encodeURIComponent(state.podId)}`, { method: "GET" }, [200]);
+                const pod = await apiRequest(
+                    `${apiBase}/pods/${encodeURIComponent(state.podId)}`,
+                    { method: "GET" },
+                    [200],
+                    "release_verify",
+                    state.operationId
+                );
                 terminationVerified = !pod || String(pod.desiredStatus || "") === "TERMINATED";
             }
             catch(error) {
@@ -2809,13 +2967,23 @@ export function createRunpodRemoteVideoAdapter({
             try {
                 const billing = await apiRequest(
                     `${apiBase}/billing/pods?podId=${encodeURIComponent(state.podId)}&grouping=podId&bucketSize=hour`,
-                    { method: "GET" }
+                    { method: "GET" },
+                    [200],
+                    "billing",
+                    state.operationId
                 );
                 actualCostUsd = (Array.isArray(billing) ? billing : [])
                     .filter(item => item?.podId === state.podId)
                     .reduce((sum, item) => sum + Number(item.amount || 0), 0);
             }
-            catch {}
+            catch(error) {
+                if (error?.providerHttp) {
+                    state = writeState(loaded.file, state, {
+                        billingError: error?.message || "RUNPOD_BILLING_QUERY_FAILED",
+                        ...providerHttpPatch(state, error)
+                    });
+                }
+            }
             state = writeState(loaded.file, state, {
                 phase: "TERMINATED",
                 releasedAt: now().toISOString(),
@@ -2848,7 +3016,8 @@ export function createRunpodRemoteVideoAdapter({
         catch(error) {
             state = writeState(loaded.file, state, {
                 phase: "RELEASE_FAILED",
-                releaseError: error?.message || "RUNPOD_POD_TERMINATION_FAILED"
+                releaseError: error?.message || "RUNPOD_POD_TERMINATION_FAILED",
+                ...providerHttpPatch(state, error)
             });
             return {
                 ok: false,
@@ -3246,6 +3415,7 @@ export function createLocalVideoEngine({
                     failureStage: operation.failureStage || null,
                     providerCode: operation.providerCode || null,
                     providerMessage: operation.providerMessage || null,
+                    providerHttp: operation.providerHttp || null,
                     retryable: operation.retryable === true,
                     endedAt: operation.updatedAt || null
                 };
@@ -3257,6 +3427,7 @@ export function createLocalVideoEngine({
                     failureStage: null,
                     providerCode: null,
                     providerMessage: null,
+                    providerHttp: null,
                     workerRelease: null,
                     launchAttempt: previousAttempt.attempt + 1,
                     attemptHistory: [
@@ -3297,6 +3468,7 @@ export function createLocalVideoEngine({
                         failureStage: error?.stage || null,
                         providerCode: error?.providerCode || null,
                         providerMessage: error?.providerMessage || null,
+                        providerHttp: error?.providerHttp || null,
                         retryable: error?.retryable !== false
                     });
                 }
@@ -3346,6 +3518,7 @@ export function createLocalVideoEngine({
                     failureStage: error?.stage || null,
                     providerCode: error?.providerCode || null,
                     providerMessage: error?.providerMessage || null,
+                    providerHttp: error?.providerHttp || null,
                     retryable: error?.retryable !== false
                 });
                 const released = await releaseWorker(
