@@ -410,6 +410,14 @@ test("V142 RunPod adapter provisions one A40 Pod, transfers physical assets, ret
         );
     }
     assert.equal(listArtifacts({ root: harness.root, type: "video" }).length, 1);
+    const runpodStateRoot = path.join(harness.root, ".jarvis-artifacts", ".video-worker", "runpod");
+    const bootstrapFile = fs.readdirSync(runpodStateRoot, { recursive: true })
+        .map(file => path.join(runpodStateRoot, file))
+        .find(file => file.endsWith("bootstrap.sh"));
+    const bootstrap = fs.readFileSync(bootstrapFile, "utf8");
+    assert.match(bootstrap, /python3 -m venv --system-site-packages/);
+    assert.match(bootstrap, /\/venv\/bin\/python -m pip install/);
+    assert.doesNotMatch(bootstrap, /\npython3 -m pip install/);
 });
 
 test("V142 RunPod API key reaches the provider byte-for-byte without local normalization", async () => {

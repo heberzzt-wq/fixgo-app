@@ -1440,13 +1440,15 @@ export function createRunpodRemoteVideoAdapter({
         atomicJsonWrite(localJobFile, remoteJob);
         fs.copyFileSync(runnerSource, localRunnerFile);
         const bootstrapFile = path.join(operationDir, "bootstrap.sh");
+        const remoteVenv = `${remoteBase}/venv`;
         const bootstrap = `#!/usr/bin/env bash\nset -euo pipefail\n` +
             `export DEBIAN_FRONTEND=noninteractive\n` +
-            `apt-get update -qq\napt-get install -y -qq git ffmpeg\n` +
+            `apt-get update -qq\napt-get install -y -qq git ffmpeg python3-venv\n` +
             `test -f ${remoteBase}/Wan2.2/generate.py || git clone --depth 1 https://github.com/Wan-Video/Wan2.2.git ${remoteBase}/Wan2.2\n` +
-            `python3 -m pip install --no-cache-dir -r ${remoteBase}/Wan2.2/requirements.txt 'huggingface_hub[cli]'\n` +
+            `test -x ${remoteVenv}/bin/python || python3 -m venv --system-site-packages ${remoteVenv}\n` +
+            `${remoteVenv}/bin/python -m pip install --no-cache-dir -r ${remoteBase}/Wan2.2/requirements.txt 'huggingface_hub[cli]'\n` +
             `mkdir -p ${remoteBase}/models/Wan2.2-TI2V-5B\n` +
-            `find ${remoteBase}/models/Wan2.2-TI2V-5B -type f -name '*.safetensors' -print -quit | grep -q . || hf download Wan-AI/Wan2.2-TI2V-5B --local-dir ${remoteBase}/models/Wan2.2-TI2V-5B\n`;
+            `find ${remoteBase}/models/Wan2.2-TI2V-5B -type f -name '*.safetensors' -print -quit | grep -q . || ${remoteVenv}/bin/hf download Wan-AI/Wan2.2-TI2V-5B --local-dir ${remoteBase}/models/Wan2.2-TI2V-5B\n`;
         fs.writeFileSync(bootstrapFile, bootstrap, { encoding: "utf8", mode: 0o700 });
         return {
             operationDir,
@@ -1710,7 +1712,11 @@ export function createRunpodRemoteVideoAdapter({
                 const health = await remoteHealth(state, false);
                 await uploadOperation(state);
                 const command = `(bash ${shellSingleQuote(state.remoteOperationDir + "/bootstrap.sh")} > ${shellSingleQuote(state.remoteOperationDir + "/bootstrap.log")} 2>&1 && touch ${shellSingleQuote(state.remoteOperationDir + "/bootstrap.ready")}) || { code=$?; echo $code > ${shellSingleQuote(state.remoteOperationDir + "/bootstrap.failed")}; }`;
-                await sshCommand(state, `nohup bash -lc ${shellSingleQuote(command)} >/dev/null 2>&1 &`, 30000);
+                await sshCommand(
+                    state,
+                    `rm -f ${shellSingleQuote(state.remoteOperationDir + "/bootstrap.ready")} ${shellSingleQuote(state.remoteOperationDir + "/bootstrap.failed")}; nohup bash -lc ${shellSingleQuote(command)} >/dev/null 2>&1 &`,
+                    30000
+                );
                 state = writeState(loaded.file, state, { phase: "BOOTSTRAPPING", baseHealth: health });
                 return { ok: true, done: false, status: "RUNPOD_WAN22_BOOTSTRAPPING", remoteWorker: runpodPublicWorker(state) };
             }
@@ -1728,7 +1734,7 @@ export function createRunpodRemoteVideoAdapter({
                     return { ok: true, done: false, status: "RUNPOD_WAN22_BOOTSTRAPPING", remoteWorker: runpodPublicWorker(state) };
                 }
                 const health = await remoteHealth(state, true);
-                const runner = `env JARVIS_WAN22_REPO_DIR=${shellSingleQuote(remoteBase + "/Wan2.2")} JARVIS_LOCAL_VIDEO_EXTERNAL_API_ALLOWED=false JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS=${Math.floor(localVideoTimeoutSeconds(env))} python3 ${shellSingleQuote(state.remoteOperationDir + "/jarvis-local-video-wan22.py")} --job ${shellSingleQuote(state.remoteOperationDir + "/job.json")} --result ${shellSingleQuote(state.remoteResultFile)}`;
+                const runner = `env JARVIS_WAN22_REPO_DIR=${shellSingleQuote(remoteBase + "/Wan2.2")} JARVIS_LOCAL_VIDEO_EXTERNAL_API_ALLOWED=false JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS=${Math.floor(localVideoTimeoutSeconds(env))} ${shellSingleQuote(remoteBase + "/venv/bin/python")} ${shellSingleQuote(state.remoteOperationDir + "/jarvis-local-video-wan22.py")} --job ${shellSingleQuote(state.remoteOperationDir + "/job.json")} --result ${shellSingleQuote(state.remoteResultFile)}`;
                 const started = await sshCommand(state, `nohup bash -lc ${shellSingleQuote(runner)} > ${shellSingleQuote(state.remoteOperationDir + "/runner.log")} 2>&1 & echo $!`);
                 const remotePid = Number(started.stdout.trim().split(/\r?\n/).at(-1));
                 if (!Number.isInteger(remotePid) || remotePid < 1) throw new Error("RUNPOD_REMOTE_JOB_START_FAILED");
