@@ -1212,7 +1212,7 @@ export function createRunpodRemoteVideoAdapter({
         return next;
     }
 
-    async function apiRequest(url, options = {}, accepted = [200]) {
+    async function apiRequest(url, options = {}, accepted = [200], stage = "runpod_api") {
         let response;
         try {
             response = await fetchImpl(url, {
@@ -1228,12 +1228,14 @@ export function createRunpodRemoteVideoAdapter({
             const failure = new Error("RUNPOD_API_TRANSPORT_FAILED");
             failure.cause = error;
             failure.retryable = true;
+            failure.stage = stage;
             throw failure;
         }
         if (!accepted.includes(Number(response.status))) {
             const failure = new Error(`RUNPOD_API_HTTP_${Number(response.status || 0)}`);
             failure.retryable = Number(response.status) >= 500 || Number(response.status) === 429;
             failure.httpStatus = Number(response.status || 0);
+            failure.stage = stage;
             throw failure;
         }
         if (Number(response.status) === 204) return null;
@@ -1249,7 +1251,9 @@ export function createRunpodRemoteVideoAdapter({
         const separator = graphQlBase.includes("?") ? "&" : "?";
         const payload = await apiRequest(
             `${graphQlBase}${separator}api_key=${encodeURIComponent(apiKey)}`,
-            { method: "POST", body: JSON.stringify({ query }) }
+            { method: "POST", body: JSON.stringify({ query }) },
+            [200],
+            "availability"
         );
         if (Array.isArray(payload?.errors) && payload.errors.length > 0) {
             throw new Error("RUNPOD_AVAILABILITY_QUERY_FAILED");
@@ -1284,6 +1288,57 @@ export function createRunpodRemoteVideoAdapter({
             hourlyRateUsd,
             stockStatus: price.stockStatus
         };
+    }
+
+    async function assertNoExistingOperationPod(job) {
+        const payload = await apiRequest(
+            `${apiBase}/pods`,
+            { method: "GET" },
+            [200],
+            "duplicate_guard"
+        );
+        const pods = Array.isArray(payload) ? payload : (Array.isArray(payload?.pods) ? payload.pods : null);
+        if (!pods) {
+            const failure = new Error("RUNPOD_POD_LIST_RESPONSE_INVALID");
+            failure.retryable = false;
+            failure.stage = "duplicate_guard";
+            throw failure;
+        }
+        const expectedName = `jarvis-v142-${job.operationId}`;
+        const matches = pods.filter(pod => String(pod?.name || "") === expectedName);
+        if (matches.length > 0) {
+            const podIds = matches.map(pod => String(pod?.id || "").trim()).filter(Boolean);
+            if (podIds.length !== matches.length) {
+                const ambiguous = new Error("RUNPOD_EXISTING_OPERATION_POD_ID_INVALID");
+                ambiguous.retryable = false;
+                ambiguous.stage = "duplicate_guard";
+                throw ambiguous;
+            }
+            for (const podId of podIds) {
+                await apiRequest(
+                    `${apiBase}/pods/${encodeURIComponent(podId)}`,
+                    { method: "DELETE" },
+                    [200, 204, 404],
+                    "orphan_cleanup"
+                );
+                const remaining = await apiRequest(
+                    `${apiBase}/pods/${encodeURIComponent(podId)}`,
+                    { method: "GET" },
+                    [200, 404],
+                    "orphan_cleanup_verify"
+                );
+                if (remaining && String(remaining.desiredStatus || "") !== "TERMINATED") {
+                    const unverified = new Error("RUNPOD_ORPHAN_POD_DELETE_NOT_VERIFIED");
+                    unverified.retryable = false;
+                    unverified.stage = "orphan_cleanup_verify";
+                    throw unverified;
+                }
+            }
+            const failure = new Error("RUNPOD_EXISTING_OPERATION_POD_TERMINATED");
+            failure.retryable = false;
+            failure.stage = "duplicate_guard";
+            throw failure;
+        }
     }
 
     function buildAssetManifest(job, operationDir) {
@@ -1475,6 +1530,7 @@ export function createRunpodRemoteVideoAdapter({
         let podId = null;
         try {
             const availability = await queryAvailability();
+            await assertNoExistingOperationPod(job);
             const createdAt = now().toISOString();
             const body = {
                 cloudType,
@@ -1503,7 +1559,7 @@ export function createRunpodRemoteVideoAdapter({
             const pod = await apiRequest(`${apiBase}/pods`, {
                 method: "POST",
                 body: JSON.stringify(body)
-            }, [200, 201]);
+            }, [200, 201], "provision");
             podId = String(pod?.id || "").trim();
             if (!podId) throw new Error("RUNPOD_PROVISION_RESPONSE_INVALID");
             const actualGpu = String(pod?.gpu?.id || pod?.machine?.gpuTypeId || gpuTypeId);
@@ -2106,6 +2162,120 @@ export function createLocalVideoEngine({
                 externalEstimatedCostUsd: 0
             };
         }
+        async function launchDurableOperation(operationPath, initialOperation, job, { retrying = false } = {}) {
+            let operation = initialOperation;
+            if (retrying) {
+                const previousAttempt = {
+                    attempt: Number(operation.launchAttempt || 1),
+                    state: operation.state,
+                    status: operation.status,
+                    error: operation.error || null,
+                    failureStage: operation.failureStage || null,
+                    retryable: operation.retryable === true,
+                    endedAt: operation.updatedAt || null
+                };
+                operation = saveOperation(operationPath, operation, {
+                    state: "RUNNING",
+                    status: "LOCAL_VIDEO_RUNNER_START_RETRYING",
+                    error: null,
+                    retryable: null,
+                    failureStage: null,
+                    workerRelease: null,
+                    launchAttempt: previousAttempt.attempt + 1,
+                    attemptHistory: [
+                        ...(Array.isArray(operation.attemptHistory) ? operation.attemptHistory : []),
+                        previousAttempt
+                    ]
+                });
+            }
+            const runner = model.runner || commandPath(env.JARVIS_LOCAL_VIDEO_RUNNER, env);
+            const runnerScript = model.runnerScript || path.resolve(env.JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT);
+            const args = [runnerScript, "--job", operation.jobFile, "--result", operation.resultFile];
+            const runnerEnvironment = offlineLocalVideoEnvironment(env);
+            if (currentHealth.gpuIndex !== null && currentHealth.gpuIndex !== undefined) {
+                runnerEnvironment.CUDA_VISIBLE_DEVICES = String(currentHealth.gpuIndex);
+            }
+            const onExit = exitCode => {
+                try {
+                    const current = readJson(operationPath);
+                    if (["SUCCEEDED", "CANCELLED"].includes(current.state)) return;
+                    const resultReady = fs.existsSync(operation.resultFile);
+                    saveOperation(operationPath, current, {
+                        state: resultReady ? "RESULT_READY" : "FAILED",
+                        status: resultReady ? "LOCAL_VIDEO_RESULT_READY" : "LOCAL_VIDEO_RUNNER_EXITED_WITHOUT_RESULT",
+                        exitCode: Number(exitCode),
+                        retryable: !resultReady
+                    });
+                }
+                catch {}
+                children.delete(operation.operationId);
+            };
+            const onError = error => {
+                try {
+                    const current = readJson(operationPath);
+                    saveOperation(operationPath, current, {
+                        state: "FAILED",
+                        status: "LOCAL_VIDEO_RUNNER_START_FAILED",
+                        error: error?.message || "LOCAL_VIDEO_RUNNER_START_FAILED",
+                        failureStage: error?.stage || null,
+                        retryable: error?.retryable !== false
+                    });
+                }
+                catch {}
+                children.delete(operation.operationId);
+            };
+            try {
+                const launched = launch
+                    ? launch({
+                        command: runner,
+                        args,
+                        cwd: resolvedRoot,
+                        env: runnerEnvironment,
+                        job,
+                        jobFile: operation.jobFile,
+                        resultFile: operation.resultFile,
+                        onExit,
+                        onError
+                    })
+                    : spawn(runner, args, {
+                        cwd: resolvedRoot,
+                        stdio: "ignore",
+                        windowsHide: true,
+                        env: runnerEnvironment
+                    });
+                const child = launched && typeof launched.then === "function"
+                    ? await launched
+                    : launched;
+                if (!launch) {
+                    child.once("exit", onExit);
+                    child.once("error", onError);
+                }
+                children.set(operation.operationId, child);
+                operation = saveOperation(operationPath, operation, {
+                    pid: Number(child?.pid || 0) || null,
+                    remoteWorker: child?.remoteWorker || null,
+                    remoteJobId: child?.remoteWorker?.remoteJobId || null,
+                    podId: child?.remoteWorker?.podId || null
+                });
+                return { operation, ok: true };
+            }
+            catch(error) {
+                operation = saveOperation(operationPath, operation, {
+                    state: "FAILED",
+                    status: "LOCAL_VIDEO_RUNNER_START_FAILED",
+                    error: error?.message || "LOCAL_VIDEO_RUNNER_START_FAILED",
+                    failureStage: error?.stage || null,
+                    retryable: error?.retryable !== false
+                });
+                const released = await releaseWorker(
+                    operationPath,
+                    operation,
+                    "runner_start_failed"
+                );
+                return { operation: released.operation, ok: false };
+            }
+        }
+
         const existing = boundOperation(payload);
         if (existing) {
             const requestedOutput = String(payload.output || "").trim().replaceAll("\\", "/");
@@ -2119,8 +2289,62 @@ export function createLocalVideoEngine({
                     error: "LOCAL_VIDEO_OBLIGATION_OUTPUT_MUTATION_BLOCKED"
                 };
             }
+            const requestedRootInstructionHash = String(payload.rootInstructionHash || "").trim();
+            if (
+                requestedRootInstructionHash &&
+                requestedRootInstructionHash !== existing.operation.rootInstructionHash
+            ) {
+                return {
+                    ...existing.operation,
+                    ok: false,
+                    done: true,
+                    reusedOperation: true,
+                    status: "LOCAL_VIDEO_OBLIGATION_IDENTITY_MUTATION_BLOCKED",
+                    error: "LOCAL_VIDEO_OBLIGATION_IDENTITY_MUTATION_BLOCKED"
+                };
+            }
             if (existing.operation.state === "SUCCEEDED") {
                 return { ...existing.operation.result, ok: true, done: true, reusedOperation: true };
+            }
+            const retryStage = String(existing.operation.failureStage || "");
+            const safePreProvisionRetry = ["availability", "duplicate_guard"].includes(retryStage) || (
+                !retryStage && existing.operation.error === "RUNPOD_API_TRANSPORT_FAILED"
+            );
+            if (
+                existing.operation.state === "FAILED" &&
+                existing.operation.retryable === true &&
+                safePreProvisionRetry &&
+                !existing.operation.podId &&
+                !existing.operation.remoteJobId &&
+                !existing.operation.remoteWorker?.podId &&
+                !fs.existsSync(existing.operation.resultFile)
+            ) {
+                let job;
+                try { job = readJson(existing.operation.jobFile); }
+                catch(error) {
+                    return {
+                        ...existing.operation,
+                        ok: false,
+                        done: true,
+                        reusedOperation: true,
+                        status: "LOCAL_VIDEO_RETRY_JOB_INVALID",
+                        error: error?.message || "LOCAL_VIDEO_RETRY_JOB_INVALID"
+                    };
+                }
+                const retried = await launchDurableOperation(
+                    existing.file,
+                    existing.operation,
+                    job,
+                    { retrying: true }
+                );
+                return {
+                    ...retried.operation,
+                    ok: retried.ok,
+                    done: retried.ok !== true,
+                    reusedOperation: true,
+                    retryAttempted: true,
+                    ...(retried.ok ? {} : { error: retried.operation.error || retried.operation.status })
+                };
             }
             const terminal = ["FAILED", "CANCELLED"].includes(existing.operation.state);
             return {
@@ -2226,95 +2450,17 @@ export function createLocalVideoEngine({
             obligationId: job.obligationId,
             rootInstructionHash: job.rootInstructionHash,
             externalApiUsed: false,
-            externalEstimatedCostUsd: 0
+            externalEstimatedCostUsd: 0,
+            launchAttempt: 1,
+            attemptHistory: []
         };
         atomicJsonWrite(operationPath, operation);
-
-        const runner = model.runner || commandPath(env.JARVIS_LOCAL_VIDEO_RUNNER, env);
-        const runnerScript = model.runnerScript || path.resolve(env.JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT);
-        const args = [runnerScript, "--job", jobFile, "--result", resultFile];
-        const runnerEnvironment = offlineLocalVideoEnvironment(env);
-        if (currentHealth.gpuIndex !== null && currentHealth.gpuIndex !== undefined) {
-            runnerEnvironment.CUDA_VISIBLE_DEVICES = String(currentHealth.gpuIndex);
-        }
-        const onExit = exitCode => {
-            try {
-                const current = readJson(operationPath);
-                if (["SUCCEEDED", "CANCELLED"].includes(current.state)) return;
-                const resultReady = fs.existsSync(resultFile);
-                saveOperation(operationPath, current, {
-                    state: resultReady ? "RESULT_READY" : "FAILED",
-                    status: resultReady ? "LOCAL_VIDEO_RESULT_READY" : "LOCAL_VIDEO_RUNNER_EXITED_WITHOUT_RESULT",
-                    exitCode: Number(exitCode),
-                    retryable: !resultReady
-                });
-            }
-            catch {}
-            children.delete(operationId);
+        const launched = await launchDurableOperation(operationPath, operation, job);
+        return {
+            ...launched.operation,
+            ok: launched.ok,
+            done: launched.ok !== true
         };
-        const onError = error => {
-            try {
-                const current = readJson(operationPath);
-                saveOperation(operationPath, current, {
-                    state: "FAILED",
-                    status: "LOCAL_VIDEO_RUNNER_START_FAILED",
-                    error: error?.message || "LOCAL_VIDEO_RUNNER_START_FAILED",
-                    retryable: true
-                });
-            }
-            catch {}
-            children.delete(operationId);
-        };
-        try {
-            const launched = launch
-                ? launch({
-                    command: runner,
-                    args,
-                    cwd: resolvedRoot,
-                    env: runnerEnvironment,
-                    job,
-                    jobFile,
-                    resultFile,
-                    onExit,
-                    onError
-                })
-                : spawn(runner, args, {
-                    cwd: resolvedRoot,
-                    stdio: "ignore",
-                    windowsHide: true,
-                    env: runnerEnvironment
-                });
-            const child = launched && typeof launched.then === "function"
-                ? await launched
-                : launched;
-            if (!launch) {
-                child.once("exit", onExit);
-                child.once("error", onError);
-            }
-            children.set(operationId, child);
-            operation = saveOperation(operationPath, operation, {
-                pid: Number(child?.pid || 0) || null,
-                remoteWorker: child?.remoteWorker || null,
-                remoteJobId: child?.remoteWorker?.remoteJobId || null,
-                podId: child?.remoteWorker?.podId || null
-            });
-        }
-        catch(error) {
-            operation = saveOperation(operationPath, operation, {
-                state: "FAILED",
-                status: "LOCAL_VIDEO_RUNNER_START_FAILED",
-                error: error?.message || "LOCAL_VIDEO_RUNNER_START_FAILED",
-                retryable: true
-            });
-            const released = await releaseWorker(
-                operationPath,
-                operation,
-                "runner_start_failed"
-            );
-            operation = released.operation;
-            return { ...operation, ok: false, done: true };
-        }
-        return { ...operation, ok: true, done: false };
     }
 
     async function poll({ operationName } = {}) {

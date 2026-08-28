@@ -155,6 +155,7 @@ function runpodPhysicalHarness({ scenario = "success", clock = null, availabilit
     let capturedJob = null;
     let healthCalls = 0;
     let transportTimeouts = 0;
+    let availabilityTransportFailures = scenario === "availability-transport-once" ? 1 : 0;
     const remoteAssets = new Map();
     const goodVideo = Buffer.alloc(120000, 7);
     goodVideo.write("0000ftypisom", 0, "ascii");
@@ -166,6 +167,12 @@ function runpodPhysicalHarness({ scenario = "success", clock = null, availabilit
         const safeUrl = String(url).replace(env.RUNPOD_API_KEY, "[REDACTED]");
         calls.push({ kind: "http", url: safeUrl, method: options.method || "GET" });
         if (String(url).includes("/graphql")) {
+            if (availabilityTransportFailures > 0) {
+                availabilityTransportFailures -= 1;
+                const error = new Error("UNABLE_TO_VERIFY_LEAF_SIGNATURE controlled");
+                error.code = "UNABLE_TO_VERIFY_LEAF_SIGNATURE";
+                throw error;
+            }
             const query = JSON.parse(options.body || "{}").query || "";
             const availableGpuCounts = Object.hasOwn(availability, "availableGpuCounts")
                 ? availability.availableGpuCounts
@@ -187,6 +194,9 @@ function runpodPhysicalHarness({ scenario = "success", clock = null, availabilit
                     }]
                 }
             });
+        }
+        if (String(url).endsWith("/pods") && (options.method || "GET") === "GET") {
+            return mockHttpResponse(200, []);
         }
         if (String(url).endsWith("/pods") && options.method === "POST") {
             createdBody = JSON.parse(options.body);
@@ -444,9 +454,14 @@ test("V142 RunPod adapter fails closed on provision and real worker health failu
     await t.test("provision failure creates no successful operation", async () => {
         const harness = runpodPhysicalHarness({ scenario: "provision-fail" });
         const started = await harness.engine.start(harness.payload);
+        const duplicate = await harness.engine.start(harness.payload);
         assert.equal(started.ok, false);
         assert.equal(started.status, "LOCAL_VIDEO_RUNNER_START_FAILED");
         assert.equal(started.error, "RUNPOD_API_HTTP_503");
+        assert.equal(started.failureStage, "provision");
+        assert.equal(duplicate.reusedOperation, true);
+        assert.equal(duplicate.retryAttempted, undefined);
+        assert.equal(duplicate.operationName, started.operationName);
         assert.equal(harness.calls.filter(call => call.kind === "http" && call.method === "POST").length, 2);
         assert.equal(harness.calls.some(call => call.method === "DELETE"), false);
         assert.equal(listArtifacts({ root: harness.root, type: "video" }).length, 0);
@@ -481,6 +496,34 @@ test("V142 RunPod polling retries transport on the same Pod/job and durable obli
     assert.equal(completed.ok, true);
     assert.equal(harness.calls.filter(call => call.kind === "http" && call.method === "POST").length, 2);
     assert.equal(harness.createdBody.name.includes(started.operationId), true);
+});
+
+test("V142 RunPod pre-provision transport recovery reuses the same operation and provisions at most one Pod", async () => {
+    const harness = runpodPhysicalHarness({ scenario: "availability-transport-once" });
+    const first = await harness.engine.start(harness.payload);
+    assert.equal(first.ok, false, JSON.stringify(first));
+    assert.equal(first.error, "RUNPOD_API_TRANSPORT_FAILED");
+    assert.equal(first.failureStage, "availability");
+    assert.equal(first.retryable, true);
+    assert.equal(first.podId, undefined);
+
+    const recovered = await harness.engine.start(harness.payload);
+    assert.equal(recovered.ok, true, JSON.stringify(recovered));
+    assert.equal(recovered.reusedOperation, true);
+    assert.equal(recovered.retryAttempted, true);
+    assert.equal(recovered.operationName, first.operationName);
+    assert.equal(recovered.launchAttempt, 2);
+    assert.equal(recovered.attemptHistory.length, 1);
+    assert.equal(recovered.attemptHistory[0].failureStage, "availability");
+    assert.equal(
+        harness.calls.filter(call => call.url.endsWith("/pods") && call.method === "POST").length,
+        1
+    );
+
+    const cancelled = await harness.engine.cancel({ operationName: recovered.operationName });
+    assert.equal(cancelled.ok, true, JSON.stringify(cancelled));
+    assert.equal(cancelled.workerRelease.terminationVerified, true);
+    assert.equal(harness.deleted, true);
 });
 
 test("V142 RunPod adapter handles job failure, bad SHA, bad MP4 and mandatory delete failure honestly", async t => {
