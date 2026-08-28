@@ -1399,6 +1399,19 @@ export function createRunpodRemoteVideoAdapter({
         });
     }
 
+    function writeBootstrapFile(bootstrapFile) {
+        const remoteVenv = `${remoteBase}/venv`;
+        const bootstrap = `#!/usr/bin/env bash\nset -euo pipefail\n` +
+            `export DEBIAN_FRONTEND=noninteractive\n` +
+            `apt-get update -qq\napt-get install -y -qq git ffmpeg python3-venv\n` +
+            `test -f ${remoteBase}/Wan2.2/generate.py || git clone --depth 1 https://github.com/Wan-Video/Wan2.2.git ${remoteBase}/Wan2.2\n` +
+            `test -x ${remoteVenv}/bin/python || python3 -m venv --system-site-packages ${remoteVenv}\n` +
+            `${remoteVenv}/bin/python -m pip install --no-cache-dir -r ${remoteBase}/Wan2.2/requirements.txt 'huggingface_hub[cli]'\n` +
+            `mkdir -p ${remoteBase}/models/Wan2.2-TI2V-5B\n` +
+            `find ${remoteBase}/models/Wan2.2-TI2V-5B -type f -name '*.safetensors' -print -quit | grep -q . || ${remoteVenv}/bin/hf download Wan-AI/Wan2.2-TI2V-5B --local-dir ${remoteBase}/models/Wan2.2-TI2V-5B\n`;
+        fs.writeFileSync(bootstrapFile, bootstrap, { encoding: "utf8", mode: 0o700 });
+    }
+
     function prepareRemoteFiles(job) {
         const operationDir = path.join(stateRoot, job.operationId);
         fs.mkdirSync(path.join(operationDir, "assets"), { recursive: true });
@@ -1440,16 +1453,7 @@ export function createRunpodRemoteVideoAdapter({
         atomicJsonWrite(localJobFile, remoteJob);
         fs.copyFileSync(runnerSource, localRunnerFile);
         const bootstrapFile = path.join(operationDir, "bootstrap.sh");
-        const remoteVenv = `${remoteBase}/venv`;
-        const bootstrap = `#!/usr/bin/env bash\nset -euo pipefail\n` +
-            `export DEBIAN_FRONTEND=noninteractive\n` +
-            `apt-get update -qq\napt-get install -y -qq git ffmpeg python3-venv\n` +
-            `test -f ${remoteBase}/Wan2.2/generate.py || git clone --depth 1 https://github.com/Wan-Video/Wan2.2.git ${remoteBase}/Wan2.2\n` +
-            `test -x ${remoteVenv}/bin/python || python3 -m venv --system-site-packages ${remoteVenv}\n` +
-            `${remoteVenv}/bin/python -m pip install --no-cache-dir -r ${remoteBase}/Wan2.2/requirements.txt 'huggingface_hub[cli]'\n` +
-            `mkdir -p ${remoteBase}/models/Wan2.2-TI2V-5B\n` +
-            `find ${remoteBase}/models/Wan2.2-TI2V-5B -type f -name '*.safetensors' -print -quit | grep -q . || ${remoteVenv}/bin/hf download Wan-AI/Wan2.2-TI2V-5B --local-dir ${remoteBase}/models/Wan2.2-TI2V-5B\n`;
-        fs.writeFileSync(bootstrapFile, bootstrap, { encoding: "utf8", mode: 0o700 });
+        writeBootstrapFile(bootstrapFile);
         return {
             operationDir,
             privateKeyFile,
@@ -1655,6 +1659,7 @@ export function createRunpodRemoteVideoAdapter({
     }
 
     async function uploadOperation(state) {
+        writeBootstrapFile(state.bootstrapFile);
         await sshCommand(state, `mkdir -p ${shellSingleQuote(state.remoteOperationDir + "/assets")}`);
         await scpFile(state, state.localJobFile, `${state.remoteOperationDir}/job.json`);
         await scpFile(state, state.localRunnerFile, `${state.remoteOperationDir}/jarvis-local-video-wan22.py`);
@@ -1726,6 +1731,23 @@ export function createRunpodRemoteVideoAdapter({
                 );
                 const status = marker.stdout.trim().split(/\r?\n/).at(-1);
                 if (status === "FAILED") {
+                    writeBootstrapFile(state.bootstrapFile);
+                    const expectedBootstrapSha = createHash("sha256")
+                        .update(fs.readFileSync(state.bootstrapFile))
+                        .digest("hex");
+                    const remoteBootstrapSha = (await sshCommand(
+                        state,
+                        `sha256sum ${shellSingleQuote(state.remoteOperationDir + "/bootstrap.sh")}`
+                    )).stdout.trim().split(/\s+/)[0]?.toLowerCase();
+                    if (remoteBootstrapSha !== expectedBootstrapSha) {
+                        state = writeState(loaded.file, state, { phase: "POD_RUNNING" });
+                        return {
+                            ok: true,
+                            done: false,
+                            status: "RUNPOD_WAN22_BOOTSTRAP_REFRESH_REQUIRED",
+                            remoteWorker: runpodPublicWorker(state)
+                        };
+                    }
                     await writeLocalFailure(operation, resultFile, "RUNPOD_WAN22_BOOTSTRAP_FAILED", false);
                     state = writeState(loaded.file, state, { phase: "BOOTSTRAP_FAILED" });
                     return { ok: false, done: true, status: "RUNPOD_WAN22_BOOTSTRAP_FAILED", remoteWorker: runpodPublicWorker(state) };
@@ -1817,7 +1839,7 @@ export function createRunpodRemoteVideoAdapter({
             await apiRequest(`${apiBase}/pods/${encodeURIComponent(state.podId)}`, { method: "DELETE" }, [200, 204, 404]);
             let terminationVerified = false;
             try {
-                const pod = await apiRequest(`${apiBase}/pods/${encodeURIComponent(state.podId)}`, { method: "GET" }, [200, 404]);
+                const pod = await apiRequest(`${apiBase}/pods/${encodeURIComponent(state.podId)}`, { method: "GET" }, [200]);
                 terminationVerified = !pod || String(pod.desiredStatus || "") === "TERMINATED";
             }
             catch(error) {

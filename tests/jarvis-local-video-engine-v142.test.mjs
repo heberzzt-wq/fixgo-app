@@ -160,6 +160,8 @@ function runpodPhysicalHarness({
     let capturedJob = null;
     let healthCalls = 0;
     let transportTimeouts = 0;
+    let bootstrapStarts = 0;
+    let bootstrapMarkerChecks = 0;
     let availabilityTransportFailures = scenario === "availability-transport-once" ? 1 : 0;
     const remoteAssets = new Map();
     const goodVideo = Buffer.alloc(120000, 7);
@@ -236,7 +238,7 @@ function runpodPhysicalHarness({
                 error.code = "ETIMEDOUT";
                 throw error;
             }
-            if (deleted) return mockHttpResponse(404);
+            if (deleted) return mockHttpResponse(404, { error: "Pod not found" });
             return mockHttpResponse(200, {
                 id: "pod-a40-v142",
                 desiredStatus: "RUNNING",
@@ -293,7 +295,18 @@ function runpodPhysicalHarness({
             const remoteFile = [...remoteAssets.keys()].find(file => command.includes(file));
             return { stdout: `${remoteAssets.get(remoteFile)}  ${remoteFile}\n`, stderr: "", exitCode: 0 };
         }
-        if (command.includes("bootstrap.ready")) {
+        if (command.includes("rm -f") && command.includes("bootstrap.failed") && command.includes("nohup")) {
+            if (scenario === "bootstrap-refresh" && bootstrapStarts === 0) {
+                const remoteBootstrap = [...remoteAssets.keys()].find(file => file.endsWith("/bootstrap.sh"));
+                remoteAssets.set(remoteBootstrap, createHash("sha256").update("legacy-bootstrap").digest("hex"));
+            }
+            bootstrapStarts += 1;
+            return { stdout: "", stderr: "", exitCode: 0 };
+        }
+        if (command.startsWith("if test -f") && command.includes("bootstrap.ready")) {
+            if (scenario === "bootstrap-refresh" && bootstrapMarkerChecks++ === 0) {
+                return { stdout: "FAILED\n", stderr: "", exitCode: 0 };
+            }
             return { stdout: "READY\n", stderr: "", exitCode: 0 };
         }
         if (command.includes("echo $!")) return { stdout: "4242\n", stderr: "", exitCode: 0 };
@@ -385,6 +398,12 @@ test("V142 RunPod adapter provisions one A40 Pod, transfers physical assets, ret
     assert.equal(started.podId, "pod-a40-v142");
     assert.match(started.remoteJobId, /^runpod\/pod-a40-v142\//);
 
+    const runpodStateRoot = path.join(harness.root, ".jarvis-artifacts", ".video-worker", "runpod");
+    const bootstrapFile = fs.readdirSync(runpodStateRoot, { recursive: true })
+        .map(file => path.join(runpodStateRoot, file))
+        .find(file => file.endsWith("bootstrap.sh"));
+    fs.writeFileSync(bootstrapFile, "#!/usr/bin/env bash\npython3 -m pip install legacy-global\n");
+
     const completed = await pollRunpodUntilDone(harness.engine, started.operationName);
     assert.equal(completed.ok, true, JSON.stringify(completed));
     assert.equal(completed.status, "VIDEO_GENERATED_VERIFIED");
@@ -410,10 +429,6 @@ test("V142 RunPod adapter provisions one A40 Pod, transfers physical assets, ret
         );
     }
     assert.equal(listArtifacts({ root: harness.root, type: "video" }).length, 1);
-    const runpodStateRoot = path.join(harness.root, ".jarvis-artifacts", ".video-worker", "runpod");
-    const bootstrapFile = fs.readdirSync(runpodStateRoot, { recursive: true })
-        .map(file => path.join(runpodStateRoot, file))
-        .find(file => file.endsWith("bootstrap.sh"));
     const bootstrap = fs.readFileSync(bootstrapFile, "utf8");
     assert.match(bootstrap, /python3 -m venv --system-site-packages/);
     assert.match(bootstrap, /\/venv\/bin\/python -m pip install/);
@@ -436,6 +451,21 @@ test("V142 RunPod API key reaches the provider byte-for-byte without local norma
     assert.equal(JSON.stringify(httpCalls).includes(exactKey), false);
     await harness.engine.cancel({ operationName: started.operationName });
     assert.equal(harness.deleted, true);
+});
+
+test("V142 RunPod refreshes a stale failed bootstrap on the same Pod and obligation", async () => {
+    const harness = runpodPhysicalHarness({ scenario: "bootstrap-refresh" });
+    const started = await harness.engine.start(harness.payload);
+    assert.equal(started.ok, true, JSON.stringify(started));
+    const bootstrapping = await harness.engine.poll({ operationName: started.operationName });
+    assert.equal(bootstrapping.done, false);
+    const refresh = await harness.engine.poll({ operationName: started.operationName });
+    assert.equal(refresh.status, "LOCAL_VIDEO_GENERATION_STARTED");
+    assert.equal(refresh.remotePoll.status, "RUNPOD_WAN22_BOOTSTRAP_REFRESH_REQUIRED");
+    const completed = await pollRunpodUntilDone(harness.engine, started.operationName, 10);
+    assert.equal(completed.status, "VIDEO_GENERATED_VERIFIED");
+    assert.equal(harness.calls.filter(call => call.kind === "http" && call.method === "POST" && call.url.endsWith("/pods")).length, 1);
+    assert.equal(completed.workerRelease.status, "RUNPOD_POD_TERMINATED_VERIFIED");
 });
 
 test("V142 RunPod availability follows authenticated stockStatus while preserving count, GPU, VRAM and price guards", async t => {
