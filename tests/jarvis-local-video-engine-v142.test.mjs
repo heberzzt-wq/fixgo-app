@@ -319,16 +319,26 @@ function runpodPhysicalHarness({
                 ? { python: true, torch: true, cuda: false, gpuName: "", vramGb: 0, freeDiskGb: 100 }
                 : {
                     python: true,
+                    pythonVersion: "3.12.3",
                     torch: true,
+                    torchVersion: "2.8.0+cu128",
+                    torchCudaVersion: "12.8",
                     cuda: true,
                     gpuName: "NVIDIA A40",
+                    computeCapability: "8.6",
                     vramGb: 48,
                     freeDiskGb: 100,
                     ffmpeg: true,
                     ffprobe: true,
+                    nvcc: true,
                     runner: true,
                     wanRepository: true,
-                    wanModel: true
+                    wanModel: true,
+                    dependencyContract: scenario === "runtime-health-fail" && healthCalls > 1 ? false : true,
+                    pipCheck: scenario === "runtime-health-fail" && healthCalls > 1 ? false : true,
+                    wanCliImport: scenario === "runtime-health-fail" && healthCalls > 1 ? false : true,
+                    cudaProbe: true,
+                    runtimeCudaProbe: scenario === "runtime-health-fail" && healthCalls > 1 ? false : true
                 };
             return { stdout: `${JSON.stringify(health)}\n`, stderr: "", exitCode: 0 };
         }
@@ -452,6 +462,15 @@ async function pollRunpodUntilDone(engine, operationName, maximumPolls = 8) {
 
 test("V142 RunPod adapter provisions one A40 Pod, transfers physical assets, returns verified MP4, and deletes the Pod", async () => {
     const harness = runpodPhysicalHarness();
+    const configuredOnly = harness.adapter.inspectHardware();
+    assert.equal(configuredOnly.status, "RUNPOD_PROVISIONING_CONFIGURED");
+    assert.equal(configuredOnly.cudaAvailable, null);
+    assert.equal(configuredOnly.gpuName, null);
+    assert.equal(configuredOnly.ffmpegAvailable, null);
+    assert.equal(configuredOnly.physicalHealthVerified, false);
+    assert.equal(configuredOnly.runtimePreflightVerified, false);
+    assert.equal(configuredOnly.requestedGpuName, "NVIDIA A40");
+    assert.equal(configuredOnly.requestedVramGb, 48);
     const started = await harness.engine.start(harness.payload);
     assert.equal(started.ok, true, JSON.stringify(started));
     assert.equal(started.podId, "pod-a40-v142");
@@ -500,8 +519,45 @@ test("V142 RunPod adapter provisions one A40 Pod, transfers physical assets, ret
     assert.match(bootstrap, /while kill -0 "\$DOWNLOAD_PID"/);
     assert.match(bootstrap, /actual\.get\(k\)==expected\.get\(k\)/);
     assert.match(bootstrap, /os\.path\.getsize\(os\.path\.join\(model_dir,item\['path'\]\)\)==item\['bytes'\]/);
-    assert.match(bootstrap, /if test "\$CACHE_VALID" = 1; then progress CACHE_VALIDATE READY CACHE_HIT; exit 0; fi/);
+    assert.match(bootstrap, /if test "\$CACHE_VALID" = 1 && "\$VENV\/bin\/python" "\$PREFLIGHT"/);
+    assert.match(bootstrap, /progress CACHE_VALIDATE READY CACHE_HIT; exit 0; fi/);
     assert.match(bootstrap, /rm -f "\$CACHE_MANIFEST"\nprogress CACHE_VALIDATE INCOMPLETE CACHE_MISS/);
+    assert.match(bootstrap, /8338a62490c93cfbf908bb289bbaa3fb104e5606415bb48cca6cae5175313c44/);
+    assert.match(bootstrap, /flash-attn==2\.8\.3\.post1.*--no-build-isolation/);
+    assert.match(bootstrap, /MAX_JOBS=4/);
+    assert.match(bootstrap, /pip check/);
+    assert.match(bootstrap, /importlib\.import_module\(name\)/);
+    assert.match(bootstrap, /'flash_attn'/);
+    assert.match(bootstrap, /generate\.py.*--help/);
+    assert.match(bootstrap, /torchVersion/);
+    assert.match(bootstrap, /torchCudaVersion/);
+    assert.match(harness.createdBody.imageName, /@sha256:[a-f0-9]{64}$/);
+});
+
+test("V142 RunPod refuses a mutable image tag before creating billable capacity", async () => {
+    const harness = runpodPhysicalHarness({
+        scenario: "mutable-image",
+        envOverrides: {
+            JARVIS_RUNPOD_IMAGE: "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404"
+        }
+    });
+    const started = await harness.engine.start(harness.payload);
+    assert.equal(started.ok, false, JSON.stringify(started));
+    assert.equal(started.error, "RUNPOD_IMAGE_DIGEST_REQUIRED");
+    assert.equal(harness.createdBody, null);
+});
+
+test("V142 RunPod refuses an unapproved immutable image before creating billable capacity", async () => {
+    const harness = runpodPhysicalHarness({
+        scenario: "unapproved-image",
+        envOverrides: {
+            JARVIS_RUNPOD_IMAGE: `runpod/pytorch:unapproved@sha256:${"f".repeat(64)}`
+        }
+    });
+    const started = await harness.engine.start(harness.payload);
+    assert.equal(started.ok, false, JSON.stringify(started));
+    assert.equal(started.error, "RUNPOD_IMAGE_NOT_APPROVED_FOR_V142");
+    assert.equal(harness.createdBody, null);
 });
 
 test("V142 RunPod attaches an existing Network Volume, pins its datacenter, and never deletes the volume", async () => {
@@ -631,6 +687,17 @@ test("V142 RunPod classifies a current bootstrap failure before inference as BOO
     assert.equal(harness.deleted, true);
 });
 
+test("V142 RunPod blocks inference when the complete Wan runtime probe is not healthy", async () => {
+    const harness = runpodPhysicalHarness({ scenario: "runtime-health-fail" });
+    const started = await harness.engine.start(harness.payload);
+    const failed = await pollRunpodUntilDone(harness.engine, started.operationName);
+    assert.equal(failed.ok, false, JSON.stringify(failed));
+    assert.equal(failed.status, "RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED");
+    assert.equal(failed.remoteWorker.phase, "RUNTIME_PREFLIGHT_FAILED");
+    assert.equal(failed.workerRelease.terminationVerified, true);
+    assert.equal(harness.deleted, true);
+});
+
 test("V142 RunPod availability follows authenticated stockStatus while preserving count, GPU, VRAM and price guards", async t => {
     await t.test("availableGpuCounts [1] is available", async () => {
         const harness = runpodPhysicalHarness({
@@ -706,7 +773,7 @@ test("V142 RunPod adapter fails closed on provision and real worker health failu
         const started = await harness.engine.start(harness.payload);
         const failed = await pollRunpodUntilDone(harness.engine, started.operationName);
         assert.equal(failed.ok, false);
-        assert.equal(failed.status, "RUNPOD_WORKER_HEALTH_FAILED");
+        assert.equal(failed.status, "RUNPOD_IMAGE_RUNTIME_MISMATCH");
         assert.equal(failed.workerRelease.terminationVerified, true);
         assert.equal(harness.deleted, true);
         assert.equal(listArtifacts({ root: harness.root, type: "video" }).length, 0);

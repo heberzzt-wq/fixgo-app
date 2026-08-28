@@ -128,18 +128,25 @@ The adapter performs this single durable lifecycle:
 1. Query official RunPod GPU availability and on-demand price for one
    `NVIDIA A40` with at least 24 GB VRAM.
 2. `POST https://rest.runpod.io/v1/pods` for exactly one on-demand Pod using
-   the PyTorch 2.8 image, 30 GB container disk, 100 GB volume, 50 GB minimum
-   RAM, nine minimum vCPUs, and TCP 22.
+   the approved PyTorch 2.8/CUDA 12.8 image pinned by immutable OCI digest,
+   30 GB container disk, 100 GB volume, 50 GB minimum RAM, nine minimum vCPUs,
+   and TCP 22. A mutable image tag is rejected before billable capacity is
+   created.
 3. Generate an ephemeral SSH keypair, pass only its public key to the Pod, and
    bind the local receipt to `missionId`, `objectiveId`, `obligationId`,
    `operationName`, and `rootInstructionHash`.
-4. Verify live NVIDIA/CUDA/VRAM/disk/Python/PyTorch health. Transfer the
+4. Verify live A40/CUDA/VRAM/disk/Python/PyTorch/FFmpeg/NVCC health. Transfer the
    existing V142 runner, durable job JSON, and physical references with an
    SHA-256 manifest. Windows paths are rewritten to Pod paths.
 5. Install/verify the official Wan2.2 repository and
-   `Wan-AI/Wan2.2-TI2V-5B`, then start exactly one remote job. Every poll uses
-   the same `remoteJobId`; a transport timeout remains retryable and never
-   provisions another Pod.
+   `Wan-AI/Wan2.2-TI2V-5B`, then start exactly one remote job. The repository,
+   requirements file, model revision, every runtime model file, and their
+   SHA-256 values are pinned. FlashAttention is installed separately using its
+   supported no-build-isolation path. A cache hit is accepted only after
+   `pip check`, all required Python imports, a real CUDA tensor operation, the
+   expected Python/Torch/CUDA/A40 compute-capability versions, and offline
+   `generate.py --help` all pass. Every poll uses the same `remoteJobId`; a
+   transport timeout remains retryable and never provisions another Pod.
 6. Download the MP4, compare remote and local bytes/SHA-256, then let the
    existing engine verify MP4/media metadata. Artifact Studio registration
    happens only after physical verification and verified Pod deletion.
@@ -154,6 +161,18 @@ from the greater of RunPod's returned Pod price and the configured total hourly
 rate (GPU plus the displayed storage allowance); actual cost is queried from
 `GET /billing/pods?podId=...` when RunPod has exposed it. `LOCAL_TEST` prevents
 Veo and Gemini recovery calls during certification.
+
+Configuration readiness is deliberately different from physical readiness.
+Before a Pod exists, the bridge records the requested A40, VRAM, storage, and
+immutable image, but it does not claim that CUDA, Python, FFmpeg, the Wan CLI,
+or model dependencies are healthy. Those become verified only from the live
+worker probes above. Any mismatch fails closed before inference and triggers
+Pod deletion.
+
+This route uses the official Wan2.2 command-line entry point directly through
+the existing `scripts/jarvis-local-video-wan22.py` runner. InvokeAI and ComfyUI
+are not part of this V142 execution path and are not installed as hidden
+dependencies.
 
 ## Current hardware gate
 

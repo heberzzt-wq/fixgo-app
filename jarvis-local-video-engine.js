@@ -6,8 +6,8 @@ import { execFile, execFileSync, spawn } from "node:child_process";
 
 import { registerArtifact } from "./jarvis-artifact-studio.js";
 
-export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.8.0-v142-runpod-durable-cache";
-export const JARVIS_RUNPOD_ADAPTER_VERSION = "1.1.0-v142-runpod-network-volume-cache";
+export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.9.0-v142-runpod-runtime-preflight";
+export const JARVIS_RUNPOD_ADAPTER_VERSION = "1.2.0-v142-runpod-runtime-preflight";
 export const VIDEO_ENGINE_MODES = Object.freeze([
     "CURRENT_STABLE",
     "LOCAL_TEST",
@@ -101,17 +101,32 @@ const LOCAL_VIDEO_MODEL_ALIASES = Object.freeze({
 });
 
 const RUNPOD_WAN22_CACHE_CONTRACT = Object.freeze({
-    profile: "wan22-ti2v-5b-a40-v1",
+    profile: "wan22-ti2v-5b-a40-v2",
+    imageReference: "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404@sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35",
+    pythonVersionPrefix: "3.12.",
+    torchVersionPrefix: "2.8.0+cu128",
+    torchCudaVersionPrefix: "12.8",
+    computeCapability: "8.6",
+    requirementsSha256: "8338a62490c93cfbf908bb289bbaa3fb104e5606415bb48cca6cae5175313c44",
+    flashAttentionVersion: "2.8.3.post1",
     modelRepository: "Wan-AI/Wan2.2-TI2V-5B",
     modelRevision: "921dbaf3f1674a56f47e83fb80a34bac8a8f203e",
     wanRepositoryRevision: "42bf4cfaa384bc21833865abc2f9e6c0e67233dc",
     expectedModelBytes: 34203123497,
+    requiredRuntimeModelBytes: 34201521212,
     minimumNetworkVolumeGb: 50,
     requiredFiles: Object.freeze([
         Object.freeze({ path: "Wan2.2_VAE.pth", bytes: 2818839170, sha256: "20eb789667fa5e60e7516bf509512f6cb61f01b0aa0695eadaea930c13892b36" }),
+        Object.freeze({ path: "config.json", bytes: 251, sha256: "d1fea36899d00c2501b836c13ad65af56e2f9529ba622e50886d3f5c3e6c02bc" }),
+        Object.freeze({ path: "configuration.json", bytes: 43, sha256: "a6b66993e9da0feaba8d42d06b21ad9cfaf7d8b591f32fd639ae35b7f5d2d859" }),
         Object.freeze({ path: "diffusion_pytorch_model-00001-of-00003.safetensors", bytes: 9825014472, sha256: "720b06c4ade5e87c1246bba8ac95b664c638749cd9b102cf84d823bb44c026a1" }),
         Object.freeze({ path: "diffusion_pytorch_model-00002-of-00003.safetensors", bytes: 9995661736, sha256: "09ec5ef720d8396f6cfa51fbdcbdb2327e37722afd6e89fd38f1e7e5e782c283" }),
         Object.freeze({ path: "diffusion_pytorch_model-00003-of-00003.safetensors", bytes: 178558176, sha256: "6306f7894c345de9093ad588771c2abfaeb668a81f7a6d9a918bd26ba3568e49" }),
+        Object.freeze({ path: "diffusion_pytorch_model.safetensors.index.json", bytes: 72865, sha256: "bfa2337f1163e195d24151a72298daf34a620543898109be47e414c8daa5b3fe" }),
+        Object.freeze({ path: "google/umt5-xxl/special_tokens_map.json", bytes: 6623, sha256: "7b8a9f5040adb67b5805abdfd42c1f8d0f3d0e711f10726580eb3789cd0ad61d" }),
+        Object.freeze({ path: "google/umt5-xxl/spiece.model", bytes: 4548313, sha256: "e3909a67b780650b35cf529ac782ad2b6b26e6d1f849d3fbb6a872905f452458" }),
+        Object.freeze({ path: "google/umt5-xxl/tokenizer.json", bytes: 16837417, sha256: "6e197b4d3dbd71da14b4eb255f4fa91c9c1f2068b20a2de2472967ca3d22602b" }),
+        Object.freeze({ path: "google/umt5-xxl/tokenizer_config.json", bytes: 61728, sha256: "ed9a3a8b0faa71a70a32847e0435fe036e6e112d4df4edb7bb48a921e344dc05" }),
         Object.freeze({ path: "models_t5_umt5-xxl-enc-bf16.pth", bytes: 11361920418, sha256: "7cace0da2b446bbbbc57d031ab6cf163a3d59b366da94e5afe36745b746fd81d" })
     ])
 });
@@ -739,14 +754,28 @@ function localBackendHealth({ profile, hardware, policy, env }) {
     );
     const blockingReasons = [];
     if (policy.localVideoEnabled !== true) blockingReasons.push("LOCAL_VIDEO_DISABLED");
-    if (remoteExecution && hardware.ok !== true) {
-        blockingReasons.push(hardware.status || "REMOTE_VIDEO_PROVIDER_UNAVAILABLE");
+    if (remoteExecution) {
+        const provisioningConfigured = hardware.remoteProvisioning === true;
+        const physicalWorkerInjected = hardware.cudaAvailable === true;
+        const capacityVramGb = hardware.requestedVramGb ?? hardware.vramGb;
+        const capacityStorageGb = hardware.requestedStorageGb ?? hardware.freeDiskGb;
+        if (hardware.ok !== true || (!provisioningConfigured && !physicalWorkerInjected)) {
+            blockingReasons.push(hardware.status || "REMOTE_VIDEO_PROVIDER_UNAVAILABLE");
+        }
+        if (Number(capacityVramGb || 0) < profile.minimumVramGb) {
+            blockingReasons.push("LOCAL_VIDEO_VRAM_INSUFFICIENT");
+        }
+        if (Number(capacityStorageGb || 0) < profile.minimumFreeDiskGb) {
+            blockingReasons.push("LOCAL_VIDEO_DISK_INSUFFICIENT");
+        }
     }
-    if (hardware.cudaAvailable !== true) blockingReasons.push("LOCAL_VIDEO_CUDA_UNAVAILABLE");
-    if (Number(hardware.vramGb || 0) < profile.minimumVramGb) blockingReasons.push("LOCAL_VIDEO_VRAM_INSUFFICIENT");
-    if (Number(hardware.freeDiskGb || 0) < profile.minimumFreeDiskGb) blockingReasons.push("LOCAL_VIDEO_DISK_INSUFFICIENT");
-    if (hardware.ffmpegAvailable !== true || hardware.ffprobeAvailable !== true) {
-        blockingReasons.push("LOCAL_VIDEO_FFMPEG_UNAVAILABLE");
+    else {
+        if (hardware.cudaAvailable !== true) blockingReasons.push("LOCAL_VIDEO_CUDA_UNAVAILABLE");
+        if (Number(hardware.vramGb || 0) < profile.minimumVramGb) blockingReasons.push("LOCAL_VIDEO_VRAM_INSUFFICIENT");
+        if (Number(hardware.freeDiskGb || 0) < profile.minimumFreeDiskGb) blockingReasons.push("LOCAL_VIDEO_DISK_INSUFFICIENT");
+        if (hardware.ffmpegAvailable !== true || hardware.ffprobeAvailable !== true) {
+            blockingReasons.push("LOCAL_VIDEO_FFMPEG_UNAVAILABLE");
+        }
     }
     if (!runnerReady) blockingReasons.push("LOCAL_VIDEO_RUNNER_UNCONFIGURED");
     else if (!repositoryReady) blockingReasons.push("LOCAL_VIDEO_DEPENDENCIES_UNAVAILABLE");
@@ -808,12 +837,14 @@ export function buildLocalAiCapabilityReport({
             status: selectedVideoModel.unsupported === true
                 ? "LOCAL_VIDEO_BACKEND_UNSUPPORTED"
                 : selectedBackendHealth?.status || hardware.status,
-            physicalMp4Authorized: localVideoSupported,
+            physicalMp4Authorized: localVideoSupported && hardware.physicalHealthVerified !== false,
             installationAuthorized: false,
             reason: selectedVideoModel.unsupported === true
                 ? "LOCAL_VIDEO_BACKEND_UNSUPPORTED"
                 : localVideoSupported
-                    ? "HARDWARE_GATE_PASSED_MODEL_AND_RUNNER_STILL_REQUIRE_EXPLICIT_INSTALLATION"
+                    ? hardware.physicalHealthVerified === false
+                        ? "REMOTE_PROVISIONING_CONFIGURED_PHYSICAL_PREFLIGHT_PENDING"
+                        : "HARDWARE_GATE_PASSED_MODEL_AND_RUNNER_STILL_REQUIRE_EXPLICIT_INSTALLATION"
                     : selectedBackendHealth?.status || hardware.status
         },
         capabilityInventory: {
@@ -1134,6 +1165,9 @@ function runpodPublicWorker(state = {}) {
         networkVolumePersistent: Boolean(state.networkVolumeId),
         cacheStatus: state.cacheStatus || null,
         cacheProfile: state.cacheProfile || null,
+        imageReference: state.imageReference || null,
+        physicalHealthVerified: state.physicalHealthVerified === true,
+        runtimePreflightVerified: state.runtimePreflightVerified === true,
         bootstrapProgress: state.bootstrapProgress || null,
         bootstrapStartedAt: state.bootstrapStartedAt || null,
         inferenceStartedAt: state.inferenceStartedAt || null,
@@ -1173,7 +1207,7 @@ export function createRunpodRemoteVideoAdapter({
     const provider = String(env.JARVIS_REMOTE_GPU_PROVIDER || "").trim().toLowerCase();
     const gpuTypeId = String(env.JARVIS_RUNPOD_GPU_TYPE_ID || "NVIDIA A40").trim();
     const imageName = String(
-        env.JARVIS_RUNPOD_IMAGE || "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404"
+        env.JARVIS_RUNPOD_IMAGE || RUNPOD_WAN22_CACHE_CONTRACT.imageReference
     ).trim();
     const cloudType = String(env.JARVIS_RUNPOD_CLOUD_TYPE || "COMMUNITY").trim().toUpperCase() === "SECURE"
         ? "SECURE"
@@ -1213,6 +1247,12 @@ export function createRunpodRemoteVideoAdapter({
         if (typeof fetchImpl !== "function") throw new Error("RUNPOD_FETCH_UNAVAILABLE");
         if (!ssh || !scp || !sshKeygen) throw new Error("RUNPOD_SSH_TOOLCHAIN_UNAVAILABLE");
         if (gpuTypeId !== "NVIDIA A40") throw new Error("RUNPOD_GPU_TYPE_NOT_APPROVED_FOR_V142");
+        if (!/@sha256:[a-f0-9]{64}$/i.test(imageName)) {
+            throw new Error("RUNPOD_IMAGE_DIGEST_REQUIRED");
+        }
+        if (imageName !== RUNPOD_WAN22_CACHE_CONTRACT.imageReference) {
+            throw new Error("RUNPOD_IMAGE_NOT_APPROVED_FOR_V142");
+        }
         if (networkVolumeId && cloudType !== "SECURE") {
             throw new Error("RUNPOD_NETWORK_VOLUME_SECURE_CLOUD_REQUIRED");
         }
@@ -1489,13 +1529,25 @@ export function createRunpodRemoteVideoAdapter({
         const remoteRepository = `${cacheRoot}/Wan2.2`;
         const remoteModel = `${cacheRoot}/model`;
         const manifestFile = `${cacheRoot}/cache-manifest.json`;
+        const preflightFile = `${cacheRoot}/runtime-preflight.py`;
+        const preflightResultFile = `${cacheRoot}/runtime-preflight.json`;
+        const constraintsFile = `${cacheRoot}/constraints.txt`;
+        const filteredRequirementsFile = `${cacheRoot}/requirements-without-flash-attn.txt`;
         const requiredJson = JSON.stringify(RUNPOD_WAN22_CACHE_CONTRACT.requiredFiles);
         const contractJson = JSON.stringify({
             profile: RUNPOD_WAN22_CACHE_CONTRACT.profile,
+            imageReference: RUNPOD_WAN22_CACHE_CONTRACT.imageReference,
+            pythonVersionPrefix: RUNPOD_WAN22_CACHE_CONTRACT.pythonVersionPrefix,
+            torchVersionPrefix: RUNPOD_WAN22_CACHE_CONTRACT.torchVersionPrefix,
+            torchCudaVersionPrefix: RUNPOD_WAN22_CACHE_CONTRACT.torchCudaVersionPrefix,
+            computeCapability: RUNPOD_WAN22_CACHE_CONTRACT.computeCapability,
+            requirementsSha256: RUNPOD_WAN22_CACHE_CONTRACT.requirementsSha256,
+            flashAttentionVersion: RUNPOD_WAN22_CACHE_CONTRACT.flashAttentionVersion,
             modelRepository: RUNPOD_WAN22_CACHE_CONTRACT.modelRepository,
             modelRevision: RUNPOD_WAN22_CACHE_CONTRACT.modelRevision,
             wanRepositoryRevision: RUNPOD_WAN22_CACHE_CONTRACT.wanRepositoryRevision,
             expectedModelBytes: RUNPOD_WAN22_CACHE_CONTRACT.expectedModelBytes,
+            requiredRuntimeModelBytes: RUNPOD_WAN22_CACHE_CONTRACT.requiredRuntimeModelBytes,
             requiredFiles: RUNPOD_WAN22_CACHE_CONTRACT.requiredFiles
         });
         const bootstrap = [
@@ -1507,6 +1559,10 @@ export function createRunpodRemoteVideoAdapter({
             `WAN_REPO=${shellSingleQuote(remoteRepository)}`,
             `MODEL_DIR=${shellSingleQuote(remoteModel)}`,
             `CACHE_MANIFEST=${shellSingleQuote(manifestFile)}`,
+            `PREFLIGHT=${shellSingleQuote(preflightFile)}`,
+            `PREFLIGHT_RESULT=${shellSingleQuote(preflightResultFile)}`,
+            `CONSTRAINTS=${shellSingleQuote(constraintsFile)}`,
+            `FILTERED_REQUIREMENTS=${shellSingleQuote(filteredRequirementsFile)}`,
             `export JARVIS_OPERATION_ID=${shellSingleQuote(path.basename(path.dirname(bootstrapFile)))}`,
             `PROGRESS=${shellSingleQuote(`${remoteBase}/operations`)}/$JARVIS_OPERATION_ID/bootstrap-progress.json`,
             "mkdir -p \"$CACHE_ROOT\" \"$(dirname \"$PROGRESS\")\"",
@@ -1520,22 +1576,45 @@ export function createRunpodRemoteVideoAdapter({
             "}",
             "trap 'progress BOOTSTRAP FAILED CACHE_MISS' ERR",
             "progress SYSTEM_DEPENDENCIES RUNNING CACHE_MISS",
-            "missing=(); for tool in git ffmpeg; do command -v \"$tool\" >/dev/null || missing+=(\"$tool\"); done; python3 -m venv --help >/dev/null 2>&1 || missing+=(python3-venv)",
-            "if test ${#missing[@]} -gt 0; then apt-get update -qq; apt-get install -y -qq git ffmpeg python3-venv; fi",
+            "missing=(); for tool in git ffmpeg ffprobe nvcc; do command -v \"$tool\" >/dev/null || missing+=(\"$tool\"); done; python3 -m venv --help >/dev/null 2>&1 || missing+=(python3-venv)",
+            "if test ${#missing[@]} -gt 0; then apt-get update -qq; apt-get install -y -qq git ffmpeg python3-venv build-essential; fi",
             "progress SYSTEM_DEPENDENCIES READY CACHE_MISS",
+            `cat > \"$PREFLIGHT\" <<'PY'`,
+            "import importlib,importlib.metadata,json,os,platform,shutil,subprocess,sys",
+            "expected=json.loads(sys.argv[1]); repo=sys.argv[2]; target=sys.argv[3]",
+            "modules=('torch','torchvision','torchaudio','cv2','diffusers','transformers','tokenizers','accelerate','tqdm','imageio','easydict','ftfy','dashscope','imageio_ffmpeg','flash_attn','numpy','PIL')",
+            "imports={}",
+            "for name in modules:",
+            "    try: importlib.import_module(name); imports[name]=True",
+            "    except Exception as error: imports[name]=False",
+            "torch=importlib.import_module('torch')",
+            "cuda_probe=False",
+            "if torch.cuda.is_available():",
+            "    try: cuda_probe=bool((torch.ones(1,device='cuda')+1).item()==2); torch.cuda.synchronize()",
+            "    except Exception: cuda_probe=False",
+            "pip_check=subprocess.run([sys.executable,'-m','pip','check'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=120).returncode==0",
+            "probe_env=dict(os.environ); probe_env.update({'HF_HUB_OFFLINE':'1','TRANSFORMERS_OFFLINE':'1','WANDB_MODE':'offline'})",
+            "cli=subprocess.run([sys.executable,os.path.join(repo,'generate.py'),'--help'],cwd=repo,env=probe_env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=120).returncode==0",
+            "payload={'pythonVersion':platform.python_version(),'torchVersion':str(torch.__version__),'torchCudaVersion':str(torch.version.cuda or ''),'cuda':torch.cuda.is_available(),'gpuName':torch.cuda.get_device_name(0) if torch.cuda.is_available() else '', 'computeCapability':'.'.join(map(str,torch.cuda.get_device_capability(0))) if torch.cuda.is_available() else '', 'cudaProbe':cuda_probe,'pipCheck':pip_check,'wanCliImport':cli,'imports':imports,'flashAttentionVersion':importlib.metadata.version('flash-attn') if imports.get('flash_attn') else ''}",
+            "payload['ok']=bool(payload['pythonVersion'].startswith(expected['pythonVersionPrefix']) and payload['torchVersion'].startswith(expected['torchVersionPrefix']) and payload['torchCudaVersion'].startswith(expected['torchCudaVersionPrefix']) and payload['computeCapability']==expected['computeCapability'] and payload['cudaProbe'] and payload['pipCheck'] and payload['wanCliImport'] and all(imports.values()) and payload['flashAttentionVersion']==expected['flashAttentionVersion'])",
+            "open(target,'w',encoding='utf-8').write(json.dumps(payload,sort_keys=True,separators=(',',':'))+'\\n')",
+            "raise SystemExit(0 if payload['ok'] else 1)",
+            "PY",
             "CACHE_VALID=0",
             `python3 - \"$CACHE_MANIFEST\" \"$MODEL_DIR\" \"$WAN_REPO\" \"$VENV\" ${shellSingleQuote(contractJson)} <<'PY' && CACHE_VALID=1 || true`,
             "import json,os,subprocess,sys",
             "manifest_path,model_dir,repo_dir,venv_dir,expected_raw=sys.argv[1:]",
             "expected=json.loads(expected_raw)",
             "actual=json.load(open(manifest_path,encoding='utf-8'))",
-            "assert all(actual.get(k)==expected.get(k) for k in ('profile','modelRepository','modelRevision','wanRepositoryRevision','expectedModelBytes'))",
+            "keys=('profile','imageReference','pythonVersionPrefix','torchVersionPrefix','torchCudaVersionPrefix','computeCapability','requirementsSha256','flashAttentionVersion','modelRepository','modelRevision','wanRepositoryRevision','expectedModelBytes','requiredRuntimeModelBytes')",
+            "assert all(actual.get(k)==expected.get(k) for k in keys)",
             "assert os.path.isfile(os.path.join(repo_dir,'generate.py')) and os.path.isfile(os.path.join(venv_dir,'bin','python'))",
             "assert subprocess.check_output(['git','-C',repo_dir,'rev-parse','HEAD'],text=True).strip()==expected['wanRepositoryRevision']",
+            "assert open(os.path.join(os.path.dirname(manifest_path),'requirements.sha256'),encoding='utf-8').read().strip()==expected['requirementsSha256']",
             "for item in expected['requiredFiles']:",
             "    assert os.path.getsize(os.path.join(model_dir,item['path']))==item['bytes']",
             "PY",
-            "if test \"$CACHE_VALID\" = 1; then progress CACHE_VALIDATE READY CACHE_HIT; exit 0; fi",
+            `if test \"$CACHE_VALID\" = 1 && \"$VENV/bin/python\" \"$PREFLIGHT\" ${shellSingleQuote(contractJson)} \"$WAN_REPO\" \"$PREFLIGHT_RESULT\"; then progress CACHE_VALIDATE READY CACHE_HIT; exit 0; fi`,
             "rm -f \"$CACHE_MANIFEST\"",
             "progress CACHE_VALIDATE INCOMPLETE CACHE_MISS",
             "progress WAN_REPOSITORY RUNNING CACHE_POPULATING",
@@ -1546,7 +1625,24 @@ export function createRunpodRemoteVideoAdapter({
             "progress PYTHON_REQUIREMENTS RUNNING CACHE_POPULATING",
             "test -x \"$VENV/bin/python\" || python3 -m venv --system-site-packages \"$VENV\"",
             "REQ_SHA=$(sha256sum \"$WAN_REPO/requirements.txt\" | awk '{print $1}')",
-            "if test \"$(cat \"$CACHE_ROOT/requirements.sha256\" 2>/dev/null || true)\" != \"$REQ_SHA\"; then \"$VENV/bin/python\" -m pip install -r \"$WAN_REPO/requirements.txt\" 'huggingface_hub[cli]'; printf '%s\\n' \"$REQ_SHA\" > \"$CACHE_ROOT/requirements.sha256\"; fi",
+            `test \"$REQ_SHA\" = ${shellSingleQuote(RUNPOD_WAN22_CACHE_CONTRACT.requirementsSha256)}`,
+            "cat > \"$CONSTRAINTS\" <<'EOF'",
+            "torch==2.8.0",
+            "torchvision==0.23.0",
+            "torchaudio==2.8.0",
+            "transformers==4.51.3",
+            "tokenizers==0.21.4",
+            "numpy==1.26.4",
+            `flash-attn==${RUNPOD_WAN22_CACHE_CONTRACT.flashAttentionVersion}`,
+            "huggingface-hub>=0.30,<1",
+            "EOF",
+            "grep -v -E '^(flash_attn|flash-attn)([<>=!~].*)?$' \"$WAN_REPO/requirements.txt\" > \"$FILTERED_REQUIREMENTS\"",
+            "\"$VENV/bin/python\" -m pip install --upgrade pip setuptools wheel packaging psutil ninja",
+            "\"$VENV/bin/python\" -m pip install --constraint \"$CONSTRAINTS\" --requirement \"$FILTERED_REQUIREMENTS\" 'huggingface_hub[cli]>=0.30,<1'",
+            `MAX_JOBS=4 \"$VENV/bin/python\" -m pip install \"flash-attn==${RUNPOD_WAN22_CACHE_CONTRACT.flashAttentionVersion}\" --no-build-isolation`,
+            `\"$VENV/bin/python\" \"$PREFLIGHT\" ${shellSingleQuote(contractJson)} \"$WAN_REPO\" \"$PREFLIGHT_RESULT\"`,
+            "\"$VENV/bin/python\" -m pip check",
+            "printf '%s\\n' \"$REQ_SHA\" > \"$CACHE_ROOT/requirements.sha256\"",
             "progress PYTHON_REQUIREMENTS READY CACHE_POPULATING",
             "progress MODEL_DOWNLOAD RUNNING CACHE_POPULATING",
             "mkdir -p \"$MODEL_DIR\"",
@@ -1558,13 +1654,16 @@ export function createRunpodRemoteVideoAdapter({
             "progress MODEL_VALIDATION RUNNING CACHE_POPULATING",
             `python3 - \"$MODEL_DIR\" ${shellSingleQuote(requiredJson)} <<'PY'`,
             "import hashlib,json,os,sys",
-            "root=sys.argv[1]; required=json.loads(sys.argv[2])",
+            `root=sys.argv[1]; required=json.loads(sys.argv[2]); assert sum(item['bytes'] for item in required)==${RUNPOD_WAN22_CACHE_CONTRACT.requiredRuntimeModelBytes}`,
             "for item in required:",
             "    target=os.path.join(root,item['path']); assert os.path.getsize(target)==item['bytes']",
             "    digest=hashlib.sha256(); f=open(target,'rb')",
             "    for chunk in iter(lambda:f.read(8*1024*1024),b''): digest.update(chunk)",
             "    assert digest.hexdigest()==item['sha256']",
             "PY",
+            "progress RUNTIME_PREFLIGHT RUNNING CACHE_POPULATING",
+            `\"$VENV/bin/python\" \"$PREFLIGHT\" ${shellSingleQuote(contractJson)} \"$WAN_REPO\" \"$PREFLIGHT_RESULT\"`,
+            "progress RUNTIME_PREFLIGHT READY CACHE_POPULATING",
             `python3 - \"$CACHE_MANIFEST\" ${shellSingleQuote(contractJson)} <<'PY'`,
             "import json,os,sys,tempfile",
             "target=sys.argv[1]; payload=json.loads(sys.argv[2]); fd,tmp=tempfile.mkstemp(prefix='.manifest-',dir=os.path.dirname(target)); os.close(fd)",
@@ -1678,30 +1777,44 @@ export function createRunpodRemoteVideoAdapter({
     }
 
     async function remoteHealth(state, full = false) {
+        const cacheRoot = `${remoteBase}/cache/wan22-ti2v-5b`;
+        const runtimePreflightFile = `${cacheRoot}/runtime-preflight.json`;
         const command = `python3 -c ${shellSingleQuote(
-            "import json,shutil,torch,os; p=shutil.disk_usage('/workspace'); " +
-            "d={'python':True,'torch':bool(torch.__version__),'cuda':torch.cuda.is_available(),'gpuName':torch.cuda.get_device_name(0) if torch.cuda.is_available() else ''," +
-            "'vramGb':round(torch.cuda.get_device_properties(0).total_memory/1073741824,2) if torch.cuda.is_available() else 0,'freeDiskGb':round(p.free/1073741824,2)," +
-            "'ffmpeg':bool(shutil.which('ffmpeg')),'ffprobe':bool(shutil.which('ffprobe'))," +
-            `'runner':os.path.isfile('${state.remoteOperationDir}/jarvis-local-video-wan22.py'),'wanRepository':os.path.isfile('${remoteBase}/cache/wan22-ti2v-5b/Wan2.2/generate.py'),` +
-            `'wanModel':os.path.isfile('${remoteBase}/cache/wan22-ti2v-5b/cache-manifest.json')}; print(json.dumps(d))`
+            "import json,os,platform,shutil,torch; p=shutil.disk_usage('/workspace'); " +
+            "cuda=torch.cuda.is_available(); probe=False; " +
+            "exec(\"try:\\n probe=bool((torch.ones(1,device='cuda')+1).item()==2); torch.cuda.synchronize()\\nexcept Exception:\\n probe=False\") if cuda else None; " +
+            "d={'python':True,'pythonVersion':platform.python_version(),'torch':bool(torch.__version__),'torchVersion':str(torch.__version__),'torchCudaVersion':str(torch.version.cuda or ''),'cuda':cuda," +
+            "'gpuName':torch.cuda.get_device_name(0) if cuda else '', 'computeCapability':'.'.join(map(str,torch.cuda.get_device_capability(0))) if cuda else ''," +
+            "'cudaProbe':probe,'vramGb':round(torch.cuda.get_device_properties(0).total_memory/1073741824,2) if cuda else 0,'freeDiskGb':round(p.free/1073741824,2)," +
+            "'ffmpeg':bool(shutil.which('ffmpeg')),'ffprobe':bool(shutil.which('ffprobe')),'nvcc':bool(shutil.which('nvcc'))}; " +
+            (full
+                ? `r=json.load(open('${runtimePreflightFile}',encoding='utf-8')) if os.path.isfile('${runtimePreflightFile}') else {}; d.update({'runner':os.path.isfile('${state.remoteOperationDir}/jarvis-local-video-wan22.py'),'wanRepository':os.path.isfile('${cacheRoot}/Wan2.2/generate.py'),'wanModel':os.path.isfile('${cacheRoot}/cache-manifest.json'),'dependencyContract':r.get('ok') is True,'pipCheck':r.get('pipCheck') is True,'wanCliImport':r.get('wanCliImport') is True,'runtimeCudaProbe':r.get('cudaProbe') is True}); `
+                : "") +
+            "print(json.dumps(d))"
         )}`;
         const result = await sshCommand(state, command, 60000);
         let health;
         try { health = JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1)); }
         catch { throw new Error("RUNPOD_HEALTH_RESPONSE_INVALID"); }
-        if (
-            health.python !== true || health.torch !== true || health.cuda !== true ||
-            !/nvidia/i.test(String(health.gpuName || "")) ||
-            Number(health.vramGb || 0) < 24 || Number(health.freeDiskGb || 0) < 45
-        ) {
-            throw new Error("RUNPOD_WORKER_HEALTH_FAILED");
-        }
+        const baseReady = health.python === true &&
+            String(health.pythonVersion || "").startsWith(RUNPOD_WAN22_CACHE_CONTRACT.pythonVersionPrefix) &&
+            health.torch === true &&
+            String(health.torchVersion || "").startsWith(RUNPOD_WAN22_CACHE_CONTRACT.torchVersionPrefix) &&
+            String(health.torchCudaVersion || "").startsWith(RUNPOD_WAN22_CACHE_CONTRACT.torchCudaVersionPrefix) &&
+            health.cuda === true && health.cudaProbe === true &&
+            String(health.gpuName || "").trim() === gpuTypeId &&
+            String(health.computeCapability || "") === RUNPOD_WAN22_CACHE_CONTRACT.computeCapability &&
+            Number(health.vramGb || 0) >= 24 && Number(health.freeDiskGb || 0) >= 45 &&
+            health.ffmpeg === true && health.ffprobe === true && health.nvcc === true;
+        if (!baseReady) throw new Error("RUNPOD_IMAGE_RUNTIME_MISMATCH");
         if (full && (
             health.ffmpeg !== true || health.ffprobe !== true || health.runner !== true ||
-            health.wanRepository !== true || health.wanModel !== true
+            health.wanRepository !== true || health.wanModel !== true ||
+            health.dependencyContract !== true || health.pipCheck !== true ||
+            health.wanCliImport !== true ||
+            (health.runtimeCudaProbe !== true && health.cudaProbe !== true)
         )) {
-            throw new Error("RUNPOD_WAN22_HEALTH_FAILED");
+            throw new Error("RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED");
         }
         return health;
     }
@@ -1782,6 +1895,7 @@ export function createRunpodRemoteVideoAdapter({
                 networkVolumeDataCenterId: networkVolume?.dataCenterId || null,
                 networkVolumeSizeGb: networkVolume?.sizeGb || null,
                 cacheProfile: RUNPOD_WAN22_CACHE_CONTRACT.profile,
+                imageReference: imageName,
                 cacheStatus: "CACHE_MISS",
                 bootstrapTimeoutSeconds,
                 inferenceTimeoutSeconds,
@@ -1947,6 +2061,7 @@ export function createRunpodRemoteVideoAdapter({
                 state = writeState(loaded.file, state, {
                     phase: "BOOTSTRAPPING",
                     baseHealth: health,
+                    physicalHealthVerified: true,
                     bootstrapStartedAt,
                     lastBootstrapProgressAt: bootstrapStartedAt,
                     stageTimeline: state.stageTimeline
@@ -2024,6 +2139,8 @@ export function createRunpodRemoteVideoAdapter({
                     phase: "JOB_RUNNING",
                     remotePid,
                     fullHealth: health,
+                    physicalHealthVerified: true,
+                    runtimePreflightVerified: true,
                     cacheStatus: state.cacheStatus === "CACHE_HIT" ? "CACHE_HIT" : "CACHE_READY",
                     inferenceStartedAt: now().toISOString(),
                     stageTimeline: state.stageTimeline
@@ -2092,8 +2209,22 @@ export function createRunpodRemoteVideoAdapter({
                     remoteWorker: runpodPublicWorker(state)
                 };
             }
-            await writeLocalFailure(operation, resultFile, error?.message || "RUNPOD_REMOTE_POLL_FAILED", false);
-            state = writeState(loaded.file, state, { phase: "FAILED", error: error?.message || "RUNPOD_REMOTE_POLL_FAILED" });
+            const failureStatus = error?.message || "RUNPOD_REMOTE_POLL_FAILED";
+            const failurePhase = failureStatus === "RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED"
+                ? "RUNTIME_PREFLIGHT_FAILED"
+                : failureStatus === "RUNPOD_IMAGE_RUNTIME_MISMATCH"
+                    ? "IMAGE_RUNTIME_MISMATCH"
+                    : "FAILED";
+            await writeLocalFailure(operation, resultFile, failureStatus, false);
+            state = withStage(state,
+                failurePhase === "RUNTIME_PREFLIGHT_FAILED" ? "runtime_preflight" : "worker_health",
+                "FAILED"
+            );
+            state = writeState(loaded.file, state, {
+                phase: failurePhase,
+                error: failureStatus,
+                stageTimeline: state.stageTimeline
+            });
             return { ok: false, done: true, status: state.error, remoteWorker: runpodPublicWorker(state) };
         }
     }
@@ -2178,23 +2309,31 @@ export function createRunpodRemoteVideoAdapter({
     }
 
     function inspectHardware() {
+        const configured = provider === "runpod" && Boolean(apiKey) && Boolean(ssh && scp && sshKeygen);
         return {
-            ok: provider === "runpod" && Boolean(apiKey) && Boolean(ssh && scp && sshKeygen),
-            status: provider === "runpod" && apiKey
+            ok: configured,
+            status: configured
                 ? "RUNPOD_PROVISIONING_CONFIGURED"
                 : "RUNPOD_API_KEY_REQUIRED",
-            cudaAvailable: true,
-            gpuName: gpuTypeId,
-            gpuIndex: 0,
-            vramGb: expectedVramGb,
-            freeDiskGb: networkVolumeId
+            cudaAvailable: null,
+            gpuName: null,
+            gpuIndex: null,
+            vramGb: null,
+            freeDiskGb: null,
+            ffmpegAvailable: null,
+            ffprobeAvailable: null,
+            pythonAvailable: null,
+            requestedGpuName: gpuTypeId,
+            requestedVramGb: expectedVramGb,
+            requestedStorageGb: networkVolumeId
                 ? RUNPOD_WAN22_CACHE_CONTRACT.minimumNetworkVolumeGb
                 : containerDiskInGb + volumeInGb,
-            ffmpegAvailable: true,
-            ffprobeAvailable: true,
-            pythonAvailable: true,
+            physicalHealthVerified: false,
+            runtimePreflightVerified: false,
+            readinessLevel: "PROVISIONING_CONFIGURED",
             remoteProvisioning: true,
             provider: "runpod",
+            imageReference: imageName,
             hardBudgetUsd,
             networkVolumeId: networkVolumeId || null,
             cacheProfile: RUNPOD_WAN22_CACHE_CONTRACT.profile,
