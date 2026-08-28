@@ -1106,6 +1106,7 @@ function runpodPublicWorker(state = {}) {
         vramGb: Number(state.vramGb || 0),
         hourlyRateUsd: Number(state.hourlyRateUsd || 0),
         hardBudgetUsd: Number(state.hardBudgetUsd || 0),
+        provisionedAt: state.provisionedAt || state.createdAt || null,
         createdAt: state.createdAt || null,
         missionId: state.missionId || null,
         objectiveId: state.objectiveId || null,
@@ -1553,7 +1554,7 @@ export function createRunpodRemoteVideoAdapter({
         try {
             const availability = await queryAvailability();
             await assertNoExistingOperationPod(job);
-            const createdAt = now().toISOString();
+            const provisionedAt = now().toISOString();
             const body = {
                 cloudType,
                 computeType: "GPU",
@@ -1602,7 +1603,8 @@ export function createRunpodRemoteVideoAdapter({
                 vramGb: actualVram,
                 hourlyRateUsd,
                 hardBudgetUsd,
-                createdAt,
+                provisionedAt,
+                createdAt: provisionedAt,
                 operationId: job.operationId,
                 operationName: job.operationName,
                 missionId: job.missionId,
@@ -1642,7 +1644,7 @@ export function createRunpodRemoteVideoAdapter({
     }
 
     function rentalCost(state) {
-        const start = Date.parse(String(state.createdAt || ""));
+        const start = Date.parse(String(state.provisionedAt || state.createdAt || ""));
         const seconds = Number.isFinite(start) ? Math.max(0, (now().getTime() - start) / 1000) : 0;
         return {
             seconds,
@@ -1920,7 +1922,35 @@ export function createLocalVideoEngine({
         if (operation?.executionTarget !== "remote" || operation?.workerRelease?.ok === true) {
             return { ok: true, operation };
         }
-        const startedAt = Date.parse(String(operation?.createdAt || ""));
+        const remoteWorker = operation?.remoteWorker || null;
+        const podId = remoteWorker?.podId || operation?.podId || null;
+        const runpodProvisioning = remoteWorker?.provider === "runpod" ||
+            String(env.JARVIS_REMOTE_GPU_PROVIDER || "").trim().toLowerCase() === "runpod";
+        if (runpodProvisioning && !podId) {
+            return {
+                ok: true,
+                operation: saveOperation(file, operation, {
+                    gpuRentalSeconds: 0,
+                    gpuRentalEstimatedCost: 0,
+                    gpuRentalActualCost: 0,
+                    workerRelease: {
+                        ok: true,
+                        status: "REMOTE_VIDEO_WORKER_NOT_PROVISIONED",
+                        reason,
+                        releasedAt: now().toISOString(),
+                        terminationVerified: true,
+                        gpuRentalSeconds: 0,
+                        gpuRentalEstimatedCost: 0,
+                        gpuRentalActualCost: 0
+                    }
+                })
+            };
+        }
+        const startedAt = Date.parse(String(
+            runpodProvisioning
+                ? remoteWorker?.provisionedAt || remoteWorker?.createdAt || ""
+                : operation?.createdAt || ""
+        ));
         const endedAt = now();
         const gpuRentalSeconds = Number.isFinite(startedAt)
             ? Math.max(0, (endedAt.getTime() - startedAt) / 1000)

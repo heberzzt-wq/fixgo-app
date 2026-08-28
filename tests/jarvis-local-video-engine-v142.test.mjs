@@ -543,6 +543,11 @@ test("V142 RunPod pre-provision transport recovery reuses the same operation and
     assert.equal(first.providerMessage.includes(encodeURIComponent(harness.env.RUNPOD_API_KEY)), false);
     assert.equal(first.retryable, true);
     assert.equal(first.podId, undefined);
+    assert.equal(first.gpuRentalSeconds, 0);
+    assert.equal(first.gpuRentalEstimatedCost, 0);
+    assert.equal(first.gpuRentalActualCost, 0);
+    assert.equal(first.workerRelease.status, "REMOTE_VIDEO_WORKER_NOT_PROVISIONED");
+    assert.equal(first.workerRelease.terminationVerified, true);
 
     const recovered = await harness.engine.start(harness.payload);
     assert.equal(recovered.ok, true, JSON.stringify(recovered));
@@ -553,6 +558,7 @@ test("V142 RunPod pre-provision transport recovery reuses the same operation and
     assert.equal(recovered.attemptHistory.length, 1);
     assert.equal(recovered.attemptHistory[0].failureStage, "availability");
     assert.equal(recovered.attemptHistory[0].providerCode, "UNABLE_TO_VERIFY_LEAF_SIGNATURE");
+    assert.ok(recovered.remoteWorker.provisionedAt);
     assert.equal(
         harness.calls.filter(call => call.url.endsWith("/pods") && call.method === "POST").length,
         1
