@@ -12,6 +12,8 @@ import {
     createRunpodRemoteVideoAdapter,
     describeLocalVideoPolicy,
     estimateExternalVideoGeneration,
+    RUNPOD_CPU_STAGING_PROFILE,
+    RUNPOD_WAN22_GPU_PROFILES,
     resolveVideoEngine,
     writeLocalAiCapabilityReport
 } from "../jarvis-local-video-engine.js";
@@ -128,6 +130,19 @@ function mockHttpResponse(status, payload = null, responseHeaders = {}) {
     };
 }
 
+function verifiedRegistryEvidence(profile, overrides = {}) {
+    return {
+        registry: profile.registry,
+        repository: profile.repository,
+        tag: profile.tag,
+        expectedDigest: profile.expectedRegistryDigest,
+        observedDigest: profile.expectedRegistryDigest,
+        checkedAt: "2026-08-28T21:00:00.000Z",
+        status: "REGISTRY_DIGEST_VERIFIED",
+        ...overrides
+    };
+}
+
 function runpodPhysicalHarness({
     scenario = "success",
     rootOverride = null,
@@ -196,6 +211,9 @@ function runpodPhysicalHarness({
     const badVideo = Buffer.alloc(120000, 9);
     const outputBytes = scenario === "bad-mp4" ? badVideo : goodVideo;
     const outputSha = createHash("sha256").update(outputBytes).digest("hex");
+    const gpuImageProfile = RUNPOD_WAN22_GPU_PROFILES[gpuTypeId] || RUNPOD_WAN22_GPU_PROFILES["NVIDIA A40"];
+    const gpuRegistryVerification = verifiedRegistryEvidence(gpuImageProfile);
+    const cpuRegistryVerification = verifiedRegistryEvidence(RUNPOD_CPU_STAGING_PROFILE);
 
     const fetchImpl = async (url, options = {}) => {
         const safeUrl = String(url)
@@ -208,6 +226,22 @@ function runpodPhysicalHarness({
             authorizationMatches: options.headers?.Authorization === `Bearer ${env.RUNPOD_API_KEY}`,
             encodedKeyMatches: String(url).includes(encodeURIComponent(env.RUNPOD_API_KEY))
         });
+        if (String(url).startsWith("https://auth.docker.io/token")) {
+            if (scenario === "registry-unverifiable") return mockHttpResponse(503, { error: "controlled" });
+            return mockHttpResponse(200, { token: "fixture" });
+        }
+        if (String(url).startsWith("https://registry-1.docker.io/v2/")) {
+            if (scenario === "registry-unverifiable") return mockHttpResponse(503, { error: "controlled" });
+            const expectedDigest = String(url).includes("/library/ubuntu/")
+                ? RUNPOD_CPU_STAGING_PROFILE.expectedRegistryDigest
+                : gpuImageProfile.expectedRegistryDigest;
+            return mockHttpResponse(200, null, {
+                "content-type": "application/vnd.oci.image.index.v1+json",
+                "docker-content-digest": scenario === "registry-digest-mismatch"
+                    ? `sha256:${"f".repeat(64)}`
+                    : expectedDigest
+            });
+        }
         if (String(url).includes("/graphql")) {
             if (availabilityTransportFailures > 0) {
                 availabilityTransportFailures -= 1;
@@ -503,6 +537,8 @@ function runpodPhysicalHarness({
         engine,
         payload,
         dryRunJob,
+        gpuRegistryVerification,
+        cpuRegistryVerification,
         calls,
         get createdBody() { return createdBody; },
         get podGets() { return podGets; },
@@ -529,6 +565,7 @@ test("V142 RunPod zero-cost dry run exposes the exact sanitized future Pod paylo
     });
     const report = harness.adapter.inspectZeroCostPrecheck({
         job: harness.dryRunJob,
+        registryVerification: harness.gpuRegistryVerification,
         networkVolume: {
             id: "future-network-volume-v142",
             dataCenterId: "CA-MTL-1",
@@ -549,7 +586,9 @@ test("V142 RunPod zero-cost dry run exposes the exact sanitized future Pod paylo
     assert.equal(report.payload.cloudType, "SECURE");
     assert.equal(report.payload.computeType, "GPU");
     assert.deepEqual(report.payload.gpuTypeIds, ["NVIDIA A40"]);
-    assert.match(report.payload.imageName, /@sha256:[a-f0-9]{64}$/);
+    assert.equal(report.payload.imageName, "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404");
+    assert.doesNotMatch(report.payload.imageName, /@sha256:/i);
+    assert.equal(report.contract.registryVerification.status, "REGISTRY_DIGEST_VERIFIED");
     assert.equal(report.payload.env.PUBLIC_KEY, "[EPHEMERAL_PUBLIC_KEY]");
     assert.equal(JSON.stringify(report).includes(harness.env.RUNPOD_API_KEY), false);
     assert.equal(JSON.stringify(report).includes("PRIVATE KEY"), false);
@@ -570,6 +609,7 @@ test("V142 RunPod accepts only the explicitly selected L40S 48GB / CC 8.9 profil
     });
     const report = harness.adapter.inspectZeroCostPrecheck({
         job: harness.dryRunJob,
+        registryVerification: harness.gpuRegistryVerification,
         networkVolume: { id: volumeId, dataCenterId: "US-TX-3", sizeGb: 50 },
         availability: {
             gpuTypeId: "NVIDIA L40S",
@@ -618,6 +658,7 @@ test("V142 L40S Network Volume is pinned to US-TX-3 before any paid request", ()
     });
     const report = harness.adapter.inspectZeroCostPrecheck({
         job: harness.dryRunJob,
+        registryVerification: harness.gpuRegistryVerification,
         networkVolume: { id: volumeId, dataCenterId: "EU-NL-1", sizeGb: 50 },
         availability: {
             gpuTypeId: "NVIDIA L40S",
@@ -632,7 +673,7 @@ test("V142 L40S Network Volume is pinned to US-TX-3 before any paid request", ()
 });
 
 test("V142 CPU staging in US-TX-3 can prepare model bytes but cannot certify GPU runtime", () => {
-    const volumeId = "network-volume-cpu-stage-v142";
+    const volumeId = "hvjazpozb6";
     const harness = runpodPhysicalHarness({
         scenario: "cpu-staging-read-only",
         gpuTypeId: "NVIDIA L40S",
@@ -640,6 +681,7 @@ test("V142 CPU staging in US-TX-3 can prepare model bytes but cannot certify GPU
         envOverrides: { JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false" }
     });
     const report = harness.adapter.inspectCpuStagingPrecheck({
+        registryVerification: harness.cpuRegistryVerification,
         networkVolume: { id: volumeId, dataCenterId: "US-TX-3", sizeGb: 50 },
         inventory: {
             cpuFlavorId: "cpu3c",
@@ -659,11 +701,28 @@ test("V142 CPU staging in US-TX-3 can prepare model bytes but cannot certify GPU
     assert.deepEqual(report.payload.cpuFlavorIds, ["cpu3c"]);
     assert.deepEqual(report.payload.dataCenterIds, ["US-TX-3"]);
     assert.equal(report.payload.vcpuCount, 2);
+    assert.equal(report.payload.networkVolumeId, volumeId);
+    assert.equal(report.payload.volumeMountPath, "/workspace");
+    assert.equal(report.payload.imageName, "ubuntu:22.04");
+    assert.doesNotMatch(report.payload.imageName, /@sha256:/i);
+    assert.notEqual(
+        report.payload.imageName,
+        RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].provisionImageTag
+    );
     assert.equal(report.cache.cpuCompletionStatus, "CACHE_MODEL_READY");
     assert.equal(report.cache.runtimeVerificationStatus, "CACHE_RUNTIME_PHYSICALLY_UNVERIFIED");
     assert.ok(report.cache.allowedStages.includes("hf_download"));
     assert.ok(report.cache.forbiddenCertifications.includes("flash_attention_cuda"));
     assert.ok(report.cache.forbiddenCertifications.includes("CACHE_HIT"));
+    assert.deepEqual(report.contract.runtimeIdentity.forbiddenTools, [
+        "cuda",
+        "pytorch-cuda",
+        "nvcc",
+        "flash-attention"
+    ]);
+    assert.equal(JSON.stringify(report.contract.runtimeIdentity).includes("torchVersionPrefix"), false);
+    assert.equal(RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].computeCapability, "8.9");
+    assert.equal(report.contract.registryVerification.status, "REGISTRY_DIGEST_VERIFIED");
     assert.equal(harness.calls.length, 0);
 });
 
@@ -686,6 +745,7 @@ test("V142 CPU model-ready cache remains physically unverified and never becomes
     }));
     const report = harness.adapter.inspectZeroCostPrecheck({
         job: harness.dryRunJob,
+        registryVerification: harness.gpuRegistryVerification,
         networkVolume: { id: volumeId, dataCenterId: "US-TX-3", sizeGb: 50 },
         availability: {
             gpuTypeId: "NVIDIA L40S",
@@ -697,6 +757,57 @@ test("V142 CPU model-ready cache remains physically unverified and never becomes
     assert.equal(report.ok, true, JSON.stringify(report));
     assert.equal(report.cache.expectedStatus, "CACHE_MODEL_READY_PHYSICAL_VERIFY_REQUIRED");
     assert.notEqual(report.cache.expectedStatus, "CACHE_HIT");
+});
+
+test("V142 CPU runtime identity gates cache writes without certifying CUDA or inference", () => {
+    const harness = runpodPhysicalHarness({
+        scenario: "cpu-runtime-identity",
+        gpuTypeId: "NVIDIA L40S",
+        networkVolumeId: "hvjazpozb6",
+        envOverrides: { JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false" }
+    });
+    const healthy = harness.adapter.inspectCpuStagingRuntimeIdentity({
+        health: {
+            operatingSystem: "ubuntu-22.04",
+            pythonVersion: "3.10.12",
+            caCertificates: true,
+            mountPath: "/workspace",
+            mountWritable: true,
+            commands: {
+                bash: true,
+                git: true,
+                python3: true,
+                hf: true,
+                sha256sum: true
+            },
+            cuda: false,
+            nvcc: false,
+            flashAttention: false
+        }
+    });
+    assert.equal(healthy.ok, true, JSON.stringify(healthy));
+    assert.equal(healthy.cacheWriteAuthorized, true);
+    assert.equal(healthy.cacheModelReady, false);
+    assert.equal(healthy.inferenceStarted, false);
+    assert.equal(healthy.cudaVerified, false);
+    assert.equal(healthy.l40sVerified, false);
+    const mismatch = harness.adapter.inspectCpuStagingRuntimeIdentity({
+        health: {
+            operatingSystem: "ubuntu-22.04",
+            pythonVersion: "3.10.12",
+            caCertificates: true,
+            mountPath: "/workspace",
+            mountWritable: true,
+            commands: { bash: true, git: true, python3: true, hf: true, sha256sum: true },
+            cuda: true
+        }
+    });
+    assert.equal(mismatch.ok, false);
+    assert.equal(mismatch.cacheWriteAuthorized, false);
+    assert.equal(mismatch.cacheModelReady, false);
+    assert.equal(mismatch.inferenceStarted, false);
+    assert.equal(mismatch.deleteRequired, true);
+    assert.equal(harness.calls.length, 0);
 });
 
 test("V142 RunPod paid resource creation remains false when authorization is omitted", () => {
@@ -753,6 +864,7 @@ test("V142 RunPod zero-cost precheck fails closed on every static pre-Pod contra
             mutateJob?.(job);
             const report = harness.adapter.inspectZeroCostPrecheck({
                 job,
+                registryVerification: harness.gpuRegistryVerification,
                 ...(options.networkVolumeId ? {
                     networkVolume: {
                         id: options.networkVolumeId,
@@ -780,7 +892,10 @@ test("V142 RunPod local durable duplicate and incomplete payload both block befo
             podId: "pod-existing-local",
             phase: "PROVISIONED"
         }));
-        const report = harness.adapter.inspectZeroCostPrecheck({ job: harness.dryRunJob });
+        const report = harness.adapter.inspectZeroCostPrecheck({
+            job: harness.dryRunJob,
+            registryVerification: harness.gpuRegistryVerification
+        });
         assert.equal(report.ok, false, JSON.stringify(report));
         assert.equal(report.error, "RUNPOD_LOCAL_DUPLICATE_OBLIGATION_BLOCKED");
         assert.equal(harness.calls.length, 0);
@@ -886,20 +1001,74 @@ test("V142 RunPod adapter provisions one A40 Pod, transfers physical assets, ret
     assert.match(bootstrap, /generate\.py.*--help/);
     assert.match(bootstrap, /torchVersion/);
     assert.match(bootstrap, /torchCudaVersion/);
-    assert.match(harness.createdBody.imageName, /@sha256:[a-f0-9]{64}$/);
+    assert.equal(harness.createdBody.imageName, "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404");
+    assert.doesNotMatch(harness.createdBody.imageName, /@sha256:/i);
 });
 
-test("V142 RunPod refuses a mutable image tag before creating billable capacity", async () => {
+test("V142 RunPod blocks OCI digest syntax in imageName before creating billable capacity", async () => {
     const harness = runpodPhysicalHarness({
-        scenario: "mutable-image",
+        scenario: "digest-in-image-name",
         envOverrides: {
-            JARVIS_RUNPOD_IMAGE: "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404"
+            JARVIS_RUNPOD_IMAGE: `runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404@${RUNPOD_WAN22_GPU_PROFILES["NVIDIA A40"].expectedRegistryDigest}`
         }
     });
     const started = await harness.engine.start(harness.payload);
     assert.equal(started.ok, false, JSON.stringify(started));
-    assert.equal(started.error, "RUNPOD_IMAGE_DIGEST_REQUIRED");
+    assert.equal(started.error, "RUNPOD_IMAGE_NAME_DIGEST_FORBIDDEN");
     assert.equal(harness.createdBody, null);
+    assert.equal(harness.calls.length, 0);
+});
+
+test("V142 RunPod registry digest verification passes only on an exact public manifest match", async t => {
+    await t.test("resolved digest matches in zero-cost precheck", () => {
+        const harness = runpodPhysicalHarness({ scenario: "registry-digest-match" });
+        const report = harness.adapter.inspectZeroCostPrecheck({
+            job: harness.dryRunJob,
+            registryVerification: harness.gpuRegistryVerification
+        });
+        assert.equal(report.ok, true, JSON.stringify(report));
+        assert.equal(
+            report.payload.imageName,
+            RUNPOD_WAN22_GPU_PROFILES["NVIDIA A40"].provisionImageTag
+        );
+        assert.equal(harness.calls.length, 0);
+    });
+
+    for (const [scenario, expected] of [
+        ["registry-digest-mismatch", "RUNPOD_REGISTRY_DIGEST_MISMATCH"],
+        ["registry-unverifiable", "RUNPOD_REGISTRY_DIGEST_UNVERIFIABLE"]
+    ]) {
+        await t.test(scenario, async () => {
+            const harness = runpodPhysicalHarness({ scenario });
+            const started = await harness.engine.start(harness.payload);
+            assert.equal(started.ok, false, JSON.stringify(started));
+            assert.equal(started.error, expected);
+            assert.equal(harness.createdBody, null);
+            assert.equal(
+                harness.calls.some(call => call.method === "POST" && call.url.endsWith("/pods")),
+                false
+            );
+        });
+    }
+});
+
+test("V142 zero-cost precheck fails closed when registry evidence is missing or mismatched", () => {
+    const harness = runpodPhysicalHarness({
+        scenario: "registry-evidence-precheck",
+        envOverrides: { JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false" }
+    });
+    const missing = harness.adapter.inspectZeroCostPrecheck({ job: harness.dryRunJob });
+    assert.equal(missing.ok, false);
+    assert.equal(missing.error, "RUNPOD_REGISTRY_DIGEST_UNVERIFIABLE");
+    const mismatched = harness.adapter.inspectZeroCostPrecheck({
+        job: harness.dryRunJob,
+        registryVerification: verifiedRegistryEvidence(RUNPOD_WAN22_GPU_PROFILES["NVIDIA A40"], {
+            observedDigest: `sha256:${"f".repeat(64)}`
+        })
+    });
+    assert.equal(mismatched.ok, false);
+    assert.equal(mismatched.error, "RUNPOD_REGISTRY_DIGEST_MISMATCH");
+    assert.equal(harness.calls.length, 0);
 });
 
 test("V142 L40S physical mock requires exact CC 8.9, 48GB and a working FlashAttention CUDA kernel", async t => {
@@ -948,17 +1117,18 @@ test("V142 L40S physical mock requires exact CC 8.9, 48GB and a working FlashAtt
     }
 });
 
-test("V142 RunPod refuses an unapproved immutable image before creating billable capacity", async () => {
+test("V142 RunPod refuses an unapproved provision tag before creating billable capacity", async () => {
     const harness = runpodPhysicalHarness({
         scenario: "unapproved-image",
         envOverrides: {
-            JARVIS_RUNPOD_IMAGE: `runpod/pytorch:unapproved@sha256:${"f".repeat(64)}`
+            JARVIS_RUNPOD_IMAGE: "runpod/pytorch:unapproved"
         }
     });
     const started = await harness.engine.start(harness.payload);
     assert.equal(started.ok, false, JSON.stringify(started));
-    assert.equal(started.error, "RUNPOD_IMAGE_NOT_APPROVED_FOR_V142");
+    assert.equal(started.error, "RUNPOD_PROVISION_IMAGE_TAG_NOT_APPROVED_FOR_V142");
     assert.equal(harness.createdBody, null);
+    assert.equal(harness.calls.length, 0);
 });
 
 test("V142 RunPod attaches an existing Network Volume, pins its datacenter, and never deletes the volume", async () => {
@@ -1110,6 +1280,7 @@ test("V142 cache recovery survives a new runtime without changing the durable ob
     });
     const dryRun = third.adapter.inspectZeroCostPrecheck({
         job: third.dryRunJob,
+        registryVerification: third.gpuRegistryVerification,
         networkVolume: {
             id: "network-volume-cache-runtime",
             dataCenterId: "CA-MTL-1",
@@ -1137,8 +1308,9 @@ test("V142 RunPod API key reaches the provider byte-for-byte without local norma
     assert.equal(started.ok, true, JSON.stringify(started));
     const httpCalls = harness.calls.filter(call => call.kind === "http");
     assert.ok(httpCalls.length > 0);
-    assert.ok(httpCalls.every(call => call.authorizationMatches === true));
-    const availabilityCall = httpCalls.find(call => call.encodedKeyMatches === true);
+    const runpodCalls = httpCalls.filter(call => !call.url.includes("docker.io"));
+    assert.ok(runpodCalls.every(call => call.authorizationMatches === true));
+    const availabilityCall = runpodCalls.find(call => call.encodedKeyMatches === true);
     assert.ok(availabilityCall, "RunPod availability must receive the exact encoded API key");
     assert.equal(JSON.stringify(httpCalls).includes(exactKey), false);
     await harness.engine.cancel({ operationName: started.operationName });

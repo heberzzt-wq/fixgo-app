@@ -146,6 +146,13 @@ resource-creation authority. A failed provisioning response remains
 and explicit paid authority. In particular, observability tests use mocks and
 must never repeat a live `POST /pods` merely to obtain an error body.
 
+The observed CPU staging HTTP 500 remains classified as
+`RUNPOD_PROVIDER_CAUSE_UNDETERMINED`, with
+`RUNPOD_IMAGE_REFERENCE_SEMANTICS_UNVERIFIED` retained as an explicit
+hypothesis. Separating tag, registry digest, and runtime identity closes the
+known client-side ambiguity without claiming it caused the earlier provider
+response. A new physical attempt requires separate human authority.
+
 ### Zero-cost gate versus paid physical preflight
 
 `JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED` defaults to `false`. It may
@@ -161,7 +168,7 @@ The adapter separates two evidence levels:
 | --- | --- |
 | Canonical Git SHA equals the configured SHA and bridge identity is `BRIDGE_IDENTITY_OK`. | The allocated GPU exactly matches the explicitly authorized A40/CC 8.6 or L40S/CC 8.9 profile and has at least 48 GB VRAM. |
 | Policy is exactly `LOCAL_TEST`, backend is exactly `wan22-ti2v-5b`, and external fallback is forbidden. | CUDA, NVCC, Python 3.12, PyTorch 2.8/CUDA 12.8, FFmpeg, and FlashAttention work on that Pod. |
-| OCI image digest, Wan repo revision, model revision, requirements SHA, and every required model file are immutable. | Required Python imports, `pip check`, a real CUDA tensor operation, and offline `generate.py --help` pass. |
+| The approved image tag resolves read-only to its expected registry digest; the Wan repo revision, model revision, requirements SHA, and every required model file are immutable. | Required Python imports, `pip check`, a real CUDA tensor operation, and offline `generate.py --help` pass. |
 | Durable identity, reference bytes/SHA, local duplicate-obligation state, explicit GPU request, volume/data-center contract, exact budget, and the sanitized Pod body are valid. | The mounted cache and every physical model file match the manifest; FlashAttention must execute a real CUDA kernel on the selected compute capability. |
 
 `inspectZeroCostPrecheck` builds and validates the same provision body later
@@ -180,7 +187,7 @@ For a persistent network volume, the sanitized future body is equivalent to:
   "gpuCount": 1,
   "gpuTypeIds": ["NVIDIA L40S"],
   "gpuTypePriority": "custom",
-  "imageName": "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404@sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35",
+  "imageName": "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404",
   "interruptible": false,
   "minRAMPerGPU": 62,
   "minVCPUPerGPU": 16,
@@ -199,6 +206,14 @@ For a persistent network volume, the sanitized future body is equivalent to:
 
 This example is documentation only. It omits `volumeInGb` when a network volume
 is attached, and neither the report nor tests send it to RunPod.
+
+RunPod documents `imageName` as an image tag. V142 therefore keeps three
+separate values in the same adapter: `provisionImageTag`,
+`expectedRegistryDigest`, and `runtimeIdentity`. Before any future `POST /pods`,
+the public Docker registry manifest for the approved tag must resolve to the
+expected digest. A mismatch or an unverifiable manifest fails closed before
+RunPod resource traffic. The temporary public-registry bearer token is never
+persisted. `@sha256:` is forbidden inside the provisioning `imageName`.
 
 ### Persistent cache and disk envelope
 
@@ -235,8 +250,12 @@ CUDA before it can set `CACHE_READY` or `CACHE_HIT`.
 ### CPU model staging without GPU-readiness claims
 
 The same adapter exposes a read-only CPU staging precheck; it does not create a
-second workflow or provision anything. The current candidate is `cpu3c` in
-`US-TX-3`, 2 vCPU, 4 GB RAM, with the same 50 GB Network Volume mounted at
+second workflow or provision anything. Its image profile is separate from the
+GPU profile: RunPod's official `runpodctl` documentation demonstrates
+`ubuntu:22.04` for CPU Pods, and V142 requires that tag to resolve to
+`sha256:2edbbc5dc405e9612ba3584ce95480277e3eb374407b5505fe26f17df77c7dbc`
+before a future creation can be considered. The current candidate is `cpu3c`
+in `US-TX-3`, 2 vCPU, 4 GB RAM, with Network Volume `hvjazpozb6` mounted at
 `/workspace`. RunPod's authenticated flavor query exposes USD 0.06/hour but
 does not expose CPU stock (`stockStatus=null`). Therefore the report is
 `CPU_STAGING_COMPATIBLE_CAPACITY_UNCONFIRMED`, keeps resource creation disabled,
@@ -244,11 +263,39 @@ and a later paid authority must let RunPod decide actual placement.
 
 CPU staging may clone the pinned Wan repository, run `hf download`, verify the
 repository revision and every model byte/SHA-256, and write the model manifest.
+It may bootstrap shell, Git, Python, CA certificates, Hugging Face CLI, and
+SHA-256 tools. It must not install or certify CUDA, PyTorch-CUDA, NVCC, or
+FlashAttention. After start, the OS, Python/tools, and `/workspace` mount must
+be physically checked before any cache write.
 Its maximum state is `CACHE_MODEL_READY`. It cannot certify CUDA, NVCC,
 PyTorch-CUDA, compute capability, FlashAttention CUDA kernels, Wan runtime help,
 `CACHE_READY`, or `CACHE_HIT`. Those remain mandatory L40S physical checks.
 At USD 0.06/hour, 30 minutes of CPU staging is USD 0.03 compute, excluding the
 separately billed persistent Network Volume.
+
+The sanitized CPU dry-run is:
+
+```json
+{
+  "cloudType": "SECURE",
+  "computeType": "CPU",
+  "containerDiskInGb": 30,
+  "cpuFlavorIds": ["cpu3c"],
+  "cpuFlavorPriority": "custom",
+  "dataCenterIds": ["US-TX-3"],
+  "dataCenterPriority": "custom",
+  "imageName": "ubuntu:22.04",
+  "interruptible": false,
+  "networkVolumeId": "hvjazpozb6",
+  "ports": ["22/tcp"],
+  "supportPublicIp": true,
+  "vcpuCount": 2,
+  "volumeMountPath": "/workspace"
+}
+```
+
+This body is structurally compatible with the current RunPod
+`PodCreateInput` OpenAPI schema. It is evidence only and is not sent.
 
 The adapter performs this single durable lifecycle:
 
@@ -256,9 +303,11 @@ The adapter performs this single durable lifecycle:
    explicitly selected profile. No A40-to-L40S or L40S-to-other-GPU fallback
    exists.
 2. `POST https://rest.runpod.io/v1/pods` for exactly one on-demand Pod using
-   the approved PyTorch 2.8/CUDA 12.8 image pinned by immutable OCI digest,
+   the approved PyTorch 2.8/CUDA 12.8 tag after its registry manifest digest
+   has been verified read-only,
    30 GB container disk and the selected profile's minimum RAM/vCPU,
-   and TCP 22. A mutable image tag is rejected before billable capacity is
+   and TCP 22. Digest syntax inside `imageName`, a tag mismatch, or an
+   unverifiable registry digest is rejected before billable capacity is
    created.
 3. Generate an ephemeral SSH keypair, pass only its public key to the Pod, and
    bind the local receipt to `missionId`, `objectiveId`, `obligationId`,

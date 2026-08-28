@@ -6,8 +6,8 @@ import { execFile, execFileSync, spawn } from "node:child_process";
 
 import { registerArtifact } from "./jarvis-artifact-studio.js";
 
-export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.11.1-v142-runpod-http-observability";
-export const JARVIS_RUNPOD_ADAPTER_VERSION = "1.4.1-v142-runpod-http-observability";
+export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.12.0-v142-runpod-registry-identity";
+export const JARVIS_RUNPOD_ADAPTER_VERSION = "1.5.0-v142-runpod-registry-identity";
 export const VIDEO_ENGINE_MODES = Object.freeze([
     "CURRENT_STABLE",
     "LOCAL_TEST",
@@ -110,7 +110,7 @@ export const RUNPOD_ZERO_COST_PRECHECKS = Object.freeze([
     "bridgeIdentity",
     "localTestPolicy",
     "wan22Backend",
-    "immutableImageDigest",
+    "registryImageDigest",
     "modelRevision",
     "requirementsSha256",
     "modelFileManifest",
@@ -145,7 +145,21 @@ export const RUNPOD_PHYSICAL_PAID_PREFLIGHTS = Object.freeze([
 ]);
 
 const RUNPOD_WAN22_CACHE_BASE = Object.freeze({
-    imageReference: "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404@sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35",
+    registry: "registry-1.docker.io",
+    repository: "runpod/pytorch",
+    tag: "1.0.2-cu1281-torch280-ubuntu2404",
+    provisionImageTag: "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404",
+    expectedRegistryDigest: "sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35",
+    runtimeIdentity: Object.freeze({
+        operatingSystem: "ubuntu-24.04",
+        pythonVersionPrefix: "3.12.",
+        torchVersionPrefix: "2.8.0+cu128",
+        torchCudaVersionPrefix: "12.8",
+        cudaToolkitVersionPrefix: "12.8",
+        ffmpegRequired: true,
+        nvccRequired: true,
+        flashAttentionCudaRequired: true
+    }),
     pythonVersionPrefix: "3.12.",
     torchVersionPrefix: "2.8.0+cu128",
     torchCudaVersionPrefix: "12.8",
@@ -204,11 +218,36 @@ export const RUNPOD_CPU_STAGING_PROFILE = Object.freeze({
     computeType: "CPU",
     cpuFlavorId: "cpu3c",
     dataCenterId: "US-TX-3",
+    registry: "registry-1.docker.io",
+    repository: "library/ubuntu",
+    tag: "22.04",
+    provisionImageTag: "ubuntu:22.04",
+    expectedRegistryDigest: "sha256:2edbbc5dc405e9612ba3584ce95480277e3eb374407b5505fe26f17df77c7dbc",
+    officialImageSource: "https://github.com/runpod/runpod-plugins-official/blob/main/plugins/runpod/skills/runpodctl/SKILL.md",
     minimumVcpu: 2,
     ramGb: 4,
     networkVolumeMountPath: "/workspace",
     cacheStatus: "CACHE_MODEL_READY",
     runtimeStatus: "CACHE_RUNTIME_PHYSICALLY_UNVERIFIED",
+    runtimeIdentity: Object.freeze({
+        operatingSystem: "ubuntu-22.04",
+        pythonVersionPrefix: "3.10.",
+        mountPath: "/workspace",
+        caCertificatesRequired: true,
+        requiredCommands: Object.freeze([
+            "bash",
+            "git",
+            "python3",
+            "hf",
+            "sha256sum"
+        ]),
+        forbiddenTools: Object.freeze([
+            "cuda",
+            "pytorch-cuda",
+            "nvcc",
+            "flash-attention"
+        ])
+    }),
     allowedStages: Object.freeze([
         "git",
         "hf_download",
@@ -1264,7 +1303,8 @@ function runpodPublicWorker(state = {}) {
         networkVolumePersistent: Boolean(state.networkVolumeId),
         cacheStatus: state.cacheStatus || null,
         cacheProfile: state.cacheProfile || null,
-        imageReference: state.imageReference || null,
+        provisionImageTag: state.provisionImageTag || null,
+        expectedRegistryDigest: state.expectedRegistryDigest || null,
         physicalHealthVerified: state.physicalHealthVerified === true,
         runtimePreflightVerified: state.runtimePreflightVerified === true,
         bootstrapProgress: state.bootstrapProgress || null,
@@ -1295,6 +1335,7 @@ export function createRunpodRemoteVideoAdapter({
     root = process.cwd(),
     env = process.env,
     fetchImpl = globalThis.fetch,
+    registryFetchImpl = fetchImpl,
     execute = runProcess,
     generateKeyPair = null,
     inspectBridgeIdentity = null,
@@ -1308,8 +1349,8 @@ export function createRunpodRemoteVideoAdapter({
     const provider = String(env.JARVIS_REMOTE_GPU_PROVIDER || "").trim().toLowerCase();
     const gpuTypeId = String(env.JARVIS_RUNPOD_GPU_TYPE_ID || "").trim();
     const cacheContract = RUNPOD_WAN22_GPU_PROFILES[gpuTypeId] || null;
-    const imageName = String(
-        env.JARVIS_RUNPOD_IMAGE || cacheContract?.imageReference || RUNPOD_WAN22_CACHE_BASE.imageReference
+    const provisionImageTag = String(
+        env.JARVIS_RUNPOD_IMAGE || cacheContract?.provisionImageTag || RUNPOD_WAN22_CACHE_BASE.provisionImageTag
     ).trim();
     const cloudType = String(env.JARVIS_RUNPOD_CLOUD_TYPE || "COMMUNITY").trim().toUpperCase() === "SECURE"
         ? "SECURE"
@@ -1400,11 +1441,14 @@ export function createRunpodRemoteVideoAdapter({
         if (!hardBudgetExplicit) throw new Error("RUNPOD_HARD_BUDGET_REQUIRED");
         if (!gpuTypeId) throw new Error("RUNPOD_GPU_TYPE_EXPLICIT_AUTHORIZATION_REQUIRED");
         if (!cacheContract) throw new Error("RUNPOD_GPU_TYPE_NOT_APPROVED_FOR_V142");
-        if (!/@sha256:[a-f0-9]{64}$/i.test(imageName)) {
-            throw new Error("RUNPOD_IMAGE_DIGEST_REQUIRED");
+        if (/@sha256:/i.test(provisionImageTag)) {
+            throw new Error("RUNPOD_IMAGE_NAME_DIGEST_FORBIDDEN");
         }
-        if (imageName !== cacheContract.imageReference) {
-            throw new Error("RUNPOD_IMAGE_NOT_APPROVED_FOR_V142");
+        if (provisionImageTag !== cacheContract.provisionImageTag) {
+            throw new Error("RUNPOD_PROVISION_IMAGE_TAG_NOT_APPROVED_FOR_V142");
+        }
+        if (!/^sha256:[a-f0-9]{64}$/i.test(cacheContract.expectedRegistryDigest)) {
+            throw new Error("RUNPOD_EXPECTED_REGISTRY_DIGEST_INVALID");
         }
         if (minimumRamGb < cacheContract.minimumRamGb || minimumVcpu < cacheContract.minimumVcpu) {
             throw new Error("RUNPOD_GPU_RESOURCE_PROFILE_INSUFFICIENT");
@@ -1445,7 +1489,87 @@ export function createRunpodRemoteVideoAdapter({
     function assertProviderConfigured() {
         if (!apiKey) throw new Error("RUNPOD_API_KEY_REQUIRED");
         if (typeof fetchImpl !== "function") throw new Error("RUNPOD_FETCH_UNAVAILABLE");
+        if (typeof registryFetchImpl !== "function") throw new Error("RUNPOD_REGISTRY_FETCH_UNAVAILABLE");
         if (!ssh || !scp || !sshKeygen) throw new Error("RUNPOD_SSH_TOOLCHAIN_UNAVAILABLE");
+    }
+
+    function normalizedRegistryVerification(imageProfile, verification) {
+        if (
+            !verification || verification.status !== "REGISTRY_DIGEST_VERIFIED" ||
+            verification.registry !== imageProfile.registry ||
+            verification.repository !== imageProfile.repository ||
+            verification.tag !== imageProfile.tag ||
+            verification.expectedDigest !== imageProfile.expectedRegistryDigest ||
+            !/^sha256:[a-f0-9]{64}$/i.test(String(verification.observedDigest || "")) ||
+            !String(verification.checkedAt || "").trim()
+        ) {
+            throw new Error("RUNPOD_REGISTRY_DIGEST_UNVERIFIABLE");
+        }
+        if (verification.observedDigest !== imageProfile.expectedRegistryDigest) {
+            throw new Error("RUNPOD_REGISTRY_DIGEST_MISMATCH");
+        }
+        return {
+            registry: imageProfile.registry,
+            repository: imageProfile.repository,
+            tag: imageProfile.tag,
+            expectedDigest: imageProfile.expectedRegistryDigest,
+            observedDigest: verification.observedDigest,
+            checkedAt: verification.checkedAt,
+            status: "REGISTRY_DIGEST_VERIFIED"
+        };
+    }
+
+    async function resolveRegistryVerification(imageProfile) {
+        if (imageProfile.registry !== "registry-1.docker.io") {
+            throw new Error("RUNPOD_REGISTRY_DIGEST_UNVERIFIABLE");
+        }
+        try {
+            const scope = encodeURIComponent(`repository:${imageProfile.repository}:pull`);
+            const tokenResponse = await registryFetchImpl(
+                `https://auth.docker.io/token?service=registry.docker.io&scope=${scope}`,
+                { method: "GET", headers: { Accept: "application/json" } }
+            );
+            if (Number(tokenResponse?.status || 0) !== 200 || typeof tokenResponse.text !== "function") {
+                throw new Error("RUNPOD_REGISTRY_DIGEST_UNVERIFIABLE");
+            }
+            const tokenPayload = JSON.parse(await tokenResponse.text());
+            const token = String(tokenPayload?.token || tokenPayload?.access_token || "");
+            if (!token) throw new Error("RUNPOD_REGISTRY_DIGEST_UNVERIFIABLE");
+            const manifestResponse = await registryFetchImpl(
+                `https://${imageProfile.registry}/v2/${imageProfile.repository}/manifests/${encodeURIComponent(imageProfile.tag)}`,
+                {
+                    method: "HEAD",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        Accept: [
+                            "application/vnd.oci.image.index.v1+json",
+                            "application/vnd.docker.distribution.manifest.list.v2+json",
+                            "application/vnd.oci.image.manifest.v1+json",
+                            "application/vnd.docker.distribution.manifest.v2+json"
+                        ].join(", ")
+                    }
+                }
+            );
+            if (Number(manifestResponse?.status || 0) !== 200) {
+                throw new Error("RUNPOD_REGISTRY_DIGEST_UNVERIFIABLE");
+            }
+            const observedDigest = String(
+                manifestResponse?.headers?.get?.("docker-content-digest") || ""
+            ).trim().toLowerCase();
+            return normalizedRegistryVerification(imageProfile, {
+                registry: imageProfile.registry,
+                repository: imageProfile.repository,
+                tag: imageProfile.tag,
+                expectedDigest: imageProfile.expectedRegistryDigest,
+                observedDigest,
+                checkedAt: now().toISOString(),
+                status: "REGISTRY_DIGEST_VERIFIED"
+            });
+        }
+        catch(error) {
+            if (error?.message === "RUNPOD_REGISTRY_DIGEST_MISMATCH") throw error;
+            throw new Error("RUNPOD_REGISTRY_DIGEST_UNVERIFIABLE");
+        }
     }
 
     function assertPaidResourceCreationAuthority() {
@@ -1552,7 +1676,7 @@ export function createRunpodRemoteVideoAdapter({
             gpuCount: 1,
             gpuTypeIds: [gpuTypeId],
             gpuTypePriority: "custom",
-            imageName,
+            imageName: provisionImageTag,
             interruptible: false,
             minRAMPerGPU: minimumRamGb,
             minVCPUPerGPU: minimumVcpu,
@@ -1580,7 +1704,8 @@ export function createRunpodRemoteVideoAdapter({
             body.cloudType !== cloudType || body.computeType !== "GPU" ||
             body.containerDiskInGb !== containerDiskInGb || body.volumeMountPath !== "/workspace" ||
             body.gpuCount !== 1 || body.gpuTypeIds?.length !== 1 ||
-            body.gpuTypeIds[0] !== gpuTypeId || body.imageName !== cacheContract.imageReference ||
+            body.gpuTypeIds[0] !== gpuTypeId || body.imageName !== cacheContract.provisionImageTag ||
+            /@sha256:/i.test(body.imageName) ||
             body.interruptible !== false || body.minRAMPerGPU < cacheContract.minimumRamGb ||
             body.minVCPUPerGPU < cacheContract.minimumVcpu ||
             !Array.isArray(body.ports) || !body.ports.includes("22/tcp") ||
@@ -1604,9 +1729,15 @@ export function createRunpodRemoteVideoAdapter({
         }
     }
 
-    function inspectZeroCostPrecheck({ job, networkVolume = null, availability = null } = {}) {
+    function inspectZeroCostPrecheck({
+        job,
+        networkVolume = null,
+        availability = null,
+        registryVerification = null
+    } = {}) {
         try {
             assertZeroCostConfiguration(job);
+            const verifiedRegistry = normalizedRegistryVerification(cacheContract, registryVerification);
             assertNoLocalDuplicateObligation(job);
             const plannedVolume = normalizedPlannedNetworkVolume(networkVolume);
             if (availability) {
@@ -1675,7 +1806,10 @@ export function createRunpodRemoteVideoAdapter({
                 contract: {
                     gpuTypeId,
                     computeCapability: cacheContract.computeCapability,
-                    imageReference: cacheContract.imageReference,
+                    provisionImageTag: cacheContract.provisionImageTag,
+                    expectedRegistryDigest: cacheContract.expectedRegistryDigest,
+                    registryVerification: verifiedRegistry,
+                    runtimeIdentity: { ...cacheContract.runtimeIdentity },
                     modelRepository: cacheContract.modelRepository,
                     modelRevision: cacheContract.modelRevision,
                     wanRepositoryRevision: cacheContract.wanRepositoryRevision,
@@ -1696,9 +1830,17 @@ export function createRunpodRemoteVideoAdapter({
         }
     }
 
-    function inspectCpuStagingPrecheck({ networkVolume = null, inventory = null } = {}) {
+    function inspectCpuStagingPrecheck({
+        networkVolume = null,
+        inventory = null,
+        registryVerification = null
+    } = {}) {
         try {
             assertZeroCostConfiguration();
+            const verifiedRegistry = normalizedRegistryVerification(
+                RUNPOD_CPU_STAGING_PROFILE,
+                registryVerification
+            );
             if (paidResourceCreationAuthorized !== false) {
                 throw new Error("RUNPOD_CPU_STAGING_READ_ONLY_AUTHORITY_REQUIRED");
             }
@@ -1737,7 +1879,7 @@ export function createRunpodRemoteVideoAdapter({
                 cpuFlavorPriority: "custom",
                 dataCenterIds: [RUNPOD_CPU_STAGING_PROFILE.dataCenterId],
                 dataCenterPriority: "custom",
-                imageName: cacheContract.imageReference,
+                imageName: RUNPOD_CPU_STAGING_PROFILE.provisionImageTag,
                 interruptible: false,
                 networkVolumeId: plannedVolume.id,
                 ports: ["22/tcp"],
@@ -1767,6 +1909,16 @@ export function createRunpodRemoteVideoAdapter({
                     runtimeVerificationStatus: RUNPOD_CPU_STAGING_PROFILE.runtimeStatus,
                     allowedStages: [...RUNPOD_CPU_STAGING_PROFILE.allowedStages],
                     forbiddenCertifications: [...RUNPOD_CPU_STAGING_PROFILE.forbiddenCertifications]
+                },
+                contract: {
+                    provisionImageTag: RUNPOD_CPU_STAGING_PROFILE.provisionImageTag,
+                    expectedRegistryDigest: RUNPOD_CPU_STAGING_PROFILE.expectedRegistryDigest,
+                    registryVerification: verifiedRegistry,
+                    runtimeIdentity: {
+                        ...RUNPOD_CPU_STAGING_PROFILE.runtimeIdentity,
+                        requiredCommands: [...RUNPOD_CPU_STAGING_PROFILE.runtimeIdentity.requiredCommands],
+                        forbiddenTools: [...RUNPOD_CPU_STAGING_PROFILE.runtimeIdentity.forbiddenTools]
+                    }
                 }
             };
         }
@@ -1779,6 +1931,54 @@ export function createRunpodRemoteVideoAdapter({
                 paidResourceCreationAuthorized: false,
                 resourceCreationPossible: false,
                 liveCapacityConfirmed: false
+            };
+        }
+    }
+
+    function inspectCpuStagingRuntimeIdentity({ health = null } = {}) {
+        try {
+            const expected = RUNPOD_CPU_STAGING_PROFILE.runtimeIdentity;
+            const commands = health?.commands && typeof health.commands === "object"
+                ? health.commands
+                : {};
+            if (
+                String(health?.operatingSystem || "") !== expected.operatingSystem ||
+                !String(health?.pythonVersion || "").startsWith(expected.pythonVersionPrefix) ||
+                health?.caCertificates !== true ||
+                String(health?.mountPath || "") !== expected.mountPath ||
+                health?.mountWritable !== true ||
+                !expected.requiredCommands.every(command => commands[command] === true) ||
+                health?.cuda === true || health?.nvcc === true || health?.flashAttention === true
+            ) {
+                throw new Error("RUNPOD_CPU_RUNTIME_IDENTITY_MISMATCH");
+            }
+            return {
+                ok: true,
+                status: "RUNPOD_CPU_RUNTIME_IDENTITY_VERIFIED",
+                cacheWriteAuthorized: true,
+                cacheModelReady: false,
+                inferenceStarted: false,
+                deleteRequired: false,
+                cudaVerified: false,
+                l40sVerified: false,
+                runtimeIdentity: {
+                    ...expected,
+                    requiredCommands: [...expected.requiredCommands],
+                    forbiddenTools: [...expected.forbiddenTools]
+                }
+            };
+        }
+        catch(error) {
+            return {
+                ok: false,
+                status: error?.message || "RUNPOD_CPU_RUNTIME_IDENTITY_MISMATCH",
+                error: error?.message || "RUNPOD_CPU_RUNTIME_IDENTITY_MISMATCH",
+                cacheWriteAuthorized: false,
+                cacheModelReady: false,
+                inferenceStarted: false,
+                deleteRequired: true,
+                cudaVerified: false,
+                l40sVerified: false
             };
         }
     }
@@ -2161,7 +2361,9 @@ export function createRunpodRemoteVideoAdapter({
         const contractJson = JSON.stringify({
             profile: cacheContract.profile,
             gpuTypeId: cacheContract.gpuTypeId,
-            imageReference: cacheContract.imageReference,
+            provisionImageTag: cacheContract.provisionImageTag,
+            expectedRegistryDigest: cacheContract.expectedRegistryDigest,
+            runtimeIdentity: cacheContract.runtimeIdentity,
             pythonVersionPrefix: cacheContract.pythonVersionPrefix,
             torchVersionPrefix: cacheContract.torchVersionPrefix,
             torchCudaVersionPrefix: cacheContract.torchCudaVersionPrefix,
@@ -2274,7 +2476,7 @@ export function createRunpodRemoteVideoAdapter({
             "manifest_path,model_dir,repo_dir,venv_dir,expected_raw=sys.argv[1:]",
             "expected=json.loads(expected_raw)",
             "actual=json.load(open(manifest_path,encoding='utf-8'))",
-            "keys=('profile','gpuTypeId','imageReference','pythonVersionPrefix','torchVersionPrefix','torchCudaVersionPrefix','computeCapability','requirementsSha256','flashAttentionVersion','modelRepository','modelRevision','wanRepositoryRevision','expectedModelBytes','requiredRuntimeModelBytes','workspaceReserveBytes','peakWorkspaceBytes')",
+            "keys=('profile','gpuTypeId','provisionImageTag','expectedRegistryDigest','runtimeIdentity','pythonVersionPrefix','torchVersionPrefix','torchCudaVersionPrefix','computeCapability','requirementsSha256','flashAttentionVersion','modelRepository','modelRevision','wanRepositoryRevision','expectedModelBytes','requiredRuntimeModelBytes','workspaceReserveBytes','peakWorkspaceBytes')",
             "assert all(actual.get(k)==expected.get(k) for k in keys)",
             "assert os.path.isfile(os.path.join(repo_dir,'generate.py')) and os.path.isfile(os.path.join(venv_dir,'bin','python'))",
             "assert subprocess.check_output(['git','-C',repo_dir,'rev-parse','HEAD'],text=True).strip()==expected['wanRepositoryRevision']",
@@ -2496,6 +2698,7 @@ export function createRunpodRemoteVideoAdapter({
         assertZeroCostConfiguration(job);
         assertPaidResourceCreationAuthority();
         assertProviderConfigured();
+        const registryVerification = await resolveRegistryVerification(cacheContract);
         const file = stateFile(job.operationId);
         if (fs.existsSync(file)) {
             const existing = readJson(file);
@@ -2507,7 +2710,12 @@ export function createRunpodRemoteVideoAdapter({
             await assertNoExistingOperationPod(job);
             const networkVolume = await resolveNetworkVolume(job.operationId);
             const availability = await queryAvailability(networkVolume?.dataCenterId || null, job.operationId);
-            const zeroCostPrecheck = inspectZeroCostPrecheck({ job, networkVolume, availability });
+            const zeroCostPrecheck = inspectZeroCostPrecheck({
+                job,
+                networkVolume,
+                availability,
+                registryVerification
+            });
             if (zeroCostPrecheck.ok !== true) {
                 throw new Error(zeroCostPrecheck.error || "RUNPOD_ZERO_COST_PRECHECK_FAILED");
             }
@@ -2550,7 +2758,10 @@ export function createRunpodRemoteVideoAdapter({
                 modelContractRevision: cacheContract.modelRevision,
                 computeCapabilityRequired: cacheContract.computeCapability,
                 expectedCacheStatus: zeroCostPrecheck.cache.expectedStatus,
-                imageReference: imageName,
+                provisionImageTag,
+                expectedRegistryDigest: cacheContract.expectedRegistryDigest,
+                runtimeIdentity: { ...cacheContract.runtimeIdentity },
+                registryVerification,
                 cacheStatus: "CACHE_MISS",
                 bootstrapTimeoutSeconds,
                 inferenceTimeoutSeconds,
@@ -3066,7 +3277,10 @@ export function createRunpodRemoteVideoAdapter({
             readinessLevel: configured ? "PROVISIONING_CONFIGURED" : "ZERO_COST_ONLY",
             remoteProvisioning: true,
             provider: "runpod",
-            imageReference: imageName,
+            provisionImageTag,
+            expectedRegistryDigest: cacheContract?.expectedRegistryDigest || null,
+            runtimeIdentity: cacheContract?.runtimeIdentity ? { ...cacheContract.runtimeIdentity } : null,
+            registryDigestVerificationRequired: true,
             hardBudgetUsd,
             budgetStopRatio,
             maximumSpendBeforeCleanupUsd: Number((hardBudgetUsd * budgetStopRatio).toFixed(6)),
@@ -3084,6 +3298,7 @@ export function createRunpodRemoteVideoAdapter({
         inspectHardware,
         inspectZeroCostPrecheck,
         inspectCpuStagingPrecheck,
+        inspectCpuStagingRuntimeIdentity,
         launch,
         poll: pollRemote,
         release
