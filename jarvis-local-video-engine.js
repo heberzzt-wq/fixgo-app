@@ -1212,6 +1212,27 @@ export function createRunpodRemoteVideoAdapter({
         return next;
     }
 
+    function safeProviderDiagnostic(error) {
+        const cause = error?.cause || error;
+        const rawCode = String(cause?.code || error?.code || cause?.name || error?.name || "UNKNOWN");
+        const providerCode = /^[A-Za-z0-9_.:-]{1,120}$/.test(rawCode)
+            ? rawCode
+            : "RUNPOD_TRANSPORT_ERROR";
+        let providerMessage = String(cause?.message || error?.message || providerCode);
+        for (const secret of [apiKey, encodeURIComponent(apiKey)]) {
+            if (secret) providerMessage = providerMessage.split(secret).join("[REDACTED]");
+        }
+        providerMessage = providerMessage
+            .replace(/[\u0000-\u001f\u007f]/g, " ")
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 500);
+        return {
+            providerCode,
+            providerMessage: providerMessage || providerCode
+        };
+    }
+
     async function apiRequest(url, options = {}, accepted = [200], stage = "runpod_api") {
         let response;
         try {
@@ -1227,6 +1248,7 @@ export function createRunpodRemoteVideoAdapter({
         catch(error) {
             const failure = new Error("RUNPOD_API_TRANSPORT_FAILED");
             failure.cause = error;
+            Object.assign(failure, safeProviderDiagnostic(error));
             failure.retryable = true;
             failure.stage = stage;
             throw failure;
@@ -2171,6 +2193,8 @@ export function createLocalVideoEngine({
                     status: operation.status,
                     error: operation.error || null,
                     failureStage: operation.failureStage || null,
+                    providerCode: operation.providerCode || null,
+                    providerMessage: operation.providerMessage || null,
                     retryable: operation.retryable === true,
                     endedAt: operation.updatedAt || null
                 };
@@ -2180,6 +2204,8 @@ export function createLocalVideoEngine({
                     error: null,
                     retryable: null,
                     failureStage: null,
+                    providerCode: null,
+                    providerMessage: null,
                     workerRelease: null,
                     launchAttempt: previousAttempt.attempt + 1,
                     attemptHistory: [
@@ -2218,6 +2244,8 @@ export function createLocalVideoEngine({
                         status: "LOCAL_VIDEO_RUNNER_START_FAILED",
                         error: error?.message || "LOCAL_VIDEO_RUNNER_START_FAILED",
                         failureStage: error?.stage || null,
+                        providerCode: error?.providerCode || null,
+                        providerMessage: error?.providerMessage || null,
                         retryable: error?.retryable !== false
                     });
                 }
@@ -2265,6 +2293,8 @@ export function createLocalVideoEngine({
                     status: "LOCAL_VIDEO_RUNNER_START_FAILED",
                     error: error?.message || "LOCAL_VIDEO_RUNNER_START_FAILED",
                     failureStage: error?.stage || null,
+                    providerCode: error?.providerCode || null,
+                    providerMessage: error?.providerMessage || null,
                     retryable: error?.retryable !== false
                 });
                 const released = await releaseWorker(

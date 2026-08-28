@@ -182,7 +182,9 @@ function runpodPhysicalHarness({
         if (String(url).includes("/graphql")) {
             if (availabilityTransportFailures > 0) {
                 availabilityTransportFailures -= 1;
-                const error = new Error("UNABLE_TO_VERIFY_LEAF_SIGNATURE controlled");
+                const error = new Error(
+                    `UNABLE_TO_VERIFY_LEAF_SIGNATURE credential=${env.RUNPOD_API_KEY} encoded=${encodeURIComponent(env.RUNPOD_API_KEY)}`
+                );
                 error.code = "UNABLE_TO_VERIFY_LEAF_SIGNATURE";
                 throw error;
             }
@@ -535,6 +537,10 @@ test("V142 RunPod pre-provision transport recovery reuses the same operation and
     assert.equal(first.ok, false, JSON.stringify(first));
     assert.equal(first.error, "RUNPOD_API_TRANSPORT_FAILED");
     assert.equal(first.failureStage, "availability");
+    assert.equal(first.providerCode, "UNABLE_TO_VERIFY_LEAF_SIGNATURE");
+    assert.match(first.providerMessage, /UNABLE_TO_VERIFY_LEAF_SIGNATURE/);
+    assert.equal(first.providerMessage.includes(harness.env.RUNPOD_API_KEY), false);
+    assert.equal(first.providerMessage.includes(encodeURIComponent(harness.env.RUNPOD_API_KEY)), false);
     assert.equal(first.retryable, true);
     assert.equal(first.podId, undefined);
 
@@ -546,6 +552,7 @@ test("V142 RunPod pre-provision transport recovery reuses the same operation and
     assert.equal(recovered.launchAttempt, 2);
     assert.equal(recovered.attemptHistory.length, 1);
     assert.equal(recovered.attemptHistory[0].failureStage, "availability");
+    assert.equal(recovered.attemptHistory[0].providerCode, "UNABLE_TO_VERIFY_LEAF_SIGNATURE");
     assert.equal(
         harness.calls.filter(call => call.url.endsWith("/pods") && call.method === "POST").length,
         1
