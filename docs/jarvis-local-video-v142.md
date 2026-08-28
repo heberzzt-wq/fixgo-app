@@ -115,13 +115,95 @@ JARVIS_LOCAL_VIDEO_EXECUTION_TARGET=remote
 JARVIS_VIDEO_ENGINE_POLICY=LOCAL_TEST
 JARVIS_LOCAL_VIDEO_MODEL=wan22-ti2v-5b
 JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT=<repo>/scripts/jarvis-local-video-wan22.py
+JARVIS_RUNPOD_CANONICAL_SHA=<40-hex SHA returned by git rev-parse HEAD>
 JARVIS_REMOTE_GPU_HARD_BUDGET_USD=2
+JARVIS_REMOTE_GPU_BUDGET_STOP_RATIO=0.95
 JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD=0.46
+JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED=false
 ```
 
 The credential belongs in the environment of the process that starts
 `jarvis-fs-bridge.js`; it must not be placed in browser configuration, HTML,
 Artifact Studio metadata, a mission payload, or a committed `.env` file.
+
+### Zero-cost gate versus paid physical preflight
+
+`JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED` defaults to `false`. It may
+be changed to `true` only under a new, explicit human authority that identifies
+the canonical SHA and economic limit. A missing, non-positive, or greater than
+USD 2 `JARVIS_REMOTE_GPU_HARD_BUDGET_USD` fails closed; there is no implicit
+budget. Polling stops at the configured ratio (0.95 for a USD 1.90 operational
+ceiling under a USD 2 hard cap) so deletion retains margin.
+
+The adapter separates two evidence levels:
+
+| `ZERO_COST_PRECHECK` (before credentials or billable creation) | `PHYSICAL_PAID_PREFLIGHT` (only after one Pod exists) |
+| --- | --- |
+| Canonical Git SHA equals the configured SHA and bridge identity is `BRIDGE_IDENTITY_OK`. | The allocated GPU is physically an A40 with compute capability 8.6 and sufficient VRAM. |
+| Policy is exactly `LOCAL_TEST`, backend is exactly `wan22-ti2v-5b`, and external fallback is forbidden. | CUDA, NVCC, Python 3.12, PyTorch 2.8/CUDA 12.8, FFmpeg, and FlashAttention work on that Pod. |
+| OCI image digest, Wan repo revision, model revision, requirements SHA, and every required model file are immutable. | Required Python imports, `pip check`, a real CUDA tensor operation, and offline `generate.py --help` pass. |
+| Durable identity, reference bytes/SHA, local duplicate-obligation state, A40 request, volume/data-center contract, exact budget, and the sanitized Pod body are valid. | The mounted cache and every physical model file match the manifest. |
+
+`inspectZeroCostPrecheck` builds and validates the same provision body later
+used by `POST /pods`, but substitutes `[EPHEMERAL_PUBLIC_KEY]` and performs no
+provider request. It never returns the RunPod API key or private SSH key. Even a
+green zero-cost report is not physical readiness and cannot authorize billing.
+
+For a persistent network volume, the sanitized future body is equivalent to:
+
+```json
+{
+  "cloudType": "SECURE",
+  "computeType": "GPU",
+  "containerDiskInGb": 30,
+  "volumeMountPath": "/workspace",
+  "gpuCount": 1,
+  "gpuTypeIds": ["NVIDIA A40"],
+  "gpuTypePriority": "custom",
+  "imageName": "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404@sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35",
+  "interruptible": false,
+  "minRAMPerGPU": 50,
+  "minVCPUPerGPU": 9,
+  "ports": ["22/tcp"],
+  "supportPublicIp": true,
+  "name": "jarvis-v142-<durable-obligation-prefix>",
+  "networkVolumeId": "<existing-verified-volume-id>",
+  "dataCenterIds": ["<same-volume-data-center>"],
+  "env": {
+    "PUBLIC_KEY": "[EPHEMERAL_PUBLIC_KEY]",
+    "JARVIS_OPERATION_ID": "<durable-operation-id>",
+    "JARVIS_OBLIGATION_FINGERPRINT": "<64-hex-durable-fingerprint>"
+  }
+}
+```
+
+This example is documentation only. It omits `volumeInGb` when a network volume
+is attached, and neither the report nor tests send it to RunPod.
+
+### Persistent cache and disk envelope
+
+The model manifest is exactly 34,203,123,497 bytes. V142 reserves another
+8,589,934,592 bytes (8 GiB) for the Wan repository, virtual environment,
+operation assets/results, and working margin, producing a contractual peak of
+42,793,058,089 bytes (about 42.79 decimal GB or 39.85 GiB). A 50 GB network
+volume therefore has about 7.21 decimal GB of contractual headroom, but remains
+conditionally sufficient until the mounted Pod proves at least 45 GiB free.
+
+The persistent layout is singular:
+
+- model: `/workspace/jarvis-v142/cache/wan22-ti2v-5b/model`;
+- Wan repository: `/workspace/jarvis-v142/cache/wan22-ti2v-5b/Wan2.2`;
+- virtual environment: `/workspace/jarvis-v142/cache/wan22-ti2v-5b/venv`;
+- Hugging Face local-dir metadata: inside the model's `.cache/huggingface`;
+- build temporaries: `/tmp` on the 30 GB container disk.
+
+The bootstrap uses `hf download --local-dir`, disables Xet chunk/shard caches,
+sets `PIP_NO_CACHE_DIR=1`, and creates the venv with system site packages. It
+does not intentionally keep a second complete checkpoint. `CACHE_HIT` requires
+the manifest, repository revision, requirements SHA, every file byte count and
+SHA-256, and the complete runtime preflight. Missing, partial, or merely
+expected cache state remains `CACHE_MISS`/`CACHE_POPULATING`; a new runtime can
+reuse `CACHE_READY` only after repeating physical verification.
 
 The adapter performs this single durable lifecycle:
 

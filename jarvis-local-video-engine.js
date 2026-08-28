@@ -6,8 +6,8 @@ import { execFile, execFileSync, spawn } from "node:child_process";
 
 import { registerArtifact } from "./jarvis-artifact-studio.js";
 
-export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.9.0-v142-runpod-runtime-preflight";
-export const JARVIS_RUNPOD_ADAPTER_VERSION = "1.2.0-v142-runpod-runtime-preflight";
+export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.10.0-v142-runpod-zero-cost-precheck";
+export const JARVIS_RUNPOD_ADAPTER_VERSION = "1.3.0-v142-runpod-zero-cost-precheck";
 export const VIDEO_ENGINE_MODES = Object.freeze([
     "CURRENT_STABLE",
     "LOCAL_TEST",
@@ -100,6 +100,49 @@ const LOCAL_VIDEO_MODEL_ALIASES = Object.freeze({
     "local-light": WAN21_T2V_1_3B.backend
 });
 
+const RUNPOD_GIB = 1024 ** 3;
+const RUNPOD_MODEL_EXPECTED_BYTES = 34203123497;
+const RUNPOD_WORKSPACE_RESERVE_BYTES = 8 * RUNPOD_GIB;
+const RUNPOD_PEAK_WORKSPACE_BYTES = RUNPOD_MODEL_EXPECTED_BYTES + RUNPOD_WORKSPACE_RESERVE_BYTES;
+
+export const RUNPOD_ZERO_COST_PRECHECKS = Object.freeze([
+    "canonicalSha",
+    "bridgeIdentity",
+    "localTestPolicy",
+    "wan22Backend",
+    "immutableImageDigest",
+    "modelRevision",
+    "requirementsSha256",
+    "modelFileManifest",
+    "workspaceCapacity",
+    "networkVolumeContract",
+    "dataCenterCompatibility",
+    "a40Request",
+    "economicBudget",
+    "noExternalFallback",
+    "referenceAssetIntegrity",
+    "durableIdentity",
+    "localDuplicateObligation",
+    "sanitizedProvisionPayload"
+]);
+
+export const RUNPOD_PHYSICAL_PAID_PREFLIGHTS = Object.freeze([
+    "physicalA40",
+    "computeCapability86",
+    "cuda",
+    "nvcc",
+    "python312",
+    "torch28Cu128",
+    "ffmpeg",
+    "flashAttention",
+    "pythonImports",
+    "pipCheck",
+    "cudaOperation",
+    "wanGenerateHelp",
+    "mountedCache",
+    "physicalModelIntegrity"
+]);
+
 const RUNPOD_WAN22_CACHE_CONTRACT = Object.freeze({
     profile: "wan22-ti2v-5b-a40-v2",
     imageReference: "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404@sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35",
@@ -112,8 +155,10 @@ const RUNPOD_WAN22_CACHE_CONTRACT = Object.freeze({
     modelRepository: "Wan-AI/Wan2.2-TI2V-5B",
     modelRevision: "921dbaf3f1674a56f47e83fb80a34bac8a8f203e",
     wanRepositoryRevision: "42bf4cfaa384bc21833865abc2f9e6c0e67233dc",
-    expectedModelBytes: 34203123497,
+    expectedModelBytes: RUNPOD_MODEL_EXPECTED_BYTES,
     requiredRuntimeModelBytes: 34201521212,
+    workspaceReserveBytes: RUNPOD_WORKSPACE_RESERVE_BYTES,
+    peakWorkspaceBytes: RUNPOD_PEAK_WORKSPACE_BYTES,
     minimumNetworkVolumeGb: 50,
     requiredFiles: Object.freeze([
         Object.freeze({ path: "Wan2.2_VAE.pth", bytes: 2818839170, sha256: "20eb789667fa5e60e7516bf509512f6cb61f01b0aa0695eadaea930c13892b36" }),
@@ -402,7 +447,9 @@ export function resolveVideoEngine({ policy, health, requirements = {} } = {}) {
     const legacyReason = candidates.length === 0
         ? (health?.status || "LOCAL_VIDEO_WORKER_UNAVAILABLE")
         : null;
-    const unavailableReason = backendFailureReason(attempts, legacyReason || "LOCAL_VIDEO_WORKER_UNAVAILABLE");
+    const unavailableReason = attempts.length === 1 && /^RUNPOD_[A-Z0-9_]+$/.test(String(attempts[0].reason || ""))
+        ? attempts[0].reason
+        : backendFailureReason(attempts, legacyReason || "LOCAL_VIDEO_WORKER_UNAVAILABLE");
     const base = {
         policy: mode,
         engineRequested: mode,
@@ -1198,6 +1245,8 @@ export function createRunpodRemoteVideoAdapter({
     fetchImpl = globalThis.fetch,
     execute = runProcess,
     generateKeyPair = null,
+    inspectBridgeIdentity = null,
+    resolveCanonicalSha = null,
     now = () => new Date()
 } = {}) {
     const resolvedRoot = path.resolve(root);
@@ -1212,6 +1261,16 @@ export function createRunpodRemoteVideoAdapter({
     const cloudType = String(env.JARVIS_RUNPOD_CLOUD_TYPE || "COMMUNITY").trim().toUpperCase() === "SECURE"
         ? "SECURE"
         : "COMMUNITY";
+    const configuredPolicy = String(env.JARVIS_VIDEO_ENGINE_POLICY || "").trim().toUpperCase();
+    const configuredBackend = String(env.JARVIS_LOCAL_VIDEO_MODEL || "").trim().toLowerCase();
+    const configuredCanonicalSha = String(env.JARVIS_RUNPOD_CANONICAL_SHA || "").trim().toLowerCase();
+    const paidResourceCreationAuthorized = booleanValue(
+        env.JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED,
+        false
+    );
+    const rawHardBudgetUsd = String(env.JARVIS_REMOTE_GPU_HARD_BUDGET_USD || "").trim();
+    const hardBudgetExplicit = rawHardBudgetUsd.length > 0 && Number.isFinite(Number(rawHardBudgetUsd)) &&
+        Number(rawHardBudgetUsd) > 0 && Number(rawHardBudgetUsd) <= 2;
     const hardBudgetUsd = Math.min(
         2,
         runpodPositiveNumber(env.JARVIS_REMOTE_GPU_HARD_BUDGET_USD, 2)
@@ -1241,11 +1300,42 @@ export function createRunpodRemoteVideoAdapter({
     const scp = resolveLocalExecutable(env.JARVIS_SCP_PATH || "scp", env);
     const sshKeygen = resolveLocalExecutable(env.JARVIS_SSH_KEYGEN_PATH || "ssh-keygen", env);
 
-    function assertConfigured() {
+    function currentCanonicalSha() {
+        if (typeof resolveCanonicalSha === "function") {
+            return String(resolveCanonicalSha({ root: resolvedRoot }) || "").trim().toLowerCase();
+        }
+        try {
+            return String(execFileSync("git", ["rev-parse", "HEAD"], {
+                cwd: resolvedRoot,
+                encoding: "utf8",
+                stdio: ["ignore", "pipe", "ignore"]
+            }) || "").trim().toLowerCase();
+        }
+        catch {
+            return "";
+        }
+    }
+
+    function currentBridgeIdentity() {
+        if (typeof inspectBridgeIdentity !== "function") {
+            return { ok: false, status: "BRIDGE_IDENTITY_UNAVAILABLE" };
+        }
+        try {
+            return inspectBridgeIdentity({ root: resolvedRoot }) || {
+                ok: false,
+                status: "BRIDGE_IDENTITY_INVALID"
+            };
+        }
+        catch {
+            return { ok: false, status: "BRIDGE_IDENTITY_INVALID" };
+        }
+    }
+
+    function assertZeroCostConfiguration(job) {
         if (provider !== "runpod") throw new Error("RUNPOD_PROVIDER_NOT_ENABLED");
-        if (!apiKey) throw new Error("RUNPOD_API_KEY_REQUIRED");
-        if (typeof fetchImpl !== "function") throw new Error("RUNPOD_FETCH_UNAVAILABLE");
-        if (!ssh || !scp || !sshKeygen) throw new Error("RUNPOD_SSH_TOOLCHAIN_UNAVAILABLE");
+        if (configuredPolicy !== "LOCAL_TEST") throw new Error("RUNPOD_LOCAL_TEST_POLICY_REQUIRED");
+        if (configuredBackend !== WAN22_TI2V_5B.backend) throw new Error("RUNPOD_WAN22_BACKEND_REQUIRED");
+        if (!hardBudgetExplicit) throw new Error("RUNPOD_HARD_BUDGET_REQUIRED");
         if (gpuTypeId !== "NVIDIA A40") throw new Error("RUNPOD_GPU_TYPE_NOT_APPROVED_FOR_V142");
         if (!/@sha256:[a-f0-9]{64}$/i.test(imageName)) {
             throw new Error("RUNPOD_IMAGE_DIGEST_REQUIRED");
@@ -1255,6 +1345,46 @@ export function createRunpodRemoteVideoAdapter({
         }
         if (networkVolumeId && cloudType !== "SECURE") {
             throw new Error("RUNPOD_NETWORK_VOLUME_SECURE_CLOUD_REQUIRED");
+        }
+        if (!/^[a-f0-9]{40}$/.test(configuredCanonicalSha)) {
+            throw new Error("RUNPOD_CANONICAL_SHA_REQUIRED");
+        }
+        if (currentCanonicalSha() !== configuredCanonicalSha) {
+            throw new Error("RUNPOD_CANONICAL_SHA_MISMATCH");
+        }
+        const bridgeIdentity = currentBridgeIdentity();
+        if (bridgeIdentity.ok !== true || bridgeIdentity.status !== "BRIDGE_IDENTITY_OK") {
+            throw new Error("RUNPOD_BRIDGE_IDENTITY_REQUIRED");
+        }
+        if (job) {
+            if (
+                job.executionTarget !== "remote" ||
+                job.backend !== WAN22_TI2V_5B.backend ||
+                job.model !== WAN22_TI2V_5B.model
+            ) {
+                throw new Error("RUNPOD_WAN22_JOB_CONTRACT_INVALID");
+            }
+            if (
+                !job.missionId || !job.objectiveId || !job.obligationId ||
+                !/^[a-f0-9]{64}$/i.test(String(job.rootInstructionHash || ""))
+            ) {
+                throw new Error("RUNPOD_DURABLE_IDENTITY_REQUIRED");
+            }
+            if (job.externalApiAllowed !== false) {
+                throw new Error("RUNPOD_EXTERNAL_FALLBACK_FORBIDDEN");
+            }
+        }
+    }
+
+    function assertProviderConfigured() {
+        if (!apiKey) throw new Error("RUNPOD_API_KEY_REQUIRED");
+        if (typeof fetchImpl !== "function") throw new Error("RUNPOD_FETCH_UNAVAILABLE");
+        if (!ssh || !scp || !sshKeygen) throw new Error("RUNPOD_SSH_TOOLCHAIN_UNAVAILABLE");
+    }
+
+    function assertPaidResourceCreationAuthority() {
+        if (paidResourceCreationAuthorized !== true) {
+            throw new Error("RUNPOD_PAID_RESOURCE_CREATION_NOT_AUTHORIZED");
         }
     }
 
@@ -1269,6 +1399,217 @@ export function createRunpodRemoteVideoAdapter({
         return createHash("sha256")
             .update(`${job.missionId}\n${job.objectiveId}\n${job.obligationId}\n${job.rootInstructionHash}`)
             .digest("hex");
+    }
+
+    function localDurableStates(job) {
+        if (!fs.existsSync(stateRoot)) return [];
+        const fingerprint = obligationFingerprint(job);
+        return fs.readdirSync(stateRoot)
+            .filter(name => name.endsWith(".json"))
+            .map(name => {
+                try { return readJson(path.join(stateRoot, name)); }
+                catch { return null; }
+            })
+            .filter(Boolean)
+            .filter(state => {
+                try {
+                    return obligationFingerprint(state) === fingerprint;
+                }
+                catch {
+                    return false;
+                }
+            });
+    }
+
+    function assertNoLocalDuplicateObligation(job) {
+        const active = localDurableStates(job).filter(state =>
+            Boolean(state.podId) && !["RELEASED", "TERMINATED"].includes(String(state.phase || ""))
+        );
+        if (active.length > 0) throw new Error("RUNPOD_LOCAL_DUPLICATE_OBLIGATION_BLOCKED");
+        return active.length;
+    }
+
+    function expectedCacheStatus(networkVolume) {
+        if (!networkVolume?.id) return "CACHE_MISS";
+        const reusable = fs.existsSync(stateRoot)
+            ? fs.readdirSync(stateRoot)
+                .filter(name => name.endsWith(".json"))
+                .map(name => {
+                    try { return readJson(path.join(stateRoot, name)); }
+                    catch { return null; }
+                })
+                .filter(Boolean)
+                .some(state =>
+                    state.networkVolumeId === networkVolume.id &&
+                    state.cacheProfile === RUNPOD_WAN22_CACHE_CONTRACT.profile &&
+                    state.runtimePreflightVerified === true &&
+                    ["CACHE_READY", "CACHE_HIT"].includes(String(state.cacheStatus || ""))
+                )
+            : false;
+        return reusable ? "CACHE_HIT_EXPECTED_PHYSICAL_VERIFY_REQUIRED" : "CACHE_MISS";
+    }
+
+    function normalizedPlannedNetworkVolume(networkVolume) {
+        if (!networkVolumeId) return null;
+        const id = String(networkVolume?.id || "").trim();
+        const dataCenterId = String(networkVolume?.dataCenterId || "").trim();
+        const sizeGb = Number(networkVolume?.sizeGb || 0);
+        if (id !== networkVolumeId || !dataCenterId || !Number.isFinite(sizeGb)) {
+            throw new Error("RUNPOD_NETWORK_VOLUME_RESPONSE_INVALID");
+        }
+        if (sizeGb < RUNPOD_WAN22_CACHE_CONTRACT.minimumNetworkVolumeGb) {
+            throw new Error("RUNPOD_NETWORK_VOLUME_CAPACITY_INSUFFICIENT");
+        }
+        return { id, dataCenterId, sizeGb };
+    }
+
+    function buildProvisionBody(job, publicKey, networkVolume = null) {
+        const body = {
+            cloudType,
+            computeType: "GPU",
+            containerDiskInGb,
+            volumeMountPath: "/workspace",
+            gpuCount: 1,
+            gpuTypeIds: [gpuTypeId],
+            gpuTypePriority: "custom",
+            imageName,
+            interruptible: false,
+            minRAMPerGPU: minimumRamGb,
+            minVCPUPerGPU: minimumVcpu,
+            ports: ["22/tcp"],
+            supportPublicIp: true,
+            name: `jarvis-v142-${obligationFingerprint(job).slice(0, 24)}`,
+            env: {
+                PUBLIC_KEY: String(publicKey || ""),
+                JARVIS_OPERATION_ID: job.operationId,
+                JARVIS_OBLIGATION_FINGERPRINT: obligationFingerprint(job)
+            }
+        };
+        if (networkVolume) {
+            body.networkVolumeId = networkVolume.id;
+            body.dataCenterIds = [networkVolume.dataCenterId];
+        }
+        else {
+            body.volumeInGb = volumeInGb;
+        }
+        return body;
+    }
+
+    function assertProvisionBody(body, networkVolume = null) {
+        if (
+            body.cloudType !== cloudType || body.computeType !== "GPU" ||
+            body.containerDiskInGb !== containerDiskInGb || body.volumeMountPath !== "/workspace" ||
+            body.gpuCount !== 1 || body.gpuTypeIds?.length !== 1 || body.gpuTypeIds[0] !== "NVIDIA A40" ||
+            body.imageName !== RUNPOD_WAN22_CACHE_CONTRACT.imageReference ||
+            body.interruptible !== false || body.minRAMPerGPU < 50 || body.minVCPUPerGPU < 9 ||
+            !Array.isArray(body.ports) || !body.ports.includes("22/tcp") ||
+            !String(body.env?.PUBLIC_KEY || "").trim() ||
+            !String(body.env?.JARVIS_OPERATION_ID || "").trim() ||
+            !/^[a-f0-9]{64}$/.test(String(body.env?.JARVIS_OBLIGATION_FINGERPRINT || ""))
+        ) {
+            throw new Error("RUNPOD_PROVISION_PAYLOAD_INCOMPLETE");
+        }
+        if (networkVolume) {
+            if (
+                body.cloudType !== "SECURE" || body.networkVolumeId !== networkVolume.id ||
+                body.dataCenterIds?.length !== 1 || body.dataCenterIds[0] !== networkVolume.dataCenterId ||
+                Object.hasOwn(body, "volumeInGb")
+            ) {
+                throw new Error("RUNPOD_NETWORK_VOLUME_PAYLOAD_INVALID");
+            }
+        }
+        else if (body.volumeInGb !== volumeInGb || Object.hasOwn(body, "networkVolumeId")) {
+            throw new Error("RUNPOD_EPHEMERAL_VOLUME_PAYLOAD_INVALID");
+        }
+    }
+
+    function inspectZeroCostPrecheck({ job, networkVolume = null, availability = null } = {}) {
+        try {
+            assertZeroCostConfiguration(job);
+            assertNoLocalDuplicateObligation(job);
+            const plannedVolume = normalizedPlannedNetworkVolume(networkVolume);
+            if (availability) {
+                if (
+                    availability.gpuTypeId !== gpuTypeId || Number(availability.vramGb || 0) < 24 ||
+                    !["High", "Medium", "Low"].includes(String(availability.stockStatus || "")) ||
+                    !Number.isFinite(Number(availability.hourlyRateUsd)) || Number(availability.hourlyRateUsd) <= 0
+                ) {
+                    throw new Error("RUNPOD_COMPATIBLE_GPU_UNAVAILABLE");
+                }
+            }
+            const operationDir = path.join(stateRoot, job.operationId);
+            const assets = buildAssetManifest(job, operationDir);
+            if (assets.length < 1) throw new Error("RUNPOD_REFERENCE_ASSET_REQUIRED");
+            const body = buildProvisionBody(job, "[EPHEMERAL_PUBLIC_KEY]", plannedVolume);
+            assertProvisionBody(body, plannedVolume);
+            const hourlyRateUsd = Math.max(
+                Number(availability?.hourlyRateUsd || 0),
+                configuredTotalHourlyRateUsd
+            );
+            if (!(hourlyRateUsd > 0)) throw new Error("RUNPOD_HOURLY_RATE_INVALID");
+            const maximumSpendBeforeCleanupUsd = Number((hardBudgetUsd * budgetStopRatio).toFixed(6));
+            const maximumAuthorizedSeconds = Math.floor(
+                maximumSpendBeforeCleanupUsd * 3600 / hourlyRateUsd
+            );
+            return {
+                ok: true,
+                phase: "ZERO_COST_PRECHECK",
+                canonicalSha: configuredCanonicalSha,
+                bridgeIdentity: "BRIDGE_IDENTITY_OK",
+                policy: configuredPolicy,
+                backend: configuredBackend,
+                paidResourceCreationAuthorized,
+                paidResourceCreationPossible: paidResourceCreationAuthorized && Boolean(apiKey),
+                zeroCostChecks: [...RUNPOD_ZERO_COST_PRECHECKS],
+                physicalPaidChecks: [...RUNPOD_PHYSICAL_PAID_PREFLIGHTS],
+                payload: body,
+                economics: {
+                    hourlyRateUsd,
+                    hardBudgetUsd,
+                    stopRatio: budgetStopRatio,
+                    maximumSpendBeforeCleanupUsd,
+                    maximumAuthorizedSeconds
+                },
+                cache: {
+                    profile: RUNPOD_WAN22_CACHE_CONTRACT.profile,
+                    expectedStatus: expectedCacheStatus(plannedVolume),
+                    modelBytes: RUNPOD_WAN22_CACHE_CONTRACT.expectedModelBytes,
+                    workspaceReserveBytes: RUNPOD_WAN22_CACHE_CONTRACT.workspaceReserveBytes,
+                    peakWorkspaceBytes: RUNPOD_WAN22_CACHE_CONTRACT.peakWorkspaceBytes,
+                    minimumNetworkVolumeGb: RUNPOD_WAN22_CACHE_CONTRACT.minimumNetworkVolumeGb,
+                    modelPath: `${remoteBase}/cache/wan22-ti2v-5b/model`,
+                    repositoryPath: `${remoteBase}/cache/wan22-ti2v-5b/Wan2.2`,
+                    virtualEnvironmentPath: `${remoteBase}/cache/wan22-ti2v-5b/venv`,
+                    huggingFaceMetadataPath: `${remoteBase}/cache/wan22-ti2v-5b/model/.cache/huggingface`,
+                    temporaryBuildPath: "/tmp"
+                },
+                assets: assets.map(asset => ({
+                    output: asset.output,
+                    role: asset.role,
+                    bytes: asset.bytes,
+                    sha256: asset.sha256,
+                    remoteFile: asset.remoteFile
+                })),
+                contract: {
+                    imageReference: RUNPOD_WAN22_CACHE_CONTRACT.imageReference,
+                    modelRepository: RUNPOD_WAN22_CACHE_CONTRACT.modelRepository,
+                    modelRevision: RUNPOD_WAN22_CACHE_CONTRACT.modelRevision,
+                    wanRepositoryRevision: RUNPOD_WAN22_CACHE_CONTRACT.wanRepositoryRevision,
+                    requirementsSha256: RUNPOD_WAN22_CACHE_CONTRACT.requirementsSha256,
+                    requiredFiles: RUNPOD_WAN22_CACHE_CONTRACT.requiredFiles.map(item => ({ ...item }))
+                }
+            };
+        }
+        catch(error) {
+            return {
+                ok: false,
+                phase: "ZERO_COST_PRECHECK",
+                status: error?.message || "RUNPOD_ZERO_COST_PRECHECK_FAILED",
+                error: error?.message || "RUNPOD_ZERO_COST_PRECHECK_FAILED",
+                paidResourceCreationAuthorized,
+                paidResourceCreationPossible: false
+            };
+        }
     }
 
     function readState(operation) {
@@ -1548,6 +1889,8 @@ export function createRunpodRemoteVideoAdapter({
             wanRepositoryRevision: RUNPOD_WAN22_CACHE_CONTRACT.wanRepositoryRevision,
             expectedModelBytes: RUNPOD_WAN22_CACHE_CONTRACT.expectedModelBytes,
             requiredRuntimeModelBytes: RUNPOD_WAN22_CACHE_CONTRACT.requiredRuntimeModelBytes,
+            workspaceReserveBytes: RUNPOD_WAN22_CACHE_CONTRACT.workspaceReserveBytes,
+            peakWorkspaceBytes: RUNPOD_WAN22_CACHE_CONTRACT.peakWorkspaceBytes,
             requiredFiles: RUNPOD_WAN22_CACHE_CONTRACT.requiredFiles
         });
         const bootstrap = [
@@ -1563,6 +1906,13 @@ export function createRunpodRemoteVideoAdapter({
             `PREFLIGHT_RESULT=${shellSingleQuote(preflightResultFile)}`,
             `CONSTRAINTS=${shellSingleQuote(constraintsFile)}`,
             `FILTERED_REQUIREMENTS=${shellSingleQuote(filteredRequirementsFile)}`,
+            "export HF_HOME=\"$CACHE_ROOT/.cache/huggingface\"",
+            "export HF_HUB_CACHE=\"$HF_HOME/hub\"",
+            "export HF_XET_CACHE=\"$HF_HOME/xet\"",
+            "export HF_XET_CHUNK_CACHE_SIZE_BYTES=0",
+            "export HF_XET_SHARD_CACHE_SIZE_LIMIT=0",
+            "export PIP_NO_CACHE_DIR=1",
+            "export TMPDIR=/tmp",
             `export JARVIS_OPERATION_ID=${shellSingleQuote(path.basename(path.dirname(bootstrapFile)))}`,
             `PROGRESS=${shellSingleQuote(`${remoteBase}/operations`)}/$JARVIS_OPERATION_ID/bootstrap-progress.json`,
             "mkdir -p \"$CACHE_ROOT\" \"$(dirname \"$PROGRESS\")\"",
@@ -1602,17 +1952,20 @@ export function createRunpodRemoteVideoAdapter({
             "PY",
             "CACHE_VALID=0",
             `python3 - \"$CACHE_MANIFEST\" \"$MODEL_DIR\" \"$WAN_REPO\" \"$VENV\" ${shellSingleQuote(contractJson)} <<'PY' && CACHE_VALID=1 || true`,
-            "import json,os,subprocess,sys",
+            "import hashlib,json,os,subprocess,sys",
             "manifest_path,model_dir,repo_dir,venv_dir,expected_raw=sys.argv[1:]",
             "expected=json.loads(expected_raw)",
             "actual=json.load(open(manifest_path,encoding='utf-8'))",
-            "keys=('profile','imageReference','pythonVersionPrefix','torchVersionPrefix','torchCudaVersionPrefix','computeCapability','requirementsSha256','flashAttentionVersion','modelRepository','modelRevision','wanRepositoryRevision','expectedModelBytes','requiredRuntimeModelBytes')",
+            "keys=('profile','imageReference','pythonVersionPrefix','torchVersionPrefix','torchCudaVersionPrefix','computeCapability','requirementsSha256','flashAttentionVersion','modelRepository','modelRevision','wanRepositoryRevision','expectedModelBytes','requiredRuntimeModelBytes','workspaceReserveBytes','peakWorkspaceBytes')",
             "assert all(actual.get(k)==expected.get(k) for k in keys)",
             "assert os.path.isfile(os.path.join(repo_dir,'generate.py')) and os.path.isfile(os.path.join(venv_dir,'bin','python'))",
             "assert subprocess.check_output(['git','-C',repo_dir,'rev-parse','HEAD'],text=True).strip()==expected['wanRepositoryRevision']",
             "assert open(os.path.join(os.path.dirname(manifest_path),'requirements.sha256'),encoding='utf-8').read().strip()==expected['requirementsSha256']",
             "for item in expected['requiredFiles']:",
-            "    assert os.path.getsize(os.path.join(model_dir,item['path']))==item['bytes']",
+            "    target=os.path.join(model_dir,item['path']); assert os.path.getsize(target)==item['bytes']",
+            "    digest=hashlib.sha256(); f=open(target,'rb')",
+            "    for chunk in iter(lambda:f.read(8*1024*1024),b''): digest.update(chunk)",
+            "    assert digest.hexdigest()==item['sha256']",
             "PY",
             `if test \"$CACHE_VALID\" = 1 && \"$VENV/bin/python\" \"$PREFLIGHT\" ${shellSingleQuote(contractJson)} \"$WAN_REPO\" \"$PREFLIGHT_RESULT\"; then progress CACHE_VALIDATE READY CACHE_HIT; exit 0; fi`,
             "rm -f \"$CACHE_MANIFEST\"",
@@ -1788,7 +2141,7 @@ export function createRunpodRemoteVideoAdapter({
             "'cudaProbe':probe,'vramGb':round(torch.cuda.get_device_properties(0).total_memory/1073741824,2) if cuda else 0,'freeDiskGb':round(p.free/1073741824,2)," +
             "'ffmpeg':bool(shutil.which('ffmpeg')),'ffprobe':bool(shutil.which('ffprobe')),'nvcc':bool(shutil.which('nvcc'))}; " +
             (full
-                ? `r=json.load(open('${runtimePreflightFile}',encoding='utf-8')) if os.path.isfile('${runtimePreflightFile}') else {}; d.update({'runner':os.path.isfile('${state.remoteOperationDir}/jarvis-local-video-wan22.py'),'wanRepository':os.path.isfile('${cacheRoot}/Wan2.2/generate.py'),'wanModel':os.path.isfile('${cacheRoot}/cache-manifest.json'),'dependencyContract':r.get('ok') is True,'pipCheck':r.get('pipCheck') is True,'wanCliImport':r.get('wanCliImport') is True,'runtimeCudaProbe':r.get('cudaProbe') is True}); `
+                ? `r=json.load(open('${runtimePreflightFile}',encoding='utf-8')) if os.path.isfile('${runtimePreflightFile}') else {}; d.update({'runner':os.path.isfile('${state.remoteOperationDir}/jarvis-local-video-wan22.py'),'wanRepository':os.path.isfile('${cacheRoot}/Wan2.2/generate.py'),'wanModel':os.path.isfile('${cacheRoot}/cache-manifest.json'),'dependencyContract':r.get('ok') is True,'pipCheck':r.get('pipCheck') is True,'wanCliImport':r.get('wanCliImport') is True,'runtimeCudaProbe':r.get('cudaProbe') is True,'flashAttention':r.get('flashAttentionVersion')=='${RUNPOD_WAN22_CACHE_CONTRACT.flashAttentionVersion}','imports':bool(r.get('imports')) and all(r.get('imports',{}).values())}); `
                 : "") +
             "print(json.dumps(d))"
         )}`;
@@ -1811,7 +2164,8 @@ export function createRunpodRemoteVideoAdapter({
             health.ffmpeg !== true || health.ffprobe !== true || health.runner !== true ||
             health.wanRepository !== true || health.wanModel !== true ||
             health.dependencyContract !== true || health.pipCheck !== true ||
-            health.wanCliImport !== true ||
+            health.wanCliImport !== true || health.flashAttention !== true ||
+            health.imports !== true ||
             (health.runtimeCudaProbe !== true && health.cudaProbe !== true)
         )) {
             throw new Error("RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED");
@@ -1820,13 +2174,9 @@ export function createRunpodRemoteVideoAdapter({
     }
 
     async function launch({ job }) {
-        assertConfigured();
-        if (
-            job.executionTarget !== "remote" || job.backend !== WAN22_TI2V_5B.backend ||
-            !job.missionId || !job.objectiveId || !job.obligationId || !job.rootInstructionHash
-        ) {
-            throw new Error("RUNPOD_DURABLE_IDENTITY_REQUIRED");
-        }
+        assertZeroCostConfiguration(job);
+        assertPaidResourceCreationAuthority();
+        assertProviderConfigured();
         const file = stateFile(job.operationId);
         if (fs.existsSync(file)) {
             const existing = readJson(file);
@@ -1838,35 +2188,13 @@ export function createRunpodRemoteVideoAdapter({
             await assertNoExistingOperationPod(job);
             const networkVolume = await resolveNetworkVolume();
             const availability = await queryAvailability(networkVolume?.dataCenterId || null);
+            const zeroCostPrecheck = inspectZeroCostPrecheck({ job, networkVolume, availability });
+            if (zeroCostPrecheck.ok !== true) {
+                throw new Error(zeroCostPrecheck.error || "RUNPOD_ZERO_COST_PRECHECK_FAILED");
+            }
             const provisionedAt = now().toISOString();
-            const body = {
-                cloudType,
-                computeType: "GPU",
-                containerDiskInGb,
-                volumeMountPath: "/workspace",
-                gpuCount: 1,
-                gpuTypeIds: [gpuTypeId],
-                gpuTypePriority: "custom",
-                imageName,
-                interruptible: false,
-                minRAMPerGPU: minimumRamGb,
-                minVCPUPerGPU: minimumVcpu,
-                ports: ["22/tcp"],
-                supportPublicIp: true,
-                name: `jarvis-v142-${obligationFingerprint(job).slice(0, 24)}`,
-                env: {
-                    PUBLIC_KEY: prepared.publicKey,
-                    JARVIS_OPERATION_ID: job.operationId,
-                    JARVIS_OBLIGATION_FINGERPRINT: obligationFingerprint(job)
-                }
-            };
-            if (networkVolume) {
-                body.networkVolumeId = networkVolume.id;
-                body.dataCenterIds = [networkVolume.dataCenterId];
-            }
-            else {
-                body.volumeInGb = volumeInGb;
-            }
+            const body = buildProvisionBody(job, prepared.publicKey, networkVolume);
+            assertProvisionBody(body, networkVolume);
             const pod = await apiRequest(`${apiBase}/pods`, {
                 method: "POST",
                 body: JSON.stringify(body)
@@ -1891,10 +2219,14 @@ export function createRunpodRemoteVideoAdapter({
                 vramGb: actualVram,
                 hourlyRateUsd,
                 hardBudgetUsd,
+                budgetStopRatio,
+                maximumSpendBeforeCleanupUsd: zeroCostPrecheck.economics.maximumSpendBeforeCleanupUsd,
+                maximumAuthorizedSeconds: zeroCostPrecheck.economics.maximumAuthorizedSeconds,
                 networkVolumeId: networkVolume?.id || null,
                 networkVolumeDataCenterId: networkVolume?.dataCenterId || null,
                 networkVolumeSizeGb: networkVolume?.sizeGb || null,
                 cacheProfile: RUNPOD_WAN22_CACHE_CONTRACT.profile,
+                expectedCacheStatus: zeroCostPrecheck.cache.expectedStatus,
                 imageReference: imageName,
                 cacheStatus: "CACHE_MISS",
                 bootstrapTimeoutSeconds,
@@ -1907,6 +2239,10 @@ export function createRunpodRemoteVideoAdapter({
                 objectiveId: job.objectiveId,
                 obligationId: job.obligationId,
                 rootInstructionHash: job.rootInstructionHash,
+                zeroCostPrecheck: {
+                    ...zeroCostPrecheck,
+                    payload: zeroCostPrecheck.payload
+                },
                 ...prepared,
                 stageTimeline: {
                     provision: { status: "READY", startedAt: provisionedAt, completedAt: provisionedAt }
@@ -2023,7 +2359,7 @@ export function createRunpodRemoteVideoAdapter({
     }
 
     async function pollRemote({ operation, resultFile }) {
-        assertConfigured();
+        assertProviderConfigured();
         const loaded = readState(operation);
         let state = loaded.state;
         const cost = rentalCost(state);
@@ -2230,7 +2566,7 @@ export function createRunpodRemoteVideoAdapter({
     }
 
     async function release(receipt = {}) {
-        assertConfigured();
+        assertProviderConfigured();
         let loaded;
         try {
             loaded = readState(receipt);
@@ -2309,12 +2645,19 @@ export function createRunpodRemoteVideoAdapter({
     }
 
     function inspectHardware() {
-        const configured = provider === "runpod" && Boolean(apiKey) && Boolean(ssh && scp && sshKeygen);
+        let configurationStatus = "RUNPOD_PROVISIONING_CONFIGURED";
+        try {
+            assertZeroCostConfiguration();
+            assertPaidResourceCreationAuthority();
+            assertProviderConfigured();
+        }
+        catch(error) {
+            configurationStatus = error?.message || "RUNPOD_PROVISIONING_NOT_CONFIGURED";
+        }
+        const configured = configurationStatus === "RUNPOD_PROVISIONING_CONFIGURED";
         return {
             ok: configured,
-            status: configured
-                ? "RUNPOD_PROVISIONING_CONFIGURED"
-                : "RUNPOD_API_KEY_REQUIRED",
+            status: configurationStatus,
             cudaAvailable: null,
             gpuName: null,
             gpuIndex: null,
@@ -2330,11 +2673,16 @@ export function createRunpodRemoteVideoAdapter({
                 : containerDiskInGb + volumeInGb,
             physicalHealthVerified: false,
             runtimePreflightVerified: false,
-            readinessLevel: "PROVISIONING_CONFIGURED",
+            zeroCostPrecheckAvailable: true,
+            paidResourceCreationAuthorized,
+            paidResourceCreationPossible: configured,
+            readinessLevel: configured ? "PROVISIONING_CONFIGURED" : "ZERO_COST_ONLY",
             remoteProvisioning: true,
             provider: "runpod",
             imageReference: imageName,
             hardBudgetUsd,
+            budgetStopRatio,
+            maximumSpendBeforeCleanupUsd: Number((hardBudgetUsd * budgetStopRatio).toFixed(6)),
             networkVolumeId: networkVolumeId || null,
             cacheProfile: RUNPOD_WAN22_CACHE_CONTRACT.profile,
             bootstrapTimeoutSeconds,
@@ -2345,8 +2693,9 @@ export function createRunpodRemoteVideoAdapter({
     return {
         version: JARVIS_RUNPOD_ADAPTER_VERSION,
         provider: "runpod",
-        configured: provider === "runpod" && Boolean(apiKey),
+        configured: provider === "runpod" && Boolean(apiKey) && paidResourceCreationAuthorized,
         inspectHardware,
+        inspectZeroCostPrecheck,
         launch,
         poll: pollRemote,
         release

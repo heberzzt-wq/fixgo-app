@@ -123,16 +123,22 @@ function mockHttpResponse(status, payload = null) {
 
 function runpodPhysicalHarness({
     scenario = "success",
+    rootOverride = null,
     clock = null,
     availability = {},
     apiKey = "test-runpod-api-key-never-persist",
     networkVolumeId = "",
     networkVolumeSizeGb = 50,
     bootstrapProgressSequence = [],
+    baseHealthOverrides = {},
+    runtimeHealthOverrides = {},
+    bridgeIdentity = { ok: true, status: "BRIDGE_IDENTITY_OK" },
+    resolvedCanonicalSha = null,
+    emptyPublicKey = false,
     envOverrides = {},
     durableIdentity = null
 } = {}) {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), `jarvis-runpod-${scenario}-`));
+    const root = rootOverride || fs.mkdtempSync(path.join(os.tmpdir(), `jarvis-runpod-${scenario}-`));
     const runner = path.join(root, "jarvis-local-video-wan22.py");
     fs.writeFileSync(runner, "# controlled existing V142 runner\n");
     const referenceOutput = ".jarvis-artifacts/images/runpod-reference.png";
@@ -150,6 +156,8 @@ function runpodPhysicalHarness({
         JARVIS_RUNPOD_GPU_TYPE_ID: "NVIDIA A40",
         JARVIS_RUNPOD_CLOUD_TYPE: networkVolumeId ? "SECURE" : "COMMUNITY",
         JARVIS_REMOTE_GPU_HARD_BUDGET_USD: "2",
+        JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "true",
+        JARVIS_RUNPOD_CANONICAL_SHA: "c784dc38a9e3be7f070ec918cc1c5a27c587a37e",
         JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS: "7200",
         JARVIS_SSH_PATH: process.execPath,
         JARVIS_SCP_PATH: process.execPath,
@@ -169,6 +177,7 @@ function runpodPhysicalHarness({
     let healthCalls = 0;
     let transportTimeouts = 0;
     let bootstrapStarts = 0;
+    let inferenceStarts = 0;
     let bootstrapMarkerChecks = 0;
     let bootstrapProgressChecks = 0;
     let availabilityTransportFailures = scenario === "availability-transport-once" ? 1 : 0;
@@ -337,9 +346,12 @@ function runpodPhysicalHarness({
                     dependencyContract: scenario === "runtime-health-fail" && healthCalls > 1 ? false : true,
                     pipCheck: scenario === "runtime-health-fail" && healthCalls > 1 ? false : true,
                     wanCliImport: scenario === "runtime-health-fail" && healthCalls > 1 ? false : true,
+                    flashAttention: scenario === "runtime-health-fail" && healthCalls > 1 ? false : true,
+                    imports: scenario === "runtime-health-fail" && healthCalls > 1 ? false : true,
                     cudaProbe: true,
                     runtimeCudaProbe: scenario === "runtime-health-fail" && healthCalls > 1 ? false : true
                 };
+            Object.assign(health, healthCalls > 1 ? runtimeHealthOverrides : baseHealthOverrides);
             return { stdout: `${JSON.stringify(health)}\n`, stderr: "", exitCode: 0 };
         }
         if (command.includes("sha256sum") && command.includes("stat -c")) {
@@ -376,7 +388,10 @@ function runpodPhysicalHarness({
             }
             return { stdout: "READY\n", stderr: "", exitCode: 0 };
         }
-        if (command.includes("echo $!")) return { stdout: "4242\n", stderr: "", exitCode: 0 };
+        if (command.includes("echo $!")) {
+            if (command.includes("jarvis-local-video-wan22.py")) inferenceStarts += 1;
+            return { stdout: "4242\n", stderr: "", exitCode: 0 };
+        }
         if (command.includes("kill -0")) return { stdout: "RESULT\n", stderr: "", exitCode: 0 };
         if (command.startsWith("cat ")) {
             const result = scenario === "job-failure"
@@ -412,10 +427,19 @@ function runpodPhysicalHarness({
 
     const generateKeyPair = ({ privateKeyFile, publicKeyFile }) => {
         fs.writeFileSync(privateKeyFile, "controlled-private-key");
-        fs.writeFileSync(publicKeyFile, "ssh-ed25519 controlled-public-key jarvis-test\n");
+        fs.writeFileSync(publicKeyFile, emptyPublicKey ? "" : "ssh-ed25519 controlled-public-key jarvis-test\n");
     };
     const now = () => new Date(clock?.value || "2026-08-27T12:00:00.000Z");
-    const adapter = createRunpodRemoteVideoAdapter({ root, env, fetchImpl, execute, generateKeyPair, now });
+    const adapter = createRunpodRemoteVideoAdapter({
+        root,
+        env,
+        fetchImpl,
+        execute,
+        generateKeyPair,
+        now,
+        inspectBridgeIdentity: () => bridgeIdentity,
+        resolveCanonicalSha: () => resolvedCanonicalSha || env.JARVIS_RUNPOD_CANONICAL_SHA
+    });
     const engine = createLocalVideoEngine({
         root,
         env,
@@ -436,18 +460,36 @@ function runpodPhysicalHarness({
         obligationId: durableIdentity?.obligationId || `video.generate:runpod-${scenario}`,
         rootInstructionHash: durableIdentity?.rootInstructionHash || createHash("sha256").update(`root-${scenario}`).digest("hex")
     };
+    const dryRunJob = {
+        operationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        operationName: "local-video/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        executionTarget: "remote",
+        backend: "wan22-ti2v-5b",
+        model: "Wan2.2-TI2V-5B",
+        missionId: payload.missionId,
+        objectiveId: payload.objectiveId,
+        obligationId: payload.obligationId,
+        rootInstructionHash: payload.rootInstructionHash,
+        externalApiAllowed: false,
+        referenceOutputs: [referenceOutput],
+        referenceFiles: [referenceFile],
+        sourceReferenceOutputs: [referenceOutput],
+        sourceReferenceFiles: [referenceFile]
+    };
     return {
         root,
         env,
         adapter,
         engine,
         payload,
+        dryRunJob,
         calls,
         get createdBody() { return createdBody; },
         get podGets() { return podGets; },
         get deleted() { return deleted; },
         get orphanDeleted() { return orphanDeleted; },
-        get bootstrapStarts() { return bootstrapStarts; }
+        get bootstrapStarts() { return bootstrapStarts; },
+        get inferenceStarts() { return inferenceStarts; }
     };
 }
 
@@ -459,6 +501,128 @@ async function pollRunpodUntilDone(engine, operationName, maximumPolls = 8) {
     }
     assert.fail(`RunPod mock did not finish: ${JSON.stringify(current)}`);
 }
+
+test("V142 RunPod zero-cost dry run exposes the exact sanitized future Pod payload without provider traffic", () => {
+    const harness = runpodPhysicalHarness({
+        scenario: "zero-cost-dry-run",
+        networkVolumeId: "future-network-volume-v142"
+    });
+    const report = harness.adapter.inspectZeroCostPrecheck({
+        job: harness.dryRunJob,
+        networkVolume: {
+            id: "future-network-volume-v142",
+            dataCenterId: "CA-MTL-1",
+            sizeGb: 50
+        },
+        availability: {
+            gpuTypeId: "NVIDIA A40",
+            vramGb: 48,
+            hourlyRateUsd: 0.44,
+            stockStatus: "Low"
+        }
+    });
+    assert.equal(report.ok, true, JSON.stringify(report));
+    assert.equal(report.phase, "ZERO_COST_PRECHECK");
+    assert.equal(report.paidResourceCreationAuthorized, true);
+    assert.equal(report.payload.networkVolumeId, "future-network-volume-v142");
+    assert.deepEqual(report.payload.dataCenterIds, ["CA-MTL-1"]);
+    assert.equal(report.payload.cloudType, "SECURE");
+    assert.equal(report.payload.computeType, "GPU");
+    assert.deepEqual(report.payload.gpuTypeIds, ["NVIDIA A40"]);
+    assert.match(report.payload.imageName, /@sha256:[a-f0-9]{64}$/);
+    assert.equal(report.payload.env.PUBLIC_KEY, "[EPHEMERAL_PUBLIC_KEY]");
+    assert.equal(JSON.stringify(report).includes(harness.env.RUNPOD_API_KEY), false);
+    assert.equal(JSON.stringify(report).includes("PRIVATE KEY"), false);
+    assert.equal(report.economics.hardBudgetUsd, 2);
+    assert.equal(report.economics.stopRatio, 0.95);
+    assert.equal(report.economics.maximumSpendBeforeCleanupUsd, 1.9);
+    assert.equal(report.cache.expectedStatus, "CACHE_MISS");
+    assert.equal(harness.calls.length, 0);
+});
+
+test("V142 RunPod paid creation authority defaults closed and blocks before all provider traffic", async () => {
+    const harness = runpodPhysicalHarness({
+        scenario: "paid-authority-closed",
+        envOverrides: { JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false" }
+    });
+    const started = await harness.engine.start(harness.payload);
+    assert.equal(started.ok, false, JSON.stringify(started));
+    assert.match(started.error, /RUNPOD_PAID_RESOURCE_CREATION_NOT_AUTHORIZED/);
+    assert.equal(harness.createdBody, null);
+    assert.equal(harness.calls.length, 0);
+});
+
+test("V142 RunPod missing explicit hard budget blocks before all provider traffic", async () => {
+    const harness = runpodPhysicalHarness({
+        scenario: "hard-budget-missing",
+        envOverrides: { JARVIS_REMOTE_GPU_HARD_BUDGET_USD: "" }
+    });
+    const started = await harness.engine.start(harness.payload);
+    assert.equal(started.ok, false, JSON.stringify(started));
+    assert.match(started.error, /RUNPOD_HARD_BUDGET_REQUIRED/);
+    assert.equal(harness.createdBody, null);
+    assert.equal(harness.calls.length, 0);
+});
+
+test("V142 RunPod zero-cost precheck fails closed on every static pre-Pod contract", async t => {
+    const cases = [
+        ["canonical SHA mismatch", { resolvedCanonicalSha: "0".repeat(40) }, null, "RUNPOD_CANONICAL_SHA_MISMATCH"],
+        ["bridge identity invalid", { bridgeIdentity: { ok: false, status: "BRIDGE_IDENTITY_INVALID" } }, null, "RUNPOD_BRIDGE_IDENTITY_REQUIRED"],
+        ["policy is not LOCAL_TEST", { envOverrides: { JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_PREFERRED" } }, null, "RUNPOD_LOCAL_TEST_POLICY_REQUIRED"],
+        ["backend is not Wan2.2", { envOverrides: { JARVIS_LOCAL_VIDEO_MODEL: "wan21-t2v-1.3b" } }, null, "RUNPOD_WAN22_BACKEND_REQUIRED"],
+        ["job model is not approved", {}, job => { job.model = "Wan2.2-unapproved"; }, "RUNPOD_WAN22_JOB_CONTRACT_INVALID"],
+        ["durable root hash is missing", {}, job => { job.rootInstructionHash = ""; }, "RUNPOD_DURABLE_IDENTITY_REQUIRED"],
+        ["reference asset is missing", {}, job => { job.referenceFiles = [path.join(os.tmpdir(), "missing-v142-reference.png")]; }, "RUNPOD_REFERENCE_ASSET_NOT_FOUND"],
+        ["network volume is too small", { networkVolumeId: "volume-small-v142" }, null, "RUNPOD_NETWORK_VOLUME_CAPACITY_INSUFFICIENT"]
+    ];
+    for (const [name, options, mutateJob, expected] of cases) {
+        await t.test(name, () => {
+            const harness = runpodPhysicalHarness({ scenario: `prepod-${name.replaceAll(" ", "-")}`, ...options });
+            const job = structuredClone(harness.dryRunJob);
+            mutateJob?.(job);
+            const report = harness.adapter.inspectZeroCostPrecheck({
+                job,
+                ...(options.networkVolumeId ? {
+                    networkVolume: {
+                        id: options.networkVolumeId,
+                        dataCenterId: "CA-MTL-1",
+                        sizeGb: 40
+                    }
+                } : {})
+            });
+            assert.equal(report.ok, false, JSON.stringify(report));
+            assert.equal(report.error, expected);
+            assert.equal(report.paidResourceCreationPossible, false);
+            assert.equal(harness.calls.length, 0);
+        });
+    }
+});
+
+test("V142 RunPod local durable duplicate and incomplete payload both block before POST /pods", async t => {
+    await t.test("local durable duplicate", () => {
+        const harness = runpodPhysicalHarness({ scenario: "local-durable-duplicate" });
+        const stateRoot = path.join(harness.root, ".jarvis-artifacts", ".video-worker", "runpod");
+        fs.mkdirSync(stateRoot, { recursive: true });
+        fs.writeFileSync(path.join(stateRoot, "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.json"), JSON.stringify({
+            ...harness.dryRunJob,
+            operationId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            podId: "pod-existing-local",
+            phase: "PROVISIONED"
+        }));
+        const report = harness.adapter.inspectZeroCostPrecheck({ job: harness.dryRunJob });
+        assert.equal(report.ok, false, JSON.stringify(report));
+        assert.equal(report.error, "RUNPOD_LOCAL_DUPLICATE_OBLIGATION_BLOCKED");
+        assert.equal(harness.calls.length, 0);
+    });
+    await t.test("empty ephemeral public key", async () => {
+        const harness = runpodPhysicalHarness({ scenario: "payload-empty-public-key", emptyPublicKey: true });
+        const started = await harness.engine.start(harness.payload);
+        assert.equal(started.ok, false, JSON.stringify(started));
+        assert.equal(started.error, "RUNPOD_PROVISION_PAYLOAD_INCOMPLETE");
+        assert.equal(harness.createdBody, null);
+        assert.equal(harness.calls.some(call => call.method === "POST" && call.url.endsWith("/pods")), false);
+    });
+});
 
 test("V142 RunPod adapter provisions one A40 Pod, transfers physical assets, returns verified MP4, and deletes the Pod", async () => {
     const harness = runpodPhysicalHarness();
@@ -518,10 +682,19 @@ test("V142 RunPod adapter provisions one A40 Pod, transfers physical assets, ret
     assert.match(bootstrap, /921dbaf3f1674a56f47e83fb80a34bac8a8f203e/);
     assert.match(bootstrap, /while kill -0 "\$DOWNLOAD_PID"/);
     assert.match(bootstrap, /actual\.get\(k\)==expected\.get\(k\)/);
-    assert.match(bootstrap, /os\.path\.getsize\(os\.path\.join\(model_dir,item\['path'\]\)\)==item\['bytes'\]/);
+    assert.match(bootstrap, /target=os\.path\.join\(model_dir,item\['path'\]\); assert os\.path\.getsize\(target\)==item\['bytes'\]/);
+    assert.match(bootstrap, /assert digest\.hexdigest\(\)==item\['sha256'\]/);
     assert.match(bootstrap, /if test "\$CACHE_VALID" = 1 && "\$VENV\/bin\/python" "\$PREFLIGHT"/);
     assert.match(bootstrap, /progress CACHE_VALIDATE READY CACHE_HIT; exit 0; fi/);
+    assert.ok(
+        bootstrap.indexOf("progress CACHE_VALIDATE READY CACHE_HIT; exit 0; fi")
+            < bootstrap.indexOf('"$VENV/bin/hf" download'),
+        "a physically verified cache hit must exit before the model download command"
+    );
     assert.match(bootstrap, /rm -f "\$CACHE_MANIFEST"\nprogress CACHE_VALIDATE INCOMPLETE CACHE_MISS/);
+    assert.match(bootstrap, /export HF_XET_CHUNK_CACHE_SIZE_BYTES=0/);
+    assert.match(bootstrap, /export HF_XET_SHARD_CACHE_SIZE_LIMIT=0/);
+    assert.match(bootstrap, /export PIP_NO_CACHE_DIR=1/);
     assert.match(bootstrap, /8338a62490c93cfbf908bb289bbaa3fb104e5606415bb48cca6cae5175313c44/);
     assert.match(bootstrap, /flash-attn==2\.8\.3\.post1.*--no-build-isolation/);
     assert.match(bootstrap, /MAX_JOBS=4/);
@@ -642,6 +815,87 @@ test("V142 RunPod records a compatible persistent cache as CACHE_HIT without rep
     assert.equal(completed.status, "VIDEO_GENERATED_VERIFIED");
 });
 
+test("V142 cache recovery survives a new runtime without changing the durable obligation or creating a second Pod", async () => {
+    const progress = {
+        stage: "MODEL_DOWNLOAD",
+        status: "RUNNING",
+        cacheStatus: "CACHE_POPULATING",
+        modelBytes: 12000000000,
+        at: "2026-08-27T12:02:00.000Z"
+    };
+    const first = runpodPhysicalHarness({
+        scenario: "cache-runtime-restart",
+        networkVolumeId: "network-volume-cache-runtime",
+        bootstrapProgressSequence: [progress, progress]
+    });
+    const started = await first.engine.start(first.payload);
+    let interrupted = null;
+    for (let index = 0; index < 8; index += 1) {
+        interrupted = await first.engine.poll({ operationName: started.operationName });
+        if (
+            interrupted.remoteWorker?.phase === "BOOTSTRAPPING" &&
+            interrupted.remoteWorker?.cacheStatus === "CACHE_POPULATING"
+        ) break;
+    }
+    assert.equal(interrupted.remoteWorker.phase, "BOOTSTRAPPING", JSON.stringify(interrupted));
+    assert.equal(interrupted.remoteWorker.cacheStatus, "CACHE_POPULATING");
+    assert.equal(first.inferenceStarts, 0);
+
+    const second = runpodPhysicalHarness({
+        scenario: "cache-runtime-restart",
+        rootOverride: first.root,
+        networkVolumeId: "network-volume-cache-runtime",
+        bootstrapProgressSequence: [progress, {
+            ...progress,
+            stage: "RUNNER_READY",
+            status: "READY",
+            cacheStatus: "CACHE_READY",
+            modelBytes: 34203123497,
+            at: "2026-08-27T12:03:00.000Z"
+        }]
+    });
+    const resumed = await second.engine.start(second.payload);
+    assert.equal(resumed.reusedOperation, true, JSON.stringify(resumed));
+    assert.equal(resumed.operationName, started.operationName);
+    assert.equal(resumed.missionId, started.missionId);
+    assert.equal(resumed.objectiveId, started.objectiveId);
+    assert.equal(resumed.obligationId, started.obligationId);
+    let ready = null;
+    for (let index = 0; index < 8; index += 1) {
+        ready = await second.engine.poll({ operationName: started.operationName });
+        if (ready.remoteWorker?.phase === "JOB_RUNNING") break;
+    }
+    assert.equal(ready.remoteWorker.phase, "JOB_RUNNING", JSON.stringify(ready));
+    assert.equal(ready.remoteWorker.cacheStatus, "CACHE_READY");
+    assert.equal(second.inferenceStarts, 1);
+    assert.equal(second.calls.some(call => call.method === "POST" && call.url.endsWith("/pods")), false);
+
+    const cancelled = await second.engine.cancel({ operationName: started.operationName });
+    assert.equal(cancelled.workerRelease.terminationVerified, true);
+    const third = runpodPhysicalHarness({
+        scenario: "cache-runtime-restart",
+        rootOverride: first.root,
+        networkVolumeId: "network-volume-cache-runtime"
+    });
+    const dryRun = third.adapter.inspectZeroCostPrecheck({
+        job: third.dryRunJob,
+        networkVolume: {
+            id: "network-volume-cache-runtime",
+            dataCenterId: "CA-MTL-1",
+            sizeGb: 50
+        },
+        availability: {
+            gpuTypeId: "NVIDIA A40",
+            vramGb: 48,
+            hourlyRateUsd: 0.44,
+            stockStatus: "Low"
+        }
+    });
+    assert.equal(dryRun.ok, true, JSON.stringify(dryRun));
+    assert.equal(dryRun.cache.expectedStatus, "CACHE_HIT_EXPECTED_PHYSICAL_VERIFY_REQUIRED");
+    assert.equal(third.calls.length, 0);
+});
+
 test("V142 RunPod API key reaches the provider byte-for-byte without local normalization", async () => {
     const exactKey = " controlled-runpod-key-with-boundary-spaces ";
     const harness = runpodPhysicalHarness({
@@ -696,6 +950,38 @@ test("V142 RunPod blocks inference when the complete Wan runtime probe is not he
     assert.equal(failed.remoteWorker.phase, "RUNTIME_PREFLIGHT_FAILED");
     assert.equal(failed.workerRelease.terminationVerified, true);
     assert.equal(harness.deleted, true);
+});
+
+test("V142 every paid physical preflight failure keeps inference stopped and requires Pod deletion", async t => {
+    const cases = [
+        ["physical GPU", { baseHealthOverrides: { gpuName: "NVIDIA RTX 4090" } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
+        ["CUDA", { baseHealthOverrides: { cuda: false, cudaProbe: false } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
+        ["compute capability", { baseHealthOverrides: { computeCapability: "8.9" } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
+        ["Torch", { baseHealthOverrides: { torchVersion: "2.7.0+cu126" } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
+        ["Python", { baseHealthOverrides: { pythonVersion: "3.11.9" } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
+        ["FFmpeg", { baseHealthOverrides: { ffmpeg: false } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
+        ["NVCC", { baseHealthOverrides: { nvcc: false } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
+        ["FlashAttention", { runtimeHealthOverrides: { flashAttention: false, dependencyContract: false } }, "RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED"],
+        ["Python imports", { runtimeHealthOverrides: { imports: false, dependencyContract: false } }, "RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED"],
+        ["pip check", { runtimeHealthOverrides: { pipCheck: false, dependencyContract: false } }, "RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED"],
+        ["CUDA operation", { runtimeHealthOverrides: { runtimeCudaProbe: false, dependencyContract: false } }, "RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED"],
+        ["generate.py help", { runtimeHealthOverrides: { wanCliImport: false, dependencyContract: false } }, "RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED"],
+        ["physical model integrity", { runtimeHealthOverrides: { wanModel: false, dependencyContract: false } }, "RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED"]
+    ];
+    for (const [name, options, expected] of cases) {
+        await t.test(name, async () => {
+            const harness = runpodPhysicalHarness({ scenario: `physical-${name.replaceAll(" ", "-")}`, ...options });
+            const started = await harness.engine.start(harness.payload);
+            assert.equal(started.ok, true, JSON.stringify(started));
+            const failed = await pollRunpodUntilDone(harness.engine, started.operationName);
+            assert.equal(failed.ok, false, JSON.stringify(failed));
+            assert.equal(failed.status, expected);
+            assert.equal(harness.inferenceStarts, 0);
+            assert.equal(failed.workerRelease.terminationVerified, true);
+            assert.equal(harness.deleted, true);
+            assert.equal(listArtifacts({ root: harness.root, type: "video" }).length, 0);
+        });
+    }
 });
 
 test("V142 RunPod availability follows authenticated stockStatus while preserving count, GPU, VRAM and price guards", async t => {

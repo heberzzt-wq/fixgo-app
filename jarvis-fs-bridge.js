@@ -4551,7 +4551,11 @@ export function createJarvisFsBridgeApp({
     const runpodEnabled = String(process.env.JARVIS_REMOTE_GPU_PROVIDER || "")
         .trim().toLowerCase() === "runpod";
     const runpod = runpodEnabled
-        ? createRunpodRemoteVideoAdapter({ root, env: process.env })
+        ? createRunpodRemoteVideoAdapter({
+            root,
+            env: process.env,
+            inspectBridgeIdentity: () => describeJarvisBridgeIdentity(root)
+        })
         : null;
     const videoEngine = localVideoEngine || createLocalVideoEngine({
         root,
