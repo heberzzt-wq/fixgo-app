@@ -125,7 +125,12 @@ function runpodPhysicalHarness({
     scenario = "success",
     clock = null,
     availability = {},
-    apiKey = "test-runpod-api-key-never-persist"
+    apiKey = "test-runpod-api-key-never-persist",
+    networkVolumeId = "",
+    networkVolumeSizeGb = 50,
+    bootstrapProgressSequence = [],
+    envOverrides = {},
+    durableIdentity = null
 } = {}) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), `jarvis-runpod-${scenario}-`));
     const runner = path.join(root, "jarvis-local-video-wan22.py");
@@ -143,7 +148,7 @@ function runpodPhysicalHarness({
         JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT: runner,
         JARVIS_REMOTE_GPU_PROVIDER: "runpod",
         JARVIS_RUNPOD_GPU_TYPE_ID: "NVIDIA A40",
-        JARVIS_RUNPOD_CLOUD_TYPE: "COMMUNITY",
+        JARVIS_RUNPOD_CLOUD_TYPE: networkVolumeId ? "SECURE" : "COMMUNITY",
         JARVIS_REMOTE_GPU_HARD_BUDGET_USD: "2",
         JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS: "7200",
         JARVIS_SSH_PATH: process.execPath,
@@ -153,8 +158,11 @@ function runpodPhysicalHarness({
         PATH: process.env.PATH,
         PATHEXT: process.env.PATHEXT
     };
+    if (networkVolumeId) env.JARVIS_RUNPOD_NETWORK_VOLUME_ID = networkVolumeId;
+    Object.assign(env, envOverrides);
     const calls = [];
     let deleted = false;
+    let orphanDeleted = false;
     let podGets = 0;
     let createdBody = null;
     let capturedJob = null;
@@ -162,6 +170,7 @@ function runpodPhysicalHarness({
     let transportTimeouts = 0;
     let bootstrapStarts = 0;
     let bootstrapMarkerChecks = 0;
+    let bootstrapProgressChecks = 0;
     let availabilityTransportFailures = scenario === "availability-transport-once" ? 1 : 0;
     const remoteAssets = new Map();
     const goodVideo = Buffer.alloc(120000, 7);
@@ -208,12 +217,39 @@ function runpodPhysicalHarness({
                             uninterruptablePrice: availability.hourlyRateUsd ?? 0.44,
                             availableGpuCounts
                         }
-                    }]
+                    }],
+                    ...(query.includes("dataCenters") ? {
+                        dataCenters: [{
+                            id: "CA-MTL-1",
+                            gpuAvailability: [{
+                                gpuTypeId: "NVIDIA A40",
+                                stockStatus: "Low",
+                                available: true
+                            }]
+                        }]
+                    } : {})
                 }
             });
         }
         if (String(url).endsWith("/pods") && (options.method || "GET") === "GET") {
+            if (scenario === "existing-obligation-pod") {
+                const fingerprint = createHash("sha256")
+                    .update(`${payload.missionId}\n${payload.objectiveId}\n${payload.obligationId}\n${payload.rootInstructionHash}`)
+                    .digest("hex");
+                return mockHttpResponse(200, orphanDeleted ? [] : [{
+                    id: "pod-existing-obligation",
+                    name: "untrusted-old-name",
+                    env: { JARVIS_OBLIGATION_FINGERPRINT: fingerprint }
+                }]);
+            }
             return mockHttpResponse(200, []);
+        }
+        if (String(url).includes("/networkvolumes/") && (options.method || "GET") === "GET") {
+            return mockHttpResponse(200, {
+                id: networkVolumeId,
+                dataCenterId: "CA-MTL-1",
+                size: networkVolumeSizeGb
+            });
         }
         if (String(url).endsWith("/pods") && options.method === "POST") {
             createdBody = JSON.parse(options.body);
@@ -230,6 +266,15 @@ function runpodPhysicalHarness({
             if (scenario === "release-fail") return mockHttpResponse(500, { error: "controlled" });
             deleted = true;
             return mockHttpResponse(204);
+        }
+        if (String(url).includes("/pods/pod-existing-obligation") && options.method === "DELETE") {
+            orphanDeleted = true;
+            return mockHttpResponse(204);
+        }
+        if (String(url).includes("/pods/pod-existing-obligation")) {
+            return orphanDeleted
+                ? mockHttpResponse(404, { error: "Pod not found" })
+                : mockHttpResponse(200, { id: "pod-existing-obligation", desiredStatus: "RUNNING" });
         }
         if (String(url).includes("/pods/pod-a40-v142")) {
             podGets += 1;
@@ -303,9 +348,21 @@ function runpodPhysicalHarness({
             bootstrapStarts += 1;
             return { stdout: "", stderr: "", exitCode: 0 };
         }
+        if (command.includes("bootstrap-progress.json") && command.includes("cat ")) {
+            const progress = bootstrapProgressSequence[Math.min(
+                bootstrapProgressChecks,
+                Math.max(0, bootstrapProgressSequence.length - 1)
+            )];
+            bootstrapProgressChecks += 1;
+            return { stdout: progress ? `${JSON.stringify(progress)}\n` : "", stderr: "", exitCode: 0 };
+        }
         if (command.startsWith("if test -f") && command.includes("bootstrap.ready")) {
+            if (scenario === "bootstrap-fail") return { stdout: "FAILED\n", stderr: "", exitCode: 0 };
             if (scenario === "bootstrap-refresh" && bootstrapMarkerChecks++ === 0) {
                 return { stdout: "FAILED\n", stderr: "", exitCode: 0 };
+            }
+            if (bootstrapProgressSequence.length > 0 && bootstrapProgressChecks < bootstrapProgressSequence.length) {
+                return { stdout: "RUNNING\n", stderr: "", exitCode: 0 };
             }
             return { stdout: "READY\n", stderr: "", exitCode: 0 };
         }
@@ -364,10 +421,10 @@ function runpodPhysicalHarness({
         prompts: ["A short controlled vertical shot."],
         referenceOutputs: [referenceOutput],
         output: `.jarvis-artifacts/videos/runpod-${scenario}.mp4`,
-        missionId: `MISSION-RUNPOD-${scenario}`,
-        objectiveId: `OBJECTIVE-RUNPOD-${scenario}`,
-        obligationId: `video.generate:runpod-${scenario}`,
-        rootInstructionHash: createHash("sha256").update(`root-${scenario}`).digest("hex")
+        missionId: durableIdentity?.missionId || `MISSION-RUNPOD-${scenario}`,
+        objectiveId: durableIdentity?.objectiveId || `OBJECTIVE-RUNPOD-${scenario}`,
+        obligationId: durableIdentity?.obligationId || `video.generate:runpod-${scenario}`,
+        rootInstructionHash: durableIdentity?.rootInstructionHash || createHash("sha256").update(`root-${scenario}`).digest("hex")
     };
     return {
         root,
@@ -378,7 +435,9 @@ function runpodPhysicalHarness({
         calls,
         get createdBody() { return createdBody; },
         get podGets() { return podGets; },
-        get deleted() { return deleted; }
+        get deleted() { return deleted; },
+        get orphanDeleted() { return orphanDeleted; },
+        get bootstrapStarts() { return bootstrapStarts; }
     };
 }
 
@@ -431,8 +490,100 @@ test("V142 RunPod adapter provisions one A40 Pod, transfers physical assets, ret
     assert.equal(listArtifacts({ root: harness.root, type: "video" }).length, 1);
     const bootstrap = fs.readFileSync(bootstrapFile, "utf8");
     assert.match(bootstrap, /python3 -m venv --system-site-packages/);
-    assert.match(bootstrap, /\/venv\/bin\/python -m pip install/);
+    assert.match(bootstrap, /"\$VENV\/bin\/python" -m pip install/);
     assert.doesNotMatch(bootstrap, /\npython3 -m pip install/);
+    assert.match(bootstrap, /CACHE_MISS/);
+    assert.match(bootstrap, /CACHE_POPULATING/);
+    assert.match(bootstrap, /CACHE_READY/);
+    assert.match(bootstrap, /CACHE_HIT/);
+    assert.match(bootstrap, /921dbaf3f1674a56f47e83fb80a34bac8a8f203e/);
+    assert.match(bootstrap, /while kill -0 "\$DOWNLOAD_PID"/);
+    assert.match(bootstrap, /actual\.get\(k\)==expected\.get\(k\)/);
+    assert.match(bootstrap, /os\.path\.getsize\(os\.path\.join\(model_dir,item\['path'\]\)\)==item\['bytes'\]/);
+    assert.match(bootstrap, /if test "\$CACHE_VALID" = 1; then progress CACHE_VALIDATE READY CACHE_HIT; exit 0; fi/);
+    assert.match(bootstrap, /rm -f "\$CACHE_MANIFEST"\nprogress CACHE_VALIDATE INCOMPLETE CACHE_MISS/);
+});
+
+test("V142 RunPod attaches an existing Network Volume, pins its datacenter, and never deletes the volume", async () => {
+    const volumeId = "network-volume-wan22-v142";
+    const harness = runpodPhysicalHarness({ networkVolumeId: volumeId });
+    const started = await harness.engine.start(harness.payload);
+    assert.equal(started.ok, true, JSON.stringify(started));
+    assert.equal(harness.createdBody.networkVolumeId, volumeId);
+    assert.deepEqual(harness.createdBody.dataCenterIds, ["CA-MTL-1"]);
+    assert.equal(harness.createdBody.volumeMountPath, "/workspace");
+    assert.equal("volumeInGb" in harness.createdBody, false);
+    assert.equal(started.remoteWorker.networkVolumePersistent, true);
+
+    const cancelled = await harness.engine.cancel({ operationName: started.operationName });
+    assert.equal(cancelled.workerRelease.networkVolumeRetained, true);
+    assert.equal(harness.deleted, true);
+    assert.equal(
+        harness.calls.some(call => call.method === "DELETE" && call.url.includes("networkvolumes")),
+        false
+    );
+});
+
+test("V142 RunPod preserves ephemeral volume behavior when no Network Volume is configured", async () => {
+    const harness = runpodPhysicalHarness();
+    const started = await harness.engine.start(harness.payload);
+    assert.equal(started.ok, true, JSON.stringify(started));
+    assert.equal(harness.createdBody.volumeInGb, 100);
+    assert.equal("networkVolumeId" in harness.createdBody, false);
+    assert.equal(started.remoteWorker.networkVolumePersistent, false);
+    await harness.engine.cancel({ operationName: started.operationName });
+});
+
+test("V142 RunPod rejects an undersized or ambiguous Network Volume before creating a Pod", async () => {
+    const harness = runpodPhysicalHarness({
+        scenario: "undersized-network-volume",
+        networkVolumeId: "network-volume-small",
+        networkVolumeSizeGb: 40
+    });
+    const started = await harness.engine.start(harness.payload);
+    assert.equal(started.ok, false, JSON.stringify(started));
+    assert.equal(started.error, "RUNPOD_NETWORK_VOLUME_CAPACITY_INSUFFICIENT");
+    assert.equal(harness.createdBody, null);
+});
+
+test("V142 RunPod persists cache progress and only promotes a validated cache to ready/hit", async () => {
+    const progress = [
+        { stage: "CACHE_VALIDATE", status: "INCOMPLETE", cacheStatus: "CACHE_MISS", modelBytes: 0, at: "2026-08-27T12:00:01.000Z" },
+        { stage: "MODEL_DOWNLOAD", status: "RUNNING", cacheStatus: "CACHE_POPULATING", modelBytes: 12000000000, at: "2026-08-27T12:00:02.000Z" },
+        { stage: "RUNNER_READY", status: "READY", cacheStatus: "CACHE_READY", modelBytes: 34203123497, at: "2026-08-27T12:00:03.000Z" }
+    ];
+    const harness = runpodPhysicalHarness({
+        scenario: "cache-progress",
+        bootstrapProgressSequence: progress
+    });
+    const started = await harness.engine.start(harness.payload);
+    const first = await harness.engine.poll({ operationName: started.operationName });
+    assert.equal(first.remoteWorker.phase, "BOOTSTRAPPING");
+    const miss = await harness.engine.poll({ operationName: started.operationName });
+    assert.equal(miss.remoteWorker.cacheStatus, "CACHE_MISS");
+    const populating = await harness.engine.poll({ operationName: started.operationName });
+    assert.equal(populating.remoteWorker.cacheStatus, "CACHE_POPULATING");
+    const completed = await pollRunpodUntilDone(harness.engine, started.operationName, 8);
+    assert.equal(completed.status, "VIDEO_GENERATED_VERIFIED");
+});
+
+test("V142 RunPod records a compatible persistent cache as CACHE_HIT without repopulating it", async () => {
+    const harness = runpodPhysicalHarness({
+        scenario: "cache-hit",
+        bootstrapProgressSequence: [{
+            stage: "CACHE_VALIDATE",
+            status: "READY",
+            cacheStatus: "CACHE_HIT",
+            modelBytes: 34203123497,
+            at: "2026-08-27T12:00:01.000Z"
+        }]
+    });
+    const started = await harness.engine.start(harness.payload);
+    await harness.engine.poll({ operationName: started.operationName });
+    const running = await harness.engine.poll({ operationName: started.operationName });
+    assert.equal(running.remoteWorker.cacheStatus, "CACHE_HIT");
+    const completed = await pollRunpodUntilDone(harness.engine, started.operationName);
+    assert.equal(completed.status, "VIDEO_GENERATED_VERIFIED");
 });
 
 test("V142 RunPod API key reaches the provider byte-for-byte without local normalization", async () => {
@@ -466,6 +617,18 @@ test("V142 RunPod refreshes a stale failed bootstrap on the same Pod and obligat
     assert.equal(completed.status, "VIDEO_GENERATED_VERIFIED");
     assert.equal(harness.calls.filter(call => call.kind === "http" && call.method === "POST" && call.url.endsWith("/pods")).length, 1);
     assert.equal(completed.workerRelease.status, "RUNPOD_POD_TERMINATED_VERIFIED");
+});
+
+test("V142 RunPod classifies a current bootstrap failure before inference as BOOTSTRAP_INCOMPLETE", async () => {
+    const harness = runpodPhysicalHarness({ scenario: "bootstrap-fail" });
+    const started = await harness.engine.start(harness.payload);
+    await harness.engine.poll({ operationName: started.operationName });
+    const failed = await pollRunpodUntilDone(harness.engine, started.operationName);
+    assert.equal(failed.ok, false);
+    assert.equal(failed.status, "RUNPOD_BOOTSTRAP_INCOMPLETE");
+    assert.equal(failed.remoteWorker.phase, "BOOTSTRAP_INCOMPLETE");
+    assert.equal(failed.workerRelease.terminationVerified, true);
+    assert.equal(harness.deleted, true);
 });
 
 test("V142 RunPod availability follows authenticated stockStatus while preserving count, GPU, VRAM and price guards", async t => {
@@ -566,7 +729,11 @@ test("V142 RunPod polling retries transport on the same Pod/job and durable obli
     const completed = await pollRunpodUntilDone(harness.engine, started.operationName);
     assert.equal(completed.ok, true);
     assert.equal(harness.calls.filter(call => call.kind === "http" && call.method === "POST").length, 2);
-    assert.equal(harness.createdBody.name.includes(started.operationId), true);
+    assert.match(harness.createdBody.name, /^jarvis-v142-[a-f0-9]{24}$/);
+    assert.equal(
+        harness.createdBody.name.endsWith(harness.createdBody.env.JARVIS_OBLIGATION_FINGERPRINT.slice(0, 24)),
+        true
+    );
 });
 
 test("V142 RunPod pre-provision transport recovery reuses the same operation and provisions at most one Pod", async () => {
@@ -608,6 +775,43 @@ test("V142 RunPod pre-provision transport recovery reuses the same operation and
     assert.equal(harness.deleted, true);
 });
 
+test("V142 RunPod maps a later physical attempt of the same durable obligation to the same Pod identity after deletion", async () => {
+    const durableIdentity = {
+        missionId: "MISSION-V142-EP1-A40-SMOKE-001",
+        objectiveId: "OBJECTIVE-V142-EP1-VISUAL-PIPELINE",
+        obligationId: "OBLIGATION-V142-EP1-SHOT-001",
+        rootInstructionHash: "8717f7c993f996ec329527a065a0f10b2d57258b3f762580fd58198b82291993"
+    };
+    const first = runpodPhysicalHarness({ scenario: "physical-attempt-one", durableIdentity });
+    const firstStarted = await first.engine.start(first.payload);
+    const firstCancelled = await first.engine.cancel({ operationName: firstStarted.operationName });
+    assert.equal(firstCancelled.workerRelease.terminationVerified, true);
+    assert.equal(first.deleted, true);
+
+    const second = runpodPhysicalHarness({ scenario: "physical-attempt-two", durableIdentity });
+    const secondStarted = await second.engine.start(second.payload);
+    assert.equal(secondStarted.ok, true, JSON.stringify(secondStarted));
+    assert.equal(second.createdBody.name, first.createdBody.name);
+    assert.equal(second.createdBody.env.JARVIS_OBLIGATION_FINGERPRINT, first.createdBody.env.JARVIS_OBLIGATION_FINGERPRINT);
+    assert.equal(first.calls.filter(call => call.method === "POST" && call.url.endsWith("/pods")).length, 1);
+    assert.equal(second.calls.filter(call => call.method === "POST" && call.url.endsWith("/pods")).length, 1);
+    await second.engine.cancel({ operationName: secondStarted.operationName });
+    assert.equal(second.deleted, true);
+});
+
+test("V142 RunPod terminates an already-active Pod for the same obligation and refuses simultaneous provisioning", async () => {
+    const harness = runpodPhysicalHarness({ scenario: "existing-obligation-pod" });
+    const started = await harness.engine.start(harness.payload);
+    assert.equal(started.ok, false, JSON.stringify(started));
+    assert.equal(started.error, "RUNPOD_EXISTING_OPERATION_POD_TERMINATED");
+    assert.equal(harness.orphanDeleted, true);
+    assert.equal(harness.createdBody, null);
+    assert.equal(
+        harness.calls.filter(call => call.method === "POST" && call.url.endsWith("/pods")).length,
+        0
+    );
+});
+
 test("V142 RunPod adapter handles job failure, bad SHA, bad MP4 and mandatory delete failure honestly", async t => {
     const expected = {
         "job-failure": "RUNPOD_WAN_GENERATION_FAILED",
@@ -646,6 +850,45 @@ test("V142 RunPod hard cap cancels before USD 2 and still deletes the Pod", asyn
     assert.equal(completed.workerRelease.terminationVerified, true);
     assert.ok(completed.gpuRentalEstimatedCost < 2);
     assert.equal(harness.deleted, true);
+});
+
+test("V142 RunPod distinguishes bootstrap timeout from inference timeout and deletes the Pod", async t => {
+    await t.test("bootstrap timeout", async () => {
+        const clock = { value: "2026-08-27T12:00:00.000Z" };
+        const harness = runpodPhysicalHarness({
+            scenario: "bootstrap-timeout",
+            clock,
+            bootstrapProgressSequence: [
+                { stage: "MODEL_DOWNLOAD", status: "RUNNING", cacheStatus: "CACHE_POPULATING", modelBytes: 100, at: "2026-08-27T12:00:00.000Z" },
+                { stage: "MODEL_DOWNLOAD", status: "RUNNING", cacheStatus: "CACHE_POPULATING", modelBytes: 100, at: "2026-08-27T12:00:00.000Z" }
+            ],
+            envOverrides: { JARVIS_RUNPOD_BOOTSTRAP_TIMEOUT_SECONDS: "30" }
+        });
+        const started = await harness.engine.start(harness.payload);
+        await harness.engine.poll({ operationName: started.operationName });
+        clock.value = "2026-08-27T12:00:31.000Z";
+        const failed = await pollRunpodUntilDone(harness.engine, started.operationName);
+        assert.equal(failed.status, "RUNPOD_BOOTSTRAP_TIMEOUT");
+        assert.equal(failed.workerRelease.terminationVerified, true);
+        assert.equal(harness.deleted, true);
+    });
+
+    await t.test("inference timeout", async () => {
+        const clock = { value: "2026-08-27T12:00:00.000Z" };
+        const harness = runpodPhysicalHarness({
+            scenario: "inference-timeout",
+            clock,
+            envOverrides: { JARVIS_RUNPOD_INFERENCE_TIMEOUT_SECONDS: "30" }
+        });
+        const started = await harness.engine.start(harness.payload);
+        await harness.engine.poll({ operationName: started.operationName });
+        await harness.engine.poll({ operationName: started.operationName });
+        clock.value = "2026-08-27T12:00:31.000Z";
+        const failed = await pollRunpodUntilDone(harness.engine, started.operationName);
+        assert.equal(failed.status, "RUNPOD_INFERENCE_TIMEOUT");
+        assert.equal(failed.workerRelease.terminationVerified, true);
+        assert.equal(harness.deleted, true);
+    });
 });
 
 function remoteWanFixture(prefix = "jarvis-remote-contract-") {

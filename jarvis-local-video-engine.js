@@ -6,8 +6,8 @@ import { execFile, execFileSync, spawn } from "node:child_process";
 
 import { registerArtifact } from "./jarvis-artifact-studio.js";
 
-export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.7.0-v142-runpod-physical-adapter";
-export const JARVIS_RUNPOD_ADAPTER_VERSION = "1.0.0-v142-runpod-pod-ssh";
+export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.8.0-v142-runpod-durable-cache";
+export const JARVIS_RUNPOD_ADAPTER_VERSION = "1.1.0-v142-runpod-network-volume-cache";
 export const VIDEO_ENGINE_MODES = Object.freeze([
     "CURRENT_STABLE",
     "LOCAL_TEST",
@@ -98,6 +98,22 @@ const LOCAL_VIDEO_MODEL_ALIASES = Object.freeze({
     "wan21-t2v-1.3b": WAN21_T2V_1_3B.backend,
     "light": WAN21_T2V_1_3B.backend,
     "local-light": WAN21_T2V_1_3B.backend
+});
+
+const RUNPOD_WAN22_CACHE_CONTRACT = Object.freeze({
+    profile: "wan22-ti2v-5b-a40-v1",
+    modelRepository: "Wan-AI/Wan2.2-TI2V-5B",
+    modelRevision: "921dbaf3f1674a56f47e83fb80a34bac8a8f203e",
+    wanRepositoryRevision: "42bf4cfaa384bc21833865abc2f9e6c0e67233dc",
+    expectedModelBytes: 34203123497,
+    minimumNetworkVolumeGb: 50,
+    requiredFiles: Object.freeze([
+        Object.freeze({ path: "Wan2.2_VAE.pth", bytes: 2818839170, sha256: "20eb789667fa5e60e7516bf509512f6cb61f01b0aa0695eadaea930c13892b36" }),
+        Object.freeze({ path: "diffusion_pytorch_model-00001-of-00003.safetensors", bytes: 9825014472, sha256: "720b06c4ade5e87c1246bba8ac95b664c638749cd9b102cf84d823bb44c026a1" }),
+        Object.freeze({ path: "diffusion_pytorch_model-00002-of-00003.safetensors", bytes: 9995661736, sha256: "09ec5ef720d8396f6cfa51fbdcbdb2327e37722afd6e89fd38f1e7e5e782c283" }),
+        Object.freeze({ path: "diffusion_pytorch_model-00003-of-00003.safetensors", bytes: 178558176, sha256: "6306f7894c345de9093ad588771c2abfaeb668a81f7a6d9a918bd26ba3568e49" }),
+        Object.freeze({ path: "models_t5_umt5-xxl-enc-bf16.pth", bytes: 11361920418, sha256: "7cace0da2b446bbbbc57d031ab6cf163a3d59b366da94e5afe36745b746fd81d" })
+    ])
 });
 
 export const EXTERNAL_VIDEO_PRICING_PROFILE = Object.freeze({
@@ -1113,6 +1129,15 @@ function runpodPublicWorker(state = {}) {
         obligationId: state.obligationId || null,
         operationName: state.operationName || null,
         rootInstructionHash: state.rootInstructionHash || null,
+        networkVolumeId: state.networkVolumeId || null,
+        networkVolumeDataCenterId: state.networkVolumeDataCenterId || null,
+        networkVolumePersistent: Boolean(state.networkVolumeId),
+        cacheStatus: state.cacheStatus || null,
+        cacheProfile: state.cacheProfile || null,
+        bootstrapProgress: state.bootstrapProgress || null,
+        bootstrapStartedAt: state.bootstrapStartedAt || null,
+        inferenceStartedAt: state.inferenceStartedAt || null,
+        stageTimeline: state.stageTimeline || {},
         assetManifest: Array.isArray(state.assetManifest)
             ? state.assetManifest.map(asset => ({
                 output: asset.output,
@@ -1163,6 +1188,12 @@ export function createRunpodRemoteVideoAdapter({
     );
     const containerDiskInGb = Math.ceil(runpodPositiveNumber(env.JARVIS_RUNPOD_CONTAINER_DISK_GB, 30));
     const volumeInGb = Math.ceil(runpodPositiveNumber(env.JARVIS_RUNPOD_VOLUME_DISK_GB, 100));
+    const networkVolumeId = String(env.JARVIS_RUNPOD_NETWORK_VOLUME_ID || "").trim();
+    const bootstrapTimeoutSeconds = runpodPositiveNumber(env.JARVIS_RUNPOD_BOOTSTRAP_TIMEOUT_SECONDS, 1800);
+    const inferenceTimeoutSeconds = runpodPositiveNumber(
+        env.JARVIS_RUNPOD_INFERENCE_TIMEOUT_SECONDS,
+        localVideoTimeoutSeconds(env)
+    );
     const minimumRamGb = Math.ceil(runpodPositiveNumber(env.JARVIS_RUNPOD_MIN_RAM_GB, 50));
     const minimumVcpu = Math.ceil(runpodPositiveNumber(env.JARVIS_RUNPOD_MIN_VCPU, 9));
     const expectedVramGb = runpodPositiveNumber(env.JARVIS_RUNPOD_EXPECTED_VRAM_GB, 48);
@@ -1182,6 +1213,9 @@ export function createRunpodRemoteVideoAdapter({
         if (typeof fetchImpl !== "function") throw new Error("RUNPOD_FETCH_UNAVAILABLE");
         if (!ssh || !scp || !sshKeygen) throw new Error("RUNPOD_SSH_TOOLCHAIN_UNAVAILABLE");
         if (gpuTypeId !== "NVIDIA A40") throw new Error("RUNPOD_GPU_TYPE_NOT_APPROVED_FOR_V142");
+        if (networkVolumeId && cloudType !== "SECURE") {
+            throw new Error("RUNPOD_NETWORK_VOLUME_SECURE_CLOUD_REQUIRED");
+        }
     }
 
     function stateFile(operationId) {
@@ -1189,6 +1223,12 @@ export function createRunpodRemoteVideoAdapter({
             throw new Error("RUNPOD_OPERATION_ID_INVALID");
         }
         return path.join(stateRoot, `${operationId}.json`);
+    }
+
+    function obligationFingerprint(job) {
+        return createHash("sha256")
+            .update(`${job.missionId}\n${job.objectiveId}\n${job.obligationId}\n${job.rootInstructionHash}`)
+            .digest("hex");
     }
 
     function readState(operation) {
@@ -1268,9 +1308,12 @@ export function createRunpodRemoteVideoAdapter({
         catch { throw new Error("RUNPOD_API_RESPONSE_INVALID"); }
     }
 
-    async function queryAvailability() {
+    async function queryAvailability(dataCenterId = null) {
         const secureCloud = cloudType === "SECURE" ? "true" : "false";
-        const query = `query { myself { id } gpuTypes(input: { id: \"NVIDIA A40\" }) { id displayName memoryInGb lowestPrice(input: { gpuCount: 1, secureCloud: ${secureCloud} }) { stockStatus uninterruptablePrice availableGpuCounts } } }`;
+        const dataCenterSelection = dataCenterId
+            ? ` dataCenters { id gpuAvailability(input: { gpuCount: 1, secureCloud: true }) { gpuTypeId stockStatus available } }`
+            : "";
+        const query = `query { myself { id } gpuTypes(input: { id: \"NVIDIA A40\" }) { id displayName memoryInGb lowestPrice(input: { gpuCount: 1, secureCloud: ${secureCloud} }) { stockStatus uninterruptablePrice availableGpuCounts } }${dataCenterSelection} }`;
         const separator = graphQlBase.includes("?") ? "&" : "?";
         const payload = await apiRequest(
             `${graphQlBase}${separator}api_key=${encodeURIComponent(apiKey)}`,
@@ -1304,6 +1347,15 @@ export function createRunpodRemoteVideoAdapter({
         if (!Number.isFinite(hourlyRateUsd) || !(hourlyRateUsd > 0)) {
             throw new Error("RUNPOD_HOURLY_RATE_INVALID");
         }
+        if (dataCenterId) {
+            const dataCenter = (Array.isArray(payload?.data?.dataCenters) ? payload.data.dataCenters : [])
+                .find(item => String(item?.id || "") === dataCenterId);
+            const candidate = (Array.isArray(dataCenter?.gpuAvailability) ? dataCenter.gpuAvailability : [])
+                .find(item => String(item?.gpuTypeId || "") === gpuTypeId);
+            if (!dataCenter || candidate?.available !== true || !documentedAvailableStock.has(String(candidate.stockStatus || ""))) {
+                throw new Error("RUNPOD_NETWORK_VOLUME_DATACENTER_GPU_UNAVAILABLE");
+            }
+        }
         return {
             gpuTypeId: gpu.id,
             displayName: gpu.displayName || gpu.id,
@@ -1311,6 +1363,26 @@ export function createRunpodRemoteVideoAdapter({
             hourlyRateUsd,
             stockStatus: price.stockStatus
         };
+    }
+
+    async function resolveNetworkVolume() {
+        if (!networkVolumeId) return null;
+        const volume = await apiRequest(
+            `${apiBase}/networkvolumes/${encodeURIComponent(networkVolumeId)}`,
+            { method: "GET" },
+            [200],
+            "network_volume"
+        );
+        const id = String(volume?.id || "").trim();
+        const dataCenterId = String(volume?.dataCenterId || volume?.dataCenter?.id || "").trim();
+        const sizeGb = Number(volume?.size || volume?.sizeInGb || volume?.sizeGb || 0);
+        if (id !== networkVolumeId || !dataCenterId || !Number.isFinite(sizeGb)) {
+            throw new Error("RUNPOD_NETWORK_VOLUME_RESPONSE_INVALID");
+        }
+        if (sizeGb < RUNPOD_WAN22_CACHE_CONTRACT.minimumNetworkVolumeGb) {
+            throw new Error("RUNPOD_NETWORK_VOLUME_CAPACITY_INSUFFICIENT");
+        }
+        return { id, dataCenterId, sizeGb };
     }
 
     async function assertNoExistingOperationPod(job) {
@@ -1328,7 +1400,13 @@ export function createRunpodRemoteVideoAdapter({
             throw failure;
         }
         const expectedName = `jarvis-v142-${job.operationId}`;
-        const matches = pods.filter(pod => String(pod?.name || "") === expectedName);
+        const durableFingerprint = obligationFingerprint(job);
+        const durableSuffix = durableFingerprint.slice(0, 24);
+        const matches = pods.filter(pod => {
+            const name = String(pod?.name || "");
+            return name === expectedName || name.endsWith(`-${durableSuffix}`) ||
+                String(pod?.env?.JARVIS_OBLIGATION_FINGERPRINT || "") === durableFingerprint;
+        });
         if (matches.length > 0) {
             const podIds = matches.map(pod => String(pod?.id || "").trim()).filter(Boolean);
             if (podIds.length !== matches.length) {
@@ -1344,12 +1422,18 @@ export function createRunpodRemoteVideoAdapter({
                     [200, 204, 404],
                     "orphan_cleanup"
                 );
-                const remaining = await apiRequest(
-                    `${apiBase}/pods/${encodeURIComponent(podId)}`,
-                    { method: "GET" },
-                    [200, 404],
-                    "orphan_cleanup_verify"
-                );
+                let remaining = null;
+                try {
+                    remaining = await apiRequest(
+                        `${apiBase}/pods/${encodeURIComponent(podId)}`,
+                        { method: "GET" },
+                        [200],
+                        "orphan_cleanup_verify"
+                    );
+                }
+                catch(error) {
+                    if (error?.httpStatus !== 404) throw error;
+                }
                 if (remaining && String(remaining.desiredStatus || "") !== "TERMINATED") {
                     const unverified = new Error("RUNPOD_ORPHAN_POD_DELETE_NOT_VERIFIED");
                     unverified.retryable = false;
@@ -1400,15 +1484,95 @@ export function createRunpodRemoteVideoAdapter({
     }
 
     function writeBootstrapFile(bootstrapFile) {
-        const remoteVenv = `${remoteBase}/venv`;
-        const bootstrap = `#!/usr/bin/env bash\nset -euo pipefail\n` +
-            `export DEBIAN_FRONTEND=noninteractive\n` +
-            `apt-get update -qq\napt-get install -y -qq git ffmpeg python3-venv\n` +
-            `test -f ${remoteBase}/Wan2.2/generate.py || git clone --depth 1 https://github.com/Wan-Video/Wan2.2.git ${remoteBase}/Wan2.2\n` +
-            `test -x ${remoteVenv}/bin/python || python3 -m venv --system-site-packages ${remoteVenv}\n` +
-            `${remoteVenv}/bin/python -m pip install --no-cache-dir -r ${remoteBase}/Wan2.2/requirements.txt 'huggingface_hub[cli]'\n` +
-            `mkdir -p ${remoteBase}/models/Wan2.2-TI2V-5B\n` +
-            `find ${remoteBase}/models/Wan2.2-TI2V-5B -type f -name '*.safetensors' -print -quit | grep -q . || ${remoteVenv}/bin/hf download Wan-AI/Wan2.2-TI2V-5B --local-dir ${remoteBase}/models/Wan2.2-TI2V-5B\n`;
+        const cacheRoot = `${remoteBase}/cache/wan22-ti2v-5b`;
+        const remoteVenv = `${cacheRoot}/venv`;
+        const remoteRepository = `${cacheRoot}/Wan2.2`;
+        const remoteModel = `${cacheRoot}/model`;
+        const manifestFile = `${cacheRoot}/cache-manifest.json`;
+        const requiredJson = JSON.stringify(RUNPOD_WAN22_CACHE_CONTRACT.requiredFiles);
+        const contractJson = JSON.stringify({
+            profile: RUNPOD_WAN22_CACHE_CONTRACT.profile,
+            modelRepository: RUNPOD_WAN22_CACHE_CONTRACT.modelRepository,
+            modelRevision: RUNPOD_WAN22_CACHE_CONTRACT.modelRevision,
+            wanRepositoryRevision: RUNPOD_WAN22_CACHE_CONTRACT.wanRepositoryRevision,
+            expectedModelBytes: RUNPOD_WAN22_CACHE_CONTRACT.expectedModelBytes,
+            requiredFiles: RUNPOD_WAN22_CACHE_CONTRACT.requiredFiles
+        });
+        const bootstrap = [
+            "#!/usr/bin/env bash",
+            "set -eEuo pipefail",
+            "export DEBIAN_FRONTEND=noninteractive",
+            `CACHE_ROOT=${shellSingleQuote(cacheRoot)}`,
+            `VENV=${shellSingleQuote(remoteVenv)}`,
+            `WAN_REPO=${shellSingleQuote(remoteRepository)}`,
+            `MODEL_DIR=${shellSingleQuote(remoteModel)}`,
+            `CACHE_MANIFEST=${shellSingleQuote(manifestFile)}`,
+            `export JARVIS_OPERATION_ID=${shellSingleQuote(path.basename(path.dirname(bootstrapFile)))}`,
+            `PROGRESS=${shellSingleQuote(`${remoteBase}/operations`)}/$JARVIS_OPERATION_ID/bootstrap-progress.json`,
+            "mkdir -p \"$CACHE_ROOT\" \"$(dirname \"$PROGRESS\")\"",
+            "progress() { local stage=\"$1\" status=\"$2\" cache=\"$3\" bytes=0; test -d \"$MODEL_DIR\" && bytes=$(du -sb \"$MODEL_DIR\" 2>/dev/null | awk '{print $1}') || true; python3 - \"$PROGRESS\" \"$stage\" \"$status\" \"$cache\" \"$bytes\" <<'PY'",
+            "import json,os,sys,tempfile,datetime",
+            "target,stage,status,cache,raw=sys.argv[1:]",
+            "payload={'stage':stage,'status':status,'cacheStatus':cache,'modelBytes':int(raw or 0),'at':datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z')}",
+            "fd,tmp=tempfile.mkstemp(prefix='.progress-',dir=os.path.dirname(target)); os.close(fd)",
+            "open(tmp,'w',encoding='utf-8').write(json.dumps(payload,separators=(',',':'))+'\\n'); os.replace(tmp,target)",
+            "PY",
+            "}",
+            "trap 'progress BOOTSTRAP FAILED CACHE_MISS' ERR",
+            "progress SYSTEM_DEPENDENCIES RUNNING CACHE_MISS",
+            "missing=(); for tool in git ffmpeg; do command -v \"$tool\" >/dev/null || missing+=(\"$tool\"); done; python3 -m venv --help >/dev/null 2>&1 || missing+=(python3-venv)",
+            "if test ${#missing[@]} -gt 0; then apt-get update -qq; apt-get install -y -qq git ffmpeg python3-venv; fi",
+            "progress SYSTEM_DEPENDENCIES READY CACHE_MISS",
+            "CACHE_VALID=0",
+            `python3 - \"$CACHE_MANIFEST\" \"$MODEL_DIR\" \"$WAN_REPO\" \"$VENV\" ${shellSingleQuote(contractJson)} <<'PY' && CACHE_VALID=1 || true`,
+            "import json,os,subprocess,sys",
+            "manifest_path,model_dir,repo_dir,venv_dir,expected_raw=sys.argv[1:]",
+            "expected=json.loads(expected_raw)",
+            "actual=json.load(open(manifest_path,encoding='utf-8'))",
+            "assert all(actual.get(k)==expected.get(k) for k in ('profile','modelRepository','modelRevision','wanRepositoryRevision','expectedModelBytes'))",
+            "assert os.path.isfile(os.path.join(repo_dir,'generate.py')) and os.path.isfile(os.path.join(venv_dir,'bin','python'))",
+            "assert subprocess.check_output(['git','-C',repo_dir,'rev-parse','HEAD'],text=True).strip()==expected['wanRepositoryRevision']",
+            "for item in expected['requiredFiles']:",
+            "    assert os.path.getsize(os.path.join(model_dir,item['path']))==item['bytes']",
+            "PY",
+            "if test \"$CACHE_VALID\" = 1; then progress CACHE_VALIDATE READY CACHE_HIT; exit 0; fi",
+            "rm -f \"$CACHE_MANIFEST\"",
+            "progress CACHE_VALIDATE INCOMPLETE CACHE_MISS",
+            "progress WAN_REPOSITORY RUNNING CACHE_POPULATING",
+            `if test ! -d \"$WAN_REPO/.git\"; then git clone --filter=blob:none https://github.com/Wan-Video/Wan2.2.git \"$WAN_REPO\"; fi`,
+            `git -C \"$WAN_REPO\" fetch --depth 1 origin ${RUNPOD_WAN22_CACHE_CONTRACT.wanRepositoryRevision}`,
+            `git -C \"$WAN_REPO\" checkout --detach ${RUNPOD_WAN22_CACHE_CONTRACT.wanRepositoryRevision}`,
+            "progress WAN_REPOSITORY READY CACHE_POPULATING",
+            "progress PYTHON_REQUIREMENTS RUNNING CACHE_POPULATING",
+            "test -x \"$VENV/bin/python\" || python3 -m venv --system-site-packages \"$VENV\"",
+            "REQ_SHA=$(sha256sum \"$WAN_REPO/requirements.txt\" | awk '{print $1}')",
+            "if test \"$(cat \"$CACHE_ROOT/requirements.sha256\" 2>/dev/null || true)\" != \"$REQ_SHA\"; then \"$VENV/bin/python\" -m pip install -r \"$WAN_REPO/requirements.txt\" 'huggingface_hub[cli]'; printf '%s\\n' \"$REQ_SHA\" > \"$CACHE_ROOT/requirements.sha256\"; fi",
+            "progress PYTHON_REQUIREMENTS READY CACHE_POPULATING",
+            "progress MODEL_DOWNLOAD RUNNING CACHE_POPULATING",
+            "mkdir -p \"$MODEL_DIR\"",
+            `\"$VENV/bin/hf\" download ${RUNPOD_WAN22_CACHE_CONTRACT.modelRepository} --revision ${RUNPOD_WAN22_CACHE_CONTRACT.modelRevision} --local-dir \"$MODEL_DIR\" &`,
+            "DOWNLOAD_PID=$!",
+            "while kill -0 \"$DOWNLOAD_PID\" 2>/dev/null; do progress MODEL_DOWNLOAD RUNNING CACHE_POPULATING; sleep 20; done",
+            "wait \"$DOWNLOAD_PID\"",
+            "progress MODEL_DOWNLOAD READY CACHE_POPULATING",
+            "progress MODEL_VALIDATION RUNNING CACHE_POPULATING",
+            `python3 - \"$MODEL_DIR\" ${shellSingleQuote(requiredJson)} <<'PY'`,
+            "import hashlib,json,os,sys",
+            "root=sys.argv[1]; required=json.loads(sys.argv[2])",
+            "for item in required:",
+            "    target=os.path.join(root,item['path']); assert os.path.getsize(target)==item['bytes']",
+            "    digest=hashlib.sha256(); f=open(target,'rb')",
+            "    for chunk in iter(lambda:f.read(8*1024*1024),b''): digest.update(chunk)",
+            "    assert digest.hexdigest()==item['sha256']",
+            "PY",
+            `python3 - \"$CACHE_MANIFEST\" ${shellSingleQuote(contractJson)} <<'PY'`,
+            "import json,os,sys,tempfile",
+            "target=sys.argv[1]; payload=json.loads(sys.argv[2]); fd,tmp=tempfile.mkstemp(prefix='.manifest-',dir=os.path.dirname(target)); os.close(fd)",
+            "open(tmp,'w',encoding='utf-8').write(json.dumps(payload,sort_keys=True,separators=(',',':'))+'\\n'); os.replace(tmp,target)",
+            "PY",
+            "progress MODEL_VALIDATION READY CACHE_READY",
+            "progress RUNNER_READY READY CACHE_READY"
+        ].join("\n") + "\n";
         fs.writeFileSync(bootstrapFile, bootstrap, { encoding: "utf8", mode: 0o700 });
     }
 
@@ -1441,7 +1605,7 @@ export function createRunpodRemoteVideoAdapter({
         const remoteOperationDir = `${remoteBase}/operations/${job.operationId}`;
         const remoteJob = {
             ...job,
-            modelDirectory: `${remoteBase}/models/Wan2.2-TI2V-5B`,
+            modelDirectory: `${remoteBase}/cache/wan22-ti2v-5b/model`,
             outputFile: `${remoteOperationDir}/output.mp4`,
             referenceFiles: generationAssets,
             sourceReferenceFiles: sourceAssets
@@ -1519,8 +1683,8 @@ export function createRunpodRemoteVideoAdapter({
             "d={'python':True,'torch':bool(torch.__version__),'cuda':torch.cuda.is_available(),'gpuName':torch.cuda.get_device_name(0) if torch.cuda.is_available() else ''," +
             "'vramGb':round(torch.cuda.get_device_properties(0).total_memory/1073741824,2) if torch.cuda.is_available() else 0,'freeDiskGb':round(p.free/1073741824,2)," +
             "'ffmpeg':bool(shutil.which('ffmpeg')),'ffprobe':bool(shutil.which('ffprobe'))," +
-            `'runner':os.path.isfile('${state.remoteOperationDir}/jarvis-local-video-wan22.py'),'wanRepository':os.path.isfile('${remoteBase}/Wan2.2/generate.py'),` +
-            `'wanModel':any(x.endswith(('.safetensors','.bin','.pt','.pth','.ckpt')) for _,_,f in os.walk('${remoteBase}/models/Wan2.2-TI2V-5B') for x in f)}; print(json.dumps(d))`
+            `'runner':os.path.isfile('${state.remoteOperationDir}/jarvis-local-video-wan22.py'),'wanRepository':os.path.isfile('${remoteBase}/cache/wan22-ti2v-5b/Wan2.2/generate.py'),` +
+            `'wanModel':os.path.isfile('${remoteBase}/cache/wan22-ti2v-5b/cache-manifest.json')}; print(json.dumps(d))`
         )}`;
         const result = await sshCommand(state, command, 60000);
         let health;
@@ -1558,14 +1722,14 @@ export function createRunpodRemoteVideoAdapter({
         const prepared = prepareRemoteFiles(job);
         let podId = null;
         try {
-            const availability = await queryAvailability();
             await assertNoExistingOperationPod(job);
+            const networkVolume = await resolveNetworkVolume();
+            const availability = await queryAvailability(networkVolume?.dataCenterId || null);
             const provisionedAt = now().toISOString();
             const body = {
                 cloudType,
                 computeType: "GPU",
                 containerDiskInGb,
-                volumeInGb,
                 volumeMountPath: "/workspace",
                 gpuCount: 1,
                 gpuTypeIds: [gpuTypeId],
@@ -1576,15 +1740,20 @@ export function createRunpodRemoteVideoAdapter({
                 minVCPUPerGPU: minimumVcpu,
                 ports: ["22/tcp"],
                 supportPublicIp: true,
-                name: `jarvis-v142-${job.operationId}`,
+                name: `jarvis-v142-${obligationFingerprint(job).slice(0, 24)}`,
                 env: {
                     PUBLIC_KEY: prepared.publicKey,
                     JARVIS_OPERATION_ID: job.operationId,
-                    JARVIS_OBLIGATION_FINGERPRINT: createHash("sha256")
-                        .update(`${job.missionId}\n${job.objectiveId}\n${job.obligationId}\n${job.rootInstructionHash}`)
-                        .digest("hex")
+                    JARVIS_OBLIGATION_FINGERPRINT: obligationFingerprint(job)
                 }
             };
+            if (networkVolume) {
+                body.networkVolumeId = networkVolume.id;
+                body.dataCenterIds = [networkVolume.dataCenterId];
+            }
+            else {
+                body.volumeInGb = volumeInGb;
+            }
             const pod = await apiRequest(`${apiBase}/pods`, {
                 method: "POST",
                 body: JSON.stringify(body)
@@ -1609,6 +1778,13 @@ export function createRunpodRemoteVideoAdapter({
                 vramGb: actualVram,
                 hourlyRateUsd,
                 hardBudgetUsd,
+                networkVolumeId: networkVolume?.id || null,
+                networkVolumeDataCenterId: networkVolume?.dataCenterId || null,
+                networkVolumeSizeGb: networkVolume?.sizeGb || null,
+                cacheProfile: RUNPOD_WAN22_CACHE_CONTRACT.profile,
+                cacheStatus: "CACHE_MISS",
+                bootstrapTimeoutSeconds,
+                inferenceTimeoutSeconds,
                 provisionedAt,
                 createdAt: provisionedAt,
                 operationId: job.operationId,
@@ -1618,6 +1794,9 @@ export function createRunpodRemoteVideoAdapter({
                 obligationId: job.obligationId,
                 rootInstructionHash: job.rootInstructionHash,
                 ...prepared,
+                stageTimeline: {
+                    provision: { status: "READY", startedAt: provisionedAt, completedAt: provisionedAt }
+                },
                 assetManifest: prepared.assets.map(asset => ({
                     output: asset.output,
                     localFile: asset.stagingFile,
@@ -1656,6 +1835,46 @@ export function createRunpodRemoteVideoAdapter({
             seconds,
             estimatedCostUsd: seconds * Number(state.hourlyRateUsd || 0) / 3600
         };
+    }
+
+    function withStage(state, name, status, details = {}) {
+        const at = now().toISOString();
+        const previous = state.stageTimeline?.[name] || {};
+        return {
+            ...state,
+            stageTimeline: {
+                ...(state.stageTimeline || {}),
+                [name]: {
+                    ...previous,
+                    status,
+                    startedAt: previous.startedAt || at,
+                    ...(status === "READY" || status === "FAILED" || status === "TIMEOUT"
+                        ? { completedAt: at }
+                        : {}),
+                    ...details
+                }
+            }
+        };
+    }
+
+    async function readBootstrapProgress(state) {
+        const progressFile = `${state.remoteOperationDir}/bootstrap-progress.json`;
+        const result = await sshCommand(
+            state,
+            `if test -f ${shellSingleQuote(progressFile)}; then cat ${shellSingleQuote(progressFile)}; fi`
+        );
+        const raw = result.stdout.trim();
+        if (!raw) return null;
+        let progress;
+        try { progress = JSON.parse(raw.split(/\r?\n/).at(-1)); }
+        catch { throw new Error("RUNPOD_BOOTSTRAP_PROGRESS_INVALID"); }
+        if (
+            !["CACHE_MISS", "CACHE_POPULATING", "CACHE_READY", "CACHE_HIT"].includes(progress.cacheStatus) ||
+            !String(progress.stage || "").trim() || !Number.isFinite(Date.parse(String(progress.at || "")))
+        ) {
+            throw new Error("RUNPOD_BOOTSTRAP_PROGRESS_INVALID");
+        }
+        return progress;
     }
 
     async function uploadOperation(state) {
@@ -1711,7 +1930,8 @@ export function createRunpodRemoteVideoAdapter({
                 if (!publicIp || !sshPort) {
                     return { ok: true, done: false, status: "RUNPOD_SSH_STARTING", remoteWorker: runpodPublicWorker(state) };
                 }
-                state = writeState(loaded.file, state, { publicIp, sshPort, phase: "POD_RUNNING" });
+                state = withStage(state, "podReady", "READY", { publicIp, sshPort });
+                state = writeState(loaded.file, state, { publicIp, sshPort, phase: "POD_RUNNING", stageTimeline: state.stageTimeline });
             }
             if (state.phase === "POD_RUNNING") {
                 const health = await remoteHealth(state, false);
@@ -1722,10 +1942,47 @@ export function createRunpodRemoteVideoAdapter({
                     `rm -f ${shellSingleQuote(state.remoteOperationDir + "/bootstrap.ready")} ${shellSingleQuote(state.remoteOperationDir + "/bootstrap.failed")}; nohup bash -lc ${shellSingleQuote(command)} >/dev/null 2>&1 &`,
                     30000
                 );
-                state = writeState(loaded.file, state, { phase: "BOOTSTRAPPING", baseHealth: health });
+                const bootstrapStartedAt = now().toISOString();
+                state = withStage(state, "bootstrap", "RUNNING");
+                state = writeState(loaded.file, state, {
+                    phase: "BOOTSTRAPPING",
+                    baseHealth: health,
+                    bootstrapStartedAt,
+                    lastBootstrapProgressAt: bootstrapStartedAt,
+                    stageTimeline: state.stageTimeline
+                });
                 return { ok: true, done: false, status: "RUNPOD_WAN22_BOOTSTRAPPING", remoteWorker: runpodPublicWorker(state) };
             }
             if (state.phase === "BOOTSTRAPPING") {
+                const progress = await readBootstrapProgress(state);
+                if (progress) {
+                    const previousProgress = state.bootstrapProgress || null;
+                    const madeProgress = !previousProgress ||
+                        progress.stage !== previousProgress.stage ||
+                        progress.status !== previousProgress.status ||
+                        progress.cacheStatus !== previousProgress.cacheStatus ||
+                        Number(progress.modelBytes || 0) > Number(previousProgress.modelBytes || 0);
+                    state = withStage(state, progress.stage, progress.status, {
+                        cacheStatus: progress.cacheStatus,
+                        modelBytes: Number(progress.modelBytes || 0),
+                        lastProgressAt: progress.at
+                    });
+                    state = writeState(loaded.file, state, {
+                        cacheStatus: progress.cacheStatus,
+                        bootstrapProgress: progress,
+                        lastBootstrapProgressAt: madeProgress
+                            ? progress.at
+                            : state.lastBootstrapProgressAt,
+                        stageTimeline: state.stageTimeline
+                    });
+                }
+                const lastProgressMs = Date.parse(String(state.lastBootstrapProgressAt || state.bootstrapStartedAt || ""));
+                if (Number.isFinite(lastProgressMs) && (now().getTime() - lastProgressMs) / 1000 >= state.bootstrapTimeoutSeconds) {
+                    await writeLocalFailure(operation, resultFile, "RUNPOD_BOOTSTRAP_TIMEOUT", false);
+                    state = withStage(state, "bootstrap", "TIMEOUT");
+                    state = writeState(loaded.file, state, { phase: "BOOTSTRAP_TIMEOUT", stageTimeline: state.stageTimeline });
+                    return { ok: false, done: true, status: "RUNPOD_BOOTSTRAP_TIMEOUT", remoteWorker: runpodPublicWorker(state) };
+                }
                 const marker = await sshCommand(state,
                     `if test -f ${shellSingleQuote(state.remoteOperationDir + "/bootstrap.ready")}; then echo READY; elif test -f ${shellSingleQuote(state.remoteOperationDir + "/bootstrap.failed")}; then echo FAILED; else echo RUNNING; fi`
                 );
@@ -1748,22 +2005,39 @@ export function createRunpodRemoteVideoAdapter({
                             remoteWorker: runpodPublicWorker(state)
                         };
                     }
-                    await writeLocalFailure(operation, resultFile, "RUNPOD_WAN22_BOOTSTRAP_FAILED", false);
-                    state = writeState(loaded.file, state, { phase: "BOOTSTRAP_FAILED" });
-                    return { ok: false, done: true, status: "RUNPOD_WAN22_BOOTSTRAP_FAILED", remoteWorker: runpodPublicWorker(state) };
+                    await writeLocalFailure(operation, resultFile, "RUNPOD_BOOTSTRAP_INCOMPLETE", false);
+                    state = withStage(state, "bootstrap", "FAILED");
+                    state = writeState(loaded.file, state, { phase: "BOOTSTRAP_INCOMPLETE", stageTimeline: state.stageTimeline });
+                    return { ok: false, done: true, status: "RUNPOD_BOOTSTRAP_INCOMPLETE", remoteWorker: runpodPublicWorker(state) };
                 }
                 if (status !== "READY") {
                     return { ok: true, done: false, status: "RUNPOD_WAN22_BOOTSTRAPPING", remoteWorker: runpodPublicWorker(state) };
                 }
                 const health = await remoteHealth(state, true);
-                const runner = `env JARVIS_WAN22_REPO_DIR=${shellSingleQuote(remoteBase + "/Wan2.2")} JARVIS_LOCAL_VIDEO_EXTERNAL_API_ALLOWED=false JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS=${Math.floor(localVideoTimeoutSeconds(env))} ${shellSingleQuote(remoteBase + "/venv/bin/python")} ${shellSingleQuote(state.remoteOperationDir + "/jarvis-local-video-wan22.py")} --job ${shellSingleQuote(state.remoteOperationDir + "/job.json")} --result ${shellSingleQuote(state.remoteResultFile)}`;
+                const runner = `env JARVIS_WAN22_REPO_DIR=${shellSingleQuote(remoteBase + "/cache/wan22-ti2v-5b/Wan2.2")} JARVIS_LOCAL_VIDEO_EXTERNAL_API_ALLOWED=false JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS=${Math.floor(inferenceTimeoutSeconds)} ${shellSingleQuote(remoteBase + "/cache/wan22-ti2v-5b/venv/bin/python")} ${shellSingleQuote(state.remoteOperationDir + "/jarvis-local-video-wan22.py")} --job ${shellSingleQuote(state.remoteOperationDir + "/job.json")} --result ${shellSingleQuote(state.remoteResultFile)}`;
                 const started = await sshCommand(state, `nohup bash -lc ${shellSingleQuote(runner)} > ${shellSingleQuote(state.remoteOperationDir + "/runner.log")} 2>&1 & echo $!`);
                 const remotePid = Number(started.stdout.trim().split(/\r?\n/).at(-1));
                 if (!Number.isInteger(remotePid) || remotePid < 1) throw new Error("RUNPOD_REMOTE_JOB_START_FAILED");
-                state = writeState(loaded.file, state, { phase: "JOB_RUNNING", remotePid, fullHealth: health });
+                state = withStage(state, "bootstrap", "READY");
+                state = withStage(state, "inference", "RUNNING");
+                state = writeState(loaded.file, state, {
+                    phase: "JOB_RUNNING",
+                    remotePid,
+                    fullHealth: health,
+                    cacheStatus: state.cacheStatus === "CACHE_HIT" ? "CACHE_HIT" : "CACHE_READY",
+                    inferenceStartedAt: now().toISOString(),
+                    stageTimeline: state.stageTimeline
+                });
                 return { ok: true, done: false, status: "RUNPOD_REMOTE_JOB_RUNNING", remoteWorker: runpodPublicWorker(state) };
             }
             if (state.phase === "JOB_RUNNING") {
+                const inferenceStartedMs = Date.parse(String(state.inferenceStartedAt || ""));
+                if (Number.isFinite(inferenceStartedMs) && (now().getTime() - inferenceStartedMs) / 1000 >= state.inferenceTimeoutSeconds) {
+                    await writeLocalFailure(operation, resultFile, "RUNPOD_INFERENCE_TIMEOUT", false);
+                    state = withStage(state, "inference", "TIMEOUT");
+                    state = writeState(loaded.file, state, { phase: "INFERENCE_TIMEOUT", stageTimeline: state.stageTimeline });
+                    return { ok: false, done: true, status: "RUNPOD_INFERENCE_TIMEOUT", remoteWorker: runpodPublicWorker(state) };
+                }
                 const check = await sshCommand(state,
                     `if test -f ${shellSingleQuote(state.remoteResultFile)}; then echo RESULT; elif kill -0 ${Number(state.remotePid)} 2>/dev/null; then echo RUNNING; else echo LOST; fi`
                 );
@@ -1864,7 +2138,9 @@ export function createRunpodRemoteVideoAdapter({
                 terminationVerified,
                 gpuRentalSeconds: cost.seconds,
                 gpuRentalEstimatedCost: cost.estimatedCostUsd,
-                gpuRentalActualCost: actualCostUsd
+                gpuRentalActualCost: actualCostUsd,
+                networkVolumeId: state.networkVolumeId || null,
+                networkVolumeRetained: Boolean(state.networkVolumeId)
             });
             for (const sensitive of [state.privateKeyFile, state.publicKeyFile, state.knownHostsFile]) {
                 try { if (sensitive && fs.existsSync(sensitive)) fs.unlinkSync(sensitive); } catch {}
@@ -1879,7 +2155,9 @@ export function createRunpodRemoteVideoAdapter({
                 terminationVerified: true,
                 gpuRentalSeconds: cost.seconds,
                 gpuRentalEstimatedCost: cost.estimatedCostUsd,
-                gpuRentalActualCost: actualCostUsd
+                gpuRentalActualCost: actualCostUsd,
+                networkVolumeId: state.networkVolumeId || null,
+                networkVolumeRetained: Boolean(state.networkVolumeId)
             };
         }
         catch(error) {
@@ -1909,13 +2187,19 @@ export function createRunpodRemoteVideoAdapter({
             gpuName: gpuTypeId,
             gpuIndex: 0,
             vramGb: expectedVramGb,
-            freeDiskGb: containerDiskInGb + volumeInGb,
+            freeDiskGb: networkVolumeId
+                ? RUNPOD_WAN22_CACHE_CONTRACT.minimumNetworkVolumeGb
+                : containerDiskInGb + volumeInGb,
             ffmpegAvailable: true,
             ffprobeAvailable: true,
             pythonAvailable: true,
             remoteProvisioning: true,
             provider: "runpod",
-            hardBudgetUsd
+            hardBudgetUsd,
+            networkVolumeId: networkVolumeId || null,
+            cacheProfile: RUNPOD_WAN22_CACHE_CONTRACT.profile,
+            bootstrapTimeoutSeconds,
+            inferenceTimeoutSeconds
         };
     }
 
@@ -2042,7 +2326,9 @@ export function createLocalVideoEngine({
                         terminationVerified: receipt.terminationVerified === true,
                         gpuRentalSeconds: effectiveSeconds,
                         gpuRentalEstimatedCost: effectiveEstimatedCost,
-                        gpuRentalActualCost: actualCost
+                        gpuRentalActualCost: actualCost,
+                        networkVolumeId: receipt.networkVolumeId || operation.remoteWorker?.networkVolumeId || null,
+                        networkVolumeRetained: receipt.networkVolumeRetained === true
                     },
                     gpuRentalSeconds: effectiveSeconds,
                     gpuRentalEstimatedCost: effectiveEstimatedCost,
