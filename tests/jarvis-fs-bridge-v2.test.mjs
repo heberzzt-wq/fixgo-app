@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { test } from "node:test";
 import { execFileSync } from "node:child_process";
 
@@ -13,6 +14,7 @@ import {
     completeChunkedUpload,
     createJarvisFsBridgeApp,
     createSelfHostedSemanticEngine,
+    describeJarvisBridgeIdentity,
     describeJarvisFsBridge,
     editDocxArtifact,
     editPdfOverlayArtifact,
@@ -29,6 +31,63 @@ import {
     startChunkedUpload,
     readArtifactPayload
 } from "../jarvis-fs-bridge.js";
+
+function createBridgeIdentityFixture({
+    repository = "test-owner/fixgo-test",
+    branch = "v94-media-v4n-negative-claims"
+} = {}) {
+    const fixtureRoot = fs.mkdtempSync(
+        path.join(os.tmpdir(), "jarvis-bridge-identity-")
+    );
+    const root = path.join(fixtureRoot, "worktree");
+    const remoteRoot = path.join(fixtureRoot, "remote.git");
+    fs.mkdirSync(root);
+    execFileSync("git", ["init", "--bare", remoteRoot], {
+        stdio: "ignore"
+    });
+    execFileSync("git", ["init", "-b", branch], {
+        cwd: root,
+        stdio: "ignore"
+    });
+    const runGit = args => execFileSync("git", args, {
+        cwd: root,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"]
+    }).trim();
+    runGit(["config", "user.email", "jarvis-identity@example.invalid"]);
+    runGit(["config", "user.name", "Jarvis Identity Test"]);
+    const canonicalRemote = `https://github.com/${repository}.git`;
+    runGit(["remote", "add", "origin", canonicalRemote]);
+    runGit([
+        "config",
+        `url.${pathToFileURL(remoteRoot).href}.insteadOf`,
+        canonicalRemote
+    ]);
+    fs.writeFileSync(
+        path.join(root, "jarvis-runtime-contract.json"),
+        JSON.stringify({
+            projectId: repository.split("/").at(-1),
+            repository,
+            branch,
+            releaseId: "test-release"
+        })
+    );
+    fs.writeFileSync(
+        path.join(root, "identity-marker.txt"),
+        "initial identity\n"
+    );
+    runGit(["add", "."]);
+    runGit(["commit", "-m", "initial identity"]);
+    runGit(["push", "-u", "origin", branch]);
+    return {
+        branch,
+        fixtureRoot,
+        remoteRoot,
+        repository,
+        root,
+        runGit
+    };
+}
 
 function commandAvailable(command) {
     try {
@@ -207,13 +266,10 @@ test("self-hosted semantic backend fails closed for unsafe remote HTTP and LOCAL
 });
 
 test("Jarvis creates a multi-sheet XLSX with executable formulas", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-xlsx-create-"));
-    execFileSync("git", ["init", "-b", "v5.9-polish"], { cwd: root, stdio: "ignore" });
-    fs.writeFileSync(path.join(root, "jarvis-runtime-contract.json"), JSON.stringify({
-        projectId: "fixgo-test",
-        branch: "v5.9-polish",
-        releaseId: "test-release"
-    }));
+    const fixture = createBridgeIdentityFixture({
+        branch: "v5.9-polish"
+    });
+    const root = fixture.root;
     const server = createJarvisFsBridgeApp({ root }).listen(0);
     await new Promise(resolve => server.once("listening", resolve));
     const base = `http://127.0.0.1:${server.address().port}`;
@@ -423,7 +479,7 @@ test("Jarvis creates a multi-sheet XLSX with executable formulas", async () => {
         );
     } finally {
         await new Promise(resolve => server.close(resolve));
-        fs.rmSync(root, { recursive: true, force: true });
+        fs.rmSync(fixture.fixtureRoot, { recursive: true, force: true });
     }
 });
 
@@ -779,68 +835,17 @@ test("Jarvis FS bridge loads the release identity contract", async () => {
 
     assert.equal(contract.ok, true);
     assert.equal(contract.projectId, "fixgo-app");
+    assert.equal(contract.repository, "heberzzt-wq/fixgo-app");
     assert.equal(contract.branch, "v94-media-v4n-negative-claims");
     assert.match(
         contract.releaseId,
         /^v94-source-grounded-research-v124-20260810$/
     );
 
-    const root =
-        fs.mkdtempSync(
-            path.join(
-                os.tmpdir(),
-                "jarvis-bridge-contract-head-"
-            )
-        );
+    const fixture = createBridgeIdentityFixture();
+    const root = fixture.root;
     let server = null;
     try {
-        execFileSync(
-            "git",
-            ["init", "-b", "human-v142-worktree"],
-            { cwd: root, stdio: "ignore" }
-        );
-        execFileSync(
-            "git",
-            ["config", "user.email", "jarvis-test@example.invalid"],
-            { cwd: root }
-        );
-        execFileSync(
-            "git",
-            ["config", "user.name", "Jarvis Test"],
-            { cwd: root }
-        );
-        fs.writeFileSync(
-            path.join(root, "jarvis-runtime-contract.json"),
-            JSON.stringify({
-                projectId: "fixgo-test",
-                branch: "v94-media-v4n-negative-claims",
-                releaseId: "test-release"
-            })
-        );
-        fs.writeFileSync(
-            path.join(root, "identity-marker.txt"),
-            "same physical bytes"
-        );
-        execFileSync(
-            "git",
-            ["add", "jarvis-runtime-contract.json", "identity-marker.txt"],
-            { cwd: root }
-        );
-        execFileSync(
-            "git",
-            ["commit", "-m", "identity fixture"],
-            { cwd: root, stdio: "ignore" }
-        );
-        execFileSync(
-            "git",
-            [
-                "update-ref",
-                "refs/remotes/origin/v94-media-v4n-negative-claims",
-                "HEAD"
-            ],
-            { cwd: root }
-        );
-
         server =
             createJarvisFsBridgeApp({ root })
                 .listen(0);
@@ -858,7 +863,7 @@ test("Jarvis FS bridge loads the release identity contract", async () => {
         assert.equal(health.identity.ok, true);
         assert.equal(
             health.identity.identityMode,
-            "worktree_contract_head"
+            "branch_contract_head"
         );
         assert.equal(
             health.identity.contractHead,
@@ -895,12 +900,240 @@ test("Jarvis FS bridge loads the release identity contract", async () => {
             );
         }
         fs.rmSync(
-            root,
+            fixture.fixtureRoot,
             {
                 recursive: true,
                 force: true
             }
         );
+    }
+});
+
+test("bridge identity accepts the authorized branch and a clean detached worktree at the live remote head", () => {
+    const fixture = createBridgeIdentityFixture();
+    try {
+        const branchIdentity =
+            describeJarvisBridgeIdentity(fixture.root);
+        assert.equal(branchIdentity.ok, true);
+        assert.equal(
+            branchIdentity.identityMode,
+            "branch_contract_head"
+        );
+
+        const priorHead = fixture.runGit(["rev-parse", "HEAD"]);
+        fs.writeFileSync(
+            path.join(fixture.root, "identity-marker.txt"),
+            "authorized detached identity\n"
+        );
+        fixture.runGit(["add", "identity-marker.txt"]);
+        fixture.runGit(["commit", "-m", "authorized detached identity"]);
+        const authorizedHead = fixture.runGit(["rev-parse", "HEAD"]);
+        fixture.runGit(["push", "origin", fixture.branch]);
+        fixture.runGit([
+            "update-ref",
+            `refs/remotes/origin/${fixture.branch}`,
+            priorHead
+        ]);
+        fixture.runGit(["checkout", "--detach", authorizedHead]);
+
+        const detachedIdentity =
+            describeJarvisBridgeIdentity(fixture.root);
+        assert.equal(detachedIdentity.ok, true);
+        assert.equal(
+            detachedIdentity.identityMode,
+            "detached_contract_head"
+        );
+        assert.equal(
+            detachedIdentity.contractHead,
+            authorizedHead
+        );
+        assert.equal(
+            detachedIdentity.git.head,
+            authorizedHead
+        );
+        assert.equal(detachedIdentity.worktreeClean, true);
+        assert.equal(detachedIdentity.remoteVerified, true);
+    }
+    finally {
+        fs.rmSync(fixture.fixtureRoot, {
+            recursive: true,
+            force: true
+        });
+    }
+});
+
+test("bridge identity fails closed when detached HEAD differs from the live authorized SHA", () => {
+    const fixture = createBridgeIdentityFixture();
+    try {
+        fs.writeFileSync(
+            path.join(fixture.root, "identity-marker.txt"),
+            "local detached divergence\n"
+        );
+        fixture.runGit(["add", "identity-marker.txt"]);
+        fixture.runGit(["commit", "-m", "local divergence"]);
+        const divergentHead = fixture.runGit(["rev-parse", "HEAD"]);
+        fixture.runGit(["checkout", "--detach", divergentHead]);
+
+        const identity = describeJarvisBridgeIdentity(fixture.root);
+        assert.equal(identity.ok, false);
+        assert.equal(identity.status, "BRIDGE_IDENTITY_INVALID");
+        assert.equal(identity.identityMode, "invalid");
+        assert.notEqual(identity.contractHead, identity.git.head);
+    }
+    finally {
+        fs.rmSync(fixture.fixtureRoot, {
+            recursive: true,
+            force: true
+        });
+    }
+});
+
+test("bridge identity fails closed when the remote branch advances away from detached HEAD", () => {
+    const fixture = createBridgeIdentityFixture();
+    try {
+        const detachedHead = fixture.runGit(["rev-parse", "HEAD"]);
+        fs.writeFileSync(
+            path.join(fixture.root, "identity-marker.txt"),
+            "remote advanced\n"
+        );
+        fixture.runGit(["add", "identity-marker.txt"]);
+        fixture.runGit(["commit", "-m", "remote advanced"]);
+        const remoteHead = fixture.runGit(["rev-parse", "HEAD"]);
+        fixture.runGit(["push", "origin", fixture.branch]);
+        fixture.runGit(["checkout", "--detach", detachedHead]);
+
+        const identity = describeJarvisBridgeIdentity(fixture.root);
+        assert.equal(identity.ok, false);
+        assert.equal(identity.status, "BRIDGE_IDENTITY_INVALID");
+        assert.equal(identity.contractHead, remoteHead);
+        assert.equal(identity.git.head, detachedHead);
+    }
+    finally {
+        fs.rmSync(fixture.fixtureRoot, {
+            recursive: true,
+            force: true
+        });
+    }
+});
+
+test("bridge identity fails closed without live remote branch verification", () => {
+    const fixture = createBridgeIdentityFixture();
+    try {
+        const head = fixture.runGit(["rev-parse", "HEAD"]);
+        fixture.runGit(["checkout", "--detach", head]);
+        execFileSync(
+            "git",
+            [
+                "--git-dir",
+                fixture.remoteRoot,
+                "update-ref",
+                "-d",
+                `refs/heads/${fixture.branch}`
+            ],
+            { stdio: "ignore" }
+        );
+
+        const identity = describeJarvisBridgeIdentity(fixture.root);
+        assert.equal(identity.ok, false);
+        assert.equal(identity.remoteVerified, false);
+        assert.equal(identity.contractHead, null);
+    }
+    finally {
+        fs.rmSync(fixture.fixtureRoot, {
+            recursive: true,
+            force: true
+        });
+    }
+});
+
+test("bridge identity fails closed for a foreign origin repository", () => {
+    const fixture = createBridgeIdentityFixture();
+    try {
+        const foreignRemote = "https://github.com/foreign-owner/other-repo.git";
+        fixture.runGit(["remote", "set-url", "origin", foreignRemote]);
+        fixture.runGit([
+            "config",
+            `url.${pathToFileURL(fixture.remoteRoot).href}.insteadOf`,
+            foreignRemote
+        ]);
+
+        const identity = describeJarvisBridgeIdentity(fixture.root);
+        assert.equal(identity.ok, false);
+        assert.equal(identity.repositoryMatches, false);
+        assert.equal(identity.remoteVerified, false);
+    }
+    finally {
+        fs.rmSync(fixture.fixtureRoot, {
+            recursive: true,
+            force: true
+        });
+    }
+});
+
+test("bridge identity fails closed when the authorized worktree has relevant changes", () => {
+    const fixture = createBridgeIdentityFixture();
+    try {
+        const head = fixture.runGit(["rev-parse", "HEAD"]);
+        fixture.runGit(["checkout", "--detach", head]);
+        fs.writeFileSync(
+            path.join(fixture.root, "identity-marker.txt"),
+            "dirty authorized worktree\n"
+        );
+
+        const identity = describeJarvisBridgeIdentity(fixture.root);
+        assert.equal(identity.ok, false);
+        assert.equal(identity.worktreeClean, false);
+        assert.equal(identity.status, "BRIDGE_IDENTITY_INVALID");
+    }
+    finally {
+        fs.rmSync(fixture.fixtureRoot, {
+            recursive: true,
+            force: true
+        });
+    }
+});
+
+test("a branch-owning worktree does not invalidate or mutate the authorized detached worktree", () => {
+    const fixture = createBridgeIdentityFixture();
+    const detachedRoot = path.join(fixture.fixtureRoot, "authorized-detached");
+    try {
+        const ownerBefore = {
+            branch: fixture.runGit(["branch", "--show-current"]),
+            head: fixture.runGit(["rev-parse", "HEAD"]),
+            status: fixture.runGit([
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=all"
+            ])
+        };
+        fixture.runGit([
+            "worktree",
+            "add",
+            "--detach",
+            detachedRoot,
+            ownerBefore.head
+        ]);
+
+        const identity = describeJarvisBridgeIdentity(detachedRoot);
+        assert.equal(identity.ok, true);
+        assert.equal(identity.identityMode, "detached_contract_head");
+
+        const ownerAfter = {
+            branch: fixture.runGit(["branch", "--show-current"]),
+            head: fixture.runGit(["rev-parse", "HEAD"]),
+            status: fixture.runGit([
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=all"
+            ])
+        };
+        assert.deepEqual(ownerAfter, ownerBefore);
+    }
+    finally {
+        fs.rmSync(fixture.fixtureRoot, {
+            recursive: true,
+            force: true
+        });
     }
 });
 
@@ -997,15 +1230,10 @@ test("Jarvis local research fallback returns bounded verifiable web sources", as
 });
 
 test("write bridge requires fingerprinted one-time approval, snapshot and post-verify", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-write-auth-"));
-    execFileSync("git", ["init", "-b", "v5.9-polish"], { cwd: root, stdio: "ignore" });
-    execFileSync("git", ["config", "user.email", "jarvis-test@example.invalid"], { cwd: root });
-    execFileSync("git", ["config", "user.name", "Jarvis Test"], { cwd: root });
-    fs.writeFileSync(path.join(root, "jarvis-runtime-contract.json"), JSON.stringify({
-        projectId: "fixgo-test",
-        branch: "v5.9-polish",
-        releaseId: "test-release"
-    }));
+    const fixture = createBridgeIdentityFixture({
+        branch: "v5.9-polish"
+    });
+    const root = fixture.root;
     fs.writeFileSync(path.join(root, "sample.js"), "export const value = 1;\n");
     const server = createJarvisFsBridgeApp({ root }).listen(0);
     await new Promise(resolve => server.once("listening", resolve));
@@ -1092,6 +1320,11 @@ test("write bridge requires fingerprinted one-time approval, snapshot and post-v
         });
         assert.equal(committed.body.status, "GIT_COMMIT_OK");
         assert.ok(committed.body.commitReceipt?.receiptId);
+        fixture.runGit([
+            "push",
+            "origin",
+            `HEAD:${fixture.branch}`
+        ]);
 
         const pushMismatch = await post("/git", {
             action: "push", remote: "origin", branch: "v5.9-polish",
@@ -1120,7 +1353,7 @@ test("write bridge requires fingerprinted one-time approval, snapshot and post-v
         assert.equal(staleWrite.body.error, "WRITE_SNAPSHOT_CHANGED");
     } finally {
         await new Promise(resolve => server.close(resolve));
-        fs.rmSync(root, { recursive: true, force: true });
+        fs.rmSync(fixture.fixtureRoot, { recursive: true, force: true });
     }
 });
 

@@ -2787,11 +2787,45 @@ test("bridge exposes one release-bound local worker lifecycle behind video.gener
         cwd: root,
         stdio: "ignore"
     });
+    execFileSync("git", ["config", "user.email", "jarvis-video@example.invalid"], {
+        cwd: root,
+        stdio: "ignore"
+    });
+    execFileSync("git", ["config", "user.name", "Jarvis Video Test"], {
+        cwd: root,
+        stdio: "ignore"
+    });
+    const remoteRoot = path.join(root, ".git", "test-remote.git");
+    execFileSync("git", ["init", "--bare", remoteRoot], { stdio: "ignore" });
+    const canonicalRemote = "https://github.com/test-owner/fixgo-test.git";
+    execFileSync("git", ["remote", "add", "origin", canonicalRemote], {
+        cwd: root,
+        stdio: "ignore"
+    });
+    execFileSync("git", [
+        "config",
+        `url.${pathToFileURL(remoteRoot).href}.insteadOf`,
+        canonicalRemote
+    ], { cwd: root, stdio: "ignore" });
     fs.writeFileSync(path.join(root, "jarvis-runtime-contract.json"), JSON.stringify({
         projectId: "fixgo-test",
+        repository: "test-owner/fixgo-test",
         branch: "v94-media-v4n-negative-claims",
         releaseId: "local-video-test-release"
     }));
+    fs.writeFileSync(path.join(root, "identity-marker.txt"), "local video bridge\n");
+    execFileSync("git", ["add", "jarvis-runtime-contract.json", "identity-marker.txt"], {
+        cwd: root,
+        stdio: "ignore"
+    });
+    execFileSync("git", ["commit", "-m", "initialize local video bridge"], {
+        cwd: root,
+        stdio: "ignore"
+    });
+    execFileSync("git", ["push", "-u", "origin", "v94-media-v4n-negative-claims"], {
+        cwd: root,
+        stdio: "ignore"
+    });
     const calls = [];
     const localVideoEngine = {
         resolve() {
@@ -2849,6 +2883,7 @@ test("bridge exposes one release-bound local worker lifecycle behind video.gener
     }
     finally {
         await new Promise(resolve => server.close(resolve));
+        fs.rmSync(root, { recursive: true, force: true });
     }
 });
 

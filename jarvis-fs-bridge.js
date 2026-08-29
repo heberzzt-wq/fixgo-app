@@ -1564,6 +1564,8 @@ export function readJarvisRuntimeContract(
             ok: true,
             projectId:
                 String(contract.projectId || ""),
+            repository:
+                String(contract.repository || ""),
             branch:
                 String(contract.branch || ""),
             releaseId:
@@ -1578,6 +1580,7 @@ export function readJarvisRuntimeContract(
             error:
                 error?.message || String(error),
             projectId: "",
+            repository: "",
             branch: "",
             releaseId: ""
         };
@@ -1589,37 +1592,110 @@ function readGitIdentity(
 ) {
     const run = args => {
         try {
-            return execFileSync(
-                "git",
-                args,
-                {
-                    cwd:
-                        path.resolve(root),
-                    encoding:
-                        "utf8",
-                    stdio: [
-                        "ignore",
-                        "pipe",
-                        "ignore"
-                    ]
-                }
-            ).trim();
+            return {
+                ok: true,
+                value: execFileSync(
+                    "git",
+                    args,
+                    {
+                        cwd:
+                            path.resolve(root),
+                        encoding:
+                            "utf8",
+                        stdio: [
+                            "ignore",
+                            "pipe",
+                            "ignore"
+                        ]
+                    }
+                ).trim()
+            };
         }
         catch {
-            return "";
+            return {
+                ok: false,
+                value: ""
+            };
         }
     };
 
+    const repositoryRoot =
+        run(["rev-parse", "--show-toplevel"]);
+    const branch =
+        run(["branch", "--show-current"]);
+    const head =
+        run(["rev-parse", "HEAD"]);
+    const remote =
+        run(["config", "--get", "remote.origin.url"]);
+    const worktreeStatus =
+        run([
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=all"
+        ]);
+
     return {
         root:
-            run(["rev-parse", "--show-toplevel"]),
+            repositoryRoot.value,
         branch:
-            run(["branch", "--show-current"]),
+            branch.value,
         head:
-            run(["rev-parse", "HEAD"]),
+            head.value,
         remote:
-            run(["remote", "get-url", "origin"])
+            remote.value,
+        clean:
+            repositoryRoot.ok === true &&
+            head.ok === true &&
+            worktreeStatus.ok === true &&
+            worktreeStatus.value === ""
     };
+}
+
+function advertisedBranchHead(
+    root = DEFAULT_ROOT,
+    branch = ""
+) {
+    const cleanBranch =
+        String(branch || "").trim();
+    if (
+        !cleanBranch ||
+        cleanBranch.startsWith("-") ||
+        /[\s~^:?*[\]\\]/.test(cleanBranch)
+    ) {
+        return "";
+    }
+    const exactRef =
+        `refs/heads/${cleanBranch}`;
+    const output = gitText(
+        [
+            "-c",
+            "credential.interactive=never",
+            "ls-remote",
+            "--exit-code",
+            "--heads",
+            "origin",
+            exactRef
+        ],
+        root,
+        {
+            allowFailure: true,
+            maxBuffer: 1024 * 1024,
+            timeout: 10000,
+            env: {
+                ...process.env,
+                GIT_TERMINAL_PROMPT: "0"
+            }
+        }
+    );
+    const match = output
+        .split(/\r?\n/)
+        .map(line => String(line || "").trim().split(/\s+/))
+        .find(parts => parts.length === 2 && parts[1] === exactRef);
+    const head =
+        String(match?.[0] || "").toLowerCase();
+    return /^[a-f0-9]{40}$/.test(head)
+        ? head
+        : "";
 }
 
 export function describeJarvisBridgeIdentity(
@@ -1631,6 +1707,20 @@ export function describeJarvisBridgeIdentity(
     const git =
         readGitIdentity(root);
 
+    const localRepository =
+        localGitHubRepositoryIdentity(root);
+    const expectedRepository =
+        parseRepositoryTarget(
+            `https://github.com/${String(contract.repository || "").replace(/^\/+|\/+$/g, "")}`
+        );
+    const repositoryMatches =
+        contract.ok === true &&
+        expectedRepository?.ok === true &&
+        expectedRepository.provider === "github" &&
+        localRepository !== null &&
+        localRepository.owner === String(expectedRepository.owner || "").toLowerCase() &&
+        localRepository.repository === String(expectedRepository.repository || "").toLowerCase();
+
     const branchMatches =
         contract.ok === true &&
         Boolean(git.root) &&
@@ -1638,19 +1728,11 @@ export function describeJarvisBridgeIdentity(
 
     const contractHead =
         contract.ok === true &&
-        Boolean(git.root) &&
-        Boolean(git.head) &&
+        repositoryMatches &&
         Boolean(contract.branch)
-            ? gitText(
-                [
-                    "rev-parse",
-                    "--verify",
-                    `origin/${contract.branch}^{commit}`
-                ],
+            ? advertisedBranchHead(
                 root,
-                {
-                    allowFailure: true
-                }
+                contract.branch
             )
             : "";
 
@@ -1658,13 +1740,16 @@ export function describeJarvisBridgeIdentity(
         Boolean(contractHead) &&
         contractHead === git.head;
 
-    const branchFallbackWithoutRemoteRef =
-        branchMatches &&
-        !contractHead;
+    const detachedHead =
+        git.branch === "";
 
     const compatible =
-        headMatchesContractHead ||
-        branchFallbackWithoutRemoteRef;
+        repositoryMatches &&
+        (
+            branchMatches ||
+            (detachedHead && git.clean === true)
+        ) &&
+        headMatchesContractHead;
 
     return {
         ok: compatible,
@@ -1677,30 +1762,44 @@ export function describeJarvisBridgeIdentity(
         contract,
         git,
         identityMode:
-            headMatchesContractHead
-                ? git.branch === contract.branch
+            compatible
+                ? branchMatches
                     ? "branch_contract_head"
-                    : git.branch
-                        ? "worktree_contract_head"
-                        : "detached_contract_head"
-                : branchFallbackWithoutRemoteRef
-                    ? "branch_unverified_no_remote_ref"
-                    : "invalid",
+                    : "detached_contract_head"
+                : "invalid",
         contractHead:
             contractHead ||
-            null
+            null,
+        remoteVerified:
+            Boolean(contractHead),
+        repositoryMatches,
+        worktreeClean:
+            git.clean === true
     };
 }
 
 
-function gitText(args = [], root = DEFAULT_ROOT, { allowFailure = false, maxBuffer = 16 * 1024 * 1024, trim = true } = {}) {
+function gitText(args = [], root = DEFAULT_ROOT, {
+    allowFailure = false,
+    maxBuffer = 16 * 1024 * 1024,
+    trim = true,
+    timeout = undefined,
+    env = undefined
+} = {}) {
     try {
-        const output = execFileSync("git", args, {
+        const options = {
             cwd: path.resolve(root),
             encoding: "utf8",
             stdio: ["ignore", "pipe", "pipe"],
             maxBuffer
-        });
+        };
+        if (Number.isFinite(timeout) && timeout > 0) {
+            options.timeout = timeout;
+        }
+        if (env && typeof env === "object") {
+            options.env = env;
+        }
+        const output = execFileSync("git", args, options);
         return trim ? output.trim() : output;
     } catch (error) {
         if (allowFailure) return "";
@@ -1757,7 +1856,11 @@ function resolveCommitForRef(ref = "", root = DEFAULT_ROOT) {
 }
 
 function localGitHubRepositoryIdentity(root = DEFAULT_ROOT) {
-    const remote = gitText(["remote", "get-url", "origin"], root, { allowFailure: true });
+    const remote = gitText(
+        ["config", "--get", "remote.origin.url"],
+        root,
+        { allowFailure: true }
+    );
     if (!remote) return null;
     let normalized = remote;
     if (normalized.startsWith("git@github.com:")) {

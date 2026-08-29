@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
 import { test } from "node:test";
 
@@ -15,10 +16,20 @@ function initFixture() {
     execFileSync("git", ["checkout", "-b", "v94-doc-extract-test"], { cwd: root, stdio: "ignore" });
     execFileSync("git", ["config", "user.name", "Jarvis Bridge Test"], { cwd: root, stdio: "ignore" });
     execFileSync("git", ["config", "user.email", "jarvis-bridge-test@example.invalid"], { cwd: root, stdio: "ignore" });
+    const remoteRoot = path.join(root, ".git", "test-remote.git");
+    execFileSync("git", ["init", "--bare", remoteRoot], { stdio: "ignore" });
+    const canonicalRemote = "https://github.com/test-owner/fixgo-app.git";
+    execFileSync("git", ["remote", "add", "origin", canonicalRemote], { cwd: root, stdio: "ignore" });
+    execFileSync("git", [
+        "config",
+        `url.${pathToFileURL(remoteRoot).href}.insteadOf`,
+        canonicalRemote
+    ], { cwd: root, stdio: "ignore" });
     fs.writeFileSync(
         path.join(root, "jarvis-runtime-contract.json"),
         JSON.stringify({
             projectId: "fixgo-app",
+            repository: "test-owner/fixgo-app",
             branch: "v94-doc-extract-test",
             releaseId: "v94-doc-extract-test-release"
         }, null, 2)
@@ -32,6 +43,7 @@ function initFixture() {
     fs.writeFileSync(path.join(root, "fixture.txt"), "bridge identity fixture\n", "utf8");
     execFileSync("git", ["add", "jarvis-runtime-contract.json", "fixture.txt"], { cwd: root, stdio: "ignore" });
     execFileSync("git", ["commit", "-m", "test: initialize bridge identity fixture"], { cwd: root, stdio: "ignore" });
+    execFileSync("git", ["push", "-u", "origin", "v94-doc-extract-test"], { cwd: root, stdio: "ignore" });
     return root;
 }
 

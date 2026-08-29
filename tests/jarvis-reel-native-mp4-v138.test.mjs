@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { test } from "node:test";
@@ -151,8 +152,9 @@ test("V142 canonicalizes planner speech output at the physical bridge boundary",
   assert.match(source, /output: speechOutput/);
 });
 
-test("V142 accepts detached bridge identity only at the contract remote-tracking head", async () => {
+test("V142 accepts detached bridge identity only at the live contract branch head", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-v142-detached-identity-"));
+  const remoteRoot = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-v142-detached-remote-"));
   const branch = "v94-media-v4n-negative-claims";
   const releaseId = "v94-source-grounded-research-v124-20260810";
   const runGit = args => execFileSync("git", args, {
@@ -163,12 +165,18 @@ test("V142 accepts detached bridge identity only at the contract remote-tracking
 
   let server;
   try {
+    execFileSync("git", ["init", "--bare", remoteRoot], { stdio: "ignore" });
     runGit(["init", "-b", branch]);
     runGit(["config", "user.email", "v142@example.test"]);
     runGit(["config", "user.name", "V142 Test"]);
     fs.writeFileSync(
       path.join(root, "jarvis-runtime-contract.json"),
-      JSON.stringify({ projectId: "fixgo-test", branch, releaseId }),
+      JSON.stringify({
+        projectId: "fixgo-test",
+        repository: "test-owner/fixgo-test",
+        branch,
+        releaseId
+      }),
       "utf8"
     );
     const marker = path.join(root, "identity-marker.txt");
@@ -176,7 +184,14 @@ test("V142 accepts detached bridge identity only at the contract remote-tracking
     runGit(["add", "."]);
     runGit(["commit", "-m", "certified head"]);
     const certifiedHead = runGit(["rev-parse", "HEAD"]);
-    runGit(["update-ref", `refs/remotes/origin/${branch}`, certifiedHead]);
+    const canonicalRemote = "https://github.com/test-owner/fixgo-test.git";
+    runGit(["remote", "add", "origin", canonicalRemote]);
+    runGit([
+      "config",
+      `url.${pathToFileURL(remoteRoot).href}.insteadOf`,
+      canonicalRemote
+    ]);
+    runGit(["push", "-u", "origin", branch]);
     runGit(["checkout", "--detach", certifiedHead]);
 
     server = createJarvisFsBridgeApp({ root }).listen(0);
@@ -219,6 +234,7 @@ test("V142 accepts detached bridge identity only at the contract remote-tracking
       await new Promise(resolve => server.close(resolve));
     }
     fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(remoteRoot, { recursive: true, force: true });
   }
 });
 

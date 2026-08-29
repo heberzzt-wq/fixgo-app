@@ -22,8 +22,9 @@ test("v139 tolerates release skew only for current local artifact routes", () =>
     }
 });
 
-test("v139 release skew requires same project and branch lineage plus bridge 2.45+", () => {
-    assert.match(runtime, /const lineageCompatible =[\s\S]*?actual\?\.contract\?\.projectId === expected\.projectId[\s\S]*?actual\?\.contract\?\.branch === expected\.branch[\s\S]*?actual\?\.git\?\.branch === expected\.branch/);
+test("v139 release skew reuses verified bridge repository and branch lineage plus bridge 2.45+", () => {
+    assert.match(runtime, /const lineageCompatible =[\s\S]*?actual\?\.status === "BRIDGE_IDENTITY_OK"[\s\S]*?actual\?\.contract\?\.projectId === expected\.projectId[\s\S]*?actual\?\.contract\?\.repository === expected\.repository[\s\S]*?actual\?\.contract\?\.branch === expected\.branch/);
+    assert.doesNotMatch(runtime, /actual\?\.git\?\.branch === expected\.branch/);
     assert.match(runtime, /const releaseCompatible =\s*\n\s*lineageCompatible &&\s*\n\s*actual\?\.contract\?\.releaseId === expected\.releaseId/);
     assert.match(runtime, /identity\.releaseSkewBridgeVersionCompatible === true/);
     assert.match(runtime, /JARVIS_RELEASE_SKEW_SAFE_PATHS\.has\(normalizedPath\)/);

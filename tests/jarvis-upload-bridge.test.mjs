@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { test } from "node:test";
@@ -31,6 +32,39 @@ function initializeBridgeRoot() {
                 "ignore"
         }
     );
+    execFileSync(
+        "git",
+        ["config", "user.email", "jarvis-upload@example.invalid"],
+        { cwd: root, stdio: "ignore" }
+    );
+    execFileSync(
+        "git",
+        ["config", "user.name", "Jarvis Upload Test"],
+        { cwd: root, stdio: "ignore" }
+    );
+    const remoteRoot =
+        path.join(root, ".git", "test-remote.git");
+    execFileSync(
+        "git",
+        ["init", "--bare", remoteRoot],
+        { stdio: "ignore" }
+    );
+    const canonicalRemote =
+        "https://github.com/test-owner/fixgo-test.git";
+    execFileSync(
+        "git",
+        ["remote", "add", "origin", canonicalRemote],
+        { cwd: root, stdio: "ignore" }
+    );
+    execFileSync(
+        "git",
+        [
+            "config",
+            `url.${pathToFileURL(remoteRoot).href}.insteadOf`,
+            canonicalRemote
+        ],
+        { cwd: root, stdio: "ignore" }
+    );
 
     fs.writeFileSync(
         path.join(
@@ -40,12 +74,29 @@ function initializeBridgeRoot() {
         JSON.stringify({
             projectId:
                 "fixgo-test",
+            repository:
+                "test-owner/fixgo-test",
             branch:
                 "v5.9-polish",
             releaseId:
                 "test-release"
         }),
         "utf8"
+    );
+    execFileSync(
+        "git",
+        ["add", "jarvis-runtime-contract.json"],
+        { cwd: root, stdio: "ignore" }
+    );
+    execFileSync(
+        "git",
+        ["commit", "-m", "initialize bridge identity"],
+        { cwd: root, stdio: "ignore" }
+    );
+    execFileSync(
+        "git",
+        ["push", "-u", "origin", "v5.9-polish"],
+        { cwd: root, stdio: "ignore" }
     );
 
     return root;

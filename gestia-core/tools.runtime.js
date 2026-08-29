@@ -1435,9 +1435,11 @@ window.JarvisLocalBridge.verifyIdentity ||= async function({
             expectedResponse.ok === true &&
             bridgeResponse.ok === true &&
             actual?.ok === true &&
+            actual?.status === "BRIDGE_IDENTITY_OK" &&
             actual?.contract?.projectId === expected.projectId &&
-            actual?.contract?.branch === expected.branch &&
-            actual?.git?.branch === expected.branch;
+            Boolean(expected.repository) &&
+            actual?.contract?.repository === expected.repository &&
+            actual?.contract?.branch === expected.branch;
         const releaseCompatible =
             lineageCompatible &&
             actual?.contract?.releaseId === expected.releaseId;
