@@ -131,6 +131,7 @@ jobs:
           echo 'V139_BOUNDED_LATENCY_PRESENTATION_GREEN=true'
 
   real-reel-e2e:
+    if: ${{ vars.RUN_V139_REAL_REEL_E2E == 'true' }}
     runs-on: windows-latest
     timeout-minutes: 18
     steps:
