@@ -1679,7 +1679,8 @@ test("V142 RunPod adapter provisions one L40S Pod, transfers physical assets, re
         bootstrap,
         new RegExp(RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].modelRevision)
     );
-    assert.match(bootstrap, /while kill -0 "\$DOWNLOAD_PID"/);
+    assert.doesNotMatch(bootstrap, /MODEL_DOWNLOAD/);
+    assert.doesNotMatch(bootstrap, /"\$VENV\/bin\/hf" download/);
     assert.doesNotMatch(bootstrap, /actual\.get\(k\)==expected\.get\(k\)|json\.dumps\(expected/);
     assert.match(bootstrap, /observed_files\.append\(\{'path':item\['path'\],'bytes':size,'sha256':sha256\}\)/);
     assert.match(bootstrap, /assert size==item\['bytes'\] and sha256==item\['sha256'\]/);
@@ -1687,11 +1688,6 @@ test("V142 RunPod adapter provisions one L40S Pod, transfers physical assets, re
     assert.match(bootstrap, /model_tree_excluding_root_huggingface_cache/);
     assert.match(bootstrap, /python3 "\$MODEL_PREFLIGHT" .* && "\$VENV\/bin\/python" "\$PREFLIGHT" .* && CACHE_VALID=1/);
     assert.match(bootstrap, /if test "\$CACHE_VALID" = 1; then write_cache_evidence; progress CACHE_VALIDATE READY CACHE_HIT; exit 0; fi/);
-    assert.ok(
-        bootstrap.indexOf('if test "$CACHE_VALID" = 1; then write_cache_evidence; progress CACHE_VALIDATE READY CACHE_HIT; exit 0; fi')
-            < bootstrap.indexOf('"$VENV/bin/hf" download'),
-        "a physically verified cache hit must exit before the model download command"
-    );
     assert.match(bootstrap, /rm -f "\$CACHE_MANIFEST"\nprogress CACHE_VALIDATE INCOMPLETE CACHE_MISS/);
     const cacheEvidenceWriterStart = bootstrap.indexOf("write_cache_evidence()");
     const cacheEvidenceWriter = bootstrap.slice(
@@ -1711,13 +1707,10 @@ test("V142 RunPod adapter provisions one L40S Pod, transfers physical assets, re
     assert.match(bootstrap, /flash_attn_func/);
     assert.match(bootstrap, /flashAttentionCudaProbe/);
     assert.match(bootstrap, /MODEL_MANIFEST/);
-    assert.match(bootstrap, /MODEL_CACHE_VALID/);
-    assert.match(bootstrap, /if test "\$MODEL_CACHE_VALID" = 1; then/);
-    assert.ok(
-        bootstrap.indexOf('if test "$MODEL_CACHE_VALID" = 1; then')
-            < bootstrap.indexOf('  "$VENV/bin/hf" download'),
-        "a CPU-staged model manifest must be verified before any GPU model download"
-    );
+    assert.doesNotMatch(bootstrap, /MODEL_CACHE_VALID/);
+    assert.match(bootstrap, /progress MODEL_VALIDATION RUNNING CACHE_POPULATING/);
+    assert.match(bootstrap, /python3 "\$MODEL_PREFLIGHT" .* "\$MODEL_MANIFEST" "\$JARVIS_OPERATION_ID"/);
+    assert.match(bootstrap, /progress MODEL_VALIDATION READY CACHE_MODEL_READY/);
     assert.match(bootstrap, /MAX_JOBS=4/);
     assert.match(bootstrap, /pip check/);
     assert.match(bootstrap, /importlib\.import_module\(name\)/);
