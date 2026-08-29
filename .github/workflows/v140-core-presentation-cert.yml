@@ -8,6 +8,12 @@ on:
       - 'gestia-terminal.html'
       - 'tests/jarvis-marketing-terminal-delivery.e2e.test.mjs'
   workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Deploy certified V140 Hosting after certification'
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -157,7 +163,7 @@ jobs:
     needs:
       - certify-linux
       - certify-windows
-    if: ${{ success() }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy == true && success() }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -240,11 +246,13 @@ jobs:
           LINUX_RESULT: ${{ needs.certify-linux.result }}
           WINDOWS_RESULT: ${{ needs.certify-windows.result }}
           DEPLOY_RESULT: ${{ needs.deploy-hosting-only.result }}
+          DEPLOY_REQUESTED: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy == true }}
         run: |
           set -euo pipefail
           state=success
-          if [ "$LINUX_RESULT" != success ] || [ "$WINDOWS_RESULT" != success ] || [ "$DEPLOY_RESULT" != success ]; then state=failure; fi
+          if [ "$LINUX_RESULT" != success ] || [ "$WINDOWS_RESULT" != success ]; then state=failure; fi
+          if [ "$DEPLOY_REQUESTED" = true ] && [ "$DEPLOY_RESULT" != success ]; then state=failure; fi
           target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          description="linux=${LINUX_RESULT} windows=${WINDOWS_RESULT} deploy=${DEPLOY_RESULT}"
+          description="linux=${LINUX_RESULT} windows=${WINDOWS_RESULT} deploy_requested=${DEPLOY_REQUESTED} deploy=${DEPLOY_RESULT}"
           payload=$(jq -n --arg state "$state" --arg context 'v140-core-presentation' --arg description "$description" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
           curl --fail-with-body --silent --show-error --location -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" -d "$payload" >/dev/null
