@@ -2180,7 +2180,7 @@ export function createRunpodRemoteVideoAdapter({
                 backend: configuredBackend,
                 status: placement?.selected?.requiresCacheReplica
                     ? "PLACEMENT_REQUIRES_CACHE_REPLICA"
-                    : (dynamicPlacement ? "PLACEMENT_CANDIDATE_READY" : "ZERO_COST_PRECHECK_READY"),
+                    : "ZERO_COST_PRECHECK_READY",
                 paidResourceCreationAuthorized,
                 paidResourceCreationPossible: paidResourceCreationAuthorized && Boolean(apiKey) && Boolean(body),
                 zeroCostChecks: [...RUNPOD_ZERO_COST_PRECHECKS],
