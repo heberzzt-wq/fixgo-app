@@ -29,6 +29,12 @@ on:
       - 'tests/jarvis-multifunction-tools.test.mjs'
       - 'tests/jarvis-semantic-memory-integrity.test.mjs'
   workflow_dispatch:
+    inputs:
+      external_reel:
+        description: 'Run authenticated external reel E2E'
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -131,7 +137,7 @@ jobs:
           echo 'V139_BOUNDED_LATENCY_PRESENTATION_GREEN=true'
 
   real-reel-e2e:
-    if: ${{ vars.RUN_V139_REAL_REEL_E2E == 'true' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.external_reel == true }}
     runs-on: windows-latest
     timeout-minutes: 18
     steps:

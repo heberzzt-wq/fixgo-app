@@ -14,6 +14,11 @@ on:
         required: true
         type: boolean
         default: false
+      external_reel:
+        description: 'Run authenticated external reel E2E'
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -127,6 +132,7 @@ jobs:
         run: npm ci
 
       - name: Canonical real-reel mission
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.external_reel == true }}
         shell: pwsh
         run: |
           $stdout = Join-Path $env:RUNNER_TEMP 'v140-bridge.stdout.log'
