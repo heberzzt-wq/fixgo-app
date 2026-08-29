@@ -145,6 +145,7 @@ export const RUNPOD_PHYSICAL_PAID_PREFLIGHTS = Object.freeze([
 ]);
 
 const RUNPOD_WAN22_CACHE_BASE = Object.freeze({
+    cloudType: "SECURE",
     registry: "registry-1.docker.io",
     repository: "runpod/pytorch",
     tag: "1.0.2-cu1281-torch280-ubuntu2404",
@@ -174,7 +175,9 @@ const RUNPOD_WAN22_CACHE_BASE = Object.freeze({
     peakWorkspaceBytes: RUNPOD_PEAK_WORKSPACE_BYTES,
     networkVolumeType: "STANDARD",
     minimumNetworkVolumeGb: 50,
-    dataCenterId: "EU-NL-1",
+    minimumVramGb: 48,
+    minimumRamGb: 62,
+    minimumVcpu: 16,
     requiredFiles: Object.freeze([
         Object.freeze({ path: "Wan2.2_VAE.pth", bytes: 2818839170, sha256: "20eb789667fa5e60e7516bf509512f6cb61f01b0aa0695eadaea930c13892b36" }),
         Object.freeze({ path: "config.json", bytes: 251, sha256: "d1fea36899d00c2501b836c13ad65af56e2f9529ba622e50886d3f5c3e6c02bc" }),
@@ -197,11 +200,16 @@ export const RUNPOD_WAN22_GPU_PROFILES = Object.freeze({
         gpuTypeId: "NVIDIA L40S",
         profile: "wan22-ti2v-5b-l40s",
         computeCapability: "8.9",
-        minimumVramGb: 48,
-        minimumRamGb: 62,
-        minimumVcpu: 16,
+        runtimePreflightCertified: true,
         expectedTotalHourlyRateUsd: 0.99,
-        requiredNetworkVolumeDataCenterId: RUNPOD_WAN22_CACHE_BASE.dataCenterId
+    }),
+    "NVIDIA A40": Object.freeze({
+        ...RUNPOD_WAN22_CACHE_BASE,
+        gpuTypeId: "NVIDIA A40",
+        profile: "wan22-ti2v-5b-a40",
+        computeCapability: "8.6",
+        runtimePreflightCertified: false,
+        expectedTotalHourlyRateUsd: 0.46
     })
 });
 
@@ -237,7 +245,7 @@ export const RUNPOD_CPU_STAGING_PROFILE = Object.freeze({
     computeType: "CPU",
     cpuFlavorId: "cpu3c",
     cpuFlavorPriority: "custom",
-    dataCenterId: RUNPOD_WAN22_CACHE_BASE.dataCenterId,
+    dataCenterId: "EU-NL-1",
     dataCenterPriority: "custom",
     registry: "registry-1.docker.io",
     repository: "library/ubuntu",
@@ -1437,7 +1445,9 @@ export function createRunpodRemoteVideoAdapter({
     const provisionImageTag = String(
         env.JARVIS_RUNPOD_IMAGE || cacheContract?.provisionImageTag || RUNPOD_WAN22_CACHE_BASE.provisionImageTag
     ).trim();
-    const cloudType = String(env.JARVIS_RUNPOD_CLOUD_TYPE || "COMMUNITY").trim().toUpperCase() === "SECURE"
+    const cloudType = String(
+        env.JARVIS_RUNPOD_CLOUD_TYPE || RUNPOD_WAN22_CACHE_BASE.cloudType
+    ).trim().toUpperCase() === "SECURE"
         ? "SECURE"
         : "COMMUNITY";
     const configuredPolicy = String(env.JARVIS_VIDEO_ENGINE_POLICY || "").trim().toUpperCase();
@@ -1468,15 +1478,15 @@ export function createRunpodRemoteVideoAdapter({
     );
     const minimumRamGb = Math.ceil(runpodPositiveNumber(
         env.JARVIS_RUNPOD_MIN_RAM_GB,
-        cacheContract?.minimumRamGb || 50
+        cacheContract?.minimumRamGb || RUNPOD_WAN22_CACHE_BASE.minimumRamGb
     ));
     const minimumVcpu = Math.ceil(runpodPositiveNumber(
         env.JARVIS_RUNPOD_MIN_VCPU,
-        cacheContract?.minimumVcpu || 9
+        cacheContract?.minimumVcpu || RUNPOD_WAN22_CACHE_BASE.minimumVcpu
     ));
     const expectedVramGb = runpodPositiveNumber(
         env.JARVIS_RUNPOD_EXPECTED_VRAM_GB,
-        cacheContract?.minimumVramGb || 48
+        cacheContract?.minimumVramGb || RUNPOD_WAN22_CACHE_BASE.minimumVramGb
     );
     const configuredTotalHourlyRateUsd = runpodPositiveNumber(
         env.JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD,
@@ -1519,23 +1529,29 @@ export function createRunpodRemoteVideoAdapter({
         }
     }
 
-    function assertZeroCostConfiguration(job) {
+    function assertZeroCostConfiguration(job, { allowDynamicPlacement = false } = {}) {
         if (provider !== "runpod") throw new Error("RUNPOD_PROVIDER_NOT_ENABLED");
         if (configuredPolicy !== "LOCAL_TEST") throw new Error("RUNPOD_LOCAL_TEST_POLICY_REQUIRED");
         if (configuredBackend !== WAN22_TI2V_5B.backend) throw new Error("RUNPOD_WAN22_BACKEND_REQUIRED");
         if (!hardBudgetExplicit) throw new Error("RUNPOD_HARD_BUDGET_REQUIRED");
-        if (!gpuTypeId) throw new Error("RUNPOD_GPU_TYPE_EXPLICIT_AUTHORIZATION_REQUIRED");
-        if (!cacheContract) throw new Error("RUNPOD_GPU_TYPE_NOT_APPROVED_FOR_V142");
+        if (!gpuTypeId && (!allowDynamicPlacement || paidResourceCreationAuthorized)) {
+            throw new Error("RUNPOD_GPU_TYPE_EXPLICIT_AUTHORIZATION_REQUIRED");
+        }
+        if (gpuTypeId && !cacheContract) throw new Error("RUNPOD_GPU_TYPE_NOT_APPROVED_FOR_V142");
         if (/@sha256:/i.test(provisionImageTag)) {
             throw new Error("RUNPOD_IMAGE_NAME_DIGEST_FORBIDDEN");
         }
-        if (provisionImageTag !== cacheContract.provisionImageTag) {
+        const configuredImageContract = cacheContract || RUNPOD_WAN22_CACHE_BASE;
+        if (provisionImageTag !== configuredImageContract.provisionImageTag) {
             throw new Error("RUNPOD_PROVISION_IMAGE_TAG_NOT_APPROVED_FOR_V142");
         }
-        if (!/^sha256:[a-f0-9]{64}$/i.test(cacheContract.expectedRegistryDigest)) {
+        if (!/^sha256:[a-f0-9]{64}$/i.test(configuredImageContract.expectedRegistryDigest)) {
             throw new Error("RUNPOD_EXPECTED_REGISTRY_DIGEST_INVALID");
         }
-        if (minimumRamGb < cacheContract.minimumRamGb || minimumVcpu < cacheContract.minimumVcpu) {
+        if (
+            minimumRamGb < configuredImageContract.minimumRamGb ||
+            minimumVcpu < configuredImageContract.minimumVcpu
+        ) {
             throw new Error("RUNPOD_GPU_RESOURCE_PROFILE_INSUFFICIENT");
         }
         if (networkVolumeId && cloudType !== "SECURE") {
@@ -1704,8 +1720,258 @@ export function createRunpodRemoteVideoAdapter({
         return active.length;
     }
 
+    function runpodEvidenceStates() {
+        if (!fs.existsSync(stateRoot)) return [];
+        return fs.readdirSync(stateRoot)
+            .filter(name => name.endsWith(".json"))
+            .map(name => {
+                try { return readJson(path.join(stateRoot, name)); }
+                catch { return null; }
+            })
+            .filter(Boolean);
+    }
+
+    function normalizedCacheReplica(evidence) {
+        const cacheStatus = String(evidence?.cacheStatus || "").trim().toUpperCase();
+        if (!["CACHE_MODEL_READY", "CACHE_READY", "CACHE_HIT"].includes(cacheStatus)) return null;
+        const networkVolumeId = String(evidence?.networkVolumeId || evidence?.id || "").trim();
+        const dataCenterId = String(
+            evidence?.dataCenterId || evidence?.networkVolumeDataCenterId || ""
+        ).trim();
+        const manifest = evidence?.manifest || evidence?.modelManifest || null;
+        const files = Array.isArray(manifest?.files)
+            ? manifest.files
+            : (Array.isArray(evidence?.files) ? evidence.files : []);
+        const modelRepository = String(
+            manifest?.model?.repository || evidence?.modelRepository || ""
+        ).trim();
+        const modelRevision = String(
+            manifest?.model?.revision || evidence?.modelRevision || evidence?.modelContractRevision || ""
+        ).trim();
+        const wanRepositoryRevision = String(
+            manifest?.wanRepositoryRevision || evidence?.wanRepositoryRevision || ""
+        ).trim();
+        const modelBytes = Number(manifest?.modelBytes ?? evidence?.modelBytes ?? evidence?.physicalModelDirectoryBytes);
+        const requiredFilesBytes = Number(
+            manifest?.requiredFilesBytes ?? evidence?.requiredFilesBytes ?? evidence?.verifiedRequiredBytes
+        );
+        const expectedFiles = new Map(
+            RUNPOD_WAN22_CACHE_BASE.requiredFiles.map(item => [item.path, item])
+        );
+        const observedFiles = new Map(files.map(item => [String(item?.path || ""), item]));
+        const filesMatch = observedFiles.size === expectedFiles.size &&
+            [...expectedFiles].every(([filePath, expected]) => {
+                const observed = observedFiles.get(filePath);
+                return Number(observed?.bytes) === expected.bytes &&
+                    String(observed?.sha256 || "").toLowerCase() === expected.sha256;
+            });
+        const identityMatches =
+            modelRepository === RUNPOD_WAN22_CACHE_BASE.modelRepository &&
+            modelRevision === RUNPOD_WAN22_CACHE_BASE.modelRevision &&
+            wanRepositoryRevision === RUNPOD_WAN22_CACHE_BASE.wanRepositoryRevision &&
+            modelBytes === RUNPOD_WAN22_CACHE_BASE.expectedModelBytes &&
+            requiredFilesBytes === RUNPOD_WAN22_CACHE_BASE.requiredRuntimeModelBytes;
+        const retained = evidence?.networkVolumeRetained !== false && evidence?.volumeRetained !== false;
+        const completed = !evidence?.phase || [
+            "COMPLETED", "RELEASED", "TERMINATED", "CACHE_READY", "CACHE_MODEL_READY"
+        ].includes(String(evidence.phase).toUpperCase());
+        if (!networkVolumeId || !dataCenterId || !filesMatch || !identityMatches || !retained || !completed) {
+            return { invalid: true, networkVolumeId: networkVolumeId || null };
+        }
+        return {
+            networkVolumeId,
+            dataCenterId,
+            sizeGb: Math.max(
+                RUNPOD_WAN22_CACHE_BASE.minimumNetworkVolumeGb,
+                Number(evidence?.sizeGb || evidence?.networkVolumeSizeGb || 0)
+            ),
+            type: String(evidence?.type || evidence?.volumeType || RUNPOD_WAN22_CACHE_BASE.networkVolumeType)
+                .trim().toUpperCase(),
+            cacheStatus,
+            modelRepository,
+            modelRevision,
+            wanRepositoryRevision,
+            modelBytes,
+            requiredFilesBytes,
+            shaVerified: true
+        };
+    }
+
+    function certifiedCacheReplicas(cacheReplicas = null, networkVolumes = null) {
+        const supplied = Array.isArray(cacheReplicas) ? cacheReplicas : [];
+        const claims = [...runpodEvidenceStates(), ...supplied]
+            .map(normalizedCacheReplica)
+            .filter(Boolean);
+        const invalidIds = new Set(
+            claims.filter(item => item.invalid && item.networkVolumeId).map(item => item.networkVolumeId)
+        );
+        const volumeInventory = Array.isArray(networkVolumes) ? networkVolumes : null;
+        const byId = new Map();
+        for (const replica of claims.filter(item => !item.invalid && !invalidIds.has(item.networkVolumeId))) {
+            if (volumeInventory) {
+                const physical = volumeInventory.find(item =>
+                    String(item?.id || item?.networkVolumeId || "") === replica.networkVolumeId &&
+                    String(item?.dataCenterId || item?.dataCenter?.id || "") === replica.dataCenterId &&
+                    Number(item?.sizeGb || item?.size || item?.sizeInGb || 0) >=
+                        RUNPOD_WAN22_CACHE_BASE.minimumNetworkVolumeGb
+                );
+                if (!physical) continue;
+            }
+            const existing = byId.get(replica.networkVolumeId);
+            if (existing && JSON.stringify(existing) !== JSON.stringify(replica)) {
+                invalidIds.add(replica.networkVolumeId);
+                byId.delete(replica.networkVolumeId);
+                continue;
+            }
+            byId.set(replica.networkVolumeId, replica);
+        }
+        for (const id of invalidIds) byId.delete(id);
+        return [...byId.values()];
+    }
+
+    function runtimeProfileCertified(profile, runtimeEvidence = null) {
+        if (profile.runtimePreflightCertified === true) return true;
+        return (Array.isArray(runtimeEvidence) ? runtimeEvidence : []).some(evidence =>
+            evidence?.runtimePreflightVerified === true &&
+            String(evidence?.gpuTypeId || "") === profile.gpuTypeId &&
+            String(evidence?.computeCapability || "") === profile.computeCapability &&
+            String(evidence?.provisionImageTag || "") === profile.provisionImageTag &&
+            String(evidence?.expectedRegistryDigest || "") === profile.expectedRegistryDigest &&
+            String(evidence?.modelRevision || "") === profile.modelRevision &&
+            String(evidence?.wanRepositoryRevision || "") === profile.wanRepositoryRevision
+        );
+    }
+
+    function selectPlacement({
+        job,
+        inventory,
+        cacheReplicas = null,
+        networkVolumes = null,
+        runtimeEvidence = null
+    }) {
+        const liveInventory = Array.isArray(inventory) ? inventory : [];
+        const replicas = certifiedCacheReplicas(cacheReplicas, networkVolumes);
+        const candidates = [];
+        const rejected = [];
+        const stockRank = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+        const cacheRank = { CACHE_HIT: 0, CACHE_READY: 0, CACHE_MODEL_READY: 1, CACHE_MISS: 2 };
+        for (const observation of liveInventory) {
+            const observedGpuTypeId = String(observation?.gpuTypeId || "").trim();
+            const dataCenterId = String(observation?.dataCenterId || "").trim();
+            const profile = RUNPOD_WAN22_GPU_PROFILES[observedGpuTypeId] || null;
+            const stockStatus = String(observation?.stockStatus || "").trim().toUpperCase();
+            const hourlyRateUsd = Number(observation?.hourlyRateUsd);
+            let reason = null;
+            if (!profile) reason = "RUNPOD_GPU_CAPABILITY_PROFILE_UNAVAILABLE";
+            else if (observation?.available !== true || !Object.hasOwn(stockRank, stockStatus)) {
+                reason = "RUNPOD_COMPATIBLE_GPU_UNAVAILABLE";
+            }
+            else if (observation?.secureCloud !== true || !dataCenterId) {
+                reason = "RUNPOD_SECURE_CLOUD_CAPABILITY_REQUIRED";
+            }
+            else if (
+                Number(observation?.vramGb || 0) < profile.minimumVramGb ||
+                Number(observation?.minimumRamGb || 0) < profile.minimumRamGb ||
+                Number(observation?.minimumVcpu || 0) < profile.minimumVcpu ||
+                (observation?.computeCapability != null &&
+                    String(observation.computeCapability) !== profile.computeCapability)
+            ) {
+                reason = "RUNPOD_GPU_RESOURCE_PROFILE_INSUFFICIENT";
+            }
+            else if (!Number.isFinite(hourlyRateUsd) || hourlyRateUsd <= 0) {
+                reason = "RUNPOD_HOURLY_RATE_INVALID";
+            }
+            else if (observation?.networkVolumeSupported !== true) {
+                reason = "RUNPOD_NETWORK_VOLUME_TYPE_NOT_APPROVED";
+            }
+            else if (!runtimeProfileCertified(profile, runtimeEvidence)) {
+                reason = "RUNPOD_RUNTIME_PREFLIGHT_CERTIFICATION_REQUIRED";
+            }
+            if (reason) {
+                rejected.push({ gpuTypeId: observedGpuTypeId, dataCenterId, reason });
+                continue;
+            }
+            const localReplicas = replicas.filter(replica =>
+                replica.dataCenterId === dataCenterId &&
+                replica.type === profile.networkVolumeType &&
+                replica.sizeGb >= profile.minimumNetworkVolumeGb
+            );
+            const placements = localReplicas.length > 0 ? localReplicas : [{
+                networkVolumeId: null,
+                dataCenterId,
+                sizeGb: profile.minimumNetworkVolumeGb,
+                type: profile.networkVolumeType,
+                cacheStatus: "CACHE_MISS",
+                shaVerified: false
+            }];
+            for (const replica of placements) {
+                candidates.push({
+                    gpuTypeId: observedGpuTypeId,
+                    computeCapability: profile.computeCapability,
+                    dataCenterId,
+                    networkVolumeId: replica.networkVolumeId,
+                    networkVolumeType: replica.type,
+                    networkVolumeSizeGb: replica.sizeGb,
+                    cacheStatus: replica.cacheStatus,
+                    cacheShaVerified: replica.shaVerified,
+                    requiresCacheReplica: !replica.networkVolumeId,
+                    storageRequiredGb: profile.minimumNetworkVolumeGb,
+                    hourlyRateUsd,
+                    stockStatus,
+                    runtimePreflightCertified: true,
+                    missionId: job.missionId,
+                    objectiveId: job.objectiveId,
+                    obligationId: job.obligationId,
+                    rootInstructionHash: job.rootInstructionHash
+                });
+            }
+        }
+        candidates.sort((left, right) =>
+            Number(left.requiresCacheReplica) - Number(right.requiresCacheReplica) ||
+            cacheRank[left.cacheStatus] - cacheRank[right.cacheStatus] ||
+            left.hourlyRateUsd - right.hourlyRateUsd ||
+            stockRank[left.stockStatus] - stockRank[right.stockStatus] ||
+            left.gpuTypeId.localeCompare(right.gpuTypeId) ||
+            left.dataCenterId.localeCompare(right.dataCenterId) ||
+            String(left.networkVolumeId || "").localeCompare(String(right.networkVolumeId || ""))
+        );
+        if (candidates.length < 1) {
+            const onlyCertificationGap = rejected.length > 0 && rejected.every(item =>
+                item.reason === "RUNPOD_RUNTIME_PREFLIGHT_CERTIFICATION_REQUIRED"
+            );
+            throw new Error(onlyCertificationGap
+                ? "RUNPOD_RUNTIME_PREFLIGHT_CERTIFICATION_REQUIRED"
+                : "RUNPOD_COMPATIBLE_GPU_UNAVAILABLE");
+        }
+        let selected = candidates[0];
+        if (paidResourceCreationAuthorized) {
+            if (!gpuTypeId || !networkVolumeId) {
+                throw new Error("RUNPOD_EXACT_PAID_PLACEMENT_AUTHORITY_REQUIRED");
+            }
+            selected = candidates.find(candidate =>
+                candidate.gpuTypeId === gpuTypeId &&
+                candidate.networkVolumeId === networkVolumeId
+            );
+            if (!selected) throw new Error("RUNPOD_AUTHORIZED_PLACEMENT_UNAVAILABLE");
+            if (selected.hourlyRateUsd > configuredTotalHourlyRateUsd) {
+                throw new Error("RUNPOD_AUTHORIZED_PRICE_EXCEEDED");
+            }
+        }
+        return { selected, candidates, rejected, replicas };
+    }
+
     function expectedCacheStatus(networkVolume) {
         if (!networkVolume?.id) return "CACHE_MISS";
+        const replica = certifiedCacheReplicas().find(item =>
+            item.networkVolumeId === networkVolume.id &&
+            item.dataCenterId === networkVolume.dataCenterId
+        );
+        if (["CACHE_READY", "CACHE_HIT"].includes(replica?.cacheStatus)) {
+            return "CACHE_HIT_EXPECTED_PHYSICAL_VERIFY_REQUIRED";
+        }
+        if (replica?.cacheStatus === "CACHE_MODEL_READY") {
+            return "CACHE_MODEL_READY_PHYSICAL_VERIFY_REQUIRED";
+        }
         const states = fs.existsSync(stateRoot)
             ? fs.readdirSync(stateRoot)
                 .filter(name => name.endsWith(".json"))
@@ -1730,40 +1996,40 @@ export function createRunpodRemoteVideoAdapter({
         return modelReady ? "CACHE_MODEL_READY_PHYSICAL_VERIFY_REQUIRED" : "CACHE_MISS";
     }
 
-    function normalizedPlannedNetworkVolume(networkVolume) {
-        if (!networkVolumeId) return null;
+    function normalizedPlannedNetworkVolume(networkVolume, selectedNetworkVolumeId = networkVolumeId, profile = cacheContract) {
+        if (!selectedNetworkVolumeId) return null;
         const id = String(networkVolume?.id || "").trim();
         const dataCenterId = String(networkVolume?.dataCenterId || "").trim();
         const sizeGb = Number(networkVolume?.sizeGb || 0);
         const type = String(networkVolume?.type || networkVolume?.volumeType || "").trim().toUpperCase();
-        if (id !== networkVolumeId || !dataCenterId || !Number.isFinite(sizeGb) || !type) {
+        if (id !== selectedNetworkVolumeId || !dataCenterId || !Number.isFinite(sizeGb) || !type) {
             throw new Error("RUNPOD_NETWORK_VOLUME_RESPONSE_INVALID");
         }
-        if (sizeGb < cacheContract.minimumNetworkVolumeGb) {
+        if (sizeGb < profile.minimumNetworkVolumeGb) {
             throw new Error("RUNPOD_NETWORK_VOLUME_CAPACITY_INSUFFICIENT");
         }
-        if (
-            cacheContract.requiredNetworkVolumeDataCenterId &&
-            dataCenterId !== cacheContract.requiredNetworkVolumeDataCenterId
-        ) {
-            throw new Error("RUNPOD_GPU_NETWORK_VOLUME_DATACENTER_NOT_APPROVED");
-        }
-        if (type !== cacheContract.networkVolumeType) {
+        if (type !== profile.networkVolumeType) {
             throw new Error("RUNPOD_NETWORK_VOLUME_TYPE_NOT_APPROVED");
         }
         return { id, dataCenterId, sizeGb, type };
     }
 
-    function buildProvisionBody(job, publicKey, networkVolume = null) {
+    function buildProvisionBody(
+        job,
+        publicKey,
+        networkVolume = null,
+        selectedGpuTypeId = gpuTypeId,
+        profile = cacheContract
+    ) {
         const body = {
             cloudType,
             computeType: "GPU",
             containerDiskInGb,
             volumeMountPath: "/workspace",
             gpuCount: 1,
-            gpuTypeIds: [gpuTypeId],
+            gpuTypeIds: [selectedGpuTypeId],
             gpuTypePriority: "custom",
-            imageName: provisionImageTag,
+            imageName: profile.provisionImageTag,
             interruptible: false,
             minRAMPerGPU: minimumRamGb,
             minVCPUPerGPU: minimumVcpu,
@@ -1786,15 +2052,20 @@ export function createRunpodRemoteVideoAdapter({
         return body;
     }
 
-    function assertProvisionBody(body, networkVolume = null) {
+    function assertProvisionBody(
+        body,
+        networkVolume = null,
+        selectedGpuTypeId = gpuTypeId,
+        profile = cacheContract
+    ) {
         if (
             body.cloudType !== cloudType || body.computeType !== "GPU" ||
             body.containerDiskInGb !== containerDiskInGb || body.volumeMountPath !== "/workspace" ||
             body.gpuCount !== 1 || body.gpuTypeIds?.length !== 1 ||
-            body.gpuTypeIds[0] !== gpuTypeId || body.imageName !== cacheContract.provisionImageTag ||
+            body.gpuTypeIds[0] !== selectedGpuTypeId || body.imageName !== profile.provisionImageTag ||
             /@sha256:/i.test(body.imageName) ||
-            body.interruptible !== false || body.minRAMPerGPU < cacheContract.minimumRamGb ||
-            body.minVCPUPerGPU < cacheContract.minimumVcpu ||
+            body.interruptible !== false || body.minRAMPerGPU < profile.minimumRamGb ||
+            body.minVCPUPerGPU < profile.minimumVcpu ||
             !Array.isArray(body.ports) || !body.ports.includes("22/tcp") ||
             !String(body.env?.PUBLIC_KEY || "").trim() ||
             !String(body.env?.JARVIS_OPERATION_ID || "").trim() ||
@@ -1820,16 +2091,50 @@ export function createRunpodRemoteVideoAdapter({
         job,
         networkVolume = null,
         availability = null,
+        inventory = null,
+        networkVolumes = null,
+        cacheReplicas = null,
+        runtimeEvidence = null,
         registryVerification = null
     } = {}) {
         try {
-            assertZeroCostConfiguration(job);
-            const verifiedRegistry = normalizedRegistryVerification(cacheContract, registryVerification);
+            const dynamicPlacement = Array.isArray(inventory);
+            assertZeroCostConfiguration(job, { allowDynamicPlacement: dynamicPlacement });
             assertNoLocalDuplicateObligation(job);
-            const plannedVolume = normalizedPlannedNetworkVolume(networkVolume);
-            if (availability) {
+            let selectedGpuTypeId = gpuTypeId;
+            let selectedProfile = cacheContract;
+            let selectedAvailability = availability;
+            let plannedVolume = null;
+            let placement = null;
+            if (dynamicPlacement) {
+                if (cloudType !== "SECURE") throw new Error("RUNPOD_NETWORK_VOLUME_SECURE_CLOUD_REQUIRED");
+                placement = selectPlacement({
+                    job,
+                    inventory,
+                    cacheReplicas,
+                    networkVolumes,
+                    runtimeEvidence
+                });
+                selectedGpuTypeId = placement.selected.gpuTypeId;
+                selectedProfile = RUNPOD_WAN22_GPU_PROFILES[selectedGpuTypeId];
+                selectedAvailability = placement.selected;
+                plannedVolume = placement.selected.networkVolumeId
+                    ? normalizedPlannedNetworkVolume({
+                        id: placement.selected.networkVolumeId,
+                        dataCenterId: placement.selected.dataCenterId,
+                        sizeGb: placement.selected.networkVolumeSizeGb,
+                        type: placement.selected.networkVolumeType
+                    }, placement.selected.networkVolumeId, selectedProfile)
+                    : null;
+            }
+            else {
+                plannedVolume = normalizedPlannedNetworkVolume(networkVolume);
+            }
+            const verifiedRegistry = normalizedRegistryVerification(selectedProfile, registryVerification);
+            if (!dynamicPlacement && availability) {
                 if (
                     availability.gpuTypeId !== gpuTypeId ||
+                    availability.available === false ||
                     Number(availability.vramGb || 0) < cacheContract.minimumVramGb ||
                     !["HIGH", "MEDIUM", "LOW"].includes(String(availability.stockStatus || "").toUpperCase()) ||
                     !Number.isFinite(Number(availability.hourlyRateUsd)) || Number(availability.hourlyRateUsd) <= 0
@@ -1840,13 +2145,28 @@ export function createRunpodRemoteVideoAdapter({
             const operationDir = path.join(stateRoot, job.operationId);
             const assets = buildAssetManifest(job, operationDir);
             if (assets.length < 1) throw new Error("RUNPOD_REFERENCE_ASSET_REQUIRED");
-            const body = buildProvisionBody(job, "[EPHEMERAL_PUBLIC_KEY]", plannedVolume);
-            assertProvisionBody(body, plannedVolume);
-            const hourlyRateUsd = Math.max(
-                Number(availability?.hourlyRateUsd || 0),
-                configuredTotalHourlyRateUsd
+            const body = placement?.selected?.requiresCacheReplica
+                ? null
+                : buildProvisionBody(
+                    job,
+                    "[EPHEMERAL_PUBLIC_KEY]",
+                    plannedVolume,
+                    selectedGpuTypeId,
+                    selectedProfile
+                );
+            if (body) {
+                assertProvisionBody(body, plannedVolume, selectedGpuTypeId, selectedProfile);
+            }
+            const hourlyRateUsd = Number(
+                selectedAvailability?.hourlyRateUsd || configuredTotalHourlyRateUsd
             );
             if (!(hourlyRateUsd > 0)) throw new Error("RUNPOD_HOURLY_RATE_INVALID");
+            if (
+                paidResourceCreationAuthorized && selectedAvailability &&
+                hourlyRateUsd > configuredTotalHourlyRateUsd
+            ) {
+                throw new Error("RUNPOD_AUTHORIZED_PRICE_EXCEEDED");
+            }
             const maximumSpendBeforeCleanupUsd = Number((hardBudgetUsd * budgetStopRatio).toFixed(6));
             const maximumAuthorizedSeconds = Math.floor(
                 maximumSpendBeforeCleanupUsd * 3600 / hourlyRateUsd
@@ -1858,11 +2178,20 @@ export function createRunpodRemoteVideoAdapter({
                 bridgeIdentity: "BRIDGE_IDENTITY_OK",
                 policy: configuredPolicy,
                 backend: configuredBackend,
+                status: placement?.selected?.requiresCacheReplica
+                    ? "PLACEMENT_REQUIRES_CACHE_REPLICA"
+                    : (dynamicPlacement ? "PLACEMENT_CANDIDATE_READY" : "ZERO_COST_PRECHECK_READY"),
                 paidResourceCreationAuthorized,
-                paidResourceCreationPossible: paidResourceCreationAuthorized && Boolean(apiKey),
+                paidResourceCreationPossible: paidResourceCreationAuthorized && Boolean(apiKey) && Boolean(body),
                 zeroCostChecks: [...RUNPOD_ZERO_COST_PRECHECKS],
                 physicalPaidChecks: [...RUNPOD_PHYSICAL_PAID_PREFLIGHTS],
                 payload: body,
+                placement: placement ? {
+                    selected: { ...placement.selected },
+                    candidates: placement.candidates.map(candidate => ({ ...candidate })),
+                    rejected: placement.rejected.map(candidate => ({ ...candidate })),
+                    certifiedCacheReplicas: placement.replicas.map(replica => ({ ...replica }))
+                } : null,
                 economics: {
                     hourlyRateUsd,
                     hardBudgetUsd,
@@ -1871,12 +2200,18 @@ export function createRunpodRemoteVideoAdapter({
                     maximumAuthorizedSeconds
                 },
                 cache: {
-                    profile: cacheContract.profile,
-                    expectedStatus: expectedCacheStatus(plannedVolume),
-                    modelBytes: cacheContract.expectedModelBytes,
-                    workspaceReserveBytes: cacheContract.workspaceReserveBytes,
-                    peakWorkspaceBytes: cacheContract.peakWorkspaceBytes,
-                    minimumNetworkVolumeGb: cacheContract.minimumNetworkVolumeGb,
+                    profile: selectedProfile.profile,
+                    expectedStatus: dynamicPlacement
+                        ? (placement.selected.cacheStatus === "CACHE_MODEL_READY"
+                            ? "CACHE_MODEL_READY_PHYSICAL_VERIFY_REQUIRED"
+                            : (["CACHE_READY", "CACHE_HIT"].includes(placement.selected.cacheStatus)
+                                ? "CACHE_HIT_EXPECTED_PHYSICAL_VERIFY_REQUIRED"
+                                : "CACHE_MISS"))
+                        : expectedCacheStatus(plannedVolume),
+                    modelBytes: selectedProfile.expectedModelBytes,
+                    workspaceReserveBytes: selectedProfile.workspaceReserveBytes,
+                    peakWorkspaceBytes: selectedProfile.peakWorkspaceBytes,
+                    minimumNetworkVolumeGb: selectedProfile.minimumNetworkVolumeGb,
                     modelPath: `${remoteBase}/cache/wan22-ti2v-5b/model`,
                     repositoryPath: `${remoteBase}/cache/wan22-ti2v-5b/Wan2.2`,
                     virtualEnvironmentPath: `${remoteBase}/cache/wan22-ti2v-5b/venv`,
@@ -1891,17 +2226,17 @@ export function createRunpodRemoteVideoAdapter({
                     remoteFile: asset.remoteFile
                 })),
                 contract: {
-                    gpuTypeId,
-                    computeCapability: cacheContract.computeCapability,
-                    provisionImageTag: cacheContract.provisionImageTag,
-                    expectedRegistryDigest: cacheContract.expectedRegistryDigest,
+                    gpuTypeId: selectedGpuTypeId,
+                    computeCapability: selectedProfile.computeCapability,
+                    provisionImageTag: selectedProfile.provisionImageTag,
+                    expectedRegistryDigest: selectedProfile.expectedRegistryDigest,
                     registryVerification: verifiedRegistry,
-                    runtimeIdentity: { ...cacheContract.runtimeIdentity },
-                    modelRepository: cacheContract.modelRepository,
-                    modelRevision: cacheContract.modelRevision,
-                    wanRepositoryRevision: cacheContract.wanRepositoryRevision,
-                    requirementsSha256: cacheContract.requirementsSha256,
-                    requiredFiles: cacheContract.requiredFiles.map(item => ({ ...item }))
+                    runtimeIdentity: { ...selectedProfile.runtimeIdentity },
+                    modelRepository: selectedProfile.modelRepository,
+                    modelRevision: selectedProfile.modelRevision,
+                    wanRepositoryRevision: selectedProfile.wanRepositoryRevision,
+                    requirementsSha256: selectedProfile.requirementsSha256,
+                    requiredFiles: selectedProfile.requiredFiles.map(item => ({ ...item }))
                 }
             };
         }
@@ -2416,6 +2751,125 @@ export function createRunpodRemoteVideoAdapter({
         };
     }
 
+    async function queryPlacementInventory(operationId = null) {
+        if (!apiKey) throw new Error("RUNPOD_API_KEY_REQUIRED");
+        if (typeof fetchImpl !== "function") throw new Error("RUNPOD_FETCH_UNAVAILABLE");
+        const query = "query { myself { id } gpuTypes { id displayName memoryInGb lowestPrice(input: { gpuCount: 1, secureCloud: true }) { stockStatus uninterruptablePrice availableGpuCounts } } dataCenters { id gpuAvailability(input: { gpuCount: 1, secureCloud: true }) { gpuTypeId stockStatus available } } }";
+        const separator = graphQlBase.includes("?") ? "&" : "?";
+        const payload = await apiRequest(
+            `${graphQlBase}${separator}api_key=${encodeURIComponent(apiKey)}`,
+            { method: "POST", body: JSON.stringify({ query }) },
+            [200],
+            "placement_inventory",
+            operationId
+        );
+        if (Array.isArray(payload?.errors) && payload.errors.length > 0) {
+            throw new Error("RUNPOD_AVAILABILITY_QUERY_FAILED");
+        }
+        if (!String(payload?.data?.myself?.id || "").trim()) {
+            throw new Error("RUNPOD_AVAILABILITY_UNAUTHENTICATED");
+        }
+        const gpuCatalog = new Map(
+            (Array.isArray(payload?.data?.gpuTypes) ? payload.data.gpuTypes : [])
+                .filter(item => RUNPOD_WAN22_GPU_PROFILES[String(item?.id || "")])
+                .map(item => [String(item.id), item])
+        );
+        const dataCenters = Array.isArray(payload?.data?.dataCenters) ? payload.data.dataCenters : [];
+        const dataCenterSupport = new Map(await Promise.all(dataCenters.map(async dataCenter => {
+            const dataCenterId = String(dataCenter?.id || "").trim();
+            if (!dataCenterId) return [dataCenterId, false];
+            const catalog = await apiRequest(
+                `${catalogApiBase}/datacenters/${encodeURIComponent(dataCenterId)}`,
+                { method: "GET" },
+                [200],
+                "placement_datacenter",
+                operationId
+            );
+            const types = Array.isArray(catalog?.networkVolumeTypes)
+                ? catalog.networkVolumeTypes.map(type => String(type || "").trim().toUpperCase())
+                : [];
+            return [dataCenterId, types.includes(RUNPOD_WAN22_CACHE_BASE.networkVolumeType)];
+        })));
+        const inventory = [];
+        for (const dataCenter of dataCenters) {
+            const dataCenterId = String(dataCenter?.id || "").trim();
+            for (const availability of Array.isArray(dataCenter?.gpuAvailability)
+                ? dataCenter.gpuAvailability
+                : []) {
+                const observedGpuTypeId = String(availability?.gpuTypeId || "").trim();
+                const profile = RUNPOD_WAN22_GPU_PROFILES[observedGpuTypeId];
+                const gpu = gpuCatalog.get(observedGpuTypeId);
+                if (!profile || !gpu) continue;
+                const price = gpu.lowestPrice || {};
+                const availableGpuCounts = price.availableGpuCounts;
+                const requestedCountAvailable = availableGpuCounts == null ||
+                    (Array.isArray(availableGpuCounts) && availableGpuCounts.map(Number).includes(1));
+                inventory.push({
+                    gpuTypeId: observedGpuTypeId,
+                    dataCenterId,
+                    vramGb: Number(gpu.memoryInGb || 0),
+                    computeCapability: profile.computeCapability,
+                    minimumRamGb: profile.minimumRamGb,
+                    minimumVcpu: profile.minimumVcpu,
+                    hourlyRateUsd: Number(price.uninterruptablePrice),
+                    stockStatus: String(availability?.stockStatus || price.stockStatus || "").toUpperCase(),
+                    available: availability?.available === true && requestedCountAvailable,
+                    secureCloud: true,
+                    networkVolumeSupported: dataCenterSupport.get(dataCenterId) === true
+                });
+            }
+        }
+        return inventory;
+    }
+
+    async function queryKnownNetworkVolumes(operationId = null) {
+        const payload = await apiRequest(
+            `${apiBase}/networkvolumes`,
+            { method: "GET" },
+            [200],
+            "placement_network_volumes",
+            operationId
+        );
+        const volumes = Array.isArray(payload)
+            ? payload
+            : (Array.isArray(payload?.items) ? payload.items : []);
+        return volumes.map(volume => ({
+            id: String(volume?.id || "").trim(),
+            dataCenterId: String(volume?.dataCenterId || volume?.dataCenter?.id || "").trim(),
+            sizeGb: Number(volume?.sizeGb || volume?.size || volume?.sizeInGb || 0),
+            type: String(volume?.type || volume?.volumeType || RUNPOD_WAN22_CACHE_BASE.networkVolumeType)
+                .trim().toUpperCase()
+        })).filter(volume => volume.id && volume.dataCenterId && Number.isFinite(volume.sizeGb));
+    }
+
+    async function inspectLiveZeroCostPrecheck({ job, runtimeEvidence = null } = {}) {
+        try {
+            assertZeroCostConfiguration(job, { allowDynamicPlacement: true });
+            const [inventory, networkVolumes, registryVerification] = await Promise.all([
+                queryPlacementInventory(job?.operationId || null),
+                queryKnownNetworkVolumes(job?.operationId || null),
+                resolveRegistryVerification(cacheContract || RUNPOD_WAN22_CACHE_BASE)
+            ]);
+            return inspectZeroCostPrecheck({
+                job,
+                inventory,
+                networkVolumes,
+                runtimeEvidence,
+                registryVerification
+            });
+        }
+        catch(error) {
+            return {
+                ok: false,
+                phase: "ZERO_COST_PRECHECK",
+                status: error?.message || "RUNPOD_ZERO_COST_PRECHECK_FAILED",
+                error: error?.message || "RUNPOD_ZERO_COST_PRECHECK_FAILED",
+                paidResourceCreationAuthorized,
+                paidResourceCreationPossible: false
+            };
+        }
+    }
+
     async function resolveNetworkVolume(operationId = null) {
         if (!networkVolumeId) return null;
         const volume = await apiRequest(
@@ -2433,12 +2887,6 @@ export function createRunpodRemoteVideoAdapter({
         }
         if (sizeGb < cacheContract.minimumNetworkVolumeGb) {
             throw new Error("RUNPOD_NETWORK_VOLUME_CAPACITY_INSUFFICIENT");
-        }
-        if (
-            cacheContract.requiredNetworkVolumeDataCenterId &&
-            dataCenterId !== cacheContract.requiredNetworkVolumeDataCenterId
-        ) {
-            throw new Error("RUNPOD_GPU_NETWORK_VOLUME_DATACENTER_NOT_APPROVED");
         }
         const dataCenter = await apiRequest(
             `${catalogApiBase}/datacenters/${encodeURIComponent(dataCenterId)}?include=CPU_AVAILABILITY`,
@@ -3024,11 +3472,13 @@ export function createRunpodRemoteVideoAdapter({
             if (actualGpu !== gpuTypeId || actualVram < cacheContract.minimumVramGb) {
                 throw new Error("RUNPOD_PROVISIONED_GPU_INCOMPATIBLE");
             }
-            const hourlyRateUsd = Math.max(
-                Number(pod?.adjustedCostPerHr || pod?.costPerHr || availability.hourlyRateUsd),
-                configuredTotalHourlyRateUsd
+            const hourlyRateUsd = Number(
+                pod?.adjustedCostPerHr || pod?.costPerHr || availability.hourlyRateUsd
             );
             if (!(hourlyRateUsd > 0)) throw new Error("RUNPOD_HOURLY_RATE_INVALID");
+            if (hourlyRateUsd > configuredTotalHourlyRateUsd) {
+                throw new Error("RUNPOD_AUTHORIZED_PRICE_EXCEEDED");
+            }
             const state = {
                 schemaVersion: JARVIS_RUNPOD_ADAPTER_VERSION,
                 provider: "runpod",
@@ -3581,6 +4031,7 @@ export function createRunpodRemoteVideoAdapter({
         configured: provider === "runpod" && Boolean(apiKey) && paidResourceCreationAuthorized,
         inspectHardware,
         inspectZeroCostPrecheck,
+        inspectLiveZeroCostPrecheck,
         inspectCpuStagingPrecheck,
         inspectCpuStagingRuntimeIdentity,
         launch,

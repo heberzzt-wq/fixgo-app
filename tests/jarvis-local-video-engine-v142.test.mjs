@@ -173,6 +173,85 @@ function verifiedRegistryEvidence(profile, overrides = {}) {
     };
 }
 
+function placementInventory({
+    gpuTypeId = "NVIDIA L40S",
+    dataCenterId = "EU-NL-1",
+    vramGb = 48,
+    computeCapability = RUNPOD_WAN22_GPU_PROFILES[gpuTypeId]?.computeCapability,
+    hourlyRateUsd = gpuTypeId === "NVIDIA A40" ? 0.46 : 0.99,
+    stockStatus = "LOW",
+    available = true,
+    secureCloud = true,
+    networkVolumeSupported = true,
+    minimumRamGb = 62,
+    minimumVcpu = 16
+} = {}) {
+    return {
+        gpuTypeId,
+        dataCenterId,
+        vramGb,
+        computeCapability,
+        hourlyRateUsd,
+        stockStatus,
+        available,
+        secureCloud,
+        networkVolumeSupported,
+        minimumRamGb,
+        minimumVcpu
+    };
+}
+
+function certifiedCacheReplica({
+    networkVolumeId = "su3d60su17",
+    dataCenterId = "EU-NL-1",
+    cacheStatus = "CACHE_MODEL_READY",
+    shaMismatch = false
+} = {}) {
+    const authority = RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"];
+    const files = authority.requiredFiles.map((item, index) => ({
+        ...item,
+        sha256: shaMismatch && index === 0 ? "f".repeat(64) : item.sha256
+    }));
+    return {
+        id: networkVolumeId,
+        networkVolumeId,
+        dataCenterId,
+        sizeGb: 50,
+        type: "STANDARD",
+        cacheStatus,
+        modelRepository: authority.modelRepository,
+        modelRevision: authority.modelRevision,
+        wanRepositoryRevision: authority.wanRepositoryRevision,
+        modelBytes: authority.expectedModelBytes,
+        requiredFilesBytes: authority.requiredRuntimeModelBytes,
+        files,
+        manifest: {
+            model: {
+                repository: authority.modelRepository,
+                revision: authority.modelRevision
+            },
+            wanRepositoryRevision: authority.wanRepositoryRevision,
+            modelBytes: authority.expectedModelBytes,
+            requiredFilesBytes: authority.requiredRuntimeModelBytes,
+            files
+        }
+    };
+}
+
+function runtimeCertification(gpuTypeId, overrides = {}) {
+    const authority = RUNPOD_WAN22_GPU_PROFILES[gpuTypeId];
+    return {
+        gpuTypeId,
+        computeCapability: authority.computeCapability,
+        runtimePreflightVerified: true,
+        provisionImageTag: authority.provisionImageTag,
+        expectedRegistryDigest: authority.expectedRegistryDigest,
+        modelRevision: authority.modelRevision,
+        wanRepositoryRevision: authority.wanRepositoryRevision,
+        ...overrides
+    };
+}
+
 function runpodPhysicalHarness({
     scenario = "success",
     rootOverride = null,
@@ -332,6 +411,14 @@ function runpodPhysicalHarness({
                 id: networkVolumeDataCenterId,
                 networkVolumeTypes: [networkVolumeType]
             });
+        }
+        if (String(url).endsWith("/networkvolumes") && (options.method || "GET") === "GET") {
+            return mockHttpResponse(200, networkVolumeId ? [{
+                id: networkVolumeId,
+                dataCenterId: networkVolumeDataCenterId,
+                size: networkVolumeSizeGb,
+                type: networkVolumeType
+            }] : []);
         }
         if (String(url).includes("/networkvolumes/") && (options.method || "GET") === "GET") {
             return mockHttpResponse(200, {
@@ -645,6 +732,377 @@ test("V142 RunPod zero-cost dry run exposes the exact sanitized future Pod paylo
     assert.equal(harness.calls.length, 0);
 });
 
+test("V142 RunPod placement derives a compatible region and certified cache from live evidence", () => {
+    const harness = runpodPhysicalHarness({
+        scenario: "dynamic-placement-red-characterization",
+        envOverrides: {
+            JARVIS_RUNPOD_GPU_TYPE_ID: "",
+            JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false",
+            JARVIS_RUNPOD_CLOUD_TYPE: "SECURE"
+        }
+    });
+    const report = harness.adapter.inspectZeroCostPrecheck({
+        job: harness.dryRunJob,
+        registryVerification: verifiedRegistryEvidence(RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"]),
+        inventory: [
+            placementInventory({ dataCenterId: "EU-NL-1", available: false }),
+            placementInventory({ dataCenterId: "US-X", hourlyRateUsd: 0.91 })
+        ],
+        cacheReplicas: [certifiedCacheReplica({ networkVolumeId: "volume-us-x", dataCenterId: "US-X" })]
+    });
+    assert.equal(report.ok, true, JSON.stringify(report));
+    assert.equal(report.placement.selected.dataCenterId, "US-X");
+    assert.equal(report.placement.selected.networkVolumeId, "volume-us-x");
+    assert.equal(report.economics.hourlyRateUsd, 0.91);
+    assert.equal(harness.calls.length, 0);
+});
+
+test("V142 dynamic RunPod placement remains capability-, evidence-, mission-, and authority-bound", async t => {
+    const createDynamicHarness = (scenario, envOverrides = {}) => runpodPhysicalHarness({
+        scenario,
+        envOverrides: {
+            JARVIS_RUNPOD_GPU_TYPE_ID: "",
+            JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false",
+            JARVIS_RUNPOD_CLOUD_TYPE: "SECURE",
+            ...envOverrides
+        }
+    });
+    const inspect = (harness, { inventory, cacheReplicas = [], runtimeEvidence = [], networkVolumes } = {}) =>
+        harness.adapter.inspectZeroCostPrecheck({
+            job: harness.dryRunJob,
+            registryVerification: verifiedRegistryEvidence(RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"]),
+            inventory,
+            cacheReplicas,
+            runtimeEvidence,
+            networkVolumes
+        });
+
+    await t.test("1 unavailable L40S in EU-NL-1 never authorizes POST", () => {
+        const harness = createDynamicHarness("placement-unavailable");
+        const report = inspect(harness, {
+            inventory: [placementInventory({ available: false })],
+            cacheReplicas: [certifiedCacheReplica()]
+        });
+        assert.equal(report.ok, false);
+        assert.equal(report.error, "RUNPOD_COMPATIBLE_GPU_UNAVAILABLE");
+        assert.equal(harness.calls.length, 0);
+    });
+
+    await t.test("2 L40S in a live region with a certified local cache is valid", () => {
+        const harness = createDynamicHarness("placement-l40s-us-x");
+        const report = inspect(harness, {
+            inventory: [placementInventory({ dataCenterId: "US-X" })],
+            cacheReplicas: [certifiedCacheReplica({ networkVolumeId: "volume-us-x", dataCenterId: "US-X" })]
+        });
+        assert.equal(report.ok, true, JSON.stringify(report));
+        assert.equal(report.placement.selected.dataCenterId, "US-X");
+        assert.equal(report.placement.selected.networkVolumeId, "volume-us-x");
+    });
+
+    await t.test("3 A40 becomes valid only with matching physical runtime evidence and local cache", () => {
+        const harness = createDynamicHarness("placement-a40-certified");
+        const inventory = [placementInventory({ gpuTypeId: "NVIDIA A40", dataCenterId: "US-X" })];
+        const cacheReplicas = [
+            certifiedCacheReplica({ networkVolumeId: "volume-a40-us-x", dataCenterId: "US-X" })
+        ];
+        const uncertified = inspect(harness, { inventory, cacheReplicas });
+        assert.equal(uncertified.ok, false);
+        assert.equal(uncertified.error, "RUNPOD_RUNTIME_PREFLIGHT_CERTIFICATION_REQUIRED");
+        const report = inspect(harness, {
+            inventory,
+            cacheReplicas,
+            runtimeEvidence: [runtimeCertification("NVIDIA A40")]
+        });
+        assert.equal(report.ok, true, JSON.stringify(report));
+        assert.equal(report.contract.gpuTypeId, "NVIDIA A40");
+        assert.equal(report.contract.computeCapability, "8.6");
+    });
+
+    await t.test("4 A40 with insufficient capability is discarded", () => {
+        const harness = createDynamicHarness("placement-a40-insufficient");
+        const report = inspect(harness, {
+            inventory: [placementInventory({
+                gpuTypeId: "NVIDIA A40",
+                dataCenterId: "US-X",
+                vramGb: 47
+            })],
+            cacheReplicas: [certifiedCacheReplica({ networkVolumeId: "volume-a40-us-x", dataCenterId: "US-X" })],
+            runtimeEvidence: [runtimeCertification("NVIDIA A40")]
+        });
+        assert.equal(report.ok, false);
+        assert.equal(report.error, "RUNPOD_COMPATIBLE_GPU_UNAVAILABLE");
+    });
+
+    await t.test("5 available GPU without STANDARD Network Volume support is discarded", () => {
+        const harness = createDynamicHarness("placement-no-volume-support");
+        const report = inspect(harness, {
+            inventory: [placementInventory({ dataCenterId: "EU-Y", networkVolumeSupported: false })]
+        });
+        assert.equal(report.ok, false);
+        assert.equal(report.error, "RUNPOD_COMPATIBLE_GPU_UNAVAILABLE");
+    });
+
+    await t.test("6 compatible region without local cache requires replica authority and no mutation payload", () => {
+        const harness = createDynamicHarness("placement-replica-required");
+        const report = inspect(harness, {
+            inventory: [placementInventory({ dataCenterId: "EU-Y" })]
+        });
+        assert.equal(report.ok, true, JSON.stringify(report));
+        assert.equal(report.status, "PLACEMENT_REQUIRES_CACHE_REPLICA");
+        assert.equal(report.payload, null);
+        assert.equal(report.placement.selected.storageRequiredGb, 50);
+        assert.equal(report.paidResourceCreationPossible, false);
+    });
+
+    await t.test("7 lower live cost wins between two certified GPUs sharing the same cache", () => {
+        const harness = createDynamicHarness("placement-lower-cost");
+        const report = inspect(harness, {
+            inventory: [
+                placementInventory({ gpuTypeId: "NVIDIA L40S", dataCenterId: "US-X", hourlyRateUsd: 0.99 }),
+                placementInventory({ gpuTypeId: "NVIDIA A40", dataCenterId: "US-X", hourlyRateUsd: 0.46 })
+            ],
+            cacheReplicas: [certifiedCacheReplica({ networkVolumeId: "volume-shared-us-x", dataCenterId: "US-X" })],
+            runtimeEvidence: [runtimeCertification("NVIDIA A40")]
+        });
+        assert.equal(report.placement.selected.gpuTypeId, "NVIDIA A40");
+        assert.equal(report.economics.hourlyRateUsd, 0.46);
+    });
+
+    await t.test("8 a cheaper incompatible GPU never outranks a compatible GPU", () => {
+        const harness = createDynamicHarness("placement-cheap-incompatible");
+        const report = inspect(harness, {
+            inventory: [
+                placementInventory({ gpuTypeId: "NVIDIA A40", dataCenterId: "US-X", vramGb: 47, hourlyRateUsd: 0.20 }),
+                placementInventory({ gpuTypeId: "NVIDIA L40S", dataCenterId: "US-X", hourlyRateUsd: 0.99 })
+            ],
+            cacheReplicas: [certifiedCacheReplica({ networkVolumeId: "volume-us-x", dataCenterId: "US-X" })],
+            runtimeEvidence: [runtimeCertification("NVIDIA A40")]
+        });
+        assert.equal(report.placement.selected.gpuTypeId, "NVIDIA L40S");
+    });
+
+    await t.test("9 CACHE_READY outranks CACHE_MODEL_READY before price and stock ties", () => {
+        const harness = createDynamicHarness("placement-cache-rank");
+        const report = inspect(harness, {
+            inventory: [
+                placementInventory({ dataCenterId: "EU-NL-1", hourlyRateUsd: 0.99 }),
+                placementInventory({ dataCenterId: "US-X", hourlyRateUsd: 0.99 })
+            ],
+            cacheReplicas: [
+                certifiedCacheReplica({ networkVolumeId: "volume-model-ready", dataCenterId: "EU-NL-1" }),
+                certifiedCacheReplica({ networkVolumeId: "volume-runtime-ready", dataCenterId: "US-X", cacheStatus: "CACHE_READY" })
+            ]
+        });
+        assert.equal(report.placement.selected.networkVolumeId, "volume-runtime-ready");
+        assert.equal(report.placement.selected.cacheStatus, "CACHE_READY");
+    });
+
+    await t.test("10 live region changes re-place without source or configuration edits", () => {
+        const harness = createDynamicHarness("placement-region-flip");
+        const replicas = [
+            certifiedCacheReplica({ networkVolumeId: "volume-eu", dataCenterId: "EU-NL-1" }),
+            certifiedCacheReplica({ networkVolumeId: "volume-us", dataCenterId: "US-X" })
+        ];
+        const us = inspect(harness, {
+            inventory: [
+                placementInventory({ dataCenterId: "EU-NL-1", available: false }),
+                placementInventory({ dataCenterId: "US-X" })
+            ],
+            cacheReplicas: replicas
+        });
+        const eu = inspect(harness, {
+            inventory: [
+                placementInventory({ dataCenterId: "EU-NL-1" }),
+                placementInventory({ dataCenterId: "US-X", available: false })
+            ],
+            cacheReplicas: replicas
+        });
+        assert.equal(us.placement.selected.dataCenterId, "US-X");
+        assert.equal(eu.placement.selected.dataCenterId, "EU-NL-1");
+    });
+
+    await t.test("11 live price changes update selection and economics automatically", () => {
+        const harness = createDynamicHarness("placement-price-flip");
+        const cacheReplicas = [certifiedCacheReplica({ networkVolumeId: "volume-us", dataCenterId: "US-X" })];
+        const runtimeEvidence = [runtimeCertification("NVIDIA A40")];
+        const first = inspect(harness, {
+            inventory: [
+                placementInventory({ gpuTypeId: "NVIDIA L40S", dataCenterId: "US-X", hourlyRateUsd: 0.90 }),
+                placementInventory({ gpuTypeId: "NVIDIA A40", dataCenterId: "US-X", hourlyRateUsd: 0.46 })
+            ], cacheReplicas, runtimeEvidence
+        });
+        const second = inspect(harness, {
+            inventory: [
+                placementInventory({ gpuTypeId: "NVIDIA L40S", dataCenterId: "US-X", hourlyRateUsd: 0.40 }),
+                placementInventory({ gpuTypeId: "NVIDIA A40", dataCenterId: "US-X", hourlyRateUsd: 0.46 })
+            ], cacheReplicas, runtimeEvidence
+        });
+        assert.equal(first.placement.selected.gpuTypeId, "NVIDIA A40");
+        assert.equal(first.economics.hourlyRateUsd, 0.46);
+        assert.equal(second.placement.selected.gpuTypeId, "NVIDIA L40S");
+        assert.equal(second.economics.hourlyRateUsd, 0.40);
+    });
+
+    await t.test("12 stock changes alter ranking without a commit", () => {
+        const harness = createDynamicHarness("placement-stock-flip");
+        const replicas = [
+            certifiedCacheReplica({ networkVolumeId: "volume-eu", dataCenterId: "EU-NL-1" }),
+            certifiedCacheReplica({ networkVolumeId: "volume-us", dataCenterId: "US-X" })
+        ];
+        const first = inspect(harness, {
+            inventory: [
+                placementInventory({ dataCenterId: "EU-NL-1", hourlyRateUsd: 0.99, stockStatus: "LOW" }),
+                placementInventory({ dataCenterId: "US-X", hourlyRateUsd: 0.99, stockStatus: "HIGH" })
+            ], cacheReplicas: replicas
+        });
+        const second = inspect(harness, {
+            inventory: [
+                placementInventory({ dataCenterId: "EU-NL-1", hourlyRateUsd: 0.99, stockStatus: "HIGH" }),
+                placementInventory({ dataCenterId: "US-X", hourlyRateUsd: 0.99, stockStatus: "LOW" })
+            ], cacheReplicas: replicas
+        });
+        assert.equal(first.placement.selected.dataCenterId, "US-X");
+        assert.equal(second.placement.selected.dataCenterId, "EU-NL-1");
+    });
+
+    await t.test("13 Network Volume ID is a placement result, not Wan configuration", () => {
+        const harness = createDynamicHarness("placement-volume-flip");
+        const inventory = [placementInventory({ dataCenterId: "US-X" })];
+        const first = inspect(harness, {
+            inventory,
+            cacheReplicas: [certifiedCacheReplica({ networkVolumeId: "volume-us-a", dataCenterId: "US-X" })]
+        });
+        const second = inspect(harness, {
+            inventory,
+            cacheReplicas: [certifiedCacheReplica({ networkVolumeId: "volume-us-b", dataCenterId: "US-X" })]
+        });
+        assert.equal(first.placement.selected.networkVolumeId, "volume-us-a");
+        assert.equal(second.placement.selected.networkVolumeId, "volume-us-b");
+        assert.equal(first.contract.modelRevision, second.contract.modelRevision);
+    });
+
+    await t.test("14 multiple physical replicas preserve one model authority", () => {
+        const harness = createDynamicHarness("placement-replica-authority");
+        const report = inspect(harness, {
+            inventory: [
+                placementInventory({ dataCenterId: "EU-NL-1" }),
+                placementInventory({ dataCenterId: "US-X" })
+            ],
+            cacheReplicas: [
+                certifiedCacheReplica({ networkVolumeId: "volume-eu", dataCenterId: "EU-NL-1" }),
+                certifiedCacheReplica({ networkVolumeId: "volume-us", dataCenterId: "US-X", cacheStatus: "CACHE_READY" })
+            ]
+        });
+        assert.equal(report.placement.certifiedCacheReplicas.length, 2);
+        for (const replica of report.placement.certifiedCacheReplicas) {
+            assert.equal(replica.modelRevision, report.contract.modelRevision);
+            assert.equal(replica.wanRepositoryRevision, report.contract.wanRepositoryRevision);
+        }
+    });
+
+    await t.test("15 a cache replica with any SHA mismatch is never reused", () => {
+        const harness = createDynamicHarness("placement-sha-mismatch");
+        const report = inspect(harness, {
+            inventory: [placementInventory({ dataCenterId: "US-X" })],
+            cacheReplicas: [certifiedCacheReplica({
+                networkVolumeId: "volume-corrupt",
+                dataCenterId: "US-X",
+                shaMismatch: true
+            })]
+        });
+        assert.equal(report.ok, true, JSON.stringify(report));
+        assert.equal(report.status, "PLACEMENT_REQUIRES_CACHE_REPLICA");
+        assert.notEqual(report.placement.selected.networkVolumeId, "volume-corrupt");
+    });
+
+    await t.test("16 durable mission identity remains identical through re-placement", () => {
+        const harness = createDynamicHarness("placement-durable-identity");
+        const eu = inspect(harness, {
+            inventory: [placementInventory({ dataCenterId: "EU-NL-1" })],
+            cacheReplicas: [certifiedCacheReplica({ networkVolumeId: "volume-eu", dataCenterId: "EU-NL-1" })]
+        });
+        const us = inspect(harness, {
+            inventory: [placementInventory({ dataCenterId: "US-X" })],
+            cacheReplicas: [certifiedCacheReplica({ networkVolumeId: "volume-us", dataCenterId: "US-X" })]
+        });
+        for (const key of ["missionId", "objectiveId", "obligationId", "rootInstructionHash"]) {
+            assert.equal(eu.placement.selected[key], harness.dryRunJob[key]);
+            assert.equal(us.placement.selected[key], harness.dryRunJob[key]);
+        }
+    });
+
+    await t.test("17 exact paid authority rejects a materially different live alternative", () => {
+        const harness = runpodPhysicalHarness({
+            scenario: "placement-paid-authority-mismatch",
+            gpuTypeId: "NVIDIA L40S",
+            networkVolumeId: "volume-authorized-eu",
+            envOverrides: {
+                JARVIS_RUNPOD_CLOUD_TYPE: "SECURE",
+                JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: "0.99",
+                JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "true"
+            }
+        });
+        const report = inspect(harness, {
+            inventory: [placementInventory({ gpuTypeId: "NVIDIA A40", dataCenterId: "US-X" })],
+            cacheReplicas: [certifiedCacheReplica({ networkVolumeId: "volume-alternative-us", dataCenterId: "US-X" })],
+            runtimeEvidence: [runtimeCertification("NVIDIA A40")]
+        });
+        assert.equal(report.ok, false);
+        assert.equal(report.error, "RUNPOD_AUTHORIZED_PLACEMENT_UNAVAILABLE");
+        assert.equal(harness.calls.length, 0);
+        const priceHarness = runpodPhysicalHarness({
+            scenario: "placement-paid-price-exceeded",
+            gpuTypeId: "NVIDIA L40S",
+            networkVolumeId: "volume-authorized-eu",
+            envOverrides: {
+                JARVIS_RUNPOD_CLOUD_TYPE: "SECURE",
+                JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: "0.99",
+                JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "true"
+            }
+        });
+        const priceReport = inspect(priceHarness, {
+            inventory: [placementInventory({ dataCenterId: "EU-NL-1", hourlyRateUsd: 1.01 })],
+            cacheReplicas: [certifiedCacheReplica({
+                networkVolumeId: "volume-authorized-eu",
+                dataCenterId: "EU-NL-1"
+            })]
+        });
+        assert.equal(priceReport.ok, false);
+        assert.equal(priceReport.error, "RUNPOD_AUTHORIZED_PRICE_EXCEEDED");
+        assert.equal(priceHarness.calls.length, 0);
+    });
+
+    await t.test("18 the complete placement matrix performs zero real provisioning", () => {
+        const harness = createDynamicHarness("placement-zero-provisioning");
+        const report = inspect(harness, {
+            inventory: [placementInventory({ dataCenterId: "EU-NL-1" })],
+            cacheReplicas: [certifiedCacheReplica()]
+        });
+        assert.equal(report.ok, true, JSON.stringify(report));
+        assert.equal(harness.calls.filter(call => call.kind === "http" && call.method === "POST").length, 0);
+    });
+});
+
+test("V142 live placement inspection reads inventory, datacenter support, volumes, and registry without POST /pods", async () => {
+    const harness = runpodPhysicalHarness({
+        scenario: "placement-live-read-only",
+        envOverrides: {
+            JARVIS_RUNPOD_GPU_TYPE_ID: "",
+            JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false",
+            JARVIS_RUNPOD_CLOUD_TYPE: "SECURE"
+        }
+    });
+    const report = await harness.adapter.inspectLiveZeroCostPrecheck({ job: harness.dryRunJob });
+    assert.equal(report.ok, true, JSON.stringify(report));
+    assert.equal(report.status, "PLACEMENT_REQUIRES_CACHE_REPLICA");
+    assert.equal(report.placement.selected.gpuTypeId, "NVIDIA L40S");
+    assert.equal(report.placement.selected.dataCenterId, "EU-NL-1");
+    assert.equal(report.payload, null);
+    assert.equal(harness.calls.some(call => call.url.includes("/graphql")), true);
+    assert.equal(harness.calls.some(call => call.url.endsWith("/networkvolumes")), true);
+    assert.equal(harness.calls.some(call => call.url.endsWith("/pods") && call.method === "POST"), false);
+});
+
 test("V142 RunPod accepts only the explicitly selected L40S 48GB / CC 8.9 profile in EU-NL-1", () => {
     const volumeId = "future-network-volume-l40s-v142";
     const harness = runpodPhysicalHarness({
@@ -693,7 +1151,7 @@ test("V142 RunPod never substitutes A40 or another GPU for an explicitly authori
     }
 });
 
-test("V142 L40S Network Volume is pinned to EU-NL-1 before any paid request", () => {
+test("V142 L40S placement derives its datacenter from the selected physical Network Volume", () => {
     const volumeId = "network-volume-l40s-wrong-dc";
     const harness = runpodPhysicalHarness({
         scenario: "l40s-wrong-datacenter",
@@ -713,8 +1171,9 @@ test("V142 L40S Network Volume is pinned to EU-NL-1 before any paid request", ()
             stockStatus: "Low"
         }
     });
-    assert.equal(report.ok, false);
-    assert.equal(report.error, "RUNPOD_GPU_NETWORK_VOLUME_DATACENTER_NOT_APPROVED");
+    assert.equal(report.ok, true, JSON.stringify(report));
+    assert.deepEqual(report.payload.dataCenterIds, ["US-TX-3"]);
+    assert.equal(report.payload.networkVolumeId, volumeId);
     assert.equal(harness.calls.length, 0);
 });
 
@@ -1048,7 +1507,7 @@ test("V142 CPU model staging bootstrap is Ubuntu-minimal safe and structurally c
     ], { stdio: "pipe" }));
 });
 
-test("V142 has one production authority for model, revision, bytes, SHA, datacenter, and volume semantics", () => {
+test("V142 has one production authority for model, revision, bytes, SHA, and volume semantics", () => {
     const repoRoot = path.dirname(fileURLToPath(new URL("../jarvis-local-video-engine.js", import.meta.url)));
     const source = fs.readFileSync(path.join(repoRoot, "jarvis-local-video-engine.js"), "utf8");
     const bridge = fs.readFileSync(path.join(repoRoot, "jarvis-fs-bridge.js"), "utf8");
@@ -1065,8 +1524,10 @@ test("V142 has one production authority for model, revision, bytes, SHA, datacen
     assert.equal(occurrences(profile.requiredRuntimeModelBytes), 1);
     assert.equal(occurrences('dataCenterId: "EU-NL-1"'), 1);
     for (const item of profile.requiredFiles) assert.equal(occurrences(item.sha256), 1, item.path);
-    assert.deepEqual(Object.keys(RUNPOD_WAN22_GPU_PROFILES), ["NVIDIA L40S"]);
-    assert.equal(RUNPOD_CPU_STAGING_PROFILE.dataCenterId, profile.dataCenterId);
+    assert.deepEqual(Object.keys(RUNPOD_WAN22_GPU_PROFILES), ["NVIDIA L40S", "NVIDIA A40"]);
+    assert.equal(profile.dataCenterId, undefined);
+    assert.equal(RUNPOD_WAN22_GPU_PROFILES["NVIDIA A40"].dataCenterId, undefined);
+    assert.equal(RUNPOD_CPU_STAGING_PROFILE.dataCenterId, "EU-NL-1");
     assert.equal(RUNPOD_CPU_STAGING_PROFILE.networkVolumeType, profile.networkVolumeType);
     assert.equal(RUNPOD_CPU_STAGING_PROFILE.minimumNetworkVolumeGb, profile.minimumNetworkVolumeGb);
     assert.equal((source.match(/modelEvidenceProgram/g) || []).length, 3);
@@ -1200,7 +1661,7 @@ test("V142 CPU staging fails closed for the retired datacenter, undersized volum
         [
             "retired US-TX-3 datacenter",
             { dataCenterId: "US-TX-3", sizeGb: 50, type: "STANDARD" },
-            "RUNPOD_GPU_NETWORK_VOLUME_DATACENTER_NOT_APPROVED"
+            "RUNPOD_CPU_STAGING_NETWORK_VOLUME_REQUIRED"
         ],
         [
             "volume smaller than 50 GB",
