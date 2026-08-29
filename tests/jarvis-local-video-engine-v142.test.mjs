@@ -425,6 +425,7 @@ function runpodPhysicalHarness({
                     torch: true,
                     torchVersion: "2.8.0+cu128",
                     torchCudaVersion: "12.8",
+                    cudaToolkitVersion: "12.8",
                     cuda: true,
                     gpuName: gpuTypeId,
                     computeCapability: gpuTypeId === "NVIDIA L40S" ? "8.9" : "8.6",
@@ -1667,6 +1668,9 @@ test("V142 RunPod adapter provisions one L40S Pod, transfers physical assets, re
     assert.equal(listArtifacts({ root: harness.root, type: "video" }).length, 1);
     const bootstrap = fs.readFileSync(bootstrapFile, "utf8");
     assert.match(bootstrap, /JARVIS_BOOTSTRAP_PHASE='GPU_RUNTIME_BOOTSTRAP'/);
+    assert.match(bootstrap, /progress WORKSPACE_VALIDATE RUNNING CACHE_MISS/);
+    assert.match(bootstrap, /test -d \/workspace && test -w \/workspace/);
+    assert.match(bootstrap, /\.jarvis-v142-gpu-write-probe/);
     assert.match(bootstrap, /python3 -m venv --system-site-packages/);
     assert.match(bootstrap, /"\$VENV\/bin\/python" -m pip install/);
     assert.doesNotMatch(bootstrap, /\npython3 -m pip install/);
@@ -1718,6 +1722,9 @@ test("V142 RunPod adapter provisions one L40S Pod, transfers physical assets, re
     assert.match(bootstrap, /generate\.py.*--help/);
     assert.match(bootstrap, /torchVersion/);
     assert.match(bootstrap, /torchCudaVersion/);
+    assert.match(bootstrap, /cudaToolkitVersion/);
+    assert.match(bootstrap, /nvcc.*--version/);
+    assert.match(bootstrap, /cudaToolkitVersionPrefix/);
     assert.equal(harness.createdBody.imageName, "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404");
     assert.doesNotMatch(harness.createdBody.imageName, /@sha256:/i);
 });
@@ -2099,6 +2106,7 @@ test("V142 every paid physical preflight failure keeps inference stopped and req
         ["Python", { baseHealthOverrides: { pythonVersion: "3.11.9" } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
         ["FFmpeg", { baseHealthOverrides: { ffmpeg: false } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
         ["NVCC", { baseHealthOverrides: { nvcc: false } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
+        ["NVCC version", { baseHealthOverrides: { cudaToolkitVersion: "12.7" } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
         ["FlashAttention", { runtimeHealthOverrides: { flashAttention: false, dependencyContract: false } }, "RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED"],
         ["Python imports", { runtimeHealthOverrides: { imports: false, dependencyContract: false } }, "RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED"],
         ["pip check", { runtimeHealthOverrides: { pipCheck: false, dependencyContract: false } }, "RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED"],

@@ -2696,6 +2696,7 @@ export function createRunpodRemoteVideoAdapter({
             pythonVersionPrefix: cacheContract.pythonVersionPrefix,
             torchVersionPrefix: cacheContract.torchVersionPrefix,
             torchCudaVersionPrefix: cacheContract.torchCudaVersionPrefix,
+            cudaToolkitVersionPrefix: cacheContract.runtimeIdentity.cudaToolkitVersionPrefix,
             computeCapability: cacheContract.computeCapability,
             flashAttentionVersion: cacheContract.flashAttentionVersion
         });
@@ -2735,12 +2736,18 @@ export function createRunpodRemoteVideoAdapter({
             "PY",
             "}",
             "trap 'progress BOOTSTRAP FAILED \"${CURRENT_CACHE_STATUS:-CACHE_MISS}\"' ERR",
+            "progress WORKSPACE_VALIDATE RUNNING CACHE_MISS",
+            "test -d /workspace && test -w /workspace",
+            "WORKSPACE_PROBE=/workspace/.jarvis-v142-gpu-write-probe.$$",
+            "printf 'ok\\n' > \"$WORKSPACE_PROBE\"",
+            "rm -f \"$WORKSPACE_PROBE\"",
+            "progress WORKSPACE_VALIDATE READY CACHE_MISS",
             "progress SYSTEM_DEPENDENCIES RUNNING CACHE_MISS",
             "missing=(); for tool in git ffmpeg ffprobe nvcc; do command -v \"$tool\" >/dev/null || missing+=(\"$tool\"); done; python3 -m venv --help >/dev/null 2>&1 || missing+=(python3-venv)",
             "if test ${#missing[@]} -gt 0; then apt-get update -qq; apt-get install -y -qq git ffmpeg python3-venv build-essential; fi",
             "progress SYSTEM_DEPENDENCIES READY CACHE_MISS",
             `cat > \"$PREFLIGHT\" <<'PY'`,
-            "import importlib,importlib.metadata,json,os,platform,shutil,subprocess,sys",
+            "import importlib,importlib.metadata,json,os,platform,re,shutil,subprocess,sys",
             "expected=json.loads(sys.argv[1]); repo=sys.argv[2]; target=sys.argv[3]",
             "modules=('torch','torchvision','torchaudio','cv2','diffusers','transformers','tokenizers','accelerate','tqdm','imageio','easydict','ftfy','dashscope','imageio_ffmpeg','flash_attn','numpy','PIL')",
             "imports={}",
@@ -2760,10 +2767,13 @@ export function createRunpodRemoteVideoAdapter({
             "        flash_attention_cuda_probe=bool(out.is_cuda and out.shape==q.shape)",
             "    except Exception: flash_attention_cuda_probe=False",
             "pip_check=subprocess.run([sys.executable,'-m','pip','check'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=120).returncode==0",
+            "nvcc_output=subprocess.check_output(['nvcc','--version'],text=True,stderr=subprocess.STDOUT,timeout=30)",
+            "nvcc_match=re.search(r'release\\s+(\\d+\\.\\d+)',nvcc_output)",
+            "cuda_toolkit_version=nvcc_match.group(1) if nvcc_match else ''",
             "probe_env=dict(os.environ); probe_env.update({'HF_HUB_OFFLINE':'1','TRANSFORMERS_OFFLINE':'1','WANDB_MODE':'offline'})",
             "cli=subprocess.run([sys.executable,os.path.join(repo,'generate.py'),'--help'],cwd=repo,env=probe_env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=120).returncode==0",
-            "payload={'pythonVersion':platform.python_version(),'torchVersion':str(torch.__version__),'torchCudaVersion':str(torch.version.cuda or ''),'cuda':torch.cuda.is_available(),'gpuName':torch.cuda.get_device_name(0) if torch.cuda.is_available() else '', 'computeCapability':'.'.join(map(str,torch.cuda.get_device_capability(0))) if torch.cuda.is_available() else '', 'cudaProbe':cuda_probe,'flashAttentionCudaProbe':flash_attention_cuda_probe,'pipCheck':pip_check,'wanCliImport':cli,'imports':imports,'flashAttentionVersion':importlib.metadata.version('flash-attn') if imports.get('flash_attn') else ''}",
-            "payload['ok']=bool(payload['pythonVersion'].startswith(expected['pythonVersionPrefix']) and payload['torchVersion'].startswith(expected['torchVersionPrefix']) and payload['torchCudaVersion'].startswith(expected['torchCudaVersionPrefix']) and payload['computeCapability']==expected['computeCapability'] and payload['cudaProbe'] and payload['flashAttentionCudaProbe'] and payload['pipCheck'] and payload['wanCliImport'] and all(imports.values()) and payload['flashAttentionVersion']==expected['flashAttentionVersion'])",
+            "payload={'pythonVersion':platform.python_version(),'torchVersion':str(torch.__version__),'torchCudaVersion':str(torch.version.cuda or ''),'cudaToolkitVersion':cuda_toolkit_version,'cuda':torch.cuda.is_available(),'gpuName':torch.cuda.get_device_name(0) if torch.cuda.is_available() else '', 'computeCapability':'.'.join(map(str,torch.cuda.get_device_capability(0))) if torch.cuda.is_available() else '', 'cudaProbe':cuda_probe,'flashAttentionCudaProbe':flash_attention_cuda_probe,'pipCheck':pip_check,'wanCliImport':cli,'imports':imports,'flashAttentionVersion':importlib.metadata.version('flash-attn') if imports.get('flash_attn') else ''}",
+            "payload['ok']=bool(payload['pythonVersion'].startswith(expected['pythonVersionPrefix']) and payload['torchVersion'].startswith(expected['torchVersionPrefix']) and payload['torchCudaVersion'].startswith(expected['torchCudaVersionPrefix']) and payload['cudaToolkitVersion'].startswith(expected['cudaToolkitVersionPrefix']) and payload['computeCapability']==expected['computeCapability'] and payload['cudaProbe'] and payload['flashAttentionCudaProbe'] and payload['pipCheck'] and payload['wanCliImport'] and all(imports.values()) and payload['flashAttentionVersion']==expected['flashAttentionVersion'])",
             "open(target,'w',encoding='utf-8').write(json.dumps(payload,sort_keys=True,separators=(',',':'))+'\\n')",
             "raise SystemExit(0 if payload['ok'] else 1)",
             "PY",
@@ -2931,12 +2941,13 @@ export function createRunpodRemoteVideoAdapter({
         const cacheRoot = `${remoteBase}/cache/wan22-ti2v-5b`;
         const runtimePreflightFile = `${cacheRoot}/runtime-preflight.json`;
         const command = `python3 -c ${shellSingleQuote(
-            "import json,os,platform,shutil,torch; p=shutil.disk_usage('/workspace'); " +
+            "import json,os,platform,re,shutil,subprocess,torch; p=shutil.disk_usage('/workspace'); " +
+            "nvcc_path=shutil.which('nvcc'); nvcc_output=subprocess.check_output([nvcc_path,'--version'],text=True,stderr=subprocess.STDOUT,timeout=30) if nvcc_path else ''; nvcc_match=re.search(r'release\\s+(\\d+\\.\\d+)',nvcc_output); " +
             "cuda=torch.cuda.is_available(); probe=False; " +
             "exec(\"try:\\n probe=bool((torch.ones(1,device='cuda')+1).item()==2); torch.cuda.synchronize()\\nexcept Exception:\\n probe=False\") if cuda else None; " +
             "d={'python':True,'pythonVersion':platform.python_version(),'torch':bool(torch.__version__),'torchVersion':str(torch.__version__),'torchCudaVersion':str(torch.version.cuda or ''),'cuda':cuda," +
             "'gpuName':torch.cuda.get_device_name(0) if cuda else '', 'computeCapability':'.'.join(map(str,torch.cuda.get_device_capability(0))) if cuda else ''," +
-            "'cudaProbe':probe,'vramGb':round(torch.cuda.get_device_properties(0).total_memory/1073741824,2) if cuda else 0,'freeDiskGb':round(p.free/1073741824,2)," +
+            "'cudaProbe':probe,'vramGb':round(torch.cuda.get_device_properties(0).total_memory/1073741824,2) if cuda else 0,'freeDiskGb':round(p.free/1073741824,2),'cudaToolkitVersion':nvcc_match.group(1) if nvcc_match else ''," +
             "'ffmpeg':bool(shutil.which('ffmpeg')),'ffprobe':bool(shutil.which('ffprobe')),'nvcc':bool(shutil.which('nvcc'))}; " +
             (full
                 ? `r=json.load(open('${runtimePreflightFile}',encoding='utf-8')) if os.path.isfile('${runtimePreflightFile}') else {}; d.update({'runner':os.path.isfile('${state.remoteOperationDir}/jarvis-local-video-wan22.py'),'wanRepository':os.path.isfile('${cacheRoot}/Wan2.2/generate.py'),'wanModel':os.path.isfile('${cacheRoot}/cache-manifest.json'),'dependencyContract':r.get('ok') is True,'pipCheck':r.get('pipCheck') is True,'wanCliImport':r.get('wanCliImport') is True,'runtimeCudaProbe':r.get('cudaProbe') is True,'flashAttentionCudaProbe':r.get('flashAttentionCudaProbe') is True,'flashAttention':r.get('flashAttentionVersion')=='${cacheContract.flashAttentionVersion}','imports':bool(r.get('imports')) and all(r.get('imports',{}).values())}); `
@@ -2952,6 +2963,7 @@ export function createRunpodRemoteVideoAdapter({
             health.torch === true &&
             String(health.torchVersion || "").startsWith(cacheContract.torchVersionPrefix) &&
             String(health.torchCudaVersion || "").startsWith(cacheContract.torchCudaVersionPrefix) &&
+            String(health.cudaToolkitVersion || "").startsWith(cacheContract.runtimeIdentity.cudaToolkitVersionPrefix) &&
             health.cuda === true && health.cudaProbe === true &&
             String(health.gpuName || "").trim() === gpuTypeId &&
             String(health.computeCapability || "") === cacheContract.computeCapability &&
