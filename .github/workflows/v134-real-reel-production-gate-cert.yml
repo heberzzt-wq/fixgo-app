@@ -19,6 +19,7 @@ on:
       - tests/jarvis-real-media-reel-hydration-v127.test.mjs
       - tests/nexo-real-media-tools.test.mjs
       - tests/single-semantic-authority.test.mjs
+  workflow_dispatch:
 
 permissions:
   contents: read

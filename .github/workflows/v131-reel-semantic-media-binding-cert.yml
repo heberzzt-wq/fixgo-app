@@ -28,6 +28,7 @@ on:
       - tests/jarvis-fs-bridge-v2.test.mjs
       - tests/jarvis-multifunction-tools.test.mjs
       - package.json
+  workflow_dispatch:
 
 permissions:
   contents: read

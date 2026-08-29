@@ -27,6 +27,7 @@ on:
       - tests/single-semantic-authority.test.mjs
       - package.json
       - package-lock.json
+  workflow_dispatch:
 
 permissions:
   contents: read
