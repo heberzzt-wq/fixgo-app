@@ -116,6 +116,35 @@ function localBackend({
     };
 }
 
+function controlledBashExecutable() {
+    if (process.platform !== "win32") return "/bin/bash";
+    const candidates = [
+        path.join(process.env.ProgramFiles || "C:\\Program Files", "Git", "bin", "bash.exe"),
+        path.join(process.env.ProgramFiles || "C:\\Program Files", "Git", "usr", "bin", "bash.exe")
+    ];
+    return candidates.find(candidate => fs.existsSync(candidate)) || null;
+}
+
+function controlledPythonExecutable() {
+    const candidates = process.platform === "win32" ? ["python", "python3"] : ["python3", "python"];
+    return candidates.find(candidate => {
+        try {
+            execFileSync(candidate, ["--version"], { stdio: "ignore" });
+            return true;
+        }
+        catch {
+            return false;
+        }
+    }) || null;
+}
+
+function bashPath(file) {
+    const resolved = path.resolve(file);
+    if (process.platform !== "win32") return resolved.replaceAll("\\", "/");
+    const match = resolved.match(/^([A-Za-z]):[\\/](.*)$/);
+    return match ? `/${match[1].toLowerCase()}/${match[2].replaceAll("\\", "/")}` : resolved;
+}
+
 function mockHttpResponse(status, payload = null, responseHeaders = {}) {
     const normalizedHeaders = new Map(
         Object.entries(responseHeaders).map(([name, value]) => [String(name).toLowerCase(), String(value)])
@@ -690,6 +719,7 @@ test("V142 CPU staging in EU-NL-1 can prepare model bytes but cannot certify GPU
         envOverrides: { JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false" }
     });
     const report = harness.adapter.inspectCpuStagingPrecheck({
+        job: harness.dryRunJob,
         sshKeyRegistered: true,
         registryVerification: harness.cpuRegistryVerification,
         networkVolume: { id: volumeId, dataCenterId: "EU-NL-1", sizeGb: 50, type: "STANDARD" },
@@ -750,6 +780,173 @@ test("V142 CPU staging in EU-NL-1 can prepare model bytes but cannot certify GPU
     assert.deepEqual(report.contract.supportedVcpuCounts, [1, 2, 4, 8]);
     assert.equal(report.contract.ramGbPerVcpu, 2);
     assert.equal(harness.calls.length, 0);
+});
+
+test("V142 CPU model staging bootstrap is Ubuntu-minimal safe and structurally capped at CACHE_MODEL_READY", () => {
+    const volumeId = "network-volume-cpu-bootstrap-v142";
+    const harness = runpodPhysicalHarness({
+        scenario: "cpu-bootstrap-contract",
+        gpuTypeId: "NVIDIA L40S",
+        networkVolumeId: volumeId,
+        envOverrides: { JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false" }
+    });
+    const report = harness.adapter.inspectCpuStagingPrecheck({
+        job: harness.dryRunJob,
+        sshKeyRegistered: true,
+        registryVerification: harness.cpuRegistryVerification,
+        networkVolume: { id: volumeId, dataCenterId: "EU-NL-1", sizeGb: 50, type: "STANDARD" },
+        inventory: {
+            cpuFlavorId: "cpu3c",
+            dataCenterId: "EU-NL-1",
+            minimumVcpu: 2,
+            ramMultiplier: 2,
+            securePriceUsdPerHour: 0.06,
+            stockStatus: "HIGH"
+        }
+    });
+    assert.equal(report.ok, true, JSON.stringify(report));
+    assert.equal(report.bootstrap.phase, "CPU_MODEL_STAGING_BOOTSTRAP");
+    assert.equal(report.bootstrap.maximumCacheStatus, "CACHE_MODEL_READY");
+    assert.deepEqual(report.bootstrap.durableIdentity, {
+        missionId: harness.dryRunJob.missionId,
+        objectiveId: harness.dryRunJob.objectiveId,
+        obligationId: harness.dryRunJob.obligationId,
+        rootInstructionHash: harness.dryRunJob.rootInstructionHash,
+        operationId: harness.dryRunJob.operationId
+    });
+    assert.deepEqual(report.bootstrap.packages, [
+        "ca-certificates",
+        "git",
+        "python3",
+        "python3-venv",
+        "python3-pip"
+    ]);
+    const bootstrap = report.bootstrap.script;
+    assert.match(bootstrap, /JARVIS_BOOTSTRAP_PHASE='CPU_MODEL_STAGING_BOOTSTRAP'/);
+    assert.ok(
+        bootstrap.indexOf("progress SYSTEM_DEPENDENCIES RUNNING CACHE_MISS")
+            < bootstrap.indexOf("apt-get update -qq")
+    );
+    assert.ok(
+        bootstrap.indexOf("apt-get install -y -qq --no-install-recommends ca-certificates git python3 python3-venv python3-pip")
+            < bootstrap.indexOf('python3 -m venv "$CPU_TOOLS_VENV"')
+    );
+    assert.match(bootstrap, /case "\$cache" in CACHE_MISS\|CACHE_POPULATING\|CACHE_MODEL_READY/);
+    assert.doesNotMatch(bootstrap, /CACHE_READY|CACHE_HIT/);
+    assert.doesNotMatch(bootstrap, /\bnvcc\b|\bcuda\b|flash[-_]attn|generate\.py|build-essential|ffmpeg|\btorch\b/i);
+    assert.doesNotMatch(bootstrap, /requirements\.txt|--requirement|pip check/i);
+    assert.match(bootstrap, /test -d \/workspace && test -w \/workspace/);
+    assert.match(bootstrap, /os\.replace\(tmp,manifest_path\)/);
+    assert.match(bootstrap, /assert total==expected\['expectedModelBytes'\]/);
+    assert.match(bootstrap, /assert sum\(item\['bytes'\] for item in expected\['requiredFiles'\]\)==expected\['requiredRuntimeModelBytes'\]/);
+    for (const item of RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].requiredFiles) {
+        assert.match(bootstrap, new RegExp(item.sha256));
+    }
+    assert.ok(
+        bootstrap.indexOf('if test "$MODEL_CACHE_VALID" = 1; then')
+            < bootstrap.indexOf('"$CPU_TOOLS_VENV/bin/hf" download')
+    );
+    assert.match(bootstrap, /rm -f "\$MODEL_MANIFEST"\nprogress MODEL_DOWNLOAD RUNNING CACHE_POPULATING/);
+    assert.match(bootstrap, /progress MODEL_VALIDATION READY CACHE_MODEL_READY\nexit 0\n$/);
+    assert.equal(harness.calls.length, 0);
+
+    const bash = controlledBashExecutable();
+    if (!bash || !fs.existsSync(bash)) {
+        assert.fail("Bash is required for the controlled Ubuntu-minimal-equivalent bootstrap check");
+    }
+    const temp = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-v142-cpu-bootstrap-"));
+    const scriptFile = path.join(temp, "cpu-bootstrap.sh");
+    fs.writeFileSync(scriptFile, bootstrap, { mode: 0o700 });
+    execFileSync(bash, ["-n", bashPath(scriptFile)], { stdio: "pipe" });
+
+    const controlledRemoteBase = path.join(temp, "workspace", "jarvis-v142");
+    const aptBoundary = bootstrap.indexOf("apt-get update -qq");
+    assert.ok(aptBoundary > 0);
+    const probeFile = path.join(temp, "bootstrap-safe-progress.sh");
+    const probe = `${bootstrap.slice(0, aptBoundary).replaceAll("/workspace/jarvis-v142", bashPath(controlledRemoteBase))}exit 0\n`;
+    fs.writeFileSync(probeFile, probe, { mode: 0o700 });
+    const forbiddenSentinel = path.join(temp, "forbidden-dependency-called");
+    const controlledCommand = [
+        `python3() { printf called > '${bashPath(forbiddenSentinel)}'; return 99; }`,
+        `git() { printf called > '${bashPath(forbiddenSentinel)}'; return 99; }`,
+        `hf() { printf called > '${bashPath(forbiddenSentinel)}'; return 99; }`,
+        "export -f python3 git hf",
+        'source "$1"'
+    ].join("; ");
+    execFileSync(bash, ["-c", controlledCommand, "cpu-bootstrap-probe", bashPath(probeFile)], { stdio: "pipe" });
+    assert.equal(fs.existsSync(forbiddenSentinel), false);
+    const progressFile = path.join(
+        controlledRemoteBase,
+        "operations",
+        harness.dryRunJob.operationId,
+        "bootstrap-progress.json"
+    );
+    assert.deepEqual(JSON.parse(fs.readFileSync(progressFile, "utf8")), {
+        stage: "SYSTEM_DEPENDENCIES",
+        status: "RUNNING",
+        cacheStatus: "CACHE_MISS",
+        modelBytes: 0,
+        at: JSON.parse(fs.readFileSync(progressFile, "utf8")).at
+    });
+
+    const python = controlledPythonExecutable();
+    assert.ok(python, "Python is required to execute the model-manifest fixture verifier");
+    const heredocMarker = `cat > "$MODEL_PREFLIGHT" <<'PY'\n`;
+    const verifierStart = bootstrap.indexOf(heredocMarker) + heredocMarker.length;
+    const verifierEnd = bootstrap.indexOf("\nPY\n", verifierStart);
+    assert.ok(verifierStart >= heredocMarker.length && verifierEnd > verifierStart);
+    const verifierFile = path.join(temp, "model-preflight.py");
+    fs.writeFileSync(verifierFile, bootstrap.slice(verifierStart, verifierEnd) + "\n");
+    const fixtureModel = path.join(temp, "fixture-model");
+    fs.mkdirSync(path.join(fixtureModel, "nested"), { recursive: true });
+    const fixtureFiles = [
+        { path: "weights.bin", bytes: Buffer.from("fixture-model-weights") },
+        { path: "nested/config.json", bytes: Buffer.from('{"fixture":true}\n') }
+    ];
+    for (const item of fixtureFiles) {
+        const target = path.join(fixtureModel, item.path);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.writeFileSync(target, item.bytes);
+    }
+    const fixtureContract = {
+        modelRepository: "fixture/Wan2.2-TI2V-5B",
+        modelRevision: "fixture-model-revision",
+        wanRepositoryRevision: "fixture-wan-revision",
+        expectedModelBytes: fixtureFiles.reduce((sum, item) => sum + item.bytes.length, 0),
+        requiredRuntimeModelBytes: fixtureFiles.reduce((sum, item) => sum + item.bytes.length, 0),
+        requiredFiles: fixtureFiles.map(item => ({
+            path: item.path,
+            bytes: item.bytes.length,
+            sha256: createHash("sha256").update(item.bytes).digest("hex")
+        }))
+    };
+    const fixtureManifest = path.join(temp, "fixture-model-manifest.json");
+    execFileSync(python, [
+        verifierFile,
+        JSON.stringify(fixtureContract),
+        fixtureModel,
+        fixtureManifest,
+        "write"
+    ], { stdio: "pipe" });
+    assert.deepEqual(JSON.parse(fs.readFileSync(fixtureManifest, "utf8")), fixtureContract);
+    assert.equal(
+        fs.readdirSync(temp).some(name => name.startsWith(".model-manifest-")),
+        false,
+        "atomic manifest temporaries must not remain after replace"
+    );
+    execFileSync(python, [
+        verifierFile,
+        JSON.stringify(fixtureContract),
+        fixtureModel,
+        fixtureManifest
+    ], { stdio: "pipe" });
+    fs.writeFileSync(path.join(fixtureModel, "weights.bin"), "incomplete");
+    assert.throws(() => execFileSync(python, [
+        verifierFile,
+        JSON.stringify(fixtureContract),
+        fixtureModel,
+        fixtureManifest
+    ], { stdio: "pipe" }));
 });
 
 test("V142 CPU staging fails closed for the retired datacenter, undersized volume, or non-standard volume", async t => {
@@ -1224,6 +1421,7 @@ test("V142 RunPod adapter provisions one A40 Pod, transfers physical assets, ret
     }
     assert.equal(listArtifacts({ root: harness.root, type: "video" }).length, 1);
     const bootstrap = fs.readFileSync(bootstrapFile, "utf8");
+    assert.match(bootstrap, /JARVIS_BOOTSTRAP_PHASE='GPU_RUNTIME_BOOTSTRAP'/);
     assert.match(bootstrap, /python3 -m venv --system-site-packages/);
     assert.match(bootstrap, /"\$VENV\/bin\/python" -m pip install/);
     assert.doesNotMatch(bootstrap, /\npython3 -m pip install/);

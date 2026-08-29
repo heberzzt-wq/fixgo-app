@@ -228,17 +228,28 @@ The persistent layout is singular:
 
 - model: `/workspace/jarvis-v142/cache/wan22-ti2v-5b/model`;
 - Wan repository: `/workspace/jarvis-v142/cache/wan22-ti2v-5b/Wan2.2`;
-- virtual environment: `/workspace/jarvis-v142/cache/wan22-ti2v-5b/venv`;
+- CPU download-tool environment: `/workspace/jarvis-v142/cache/wan22-ti2v-5b/cpu-tools-venv`;
+- GPU runtime environment: `/workspace/jarvis-v142/cache/wan22-ti2v-5b/venv`;
 - Hugging Face local-dir metadata: inside the model's `.cache/huggingface`;
 - build temporaries: `/tmp` on the 30 GB container disk.
 
-The bootstrap uses `hf download --local-dir`, disables Xet chunk/shard caches,
-sets `PIP_NO_CACHE_DIR=1`, and creates the venv with system site packages. It
-does not intentionally keep a second complete checkpoint. `CACHE_HIT` requires
-the manifest, repository revision, requirements SHA, every file byte count and
-SHA-256, and the complete runtime preflight. Missing, partial, or merely
-expected cache state remains `CACHE_MISS`/`CACHE_POPULATING`; a new runtime can
-reuse `CACHE_READY` only after repeating physical verification.
+The adapter has two internal bootstrap phases, not two public pipelines.
+`CPU_MODEL_STAGING_BOOTSTRAP` uses `hf download --local-dir`, disables Xet
+chunk/shard caches, and may only promote `CACHE_MISS` through
+`CACHE_POPULATING` to `CACHE_MODEL_READY`. `GPU_RUNTIME_BOOTSTRAP` consumes that
+same model directory and is the only phase allowed to install/certify the Wan
+GPU runtime and promote to `CACHE_READY`. A later GPU run may report
+`CACHE_HIT` only after repeating the complete physical verification. Neither
+phase keeps a second checkpoint.
+
+The model manifest is written atomically only after the exact repository and
+model revisions, all 34,203,123,497 snapshot bytes, all 34,201,521,212 required
+runtime bytes, and every required file SHA-256 pass. A partial download keeps
+its reusable bytes and Hugging Face metadata on the Network Volume, but its
+manifest is removed and it remains `CACHE_POPULATING`. A later CPU Pod resumes
+the same `hf download --local-dir` and revalidates the entire contract. A GPU
+bootstrap that finds a valid `CACHE_MODEL_READY` manifest verifies it before
+the download branch and therefore does not download the model again.
 
 The cache profile is GPU-specific even though the model bytes and pinned
 repository revisions are shared. `wan22-ti2v-5b-a40-v2` requires CC 8.6;
@@ -299,15 +310,32 @@ deletion and cannot authorize cache writes.
 
 CPU staging may clone the pinned Wan repository, run `hf download`, verify the
 repository revision and every model byte/SHA-256, and write the model manifest.
-It may bootstrap shell, Git, Python, CA certificates, Hugging Face CLI, and
-SHA-256 tools. It must not install or certify CUDA, PyTorch-CUDA, NVCC, or
-FlashAttention. After `CPU_RUNTIME_READY`, the OS, Python/tools, and
-`/workspace` mount must be physically checked before any cache write.
+Its bootstrap starts with a Bash-only atomic progress writer, so neither the
+initial progress event nor the `ERR` trap assumes Python, Git, or the Hugging
+Face CLI. It then installs exactly `ca-certificates`, `git`, `python3`,
+`python3-venv`, and `python3-pip` from a clean Ubuntu 22.04 base before the first
+real Python use. It does not install FFmpeg, build-essential, the full Wan
+requirements, CUDA, PyTorch-CUDA, NVCC, or FlashAttention. After
+`CPU_RUNTIME_READY`, `/workspace` must be present and writable before any cache
+write.
 Its maximum state is `CACHE_MODEL_READY`. It cannot certify CUDA, NVCC,
 PyTorch-CUDA, compute capability, FlashAttention CUDA kernels, Wan runtime help,
 `CACHE_READY`, or `CACHE_HIT`. Those remain mandatory L40S physical checks.
 At USD 0.06/hour, 30 minutes of CPU staging is USD 0.03 compute, excluding the
 separately billed persistent Network Volume.
+
+The bootstrap operation ownership is explicit:
+
+| Operation | Internal owner |
+| --- | --- |
+| Bootstrap-safe progress, minimal apt packages, `/workspace` write probe | `CPU_MODEL_STAGING_BOOTSTRAP` |
+| Pinned Wan clone, minimal Hugging Face CLI, resumable model download | `CPU_MODEL_STAGING_BOOTSTRAP` |
+| Snapshot byte total, required-file bytes/SHA-256, atomic model manifest | `CPU_MODEL_STAGING_BOOTSTRAP` |
+| FFmpeg/build toolchain, full Wan requirements, PyTorch/CUDA environment | `GPU_RUNTIME_BOOTSTRAP` |
+| NVCC, compute capability, CUDA tensor, FlashAttention CUDA kernel | `GPU_RUNTIME_BOOTSTRAP` |
+| `pip check`, imports, offline `generate.py --help`, runtime manifest | `GPU_RUNTIME_BOOTSTRAP` |
+| `CACHE_MODEL_READY` | CPU maximum; GPU accepted input |
+| `CACHE_READY` and physically reverified `CACHE_HIT` | GPU only |
 
 The sanitized CPU dry-run is:
 
