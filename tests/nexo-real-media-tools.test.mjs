@@ -130,7 +130,9 @@ test("real media package creates verified local manifest when both families exis
             sourceUrl: "https://example.com/",
             requireImages: true,
             requireVideos: true,
-            title: "Campaña real"
+            title: "Campaña real",
+            caseId: "CASE-PLANNER-COPY",
+            objectiveId: "OBJ-PLANNER-COPY"
         },
         {
             caseId: "CASE-REAL",
@@ -143,6 +145,8 @@ test("real media package creates verified local manifest when both families exis
     assert.equal(result.objectiveSatisfied, true);
     assert.equal(result.status, "REAL_MEDIA_MARKETING_PACKAGE_CREATED");
     assert.equal(request.route, "/artifact/json/create");
+    assert.equal(request.payload.caseId, "CASE-REAL");
+    assert.equal(request.payload.objectiveId, "OBJ-REAL");
     assert.equal(request.payload.data.policy.syntheticMediaSubstitutionAllowed, false);
     assert.equal(request.payload.data.mediaAssets.length, 2);
 });

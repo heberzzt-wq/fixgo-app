@@ -566,8 +566,8 @@ export function registerJarvisActuatorTools(runtime) {
             execute: async (args = {}, context = {}) => {
                 let result = await bridgeRequest("/page/create", {
                     ...args,
-                    caseId: args.caseId || context.caseId || "",
-                    objectiveId: args.objectiveId || context.objectiveId || "",
+                    caseId: context.caseId || args.caseId || "",
+                    objectiveId: context.objectiveId || args.objectiveId || "",
                     approved: context.approved === true,
                     approvedBy: context.approvedBy || ""
                 }, 60000);
@@ -627,8 +627,8 @@ export function registerJarvisActuatorTools(runtime) {
             execute: async (args = {}, context = {}) => {
                 const result = await bridgeRequest("/speech/synthesize", {
                     ...args,
-                    caseId: args.caseId || context.caseId || "",
-                    objectiveId: args.objectiveId || context.objectiveId || ""
+                    caseId: context.caseId || args.caseId || "",
+                    objectiveId: context.objectiveId || args.objectiveId || ""
                 }, 90000);
                 if (result?.ok === true && result?.status === "SPEECH_AUDIO_CREATED_VERIFIED") {
                     recordCapabilityEvidence("speech_synthesis", {
@@ -683,8 +683,8 @@ export function registerJarvisActuatorTools(runtime) {
                 const result = await bridgeRequest("/reel/create", {
                     ...args,
                     ...(logoOutput ? { logoOutput } : {}),
-                    caseId: args.caseId || context.caseId || "",
-                    objectiveId: args.objectiveId || context.objectiveId || ""
+                    caseId: context.caseId || args.caseId || "",
+                    objectiveId: context.objectiveId || args.objectiveId || ""
                 }, Math.max(
                     120000,
                     (Number(args.durationSeconds) || 30) * 1000 + 60000
@@ -796,8 +796,8 @@ export function registerJarvisActuatorTools(runtime) {
                         args.documentValidation ||
                         {},
                     slides: args.slides,
-                    caseId: args.caseId || context.caseId || "",
-                    objectiveId: args.objectiveId || context.objectiveId || ""
+                    caseId: context.caseId || args.caseId || "",
+                    objectiveId: context.objectiveId || args.objectiveId || ""
                 });
             }
         }),
@@ -843,8 +843,8 @@ export function registerJarvisActuatorTools(runtime) {
                     safePlacement:
                         args.safePlacement !==
                         false,
-                    caseId: args.caseId || context.caseId || "",
-                    objectiveId: args.objectiveId || context.objectiveId || "",
+                    caseId: context.caseId || args.caseId || "",
+                    objectiveId: context.objectiveId || args.objectiveId || "",
                     approved: context.approved === true,
                     approvedBy: context.approvedBy || ""
                 }, 90000);
@@ -887,8 +887,8 @@ export function registerJarvisActuatorTools(runtime) {
                     sourceOutput: args.sourceOutput,
                     output: args.output,
                     changes: args.changes,
-                    caseId: args.caseId || context.caseId || "",
-                    objectiveId: args.objectiveId || context.objectiveId || ""
+                    caseId: context.caseId || args.caseId || "",
+                    objectiveId: context.objectiveId || args.objectiveId || ""
                 }, 90000);
                 recordCapabilityEvidence("structured_document_editing", {
                     ok: result?.ok === true && result?.originalPreserved === true && result?.outputSha256 !== result?.sourceSha256,
@@ -920,8 +920,8 @@ export function registerJarvisActuatorTools(runtime) {
                     sourceOutput: args.sourceOutput,
                     output: args.output,
                     replacements: args.replacements,
-                    caseId: args.caseId || context.caseId || "",
-                    objectiveId: args.objectiveId || context.objectiveId || ""
+                    caseId: context.caseId || args.caseId || "",
+                    objectiveId: context.objectiveId || args.objectiveId || ""
                 }, 90000);
                 recordCapabilityEvidence("structured_document_editing", {
                     ok: result?.ok === true && result?.originalPreserved === true && result?.outputSha256 !== result?.sourceSha256,
@@ -953,8 +953,8 @@ export function registerJarvisActuatorTools(runtime) {
                     sourceOutput: args.sourceOutput,
                     output: args.output,
                     replacements: args.replacements,
-                    caseId: args.caseId || context.caseId || "",
-                    objectiveId: args.objectiveId || context.objectiveId || ""
+                    caseId: context.caseId || args.caseId || "",
+                    objectiveId: context.objectiveId || args.objectiveId || ""
                 }, 90000);
                 recordCapabilityEvidence("structured_document_editing", {
                     ok: result?.ok === true && result?.originalPreserved === true && result?.outputSha256 !== result?.sourceSha256,
@@ -1914,8 +1914,8 @@ export function registerJarvisActuatorTools(runtime) {
                         origin: "image.generate",
                         provider: result.provider || "google",
                         model: result.model,
-                        objectiveId: args.objectiveId || context.objectiveId || "",
-                        caseId: args.caseId || context.caseId || ""
+                        objectiveId: context.objectiveId || args.objectiveId || "",
+                        caseId: context.caseId || args.caseId || ""
                     }, 30000);
                 }
                 const finalResult = {
@@ -2096,7 +2096,7 @@ export function registerJarvisActuatorTools(runtime) {
                     sourceOutput: sourceArtifact.output,
                     preserveLogos: personIdentityMode ? args.preserveLogos !== false : false,
                     preserveApprovedText: args.preserveApprovedText === true,
-                    objectiveId: args.objectiveId || context.objectiveId || ""
+                    objectiveId: context.objectiveId || args.objectiveId || ""
                 });
 
                 if (result?.ok !== true || result?.status !== "IMAGE_EDITED" || !result?.imageBase64) return result;
@@ -2158,14 +2158,16 @@ export function registerJarvisActuatorTools(runtime) {
                     origin: "image.edit",
                     provider: result.provider || "google",
                     model: result.model,
-                    objectiveId: result.objectiveId || context.objectiveId || "",
-                    caseId: args.caseId || context.caseId || "",
+                    objectiveId: context.objectiveId || result.objectiveId || "",
+                    caseId: context.caseId || args.caseId || "",
                     originalFile: sourceArtifact.output,
                     transformations
                 }, 30000);
 
                 const finalResult = {
                     ...result,
+                    objectiveId: context.objectiveId || result.objectiveId || "",
+                    caseId: context.caseId || args.caseId || result.caseId || "",
                     mimeType: finalMimeType,
                     sourceOutput: sourceArtifact.output,
                     sourceSha256: primarySourceSha256,
@@ -2246,8 +2248,8 @@ export function registerJarvisActuatorTools(runtime) {
                         output,
                         origin: "image.adapt",
                         provider: "browser_canvas",
-                        objectiveId: args.objectiveId || context.objectiveId || "",
-                        caseId: args.caseId || context.caseId || "",
+                        objectiveId: context.objectiveId || args.objectiveId || "",
+                        caseId: context.caseId || args.caseId || "",
                         originalFile: source.output,
                         approved: context.approved === true,
                         approvedBy: context.approvedBy || "",
@@ -2270,8 +2272,8 @@ export function registerJarvisActuatorTools(runtime) {
             requiresApproval: true,
             execute: async (args = {}, context = {}) => await bridgeRequest("/artifact/json/create", {
                 ...args,
-                caseId: args.caseId || context.caseId || "",
-                objectiveId: args.objectiveId || context.objectiveId || ""
+                caseId: context.caseId || args.caseId || "",
+                objectiveId: context.objectiveId || args.objectiveId || ""
             }, 30000)
         }),
         register(runtime, {

@@ -120,10 +120,17 @@ test("v135 web.media.collect falls back to browser-network collection when stati
         url: "https://example.com/menu",
         requireImages: true,
         requireAnyVisual: true,
-        maxImages: 6
+        maxImages: 6,
+        objectiveId: "OBJ-PLANNER-COPY",
+        caseId: "CASE-PLANNER-COPY"
+    }, {
+        objectiveId: "OBJ-MISSION-AUTHORITY",
+        caseId: "CASE-MISSION-AUTHORITY"
     });
 
     assert.deepEqual(calls.map(call => call.route), ["/web/media/collect", "/browser"]);
+    assert.ok(calls.every(call => call.payload.objectiveId === "OBJ-MISSION-AUTHORITY"));
+    assert.ok(calls.every(call => call.payload.caseId === "CASE-MISSION-AUTHORITY"));
     assert.equal(result.ok, true);
     assert.equal(result.objectiveSatisfied, true);
     assert.equal(result.browserFallbackUsed, true);

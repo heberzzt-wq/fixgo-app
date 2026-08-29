@@ -4753,6 +4753,34 @@ if (
                             };
                         }
 
+                        const observedFollowUpPlan =
+                            buildObservationDrivenFollowUpToolCalls({
+                                observations: mission.observations,
+                                toolCalls: [
+                                    ...mission.completedTasks,
+                                    ...mission.blockedTasks,
+                                    ...mission.pendingTasks
+                                ],
+                                rawInput: originalInstruction,
+                                learningHints: agentLearningHints,
+                                proposalAdjustmentContext:
+                                    context.proposalAdjustmentContext || null
+                            });
+                        const nextObservedFollowUp =
+                            observedFollowUpPlan.followUpToolCalls[0] || null;
+                        if (nextObservedFollowUp) {
+                            return {
+                                toolCalls: [nextObservedFollowUp],
+                                missionComplete: false,
+                                completionAssessment: {
+                                    status: "OBSERVED_EVIDENCE_FOLLOW_UP",
+                                    completed: mission.completedTasks.map(item => item.name),
+                                    blocked: mission.blockedTasks.map(item => item.name),
+                                    missing: [nextObservedFollowUp.name]
+                                }
+                            };
+                        }
+
                         const completionAuditCatalog =
                             registeredMissionTools
                                 .slice(0, 80);
@@ -5817,6 +5845,8 @@ if (
                 : missionResult.reason === "PARTIAL_CAPABILITY_BLOCKED"
                     ? "Mision Jarvis parcialmente completada"
                     : "Mision Jarvis incompleta";
+    const missionAuthorityInstruction =
+        missionResult.rootInstruction || inputRaw;
 
     const missionToolCalls = [
         ...missionResult.completedTasks,
@@ -5835,7 +5865,7 @@ if (
             toolCalls:
                 missionToolCalls,
             rawInput:
-                inputRaw,
+                missionAuthorityInstruction,
             learningHints:
                 agentLearningHints,
             proposalAdjustmentContext:
@@ -5845,57 +5875,16 @@ if (
     let followUpObservations =
         [];
 
-    if (
-        followUpPlan.followUpToolCalls.length > 0
-    ) {
-        this.emitirPulso(
-            "AGENT_LOOP",
-            "OBSERVATION_FOLLOW_UP_DETECTED",
-            `${followUpPlan.followUpToolCalls.length} tools`
-        );
-
-        followUpObservations =
-            await executeObservationDrivenFollowUp(
-                followUpPlan.followUpToolCalls,
-                {
-                    ...context,
-                    rawInput:
-                        inputRaw,
-                    tenantId,
-                    analysisId,
-                    rol,
-                    learningHints:
-                        agentLearningHints,
-                    reasoning:
-                        propuesta.cognition ||
-                        propuesta.reasoning ||
-                        null
-                }
-            );
-    }
-
     const allToolCalls =
-        [
-            ...missionToolCalls,
-            ...followUpPlan.followUpToolCalls
-        ];
+        [...missionToolCalls];
 
     const allToolObservations =
-        [
-            ...toolObservations,
-            ...followUpObservations
-        ];
+        [...toolObservations];
     const verifiedMissionToolNames =
         [
             ...new Set(
                 [
-                    ...missionResult.executedTools,
-                    ...followUpPlan
-                        .followUpToolCalls
-                        .map(call =>
-                            call?.name
-                        )
-                        .filter(Boolean)
+                    ...missionResult.executedTools
                 ]
             )
         ];
@@ -5949,16 +5938,6 @@ if (
                     "CAPABILITY_BLOCKED"
             }
         })),
-        ...followUpObservations.map(
-            (observation, index) => ({
-                name:
-                    followUpPlan
-                        .followUpToolCalls[index]
-                        ?.name ||
-                    "followup.readonly",
-                observation
-            })
-        )
     ];
     const missionEvidenceReceipt =
         buildMissionEvidenceReceipt(
@@ -5977,7 +5956,7 @@ if (
         const conversationalComposition =
             await composeEvidenceGroundedConversation({
                 instruction:
-                    inputRaw,
+                    missionAuthorityInstruction,
                 evidenceItems:
                     [{
                         name: "mission.outcome",
@@ -6009,7 +5988,12 @@ if (
                                 {
                                     ...context,
                                     rawInput:
-                                        inputRaw,
+                                        missionAuthorityInstruction,
+                                    missionId: missionResult.missionId,
+                                    caseId: missionResult.caseId,
+                                    objectiveId: missionResult.objectiveId,
+                                    rootInstruction: missionAuthorityInstruction,
+                                    rootInstructionHash: missionResult.rootInstructionHash,
                                     tenantId,
                                     analysisId,
                                     rol,
@@ -6029,7 +6013,7 @@ if (
                 "conversation.respond",
             args: {
                 prompt:
-                    inputRaw
+                    missionAuthorityInstruction
             },
             approved:
                 false
@@ -6081,9 +6065,9 @@ if (
         missionResult.executedTools.length > 1 &&
         unresolvedUserArtifactTasks.length === 0
     ) {
-        const boundedInstruction = inputRaw.length <= 40000
-            ? inputRaw
-            : `${inputRaw.slice(0, 20000)}\n[PARTE_MEDIA_PERSISTIDA_EN_EXPEDIENTE]\n${inputRaw.slice(-20000)}`;
+        const boundedInstruction = missionAuthorityInstruction.length <= 40000
+            ? missionAuthorityInstruction
+            : `${missionAuthorityInstruction.slice(0, 20000)}\n[PARTE_MEDIA_PERSISTIDA_EN_EXPEDIENTE]\n${missionAuthorityInstruction.slice(-20000)}`;
         const evidenceBlocks =
             buildMissionEvidenceBlocks(
                 missionEvidenceItems,
@@ -6143,6 +6127,11 @@ if (
                             ...context,
                             rawInput:
                                 prompt,
+                            missionId: missionResult.missionId,
+                            caseId: missionResult.caseId,
+                            objectiveId: missionResult.objectiveId,
+                            rootInstruction: missionAuthorityInstruction,
+                            rootInstructionHash: missionResult.rootInstructionHash,
                             tenantId,
                             analysisId,
                             rol,
@@ -6293,9 +6282,11 @@ if (
     const hasPatchOrWriteTools =
         allToolCalls.some(call =>
             call?.name === "repo.patchPreview" ||
-            call?.name === "repo.safePatchApply" ||
+            call?.name === "repo.prepareWrite" ||
+            call?.name === "repo.authorizeWrite" ||
             call?.name === "repo.write" ||
-            call?.name === "codex.patch"
+            call?.name === "repo.commit" ||
+            call?.name === "repo.gitPush"
         );
 
     const isReadOnlyRepoSurveyPlan =
@@ -6315,9 +6306,7 @@ if (
         followUpPlan.followUpToolCalls.length > 0
                        ? composeObservationDrivenFinalResponse({
                 objective:
-                    propuesta?.reasoning?.input ||
-                    propuesta?.cognition?.input ||
-                    inputRaw,
+                    missionAuthorityInstruction,
                 candidates:
                     followUpPlan.candidates,
                 followUpObservations: [
@@ -6340,10 +6329,7 @@ if (
         isReadOnlyRepoSurveyPlan
             ? composeRepoGlobalAnalysisFinalResponse({
                 objective:
-                    cloudToolPlan?.objective ||
-                    propuesta?.reasoning?.input ||
-                    propuesta?.cognition?.input ||
-                    inputRaw,
+                    missionAuthorityInstruction,
                 toolCalls:
                     allToolCalls,
                 observations:
@@ -7385,7 +7371,7 @@ console.info(
    Commit 23 Mega-Pack
    ============================================================ */
 
-(function initJarvisCodexV2CoreStatus() {
+if (false) (function initJarvisCodexV2CoreStatus() {
   if (window.__JARVIS_CODEX_V2_CORE_STATUS__) return;
   window.__JARVIS_CODEX_V2_CORE_STATUS__ = true;
 

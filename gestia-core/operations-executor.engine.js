@@ -2948,13 +2948,13 @@ if (
 }
 
 /* ============================================================
-   JARVIS CODEX V2 — OPERATION EXECUTOR GOVERNANCE
-   Commit 23 Mega-Pack
+   JARVIS CANONICAL ONE-TIME WRITE GUARD
+   Legacy executor writes must enter through the registered mission tools.
    ============================================================ */
 
-(function initJarvisCodexV2ExecutorGovernance() {
-  if (window.__JARVIS_CODEX_V2_EXECUTOR_GUARD__) return;
-  window.__JARVIS_CODEX_V2_EXECUTOR_GUARD__ = true;
+(function initJarvisCanonicalWriteExecutorGuard() {
+  if (window.__JARVIS_CANONICAL_WRITE_EXECUTOR_GUARD__) return;
+  window.__JARVIS_CANONICAL_WRITE_EXECUTOR_GUARD__ = true;
 
   const oldExecute =
     window.operationsExecutor?.execute ||
@@ -2978,7 +2978,8 @@ if (
       blocked: true,
       code: reason,
       operation,
-      message: `[${reason}] Escritura bloqueada por Jarvis Codex V2 Governance.`
+      message: `[${reason}] Usa repo.prepareWrite, repo.authorizeWrite y repo.write dentro de la misma autoridad de misión.`,
+      nextTools: ["repo.prepareWrite", "repo.authorizeWrite", "repo.write"]
     };
   }
 
@@ -2994,23 +2995,7 @@ if (
       };
     }
 
-    const approved = window.JarvisCodexV2?.state?.approvedPatch;
-
-    if (!approved) {
-      return block("CODE_WRITE_BLOCKED_NO_APPROVED_PATCH", operation);
-    }
-
-    if (!approved.file || !approved.search || !approved.replace || approved.dryRun !== true) {
-      return block("CODE_WRITE_BLOCKED_INVALID_APPROVED_PATCH_CONTRACT", operation);
-    }
-
-    if (operation.file && operation.file !== approved.file) {
-      return block("CODE_WRITE_BLOCKED_FILE_MISMATCH", operation);
-    }
-
-    return await window.JarvisCodexV2.safeCodeWrite({
-      file: approved.file
-    });
+    return block("CODE_WRITE_REQUIRES_CANONICAL_ONE_TIME_AUTHORITY", operation);
   }
 
   window.operationsExecutor = window.operationsExecutor || {};

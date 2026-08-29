@@ -95,3 +95,79 @@ test("UI branding never interprets natural approval language", () => {
     assert.match(branding, /semanticAuthority:\s*"jarvisSemanticPlan"/);
 });
 
+test("mission execution identity always wins over planner or provider copies", () => {
+    const activeHands = [
+        "gestia-core/jarvis/jarvis.actuator.pack.js",
+        "gestia-core/jarvis/jarvis.multitool.pack.js",
+        "gestia-core/nexo/nexo.real-media.tools.js",
+        "gestia-core/tools.runtime.js",
+        "modules/terminal/jarvis-attachments.js"
+    ];
+    for (const file of activeHands) {
+        const source = read(file);
+        assert.doesNotMatch(
+            source,
+            /args\??\.objectiveId\s*\|\|\s*context\??\.objectiveId|result\??\.objectiveId\s*\|\|\s*context\??\.objectiveId|(?:local|recovery|primary|final)Result\??\.objectiveId\s*\|\|\s*trace\.objectiveId|item\.objectiveId\s*\|\|\s*state\.caseRecord/,
+            file
+        );
+        assert.doesNotMatch(
+            source,
+            /args\??\.caseId\s*\|\|\s*context\??\.caseId|result\??\.caseId\s*\|\|\s*context\??\.caseId|(?:local|recovery|primary|final)Result\??\.caseId\s*\|\|\s*trace\.caseId|item\.caseId\s*\|\|\s*state\.caseRecord/,
+            file
+        );
+    }
+});
+
+test("technical recovery and observed repo follow-up never invoke a parallel semantic route", () => {
+    const orchestrator = read("gestia-core/jarvis/jarvis.mission.orchestrator.js");
+    const core = read("gestia-core/gestia-core.js");
+    assert.doesNotMatch(orchestrator, /plannerMission\.phase\s*=\s*"REEL_MEDIA_SOURCE_RECOVERY"/);
+    assert.equal(
+        (core.match(/executeObservationDrivenFollowUp\s*\(/g) || []).length,
+        1,
+        "the helper may remain for compatibility tests but active mission flow must not execute it"
+    );
+    assert.match(core, /buildObservationDrivenFollowUpToolCalls\([\s\S]*mission\.observations/);
+});
+
+test("legacy patch state machines are retired from active Jarvis routes", () => {
+    const runtime = read("gestia-core/tools.runtime.js");
+    const bridge = read("gestia-core/tools.bridge.js");
+    const core = read("gestia-core/gestia-core.js");
+    const executor = read("gestia-core/operations-executor.engine.js");
+    const terminal = read("gestia-terminal.html");
+    const retiredTools = [
+        "repo.postWriteVerify",
+        "repo.snapshotStore",
+        "repo.snapshotBeforeWrite",
+        "repo.rollbackLastPatch",
+        "repo.reviewCard",
+        "repo.operatorQueue",
+        "repo.safePatchApply",
+        "repo.safePatchPlan",
+        "repo.governanceCheck",
+        "tests.codexPipeline",
+        "repo.patchPreview"
+    ];
+
+    for (const name of retiredTools) {
+        assert.match(
+            runtime,
+            new RegExp(`if \\(false\\) JarvisToolRuntime\\.register\\(\\{[\\s\\S]{0,180}?['\"]${name.replaceAll(".", "\\.")}['\"]`),
+            name
+        );
+    }
+    assert.match(runtime, /name:\s*"repo\.prepareWrite"/);
+    assert.match(runtime, /name:\s*"repo\.authorizeWrite"/);
+    assert.match(runtime, /name:\s*\n?\s*"repo\.write"/);
+    assert.match(runtime, /if \(false && window\.JarvisToolRuntime\?\.register/);
+    assert.match(runtime, /if \(false\) \(function initJarvisCodexV2Runtime/);
+    assert.match(bridge, /if \(false\) \(function initJarvisCodexV2Bridge/);
+    assert.match(core, /if \(false\) \(function initJarvisCodexV2CoreStatus/);
+    assert.doesNotMatch(executor, /window\.JarvisCodexV2/);
+    assert.match(executor, /CODE_WRITE_REQUIRES_CANONICAL_ONE_TIME_AUTHORITY/);
+    assert.match(terminal, /if \(false && sia7TopLevelApprovalMatch\)/);
+    assert.match(terminal, /if \(false && sia7ApprovalMatch\)/);
+    assert.doesNotMatch(terminal, /"codex\.patch":\s*\{/);
+});
+

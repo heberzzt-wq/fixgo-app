@@ -3902,7 +3902,7 @@ test("web research receives the semantic query without phrase stripping", () => 
 
     assert.doesNotMatch(source, /\(jarvis\|heberto\|gestia\)/);
     assert.doesNotMatch(source, /investiga\|investigar\|busca\|buscar/);
-    assert.match(source, /objectiveId: args\.objectiveId \|\| context\.objectiveId/);
+    assert.match(source, /objectiveId: context\.objectiveId \|\| args\.objectiveId/);
     assert.match(source, /facts:\s*Array\.isArray\((?:primaryResult|recoveryResult)\?\.facts\)/);
 });
 

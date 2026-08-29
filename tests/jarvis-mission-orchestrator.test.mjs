@@ -911,6 +911,162 @@ test("generalist mission resumes a multimodal tool chain without changing root a
     assert.ok(reelContext.artifactLineage.some(item => item.output === ".jarvis-artifacts/images/campaign.png"));
 });
 
+test("technical failures resume the same durable obligation after restart without semantic replanning", async () => {
+    const technicalFailures = [
+        "HTTP_500",
+        "SSH_UNAVAILABLE",
+        "PROVIDER_CAPACITY_UNAVAILABLE",
+        "PARTIAL_DOWNLOAD",
+        "FILE_MISSING",
+        "TIMEOUT"
+    ];
+
+    for (const failureStatus of technicalFailures) {
+        const storage = memoryStorage();
+        const rootInstruction = `Produce el artefacto durable para ${failureStatus} sin cambiar alcance.`;
+        const executionContexts = [];
+        let plannerCalls = 0;
+        let attempts = 0;
+        const execute = async (_call, context) => {
+            executionContexts.push(structuredClone(context));
+            attempts += 1;
+            if (attempts === 1) {
+                return {
+                    ok: false,
+                    executionOk: false,
+                    objectiveSatisfied: false,
+                    status: failureStatus,
+                    retryable: true
+                };
+            }
+            return {
+                ok: true,
+                executionOk: true,
+                objectiveSatisfied: true,
+                status: "ARTIFACT_VERIFIED"
+            };
+        };
+
+        const initial = await runJarvisMission({
+            instruction: rootInstruction,
+            initialToolCalls: [{
+                name: "artifact.create",
+                args: { output: `.jarvis-artifacts/${failureStatus.toLowerCase()}.json` },
+                obligationId: `artifact.create:${failureStatus}`
+            }],
+            requiredToolNames: ["artifact.create"],
+            executionContractLocked: true,
+            planner: async () => {
+                plannerCalls += 1;
+                return { toolCalls: [], missionComplete: true };
+            },
+            execute,
+            storage,
+            maximumRetries: 0
+        });
+
+        assert.equal(initial.status, "PARTIAL", failureStatus);
+        assert.equal(initial.blockedTasks.length, 1, failureStatus);
+        const durable = {
+            missionId: initial.missionId,
+            objectiveId: initial.objectiveId,
+            obligationId: initial.blockedTasks[0].obligationId,
+            rootInstructionHash: initial.rootInstructionHash
+        };
+
+        const resumed = await runJarvisMission({
+            instruction: `El runtime reinició después de ${failureStatus}; continúa la misma obligación.`,
+            resumeMissionId: initial.missionId,
+            planner: async () => {
+                plannerCalls += 1;
+                return { toolCalls: [], missionComplete: true };
+            },
+            execute,
+            storage,
+            maximumRetries: 0
+        });
+
+        assert.equal(resumed.status, "COMPLETED", failureStatus);
+        assert.equal(resumed.missionId, durable.missionId, failureStatus);
+        assert.equal(resumed.objectiveId, durable.objectiveId, failureStatus);
+        assert.equal(resumed.completedTasks[0].obligationId, durable.obligationId, failureStatus);
+        assert.equal(resumed.rootInstructionHash, durable.rootInstructionHash, failureStatus);
+        assert.equal(resumed.rootInstruction, rootInstruction, failureStatus);
+        assert.equal(plannerCalls, 0, failureStatus);
+        assert.equal(executionContexts.length, 2, failureStatus);
+        assert.equal(executionContexts[0].rawInput, rootInstruction, failureStatus);
+        assert.equal(executionContexts[1].rawInput, rootInstruction, failureStatus);
+        assert.equal(executionContexts[1].missionId, durable.missionId, failureStatus);
+        assert.equal(executionContexts[1].objectiveId, durable.objectiveId, failureStatus);
+        assert.equal(executionContexts[1].obligationId, durable.obligationId, failureStatus);
+        assert.equal(executionContexts[1].rootInstructionHash, durable.rootInstructionHash, failureStatus);
+        assert.equal(resumed.blockedTasks.length, 0, failureStatus);
+        assert.ok(
+            resumed.recoveredToolAttempts.some(item => item.obligationKey === `artifact.create::${durable.obligationId}`),
+            failureStatus
+        );
+    }
+});
+
+test("false observed evidence fails closed without replacing mission authority", async () => {
+    const storage = memoryStorage();
+    const rootInstruction = "Verifica el SHA físico y no inventes otra misión si hay mismatch.";
+    let plannerCalls = 0;
+    let executions = 0;
+    const initial = await runJarvisMission({
+        instruction: rootInstruction,
+        initialToolCalls: [{
+            name: "artifact.verify",
+            args: { output: ".jarvis-artifacts/evidence.bin" },
+            obligationId: "artifact.verify:evidence.bin"
+        }],
+        requiredToolNames: ["artifact.verify"],
+        executionContractLocked: true,
+        planner: async () => {
+            plannerCalls += 1;
+            return { toolCalls: [], missionComplete: true };
+        },
+        execute: async () => {
+            executions += 1;
+            return {
+                ok: false,
+                executionOk: true,
+                objectiveSatisfied: false,
+                status: "SHA_MISMATCH",
+                blocked: true,
+                retryable: false,
+                evidence: { observedSha256: "0".repeat(64) }
+            };
+        },
+        storage
+    });
+
+    const resumed = await runJarvisMission({
+        instruction: "Revisa el estado; no cambies la misión para hacer coincidir el SHA.",
+        resumeMissionId: initial.missionId,
+        planner: async ({ originalInstruction, mission }) => {
+            plannerCalls += 1;
+            assert.equal(originalInstruction, rootInstruction);
+            assert.equal(mission.missionId, initial.missionId);
+            assert.equal(mission.rootInstructionHash, initial.rootInstructionHash);
+            return { toolCalls: [], missionComplete: false };
+        },
+        execute: async () => {
+            executions += 1;
+            assert.fail("terminal evidence mismatch must not be retried or rewritten");
+        },
+        storage
+    });
+
+    assert.equal(resumed.missionId, initial.missionId);
+    assert.equal(resumed.objectiveId, initial.objectiveId);
+    assert.equal(resumed.rootInstruction, rootInstruction);
+    assert.equal(resumed.rootInstructionHash, initial.rootInstructionHash);
+    assert.equal(resumed.blockedTasks[0].obligationId, initial.blockedTasks[0].obligationId);
+    assert.equal(executions, 1);
+    assert.equal(plannerCalls, 0);
+});
+
 test("repo repair keeps repository branch base SHA and root instruction through patch retry and green tests", async () => {
     const storage = memoryStorage();
     let patchAttempts = 0;
@@ -1322,7 +1478,11 @@ test("the same marketing mission resumes with supplied context and completes its
     assert.equal(resumed.blockedTasks.length, 0);
     assert.equal(resumed.runtimeResults[0].status, "MARKETING_PACKAGE_READY");
     assert.equal(resumed.runtimeResults.filter(item => item.status === "MARKETING_PACKAGE_READY").length, 1);
-    assert.equal(resumed.executedTools.filter(name => name === "marketing.plan").length, 1);
+    assert.equal(
+        resumed.executedTools.filter(name => name === "marketing.plan").length,
+        2,
+        "the initial input-blocked attempt and its recovered execution remain auditable"
+    );
     assert.equal(resumed.inputHistory.filter(item => item.name === "marketing.plan").length, 1);
     assert.match(resumed.completedTasks[0].observation.userVisible, /25\. Próximos pasos priorizados/i);
     assert.match(resumed.completedTasks[0].observation.userVisible, /Cancún/i);

@@ -200,7 +200,7 @@ function buildGrounding(context) {
 
 function buildTrace(context, instruction) {
     return {
-        objectiveId: clean(context.objectiveId) || `MKT-${Date.now()}`,
+        objectiveId: clean(context.objectiveId),
         caseId: clean(context.caseId),
         authorityId: clean(context.authorityId) || NEXO_IDENTITY.authorityId,
         controllerId: clean(context.controllerId) || NEXO_IDENTITY.controllerId,

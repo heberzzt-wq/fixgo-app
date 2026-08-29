@@ -1217,7 +1217,7 @@ console.info(
    Commit 23 Mega-Pack
    ============================================================ */
 
-(function initJarvisCodexV2Bridge() {
+if (false) (function initJarvisCodexV2Bridge() {
   if (window.__JARVIS_CODEX_V2_BRIDGE__) return;
   window.__JARVIS_CODEX_V2_BRIDGE__ = true;
 

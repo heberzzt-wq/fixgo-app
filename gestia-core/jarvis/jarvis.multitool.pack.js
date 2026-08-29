@@ -1598,8 +1598,8 @@ export async function fetchGroundedWebResearch(
                     status: "GROUNDED_LOCAL_PRIMARY",
                     sourceCount: localResult.sources.length,
                     factCount: Array.isArray(localResult?.facts) ? localResult.facts.length : 0,
-                    objectiveId: localResult?.objectiveId || trace.objectiveId || null,
-                    caseId: localResult?.caseId || trace.caseId || null,
+                    objectiveId: trace.objectiveId || localResult?.objectiveId || null,
+                    caseId: trace.caseId || localResult?.caseId || null,
                     externalApiUsed: false,
                     externalEstimatedCostUsd: 0,
                     checkedAt: new Date().toISOString()
@@ -1792,8 +1792,8 @@ export async function fetchGroundedWebResearch(
                                     factCount: Array.isArray(localResult?.facts)
                                         ? localResult.facts.length
                                         : 0,
-                                    objectiveId: localResult?.objectiveId || trace.objectiveId || null,
-                                    caseId: localResult?.caseId || trace.caseId || null,
+                                    objectiveId: trace.objectiveId || localResult?.objectiveId || null,
+                                    caseId: trace.caseId || localResult?.caseId || null,
                                     checkedAt: new Date().toISOString()
                                 });
                                 recordCapabilityEvidence("web_research_context", {
@@ -1857,8 +1857,8 @@ export async function fetchGroundedWebResearch(
                         factCount: Array.isArray(recoveryResult?.facts)
                             ? recoveryResult.facts.length
                             : 0,
-                        objectiveId: recoveryResult?.objectiveId || trace.objectiveId || null,
-                        caseId: recoveryResult?.caseId || trace.caseId || null,
+                        objectiveId: trace.objectiveId || recoveryResult?.objectiveId || null,
+                        caseId: trace.caseId || recoveryResult?.caseId || null,
                         checkedAt: new Date().toISOString()
                     });
                     recordCapabilityEvidence("web_research_context", {
@@ -1880,6 +1880,8 @@ export async function fetchGroundedWebResearch(
 
                     return {
                         ...recoveryResult,
+                        objectiveId: trace.objectiveId || recoveryResult?.objectiveId || null,
+                        caseId: trace.caseId || recoveryResult?.caseId || null,
                         ok: true,
                         executionOk: true,
                         objectiveSatisfied: !entityNotVerified,
@@ -1935,8 +1937,8 @@ export async function fetchGroundedWebResearch(
                 factCount: Array.isArray(primaryResult?.facts)
                     ? primaryResult.facts.length
                     : 0,
-                objectiveId: primaryResult?.objectiveId || trace.objectiveId || null,
-                caseId: primaryResult?.caseId || trace.caseId || null,
+                objectiveId: trace.objectiveId || primaryResult?.objectiveId || null,
+                caseId: trace.caseId || primaryResult?.caseId || null,
                 checkedAt: new Date().toISOString()
             });
             recordCapabilityEvidence("web_research_context", {
@@ -1958,6 +1960,8 @@ export async function fetchGroundedWebResearch(
 
             return {
                 ...primaryResult,
+                objectiveId: trace.objectiveId || primaryResult?.objectiveId || null,
+                caseId: trace.caseId || primaryResult?.caseId || null,
                 ...(primaryEntityNotVerified
                     ? {
                         executionOk: true,
@@ -4655,21 +4659,21 @@ function resolveAuthority(args = {}, context = {}) {
     return {
         objectiveId:
             clean(
-                args.objectiveId ||
                 context.objectiveId ||
+                args.objectiveId ||
                 context.analysisId,
-                `SIA7-MULTI-${Date.now()}`
+                ""
             ),
         authorityId:
             clean(
-                args.authorityId ||
-                context.authorityId,
+                context.authorityId ||
+                args.authorityId,
                 "HEBERTO_MENDOZA"
             ),
         controllerId:
             clean(
-                args.controllerId ||
-                context.controllerId,
+                context.controllerId ||
+                args.controllerId,
                 "CODEX_SIA7"
             ),
         instruction
@@ -6057,8 +6061,8 @@ export function registerJarvisMultifunctionTools(runtime) {
                     context.rawInput ||
                     "",
                     {
-                        objectiveId: args.objectiveId || context.objectiveId || "",
-                        caseId: args.caseId || context.caseId || "",
+                        objectiveId: context.objectiveId || args.objectiveId || "",
+                        caseId: context.caseId || args.caseId || "",
                         allowedDomain: args.allowedDomain || "",
                         exactEntity: args.exactEntity || "",
                         seedUrl: args.seedUrl || ""

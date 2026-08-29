@@ -1396,7 +1396,11 @@ test("multi-tool missions prefer grounded semantic composition over a generic re
     );
     assert.match(
         core,
-        /followUpObservations\.map/
+        /const toolObservations\s*=\s*missionResult\.runtimeResults \|\| \[\]/
+    );
+    assert.match(
+        core,
+        /const allToolObservations\s*=\s*\[\.\.\.toolObservations\]/
     );
     assert.match(
         core,

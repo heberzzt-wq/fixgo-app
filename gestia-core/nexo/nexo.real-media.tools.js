@@ -374,8 +374,8 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
         execute: async (args = {}, context = {}) => {
             const payload = {
                 ...args,
-                objectiveId: args.objectiveId || context.objectiveId || "",
-                caseId: args.caseId || context.caseId || ""
+                objectiveId: context.objectiveId || args.objectiveId || "",
+                caseId: context.caseId || args.caseId || ""
             };
             const result = typeof canonicalSpeechDefinition?.execute === "function"
                 ? await canonicalSpeechDefinition.execute(payload, context)
@@ -480,8 +480,8 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
             const timeoutMs = Math.max(60000, Number(args.timeoutMs) || 120000);
             const staticResult = await bridgeRequest("/web/media/collect", {
                 ...args,
-                objectiveId: args.objectiveId || context.objectiveId || "",
-                caseId: args.caseId || context.caseId || ""
+                objectiveId: context.objectiveId || args.objectiveId || "",
+                caseId: context.caseId || args.caseId || ""
             }, timeoutMs);
             let result = staticResult;
             let browserFallback = null;
@@ -498,8 +498,8 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
                     maxImages: args.maxImages,
                     maxVideos: args.maxVideos,
                     timeoutMs: Number(args.timeoutMs) || 45000,
-                    objectiveId: args.objectiveId || context.objectiveId || "",
-                    caseId: args.caseId || context.caseId || ""
+                    objectiveId: context.objectiveId || args.objectiveId || "",
+                    caseId: context.caseId || args.caseId || ""
                 }, timeoutMs);
                 browserFallback = {
                     attempted: true,
@@ -621,8 +621,8 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
                 data: packageData,
                 origin: "marketing.package.real-media",
                 provider: "nexo",
-                caseId: args.caseId || context.caseId || "",
-                objectiveId: args.objectiveId || context.objectiveId || "",
+                caseId: context.caseId || args.caseId || "",
+                objectiveId: context.objectiveId || args.objectiveId || "",
                 approved: true,
                 approvedBy: "LOCAL_ARTIFACT_POLICY",
                 publishable: false,

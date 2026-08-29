@@ -1782,7 +1782,7 @@ function deterministicReelMediaRecoveryCall(recovery = {}) {
     const sources = Array.isArray(recovery?.availableVerifiedSources)
         ? recovery.availableVerifiedSources
         : [];
-    if (sources.length !== 1) return null;
+    if (sources.length === 0) return null;
     return {
         name: "web.media.collect",
         args: {
@@ -2250,9 +2250,14 @@ export async function runJarvisMission({
             (
                 item?.observation?.requiresApproval === true &&
                 mission.authorizations?.externalVideo?.approved === true
+            ) ||
+            (
+                item?.observation?.retryable === true &&
+                item?.observation?.requiresInput !== true &&
+                item?.observation?.requiresApproval !== true
             )
         );
-        const resumableNames = new Set(resumable.map(item => item.name));
+        const resumableKeys = new Set(resumable.map(logicalObligationKey));
         mission.inputHistory = [
             ...(Array.isArray(mission.inputHistory) ? mission.inputHistory : []),
             ...resumable.map(item => ({
@@ -2262,16 +2267,14 @@ export async function runJarvisMission({
                 at: item.completedAt || now()
             }))
         ];
-        mission.blockedTasks = mission.blockedTasks.filter(item => !resumableNames.has(item?.name));
-        mission.errors = mission.errors.filter(item => !resumableNames.has(item?.tool));
-        mission.executedTools = mission.executedTools.filter(name => !resumableNames.has(name));
-        mission.observations = mission.observations.filter(item =>
-            !resumableNames.has(item?.tool)
+        mission.pendingTasks = mission.pendingTasks.filter(item =>
+            !resumableKeys.has(logicalObligationKey(item))
         );
-        mission.pendingTasks = mission.pendingTasks.filter(item => !resumableNames.has(item?.name));
         mission.pendingTasks.unshift(...resumable.map(item => ({
             ...item,
-            args: { ...(item.args || {}), ...(continuationContext || {}) },
+            args: item?.observation?.requiresInput === true || item?.observation?.requiresApproval === true
+                ? { ...(item.args || {}), ...(continuationContext || {}) }
+                : { ...(item.args || {}) },
             status: "PENDING",
             attempts: 0
         })));
@@ -2328,6 +2331,18 @@ export async function runJarvisMission({
                 mission.contractMissingTools = [];
                 mission.unresolvedProductionArtifacts = [];
                 mission.reason = "ALL_EXECUTABLE_TASKS_COMPLETED";
+                break;
+            }
+            if (
+                mission.executionContractLocked === true &&
+                mission.blockedTasks.length > 0
+            ) {
+                mission.contractMissingTools = mission.requiredToolNames.filter(
+                    name => !completedNames.has(name)
+                );
+                mission.unresolvedProductionArtifacts =
+                    unresolvedProductionArtifacts;
+                mission.reason = "PARTIAL_CAPABILITY_BLOCKED";
                 break;
             }
             let plan;
@@ -2507,109 +2522,56 @@ export async function runJarvisMission({
                 continue;
             }
 
-            if (mediaRecovery.attempts >= mediaRecovery.maxAttempts) {
-                const observation = {
-                    ok: false,
-                    executionOk: true,
-                    objectiveSatisfied: false,
-                    status: "REEL_MEDIA_SOURCE_RECOVERY_EXHAUSTED",
-                    requiresInput: false,
-                    requiresApproval: false,
-                    blocked: true,
-                    degraded: false,
-                    retryable: false,
-                    summary: "No se encontro una fuente visual verificable alternativa para completar el reel.",
-                    error: "REEL_MEDIA_SOURCE_RECOVERY_EXHAUSTED",
-                    evidence: {
-                        attemptedUrls: mediaRecovery.attemptedUrls,
-                        availableVerifiedSources: mediaRecovery.availableVerifiedSources,
-                        attempts: mediaRecovery.attempts
-                    }
-                };
-                mission.blockedTasks.push({
-                    ...task,
-                    status: "BLOCKED",
-                    observation,
-                    reason: observation.status,
-                    completedAt: now()
-                });
-                mission.errors.push({
-                    tool: "reel.create",
-                    status: observation.status,
-                    retryable: false,
-                    at: now()
-                });
-                mission.observations.push({
-                    tool: "reel.create",
-                    args: task.args,
-                    signature: task.signature,
-                    ...observation,
-                    at: now()
-                });
-                mission.reelMediaRecovery = {
-                    ...mediaRecovery,
-                    active: false,
-                    exhausted: true,
-                    exhaustedAt: now()
-                };
-                mission.reason = observation.status;
-                mission.updatedAt = now();
-                saveMission(persistence, mission);
-                break;
-            }
-
-            const recoveryForPlanner = {
-                ...mediaRecovery,
-                attempts: mediaRecovery.attempts + 1
+            const observation = {
+                ok: false,
+                executionOk: true,
+                objectiveSatisfied: false,
+                status: "REEL_MEDIA_SOURCE_RECOVERY_EXHAUSTED",
+                requiresInput: false,
+                requiresApproval: false,
+                blocked: true,
+                degraded: false,
+                retryable: false,
+                summary: "No se encontro una fuente visual verificable alternativa para completar el reel.",
+                error: "REEL_MEDIA_SOURCE_RECOVERY_EXHAUSTED",
+                evidence: {
+                    attemptedUrls: mediaRecovery.attemptedUrls,
+                    availableVerifiedSources: mediaRecovery.availableVerifiedSources,
+                    attempts: mediaRecovery.attempts
+                }
             };
-            mission.reelMediaRecovery = recoveryForPlanner;
-            let recoveryPlan;
-            try {
-                const plannerMission = structuredClone(mission);
-                plannerMission.phase = "REEL_MEDIA_SOURCE_RECOVERY";
-                plannerMission.reelMediaRecovery = structuredClone(recoveryForPlanner);
-                recoveryPlan = await planner({
-                    originalInstruction,
-                    routingInstruction: mission.routingInstruction,
-                    mission: plannerMission,
-                    memoryContext: memoryContext && typeof memoryContext === "object"
-                        ? structuredClone(memoryContext)
-                        : null
-                });
-            } catch (error) {
-                mission.errors.push({
-                    tool: "semantic.planner",
-                    status: text(error?.message || "REEL_MEDIA_RECOVERY_PLANNER_UNAVAILABLE", 500),
-                    retryable: true,
-                    at: now()
-                });
-                mission.pendingTasks.unshift(task);
-                mission.updatedAt = now();
-                saveMission(persistence, mission);
-                continue;
-            }
-            const recoveryCandidates =
-                reelMediaRecoveryAllowedCalls(
-                    recoveryPlan?.toolCalls || recoveryPlan || [],
-                    recoveryForPlanner
-                );
-            const recoveryTasks =
-                trustedCalls(
-                    recoveryCandidates,
-                    mission
-                );
-            if (recoveryTasks.length > 0) {
-                mission.pendingTasks.unshift(task);
-                mission.pendingTasks.unshift(...recoveryTasks);
-                mission.plannedTools.push(...recoveryTasks.map(item => item.name));
-                mission.updatedAt = now();
-                saveMission(persistence, mission);
-                continue;
-            }
-            mission.pendingTasks.unshift(task);
+            mission.blockedTasks.push({
+                ...task,
+                status: "BLOCKED",
+                observation,
+                reason: observation.status,
+                completedAt: now()
+            });
+            mission.errors.push({
+                tool: "reel.create",
+                status: observation.status,
+                obligationKey: logicalObligationKey(task),
+                retryable: false,
+                at: now()
+            });
+            mission.observations.push({
+                tool: "reel.create",
+                args: task.args,
+                obligationId: task.obligationId || task.signature,
+                signature: task.signature,
+                ...observation,
+                at: now()
+            });
+            mission.reelMediaRecovery = {
+                ...mediaRecovery,
+                active: false,
+                exhausted: true,
+                exhaustedAt: now()
+            };
+            mission.reason = observation.status;
             mission.updatedAt = now();
             saveMission(persistence, mission);
-            continue;
+            break;
         }
         mission.iterations += 1;
         task.attempts += 1;
@@ -2641,7 +2603,7 @@ export async function runJarvisMission({
                 caseId: mission.caseId,
                 objectiveId: mission.objectiveId,
                 obligationId: task.obligationId || task.signature,
-                rawInput: originalInstruction,
+                rawInput: mission.rootInstruction || mission.originalInstruction,
                 rootInstruction: mission.rootInstruction || mission.originalInstruction,
                 rootInstructionHash: mission.rootInstructionHash || mission.instructionHash,
                 planRevision: Number(mission.planRevision || 0),
@@ -2722,6 +2684,7 @@ export async function runJarvisMission({
         mission.observations.push({
             tool: task.name,
             args: executedArgs,
+            obligationId: task.obligationId || task.signature,
             signature: task.signature,
             ...observation,
             at: now()

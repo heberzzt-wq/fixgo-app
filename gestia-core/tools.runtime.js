@@ -1841,7 +1841,7 @@ if (false) JarvisToolRuntime.register({
         }
 });
 
-JarvisToolRuntime.register({
+if (false) JarvisToolRuntime.register({
     name:
         "repo.postWriteVerify",
     description:
@@ -2129,7 +2129,7 @@ window.JarvisPersistentSnapshotStore =
 
 JarvisPersistentSnapshotStore.hydrate();
 
-JarvisToolRuntime.register({
+if (false) JarvisToolRuntime.register({
     name:
         "repo.snapshotStore",
     description:
@@ -2265,7 +2265,7 @@ JarvisToolRuntime.register({
         }
 });
 // Commit 33 - JARVIS CODEX V2: Snapshot Before Write
-JarvisToolRuntime.register({
+if (false) JarvisToolRuntime.register({
     name:
         "repo.snapshotBeforeWrite",
     description:
@@ -2485,7 +2485,7 @@ JarvisToolRuntime.register({
 });
 
 // Commit 34 - JARVIS CODEX V2: Rollback Last Patch
-JarvisToolRuntime.register({
+if (false) JarvisToolRuntime.register({
     name:
         "repo.rollbackLastPatch",
     description:
@@ -3046,7 +3046,7 @@ JarvisToolRuntime.register({
 });
 
 // Commit 35 - JARVIS CODEX V2: Review Cards / Approval Cards
-JarvisToolRuntime.register({
+if (false) JarvisToolRuntime.register({
     name:
         "repo.reviewCard",
     description:
@@ -3648,7 +3648,7 @@ JarvisToolRuntime.register({
 });
 
 // Commit 36 - JARVIS CODEX V2: Codex Operator Queue
-JarvisToolRuntime.register({
+if (false) JarvisToolRuntime.register({
     name:
         "repo.operatorQueue",
     description:
@@ -4756,7 +4756,7 @@ JarvisToolRuntime.register({
                     requiresApproval: true,
                     mutates: true,
                     approvalCommand:
-                        `Jarvis, apruebo git push ${args.remote || "origin"} ${args.branch || "v5.9-polish"}`,
+                        `Jarvis, apruebo git push ${args.remote || "origin"} ${args.branch || "v94-media-v4n-negative-claims"}`,
                     tool:
                         "repo.gitPush"
                 };
@@ -4766,7 +4766,7 @@ JarvisToolRuntime.register({
                 args.remote || "origin";
 
             const branch =
-                args.branch || "v5.9-polish";
+                args.branch || "v94-media-v4n-negative-claims";
 
             const pushResult =
                 await JarvisGitWorkflowBridge.request({
@@ -4812,7 +4812,9 @@ JarvisToolRuntime.register({
         }
 });
 
-JarvisToolRuntime.register({
+// Compatibility source only. The active write authority is the existing
+// repo.prepareWrite -> repo.authorizeWrite -> repo.write chain below.
+if (false) JarvisToolRuntime.register({
     name:
         "repo.safePatchApply",
     description:
@@ -5427,7 +5429,7 @@ if (previewReady !== true) {
 });
 
 // Commit 29 — JARVIS CODEX V2: Safe Patch Plan
-JarvisToolRuntime.register({
+if (false) JarvisToolRuntime.register({
     name:
         "repo.safePatchPlan",
     description:
@@ -5656,7 +5658,7 @@ JarvisToolRuntime.register({
 });
 
 // Commit 31 — JARVIS CODEX V2: Governance Check V7
-JarvisToolRuntime.register({
+if (false) JarvisToolRuntime.register({
     name:
         "repo.governanceCheck",
     description:
@@ -6741,10 +6743,10 @@ JarvisToolRuntime.register({
     execute: async (args = {}, context = {}) => {
         if (!window.JarvisLocalBridge?.prepareWrite) return { ok: false, status: "WRITE_BRIDGE_NOT_AVAILABLE", error: "WRITE_BRIDGE_NOT_AVAILABLE" };
         return await window.JarvisLocalBridge.prepareWrite({
-            objectiveId: args.objectiveId || context.objectiveId,
-            caseId: args.caseId || context.caseId,
-            authorityId: args.authorityId || context.authorityId || "HEBERTO_MENDOZA",
-            controllerId: args.controllerId || context.controllerId || "CODEX_SIA7",
+            objectiveId: context.objectiveId || args.objectiveId,
+            caseId: context.caseId || args.caseId,
+            authorityId: context.authorityId || args.authorityId || "HEBERTO_MENDOZA",
+            controllerId: context.controllerId || args.controllerId || "CODEX_SIA7",
             file: args.file || args.path,
             operation: args.operation || "replace",
             search: typeof args.search === "string" ? args.search : "",
@@ -6762,7 +6764,7 @@ JarvisToolRuntime.register({
     mutates: true,
     requiresApproval: true,
     output: "REPO_WRITE_AUTHORIZATION",
-    execute: async (args = {}) => {
+    execute: async (args = {}, context = {}) => {
         if (!window.JarvisLocalBridge?.authorizeWrite) return { ok: false, status: "WRITE_BRIDGE_NOT_AVAILABLE", error: "WRITE_BRIDGE_NOT_AVAILABLE" };
         return await window.JarvisLocalBridge.authorizeWrite({
             fingerprint: args.fingerprint,
@@ -6787,8 +6789,8 @@ JarvisToolRuntime.register({
         const result = await window.JarvisLocalBridge.writeFile({
             fingerprint: args.fingerprint,
             nonce: args.nonce,
-            objectiveId: args.objectiveId,
-            caseId: args.caseId,
+            objectiveId: context.objectiveId || args.objectiveId,
+            caseId: context.caseId || args.caseId,
             source: "repo_write_runtime_v7_one_time"
         });
         if (result?.ok === true && result?.verified === true && result?.consumedAt) {
@@ -8576,7 +8578,7 @@ JarvisToolRuntime.register({
 });
 
 // Commit 30 — JARVIS CODEX V2: Tests Codex Pipeline V7
-JarvisToolRuntime.register({
+if (false) JarvisToolRuntime.register({
     name:
         "tests.codexPipeline",
     description:
@@ -8968,7 +8970,7 @@ JarvisToolRuntime.register({
         }
 });
 // V7 PRODUCTION GRADE CONTRACT: repo.patchPreview
-JarvisToolRuntime.register({
+if (false) JarvisToolRuntime.register({
     name: "repo.patchPreview",
     description: "Genera un diff en memoria (dry-run) estricto. Puede hidratar contenido local del archivo antes de validar search/replace.",
     mutates: false,
@@ -9410,7 +9412,7 @@ console.info(
 /* ==========================================
    CODEX V2 DIRECT PATCH ADAPTER - Commit 41.15
 ========================================== */
-if (window.JarvisToolRuntime?.register && !window.__JARVIS_CODEX_PATCH_TOOL_41_15__) {
+if (false && window.JarvisToolRuntime?.register && !window.__JARVIS_CODEX_PATCH_TOOL_41_15__) {
     window.__JARVIS_CODEX_PATCH_TOOL_41_15__ = true;
 
     async function runCodexPatchPreview(args = {}, context = {}) {
@@ -9534,7 +9536,7 @@ if (window.JarvisToolRuntime?.register && !window.__JARVIS_CODEX_PATCH_TOOL_41_1
 }
 
 
-(function initJarvisCodexV2Runtime() {
+if (false) (function initJarvisCodexV2Runtime() {
   if (window.__JARVIS_CODEX_V2_RUNTIME__) return;
   window.__JARVIS_CODEX_V2_RUNTIME__ = true;
 
@@ -9622,7 +9624,7 @@ if (window.JarvisToolRuntime?.register && !window.__JARVIS_CODEX_PATCH_TOOL_41_1
           .join("/");
 
       const rawUrl =
-        `https://raw.githubusercontent.com/heberzzt-wq/fixgo-app/v5.9-polish/${safePath}`;
+        `https://raw.githubusercontent.com/heberzzt-wq/fixgo-app/v94-media-v4n-negative-claims/${safePath}`;
 
       console.warn(
         "🧯 [CODEX_V2_RUNTIME_READ_FALLBACK_GITHUB_RAW]",

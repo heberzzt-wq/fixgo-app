@@ -44,8 +44,8 @@ function persistReadyItems() {
             output: item.output,
             extractedText: String(item.extractedText || "").slice(0, 50000),
             saved: item.saved || null,
-            caseId: item.caseId || state.caseRecord?.caseId || null,
-            objectiveId: item.objectiveId || state.caseRecord?.objectiveId || null,
+            caseId: state.caseRecord?.caseId || item.caseId || null,
+            objectiveId: state.caseRecord?.objectiveId || item.objectiveId || null,
             recovered: true
         }));
         localStorage.setItem(STORAGE_KEY, JSON.stringify(completed.slice(-MAX_FILES)));
@@ -367,8 +367,8 @@ async function composePrompt(rawPrompt = "") {
         bytes: itemBytes(item),
         artifact: item.output,
         sha256: item.saved?.sha256 || undefined,
-        caseId: item.caseId || state.caseRecord.caseId,
-        objectiveId: item.objectiveId || state.caseRecord.objectiveId,
+        caseId: state.caseRecord.caseId || item.caseId,
+        objectiveId: state.caseRecord.objectiveId || item.objectiveId,
         extractedText: item.extractedText || undefined
     }));
     return [normalizedPrompt, "", `Expediente soberano: caseId=${state.caseRecord.caseId}; objectiveId=${state.caseRecord.objectiveId}; authorityId=${state.caseRecord.authorityId}`, "Archivos adjuntos reales entregados por el usuario:", JSON.stringify(manifest)].join("\n");
