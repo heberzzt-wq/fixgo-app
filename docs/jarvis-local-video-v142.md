@@ -277,12 +277,32 @@ zero-cost precheck as `RUNPOD_CPU_CONTAINER_DISK_EXCEEDS_PROVIDER_LIMIT` and
 cannot reach `POST /pods`. This CPU-specific ceiling does not modify the L40S
 GPU container-disk contract.
 
+The subsequent physical CPU Pod `qt3yy61cxqwdcu` proved another provider
+boundary: a digest-verified plain `ubuntu:22.04` container can reach RUNNING
+without exposing an SSH server. Its first receipt reported zero uptime and no
+ports; the Pod was deleted without a cache write and the volume remained
+`CACHE_MISS`. The CPU profile therefore supplies one exact, audited
+`dockerStartCmd`: it installs only CA certificates and OpenSSH server, requires
+the provider-injected `PUBLIC_KEY`, writes that public key to root's
+`authorized_keys`, creates host keys, and keeps PID 1 alive with `sshd -D -e`.
+It contains no private key, RunPod credential, Wan/Hugging Face download,
+bootstrap workload, sleep, or secret value. A plain Ubuntu payload without
+this exact startup contract fails the zero-cost precheck before `POST /pods`.
+
+RUNNING alone is not CPU runtime readiness. V142 requires increasing uptime,
+the same TCP 22 endpoint across at least two polls, a real SSH authentication
+as root using the dedicated local private key, the expected authorized public
+key, a running `sshd`, and a writable `/workspace` mount. A transient missing
+endpoint remains pending while the bounded runtime timeout is open. A missing
+key, dead `sshd`, mismatched authorized key, or expired timeout requires Pod
+deletion and cannot authorize cache writes.
+
 CPU staging may clone the pinned Wan repository, run `hf download`, verify the
 repository revision and every model byte/SHA-256, and write the model manifest.
 It may bootstrap shell, Git, Python, CA certificates, Hugging Face CLI, and
 SHA-256 tools. It must not install or certify CUDA, PyTorch-CUDA, NVCC, or
-FlashAttention. After start, the OS, Python/tools, and `/workspace` mount must
-be physically checked before any cache write.
+FlashAttention. After `CPU_RUNTIME_READY`, the OS, Python/tools, and
+`/workspace` mount must be physically checked before any cache write.
 Its maximum state is `CACHE_MODEL_READY`. It cannot certify CUDA, NVCC,
 PyTorch-CUDA, compute capability, FlashAttention CUDA kernels, Wan runtime help,
 `CACHE_READY`, or `CACHE_HIT`. Those remain mandatory L40S physical checks.
@@ -300,6 +320,11 @@ The sanitized CPU dry-run is:
   "cpuFlavorPriority": "custom",
   "dataCenterIds": ["EU-NL-1"],
   "dataCenterPriority": "custom",
+  "dockerStartCmd": [
+    "bash",
+    "-lc",
+    "set -euo pipefail\nexport DEBIAN_FRONTEND=noninteractive\napt-get update\napt-get install -y --no-install-recommends openssh-server ca-certificates\nmkdir -p /run/sshd /root/.ssh\ntest -n \"${PUBLIC_KEY:-}\"\nprintf '%s\\n' \"${PUBLIC_KEY}\" > /root/.ssh/authorized_keys\nchmod 700 /root/.ssh\nchmod 600 /root/.ssh/authorized_keys\nssh-keygen -A\nexec /usr/sbin/sshd -D -e"
+  ],
   "imageName": "ubuntu:22.04",
   "interruptible": false,
   "networkVolumeId": "<JARVIS_RUNPOD_NETWORK_VOLUME_ID>",

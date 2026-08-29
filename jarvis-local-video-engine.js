@@ -6,8 +6,8 @@ import { execFile, execFileSync, spawn } from "node:child_process";
 
 import { registerArtifact } from "./jarvis-artifact-studio.js";
 
-export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.12.0-v142-runpod-registry-identity";
-export const JARVIS_RUNPOD_ADAPTER_VERSION = "1.5.0-v142-runpod-registry-identity";
+export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.13.0-v142-runpod-cpu-sshd-runtime";
+export const JARVIS_RUNPOD_ADAPTER_VERSION = "1.6.0-v142-runpod-cpu-sshd-runtime";
 export const VIDEO_ENGINE_MODES = Object.freeze([
     "CURRENT_STABLE",
     "LOCAL_TEST",
@@ -215,6 +215,20 @@ export const RUNPOD_WAN22_GPU_PROFILES = Object.freeze({
     })
 });
 
+const RUNPOD_CPU_SSH_STARTUP_SCRIPT = [
+    "set -euo pipefail",
+    "export DEBIAN_FRONTEND=noninteractive",
+    "apt-get update",
+    "apt-get install -y --no-install-recommends openssh-server ca-certificates",
+    "mkdir -p /run/sshd /root/.ssh",
+    'test -n "${PUBLIC_KEY:-}"',
+    'printf "%s\\n" "$PUBLIC_KEY" > /root/.ssh/authorized_keys',
+    "chmod 700 /root/.ssh",
+    "chmod 600 /root/.ssh/authorized_keys",
+    "ssh-keygen -A",
+    "exec /usr/sbin/sshd -D -e"
+].join("\n");
+
 export const RUNPOD_CPU_STAGING_PROFILE = Object.freeze({
     cloudType: "SECURE",
     computeType: "CPU",
@@ -234,6 +248,11 @@ export const RUNPOD_CPU_STAGING_PROFILE = Object.freeze({
     ramGb: 4,
     containerDiskInGb: 20,
     maximumContainerDiskGb: 20,
+    dockerStartCmd: Object.freeze([
+        "bash",
+        "-lc",
+        RUNPOD_CPU_SSH_STARTUP_SCRIPT
+    ]),
     interruptible: false,
     ports: Object.freeze(["22/tcp"]),
     supportPublicIp: true,
@@ -242,13 +261,22 @@ export const RUNPOD_CPU_STAGING_PROFILE = Object.freeze({
     networkVolumeMountPath: "/workspace",
     cacheStatus: "CACHE_MODEL_READY",
     runtimeStatus: "CACHE_RUNTIME_PHYSICALLY_UNVERIFIED",
+    startupContract: Object.freeze({
+        requiredEnvironment: Object.freeze(["PUBLIC_KEY"]),
+        persistentProcess: "/usr/sbin/sshd -D -e",
+        sshPort: "22/tcp",
+        minimumStableEndpointPolls: 2,
+        readinessTimeoutSeconds: 600
+    }),
     runtimeIdentity: Object.freeze({
         operatingSystem: "ubuntu-22.04",
-        pythonVersionPrefix: "3.10.",
         mountPath: "/workspace",
         caCertificatesRequired: true,
         requiredCommands: Object.freeze([
             "bash",
+            "sshd"
+        ]),
+        bootstrapRequiredCommands: Object.freeze([
             "git",
             "python3",
             "hf",
@@ -1854,7 +1882,9 @@ export function createRunpodRemoteVideoAdapter({
         containerDiskInGb = RUNPOD_CPU_STAGING_PROFILE.containerDiskInGb,
         networkVolume = null,
         inventory = null,
-        registryVerification = null
+        registryVerification = null,
+        sshKeyRegistered = false,
+        startupContract = RUNPOD_CPU_STAGING_PROFILE.dockerStartCmd
     } = {}) {
         try {
             assertZeroCostConfiguration();
@@ -1867,6 +1897,20 @@ export function createRunpodRemoteVideoAdapter({
             }
             if (gpuTypeId !== "NVIDIA L40S" || cacheContract?.computeCapability !== "8.9") {
                 throw new Error("RUNPOD_CPU_STAGING_L40S_PROFILE_REQUIRED");
+            }
+            const expectedStartCommand = RUNPOD_CPU_STAGING_PROFILE.dockerStartCmd;
+            if (
+                !Array.isArray(startupContract) ||
+                startupContract.length !== expectedStartCommand.length ||
+                !expectedStartCommand.every((entry, index) => startupContract[index] === entry) ||
+                !RUNPOD_CPU_STAGING_PROFILE.ports.includes(
+                    RUNPOD_CPU_STAGING_PROFILE.startupContract.sshPort
+                )
+            ) {
+                throw new Error("RUNPOD_CPU_RUNTIME_STARTUP_CONTRACT_REQUIRED");
+            }
+            if (sshKeyRegistered !== true) {
+                throw new Error("RUNPOD_CPU_SSH_KEY_REGISTERED_REQUIRED");
             }
             const plannedVolume = normalizedPlannedNetworkVolume(networkVolume);
             if (!plannedVolume || plannedVolume.dataCenterId !== RUNPOD_CPU_STAGING_PROFILE.dataCenterId) {
@@ -1910,6 +1954,7 @@ export function createRunpodRemoteVideoAdapter({
                 cpuFlavorPriority: RUNPOD_CPU_STAGING_PROFILE.cpuFlavorPriority,
                 dataCenterIds: [RUNPOD_CPU_STAGING_PROFILE.dataCenterId],
                 dataCenterPriority: RUNPOD_CPU_STAGING_PROFILE.dataCenterPriority,
+                dockerStartCmd: [...expectedStartCommand],
                 imageName: RUNPOD_CPU_STAGING_PROFILE.provisionImageTag,
                 interruptible: RUNPOD_CPU_STAGING_PROFILE.interruptible,
                 networkVolumeId: plannedVolume.id,
@@ -1950,10 +1995,20 @@ export function createRunpodRemoteVideoAdapter({
                     ramGbPerVcpu: RUNPOD_CPU_STAGING_PROFILE.ramGbPerVcpu,
                     provisionImageTag: RUNPOD_CPU_STAGING_PROFILE.provisionImageTag,
                     expectedRegistryDigest: RUNPOD_CPU_STAGING_PROFILE.expectedRegistryDigest,
+                    dockerStartCmd: [...expectedStartCommand],
+                    startupContract: {
+                        ...RUNPOD_CPU_STAGING_PROFILE.startupContract,
+                        requiredEnvironment: [
+                            ...RUNPOD_CPU_STAGING_PROFILE.startupContract.requiredEnvironment
+                        ]
+                    },
                     registryVerification: verifiedRegistry,
                     runtimeIdentity: {
                         ...RUNPOD_CPU_STAGING_PROFILE.runtimeIdentity,
                         requiredCommands: [...RUNPOD_CPU_STAGING_PROFILE.runtimeIdentity.requiredCommands],
+                        bootstrapRequiredCommands: [
+                            ...RUNPOD_CPU_STAGING_PROFILE.runtimeIdentity.bootstrapRequiredCommands
+                        ],
                         forbiddenTools: [...RUNPOD_CPU_STAGING_PROFILE.runtimeIdentity.forbiddenTools]
                     }
                 }
@@ -1972,52 +2027,100 @@ export function createRunpodRemoteVideoAdapter({
         }
     }
 
-    function inspectCpuStagingRuntimeIdentity({ health = null } = {}) {
-        try {
-            const expected = RUNPOD_CPU_STAGING_PROFILE.runtimeIdentity;
-            const commands = health?.commands && typeof health.commands === "object"
-                ? health.commands
-                : {};
-            if (
-                String(health?.operatingSystem || "") !== expected.operatingSystem ||
-                !String(health?.pythonVersion || "").startsWith(expected.pythonVersionPrefix) ||
-                health?.caCertificates !== true ||
-                String(health?.mountPath || "") !== expected.mountPath ||
-                health?.mountWritable !== true ||
-                !expected.requiredCommands.every(command => commands[command] === true) ||
-                health?.cuda === true || health?.nvcc === true || health?.flashAttention === true
-            ) {
-                throw new Error("RUNPOD_CPU_RUNTIME_IDENTITY_MISMATCH");
+    function inspectCpuStagingRuntimeIdentity({
+        health = null,
+        previousHealth = null,
+        timedOut = false
+    } = {}) {
+        const failed = (status, { retryable = false, deleteRequired = !retryable } = {}) => ({
+            ok: false,
+            status,
+            error: status,
+            cpuRuntimeReady: false,
+            cacheWriteAuthorized: false,
+            cacheModelReady: false,
+            inferenceStarted: false,
+            retryable,
+            deleteRequired,
+            cudaVerified: false,
+            l40sVerified: false
+        });
+        const pending = status => timedOut
+            ? failed("RUNPOD_CPU_RUNTIME_TIMEOUT")
+            : failed(status, { retryable: true, deleteRequired: false });
+        const expected = RUNPOD_CPU_STAGING_PROFILE.runtimeIdentity;
+        const commands = health?.commands && typeof health.commands === "object"
+            ? health.commands
+            : {};
+        if (health?.publicKeyPresent === false) {
+            return failed("RUNPOD_CPU_PUBLIC_KEY_MISSING");
+        }
+        if (health?.sshdRunning === false || commands.sshd === false) {
+            return failed("RUNPOD_CPU_SSHD_NOT_RUNNING");
+        }
+        if (health?.authorizedKeyMatches === false) {
+            return failed("RUNPOD_CPU_AUTHORIZED_KEY_MISMATCH");
+        }
+        if (String(health?.podStatus || "").toUpperCase() !== "RUNNING") {
+            return pending("RUNPOD_CPU_RUNTIME_STARTING");
+        }
+        const uptimeSeconds = Number(health?.uptimeSeconds || 0);
+        const previousUptimeSeconds = Number(previousHealth?.uptimeSeconds || 0);
+        if (!(uptimeSeconds > 0) || !(previousUptimeSeconds > 0) || uptimeSeconds <= previousUptimeSeconds) {
+            return pending("RUNPOD_CPU_RUNTIME_STARTING");
+        }
+        const endpointHost = String(health?.sshEndpoint?.host || "");
+        const endpointPort = Number(health?.sshEndpoint?.port || 0);
+        const previousHost = String(previousHealth?.sshEndpoint?.host || "");
+        const previousPort = Number(previousHealth?.sshEndpoint?.port || 0);
+        if (
+            endpointHost.length === 0 || endpointPort <= 0 ||
+            endpointHost !== previousHost || endpointPort !== previousPort ||
+            Number(health?.stableSshEndpointPolls || 0) <
+                RUNPOD_CPU_STAGING_PROFILE.startupContract.minimumStableEndpointPolls
+        ) {
+            return pending("RUNPOD_CPU_SSH_NOT_STABLE");
+        }
+        if (health?.sshHandshake !== true || health?.sshAuthenticated !== true) {
+            return pending("RUNPOD_CPU_SSH_NOT_READY");
+        }
+        if (
+            health?.publicKeyPresent !== true || health?.sshdRunning !== true ||
+            health?.authorizedKeyMatches !== true || commands.sshd !== true
+        ) {
+            return failed("RUNPOD_CPU_RUNTIME_IDENTITY_MISMATCH");
+        }
+        if (String(health?.sshUser || "") !== "root") {
+            return failed("RUNPOD_CPU_SSH_USER_MISMATCH");
+        }
+        if (
+            String(health?.operatingSystem || "") !== expected.operatingSystem ||
+            health?.caCertificates !== true ||
+            String(health?.mountPath || "") !== expected.mountPath ||
+            health?.mountWritable !== true ||
+            !expected.requiredCommands.every(command => commands[command] === true) ||
+            health?.cuda === true || health?.nvcc === true || health?.flashAttention === true
+        ) {
+            return failed("RUNPOD_CPU_RUNTIME_IDENTITY_MISMATCH");
+        }
+        return {
+            ok: true,
+            status: "CPU_RUNTIME_READY",
+            cpuRuntimeReady: true,
+            cacheWriteAuthorized: true,
+            cacheModelReady: false,
+            inferenceStarted: false,
+            retryable: false,
+            deleteRequired: false,
+            cudaVerified: false,
+            l40sVerified: false,
+            runtimeIdentity: {
+                ...expected,
+                requiredCommands: [...expected.requiredCommands],
+                bootstrapRequiredCommands: [...expected.bootstrapRequiredCommands],
+                forbiddenTools: [...expected.forbiddenTools]
             }
-            return {
-                ok: true,
-                status: "RUNPOD_CPU_RUNTIME_IDENTITY_VERIFIED",
-                cacheWriteAuthorized: true,
-                cacheModelReady: false,
-                inferenceStarted: false,
-                deleteRequired: false,
-                cudaVerified: false,
-                l40sVerified: false,
-                runtimeIdentity: {
-                    ...expected,
-                    requiredCommands: [...expected.requiredCommands],
-                    forbiddenTools: [...expected.forbiddenTools]
-                }
-            };
-        }
-        catch(error) {
-            return {
-                ok: false,
-                status: error?.message || "RUNPOD_CPU_RUNTIME_IDENTITY_MISMATCH",
-                error: error?.message || "RUNPOD_CPU_RUNTIME_IDENTITY_MISMATCH",
-                cacheWriteAuthorized: false,
-                cacheModelReady: false,
-                inferenceStarted: false,
-                deleteRequired: true,
-                cudaVerified: false,
-                l40sVerified: false
-            };
-        }
+        };
     }
 
     function readState(operation) {

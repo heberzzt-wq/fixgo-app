@@ -690,6 +690,7 @@ test("V142 CPU staging in EU-NL-1 can prepare model bytes but cannot certify GPU
         envOverrides: { JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false" }
     });
     const report = harness.adapter.inspectCpuStagingPrecheck({
+        sshKeyRegistered: true,
         registryVerification: harness.cpuRegistryVerification,
         networkVolume: { id: volumeId, dataCenterId: "EU-NL-1", sizeGb: 50, type: "STANDARD" },
         inventory: {
@@ -714,6 +715,7 @@ test("V142 CPU staging in EU-NL-1 can prepare model bytes but cannot certify GPU
         cpuFlavorPriority: "custom",
         dataCenterIds: ["EU-NL-1"],
         dataCenterPriority: "custom",
+        dockerStartCmd: [...RUNPOD_CPU_STAGING_PROFILE.dockerStartCmd],
         imageName: "ubuntu:22.04",
         interruptible: false,
         networkVolumeId: volumeId,
@@ -778,6 +780,7 @@ test("V142 CPU staging fails closed for the retired datacenter, undersized volum
                 envOverrides: { JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false" }
             });
             const report = harness.adapter.inspectCpuStagingPrecheck({
+                sshKeyRegistered: true,
                 registryVerification: harness.cpuRegistryVerification,
                 networkVolume: { id: volumeId, ...volume },
                 inventory: {
@@ -806,6 +809,7 @@ test("V142 CPU3C container disk provider limit blocks the physical 30 GB inciden
     });
     const precheck = containerDiskInGb => harness.adapter.inspectCpuStagingPrecheck({
         containerDiskInGb,
+        sshKeyRegistered: true,
         registryVerification: harness.cpuRegistryVerification,
         networkVolume: { id: volumeId, dataCenterId: "EU-NL-1", sizeGb: 50, type: "STANDARD" },
         inventory: {
@@ -832,6 +836,54 @@ test("V142 CPU3C container disk provider limit blocks the physical 30 GB inciden
         assert.equal(report.contract.maximumContainerDiskGb, 20);
         assert.equal(harness.calls.length, 0);
     }
+});
+
+test("V142 CPU plain Ubuntu without the certified SSH startup contract fails before POST", () => {
+    const volumeId = "network-volume-cpu-startup-contract-v142";
+    const harness = runpodPhysicalHarness({
+        scenario: "cpu-startup-contract-required",
+        gpuTypeId: "NVIDIA L40S",
+        networkVolumeId: volumeId,
+        envOverrides: { JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false" }
+    });
+    const args = {
+        sshKeyRegistered: true,
+        registryVerification: harness.cpuRegistryVerification,
+        networkVolume: { id: volumeId, dataCenterId: "EU-NL-1", sizeGb: 50, type: "STANDARD" },
+        inventory: {
+            cpuFlavorId: "cpu3c",
+            dataCenterId: "EU-NL-1",
+            minimumVcpu: 2,
+            ramMultiplier: 2,
+            securePriceUsdPerHour: 0.06,
+            stockStatus: "HIGH"
+        }
+    };
+    const plainUbuntu = harness.adapter.inspectCpuStagingPrecheck({
+        ...args,
+        startupContract: []
+    });
+    assert.equal(plainUbuntu.ok, false);
+    assert.equal(plainUbuntu.error, "RUNPOD_CPU_RUNTIME_STARTUP_CONTRACT_REQUIRED");
+
+    const registeredKeyMissing = harness.adapter.inspectCpuStagingPrecheck({
+        ...args,
+        sshKeyRegistered: false
+    });
+    assert.equal(registeredKeyMissing.ok, false);
+    assert.equal(registeredKeyMissing.error, "RUNPOD_CPU_SSH_KEY_REGISTERED_REQUIRED");
+    assert.equal(harness.calls.length, 0);
+});
+
+test("V142 CPU startup contract only starts persistent sshd and contains no secret or Wan bootstrap", () => {
+    const command = RUNPOD_CPU_STAGING_PROFILE.dockerStartCmd;
+    assert.deepEqual(command.slice(0, 2), ["bash", "-lc"]);
+    assert.equal(command.length, 3);
+    assert.match(command[2], /test -n "\$\{PUBLIC_KEY:-\}"/);
+    assert.match(command[2], /authorized_keys/);
+    assert.match(command[2], /ssh-keygen -A/);
+    assert.match(command[2], /exec \/usr\/sbin\/sshd -D -e/);
+    assert.doesNotMatch(command[2], /RUNPOD_API_KEY|PRIVATE_KEY|hf download|huggingface|Wan2\.2|sleep/i);
 });
 
 test("V142 CPU model-ready cache remains physically unverified and never becomes CACHE_HIT", () => {
@@ -875,18 +927,28 @@ test("V142 CPU runtime identity gates cache writes without certifying CUDA or in
         envOverrides: { JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false" }
     });
     const healthy = harness.adapter.inspectCpuStagingRuntimeIdentity({
+        previousHealth: {
+            uptimeSeconds: 15,
+            sshEndpoint: { host: "203.0.113.10", port: 22022 }
+        },
         health: {
+            podStatus: "RUNNING",
+            uptimeSeconds: 25,
+            stableSshEndpointPolls: 2,
+            sshEndpoint: { host: "203.0.113.10", port: 22022 },
+            sshHandshake: true,
+            sshAuthenticated: true,
+            sshUser: "root",
+            sshdRunning: true,
+            publicKeyPresent: true,
+            authorizedKeyMatches: true,
             operatingSystem: "ubuntu-22.04",
-            pythonVersion: "3.10.12",
             caCertificates: true,
             mountPath: "/workspace",
             mountWritable: true,
             commands: {
                 bash: true,
-                git: true,
-                python3: true,
-                hf: true,
-                sha256sum: true
+                sshd: true
             },
             cuda: false,
             nvcc: false,
@@ -894,19 +956,33 @@ test("V142 CPU runtime identity gates cache writes without certifying CUDA or in
         }
     });
     assert.equal(healthy.ok, true, JSON.stringify(healthy));
+    assert.equal(healthy.status, "CPU_RUNTIME_READY");
     assert.equal(healthy.cacheWriteAuthorized, true);
     assert.equal(healthy.cacheModelReady, false);
     assert.equal(healthy.inferenceStarted, false);
     assert.equal(healthy.cudaVerified, false);
     assert.equal(healthy.l40sVerified, false);
     const mismatch = harness.adapter.inspectCpuStagingRuntimeIdentity({
+        previousHealth: {
+            uptimeSeconds: 15,
+            sshEndpoint: { host: "203.0.113.10", port: 22022 }
+        },
         health: {
+            podStatus: "RUNNING",
+            uptimeSeconds: 25,
+            stableSshEndpointPolls: 2,
+            sshEndpoint: { host: "203.0.113.10", port: 22022 },
+            sshHandshake: true,
+            sshAuthenticated: true,
+            sshUser: "root",
+            sshdRunning: true,
+            publicKeyPresent: true,
+            authorizedKeyMatches: true,
             operatingSystem: "ubuntu-22.04",
-            pythonVersion: "3.10.12",
             caCertificates: true,
             mountPath: "/workspace",
             mountWritable: true,
-            commands: { bash: true, git: true, python3: true, hf: true, sha256sum: true },
+            commands: { bash: true, sshd: true },
             cuda: true
         }
     });
@@ -915,6 +991,87 @@ test("V142 CPU runtime identity gates cache writes without certifying CUDA or in
     assert.equal(mismatch.cacheModelReady, false);
     assert.equal(mismatch.inferenceStarted, false);
     assert.equal(mismatch.deleteRequired, true);
+    assert.equal(harness.calls.length, 0);
+});
+
+test("V142 CPU runtime readiness distinguishes transient polls from terminal SSH contract failures", async t => {
+    const harness = runpodPhysicalHarness({
+        scenario: "cpu-runtime-readiness-fail-closed",
+        gpuTypeId: "NVIDIA L40S",
+        networkVolumeId: "network-volume-eu-nl-1-readiness-v142",
+        envOverrides: { JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false" }
+    });
+    const base = {
+        podStatus: "RUNNING",
+        uptimeSeconds: 20,
+        stableSshEndpointPolls: 2,
+        sshEndpoint: { host: "203.0.113.11", port: 22022 },
+        sshHandshake: true,
+        sshAuthenticated: true,
+        sshUser: "root",
+        sshdRunning: true,
+        publicKeyPresent: true,
+        authorizedKeyMatches: true,
+        operatingSystem: "ubuntu-22.04",
+        caCertificates: true,
+        mountPath: "/workspace",
+        mountWritable: true,
+        commands: { bash: true, sshd: true },
+        cuda: false,
+        nvcc: false,
+        flashAttention: false
+    };
+    const previousHealth = {
+        uptimeSeconds: 10,
+        sshEndpoint: { host: "203.0.113.11", port: 22022 }
+    };
+    await t.test("RUNNING with uptime zero remains pending and does not authorize cache", () => {
+        const result = harness.adapter.inspectCpuStagingRuntimeIdentity({
+            previousHealth: { ...previousHealth, uptimeSeconds: 0 },
+            health: { ...base, uptimeSeconds: 0, stableSshEndpointPolls: 0, sshHandshake: false, sshAuthenticated: false }
+        });
+        assert.equal(result.ok, false);
+        assert.equal(result.status, "RUNPOD_CPU_RUNTIME_STARTING");
+        assert.equal(result.retryable, true);
+        assert.equal(result.deleteRequired, false);
+        assert.equal(result.cacheWriteAuthorized, false);
+    });
+    await t.test("a transient port is not a stable SSH endpoint", () => {
+        const result = harness.adapter.inspectCpuStagingRuntimeIdentity({
+            previousHealth,
+            health: { ...base, stableSshEndpointPolls: 1, sshHandshake: false, sshAuthenticated: false }
+        });
+        assert.equal(result.ok, false);
+        assert.equal(result.status, "RUNPOD_CPU_SSH_NOT_STABLE");
+        assert.equal(result.retryable, true);
+        assert.equal(result.deleteRequired, false);
+    });
+    await t.test("missing injected PUBLIC_KEY fails terminally and requires DELETE", () => {
+        const result = harness.adapter.inspectCpuStagingRuntimeIdentity({ previousHealth, health: { ...base, publicKeyPresent: false } });
+        assert.equal(result.ok, false);
+        assert.equal(result.status, "RUNPOD_CPU_PUBLIC_KEY_MISSING");
+        assert.equal(result.retryable, false);
+        assert.equal(result.deleteRequired, true);
+    });
+    await t.test("sshd startup failure requires DELETE", () => {
+        const result = harness.adapter.inspectCpuStagingRuntimeIdentity({ previousHealth, health: { ...base, sshdRunning: false, commands: { bash: true, sshd: false } } });
+        assert.equal(result.ok, false);
+        assert.equal(result.status, "RUNPOD_CPU_SSHD_NOT_RUNNING");
+        assert.equal(result.retryable, false);
+        assert.equal(result.deleteRequired, true);
+    });
+    await t.test("runtime timeout converts pending SSH into DELETE-required failure", () => {
+        const result = harness.adapter.inspectCpuStagingRuntimeIdentity({
+            previousHealth,
+            timedOut: true,
+            health: { ...base, stableSshEndpointPolls: 1, sshHandshake: false, sshAuthenticated: false }
+        });
+        assert.equal(result.ok, false);
+        assert.equal(result.status, "RUNPOD_CPU_RUNTIME_TIMEOUT");
+        assert.equal(result.retryable, false);
+        assert.equal(result.deleteRequired, true);
+        assert.equal(result.cacheWriteAuthorized, false);
+    });
     assert.equal(harness.calls.length, 0);
 });
 
