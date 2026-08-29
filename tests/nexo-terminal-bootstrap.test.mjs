@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { execFileSync, spawn } from "node:child_process";
 import { test } from "node:test";
 
@@ -112,22 +113,45 @@ test("V142 real Chrome verifies the served loopback bootstrap and local research
     const contract = JSON.parse(
         fs.readFileSync(path.join(root, "jarvis-runtime-contract.json"), "utf8")
     );
-    const bridgeRoot = fs.mkdtempSync(
-        path.join(os.tmpdir(), "v142-production-browser-bridge-")
+    const fixtureRoot = fs.mkdtempSync(
+        path.join(os.tmpdir(), "v142-production-browser-fixture-")
     );
+    const bridgeRoot = path.join(fixtureRoot, "worktree");
+    const remoteRoot = path.join(fixtureRoot, "remote.git");
+    fs.mkdirSync(bridgeRoot);
     const profile = fs.mkdtempSync(
         path.join(os.tmpdir(), "v142-production-browser-profile-")
     );
 
+    execFileSync("git", ["init", "--bare", remoteRoot], {
+        stdio: "ignore"
+    });
     execFileSync("git", ["init", "-b", "v94-media-v4n-negative-claims"], {
         cwd: bridgeRoot,
         stdio: "ignore"
     });
+    const runGit = args => execFileSync("git", args, {
+        cwd: bridgeRoot,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"]
+    }).trim();
+    const canonicalRemote = `https://github.com/${contract.repository}.git`;
+    runGit(["config", "user.email", "v142-browser@example.invalid"]);
+    runGit(["config", "user.name", "V142 Browser Test"]);
+    runGit(["remote", "add", "origin", canonicalRemote]);
+    runGit([
+        "config",
+        `url.${pathToFileURL(remoteRoot).href}.insteadOf`,
+        canonicalRemote
+    ]);
     fs.writeFileSync(
         path.join(bridgeRoot, "jarvis-runtime-contract.json"),
         JSON.stringify(contract, null, 2),
         "utf8"
     );
+    runGit(["add", "jarvis-runtime-contract.json"]);
+    runGit(["commit", "-m", "fixture: authorize browser bridge identity"]);
+    runGit(["push", "-u", "origin", contract.branch]);
 
     const server = createJarvisUploadBridgeApp({ root: bridgeRoot }).listen(3344);
     await new Promise((resolve, reject) => {
@@ -191,7 +215,7 @@ test("V142 real Chrome verifies the served loopback bootstrap and local research
         }
 
         await new Promise(resolve => server.close(() => resolve()));
-        fs.rmSync(bridgeRoot, {
+        fs.rmSync(fixtureRoot, {
             recursive: true,
             force: true,
             maxRetries: 20,
