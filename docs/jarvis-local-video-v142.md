@@ -125,6 +125,24 @@ JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD=0.99
 JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED=false
 ```
 
+An explicitly authorized runtime-only certification uses the same adapter and
+the same `GPU_RUNTIME_BOOTSTRAP`, with the GPU and one live datacenter selected
+at runtime:
+
+```text
+JARVIS_RUNPOD_GPU_TYPE_ID=NVIDIA A40
+JARVIS_RUNPOD_DATACENTER_ID=<live-selected-datacenter>
+JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY=true
+JARVIS_RUNPOD_NETWORK_VOLUME_ID=
+```
+
+That mode is not video execution and cannot create or populate a model cache.
+It provisions no Network Volume, requires Secure Cloud and one exact
+datacenter, finishes as `RUNPOD_RUNTIME_PREFLIGHT_CERTIFIED` with
+`CACHE_MISS`, starts no inference, and immediately enters the existing Pod
+release/absence-verification lifecycle. Paid creation remains denied unless a
+separate human authorization sets its exact SHA, GPU, datacenter, and budget.
+
 The credential belongs in the environment of the process that starts
 `jarvis-fs-bridge.js`; it must not be placed in browser configuration, HTML,
 Artifact Studio metadata, a mission payload, or a committed `.env` file.
@@ -166,10 +184,10 @@ The adapter separates two evidence levels:
 
 | `ZERO_COST_PRECHECK` (before credentials or billable creation) | `PHYSICAL_PAID_PREFLIGHT` (only after one Pod exists) |
 | --- | --- |
-| Canonical Git SHA equals the configured SHA and bridge identity is `BRIDGE_IDENTITY_OK`. | The allocated GPU exactly matches the single current L40S/CC 8.9 profile in EU-NL-1 and has at least 48 GB VRAM. |
+| Canonical Git SHA equals the configured SHA and bridge identity is `BRIDGE_IDENTITY_OK`. | The allocated GPU exactly matches the selected physical profile: A40/CC 8.6 or L40S/CC 8.9, with at least 48 GB VRAM. |
 | Policy is exactly `LOCAL_TEST`, backend is exactly `wan22-ti2v-5b`, and external fallback is forbidden. | CUDA, NVCC, Python 3.12, PyTorch 2.8/CUDA 12.8, FFmpeg, and FlashAttention work on that Pod. |
 | The approved image tag resolves read-only to its expected registry digest; the Wan repo revision, model revision, requirements SHA, and every required model file are immutable. | Required Python imports, `pip check`, a real CUDA tensor operation, and offline `generate.py --help` pass. |
-| Durable identity, reference bytes/SHA, local duplicate-obligation state, explicit GPU request, volume/data-center configuration, exact budget, and the sanitized Pod body are valid. | The mounted cache and every physical model file match the current authority; the manifest records observations, and FlashAttention must execute a real CUDA kernel on CC 8.9. |
+| Durable identity, local duplicate-obligation state, explicit GPU request, dynamic volume/data-center configuration, exact budget, and the sanitized Pod body are valid. Full video execution also requires reference bytes/SHA. | Runtime-only certification records `CACHE_MISS` and requires no model cache. Full video execution additionally requires the mounted cache and every physical model file to match the current authority. FlashAttention must execute a real CUDA kernel on the selected CC. |
 
 `inspectZeroCostPrecheck` builds and validates the same provision body later
 used by `POST /pods`, but substitutes `[EPHEMERAL_PUBLIC_KEY]` and performs no
@@ -246,6 +264,17 @@ GPU runtime and promote to `CACHE_READY`. A later GPU run may report
 `CACHE_HIT` only after repeating the complete physical verification. Neither
 phase keeps a second checkpoint.
 
+The same `GPU_RUNTIME_BOOTSTRAP` can stop immediately after the complete
+physical runtime preflight when `JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY=true`.
+It still verifies the exact GPU name/VRAM/compute capability, Python 3.12,
+PyTorch 2.8 with CUDA 12.8, NVCC/toolkit 12.8, FFmpeg/FFprobe, pinned Wan Git
+revision, requirements, imports, `pip check`, offline `generate.py --help`, a
+real CUDA tensor, and a real FlashAttention 2.8.3.post1 CUDA kernel. It does not
+run model validation, does not write a cache manifest, cannot claim
+`CACHE_MODEL_READY`, `CACHE_READY`, or `CACHE_HIT`, and cannot start inference.
+Its evidence becomes placement-eligible only after the same paid Pod has been
+deleted and absence has been verified.
+
 `model-manifest.json` is evidence, never authority. It is written atomically
 only after the current authority has been compared with the physically observed
 repository revision, all 34,203,123,497 model-tree bytes, all 34,201,521,212
@@ -260,12 +289,17 @@ the same current authority. A GPU bootstrap that finds `CACHE_MODEL_READY`
 evidence performs that same physical validator before
 the download branch and therefore does not download the model again.
 
-The single current GPU cache identity is `wan22-ti2v-5b-l40s`. It requires
-L40S, CC 8.9, and a STANDARD volume in EU-NL-1. Historical A40 and versioned
-`-v1`/`-v2` identities are not active runtime alternatives. A FlashAttention
-binary that does not execute on sm_89 cannot become a cache hit. The L40S
-physical preflight imports FlashAttention and executes `flash_attn_func` on
-CUDA before it can set `CACHE_READY` or `CACHE_HIT`.
+The model/cache authority remains singular: `wan22-ti2v-5b`, the pinned model
+and Wan revisions, the 12 required file hashes, and the STANDARD-volume cache
+evidence. GPU capability profiles are not parallel model contracts. L40S
+requires CC 8.9 and A40 requires CC 8.6; both require 48 GB VRAM, the same
+image tag/digest, the same Python/Torch/CUDA/NVCC/FlashAttention versions, and
+the same runtime bootstrap. L40S retains its existing static physical-runtime
+certification. A40 remains `RUNPOD_RUNTIME_PREFLIGHT_CERTIFICATION_REQUIRED`
+until one real runtime-only Pod produces matching evidence and is then deleted
+with absence verified. For video placement, either GPU also needs a live
+STANDARD datacenter and a locally certified cache replica; otherwise placement
+returns `PLACEMENT_REQUIRES_CACHE_REPLICA`.
 
 ### CPU model staging without GPU-readiness claims
 
@@ -353,9 +387,10 @@ The bootstrap operation ownership is explicit:
 | Snapshot byte total, required-file bytes/SHA-256, atomic model manifest | `CPU_MODEL_STAGING_BOOTSTRAP` |
 | FFmpeg/build toolchain, full Wan requirements, PyTorch/CUDA environment | `GPU_RUNTIME_BOOTSTRAP` |
 | NVCC, compute capability, CUDA tensor, FlashAttention CUDA kernel | `GPU_RUNTIME_BOOTSTRAP` |
-| `pip check`, imports, offline `generate.py --help`, runtime manifest | `GPU_RUNTIME_BOOTSTRAP` |
+| `pip check`, imports, offline `generate.py --help`, runtime evidence | `GPU_RUNTIME_BOOTSTRAP` |
 | `CACHE_MODEL_READY` | CPU maximum; GPU accepted input |
 | `CACHE_READY` and physically reverified `CACHE_HIT` | GPU only |
+| `RUNPOD_RUNTIME_PREFLIGHT_CERTIFIED` + `CACHE_MISS`, no inference | Runtime-only exit of the same `GPU_RUNTIME_BOOTSTRAP`; Pod cleanup must be verified |
 
 The sanitized CPU dry-run is:
 
@@ -389,8 +424,8 @@ This body is structurally compatible with the current RunPod
 The adapter performs this single durable lifecycle:
 
 1. Query official RunPod GPU availability and on-demand price for the one
-   explicitly selected L40S profile. No GPU substitution or datacenter fallback
-   exists.
+   explicitly selected A40 or L40S profile and its runtime-selected datacenter.
+   No GPU substitution or implicit datacenter fallback exists.
 2. `POST https://rest.runpod.io/v1/pods` for exactly one on-demand Pod using
    the approved PyTorch 2.8/CUDA 12.8 tag after its registry manifest digest
    has been verified read-only,
@@ -414,6 +449,10 @@ The adapter performs this single durable lifecycle:
    FlashAttention CUDA operation, and offline
    `generate.py --help` all pass. Every poll uses the same `remoteJobId`; a
    transport timeout remains retryable and never provisions another Pod.
+   Under the explicitly authorized runtime-only mode, the lifecycle stops after
+   these physical runtime gates with `CACHE_MISS`, skips model/cache validation
+   and inference, persists evidence only after verified cleanup, and proceeds
+   directly to step 7.
 6. Download the MP4, compare remote and local bytes/SHA-256, then let the
    existing engine verify MP4/media metadata. Artifact Studio registration
    happens only after physical verification and verified Pod deletion.

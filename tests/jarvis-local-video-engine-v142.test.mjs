@@ -523,6 +523,7 @@ function runpodPhysicalHarness({
                     nvcc: true,
                     runner: true,
                     wanRepository: true,
+                    wanRepositoryRevision: RUNPOD_WAN22_GPU_PROFILES[gpuTypeId].wanRepositoryRevision,
                     wanModel: true,
                     dependencyContract: scenario === "runtime-health-fail" && healthCalls > 1 ? false : true,
                     pipCheck: scenario === "runtime-health-fail" && healthCalls > 1 ? false : true,
@@ -1080,6 +1081,291 @@ test("V142 dynamic RunPod placement remains capability-, evidence-, mission-, an
         });
         assert.equal(report.ok, true, JSON.stringify(report));
         assert.equal(harness.calls.filter(call => call.kind === "http" && call.method === "POST").length, 0);
+    });
+});
+
+test("V142 A40 runtime-only preparation stays physical, cache-independent, and placement-bound", async t => {
+    const runtimeHarness = (scenario, {
+        gpuTypeId = "NVIDIA A40",
+        dataCenterId = "CA-MTL-1",
+        baseHealthOverrides = {},
+        runtimeHealthOverrides = {},
+        envOverrides = {}
+    } = {}) => runpodPhysicalHarness({
+        scenario,
+        gpuTypeId,
+        networkVolumeDataCenterId: dataCenterId,
+        baseHealthOverrides,
+        runtimeHealthOverrides,
+        envOverrides: {
+            JARVIS_RUNPOD_CLOUD_TYPE: "SECURE",
+            JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY: "true",
+            JARVIS_RUNPOD_DATACENTER_ID: dataCenterId,
+            JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: gpuTypeId === "NVIDIA A40" ? "0.44" : "0.99",
+            ...envOverrides
+        }
+    });
+    const complete = async harness => {
+        const started = await harness.engine.start(harness.payload);
+        assert.equal(started.ok, true, JSON.stringify(started));
+        return pollRunpodUntilDone(harness.engine, started.operationName);
+    };
+    const generatedBootstrap = harness => {
+        const root = path.join(harness.root, ".jarvis-artifacts", ".video-worker", "runpod");
+        const relative = fs.readdirSync(root, { recursive: true })
+            .map(String)
+            .find(file => file.endsWith("bootstrap.sh"));
+        assert.ok(relative);
+        return fs.readFileSync(path.join(root, relative), "utf8");
+    };
+
+    await t.test("1 A40 CC 8.6 passes logical gates but static profile remains physically uncertified", async () => {
+        const harness = runtimeHarness("a40-runtime-only-success");
+        const result = await complete(harness);
+        assert.equal(result.status, "RUNPOD_RUNTIME_PREFLIGHT_CERTIFIED", JSON.stringify(result));
+        assert.equal(result.runtimePreflightVerified, true);
+        assert.equal(result.computeCapability, "8.6");
+        assert.equal(result.cacheStatus, "CACHE_MISS");
+        assert.equal(result.inferenceStarted, false);
+        assert.equal(harness.inferenceStarts, 0);
+        assert.equal(harness.deleted, true);
+        assert.equal(RUNPOD_WAN22_GPU_PROFILES["NVIDIA A40"].runtimePreflightCertified, false);
+
+        const selector = runpodPhysicalHarness({
+            scenario: "a40-persisted-runtime-selector",
+            rootOverride: harness.root,
+            envOverrides: {
+                JARVIS_RUNPOD_GPU_TYPE_ID: "",
+                JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false",
+                JARVIS_RUNPOD_CLOUD_TYPE: "SECURE"
+            }
+        });
+        const report = selector.adapter.inspectZeroCostPrecheck({
+            job: selector.dryRunJob,
+            registryVerification: verifiedRegistryEvidence(RUNPOD_WAN22_GPU_PROFILES["NVIDIA A40"]),
+            inventory: [placementInventory({
+                gpuTypeId: "NVIDIA A40",
+                dataCenterId: "CA-MTL-1",
+                hourlyRateUsd: 0.44
+            })],
+            cacheReplicas: [certifiedCacheReplica({
+                networkVolumeId: "future-a40-cache",
+                dataCenterId: "CA-MTL-1"
+            })]
+        });
+        assert.equal(report.ok, true, JSON.stringify(report));
+        assert.equal(report.placement.selected.gpuTypeId, "NVIDIA A40");
+        assert.equal(report.placement.selected.networkVolumeId, "future-a40-cache");
+    });
+
+    for (const [number, label, overrides] of [
+        ["2", "A40 CC 8.5 fails", { baseHealthOverrides: { computeCapability: "8.5" } }],
+        ["3", "A40 47 GB fails", { baseHealthOverrides: { vramGb: 47 } }],
+        ["4", "CUDA Toolkit 12.7 fails", { baseHealthOverrides: { cudaToolkitVersion: "12.7" } }],
+        ["5", "FlashAttention without CUDA kernel fails", {
+            runtimeHealthOverrides: { flashAttentionCudaProbe: false, dependencyContract: false }
+        }]
+    ]) {
+        await t.test(`${number} ${label}`, async () => {
+            const harness = runtimeHarness(`a40-runtime-only-${number}`, overrides);
+            const result = await complete(harness);
+            assert.equal(result.ok, false, JSON.stringify(result));
+            assert.equal(harness.inferenceStarts, 0);
+            assert.equal(harness.deleted, true);
+        });
+    }
+
+    await t.test("6 FlashAttention sm_86 CUDA gate is part of the common physical preflight", async () => {
+        const harness = runtimeHarness("a40-sm86-logical-gate", {
+            envOverrides: { JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false" }
+        });
+        const report = harness.adapter.inspectZeroCostPrecheck({
+            job: harness.dryRunJob,
+            registryVerification: harness.gpuRegistryVerification,
+            availability: {
+                gpuTypeId: "NVIDIA A40",
+                vramGb: 48,
+                hourlyRateUsd: 0.44,
+                stockStatus: "LOW"
+            }
+        });
+        assert.equal(report.ok, true, JSON.stringify(report));
+        assert.equal(report.contract.computeCapability, "8.6");
+        assert.equal(report.paidResourceCreationPossible, false);
+        assert.equal(harness.calls.length, 0);
+    });
+
+    await t.test("7 L40S still requires CC 8.9", async () => {
+        const harness = runtimeHarness("l40s-runtime-only-wrong-cc", {
+            gpuTypeId: "NVIDIA L40S",
+            dataCenterId: "US-TX-4",
+            baseHealthOverrides: { computeCapability: "8.6" }
+        });
+        const result = await complete(harness);
+        assert.equal(result.ok, false, JSON.stringify(result));
+        assert.equal(RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].computeCapability, "8.9");
+        assert.equal(harness.deleted, true);
+    });
+
+    await t.test("8 A40 and L40S use the same GPU_RUNTIME_BOOTSTRAP", async () => {
+        const a40 = runtimeHarness("a40-common-bootstrap");
+        const l40s = runtimeHarness("l40s-common-bootstrap", {
+            gpuTypeId: "NVIDIA L40S",
+            dataCenterId: "US-TX-4"
+        });
+        const a40Started = await a40.engine.start(a40.payload);
+        const l40sStarted = await l40s.engine.start(l40s.payload);
+        assert.equal(a40Started.ok, true, JSON.stringify(a40Started));
+        assert.equal(l40sStarted.ok, true, JSON.stringify(l40sStarted));
+        const normalize = source => source
+            .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "OPERATION_ID")
+            .replaceAll("8.6", "GPU_CC")
+            .replaceAll("8.9", "GPU_CC");
+        assert.equal(normalize(generatedBootstrap(a40)), normalize(generatedBootstrap(l40s)));
+        await a40.engine.cancel({ operationName: a40Started.operationName });
+        await l40s.engine.cancel({ operationName: l40sStarted.operationName });
+        assert.equal(a40.deleted, true);
+        assert.equal(l40s.deleted, true);
+    });
+
+    await t.test("9 runtime certification region is runtime-selected, never compiled into A40", async () => {
+        const first = runtimeHarness("a40-region-ca", { dataCenterId: "CA-MTL-1" });
+        const second = runtimeHarness("a40-region-eu", { dataCenterId: "EU-SE-1" });
+        const firstStarted = await first.engine.start(first.payload);
+        const secondStarted = await second.engine.start(second.payload);
+        assert.deepEqual(first.createdBody.dataCenterIds, ["CA-MTL-1"]);
+        assert.deepEqual(second.createdBody.dataCenterIds, ["EU-SE-1"]);
+        await first.engine.cancel({ operationName: firstStarted.operationName });
+        await second.engine.cancel({ operationName: secondStarted.operationName });
+    });
+
+    await t.test("10 runtime-only payload has no hardcoded Network Volume", () => {
+        const harness = runtimeHarness("a40-no-volume", {
+            envOverrides: { JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false" }
+        });
+        const report = harness.adapter.inspectZeroCostPrecheck({
+            job: harness.dryRunJob,
+            registryVerification: harness.gpuRegistryVerification,
+            availability: { gpuTypeId: "NVIDIA A40", vramGb: 48, hourlyRateUsd: 0.44, stockStatus: "LOW" }
+        });
+        assert.equal(report.ok, true, JSON.stringify(report));
+        assert.equal("networkVolumeId" in report.payload, false);
+        assert.deepEqual(report.payload.dataCenterIds, ["CA-MTL-1"]);
+    });
+
+    await t.test("11 placement can observe A40 in an arbitrary live datacenter", () => {
+        const harness = runpodPhysicalHarness({
+            scenario: "a40-any-region",
+            envOverrides: {
+                JARVIS_RUNPOD_GPU_TYPE_ID: "",
+                JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false",
+                JARVIS_RUNPOD_CLOUD_TYPE: "SECURE"
+            }
+        });
+        const report = harness.adapter.inspectZeroCostPrecheck({
+            job: harness.dryRunJob,
+            registryVerification: verifiedRegistryEvidence(RUNPOD_WAN22_GPU_PROFILES["NVIDIA A40"]),
+            inventory: [placementInventory({ gpuTypeId: "NVIDIA A40", dataCenterId: "FUTURE-DC-9" })],
+            runtimeEvidence: [runtimeCertification("NVIDIA A40")]
+        });
+        assert.equal(report.status, "PLACEMENT_REQUIRES_CACHE_REPLICA", JSON.stringify(report));
+        assert.equal(report.placement.selected.dataCenterId, "FUTURE-DC-9");
+    });
+
+    await t.test("12 uncertified A40 never becomes executable", () => {
+        const harness = runpodPhysicalHarness({
+            scenario: "a40-still-uncertified",
+            envOverrides: {
+                JARVIS_RUNPOD_GPU_TYPE_ID: "",
+                JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false",
+                JARVIS_RUNPOD_CLOUD_TYPE: "SECURE"
+            }
+        });
+        const report = harness.adapter.inspectZeroCostPrecheck({
+            job: harness.dryRunJob,
+            registryVerification: verifiedRegistryEvidence(RUNPOD_WAN22_GPU_PROFILES["NVIDIA A40"]),
+            inventory: [placementInventory({ gpuTypeId: "NVIDIA A40", dataCenterId: "FUTURE-DC-9" })]
+        });
+        assert.equal(report.error, "RUNPOD_RUNTIME_PREFLIGHT_CERTIFICATION_REQUIRED");
+    });
+
+    await t.test("13 certified A40 with local cache and lower price can outrank L40S", () => {
+        const harness = runpodPhysicalHarness({
+            scenario: "a40-lower-price",
+            envOverrides: {
+                JARVIS_RUNPOD_GPU_TYPE_ID: "",
+                JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false",
+                JARVIS_RUNPOD_CLOUD_TYPE: "SECURE"
+            }
+        });
+        const report = harness.adapter.inspectZeroCostPrecheck({
+            job: harness.dryRunJob,
+            registryVerification: verifiedRegistryEvidence(RUNPOD_WAN22_GPU_PROFILES["NVIDIA A40"]),
+            inventory: [
+                placementInventory({ gpuTypeId: "NVIDIA A40", dataCenterId: "CACHE-DC", hourlyRateUsd: 0.44 }),
+                placementInventory({ gpuTypeId: "NVIDIA L40S", dataCenterId: "CACHE-DC", hourlyRateUsd: 0.99 })
+            ],
+            cacheReplicas: [certifiedCacheReplica({ networkVolumeId: "cache-shared", dataCenterId: "CACHE-DC" })],
+            runtimeEvidence: [runtimeCertification("NVIDIA A40")]
+        });
+        assert.equal(report.placement.selected.gpuTypeId, "NVIDIA A40", JSON.stringify(report));
+    });
+
+    await t.test("14 certified A40 without STANDARD support is discarded", () => {
+        const harness = runpodPhysicalHarness({
+            scenario: "a40-no-standard",
+            envOverrides: { JARVIS_RUNPOD_GPU_TYPE_ID: "", JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false", JARVIS_RUNPOD_CLOUD_TYPE: "SECURE" }
+        });
+        const report = harness.adapter.inspectZeroCostPrecheck({
+            job: harness.dryRunJob,
+            registryVerification: verifiedRegistryEvidence(RUNPOD_WAN22_GPU_PROFILES["NVIDIA A40"]),
+            inventory: [placementInventory({ gpuTypeId: "NVIDIA A40", dataCenterId: "NO-STANDARD", networkVolumeSupported: false })],
+            runtimeEvidence: [runtimeCertification("NVIDIA A40")]
+        });
+        assert.equal(report.error, "RUNPOD_COMPATIBLE_GPU_UNAVAILABLE");
+    });
+
+    await t.test("15 certified A40 with STANDARD but no cache requires one replica", () => {
+        const harness = runpodPhysicalHarness({
+            scenario: "a40-replica-required",
+            envOverrides: { JARVIS_RUNPOD_GPU_TYPE_ID: "", JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false", JARVIS_RUNPOD_CLOUD_TYPE: "SECURE" }
+        });
+        const report = harness.adapter.inspectZeroCostPrecheck({
+            job: harness.dryRunJob,
+            registryVerification: verifiedRegistryEvidence(RUNPOD_WAN22_GPU_PROFILES["NVIDIA A40"]),
+            inventory: [placementInventory({ gpuTypeId: "NVIDIA A40", dataCenterId: "STANDARD-NO-CACHE" })],
+            runtimeEvidence: [runtimeCertification("NVIDIA A40")]
+        });
+        assert.equal(report.status, "PLACEMENT_REQUIRES_CACHE_REPLICA", JSON.stringify(report));
+        assert.equal(report.payload, null);
+    });
+
+    await t.test("16 paid runtime authority requires one exact datacenter", () => {
+        const missing = runtimeHarness("a40-missing-runtime-dc", {
+            dataCenterId: "",
+            envOverrides: { JARVIS_RUNPOD_DATACENTER_ID: "" }
+        });
+        const report = missing.adapter.inspectZeroCostPrecheck({
+            job: missing.dryRunJob,
+            registryVerification: missing.gpuRegistryVerification
+        });
+        assert.equal(report.error, "RUNPOD_RUNTIME_CERTIFICATION_DATACENTER_REQUIRED");
+        assert.equal(missing.calls.length, 0);
+    });
+
+    await t.test("17 the complete preparation performs zero real provider POSTs", () => {
+        const harness = runtimeHarness("a40-zero-real-post", {
+            envOverrides: { JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false" }
+        });
+        const report = harness.adapter.inspectZeroCostPrecheck({
+            job: harness.dryRunJob,
+            registryVerification: harness.gpuRegistryVerification,
+            availability: { gpuTypeId: "NVIDIA A40", vramGb: 48, hourlyRateUsd: 0.44, stockStatus: "LOW" }
+        });
+        assert.equal(report.ok, true, JSON.stringify(report));
+        assert.equal(report.paidResourceCreationAuthorized, false);
+        assert.equal(report.paidResourceCreationPossible, false);
+        assert.equal(harness.calls.length, 0);
     });
 });
 
