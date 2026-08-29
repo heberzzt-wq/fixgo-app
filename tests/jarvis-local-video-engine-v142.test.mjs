@@ -365,7 +365,9 @@ function runpodPhysicalHarness({
         if (String(url).includes("/pods/pod-l40s-v142") && options.method === "DELETE") {
             if (scenario === "release-fail") return mockHttpResponse(500, { error: "controlled" });
             deleted = true;
-            return mockHttpResponse(204);
+            return scenario === "delete-404"
+                ? mockHttpResponse(404, { error: "Pod not found" })
+                : mockHttpResponse(204);
         }
         if (String(url).includes("/pods/pod-existing-obligation") && options.method === "DELETE") {
             orphanDeleted = true;
@@ -2371,6 +2373,158 @@ test("V142 RunPod adapter handles job failure, bad SHA, bad MP4 and mandatory de
     }
 });
 
+test("V142 paid Pod cleanup is independent from evidence, receipt, and artifact capture", async t => {
+    const podPosts = harness => harness.calls.filter(call =>
+        call.kind === "http" && call.method === "POST" && call.url.endsWith("/pods")
+    );
+    const podDeletes = harness => harness.calls.filter(call =>
+        call.kind === "http" && call.method === "DELETE" && call.url.includes("/pods/")
+    );
+    const assertSinglePodLifecycle = harness => {
+        assert.equal(podPosts(harness).length, 1, "cleanup must never create another Pod");
+        assert.equal(podDeletes(harness).length, 1, "the acquired Pod must be deleted exactly once");
+        assert.match(podDeletes(harness)[0].url, /\/pods\/pod-l40s-v142$/);
+    };
+
+    await t.test("verified success and evidence success delete exactly once", async () => {
+        const harness = runpodPhysicalHarness({ scenario: "cleanup-success" });
+        const started = await harness.engine.start(harness.payload);
+        const completed = await pollRunpodUntilDone(harness.engine, started.operationName);
+        assert.equal(completed.ok, true, JSON.stringify(completed));
+        assert.equal(completed.workerRelease.terminationVerified, true);
+        assertSinglePodLifecycle(harness);
+    });
+
+    await t.test("bootstrap failure deletes exactly once", async () => {
+        const harness = runpodPhysicalHarness({ scenario: "bootstrap-fail" });
+        const started = await harness.engine.start(harness.payload);
+        const failed = await pollRunpodUntilDone(harness.engine, started.operationName);
+        assert.equal(failed.ok, false);
+        assert.equal(failed.status, "RUNPOD_BOOTSTRAP_INCOMPLETE");
+        assertSinglePodLifecycle(harness);
+    });
+
+    await t.test("release receipt write failure happens after DELETE and cannot block it", async () => {
+        const harness = runpodPhysicalHarness({ scenario: "receipt-write-failure" });
+        const started = await harness.engine.start(harness.payload);
+        const runpodStateFile = path.join(
+            harness.root,
+            ".jarvis-artifacts",
+            ".video-worker",
+            "runpod",
+            `${started.operationId}.json`
+        );
+        const originalRenameSync = fs.renameSync;
+        let injected = false;
+        fs.renameSync = (source, destination) => {
+            if (
+                !injected &&
+                harness.deleted &&
+                path.resolve(destination) === path.resolve(runpodStateFile)
+            ) {
+                injected = true;
+                throw new Error("CONTROLLED_RECEIPT_WRITE_FAILURE");
+            }
+            return originalRenameSync(source, destination);
+        };
+        let completed;
+        try {
+            completed = await pollRunpodUntilDone(harness.engine, started.operationName);
+        }
+        finally {
+            fs.renameSync = originalRenameSync;
+        }
+        assert.equal(injected, true);
+        assert.equal(completed.workerRelease.terminationVerified, true);
+        assertSinglePodLifecycle(harness);
+    });
+
+    await t.test("cleanup evidence failure happens after DELETE and cannot trigger a second DELETE", async () => {
+        const harness = runpodPhysicalHarness({ scenario: "cleanup-evidence-failure" });
+        const started = await harness.engine.start(harness.payload);
+        const operationFile = path.join(
+            harness.root,
+            ".jarvis-artifacts",
+            ".video-worker",
+            "operations",
+            `${started.operationId}.json`
+        );
+        const originalRenameSync = fs.renameSync;
+        let injected = false;
+        fs.renameSync = (source, destination) => {
+            if (harness.deleted && path.resolve(destination) === path.resolve(operationFile)) {
+                injected = true;
+                throw new Error("CONTROLLED_CLEANUP_EVIDENCE_FAILURE");
+            }
+            return originalRenameSync(source, destination);
+        };
+        let completed;
+        try {
+            completed = await pollRunpodUntilDone(harness.engine, started.operationName);
+        }
+        finally {
+            fs.renameSync = originalRenameSync;
+        }
+        assert.equal(injected, true);
+        assert.equal(completed.ok, false);
+        assert.equal(completed.status, "LOCAL_VIDEO_EVIDENCE_CAPTURE_FAILED");
+        assertSinglePodLifecycle(harness);
+    });
+
+    await t.test("artifact registration failure happens after DELETE and cannot trigger another DELETE", async () => {
+        const harness = runpodPhysicalHarness({ scenario: "artifact-registration-failure" });
+        const started = await harness.engine.start(harness.payload);
+        const originalAppendFileSync = fs.appendFileSync;
+        let injected = false;
+        fs.appendFileSync = (file, ...args) => {
+            if (String(file).endsWith(`${path.sep}.ledger${path.sep}artifacts.jsonl`)) {
+                injected = true;
+                throw new Error("CONTROLLED_ARTIFACT_REGISTRATION_FAILURE");
+            }
+            return originalAppendFileSync(file, ...args);
+        };
+        let completed;
+        try {
+            completed = await pollRunpodUntilDone(harness.engine, started.operationName);
+        }
+        finally {
+            fs.appendFileSync = originalAppendFileSync;
+        }
+        assert.equal(injected, true);
+        assert.equal(completed.ok, false);
+        assert.equal(completed.status, "CONTROLLED_ARTIFACT_REGISTRATION_FAILURE");
+        assertSinglePodLifecycle(harness);
+    });
+
+    await t.test("DELETE 204 followed by GET 404 verifies cleanup", async () => {
+        const harness = runpodPhysicalHarness({ scenario: "delete-204" });
+        const started = await harness.engine.start(harness.payload);
+        const completed = await pollRunpodUntilDone(harness.engine, started.operationName);
+        assert.equal(completed.workerRelease.status, "RUNPOD_POD_TERMINATED_VERIFIED");
+        assert.equal(completed.workerRelease.terminationVerified, true);
+        assertSinglePodLifecycle(harness);
+    });
+
+    await t.test("DELETE 404 is idempotent and GET 404 verifies absence", async () => {
+        const harness = runpodPhysicalHarness({ scenario: "delete-404" });
+        const started = await harness.engine.start(harness.payload);
+        const completed = await pollRunpodUntilDone(harness.engine, started.operationName);
+        assert.equal(completed.workerRelease.status, "RUNPOD_POD_TERMINATED_VERIFIED");
+        assert.equal(completed.workerRelease.terminationVerified, true);
+        assertSinglePodLifecycle(harness);
+    });
+
+    await t.test("transient DELETE failure stays failed closed without retry or replacement Pod", async () => {
+        const harness = runpodPhysicalHarness({ scenario: "release-fail" });
+        const started = await harness.engine.start(harness.payload);
+        const failed = await pollRunpodUntilDone(harness.engine, started.operationName);
+        assert.equal(failed.ok, false);
+        assert.equal(failed.status, "REMOTE_VIDEO_WORKER_RELEASE_FAILED");
+        assert.equal(failed.workerRelease.ok, false);
+        assertSinglePodLifecycle(harness);
+    });
+});
+
 test("V142 RunPod hard cap cancels before USD 2 and still deletes the Pod", async () => {
     const clock = { value: "2026-08-27T12:00:00.000Z" };
     const harness = runpodPhysicalHarness({ scenario: "budget", clock });
@@ -3548,6 +3702,129 @@ test("simulated remote Wan releases the worker when generation fails", async () 
     assert.equal(releases.length, 1);
     assert.equal(releases[0].reason, "generation_failed");
     assert.equal(listArtifacts({ root, type: "video" }).length, 0);
+});
+
+test("simulated remote Wan releases the acquired Pod when terminal evidence persistence throws", async () => {
+    const { root, env } = remoteWanFixture("jarvis-remote-evidence-failure-");
+    const releases = [];
+    const engine = createLocalVideoEngine({
+        root,
+        env: { ...env, JARVIS_REMOTE_GPU_PROVIDER: "runpod" },
+        inspectHardware: healthyCapability,
+        launch({ resultFile, onExit }) {
+            fs.writeFileSync(resultFile, JSON.stringify({
+                ok: false,
+                status: "REMOTE_WAN_GENERATION_FAILED",
+                error: "controlled failure",
+                retryable: false
+            }));
+            queueMicrotask(() => onExit(1));
+            return {
+                pid: 6364,
+                remoteWorker: { provider: "runpod", podId: "pod-evidence-v142" },
+                kill() {}
+            };
+        },
+        release: async receipt => {
+            releases.push(receipt);
+            return {
+                ok: true,
+                status: "RUNPOD_POD_TERMINATED_VERIFIED",
+                podId: "pod-evidence-v142",
+                terminationVerified: true
+            };
+        }
+    });
+    const started = await engine.start({
+        script: "Fail evidence safely.",
+        prompts: ["One controlled failure."],
+        output: ".jarvis-artifacts/videos/remote-evidence-failed.mp4"
+    });
+    const operationFile = path.join(
+        root,
+        ".jarvis-artifacts",
+        ".video-worker",
+        "operations",
+        `${started.operationId}.json`
+    );
+    const originalRenameSync = fs.renameSync;
+    let injected = false;
+    fs.renameSync = (source, destination) => {
+        if (!injected && path.resolve(destination) === path.resolve(operationFile)) {
+            injected = true;
+            throw new Error("CONTROLLED_EVIDENCE_CAPTURE_FAILURE");
+        }
+        return originalRenameSync(source, destination);
+    };
+    let completed;
+    try {
+        completed = await engine.poll({ operationName: started.operationName });
+    }
+    finally {
+        fs.renameSync = originalRenameSync;
+    }
+
+    assert.equal(injected, true);
+    assert.equal(completed.ok, false);
+    assert.equal(releases.length, 1);
+    assert.equal(releases[0].remoteWorker.podId, "pod-evidence-v142");
+});
+
+test("simulated remote Wan releases the Pod when its first local receipt write throws", async () => {
+    const { root, env } = remoteWanFixture("jarvis-remote-first-receipt-failure-");
+    const releases = [];
+    let podAcquired = false;
+    const engine = createLocalVideoEngine({
+        root,
+        env: { ...env, JARVIS_REMOTE_GPU_PROVIDER: "runpod" },
+        inspectHardware: healthyCapability,
+        launch() {
+            podAcquired = true;
+            return {
+                pid: 6365,
+                remoteWorker: { provider: "runpod", podId: "pod-first-receipt-v142" },
+                kill() {}
+            };
+        },
+        release: async receipt => {
+            releases.push(receipt);
+            return {
+                ok: true,
+                status: "RUNPOD_POD_TERMINATED_VERIFIED",
+                podId: "pod-first-receipt-v142",
+                terminationVerified: true
+            };
+        }
+    });
+    const originalRenameSync = fs.renameSync;
+    let injected = false;
+    fs.renameSync = (source, destination) => {
+        if (
+            !injected &&
+            podAcquired &&
+            String(destination).includes(`${path.sep}.video-worker${path.sep}operations${path.sep}`)
+        ) {
+            injected = true;
+            throw new Error("CONTROLLED_FIRST_RECEIPT_WRITE_FAILURE");
+        }
+        return originalRenameSync(source, destination);
+    };
+    let started;
+    try {
+        started = await engine.start({
+            script: "Fail the first receipt safely.",
+            prompts: ["One controlled launch."],
+            output: ".jarvis-artifacts/videos/remote-first-receipt-failed.mp4"
+        });
+    }
+    finally {
+        fs.renameSync = originalRenameSync;
+    }
+
+    assert.equal(injected, true);
+    assert.equal(started.ok, false);
+    assert.equal(releases.length, 1);
+    assert.equal(releases[0].remoteWorker.podId, "pod-first-receipt-v142");
 });
 
 test("simulated remote Wan binds one worker to one durable obligation and releases it on cancel", async () => {

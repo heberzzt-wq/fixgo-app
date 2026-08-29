@@ -2459,6 +2459,38 @@ export function createRunpodRemoteVideoAdapter({
         return { id, dataCenterId, sizeGb, type: cacheContract.networkVolumeType };
     }
 
+    async function terminatePod(podId, operationId, stage = "release") {
+        const expectedPodId = String(podId || "").trim();
+        if (!expectedPodId) throw new Error("RUNPOD_POD_ID_REQUIRED");
+        await apiRequest(
+            `${apiBase}/pods/${encodeURIComponent(expectedPodId)}`,
+            { method: "DELETE" },
+            [200, 204, 404],
+            stage,
+            operationId
+        );
+        let terminationVerified = false;
+        try {
+            const pod = await apiRequest(
+                `${apiBase}/pods/${encodeURIComponent(expectedPodId)}`,
+                { method: "GET" },
+                [200],
+                `${stage}_verify`,
+                operationId
+            );
+            if (pod?.id && String(pod.id) !== expectedPodId) {
+                throw new Error("RUNPOD_POD_IDENTITY_MISMATCH");
+            }
+            terminationVerified = !pod || String(pod.desiredStatus || "") === "TERMINATED";
+        }
+        catch(error) {
+            terminationVerified = error?.httpStatus === 404;
+            if (!terminationVerified) throw error;
+        }
+        if (!terminationVerified) throw new Error("RUNPOD_DELETE_NOT_VERIFIED");
+        return { podId: expectedPodId, terminationVerified: true };
+    }
+
     async function assertNoExistingOperationPod(job) {
         const payload = await apiRequest(
             `${apiBase}/pods`,
@@ -3057,13 +3089,7 @@ export function createRunpodRemoteVideoAdapter({
         catch(error) {
             if (podId) {
                 try {
-                    await apiRequest(
-                        `${apiBase}/pods/${encodeURIComponent(podId)}`,
-                        { method: "DELETE" },
-                        [200, 204, 404],
-                        "provision_cleanup",
-                        job.operationId
-                    );
+                    await terminatePod(podId, job.operationId, "provision_cleanup");
                 }
                 catch {}
             }
@@ -3404,38 +3430,32 @@ export function createRunpodRemoteVideoAdapter({
     async function release(receipt = {}) {
         assertProviderConfigured();
         let loaded;
+        let state;
         try {
             loaded = readState(receipt);
+            state = loaded.state;
         }
         catch(error) {
-            return { ok: false, status: error.message, error: error.message };
+            const podId = String(receipt?.remoteWorker?.podId || receipt?.podId || "").trim();
+            if (!podId) return { ok: false, status: error.message, error: error.message };
+            let file = null;
+            try { file = stateFile(receipt.operationId); }
+            catch {}
+            loaded = { file };
+            state = {
+                ...(receipt.remoteWorker || {}),
+                provider: "runpod",
+                podId,
+                operationId: receipt.operationId,
+                operationName: receipt.operationName,
+                networkVolumeId: receipt.remoteWorker?.networkVolumeId || null
+            };
         }
-        let state = loaded.state;
         const cost = rentalCost(state);
         try {
-            await apiRequest(
-                `${apiBase}/pods/${encodeURIComponent(state.podId)}`,
-                { method: "DELETE" },
-                [200, 204, 404],
-                "release",
-                state.operationId
-            );
-            let terminationVerified = false;
-            try {
-                const pod = await apiRequest(
-                    `${apiBase}/pods/${encodeURIComponent(state.podId)}`,
-                    { method: "GET" },
-                    [200],
-                    "release_verify",
-                    state.operationId
-                );
-                terminationVerified = !pod || String(pod.desiredStatus || "") === "TERMINATED";
-            }
-            catch(error) {
-                terminationVerified = error?.httpStatus === 404;
-            }
-            if (!terminationVerified) throw new Error("RUNPOD_DELETE_NOT_VERIFIED");
+            const terminated = await terminatePod(state.podId, state.operationId, "release");
             let actualCostUsd = 0;
+            let billingPatch = {};
             try {
                 const billing = await apiRequest(
                     `${apiBase}/billing/pods?podId=${encodeURIComponent(state.podId)}&grouping=podId&bucketSize=hour`,
@@ -3449,24 +3469,26 @@ export function createRunpodRemoteVideoAdapter({
                     .reduce((sum, item) => sum + Number(item.amount || 0), 0);
             }
             catch(error) {
-                if (error?.providerHttp) {
-                    state = writeState(loaded.file, state, {
-                        billingError: error?.message || "RUNPOD_BILLING_QUERY_FAILED",
-                        ...providerHttpPatch(state, error)
-                    });
-                }
+                billingPatch = {
+                    billingError: error?.message || "RUNPOD_BILLING_QUERY_FAILED",
+                    ...providerHttpPatch(state, error)
+                };
             }
-            state = writeState(loaded.file, state, {
+            const releasePatch = {
                 phase: "TERMINATED",
                 releasedAt: now().toISOString(),
                 releaseReason: receipt.reason || null,
-                terminationVerified,
+                terminationVerified: terminated.terminationVerified,
                 gpuRentalSeconds: cost.seconds,
                 gpuRentalEstimatedCost: cost.estimatedCostUsd,
                 gpuRentalActualCost: actualCostUsd,
                 networkVolumeId: state.networkVolumeId || null,
-                networkVolumeRetained: Boolean(state.networkVolumeId)
-            });
+                networkVolumeRetained: Boolean(state.networkVolumeId),
+                ...billingPatch
+            };
+            state = { ...state, ...releasePatch, updatedAt: now().toISOString() };
+            try { if (loaded.file) state = writeState(loaded.file, state, {}); }
+            catch {}
             for (const sensitive of [state.privateKeyFile, state.publicKeyFile, state.knownHostsFile]) {
                 try { if (sensitive && fs.existsSync(sensitive)) fs.unlinkSync(sensitive); } catch {}
             }
@@ -3477,7 +3499,7 @@ export function createRunpodRemoteVideoAdapter({
                 provider: "runpod",
                 podId: state.podId,
                 remoteJobId: state.remoteJobId,
-                terminationVerified: true,
+                terminationVerified: terminated.terminationVerified,
                 gpuRentalSeconds: cost.seconds,
                 gpuRentalEstimatedCost: cost.estimatedCostUsd,
                 gpuRentalActualCost: actualCostUsd,
@@ -3486,11 +3508,14 @@ export function createRunpodRemoteVideoAdapter({
             };
         }
         catch(error) {
-            state = writeState(loaded.file, state, {
+            const releasePatch = {
                 phase: "RELEASE_FAILED",
                 releaseError: error?.message || "RUNPOD_POD_TERMINATION_FAILED",
                 ...providerHttpPatch(state, error)
-            });
+            };
+            state = { ...state, ...releasePatch, updatedAt: now().toISOString() };
+            try { if (loaded.file) state = writeState(loaded.file, state, {}); }
+            catch {}
             return {
                 ok: false,
                 status: "RUNPOD_POD_TERMINATION_FAILED",
@@ -3591,23 +3616,25 @@ export function createLocalVideoEngine({
         const runpodProvisioning = remoteWorker?.provider === "runpod" ||
             String(env.JARVIS_REMOTE_GPU_PROVIDER || "").trim().toLowerCase() === "runpod";
         if (runpodProvisioning && !podId) {
-            return {
-                ok: true,
-                operation: saveOperation(file, operation, {
+            const persisted = trySaveOperation(file, operation, {
+                gpuRentalSeconds: 0,
+                gpuRentalEstimatedCost: 0,
+                gpuRentalActualCost: 0,
+                workerRelease: {
+                    ok: true,
+                    status: "REMOTE_VIDEO_WORKER_NOT_PROVISIONED",
+                    reason,
+                    releasedAt: now().toISOString(),
+                    terminationVerified: true,
                     gpuRentalSeconds: 0,
                     gpuRentalEstimatedCost: 0,
-                    gpuRentalActualCost: 0,
-                    workerRelease: {
-                        ok: true,
-                        status: "REMOTE_VIDEO_WORKER_NOT_PROVISIONED",
-                        reason,
-                        releasedAt: now().toISOString(),
-                        terminationVerified: true,
-                        gpuRentalSeconds: 0,
-                        gpuRentalEstimatedCost: 0,
-                        gpuRentalActualCost: 0
-                    }
-                })
+                    gpuRentalActualCost: 0
+                }
+            });
+            return {
+                ok: persisted.error === null,
+                operation: persisted.operation,
+                ...(persisted.error ? { error: persisted.error } : {})
             };
         }
         const startedAt = Date.parse(String(
@@ -3625,21 +3652,22 @@ export function createLocalVideoEngine({
             : 0;
         if (typeof release !== "function") {
             const error = "REMOTE_VIDEO_WORKER_RELEASE_HANDLER_REQUIRED";
+            const persisted = trySaveOperation(file, operation, {
+                gpuRentalSeconds,
+                gpuRentalEstimatedCost,
+                gpuRentalActualCost: 0,
+                workerRelease: {
+                    ok: false,
+                    status: error,
+                    error,
+                    reason,
+                    releasedAt: null
+                }
+            });
             return {
                 ok: false,
-                operation: saveOperation(file, operation, {
-                    gpuRentalSeconds,
-                    gpuRentalEstimatedCost,
-                    gpuRentalActualCost: 0,
-                    workerRelease: {
-                        ok: false,
-                        status: error,
-                        error,
-                        reason,
-                        releasedAt: null
-                    }
-                }),
-                error
+                operation: persisted.operation,
+                error: persisted.error || error
             };
         }
         try {
@@ -3657,6 +3685,9 @@ export function createLocalVideoEngine({
             if (receipt?.ok !== true) {
                 throw new Error(receipt?.error || receipt?.status || "REMOTE_VIDEO_WORKER_RELEASE_FAILED");
             }
+            if (receipt?.podId && String(receipt.podId) !== String(podId)) {
+                throw new Error("REMOTE_VIDEO_WORKER_RELEASE_POD_ID_MISMATCH");
+            }
             const receiptSeconds = Number(receipt.gpuRentalSeconds);
             const receiptEstimatedCost = Number(receipt.gpuRentalEstimatedCost);
             const effectiveSeconds = Number.isFinite(receiptSeconds) ? receiptSeconds : gpuRentalSeconds;
@@ -3664,46 +3695,51 @@ export function createLocalVideoEngine({
                 ? receiptEstimatedCost
                 : gpuRentalEstimatedCost;
             const actualCost = Number(receipt.gpuRentalActualCost || receipt.actualCostUsd || 0);
-            return {
-                ok: true,
-                operation: saveOperation(file, operation, {
-                    workerRelease: {
-                        ok: true,
-                        status: receipt.status || "REMOTE_VIDEO_WORKER_RELEASED",
-                        reason,
-                        releasedAt: endedAt.toISOString(),
-                        receiptId: receipt.receiptId || null,
-                        provider: receipt.provider || operation.remoteWorker?.provider || null,
-                        podId: receipt.podId || operation.remoteWorker?.podId || null,
-                        terminationVerified: receipt.terminationVerified === true,
-                        gpuRentalSeconds: effectiveSeconds,
-                        gpuRentalEstimatedCost: effectiveEstimatedCost,
-                        gpuRentalActualCost: actualCost,
-                        networkVolumeId: receipt.networkVolumeId || operation.remoteWorker?.networkVolumeId || null,
-                        networkVolumeRetained: receipt.networkVolumeRetained === true
-                    },
+            const persisted = trySaveOperation(file, operation, {
+                workerRelease: {
+                    ok: true,
+                    status: receipt.status || "REMOTE_VIDEO_WORKER_RELEASED",
+                    reason,
+                    releasedAt: endedAt.toISOString(),
+                    receiptId: receipt.receiptId || null,
+                    provider: receipt.provider || operation.remoteWorker?.provider || null,
+                    podId,
+                    terminationVerified: receipt.terminationVerified === true,
                     gpuRentalSeconds: effectiveSeconds,
                     gpuRentalEstimatedCost: effectiveEstimatedCost,
-                    gpuRentalActualCost: actualCost
-                })
+                    gpuRentalActualCost: actualCost,
+                    networkVolumeId: receipt.networkVolumeId || operation.remoteWorker?.networkVolumeId || null,
+                    networkVolumeRetained: receipt.networkVolumeRetained === true
+                },
+                gpuRentalSeconds: effectiveSeconds,
+                gpuRentalEstimatedCost: effectiveEstimatedCost,
+                gpuRentalActualCost: actualCost
+            });
+            return {
+                ok: persisted.error === null,
+                operation: persisted.operation,
+                ...(persisted.error ? { error: persisted.error } : {})
             };
         }
         catch(error) {
+            const releaseError = error?.message || "REMOTE_VIDEO_WORKER_RELEASE_FAILED";
+            const persisted = trySaveOperation(file, operation, {
+                workerRelease: {
+                    ok: false,
+                    status: "REMOTE_VIDEO_WORKER_RELEASE_FAILED",
+                    error: releaseError,
+                    reason,
+                    releasedAt: null,
+                    podId
+                },
+                gpuRentalSeconds,
+                gpuRentalEstimatedCost,
+                gpuRentalActualCost: 0
+            });
             return {
                 ok: false,
-                operation: saveOperation(file, operation, {
-                    workerRelease: {
-                        ok: false,
-                        status: "REMOTE_VIDEO_WORKER_RELEASE_FAILED",
-                        error: error?.message || "REMOTE_VIDEO_WORKER_RELEASE_FAILED",
-                        reason,
-                        releasedAt: null
-                    },
-                    gpuRentalSeconds,
-                    gpuRentalEstimatedCost,
-                    gpuRentalActualCost: 0
-                }),
-                error: error?.message || "REMOTE_VIDEO_WORKER_RELEASE_FAILED"
+                operation: persisted.operation,
+                error: persisted.error || releaseError
             };
         }
     }
@@ -3730,6 +3766,37 @@ export function createLocalVideoEngine({
         return next;
     }
 
+    function trySaveOperation(file, operation, patch = {}) {
+        const next = { ...operation, ...patch, updatedAt: now().toISOString() };
+        try {
+            atomicJsonWrite(file, next);
+            return { operation: next, error: null };
+        }
+        catch(error) {
+            return {
+                operation: next,
+                error: error?.message || "LOCAL_VIDEO_EVIDENCE_CAPTURE_FAILED"
+            };
+        }
+    }
+
+    async function failOperationAndRelease(file, operation, patch, reason) {
+        const persisted = trySaveOperation(file, operation, patch);
+        const released = await releaseWorker(file, persisted.operation, reason);
+        if (!persisted.error) return released;
+        return {
+            ...released,
+            ok: false,
+            operation: {
+                ...released.operation,
+                state: "FAILED",
+                status: "LOCAL_VIDEO_EVIDENCE_CAPTURE_FAILED",
+                error: persisted.error
+            },
+            error: persisted.error
+        };
+    }
+
     function isOperationStale(operation) {
         const createdAt = Date.parse(String(operation.createdAt || ""));
         if (!Number.isFinite(createdAt)) return true;
@@ -3737,16 +3804,17 @@ export function createLocalVideoEngine({
         return ageMs > (localVideoTimeoutSeconds(env) + 60) * 1000;
     }
 
-    function failStaleOperation(file, operation) {
+    function failStaleOperation(operation) {
         const child = children.get(operation.operationId);
         try { if (child?.kill) child.kill(); } catch {}
         children.delete(operation.operationId);
-        return saveOperation(file, operation, {
+        return {
+            ...operation,
             state: "FAILED",
             status: "LOCAL_VIDEO_OPERATION_STALE",
             error: "LOCAL_VIDEO_OPERATION_STALE",
             retryable: true
-        });
+        };
     }
 
     function health() {
@@ -3978,16 +4046,19 @@ export function createLocalVideoEngine({
                     child.once("error", onError);
                 }
                 children.set(operation.operationId, child);
-                operation = saveOperation(operationPath, operation, {
+                operation = {
+                    ...operation,
                     pid: Number(child?.pid || 0) || null,
                     remoteWorker: child?.remoteWorker || null,
                     remoteJobId: child?.remoteWorker?.remoteJobId || null,
-                    podId: child?.remoteWorker?.podId || null
-                });
+                    podId: child?.remoteWorker?.podId || null,
+                    updatedAt: now().toISOString()
+                };
+                atomicJsonWrite(operationPath, operation);
                 return { operation, ok: true };
             }
             catch(error) {
-                operation = saveOperation(operationPath, operation, {
+                const released = await failOperationAndRelease(operationPath, operation, {
                     state: "FAILED",
                     status: "LOCAL_VIDEO_RUNNER_START_FAILED",
                     error: error?.message || "LOCAL_VIDEO_RUNNER_START_FAILED",
@@ -3996,10 +4067,7 @@ export function createLocalVideoEngine({
                     providerMessage: error?.providerMessage || null,
                     providerHttp: error?.providerHttp || null,
                     retryable: error?.retryable !== false
-                });
-                const released = await releaseWorker(
-                    operationPath,
-                    operation,
+                },
                     "runner_start_failed"
                 );
                 return { operation: released.operation, ok: false };
@@ -4220,7 +4288,7 @@ export function createLocalVideoEngine({
                     jobFile: operation.jobFile,
                     resultFile: operation.resultFile
                 });
-                operation = saveOperation(loaded.file, operation, {
+                const persisted = trySaveOperation(loaded.file, operation, {
                     remoteWorker: remote?.remoteWorker || operation.remoteWorker || null,
                     remoteJobId: remote?.remoteJobId || remote?.remoteWorker?.remoteJobId || operation.remoteJobId || null,
                     remotePoll: {
@@ -4229,9 +4297,19 @@ export function createLocalVideoEngine({
                         checkedAt: now().toISOString()
                     }
                 });
+                operation = persisted.operation;
+                if (persisted.error) {
+                    const released = await failOperationAndRelease(loaded.file, operation, {
+                        state: "FAILED",
+                        status: "LOCAL_VIDEO_EVIDENCE_CAPTURE_FAILED",
+                        error: persisted.error,
+                        retryable: false
+                    }, "evidence_capture_failed");
+                    return { ...released.operation, ok: false, done: true };
+                }
             }
             catch(error) {
-                operation = saveOperation(loaded.file, operation, {
+                const persisted = trySaveOperation(loaded.file, operation, {
                     remotePoll: {
                         status: "REMOTE_VIDEO_POLL_TRANSPORT_FAILED",
                         error: error?.message || "REMOTE_VIDEO_POLL_TRANSPORT_FAILED",
@@ -4239,14 +4317,25 @@ export function createLocalVideoEngine({
                         checkedAt: now().toISOString()
                     }
                 });
+                operation = persisted.operation;
+                if (persisted.error) {
+                    const released = await failOperationAndRelease(loaded.file, operation, {
+                        state: "FAILED",
+                        status: "LOCAL_VIDEO_EVIDENCE_CAPTURE_FAILED",
+                        error: persisted.error,
+                        retryable: false
+                    }, "evidence_capture_failed");
+                    return { ...released.operation, ok: false, done: true };
+                }
             }
         }
         if (!fs.existsSync(operation.resultFile)) {
             if (operation.state === "RUNNING" && isOperationStale(operation)) {
-                operation = failStaleOperation(loaded.file, operation);
-                const released = await releaseWorker(
+                operation = failStaleOperation(operation);
+                const released = await failOperationAndRelease(
                     loaded.file,
                     operation,
+                    {},
                     "operation_stale"
                 );
                 operation = released.operation;
@@ -4257,29 +4346,23 @@ export function createLocalVideoEngine({
         let result;
         try { result = readJson(operation.resultFile); }
         catch(error) {
-            operation = saveOperation(loaded.file, operation, {
+            const released = await failOperationAndRelease(loaded.file, operation, {
                 state: "FAILED",
                 status: "LOCAL_VIDEO_RESULT_INVALID",
                 error: error.message
-            });
-            const released = await releaseWorker(
-                loaded.file,
-                operation,
+            },
                 "result_invalid"
             );
             operation = released.operation;
             return { ...operation, ok: false, done: true };
         }
         if (result?.ok !== true) {
-            operation = saveOperation(loaded.file, operation, {
+            const released = await failOperationAndRelease(loaded.file, operation, {
                 state: "FAILED",
                 status: result?.status || "LOCAL_VIDEO_GENERATION_FAILED",
                 error: result?.error || result?.status || "LOCAL_VIDEO_GENERATION_FAILED",
                 retryable: result?.retryable === true
-            });
-            const released = await releaseWorker(
-                loaded.file,
-                operation,
+            },
                 "generation_failed"
             );
             operation = released.operation;
@@ -4351,11 +4434,14 @@ export function createLocalVideoEngine({
                 "generation_succeeded"
             );
             if (released.ok !== true) {
-                operation = saveOperation(loaded.file, released.operation, {
+                const persisted = trySaveOperation(loaded.file, released.operation, {
                     state: "FAILED",
-                    status: "REMOTE_VIDEO_WORKER_RELEASE_FAILED",
+                    status: released.operation?.workerRelease?.terminationVerified === true
+                        ? "LOCAL_VIDEO_EVIDENCE_CAPTURE_FAILED"
+                        : "REMOTE_VIDEO_WORKER_RELEASE_FAILED",
                     error: released.error
                 });
+                operation = persisted.operation;
                 return { ...operation, ok: false, done: true };
             }
             operation = released.operation;
@@ -4402,14 +4488,11 @@ export function createLocalVideoEngine({
             return finalVerified;
         }
         catch(error) {
-            operation = saveOperation(loaded.file, operation, {
+            const released = await failOperationAndRelease(loaded.file, operation, {
                 state: "FAILED",
                 status: error.message || "LOCAL_VIDEO_PHYSICAL_VERIFICATION_FAILED",
                 error: error.message || "LOCAL_VIDEO_PHYSICAL_VERIFICATION_FAILED"
-            });
-            const released = await releaseWorker(
-                loaded.file,
-                operation,
+            },
                 "physical_verification_failed"
             );
             operation = released.operation;
@@ -4430,13 +4513,10 @@ export function createLocalVideoEngine({
         }
         catch {}
         children.delete(loaded.operation.operationId);
-        const operation = saveOperation(loaded.file, loaded.operation, {
+        const released = await failOperationAndRelease(loaded.file, loaded.operation, {
             state: "CANCELLED",
             status: "LOCAL_VIDEO_GENERATION_CANCELLED"
-        });
-        const released = await releaseWorker(
-            loaded.file,
-            operation,
+        },
             "cancelled"
         );
         return {
