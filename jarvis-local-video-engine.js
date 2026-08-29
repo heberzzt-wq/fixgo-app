@@ -172,6 +172,7 @@ const RUNPOD_WAN22_CACHE_BASE = Object.freeze({
     requiredRuntimeModelBytes: 34201521212,
     workspaceReserveBytes: RUNPOD_WORKSPACE_RESERVE_BYTES,
     peakWorkspaceBytes: RUNPOD_PEAK_WORKSPACE_BYTES,
+    networkVolumeType: "STANDARD",
     minimumNetworkVolumeGb: 50,
     requiredFiles: Object.freeze([
         Object.freeze({ path: "Wan2.2_VAE.pth", bytes: 2818839170, sha256: "20eb789667fa5e60e7516bf509512f6cb61f01b0aa0695eadaea930c13892b36" }),
@@ -204,13 +205,13 @@ export const RUNPOD_WAN22_GPU_PROFILES = Object.freeze({
     "NVIDIA L40S": Object.freeze({
         ...RUNPOD_WAN22_CACHE_BASE,
         gpuTypeId: "NVIDIA L40S",
-        profile: "wan22-ti2v-5b-l40s-v1",
+        profile: "wan22-ti2v-5b-l40s-v2",
         computeCapability: "8.9",
         minimumVramGb: 48,
         minimumRamGb: 62,
         minimumVcpu: 16,
         expectedTotalHourlyRateUsd: 0.99,
-        requiredNetworkVolumeDataCenterId: "US-TX-3"
+        requiredNetworkVolumeDataCenterId: "EU-NL-1"
     })
 });
 
@@ -219,7 +220,7 @@ export const RUNPOD_CPU_STAGING_PROFILE = Object.freeze({
     computeType: "CPU",
     cpuFlavorId: "cpu3c",
     cpuFlavorPriority: "custom",
-    dataCenterId: "US-TX-3",
+    dataCenterId: "EU-NL-1",
     dataCenterPriority: "custom",
     registry: "registry-1.docker.io",
     repository: "library/ubuntu",
@@ -236,6 +237,8 @@ export const RUNPOD_CPU_STAGING_PROFILE = Object.freeze({
     interruptible: false,
     ports: Object.freeze(["22/tcp"]),
     supportPublicIp: true,
+    networkVolumeType: "STANDARD",
+    minimumNetworkVolumeGb: 50,
     networkVolumeMountPath: "/workspace",
     cacheStatus: "CACHE_MODEL_READY",
     runtimeStatus: "CACHE_RUNTIME_PHYSICALLY_UNVERIFIED",
@@ -1354,6 +1357,9 @@ export function createRunpodRemoteVideoAdapter({
 } = {}) {
     const resolvedRoot = path.resolve(root);
     const apiBase = String(env.JARVIS_RUNPOD_API_BASE || "https://rest.runpod.io/v1").replace(/\/$/, "");
+    const catalogApiBase = String(
+        env.JARVIS_RUNPOD_CATALOG_API_BASE || "https://api.runpod.io/v2/catalog"
+    ).replace(/\/$/, "");
     const graphQlBase = String(env.JARVIS_RUNPOD_GRAPHQL_URL || "https://api.runpod.io/graphql");
     const apiKey = typeof env.RUNPOD_API_KEY === "string" ? env.RUNPOD_API_KEY : "";
     const provider = String(env.JARVIS_REMOTE_GPU_PROVIDER || "").trim().toLowerCase();
@@ -1662,7 +1668,8 @@ export function createRunpodRemoteVideoAdapter({
         const id = String(networkVolume?.id || "").trim();
         const dataCenterId = String(networkVolume?.dataCenterId || "").trim();
         const sizeGb = Number(networkVolume?.sizeGb || 0);
-        if (id !== networkVolumeId || !dataCenterId || !Number.isFinite(sizeGb)) {
+        const type = String(networkVolume?.type || networkVolume?.volumeType || "").trim().toUpperCase();
+        if (id !== networkVolumeId || !dataCenterId || !Number.isFinite(sizeGb) || !type) {
             throw new Error("RUNPOD_NETWORK_VOLUME_RESPONSE_INVALID");
         }
         if (sizeGb < cacheContract.minimumNetworkVolumeGb) {
@@ -1674,7 +1681,10 @@ export function createRunpodRemoteVideoAdapter({
         ) {
             throw new Error("RUNPOD_GPU_NETWORK_VOLUME_DATACENTER_NOT_APPROVED");
         }
-        return { id, dataCenterId, sizeGb };
+        if (type !== cacheContract.networkVolumeType) {
+            throw new Error("RUNPOD_NETWORK_VOLUME_TYPE_NOT_APPROVED");
+        }
+        return { id, dataCenterId, sizeGb, type };
     }
 
     function buildProvisionBody(job, publicKey, networkVolume = null) {
@@ -1754,7 +1764,7 @@ export function createRunpodRemoteVideoAdapter({
                 if (
                     availability.gpuTypeId !== gpuTypeId ||
                     Number(availability.vramGb || 0) < cacheContract.minimumVramGb ||
-                    !["High", "Medium", "Low"].includes(String(availability.stockStatus || "")) ||
+                    !["HIGH", "MEDIUM", "LOW"].includes(String(availability.stockStatus || "").toUpperCase()) ||
                     !Number.isFinite(Number(availability.hourlyRateUsd)) || Number(availability.hourlyRateUsd) <= 0
                 ) {
                     throw new Error("RUNPOD_COMPATIBLE_GPU_UNAVAILABLE");
@@ -1886,11 +1896,12 @@ export function createRunpodRemoteVideoAdapter({
             if (requestedContainerDiskGb > RUNPOD_CPU_STAGING_PROFILE.maximumContainerDiskGb) {
                 throw new Error("RUNPOD_CPU_CONTAINER_DISK_EXCEEDS_PROVIDER_LIMIT");
             }
-            const documentedStock = new Set(["High", "Medium", "Low"]);
-            if (stockStatus !== null && !documentedStock.has(String(stockStatus))) {
+            const documentedStock = new Set(["HIGH", "MEDIUM", "LOW"]);
+            const normalizedStockStatus = stockStatus === null ? null : String(stockStatus).toUpperCase();
+            if (normalizedStockStatus !== null && !documentedStock.has(normalizedStockStatus)) {
                 throw new Error("RUNPOD_CPU_STAGING_STOCK_CONTRACT_AMBIGUOUS");
             }
-            const liveCapacityConfirmed = documentedStock.has(String(stockStatus));
+            const liveCapacityConfirmed = documentedStock.has(normalizedStockStatus);
             const payload = {
                 cloudType: RUNPOD_CPU_STAGING_PROFILE.cloudType,
                 computeType: RUNPOD_CPU_STAGING_PROFILE.computeType,
@@ -1916,7 +1927,7 @@ export function createRunpodRemoteVideoAdapter({
                 paidResourceCreationAuthorized: false,
                 resourceCreationPossible: false,
                 liveCapacityConfirmed,
-                stockStatus,
+                stockStatus: normalizedStockStatus,
                 payload,
                 economics: {
                     hourlyRateUsd: securePriceUsdPerHour,
@@ -1932,6 +1943,9 @@ export function createRunpodRemoteVideoAdapter({
                 },
                 contract: {
                     maximumContainerDiskGb: RUNPOD_CPU_STAGING_PROFILE.maximumContainerDiskGb,
+                    dataCenterId: RUNPOD_CPU_STAGING_PROFILE.dataCenterId,
+                    networkVolumeType: RUNPOD_CPU_STAGING_PROFILE.networkVolumeType,
+                    minimumNetworkVolumeGb: RUNPOD_CPU_STAGING_PROFILE.minimumNetworkVolumeGb,
                     supportedVcpuCounts: [...RUNPOD_CPU_STAGING_PROFILE.supportedVcpuCounts],
                     ramGbPerVcpu: RUNPOD_CPU_STAGING_PROFILE.ramGbPerVcpu,
                     provisionImageTag: RUNPOD_CPU_STAGING_PROFILE.provisionImageTag,
@@ -2206,7 +2220,7 @@ export function createRunpodRemoteVideoAdapter({
         const gpu = payload?.data?.gpuTypes?.[0];
         const price = gpu?.lowestPrice || {};
         const stockStatus = String(price.stockStatus || "").trim();
-        const documentedAvailableStock = new Set(["High", "Medium", "Low"]);
+        const documentedAvailableStock = new Set(["HIGH", "MEDIUM", "LOW"]);
         const availableGpuCounts = price.availableGpuCounts;
         const requestedCountAvailable = availableGpuCounts == null
             ? true
@@ -2214,7 +2228,7 @@ export function createRunpodRemoteVideoAdapter({
         if (
             gpu?.id !== gpuTypeId ||
             Number(gpu?.memoryInGb || 0) < cacheContract.minimumVramGb ||
-            !documentedAvailableStock.has(stockStatus) ||
+            !documentedAvailableStock.has(stockStatus.toUpperCase()) ||
             !requestedCountAvailable
         ) {
             throw new Error("RUNPOD_COMPATIBLE_GPU_UNAVAILABLE");
@@ -2228,7 +2242,7 @@ export function createRunpodRemoteVideoAdapter({
                 .find(item => String(item?.id || "") === dataCenterId);
             const candidate = (Array.isArray(dataCenter?.gpuAvailability) ? dataCenter.gpuAvailability : [])
                 .find(item => String(item?.gpuTypeId || "") === gpuTypeId);
-            if (!dataCenter || candidate?.available !== true || !documentedAvailableStock.has(String(candidate.stockStatus || ""))) {
+            if (!dataCenter || candidate?.available !== true || !documentedAvailableStock.has(String(candidate.stockStatus || "").toUpperCase())) {
                 throw new Error("RUNPOD_NETWORK_VOLUME_DATACENTER_GPU_UNAVAILABLE");
             }
         }
@@ -2265,7 +2279,23 @@ export function createRunpodRemoteVideoAdapter({
         ) {
             throw new Error("RUNPOD_GPU_NETWORK_VOLUME_DATACENTER_NOT_APPROVED");
         }
-        return { id, dataCenterId, sizeGb };
+        const dataCenter = await apiRequest(
+            `${catalogApiBase}/datacenters/${encodeURIComponent(dataCenterId)}?include=CPU_AVAILABILITY`,
+            { method: "GET" },
+            [200],
+            "network_volume_datacenter",
+            operationId
+        );
+        const networkVolumeTypes = Array.isArray(dataCenter?.networkVolumeTypes)
+            ? dataCenter.networkVolumeTypes.map(type => String(type || "").trim().toUpperCase())
+            : null;
+        if (String(dataCenter?.id || "").trim() !== dataCenterId || !networkVolumeTypes) {
+            throw new Error("RUNPOD_NETWORK_VOLUME_DATACENTER_RESPONSE_INVALID");
+        }
+        if (!networkVolumeTypes.includes(cacheContract.networkVolumeType)) {
+            throw new Error("RUNPOD_NETWORK_VOLUME_TYPE_NOT_APPROVED");
+        }
+        return { id, dataCenterId, sizeGb, type: cacheContract.networkVolumeType };
     }
 
     async function assertNoExistingOperationPod(job) {

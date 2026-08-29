@@ -152,7 +152,8 @@ function runpodPhysicalHarness({
     gpuTypeId = "NVIDIA A40",
     networkVolumeId = "",
     networkVolumeSizeGb = 50,
-    networkVolumeDataCenterId = gpuTypeId === "NVIDIA L40S" ? "US-TX-3" : "CA-MTL-1",
+    networkVolumeDataCenterId = gpuTypeId === "NVIDIA L40S" ? "EU-NL-1" : "CA-MTL-1",
+    networkVolumeType = "STANDARD",
     bootstrapProgressSequence = [],
     baseHealthOverrides = {},
     runtimeHealthOverrides = {},
@@ -296,11 +297,18 @@ function runpodPhysicalHarness({
             }
             return mockHttpResponse(200, []);
         }
+        if (String(url).includes("/v2/catalog/datacenters/") && (options.method || "GET") === "GET") {
+            return mockHttpResponse(200, {
+                id: networkVolumeDataCenterId,
+                networkVolumeTypes: [networkVolumeType]
+            });
+        }
         if (String(url).includes("/networkvolumes/") && (options.method || "GET") === "GET") {
             return mockHttpResponse(200, {
                 id: networkVolumeId,
                 dataCenterId: networkVolumeDataCenterId,
-                size: networkVolumeSizeGb
+                size: networkVolumeSizeGb,
+                type: networkVolumeType
             });
         }
         if (String(url).endsWith("/pods") && options.method === "POST") {
@@ -569,7 +577,8 @@ test("V142 RunPod zero-cost dry run exposes the exact sanitized future Pod paylo
         networkVolume: {
             id: "future-network-volume-v142",
             dataCenterId: "CA-MTL-1",
-            sizeGb: 50
+            sizeGb: 50,
+            type: "STANDARD"
         },
         availability: {
             gpuTypeId: "NVIDIA A40",
@@ -599,7 +608,7 @@ test("V142 RunPod zero-cost dry run exposes the exact sanitized future Pod paylo
     assert.equal(harness.calls.length, 0);
 });
 
-test("V142 RunPod accepts only the explicitly selected L40S 48GB / CC 8.9 profile in US-TX-3", () => {
+test("V142 RunPod accepts only the explicitly selected L40S 48GB / CC 8.9 profile in EU-NL-1", () => {
     const volumeId = "future-network-volume-l40s-v142";
     const harness = runpodPhysicalHarness({
         scenario: "l40s-zero-cost-dry-run",
@@ -610,22 +619,22 @@ test("V142 RunPod accepts only the explicitly selected L40S 48GB / CC 8.9 profil
     const report = harness.adapter.inspectZeroCostPrecheck({
         job: harness.dryRunJob,
         registryVerification: harness.gpuRegistryVerification,
-        networkVolume: { id: volumeId, dataCenterId: "US-TX-3", sizeGb: 50 },
+        networkVolume: { id: volumeId, dataCenterId: "EU-NL-1", sizeGb: 50, type: "STANDARD" },
         availability: {
             gpuTypeId: "NVIDIA L40S",
             vramGb: 48,
             hourlyRateUsd: 0.99,
-            stockStatus: "Low"
+            stockStatus: "LOW"
         }
     });
     assert.equal(report.ok, true, JSON.stringify(report));
     assert.deepEqual(report.payload.gpuTypeIds, ["NVIDIA L40S"]);
-    assert.deepEqual(report.payload.dataCenterIds, ["US-TX-3"]);
+    assert.deepEqual(report.payload.dataCenterIds, ["EU-NL-1"]);
     assert.equal(report.payload.minRAMPerGPU, 62);
     assert.equal(report.payload.minVCPUPerGPU, 16);
     assert.equal(report.contract.gpuTypeId, "NVIDIA L40S");
     assert.equal(report.contract.computeCapability, "8.9");
-    assert.equal(report.cache.profile, "wan22-ti2v-5b-l40s-v1");
+    assert.equal(report.cache.profile, "wan22-ti2v-5b-l40s-v2");
     assert.equal(report.paidResourceCreationAuthorized, false);
     assert.equal(harness.calls.length, 0);
 });
@@ -647,19 +656,19 @@ test("V142 RunPod never substitutes A40 or another GPU for an explicitly authori
     }
 });
 
-test("V142 L40S Network Volume is pinned to US-TX-3 before any paid request", () => {
+test("V142 L40S Network Volume is pinned to EU-NL-1 before any paid request", () => {
     const volumeId = "network-volume-l40s-wrong-dc";
     const harness = runpodPhysicalHarness({
         scenario: "l40s-wrong-datacenter",
         gpuTypeId: "NVIDIA L40S",
         networkVolumeId: volumeId,
-        networkVolumeDataCenterId: "EU-NL-1",
+        networkVolumeDataCenterId: "US-TX-3",
         envOverrides: { JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false" }
     });
     const report = harness.adapter.inspectZeroCostPrecheck({
         job: harness.dryRunJob,
         registryVerification: harness.gpuRegistryVerification,
-        networkVolume: { id: volumeId, dataCenterId: "EU-NL-1", sizeGb: 50 },
+        networkVolume: { id: volumeId, dataCenterId: "US-TX-3", sizeGb: 50, type: "STANDARD" },
         availability: {
             gpuTypeId: "NVIDIA L40S",
             vramGb: 48,
@@ -672,8 +681,8 @@ test("V142 L40S Network Volume is pinned to US-TX-3 before any paid request", ()
     assert.equal(harness.calls.length, 0);
 });
 
-test("V142 CPU staging in US-TX-3 can prepare model bytes but cannot certify GPU runtime", () => {
-    const volumeId = "hvjazpozb6";
+test("V142 CPU staging in EU-NL-1 can prepare model bytes but cannot certify GPU runtime", () => {
+    const volumeId = "network-volume-eu-nl-1-v142";
     const harness = runpodPhysicalHarness({
         scenario: "cpu-staging-read-only",
         gpuTypeId: "NVIDIA L40S",
@@ -682,19 +691,19 @@ test("V142 CPU staging in US-TX-3 can prepare model bytes but cannot certify GPU
     });
     const report = harness.adapter.inspectCpuStagingPrecheck({
         registryVerification: harness.cpuRegistryVerification,
-        networkVolume: { id: volumeId, dataCenterId: "US-TX-3", sizeGb: 50 },
+        networkVolume: { id: volumeId, dataCenterId: "EU-NL-1", sizeGb: 50, type: "STANDARD" },
         inventory: {
             cpuFlavorId: "cpu3c",
-            dataCenterId: "US-TX-3",
+            dataCenterId: "EU-NL-1",
             minimumVcpu: 2,
             ramMultiplier: 2,
             securePriceUsdPerHour: 0.06,
-            stockStatus: null
+            stockStatus: "HIGH"
         }
     });
     assert.equal(report.ok, true, JSON.stringify(report));
-    assert.equal(report.status, "CPU_STAGING_COMPATIBLE_CAPACITY_UNCONFIRMED");
-    assert.equal(report.liveCapacityConfirmed, false);
+    assert.equal(report.status, "CPU_STAGING_AVAILABLE_READ_ONLY");
+    assert.equal(report.liveCapacityConfirmed, true);
     assert.equal(report.resourceCreationPossible, false);
     assert.equal(report.paidResourceCreationAuthorized, false);
     assert.deepEqual(report.payload, {
@@ -703,7 +712,7 @@ test("V142 CPU staging in US-TX-3 can prepare model bytes but cannot certify GPU
         containerDiskInGb: 20,
         cpuFlavorIds: ["cpu3c"],
         cpuFlavorPriority: "custom",
-        dataCenterIds: ["US-TX-3"],
+        dataCenterIds: ["EU-NL-1"],
         dataCenterPriority: "custom",
         imageName: "ubuntu:22.04",
         interruptible: false,
@@ -733,13 +742,62 @@ test("V142 CPU staging in US-TX-3 can prepare model bytes but cannot certify GPU
     assert.equal(RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].computeCapability, "8.9");
     assert.equal(report.contract.registryVerification.status, "REGISTRY_DIGEST_VERIFIED");
     assert.equal(report.contract.maximumContainerDiskGb, 20);
+    assert.equal(report.contract.dataCenterId, "EU-NL-1");
+    assert.equal(report.contract.networkVolumeType, "STANDARD");
+    assert.equal(report.contract.minimumNetworkVolumeGb, 50);
     assert.deepEqual(report.contract.supportedVcpuCounts, [1, 2, 4, 8]);
     assert.equal(report.contract.ramGbPerVcpu, 2);
     assert.equal(harness.calls.length, 0);
 });
 
+test("V142 CPU staging fails closed for the retired datacenter, undersized volume, or non-standard volume", async t => {
+    const cases = [
+        [
+            "retired US-TX-3 datacenter",
+            { dataCenterId: "US-TX-3", sizeGb: 50, type: "STANDARD" },
+            "RUNPOD_GPU_NETWORK_VOLUME_DATACENTER_NOT_APPROVED"
+        ],
+        [
+            "volume smaller than 50 GB",
+            { dataCenterId: "EU-NL-1", sizeGb: 49, type: "STANDARD" },
+            "RUNPOD_NETWORK_VOLUME_CAPACITY_INSUFFICIENT"
+        ],
+        [
+            "non-standard volume",
+            { dataCenterId: "EU-NL-1", sizeGb: 50, type: "EXPRESS" },
+            "RUNPOD_NETWORK_VOLUME_TYPE_NOT_APPROVED"
+        ]
+    ];
+    for (const [name, volume, expectedError] of cases) {
+        await t.test(name, () => {
+            const volumeId = `network-volume-${name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
+            const harness = runpodPhysicalHarness({
+                scenario: `cpu-staging-${name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`,
+                gpuTypeId: "NVIDIA L40S",
+                networkVolumeId: volumeId,
+                envOverrides: { JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false" }
+            });
+            const report = harness.adapter.inspectCpuStagingPrecheck({
+                registryVerification: harness.cpuRegistryVerification,
+                networkVolume: { id: volumeId, ...volume },
+                inventory: {
+                    cpuFlavorId: "cpu3c",
+                    dataCenterId: "EU-NL-1",
+                    minimumVcpu: 2,
+                    ramMultiplier: 2,
+                    securePriceUsdPerHour: 0.06,
+                    stockStatus: "HIGH"
+                }
+            });
+            assert.equal(report.ok, false, JSON.stringify(report));
+            assert.equal(report.error, expectedError);
+            assert.equal(harness.calls.length, 0);
+        });
+    }
+});
+
 test("V142 CPU3C container disk provider limit blocks the physical 30 GB incident before POST", () => {
-    const volumeId = "hvjazpozb6";
+    const volumeId = "network-volume-eu-nl-1-disk-v142";
     const harness = runpodPhysicalHarness({
         scenario: "cpu3c-container-disk-provider-limit",
         gpuTypeId: "NVIDIA L40S",
@@ -749,10 +807,10 @@ test("V142 CPU3C container disk provider limit blocks the physical 30 GB inciden
     const precheck = containerDiskInGb => harness.adapter.inspectCpuStagingPrecheck({
         containerDiskInGb,
         registryVerification: harness.cpuRegistryVerification,
-        networkVolume: { id: volumeId, dataCenterId: "US-TX-3", sizeGb: 50 },
+        networkVolume: { id: volumeId, dataCenterId: "EU-NL-1", sizeGb: 50, type: "STANDARD" },
         inventory: {
             cpuFlavorId: "cpu3c",
-            dataCenterId: "US-TX-3",
+            dataCenterId: "EU-NL-1",
             minimumVcpu: 2,
             ramMultiplier: 2,
             securePriceUsdPerHour: 0.06,
@@ -796,7 +854,7 @@ test("V142 CPU model-ready cache remains physically unverified and never becomes
     const report = harness.adapter.inspectZeroCostPrecheck({
         job: harness.dryRunJob,
         registryVerification: harness.gpuRegistryVerification,
-        networkVolume: { id: volumeId, dataCenterId: "US-TX-3", sizeGb: 50 },
+        networkVolume: { id: volumeId, dataCenterId: "EU-NL-1", sizeGb: 50, type: "STANDARD" },
         availability: {
             gpuTypeId: "NVIDIA L40S",
             vramGb: 48,
@@ -813,7 +871,7 @@ test("V142 CPU runtime identity gates cache writes without certifying CUDA or in
     const harness = runpodPhysicalHarness({
         scenario: "cpu-runtime-identity",
         gpuTypeId: "NVIDIA L40S",
-        networkVolumeId: "hvjazpozb6",
+        networkVolumeId: "network-volume-eu-nl-1-runtime-v142",
         envOverrides: { JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false" }
     });
     const healthy = harness.adapter.inspectCpuStagingRuntimeIdentity({
@@ -919,7 +977,8 @@ test("V142 RunPod zero-cost precheck fails closed on every static pre-Pod contra
                     networkVolume: {
                         id: options.networkVolumeId,
                         dataCenterId: "CA-MTL-1",
-                        sizeGb: 40
+                        sizeGb: 40,
+                        type: "STANDARD"
                     }
                 } : {})
             });
@@ -1134,7 +1193,7 @@ test("V142 L40S physical mock requires exact CC 8.9, 48GB and a working FlashAtt
         assert.equal(completed.status, "VIDEO_GENERATED_VERIFIED");
         assert.equal(completed.verifiedArtifactDelivery, true);
         assert.deepEqual(harness.createdBody.gpuTypeIds, ["NVIDIA L40S"]);
-        assert.deepEqual(harness.createdBody.dataCenterIds, ["US-TX-3"]);
+        assert.deepEqual(harness.createdBody.dataCenterIds, ["EU-NL-1"]);
         assert.equal(harness.createdBody.minRAMPerGPU, 62);
         assert.equal(harness.createdBody.minVCPUPerGPU, 16);
         assert.equal(harness.deleted, true);
@@ -1221,6 +1280,23 @@ test("V142 RunPod rejects an undersized or ambiguous Network Volume before creat
     assert.equal(started.ok, false, JSON.stringify(started));
     assert.equal(started.error, "RUNPOD_NETWORK_VOLUME_CAPACITY_INSUFFICIENT");
     assert.equal(harness.createdBody, null);
+});
+
+test("V142 RunPod verifies STANDARD support from the authenticated datacenter catalog before POST", async () => {
+    const harness = runpodPhysicalHarness({
+        scenario: "network-volume-type-not-approved",
+        gpuTypeId: "NVIDIA L40S",
+        networkVolumeId: "network-volume-non-standard",
+        networkVolumeType: "EXPRESS"
+    });
+    const started = await harness.engine.start(harness.payload);
+    assert.equal(started.ok, false, JSON.stringify(started));
+    assert.equal(started.error, "RUNPOD_NETWORK_VOLUME_TYPE_NOT_APPROVED");
+    assert.equal(harness.createdBody, null);
+    assert.equal(
+        harness.calls.some(call => call.method === "POST" && call.url.endsWith("/pods")),
+        false
+    );
 });
 
 test("V142 RunPod persists cache progress and only promotes a validated cache to ready/hit", async () => {
@@ -1334,7 +1410,8 @@ test("V142 cache recovery survives a new runtime without changing the durable ob
         networkVolume: {
             id: "network-volume-cache-runtime",
             dataCenterId: "CA-MTL-1",
-            sizeGb: 50
+            sizeGb: 50,
+            type: "STANDARD"
         },
         availability: {
             gpuTypeId: "NVIDIA A40",

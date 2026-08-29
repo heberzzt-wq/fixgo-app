@@ -113,7 +113,7 @@ JARVIS_REMOTE_GPU_PROVIDER=runpod
 RUNPOD_API_KEY=<server-side secret>
 JARVIS_RUNPOD_GPU_TYPE_ID=NVIDIA L40S
 JARVIS_RUNPOD_CLOUD_TYPE=SECURE
-JARVIS_RUNPOD_NETWORK_VOLUME_ID=<existing-volume-in-US-TX-3>
+JARVIS_RUNPOD_NETWORK_VOLUME_ID=<existing-standard-50gb-volume-in-EU-NL-1>
 JARVIS_LOCAL_VIDEO_EXECUTION_TARGET=remote
 JARVIS_VIDEO_ENGINE_POLICY=LOCAL_TEST
 JARVIS_LOCAL_VIDEO_MODEL=wan22-ti2v-5b
@@ -195,7 +195,7 @@ For a persistent network volume, the sanitized future body is equivalent to:
   "supportPublicIp": true,
   "name": "jarvis-v142-<durable-obligation-prefix>",
   "networkVolumeId": "<existing-verified-volume-id>",
-  "dataCenterIds": ["US-TX-3"],
+  "dataCenterIds": ["EU-NL-1"],
   "env": {
     "PUBLIC_KEY": "[EPHEMERAL_PUBLIC_KEY]",
     "JARVIS_OPERATION_ID": "<durable-operation-id>",
@@ -242,7 +242,8 @@ reuse `CACHE_READY` only after repeating physical verification.
 
 The cache profile is GPU-specific even though the model bytes and pinned
 repository revisions are shared. `wan22-ti2v-5b-a40-v2` requires CC 8.6;
-`wan22-ti2v-5b-l40s-v1` requires CC 8.9. An A40 manifest or a FlashAttention
+`wan22-ti2v-5b-l40s-v2` requires CC 8.9 and a STANDARD volume in EU-NL-1.
+An A40 manifest or a FlashAttention
 binary that only works on sm_86 cannot become an L40S cache hit. The L40S
 physical preflight imports FlashAttention and executes `flash_attn_func` on
 CUDA before it can set `CACHE_READY` or `CACHE_HIT`.
@@ -255,11 +256,17 @@ GPU profile: RunPod's official `runpodctl` documentation demonstrates
 `ubuntu:22.04` for CPU Pods, and V142 requires that tag to resolve to
 `sha256:2edbbc5dc405e9612ba3584ce95480277e3eb374407b5505fe26f17df77c7dbc`
 before a future creation can be considered. The current candidate is `cpu3c`
-in `US-TX-3`, 2 vCPU, 4 GB RAM, with Network Volume `hvjazpozb6` mounted at
-`/workspace`. RunPod's authenticated flavor query exposes USD 0.06/hour but
-does not expose CPU stock (`stockStatus=null`). Therefore the report is
-`CPU_STAGING_COMPATIBLE_CAPACITY_UNCONFIRMED`, keeps resource creation disabled,
-and a later paid authority must let RunPod decide actual placement.
+in `EU-NL-1`, 2 vCPU, 4 GB RAM, with the runtime-selected STANDARD 50 GB
+Network Volume mounted at `/workspace`. Its ID remains process configuration in
+`JARVIS_RUNPOD_NETWORK_VOLUME_ID`; it is never compiled into the adapter.
+Before a future `POST /pods`, the authenticated provider receipt must match
+that exact ID, `EU-NL-1`, and at least 50 GB. RunPod's V1 Network Volume
+response does not expose a per-volume type field, so the adapter does not
+invent one: it separately requires the authenticated V2 datacenter catalog to
+list `STANDARD` in `networkVolumeTypes` for the same `EU-NL-1` datacenter.
+Only that joined evidence satisfies the STANDARD contract. The current
+authenticated catalog snapshot reports `cpu3c` HIGH at USD 0.06/hour, but a
+fresh read-only check remains mandatory and never authorizes creation by itself.
 
 The physical CPU provisioning attempt on 2026-08-28 returned HTTP 500 with
 `Container Disk must be less than or equal to 20` (provider request
@@ -291,11 +298,11 @@ The sanitized CPU dry-run is:
   "containerDiskInGb": 20,
   "cpuFlavorIds": ["cpu3c"],
   "cpuFlavorPriority": "custom",
-  "dataCenterIds": ["US-TX-3"],
+  "dataCenterIds": ["EU-NL-1"],
   "dataCenterPriority": "custom",
   "imageName": "ubuntu:22.04",
   "interruptible": false,
-  "networkVolumeId": "hvjazpozb6",
+  "networkVolumeId": "<JARVIS_RUNPOD_NETWORK_VOLUME_ID>",
   "ports": ["22/tcp"],
   "supportPublicIp": true,
   "vcpuCount": 2,
