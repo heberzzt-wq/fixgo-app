@@ -29,7 +29,7 @@ permissions:
   contents: read
 
 env:
-  V142_REEL_MASTER_BASE_SHA: ec2943fe750e481f4907a4adf6e5bb446489635e
+  V142_REEL_MASTER_BASE_SHA: ffb83de3360b64a07655fb8d01bb26caae8998e4
 
 jobs:
   certify-v138:

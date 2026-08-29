@@ -54,8 +54,8 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test "$(git branch -r --contains HEAD | grep -c 'origin/v94-media-v4n-negative-claims')" -ge 1
-          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
-          ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..HEAD | grep -E '^multiservicios-web/'
+          ! git diff --name-only ffb83de3360b64a07655fb8d01bb26caae8998e4..HEAD | grep -E '^functions/'
+          ! git diff --name-only ffb83de3360b64a07655fb8d01bb26caae8998e4..HEAD | grep -E '^multiservicios-web/'
           ! grep -Fq 'terminalBrainRoute' gestia-core/gestia-core.js
           ! grep -Fq 'terminalBrainRoute' gestia-terminal.html
           grep -Fq 'export function isGestiaMasterIdentity' gestia-core/auth/role-authority.js
@@ -117,9 +117,9 @@ jobs:
         shell: pwsh
         run: |
           if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw 'WRONG_SHA' }
-          $changedFunctions = git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD
+          $changedFunctions = git diff --name-only ffb83de3360b64a07655fb8d01bb26caae8998e4..HEAD
           if ($changedFunctions -match '^functions/') { throw 'FUNCTIONS_CHANGED' }
-          $changedMulti = git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..HEAD
+          $changedMulti = git diff --name-only ffb83de3360b64a07655fb8d01bb26caae8998e4..HEAD
           if ($changedMulti -match '^multiservicios-web/') { throw 'MULTISERVICIOS_CHANGED' }
           if (Select-String -LiteralPath 'gestia-core/gestia-core.js' -SimpleMatch 'terminalBrainRoute' -Quiet) { throw 'ORPHAN_CORE_ROUTE_PRESENT' }
           if (-not (Select-String -LiteralPath 'gestia-core/auth/role-authority.js' -SimpleMatch 'master_authenticated_email_is_primary_authority' -Quiet)) { throw 'MASTER_ROLE_AUTHORITY_MISSING' }
@@ -196,8 +196,8 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..HEAD | grep -E '^functions/'
-          ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..HEAD | grep -E '^multiservicios-web/'
+          ! git diff --name-only ffb83de3360b64a07655fb8d01bb26caae8998e4..HEAD | grep -E '^functions/'
+          ! git diff --name-only ffb83de3360b64a07655fb8d01bb26caae8998e4..HEAD | grep -E '^multiservicios-web/'
 
       - name: Build isolated Hosting config
         shell: bash

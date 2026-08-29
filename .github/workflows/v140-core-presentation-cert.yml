@@ -47,8 +47,8 @@ jobs:
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817.."$GITHUB_SHA" | grep -E '^functions/'
-          ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52.."$GITHUB_SHA" | grep -E '^multiservicios-web/'
+          ! git diff --name-only ffb83de3360b64a07655fb8d01bb26caae8998e4.."$GITHUB_SHA" | grep -E '^functions/'
+          ! git diff --name-only ffb83de3360b64a07655fb8d01bb26caae8998e4.."$GITHUB_SHA" | grep -E '^multiservicios-web/'
           changed="$(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA")"
           echo "$changed"
           ! echo "$changed" | grep -E '^functions/'
@@ -99,9 +99,9 @@ jobs:
         run: |
           if ($env:GITHUB_REF_NAME -ne 'v94-media-v4n-negative-claims') { throw 'WRONG_BRANCH' }
           if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw 'WRONG_SHA' }
-          $functionsChanged = git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817..$env:GITHUB_SHA
+          $functionsChanged = git diff --name-only ffb83de3360b64a07655fb8d01bb26caae8998e4..$env:GITHUB_SHA
           if ($functionsChanged -match '^functions/') { throw 'FUNCTIONS_CHANGED' }
-          $multiserviciosChanged = git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52..$env:GITHUB_SHA
+          $multiserviciosChanged = git diff --name-only ffb83de3360b64a07655fb8d01bb26caae8998e4..$env:GITHUB_SHA
           if ($multiserviciosChanged -match '^multiservicios-web/') { throw 'MULTISERVICIOS_CHANGED' }
 
       - name: Attach commit to expected local branch identity
@@ -172,8 +172,8 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          ! git diff --name-only 09d7333bc7b6f86d9698c0a69c8c94e1e0717817.."$GITHUB_SHA" | grep -E '^functions/'
-          ! git diff --name-only 2d58a795a1e81a0adc5301bf958f80c604f8ef52.."$GITHUB_SHA" | grep -E '^multiservicios-web/'
+          ! git diff --name-only ffb83de3360b64a07655fb8d01bb26caae8998e4.."$GITHUB_SHA" | grep -E '^functions/'
+          ! git diff --name-only ffb83de3360b64a07655fb8d01bb26caae8998e4.."$GITHUB_SHA" | grep -E '^multiservicios-web/'
 
       - name: Build isolated single-site Hosting config
         shell: bash
