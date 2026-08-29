@@ -166,10 +166,10 @@ The adapter separates two evidence levels:
 
 | `ZERO_COST_PRECHECK` (before credentials or billable creation) | `PHYSICAL_PAID_PREFLIGHT` (only after one Pod exists) |
 | --- | --- |
-| Canonical Git SHA equals the configured SHA and bridge identity is `BRIDGE_IDENTITY_OK`. | The allocated GPU exactly matches the explicitly authorized A40/CC 8.6 or L40S/CC 8.9 profile and has at least 48 GB VRAM. |
+| Canonical Git SHA equals the configured SHA and bridge identity is `BRIDGE_IDENTITY_OK`. | The allocated GPU exactly matches the single current L40S/CC 8.9 profile in EU-NL-1 and has at least 48 GB VRAM. |
 | Policy is exactly `LOCAL_TEST`, backend is exactly `wan22-ti2v-5b`, and external fallback is forbidden. | CUDA, NVCC, Python 3.12, PyTorch 2.8/CUDA 12.8, FFmpeg, and FlashAttention work on that Pod. |
 | The approved image tag resolves read-only to its expected registry digest; the Wan repo revision, model revision, requirements SHA, and every required model file are immutable. | Required Python imports, `pip check`, a real CUDA tensor operation, and offline `generate.py --help` pass. |
-| Durable identity, reference bytes/SHA, local duplicate-obligation state, explicit GPU request, volume/data-center contract, exact budget, and the sanitized Pod body are valid. | The mounted cache and every physical model file match the manifest; FlashAttention must execute a real CUDA kernel on the selected compute capability. |
+| Durable identity, reference bytes/SHA, local duplicate-obligation state, explicit GPU request, volume/data-center configuration, exact budget, and the sanitized Pod body are valid. | The mounted cache and every physical model file match the current authority; the manifest records observations, and FlashAttention must execute a real CUDA kernel on CC 8.9. |
 
 `inspectZeroCostPrecheck` builds and validates the same provision body later
 used by `POST /pods`, but substitutes `[EPHEMERAL_PUBLIC_KEY]` and performs no
@@ -217,7 +217,11 @@ persisted. `@sha256:` is forbidden inside the provisioning `imageName`.
 
 ### Persistent cache and disk envelope
 
-The model manifest is exactly 34,203,123,497 bytes. V142 reserves another
+The contractual model tree is exactly 34,203,123,497 bytes. Its namespace is
+the model directory excluding the root `.cache` subtree. The 34,216,331,040
+bytes observed in the last CPU attempt included 13,207,543 bytes of Hugging
+Face local-dir metadata under `.cache/huggingface`; those metadata are useful
+for resume but are not model snapshot bytes. V142 reserves another
 8,589,934,592 bytes (8 GiB) for the Wan repository, virtual environment,
 operation assets/results, and working margin, producing a contractual peak of
 42,793,058,089 bytes (about 42.79 decimal GB or 39.85 GiB). A 50 GB network
@@ -242,20 +246,24 @@ GPU runtime and promote to `CACHE_READY`. A later GPU run may report
 `CACHE_HIT` only after repeating the complete physical verification. Neither
 phase keeps a second checkpoint.
 
-The model manifest is written atomically only after the exact repository and
-model revisions, all 34,203,123,497 snapshot bytes, all 34,201,521,212 required
-runtime bytes, and every required file SHA-256 pass. A partial download keeps
+`model-manifest.json` is evidence, never authority. It is written atomically
+only after the current authority has been compared with the physically observed
+repository revision, all 34,203,123,497 model-tree bytes, all 34,201,521,212
+required runtime bytes, and every calculated file SHA-256. It records observed
+model revision from Hugging Face local-dir metadata, Wan Git HEAD,
+files/bytes/SHA and operation/timestamp; it does not persist a
+second list of expected bytes, files, or hashes. A partial download keeps
 its reusable bytes and Hugging Face metadata on the Network Volume, but its
 manifest is removed and it remains `CACHE_POPULATING`. A later CPU Pod resumes
-the same `hf download --local-dir` and revalidates the entire contract. A GPU
-bootstrap that finds a valid `CACHE_MODEL_READY` manifest verifies it before
+the same `hf download --local-dir` and revalidates the physical tree against
+the same current authority. A GPU bootstrap that finds `CACHE_MODEL_READY`
+evidence performs that same physical validator before
 the download branch and therefore does not download the model again.
 
-The cache profile is GPU-specific even though the model bytes and pinned
-repository revisions are shared. `wan22-ti2v-5b-a40-v2` requires CC 8.6;
-`wan22-ti2v-5b-l40s-v2` requires CC 8.9 and a STANDARD volume in EU-NL-1.
-An A40 manifest or a FlashAttention
-binary that only works on sm_86 cannot become an L40S cache hit. The L40S
+The single current GPU cache identity is `wan22-ti2v-5b-l40s`. It requires
+L40S, CC 8.9, and a STANDARD volume in EU-NL-1. Historical A40 and versioned
+`-v1`/`-v2` identities are not active runtime alternatives. A FlashAttention
+binary that does not execute on sm_89 cannot become a cache hit. The L40S
 physical preflight imports FlashAttention and executes `flash_attn_func` on
 CUDA before it can set `CACHE_READY` or `CACHE_HIT`.
 
@@ -309,7 +317,8 @@ key, dead `sshd`, mismatched authorized key, or expired timeout requires Pod
 deletion and cannot authorize cache writes.
 
 CPU staging may clone the pinned Wan repository, run `hf download`, verify the
-repository revision and every model byte/SHA-256, and write the model manifest.
+repository revision and every model byte/SHA-256, and write the observed-evidence
+model manifest.
 Its bootstrap starts with a Bash-only atomic progress writer, so neither the
 initial progress event nor the `ERR` trap assumes Python, Git, or the Hugging
 Face CLI. It then installs exactly `ca-certificates`, `git`, `python3`,
@@ -323,6 +332,17 @@ PyTorch-CUDA, compute capability, FlashAttention CUDA kernels, Wan runtime help,
 `CACHE_READY`, or `CACHE_HIT`. Those remain mandatory L40S physical checks.
 At USD 0.06/hour, 30 minutes of CPU staging is USD 0.03 compute, excluding the
 separately billed persistent Network Volume.
+
+The latest physical CPU Pod `m5bodv5y8tziku` reached `MODEL_VALIDATION` and
+wrote a readable manifest, but its one-off operator compared
+`JSON.stringify(manifest.requiredFiles)` against another expected object whose
+property insertion order differed. The values were equivalent: Python had
+serialized keys as `bytes,path,sha256`, while JavaScript had constructed
+`path,bytes,sha256`. That expected-vs-expected, order-sensitive comparison caused
+`MODEL_MANIFEST_CONTRACT_MISMATCH`. The current path removes that comparison:
+CPU and GPU run one shared expected-vs-physical validator, and both manifests
+contain observed evidence only. The Pod was deleted, its GET returned 404, and
+the partial/resumable bytes remain on Network Volume `su3d60su17`.
 
 The bootstrap operation ownership is explicit:
 
@@ -369,7 +389,7 @@ This body is structurally compatible with the current RunPod
 The adapter performs this single durable lifecycle:
 
 1. Query official RunPod GPU availability and on-demand price for the one
-   explicitly selected profile. No A40-to-L40S or L40S-to-other-GPU fallback
+   explicitly selected L40S profile. No GPU substitution or datacenter fallback
    exists.
 2. `POST https://rest.runpod.io/v1/pods` for exactly one on-demand Pod using
    the approved PyTorch 2.8/CUDA 12.8 tag after its registry manifest digest

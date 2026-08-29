@@ -6,8 +6,8 @@ import { execFile, execFileSync, spawn } from "node:child_process";
 
 import { registerArtifact } from "./jarvis-artifact-studio.js";
 
-export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.14.0-v142-runpod-bootstrap-phases";
-export const JARVIS_RUNPOD_ADAPTER_VERSION = "1.7.0-v142-runpod-bootstrap-phases";
+export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.15.0-v142-single-authority";
+export const JARVIS_RUNPOD_ADAPTER_VERSION = "1.8.0-v142-single-authority";
 export const VIDEO_ENGINE_MODES = Object.freeze([
     "CURRENT_STABLE",
     "LOCAL_TEST",
@@ -174,6 +174,7 @@ const RUNPOD_WAN22_CACHE_BASE = Object.freeze({
     peakWorkspaceBytes: RUNPOD_PEAK_WORKSPACE_BYTES,
     networkVolumeType: "STANDARD",
     minimumNetworkVolumeGb: 50,
+    dataCenterId: "EU-NL-1",
     requiredFiles: Object.freeze([
         Object.freeze({ path: "Wan2.2_VAE.pth", bytes: 2818839170, sha256: "20eb789667fa5e60e7516bf509512f6cb61f01b0aa0695eadaea930c13892b36" }),
         Object.freeze({ path: "config.json", bytes: 251, sha256: "d1fea36899d00c2501b836c13ad65af56e2f9529ba622e50886d3f5c3e6c02bc" }),
@@ -191,27 +192,16 @@ const RUNPOD_WAN22_CACHE_BASE = Object.freeze({
 });
 
 export const RUNPOD_WAN22_GPU_PROFILES = Object.freeze({
-    "NVIDIA A40": Object.freeze({
-        ...RUNPOD_WAN22_CACHE_BASE,
-        gpuTypeId: "NVIDIA A40",
-        profile: "wan22-ti2v-5b-a40-v2",
-        computeCapability: "8.6",
-        minimumVramGb: 48,
-        minimumRamGb: 50,
-        minimumVcpu: 9,
-        expectedTotalHourlyRateUsd: 0.46,
-        requiredNetworkVolumeDataCenterId: null
-    }),
     "NVIDIA L40S": Object.freeze({
         ...RUNPOD_WAN22_CACHE_BASE,
         gpuTypeId: "NVIDIA L40S",
-        profile: "wan22-ti2v-5b-l40s-v2",
+        profile: "wan22-ti2v-5b-l40s",
         computeCapability: "8.9",
         minimumVramGb: 48,
         minimumRamGb: 62,
         minimumVcpu: 16,
         expectedTotalHourlyRateUsd: 0.99,
-        requiredNetworkVolumeDataCenterId: "EU-NL-1"
+        requiredNetworkVolumeDataCenterId: RUNPOD_WAN22_CACHE_BASE.dataCenterId
     })
 });
 
@@ -247,7 +237,7 @@ export const RUNPOD_CPU_STAGING_PROFILE = Object.freeze({
     computeType: "CPU",
     cpuFlavorId: "cpu3c",
     cpuFlavorPriority: "custom",
-    dataCenterId: "EU-NL-1",
+    dataCenterId: RUNPOD_WAN22_CACHE_BASE.dataCenterId,
     dataCenterPriority: "custom",
     registry: "registry-1.docker.io",
     repository: "library/ubuntu",
@@ -269,8 +259,8 @@ export const RUNPOD_CPU_STAGING_PROFILE = Object.freeze({
     interruptible: false,
     ports: Object.freeze(["22/tcp"]),
     supportPublicIp: true,
-    networkVolumeType: "STANDARD",
-    minimumNetworkVolumeGb: 50,
+    networkVolumeType: RUNPOD_WAN22_CACHE_BASE.networkVolumeType,
+    minimumNetworkVolumeGb: RUNPOD_WAN22_CACHE_BASE.minimumNetworkVolumeGb,
     networkVolumeMountPath: "/workspace",
     cacheStatus: "CACHE_MODEL_READY",
     runtimeStatus: "CACHE_RUNTIME_PHYSICALLY_UNVERIFIED",
@@ -1409,6 +1399,41 @@ export function createRunpodRemoteVideoAdapter({
     const provider = String(env.JARVIS_REMOTE_GPU_PROVIDER || "").trim().toLowerCase();
     const gpuTypeId = String(env.JARVIS_RUNPOD_GPU_TYPE_ID || "").trim();
     const cacheContract = RUNPOD_WAN22_GPU_PROFILES[gpuTypeId] || null;
+    const modelAuthorityJson = JSON.stringify({
+        modelRepository: RUNPOD_WAN22_CACHE_BASE.modelRepository,
+        modelRevision: RUNPOD_WAN22_CACHE_BASE.modelRevision,
+        wanRepositoryRevision: RUNPOD_WAN22_CACHE_BASE.wanRepositoryRevision,
+        expectedModelBytes: RUNPOD_WAN22_CACHE_BASE.expectedModelBytes,
+        requiredRuntimeModelBytes: RUNPOD_WAN22_CACHE_BASE.requiredRuntimeModelBytes,
+        requiredFiles: RUNPOD_WAN22_CACHE_BASE.requiredFiles
+    });
+    const modelEvidenceProgram = [
+        "import datetime,hashlib,json,os,subprocess,sys,tempfile",
+        "expected=json.loads(sys.argv[1]); model_dir=sys.argv[2]; repo_dir=sys.argv[3]; manifest_path=sys.argv[4]; operation_id=sys.argv[5]",
+        "assert expected['modelRepository'] and expected['modelRevision'] and expected['wanRepositoryRevision']",
+        "assert sum(item['bytes'] for item in expected['requiredFiles'])==expected['requiredRuntimeModelBytes']",
+        "total=0",
+        "for root,dirs,files in os.walk(model_dir):",
+        "    if os.path.abspath(root)==os.path.abspath(model_dir): dirs[:]=[name for name in dirs if name!='.cache']",
+        "    for name in files: total+=os.path.getsize(os.path.join(root,name))",
+        "assert total==expected['expectedModelBytes']",
+        "observed_files=[]",
+        "model_revisions=set()",
+        "for item in expected['requiredFiles']:",
+        "    target=os.path.join(model_dir,item['path']); size=os.path.getsize(target); digest=hashlib.sha256()",
+        "    with open(target,'rb') as handle:",
+        "        for chunk in iter(lambda:handle.read(8*1024*1024),b''): digest.update(chunk)",
+        "    sha256=digest.hexdigest(); observed_files.append({'path':item['path'],'bytes':size,'sha256':sha256})",
+        "    assert size==item['bytes'] and sha256==item['sha256']",
+        "    metadata_path=os.path.join(model_dir,'.cache','huggingface','download',item['path']+'.metadata')",
+        "    with open(metadata_path,encoding='utf-8') as metadata: model_revisions.add(metadata.readline().strip())",
+        "assert model_revisions=={expected['modelRevision']}",
+        "wan_revision=subprocess.check_output(['git','-C',repo_dir,'rev-parse','HEAD'],text=True).strip()",
+        "assert wan_revision==expected['wanRepositoryRevision']",
+        "observed={'operationId':operation_id,'model':{'repository':expected['modelRepository'],'revision':next(iter(model_revisions)),'source':'huggingface_local_dir_metadata'},'wanRepositoryRevision':wan_revision,'modelBytes':total,'requiredFilesBytes':sum(item['bytes'] for item in observed_files),'modelByteNamespace':'model_tree_excluding_root_huggingface_cache','files':observed_files,'verifiedAt':datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z')}",
+        "fd,tmp=tempfile.mkstemp(prefix='.model-manifest-',dir=os.path.dirname(manifest_path)); os.close(fd)",
+        "open(tmp,'w',encoding='utf-8').write(json.dumps(observed,sort_keys=True,separators=(',',':'))+'\\n'); os.replace(tmp,manifest_path)"
+    ].join("\n");
     const provisionImageTag = String(
         env.JARVIS_RUNPOD_IMAGE || cacheContract?.provisionImageTag || RUNPOD_WAN22_CACHE_BASE.provisionImageTag
     ).trim();
@@ -1692,14 +1717,12 @@ export function createRunpodRemoteVideoAdapter({
             : [];
         const reusable = states.some(state =>
             state.networkVolumeId === networkVolume.id &&
-            state.cacheProfile === cacheContract.profile &&
             state.runtimePreflightVerified === true &&
             ["CACHE_READY", "CACHE_HIT"].includes(String(state.cacheStatus || ""))
         );
         if (reusable) return "CACHE_HIT_EXPECTED_PHYSICAL_VERIFY_REQUIRED";
         const modelReady = states.some(state =>
             state.networkVolumeId === networkVolume.id &&
-            state.modelContractRevision === cacheContract.modelRevision &&
             state.modelIntegrityVerified === true &&
             state.runtimePreflightVerified !== true &&
             state.cacheStatus === "CACHE_MODEL_READY"
@@ -2544,14 +2567,6 @@ export function createRunpodRemoteVideoAdapter({
         const remoteModel = `${cacheRoot}/model`;
         const modelManifestFile = `${cacheRoot}/model-manifest.json`;
         const modelPreflightFile = `${cacheRoot}/model-preflight.py`;
-        const modelContractJson = JSON.stringify({
-            modelRepository: cacheContract.modelRepository,
-            modelRevision: cacheContract.modelRevision,
-            wanRepositoryRevision: cacheContract.wanRepositoryRevision,
-            expectedModelBytes: cacheContract.expectedModelBytes,
-            requiredRuntimeModelBytes: cacheContract.requiredRuntimeModelBytes,
-            requiredFiles: cacheContract.requiredFiles
-        });
         return [
             "#!/usr/bin/env bash",
             "set -eEuo pipefail",
@@ -2572,7 +2587,7 @@ export function createRunpodRemoteVideoAdapter({
             "  local stage=\"$1\" status=\"$2\" cache=\"$3\" bytes=0 now tmp",
             "  case \"$cache\" in CACHE_MISS|CACHE_POPULATING|CACHE_MODEL_READY) ;; *) return 97 ;; esac",
             "  CURRENT_CACHE_STATUS=\"$cache\"",
-            "  if test -d \"$MODEL_DIR\"; then read -r bytes _ < <(du -sb \"$MODEL_DIR\" 2>/dev/null || printf '0\\n'); fi",
+            "  if test -d \"$MODEL_DIR\"; then bytes=$(find \"$MODEL_DIR\" -path \"$MODEL_DIR/.cache\" -prune -o -type f -printf '%s\\n' | awk '{sum+=$1} END {print sum+0}'); fi",
             "  now=$(date -u '+%Y-%m-%dT%H:%M:%SZ')",
             "  tmp=\"${PROGRESS}.tmp.$$\"",
             "  printf '{\"stage\":\"%s\",\"status\":\"%s\",\"cacheStatus\":\"%s\",\"modelBytes\":%s,\"at\":\"%s\"}\\n' \"$stage\" \"$status\" \"$cache\" \"${bytes:-0}\" \"$now\" > \"$tmp\"",
@@ -2605,31 +2620,11 @@ export function createRunpodRemoteVideoAdapter({
             "\"$CPU_TOOLS_VENV/bin/python\" -m pip install --upgrade 'huggingface_hub[cli]>=0.30,<1'",
             "test -x \"$CPU_TOOLS_VENV/bin/hf\"",
             `cat > "$MODEL_PREFLIGHT" <<'PY'`,
-            "import hashlib,json,os,sys,tempfile",
-            "expected=json.loads(sys.argv[1]); model_dir=sys.argv[2]; manifest_path=sys.argv[3]; write=len(sys.argv)>4 and sys.argv[4]=='write'",
-            "assert expected['modelRepository'] and expected['modelRevision'] and expected['wanRepositoryRevision']",
-            "assert sum(item['bytes'] for item in expected['requiredFiles'])==expected['requiredRuntimeModelBytes']",
-            "total=0",
-            "for root,dirs,files in os.walk(model_dir):",
-            "    if os.path.abspath(root)==os.path.abspath(model_dir): dirs[:]=[name for name in dirs if name!='.cache']",
-            "    for name in files: total+=os.path.getsize(os.path.join(root,name))",
-            "assert total==expected['expectedModelBytes']",
-            "for item in expected['requiredFiles']:",
-            "    target=os.path.join(model_dir,item['path']); assert os.path.getsize(target)==item['bytes']",
-            "    digest=hashlib.sha256(); f=open(target,'rb')",
-            "    for chunk in iter(lambda:f.read(8*1024*1024),b''): digest.update(chunk)",
-            "    assert digest.hexdigest()==item['sha256']",
-            "if write:",
-            "    fd,tmp=tempfile.mkstemp(prefix='.model-manifest-',dir=os.path.dirname(manifest_path)); os.close(fd)",
-            "    open(tmp,'w',encoding='utf-8').write(json.dumps(expected,sort_keys=True,separators=(',',':'))+'\\n'); os.replace(tmp,manifest_path)",
-            "else:",
-            "    actual=json.load(open(manifest_path,encoding='utf-8'))",
-            "    keys=('modelRepository','modelRevision','wanRepositoryRevision','expectedModelBytes','requiredRuntimeModelBytes')",
-            "    assert all(actual.get(k)==expected.get(k) for k in keys) and actual.get('requiredFiles')==expected.get('requiredFiles')",
+            modelEvidenceProgram,
             "PY",
             "progress MODEL_TOOLS READY CACHE_POPULATING",
             "MODEL_CACHE_VALID=0",
-            `python3 "$MODEL_PREFLIGHT" ${shellSingleQuote(modelContractJson)} "$MODEL_DIR" "$MODEL_MANIFEST" && MODEL_CACHE_VALID=1 || true`,
+            `python3 "$MODEL_PREFLIGHT" ${shellSingleQuote(modelAuthorityJson)} "$MODEL_DIR" "$WAN_REPO" "$MODEL_MANIFEST" "$JARVIS_OPERATION_ID" && MODEL_CACHE_VALID=1 || true`,
             "if test \"$MODEL_CACHE_VALID\" = 1; then",
             "  progress MODEL_VALIDATION READY CACHE_MODEL_READY",
             "  exit 0",
@@ -2647,7 +2642,7 @@ export function createRunpodRemoteVideoAdapter({
             "wait \"$DOWNLOAD_PID\"",
             "progress MODEL_DOWNLOAD READY CACHE_POPULATING",
             "progress MODEL_VALIDATION RUNNING CACHE_POPULATING",
-            `python3 "$MODEL_PREFLIGHT" ${shellSingleQuote(modelContractJson)} "$MODEL_DIR" "$MODEL_MANIFEST" write`,
+            `python3 "$MODEL_PREFLIGHT" ${shellSingleQuote(modelAuthorityJson)} "$MODEL_DIR" "$WAN_REPO" "$MODEL_MANIFEST" "$JARVIS_OPERATION_ID"`,
             "progress MODEL_VALIDATION READY CACHE_MODEL_READY",
             "exit 0"
         ].join("\n") + "\n";
@@ -2666,33 +2661,11 @@ export function createRunpodRemoteVideoAdapter({
         const constraintsFile = `${cacheRoot}/constraints.txt`;
         const filteredRequirementsFile = `${cacheRoot}/requirements-without-flash-attn.txt`;
         const contractJson = JSON.stringify({
-            profile: cacheContract.profile,
-            gpuTypeId: cacheContract.gpuTypeId,
-            provisionImageTag: cacheContract.provisionImageTag,
-            expectedRegistryDigest: cacheContract.expectedRegistryDigest,
-            runtimeIdentity: cacheContract.runtimeIdentity,
             pythonVersionPrefix: cacheContract.pythonVersionPrefix,
             torchVersionPrefix: cacheContract.torchVersionPrefix,
             torchCudaVersionPrefix: cacheContract.torchCudaVersionPrefix,
             computeCapability: cacheContract.computeCapability,
-            requirementsSha256: cacheContract.requirementsSha256,
-            flashAttentionVersion: cacheContract.flashAttentionVersion,
-            modelRepository: cacheContract.modelRepository,
-            modelRevision: cacheContract.modelRevision,
-            wanRepositoryRevision: cacheContract.wanRepositoryRevision,
-            expectedModelBytes: cacheContract.expectedModelBytes,
-            requiredRuntimeModelBytes: cacheContract.requiredRuntimeModelBytes,
-            workspaceReserveBytes: cacheContract.workspaceReserveBytes,
-            peakWorkspaceBytes: cacheContract.peakWorkspaceBytes,
-            requiredFiles: cacheContract.requiredFiles
-        });
-        const modelContractJson = JSON.stringify({
-            modelRepository: cacheContract.modelRepository,
-            modelRevision: cacheContract.modelRevision,
-            wanRepositoryRevision: cacheContract.wanRepositoryRevision,
-            expectedModelBytes: cacheContract.expectedModelBytes,
-            requiredRuntimeModelBytes: cacheContract.requiredRuntimeModelBytes,
-            requiredFiles: cacheContract.requiredFiles
+            flashAttentionVersion: cacheContract.flashAttentionVersion
         });
         const bootstrap = [
             "#!/usr/bin/env bash",
@@ -2721,7 +2694,7 @@ export function createRunpodRemoteVideoAdapter({
             `PROGRESS=${shellSingleQuote(`${remoteBase}/operations`)}/$JARVIS_OPERATION_ID/bootstrap-progress.json`,
             "mkdir -p \"$CACHE_ROOT\" \"$(dirname \"$PROGRESS\")\"",
             "CURRENT_CACHE_STATUS=CACHE_MISS",
-            "progress() { local stage=\"$1\" status=\"$2\" cache=\"$3\" bytes=0; CURRENT_CACHE_STATUS=\"$cache\"; test -d \"$MODEL_DIR\" && bytes=$(du -sb \"$MODEL_DIR\" 2>/dev/null | awk '{print $1}') || true; python3 - \"$PROGRESS\" \"$stage\" \"$status\" \"$cache\" \"$bytes\" <<'PY'",
+            "progress() { local stage=\"$1\" status=\"$2\" cache=\"$3\" bytes=0; CURRENT_CACHE_STATUS=\"$cache\"; test -d \"$MODEL_DIR\" && bytes=$(find \"$MODEL_DIR\" -path \"$MODEL_DIR/.cache\" -prune -o -type f -printf '%s\\n' | awk '{sum+=$1} END {print sum+0}') || true; python3 - \"$PROGRESS\" \"$stage\" \"$status\" \"$cache\" \"$bytes\" <<'PY'",
             "import json,os,sys,tempfile,datetime",
             "target,stage,status,cache,raw=sys.argv[1:]",
             "payload={'stage':stage,'status':status,'cacheStatus':cache,'modelBytes':int(raw or 0),'at':datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z')}",
@@ -2763,45 +2736,23 @@ export function createRunpodRemoteVideoAdapter({
             "raise SystemExit(0 if payload['ok'] else 1)",
             "PY",
             `cat > "$MODEL_PREFLIGHT" <<'PY'`,
-            "import hashlib,json,os,sys,tempfile",
-            "expected=json.loads(sys.argv[1]); model_dir=sys.argv[2]; manifest_path=sys.argv[3]; write=len(sys.argv)>4 and sys.argv[4]=='write'",
-            "assert sum(item['bytes'] for item in expected['requiredFiles'])==expected['requiredRuntimeModelBytes']",
-            "total=0",
-            "for root,dirs,files in os.walk(model_dir):",
-            "    if os.path.abspath(root)==os.path.abspath(model_dir): dirs[:]=[name for name in dirs if name!='.cache']",
-            "    for name in files: total+=os.path.getsize(os.path.join(root,name))",
-            "assert total==expected['expectedModelBytes']",
-            "for item in expected['requiredFiles']:",
-            "    target=os.path.join(model_dir,item['path']); assert os.path.getsize(target)==item['bytes']",
-            "    digest=hashlib.sha256(); f=open(target,'rb')",
-            "    for chunk in iter(lambda:f.read(8*1024*1024),b''): digest.update(chunk)",
-            "    assert digest.hexdigest()==item['sha256']",
-            "if write:",
-            "    fd,tmp=tempfile.mkstemp(prefix='.model-manifest-',dir=os.path.dirname(manifest_path)); os.close(fd)",
-            "    open(tmp,'w',encoding='utf-8').write(json.dumps(expected,sort_keys=True,separators=(',',':'))+'\\n'); os.replace(tmp,manifest_path)",
-            "else:",
-            "    actual=json.load(open(manifest_path,encoding='utf-8'))",
-            "    keys=('modelRepository','modelRevision','wanRepositoryRevision','expectedModelBytes','requiredRuntimeModelBytes')",
-            "    assert all(actual.get(k)==expected.get(k) for k in keys) and actual.get('requiredFiles')==expected.get('requiredFiles')",
+            modelEvidenceProgram,
             "PY",
+            "write_cache_evidence() { python3 - \"$CACHE_MANIFEST\" \"$MODEL_MANIFEST\" \"$PREFLIGHT_RESULT\" \"$WAN_REPO\" \"$CACHE_ROOT/requirements.sha256\" \"$JARVIS_OPERATION_ID\" <<'PY'",
+            "import datetime,json,os,subprocess,sys,tempfile",
+            "target,model_path,runtime_path,repo_dir,requirements_path,operation_id=sys.argv[1:]",
+            "observed={'operationId':operation_id,'model':json.load(open(model_path,encoding='utf-8')),'runtime':json.load(open(runtime_path,encoding='utf-8')),'wanRepositoryRevision':subprocess.check_output(['git','-C',repo_dir,'rev-parse','HEAD'],text=True).strip(),'requirementsSha256':open(requirements_path,encoding='utf-8').read().strip(),'verifiedAt':datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z')}",
+            "fd,tmp=tempfile.mkstemp(prefix='.manifest-',dir=os.path.dirname(target)); os.close(fd)",
+            "open(tmp,'w',encoding='utf-8').write(json.dumps(observed,sort_keys=True,separators=(',',':'))+'\\n'); os.replace(tmp,target)",
+            "PY",
+            "}",
             "CACHE_VALID=0",
-            `python3 - \"$CACHE_MANIFEST\" \"$MODEL_DIR\" \"$WAN_REPO\" \"$VENV\" ${shellSingleQuote(contractJson)} <<'PY' && CACHE_VALID=1 || true`,
-            "import hashlib,json,os,subprocess,sys",
-            "manifest_path,model_dir,repo_dir,venv_dir,expected_raw=sys.argv[1:]",
-            "expected=json.loads(expected_raw)",
-            "actual=json.load(open(manifest_path,encoding='utf-8'))",
-            "keys=('profile','gpuTypeId','provisionImageTag','expectedRegistryDigest','runtimeIdentity','pythonVersionPrefix','torchVersionPrefix','torchCudaVersionPrefix','computeCapability','requirementsSha256','flashAttentionVersion','modelRepository','modelRevision','wanRepositoryRevision','expectedModelBytes','requiredRuntimeModelBytes','workspaceReserveBytes','peakWorkspaceBytes')",
-            "assert all(actual.get(k)==expected.get(k) for k in keys)",
-            "assert os.path.isfile(os.path.join(repo_dir,'generate.py')) and os.path.isfile(os.path.join(venv_dir,'bin','python'))",
-            "assert subprocess.check_output(['git','-C',repo_dir,'rev-parse','HEAD'],text=True).strip()==expected['wanRepositoryRevision']",
-            "assert open(os.path.join(os.path.dirname(manifest_path),'requirements.sha256'),encoding='utf-8').read().strip()==expected['requirementsSha256']",
-            "for item in expected['requiredFiles']:",
-            "    target=os.path.join(model_dir,item['path']); assert os.path.getsize(target)==item['bytes']",
-            "    digest=hashlib.sha256(); f=open(target,'rb')",
-            "    for chunk in iter(lambda:f.read(8*1024*1024),b''): digest.update(chunk)",
-            "    assert digest.hexdigest()==item['sha256']",
-            "PY",
-            `if test \"$CACHE_VALID\" = 1 && \"$VENV/bin/python\" \"$PREFLIGHT\" ${shellSingleQuote(contractJson)} \"$WAN_REPO\" \"$PREFLIGHT_RESULT\"; then progress CACHE_VALIDATE READY CACHE_HIT; exit 0; fi`,
+            "if test -f \"$WAN_REPO/generate.py\" && test -x \"$VENV/bin/python\" && test -f \"$CACHE_ROOT/requirements.sha256\"; then",
+            `  if test "$(git -C "$WAN_REPO" rev-parse HEAD)" = ${shellSingleQuote(cacheContract.wanRepositoryRevision)} && test "$(cat "$CACHE_ROOT/requirements.sha256")" = ${shellSingleQuote(cacheContract.requirementsSha256)}; then`,
+            `    python3 "$MODEL_PREFLIGHT" ${shellSingleQuote(modelAuthorityJson)} "$MODEL_DIR" "$WAN_REPO" "$MODEL_MANIFEST" "$JARVIS_OPERATION_ID" && "$VENV/bin/python" "$PREFLIGHT" ${shellSingleQuote(contractJson)} "$WAN_REPO" "$PREFLIGHT_RESULT" && CACHE_VALID=1 || true`,
+            "  fi",
+            "fi",
+            "if test \"$CACHE_VALID\" = 1; then write_cache_evidence; progress CACHE_VALIDATE READY CACHE_HIT; exit 0; fi",
             "rm -f \"$CACHE_MANIFEST\"",
             "progress CACHE_VALIDATE INCOMPLETE CACHE_MISS",
             "progress WAN_REPOSITORY RUNNING CACHE_POPULATING",
@@ -2833,7 +2784,7 @@ export function createRunpodRemoteVideoAdapter({
             "progress PYTHON_REQUIREMENTS READY CACHE_POPULATING",
             "mkdir -p \"$MODEL_DIR\"",
             "MODEL_CACHE_VALID=0",
-            `python3 "$MODEL_PREFLIGHT" ${shellSingleQuote(modelContractJson)} "$MODEL_DIR" "$MODEL_MANIFEST" && MODEL_CACHE_VALID=1 || true`,
+            `python3 "$MODEL_PREFLIGHT" ${shellSingleQuote(modelAuthorityJson)} "$MODEL_DIR" "$WAN_REPO" "$MODEL_MANIFEST" "$JARVIS_OPERATION_ID" && MODEL_CACHE_VALID=1 || true`,
             "if test \"$MODEL_CACHE_VALID\" = 1; then",
             "  progress MODEL_VALIDATION READY CACHE_MODEL_READY",
             "else",
@@ -2845,17 +2796,13 @@ export function createRunpodRemoteVideoAdapter({
             "  wait \"$DOWNLOAD_PID\"",
             "  progress MODEL_DOWNLOAD READY CACHE_POPULATING",
             "  progress MODEL_VALIDATION RUNNING CACHE_POPULATING",
-            `  python3 "$MODEL_PREFLIGHT" ${shellSingleQuote(modelContractJson)} "$MODEL_DIR" "$MODEL_MANIFEST" write`,
+            `  python3 "$MODEL_PREFLIGHT" ${shellSingleQuote(modelAuthorityJson)} "$MODEL_DIR" "$WAN_REPO" "$MODEL_MANIFEST" "$JARVIS_OPERATION_ID"`,
             "  progress MODEL_VALIDATION READY CACHE_MODEL_READY",
             "fi",
             "progress RUNTIME_PREFLIGHT RUNNING CACHE_MODEL_READY",
             `\"$VENV/bin/python\" \"$PREFLIGHT\" ${shellSingleQuote(contractJson)} \"$WAN_REPO\" \"$PREFLIGHT_RESULT\"`,
             "progress RUNTIME_PREFLIGHT READY CACHE_MODEL_READY",
-            `python3 - \"$CACHE_MANIFEST\" ${shellSingleQuote(contractJson)} <<'PY'`,
-            "import json,os,sys,tempfile",
-            "target=sys.argv[1]; payload=json.loads(sys.argv[2]); fd,tmp=tempfile.mkstemp(prefix='.manifest-',dir=os.path.dirname(target)); os.close(fd)",
-            "open(tmp,'w',encoding='utf-8').write(json.dumps(payload,sort_keys=True,separators=(',',':'))+'\\n'); os.replace(tmp,target)",
-            "PY",
+            "write_cache_evidence",
             "progress RUNNER_READY READY CACHE_READY"
         ].join("\n") + "\n";
         fs.writeFileSync(bootstrapFile, bootstrap, { encoding: "utf8", mode: 0o700 });

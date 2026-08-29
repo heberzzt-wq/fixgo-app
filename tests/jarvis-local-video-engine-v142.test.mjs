@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
     buildLocalAiCapabilityReport,
@@ -178,10 +179,10 @@ function runpodPhysicalHarness({
     clock = null,
     availability = {},
     apiKey = "test-runpod-api-key-never-persist",
-    gpuTypeId = "NVIDIA A40",
+    gpuTypeId = "NVIDIA L40S",
     networkVolumeId = "",
     networkVolumeSizeGb = 50,
-    networkVolumeDataCenterId = gpuTypeId === "NVIDIA L40S" ? "EU-NL-1" : "CA-MTL-1",
+    networkVolumeDataCenterId = "EU-NL-1",
     networkVolumeType = "STANDARD",
     bootstrapProgressSequence = [],
     baseHealthOverrides = {},
@@ -241,7 +242,7 @@ function runpodPhysicalHarness({
     const badVideo = Buffer.alloc(120000, 9);
     const outputBytes = scenario === "bad-mp4" ? badVideo : goodVideo;
     const outputSha = createHash("sha256").update(outputBytes).digest("hex");
-    const gpuImageProfile = RUNPOD_WAN22_GPU_PROFILES[gpuTypeId] || RUNPOD_WAN22_GPU_PROFILES["NVIDIA A40"];
+    const gpuImageProfile = RUNPOD_WAN22_GPU_PROFILES[gpuTypeId] || RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"];
     const gpuRegistryVerification = verifiedRegistryEvidence(gpuImageProfile);
     const cpuRegistryVerification = verifiedRegistryEvidence(RUNPOD_CPU_STAGING_PROFILE);
 
@@ -354,14 +355,14 @@ function runpodPhysicalHarness({
                 });
             }
             return mockHttpResponse(201, {
-                id: "pod-a40-v142",
+                id: "pod-l40s-v142",
                 desiredStatus: "RUNNING",
                 costPerHr: String(gpuTypeId === "NVIDIA L40S" ? 0.99 : 0.44),
                 gpu: { id: gpuTypeId, memoryInGb: 48 }
             });
         }
         if (String(url).includes("/billing/pods")) return mockHttpResponse(200, []);
-        if (String(url).includes("/pods/pod-a40-v142") && options.method === "DELETE") {
+        if (String(url).includes("/pods/pod-l40s-v142") && options.method === "DELETE") {
             if (scenario === "release-fail") return mockHttpResponse(500, { error: "controlled" });
             deleted = true;
             return mockHttpResponse(204);
@@ -375,7 +376,7 @@ function runpodPhysicalHarness({
                 ? mockHttpResponse(404, { error: "Pod not found" })
                 : mockHttpResponse(200, { id: "pod-existing-obligation", desiredStatus: "RUNNING" });
         }
-        if (String(url).includes("/pods/pod-a40-v142")) {
+        if (String(url).includes("/pods/pod-l40s-v142")) {
             podGets += 1;
             if (scenario === "poll-timeout" && transportTimeouts++ === 0) {
                 const error = new Error("ETIMEDOUT controlled");
@@ -384,7 +385,7 @@ function runpodPhysicalHarness({
             }
             if (deleted) return mockHttpResponse(404, { error: "Pod not found" });
             return mockHttpResponse(200, {
-                id: "pod-a40-v142",
+                id: "pod-l40s-v142",
                 desiredStatus: "RUNNING",
                 publicIp: "203.0.113.42",
                 portMappings: { "22": 22122 }
@@ -576,6 +577,10 @@ function runpodPhysicalHarness({
         dryRunJob,
         gpuRegistryVerification,
         cpuRegistryVerification,
+        fetchImpl,
+        execute,
+        generateKeyPair,
+        now,
         calls,
         get createdBody() { return createdBody; },
         get podGets() { return podGets; },
@@ -605,14 +610,14 @@ test("V142 RunPod zero-cost dry run exposes the exact sanitized future Pod paylo
         registryVerification: harness.gpuRegistryVerification,
         networkVolume: {
             id: "future-network-volume-v142",
-            dataCenterId: "CA-MTL-1",
+            dataCenterId: "EU-NL-1",
             sizeGb: 50,
             type: "STANDARD"
         },
         availability: {
-            gpuTypeId: "NVIDIA A40",
+            gpuTypeId: "NVIDIA L40S",
             vramGb: 48,
-            hourlyRateUsd: 0.44,
+            hourlyRateUsd: 0.99,
             stockStatus: "Low"
         }
     });
@@ -620,10 +625,10 @@ test("V142 RunPod zero-cost dry run exposes the exact sanitized future Pod paylo
     assert.equal(report.phase, "ZERO_COST_PRECHECK");
     assert.equal(report.paidResourceCreationAuthorized, true);
     assert.equal(report.payload.networkVolumeId, "future-network-volume-v142");
-    assert.deepEqual(report.payload.dataCenterIds, ["CA-MTL-1"]);
+    assert.deepEqual(report.payload.dataCenterIds, ["EU-NL-1"]);
     assert.equal(report.payload.cloudType, "SECURE");
     assert.equal(report.payload.computeType, "GPU");
-    assert.deepEqual(report.payload.gpuTypeIds, ["NVIDIA A40"]);
+    assert.deepEqual(report.payload.gpuTypeIds, ["NVIDIA L40S"]);
     assert.equal(report.payload.imageName, "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404");
     assert.doesNotMatch(report.payload.imageName, /@sha256:/i);
     assert.equal(report.contract.registryVerification.status, "REGISTRY_DIGEST_VERIFIED");
@@ -663,7 +668,7 @@ test("V142 RunPod accepts only the explicitly selected L40S 48GB / CC 8.9 profil
     assert.equal(report.payload.minVCPUPerGPU, 16);
     assert.equal(report.contract.gpuTypeId, "NVIDIA L40S");
     assert.equal(report.contract.computeCapability, "8.9");
-    assert.equal(report.cache.profile, "wan22-ti2v-5b-l40s-v2");
+    assert.equal(report.cache.profile, "wan22-ti2v-5b-l40s");
     assert.equal(report.paidResourceCreationAuthorized, false);
     assert.equal(harness.calls.length, 0);
 });
@@ -898,7 +903,21 @@ test("V142 CPU model staging bootstrap is Ubuntu-minimal safe and structurally c
     const verifierFile = path.join(temp, "model-preflight.py");
     fs.writeFileSync(verifierFile, bootstrap.slice(verifierStart, verifierEnd) + "\n");
     const fixtureModel = path.join(temp, "fixture-model");
+    const fixtureRepo = path.join(temp, "fixture-wan-repo");
     fs.mkdirSync(path.join(fixtureModel, "nested"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureModel, ".cache", "huggingface"), { recursive: true });
+    fs.writeFileSync(path.join(fixtureModel, ".cache", "huggingface", "metadata.bin"), Buffer.alloc(13207543, 3));
+    fs.mkdirSync(fixtureRepo, { recursive: true });
+    execFileSync("git", ["init", "-q"], { cwd: fixtureRepo, stdio: "pipe" });
+    execFileSync("git", ["config", "user.email", "v142-fixture@fixgo.invalid"], { cwd: fixtureRepo, stdio: "pipe" });
+    execFileSync("git", ["config", "user.name", "V142 Fixture"], { cwd: fixtureRepo, stdio: "pipe" });
+    fs.writeFileSync(path.join(fixtureRepo, "generate.py"), "# fixture\n");
+    execFileSync("git", ["add", "generate.py"], { cwd: fixtureRepo, stdio: "pipe" });
+    execFileSync("git", ["commit", "-q", "-m", "fixture"], { cwd: fixtureRepo, stdio: "pipe" });
+    const observedWanRevision = execFileSync("git", ["rev-parse", "HEAD"], {
+        cwd: fixtureRepo,
+        encoding: "utf8"
+    }).trim();
     const fixtureFiles = [
         { path: "weights.bin", bytes: Buffer.from("fixture-model-weights") },
         { path: "nested/config.json", bytes: Buffer.from('{"fixture":true}\n') }
@@ -911,7 +930,7 @@ test("V142 CPU model staging bootstrap is Ubuntu-minimal safe and structurally c
     const fixtureContract = {
         modelRepository: "fixture/Wan2.2-TI2V-5B",
         modelRevision: "fixture-model-revision",
-        wanRepositoryRevision: "fixture-wan-revision",
+        wanRepositoryRevision: observedWanRevision,
         expectedModelBytes: fixtureFiles.reduce((sum, item) => sum + item.bytes.length, 0),
         requiredRuntimeModelBytes: fixtureFiles.reduce((sum, item) => sum + item.bytes.length, 0),
         requiredFiles: fixtureFiles.map(item => ({
@@ -920,15 +939,50 @@ test("V142 CPU model staging bootstrap is Ubuntu-minimal safe and structurally c
             sha256: createHash("sha256").update(item.bytes).digest("hex")
         }))
     };
+    for (const item of fixtureContract.requiredFiles) {
+        const metadata = path.join(
+            fixtureModel,
+            ".cache",
+            "huggingface",
+            "download",
+            `${item.path}.metadata`
+        );
+        fs.mkdirSync(path.dirname(metadata), { recursive: true });
+        fs.writeFileSync(metadata, `${fixtureContract.modelRevision}\nfixture-etag\n0\n`);
+    }
     const fixtureManifest = path.join(temp, "fixture-model-manifest.json");
+    const fixtureOperationId = "fixture-v142-existing-obligation";
     execFileSync(python, [
         verifierFile,
         JSON.stringify(fixtureContract),
         fixtureModel,
+        fixtureRepo,
         fixtureManifest,
-        "write"
+        fixtureOperationId
     ], { stdio: "pipe" });
-    assert.deepEqual(JSON.parse(fs.readFileSync(fixtureManifest, "utf8")), fixtureContract);
+    const observedManifest = JSON.parse(fs.readFileSync(fixtureManifest, "utf8"));
+    assert.equal(observedManifest.operationId, fixtureOperationId);
+    assert.deepEqual(observedManifest.model, {
+        repository: fixtureContract.modelRepository,
+        revision: fixtureContract.modelRevision,
+        source: "huggingface_local_dir_metadata"
+    });
+    assert.equal(observedManifest.wanRepositoryRevision, observedWanRevision);
+    assert.equal(observedManifest.modelBytes, fixtureContract.expectedModelBytes);
+    assert.equal(observedManifest.requiredFilesBytes, fixtureContract.requiredRuntimeModelBytes);
+    assert.equal(observedManifest.modelByteNamespace, "model_tree_excluding_root_huggingface_cache");
+    assert.deepEqual(
+        observedManifest.files.map(item => ({ path: item.path, bytes: item.bytes, sha256: item.sha256 })),
+        fixtureContract.requiredFiles
+    );
+    assert.equal(Object.hasOwn(observedManifest, "expectedModelBytes"), false);
+    assert.equal(Object.hasOwn(observedManifest, "requiredRuntimeModelBytes"), false);
+    assert.equal(Object.hasOwn(observedManifest, "requiredFiles"), false);
+    assert.notEqual(
+        JSON.stringify(observedManifest.files),
+        JSON.stringify(fixtureContract.requiredFiles),
+        "property order may differ without changing the observed evidence"
+    );
     assert.equal(
         fs.readdirSync(temp).some(name => name.startsWith(".model-manifest-")),
         false,
@@ -938,15 +992,204 @@ test("V142 CPU model staging bootstrap is Ubuntu-minimal safe and structurally c
         verifierFile,
         JSON.stringify(fixtureContract),
         fixtureModel,
-        fixtureManifest
+        fixtureRepo,
+        fixtureManifest,
+        fixtureOperationId
     ], { stdio: "pipe" });
+    const wrongRevisionMetadata = path.join(
+        fixtureModel,
+        ".cache",
+        "huggingface",
+        "download",
+        `${fixtureContract.requiredFiles[0].path}.metadata`
+    );
+    fs.writeFileSync(wrongRevisionMetadata, "wrong-physical-model-revision\nfixture-etag\n0\n");
+    assert.throws(() => execFileSync(python, [
+        verifierFile,
+        JSON.stringify(fixtureContract),
+        fixtureModel,
+        fixtureRepo,
+        fixtureManifest,
+        fixtureOperationId
+    ], { stdio: "pipe" }));
+    fs.writeFileSync(
+        wrongRevisionMetadata,
+        `${fixtureContract.modelRevision}\nfixture-etag\n0\n`
+    );
+    assert.throws(() => execFileSync(python, [
+        verifierFile,
+        JSON.stringify({ ...fixtureContract, wanRepositoryRevision: "0".repeat(40) }),
+        fixtureModel,
+        fixtureRepo,
+        fixtureManifest,
+        fixtureOperationId
+    ], { stdio: "pipe" }));
     fs.writeFileSync(path.join(fixtureModel, "weights.bin"), "incomplete");
     assert.throws(() => execFileSync(python, [
         verifierFile,
         JSON.stringify(fixtureContract),
         fixtureModel,
-        fixtureManifest
+        fixtureRepo,
+        fixtureManifest,
+        fixtureOperationId
     ], { stdio: "pipe" }));
+    fs.writeFileSync(path.join(fixtureModel, "weights.bin"), fixtureFiles[0].bytes);
+    fs.unlinkSync(path.join(fixtureModel, "nested", "config.json"));
+    assert.throws(() => execFileSync(python, [
+        verifierFile,
+        JSON.stringify(fixtureContract),
+        fixtureModel,
+        fixtureRepo,
+        fixtureManifest,
+        fixtureOperationId
+    ], { stdio: "pipe" }));
+});
+
+test("V142 has one production authority for model, revision, bytes, SHA, datacenter, and volume semantics", () => {
+    const repoRoot = path.dirname(fileURLToPath(new URL("../jarvis-local-video-engine.js", import.meta.url)));
+    const source = fs.readFileSync(path.join(repoRoot, "jarvis-local-video-engine.js"), "utf8");
+    const bridge = fs.readFileSync(path.join(repoRoot, "jarvis-fs-bridge.js"), "utf8");
+    const actuator = fs.readFileSync(
+        path.join(repoRoot, "gestia-core", "jarvis", "jarvis.actuator.pack.js"),
+        "utf8"
+    );
+    const profile = RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"];
+    const occurrences = value => source.split(String(value)).length - 1;
+
+    assert.equal(occurrences(profile.modelRevision), 1);
+    assert.equal(occurrences(profile.wanRepositoryRevision), 1);
+    assert.equal(occurrences(profile.expectedModelBytes), 1);
+    assert.equal(occurrences(profile.requiredRuntimeModelBytes), 1);
+    assert.equal(occurrences('dataCenterId: "EU-NL-1"'), 1);
+    for (const item of profile.requiredFiles) assert.equal(occurrences(item.sha256), 1, item.path);
+    assert.deepEqual(Object.keys(RUNPOD_WAN22_GPU_PROFILES), ["NVIDIA L40S"]);
+    assert.equal(RUNPOD_CPU_STAGING_PROFILE.dataCenterId, profile.dataCenterId);
+    assert.equal(RUNPOD_CPU_STAGING_PROFILE.networkVolumeType, profile.networkVolumeType);
+    assert.equal(RUNPOD_CPU_STAGING_PROFILE.minimumNetworkVolumeGb, profile.minimumNetworkVolumeGb);
+    assert.equal((source.match(/modelEvidenceProgram/g) || []).length, 3);
+    assert.doesNotMatch(source, /actual\.get\(k\)==expected\.get\(k\)|json\.dumps\(expected|requiredFiles\s*:\s*manifest/);
+    assert.doesNotMatch(source, /MODEL_MANIFEST_CONTRACT_MISMATCH|wan22-ti2v-5b-l40s-v\d/);
+    for (const transportSource of [bridge, actuator]) {
+        assert.doesNotMatch(transportSource, new RegExp(profile.modelRevision));
+        assert.doesNotMatch(transportSource, new RegExp(profile.wanRepositoryRevision));
+        assert.equal(transportSource.includes(String(profile.expectedModelBytes)), false);
+        for (const item of profile.requiredFiles) assert.equal(transportSource.includes(item.sha256), false);
+    }
+});
+
+test("V142 future authority change propagates to CPU, GPU, receipt projection, and recovery without consumer constants", async () => {
+    const sourceFile = fileURLToPath(new URL("../jarvis-local-video-engine.js", import.meta.url));
+    const source = fs.readFileSync(sourceFile, "utf8");
+    const current = RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"];
+    const futureModelRevision = "1".repeat(40);
+    const futureWanRevision = "2".repeat(40);
+    const futureExpectedBytes = current.expectedModelBytes + 1;
+    const artifactStudioUrl = pathToFileURL(path.join(path.dirname(sourceFile), "jarvis-artifact-studio.js")).href;
+    let futureSource = source
+        .replace('from "./jarvis-artifact-studio.js";', `from ${JSON.stringify(artifactStudioUrl)};`)
+        .replace(current.modelRevision, futureModelRevision)
+        .replace(current.wanRepositoryRevision, futureWanRevision)
+        .replace(
+            `const RUNPOD_MODEL_EXPECTED_BYTES = ${current.expectedModelBytes};`,
+            `const RUNPOD_MODEL_EXPECTED_BYTES = ${futureExpectedBytes};`
+        );
+    assert.equal(futureSource.includes(current.modelRevision), false);
+    assert.equal(futureSource.includes(current.wanRepositoryRevision), false);
+    assert.equal(futureSource.includes(`const RUNPOD_MODEL_EXPECTED_BYTES = ${futureExpectedBytes};`), true);
+
+    const temp = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-v142-future-authority-"));
+    const futureModuleFile = path.join(temp, "jarvis-local-video-engine-future.mjs");
+    fs.writeFileSync(futureModuleFile, futureSource);
+    const future = await import(`${pathToFileURL(futureModuleFile).href}?case=${Date.now()}`);
+    const futureProfile = future.RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"];
+    assert.equal(futureProfile.modelRevision, futureModelRevision);
+    assert.equal(futureProfile.wanRepositoryRevision, futureWanRevision);
+    assert.equal(futureProfile.expectedModelBytes, futureExpectedBytes);
+
+    const volumeId = "future-authority-volume-v142";
+    const harness = runpodPhysicalHarness({ scenario: "future-authority", networkVolumeId: volumeId });
+    const futureGpuAdapter = future.createRunpodRemoteVideoAdapter({
+        root: harness.root,
+        env: harness.env,
+        fetchImpl: harness.fetchImpl,
+        execute: harness.execute,
+        generateKeyPair: harness.generateKeyPair,
+        now: harness.now,
+        inspectBridgeIdentity: () => ({ ok: true, status: "BRIDGE_IDENTITY_OK" }),
+        resolveCanonicalSha: () => harness.env.JARVIS_RUNPOD_CANONICAL_SHA
+    });
+    const volume = { id: volumeId, dataCenterId: "EU-NL-1", sizeGb: 50, type: "STANDARD" };
+    const availability = {
+        gpuTypeId: "NVIDIA L40S",
+        vramGb: 48,
+        hourlyRateUsd: 0.99,
+        stockStatus: "Low"
+    };
+    const gpuReport = futureGpuAdapter.inspectZeroCostPrecheck({
+        job: harness.dryRunJob,
+        registryVerification: verifiedRegistryEvidence(futureProfile),
+        networkVolume: volume,
+        availability
+    });
+    assert.equal(gpuReport.ok, true, JSON.stringify(gpuReport));
+    assert.equal(gpuReport.contract.modelRevision, futureModelRevision);
+    assert.equal(gpuReport.contract.wanRepositoryRevision, futureWanRevision);
+    assert.equal(gpuReport.cache.modelBytes, futureExpectedBytes);
+
+    const launched = await futureGpuAdapter.launch({ job: harness.dryRunJob });
+    const stateFile = path.join(
+        harness.root,
+        ".jarvis-artifacts",
+        ".video-worker",
+        "runpod",
+        `${harness.dryRunJob.operationId}.json`
+    );
+    const receipt = JSON.parse(fs.readFileSync(stateFile, "utf8"));
+    assert.equal(receipt.modelContractRevision, futureModelRevision);
+    assert.equal(receipt.missionId, harness.dryRunJob.missionId);
+    assert.equal(receipt.objectiveId, harness.dryRunJob.objectiveId);
+    assert.equal(receipt.obligationId, harness.dryRunJob.obligationId);
+    const bootstrapFile = fs.readdirSync(
+        path.join(harness.root, ".jarvis-artifacts", ".video-worker", "runpod"),
+        { recursive: true }
+    ).map(entry => path.join(harness.root, ".jarvis-artifacts", ".video-worker", "runpod", entry))
+        .find(entry => entry.endsWith("bootstrap.sh"));
+    const recoveryBootstrap = fs.readFileSync(bootstrapFile, "utf8");
+    assert.match(recoveryBootstrap, new RegExp(futureModelRevision));
+    assert.match(recoveryBootstrap, new RegExp(futureWanRevision));
+    assert.match(recoveryBootstrap, new RegExp(String(futureExpectedBytes)));
+    assert.equal(recoveryBootstrap.includes(current.modelRevision), false);
+    const released = await futureGpuAdapter.release({
+        ...launched.remoteWorker,
+        operationId: harness.dryRunJob.operationId
+    });
+    assert.equal(released.terminationVerified, true, JSON.stringify(released));
+
+    const cpuEnv = { ...harness.env, JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false" };
+    const futureCpuAdapter = future.createRunpodRemoteVideoAdapter({
+        root: harness.root,
+        env: cpuEnv,
+        inspectBridgeIdentity: () => ({ ok: true, status: "BRIDGE_IDENTITY_OK" }),
+        resolveCanonicalSha: () => cpuEnv.JARVIS_RUNPOD_CANONICAL_SHA
+    });
+    const cpuReport = futureCpuAdapter.inspectCpuStagingPrecheck({
+        job: harness.dryRunJob,
+        sshKeyRegistered: true,
+        registryVerification: verifiedRegistryEvidence(future.RUNPOD_CPU_STAGING_PROFILE),
+        networkVolume: volume,
+        inventory: {
+            cpuFlavorId: "cpu3c",
+            dataCenterId: "EU-NL-1",
+            minimumVcpu: 2,
+            ramMultiplier: 2,
+            securePriceUsdPerHour: 0.06,
+            stockStatus: "HIGH"
+        }
+    });
+    assert.equal(cpuReport.ok, true, JSON.stringify(cpuReport));
+    assert.match(cpuReport.bootstrap.script, new RegExp(futureModelRevision));
+    assert.match(cpuReport.bootstrap.script, new RegExp(futureWanRevision));
+    assert.match(cpuReport.bootstrap.script, new RegExp(String(futureExpectedBytes)));
 });
 
 test("V142 CPU staging fails closed for the retired datacenter, undersized volume, or non-standard volume", async t => {
@@ -1095,7 +1338,7 @@ test("V142 CPU model-ready cache remains physically unverified and never becomes
     fs.mkdirSync(stateRoot, { recursive: true });
     fs.writeFileSync(path.join(stateRoot, "cpu-model-ready.json"), JSON.stringify({
         networkVolumeId: volumeId,
-        modelContractRevision: "921dbaf3f1674a56f47e83fb80a34bac8a8f203e",
+        modelContractRevision: RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].modelRevision,
         modelIntegrityVerified: true,
         runtimePreflightVerified: false,
         cacheStatus: "CACHE_MODEL_READY"
@@ -1330,7 +1573,7 @@ test("V142 RunPod zero-cost precheck fails closed on every static pre-Pod contra
                 ...(options.networkVolumeId ? {
                     networkVolume: {
                         id: options.networkVolumeId,
-                        dataCenterId: "CA-MTL-1",
+                        dataCenterId: "EU-NL-1",
                         sizeGb: 40,
                         type: "STANDARD"
                     }
@@ -1373,7 +1616,7 @@ test("V142 RunPod local durable duplicate and incomplete payload both block befo
     });
 });
 
-test("V142 RunPod adapter provisions one A40 Pod, transfers physical assets, returns verified MP4, and deletes the Pod", async () => {
+test("V142 RunPod adapter provisions one L40S Pod, transfers physical assets, returns verified MP4, and deletes the Pod", async () => {
     const harness = runpodPhysicalHarness();
     const configuredOnly = harness.adapter.inspectHardware();
     assert.equal(configuredOnly.status, "RUNPOD_PROVISIONING_CONFIGURED");
@@ -1382,12 +1625,12 @@ test("V142 RunPod adapter provisions one A40 Pod, transfers physical assets, ret
     assert.equal(configuredOnly.ffmpegAvailable, null);
     assert.equal(configuredOnly.physicalHealthVerified, false);
     assert.equal(configuredOnly.runtimePreflightVerified, false);
-    assert.equal(configuredOnly.requestedGpuName, "NVIDIA A40");
+    assert.equal(configuredOnly.requestedGpuName, "NVIDIA L40S");
     assert.equal(configuredOnly.requestedVramGb, 48);
     const started = await harness.engine.start(harness.payload);
     assert.equal(started.ok, true, JSON.stringify(started));
-    assert.equal(started.podId, "pod-a40-v142");
-    assert.match(started.remoteJobId, /^runpod\/pod-a40-v142\//);
+    assert.equal(started.podId, "pod-l40s-v142");
+    assert.match(started.remoteJobId, /^runpod\/pod-l40s-v142\//);
 
     const runpodStateRoot = path.join(harness.root, ".jarvis-artifacts", ".video-worker", "runpod");
     const bootstrapFile = fs.readdirSync(runpodStateRoot, { recursive: true })
@@ -1403,11 +1646,11 @@ test("V142 RunPod adapter provisions one A40 Pod, transfers physical assets, ret
     assert.equal(completed.workerRelease.terminationVerified, true);
     assert.equal(harness.deleted, true);
     assert.equal(harness.createdBody.gpuCount, 1);
-    assert.deepEqual(harness.createdBody.gpuTypeIds, ["NVIDIA A40"]);
+    assert.deepEqual(harness.createdBody.gpuTypeIds, ["NVIDIA L40S"]);
     assert.equal(harness.createdBody.containerDiskInGb, 30);
     assert.equal(harness.createdBody.volumeInGb, 100);
-    assert.equal(harness.createdBody.minRAMPerGPU, 50);
-    assert.equal(harness.createdBody.minVCPUPerGPU, 9);
+    assert.equal(harness.createdBody.minRAMPerGPU, 62);
+    assert.equal(harness.createdBody.minVCPUPerGPU, 16);
     assert.equal("RUNPOD_API_KEY" in harness.createdBody.env, false);
     assert.equal(JSON.stringify(harness.createdBody).includes(harness.env.RUNPOD_API_KEY), false);
     const stateBase = path.join(harness.root, ".jarvis-artifacts", ".video-worker", "runpod");
@@ -1430,23 +1673,38 @@ test("V142 RunPod adapter provisions one A40 Pod, transfers physical assets, ret
     assert.match(bootstrap, /CACHE_MODEL_READY/);
     assert.match(bootstrap, /CACHE_READY/);
     assert.match(bootstrap, /CACHE_HIT/);
-    assert.match(bootstrap, /921dbaf3f1674a56f47e83fb80a34bac8a8f203e/);
+    assert.match(
+        bootstrap,
+        new RegExp(RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].modelRevision)
+    );
     assert.match(bootstrap, /while kill -0 "\$DOWNLOAD_PID"/);
-    assert.match(bootstrap, /actual\.get\(k\)==expected\.get\(k\)/);
-    assert.match(bootstrap, /target=os\.path\.join\(model_dir,item\['path'\]\); assert os\.path\.getsize\(target\)==item\['bytes'\]/);
-    assert.match(bootstrap, /assert digest\.hexdigest\(\)==item\['sha256'\]/);
-    assert.match(bootstrap, /if test "\$CACHE_VALID" = 1 && "\$VENV\/bin\/python" "\$PREFLIGHT"/);
-    assert.match(bootstrap, /progress CACHE_VALIDATE READY CACHE_HIT; exit 0; fi/);
+    assert.doesNotMatch(bootstrap, /actual\.get\(k\)==expected\.get\(k\)|json\.dumps\(expected/);
+    assert.match(bootstrap, /observed_files\.append\(\{'path':item\['path'\],'bytes':size,'sha256':sha256\}\)/);
+    assert.match(bootstrap, /assert size==item\['bytes'\] and sha256==item\['sha256'\]/);
+    assert.match(bootstrap, /assert wan_revision==expected\['wanRepositoryRevision'\]/);
+    assert.match(bootstrap, /model_tree_excluding_root_huggingface_cache/);
+    assert.match(bootstrap, /python3 "\$MODEL_PREFLIGHT" .* && "\$VENV\/bin\/python" "\$PREFLIGHT" .* && CACHE_VALID=1/);
+    assert.match(bootstrap, /if test "\$CACHE_VALID" = 1; then write_cache_evidence; progress CACHE_VALIDATE READY CACHE_HIT; exit 0; fi/);
     assert.ok(
-        bootstrap.indexOf("progress CACHE_VALIDATE READY CACHE_HIT; exit 0; fi")
+        bootstrap.indexOf('if test "$CACHE_VALID" = 1; then write_cache_evidence; progress CACHE_VALIDATE READY CACHE_HIT; exit 0; fi')
             < bootstrap.indexOf('"$VENV/bin/hf" download'),
         "a physically verified cache hit must exit before the model download command"
     );
     assert.match(bootstrap, /rm -f "\$CACHE_MANIFEST"\nprogress CACHE_VALIDATE INCOMPLETE CACHE_MISS/);
+    const cacheEvidenceWriterStart = bootstrap.indexOf("write_cache_evidence()");
+    const cacheEvidenceWriter = bootstrap.slice(
+        cacheEvidenceWriterStart,
+        bootstrap.indexOf("\n}\n", cacheEvidenceWriterStart) + 3
+    );
+    assert.match(cacheEvidenceWriter, /'model':json\.load\(open\(model_path.*'runtime':json\.load\(open\(runtime_path/);
+    assert.doesNotMatch(cacheEvidenceWriter, /expectedModelBytes|requiredRuntimeModelBytes|requiredFiles/);
     assert.match(bootstrap, /export HF_XET_CHUNK_CACHE_SIZE_BYTES=0/);
     assert.match(bootstrap, /export HF_XET_SHARD_CACHE_SIZE_LIMIT=0/);
     assert.match(bootstrap, /export PIP_NO_CACHE_DIR=1/);
-    assert.match(bootstrap, /8338a62490c93cfbf908bb289bbaa3fb104e5606415bb48cca6cae5175313c44/);
+    assert.match(
+        bootstrap,
+        new RegExp(RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].requirementsSha256)
+    );
     assert.match(bootstrap, /flash-attn==2\.8\.3\.post1.*--no-build-isolation/);
     assert.match(bootstrap, /flash_attn_func/);
     assert.match(bootstrap, /flashAttentionCudaProbe/);
@@ -1473,7 +1731,7 @@ test("V142 RunPod blocks OCI digest syntax in imageName before creating billable
     const harness = runpodPhysicalHarness({
         scenario: "digest-in-image-name",
         envOverrides: {
-            JARVIS_RUNPOD_IMAGE: `runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404@${RUNPOD_WAN22_GPU_PROFILES["NVIDIA A40"].expectedRegistryDigest}`
+            JARVIS_RUNPOD_IMAGE: `runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404@${RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].expectedRegistryDigest}`
         }
     });
     const started = await harness.engine.start(harness.payload);
@@ -1493,7 +1751,7 @@ test("V142 RunPod registry digest verification passes only on an exact public ma
         assert.equal(report.ok, true, JSON.stringify(report));
         assert.equal(
             report.payload.imageName,
-            RUNPOD_WAN22_GPU_PROFILES["NVIDIA A40"].provisionImageTag
+            RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].provisionImageTag
         );
         assert.equal(harness.calls.length, 0);
     });
@@ -1526,7 +1784,7 @@ test("V142 zero-cost precheck fails closed when registry evidence is missing or 
     assert.equal(missing.error, "RUNPOD_REGISTRY_DIGEST_UNVERIFIABLE");
     const mismatched = harness.adapter.inspectZeroCostPrecheck({
         job: harness.dryRunJob,
-        registryVerification: verifiedRegistryEvidence(RUNPOD_WAN22_GPU_PROFILES["NVIDIA A40"], {
+        registryVerification: verifiedRegistryEvidence(RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"], {
             observedDigest: `sha256:${"f".repeat(64)}`
         })
     });
@@ -1601,7 +1859,7 @@ test("V142 RunPod attaches an existing Network Volume, pins its datacenter, and 
     const started = await harness.engine.start(harness.payload);
     assert.equal(started.ok, true, JSON.stringify(started));
     assert.equal(harness.createdBody.networkVolumeId, volumeId);
-    assert.deepEqual(harness.createdBody.dataCenterIds, ["CA-MTL-1"]);
+    assert.deepEqual(harness.createdBody.dataCenterIds, ["EU-NL-1"]);
     assert.equal(harness.createdBody.volumeMountPath, "/workspace");
     assert.equal("volumeInGb" in harness.createdBody, false);
     assert.equal(started.remoteWorker.networkVolumePersistent, true);
@@ -1658,8 +1916,8 @@ test("V142 RunPod persists cache progress and only promotes a validated cache to
     const progress = [
         { stage: "CACHE_VALIDATE", status: "INCOMPLETE", cacheStatus: "CACHE_MISS", modelBytes: 0, at: "2026-08-27T12:00:01.000Z" },
         { stage: "MODEL_DOWNLOAD", status: "RUNNING", cacheStatus: "CACHE_POPULATING", modelBytes: 12000000000, at: "2026-08-27T12:00:02.000Z" },
-        { stage: "MODEL_VALIDATION", status: "READY", cacheStatus: "CACHE_MODEL_READY", modelBytes: 34203123497, at: "2026-08-27T12:00:02.500Z" },
-        { stage: "RUNNER_READY", status: "READY", cacheStatus: "CACHE_READY", modelBytes: 34203123497, at: "2026-08-27T12:00:03.000Z" }
+        { stage: "MODEL_VALIDATION", status: "READY", cacheStatus: "CACHE_MODEL_READY", modelBytes: RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].expectedModelBytes, at: "2026-08-27T12:00:02.500Z" },
+        { stage: "RUNNER_READY", status: "READY", cacheStatus: "CACHE_READY", modelBytes: RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].expectedModelBytes, at: "2026-08-27T12:00:03.000Z" }
     ];
     const harness = runpodPhysicalHarness({
         scenario: "cache-progress",
@@ -1685,7 +1943,7 @@ test("V142 RunPod records a compatible persistent cache as CACHE_HIT without rep
             stage: "CACHE_VALIDATE",
             status: "READY",
             cacheStatus: "CACHE_HIT",
-            modelBytes: 34203123497,
+            modelBytes: RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].expectedModelBytes,
             at: "2026-08-27T12:00:01.000Z"
         }]
     });
@@ -1732,7 +1990,7 @@ test("V142 cache recovery survives a new runtime without changing the durable ob
             stage: "RUNNER_READY",
             status: "READY",
             cacheStatus: "CACHE_READY",
-            modelBytes: 34203123497,
+            modelBytes: RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].expectedModelBytes,
             at: "2026-08-27T12:03:00.000Z"
         }]
     });
@@ -1764,14 +2022,14 @@ test("V142 cache recovery survives a new runtime without changing the durable ob
         registryVerification: third.gpuRegistryVerification,
         networkVolume: {
             id: "network-volume-cache-runtime",
-            dataCenterId: "CA-MTL-1",
+            dataCenterId: "EU-NL-1",
             sizeGb: 50,
             type: "STANDARD"
         },
         availability: {
-            gpuTypeId: "NVIDIA A40",
+            gpuTypeId: "NVIDIA L40S",
             vramGb: 48,
-            hourlyRateUsd: 0.44,
+            hourlyRateUsd: 0.99,
             stockStatus: "Low"
         }
     });
@@ -1841,7 +2099,7 @@ test("V142 every paid physical preflight failure keeps inference stopped and req
     const cases = [
         ["physical GPU", { baseHealthOverrides: { gpuName: "NVIDIA RTX 4090" } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
         ["CUDA", { baseHealthOverrides: { cuda: false, cudaProbe: false } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
-        ["compute capability", { baseHealthOverrides: { computeCapability: "8.9" } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
+        ["compute capability", { baseHealthOverrides: { computeCapability: "8.6" } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
         ["Torch", { baseHealthOverrides: { torchVersion: "2.7.0+cu126" } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
         ["Python", { baseHealthOverrides: { pythonVersion: "3.11.9" } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
         ["FFmpeg", { baseHealthOverrides: { ffmpeg: false } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
@@ -2051,7 +2309,7 @@ test("V142 RunPod pre-provision transport recovery reuses the same operation and
 
 test("V142 RunPod maps a later physical attempt of the same durable obligation to the same Pod identity after deletion", async () => {
     const durableIdentity = {
-        missionId: "MISSION-V142-EP1-A40-SMOKE-001",
+        missionId: "MISSION-V142-EP1-L40S-SMOKE-001",
         objectiveId: "OBJECTIVE-V142-EP1-VISUAL-PIPELINE",
         obligationId: "OBLIGATION-V142-EP1-SHOT-001",
         rootInstructionHash: "8717f7c993f996ec329527a065a0f10b2d57258b3f762580fd58198b82291993"
@@ -2117,7 +2375,7 @@ test("V142 RunPod hard cap cancels before USD 2 and still deletes the Pod", asyn
     const clock = { value: "2026-08-27T12:00:00.000Z" };
     const harness = runpodPhysicalHarness({ scenario: "budget", clock });
     const started = await harness.engine.start(harness.payload);
-    clock.value = "2026-08-27T16:20:00.000Z";
+    clock.value = "2026-08-27T13:56:00.000Z";
     const completed = await pollRunpodUntilDone(harness.engine, started.operationName);
     assert.equal(completed.ok, false);
     assert.equal(completed.status, "RUNPOD_HARD_BUDGET_EXCEEDED");
