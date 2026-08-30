@@ -1680,7 +1680,7 @@ function advertisedBranchHead(
         {
             allowFailure: true,
             maxBuffer: 1024 * 1024,
-            timeout: 10000,
+            timeout: 30000,
             env: {
                 ...process.env,
                 GIT_TERMINAL_PROMPT: "0"
