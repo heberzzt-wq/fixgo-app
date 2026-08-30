@@ -557,7 +557,7 @@ function runpodPhysicalHarness({
                     torch: true,
                     torchVersion: "2.8.0+cu128",
                     torchCudaVersion: "12.8",
-                    cudaToolkitVersion: "12.8",
+                    cudaImageVersion: "12.8.1",
                     cuda: true,
                     gpuName: gpuTypeId,
                     computeCapability: gpuTypeId === "NVIDIA L40S" ? "8.9" : "8.6",
@@ -575,6 +575,9 @@ function runpodPhysicalHarness({
                     pipCheck: scenario === "runtime-health-fail" && healthCalls > 1 ? false : true,
                     wanCliImport: scenario === "runtime-health-fail" && healthCalls > 1 ? false : true,
                     flashAttention: scenario === "runtime-health-fail" && healthCalls > 1 ? false : true,
+                    flashAttentionWheelAuthorized: scenario === "runtime-health-fail" && healthCalls > 1 ? false : true,
+                    flashAttentionWheelAbi: "FALSE",
+                    flashAttentionWheelSha256: RUNPOD_WAN22_GPU_PROFILES[gpuTypeId].flashAttentionWheels.FALSE.sha256,
                     flashAttentionCudaProbe: scenario === "runtime-health-fail" && healthCalls > 1 ? false : true,
                     imports: scenario === "runtime-health-fail" && healthCalls > 1 ? false : true,
                     cudaProbe: true,
@@ -634,6 +637,10 @@ function runpodPhysicalHarness({
             return {
                 stdout: scenario === "bootstrap-fail-model-sha"
                     ? "MODEL_SHA256_MISMATCH model_index.json\n"
+                    : scenario === "bootstrap-fail-wheel-sha"
+                        ? "flash_attn wheel: FAILED sha256sum\n"
+                        : scenario === "bootstrap-fail-wheel-abi"
+                            ? "RUNPOD_FLASH_ATTENTION_ABI_UNAUTHORIZED\n"
                     : `controlled bootstrap failure RUNPOD_API_KEY=${env.RUNPOD_API_KEY} Authorization: Bearer ${env.RUNPOD_API_KEY}\n`,
                 stderr: "",
                 exitCode: 0
@@ -649,10 +656,13 @@ function runpodPhysicalHarness({
                     pythonVersion: "3.12.3",
                     torchVersion: "2.8.0+cu128",
                     torchCudaVersion: "12.8",
-                    cudaToolkitVersion: "12.8",
+                    cudaImageVersion: "12.8.1",
                     computeCapability: gpuTypeId === "NVIDIA L40S" ? "8.9" : "8.6",
                     cudaProbe: true,
                     flashAttentionCudaProbe: scenario === "bootstrap-fail-stale-preflight",
+                    flashAttentionWheelAuthorized: scenario === "bootstrap-fail-stale-preflight",
+                    flashAttentionWheelAbi: "FALSE",
+                    flashAttentionWheelSha256: RUNPOD_WAN22_GPU_PROFILES[gpuTypeId].flashAttentionWheels.FALSE.sha256,
                     pipCheck: scenario === "bootstrap-fail-stale-preflight",
                     wanCliImport: true,
                     imports: { torch: true, flash_attn: scenario === "bootstrap-fail-stale-preflight" },
@@ -1298,9 +1308,8 @@ test("V142 A40 runtime-only preparation stays physical, cache-independent, and p
 
     for (const [number, label, overrides] of [
         ["2", "A40 CC 8.5 fails", { baseHealthOverrides: { computeCapability: "8.5" } }],
-        ["3", "A40 47 GB fails", { baseHealthOverrides: { vramGb: 43.77, vramBytes: 47_000_000_000 } }],
-        ["4", "CUDA Toolkit 12.7 fails", { baseHealthOverrides: { cudaToolkitVersion: "12.7" } }],
-        ["5", "FlashAttention without CUDA kernel fails", {
+        ["3", "Torch CUDA 12.7 fails", { baseHealthOverrides: { torchCudaVersion: "12.7" } }],
+        ["4", "FlashAttention without CUDA kernel fails", {
             runtimeHealthOverrides: { flashAttentionCudaProbe: false, dependencyContract: false }
         }]
     ]) {
@@ -2839,7 +2848,19 @@ test("V142 RunPod adapter provisions one L40S Pod, transfers physical assets, re
         bootstrap,
         new RegExp(RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].requirementsSha256)
     );
-    assert.match(bootstrap, /flash-attn==2\.8\.3\.post1.*--no-build-isolation/);
+    assert.match(bootstrap, /flash_attn-2\.8\.3\.post1%2Bcu12torch2\.8cxx11abiFALSE-cp312-cp312-linux_x86_64\.whl/);
+    assert.match(bootstrap, /flash_attn-2\.8\.3\.post1%2Bcu12torch2\.8cxx11abiTRUE-cp312-cp312-linux_x86_64\.whl/);
+    assert.match(bootstrap, /3a22801651c027c058f0f36d49a176736bb06b3a16558241f89170f46c300b90/);
+    assert.match(bootstrap, /9a08775a6be3358e3b691ed97f7cb90ad4e9eb6a912e8bce680c2edb7cf3d86e/);
+    assert.match(bootstrap, /_GLIBCXX_USE_CXX11_ABI/);
+    assert.match(bootstrap, /sha256sum -c -/);
+    assert.match(bootstrap, /hashlib\.sha256/);
+    assert.match(bootstrap, /flash_attention_wheel_sha256==flash_attention_wheel\.get\('sha256'\)/);
+    assert.match(bootstrap, /RUNPOD_FLASH_ATTENTION_ABI_UNAUTHORIZED/);
+    assert.match(bootstrap, /pip install --no-deps "\$FLASH_ATTENTION_WHEEL"/);
+    assert.match(bootstrap, /export PIP_ONLY_BINARY=flash-attn/);
+    assert.doesNotMatch(bootstrap, /pip install "flash-attn==/);
+    assert.doesNotMatch(bootstrap, /--no-build-isolation/);
     assert.match(bootstrap, /flash_attn_func/);
     assert.match(bootstrap, /flashAttentionCudaProbe/);
     assert.match(bootstrap, /MODEL_MANIFEST/);
@@ -2847,16 +2868,17 @@ test("V142 RunPod adapter provisions one L40S Pod, transfers physical assets, re
     assert.match(bootstrap, /progress MODEL_VALIDATION RUNNING CACHE_POPULATING/);
     assert.match(bootstrap, /python3 "\$MODEL_PREFLIGHT" .* "\$MODEL_MANIFEST" "\$JARVIS_OPERATION_ID"/);
     assert.match(bootstrap, /progress MODEL_VALIDATION READY CACHE_MODEL_READY/);
-    assert.match(bootstrap, /MAX_JOBS=4/);
+    assert.doesNotMatch(bootstrap, /MAX_JOBS=/);
+    assert.doesNotMatch(bootstrap, /build-essential/);
     assert.match(bootstrap, /pip check/);
     assert.match(bootstrap, /importlib\.import_module\(name\)/);
     assert.match(bootstrap, /'flash_attn'/);
     assert.match(bootstrap, /generate\.py.*--help/);
     assert.match(bootstrap, /torchVersion/);
     assert.match(bootstrap, /torchCudaVersion/);
-    assert.match(bootstrap, /cudaToolkitVersion/);
-    assert.match(bootstrap, /nvcc.*--version/);
-    assert.match(bootstrap, /cudaToolkitVersionPrefix/);
+    assert.match(bootstrap, /cudaImageVersion/);
+    assert.doesNotMatch(bootstrap, /nvcc.*--version/);
+    assert.doesNotMatch(bootstrap, /cudaToolkitVersionPrefix/);
     assert.equal(harness.createdBody.imageName, "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404");
     assert.doesNotMatch(harness.createdBody.imageName, /@sha256:/i);
 });
@@ -2927,7 +2949,7 @@ test("V142 zero-cost precheck fails closed when registry evidence is missing or 
     assert.equal(harness.calls.length, 0);
 });
 
-test("V142 L40S physical mock requires exact CC 8.9, 48GB and a working FlashAttention CUDA kernel", async t => {
+test("V142 L40S physical mock requires exact identity and a working FlashAttention CUDA kernel", async t => {
     await t.test("exact L40S profile completes", async () => {
         const harness = runpodPhysicalHarness({
             scenario: "l40s-physical-success",
@@ -2948,7 +2970,6 @@ test("V142 L40S physical mock requires exact CC 8.9, 48GB and a working FlashAtt
 
     const failures = [
         ["CC 8.6 binary/profile", { baseHealthOverrides: { computeCapability: "8.6" } }],
-        ["47 GB VRAM", { baseHealthOverrides: { vramGb: 43.77, vramBytes: 47_000_000_000 } }],
         ["FlashAttention sm_89 CUDA operation", {
             runtimeHealthOverrides: { flashAttentionCudaProbe: false, dependencyContract: false }
         }]
@@ -3363,6 +3384,82 @@ test("V142 cached 50 GB workspace reaches GPU_RUNTIME_BOOTSTRAP with decimal 48 
     assert.equal(harness.deleted, true);
 });
 
+test("V142 exact physical L40S fixture treats provider VRAM as commercial capacity and NVCC as non-runtime", async () => {
+    const profile = RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"];
+    const harness = runpodPhysicalHarness({
+        scenario: "physical-pze4h8oscmx349-runtime-fixed",
+        networkVolumeId: "su3d60su17",
+        baseHealthOverrides: {
+            gpuName: "NVIDIA L40S",
+            computeCapability: "8.9",
+            vramGb: 44.39,
+            vramBytes: 47_665_709_056,
+            pythonVersion: "3.12.3",
+            torchVersion: "2.8.0+cu128",
+            torchCudaVersion: "12.8",
+            cudaImageVersion: "12.8.1",
+            nvcc: false
+        },
+        bootstrapProgressSequence: [{
+            stage: "RUNNER_READY",
+            status: "READY",
+            cacheStatus: "CACHE_READY",
+            modelBytes: profile.expectedModelBytes,
+            at: "2026-08-30T22:43:34.498Z"
+        }],
+        envOverrides: {
+            JARVIS_RUNPOD_CLOUD_TYPE: "SECURE",
+            JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY: "true",
+            JARVIS_RUNPOD_DATACENTER_ID: "EU-NL-1",
+            JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: "0.99"
+        }
+    });
+    const started = await harness.engine.start(harness.payload);
+    assert.equal(started.ok, true, JSON.stringify(started));
+    const certified = await pollRunpodUntilDone(harness.engine, started.operationName);
+    assert.equal(certified.ok, true, JSON.stringify(certified));
+    assert.equal(certified.status, "RUNPOD_RUNTIME_PREFLIGHT_CERTIFIED");
+    assert.equal(certified.runtimePreflightVerified, true);
+    assert.equal(certified.cacheStatus, "CACHE_READY");
+    assert.equal(harness.bootstrapStarts, 1);
+    assert.equal(harness.inferenceStarts, 0);
+    assert.equal(harness.deleted, true);
+});
+
+test("V142 FlashAttention wheel SHA and ABI failures stay fail-closed without source build", async t => {
+    for (const [scenario, marker] of [
+        ["bootstrap-fail-wheel-sha", "FAILED sha256sum"],
+        ["bootstrap-fail-wheel-abi", "RUNPOD_FLASH_ATTENTION_ABI_UNAUTHORIZED"]
+    ]) {
+        await t.test(scenario, async () => {
+            const harness = runpodPhysicalHarness({ scenario });
+            const started = await harness.engine.start(harness.payload);
+            assert.equal(started.ok, true, JSON.stringify(started));
+            const failed = await pollRunpodUntilDone(harness.engine, started.operationName);
+            assert.equal(failed.ok, false, JSON.stringify(failed));
+            assert.equal(failed.status, "RUNPOD_BOOTSTRAP_INCOMPLETE");
+            const stateFile = path.join(
+                harness.root,
+                ".jarvis-artifacts",
+                ".video-worker",
+                "runpod",
+                `${started.operationId}.json`
+            );
+            const state = JSON.parse(fs.readFileSync(stateFile, "utf8"));
+            assert.match(state.bootstrapDiagnostics.logTail, new RegExp(marker));
+            assert.equal(harness.inferenceStarts, 0);
+            assert.equal(harness.deleted, true);
+
+            const stateRoot = path.join(harness.root, ".jarvis-artifacts", ".video-worker", "runpod");
+            const bootstrapFile = fs.readdirSync(stateRoot, { recursive: true })
+                .map(file => path.join(stateRoot, file))
+                .find(file => file.endsWith("bootstrap.sh"));
+            const bootstrap = fs.readFileSync(bootstrapFile, "utf8");
+            assert.doesNotMatch(bootstrap, /--no-build-isolation|MAX_JOBS=|pip install "flash-attn==/);
+        });
+    }
+});
+
 test("V142 every paid physical preflight failure keeps inference stopped and requires Pod deletion", async t => {
     const cases = [
         ["physical GPU", { baseHealthOverrides: { gpuName: "NVIDIA RTX 4090" } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
@@ -3371,9 +3468,7 @@ test("V142 every paid physical preflight failure keeps inference stopped and req
         ["Torch", { baseHealthOverrides: { torchVersion: "2.7.0+cu126" } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
         ["Python", { baseHealthOverrides: { pythonVersion: "3.11.9" } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
         ["workspace reserve", { baseHealthOverrides: { freeDiskGb: 7.99 } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
-        ["physical VRAM bytes", { baseHealthOverrides: { vramBytes: 47_999_999_999 } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
-        ["NVCC", { baseHealthOverrides: { nvcc: false } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
-        ["NVCC version", { baseHealthOverrides: { cudaToolkitVersion: "12.7" } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
+        ["Torch CUDA", { baseHealthOverrides: { torchCudaVersion: "12.7" } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
         ["FFmpeg", { runtimeHealthOverrides: { ffmpeg: false } }, "RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED"],
         ["FFprobe", { runtimeHealthOverrides: { ffprobe: false } }, "RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED"],
         ["FlashAttention", { runtimeHealthOverrides: { flashAttention: false, dependencyContract: false } }, "RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED"],
@@ -3428,7 +3523,7 @@ test("V142 RunPod availability follows authenticated stockStatus while preservin
 
     for (const [name, availability, expectedError] of [
         ["stock None", { stockStatus: "None" }, "RUNPOD_COMPATIBLE_GPU_UNAVAILABLE"],
-        ["insufficient VRAM", { vramGb: 16 }, "RUNPOD_COMPATIBLE_GPU_UNAVAILABLE"],
+        ["provider announces only 47 GB", { vramGb: 47 }, "RUNPOD_COMPATIBLE_GPU_UNAVAILABLE"],
         ["invalid price", { hourlyRateUsd: 0 }, "RUNPOD_HOURLY_RATE_INVALID"],
         ["different GPU", { gpuId: "NVIDIA RTX A6000" }, "RUNPOD_COMPATIBLE_GPU_UNAVAILABLE"],
         ["count one absent", { availableGpuCounts: [2, 4] }, "RUNPOD_COMPATIBLE_GPU_UNAVAILABLE"],
