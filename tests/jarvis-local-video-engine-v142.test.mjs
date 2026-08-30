@@ -409,14 +409,24 @@ function runpodPhysicalHarness({
                         }
                     }],
                     ...(query.includes("dataCenters") ? {
-                        dataCenters: [{
-                            id: networkVolumeDataCenterId,
-                            gpuAvailability: [{
-                                gpuTypeId,
-                                stockStatus: "Low",
-                                available: true
-                            }]
-                        }]
+                        dataCenters: [
+                            ...(scenario === "placement-live-stale-dc" ? [{
+                                id: "US-CA-1",
+                                gpuAvailability: [{
+                                    gpuTypeId,
+                                    stockStatus: "Low",
+                                    available: true
+                                }]
+                            }] : []),
+                            {
+                                id: networkVolumeDataCenterId,
+                                gpuAvailability: [{
+                                    gpuTypeId,
+                                    stockStatus: "Low",
+                                    available: true
+                                }]
+                            }
+                        ]
                     } : {})
                 }
             });
@@ -435,6 +445,9 @@ function runpodPhysicalHarness({
             return mockHttpResponse(200, []);
         }
         if (String(url).includes("/v2/catalog/datacenters/") && (options.method || "GET") === "GET") {
+            if (scenario === "placement-live-stale-dc" && String(url).endsWith("/US-CA-1")) {
+                return mockHttpResponse(404, { error: "Data center not found" });
+            }
             return mockHttpResponse(200, {
                 id: networkVolumeDataCenterId,
                 networkVolumeTypes: [networkVolumeType]
@@ -1512,6 +1525,28 @@ test("V142 live placement inspection reads inventory, datacenter support, volume
     assert.equal(harness.calls.some(call => call.url.includes("/graphql")), true);
     assert.equal(harness.calls.some(call => call.url.endsWith("/networkvolumes")), true);
     assert.equal(harness.calls.some(call => call.url.endsWith("/pods") && call.method === "POST"), false);
+});
+
+test("V142 live placement ignores a stale catalog datacenter 404 and keeps the executable candidate", async () => {
+    const harness = runpodPhysicalHarness({
+        scenario: "placement-live-stale-dc",
+        envOverrides: {
+            JARVIS_RUNPOD_GPU_TYPE_ID: "",
+            JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false",
+            JARVIS_RUNPOD_CLOUD_TYPE: "SECURE"
+        }
+    });
+    const report = await harness.adapter.inspectLiveZeroCostPrecheck({ job: harness.dryRunJob });
+    assert.equal(report.ok, true, JSON.stringify(report));
+    assert.equal(report.placement.selected.dataCenterId, "EU-NL-1");
+    assert.equal(
+        harness.calls.some(call => call.url.endsWith("/US-CA-1") && call.method === "GET"),
+        true
+    );
+    assert.equal(
+        harness.calls.some(call => call.url.endsWith("/pods") && call.method === "POST"),
+        false
+    );
 });
 
 test("V142 incomplete GPU operational evidence cannot poison a complete physical CPU cache replica", () => {

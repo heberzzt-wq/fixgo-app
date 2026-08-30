@@ -2916,13 +2916,22 @@ export function createRunpodRemoteVideoAdapter({
         const dataCenterSupport = new Map(await Promise.all(dataCenters.map(async dataCenter => {
             const dataCenterId = String(dataCenter?.id || "").trim();
             if (!dataCenterId) return [dataCenterId, false];
-            const catalog = await apiRequest(
-                `${catalogApiBase}/datacenters/${encodeURIComponent(dataCenterId)}`,
-                { method: "GET" },
-                [200],
-                "placement_datacenter",
-                operationId
-            );
+            let catalog;
+            try {
+                catalog = await apiRequest(
+                    `${catalogApiBase}/datacenters/${encodeURIComponent(dataCenterId)}`,
+                    { method: "GET" },
+                    [200],
+                    "placement_datacenter",
+                    operationId
+                );
+            }
+            catch(error) {
+                if (Number(error?.httpStatus || 0) === 404) {
+                    return [dataCenterId, false];
+                }
+                throw error;
+            }
             const types = Array.isArray(catalog?.networkVolumeTypes)
                 ? catalog.networkVolumeTypes.map(type => String(type || "").trim().toUpperCase())
                 : [];
