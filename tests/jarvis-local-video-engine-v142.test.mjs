@@ -507,6 +507,7 @@ function runpodPhysicalHarness({
             const health = scenario === "health-fail" && healthCalls === 1
                 ? { python: true, torch: true, cuda: false, gpuName: "", vramGb: 0, freeDiskGb: 100 }
                 : {
+                    operatingSystem: "ubuntu-24.04",
                     python: true,
                     pythonVersion: "3.12.3",
                     torch: true,
@@ -517,6 +518,7 @@ function runpodPhysicalHarness({
                     gpuName: gpuTypeId,
                     computeCapability: gpuTypeId === "NVIDIA L40S" ? "8.9" : "8.6",
                     vramGb: 48,
+                    vramBytes: 48_000_000_000,
                     freeDiskGb: 100,
                     ffmpeg: true,
                     ffprobe: true,
@@ -1160,7 +1162,7 @@ test("V142 A40 runtime-only preparation stays physical, cache-independent, and p
 
     for (const [number, label, overrides] of [
         ["2", "A40 CC 8.5 fails", { baseHealthOverrides: { computeCapability: "8.5" } }],
-        ["3", "A40 47 GB fails", { baseHealthOverrides: { vramGb: 47 } }],
+        ["3", "A40 47 GB fails", { baseHealthOverrides: { vramGb: 43.77, vramBytes: 47_000_000_000 } }],
         ["4", "CUDA Toolkit 12.7 fails", { baseHealthOverrides: { cudaToolkitVersion: "12.7" } }],
         ["5", "FlashAttention without CUDA kernel fails", {
             runtimeHealthOverrides: { flashAttentionCudaProbe: false, dependencyContract: false }
@@ -2563,7 +2565,7 @@ test("V142 L40S physical mock requires exact CC 8.9, 48GB and a working FlashAtt
 
     const failures = [
         ["CC 8.6 binary/profile", { baseHealthOverrides: { computeCapability: "8.6" } }],
-        ["47 GB VRAM", { baseHealthOverrides: { vramGb: 47 } }],
+        ["47 GB VRAM", { baseHealthOverrides: { vramGb: 43.77, vramBytes: 47_000_000_000 } }],
         ["FlashAttention sm_89 CUDA operation", {
             runtimeHealthOverrides: { flashAttentionCudaProbe: false, dependencyContract: false }
         }]
@@ -2844,6 +2846,30 @@ test("V142 RunPod blocks inference when the complete Wan runtime probe is not he
     assert.equal(harness.deleted, true);
 });
 
+test("V142 cached 50 GB workspace reaches GPU_RUNTIME_BOOTSTRAP with decimal 48 GB VRAM and bootstrap-managed media tools", async () => {
+    const harness = runpodPhysicalHarness({
+        scenario: "physical-cached-volume-prebootstrap-order",
+        baseHealthOverrides: {
+            vramGb: 44.7,
+            vramBytes: 48_000_000_000,
+            freeDiskGb: 17,
+            ffmpeg: false,
+            ffprobe: false
+        }
+    });
+    const started = await harness.engine.start(harness.payload);
+    assert.equal(started.ok, true, JSON.stringify(started));
+    const bootstrapping = await harness.engine.poll({ operationName: started.operationName });
+    assert.equal(bootstrapping.ok, true, JSON.stringify(bootstrapping));
+    assert.equal(bootstrapping.done, false);
+    assert.equal(bootstrapping.remotePoll.status, "RUNPOD_WAN22_BOOTSTRAPPING");
+    assert.equal(harness.bootstrapStarts, 1);
+    assert.equal(harness.inferenceStarts, 0);
+    const cancelled = await harness.engine.cancel({ operationName: started.operationName });
+    assert.equal(cancelled.workerRelease.terminationVerified, true);
+    assert.equal(harness.deleted, true);
+});
+
 test("V142 every paid physical preflight failure keeps inference stopped and requires Pod deletion", async t => {
     const cases = [
         ["physical GPU", { baseHealthOverrides: { gpuName: "NVIDIA RTX 4090" } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
@@ -2851,9 +2877,12 @@ test("V142 every paid physical preflight failure keeps inference stopped and req
         ["compute capability", { baseHealthOverrides: { computeCapability: "8.6" } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
         ["Torch", { baseHealthOverrides: { torchVersion: "2.7.0+cu126" } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
         ["Python", { baseHealthOverrides: { pythonVersion: "3.11.9" } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
-        ["FFmpeg", { baseHealthOverrides: { ffmpeg: false } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
+        ["workspace reserve", { baseHealthOverrides: { freeDiskGb: 7.99 } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
+        ["physical VRAM bytes", { baseHealthOverrides: { vramBytes: 47_999_999_999 } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
         ["NVCC", { baseHealthOverrides: { nvcc: false } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
         ["NVCC version", { baseHealthOverrides: { cudaToolkitVersion: "12.7" } }, "RUNPOD_IMAGE_RUNTIME_MISMATCH"],
+        ["FFmpeg", { runtimeHealthOverrides: { ffmpeg: false } }, "RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED"],
+        ["FFprobe", { runtimeHealthOverrides: { ffprobe: false } }, "RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED"],
         ["FlashAttention", { runtimeHealthOverrides: { flashAttention: false, dependencyContract: false } }, "RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED"],
         ["Python imports", { runtimeHealthOverrides: { imports: false, dependencyContract: false } }, "RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED"],
         ["pip check", { runtimeHealthOverrides: { pipCheck: false, dependencyContract: false } }, "RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED"],
@@ -2992,6 +3021,46 @@ test("V142 RunPod adapter fails closed on provision and real worker health failu
         assert.equal(failed.workerRelease.terminationVerified, true);
         assert.equal(harness.deleted, true);
         assert.equal(listArtifacts({ root: harness.root, type: "video" }).length, 0);
+    });
+
+    await t.test("physical base-health evidence survives incomplete cleanup receipts", async () => {
+        const harness = runpodPhysicalHarness({
+            scenario: "health-evidence-preserved",
+            baseHealthOverrides: { cuda: false, cudaProbe: false }
+        });
+        const launched = await harness.adapter.launch({ job: harness.dryRunJob });
+        const resultFile = path.join(harness.root, ".jarvis-artifacts", "health-evidence-result.json");
+        const polled = await harness.adapter.poll({ operation: harness.dryRunJob, resultFile });
+        assert.equal(polled.status, "RUNPOD_IMAGE_RUNTIME_MISMATCH");
+        const stateFile = path.join(
+            harness.root,
+            ".jarvis-artifacts",
+            ".video-worker",
+            "runpod",
+            `${harness.dryRunJob.operationId}.json`
+        );
+        const beforeRelease = JSON.parse(fs.readFileSync(stateFile, "utf8"));
+        assert.equal(beforeRelease.baseHealth.cuda, false);
+        assert.ok(beforeRelease.runtimePredicateFailures.includes("cudaAvailable"));
+        assert.ok(beforeRelease.runtimePredicateFailures.includes("cudaTensorProbe"));
+        const sensitiveFiles = [
+            beforeRelease.privateKeyFile,
+            beforeRelease.publicKeyFile,
+            beforeRelease.knownHostsFile
+        ];
+        assert.ok(sensitiveFiles.slice(0, 2).every(file => fs.existsSync(file)));
+        const released = await harness.adapter.release({
+            operationId: harness.dryRunJob.operationId,
+            operationName: harness.dryRunJob.operationName,
+            remoteWorker: launched.remoteWorker,
+            reason: "FAILED_CLOSED_PHYSICAL_RED"
+        });
+        assert.equal(released.ok, true, JSON.stringify(released));
+        const afterRelease = JSON.parse(fs.readFileSync(stateFile, "utf8"));
+        assert.equal(afterRelease.phase, "TERMINATED");
+        assert.deepEqual(afterRelease.baseHealth, beforeRelease.baseHealth);
+        assert.deepEqual(afterRelease.runtimePredicateFailures, beforeRelease.runtimePredicateFailures);
+        assert.ok(sensitiveFiles.every(file => !fs.existsSync(file)));
     });
 });
 

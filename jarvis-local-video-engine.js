@@ -3435,12 +3435,13 @@ export function createRunpodRemoteVideoAdapter({
         const runtimePreflightFile = `${cacheRoot}/runtime-preflight.json`;
         const command = `python3 -c ${shellSingleQuote(
             "import json,os,platform,re,shutil,subprocess,torch; p=shutil.disk_usage('/workspace'); " +
+            "os_release=platform.freedesktop_os_release(); " +
             "nvcc_path=shutil.which('nvcc'); nvcc_output=subprocess.check_output([nvcc_path,'--version'],text=True,stderr=subprocess.STDOUT,timeout=30) if nvcc_path else ''; nvcc_match=re.search(r'release\\s+(\\d+\\.\\d+)',nvcc_output); " +
             "cuda=torch.cuda.is_available(); probe=False; " +
             "exec(\"try:\\n probe=bool((torch.ones(1,device='cuda')+1).item()==2); torch.cuda.synchronize()\\nexcept Exception:\\n probe=False\") if cuda else None; " +
-            "d={'python':True,'pythonVersion':platform.python_version(),'torch':bool(torch.__version__),'torchVersion':str(torch.__version__),'torchCudaVersion':str(torch.version.cuda or ''),'cuda':cuda," +
+            "d={'operatingSystem':str(os_release.get('ID',''))+'-'+str(os_release.get('VERSION_ID','')),'python':True,'pythonVersion':platform.python_version(),'torch':bool(torch.__version__),'torchVersion':str(torch.__version__),'torchCudaVersion':str(torch.version.cuda or ''),'cuda':cuda," +
             "'gpuName':torch.cuda.get_device_name(0) if cuda else '', 'computeCapability':'.'.join(map(str,torch.cuda.get_device_capability(0))) if cuda else ''," +
-            "'cudaProbe':probe,'vramGb':round(torch.cuda.get_device_properties(0).total_memory/1073741824,2) if cuda else 0,'freeDiskGb':round(p.free/1073741824,2),'cudaToolkitVersion':nvcc_match.group(1) if nvcc_match else ''," +
+            "'cudaProbe':probe,'vramBytes':torch.cuda.get_device_properties(0).total_memory if cuda else 0,'vramGb':round(torch.cuda.get_device_properties(0).total_memory/1073741824,2) if cuda else 0,'freeDiskGb':round(p.free/1073741824,2),'cudaToolkitVersion':nvcc_match.group(1) if nvcc_match else ''," +
             "'ffmpeg':bool(shutil.which('ffmpeg')),'ffprobe':bool(shutil.which('ffprobe')),'nvcc':bool(shutil.which('nvcc'))}; " +
             (full
                 ? `r=json.load(open('${runtimePreflightFile}',encoding='utf-8')) if os.path.isfile('${runtimePreflightFile}') else {}; repo='${cacheRoot}/Wan2.2'; repo_revision=subprocess.check_output(['git','-C',repo,'rev-parse','HEAD'],text=True).strip() if os.path.isfile(repo+'/generate.py') else ''; d.update({'runner':os.path.isfile('${state.remoteOperationDir}/jarvis-local-video-wan22.py'),'wanRepository':os.path.isfile(repo+'/generate.py'),'wanRepositoryRevision':repo_revision,'wanModel':os.path.isfile('${cacheRoot}/cache-manifest.json'),'dependencyContract':r.get('ok') is True,'pipCheck':r.get('pipCheck') is True,'wanCliImport':r.get('wanCliImport') is True,'runtimeCudaProbe':r.get('cudaProbe') is True,'flashAttentionCudaProbe':r.get('flashAttentionCudaProbe') is True,'flashAttention':r.get('flashAttentionVersion')=='${cacheContract.flashAttentionVersion}','imports':bool(r.get('imports')) and all(r.get('imports',{}).values())}); `
@@ -3451,31 +3452,58 @@ export function createRunpodRemoteVideoAdapter({
         let health;
         try { health = JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1)); }
         catch { throw new Error("RUNPOD_HEALTH_RESPONSE_INVALID"); }
-        const baseReady = health.python === true &&
-            String(health.pythonVersion || "").startsWith(cacheContract.pythonVersionPrefix) &&
-            health.torch === true &&
-            String(health.torchVersion || "").startsWith(cacheContract.torchVersionPrefix) &&
-            String(health.torchCudaVersion || "").startsWith(cacheContract.torchCudaVersionPrefix) &&
-            String(health.cudaToolkitVersion || "").startsWith(cacheContract.runtimeIdentity.cudaToolkitVersionPrefix) &&
-            health.cuda === true && health.cudaProbe === true &&
-            String(health.gpuName || "").trim() === gpuTypeId &&
-            String(health.computeCapability || "") === cacheContract.computeCapability &&
-            Number(health.vramGb || 0) >= cacheContract.minimumVramGb &&
-            Number(health.freeDiskGb || 0) >= 45 &&
-            health.ffmpeg === true && health.ffprobe === true && health.nvcc === true;
-        if (!baseReady) throw new Error("RUNPOD_IMAGE_RUNTIME_MISMATCH");
-        if (full && (
-            health.ffmpeg !== true || health.ffprobe !== true || health.runner !== true ||
-            health.wanRepository !== true ||
-            (!state.runtimeCertificationOnly && health.wanModel !== true) ||
-            String(health.wanRepositoryRevision || "") !== cacheContract.wanRepositoryRevision ||
-            health.dependencyContract !== true || health.pipCheck !== true ||
-            health.wanCliImport !== true || health.flashAttention !== true ||
-            health.flashAttentionCudaProbe !== true ||
-            health.imports !== true ||
-            (health.runtimeCudaProbe !== true && health.cudaProbe !== true)
-        )) {
-            throw new Error("RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED");
+        const basePredicates = {
+            operatingSystem: String(health.operatingSystem || "") === cacheContract.runtimeIdentity.operatingSystem,
+            pythonPresent: health.python === true,
+            pythonVersion: String(health.pythonVersion || "").startsWith(cacheContract.pythonVersionPrefix),
+            torchPresent: health.torch === true,
+            torchVersion: String(health.torchVersion || "").startsWith(cacheContract.torchVersionPrefix),
+            torchCudaVersion: String(health.torchCudaVersion || "").startsWith(cacheContract.torchCudaVersionPrefix),
+            cudaToolkitVersion: String(health.cudaToolkitVersion || "").startsWith(cacheContract.runtimeIdentity.cudaToolkitVersionPrefix),
+            cudaAvailable: health.cuda === true,
+            cudaTensorProbe: health.cudaProbe === true,
+            gpuName: String(health.gpuName || "").trim() === gpuTypeId,
+            computeCapability: String(health.computeCapability || "") === cacheContract.computeCapability,
+            vramBytes: Number(health.vramBytes || 0) >= cacheContract.minimumVramGb * 1_000_000_000,
+            workspaceReserve: Number(health.freeDiskGb || 0) >= cacheContract.workspaceReserveBytes / RUNPOD_GIB,
+            nvccPresent: health.nvcc === true
+        };
+        const baseFailures = Object.entries(basePredicates)
+            .filter(([, passed]) => passed !== true)
+            .map(([name]) => name);
+        if (baseFailures.length > 0) {
+            const failure = new Error("RUNPOD_IMAGE_RUNTIME_MISMATCH");
+            failure.baseHealth = health;
+            failure.runtimePredicateResults = basePredicates;
+            failure.runtimePredicateFailures = baseFailures;
+            throw failure;
+        }
+        if (full) {
+            const fullPredicates = {
+                ffmpeg: health.ffmpeg === true,
+                ffprobe: health.ffprobe === true,
+                runner: health.runner === true,
+                wanRepository: health.wanRepository === true,
+                wanModel: state.runtimeCertificationOnly || health.wanModel === true,
+                wanRepositoryRevision: String(health.wanRepositoryRevision || "") === cacheContract.wanRepositoryRevision,
+                dependencyContract: health.dependencyContract === true,
+                pipCheck: health.pipCheck === true,
+                wanCliImport: health.wanCliImport === true,
+                flashAttention: health.flashAttention === true,
+                flashAttentionCudaProbe: health.flashAttentionCudaProbe === true,
+                imports: health.imports === true,
+                runtimeCudaProbe: health.runtimeCudaProbe === true || health.cudaProbe === true
+            };
+            const fullFailures = Object.entries(fullPredicates)
+                .filter(([, passed]) => passed !== true)
+                .map(([name]) => name);
+            if (fullFailures.length > 0) {
+                const failure = new Error("RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED");
+                failure.fullHealth = health;
+                failure.runtimePredicateResults = fullPredicates;
+                failure.runtimePredicateFailures = fullFailures;
+                throw failure;
+            }
         }
         return health;
     }
@@ -3988,6 +4016,14 @@ export function createRunpodRemoteVideoAdapter({
                 phase: failurePhase,
                 error: failureStatus,
                 stageTimeline: state.stageTimeline,
+                ...(error?.baseHealth ? { baseHealth: error.baseHealth } : {}),
+                ...(error?.fullHealth ? { fullHealth: error.fullHealth } : {}),
+                ...(error?.runtimePredicateResults
+                    ? { runtimePredicateResults: error.runtimePredicateResults }
+                    : {}),
+                ...(error?.runtimePredicateFailures
+                    ? { runtimePredicateFailures: error.runtimePredicateFailures }
+                    : {}),
                 ...providerHttpPatch(state, error)
             });
             return { ok: false, done: true, status: state.error, remoteWorker: runpodPublicWorker(state) };
@@ -4008,15 +4044,24 @@ export function createRunpodRemoteVideoAdapter({
             let file = null;
             try { file = stateFile(receipt.operationId); }
             catch {}
-            loaded = { file };
-            state = {
-                ...(receipt.remoteWorker || {}),
-                provider: "runpod",
-                podId,
-                operationId: receipt.operationId,
-                operationName: receipt.operationName,
-                networkVolumeId: receipt.remoteWorker?.networkVolumeId || null
-            };
+            let persisted = null;
+            try { if (file && fs.existsSync(file)) persisted = readJson(file); }
+            catch {}
+            if (persisted && String(persisted.podId || "") === podId) {
+                loaded = { file };
+                state = persisted;
+            }
+            else {
+                loaded = { file };
+                state = {
+                    ...(receipt.remoteWorker || {}),
+                    provider: "runpod",
+                    podId,
+                    operationId: receipt.operationId,
+                    operationName: receipt.operationName,
+                    networkVolumeId: receipt.remoteWorker?.networkVolumeId || null
+                };
+            }
         }
         const cost = rentalCost(state);
         try {
