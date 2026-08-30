@@ -1570,10 +1570,7 @@ export function createRunpodRemoteVideoAdapter({
             if (!gpuTypeId || !cacheContract) {
                 throw new Error("RUNPOD_GPU_TYPE_EXPLICIT_AUTHORIZATION_REQUIRED");
             }
-            if (networkVolumeId) {
-                throw new Error("RUNPOD_RUNTIME_CERTIFICATION_NETWORK_VOLUME_FORBIDDEN");
-            }
-            if (!runtimeCertificationDataCenterId) {
+            if (!networkVolumeId && !runtimeCertificationDataCenterId) {
                 throw new Error("RUNPOD_RUNTIME_CERTIFICATION_DATACENTER_REQUIRED");
             }
         }
@@ -1779,6 +1776,14 @@ export function createRunpodRemoteVideoAdapter({
             RUNPOD_WAN22_CACHE_BASE.requiredFiles.map(item => [item.path, item])
         );
         const observedFiles = new Map(files.map(item => [String(item?.path || ""), item]));
+        const explicitFileContradiction = files.some(item => {
+            const expected = expectedFiles.get(String(item?.path || ""));
+            if (!expected) return false;
+            const explicitBytes = item?.bytes != null && Number.isFinite(Number(item.bytes));
+            const explicitSha = String(item?.sha256 || "").trim().toLowerCase();
+            return (explicitBytes && Number(item.bytes) !== expected.bytes) ||
+                (explicitSha && explicitSha !== expected.sha256);
+        });
         const filesMatch = observedFiles.size === expectedFiles.size &&
             [...expectedFiles].every(([filePath, expected]) => {
                 const observed = observedFiles.get(filePath);
@@ -1795,8 +1800,25 @@ export function createRunpodRemoteVideoAdapter({
         const completed = !evidence?.phase || [
             "COMPLETED", "RELEASED", "TERMINATED", "CACHE_READY", "CACHE_MODEL_READY"
         ].includes(String(evidence.phase).toUpperCase());
-        if (!networkVolumeId || !dataCenterId || !filesMatch || !identityMatches || !retained || !completed) {
+        const observedType = String(evidence?.type || evidence?.volumeType || "").trim().toUpperCase();
+        const observedSizeGb = Number(evidence?.sizeGb ?? evidence?.networkVolumeSizeGb);
+        const explicitIdentityContradiction =
+            (modelRepository && modelRepository !== RUNPOD_WAN22_CACHE_BASE.modelRepository) ||
+            (modelRevision && modelRevision !== RUNPOD_WAN22_CACHE_BASE.modelRevision) ||
+            (wanRepositoryRevision && wanRepositoryRevision !== RUNPOD_WAN22_CACHE_BASE.wanRepositoryRevision) ||
+            (Number.isFinite(modelBytes) && modelBytes !== RUNPOD_WAN22_CACHE_BASE.expectedModelBytes) ||
+            (Number.isFinite(requiredFilesBytes) &&
+                requiredFilesBytes !== RUNPOD_WAN22_CACHE_BASE.requiredRuntimeModelBytes) ||
+            (observedType && observedType !== RUNPOD_WAN22_CACHE_BASE.networkVolumeType) ||
+            (Number.isFinite(observedSizeGb) && observedSizeGb < RUNPOD_WAN22_CACHE_BASE.minimumNetworkVolumeGb) ||
+            explicitFileContradiction ||
+            !retained;
+        if (!networkVolumeId) return null;
+        if (explicitIdentityContradiction) {
             return { invalid: true, networkVolumeId: networkVolumeId || null };
+        }
+        if (!dataCenterId || !filesMatch || !identityMatches || !completed) {
+            return { incomplete: true, networkVolumeId };
         }
         return {
             networkVolumeId,
@@ -1827,7 +1849,10 @@ export function createRunpodRemoteVideoAdapter({
         );
         const volumeInventory = Array.isArray(networkVolumes) ? networkVolumes : null;
         const byId = new Map();
-        for (const replica of claims.filter(item => !item.invalid && !invalidIds.has(item.networkVolumeId))) {
+        const cacheRank = { CACHE_MODEL_READY: 0, CACHE_READY: 1, CACHE_HIT: 1 };
+        for (const replica of claims.filter(item =>
+            !item.invalid && !item.incomplete && !invalidIds.has(item.networkVolumeId)
+        )) {
             if (volumeInventory) {
                 const physical = volumeInventory.find(item =>
                     String(item?.id || item?.networkVolumeId || "") === replica.networkVolumeId &&
@@ -1838,9 +1863,27 @@ export function createRunpodRemoteVideoAdapter({
                 if (!physical) continue;
             }
             const existing = byId.get(replica.networkVolumeId);
-            if (existing && JSON.stringify(existing) !== JSON.stringify(replica)) {
-                invalidIds.add(replica.networkVolumeId);
-                byId.delete(replica.networkVolumeId);
+            if (existing) {
+                const samePhysicalIdentity =
+                    existing.dataCenterId === replica.dataCenterId &&
+                    existing.type === replica.type &&
+                    existing.modelRepository === replica.modelRepository &&
+                    existing.modelRevision === replica.modelRevision &&
+                    existing.wanRepositoryRevision === replica.wanRepositoryRevision &&
+                    existing.modelBytes === replica.modelBytes &&
+                    existing.requiredFilesBytes === replica.requiredFilesBytes;
+                if (!samePhysicalIdentity) {
+                    invalidIds.add(replica.networkVolumeId);
+                    byId.delete(replica.networkVolumeId);
+                    continue;
+                }
+                byId.set(replica.networkVolumeId, {
+                    ...existing,
+                    sizeGb: Math.max(existing.sizeGb, replica.sizeGb),
+                    cacheStatus: cacheRank[replica.cacheStatus] > cacheRank[existing.cacheStatus]
+                        ? replica.cacheStatus
+                        : existing.cacheStatus
+                });
                 continue;
             }
             byId.set(replica.networkVolumeId, replica);
@@ -2119,7 +2162,7 @@ export function createRunpodRemoteVideoAdapter({
         if (runtimeCertificationOnly && (
             body.cloudType !== "SECURE" ||
             body.dataCenterIds?.length !== 1 ||
-            body.dataCenterIds[0] !== runtimeCertificationDataCenterId
+            body.dataCenterIds[0] !== (networkVolume?.dataCenterId || runtimeCertificationDataCenterId)
         )) {
             throw new Error("RUNPOD_RUNTIME_CERTIFICATION_PLACEMENT_INVALID");
         }
@@ -2616,6 +2659,14 @@ export function createRunpodRemoteVideoAdapter({
             if (secret) text = text.split(secret).join("[REDACTED]");
         }
         text = text
+            .replace(
+                /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/gi,
+                "[REDACTED PRIVATE KEY]"
+            )
+            .replace(
+                /\b([A-Z0-9_]*(?:API_KEY|TOKEN|SECRET|PASSWORD))\s*=\s*[^\s"',;]+/gi,
+                "$1=[REDACTED]"
+            )
             .replace(/\bBearer\s+[^\s"',;]+/gi, "Bearer [REDACTED]")
             .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, " ")
             .trim();
@@ -3213,7 +3264,8 @@ export function createRunpodRemoteVideoAdapter({
             "export TMPDIR=/tmp",
             `export JARVIS_OPERATION_ID=${shellSingleQuote(path.basename(path.dirname(bootstrapFile)))}`,
             `RUNTIME_CERTIFICATION_ONLY=${runtimeCertificationOnly ? "1" : "0"}`,
-            "BOOTSTRAP_CACHE_STATUS=$([ \"$RUNTIME_CERTIFICATION_ONLY\" = 1 ] && printf CACHE_MISS || printf CACHE_POPULATING)",
+            `MODEL_CACHE_CERTIFICATION_REQUIRED=${runtimeCertificationOnly && Boolean(networkVolumeId) ? "1" : "0"}`,
+            "BOOTSTRAP_CACHE_STATUS=$([ \"$RUNTIME_CERTIFICATION_ONLY\" = 1 ] && [ \"$MODEL_CACHE_CERTIFICATION_REQUIRED\" != 1 ] && printf CACHE_MISS || printf CACHE_POPULATING)",
             `PROGRESS=${shellSingleQuote(`${remoteBase}/operations`)}/$JARVIS_OPERATION_ID/bootstrap-progress.json`,
             "mkdir -p \"$CACHE_ROOT\" \"$(dirname \"$PROGRESS\")\"",
             "CURRENT_CACHE_STATUS=CACHE_MISS",
@@ -3279,7 +3331,7 @@ export function createRunpodRemoteVideoAdapter({
             "PY",
             "}",
             "CACHE_VALID=0",
-            "if test \"$RUNTIME_CERTIFICATION_ONLY\" != 1 && test -f \"$WAN_REPO/generate.py\" && test -x \"$VENV/bin/python\" && test -f \"$CACHE_ROOT/requirements.sha256\"; then",
+            "if { test \"$RUNTIME_CERTIFICATION_ONLY\" != 1 || test \"$MODEL_CACHE_CERTIFICATION_REQUIRED\" = 1; } && test -f \"$WAN_REPO/generate.py\" && test -x \"$VENV/bin/python\" && test -f \"$CACHE_ROOT/requirements.sha256\"; then",
             `  if test "$(git -C "$WAN_REPO" rev-parse HEAD)" = ${shellSingleQuote(cacheContract.wanRepositoryRevision)} && test "$(cat "$CACHE_ROOT/requirements.sha256")" = ${shellSingleQuote(cacheContract.requirementsSha256)}; then`,
             `    python3 "$MODEL_PREFLIGHT" ${shellSingleQuote(modelAuthorityJson)} "$MODEL_DIR" "$WAN_REPO" "$MODEL_MANIFEST" "$JARVIS_OPERATION_ID" && "$VENV/bin/python" "$PREFLIGHT" ${shellSingleQuote(contractJson)} "$WAN_REPO" "$PREFLIGHT_RESULT" && CACHE_VALID=1 || true`,
             "  fi",
@@ -3316,7 +3368,7 @@ export function createRunpodRemoteVideoAdapter({
             "printf '%s\\n' \"$REQ_SHA\" > \"$CACHE_ROOT/requirements.sha256\"",
             "progress PYTHON_REQUIREMENTS READY \"$BOOTSTRAP_CACHE_STATUS\"",
             "progress RUNTIME_PREFLIGHT READY CACHE_MISS",
-            "if test \"$RUNTIME_CERTIFICATION_ONLY\" = 1; then exit 0; fi",
+            "if test \"$RUNTIME_CERTIFICATION_ONLY\" = 1 && test \"$MODEL_CACHE_CERTIFICATION_REQUIRED\" != 1; then exit 0; fi",
             "progress MODEL_VALIDATION RUNNING CACHE_POPULATING",
             `python3 "$MODEL_PREFLIGHT" ${shellSingleQuote(modelAuthorityJson)} "$MODEL_DIR" "$WAN_REPO" "$MODEL_MANIFEST" "$JARVIS_OPERATION_ID"`,
             "progress MODEL_VALIDATION READY CACHE_MODEL_READY",
@@ -3484,7 +3536,7 @@ export function createRunpodRemoteVideoAdapter({
                 ffprobe: health.ffprobe === true,
                 runner: health.runner === true,
                 wanRepository: health.wanRepository === true,
-                wanModel: state.runtimeCertificationOnly || health.wanModel === true,
+                wanModel: (state.runtimeCertificationOnly && !state.networkVolumeId) || health.wanModel === true,
                 wanRepositoryRevision: String(health.wanRepositoryRevision || "") === cacheContract.wanRepositoryRevision,
                 dependencyContract: health.dependencyContract === true,
                 pipCheck: health.pipCheck === true,
@@ -3717,6 +3769,131 @@ export function createRunpodRemoteVideoAdapter({
         return progress;
     }
 
+    async function captureBootstrapFailureDiagnostics(state) {
+        const captureErrors = [];
+        const readDiagnostic = async (command, label, maximumLength = 12000) => {
+            try {
+                const result = await sshCommand(state, command);
+                return sanitizeProviderText(result.stdout, maximumLength);
+            }
+            catch(error) {
+                captureErrors.push({
+                    label,
+                    error: sanitizeProviderText(safeProviderDiagnostic(error).providerMessage, 1000)
+                });
+                return "";
+            }
+        };
+        const exitCodeRaw = await readDiagnostic(
+            `cat ${shellSingleQuote(state.remoteOperationDir + "/bootstrap.failed")}`,
+            "bootstrap_exit_code",
+            100
+        );
+        const logTail = await readDiagnostic(
+            `tail -n 80 ${shellSingleQuote(state.remoteOperationDir + "/bootstrap.log")}`,
+            "bootstrap_log_tail"
+        );
+        const runtimePreflightRaw = await readDiagnostic(
+            `cat ${shellSingleQuote(remoteBase + "/cache/wan22-ti2v-5b/runtime-preflight.json")}`,
+            "runtime_preflight"
+        );
+        let runtimePreflight = null;
+        if (runtimePreflightRaw) {
+            try { runtimePreflight = JSON.parse(runtimePreflightRaw); }
+            catch {
+                captureErrors.push({
+                    label: "runtime_preflight",
+                    error: "RUNPOD_RUNTIME_PREFLIGHT_DIAGNOSTIC_INVALID"
+                });
+            }
+        }
+        const runtimePredicateResults = runtimePreflight ? {
+            pythonVersion: String(runtimePreflight.pythonVersion || "")
+                .startsWith(cacheContract.pythonVersionPrefix),
+            torchVersion: String(runtimePreflight.torchVersion || "")
+                .startsWith(cacheContract.torchVersionPrefix),
+            torchCudaVersion: String(runtimePreflight.torchCudaVersion || "")
+                .startsWith(cacheContract.torchCudaVersionPrefix),
+            cudaToolkitVersion: String(runtimePreflight.cudaToolkitVersion || "")
+                .startsWith(cacheContract.runtimeIdentity.cudaToolkitVersionPrefix),
+            computeCapability: String(runtimePreflight.computeCapability || "") ===
+                cacheContract.computeCapability,
+            cudaProbe: runtimePreflight.cudaProbe === true,
+            flashAttentionCudaProbe: runtimePreflight.flashAttentionCudaProbe === true,
+            pipCheck: runtimePreflight.pipCheck === true,
+            wanCliImport: runtimePreflight.wanCliImport === true,
+            imports: runtimePreflight.imports &&
+                Object.values(runtimePreflight.imports).every(Boolean),
+            flashAttentionVersion: String(runtimePreflight.flashAttentionVersion || "") ===
+                cacheContract.flashAttentionVersion
+        } : null;
+        const runtimePredicateFailures = runtimePredicateResults
+            ? Object.entries(runtimePredicateResults)
+                .filter(([, passed]) => passed !== true)
+                .map(([name]) => name)
+            : [];
+        const progress = state.bootstrapProgress || null;
+        const parsedExitCode = Number.parseInt(exitCodeRaw.trim(), 10);
+        return {
+            capturedAt: now().toISOString(),
+            exitCode: Number.isInteger(parsedExitCode) ? parsedExitCode : null,
+            progress,
+            stage: String(progress?.stage || "BOOTSTRAP"),
+            cacheStatus: String(progress?.cacheStatus || state.cacheStatus || "CACHE_MISS"),
+            logTail: logTail || null,
+            runtimePreflight,
+            runtimePredicateResults,
+            runtimePredicateFailures,
+            expectedObserved: runtimePreflight ? {
+                pythonVersion: {
+                    expected: cacheContract.pythonVersionPrefix,
+                    observed: runtimePreflight.pythonVersion || null
+                },
+                torchVersion: {
+                    expected: cacheContract.torchVersionPrefix,
+                    observed: runtimePreflight.torchVersion || null
+                },
+                torchCudaVersion: {
+                    expected: cacheContract.torchCudaVersionPrefix,
+                    observed: runtimePreflight.torchCudaVersion || null
+                },
+                cudaToolkitVersion: {
+                    expected: cacheContract.runtimeIdentity.cudaToolkitVersionPrefix,
+                    observed: runtimePreflight.cudaToolkitVersion || null
+                },
+                computeCapability: {
+                    expected: cacheContract.computeCapability,
+                    observed: runtimePreflight.computeCapability || null
+                },
+                flashAttentionVersion: {
+                    expected: cacheContract.flashAttentionVersion,
+                    observed: runtimePreflight.flashAttentionVersion || null
+                },
+                cudaProbe: {
+                    expected: true,
+                    observed: runtimePreflight.cudaProbe ?? null
+                },
+                flashAttentionCudaProbe: {
+                    expected: true,
+                    observed: runtimePreflight.flashAttentionCudaProbe ?? null
+                },
+                pipCheck: {
+                    expected: true,
+                    observed: runtimePreflight.pipCheck ?? null
+                },
+                wanCliImport: {
+                    expected: true,
+                    observed: runtimePreflight.wanCliImport ?? null
+                },
+                imports: {
+                    expected: true,
+                    observed: runtimePreflight.imports || null
+                }
+            } : null,
+            ...(captureErrors.length > 0 ? { captureErrors } : {})
+        };
+    }
+
     async function uploadOperation(state) {
         writeGpuRuntimeBootstrapFile(state.bootstrapFile);
         await sshCommand(state, `mkdir -p ${shellSingleQuote(state.remoteOperationDir + "/assets")}`);
@@ -3731,7 +3908,7 @@ export function createRunpodRemoteVideoAdapter({
         }
     }
 
-    async function writeLocalFailure(operation, resultFile, status, retryable = false) {
+    async function writeLocalFailure(operation, resultFile, status, retryable = false, evidence = {}) {
         atomicJsonWrite(resultFile, {
             ok: false,
             status,
@@ -3744,7 +3921,8 @@ export function createRunpodRemoteVideoAdapter({
             engine: "local",
             provider: "local",
             externalApiUsed: false,
-            externalEstimatedCostUsd: 0
+            externalEstimatedCostUsd: 0,
+            ...evidence
         });
     }
 
@@ -3825,9 +4003,22 @@ export function createRunpodRemoteVideoAdapter({
                 }
                 const lastProgressMs = Date.parse(String(state.lastBootstrapProgressAt || state.bootstrapStartedAt || ""));
                 if (Number.isFinite(lastProgressMs) && (now().getTime() - lastProgressMs) / 1000 >= state.bootstrapTimeoutSeconds) {
-                    await writeLocalFailure(operation, resultFile, "RUNPOD_BOOTSTRAP_TIMEOUT", false);
+                    const bootstrapDiagnostics = await captureBootstrapFailureDiagnostics(state);
                     state = withStage(state, "bootstrap", "TIMEOUT");
-                    state = writeState(loaded.file, state, { phase: "BOOTSTRAP_TIMEOUT", stageTimeline: state.stageTimeline });
+                    state = writeState(loaded.file, state, {
+                        phase: "BOOTSTRAP_TIMEOUT",
+                        bootstrapDiagnostics,
+                        ...(bootstrapDiagnostics.runtimePredicateResults
+                            ? { runtimePredicateResults: bootstrapDiagnostics.runtimePredicateResults }
+                            : {}),
+                        ...(bootstrapDiagnostics.runtimePredicateFailures.length > 0
+                            ? { runtimePredicateFailures: bootstrapDiagnostics.runtimePredicateFailures }
+                            : {}),
+                        stageTimeline: state.stageTimeline
+                    });
+                    await writeLocalFailure(operation, resultFile, "RUNPOD_BOOTSTRAP_TIMEOUT", false, {
+                        bootstrapDiagnostics
+                    });
                     return { ok: false, done: true, status: "RUNPOD_BOOTSTRAP_TIMEOUT", remoteWorker: runpodPublicWorker(state) };
                 }
                 const marker = await sshCommand(state,
@@ -3852,9 +4043,22 @@ export function createRunpodRemoteVideoAdapter({
                             remoteWorker: runpodPublicWorker(state)
                         };
                     }
-                    await writeLocalFailure(operation, resultFile, "RUNPOD_BOOTSTRAP_INCOMPLETE", false);
+                    const bootstrapDiagnostics = await captureBootstrapFailureDiagnostics(state);
                     state = withStage(state, "bootstrap", "FAILED");
-                    state = writeState(loaded.file, state, { phase: "BOOTSTRAP_INCOMPLETE", stageTimeline: state.stageTimeline });
+                    state = writeState(loaded.file, state, {
+                        phase: "BOOTSTRAP_INCOMPLETE",
+                        bootstrapDiagnostics,
+                        ...(bootstrapDiagnostics.runtimePredicateResults
+                            ? { runtimePredicateResults: bootstrapDiagnostics.runtimePredicateResults }
+                            : {}),
+                        ...(bootstrapDiagnostics.runtimePredicateFailures.length > 0
+                            ? { runtimePredicateFailures: bootstrapDiagnostics.runtimePredicateFailures }
+                            : {}),
+                        stageTimeline: state.stageTimeline
+                    });
+                    await writeLocalFailure(operation, resultFile, "RUNPOD_BOOTSTRAP_INCOMPLETE", false, {
+                        bootstrapDiagnostics
+                    });
                     return { ok: false, done: true, status: "RUNPOD_BOOTSTRAP_INCOMPLETE", remoteWorker: runpodPublicWorker(state) };
                 }
                 if (status !== "READY") {
@@ -4987,12 +5191,16 @@ export function createLocalVideoEngine({
             return { ...operation, ok: false, done: true };
         }
         if (result.status === "RUNPOD_RUNTIME_PREFLIGHT_CERTIFIED") {
+            const mountedCacheCertification = Boolean(operation.remoteWorker?.networkVolumeId);
+            const cacheReceiptMatches = mountedCacheCertification
+                ? ["CACHE_READY", "CACHE_HIT"].includes(String(result.cacheStatus || ""))
+                : result.cacheStatus === "CACHE_MISS";
             const receiptMatches =
                 operation.runtimeCertificationOnly === true &&
                 result.runtimeCertificationOnly === true &&
                 result.runtimePreflightVerified === true &&
                 result.inferenceStarted === false &&
-                result.cacheStatus === "CACHE_MISS" &&
+                cacheReceiptMatches &&
                 String(result.operationId || "") === String(operation.operationId || "") &&
                 String(result.operationName || "") === String(operation.operationName || "") &&
                 String(result.backend || "") === String(operation.backend || "") &&

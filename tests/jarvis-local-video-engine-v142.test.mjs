@@ -484,8 +484,8 @@ function runpodPhysicalHarness({
     };
 
     const execute = async (_command, args) => {
-        calls.push({ kind: args.includes("-P") ? "scp" : "ssh" });
         if (args.includes("-P")) {
+            calls.push({ kind: "scp" });
             const source = args.at(-2);
             const destination = args.at(-1);
             if (String(source).startsWith("root@")) {
@@ -502,6 +502,7 @@ function runpodPhysicalHarness({
             return { stdout: "", stderr: "", exitCode: 0 };
         }
         const command = String(args.at(-1) || "");
+        calls.push({ kind: "ssh", command });
         if (command.includes("python3 -c")) {
             healthCalls += 1;
             const health = scenario === "health-fail" && healthCalls === 1
@@ -564,7 +565,7 @@ function runpodPhysicalHarness({
             return { stdout: progress ? `${JSON.stringify(progress)}\n` : "", stderr: "", exitCode: 0 };
         }
         if (command.startsWith("if test -f") && command.includes("bootstrap.ready")) {
-            if (scenario === "bootstrap-fail") return { stdout: "FAILED\n", stderr: "", exitCode: 0 };
+            if (scenario.startsWith("bootstrap-fail")) return { stdout: "FAILED\n", stderr: "", exitCode: 0 };
             if (scenario === "bootstrap-refresh" && bootstrapMarkerChecks++ === 0) {
                 return { stdout: "FAILED\n", stderr: "", exitCode: 0 };
             }
@@ -572,6 +573,41 @@ function runpodPhysicalHarness({
                 return { stdout: "RUNNING\n", stderr: "", exitCode: 0 };
             }
             return { stdout: "READY\n", stderr: "", exitCode: 0 };
+        }
+        if (command.startsWith("cat ") && command.includes("bootstrap.failed")) {
+            return { stdout: "37\n", stderr: "", exitCode: 0 };
+        }
+        if (command.startsWith("tail ") && command.includes("bootstrap.log")) {
+            if (scenario === "bootstrap-fail-evidence-capture") {
+                throw new Error("CONTROLLED_BOOTSTRAP_EVIDENCE_CAPTURE_FAILURE");
+            }
+            return {
+                stdout: scenario === "bootstrap-fail-model-sha"
+                    ? "MODEL_SHA256_MISMATCH model_index.json\n"
+                    : `controlled bootstrap failure RUNPOD_API_KEY=${env.RUNPOD_API_KEY} Authorization: Bearer ${env.RUNPOD_API_KEY}\n`,
+                stderr: "",
+                exitCode: 0
+            };
+        }
+        if (command.startsWith("cat ") && command.includes("runtime-preflight.json")) {
+            return {
+                stdout: `${JSON.stringify({
+                    ok: false,
+                    pythonVersion: "3.12.3",
+                    torchVersion: "2.8.0+cu128",
+                    torchCudaVersion: "12.8",
+                    cudaToolkitVersion: "12.8",
+                    computeCapability: gpuTypeId === "NVIDIA L40S" ? "8.9" : "8.6",
+                    cudaProbe: true,
+                    flashAttentionCudaProbe: false,
+                    pipCheck: false,
+                    wanCliImport: true,
+                    imports: { torch: true, flash_attn: false },
+                    flashAttentionVersion: "2.8.3.post1"
+                })}\n`,
+                stderr: "",
+                exitCode: 0
+            };
         }
         if (command.includes("echo $!")) {
             if (command.includes("jarvis-local-video-wan22.py")) inferenceStarts += 1;
@@ -1389,6 +1425,139 @@ test("V142 live placement inspection reads inventory, datacenter support, volume
     assert.equal(harness.calls.some(call => call.url.includes("/graphql")), true);
     assert.equal(harness.calls.some(call => call.url.endsWith("/networkvolumes")), true);
     assert.equal(harness.calls.some(call => call.url.endsWith("/pods") && call.method === "POST"), false);
+});
+
+test("V142 incomplete GPU operational evidence cannot poison a complete physical CPU cache replica", () => {
+    const harness = runpodPhysicalHarness({
+        scenario: "cache-evidence-incomplete-gpu",
+        envOverrides: {
+            JARVIS_RUNPOD_GPU_TYPE_ID: "",
+            JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false",
+            JARVIS_RUNPOD_CLOUD_TYPE: "SECURE"
+        }
+    });
+    const incompleteGpuState = {
+        networkVolumeId: "su3d60su17",
+        networkVolumeDataCenterId: "EU-NL-1",
+        cacheStatus: "CACHE_READY",
+        phase: "TERMINATED",
+        networkVolumeRetained: true,
+        runtimePreflightVerified: true
+    };
+    const report = harness.adapter.inspectZeroCostPrecheck({
+        job: harness.dryRunJob,
+        registryVerification: harness.gpuRegistryVerification,
+        inventory: [placementInventory()],
+        networkVolumes: [{ id: "su3d60su17", dataCenterId: "EU-NL-1", size: 50, type: "STANDARD" }],
+        cacheReplicas: [certifiedCacheReplica(), incompleteGpuState]
+    });
+    assert.equal(report.ok, true, JSON.stringify(report));
+    assert.equal(report.placement.selected.networkVolumeId, "su3d60su17");
+    assert.equal(report.placement.selected.cacheShaVerified, true);
+    assert.equal(report.placement.certifiedCacheReplicas.length, 1);
+});
+
+test("V142 explicit contradictory GPU model SHA invalidates the same physical cache replica", () => {
+    const harness = runpodPhysicalHarness({
+        scenario: "cache-evidence-contradictory-gpu",
+        envOverrides: {
+            JARVIS_RUNPOD_GPU_TYPE_ID: "",
+            JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false",
+            JARVIS_RUNPOD_CLOUD_TYPE: "SECURE"
+        }
+    });
+    const expected = RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].requiredFiles[0];
+    const contradictoryGpuState = {
+        networkVolumeId: "su3d60su17",
+        networkVolumeDataCenterId: "EU-NL-1",
+        cacheStatus: "CACHE_READY",
+        phase: "TERMINATED",
+        networkVolumeRetained: true,
+        files: [{ ...expected, sha256: "f".repeat(64) }]
+    };
+    const report = harness.adapter.inspectZeroCostPrecheck({
+        job: harness.dryRunJob,
+        registryVerification: harness.gpuRegistryVerification,
+        inventory: [placementInventory()],
+        networkVolumes: [{ id: "su3d60su17", dataCenterId: "EU-NL-1", size: 50, type: "STANDARD" }],
+        cacheReplicas: [certifiedCacheReplica(), contradictoryGpuState]
+    });
+    assert.equal(report.ok, true, JSON.stringify(report));
+    assert.equal(report.status, "PLACEMENT_REQUIRES_CACHE_REPLICA");
+    assert.equal(report.placement.selected.networkVolumeId, null);
+    assert.equal(report.placement.certifiedCacheReplicas.length, 0);
+});
+
+test("V142 L40S runtime certification validates a mounted model cache and deletes before inference", async () => {
+    const profile = RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"];
+    const harness = runpodPhysicalHarness({
+        scenario: "l40s-runtime-certified-mounted-cache",
+        networkVolumeId: "network-volume-l40s-v142",
+        bootstrapProgressSequence: [{
+            stage: "RUNNER_READY",
+            status: "READY",
+            cacheStatus: "CACHE_READY",
+            modelBytes: profile.expectedModelBytes,
+            at: "2026-08-27T12:03:00.000Z"
+        }],
+        envOverrides: {
+            JARVIS_RUNPOD_CLOUD_TYPE: "SECURE",
+            JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY: "true",
+            JARVIS_RUNPOD_DATACENTER_ID: "EU-NL-1",
+            JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: "0.99"
+        }
+    });
+    const started = await harness.engine.start(harness.payload);
+    assert.equal(started.ok, true, JSON.stringify(started));
+    const result = await pollRunpodUntilDone(harness.engine, started.operationName);
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.equal(result.status, "RUNPOD_RUNTIME_PREFLIGHT_CERTIFIED");
+    assert.equal(result.cacheStatus, "CACHE_READY");
+    assert.equal(result.inferenceStarted, false);
+    assert.equal(harness.inferenceStarts, 0);
+    assert.equal(
+        harness.calls.some(call =>
+            call.kind === "ssh" &&
+            call.command?.includes("jarvis-local-video-wan22.py") &&
+            call.command?.includes("nohup")
+        ),
+        false,
+        "runtime certification with a mounted cache must never execute the video runner"
+    );
+    assert.equal(harness.deleted, true);
+    assert.equal(result.workerRelease.terminationVerified, true);
+    assert.equal(
+        harness.calls.filter(call => call.url?.endsWith("/pods") && call.method === "POST").length,
+        1
+    );
+});
+
+test("V142 mounted runtime certification fails closed on physical model SHA mismatch", async () => {
+    const harness = runpodPhysicalHarness({
+        scenario: "bootstrap-fail-model-sha",
+        networkVolumeId: "network-volume-l40s-v142",
+        bootstrapProgressSequence: [{
+            stage: "MODEL_VALIDATE",
+            status: "FAILED",
+            cacheStatus: "CACHE_MODEL_READY",
+            modelBytes: RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].expectedModelBytes,
+            at: "2026-08-27T12:03:00.000Z"
+        }],
+        envOverrides: {
+            JARVIS_RUNPOD_CLOUD_TYPE: "SECURE",
+            JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY: "true",
+            JARVIS_RUNPOD_DATACENTER_ID: "EU-NL-1",
+            JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: "0.99"
+        }
+    });
+    const started = await harness.engine.start(harness.payload);
+    const failed = await pollRunpodUntilDone(harness.engine, started.operationName);
+    assert.equal(failed.ok, false, JSON.stringify(failed));
+    assert.equal(failed.status, "RUNPOD_BOOTSTRAP_INCOMPLETE");
+    assert.notEqual(failed.remoteWorker.cacheStatus, "CACHE_READY");
+    assert.equal(harness.inferenceStarts, 0);
+    assert.equal(harness.deleted, true);
+    assert.equal(failed.workerRelease.terminationVerified, true);
 });
 
 test("V142 RunPod accepts only the explicitly selected L40S 48GB / CC 8.9 profile in EU-NL-1", () => {
@@ -2397,6 +2566,7 @@ test("V142 RunPod adapter provisions one L40S Pod, transfers physical assets, re
     assert.equal(completed.workerRelease.status, "RUNPOD_POD_TERMINATED_VERIFIED");
     assert.equal(completed.workerRelease.terminationVerified, true);
     assert.equal(harness.deleted, true);
+    assert.equal(harness.inferenceStarts, 1, "normal non-certification video must still start inference once");
     assert.equal(harness.createdBody.gpuCount, 1);
     assert.deepEqual(harness.createdBody.gpuTypeIds, ["NVIDIA L40S"]);
     assert.equal(harness.createdBody.containerDiskInGb, 30);
@@ -2833,6 +3003,55 @@ test("V142 RunPod classifies a current bootstrap failure before inference as BOO
     assert.equal(failed.remoteWorker.phase, "BOOTSTRAP_INCOMPLETE");
     assert.equal(failed.workerRelease.terminationVerified, true);
     assert.equal(harness.deleted, true);
+});
+
+test("V142 bootstrap failure persists sanitized physical diagnostics before mandatory DELETE", async () => {
+    const progress = {
+        stage: "PYTHON_REQUIREMENTS",
+        status: "RUNNING",
+        cacheStatus: "CACHE_POPULATING",
+        modelBytes: RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].expectedModelBytes,
+        at: "2026-08-27T12:02:00.000Z"
+    };
+    const harness = runpodPhysicalHarness({
+        scenario: "bootstrap-fail-diagnostics",
+        bootstrapProgressSequence: [progress]
+    });
+    const started = await harness.engine.start(harness.payload);
+    const failed = await pollRunpodUntilDone(harness.engine, started.operationName);
+    assert.equal(failed.status, "RUNPOD_BOOTSTRAP_INCOMPLETE");
+    assert.equal(harness.deleted, true);
+    const state = JSON.parse(fs.readFileSync(path.join(
+        harness.root,
+        ".jarvis-artifacts",
+        ".video-worker",
+        "runpod",
+        `${started.operationId}.json`
+    ), "utf8"));
+    assert.equal(state.bootstrapDiagnostics.exitCode, 37);
+    assert.deepEqual(state.bootstrapDiagnostics.progress, progress);
+    assert.equal(state.bootstrapDiagnostics.stage, "PYTHON_REQUIREMENTS");
+    assert.equal(state.bootstrapDiagnostics.cacheStatus, "CACHE_POPULATING");
+    assert.match(state.bootstrapDiagnostics.logTail, /controlled bootstrap failure/);
+    assert.doesNotMatch(state.bootstrapDiagnostics.logTail, /test-runpod-api-key-never-persist|Bearer\s+test-runpod/i);
+    assert.equal(state.bootstrapDiagnostics.runtimePreflight.ok, false);
+    assert.ok(state.bootstrapDiagnostics.runtimePredicateFailures.includes("flashAttentionCudaProbe"));
+    assert.ok(state.bootstrapDiagnostics.runtimePredicateFailures.includes("pipCheck"));
+    const evidenceIndex = harness.calls.findIndex(call => call.kind === "ssh" && call.command?.startsWith("tail "));
+    const deleteIndex = harness.calls.findIndex(call => call.kind === "http" && call.method === "DELETE");
+    assert.ok(evidenceIndex >= 0 && deleteIndex > evidenceIndex, JSON.stringify(harness.calls));
+});
+
+test("V142 bootstrap diagnostic capture failure cannot block DELETE", async () => {
+    const harness = runpodPhysicalHarness({ scenario: "bootstrap-fail-evidence-capture" });
+    const started = await harness.engine.start(harness.payload);
+    const failed = await pollRunpodUntilDone(harness.engine, started.operationName);
+    assert.equal(failed.status, "RUNPOD_BOOTSTRAP_INCOMPLETE");
+    assert.equal(harness.deleted, true);
+    assert.equal(
+        harness.calls.filter(call => call.kind === "http" && call.method === "DELETE").length,
+        1
+    );
 });
 
 test("V142 RunPod blocks inference when the complete Wan runtime probe is not healthy", async () => {
