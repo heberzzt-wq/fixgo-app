@@ -4,6 +4,9 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import {
+    buildLocalSeriesShotPlan,
+    buildSeriesNarrationText,
+    parseTimestampedVideoTimeline,
     registerJarvisActuatorTools
 } from "../gestia-core/jarvis/jarvis.actuator.pack.js";
 
@@ -24,6 +27,42 @@ function createRuntime() {
         }
     };
 }
+
+const THREE_MINUTE_EPISODE_SCRIPT = `0:00-0:10 HOOK
+Roldan acusa el muro. Heberto responde.
+
+0:10-0:40 COMPETENCIA
+Heberto trabaja con precision y guarda la foto de su nieta.
+
+0:40-1:10 ROLDAN EXPUESTO
+Roldan mide el muro y comprueba que esta a plomo.
+
+1:10-1:40 HUMILLACION
+Roldan cambia del debate tecnico al ataque de clase.
+
+1:40-2:05 CAFE Y BOTAS
+Roldan derrama cafe y ensucia sus botas de caiman.
+
+2:05-2:30 LA ORDEN
+Roldan ordena limpiarlas y Heberto se niega.
+
+2:30-2:48 ESCALADA
+Heberto conserva el autocontrol y responde con un consejo.
+
+2:48-3:00 CLIFFHANGER
+Vibra el telefono cifrado, Heberto apaga la pantalla y corte a negro.`;
+
+test("the canonical three-minute timeline expands to 36 distinct physical Wan shots", () => {
+    const timeline = parseTimestampedVideoTimeline(THREE_MINUTE_EPISODE_SCRIPT);
+    const shots = buildLocalSeriesShotPlan(timeline);
+    assert.equal(timeline.length, 8);
+    assert.equal(timeline.at(-1).endSeconds, 180);
+    assert.equal(shots.length, 36);
+    assert.equal(shots.reduce((sum, shot) => sum + shot.durationSeconds, 0), 180);
+    assert.deepEqual([...new Set(shots.map(shot => shot.shotId))].length, 36);
+    assert.ok(shots.every(shot => shot.durationSeconds > 0 && shot.durationSeconds <= 5));
+    assert.match(buildSeriesNarrationText(timeline), /Roldan acusa el muro/);
+});
 
 test("cloud video adapter maps verified identity references to Veo assets and keeps extensions video-only", () => {
     const source = readFileSync(
@@ -1403,6 +1442,112 @@ test("series video blocks unsupported segment count before spending a Veo genera
         });
         assert.equal(result.status, "SERIES_VIDEO_SEGMENT_LIMIT_EXCEEDED:5:4");
         assert.equal(result.blocked, true);
+        assert.equal(cloudCalls, 0);
+    }
+    finally {
+        globalThis.JarvisLocalBridge = previousBridge;
+        globalThis.fetch = previousFetch;
+    }
+});
+
+test("a timestamped seven-beat series episode starts one resumable 180-second local operation", async () => {
+    const runtime = createRuntime();
+    registerJarvisActuatorTools(runtime);
+    const previousBridge = globalThis.JarvisLocalBridge;
+    const previousFetch = globalThis.fetch;
+    let startPayload = null;
+    let cloudCalls = 0;
+    try {
+        globalThis.fetch = async () => {
+            cloudCalls += 1;
+            throw new Error("EXTERNAL_VIDEO_MUST_NOT_START");
+        };
+        globalThis.JarvisLocalBridge = {
+            async requestJson(route, payload) {
+                if (route === "/series/episode/generation-context") {
+                    return {
+                        ok: true,
+                        seriesId: "SERIES_THREE_MINUTES",
+                        episodeId: "EP-SERIES-THREE-MINUTES-1",
+                        script: THREE_MINUTE_EPISODE_SCRIPT,
+                        referenceOutputs: [],
+                        storyBeats: Array.from({ length: 7 }, (_, index) => ({
+                            exactAction: `Beat canonico ${index + 1}`
+                        }))
+                    };
+                }
+                if (route === "/video/engine/resolve") {
+                    return {
+                        ok: true,
+                        policy: "LOCAL_TEST",
+                        engineRequested: "LOCAL_TEST",
+                        engineUsed: "local",
+                        selectedBackend: "wan22-ti2v-5b",
+                        fallbackUsed: false
+                    };
+                }
+                if (route === "/video/local/start") {
+                    startPayload = payload;
+                    return {
+                        ok: true,
+                        done: false,
+                        operationName: "local-video/three-minute-episode"
+                    };
+                }
+                if (route === "/speech/synthesize") {
+                    assert.match(payload.text, /Roldan acusa el muro/);
+                    assert.equal(payload.language, "es-MX");
+                    return {
+                        ok: true,
+                        status: "SPEECH_AUDIO_CREATED_VERIFIED",
+                        output: payload.output,
+                        mimeType: "audio/wav",
+                        bytes: 240000,
+                        sha256: "b".repeat(64),
+                        durationSeconds: 112
+                    };
+                }
+                if (route === "/video/local/poll") {
+                    return {
+                        ok: true,
+                        done: true,
+                        status: "VIDEO_GENERATED_VERIFIED",
+                        operationName: payload.operationName,
+                        output: ".jarvis-artifacts/videos/three-minute-episode.mp4",
+                        mimeType: "video/mp4",
+                        physicallyWritten: true,
+                        verifiedArtifactDelivery: true,
+                        bytes: 180000,
+                        sha256: "a".repeat(64),
+                        durationSeconds: 180,
+                        shotCount: 36,
+                        externalApiUsed: false,
+                        externalEstimatedCostUsd: 0
+                    };
+                }
+                if (route === "/series/episode/generated") {
+                    return { ok: true, status: "SERIES_EPISODE_GENERATED_RECORDED" };
+                }
+                throw new Error(`Unexpected bridge route: ${route}`);
+            }
+        };
+        const result = await runtime.get("video.generate").execute({
+            seriesId: "SERIES_THREE_MINUTES",
+            episodeId: "EP-SERIES-THREE-MINUTES-1",
+            output: ".jarvis-artifacts/videos/three-minute-episode.mp4"
+        }, { waitForVideoPoll: async () => {} });
+
+        assert.equal(result.ok, true);
+        assert.equal(result.durationSeconds, 180);
+        assert.equal(result.shotCount, 36);
+        assert.equal(startPayload.durationSeconds, 180);
+        assert.equal(startPayload.prompts.length, 7);
+        assert.equal(startPayload.shotPlan.length, 36);
+        assert.match(startPayload.audioOutput, /^\.jarvis-artifacts\/audio\//);
+        assert.equal(
+            startPayload.shotPlan.reduce((sum, shot) => sum + shot.durationSeconds, 0),
+            180
+        );
         assert.equal(cloudCalls, 0);
     }
     finally {

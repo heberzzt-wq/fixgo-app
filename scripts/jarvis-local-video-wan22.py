@@ -22,7 +22,10 @@ import tempfile
 from typing import Any
 
 
-RUNNER_VERSION = "1.2.0-v142-wan-physical-integrity"
+RUNNER_VERSION = "1.3.0-v142-wan-episode-master"
+WAN22_SHOT_FRAME_COUNT = 121
+MAX_SHOT_COUNT = 36
+MAX_MASTER_DURATION_SECONDS = 180.0
 DEFAULT_BACKEND = "wan22-ti2v-5b"
 BACKENDS: dict[str, dict[str, Any]] = {
     "wan22-ti2v-5b": {
@@ -126,9 +129,13 @@ def verify_backend_media(media: dict[str, Any], config: dict[str, Any], size: st
         raise RuntimeError("LOCAL_VIDEO_FPS_BELOW_BACKEND_TARGET")
 
 
-def build_prompt(job: dict[str, Any]) -> str:
-    parts = [str(job.get("script") or "").strip()]
-    parts.extend(str(value or "").strip() for value in job.get("prompts") or [])
+def build_prompt(job: dict[str, Any], shot_prompt: str = "") -> str:
+    parts: list[str] = []
+    if shot_prompt:
+        parts.append(str(shot_prompt).strip())
+    else:
+        parts.append(str(job.get("script") or "").strip())
+        parts.extend(str(value or "").strip() for value in job.get("prompts") or [])
     parts.append(
         "Maintain the same explicitly assigned character, wardrobe, location, "
         "body profile and narrative continuity throughout the generated shot."
@@ -169,6 +176,116 @@ def offline_environment() -> dict[str, str]:
     return environment
 
 
+def valid_resumable_shot(
+    file: Path, ffprobe: str, config: dict[str, Any], size: str
+) -> bool:
+    if not file.is_file() or file.stat().st_size < 100000:
+        return False
+    try:
+        media = inspect_video(file, ffprobe)
+        verify_backend_media(media, config, size)
+        return float(media.get("durationSeconds") or 0) >= 4.9
+    except Exception:
+        return False
+
+
+def run_wan_shot(
+    *,
+    job: dict[str, Any],
+    config: dict[str, Any],
+    wan_root: Path,
+    generate_script: Path,
+    checkpoint_dir: Path,
+    output_file: Path,
+    size: str,
+    reference_files: list[Path],
+    prompt: str,
+) -> None:
+    command = [
+        sys.executable,
+        str(generate_script),
+        "--task", str(config["task"]),
+        "--size", size,
+        "--frame_num", str(WAN22_SHOT_FRAME_COUNT),
+        "--ckpt_dir", str(checkpoint_dir),
+        *[str(value) for value in config["extra_args"]],
+        "--save_file", str(output_file),
+        "--prompt", build_prompt(job, prompt),
+    ]
+    if reference_files:
+        command.extend(["--image", str(reference_files[0])])
+    completed = subprocess.run(
+        command,
+        cwd=wan_root,
+        env=offline_environment(),
+        check=False,
+        timeout=int(os.environ.get("JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS", "7200")),
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(f"LOCAL_VIDEO_WAN_EXIT_{completed.returncode}")
+
+
+def master_episode(
+    *,
+    shot_files: list[Path],
+    shot_plan: list[dict[str, Any]],
+    output_file: Path,
+    ffmpeg: str,
+    duration_seconds: float,
+    audio_file: Path | None,
+) -> None:
+    temporary_output = output_file.with_suffix(".mastering.mp4")
+    inputs: list[str] = []
+    filters: list[str] = []
+    video_labels: list[str] = []
+    for index, (shot_file, shot) in enumerate(zip(shot_files, shot_plan)):
+        inputs.extend(["-i", str(shot_file)])
+        label = f"v{index}"
+        filters.append(
+            f"[{index}:v]trim=duration={float(shot['durationSeconds']):.6f},"
+            f"setpts=PTS-STARTPTS[{label}]"
+        )
+        video_labels.append(f"[{label}]")
+    filters.append(
+        f"{''.join(video_labels)}concat=n={len(video_labels)}:v=1:a=0[video]"
+    )
+    audio_input = (
+        ["-i", str(audio_file)]
+        if audio_file is not None
+        else [
+            "-f", "lavfi", "-t", f"{duration_seconds:.6f}",
+            "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
+        ]
+    )
+    filters.append(
+        f"[{len(shot_files)}:a]apad,atrim=duration={duration_seconds:.6f},"
+        "asetpts=PTS-STARTPTS[audio]"
+    )
+    command = [
+        ffmpeg,
+        "-hide_banner", "-nostdin", "-loglevel", "error", "-y",
+        *inputs,
+        *audio_input,
+        "-filter_complex", ";".join(filters),
+        "-map", "[video]",
+        "-map", "[audio]",
+        "-t", f"{duration_seconds:.6f}",
+        "-r", "24",
+        "-c:v", "libx264",
+        "-preset", "medium",
+        "-crf", "18",
+        "-pix_fmt", "yuv420p",
+        "-c:a", "aac",
+        "-b:a", "192k",
+        "-movflags", "+faststart",
+        str(temporary_output),
+    ]
+    completed = subprocess.run(command, check=False, timeout=1800)
+    if completed.returncode != 0:
+        raise RuntimeError(f"LOCAL_VIDEO_MASTERING_EXIT_{completed.returncode}")
+    os.replace(temporary_output, output_file)
+
+
 def run(job_file: Path, result_file: Path) -> int:
     job = read_json(job_file)
     if job.get("externalApiAllowed") is not False:
@@ -204,35 +321,75 @@ def run(job_file: Path, result_file: Path) -> int:
             raise RuntimeError("LOCAL_VIDEO_REFERENCE_NOT_FOUND")
 
     ffprobe = os.environ.get("JARVIS_FFPROBE_PATH") or shutil.which("ffprobe")
+    ffmpeg = os.environ.get("JARVIS_FFMPEG_PATH") or shutil.which("ffmpeg")
     if not ffprobe:
         raise RuntimeError("LOCAL_VIDEO_FFPROBE_UNAVAILABLE")
+    if not ffmpeg:
+        raise RuntimeError("LOCAL_VIDEO_FFMPEG_UNAVAILABLE")
     output_file.parent.mkdir(parents=True, exist_ok=True)
+    audio_file_raw = str(job.get("audioFile") or "").strip()
+    audio_file = Path(audio_file_raw).resolve() if audio_file_raw else None
+    if audio_file is not None and not audio_file.is_file():
+        raise RuntimeError("LOCAL_VIDEO_AUDIO_REFERENCE_NOT_FOUND")
     aspect_ratio = "16:9" if job.get("aspectRatio") == "16:9" else "9:16"
     size = str(
         config["landscape_size"] if aspect_ratio == "16:9" else config["portrait_size"]
     )
-    command = [
-        sys.executable,
-        str(generate_script),
-        "--task", str(config["task"]),
-        "--size", size,
-        "--ckpt_dir", str(checkpoint_dir),
-        *[str(value) for value in config["extra_args"]],
-        "--save_file", str(output_file),
-        "--prompt", build_prompt(job),
-    ]
-    if reference_files:
-        command.extend(["--image", str(reference_files[0])])
-
-    completed = subprocess.run(
-        command,
-        cwd=wan_root,
-        env=offline_environment(),
-        check=False,
-        timeout=int(os.environ.get("JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS", "7200")),
-    )
-    if completed.returncode != 0:
-        raise RuntimeError(f"LOCAL_VIDEO_WAN_EXIT_{completed.returncode}")
+    shot_plan = list(job.get("shotPlan") or [])
+    requested_duration = float(job.get("requestedDurationSeconds") or 0)
+    if shot_plan:
+        if (
+            len(shot_plan) > MAX_SHOT_COUNT
+            or not 0 < requested_duration <= MAX_MASTER_DURATION_SECONDS
+            or abs(sum(float(shot.get("durationSeconds") or 0) for shot in shot_plan) - requested_duration) > 0.001
+        ):
+            raise RuntimeError("LOCAL_VIDEO_SHOT_PLAN_INVALID")
+        shot_root = output_file.parent / f"shots-{job.get('operationId') or 'episode'}"
+        shot_root.mkdir(parents=True, exist_ok=True)
+        shot_files: list[Path] = []
+        for index, shot in enumerate(shot_plan):
+            duration = float(shot.get("durationSeconds") or 0)
+            prompt = str(shot.get("prompt") or "").strip()
+            if not prompt or not 0 < duration <= 5:
+                raise RuntimeError("LOCAL_VIDEO_SHOT_PLAN_INVALID")
+            shot_file = shot_root / f"shot-{index + 1:03d}.mp4"
+            if not valid_resumable_shot(shot_file, ffprobe, config, size):
+                if shot_file.exists():
+                    shot_file.unlink()
+                run_wan_shot(
+                    job=job,
+                    config=config,
+                    wan_root=wan_root,
+                    generate_script=generate_script,
+                    checkpoint_dir=checkpoint_dir,
+                    output_file=shot_file,
+                    size=size,
+                    reference_files=reference_files,
+                    prompt=prompt,
+                )
+            if not valid_resumable_shot(shot_file, ffprobe, config, size):
+                raise RuntimeError("LOCAL_VIDEO_PHYSICAL_SHOT_INVALID")
+            shot_files.append(shot_file)
+        master_episode(
+            shot_files=shot_files,
+            shot_plan=shot_plan,
+            output_file=output_file,
+            ffmpeg=ffmpeg,
+            duration_seconds=requested_duration,
+            audio_file=audio_file,
+        )
+    else:
+        run_wan_shot(
+            job=job,
+            config=config,
+            wan_root=wan_root,
+            generate_script=generate_script,
+            checkpoint_dir=checkpoint_dir,
+            output_file=output_file,
+            size=size,
+            reference_files=reference_files,
+            prompt="",
+        )
     if not output_file.is_file() or output_file.stat().st_size < 100000:
         raise RuntimeError("LOCAL_VIDEO_PHYSICAL_OUTPUT_INVALID")
     media = inspect_video(output_file, ffprobe)
@@ -256,6 +413,15 @@ def run(job_file: Path, result_file: Path) -> int:
             "referenceAssetCount": len(reference_files),
             "referenceAssetLimit": int(config["max_reference_assets"]),
             "primaryReferenceUsed": str(reference_files[0]) if reference_files else None,
+            "shotCount": len(shot_plan) if shot_plan else 1,
+            "requestedDurationSeconds": requested_duration if shot_plan else None,
+            "masteringMode": "ffmpeg_multishot_episode" if shot_plan else "single_wan_shot",
+            "audioIncluded": bool(audio_file) if shot_plan else False,
+            "audioMixMode": (
+                "narration_padded_to_episode" if shot_plan and audio_file is not None
+                else "silent_episode_bed" if shot_plan
+                else "none"
+            ),
             **media,
         },
     )

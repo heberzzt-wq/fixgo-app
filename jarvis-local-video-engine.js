@@ -101,6 +101,9 @@ const LOCAL_VIDEO_MODEL_ALIASES = Object.freeze({
 });
 
 const RUNPOD_GIB = 1024 ** 3;
+const LOCAL_VIDEO_MAX_SHOT_COUNT = 36;
+const LOCAL_VIDEO_MAX_DURATION_SECONDS = 180;
+const RUNPOD_MAX_EXPLICIT_HARD_BUDGET_USD = 10;
 const RUNPOD_MODEL_EXPECTED_BYTES = 34203123497;
 const RUNPOD_WORKSPACE_RESERVE_BYTES = 8 * RUNPOD_GIB;
 const RUNPOD_PEAK_WORKSPACE_BYTES = RUNPOD_MODEL_EXPECTED_BYTES + RUNPOD_WORKSPACE_RESERVE_BYTES;
@@ -1148,6 +1151,27 @@ function safeReference(root, output) {
     return { output: normalized, file: resolved };
 }
 
+function safeAudioReference(root, output) {
+    const reference = safeReference(root, output);
+    if (
+        !reference.output.startsWith(".jarvis-artifacts/audio/") ||
+        !reference.output.toLowerCase().endsWith(".wav")
+    ) {
+        throw new Error("LOCAL_VIDEO_AUDIO_REFERENCE_INVALID");
+    }
+    const wav = fs.readFileSync(reference.file);
+    if (
+        wav.length < 44 ||
+        wav.toString("ascii", 0, 4) !== "RIFF" ||
+        wav.toString("ascii", 8, 12) !== "WAVE" ||
+        !wav.includes(Buffer.from("fmt ", "ascii")) ||
+        !wav.includes(Buffer.from("data", "ascii"))
+    ) {
+        throw new Error("LOCAL_VIDEO_AUDIO_REFERENCE_INVALID");
+    }
+    return reference;
+}
+
 function prepareVideoReferenceSheet(root, references, ffmpeg) {
     if (!Array.isArray(references) || references.length < 2 || references.length > 3) {
         throw new Error("LOCAL_VIDEO_REFERENCE_SHEET_INPUT_INVALID");
@@ -1293,6 +1317,20 @@ function verifyResultReceipt(operation, result) {
     if (!Number.isInteger(actualReferences) || actualReferences !== expectedReferences) {
         throw new Error("LOCAL_VIDEO_RESULT_RECEIPT_MISMATCH");
     }
+    if (Number(operation.shotCount || 0) > 0) {
+        if (
+            Number(result?.shotCount) !== Number(operation.shotCount) ||
+            Math.abs(
+                Number(result?.requestedDurationSeconds || 0) -
+                Number(operation.requestedDurationSeconds || 0)
+            ) > 0.001
+        ) {
+            throw new Error("LOCAL_VIDEO_RESULT_RECEIPT_MISMATCH");
+        }
+    }
+    if (operation.audioOutput && result?.audioIncluded !== true) {
+        throw new Error("LOCAL_VIDEO_RESULT_RECEIPT_MISMATCH");
+    }
 }
 
 function verifyMediaAgainstOperation(operation, media) {
@@ -1309,6 +1347,15 @@ function verifyMediaAgainstOperation(operation, media) {
     }
     if (Number(media.fps) + 0.01 < Number(profile.targetFps)) {
         throw new Error("LOCAL_VIDEO_FPS_BELOW_BACKEND_TARGET");
+    }
+    if (
+        Number(operation.requestedDurationSeconds || 0) > 0 &&
+        Math.abs(
+            Number(media.durationSeconds || 0) -
+            Number(operation.requestedDurationSeconds)
+        ) > 0.25
+    ) {
+        throw new Error("LOCAL_VIDEO_DURATION_MISMATCH");
     }
 }
 
@@ -1461,9 +1508,9 @@ export function createRunpodRemoteVideoAdapter({
     );
     const rawHardBudgetUsd = String(env.JARVIS_REMOTE_GPU_HARD_BUDGET_USD || "").trim();
     const hardBudgetExplicit = rawHardBudgetUsd.length > 0 && Number.isFinite(Number(rawHardBudgetUsd)) &&
-        Number(rawHardBudgetUsd) > 0 && Number(rawHardBudgetUsd) <= 2;
+        Number(rawHardBudgetUsd) > 0 && Number(rawHardBudgetUsd) <= RUNPOD_MAX_EXPLICIT_HARD_BUDGET_USD;
     const hardBudgetUsd = Math.min(
-        2,
+        RUNPOD_MAX_EXPLICIT_HARD_BUDGET_USD,
         runpodPositiveNumber(env.JARVIS_REMOTE_GPU_HARD_BUDGET_USD, 2)
     );
     const budgetStopRatio = Math.min(
@@ -3108,7 +3155,12 @@ export function createRunpodRemoteVideoAdapter({
                 file,
                 output: job.referenceOutputs?.[index] || null,
                 role: "generation"
-            }))
+            })),
+            ...(job.audioFile ? [{
+                file: job.audioFile,
+                output: job.audioOutput || null,
+                role: "audio"
+            }] : [])
         ];
         return candidates.filter(item => {
             const resolved = path.resolve(String(item.file || ""));
@@ -3408,13 +3460,17 @@ export function createRunpodRemoteVideoAdapter({
             const resolved = path.resolve(file);
             return assets.find(asset => asset.file === resolved)?.remoteFile;
         }).filter(Boolean);
+        const audioAsset = job.audioFile
+            ? assets.find(asset => asset.file === path.resolve(job.audioFile) && asset.role === "audio")
+            : null;
         const remoteOperationDir = `${remoteBase}/operations/${job.operationId}`;
         const remoteJob = {
             ...job,
             modelDirectory: `${remoteBase}/cache/wan22-ti2v-5b/model`,
             outputFile: `${remoteOperationDir}/output.mp4`,
             referenceFiles: generationAssets,
-            sourceReferenceFiles: sourceAssets
+            sourceReferenceFiles: sourceAssets,
+            audioFile: audioAsset?.remoteFile || null
         };
         const localJobFile = path.join(operationDir, "job.json");
         const localRunnerFile = path.join(operationDir, "jarvis-local-video-wan22.py");
@@ -4752,8 +4808,43 @@ export function createLocalVideoEngine({
     async function start(payload = {}) {
         const currentHealth = health();
         const referenceOutputs = Array.isArray(payload.referenceOutputs) ? payload.referenceOutputs : [];
+        const shotPlan = (Array.isArray(payload.shotPlan) ? payload.shotPlan : [])
+            .map((shot, index) => ({
+                shotId: String(shot?.shotId || `shot-${index + 1}`).trim(),
+                segmentId: String(shot?.segmentId || "").trim() || null,
+                segmentTitle: String(shot?.segmentTitle || "").trim() || null,
+                startSeconds: Number(shot?.startSeconds),
+                durationSeconds: Number(shot?.durationSeconds),
+                prompt: String(shot?.prompt || "").trim()
+            }));
+        const requestedDurationSeconds = Number(payload.durationSeconds || 0);
+        const invalidShotPlan = shotPlan.length > 0 && (
+            shotPlan.length > LOCAL_VIDEO_MAX_SHOT_COUNT ||
+            !(requestedDurationSeconds > 0 && requestedDurationSeconds <= LOCAL_VIDEO_MAX_DURATION_SECONDS) ||
+            shotPlan.some((shot, index) =>
+                !shot.shotId || !shot.prompt ||
+                !(shot.durationSeconds > 0 && shot.durationSeconds <= 5) ||
+                !Number.isFinite(shot.startSeconds) ||
+                shot.startSeconds !== shotPlan.slice(0, index)
+                    .reduce((sum, candidate) => sum + candidate.durationSeconds, 0)
+            ) ||
+            Math.abs(
+                shotPlan.reduce((sum, shot) => sum + shot.durationSeconds, 0) -
+                requestedDurationSeconds
+            ) > 0.001
+        );
+        if (invalidShotPlan) {
+            return {
+                ok: false,
+                status: "LOCAL_VIDEO_SHOT_PLAN_INVALID",
+                error: "LOCAL_VIDEO_SHOT_PLAN_INVALID",
+                retryable: false,
+                externalApiUsed: false,
+                externalEstimatedCostUsd: 0
+            };
+        }
         const requirements = {
-            sceneCount: Array.isArray(payload.prompts) ? payload.prompts.length : 0,
+            sceneCount: shotPlan.length || (Array.isArray(payload.prompts) ? payload.prompts.length : 0),
             referenceCount: referenceOutputs.length,
             requiresImageToVideo: referenceOutputs.length > 0,
             aspectRatio: payload.aspectRatio === "16:9" ? "16:9" : "9:16",
@@ -4774,7 +4865,7 @@ export function createLocalVideoEngine({
         const prompts = (Array.isArray(payload.prompts) ? payload.prompts : [])
             .map(value => String(value || "").trim())
             .filter(Boolean)
-            .slice(0, 4);
+            .slice(0, shotPlan.length > 0 ? LOCAL_VIDEO_MAX_SHOT_COUNT : 4);
         const script = String(payload.script || prompts.join(" ")).trim();
         if (!script || prompts.length < 1) {
             return { ok: false, status: "LOCAL_VIDEO_PROMPT_REQUIRED", error: "LOCAL_VIDEO_PROMPT_REQUIRED" };
@@ -4786,6 +4877,22 @@ export function createLocalVideoEngine({
         }
         catch(error) {
             return { ok: false, status: error.message, error: error.message };
+        }
+        let audioReference = null;
+        if (payload.audioOutput) {
+            try {
+                audioReference = safeAudioReference(resolvedRoot, payload.audioOutput);
+            }
+            catch(error) {
+                return {
+                    ok: false,
+                    status: error.message,
+                    error: error.message,
+                    retryable: false,
+                    externalApiUsed: false,
+                    externalEstimatedCostUsd: 0
+                };
+            }
         }
         const model = currentHealth.backends?.find(candidate =>
             candidate.backend === decision.selectedBackend
@@ -5077,6 +5184,8 @@ export function createLocalVideoEngine({
             modelDirectory: model.modelDirectory,
             script,
             prompts,
+            shotPlan,
+            requestedDurationSeconds: shotPlan.length > 0 ? requestedDurationSeconds : null,
             aspectRatio: payload.aspectRatio === "16:9" ? "16:9" : "9:16",
             output: output.normalized,
             outputFile: output.resolved,
@@ -5084,6 +5193,8 @@ export function createLocalVideoEngine({
             referenceFiles: references.map(item => item.file),
             sourceReferenceOutputs: sourceReferences.map(item => item.output),
             sourceReferenceFiles: sourceReferences.map(item => item.file),
+            audioOutput: audioReference?.output || null,
+            audioFile: audioReference?.file || null,
             referencePreparation,
             executionTarget: String(env.JARVIS_LOCAL_VIDEO_EXECUTION_TARGET || "local")
                 .trim().toLowerCase() === "remote" ? "remote" : "local",
@@ -5110,6 +5221,9 @@ export function createLocalVideoEngine({
             resultFile,
             output: output.normalized,
             aspectRatio: job.aspectRatio,
+            shotCount: job.shotPlan.length,
+            requestedDurationSeconds: job.requestedDurationSeconds,
+            audioOutput: job.audioOutput,
             referenceAssetCount: references.length,
             sourceReferenceAssetCount: sourceReferences.length,
             referencePreparation,
@@ -5359,6 +5473,10 @@ export function createLocalVideoEngine({
                 physicallyWritten: true,
                 physicalArtifactVerified: true,
                 verifiedArtifactDelivery: true,
+                shotCount: Number(result.shotCount || operation.shotCount || 1),
+                masteringMode: result.masteringMode || "single_wan_shot",
+                audioIncluded: result.audioIncluded === true,
+                audioMixMode: result.audioMixMode || "none",
                 externalApiUsed: false,
                 externalEstimatedCostUsd: 0,
                 gpuRentalSeconds: Number(operation.gpuRentalSeconds || 0),

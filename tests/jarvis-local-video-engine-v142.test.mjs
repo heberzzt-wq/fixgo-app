@@ -15,6 +15,7 @@ import {
     estimateExternalVideoGeneration,
     RUNPOD_CPU_STAGING_PROFILE,
     RUNPOD_WAN22_GPU_PROFILES,
+    resolveLocalExecutable,
     resolveVideoEngine,
     writeLocalAiCapabilityReport
 } from "../jarvis-local-video-engine.js";
@@ -115,6 +116,31 @@ function localBackend({
         imageToVideo,
         maximumReferenceAssets
     };
+}
+
+const physicalRunnerTools = {
+    python: resolveLocalExecutable(process.env.JARVIS_PYTHON_PATH || "python"),
+    ffmpeg: resolveLocalExecutable(process.env.JARVIS_FFMPEG_PATH || "ffmpeg"),
+    ffprobe: resolveLocalExecutable(process.env.JARVIS_FFPROBE_PATH || "ffprobe")
+};
+
+function pcmWavFixture() {
+    const dataBytes = 1600;
+    const buffer = Buffer.alloc(44 + dataBytes);
+    buffer.write("RIFF", 0, "ascii");
+    buffer.writeUInt32LE(buffer.length - 8, 4);
+    buffer.write("WAVE", 8, "ascii");
+    buffer.write("fmt ", 12, "ascii");
+    buffer.writeUInt32LE(16, 16);
+    buffer.writeUInt16LE(1, 20);
+    buffer.writeUInt16LE(1, 22);
+    buffer.writeUInt32LE(8000, 24);
+    buffer.writeUInt32LE(16000, 28);
+    buffer.writeUInt16LE(2, 32);
+    buffer.writeUInt16LE(16, 34);
+    buffer.write("data", 36, "ascii");
+    buffer.writeUInt32LE(dataBytes, 40);
+    return buffer;
 }
 
 function controlledBashExecutable() {
@@ -801,6 +827,34 @@ test("V142 RunPod zero-cost dry run exposes the exact sanitized future Pod paylo
     assert.equal(report.economics.maximumSpendBeforeCleanupUsd, 1.9);
     assert.equal(report.cache.expectedStatus, "CACHE_MISS");
     assert.equal(harness.calls.length, 0);
+});
+
+test("a multi-hour episode budget is accepted only when explicitly configured and remains zero-cost before POST", () => {
+    const harness = runpodPhysicalHarness({
+        scenario: "episode-hard-budget-dry-run",
+        envOverrides: { JARVIS_REMOTE_GPU_HARD_BUDGET_USD: "6.50" }
+    });
+    const report = harness.adapter.inspectZeroCostPrecheck({
+        job: harness.dryRunJob,
+        registryVerification: harness.gpuRegistryVerification,
+        networkVolume: {
+            id: "future-network-volume-v142",
+            dataCenterId: "EU-NL-1",
+            sizeGb: 50,
+            type: "STANDARD"
+        },
+        availability: {
+            gpuTypeId: "NVIDIA L40S",
+            vramGb: 48,
+            hourlyRateUsd: 0.99,
+            stockStatus: "Low"
+        }
+    });
+    assert.equal(report.ok, true, JSON.stringify(report));
+    assert.equal(report.economics.hardBudgetUsd, 6.5);
+    assert.equal(report.economics.maximumSpendBeforeCleanupUsd, 6.175);
+    assert.equal(harness.calls.length, 0);
+    assert.equal(harness.createdBody, null);
 });
 
 test("V142 RunPod placement derives a compatible region and certified cache from live evidence", () => {
@@ -4830,6 +4884,171 @@ test("simulated remote Wan receives three physical assets, returns a verified MP
     assert.equal(releases[0].reason, "generation_succeeded");
     assert.equal(fs.existsSync(path.join(root, completed.output)), true);
     assert.match(completed.sha256, /^[a-f0-9]{64}$/);
+});
+
+test("the existing local lifecycle preserves and verifies one 36-shot 180-second episode job", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-episode-master-"));
+    const runner = path.join(root, "runner.py");
+    const model = path.join(root, "wan-model");
+    const audioOutput = ".jarvis-artifacts/audio/ep1-narration.wav";
+    const audioFile = path.join(root, audioOutput);
+    fs.writeFileSync(runner, "# controlled episode runner\n");
+    fs.mkdirSync(model, { recursive: true });
+    fs.mkdirSync(path.dirname(audioFile), { recursive: true });
+    fs.writeFileSync(audioFile, pcmWavFixture());
+    const shotPlan = Array.from({ length: 36 }, (_, index) => ({
+        shotId: `shot-${index + 1}`,
+        segmentId: `segment-${Math.floor(index / 5) + 1}`,
+        segmentTitle: "EP1",
+        startSeconds: index * 5,
+        durationSeconds: 5,
+        prompt: `Toma fisica distinta ${index + 1}`
+    }));
+    let receivedJob = null;
+    const releases = [];
+    const engine = createLocalVideoEngine({
+        root,
+        env: {
+            JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_TEST",
+            JARVIS_LOCAL_VIDEO_ENABLED: "true",
+            JARVIS_LOCAL_VIDEO_EXECUTION_TARGET: "remote",
+            JARVIS_LOCAL_VIDEO_RUNNER: process.execPath,
+            JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT: runner,
+            JARVIS_LOCAL_VIDEO_MODEL_DIR: model,
+            PATH: process.env.PATH,
+            PATHEXT: process.env.PATHEXT
+        },
+        inspectHardware: healthyCapability,
+        launch({ job, resultFile, onExit }) {
+            receivedJob = job;
+            physicalFixture(path.resolve(root, job.output));
+            fs.writeFileSync(resultFile, JSON.stringify(successReceipt(job, {
+                durationSeconds: 180,
+                shotCount: 36,
+                requestedDurationSeconds: 180,
+                masteringMode: "ffmpeg_multishot_episode",
+                audioIncluded: true,
+                audioMixMode: "narration_padded_to_episode"
+            })));
+            queueMicrotask(() => onExit(0));
+            return { pid: 7373, kill() {} };
+        },
+        release: async receipt => {
+            releases.push(receipt);
+            return { ok: true, status: "REMOTE_VIDEO_WORKER_RELEASED" };
+        },
+        inspectVideo: () => ({ durationSeconds: 180, fps: 24, width: 704, height: 1280 })
+    });
+
+    const started = await engine.start({
+        script: "EP1 canonico de tres minutos.",
+        prompts: Array.from({ length: 7 }, (_, index) => `Beat ${index + 1}`),
+        shotPlan,
+        durationSeconds: 180,
+        audioOutput,
+        output: ".jarvis-artifacts/videos/ep1-three-minutes.mp4"
+    });
+    const completed = await engine.poll({ operationName: started.operationName });
+
+    assert.equal(started.ok, true, JSON.stringify(started));
+    assert.equal(receivedJob.shotPlan.length, 36);
+    assert.equal(receivedJob.requestedDurationSeconds, 180);
+    assert.equal(receivedJob.audioOutput, audioOutput);
+    assert.equal(completed.ok, true, JSON.stringify(completed));
+    assert.equal(completed.durationSeconds, 180);
+    assert.equal(completed.shotCount, 36);
+    assert.equal(completed.masteringMode, "ffmpeg_multishot_episode");
+    assert.equal(completed.workerRelease.ok, true);
+    assert.equal(releases.length, 1);
+});
+
+test("the physical Wan runner masters verified shots and narration, then resumes without regenerating them", {
+    skip: !physicalRunnerTools.python || !physicalRunnerTools.ffmpeg || !physicalRunnerTools.ffprobe
+}, () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-physical-episode-master-"));
+    const wanRoot = path.join(root, "Wan2.2");
+    const modelDirectory = path.join(root, "model");
+    const outputFile = path.join(root, "episode.mp4");
+    const resultFile = path.join(root, "result.json");
+    const jobFile = path.join(root, "job.json");
+    const counterFile = path.join(root, "generate-count.txt");
+    const audioFile = path.join(root, "narration.wav");
+    fs.mkdirSync(wanRoot, { recursive: true });
+    fs.mkdirSync(modelDirectory, { recursive: true });
+    fs.writeFileSync(audioFile, pcmWavFixture());
+    fs.writeFileSync(path.join(wanRoot, "generate.py"), `
+import argparse, os, shutil, subprocess
+parser = argparse.ArgumentParser(add_help=False)
+parser.add_argument("--save_file", required=True)
+args, _ = parser.parse_known_args()
+counter = os.environ["JARVIS_TEST_GENERATE_COUNTER"]
+count = int(open(counter, encoding="utf-8").read()) if os.path.exists(counter) else 0
+open(counter, "w", encoding="utf-8").write(str(count + 1))
+ffmpeg = os.environ["JARVIS_FFMPEG_PATH"]
+subprocess.run([ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=704x1280:rate=24", "-t", "5.05", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", args.save_file], check=True)
+`, "utf8");
+    const job = {
+        operationId: "physical-episode-master-test",
+        operationName: "local-video/physical-episode-master-test",
+        backend: "wan22-ti2v-5b",
+        model: "Wan2.2-TI2V-5B",
+        modelDirectory,
+        script: "Dos tomas fisicas.",
+        prompts: ["Toma uno", "Toma dos"],
+        shotPlan: [{
+            shotId: "shot-1",
+            startSeconds: 0,
+            durationSeconds: 5,
+            prompt: "Toma uno fisicamente distinta"
+        }, {
+            shotId: "shot-2",
+            startSeconds: 5,
+            durationSeconds: 5,
+            prompt: "Toma dos fisicamente distinta"
+        }],
+        requestedDurationSeconds: 10,
+        aspectRatio: "9:16",
+        output: ".jarvis-artifacts/videos/physical-episode-master.mp4",
+        outputFile,
+        referenceFiles: [],
+        audioFile,
+        externalApiAllowed: false
+    };
+    fs.writeFileSync(jobFile, JSON.stringify(job));
+    const env = {
+        ...process.env,
+        JARVIS_WAN22_REPO_DIR: wanRoot,
+        JARVIS_LOCAL_VIDEO_EXTERNAL_API_ALLOWED: "false",
+        JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS: "120",
+        JARVIS_FFMPEG_PATH: physicalRunnerTools.ffmpeg,
+        JARVIS_FFPROBE_PATH: physicalRunnerTools.ffprobe,
+        JARVIS_TEST_GENERATE_COUNTER: counterFile
+    };
+    const runner = path.resolve("scripts/jarvis-local-video-wan22.py");
+    const executeRunner = () => execFileSync(
+        physicalRunnerTools.python,
+        [runner, "--job", jobFile, "--result", resultFile],
+        { cwd: root, env, stdio: ["ignore", "pipe", "pipe"], timeout: 240000 }
+    );
+
+    executeRunner();
+    const first = JSON.parse(fs.readFileSync(resultFile, "utf8"));
+    assert.equal(first.ok, true);
+    assert.equal(first.durationSeconds, 10);
+    assert.equal(first.shotCount, 2);
+    assert.equal(first.audioIncluded, true);
+    assert.equal(first.audioMixMode, "narration_padded_to_episode");
+    assert.equal(fs.readFileSync(counterFile, "utf8"), "2");
+    const streams = JSON.parse(execFileSync(physicalRunnerTools.ffprobe, [
+        "-v", "error", "-show_entries", "stream=codec_type", "-of", "json", outputFile
+    ], { encoding: "utf8" }));
+    assert.deepEqual(
+        streams.streams.map(stream => stream.codec_type).sort(),
+        ["audio", "video"]
+    );
+
+    executeRunner();
+    assert.equal(fs.readFileSync(counterFile, "utf8"), "2");
 });
 
 test("reference-sheet preparation still fails closed when the production FFmpeg binary is unavailable", async () => {

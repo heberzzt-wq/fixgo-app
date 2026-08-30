@@ -20,6 +20,112 @@ const VIDEO_REFERENCE_MIME_TYPES = new Set([
 const VIDEO_REFERENCE_MAX_COUNT = 3;
 const VIDEO_REFERENCE_MAX_BYTES = 7 * 1024 * 1024;
 const VIDEO_REFERENCE_BATCH_MAX_BYTES = 9 * 1024 * 1024;
+const LOCAL_SERIES_MAX_DURATION_SECONDS = 180;
+const LOCAL_SERIES_MAX_SHOT_COUNT = 36;
+const WAN22_SHOT_DURATION_SECONDS = 5;
+
+function timestampSeconds(minutes, seconds) {
+    const minuteValue = Number(minutes);
+    const secondValue = Number(seconds);
+    if (
+        !Number.isInteger(minuteValue) || minuteValue < 0 ||
+        !Number.isInteger(secondValue) || secondValue < 0 || secondValue > 59
+    ) return null;
+    return minuteValue * 60 + secondValue;
+}
+
+export function parseTimestampedVideoTimeline(script = "") {
+    const lines = String(script || "").replaceAll("\r", "").split("\n");
+    const timeline = [];
+    let current = null;
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+        const heading = /^(\d+):(\d{2})-(\d+):(\d{2})\s+(.+)$/u.exec(line);
+        if (heading) {
+            const startSeconds = timestampSeconds(heading[1], heading[2]);
+            const endSeconds = timestampSeconds(heading[3], heading[4]);
+            if (
+                startSeconds === null || endSeconds === null ||
+                endSeconds <= startSeconds ||
+                (timeline.length > 0 && startSeconds !== timeline.at(-1).endSeconds)
+            ) return [];
+            current = {
+                segmentId: `segment-${timeline.length + 1}`,
+                title: heading[5].trim(),
+                startSeconds,
+                endSeconds,
+                durationSeconds: endSeconds - startSeconds,
+                lines: []
+            };
+            timeline.push(current);
+            continue;
+        }
+        if (current && line) current.lines.push(line);
+    }
+    if (
+        timeline.length < 1 ||
+        timeline[0].startSeconds !== 0 ||
+        timeline.at(-1).endSeconds > LOCAL_SERIES_MAX_DURATION_SECONDS ||
+        timeline.some(segment => segment.lines.length < 1)
+    ) return [];
+    return timeline.map(segment => ({
+        ...segment,
+        text: segment.lines.join(" ")
+    }));
+}
+
+export function buildLocalSeriesShotPlan(timeline = []) {
+    const segments = Array.isArray(timeline) ? timeline : [];
+    const totalDurationSeconds = Number(segments.at(-1)?.endSeconds || 0);
+    const shotCount = Math.ceil(totalDurationSeconds / WAN22_SHOT_DURATION_SECONDS);
+    const shots = Array.from({ length: shotCount }, (_, index) => {
+        const startSeconds = index * WAN22_SHOT_DURATION_SECONDS;
+        const durationSeconds = Math.min(
+            WAN22_SHOT_DURATION_SECONDS,
+            totalDurationSeconds - startSeconds
+        );
+        const endSeconds = startSeconds + durationSeconds;
+        const activeSegments = segments.filter(segment =>
+            Number(segment.startSeconds) < endSeconds &&
+            Number(segment.endSeconds) > startSeconds
+        );
+        return {
+            shotId: `episode-shot-${index + 1}`,
+            segmentId: activeSegments.map(segment => segment.segmentId).join("+") || null,
+            segmentTitle: activeSegments.map(segment => segment.title).join(" -> ") || null,
+            startSeconds,
+            durationSeconds,
+            prompt: [
+                ...activeSegments.flatMap(segment => [segment.title, segment.text]),
+                activeSegments.length > 1
+                    ? "Toma de transicion continua entre ambos bloques narrativos."
+                    : "",
+                `Toma cinematografica ${index + 1} de ${shotCount}; composicion, accion y movimiento de camara distintos, sin repetir metraje.`
+            ].filter(Boolean).join(" ")
+        };
+    });
+    if (
+        shots.length < 1 ||
+        shots.length > LOCAL_SERIES_MAX_SHOT_COUNT ||
+        shots.some(shot => !(shot.durationSeconds > 0 && shot.durationSeconds <= WAN22_SHOT_DURATION_SECONDS))
+    ) return [];
+    return shots;
+}
+
+export function buildSeriesNarrationText(timeline = []) {
+    return (Array.isArray(timeline) ? timeline : [])
+        .flatMap(segment => [
+            String(segment?.title || "").trim(),
+            ...(Array.isArray(segment?.lines) ? segment.lines : [])
+        ])
+        .map(line => String(line || "")
+            .replace(/^ROLDAN:\s*/iu, "Roldan dice: ")
+            .replace(/^HEBERTO:\s*/iu, "Heberto responde: ")
+            .replaceAll('"', "")
+            .trim())
+        .filter(Boolean)
+        .join(". ");
+}
 
 export function normalizeImageArtifactOutput(output, mimeType) {
     const extensions = {
@@ -1111,10 +1217,19 @@ export function registerJarvisActuatorTools(runtime) {
                 const rawScenes = seriesRequested
                     ? (Array.isArray(seriesContext.storyBeats) ? seriesContext.storyBeats : [])
                     : (Array.isArray(args.scenes) ? args.scenes : []);
+                const seriesTimeline = seriesRequested
+                    ? parseTimestampedVideoTimeline(script)
+                    : [];
+                const seriesShotPlan = seriesTimeline.length > 0
+                    ? buildLocalSeriesShotPlan(seriesTimeline)
+                    : [];
                 const maximumSceneCount = 4;
                 const maximumGeneratedDurationSeconds =
                     8 + (maximumSceneCount - 1) * 7;
-                if (rawScenes.length > maximumSceneCount) {
+                if (
+                    rawScenes.length > maximumSceneCount &&
+                    (!seriesRequested || seriesShotPlan.length < 1)
+                ) {
                     const statusPrefix = seriesRequested
                         ? "SERIES_VIDEO_SEGMENT_LIMIT_EXCEEDED"
                         : "VIDEO_SEGMENT_LIMIT_EXCEEDED";
@@ -1144,6 +1259,8 @@ export function registerJarvisActuatorTools(runtime) {
                 }
                 const requestedDurationSeconds = Number(args.durationSeconds || 0) > 0
                     ? Number(args.durationSeconds)
+                    : seriesTimeline.length > 0
+                        ? seriesTimeline.at(-1).endSeconds
                     : rawScenes.length > 0 && rawScenes.every(scene =>
                         Number(scene?.durationSeconds || 0) > 0
                     )
@@ -1155,6 +1272,7 @@ export function registerJarvisActuatorTools(runtime) {
                 const plannedGeneratedDurationSeconds =
                     8 + Math.max(0, prompts.length - 1) * 7;
                 if (
+                    !seriesRequested &&
                     Number.isFinite(requestedDurationSeconds) &&
                     requestedDurationSeconds > plannedGeneratedDurationSeconds + 3
                 ) {
@@ -1218,6 +1336,50 @@ export function registerJarvisActuatorTools(runtime) {
                     };
                 }
 
+                let episodeAudioOutput = "";
+                let episodeAudio = null;
+                if (
+                    engineDecision.engineUsed === "local" &&
+                    seriesShotPlan.length > 0 &&
+                    !episodeAudioOutput
+                ) {
+                    const narrationText = buildSeriesNarrationText(seriesTimeline);
+                    const audioName = `${seriesId}-${episodeId}`
+                        .toLowerCase()
+                        .replace(/[^a-z0-9._-]+/g, "-")
+                        .slice(0, 160);
+                    episodeAudio = await bridgeRequest("/speech/synthesize", {
+                        text: narrationText,
+                        output: `.jarvis-artifacts/audio/${audioName}-narration.wav`,
+                        language: "es-MX",
+                        rate: -2,
+                        volume: 100,
+                        caseId: context.caseId || args.caseId || "",
+                        objectiveId: context.objectiveId || args.objectiveId || ""
+                    }, 120000);
+                    const audioVerified =
+                        episodeAudio?.ok === true &&
+                        episodeAudio?.status === "SPEECH_AUDIO_CREATED_VERIFIED" &&
+                        String(episodeAudio?.output || "").startsWith(".jarvis-artifacts/audio/") &&
+                        Number(episodeAudio?.bytes || 0) > 44 &&
+                        /^[a-f0-9]{64}$/i.test(String(episodeAudio?.sha256 || ""));
+                    if (!audioVerified) {
+                        return {
+                            ...(episodeAudio || {}),
+                            ok: false,
+                            executionOk: false,
+                            objectiveSatisfied: false,
+                            blocked: true,
+                            retryable: false,
+                            status: "SERIES_EPISODE_AUDIO_PREPARATION_FAILED",
+                            error: episodeAudio?.error || "SERIES_EPISODE_AUDIO_PREPARATION_FAILED",
+                            externalApiUsed: false,
+                            externalEstimatedCostUsd: 0
+                        };
+                    }
+                    episodeAudioOutput = episodeAudio.output;
+                }
+
                 const excludedLocalBackends = [];
                 const localBackendFailures = {};
                 while (engineDecision.engineUsed === "local") {
@@ -1227,6 +1389,9 @@ export function registerJarvisActuatorTools(runtime) {
                         started = await bridgeRequest("/video/local/start", {
                             script,
                             prompts,
+                            shotPlan: seriesShotPlan,
+                            durationSeconds: requestedDurationSeconds,
+                            audioOutput: episodeAudioOutput || null,
                             aspectRatio,
                             output,
                             referenceOutputs: referenceImages.map(reference => reference.sourceOutput),
@@ -1281,7 +1446,10 @@ export function registerJarvisActuatorTools(runtime) {
                             };
                         }
                     };
-                    for (let attempt = 0; attempt < 120; attempt += 1) {
+                    const maximumPollAttempts = seriesShotPlan.length > 0
+                        ? seriesShotPlan.length * 120 + 360
+                        : 120;
+                    for (let attempt = 0; attempt < maximumPollAttempts; attempt += 1) {
                         await waitForVideoPoll(5000);
                         let polled;
                         try {
