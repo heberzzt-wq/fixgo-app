@@ -3278,6 +3278,7 @@ export function createRunpodRemoteVideoAdapter({
             "PY",
             "}",
             "trap 'progress BOOTSTRAP FAILED \"${CURRENT_CACHE_STATUS:-CACHE_MISS}\"' ERR",
+            "rm -f \"$PREFLIGHT_RESULT\"",
             "progress WORKSPACE_VALIDATE RUNNING CACHE_MISS",
             "test -d /workspace && test -w /workspace",
             "WORKSPACE_PROBE=/workspace/.jarvis-v142-gpu-write-probe.$$",
@@ -3769,6 +3770,29 @@ export function createRunpodRemoteVideoAdapter({
         return progress;
     }
 
+    function persistBootstrapProgress(file, state, progress) {
+        if (!progress) return state;
+        const previousProgress = state.bootstrapProgress || null;
+        const madeProgress = !previousProgress ||
+            progress.stage !== previousProgress.stage ||
+            progress.status !== previousProgress.status ||
+            progress.cacheStatus !== previousProgress.cacheStatus ||
+            Number(progress.modelBytes || 0) > Number(previousProgress.modelBytes || 0);
+        state = withStage(state, progress.stage, progress.status, {
+            cacheStatus: progress.cacheStatus,
+            modelBytes: Number(progress.modelBytes || 0),
+            lastProgressAt: progress.at
+        });
+        return writeState(file, state, {
+            cacheStatus: progress.cacheStatus,
+            bootstrapProgress: progress,
+            lastBootstrapProgressAt: madeProgress
+                ? progress.at
+                : state.lastBootstrapProgressAt,
+            stageTimeline: state.stageTimeline
+        });
+    }
+
     async function captureBootstrapFailureDiagnostics(state) {
         const captureErrors = [];
         const readDiagnostic = async (command, label, maximumLength = 12000) => {
@@ -3784,6 +3808,16 @@ export function createRunpodRemoteVideoAdapter({
                 return "";
             }
         };
+        let progress = null;
+        try {
+            progress = await readBootstrapProgress(state) || state.bootstrapProgress || null;
+        }
+        catch(error) {
+            captureErrors.push({
+                label: "bootstrap_progress",
+                error: sanitizeProviderText(safeProviderDiagnostic(error).providerMessage, 1000)
+            });
+        }
         const exitCodeRaw = await readDiagnostic(
             `cat ${shellSingleQuote(state.remoteOperationDir + "/bootstrap.failed")}`,
             "bootstrap_exit_code",
@@ -3832,7 +3866,6 @@ export function createRunpodRemoteVideoAdapter({
                 .filter(([, passed]) => passed !== true)
                 .map(([name]) => name)
             : [];
-        const progress = state.bootstrapProgress || null;
         const parsedExitCode = Number.parseInt(exitCodeRaw.trim(), 10);
         return {
             capturedAt: now().toISOString(),
@@ -3892,6 +3925,33 @@ export function createRunpodRemoteVideoAdapter({
             } : null,
             ...(captureErrors.length > 0 ? { captureErrors } : {})
         };
+    }
+
+    async function readObservedModelManifest(state) {
+        try {
+            const manifestFile = `${remoteBase}/cache/wan22-ti2v-5b/model-manifest.json`;
+            const result = await sshCommand(state, `cat ${shellSingleQuote(manifestFile)}`);
+            const manifest = JSON.parse(result.stdout.trim());
+            if (String(manifest?.operationId || "") !== String(state.operationId || "")) {
+                throw new Error("RUNPOD_MODEL_MANIFEST_OPERATION_ID_MISMATCH");
+            }
+            const replica = normalizedCacheReplica({
+                networkVolumeId: state.networkVolumeId,
+                networkVolumeDataCenterId: state.networkVolumeDataCenterId,
+                networkVolumeSizeGb: state.networkVolumeSizeGb,
+                networkVolumeRetained: true,
+                cacheStatus: state.cacheStatus,
+                phase: "CACHE_READY",
+                modelManifest: manifest
+            });
+            if (!replica || replica.invalid || replica.incomplete || replica.shaVerified !== true) {
+                throw new Error("RUNPOD_MODEL_MANIFEST_INVALID");
+            }
+            return manifest;
+        }
+        catch {
+            throw new Error("RUNPOD_MODEL_MANIFEST_INVALID");
+        }
     }
 
     async function uploadOperation(state) {
@@ -3980,27 +4040,7 @@ export function createRunpodRemoteVideoAdapter({
             }
             if (state.phase === "BOOTSTRAPPING") {
                 const progress = await readBootstrapProgress(state);
-                if (progress) {
-                    const previousProgress = state.bootstrapProgress || null;
-                    const madeProgress = !previousProgress ||
-                        progress.stage !== previousProgress.stage ||
-                        progress.status !== previousProgress.status ||
-                        progress.cacheStatus !== previousProgress.cacheStatus ||
-                        Number(progress.modelBytes || 0) > Number(previousProgress.modelBytes || 0);
-                    state = withStage(state, progress.stage, progress.status, {
-                        cacheStatus: progress.cacheStatus,
-                        modelBytes: Number(progress.modelBytes || 0),
-                        lastProgressAt: progress.at
-                    });
-                    state = writeState(loaded.file, state, {
-                        cacheStatus: progress.cacheStatus,
-                        bootstrapProgress: progress,
-                        lastBootstrapProgressAt: madeProgress
-                            ? progress.at
-                            : state.lastBootstrapProgressAt,
-                        stageTimeline: state.stageTimeline
-                    });
-                }
+                state = persistBootstrapProgress(loaded.file, state, progress);
                 const lastProgressMs = Date.parse(String(state.lastBootstrapProgressAt || state.bootstrapStartedAt || ""));
                 if (Number.isFinite(lastProgressMs) && (now().getTime() - lastProgressMs) / 1000 >= state.bootstrapTimeoutSeconds) {
                     const bootstrapDiagnostics = await captureBootstrapFailureDiagnostics(state);
@@ -4064,9 +4104,23 @@ export function createRunpodRemoteVideoAdapter({
                 if (status !== "READY") {
                     return { ok: true, done: false, status: "RUNPOD_WAN22_BOOTSTRAPPING", remoteWorker: runpodPublicWorker(state) };
                 }
+                const finalProgress = await readBootstrapProgress(state);
+                state = persistBootstrapProgress(loaded.file, state, finalProgress);
+                if (state.runtimeCertificationOnly === true && state.networkVolumeId) {
+                    const mountedRuntimeCertified = finalProgress?.status === "READY" && (
+                        (finalProgress.cacheStatus === "CACHE_READY" && finalProgress.stage === "RUNNER_READY") ||
+                        (finalProgress.cacheStatus === "CACHE_HIT" && finalProgress.stage === "CACHE_VALIDATE")
+                    );
+                    if (!mountedRuntimeCertified) {
+                        throw new Error("RUNPOD_RUNTIME_CERTIFICATION_PROGRESS_INVALID");
+                    }
+                }
                 const health = await remoteHealth(state, true);
                 if (state.runtimeCertificationOnly === true) {
                     const certifiedAt = now().toISOString();
+                    const modelManifest = state.networkVolumeId
+                        ? await readObservedModelManifest(state)
+                        : null;
                     const result = {
                         ok: true,
                         done: true,
@@ -4100,6 +4154,7 @@ export function createRunpodRemoteVideoAdapter({
                         wanRepositoryRevision: cacheContract.wanRepositoryRevision,
                         cacheStatus: state.cacheStatus || "CACHE_MISS",
                         inferenceStarted: false,
+                        ...(modelManifest ? { modelManifest } : {}),
                         certifiedAt
                     };
                     atomicJsonWrite(resultFile, result);
@@ -4115,6 +4170,7 @@ export function createRunpodRemoteVideoAdapter({
                         wanRepositoryRevision: cacheContract.wanRepositoryRevision,
                         cacheStatus: state.cacheStatus || "CACHE_MISS",
                         inferenceStarted: false,
+                        ...(modelManifest ? { modelManifest } : {}),
                         certifiedAt,
                         stageTimeline: state.stageTimeline
                     });
