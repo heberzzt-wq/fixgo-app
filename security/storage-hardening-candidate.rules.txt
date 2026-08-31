@@ -1,9 +1,9 @@
 // =====================================================================================
-// FIREBASE STORAGE HARDENING CANDIDATE — DO NOT PUBLISH YET
+// FIREBASE STORAGE — FUENTE AUTORITATIVA VERSIONADA
 // =====================================================================================
 // Fuente: reglas reales visibles en Firebase Storage el 30-jul-2026 e inventario de
-// rutas activas de FixGo. Este candidato elimina el catch-all autenticado y crea una
-// lista blanca. Debe probarse antes de cualquier publicación productiva.
+// rutas activas de FixGo. Esta fuente elimina el catch-all autenticado y crea una
+// lista blanca. Su publicación sigue condicionada a pruebas de emulador verdes.
 // =====================================================================================
 
 rules_version = '2';
@@ -19,6 +19,14 @@ service firebase.storage {
       return signedIn() && (
         request.auth.token.email == "hebertoh-m@hotmail.com" ||
         request.auth.uid == "nNhwy3Mx4pTvc8TZVh1tyTMFwhC2"
+      );
+    }
+
+    function authorizedAdmin() {
+      return masterAdmin() || (
+        signedIn() &&
+        firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+        userProfile().rol in ["admin", "ceo"]
       );
     }
 
@@ -52,7 +60,7 @@ service firebase.storage {
     }
 
     function serviceParty(serviceId) {
-      return masterAdmin() ||
+      return authorizedAdmin() ||
         assignedTechnician(serviceId) ||
         owningCustomer(serviceId);
     }
@@ -123,28 +131,41 @@ service firebase.storage {
     }
 
     // Expedientes KYC del técnico. Mantiene 10 MB por compatibilidad legacy.
-    match /expedientes/{uid}/{fileName} {
-      allow read: if masterAdmin() ||
+    match /expedientes/{uid}/{filePath=**} {
+       allow read: if authorizedAdmin() ||
         (signedIn() && request.auth.uid == uid);
 
       allow create, update: if (
-        masterAdmin() ||
+         authorizedAdmin() ||
         (signedIn() && request.auth.uid == uid)
       ) && validDocument(10 * 1024 * 1024);
 
-      allow delete: if masterAdmin();
+       allow delete: if authorizedAdmin();
     }
 
     // Compatibilidad con la ruta plana vigente del formulario cliente.
     match /solicitudes_iniciales/{fileName} {
-      allow read: if signedIn();
+      allow read: if authorizedAdmin() ||
+        (signedIn() && fileName.matches(request.auth.uid + "_.*"));
 
       allow create: if signedIn() &&
         fileName.matches(request.auth.uid + "_.*") &&
         validLegacyImage(10 * 1024 * 1024);
 
       allow update: if false;
-      allow delete: if masterAdmin();
+      allow delete: if authorizedAdmin();
+    }
+
+    // Foto inicial de nuevas solicitudes: propietario al reservar y partes del folio al leer.
+    match /service_initial/{serviceId}/{customerId}/problem/{fileName} {
+      allow read: if authorizedAdmin() || serviceParty(serviceId);
+
+      allow create: if signedIn() &&
+        customerId == request.auth.uid &&
+        validLegacyImage(10 * 1024 * 1024);
+
+      allow update: if false;
+      allow delete: if authorizedAdmin() || owningCustomer(serviceId);
     }
 
     // Evidencia de cierre B2C legacy y firma económica.

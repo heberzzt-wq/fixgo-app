@@ -1,3 +1,4 @@
+// FUENTE AUTORITATIVA VERSIONADA. No desplegar sin ejecutar las pruebas de reglas.
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -13,8 +14,13 @@ service cloud.firestore {
     // MODO DIOS: Reforzado con UID para asegurar soberanía de Heberto
     function isAdmin() {
       return isAuth() && (
+        request.auth.token.admin == true ||
         request.auth.token.email == 'hebertoh-m@hotmail.com' ||
-        request.auth.uid == 'nNhwy3Mx4pTvc8TZVh1tyTMFwhC2'
+        request.auth.uid == 'nNhwy3Mx4pTvc8TZVh1tyTMFwhC2' ||
+        (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol in ['admin', 'ceo']
+        )
       );
     }
 
@@ -54,6 +60,94 @@ service cloud.firestore {
              userStatus() == 'activo';
     }
 
+    function isOperationalTechnician() {
+      let data = userData();
+      return data != null &&
+        data.rol in ['tecnico', 'tecnico_gp', 'tecnico_interno'] &&
+        data.estado == 'activo' &&
+        data.status == 'activo' &&
+        data.get('kyc', {}).get('aprobado', false) == true &&
+        data.get('suspendido', false) != true;
+    }
+
+    function technicianInitialStateIsSafe(data) {
+      return data.rol == 'tecnico' &&
+        data.estado in ['registro_iniciado', 'documentos_pendientes'] &&
+        data.status == data.estado &&
+        data.disponible == false &&
+        data.kyc.aprobado == false;
+    }
+
+    function userAuthorityFieldsUnchanged() {
+      return request.resource.data.rol == resource.data.rol &&
+        request.resource.data.tipo_cuenta == resource.data.tipo_cuenta &&
+        (
+          (
+            request.resource.data.estado == resource.data.estado &&
+            request.resource.data.status == resource.data.status
+          ) ||
+          (
+            resource.data.rol == 'tecnico' &&
+            resource.data.estado in ['registro_iniciado', 'documentos_pendientes', 'rechazado'] &&
+            request.resource.data.estado == 'pendiente_revision' &&
+            request.resource.data.status == 'pendiente_revision' &&
+            request.resource.data.disponible == false
+          )
+        ) &&
+        request.resource.data.get('suspendido', false) == resource.data.get('suspendido', false) &&
+        request.resource.data.get('kyc', {}).get('aprobado', false) == resource.data.get('kyc', {}).get('aprobado', false) &&
+        request.resource.data.get('kyc', {}).get('aprobado_por', null) == resource.data.get('kyc', {}).get('aprobado_por', null) &&
+        request.resource.data.get('kyc', {}).get('aprobado_at', null) == resource.data.get('kyc', {}).get('aprobado_at', null);
+    }
+
+    function serviceFinancialFieldsUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'retencion_inicial', 'costo_final', 'monto_total', 'pago_estado',
+        'stripe_session_id', 'stripe_payment_intent', 'saldo_pagado',
+        'ledger_transaction_id', 'liquidacion_estado', 'fecha_liquidacion'
+      ]);
+    }
+
+    function customerServiceUpdateIsSafe() {
+      let before = resource.data.estado;
+      let after = request.resource.data.estado;
+      return (
+          after == before ||
+          (before == 'iniciado_stripe' && after == 'cancelado')
+        ) && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'estado', 'cancelado_razon', 'cancelado_at', 'actualizado_at',
+          'llegada_notificacion_estado', 'llegada_notificacion_mostrada_at',
+          'llegada_notificacion_version', 'llegada_espera_segundos',
+          'llegada_cliente_respuesta', 'llegada_cliente_respuesta_at',
+          'llegada_revision_requerida', 'llegada_resolucion_automatica_bloqueada',
+          'llegada_disputa_cliente'
+        ]);
+    }
+
+    function technicianServiceTransitionIsSafe() {
+      let before = resource.data.estado;
+      let after = request.resource.data.estado;
+      let same = after == before;
+      let allowed =
+        (before == 'asignado' && after == 'en_camino') ||
+        (before == 'en_camino' && after == 'en_sitio') ||
+        (
+          before == 'trabajando' &&
+          after == 'finalizado' &&
+          request.resource.data.get('cierre_operativo_completado', false) == true &&
+          request.resource.data.get('cierre_financiero_pendiente_backend', false) == true &&
+          request.resource.data.get('cierre_legacy_financiero_ejecutado', true) == false &&
+          request.resource.data.get('work_evidence_binding_path', null) is string
+        );
+      return (same || allowed) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'cliente_id', 'cliente_nombre', 'cliente_telefono', 'metodo_pago',
+          'categoria', 'categoria_id', 'sub_servicio', 'tipo',
+          'tecnico_id', 'tecnico_nombre', 'tecnico_nombre_fiscal',
+          'tecnico_rfc', 'tecnico_logo_factura', 'tecnico_vehiculo', 'tecnico_placas'
+        ]);
+    }
+
     // 🔒 REGLA 2: EL CANDADO JONATHAN (Placas)
     function tienePaseCaseta() {
       let data = userData();
@@ -89,17 +183,61 @@ service cloud.firestore {
     // 👤 GESTIÓN DE USUARIOS (SSoT) - AISLAMIENTO B2B
     // ======================================================
     match /users/{userId} {
-      allow read: if isAuth();
+      allow read: if isAuth() && (
+        request.auth.uid == userId ||
+        isAdmin() ||
+        (
+          userRole() == 'admin_b2b' &&
+          resource.data.edificioId == userData().edificioId
+        )
+      );
 
       allow create: if isAuth() && (
-          request.auth.uid == userId || 
+          (
+            request.auth.uid == userId &&
+            request.resource.data.uid == userId &&
+            (
+              technicianInitialStateIsSafe(request.resource.data) ||
+              (
+                request.resource.data.rol == 'cliente' &&
+                request.resource.data.estado == 'activo' &&
+                request.resource.data.status == 'activo'
+              ) ||
+              (
+                request.resource.data.rol == 'admin_b2b' &&
+                request.resource.data.tipo_cuenta == 'B2B' &&
+                request.resource.data.estado == 'activo' &&
+                request.resource.data.status == 'activo' &&
+                request.resource.data.b2b_key_id is string &&
+                exists(/databases/$(database)/documents/b2b_keys/$(request.resource.data.b2b_key_id)) &&
+                get(/databases/$(database)/documents/b2b_keys/$(request.resource.data.b2b_key_id)).data.edificioId == request.resource.data.edificioId
+              )
+            )
+          ) ||
           isAdmin() ||
           (userRole() == "admin_b2b" && request.resource.data.edificioId == userData().edificioId)
       );
 
       allow update: if isAuth() && (
-          request.auth.uid == userId || 
           isAdmin() ||
+          (
+            request.auth.uid == userId &&
+            userAuthorityFieldsUnchanged() &&
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+              'rol', 'tipo_cuenta', 'suspendido', 'verificado',
+              'nivel', 'reputacion', 'servicios_completados', 'wallet', 'currency',
+              'comision', 'aprobadoEn'
+            ]) &&
+            (
+              request.resource.data.get('disponible', false) != true ||
+              (
+                resource.data.estado == 'activo' &&
+                resource.data.status == 'activo' &&
+                resource.data.get('kyc', {}).get('aprobado', false) == true &&
+                resource.data.get('suspendido', false) != true
+              )
+            )
+          ) ||
           (userRole() == "admin_b2b" && resource.data.edificioId == userData().edificioId)
       );
     }
@@ -119,22 +257,58 @@ service cloud.firestore {
     // 🛠️ ECOSISTEMA B2C (ON-DEMAND)
     // ======================================================
     match /services/{serviceId} {
-      allow read: if isAuth();
-      allow create: if isAuth();
+      allow read: if isAuth() && (
+        isAdmin() ||
+        resource.data.cliente_id == request.auth.uid ||
+        resource.data.get('tecnico_id', null) == request.auth.uid ||
+        (resource.data.get('tipo', null) == 'mantenimiento' && isTecnico())
+      );
+      allow create: if isAuth() &&
+        request.resource.data.cliente_id == request.auth.uid &&
+        request.resource.data.destino.confirmado_por_cliente == true &&
+        request.resource.data.destino.fuente in ['mapa_pin', 'waze_maps', 'gps_dispositivo', 'direccion_manual'] &&
+        request.resource.data.estado in ['pendiente', 'iniciado_stripe'];
       allow update: if isAuth() && (
         isAdmin()
         ||
-        resource.data.cliente_id == request.auth.uid
-        ||
-        resource.data.tecnico_id == request.auth.uid
+        (
+          resource.data.cliente_id == request.auth.uid &&
+          request.resource.data.cliente_id == resource.data.cliente_id &&
+          request.resource.data.get('tecnico_id', null) == resource.data.get('tecnico_id', null) &&
+          request.resource.data.get('destino', null) == resource.data.get('destino', null) &&
+          serviceFinancialFieldsUnchanged() &&
+          customerServiceUpdateIsSafe()
+        )
         ||
         (
-          resource.data.estado == "pendiente" &&
-          !("tecnico_id" in resource.data) &&
-          request.resource.data.tecnico_id == request.auth.uid &&
-          request.resource.data.estado == "asignado"
+          resource.data.get('tecnico_id', null) == request.auth.uid &&
+          isOperationalTechnician() &&
+          request.resource.data.cliente_id == resource.data.cliente_id &&
+          request.resource.data.tecnico_id == resource.data.tecnico_id &&
+          request.resource.data.get('destino', null) == resource.data.get('destino', null) &&
+          serviceFinancialFieldsUnchanged() &&
+          technicianServiceTransitionIsSafe()
+        )
+        ||
+        (
+          resource.data.get('tipo', null) == 'mantenimiento' &&
+          isTecnico() &&
+          request.resource.data.get('tipo', null) == 'mantenimiento' &&
+          serviceFinancialFieldsUnchanged()
         )
       );
+    }
+
+    // Proyección mínima de descubrimiento. El expediente completo permanece en services.
+    match /service_marketplace/{serviceId} {
+      allow read: if isOperationalTechnician() || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // El backend mantiene el candado de una sola misión activa por técnico.
+    match /technician_active_services/{technicianId} {
+      allow read: if isAdmin() || (isAuth() && request.auth.uid == technicianId);
+      allow write: if isAdmin();
     }
 
     // ======================================================

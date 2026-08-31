@@ -35,6 +35,7 @@ import {
     validarLlegadaParaEvidencia,
     capturarYSubirFotoB2C
 } from "./b2c-evidence-orchestrator.js";
+import { getConfirmedServiceDestination } from "./b2c-destination.js";
 
 export const B2C_SECURE_ARRIVAL_VERSION = "1.0.0";
 
@@ -67,8 +68,9 @@ function idSeguro(value) {
 }
 
 function destinoDesde({ targetLat, targetLng, serviceData }) {
-    const lat = numeroFinito(targetLat) ?? numeroFinito(serviceData?.coords?.lat);
-    const lng = numeroFinito(targetLng) ?? numeroFinito(serviceData?.coords?.lng);
+    const confirmed = getConfirmedServiceDestination(serviceData);
+    const lat = numeroFinito(targetLat) ?? numeroFinito(confirmed?.coords?.lat);
+    const lng = numeroFinito(targetLng) ?? numeroFinito(confirmed?.coords?.lng);
 
     if (lat === null || lng === null) {
         return null;

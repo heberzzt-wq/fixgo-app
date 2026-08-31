@@ -19,15 +19,22 @@ import {
     doc, 
     getDoc, 
     setDoc, 
+    updateDoc,
     serverTimestamp,
     observarAuth,
     validarClaveB2B // 🔥 INYECCIÓN: Importamos el validador de llaves
 } from "./firebase.js";
 
+import {
+    TECHNICIAN_KYC_STATES,
+    buildTechnicianReviewPatch,
+    createTechnicianRegistrationProfile,
+    storagePathForTechnicianDocument
+} from "./b2c-technician-profile.js";
+
 import { 
     GoogleAuthProvider, 
-    signInWithPopup, 
-    deleteUser
+    signInWithPopup
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 // 🔥 INYECCIÓN: Importamos la librería para subir archivos pesados directo a la nube
@@ -75,6 +82,65 @@ const subirAStorage = async (file, path) => {
     await uploadBytes(storageRef, file);
     return await getDownloadURL(storageRef);
 };
+
+async function subirDocumentoExpedienteRecuperable(uid, kind, file, onConfirmed) {
+    if (!file) return null;
+    const storagePath = storagePathForTechnicianDocument(uid, kind, file.name);
+    const userRef = doc(db, "users", uid);
+    await setDoc(userRef, {
+        kyc: {
+            estado: TECHNICIAN_KYC_STATES.DOCUMENTS_PENDING,
+            upload_actual: kind,
+            uploads: {
+                [kind]: {
+                    estado: "subiendo",
+                    storage_path: storagePath,
+                    actualizado_at: serverTimestamp()
+                }
+            }
+        }
+    }, { merge: true });
+
+    try {
+        const url = await subirAStorage(file, storagePath);
+        await onConfirmed(url, storagePath);
+        await setDoc(userRef, {
+            kyc: {
+                upload_actual: null,
+                uploads: {
+                    [kind]: {
+                        estado: "confirmado",
+                        storage_path: storagePath,
+                        url,
+                        actualizado_at: serverTimestamp()
+                    }
+                }
+            }
+        }, { merge: true });
+        return { url, storagePath };
+    } catch (error) {
+        await setDoc(userRef, {
+            disponible: false,
+            kyc: {
+                estado: TECHNICIAN_KYC_STATES.DOCUMENTS_PENDING,
+                upload_actual: null,
+                ultimo_error: {
+                    documento: kind,
+                    codigo: String(error?.code || "UPLOAD_FAILED").slice(0, 120),
+                    actualizado_at: serverTimestamp()
+                },
+                uploads: {
+                    [kind]: {
+                        estado: "upload_failed",
+                        storage_path: storagePath,
+                        actualizado_at: serverTimestamp()
+                    }
+                }
+            }
+        }, { merge: true });
+        throw error;
+    }
+}
 
 // ======================================================
 // 0. CONFIGURACIÓN DE STRIPE (TOKENIZACIÓN)
@@ -278,12 +344,11 @@ if (btnRegistroCliente) {
         } catch (error) {
             console.error("❌ Error Crítico en Registro Cliente:", error);
             
-            // Limpieza de huérfano si algo truena después de crear la cuenta Auth
-            if (usuarioAuth && error.code !== 'auth/email-already-in-use') {
-                await deleteUser(auth.currentUser).catch(e => console.error("Error limpieza:", e));
+            if (usuarioAuth) {
+                alert("⚠️ Tu identidad ya quedó registrada. Inicia sesión para completar los datos pendientes sin crear otra cuenta.");
+            } else {
+                manejarErroresAuth(error);
             }
-
-            manejarErroresAuth(error);
             btnRegistroCliente.innerHTML = textoOriginal;
             btnRegistroCliente.disabled = false;
             window.isRegisteringLocal = false;
@@ -438,34 +503,11 @@ if (btnRegistroTecnico) {
             btnRegistroTecnico.innerHTML = '<i class="fas fa-cloud-upload-alt animate-bounce"></i> Subiendo Archivos Pesados...';
             
             const uid = usuarioAuth.uid;
-            const [urlFoto, urlINE, urlCSF, urlLicencia] = await Promise.all([
-                subirAStorage(archivoFotoPerfil, `expedientes/${uid}/perfil_${Date.now()}`),
-                subirAStorage(archivoINE, `expedientes/${uid}/ine_${Date.now()}`),
-                subirAStorage(archivoCSF, `expedientes/${uid}/csf_${Date.now()}`),
-                subirAStorage(archivoLicencia, `expedientes/${uid}/licencia_${Date.now()}`)
-            ]);
-
-            let urlsCertificados = [];
-            if(archivosCertificados.length > 0) {
-                urlsCertificados = await Promise.all(archivosCertificados.map((file, idx) => subirAStorage(file, `expedientes/${uid}/cert_${idx}_${Date.now()}`)));
-            }
-
-            btnRegistroTecnico.innerHTML = '<i class="fas fa-database animate-pulse"></i> Inyectando a Base de Datos...';
-
-            // Actualización de perfil con documentos y marca de auditoría
-            await setDoc(doc(db, "users", uid), {
+            const userRef = doc(db, "users", uid);
+            await setDoc(userRef, {
                 telefono: telefono,
                 skills: skills,
-                foto_perfil: urlFoto, 
-                fotoPerfil: urlFoto,  
                 vehiculo: { tipo: tipoVehiculo, placas: placas },
-                documentos: {
-                    ine: urlINE,
-                    csf: urlCSF,
-                    licencia: urlLicencia || false,
-                    certificados: urlsCertificados,
-                    fecha_subida: serverTimestamp()
-                },
                 datos_bancarios: {
                     banco: banco,
                     clabe: clabe,
@@ -474,18 +516,70 @@ if (btnRegistroTecnico) {
                 nivel: "BRONCE",
                 reputacion: 5.0,
                 servicios_completados: 0,
-                actualizadoEn: serverTimestamp() // ✨ Auditoría añadida
+                estado: TECHNICIAN_KYC_STATES.DOCUMENTS_PENDING,
+                status: TECHNICIAN_KYC_STATES.DOCUMENTS_PENDING,
+                disponible: false,
+                kyc: {
+                    estado: TECHNICIAN_KYC_STATES.DOCUMENTS_PENDING,
+                    aprobado: false,
+                    ultimo_error: null
+                },
+                actualizadoEn: serverTimestamp()
             }, { merge: true });
+
+            const confirmarCampo = patch => async () => {
+                await setDoc(userRef, patch, { merge: true });
+            };
+
+            await subirDocumentoExpedienteRecuperable(uid, "foto_perfil", archivoFotoPerfil,
+                async (url) => confirmarCampo({ foto_perfil: url })());
+            await subirDocumentoExpedienteRecuperable(uid, "ine", archivoINE,
+                async (url) => confirmarCampo({ documentos: { ine: url } })());
+            await subirDocumentoExpedienteRecuperable(uid, "csf", archivoCSF,
+                async (url) => confirmarCampo({ documentos: { csf: url } })());
+            if (archivoLicencia) {
+                await subirDocumentoExpedienteRecuperable(uid, "licencia", archivoLicencia,
+                    async (url) => confirmarCampo({ documentos: { licencia: url } })());
+            }
+
+            const urlsCertificados = [];
+            for (let index = 0; index < archivosCertificados.length; index += 1) {
+                await subirDocumentoExpedienteRecuperable(uid, `certificado_${index}`, archivosCertificados[index],
+                    async (url) => {
+                        urlsCertificados.push(url);
+                        await setDoc(userRef, {
+                            documentos: { certificados: [...urlsCertificados] }
+                        }, { merge: true });
+                    });
+            }
+
+            const currentProfile = (await getDoc(userRef)).data() || {};
+            const reviewPatch = buildTechnicianReviewPatch({
+                ...currentProfile,
+                documentos: {
+                    ...(currentProfile.documentos || {}),
+                    certificados: urlsCertificados
+                }
+            });
+            await updateDoc(userRef, {
+                ...reviewPatch,
+                "documentos.certificados": urlsCertificados,
+                "documentos.fecha_subida": serverTimestamp(),
+                "documentos.fecha_actualizacion": serverTimestamp(),
+                "kyc.ultimo_error": null,
+                actualizadoEn: serverTimestamp()
+            });
 
             alert(`✅ ¡Expediente Recibido!\n\nBienvenido, ${nombre}. Tu cuenta está en revisión.`);
             window.location.href = "tecnico.html";
 
         } catch (error) {
             console.error("❌ Error Crítico en Registro Técnico:", error);
-            if (usuarioAuth && error.code !== 'auth/email-already-in-use') {
-                await deleteUser(auth.currentUser).catch(e => console.error("Error limpieza:", e));
+            if (usuarioAuth) {
+                alert("⚠️ Tu cuenta y los documentos ya confirmados quedaron guardados. Inicia sesión para reanudar únicamente lo faltante.");
+            } else {
+                manejarErroresAuth(error);
             }
-            manejarErroresAuth(error);
             btnRegistroTecnico.innerHTML = textoOriginal;
             btnRegistroTecnico.disabled = false;
             window.isRegisteringLocal = false;
@@ -553,32 +647,37 @@ if (btnGoogle) {
                 const nombreSeguro = escaparHTML(user.displayName || "Usuario de Google");
                 const fotoGoogle = user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(nombreSeguro)}&background=random`;
 
-                const perfilBase = {
-                    uid: user.uid,
-                    nombre: nombreSeguro,
-                    email: user.email,
-                  // 🛡️ LIMPIEZA DE REGISTRO: Convertimos a minúsculas para evitar duplicados
-                    email: email.toLowerCase(),
-
-                    rol: rolSeleccionado,
-                    foto_perfil: fotoGoogle, 
-                    creadoEn: serverTimestamp()
-                };
+                const emailSeguro = String(user.email || "").trim().toLowerCase();
+                const perfilBase = esTecnico
+                    ? {
+                        ...createTechnicianRegistrationProfile({
+                            uid: user.uid,
+                            email: emailSeguro,
+                            nombre: nombreSeguro,
+                            provider: "google"
+                        }),
+                        foto_perfil: fotoGoogle,
+                        creadoEn: serverTimestamp(),
+                        actualizadoEn: serverTimestamp()
+                    }
+                    : {
+                        uid: user.uid,
+                        nombre: nombreSeguro,
+                        email: emailSeguro,
+                        rol: rolSeleccionado,
+                        sub_type: "marketplace",
+                        tipo_cuenta: "B2C",
+                        foto_perfil: fotoGoogle,
+                        estado: "activo",
+                        status: "activo",
+                        wallet: 0,
+                        currency: "MXN",
+                        creadoEn: serverTimestamp(),
+                        actualizadoEn: serverTimestamp()
+                    };
 
                 if (esTecnico) {
-                    perfilBase.vehiculo = { tipo: "auto", placas: "" };
-                    perfilBase.skills = ["fix"];
-                    perfilBase.estado = "pendiente";
-                    perfilBase.status = "pendiente";
-                    perfilBase.disponible = false;
-                    perfilBase.documentos = { ine: false, csf: false, licencia: false, certificados: [] };
-                    perfilBase.datos_bancarios = { banco: "", clabe: "", titular: nombreSeguro };
-                    perfilBase.nivel = "BRONCE";
-                    perfilBase.reputacion = 5.0;
-                    perfilBase.servicios_completados = 0;
-                } else {
-                    perfilBase.estado = "activo";
-                    perfilBase.status = "activo";
+                    perfilBase.skills = [];
                 }
 
                 await setDoc(doc(db, "users", user.uid), perfilBase);

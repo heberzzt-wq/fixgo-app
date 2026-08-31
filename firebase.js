@@ -12,10 +12,14 @@
 import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app-check.js";
 import { getStorage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 import {
     isGestiaMasterIdentity,
     resolveGestiaRouteDecision
 } from "./gestia-core/auth/role-authority.js?v=role-authority-v4-master-session-20260818";
+import {
+    createTechnicianRegistrationProfile
+} from "./b2c-technician-profile.js";
 
 import { 
     getAuth, 
@@ -78,6 +82,31 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
+const cloudFunctions = getFunctions(app);
+
+export async function aprobarTecnicoB2C(technicianId) {
+    const approve = httpsCallable(cloudFunctions, "approveB2cTechnician");
+    const result = await approve({ technicianId });
+    return result.data;
+}
+
+export async function reclamarServicioB2C(serviceId) {
+    const claim = httpsCallable(cloudFunctions, "claimB2cService");
+    const result = await claim({ serviceId });
+    return result.data;
+}
+
+export async function enviarCotizacionB2C(serviceId, diagnostic, items, factor) {
+    const submit = httpsCallable(cloudFunctions, "submitB2cQuote");
+    const result = await submit({ serviceId, diagnostic, items, factor });
+    return result.data;
+}
+
+export async function responderCotizacionB2C(serviceId, accepted) {
+    const respond = httpsCallable(cloudFunctions, "respondB2cQuote");
+    const result = await respond({ serviceId, accepted });
+    return result.data;
+}
 
 window.app = app;
 window.auth = auth;
@@ -245,7 +274,7 @@ export async function validarClaveB2B(clave) {
 
         if (snap.empty) return null;
 
-        return snap.docs[0].data();
+        return { ...snap.docs[0].data(), _keyId: snap.docs[0].id };
 
     } catch (e) {
 
@@ -282,7 +311,7 @@ export async function registrarUsuario(
         const uid = cred.user.uid;
 
 
-        const perfil = {
+        const perfilBase = {
 
             uid: uid,
             email: email.toLowerCase(),
@@ -298,11 +327,26 @@ export async function registrarUsuario(
 
         };
 
+        const perfil = rol === "tecnico"
+            ? {
+                ...perfilBase,
+                ...createTechnicianRegistrationProfile({
+                    uid,
+                    email,
+                    nombre,
+                    provider: "password"
+                }),
+                creadoEn: perfilBase.creadoEn,
+                actualizadoEn: perfilBase.actualizadoEn
+            }
+            : perfilBase;
+
 
         // Inyección de ADN B2B si aplica
         if (b2bData) {
             perfil.edificioId = b2bData.edificioId;
             perfil.edificioNombre = b2bData.edificioNombre;
+            perfil.b2b_key_id = b2bData._keyId || null;
             console.log("🏢 Perfil vinculado a edificio:", b2bData.edificioNombre);
         }
 
@@ -322,22 +366,8 @@ export async function registrarUsuario(
         await setDoc(doc(db, "users", uid), perfil);
 
 
-        // Duplicación en Colecciones Legacy para compatibilidad de módulos antiguos
-        if (rol === "tecnico") {
-
-            await setDoc(
-                doc(db, "tecnicos", uid),
-                { ...perfil, disponible: false }
-            );
-
-        } else {
-
-            await setDoc(
-                doc(db, "clientes", uid),
-                { ...perfil, pedidos: 0 }
-            );
-
-        }
+        // users/{uid} es la única fuente de verdad para altas nuevas. Las colecciones
+        // legacy sólo se conservan como origen de lectura/migración en observarAuth().
 
 
         // Actualización de Perfil de Firebase Auth

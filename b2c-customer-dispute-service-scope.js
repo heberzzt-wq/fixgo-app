@@ -57,6 +57,7 @@ import {
     sincronizarRelojServidor,
     crearSelloTemporalEvidencia
 } from "./b2c-time-authority.js";
+import { getConfirmedServiceDestination } from "./b2c-destination.js";
 
 export const B2C_CUSTOMER_DISPUTE_SERVICE_SCOPE_VERSION = "1.0.0";
 
@@ -101,8 +102,9 @@ function serviceIdDesdeModal(modal) {
 }
 
 function destinoServicio(serviceData = {}) {
-    const lat = numeroFinito(serviceData?.coords?.lat);
-    const lng = numeroFinito(serviceData?.coords?.lng);
+    const confirmed = getConfirmedServiceDestination(serviceData);
+    const lat = numeroFinito(confirmed?.coords?.lat);
+    const lng = numeroFinito(confirmed?.coords?.lng);
     return lat === null || lng === null ? null : { lat, lng };
 }
 

@@ -22,7 +22,9 @@ import {
     addDoc,
     serverTimestamp,
     setDoc,
-    getDoc 
+    getDoc,
+    reclamarServicioB2C,
+    enviarCotizacionB2C
 } from "./firebase.js";
 
 import { getDocs, arrayUnion, runTransaction, limit, increment } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -30,6 +32,14 @@ import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/fireba
 import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
 import { iniciarTracking, detenerTracking } from "./gps-motor.js";
 import { escaparHTML, calcularDistancia, sonarAlerta, lanzarNotificacionPush, cargarLibreriaPDF, urlABase64 } from "./app-utils.js";
+import {
+    TECHNICIAN_KYC_STATES,
+    assertTechnicianCanOperate,
+    getTechnicianKycRequirements,
+    normalizeTechnicianProfile,
+    storagePathForTechnicianDocument
+} from "./b2c-technician-profile.js";
+import { getConfirmedServiceDestination } from "./b2c-destination.js";
 
 export async function iniciarPanelTecnico(user) {
     console.log(" 🔧 Iniciando Panel de Técnico (Modo Tarifas Inteligentes y Pase QR)...");
@@ -60,7 +70,9 @@ export async function iniciarPanelTecnico(user) {
     onSnapshot(tecnicoRef, (docSnap) => {
         if (!docSnap.exists()) return;
         const data = docSnap.data();
-        const estado = data.estado || "pendiente";
+        const kycResult = getTechnicianKycRequirements(data);
+        const perfilCanonico = kycResult.profile;
+        const estado = perfilCanonico.estado;
         const strikes = data.strikes || 0;
 
         const reputacion = data.reputacion || 5.0;
@@ -215,17 +227,18 @@ export async function iniciarPanelTecnico(user) {
             return; 
         }
 
-        const ineUrl = data.documentos?.ine || data.ine || data.ine_url || data.identificacion || null;
-        const csfUrl = data.documentos?.csf || data.csf || data.csf_url || data.constancia || null;
-        const fotoUrl = data.foto_perfil || data.fotoPerfil || data.foto || null;
-        const banco = data.banco || data.datos_bancarios?.banco || null;
-        const clabe = data.clabe || data.datos_bancarios?.clabe || null;
-        const vehiculoTipo = data.vehiculo_tipo || data.logistica?.vehiculo || null;
-        const placas = data.placas || data.logistica?.placas || null;
-        const licenciaUrl = data.documentos?.licencia || data.licencia || null;
-        const certificadoUrl = data.documentos?.certificado || data.certificado || null;
+        const ineUrl = perfilCanonico.documentos.ine;
+        const csfUrl = perfilCanonico.documentos.csf;
+        const fotoUrl = perfilCanonico.foto_perfil;
+        const banco = perfilCanonico.datos_bancarios.banco;
+        const clabe = perfilCanonico.datos_bancarios.clabe;
+        const vehiculoTipo = perfilCanonico.vehiculo.tipo;
+        const placas = perfilCanonico.vehiculo.placas;
+        const licenciaUrl = perfilCanonico.documentos.licencia;
+        const certificados = perfilCanonico.documentos.certificados;
+        const esPeaton = kycResult.pedestrian;
         
-        const faltaInfo = !ineUrl || !csfUrl || !fotoUrl || !banco || !clabe || !vehiculoTipo || !placas || !licenciaUrl || !certificadoUrl;
+        const faltaInfo = !kycResult.complete;
 
         if (faltaInfo) {
             if(elementos.statusLabel) {
@@ -277,13 +290,14 @@ export async function iniciarPanelTecnico(user) {
                                 <input type="text" id="compClabe" placeholder="Cuenta CLABE (18 dígitos)" class="w-full text-xs text-white bg-zinc-800 border-0 py-2 px-3 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none">
                                 `}
                             </div>
-                            <div class="bg-black p-4 rounded-xl border ${vehiculoTipo && placas ? 'border-emerald-900/50' : 'border-red-900/50'}">
-                                <label class="block text-[10px] font-bold ${vehiculoTipo && placas ? 'text-emerald-500' : 'text-red-500'} mb-2 uppercase tracking-widest">
-                                    5. Logística Operativa ${vehiculoTipo && placas ? '✅ CUBIERTO' : '❌ FALTANTE'}
+                            <div class="bg-black p-4 rounded-xl border ${vehiculoTipo && (esPeaton || placas) ? 'border-emerald-900/50' : 'border-red-900/50'}">
+                                <label class="block text-[10px] font-bold ${vehiculoTipo && (esPeaton || placas) ? 'text-emerald-500' : 'text-red-500'} mb-2 uppercase tracking-widest">
+                                    5. Logística Operativa ${vehiculoTipo && (esPeaton || placas) ? '✅ CUBIERTO' : '❌ FALTANTE'}
                                 </label>
-                                ${vehiculoTipo && placas ? '<p class="text-[10px] text-gray-500">Vehículo registrado.</p>' : `
+                                ${vehiculoTipo && (esPeaton || placas) ? `<p class="text-[10px] text-gray-500">${esPeaton ? 'Operación peatonal registrada; no requiere placas.' : 'Vehículo registrado.'}</p>` : `
                                 <select id="compVehiculo" class="mb-2 w-full text-xs text-white bg-zinc-800 border-0 py-2 px-3 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none">
                                     <option value="">Selecciona tipo de vehículo...</option>
+                                    <option value="peaton">Peatón / sin vehículo</option>
                                     <option value="Motocicleta">Motocicleta</option>
                                     <option value="Auto">Automóvil</option>
                                     <option value="Camioneta">Camioneta</option>
@@ -292,17 +306,17 @@ export async function iniciarPanelTecnico(user) {
                                 <input type="text" id="compPlacas" placeholder="Placas del vehículo" class="w-full text-xs text-white bg-zinc-800 border-0 py-2 px-3 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none">
                                 `}
                             </div>
-                            <div class="bg-black p-4 rounded-xl border ${licenciaUrl ? 'border-emerald-900/50' : 'border-red-900/50'}">
-                                <label class="block text-[10px] font-bold ${licenciaUrl ? 'text-emerald-500' : 'text-red-500'} mb-2 uppercase tracking-widest">
-                                    6. Licencia de Conducir ${licenciaUrl ? '✅ CUBIERTO' : '❌ FALTANTE'}
+                            <div class="bg-black p-4 rounded-xl border ${esPeaton || licenciaUrl ? 'border-emerald-900/50' : 'border-red-900/50'}">
+                                <label class="block text-[10px] font-bold ${esPeaton || licenciaUrl ? 'text-emerald-500' : 'text-red-500'} mb-2 uppercase tracking-widest">
+                                    6. Licencia de Conducir ${esPeaton || licenciaUrl ? '✅ CUBIERTO' : '❌ FALTANTE'}
                                 </label>
-                                ${licenciaUrl ? '<p class="text-[10px] text-gray-500">Documento en regla.</p>' : '<input type="file" id="compLicencia" accept="image/*, application/pdf" class="text-xs text-gray-300 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-2 file:rounded-lg w-full">'}
+                                ${esPeaton ? '<p class="text-[10px] text-gray-500">No aplica para técnico peatón.</p>' : (licenciaUrl ? '<p class="text-[10px] text-gray-500">Documento en regla.</p>' : '<input type="file" id="compLicencia" accept="image/*, application/pdf" class="text-xs text-gray-300 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-2 file:rounded-lg w-full">')}
                             </div>
-                            <div class="bg-black p-4 rounded-xl border ${certificadoUrl ? 'border-emerald-900/50' : 'border-red-900/50'}">
-                                <label class="block text-[10px] font-bold ${certificadoUrl ? 'text-emerald-500' : 'text-red-500'} mb-2 uppercase tracking-widest">
-                                    7. Certificados / DC-3 ${certificadoUrl ? '✅ CUBIERTO' : '❌ FALTANTE'}
+                            <div class="bg-black p-4 rounded-xl border border-zinc-800">
+                                <label class="block text-[10px] font-bold text-gray-400 mb-2 uppercase tracking-widest">
+                                    7. Certificados / DC-3 (Opcional) ${certificados.length ? '✅ ADJUNTOS' : ''}
                                 </label>
-                                ${certificadoUrl ? '<p class="text-[10px] text-gray-500">Certificados validados.</p>' : '<input type="file" id="compCertificado" accept="image/*, application/pdf" class="text-xs text-gray-300 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-2 file:rounded-lg w-full">'}
+                                <input type="file" id="compCertificado" accept="image/*, application/pdf" class="text-xs text-gray-300 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-2 file:rounded-lg w-full">
                             </div>
                         </div>
                         <button onclick="window.completarDocumentosTecnico('${user.uid}')" id="btnCompletarDocs" class="w-full mt-4 bg-orange-600 hover:bg-orange-500 text-white font-black py-4 rounded-xl text-sm transition-transform active:scale-95 shadow-lg flex justify-center items-center gap-2">
@@ -314,7 +328,7 @@ export async function iniciarPanelTecnico(user) {
             return; 
         }
 
-        if (estado === "pendiente") {
+        if ([TECHNICIAN_KYC_STATES.PENDING_REVIEW, TECHNICIAN_KYC_STATES.DOCUMENTS_UPLOADED].includes(estado)) {
             if(elementos.statusLabel) {
                 elementos.statusLabel.innerText = "EN REVISIÓN";
                 elementos.statusLabel.className = "bg-yellow-500/20 text-yellow-500 status-badge font-bold";
@@ -380,14 +394,15 @@ export async function iniciarPanelTecnico(user) {
         const reqFoto = document.getElementById("compFoto") && !iFoto;
         const reqINE = document.getElementById("compINE") && !iINE;
         const reqCSF = document.getElementById("compCSF") && !iCSF;
-        const reqLicencia = document.getElementById("compLicencia") && !iLicencia;
-        const reqCertificado = document.getElementById("compCertificado") && !iCertificado;
+        const tipoVehiculoSeleccionado = String(vVehiculo || vehiculoTipo || "").toLowerCase();
+        const seleccionPeaton = tipoVehiculoSeleccionado === "peaton" || tipoVehiculoSeleccionado === "peatón";
+        const reqLicencia = !seleccionPeaton && document.getElementById("compLicencia") && !iLicencia;
         const reqBanco = document.getElementById("compBanco") && !vBanco;
         const reqClabe = document.getElementById("compClabe") && !vClabe;
         const reqVehiculo = document.getElementById("compVehiculo") && !vVehiculo;
-        const reqPlacas = document.getElementById("compPlacas") && !vPlacas;
+        const reqPlacas = !seleccionPeaton && document.getElementById("compPlacas") && !vPlacas;
 
-        if (reqFoto || reqINE || reqCSF || reqLicencia || reqCertificado || reqBanco || reqClabe || reqVehiculo || reqPlacas) {
+        if (reqFoto || reqINE || reqCSF || reqLicencia || reqBanco || reqClabe || reqVehiculo || reqPlacas) {
             alert("⚠️ Debes completar todos los datos de texto y seleccionar todos los archivos faltantes marcados con ❌.");
             return;
         }
@@ -412,39 +427,42 @@ export async function iniciarPanelTecnico(user) {
             updates['documentos.fecha_actualizacion'] = serverTimestamp();
 
             if (iFoto) {
-                const urlF = await subirAStorage(iFoto, `expedientes/${uid}/perfil_fix_${Date.now()}.jpg`);
+                const urlF = await subirAStorage(iFoto, storagePathForTechnicianDocument(uid, "foto_perfil", iFoto.name));
                 updates['foto_perfil'] = urlF;
-                updates['fotoPerfil'] = urlF;
             }
             if (iINE) {
-                const urlI = await subirAStorage(iINE, `expedientes/${uid}/ine_fix_${Date.now()}.jpg`);
+                const urlI = await subirAStorage(iINE, storagePathForTechnicianDocument(uid, "ine", iINE.name));
                 updates['documentos.ine'] = urlI;
             }
             if (iCSF) {
-                const urlC = await subirAStorage(iCSF, `expedientes/${uid}/csf_fix_${Date.now()}.jpg`);
+                const urlC = await subirAStorage(iCSF, storagePathForTechnicianDocument(uid, "csf", iCSF.name));
                 updates['documentos.csf'] = urlC;
             }
             if (iLicencia) {
-                const urlL = await subirAStorage(iLicencia, `expedientes/${uid}/licencia_fix_${Date.now()}.jpg`);
+                const urlL = await subirAStorage(iLicencia, storagePathForTechnicianDocument(uid, "licencia", iLicencia.name));
                 updates['documentos.licencia'] = urlL;
             }
             if (iCertificado) {
-                const urlCert = await subirAStorage(iCertificado, `expedientes/${uid}/certificado_fix_${Date.now()}.jpg`);
-                updates['documentos.certificado'] = urlCert;
+                const urlCert = await subirAStorage(iCertificado, storagePathForTechnicianDocument(uid, `certificado_${Date.now()}`, iCertificado.name));
+                updates['documentos.certificados'] = arrayUnion(urlCert);
             }
             
             if (vBanco) updates['datos_bancarios.banco'] = vBanco;
             if (vClabe) updates['datos_bancarios.clabe'] = vClabe;
-            if (vVehiculo) updates['logistica.vehiculo'] = vVehiculo;
+            if (vVehiculo) updates['vehiculo.tipo'] = vVehiculo.toLowerCase();
        if (vPlacas) {
                 // 🛡️ LIMPIEZA SNIPER: Mayúsculas, sin espacios y sin basura.
                 // Jonathan solo tendrá que tocar y pegar en la app de su caseta.
                 const placasLimpias = vPlacas.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-                updates['logistica.placas'] = placasLimpias;
-                updates['placas'] = placasLimpias; // Duplicamos en raíz para reportes rápidos en el NOC
+                updates['vehiculo.placas'] = placasLimpias;
             }
 
-            updates['estado'] = "pendiente";
+            updates['estado'] = TECHNICIAN_KYC_STATES.PENDING_REVIEW;
+            updates['status'] = TECHNICIAN_KYC_STATES.PENDING_REVIEW;
+            updates['disponible'] = false;
+            updates['kyc.estado'] = TECHNICIAN_KYC_STATES.PENDING_REVIEW;
+            updates['kyc.aprobado'] = false;
+            updates['kyc.ultimo_error'] = null;
 
             await updateDoc(doc(db, "users", uid), updates);
             alert("✅ ¡Expediente Completado!\n\nLos documentos se han subido con éxito. El Administrador validará tu cuenta en breve.");
@@ -683,41 +701,37 @@ export async function iniciarPanelTecnico(user) {
     function escucharBolsa(tecnico, contenedor) {
     if(!contenedor) return;
 
-    // 1. TUBERÍA UNIFICADA: Apuntamos a 'services' (Bolsa Universal)
-        const q = query(
-            collection(db, "services"), 
-            where("estado", "in", ["pendiente", "pagado"]), // "estado" es el estándar B2C
+        // B2B conserva services; B2C consume sólo una proyección sin datos privados.
+        const qB2B = query(
+            collection(db, "services"),
+            where("tipo", "==", "mantenimiento"),
             limit(50)
         );
+        const qB2C = query(
+            collection(db, "service_marketplace"),
+            where("estado", "==", "disponible"),
+            limit(50)
+        );
+        let documentosB2B = [];
+        let documentosB2C = [];
+        let inicialB2B = true;
+        let inicialB2C = true;
 
-        let cargaInicial = true;
-
-        onSnapshot(q, (snap) => {
+        const renderizarBolsa = () => {
             if(!contenedor) return;
             contenedor.innerHTML = "";
             let counter = 0;
+            const documentos = [
+                ...documentosB2B.filter(snapshot => ["pendiente", "pagado"].includes(snapshot.data().estado)),
+                ...documentosB2C
+            ];
 
-            if(snap.empty) {
+            if(documentos.length === 0) {
                 contenedor.innerHTML = `<p class="text-gray-600 text-[10px] text-center italic py-4">Escaneando zona... esperando solicitudes.</p>`;
-                cargaInicial = false; 
                 return;
             }
 
-            // 2. DETECTOR DE NUEVAS ENTRADAS (Híbrido B2B/B2C)
-            let hayNuevos = false;
-            snap.docChanges().forEach(change => {
-                if (change.type === 'added') hayNuevos = true;
-            });
-
-            if (!cargaInicial && hayNuevos) {
-                console.log(" 🔔 ¡ALERTA GESTIAPREMIUM! Nueva solicitud detectada.");
-                sonarAlerta(); 
-                lanzarNotificacionPush("¡NUEVA SOLICITUD!", "Tienes un servicio o mantenimiento pendiente.");
-            }
-
-            cargaInicial = false; // Bajamos el switch después de la primera lectura
-
-            snap.forEach((docSnap) => {
+            documentos.forEach((docSnap) => {
                 const s = docSnap.data();
                 const id = docSnap.id;
 
@@ -726,6 +740,10 @@ export async function iniciarPanelTecnico(user) {
 //if (s.tecnico_id && s.tecnico_id !== tecnico.uid) return;
 
 if (s.rejected_by && s.rejected_by.includes(tecnico.uid)) return;
+if (s.tipo === "b2c_discovery") {
+    const ocultos = JSON.parse(localStorage.getItem(`b2c_marketplace_hidden_${tecnico.uid}`) || "[]");
+    if (ocultos.includes(id)) return;
+}
 
 const skillServicio = (s.categoria_id || s.categoria || "").toLowerCase();
 
@@ -756,6 +774,7 @@ if (!permitido) return;
 
                 // 3. EL ENRUTADOR VISUAL (AQUÍ SEPARADOS EL B2B DEL B2C)
                 const card = document.createElement("div");
+                const destinoBolsa = getConfirmedServiceDestination(s);
 
                 if (s.tipo === 'mantenimiento') {
                     // ==========================================
@@ -858,16 +877,16 @@ if (!permitido) return;
                         <span class="text-white font-bold text-xs">${s.categoria ? escaparHTML(s.categoria.toUpperCase()) : 'GENERAL'}</span>
                     </div>
                     <h4 class="text-white font-bold text-base mb-1">${escaparHTML(s.zona || 'Cancún')}</h4>
-                    <p class="text-gray-300 text-sm mb-2 font-medium italic">"${escaparHTML(s.descripcion || '')}"</p>
+                    <p class="text-gray-300 text-sm mb-2 font-medium">${escaparHTML(s.sub_servicio || 'Servicio técnico')}</p>
                     
                     ${previewFotoHTML}
 
                     <div class="flex items-center gap-2 mb-3 mt-2 text-xs text-gray-500">
-                        <i class="fas fa-map-marker-alt"></i> ${escaparHTML(s.direccion || 'Ubicación no especificada')}
+                        <i class="fas fa-map-marker-alt"></i> ${escaparHTML(destinoBolsa?.direccion || s.zona || 'Zona no especificada')}
                     </div>
                     
                     <div class="flex gap-2">
-                        <button class="flex-1 bg-red-900/30 hover:bg-red-900/50 text-red-400 font-bold py-3 rounded-lg text-xs transition-colors" onclick="window.rechazarServicio('${id}', '${tecnico.uid}')">
+                        <button class="flex-1 bg-red-900/30 hover:bg-red-900/50 text-red-400 font-bold py-3 rounded-lg text-xs transition-colors" onclick="window.rechazarServicio('${id}', '${tecnico.uid}', this)">
                             <i class="fas fa-times"></i>
                         </button>
                         ${btnAceptar}
@@ -882,21 +901,37 @@ if (!permitido) return;
                 contenedor.innerHTML = `<p class="text-gray-600 text-[10px] text-center italic py-4">No hay solicitudes disponibles para tu perfil.</p>`;
             }
 
-            cargaInicial = false; 
-        });
+        };
+
+        const escucharFuente = (consulta, asignar, esInicial, marcarInicial) => onSnapshot(
+            consulta,
+            snap => {
+                const hayNuevos = snap.docChanges().some(change => change.type === "added");
+                if (!esInicial() && hayNuevos) {
+                    sonarAlerta();
+                    lanzarNotificacionPush("¡NUEVA SOLICITUD!", "Tienes un servicio o mantenimiento pendiente.");
+                }
+                asignar(snap.docs);
+                marcarInicial();
+                renderizarBolsa();
+            },
+            error => {
+                console.error("No se pudo leer una fuente de la bolsa:", error);
+                renderizarBolsa();
+            }
+        );
+
+        escucharFuente(qB2B, docs => { documentosB2B = docs; }, () => inicialB2B, () => { inicialB2B = false; });
+        escucharFuente(qB2C, docs => { documentosB2C = docs; }, () => inicialB2C, () => { inicialB2C = false; });
     }
 
-    window.rechazarServicio = async (id, uid) => {
+    window.rechazarServicio = async (id, uid, boton = null) => {
         if(!confirm("¿Estás seguro de ocultar esta solicitud?\n\nNo podrás verla nuevamente, pero seguirá disponible para otros técnicos.")) return;
-        
-        try {
-            await updateDoc(doc(db, "services", id), {
-                rejected_by: arrayUnion(uid)
-            });
-        } catch (error) {
-            console.error(error);
-            alert("Error al intentar rechazar el servicio. Intenta de nuevo.");
-        }
+        const key = `b2c_marketplace_hidden_${uid}`;
+        const ocultos = new Set(JSON.parse(localStorage.getItem(key) || "[]"));
+        ocultos.add(id);
+        localStorage.setItem(key, JSON.stringify([...ocultos].slice(-200)));
+        boton?.closest(".bg-zinc-900")?.remove();
     };
 
   // 🔥 INYECCIÓN B2B: LECTURA DE PERFIL PARA SPLIT BILLING SIN QUEMAR REGLAS Y PASE QR 🔥
@@ -950,22 +985,14 @@ if (!permitido) return;
         }
     };
 
-    // 🔥 INYECCIÓN B2C: LECTURA DE PERFIL PARA SPLIT BILLING EN TRANSACCIÓN Y PASE QR 🔥
-    window.tomarServicio = async (id, uid, nombre, metodo_pago) => {
-        if (window.saldoActualTecnico <= -1000) {
-            alert("⛔ BLOQUEO FINANCIERO OPERATIVO\n\nTu saldo negativo ha superado el límite de -$1,000 MXN.\n\nPor políticas de GestiaPremium, debes liquidar tus comisiones pendientes para volver a aceptar servicios.");
+    // B2C: el backend es la autoridad de validación y de la transacción de claim.
+    window.tomarServicio = async (id, uid) => {
+        if (uid !== user.uid) {
+            alert("⛔ La identidad del técnico no coincide con la sesión activa.");
             return;
         }
-
-        const qCheck = query(
-            collection(db, "services"), 
-            where("tecnico_id", "==", uid),
-            where("estado", "in", ["asignado", "en_camino", "en_sitio", "cotizando", "procesando_saldo", "trabajando"])
-        );
-        
-        const snapCheck = await getDocs(qCheck);
-        if (!snapCheck.empty) {
-            alert("⛔ BLOQUEO DE SEGURIDAD\n\nYa tienes un servicio activo. Debes finalizarlo antes de tomar otro.");
+        if (window.saldoActualTecnico <= -1000) {
+            alert("⛔ BLOQUEO FINANCIERO OPERATIVO\n\nTu saldo negativo ha superado el límite de -$1,000 MXN.\n\nPor políticas de GestiaPremium, debes liquidar tus comisiones pendientes para volver a aceptar servicios.");
             return;
         }
 
@@ -974,53 +1001,14 @@ if (!permitido) return;
         if(!confirm(mensajeConfirmacion)) return;
         
         try {
-            // Obtenemos los datos fiscales y logísticos del técnico desde su propio perfil
-            const miPerfilSnap = await getDoc(doc(db, "users", uid));
-            const miPerfil = miPerfilSnap.exists() ? miPerfilSnap.data() : {};
-
-            const nombreFiscal = miPerfil.nombre_fiscal || miPerfil.nombre || nombre;
-            const rfcTech = miPerfil.rfc || "XAXX010101000";
-            const logoFactura = miPerfil.logo_factura || null;
-
-            // 🔥 NUEVO: DATOS VEHICULARES PARA EL PASE QR
-            const vehiculoTech = miPerfil.logistica?.vehiculo || miPerfil.vehiculo_tipo || "NO ESPECIFICADO";
-            const placasTech = miPerfil.logistica?.placas || miPerfil.placas || null;
-
-            // 🔒 CANDADO JONATHAN: Verificación de placas para acceso a caseta
-            if (!placasTech) {
-                alert("⛔ ACCESO DENEGADO (PASE QR)\n\nEl sistema de seguridad de Jonathan (Caseta) requiere que tengas tus placas registradas para aceptar este servicio.\n\nPor favor, completa tu perfil en la sección de 'Registro Incompleto'.");
-                return;
-            }
-
-            const serviceRef = doc(db, "services", id);
-            
-            await runTransaction(db, async (transaction) => {
-                const sfDoc = await transaction.get(serviceRef);
-                
-                if (!sfDoc.exists()) throw "ERROR_NO_EXISTE";
-                if (!["pendiente", "pagado"].includes(sfDoc.data().estado)) throw "ERROR_COLISION"; 
-
-                transaction.update(serviceRef, {
-                    estado: "asignado",
-                    tecnico_id: uid,
-                    tecnico_nombre: nombre,
-                    tecnico_nombre_fiscal: nombreFiscal, // 👈 INYECCIÓN PARA PDF CLIENTE
-                    tecnico_rfc: rfcTech,                // 👈 INYECCIÓN PARA PDF CLIENTE
-                    tecnico_logo_factura: logoFactura,   // 👈 INYECCIÓN PARA PDF CLIENTE
-                    tecnico_vehiculo: vehiculoTech,      // 🔥 INYECCIÓN PARA PASE QR
-                    tecnico_placas: placasTech,          // 🔥 INYECCIÓN PARA PASE QR
-                    tecnico_telefono: miPerfil.telefono || user.telefono || "",
-                    asignado_at: serverTimestamp() 
-                });
-            });
-            
+            await reclamarServicioB2C(id);
             console.log("🚀 Transacción Atómica Exitosa: Ticket asegurado.");
         } catch (error) {
             console.error(error);
-            if (error === "ERROR_COLISION") {
+            if (error?.code === "functions/already-exists" || error?.code === "functions/not-found") {
                 alert("💥 ¡COLISIÓN EVITADA!\n\nFuiste demasiado lento. Otro técnico aceptó este servicio milisegundos antes que tú.");
             } else {
-                alert("Error al procesar la solicitud en el servidor. Intenta de nuevo.");
+                alert(error?.message || "Error al procesar la solicitud en el servidor. Intenta de nuevo.");
             }
         }
     };
@@ -1086,11 +1074,12 @@ if (!permitido) return;
 
             // --- INYECCIÓN V5.18: BLINDAJE B2B (Datos Salvavidas) ---
             const categoriaSafe = s.categoria || (s.tipo === 'mantenimiento' ? 'MANTENIMIENTO' : 'GENERAL');
-            const direccionSafe = s.direccion || 'Instalaciones del Residencial';
+            const destinoConfirmado = getConfirmedServiceDestination(s);
+            const direccionSafe = destinoConfirmado?.direccion || s.direccion || 'Instalaciones del Residencial';
             const descripcionSafe = s.descripcion || s.titulo || s.problema || 'Mantenimiento en curso';
 
-            const destinoWaze = s.coords
-                ? `${s.coords.lat},${s.coords.lng}`
+            const destinoWaze = destinoConfirmado?.coords
+                ? `${destinoConfirmado.coords.lat},${destinoConfirmado.coords.lng}`
                 : encodeURIComponent(direccionSafe);
 
             let botonAccionHTML = "";
@@ -1102,7 +1091,7 @@ if (!permitido) return;
                 </button>`;
             } else if (s.estado === "en_camino") {
                 botonAccionHTML = `
-                <button id="btn_llegada_${id}" onclick="window.validarLlegada('${id}', ${s.coords ? s.coords.lat : 'null'}, ${s.coords ? s.coords.lng : 'null'})" class="w-full mt-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95">
+                <button id="btn_llegada_${id}" onclick="window.validarLlegada('${id}', ${destinoConfirmado?.coords ? destinoConfirmado.coords.lat : 'null'}, ${destinoConfirmado?.coords ? destinoConfirmado.coords.lng : 'null'})" class="w-full mt-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95">
                     <i class="fas fa-map-marker-alt"></i> YA LLEGUÉ AL SITIO
                 </button>`;
             } else if (s.estado === "en_sitio") {
@@ -1533,18 +1522,17 @@ if (!permitido) return;
                             precio: i.precio_final 
                         }));
 
-                        await updateDoc(doc(db, "services", id), {
-                            estado: "cotizando",
-                            diagnostico: diagTexto,
-                            detalles_cotizacion: itemsLimpios, 
-                            costo_final: totalFinal,
-                            cotizado_at: serverTimestamp(),
-                            factor_aplicado: inteligencia.factor // Guardamos huella de auditoría
-                        });
+                        await enviarCotizacionB2C(
+                            id,
+                            diagTexto,
+                            itemsLimpios,
+                            inteligencia.factor
+                        );
                         alert(`✅ Diagnóstico y Cotización enviados.\n\nEspera a que el cliente lo apruebe en su aplicación para comenzar a trabajar.`);
                     } catch (e) {
                         console.error(e);
-                        alert("Error al guardar la cotización.");
+                        alert(e?.message || "Error al guardar la cotización.");
+                        return;
                     }
 
                     const modal = document.getElementById("modalCot");

@@ -20,8 +20,14 @@ import {
  addDoc,
  serverTimestamp,
  setDoc,
- getDoc 
+ getDoc,
+ aprobarTecnicoB2C
 } from "./firebase.js";
+import {
+ normalizeTechnicianProfile,
+ getTechnicianKycRequirements,
+ TECHNICIAN_KYC_STATES
+} from "./b2c-technician-profile.js";
 
 import { getDocs, increment, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { escaparHTML, cargarLibreriaPDF, urlABase64 } from "./app-utils.js";
@@ -186,7 +192,8 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
     contOnline++;
     }
     
-    const esPendiente = (data.estado || "pendiente") === "pendiente";
+    const perfilCanonico = normalizeTechnicianProfile(data);
+    const esPendiente = [TECHNICIAN_KYC_STATES.PENDING_REVIEW, TECHNICIAN_KYC_STATES.DOCUMENTS_UPLOADED].includes(perfilCanonico.estado);
     
     const ineUrl = data.documentos?.ine || data.ine || data.ine_url || data.identificacion || null;
     const csfUrl = data.documentos?.csf || data.csf || data.csf_url || data.constancia || null;
@@ -1025,25 +1032,24 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  const banco = t.datos_bancarios?.banco || t.banco || t.banco_nombre || 'NO REGISTRADO';
  const clabe = t.datos_bancarios?.clabe || t.clabe || t.clabe_interbancaria || 'NO REGISTRADA';
 
- const tipoVehiculo = t.logistica?.vehiculo || t.vehiculo_tipo || t.vehiculo?.tipo || 'NO REGISTRADO';
- const placas = t.logistica?.placas || t.placas || t.vehiculo?.placas || 'N/A';
-
- const certUrl = t.documentos?.certificado || t.certificado || null;
+ const perfilCanonico = normalizeTechnicianProfile(t);
+ const kyc = getTechnicianKycRequirements(t);
+ const tipoVehiculo = perfilCanonico.vehiculo.tipo || 'NO REGISTRADO';
+ const placas = kyc.pedestrian ? 'NO APLICA (PEATÓN)' : (perfilCanonico.vehiculo.placas || 'N/A');
+ const certificados = perfilCanonico.documentos.certificados;
 
  const ineHTML = ineUrl ? `<a href="${ineUrl}" target="_blank" class="bg-blue-600/20 text-blue-400 px-3 py-1 rounded-lg border border-blue-500/30 text-xs font-bold hover:bg-blue-600/40 transition-colors"><i class="fas fa-external-link-alt"></i> Ver</a>` : '<span class="text-red-500 text-xs"><i class="fas fa-times-circle"></i> Faltante</span>';
  const csfHTML = csfUrl ? `<a href="${csfUrl}" target="_blank" class="bg-blue-600/20 text-blue-400 px-3 py-1 rounded-lg border border-blue-500/30 text-xs font-bold hover:bg-blue-600/40 transition-colors"><i class="fas fa-external-link-alt"></i> Ver</a>` : '<span class="text-red-500 text-xs"><i class="fas fa-times-circle"></i> Faltante</span>';
  const licHTML = licUrl ? `<a href="${licUrl}" target="_blank" class="bg-blue-600/20 text-blue-400 px-3 py-1 rounded-lg border border-blue-500/30 text-xs font-bold hover:bg-blue-600/40 transition-colors"><i class="fas fa-external-link-alt"></i> Ver</a>` : '<span class="text-red-500 text-xs"><i class="fas fa-times-circle"></i> Faltante</span>';
 
  let certsHTML = '';
- if (certUrl) {
-  certsHTML = `<a href="${certUrl}" target="_blank" class="bg-emerald-900/30 text-emerald-400 text-[10px] font-bold px-3 py-1.5 rounded border border-emerald-500/50 mr-1 mb-1 inline-block hover:bg-emerald-900/50 transition-colors"><i class="fas fa-award"></i> Ver Certificado Oficial / DC-3</a>`;
- } else if (t.documentos && t.documentos.certificados && t.documentos.certificados.length > 0) {
-  certsHTML = t.documentos.certificados.map(c => `<span class="bg-emerald-900/30 text-emerald-400 text-[9px] font-bold px-2 py-1 rounded border border-emerald-500/50 mr-1 mb-1 inline-block"><i class="fas fa-award"></i> Validado</span>`).join('');
+ if (certificados.length > 0) {
+  certsHTML = certificados.map(c => `<a href="${typeof c === 'string' ? c : c.url}" target="_blank" class="bg-emerald-900/30 text-emerald-400 text-[9px] font-bold px-2 py-1 rounded border border-emerald-500/50 mr-1 mb-1 inline-block"><i class="fas fa-award"></i> Ver certificado</a>`).join('');
  } else {
-  certsHTML = '<span class="text-red-500 text-xs font-bold"><i class="fas fa-times-circle"></i> Sin documentos de respaldo</span>';
+  certsHTML = '<span class="text-gray-500 text-xs"><i class="fas fa-info-circle"></i> Sin certificados opcionales</span>';
  }
 
- const btnAprobarModal = (t.estado === "pendiente") ? `
+ const btnAprobarModal = ([TECHNICIAN_KYC_STATES.PENDING_REVIEW, TECHNICIAN_KYC_STATES.DOCUMENTS_UPLOADED].includes(perfilCanonico.estado) && kyc.complete) ? `
  <button onclick="window.aprobarTecnico('${uid}'); document.getElementById('modalExpediente').remove();" class="w-full mt-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 rounded-xl text-sm transition-colors shadow-lg">
  <i class="fas fa-user-check"></i> APROBAR TÉCNICO AHORA
  </button>
@@ -1132,15 +1138,7 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  window.aprobarTecnico = async (uid) => {
  if(!confirm("¿Estás seguro de aprobar a este técnico? Tendrá acceso inmediato a ver solicitudes y aceptar trabajos.")) return;
  try {
- await updateDoc(doc(db, "users", uid), {
- estado: "activo",
- status: "activo",
- verificado: true,
- nivel: "BRONCE",
- reputacion: 5.0,
- servicios_completados: 0,
- aprobadoEn: serverTimestamp()
- });
+ await aprobarTecnicoB2C(uid);
 
  alert(" ✅ Técnico Aprobado y Activado exitosamente.");
  } catch (error) {

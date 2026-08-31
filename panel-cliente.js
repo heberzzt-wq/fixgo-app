@@ -20,8 +20,10 @@ import {
     orderBy,
     onSnapshot,
     addDoc,
+    setDoc,
     serverTimestamp,
-    getDoc 
+    getDoc,
+    responderCotizacionB2C
 } from "./firebase.js";
 
 // Funciones específicas de Firestore y Storage
@@ -33,6 +35,12 @@ import { escaparHTML, cargarLibreriaPDF, urlABase64, sonarAlerta, lanzarNotifica
 
 // Sistema Facility Management (B2B)
 import { iniciarSelectorB2B, obtenerMetadatosB2B } from "./modulo-b2b.js";
+import {
+    buildDestinationCandidates,
+    confirmDestination,
+    findDestinationConflicts,
+    getConfirmedServiceDestination
+} from "./b2c-destination.js";
 
 // ======================================================================================
 // 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.18.5 (Con QR Caseta y Alertas)
@@ -75,6 +83,35 @@ export async function iniciarPanelCliente(user) {
 
     // Estado global de pagos para el blindaje final
     let configGlobalPagos = { stripe: true, efectivo: false };
+    let destinoConfirmado = null;
+    let gpsCandidato = null;
+    let pinCandidato = null;
+
+    const obtenerGPSConTimeout = () => new Promise((resolve) => {
+        let resolved = false;
+        const finish = value => {
+            if (resolved) return;
+            resolved = true;
+            clearTimeout(fallback);
+            resolve(value);
+        };
+        const fallback = setTimeout(() => finish(null), 6000);
+        if (!navigator.geolocation) return finish(null);
+        navigator.geolocation.getCurrentPosition(
+            pos => finish({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+            () => finish(null),
+            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+        );
+    });
+
+    function invalidarDestinoConfirmado() {
+        destinoConfirmado = null;
+        const status = document.getElementById("estadoDestino");
+        if (status) {
+            status.textContent = "SIN CONFIRMAR";
+            status.className = "text-[9px] font-black px-2 py-1 rounded bg-yellow-500/20 text-yellow-400";
+        }
+    }
 
     // ==================================================================================
     // 3.0 LECTOR MAESTRO DE FEATURE FLAGS (PASARELAS DE PAGO Y UI DINÁMICA)
@@ -305,8 +342,6 @@ export async function iniciarPanelCliente(user) {
                 return;
             }
             
-            lastSubmitTime = now; 
-
             const cat = el.inputCat.value; 
             const dir = el.form.querySelector('[name="direccion"]').value;
             const desc = el.form.querySelector('[name="descripcion"]').value;
@@ -344,76 +379,28 @@ export async function iniciarPanelCliente(user) {
             btn.disabled = true;
             btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> PROCESANDO SOLICITUD...`;
             
-       const obtenerGPSConTimeout = () => {
-    return new Promise((resolve) => {
-        let resuelto = false;
-        console.log("🛰️ [CLIENTE] Iniciando sensor GPS..."); 
-
-        const fallback = setTimeout(() => {
-            if(!resuelto) { 
-                resuelto = true; 
-                console.warn("⚠️ [CLIENTE] El sensor no respondió en 6 segundos."); 
-                resolve(null); 
+            if (!destinoConfirmado || destinoConfirmado.direccion !== dir.trim()) {
+                alert("📍 Confirma el destino final antes de enviar. GPS, enlace y pin se conservan como señales separadas y ninguna sustituye a otra automáticamente.");
+                btn.disabled = false;
+                btn.innerHTML = textoOriginal;
+                isSubmitting = false;
+                return;
             }
-        }, 6000); 
 
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (pos) => { 
-                    if(!resuelto) { 
-                        resuelto = true; 
-                        clearTimeout(fallback); 
-                        console.log(`✅ [CLIENTE] Ubicación capturada: ${pos.coords.latitude}, ${pos.coords.longitude}`); 
-                        resolve({lat: pos.coords.latitude, lng: pos.coords.longitude}); 
-                    } 
-                },
-                (err) => { 
-                    if(!resuelto) { 
-                        resuelto = true; 
-                        clearTimeout(fallback); 
-                        console.error("❌ [CLIENTE] Error de sensor:", err.message); 
-                        resolve(null); 
-                    } 
-                },
-                { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 } 
-            );
-        }
-    });
-};
-
-            // 1. Intentamos obtener el GPS del hardware (Celular / Laptop)
-            let coordsObtenidas = await obtenerGPSConTimeout();
-
-            // 🔥 2. EL SNIPER DE WAZE/MAPS (OVERRIDE MANUAL) 🔥
             const linkManual = document.getElementById("ubicacionManualWaze")?.value || "";
-            let linkMapaGuardar = linkManual;
-
-            if (linkManual.trim() !== "") {
-                // Buscamos coordenadas (Ej: 21.1619, -86.8515) o variaciones dentro del link
-                const regexCoords = /(-?\d{1,2}\.\d{4,})[,\s]+(-?\d{1,3}\.\d{4,})/;
-                const match = linkManual.match(regexCoords);
-                
-                if (match) {
-                    console.log("🎯 [BYPASS] Coordenadas extraídas del texto:", match[1], match[2]);
-                    // ¡SOBRESCRIBIMOS EL GPS DEL SENSOR!
-                    coordsObtenidas = { lat: parseFloat(match[1]), lng: parseFloat(match[2]) };
-                }
+            if ((destinoConfirmado.inputs?.link_mapa || "") !== linkManual.trim()) {
+                invalidarDestinoConfirmado();
+                alert("📍 El enlace cambió después de confirmar. Revisa y confirma nuevamente el destino final.");
+                btn.disabled = false;
+                btn.innerHTML = textoOriginal;
+                isSubmitting = false;
+                return;
             }
 
-
-            // 🔥 NUEVO: SNIPER DEL MAPA INTERACTIVO (OVERRIDE MÁXIMO) 🔥
-            const latMapa = document.getElementById("latDestino")?.value;
-            const lngMapa = document.getElementById("lngDestino")?.value;
+            lastSubmitTime = now;
+            await enviarSolicitudFinal(cat, dir, desc, destinoConfirmado, requiereFactura, datosFacturacion, isUrgencia, fotoFile, linkManual, isPrivada);
             
-            if (latMapa && lngMapa) {
-                console.log("🎯 [V5.18] Coordenadas capturadas del mapa interactivo:", latMapa, lngMapa);
-                coordsObtenidas = { lat: parseFloat(latMapa), lng: parseFloat(lngMapa) };
-            } 
-            
-            // 3. Enviamos el ticket final con las coordenadas y el link (PASO 2: ENVIAR isPrivada)
-            await enviarSolicitudFinal(cat, dir, desc, coordsObtenidas, requiereFactura, datosFacturacion, isUrgencia, fotoFile, linkMapaGuardar, isPrivada);
-            
-            async function enviarSolicitudFinal(categoriaFull, direccion, descripcion, coords, reqFac, datosFac, flagUrgencia, archivoFoto , linkManualText, flagPrivada) {
+            async function enviarSolicitudFinal(categoriaFull, direccion, descripcion, destino, reqFac, datosFac, flagUrgencia, archivoFoto , linkManualText, flagPrivada) {
                 const partes = categoriaFull.split('_');
                 const vertical = partes[0].toUpperCase(); 
                 const servicio = partes[1] ? partes[1].toUpperCase() : 'GENERAL';
@@ -433,15 +420,20 @@ export async function iniciarPanelCliente(user) {
                     metodoSeleccionado = "efectivo"; 
                 }
 
+                const serviceRef = doc(collection(db, "services"));
                 let urlFotoDescargada = null;
+                let fotoUploadEstado = archivoFoto ? "pendiente" : "no_proporcionada";
                 if (archivoFoto && storage) {
                     btn.innerHTML = `<i class="fas fa-cloud-upload-alt animate-bounce"></i> SUBIENDO FOTO...`;
                     try {
-                        const storageRef = ref(storage, `solicitudes_iniciales/${user.uid}_${Date.now()}.jpg`);
+                        const extension = archivoFoto.name?.toLowerCase().match(/\.[a-z0-9]{1,8}$/)?.[0] || ".jpg";
+                        const storageRef = ref(storage, `service_initial/${serviceRef.id}/${user.uid}/problem/current${extension}`);
                         await uploadBytes(storageRef, archivoFoto);
                         urlFotoDescargada = await getDownloadURL(storageRef);
+                        fotoUploadEstado = "confirmado";
                     } catch (e) {
                         console.error("No se pudo subir la foto inicial:", e);
+                        fotoUploadEstado = "upload_failed";
                     }
                 }
 
@@ -462,7 +454,12 @@ if (metodoSeleccionado === "b2b") {
                         categoria: vertical,
                         sub_servicio: servicio,
                         categoria_id: categoriaFull,
-                        direccion: direccion,
+                        destino: {
+                            ...destino,
+                            confirmado_at: serverTimestamp()
+                        },
+                        // Alias de lectura temporal para módulos legacy; destino es la autoridad.
+                        direccion: destino.direccion || direccion,
                         descripcion: descripcion,
                         estado: (metodoSeleccionado === "efectivo" || metodoSeleccionado === "b2b") ? "pendiente" : "iniciado_stripe",
                         metodo_pago: metodoSeleccionado,
@@ -470,20 +467,25 @@ if (metodoSeleccionado === "b2b") {
                         created_at: serverTimestamp(),
                         retencion_inicial: metodoSeleccionado === "stripe" ? 550 : 0, 
                         costo_final: 0,
-                        coords: coords,
+                        coords: destino.coords,
                         factura_requerida: reqFac,
                         datos_facturacion: datosFac,
                         factura_enviada: false,
                         urgencia: flagUrgencia,
                         es_privada: flagPrivada, // 🔥 NUEVO: GUARDAR PRIVADA EN BD
                         foto_problema: urlFotoDescargada,
+                        foto_problema_estado: fotoUploadEstado,
                         ...(dataB2B ? { b2b_metadata: dataB2B } : {}),
                         link_waze_cliente: linkManualText || ""
                     };
 
-                    const docRef = await addDoc(collection(db, "services"), payloadTicket);
+                    await setDoc(serviceRef, payloadTicket);
+                    const docRef = serviceRef;
 
                     el.form.reset();
+                    gpsCandidato = null;
+                    pinCandidato = null;
+                    invalidarDestinoConfirmado();
                     if(el.toggleFactura) {
                         el.toggleFactura.checked = false;
                         document.getElementById('datosFacturacion')?.classList.add('hidden');
@@ -589,9 +591,10 @@ if (metodoSeleccionado === "b2b") {
             return;
         }
 
-        snap.forEach(docSnap => {
-            const s = docSnap.data();
-            const id = docSnap.id;
+            snap.forEach(docSnap => {
+                const s = docSnap.data();
+                const id = docSnap.id;
+                const destinoServicio = getConfirmedServiceDestination(s);
             
             let contenido = `<div class="p-4 bg-yellow-900/10 rounded-xl border border-yellow-500/30 mb-2"><span class="text-xs font-bold text-yellow-500 animate-pulse"> 🔎 RASTREANDO TÉCNICO EN LA ZONA...</span></div>`;
             
@@ -838,7 +841,7 @@ if (metodoSeleccionado === "b2b") {
 
             <div id="hist-${id}" class="expandable-content bg-zinc-900/40">
                 <div class="p-4 border-t border-zinc-800/50">
-                    <p class="text-xs text-gray-400 truncate mb-3"><i class="fas fa-map-marker-alt text-zinc-600"></i> ${escaparHTML(s.direccion)}</p>
+                    <p class="text-xs text-gray-400 truncate mb-3"><i class="fas fa-map-marker-alt text-zinc-600"></i> ${escaparHTML(destinoServicio?.direccion || s.direccion || 'Ubicación no especificada')}</p>
                     
                     ${imgInicialHTML}
                     ${infoLogisticaHTML}
@@ -868,16 +871,8 @@ if (metodoSeleccionado === "b2b") {
     window.iniciarPagoSaldo = async (id, saldo) => {
         alert(`🔒 SEGURIDAD GESTIAPREMIUM:\n\nSerás redirigido a Stripe para cubrir el saldo pendiente de $${saldo.toFixed(2)} MXN.\n\nUna vez procesado el pago, el técnico comenzará a trabajar de inmediato.`);
         try {
-            await updateDoc(doc(db, "services", id), { estado: "procesando_saldo" });
-            
-            if (window.procesarPagoSaldoStripe) {
-                window.procesarPagoSaldoStripe(id, saldo);
-            } else {
-                console.warn("MODO DEV: Simulando éxito de Stripe (falta programar procesarPagoSaldoStripe en el bridge)");
-                setTimeout(async () => {
-                    await updateDoc(doc(db, "services", id), { estado: "trabajando" });
-                }, 2500);
-            }
+            if (!window.procesarPagoSaldoStripe) throw new Error("STRIPE_BRIDGE_UNAVAILABLE");
+            await window.procesarPagoSaldoStripe(id, saldo);
         } catch (error) {
             console.error("Error iniciando pago de saldo:", error);
             alert("Error de conexión al iniciar el pago. Intenta de nuevo.");
@@ -909,34 +904,13 @@ if (metodoSeleccionado === "b2b") {
     };
 
     window.responderCotizacion = async (id, aceptado) => {
-        const serviceRef = doc(db, "services", id);
-        
         try {
             if (aceptado) {
-                await runTransaction(db, async (transaction) => {
-                    const sfDoc = await transaction.get(serviceRef);
-                    if (!sfDoc.exists()) throw "NO_EXISTE";
-                    if (sfDoc.data().estado !== "cotizando") throw "ESTADO_INVALIDO";
-                    transaction.update(serviceRef, { estado: "trabajando" });
-                });
+                await responderCotizacionB2C(id, true);
                 alert(" ✅ ¡Costo aprobado! El técnico comenzará a trabajar ahora.");
             } else {
                 if(confirm(" ⚠ ¿Estás seguro de cancelar?\n\nAl haber llegado el técnico, le deberás pagar el costo mínimo de visita ($550).")) {
-                    await runTransaction(db, async (transaction) => {
-                        const sfDoc = await transaction.get(serviceRef);
-                        if (!sfDoc.exists()) throw "NO_EXISTE";
-                        
-                        const currentStatus = sfDoc.data().estado;
-                        if (currentStatus === "cancelado" || currentStatus === "finalizado") {
-                            throw "ESTADO_FINALIZADO";
-                        }
-
-                        transaction.update(serviceRef, {
-                            estado: "cancelado",
-                            costo_final: 550, 
-                            cancelado_razon: "Cliente rechazó cotización"
-                        });
-                    });
+                    await responderCotizacionB2C(id, false);
                     alert(" 🚫 Servicio cancelado exitosamente. Por favor, liquida el costo de visita al técnico.");
                 }
             }
@@ -1029,7 +1003,8 @@ if (metodoSeleccionado === "b2b") {
             const servicioLabel = `${data.categoria} ${data.sub_servicio ? '- ' + data.sub_servicio : ''}`;
             docPdf.text(`Categoría: ${servicioLabel}`, 120, y);
             y += 8;
-            docPdf.text(`Ubicación: ${data.direccion}`, 20, y);
+            const destinoReporte = getConfirmedServiceDestination(data);
+            docPdf.text(`Ubicación: ${destinoReporte?.direccion || data.direccion || 'No especificada'}`, 20, y);
 
             y += 15;
             docPdf.setDrawColor(200, 200, 200);
@@ -1159,9 +1134,110 @@ if (metodoSeleccionado === "b2b") {
         }
     };
     // ======================================================================================
-// 🔥 MOTOR DEL MAPA INTERACTIVO PARA JORGE (V5.18) 🔥
+// Selector de destino: las señales se conservan separadas hasta confirmación explícita.
 // ======================================================================================
 let mapaJorge;
+let mapaPlaceholder = null;
+
+function establecerMapaExpandido(expanded) {
+    const container = document.getElementById("contenedorMapaSeleccion");
+    const button = document.getElementById("btnExpandirMapa");
+    if (!container || !button) return;
+
+    if (expanded && !mapaPlaceholder) {
+        mapaPlaceholder = document.createElement("div");
+        mapaPlaceholder.id = "mapaSeleccionPlaceholder";
+        container.parentNode.insertBefore(mapaPlaceholder, container);
+        document.body.appendChild(container);
+    } else if (!expanded && mapaPlaceholder) {
+        mapaPlaceholder.parentNode.insertBefore(container, mapaPlaceholder);
+        mapaPlaceholder.remove();
+        mapaPlaceholder = null;
+    }
+
+    container.classList.toggle("mapa-expandido", expanded);
+    button.setAttribute("aria-expanded", String(expanded));
+    button.innerHTML = expanded
+        ? '<i class="fas fa-compress"></i> REDUCIR MAPA'
+        : '<i class="fas fa-expand"></i> AMPLIAR MAPA';
+    setTimeout(() => mapaJorge?.invalidateSize(), 100);
+}
+
+const sourceLabels = {
+    direccion_manual: "Dirección escrita (sin asumir coordenadas)",
+    gps_dispositivo: "GPS de este dispositivo",
+    waze_maps: "Coordenadas del enlace Waze / Maps",
+    mapa_pin: "Pin seleccionado en el mapa"
+};
+
+const inputDireccion = document.querySelector('[name="direccion"]');
+const inputLinkMapa = document.getElementById("ubicacionManualWaze");
+inputDireccion?.addEventListener("input", invalidarDestinoConfirmado);
+inputLinkMapa?.addEventListener("input", invalidarDestinoConfirmado);
+
+document.getElementById("btnPrepararDestino")?.addEventListener("click", async () => {
+    const button = document.getElementById("btnPrepararDestino");
+    const original = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-satellite-dish fa-spin"></i> LEYENDO GPS SIN SOBRESCRIBIR...';
+    gpsCandidato = await obtenerGPSConTimeout();
+    button.disabled = false;
+    button.innerHTML = original;
+
+    const address = inputDireccion?.value.trim() || "";
+    const mapLink = inputLinkMapa?.value.trim() || "";
+    const { candidates } = buildDestinationCandidates({ address, gps: gpsCandidato, mapLink, pin: pinCandidato });
+    const select = document.getElementById("fuenteDestino");
+    const options = ['<option value="">Selecciona explícitamente...</option>'];
+    Object.entries(candidates).forEach(([source, candidate]) => {
+        const unavailable = source === "waze_maps" && !candidate.coords;
+        const detail = candidate.coords
+            ? ` (${candidate.coords.lat.toFixed(5)}, ${candidate.coords.lng.toFixed(5)})`
+            : "";
+        options.push(`<option value="${source}" ${unavailable ? "disabled" : ""}>${sourceLabels[source]}${detail}${unavailable ? " — enlace sin coordenadas" : ""}</option>`);
+    });
+    select.innerHTML = options.join("");
+    const selectable = Object.entries(candidates).filter(([source, candidate]) => source !== "waze_maps" || candidate.coords);
+    if (selectable.length === 1) select.value = selectable[0][0];
+
+    const conflicts = findDestinationConflicts(candidates);
+    const warning = document.getElementById("advertenciaDestino");
+    const invalidLink = mapLink && candidates.waze_maps && !candidates.waze_maps.coords;
+    warning.textContent = [
+        invalidLink ? "El enlace no contiene coordenadas recuperables; no se usará como destino." : "",
+        conflicts.length ? `Hay ${conflicts.length} discrepancia(s) mayor(es) a 150 m. Elige conscientemente la señal final.` : "",
+        !gpsCandidato ? "El GPS no estuvo disponible; puedes confirmar dirección, enlace válido o pin." : ""
+    ].filter(Boolean).join(" ");
+    document.getElementById("opcionesDestino")?.classList.remove("hidden");
+});
+
+document.getElementById("btnConfirmarDestinoFinal")?.addEventListener("click", () => {
+    try {
+        const selectedSource = document.getElementById("fuenteDestino")?.value;
+        destinoConfirmado = confirmDestination({
+            address: inputDireccion?.value,
+            gps: gpsCandidato,
+            mapLink: inputLinkMapa?.value,
+            pin: pinCandidato,
+            selectedSource
+        });
+        const coordsText = destinoConfirmado.coords
+            ? `${destinoConfirmado.coords.lat.toFixed(5)}, ${destinoConfirmado.coords.lng.toFixed(5)}`
+            : "sin coordenadas; se conservará la dirección escrita";
+        document.getElementById("resumenDestino").textContent =
+            `${sourceLabels[destinoConfirmado.fuente]} · ${destinoConfirmado.direccion || "Sin texto de dirección"} · ${coordsText}`;
+        const status = document.getElementById("estadoDestino");
+        status.textContent = destinoConfirmado.discrepancia ? "CONFIRMADO CON DISCREPANCIA" : "DESTINO CONFIRMADO";
+        status.className = destinoConfirmado.discrepancia
+            ? "text-[9px] font-black px-2 py-1 rounded bg-orange-500/20 text-orange-400"
+            : "text-[9px] font-black px-2 py-1 rounded bg-emerald-500/20 text-emerald-400";
+    } catch (error) {
+        invalidarDestinoConfirmado();
+        alert(error.message === "DESTINATION_SOURCE_REQUIRED"
+            ? "Selecciona explícitamente cuál señal será el destino final."
+            : "La señal elegida no contiene un destino válido.");
+    }
+});
 
 document.getElementById('btnAbrirMapa')?.addEventListener('click', () => {
     const contenedor = document.getElementById('contenedorMapaSeleccion');
@@ -1176,17 +1252,28 @@ document.getElementById('btnAbrirMapa')?.addEventListener('click', () => {
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(mapaJorge);
+
+        const inicial = mapaJorge.getCenter();
+        document.getElementById('latDestino').value = inicial.lat;
+        document.getElementById('lngDestino').value = inicial.lng;
         
         // Cuando Jorge suelta el mapa, leemos el centro
         mapaJorge.on('moveend', () => {
             const centro = mapaJorge.getCenter();
             document.getElementById('latDestino').value = centro.lat;
             document.getElementById('lngDestino').value = centro.lng;
+            pinCandidato = { lat: centro.lat, lng: centro.lng };
+            invalidarDestinoConfirmado();
         });
 
         // Forzamos un re-render por si el div estaba oculto
         setTimeout(() => { mapaJorge.invalidateSize(); }, 300);
     }
+});
+
+document.getElementById("btnExpandirMapa")?.addEventListener("click", () => {
+    const button = document.getElementById("btnExpandirMapa");
+    establecerMapaExpandido(button.getAttribute("aria-expanded") !== "true");
 });
 
 // Cuando Jorge le da a "Confirmar este punto"
@@ -1195,14 +1282,13 @@ document.getElementById('btnConfirmarPunto')?.addEventListener('click', () => {
     const lng = document.getElementById('lngDestino').value;
     
     if (lat && lng) {
-        // Le avisamos visualmente a Jorge que ya lo atrapamos
-        const inputDir = document.querySelector('[name="direccion"]');
-        if (inputDir) {
-            inputDir.value = `📍 Ubicación fijada en Mapa (${parseFloat(lat).toFixed(4)}, ${parseFloat(lng).toFixed(4)})`;
-            inputDir.classList.add('bg-emerald-900/30', 'border-emerald-500', 'text-emerald-400');
-        }
-        
+        pinCandidato = { lat: parseFloat(lat), lng: parseFloat(lng) };
+        invalidarDestinoConfirmado();
+        establecerMapaExpandido(false);
         document.getElementById('contenedorMapaSeleccion').classList.add('hidden');
+        document.getElementById("panelConfirmacionDestino")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        document.getElementById("resumenDestino").textContent =
+            `Pin candidato: ${pinCandidato.lat.toFixed(5)}, ${pinCandidato.lng.toFixed(5)}. Pulsa “Revisar” para compararlo y confirmar.`;
     } else {
         alert("Mueve el mapa un poco para fijar tu ubicación.");
     }

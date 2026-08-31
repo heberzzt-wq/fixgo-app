@@ -87,6 +87,17 @@ const repoWriteAuthFactory =
 
 const repoWriteIdempotencyFactory =
     require("./repo-write-idempotency");
+const { createApproveTechnicianHandler } =
+    require("./b2c-technician-approval");
+const {
+    createClaimB2cServiceHandler,
+    createPublishCashMarketplaceHandler,
+    createReleaseTechnicianLockHandler
+} = require("./b2c-service-marketplace");
+const {
+    createRespondB2cQuoteHandler,
+    createSubmitB2cQuoteHandler
+} = require("./b2c-service-workflow");
 
 
 
@@ -153,6 +164,25 @@ let vertexGenAI;
 let plannerGenAI;
 let firewallV5;
 let initialized = false;
+
+exports.approveB2cTechnician = functions.https.onCall(
+    createApproveTechnicianHandler({ admin, db, functions })
+);
+exports.claimB2cService = functions.https.onCall(
+    createClaimB2cServiceHandler({ admin, db, functions })
+);
+exports.releaseB2cTechnicianLock = functions.firestore
+    .document("services/{serviceId}")
+    .onUpdate(createReleaseTechnicianLockHandler({ db }));
+exports.publishCashB2cService = functions.firestore
+    .document("services/{serviceId}")
+    .onCreate(createPublishCashMarketplaceHandler({ admin, db }));
+exports.submitB2cQuote = functions.https.onCall(
+    createSubmitB2cQuoteHandler({ admin, db, functions })
+);
+exports.respondB2cQuote = functions.https.onCall(
+    createRespondB2cQuoteHandler({ admin, db, functions })
+);
 
 // ======================================================================================
 // 4. INIT CORE (SISTEMA DE ARRANQUE PEREZOSO)

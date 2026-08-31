@@ -29,6 +29,7 @@ const {
     B2C_SERVICE_SETTLEMENT_VERSION,
     createB2CServiceSettlementEngine
 } = require("./b2c-service-settlement");
+const { buildMarketplaceListing } = require("./b2c-service-marketplace");
 
 const SECURE_FUNCTIONS_ENTRY_VERSION = "1.0.0";
 const PROJECT_ID = "fixgo-44e4d";
@@ -225,6 +226,21 @@ async function createAuthoritativeCheckout(req, res) {
             idempotencyKey
         });
 
+        if (paymentType === "liquidacion_saldo" && serviceData.estado === "cotizando") {
+            await db.runTransaction(async transaction => {
+                const currentSnapshot = await transaction.get(serviceRef);
+                if (!currentSnapshot.exists) throw new Error("SERVICE_NOT_FOUND");
+                if (currentSnapshot.data().estado === "cotizando") {
+                    transaction.update(serviceRef, {
+                        estado: "procesando_saldo",
+                        checkout_saldo_session_id: session.id,
+                        checkout_saldo_iniciado_at: admin.firestore.FieldValue.serverTimestamp(),
+                        "auditoria.balance_checkout_authority": "secure-entry"
+                    });
+                }
+            });
+        }
+
         await db.collection("payment_checkout_audit").doc(idempotencyKey).set({
             service_id: serviceId,
             customer_uid: actor.uid,
@@ -387,6 +403,18 @@ async function processAuthoritativeWebhook(req, res) {
                 "auditoria.secure_entry_version":
                     SECURE_FUNCTIONS_ENTRY_VERSION
             });
+
+            if (paymentType === "garantia_inicial" && transition.nextState === "pendiente") {
+                const marketplaceRef = db.collection("service_marketplace").doc(serviceId);
+                transaction.set(
+                    marketplaceRef,
+                    buildMarketplaceListing(
+                        serviceId,
+                        { ...serviceData, metodo_pago: "stripe" },
+                        admin.firestore.FieldValue.serverTimestamp()
+                    )
+                );
+            }
 
             transaction.set(transactionRef, {
                 servicio_id: serviceId,

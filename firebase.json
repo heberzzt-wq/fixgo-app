@@ -1,4 +1,24 @@
 {
+  "firestore": {
+    "rules": "security/firestore-console-snapshot-2026-07-30.rules.txt"
+  },
+  "storage": {
+    "rules": "security/storage-hardening-candidate.rules.txt"
+  },
+  "emulators": {
+    "firestore": {
+      "host": "127.0.0.1",
+      "port": 8180
+    },
+    "storage": {
+      "host": "127.0.0.1",
+      "port": 9299
+    },
+    "ui": {
+      "enabled": false
+    },
+    "singleProjectMode": true
+  },
   "functions": [
     {
       "source": "functions",
