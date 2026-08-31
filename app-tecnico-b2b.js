@@ -8,6 +8,10 @@
  */
 
 import { auth, db, storage, signOut } from "./firebase.js";
+import {
+    getPlatformServiceWorkerRegistration,
+    initializePlatformRelease
+} from "./platform-release.js";
 
 import {
     doc,
@@ -36,50 +40,7 @@ import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.8.
 /* =====================================================
     REGISTRO DE SERVICE WORKER (LA ANTENA B2B) - V5.32
     ===================================================== */
-let swRegistration = null; 
-
-if ('serviceWorker' in navigator) {
-    // Usamos una función asíncrona para asegurar que el velador esté listo
-    const iniciarVelador = async () => {
-        try {
-            // Registramos el sw.js (V6.1 con blindaje de caché y push)
-            const registration = await navigator.serviceWorker.register('/sw.js', {
-                scope: '/'
-            });
-            
-            console.log('👷 Velador Táctico (SW) registrado con éxito:', registration.scope);
-            
-            // Esperamos a que el SW esté activo para evitar errores de "evaluación fallida"
-            await navigator.serviceWorker.ready;
-            swRegistration = registration; 
-            
-            // Si el velador se actualizó, notificamos para sincronizar
-            registration.onupdatefound = () => {
-                const installingWorker = registration.installing;
-                installingWorker.onstatechange = () => {
-                    if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                        console.log('🔄 Nueva versión de Gestia detectada. Sincronizando...');
-                        if (typeof showToast === 'function') showToast("Actualizando sistema...");
-                    }
-                };
-            };
-
-        } catch (err) {
-            console.error('❌ Error crítico registrando el velador:', err);
-            // Si falla el registro, intentamos recuperar el registro existente (si hay uno)
-            navigator.serviceWorker.getRegistration().then(reg => {
-                if (reg) swRegistration = reg;
-            });
-        }
-    };
-
-    // Disparamos el registro
-    if (document.readyState === 'complete') {
-        iniciarVelador();
-    } else {
-        window.addEventListener('load', iniciarVelador);
-    }
-}
+initializePlatformRelease().catch(error => console.error("[GESTIA_RELEASE_AUTHORITY_FAILED]", error));
 
 /* =====================================================
 GLOBAL STATE
@@ -2061,12 +2022,8 @@ async function activarNotificacionesBolsillo(userId) {
              * Registramos explícitamente el archivo que tiene el blindaje V6.1
              * para que el Token de Google sepa quién va a manejar la vibración.
              */
-            const registration = await navigator.serviceWorker.register('/sw.js', { 
-                scope: '/' 
-            });
-
-            // Esperamos a que el velador tome posición
-            await navigator.serviceWorker.ready;
+            const registration = await getPlatformServiceWorkerRegistration();
+            if (!registration) throw new Error("SERVICE_WORKER_NOT_SUPPORTED");
 
             console.log("🎫 Solicitando Token a Google (FCM) vinculado al SW...");
 

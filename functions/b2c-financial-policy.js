@@ -1,5 +1,7 @@
 "use strict";
 
+const platformContract = require("./b2c-platform-contract");
+
 /**
  * Política financiera B2C pura y reutilizable por endpoints/webhooks.
  * No accede a Firestore ni Stripe: solo valida datos ya leídos por el backend.
@@ -169,7 +171,7 @@ function assertCustomerCheckout({
     let authoritativeAmount;
 
     if (type === "garantia_inicial") {
-        if (!["iniciado_stripe", "cotizando"].includes(state)) {
+        if (![platformContract.SERVICE_STATES.STRIPE_STARTED, platformContract.SERVICE_STATES.QUOTING].includes(state)) {
             const error = new Error("INVALID_INITIAL_PAYMENT_STATE");
             error.code = "INVALID_INITIAL_PAYMENT_STATE";
             throw error;
@@ -222,7 +224,7 @@ function assertWebhookTransition({
             error.code = "WEBHOOK_INITIAL_AMOUNT_MISMATCH";
             throw error;
         }
-        if (!["iniciado_stripe", "cotizando"].includes(state)) {
+        if (![platformContract.SERVICE_STATES.STRIPE_STARTED, platformContract.SERVICE_STATES.QUOTING].includes(state)) {
             const error = new Error("WEBHOOK_INITIAL_STATE_INVALID");
             error.code = "WEBHOOK_INITIAL_STATE_INVALID";
             throw error;

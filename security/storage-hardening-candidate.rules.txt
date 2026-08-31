@@ -17,7 +17,7 @@ service firebase.storage {
 
     function masterAdmin() {
       return signedIn() && (
-        request.auth.token.email == "hebertoh-m@hotmail.com" ||
+        request.auth.token.get('email', '') == "hebertoh-m@hotmail.com" ||
         request.auth.uid == "nNhwy3Mx4pTvc8TZVh1tyTMFwhC2"
       );
     }
@@ -26,7 +26,7 @@ service firebase.storage {
       return masterAdmin() || (
         signedIn() &&
         firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
-        userProfile().rol in ["admin", "ceo"]
+        userProfile().get('rol', '') in ["admin", "ceo"]
       );
     }
 

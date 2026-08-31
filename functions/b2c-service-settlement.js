@@ -1,7 +1,9 @@
 "use strict";
 
+const platformContract = require("./b2c-platform-contract");
+
 const B2C_SERVICE_SETTLEMENT_VERSION = "1.0.1";
-const ALLOWED_PAYMENT_METHODS = new Set(["stripe", "efectivo", "b2b"]);
+const ALLOWED_PAYMENT_METHODS = new Set(Object.values(platformContract.PAYMENT_METHODS));
 
 function safeText(value, maxLength = 180) {
     return String(value ?? "")
@@ -192,7 +194,7 @@ function createB2CServiceSettlementEngine({
                     };
                 }
 
-                if (serviceData.estado !== "finalizado") {
+                if (serviceData.estado !== platformContract.SERVICE_STATES.COMPLETED) {
                     return { status: "ignored_not_finalized" };
                 }
 

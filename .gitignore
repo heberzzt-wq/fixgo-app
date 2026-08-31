@@ -71,6 +71,12 @@ pnpm-debug.log*
 .jarvis-artifacts/
 .jarvis-bridge.*.log
 repo_sandbox/
+functions/generated/release-identity.cjs
+.firebase-release/
+release-manifest.json
+firebase.release.json
+security/firestore-release.generated.rules.txt
+security/storage-release.generated.rules.txt
 branch-test.txt
 prueba.txt
 e -i c795dad5

@@ -1,5 +1,7 @@
 "use strict";
 
+const platformContract = require("./b2c-platform-contract");
+
 function clean(value, maxLength = 500) {
     return String(value ?? "").trim().slice(0, maxLength);
 }
@@ -68,7 +70,7 @@ function createSubmitB2cQuoteHandler({ admin, db, functions }) {
             if (service.tecnico_id !== technicianId) {
                 throw callableError(functions, "permission-denied", "El servicio pertenece a otro técnico.");
             }
-            if (service.estado !== "en_sitio") {
+            if (service.estado !== platformContract.SERVICE_STATES.ON_SITE) {
                 throw callableError(functions, "failed-precondition", "El servicio no está listo para cotizar.");
             }
             if (service.diagnostico_cotizacion_desbloqueada !== true || !service.diagnostico_inicial_evidencia) {
@@ -76,7 +78,7 @@ function createSubmitB2cQuoteHandler({ admin, db, functions }) {
             }
             const timestamp = admin.firestore.FieldValue.serverTimestamp();
             transaction.update(serviceRef, {
-                estado: "cotizando",
+                estado: platformContract.SERVICE_STATES.QUOTING,
                 diagnostico: quote.diagnostic,
                 detalles_cotizacion: quote.items,
                 costo_final: quote.total,
@@ -108,7 +110,7 @@ function createRespondB2cQuoteHandler({ admin, db, functions }) {
             if (service.cliente_id !== customerId) {
                 throw callableError(functions, "permission-denied", "El servicio pertenece a otro cliente.");
             }
-            if (service.estado !== "cotizando") {
+            if (service.estado !== platformContract.SERVICE_STATES.QUOTING) {
                 throw callableError(functions, "failed-precondition", "La cotización ya no está pendiente.");
             }
             const timestamp = admin.firestore.FieldValue.serverTimestamp();
@@ -127,16 +129,18 @@ function createRespondB2cQuoteHandler({ admin, db, functions }) {
 
             const total = Number(service.costo_final || 0);
             const credited = Math.max(0, Number(service.monto_pagado ?? service.retencion_inicial ?? 0));
-            if (service.metodo_pago === "stripe" && total - credited > 0.009) {
-                throw callableError(functions, "failed-precondition", "El saldo debe confirmarse mediante Stripe antes de trabajar.");
-            }
+            const due = Math.round(Math.max(0, total - credited) * 100) / 100;
+            const requiresPayment = service.metodo_pago === platformContract.PAYMENT_METHODS.STRIPE && due > 0.009;
+            const nextState = requiresPayment
+                ? platformContract.SERVICE_STATES.PROCESSING_BALANCE
+                : platformContract.SERVICE_STATES.WORKING;
             transaction.update(serviceRef, {
-                estado: "trabajando",
+                estado: nextState,
                 cotizacion_aceptada_at: timestamp,
                 cotizacion_aceptada_por: customerId,
                 "auditoria.quote_decision_authority": "respondB2cQuote"
             });
-            return { ok: true, serviceId, estado: "trabajando" };
+            return { ok: true, serviceId, estado: nextState, requiresPayment, balanceDue: due };
         });
     };
 }

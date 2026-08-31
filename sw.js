@@ -1,390 +1,118 @@
-/**
- * ======================================================
- * GESTIA PREMIUM - SERVICE WORKER v6.2 (ULTRA-FORCE UNIFIED)
- * Proyecto: fixgo-44e4d
- * Lead Architect: Heberto Mendoza
- * REGLA 1: CÓDIGO COMPLETO - NO PLACEHOLDERS
- * ======================================================
- */
+/** GestiaPremium canonical service worker. Scope: / */
+importScripts("https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js");
+importScripts("https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js");
 
-// 1. IMPORTACIONES CRÍTICAS
-importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
+const RELEASE_SHA = new URL(self.location.href).searchParams.get("release_sha") || "UNPREPARED";
+const CACHE_NAME = `gestia-premium-${RELEASE_SHA}`;
+const NOTIFICATION_CACHE = `gestia-notifications-${RELEASE_SHA}`;
+const STATIC_URLS = ["/", "/index.html", "/manifest.json", "/icono-192.png", "/icono-512.png"];
 
-// 🔥 Configuración de Caché (Actualizado para forzar limpieza)
-const CACHE_NAME = 'gestia-premium-cache-runtime-macro-v2';
-
-const urlsToCache = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/icono-192.png',
-  '/icono-512.png'
-];
-
-// 2. INICIALIZAR FIREBASE
-// Arqui, esta configuración dentro del SW es la que mata el error 401
 firebase.initializeApp({
-  apiKey: "AIzaSyCmZRLFPWnJFMYvcYXhwQ-CyNU5rz3z9V0",
-  authDomain: "fixgo-44e4d.firebaseapp.com",
-  projectId: "fixgo-44e4d",
-  storageBucket: "fixgo-44e4d.firebasestorage.app",
-  messagingSenderId: "1005526685116",
-  appId: "1:1005526685116:web:62f1a823ff8761da85c7b9"
+    apiKey: "AIzaSyCmZRLFPWnJFMYvcYXhwQ-CyNU5rz3z9V0",
+    authDomain: "fixgo-44e4d.firebaseapp.com",
+    projectId: "fixgo-44e4d",
+    storageBucket: "fixgo-44e4d.firebasestorage.app",
+    messagingSenderId: "1005526685116",
+    appId: "1:1005526685116:web:62f1a823ff8761da85c7b9"
 });
 
-// Soporte seguro
-let messaging = null;
-
-if (firebase.messaging.isSupported()) {
-  messaging = firebase.messaging();
-}
+const messaging = firebase.messaging.isSupported() ? firebase.messaging() : null;
 
 function normalizeNotificationUrl(rawUrl) {
-  if (typeof rawUrl !== 'string' || rawUrl.trim() === '') {
-    return './';
-  }
-
-  try {
-    const url = new URL(rawUrl, self.location.origin);
-
-    if (url.origin !== self.location.origin) {
-      return './';
+    try {
+        const url = new URL(typeof rawUrl === "string" && rawUrl ? rawUrl : "/", self.location.origin);
+        if (url.origin !== self.location.origin) return "/";
+        return `${url.pathname}${url.search}${url.hash}` || "/";
+    } catch (_error) {
+        return "/";
     }
-
-    return `${url.pathname}${url.search}${url.hash}` || './';
-  } catch (error) {
-    return './';
-  }
 }
 
-/**
- * ======================================================
- * FCM BACKGROUND ENGINE (V5.35 HARDENED)
- * Manejo robusto para payload notification + data
- * ======================================================
- */
-
-if (messaging) {
-
-  messaging.onBackgroundMessage((payload) => {
-
-    console.log('[Gestia SW] Push FCM recibido:', payload);
-
-    /**
-     * Firebase puede enviar payload en dos formatos:
-     * 1️⃣ notification (Firebase Console)
-     * 2️⃣ data (Admin SDK / Cloud Functions)
-     */
-
-    const notificationPayload = payload.notification || payload.data || {};
-
-    const title =
-      notificationPayload.title ||
-      "🚨 NUEVA ORDEN GESTIA";
-
-    const body =
-      notificationPayload.body ||
-      notificationPayload.mensaje ||
-      "Tienes una nueva orden asignada";
-
-    const orderId =
-      payload.data?.orderId ||
-      notificationPayload.orderId ||
-      null;
-
-    const targetUrl = normalizeNotificationUrl(
-      payload.data?.url ||
-      notificationPayload.url ||
-      './'
-    );
-
-    const options = {
-
-      body: body,
-
-      icon: '/icono-192.png',
-      badge: '/icono-192.png',
-
-      vibrate: [500,110,500,110,450,110],
-
-      requireInteraction: true,
-      renotify: true,
-
-      tag: orderId || `gestia-${Date.now()}`,
-
-      data: {
-        url: targetUrl,
-        orderId: orderId
-      }
-
-    };
-
-    console.log('[Gestia SW] Mostrando notificación:', title);
-
-    return self.registration.showNotification(title, options);
-
-  });
-
+function notificationIdentity(payload = {}) {
+    const data = payload.data || {};
+    return String(data.messageId || data.serviceId || data.orderId || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 180);
 }
 
-/**
- * CAPTURA UNIVERSAL DE PUSH
- * (para pruebas de Firebase Console)
- */
+async function claimNotification(identity) {
+    if (!identity) return true;
+    const cache = await caches.open(NOTIFICATION_CACHE);
+    const key = new Request(`${self.location.origin}/__notification_dedupe__/${identity}`);
+    if (await cache.match(key)) return false;
+    await cache.put(key, new Response(new Date().toISOString(), { headers: { "Cache-Control": "no-store" } }));
+    return true;
+}
 
-self.addEventListener('push', (event) => {
-
-  console.log('[Gestia SW] Evento PUSH detectado');
-
-  let payload = {};
-
-  try {
-    payload = event.data.json();
-  } catch (e) {
-    payload = { notification: { title: "Gestia", body: "Nueva notificación" }};
-  }
-
-  const title =
-    payload.notification?.title ||
-    payload.data?.title ||
-    "🚨 NUEVA ORDEN GESTIA";
-
-  const options = {
-
-    body:
-      payload.notification?.body ||
-      payload.data?.body ||
-      "Tienes una nueva orden asignada",
-
-    icon: '/icono-192.png',
-    badge: '/icono-192.png',
-
-    vibrate: [500,110,500,110,450,110],
-
-    requireInteraction: true,
-    renotify: true,
-
-    tag: payload.data?.orderId || "gestia-alert",
-
-    data: {
-      url: normalizeNotificationUrl(payload.data?.url || './'),
-      orderId: payload.data?.orderId || null
-    }
-
-  };
-
-  event.waitUntil(
-    self.registration.showNotification(title, options)
-  );
-
-});
-
-// 3. CLICK EN NOTIFICACIÓN
-self.addEventListener('notificationclick', (event) => {
-
-  event.notification.close();
-
-  const targetUrl = normalizeNotificationUrl(event.notification.data?.url || './');
-
-  event.waitUntil(
-
-    clients.matchAll({
-      type: 'window',
-      includeUncontrolled: true
-    }).then(windowClients => {
-
-      for (let client of windowClients) {
-
-        if (new URL(client.url).pathname === new URL(targetUrl, self.location.origin).pathname && 'focus' in client) {
-          return client.focus();
+async function showCanonicalNotification(payload = {}) {
+    const data = payload.data || payload.notification || {};
+    const identity = notificationIdentity(payload);
+    if (!(await claimNotification(identity))) return;
+    await self.registration.showNotification(data.title || "Nueva orden Gestia", {
+        body: data.body || data.mensaje || "Tienes una nueva orden disponible.",
+        icon: "/icono-192.png",
+        badge: "/icono-192.png",
+        vibrate: [500, 110, 500, 110, 450, 110],
+        requireInteraction: true,
+        renotify: false,
+        tag: identity || "gestia-notification",
+        data: {
+            url: normalizeNotificationUrl(data.url),
+            messageId: identity || null,
+            serviceId: data.serviceId || null,
+            eventType: data.eventType || null
         }
+    });
+}
 
-      }
+if (messaging) messaging.onBackgroundMessage(payload => showCanonicalNotification(payload));
 
-      if (clients.openWindow) {
-        return clients.openWindow(targetUrl);
-      }
-
-    })
-
-  );
-
+self.addEventListener("notificationclick", event => {
+    event.notification.close();
+    const targetUrl = normalizeNotificationUrl(event.notification.data?.url);
+    event.waitUntil(clients.matchAll({ type: "window", includeUncontrolled: true }).then(windowClients => {
+        const pathname = new URL(targetUrl, self.location.origin).pathname;
+        const current = windowClients.find(client => new URL(client.url).pathname === pathname);
+        return current?.focus?.() || clients.openWindow?.(targetUrl);
+    }));
 });
 
-// 4. INSTALACIÓN (MUDANZA A FIREBASE)
-self.addEventListener('install', (event) => {
-
-  console.log('[Gestia SW] Instalando nuevo motor Firebase...');
-
-  self.skipWaiting(); // Obliga al SW nuevo a tomar el mando
-
-  event.waitUntil(
-
-    caches.open(CACHE_NAME).then(cache => {
-
-      console.log('[Gestia SW] Cacheando archivos críticos');
-
-      return cache.addAll(urlsToCache);
-
-    })
-
-  );
-
-});
-
-// 5. ACTIVACIÓN (EXTERMINIO DE VERCEL)
-self.addEventListener('activate', (event) => {
-
-  console.log('[Gestia SW] Activado: Purgando todo el rastro de Vercel');
-
-  event.waitUntil(
-
-    caches.keys().then(cacheNames => {
-
-      return Promise.all(
-
-        cacheNames.map(name => {
-          // Borra cualquier caché que no sea el actual de Firebase
-          if (name !== CACHE_NAME) {
-            console.log('[Gestia SW] Borrando caché antiguo:', name);
-            return caches.delete(name);
-          }
-        })
-
-      );
-
-    })
-
-  );
-
-  self.clients.claim(); // Toma control de la PWA instalada inmediatamente
-
-});
-
-/**
- * UPDATE FORZADO
- */
-
-self.addEventListener('message', (event) => {
-
-  if (event.data === 'SKIP_WAITING') {
+self.addEventListener("install", event => {
     self.skipWaiting();
-  }
-
+    event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(STATIC_URLS)));
 });
 
-/**
- * FETCH (Estrategia: Network-First con Bypass de Vercel)
- */
-
-self.addEventListener('fetch', (event) => {
-
-  const url = event.request.url;
-  const requestURL =
-    new URL(url);
-  const requestPath =
-    requestURL.pathname;
-  const isRuntimeAsset =
-    event.request.destination === 'document' ||
-    event.request.destination === 'script' ||
-    event.request.destination === 'worker' ||
-    requestPath.endsWith('.html') ||
-    requestPath.endsWith('.js') ||
-    requestPath.endsWith('.mjs');
-
-  // No intervenir en llamadas de sistema de Google
-  if (
-    url.includes('gstatic.com') ||
-    url.includes('googleapis.com') ||
-    url.includes('google-analytics')
-  ) {
-    return;
-  }
-
-  event.respondWith(
-
-    fetch(event.request)
-
-      .then(response => {
-
-        // Si por alguna razón el navegador intenta ir a Vercel, entregamos el index de Firebase
-        if (response.url.includes('vercel.app')) {
-            console.log('[Gestia SW] Detectado rastro de Vercel, forzando Firebase');
-            return caches.match('./index.html');
-        }
-
-        if (
-  event.request.method === 'GET' &&
-  response.status === 200 &&
-  !isRuntimeAsset
-) {
-
-  const protocolo =
-    requestURL.protocol;
-
-  const protocoloPermitido = [
-
-    'http:',
-    'https:'
-
-  ].includes(protocolo);
-
-  if (protocoloPermitido) {
-
-    const clone =
-      response.clone();
-
-    caches.open(CACHE_NAME)
-
-      .then(cache => {
-
-        return cache.put(
-          event.request,
-          clone
-        );
-
-      })
-
-      .catch(cacheError => {
-
-        console.warn(
-          '[Gestia SW] Cache omitido:',
-          cacheError?.message
-        );
-
-      });
-  }
-}
-        return response;
-
-      })
-
-      .catch(() => {
-
-        return caches.match(event.request)
-          .then(response => {
-
-            return response || new Response(
-              'Gestia: Modo Offline - Revisa tu conexión',
-              { 
-                status: 404,
-                headers: { 'Content-Type': 'text/plain' }
-              }
-            );
-
-          });
-
-      })
-
-  );
-
+self.addEventListener("activate", event => {
+    event.waitUntil(Promise.all([
+        caches.keys().then(names => Promise.all(names
+            .filter(name => name.startsWith("gestia-") && ![CACHE_NAME, NOTIFICATION_CACHE].includes(name))
+            .map(name => caches.delete(name)))),
+        self.clients.claim()
+    ]));
 });
 
-/**
- * ======================================================
- * FIN DEL SERVICE WORKER
- * Gestia Premium V6.2 - Blindaje Firebase Activo
- * Lead Architect: Heberto Mendoza
- * ======================================================
- */
+self.addEventListener("message", event => {
+    if (event.data === "SKIP_WAITING") self.skipWaiting();
+    if (event.data?.type === "GESTIA_RELEASE_IDENTITY") {
+        event.ports?.[0]?.postMessage({ git_sha: RELEASE_SHA, cache_name: CACHE_NAME, scope: self.registration.scope });
+    }
+});
+
+self.addEventListener("fetch", event => {
+    const url = new URL(event.request.url);
+    if (event.request.method !== "GET" || url.origin !== self.location.origin) return;
+    const isRuntime = event.request.destination === "document" ||
+        event.request.destination === "script" ||
+        event.request.destination === "worker" ||
+        /\.(?:html|js|mjs)$/.test(url.pathname) ||
+        url.pathname === "/release-manifest.json";
+    event.respondWith(fetch(event.request, isRuntime ? { cache: "no-store" } : undefined)
+        .then(response => {
+            if (response.ok && !isRuntime) {
+                caches.open(CACHE_NAME).then(cache => cache.put(event.request, response.clone())).catch(() => {});
+            }
+            return response;
+        })
+        .catch(async () => (await caches.match(event.request)) || new Response(
+            "Gestia: modo offline. Revisa tu conexión.",
+            { status: 503, headers: { "Content-Type": "text/plain; charset=utf-8" } }
+        )));
+});

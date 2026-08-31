@@ -10,6 +10,13 @@ console.log(
   "🚦 [app-main.js] Fortress AI Kernel v7.0.0 ONLINE"
 );
 
+import { initializePlatformRelease } from "./platform-release.js";
+
+export const platformReleaseReady = initializePlatformRelease().catch(error => {
+  console.error("[GESTIA_RELEASE_AUTHORITY_FAILED]", error);
+  return null;
+});
+
 /* =====================================================
    🔥 IMPORTS
 ===================================================== */
@@ -976,8 +983,8 @@ observarAuth(async (userAuth) => {
   userAuth.nombre =
     userData.nombre || userAuth.email;
 
-  userAuth.efectivo_autorizado =
-    userData.efectivo_autorizado || false;
+  userAuth.pagos =
+    userData.pagos || {};
 
   console.log(
     `✅ ${userAuth.email} | ${userAuth.rol}`
@@ -1091,17 +1098,6 @@ else if (
 
     await iniciarPanelCliente(userAuth);
 
-    const contenedor =
-        document.getElementById(
-            "contenedorOpcionEfectivo"
-        );
-
-      if (
-        userAuth.efectivo_autorizado &&
-        contenedor
-      ) {
-        contenedor.classList.remove("hidden");
-      }
     }
 
   } catch (error) {

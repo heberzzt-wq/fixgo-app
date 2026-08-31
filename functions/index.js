@@ -91,13 +91,22 @@ const { createApproveTechnicianHandler } =
     require("./b2c-technician-approval");
 const {
     createClaimB2cServiceHandler,
-    createPublishCashMarketplaceHandler,
-    createReleaseTechnicianLockHandler
+    createMarketplaceNotificationHandler,
+    createReleaseTechnicianLockHandler,
+    createResyncCustomerPaymentsHandler,
+    createResyncMarketplaceConfigHandler,
+    createSyncB2cMarketplaceHandler
 } = require("./b2c-service-marketplace");
+const {
+    createB2cServiceHandler,
+    createMigrateTechnicianProfileHandler,
+    createSetCustomerPaymentPermissionsHandler
+} = require("./b2c-platform-authority");
 const {
     createRespondB2cQuoteHandler,
     createSubmitB2cQuoteHandler
 } = require("./b2c-service-workflow");
+const { getReleaseIdentity } = require("./release-identity");
 
 
 
@@ -130,6 +139,12 @@ app.use(corsHandler);
 app.use((req, res, next) => {
     if (req.originalUrl === "/stripe-webhook") return next();
     express.json()(req, res, next);
+});
+
+app.get(["/release-identity", "/api/release-identity"], (_req, res) => {
+    const identity = getReleaseIdentity();
+    res.set("Cache-Control", "no-store");
+    return res.status(identity.prepared ? 200 : 503).json(identity);
 });
 
 // ======================================================================================
@@ -171,12 +186,30 @@ exports.approveB2cTechnician = functions.https.onCall(
 exports.claimB2cService = functions.https.onCall(
     createClaimB2cServiceHandler({ admin, db, functions })
 );
+exports.createB2cService = functions.https.onCall(
+    createB2cServiceHandler({ admin, db, functions })
+);
+exports.setB2cCustomerPaymentPermissions = functions.https.onCall(
+    createSetCustomerPaymentPermissionsHandler({ admin, db, functions })
+);
+exports.migrateB2cTechnicianProfile = functions.https.onCall(
+    createMigrateTechnicianProfileHandler({ admin, db, functions })
+);
 exports.releaseB2cTechnicianLock = functions.firestore
     .document("services/{serviceId}")
     .onUpdate(createReleaseTechnicianLockHandler({ db }));
-exports.publishCashB2cService = functions.firestore
+exports.syncB2cMarketplace = functions.firestore
     .document("services/{serviceId}")
-    .onCreate(createPublishCashMarketplaceHandler({ admin, db }));
+    .onWrite(createSyncB2cMarketplaceHandler({ admin, db }));
+exports.resyncB2cMarketplaceConfig = functions.firestore
+    .document("configuracion/pagos")
+    .onUpdate(createResyncMarketplaceConfigHandler({ admin, db }));
+exports.resyncB2cCustomerPayments = functions.firestore
+    .document("users/{userId}")
+    .onUpdate(createResyncCustomerPaymentsHandler({ admin, db }));
+exports.dispatchB2cMarketplaceNotification = functions.firestore
+    .document("platform_events/{eventId}")
+    .onCreate(createMarketplaceNotificationHandler({ admin, db }));
 exports.submitB2cQuote = functions.https.onCall(
     createSubmitB2cQuoteHandler({ admin, db, functions })
 );

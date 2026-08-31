@@ -1,30 +1,21 @@
 "use strict";
 
+const platformContract = require("./b2c-platform-contract");
+
 const ALLOWED_REVIEW_STATES = new Set([
-    "documentos_subidos",
-    "pendiente_revision",
+    platformContract.TECHNICIAN_STATES.DOCUMENTS_UPLOADED,
+    platformContract.TECHNICIAN_STATES.PENDING_REVIEW,
     "pendiente"
 ]);
 
-function hasDocument(value) {
-    return typeof value === "string"
-        ? value.trim().length > 0
-        : Boolean(value && typeof value === "object" && (value.url || value.storage_path));
-}
-
 function validateTechnicianKyc(profile = {}) {
-    const vehicleType = String(profile.vehiculo?.tipo || "").trim().toLowerCase();
-    const pedestrian = vehicleType === "peaton" || vehicleType === "peatón";
-    const missing = [];
-    if (!hasDocument(profile.foto_perfil)) missing.push("foto_perfil");
-    if (!hasDocument(profile.documentos?.ine)) missing.push("ine");
-    if (!hasDocument(profile.documentos?.csf)) missing.push("csf");
-    if (!String(profile.datos_bancarios?.banco || "").trim()) missing.push("banco");
-    if (!/^\d{18}$/.test(String(profile.datos_bancarios?.clabe || ""))) missing.push("clabe");
-    if (!vehicleType) missing.push("vehiculo_tipo");
-    if (!pedestrian && !String(profile.vehiculo?.placas || "").trim()) missing.push("placas");
-    if (!pedestrian && !hasDocument(profile.documentos?.licencia)) missing.push("licencia");
-    return { complete: missing.length === 0, missing, pedestrian };
+    const result = platformContract.technicianKycRequirements(profile);
+    return {
+        complete: result.complete,
+        missing: result.missing,
+        pedestrian: result.pedestrian,
+        profile: result.profile
+    };
 }
 
 function isAuthorizedAdmin(context, actorProfile = {}) {
@@ -57,11 +48,12 @@ function createApproveTechnicianHandler({ admin, db, functions }) {
             if (!snapshot.exists) {
                 throw new functions.https.HttpsError("not-found", "No existe el expediente técnico.");
             }
-            const profile = snapshot.data() || {};
+            const rawProfile = snapshot.data() || {};
+            const profile = platformContract.normalizeTechnicianProfile(rawProfile);
             if (profile.rol !== "tecnico") {
                 throw new functions.https.HttpsError("failed-precondition", "El perfil no corresponde a un técnico B2C.");
             }
-            const state = String(profile.kyc?.estado || profile.estado || profile.status || "");
+            const state = profile.estado;
             if (!ALLOWED_REVIEW_STATES.has(state)) {
                 throw new functions.https.HttpsError("failed-precondition", "El expediente no está pendiente de revisión.");
             }
@@ -75,11 +67,15 @@ function createApproveTechnicianHandler({ admin, db, functions }) {
 
             const now = admin.firestore.FieldValue.serverTimestamp();
             transaction.update(technicianRef, {
-                estado: "activo",
-                status: "activo",
+                estado: platformContract.TECHNICIAN_STATES.ACTIVE,
+                status: platformContract.TECHNICIAN_STATES.ACTIVE,
                 disponible: false,
+                skills: profile.skills,
+                vehiculo: profile.vehiculo,
+                documentos: profile.documentos,
+                datos_bancarios: profile.datos_bancarios,
                 verificado: true,
-                "kyc.estado": "activo",
+                "kyc.estado": platformContract.TECHNICIAN_STATES.ACTIVE,
                 "kyc.aprobado": true,
                 "kyc.aprobado_por": context.auth.uid,
                 "kyc.aprobado_at": now,

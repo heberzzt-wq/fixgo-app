@@ -63,6 +63,7 @@ coverage/
 tmp/
 temp/
 lib/
+generated/release-identity.cjs
 
 # --------------------------------------------------
 # 6. EDITORES / IDE

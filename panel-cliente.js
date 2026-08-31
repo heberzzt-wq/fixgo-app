@@ -23,6 +23,7 @@ import {
     setDoc,
     serverTimestamp,
     getDoc,
+    crearServicioB2C,
     responderCotizacionB2C
 } from "./firebase.js";
 
@@ -41,6 +42,10 @@ import {
     findDestinationConflicts,
     getConfirmedServiceDestination
 } from "./b2c-destination.js";
+import "./gestia-core/contracts/b2c-platform-contract.js";
+
+const platformContract = globalThis.GestiaB2CPlatformContract;
+if (!platformContract) throw new Error("B2C_PLATFORM_CONTRACT_UNAVAILABLE");
 
 // ======================================================================================
 // 3. PANEL DE CLIENTE (USUARIO FINAL) - V5.18.5 (Con QR Caseta y Alertas)
@@ -82,7 +87,8 @@ export async function iniciarPanelCliente(user) {
     };
 
     // Estado global de pagos para el blindaje final
-    let configGlobalPagos = { stripe: true, efectivo: false };
+    let configGlobalPagos = { stripe_activo: false, efectivo_activo: false };
+    let permisosPagoEfectivos = platformContract.resolvePaymentPermissions(configGlobalPagos, user);
     let destinoConfirmado = null;
     let gpsCandidato = null;
     let pinCandidato = null;
@@ -120,6 +126,7 @@ export async function iniciarPanelCliente(user) {
    function actualizarBotonPagoUI(metodo) {
         const btn = el.form?.querySelector("button[type='submit']");
         if (!btn) return;
+        if (!isSubmitting) btn.disabled = false;
 
         if (metodo === 'b2b') {
             btn.innerHTML = `<i class="fas fa-handshake"></i> SOLICITAR CON CARGO A CONTRATO`;
@@ -140,10 +147,13 @@ export async function iniciarPanelCliente(user) {
     });
 
     onSnapshot(doc(db, "configuracion", "pagos"), (docSnap) => {
-        const configPagos = docSnap.exists() ? docSnap.data() : { stripe_activo: true, efectivo_activo: false };
+        const configPagos = docSnap.exists() ? docSnap.data() : { stripe_activo: false, efectivo_activo: false };
         
-        configGlobalPagos.stripe = configPagos.stripe_activo;
-        configGlobalPagos.efectivo = configPagos.efectivo_activo;
+        configGlobalPagos = {
+            stripe_activo: configPagos.stripe_activo === true,
+            efectivo_activo: configPagos.efectivo_activo === true
+        };
+        permisosPagoEfectivos = platformContract.resolvePaymentPermissions(configGlobalPagos, user);
         
         const radioStripe = document.querySelector('input[name="metodoPago"][value="stripe"]');
         const radioEfectivo = document.querySelector('input[name="metodoPago"][value="efectivo"]');
@@ -151,7 +161,15 @@ export async function iniciarPanelCliente(user) {
         const contenedorB2B = document.getElementById("contenedorOpcionB2B");
         const lblSaldo = document.getElementById("lblSaldoB2B");
 
-        const efectivoPermitido = configPagos.efectivo_activo || user.efectivo_autorizado;
+        const stripePermitido = permisosPagoEfectivos.stripe;
+        const efectivoPermitido = permisosPagoEfectivos.efectivo;
+        let paymentStatus = document.getElementById("estadoMetodosPagoB2C");
+        if (!paymentStatus && el.efectivoCard?.parentElement) {
+            paymentStatus = document.createElement("p");
+            paymentStatus.id = "estadoMetodosPagoB2C";
+            paymentStatus.className = "hidden text-xs font-bold rounded-xl border px-3 py-2";
+            el.efectivoCard.parentElement.appendChild(paymentStatus);
+        }
 
         // 🔥 LÓGICA B2B (OVERRIDE MÁXIMO) 🔥
         if (user.b2b_activo) {
@@ -172,7 +190,10 @@ export async function iniciarPanelCliente(user) {
         // --- LÓGICA NORMAL (SI NO ES B2B) ---
         if(contenedorB2B) contenedorB2B.classList.add("hidden");
 
-        if (configPagos.stripe_activo) {
+        if (radioStripe) radioStripe.checked = false;
+        if (radioEfectivo) radioEfectivo.checked = false;
+
+        if (stripePermitido) {
             if(el.stripeCard) el.stripeCard.classList.remove("hidden");
         } else {
             if(el.stripeCard) el.stripeCard.classList.add("hidden");
@@ -184,20 +205,29 @@ export async function iniciarPanelCliente(user) {
             if(el.efectivoCard) el.efectivoCard.classList.add("hidden");
         }
 
-        if (!configPagos.stripe_activo && efectivoPermitido) {
+        if (!stripePermitido && efectivoPermitido) {
             if(radioEfectivo) radioEfectivo.checked = true;
             actualizarBotonPagoUI('efectivo');
-        } else if (configPagos.stripe_activo && !efectivoPermitido) {
+        } else if (stripePermitido && !efectivoPermitido) {
             if(radioStripe) radioStripe.checked = true;
             actualizarBotonPagoUI('stripe');
-        } else if (configPagos.stripe_activo && efectivoPermitido) {
-            const checkedRadio = document.querySelector('input[name="metodoPago"]:checked');
-            if (checkedRadio && checkedRadio.value !== 'b2b') {
-                actualizarBotonPagoUI(checkedRadio.value);
-            } else {
-                if(radioStripe) radioStripe.checked = true;
-                actualizarBotonPagoUI('stripe');
+        } else if (stripePermitido && efectivoPermitido) {
+            const submitButton = el.form?.querySelector("button[type='submit']");
+            if (submitButton && !isSubmitting) submitButton.disabled = true;
+            if (paymentStatus) {
+                paymentStatus.textContent = "Elige explícitamente Stripe o Efectivo para esta solicitud.";
+                paymentStatus.className = "text-xs font-bold rounded-xl border px-3 py-2 border-blue-500/40 bg-blue-500/10 text-blue-300";
             }
+        } else {
+            const submitButton = el.form?.querySelector("button[type='submit']");
+            if (submitButton && !isSubmitting) submitButton.disabled = true;
+            if (paymentStatus) {
+                paymentStatus.textContent = "No tienes un método de pago habilitado. Contacta a soporte/administración.";
+                paymentStatus.className = "text-xs font-bold rounded-xl border px-3 py-2 border-red-500/40 bg-red-500/10 text-red-300";
+            }
+        }
+        if (paymentStatus && (stripePermitido !== efectivoPermitido)) {
+            paymentStatus.className = "hidden";
         }
     });
     // ==================================================================================
@@ -405,19 +435,26 @@ export async function iniciarPanelCliente(user) {
                 const vertical = partes[0].toUpperCase(); 
                 const servicio = partes[1] ? partes[1].toUpperCase() : 'GENERAL';
 
-                let metodoSeleccionado = "stripe"; 
+                let metodoSeleccionado = null;
                 const checkedRadio = document.querySelector('input[name="metodoPago"]:checked');
-                const efectivoPermitido = configGlobalPagos.efectivo || user.efectivo_autorizado;
 
                 if (checkedRadio) {
                     metodoSeleccionado = checkedRadio.value;
                 }
 
-                if (metodoSeleccionado === "efectivo" && !efectivoPermitido) {
-                    metodoSeleccionado = "stripe"; 
-                }
-                if (metodoSeleccionado === "stripe" && !configGlobalPagos.stripe && efectivoPermitido) {
-                    metodoSeleccionado = "efectivo"; 
+                if (metodoSeleccionado !== "b2b") {
+                    const paymentDecision = platformContract.assertPaymentMethodAllowed(
+                        metodoSeleccionado,
+                        configGlobalPagos,
+                        user
+                    );
+                    if (!paymentDecision.ok) {
+                        alert("No tienes un método de pago habilitado. Contacta a soporte/administración.");
+                        btn.disabled = false;
+                        btn.innerHTML = textoOriginal;
+                        isSubmitting = false;
+                        return;
+                    }
                 }
 
                 const serviceRef = doc(collection(db, "services"));
@@ -479,7 +516,19 @@ if (metodoSeleccionado === "b2b") {
                         link_waze_cliente: linkManualText || ""
                     };
 
-                    await setDoc(serviceRef, payloadTicket);
+                    if (metodoSeleccionado === "b2b") {
+                        await setDoc(serviceRef, payloadTicket);
+                    } else {
+                        await crearServicioB2C({
+                            serviceId: serviceRef.id,
+                            ...payloadTicket,
+                            destino: {
+                                ...destino,
+                                confirmado_at: null
+                            },
+                            created_at: null
+                        });
+                    }
                     const docRef = serviceRef;
 
                     el.form.reset();
@@ -906,8 +955,14 @@ if (metodoSeleccionado === "b2b") {
     window.responderCotizacion = async (id, aceptado) => {
         try {
             if (aceptado) {
-                await responderCotizacionB2C(id, true);
-                alert(" ✅ ¡Costo aprobado! El técnico comenzará a trabajar ahora.");
+                const result = await responderCotizacionB2C(id, true);
+                if (result.requiresPayment) {
+                    alert("✅ Cotización aprobada. Continuarás al pago seguro del saldo autorizado.");
+                    if (!window.procesarPagoSaldoStripe) throw new Error("BALANCE_CHECKOUT_UNAVAILABLE");
+                    await window.procesarPagoSaldoStripe(id, result.balanceDue);
+                } else {
+                    alert(" ✅ ¡Costo aprobado! El técnico comenzará a trabajar ahora.");
+                }
             } else {
                 if(confirm(" ⚠ ¿Estás seguro de cancelar?\n\nAl haber llegado el técnico, le deberás pagar el costo mínimo de visita ($550).")) {
                     await responderCotizacionB2C(id, false);

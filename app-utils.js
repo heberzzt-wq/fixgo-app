@@ -60,7 +60,7 @@ export function sonarAlerta() {
  * 🔔 MOTOR DE NOTIFICACIONES PUSH (CORRECCIÓN ANDROID V5.18.2)
  * Se usa ServiceWorkerRegistration para garantizar compatibilidad móvil local.
  */
-export function lanzarNotificacionPush(titulo, cuerpo) {
+export function lanzarNotificacionPush(titulo, cuerpo, options = {}) {
     if (!("Notification" in window) || !("serviceWorker" in navigator)) {
         return;
     }
@@ -71,12 +71,47 @@ export function lanzarNotificacionPush(titulo, cuerpo) {
                 icon: "icono-192.png",
                 badge: "icono-192.png",
                 vibrate: [200, 100, 200, 100, 200],
-                tag: "alerta-fixgo-unica", // Agrupa notificaciones para no hacer spam (Se mantiene ID interno)
-                renotify: true,
+                tag: options.messageId || options.serviceId || "alerta-fixgo-unica",
+                renotify: false,
                 requireInteraction: true 
             });
         }).catch(err => console.error("Error al lanzar Push Nativo:", err));
     }
+}
+
+const PLATFORM_NOTIFICATION_LEDGER = "gestia_platform_notification_events_v1";
+
+function notificationEventId(event = {}) {
+    const eventType = String(event.eventType || event.event_type || "").trim();
+    const serviceId = String(event.serviceId || event.service_id || "").trim();
+    const messageId = String(event.messageId || event.message_id || "").trim();
+    return messageId || (eventType && serviceId ? `${eventType}_${serviceId}` : "");
+}
+
+export function procesarEventoNotificacion(event = {}, options = {}) {
+    const eventId = notificationEventId(event);
+    if (!eventId) return false;
+    let seen = [];
+    try {
+        seen = JSON.parse(localStorage.getItem(PLATFORM_NOTIFICATION_LEDGER) || "[]");
+    } catch {}
+    if (seen.includes(eventId)) return false;
+    try {
+        localStorage.setItem(
+            PLATFORM_NOTIFICATION_LEDGER,
+            JSON.stringify([...seen, eventId].slice(-300))
+        );
+    } catch {}
+    sonarAlerta();
+    lanzarNotificacionPush(
+        options.title || "Nueva solicitud disponible",
+        options.body || "Tienes un servicio compatible con tu perfil operativo.",
+        {
+            messageId: eventId,
+            serviceId: event.serviceId || event.service_id
+        }
+    );
+    return true;
 }
 
 // ======================================================================================

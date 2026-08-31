@@ -21,6 +21,19 @@ const listing = buildMarketplaceListing("svc-1", {
     cliente_telefono: "555",
     foto_problema: "https://secret.example/photo.jpg",
     metodo_pago: "stripe",
+    estado: "pendiente",
+    fecha_pago: "timestamp",
+    payment_authority: {
+        method: "stripe",
+        global_enabled: true,
+        individual_authorized: true,
+        effective: true
+    },
+    destino: {
+        fuente: "mapa_pin",
+        confirmado_por_cliente: true,
+        coords: { lat: 21, lng: -86 }
+    },
     urgencia: true
 }, "timestamp");
 
@@ -38,6 +51,14 @@ const operational = {
     suspendido: false,
     kyc: { aprobado: true },
     skills: ["plomeria"],
+    foto_perfil: { storage_path: "expedientes/tech-1/foto/current.png" },
+    documentos: {
+        ine: { storage_path: "expedientes/tech-1/ine/current.png" },
+        csf: { storage_path: "expedientes/tech-1/csf/current.png" },
+        licencia: null,
+        certificados: []
+    },
+    datos_bancarios: { banco: "Banco", clabe: "012345678901234567" },
     vehiculo: { tipo: "peaton", placas: null }
 };
 assert.equal(isOperationalTechnician(operational), true);

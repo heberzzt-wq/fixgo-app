@@ -14,34 +14,6 @@
     <script>
         /**
          * ======================================================
-         * AI ZUM - PROTOCOLO DE EXTERMINIO VERCEL v7.0
-         * Objetivo: Limpieza total de caché y cambio de mando
-         * ======================================================
-         */
-
-        // 1. LIMPIEZA INMEDIATA DE CACHÉ (Antes de cargar nada)
-        if ('caches' in window) {
-            caches.keys().then(function(names) {
-                for (let name of names) {
-                    caches.delete(name);
-                }
-            });
-        }
-
-        // 2. MOTOR DE SINCRONIZACIÓN TEMPORAL (Pase VIP para PWABuilder)
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js?v=sw-runtime-fresh-20260617', {
-                    scope: '/',
-                    updateViaCache: 'none'
-                })
-                .then(reg => {
-                    console.log('✅ AI ZUM: Gestia Engine activo (Modo Escáner PWABuilder)');
-                })
-                .catch(err => console.error('❌ Error de sincronización:', err));
-        }
-
-        /**
-         * ======================================================
          * PASO 2: AI ZUM - ARCHITECT & OPERATOR CORE v2026.03
          * ======================================================
          */

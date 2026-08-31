@@ -21,7 +21,8 @@ import {
  serverTimestamp,
  setDoc,
  getDoc,
- aprobarTecnicoB2C
+ aprobarTecnicoB2C,
+ actualizarPermisosPagoB2C
 } from "./firebase.js";
 import {
  normalizeTechnicianProfile,
@@ -31,6 +32,10 @@ import {
 
 import { getDocs, increment, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { escaparHTML, cargarLibreriaPDF, urlABase64 } from "./app-utils.js";
+import "./gestia-core/contracts/b2c-platform-contract.js";
+
+const platformContract = globalThis.GestiaB2CPlatformContract;
+if (!platformContract) throw new Error("B2C_PLATFORM_CONTRACT_UNAVAILABLE");
 
 export async function iniciarPanelAdmin(user) {
  console.log(" 🛡️ Iniciando Panel de Administrador (Modo BI V5.18.5 - Support Desk Activo)...");
@@ -85,8 +90,9 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  adminToolbar.className = "mb-4 flex flex-col gap-2";
  adminToolbar.innerHTML = `
  <button id="btnAutorizarEfectivo" onclick="window.buscarYAutorizarCliente()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black py-3 px-4 rounded-xl shadow-lg border border-emerald-500/50 transition-transform active:scale-95 w-full flex items-center justify-center gap-2">
- <i class="fas fa-hand-holding-usd"></i> AUTORIZAR PAGO EN EFECTIVO A CLIENTE
+ <i class="fas fa-wallet"></i> GESTIONAR MÉTODOS DE PAGO B2C
  </button>
+ <div id="gestorPagosCliente" class="hidden"></div>
  <button id="btnBuscarB2B" onclick="window.buscarClienteParaB2B()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-black py-3 px-4 rounded-xl shadow-lg border border-blue-500/50 transition-transform active:scale-95 w-full flex items-center justify-center gap-2">
  <i class="fas fa-handshake"></i> GESTIONAR CONTRATO B2B (BUSCAR CLIENTE)
  </button>
@@ -95,7 +101,7 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  }
 
  window.buscarYAutorizarCliente = async () => {
- const email = prompt("Ingresa el CORREO ELECTRÓNICO del cliente al que deseas autorizar para pagar en EFECTIVO:");
+ const email = prompt("Ingresa el CORREO ELECTRÓNICO del cliente B2C:");
  if(!email) return;
 
  try {
@@ -109,17 +115,53 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
 
  const clienteId = snap.docs[0].id;
  const clienteData = snap.docs[0].data();
- const estadoActual = clienteData.efectivo_autorizado || false;
- 
- if(confirm(`👤 Cliente encontrado: ${clienteData.nombre}\n\nActualmente su permiso de efectivo es: ${estadoActual ? 'ACTIVO ✅' : 'INACTIVO ❌'}\n\n¿Deseas cambiar su estado de autorización?`)) {
- await updateDoc(doc(db, "users", clienteId), {
- efectivo_autorizado: !estadoActual
- });
- alert(`✅ Permiso actualizado. El cliente ahora ${!estadoActual ? 'SÍ' : 'NO'} verá el botón de Efectivo en su panel.`);
+ if (clienteData.rol !== "cliente" || clienteData.tipo_cuenta === "B2B") {
+ alert("⚠️ El perfil seleccionado no corresponde a un cliente B2C.");
+ return;
  }
+ const resolved = platformContract.resolvePaymentPermissions(
+ { stripe_activo: true, efectivo_activo: true },
+ clienteData
+ );
+ const gestor = document.getElementById("gestorPagosCliente");
+ if (!gestor) return;
+ gestor.dataset.customerId = clienteId;
+ gestor.className = "bg-zinc-950 border border-zinc-700 rounded-xl p-4 space-y-3";
+ gestor.innerHTML = `
+ <div>
+   <p class="text-white text-sm font-black">${escaparHTML(clienteData.nombre || "Cliente")}</p>
+   <p class="text-zinc-500 text-[10px]">${escaparHTML(clienteData.email || email)}</p>
+ </div>
+ <label class="flex items-center justify-between bg-zinc-900 rounded-lg p-3">
+   <span class="text-xs font-bold text-blue-300">Stripe autorizado</span>
+   <input id="adminStripeAutorizado" type="checkbox" ${resolved.individual.stripe_autorizado ? "checked" : ""}>
+ </label>
+ <label class="flex items-center justify-between bg-zinc-900 rounded-lg p-3">
+   <span class="text-xs font-bold text-emerald-300">Efectivo autorizado</span>
+   <input id="adminEfectivoAutorizado" type="checkbox" ${resolved.individual.efectivo_autorizado ? "checked" : ""}>
+ </label>
+ ${resolved.individual.efectivo_source === "legacy_fallback"
+   ? '<p class="text-[10px] text-amber-400">El valor de efectivo mostrado proviene del fallback legacy; al guardar se consolidará en pagos.</p>'
+   : ''}
+ <button onclick="window.guardarPermisosPagoCliente()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-black py-3 rounded-lg">GUARDAR AUTORIZACIONES</button>`;
  } catch(e) {
  console.error("Error buscando cliente:", e);
  alert("Hubo un error al buscar en la base de datos.");
+ }
+ };
+
+ window.guardarPermisosPagoCliente = async () => {
+ const gestor = document.getElementById("gestorPagosCliente");
+ const customerId = gestor?.dataset.customerId;
+ if (!customerId) return;
+ const stripe = document.getElementById("adminStripeAutorizado")?.checked === true;
+ const efectivo = document.getElementById("adminEfectivoAutorizado")?.checked === true;
+ try {
+ await actualizarPermisosPagoB2C(customerId, stripe, efectivo);
+ alert("✅ Autorizaciones B2C actualizadas por backend.");
+ } catch (error) {
+ console.error("Error actualizando permisos B2C:", error);
+ alert("No fue posible actualizar las autorizaciones de pago.");
  }
  };
 

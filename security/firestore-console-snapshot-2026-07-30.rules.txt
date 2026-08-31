@@ -14,12 +14,12 @@ service cloud.firestore {
     // MODO DIOS: Reforzado con UID para asegurar soberanía de Heberto
     function isAdmin() {
       return isAuth() && (
-        request.auth.token.admin == true ||
-        request.auth.token.email == 'hebertoh-m@hotmail.com' ||
+        request.auth.token.get('admin', false) == true ||
+        request.auth.token.get('email', '') == 'hebertoh-m@hotmail.com' ||
         request.auth.uid == 'nNhwy3Mx4pTvc8TZVh1tyTMFwhC2' ||
         (
           exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol in ['admin', 'ceo']
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('rol', '') in ['admin', 'ceo']
         )
       );
     }
@@ -60,6 +60,33 @@ service cloud.firestore {
              userStatus() == 'activo';
     }
 
+    // Adapter Firestore de b2c-platform-contract-v1. CI comprueba paridad con la
+    // autoridad neutral de browser/Functions.
+    function isDocumentReference(value) {
+      return (value is string && value.size() > 0) ||
+        (value is map && (
+          (value.get('url', '') is string && value.get('url', '').size() > 0) ||
+          (value.get('storage_path', '') is string && value.get('storage_path', '').size() > 0)
+        ));
+    }
+
+    function technicianKycIsComplete(data) {
+      let vehicle = data.get('vehiculo', {});
+      let documents = data.get('documentos', {});
+      let banking = data.get('datos_bancarios', {});
+      let pedestrian = vehicle.get('tipo', '') == 'peaton';
+      return isDocumentReference(data.get('foto_perfil', null)) &&
+        isDocumentReference(documents.get('ine', null)) &&
+        isDocumentReference(documents.get('csf', null)) &&
+        banking.get('banco', '') is string && banking.get('banco', '').size() > 0 &&
+        banking.get('clabe', '') is string && banking.get('clabe', '').matches('^[0-9]{18}$') &&
+        vehicle.get('tipo', '') is string && vehicle.get('tipo', '').size() > 0 &&
+        (pedestrian || (
+          vehicle.get('placas', '') is string && vehicle.get('placas', '').size() > 0 &&
+          isDocumentReference(documents.get('licencia', null))
+        ));
+    }
+
     function isOperationalTechnician() {
       let data = userData();
       return data != null &&
@@ -67,7 +94,9 @@ service cloud.firestore {
         data.estado == 'activo' &&
         data.status == 'activo' &&
         data.get('kyc', {}).get('aprobado', false) == true &&
-        data.get('suspendido', false) != true;
+        data.get('suspendido', false) != true &&
+        data.get('disponible', false) == true &&
+        technicianKycIsComplete(data);
     }
 
     function technicianInitialStateIsSafe(data) {
@@ -201,7 +230,11 @@ service cloud.firestore {
               (
                 request.resource.data.rol == 'cliente' &&
                 request.resource.data.estado == 'activo' &&
-                request.resource.data.status == 'activo'
+                request.resource.data.status == 'activo' &&
+                request.resource.data.tipo_cuenta == 'B2C' &&
+                request.resource.data.get('pagos', {}).get('stripe_autorizado', true) == false &&
+                request.resource.data.get('pagos', {}).get('efectivo_autorizado', true) == false &&
+                request.resource.data.get('efectivo_autorizado', false) == false
               ) ||
               (
                 request.resource.data.rol == 'admin_b2b' &&
@@ -226,8 +259,12 @@ service cloud.firestore {
             !request.resource.data.diff(resource.data).affectedKeys().hasAny([
               'rol', 'tipo_cuenta', 'suspendido', 'verificado',
               'nivel', 'reputacion', 'servicios_completados', 'wallet', 'currency',
-              'comision', 'aprobadoEn'
+              'comision', 'aprobadoEn', 'pagos', 'efectivo_autorizado',
+              'vehiculo_tipo', 'placas', 'logistica'
             ]) &&
+            !request.resource.data.get('documentos', {}).diff(
+              resource.data.get('documentos', {})
+            ).affectedKeys().hasAny(['certificado']) &&
             (
               request.resource.data.get('disponible', false) != true ||
               (
@@ -263,11 +300,12 @@ service cloud.firestore {
         resource.data.get('tecnico_id', null) == request.auth.uid ||
         (resource.data.get('tipo', null) == 'mantenimiento' && isTecnico())
       );
+      // B2C se crea sólo mediante createB2cService (Admin SDK). Se conserva el
+      // contrato B2B independiente durante la transición.
       allow create: if isAuth() &&
+        request.resource.data.get('metodo_pago', '') == 'b2b' &&
         request.resource.data.cliente_id == request.auth.uid &&
-        request.resource.data.destino.confirmado_por_cliente == true &&
-        request.resource.data.destino.fuente in ['mapa_pin', 'waze_maps', 'gps_dispositivo', 'direccion_manual'] &&
-        request.resource.data.estado in ['pendiente', 'iniciado_stripe'];
+        userTipo() == 'B2B';
       allow update: if isAuth() && (
         isAdmin()
         ||
@@ -301,6 +339,11 @@ service cloud.firestore {
 
     // Proyección mínima de descubrimiento. El expediente completo permanece en services.
     match /service_marketplace/{serviceId} {
+      allow read: if isOperationalTechnician() || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /platform_events/{eventId} {
       allow read: if isOperationalTechnician() || isAdmin();
       allow write: if isAdmin();
     }

@@ -25,11 +25,11 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 const legacyExports = require("./index.js");
 const financialPolicy = require("./b2c-financial-policy");
+const platformContract = require("./b2c-platform-contract");
 const {
     B2C_SERVICE_SETTLEMENT_VERSION,
     createB2CServiceSettlementEngine
 } = require("./b2c-service-settlement");
-const { buildMarketplaceListing } = require("./b2c-service-marketplace");
 
 const SECURE_FUNCTIONS_ENTRY_VERSION = "1.0.0";
 const PROJECT_ID = "fixgo-44e4d";
@@ -141,7 +141,10 @@ async function createAuthoritativeCheckout(req, res) {
         }
 
         const serviceRef = db.collection("services").doc(serviceId);
-        const serviceSnapshot = await serviceRef.get();
+        const [serviceSnapshot, paymentConfigSnapshot] = await Promise.all([
+            serviceRef.get(),
+            db.collection("configuracion").doc("pagos").get()
+        ]);
         if (!serviceSnapshot.exists) {
             return res.status(404).json({
                 error: "SERVICE_NOT_FOUND",
@@ -150,6 +153,17 @@ async function createAuthoritativeCheckout(req, res) {
         }
 
         const serviceData = serviceSnapshot.data();
+        const paymentAuthorization = platformContract.assertPaymentMethodAllowed(
+            platformContract.PAYMENT_METHODS.STRIPE,
+            paymentConfigSnapshot.exists ? paymentConfigSnapshot.data() || {} : {},
+            actor.userData
+        );
+        if (!paymentAuthorization.ok) {
+            const error = new Error(paymentAuthorization.reason);
+            error.code = paymentAuthorization.reason;
+            error.httpStatus = 403;
+            throw error;
+        }
         const validation = financialPolicy.assertCustomerCheckout({
             ticketData: serviceData,
             actorUid: actor.uid,
@@ -403,18 +417,6 @@ async function processAuthoritativeWebhook(req, res) {
                 "auditoria.secure_entry_version":
                     SECURE_FUNCTIONS_ENTRY_VERSION
             });
-
-            if (paymentType === "garantia_inicial" && transition.nextState === "pendiente") {
-                const marketplaceRef = db.collection("service_marketplace").doc(serviceId);
-                transaction.set(
-                    marketplaceRef,
-                    buildMarketplaceListing(
-                        serviceId,
-                        { ...serviceData, metodo_pago: "stripe" },
-                        admin.firestore.FieldValue.serverTimestamp()
-                    )
-                );
-            }
 
             transaction.set(transactionRef, {
                 servicio_id: serviceId,

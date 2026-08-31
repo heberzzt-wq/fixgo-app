@@ -12,6 +12,9 @@ import {
     addDoc, updateDoc, deleteDoc, serverTimestamp, 
     query, where, orderBy, limit, setDoc, app 
 } from "./firebase.js";
+import { getPlatformServiceWorkerRegistration, initializePlatformRelease } from "./platform-release.js";
+
+initializePlatformRelease().catch(error => console.error("[GESTIA_RELEASE_AUTHORITY_FAILED]", error));
 
 import { 
     initializeApp 
@@ -928,14 +931,8 @@ async function activarOidoJessica(userUid) {
         console.log("🔔 Permiso concedido");
 
         // 3. REGISTRO DEL SERVICE WORKER UNIFICADO (v6.2)
-        const swName = '/sw.js'; 
-        console.log(`👷 Registrando motor unificado: ${swName}`);
-
-        const registration = await navigator.serviceWorker.register(swName, {
-            scope: '/'
-        });
-
-        await navigator.serviceWorker.ready;
+        const registration = await getPlatformServiceWorkerRegistration();
+        if (!registration) throw new Error("SERVICE_WORKER_NOT_SUPPORTED");
         console.log("👷 Service Worker (General) sintonizado y listo");
 
         // 4. GENERACIÓN DE TOKEN

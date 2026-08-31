@@ -96,6 +96,24 @@ export async function reclamarServicioB2C(serviceId) {
     return result.data;
 }
 
+export async function crearServicioB2C(payload) {
+    const createService = httpsCallable(cloudFunctions, "createB2cService");
+    const result = await createService(payload);
+    return result.data;
+}
+
+export async function actualizarPermisosPagoB2C(customerId, stripe_autorizado, efectivo_autorizado) {
+    const updatePermissions = httpsCallable(cloudFunctions, "setB2cCustomerPaymentPermissions");
+    const result = await updatePermissions({ customerId, stripe_autorizado, efectivo_autorizado });
+    return result.data;
+}
+
+export async function migrarPerfilTecnicoB2C(technicianId, options = {}) {
+    const migrate = httpsCallable(cloudFunctions, "migrateB2cTechnicianProfile");
+    const result = await migrate({ technicianId, ...options });
+    return result.data;
+}
+
 export async function enviarCotizacionB2C(serviceId, diagnostic, items, factor) {
     const submit = httpsCallable(cloudFunctions, "submitB2cQuote");
     const result = await submit({ serviceId, diagnostic, items, factor });
@@ -189,34 +207,8 @@ export function observarAuth(callback) {
             let snap = await getDoc(doc(db, "users", user.uid));
 
 
-            // ♻️ MIGRACIÓN LEGACY (NO CORTAR - REGLA DE ORO)
-            if (!snap.exists()) {
-
-                console.log("🔍 Buscando en colecciones legacy...");
-
-                let legacySnap = await getDoc(doc(db, "tecnicos", user.uid));
-
-                if (!legacySnap.exists())
-                    legacySnap = await getDoc(doc(db, "clientes", user.uid));
-
-                if (!legacySnap.exists())
-                    legacySnap = await getDoc(doc(db, "admins", user.uid));
-
-                if (legacySnap.exists()) {
-
-                    console.log("♻️ Migrando perfil Legacy a Colección Centralizada...");
-
-                    await setDoc(
-                        doc(db, "users", user.uid),
-                        legacySnap.data(),
-                        { merge: true }
-                    );
-
-                    snap = await getDoc(doc(db, "users", user.uid));
-
-                }
-
-            }
+            // users/{uid} es la única autoridad. Las migraciones legacy se ejecutan
+            // exclusivamente en backend bajo autoridad administrativa.
 
 
             if (snap.exists()) {
@@ -340,6 +332,13 @@ export async function registrarUsuario(
                 actualizadoEn: perfilBase.actualizadoEn
             }
             : perfilBase;
+
+        if (rol === "cliente" && perfilBase.tipo_cuenta === "B2C") {
+            perfil.pagos = {
+                stripe_autorizado: false,
+                efectivo_autorizado: false
+            };
+        }
 
 
         // Inyección de ADN B2B si aplica

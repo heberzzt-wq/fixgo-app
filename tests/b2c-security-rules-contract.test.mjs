@@ -14,10 +14,12 @@ test("users no permite lectura indiscriminada ni autoaprobación", () => {
     assert.match(firestore, /request\.resource\.data\.estado == 'pendiente_revision'/);
 });
 
-test("services exige propietario y destino confirmado", () => {
+test("services reserva la creación B2C al backend y conserva B2B", () => {
     const servicesBlock = firestore.slice(firestore.indexOf("match /services/{serviceId}"), firestore.indexOf("match /notificaciones_pendientes"));
     assert.match(servicesBlock, /cliente_id == request\.auth\.uid/);
-    assert.match(servicesBlock, /destino\.confirmado_por_cliente == true/);
+    assert.match(servicesBlock, /B2C se crea sólo mediante createB2cService/);
+    assert.match(servicesBlock, /metodo_pago', ''\) == 'b2b'/);
+    assert.match(servicesBlock, /userTipo\(\) == 'B2B'/);
     assert.match(servicesBlock, /serviceFinancialFieldsUnchanged\(\)/);
     assert.doesNotMatch(servicesBlock, /allow read:\s*if isAuth\(\)\s*;/);
     assert.doesNotMatch(servicesBlock, /isOperationalTechnician\(\) && resource\.data\.estado in \['pendiente', 'pagado'\]/);

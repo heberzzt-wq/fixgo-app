@@ -31,11 +31,12 @@ import { getDocs, arrayUnion, runTransaction, limit, increment } from "https://w
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
 import { iniciarTracking, detenerTracking } from "./gps-motor.js";
-import { escaparHTML, calcularDistancia, sonarAlerta, lanzarNotificacionPush, cargarLibreriaPDF, urlABase64 } from "./app-utils.js";
+import { escaparHTML, calcularDistancia, sonarAlerta, lanzarNotificacionPush, procesarEventoNotificacion, cargarLibreriaPDF, urlABase64 } from "./app-utils.js";
 import {
     TECHNICIAN_KYC_STATES,
     assertTechnicianCanOperate,
     getTechnicianKycRequirements,
+    isTechnicianSkillCompatible,
     normalizeTechnicianProfile,
     storagePathForTechnicianDocument
 } from "./b2c-technician-profile.js";
@@ -79,6 +80,31 @@ export async function iniciarPanelTecnico(user) {
         const svcs = data.servicios_completados || 0;
         const estrellas = "⭐".repeat(Math.round(reputacion));
         const nivel = data.nivel || "BRONCE";
+
+        let perfilOperativo = document.getElementById("miPerfilOperativoB2C");
+        if (!perfilOperativo && elementos.seccionBolsa?.parentElement) {
+            perfilOperativo = document.createElement("section");
+            perfilOperativo.id = "miPerfilOperativoB2C";
+            elementos.seccionBolsa.parentElement.insertBefore(perfilOperativo, elementos.seccionBolsa);
+        }
+        if (perfilOperativo) {
+            const skills = perfilCanonico.skills.length > 0
+                ? perfilCanonico.skills.map(skill => `<span class="bg-blue-500/10 border border-blue-500/30 text-blue-300 px-2 py-1 rounded text-[9px] font-bold">${escaparHTML(skill)}</span>`).join("")
+                : '<span class="text-zinc-500 text-[10px]">Sin especialidades canónicas</span>';
+            perfilOperativo.innerHTML = `
+            <div class="bg-zinc-950 border border-zinc-800 rounded-xl p-4 mb-4">
+                <p class="text-[10px] text-emerald-400 font-black tracking-widest mb-3">MI PERFIL OPERATIVO</p>
+                <div class="grid grid-cols-2 gap-3 text-[10px]">
+                    <div><span class="text-zinc-500">Vehículo</span><p class="text-white font-bold">${escaparHTML(perfilCanonico.vehiculo.tipo || "No definido")}</p></div>
+                    <div><span class="text-zinc-500">Placas</span><p class="text-white font-bold">${escaparHTML(perfilCanonico.vehiculo.placas || "No aplica")}</p></div>
+                    <div><span class="text-zinc-500">KYC</span><p class="text-white font-bold">${perfilCanonico.kyc.aprobado ? "APROBADO" : escaparHTML(perfilCanonico.estado)}</p></div>
+                    <div><span class="text-zinc-500">Nivel</span><p class="text-white font-bold">${escaparHTML(perfilCanonico.nivel)}</p></div>
+                    <div><span class="text-zinc-500">Reputación</span><p class="text-white font-bold">${perfilCanonico.reputacion.toFixed(1)}</p></div>
+                    <div><span class="text-zinc-500">Servicios</span><p class="text-white font-bold">${perfilCanonico.servicios_completados}</p></div>
+                </div>
+                <div class="flex flex-wrap gap-2 mt-3">${skills}</div>
+            </div>`;
+        }
         
         let colorNivel = "text-orange-500 bg-orange-600/20 border-orange-500/30";
         if(nivel === "PLATA") colorNivel = "text-gray-300 bg-gray-600/20 border-gray-500/30";
@@ -691,6 +717,15 @@ export async function iniciarPanelTecnico(user) {
 
     if (elementos.toggleONOFF) {
         elementos.toggleONOFF.addEventListener("change", async (e) => {
+            if (e.target.checked) {
+                const snapshot = await getDoc(tecnicoRef);
+                const eligibility = assertTechnicianCanOperate(snapshot.data() || {}, { requireAvailable: false });
+                if (!eligibility.ok) {
+                    e.target.checked = false;
+                    alert("Tu perfil operativo todavía no está habilitado para recibir servicios.");
+                    return;
+                }
+            }
             await updateDoc(tecnicoRef, {
                 disponible: e.target.checked,
                 last_seen: serverTimestamp()
@@ -745,15 +780,7 @@ if (s.tipo === "b2c_discovery") {
     if (ocultos.includes(id)) return;
 }
 
-const skillServicio = (s.categoria_id || s.categoria || "").toLowerCase();
-
-const skillsTecnico = (tecnico.skills || []).map(x => x.toLowerCase());
-
-const permitido = skillsTecnico.some(skill =>
-    skillServicio.includes(skill) || skill.includes(skillServicio)
-);
-
-if (!permitido) return;
+if (!isTechnicianSkillCompatible(tecnico, s)) return;
 
                 // 2. VISOR TÁCTICO DE FOTO Y URGENCIA (Compartido para ambos mundos)
                 let badgeUrgencia = s.urgencia ? `<span class="bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase shadow-[0_0_8px_rgba(220,38,38,0.8)] ml-2 animate-pulse"><i class="fas fa-fire"></i> EMERGENCIA</span>` : '';
@@ -903,11 +930,20 @@ if (!permitido) return;
 
         };
 
-        const escucharFuente = (consulta, asignar, esInicial, marcarInicial) => onSnapshot(
+        const escucharFuente = (consulta, asignar, esInicial, marcarInicial, source) => onSnapshot(
             consulta,
             snap => {
-                const hayNuevos = snap.docChanges().some(change => change.type === "added");
-                if (!esInicial() && hayNuevos) {
+                const nuevos = snap.docChanges().filter(change => change.type === "added");
+                if (!esInicial() && nuevos.length > 0 && source === "b2c") {
+                    for (const change of nuevos) {
+                        const listing = change.doc.data() || {};
+                        procesarEventoNotificacion({
+                            eventType: listing.event_type || "marketplace_service_available",
+                            serviceId: listing.service_id || change.doc.id,
+                            messageId: `marketplace_service_available_${listing.service_id || change.doc.id}`
+                        });
+                    }
+                } else if (!esInicial() && nuevos.length > 0) {
                     sonarAlerta();
                     lanzarNotificacionPush("¡NUEVA SOLICITUD!", "Tienes un servicio o mantenimiento pendiente.");
                 }
@@ -921,8 +957,8 @@ if (!permitido) return;
             }
         );
 
-        escucharFuente(qB2B, docs => { documentosB2B = docs; }, () => inicialB2B, () => { inicialB2B = false; });
-        escucharFuente(qB2C, docs => { documentosB2C = docs; }, () => inicialB2C, () => { inicialB2C = false; });
+        escucharFuente(qB2B, docs => { documentosB2B = docs; }, () => inicialB2B, () => { inicialB2B = false; }, "b2b");
+        escucharFuente(qB2C, docs => { documentosB2C = docs; }, () => inicialB2C, () => { inicialB2C = false; }, "b2c");
     }
 
     window.rechazarServicio = async (id, uid, boton = null) => {
@@ -947,8 +983,9 @@ if (!permitido) return;
             const logoFactura = miPerfil.logo_factura || null;
             
             // 🔥 NUEVO: DATOS VEHICULARES PARA EL PASE QR
-            const vehiculoTech = miPerfil.logistica?.vehiculo || miPerfil.vehiculo_tipo || "NO ESPECIFICADO";
-            const placasTech = miPerfil.logistica?.placas || miPerfil.placas || "SIN PLACAS";
+            const perfilOperativo = normalizeTechnicianProfile(miPerfil);
+            const vehiculoTech = perfilOperativo.vehiculo.tipo || "NO ESPECIFICADO";
+            const placasTech = perfilOperativo.vehiculo.placas || "SIN PLACAS";
 
             // 🔒 CANDADO JONATHAN: Verificación de placas para acceso a caseta
             if (!placasTech || placasTech === "SIN PLACAS") {
@@ -2096,7 +2133,12 @@ async function activarMotorFCM(uid) {
             }
         }
         onMessage(messaging, (payload) => {
-            sonarAlerta();
+            const data = payload?.data || {};
+            procesarEventoNotificacion({
+                eventType: data.eventType,
+                serviceId: data.serviceId,
+                messageId: data.messageId || payload?.messageId
+            });
         });
     } catch (error) {
         console.error("❌ [FCM GENERAL] El motor Push falló al iniciar.", error);

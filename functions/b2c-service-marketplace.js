@@ -1,12 +1,14 @@
 "use strict";
 
+const platformContract = require("./b2c-platform-contract");
+
 const ACTIVE_SERVICE_STATES = new Set([
-    "asignado",
-    "en_camino",
-    "en_sitio",
-    "cotizando",
-    "procesando_saldo",
-    "trabajando"
+    platformContract.SERVICE_STATES.ASSIGNED,
+    platformContract.SERVICE_STATES.EN_ROUTE,
+    platformContract.SERVICE_STATES.ON_SITE,
+    platformContract.SERVICE_STATES.QUOTING,
+    platformContract.SERVICE_STATES.PROCESSING_BALANCE,
+    platformContract.SERVICE_STATES.WORKING
 ]);
 
 const IMMEDIATE_BALANCE_TYPES = new Set([
@@ -21,38 +23,15 @@ function clean(value, maxLength = 160) {
 }
 
 function buildMarketplaceListing(serviceId, service = {}, timestamp = null) {
-    return {
-        service_id: clean(serviceId),
-        tipo: "b2c_discovery",
-        estado: "disponible",
-        categoria: clean(service.categoria, 100) || "general",
-        categoria_id: clean(service.categoria_id, 160) || clean(service.categoria, 100) || "general",
-        sub_servicio: clean(service.sub_servicio, 120) || "Servicio técnico",
-        zona: clean(service.zona, 100) || "Cancún",
-        urgencia: service.urgencia === true,
-        es_privada: service.es_privada === true,
-        metodo_pago: service.metodo_pago === "stripe" ? "stripe" : "efectivo",
-        created_at: timestamp || service.created_at || null
-    };
+    return platformContract.buildMarketplaceListing(serviceId, service, timestamp);
 }
 
 function isOperationalTechnician(profile = {}) {
-    return profile.rol === "tecnico" &&
-        profile.estado === "activo" &&
-        profile.status === "activo" &&
-        profile.kyc?.aprobado === true &&
-        profile.suspendido !== true &&
-        profile.disponible === true;
+    return platformContract.technicianEligibility(profile, { requireAvailable: true }).ok;
 }
 
 function isCompatible(profile = {}, service = {}) {
-    const category = clean(service.categoria_id || service.categoria).toLowerCase();
-    const skills = Array.isArray(profile.skills)
-        ? profile.skills.map(value => clean(value).toLowerCase()).filter(Boolean)
-        : [];
-    return Boolean(category) && skills.some(skill =>
-        category.includes(skill) || skill.includes(category)
-    );
+    return platformContract.isSkillCompatible(profile, service);
 }
 
 function timestampMillis(value) {
@@ -82,10 +61,11 @@ function calculateAvailableBalance(transactions = [], withdrawals = [], nowMs = 
 }
 
 function vehicleData(profile = {}) {
-    const type = clean(profile.vehiculo?.tipo || profile.vehiculo_tipo, 80).toLowerCase() || "peaton";
+    const normalized = platformContract.normalizeTechnicianProfile(profile);
+    const type = normalized.vehiculo.tipo || "peaton";
     return {
         type,
-        plates: clean(profile.vehiculo?.placas || profile.placas, 80) || null
+        plates: clean(normalized.vehiculo.placas, 80) || null
     };
 }
 
@@ -129,10 +109,10 @@ function createClaimB2cServiceHandler({ admin, db, functions, now = () => Date.n
                 throw new functions.https.HttpsError("not-found", "La solicitud ya no está disponible.");
             }
 
-            const profile = profileSnapshot.data() || {};
+            const profile = platformContract.normalizeTechnicianProfile(profileSnapshot.data() || {});
             const service = serviceSnapshot.data() || {};
             const listing = listingSnapshot.data() || {};
-            if (service.estado !== "pendiente" || service.tecnico_id || listing.estado !== "disponible") {
+            if (service.estado !== platformContract.SERVICE_STATES.PENDING || service.tecnico_id || listing.estado !== "disponible") {
                 throw new functions.https.HttpsError("already-exists", "Otro técnico ya tomó la solicitud.");
             }
             if (listing.service_id !== serviceId || service.tipo === "mantenimiento") {
@@ -167,7 +147,7 @@ function createClaimB2cServiceHandler({ admin, db, functions, now = () => Date.n
 
             const assignedAt = admin.firestore.FieldValue.serverTimestamp();
             transaction.update(serviceRef, {
-                estado: "asignado",
+                estado: platformContract.SERVICE_STATES.ASSIGNED,
                 tecnico_id: technicianId,
                 tecnico_nombre: clean(profile.nombre, 160) || "Técnico",
                 tecnico_nombre_fiscal: clean(profile.nombre_fiscal || profile.nombre, 200) || "Técnico",
@@ -212,23 +192,181 @@ function createReleaseTechnicianLockHandler({ db }) {
     };
 }
 
-function createPublishCashMarketplaceHandler({ admin, db }) {
-    if (!admin || !db) throw new Error("B2C_PUBLISH_DEPENDENCIES_REQUIRED");
+function paymentAuthoritySignature(value = {}) {
+    return [
+        clean(value.method, 40),
+        value.global_enabled === true,
+        value.individual_authorized === true,
+        value.effective === true,
+        clean(value.contract_version, 100)
+    ].join("|");
+}
+
+async function syncMarketplaceService({ admin, db, serviceId }) {
+    if (!admin || !db || !serviceId) throw new Error("B2C_MARKETPLACE_SYNC_DEPENDENCIES_REQUIRED");
+    const serviceRef = db.collection("services").doc(serviceId);
+    const listingRef = db.collection("service_marketplace").doc(serviceId);
+    const configRef = db.collection("configuracion").doc("pagos");
+
+    return db.runTransaction(async transaction => {
+        const serviceSnapshot = await transaction.get(serviceRef);
+        if (!serviceSnapshot.exists) {
+            transaction.delete(listingRef);
+            return { published: false, reason: "SERVICE_NOT_FOUND" };
+        }
+
+        const service = serviceSnapshot.data() || {};
+        const customerRef = db.collection("users").doc(clean(service.cliente_id, 160) || "_missing_customer");
+        const [configSnapshot, customerSnapshot, listingSnapshot] = await Promise.all([
+            transaction.get(configRef),
+            transaction.get(customerRef),
+            transaction.get(listingRef)
+        ]);
+        const config = configSnapshot.exists ? configSnapshot.data() || {} : {};
+        const customer = customerSnapshot.exists ? customerSnapshot.data() || {} : {};
+        const payment = platformContract.assertPaymentMethodAllowed(service.metodo_pago, config, customer);
+        const method = platformContract.normalizeToken(service.metodo_pago);
+        const globalEnabled = method === platformContract.PAYMENT_METHODS.STRIPE
+            ? payment.permissions?.global?.stripe === true
+            : payment.permissions?.global?.efectivo === true;
+        const individualAuthorized = method === platformContract.PAYMENT_METHODS.STRIPE
+            ? payment.permissions?.individual?.stripe_autorizado === true
+            : payment.permissions?.individual?.efectivo_autorizado === true;
+        const authority = {
+            method,
+            global_enabled: globalEnabled,
+            individual_authorized: individualAuthorized,
+            effective: payment.ok === true,
+            contract_version: platformContract.CONTRACT_VERSION
+        };
+        const evaluatedService = { ...service, payment_authority: authority };
+        const shouldPublish = platformContract.shouldPublishMarketplace(evaluatedService);
+        const currentSignature = paymentAuthoritySignature(service.payment_authority);
+        const nextSignature = paymentAuthoritySignature(authority);
+        if (currentSignature !== nextSignature) {
+            transaction.update(serviceRef, {
+                payment_authority: {
+                    ...authority,
+                    checked_at: admin.firestore.FieldValue.serverTimestamp()
+                }
+            });
+        }
+
+        if (!shouldPublish) {
+            if (listingSnapshot.exists) transaction.delete(listingRef);
+            return { published: false, reason: payment.ok ? "SERVICE_NOT_ELIGIBLE" : payment.reason };
+        }
+
+        const listing = buildMarketplaceListing(
+            serviceId,
+            evaluatedService,
+            listingSnapshot.data()?.created_at || admin.firestore.FieldValue.serverTimestamp()
+        );
+        transaction.set(listingRef, listing);
+        if (!listingSnapshot.exists) {
+            const eventId = platformContract.marketplaceEventId(serviceId);
+            transaction.set(db.collection("platform_events").doc(eventId), {
+                event_type: platformContract.EVENT_MARKETPLACE_SERVICE_AVAILABLE,
+                message_id: eventId,
+                service_id: serviceId,
+                categoria_id: listing.categoria_id,
+                estado: "pending_delivery",
+                created_at: admin.firestore.FieldValue.serverTimestamp(),
+                contract_version: platformContract.CONTRACT_VERSION
+            }, { merge: false });
+        }
+        return { published: true, reason: null };
+    });
+}
+
+function createSyncB2cMarketplaceHandler({ admin, db }) {
+    if (!admin || !db) throw new Error("B2C_MARKETPLACE_SYNC_DEPENDENCIES_REQUIRED");
+    return async (_change, context) => {
+        await syncMarketplaceService({ admin, db, serviceId: context.params.serviceId });
+        return null;
+    };
+}
+
+function createResyncMarketplaceConfigHandler({ admin, db }) {
+    if (!admin || !db) throw new Error("B2C_MARKETPLACE_CONFIG_DEPENDENCIES_REQUIRED");
+    return async change => {
+        const before = change.before.data() || {};
+        const after = change.after.data() || {};
+        if (before.stripe_activo === after.stripe_activo && before.efectivo_activo === after.efectivo_activo) return null;
+        const pending = await db.collection("services").where("estado", "==", "pendiente").get();
+        for (const snapshot of pending.docs) {
+            await syncMarketplaceService({ admin, db, serviceId: snapshot.id });
+        }
+        return null;
+    };
+}
+
+function createResyncCustomerPaymentsHandler({ admin, db }) {
+    if (!admin || !db) throw new Error("B2C_MARKETPLACE_CUSTOMER_DEPENDENCIES_REQUIRED");
+    return async (change, context) => {
+        const before = change.before.data() || {};
+        const after = change.after.data() || {};
+        if (JSON.stringify(before.pagos || {}) === JSON.stringify(after.pagos || {}) &&
+            before.efectivo_autorizado === after.efectivo_autorizado) return null;
+        const services = await db.collection("services").where("cliente_id", "==", context.params.userId).get();
+        for (const snapshot of services.docs) {
+            if (snapshot.data()?.estado === "pendiente") {
+                await syncMarketplaceService({ admin, db, serviceId: snapshot.id });
+            }
+        }
+        return null;
+    };
+}
+
+function createMarketplaceNotificationHandler({ admin, db }) {
+    if (!admin || !db) throw new Error("B2C_MARKETPLACE_NOTIFICATION_DEPENDENCIES_REQUIRED");
     return async snapshot => {
-        const service = snapshot.data() || {};
-        if (
-            service.tipo === "mantenimiento" ||
-            service.metodo_pago !== "efectivo" ||
-            service.estado !== "pendiente"
-        ) {
+        const event = snapshot.data() || {};
+        if (event.event_type !== platformContract.EVENT_MARKETPLACE_SERVICE_AVAILABLE) return null;
+        const listingSnapshot = await db.collection("service_marketplace").doc(event.service_id).get();
+        if (!listingSnapshot.exists) {
+            await snapshot.ref.set({ estado: "cancelled_before_delivery" }, { merge: true });
             return null;
         }
-        const listing = buildMarketplaceListing(
-            snapshot.id,
-            service,
-            admin.firestore.FieldValue.serverTimestamp()
-        );
-        await db.collection("service_marketplace").doc(snapshot.id).set(listing);
+        const listing = listingSnapshot.data() || {};
+        const technicianSnapshot = await db.collection("users")
+            .where("rol", "==", "tecnico")
+            .where("disponible", "==", true)
+            .get();
+        const tokens = [...new Set(technicianSnapshot.docs
+            .map(item => item.data() || {})
+            .filter(profile => isOperationalTechnician(profile) && isCompatible(profile, listing))
+            .map(profile => clean(profile.fcmToken, 4096))
+            .filter(Boolean))]
+            .slice(0, 500);
+        if (tokens.length === 0) {
+            await snapshot.ref.set({
+                estado: "no_matching_recipients",
+                delivered_count: 0,
+                processed_at: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+            return null;
+        }
+        const messageId = clean(event.message_id, 180);
+        const response = await admin.messaging().sendEachForMulticast({
+            tokens,
+            data: {
+                eventType: platformContract.EVENT_MARKETPLACE_SERVICE_AVAILABLE,
+                serviceId: clean(event.service_id, 160),
+                messageId,
+                title: "Nueva solicitud disponible",
+                body: "Hay un servicio compatible con tu perfil operativo.",
+                url: "/tecnico.html"
+            },
+            android: { priority: "high" },
+            webpush: { fcmOptions: { link: "/tecnico.html" } }
+        });
+        await snapshot.ref.set({
+            estado: "delivered",
+            delivered_count: response.successCount,
+            failed_count: response.failureCount,
+            processed_at: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
         return null;
     };
 }
@@ -238,9 +376,13 @@ module.exports = {
     buildMarketplaceListing,
     calculateAvailableBalance,
     createClaimB2cServiceHandler,
-    createPublishCashMarketplaceHandler,
+    createMarketplaceNotificationHandler,
+    createResyncCustomerPaymentsHandler,
+    createResyncMarketplaceConfigHandler,
     createReleaseTechnicianLockHandler,
+    createSyncB2cMarketplaceHandler,
     isCompatible,
     isOperationalTechnician,
+    syncMarketplaceService,
     vehicleData
 };

@@ -5,6 +5,9 @@
 
 import * as FirebaseCore
 from "./firebase.js";
+import { initializePlatformRelease } from "./platform-release.js";
+
+initializePlatformRelease().catch(error => console.error("[GESTIA_RELEASE_AUTHORITY_FAILED]", error));
 
 import {
     resolveGestiaRole

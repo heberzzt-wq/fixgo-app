@@ -9,6 +9,10 @@
  */
 console.log(" 🚀 [app-registro.js] Inicializando sistema V6.5 (Storage Direct Upload + Anti-Redirect)...");
 
+import { initializePlatformRelease } from "./platform-release.js";
+
+initializePlatformRelease().catch(error => console.error("[GESTIA_RELEASE_AUTHORITY_FAILED]", error));
+
 import { 
     auth, 
     db, 
@@ -228,6 +232,11 @@ if ($("btnCerrarTerminosTecnico")) {
 // A. LÓGICA DE REGISTRO DE CLIENTES 
 // ======================================================
 const btnRegistroCliente = $("btnRegistroCliente");
+const codigoB2BInput = document.querySelector('#formRegistroCliente [name="codigoB2B"]');
+codigoB2BInput?.addEventListener("input", () => {
+    const stripeSection = document.getElementById("stripeRegistroClienteB2B");
+    stripeSection?.classList.toggle("hidden", !codigoB2BInput.value.trim());
+});
 
 if (btnRegistroCliente) {
     btnRegistroCliente.addEventListener("click", async (e) => {
@@ -260,11 +269,6 @@ if (btnRegistroCliente) {
             return;
         }
 
-        if (!stripe || !cardElement) {
-            alert("⚠️ Error: El sistema de pagos no está cargado. Recarga la página."); 
-            return;
-        }
-
         let usuarioAuth = null;
         const textoOriginal = btnRegistroCliente.innerHTML;
 
@@ -293,16 +297,18 @@ if (btnRegistroCliente) {
                 esAdminB2B = true;
             }
 
-            btnRegistroCliente.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conectando con el Banco...';
-            btnRegistroCliente.disabled = true;
-
-            const { token, error } = await stripe.createToken(cardElement);
-
-            if (error) {
-                throw new Error(error.message); 
+            let token = null;
+            if (esAdminB2B) {
+                if (!stripe || !cardElement) {
+                    throw new Error("La pasarela contractual B2B no está disponible.");
+                }
+                btnRegistroCliente.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conectando con el Banco...';
+                btnRegistroCliente.disabled = true;
+                const tokenResult = await stripe.createToken(cardElement);
+                if (tokenResult.error) throw new Error(tokenResult.error.message);
+                token = tokenResult.token;
+                btnRegistroCliente.innerHTML = '<i class="fas fa-shield-alt"></i> Creando Bóveda...';
             }
-
-            btnRegistroCliente.innerHTML = '<i class="fas fa-shield-alt"></i> Creando Bóveda...';
 
             const rolFinal = esAdminB2B ? "admin_b2b" : "cliente";
             const subtipoFinal = esAdminB2B ? "saas" : "marketplace";
@@ -325,13 +331,15 @@ if (btnRegistroCliente) {
             // Los campos rol, tipo_cuenta, edificioId y edificioNombre ya están en el perfil por registrarUsuario
             await setDoc(doc(db, "users", usuarioAuth.uid), {
                 telefono: telefono,
-                metodo_pago_default: {
-                    stripe_token: token.id, 
-                    marca: token.card.brand,
-                    last4: token.card.last4,
-                    exp_month: token.card.exp_month,
-                    exp_year: token.card.exp_year
-                },
+                ...(token ? {
+                    metodo_pago_default: {
+                        stripe_token: token.id,
+                        marca: token.card.brand,
+                        last4: token.card.last4,
+                        exp_month: token.card.exp_month,
+                        exp_year: token.card.exp_year
+                    }
+                } : {}),
                 actualizadoEn: serverTimestamp()
             }, { merge: true });
 
