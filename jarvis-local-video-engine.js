@@ -3382,8 +3382,25 @@ export function createRunpodRemoteVideoAdapter({
             "if test ${#missing[@]} -gt 0; then apt-get update -qq; apt-get install -y -qq git ffmpeg curl python3-venv; fi",
             "progress SYSTEM_DEPENDENCIES READY CACHE_MISS",
             `cat > \"$PREFLIGHT\" <<'PY'`,
-            "import hashlib,importlib,importlib.metadata,json,os,platform,subprocess,sys",
+            "import hashlib,importlib,importlib.metadata,json,os,platform,re,subprocess,sys",
             "expected=json.loads(sys.argv[1]); repo=sys.argv[2]; target=sys.argv[3]",
+            "diagnostic_limit=2000",
+            "def bounded_diagnostic(value):",
+            "    if isinstance(value,bytes): value=value.decode('utf-8','replace')",
+            "    text=str(value or '')",
+            "    text=re.sub(r'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----[\\s\\S]*?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----','[REDACTED PRIVATE KEY]',text,flags=re.I)",
+            "    text=re.sub(r'\\b([A-Z0-9_]*(?:API_KEY|TOKEN|SECRET|PASSWORD))\\s*=\\s*[^\\s\"\\\',;]+',r'\\1=[REDACTED]',text,flags=re.I)",
+            "    text=re.sub(r'\\bBearer\\s+[^\\s\"\\\',;]+','Bearer [REDACTED]',text,flags=re.I)",
+            "    text=re.sub(r'[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]',' ',text).strip()",
+            "    return text if len(text)<=diagnostic_limit else '[TRUNCATED]\\n'+text[-(diagnostic_limit-12):]",
+            "def run_diagnostic(command,**kwargs):",
+            "    try:",
+            "        completed=subprocess.run(command,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,timeout=120,**kwargs)",
+            "        return {'exitCode':completed.returncode,'stdout':bounded_diagnostic(completed.stdout),'stderr':bounded_diagnostic(completed.stderr),'timedOut':False}",
+            "    except subprocess.TimeoutExpired as error:",
+            "        stderr=bounded_diagnostic(error.stderr)",
+            "        stderr=bounded_diagnostic((stderr+'\\n' if stderr else '')+'PROCESS_TIMEOUT:120s')",
+            "        return {'exitCode':None,'stdout':bounded_diagnostic(error.stdout),'stderr':stderr,'timedOut':True}",
             "modules=('torch','torchvision','torchaudio','cv2','diffusers','transformers','tokenizers','accelerate','tqdm','imageio','easydict','ftfy','dashscope','imageio_ffmpeg','flash_attn','numpy','PIL')",
             "imports={}",
             "for name in modules:",
@@ -3401,7 +3418,8 @@ export function createRunpodRemoteVideoAdapter({
             "        out=flash_attn_func(q,q,q); torch.cuda.synchronize()",
             "        flash_attention_cuda_probe=bool(out.is_cuda and out.shape==q.shape)",
             "    except Exception: flash_attention_cuda_probe=False",
-            "pip_check=subprocess.run([sys.executable,'-m','pip','check'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=120).returncode==0",
+            "pip_check_evidence=run_diagnostic([sys.executable,'-m','pip','check'])",
+            "pip_check=pip_check_evidence['exitCode']==0 and not pip_check_evidence['timedOut']",
             "abi_value=getattr(torch._C,'_GLIBCXX_USE_CXX11_ABI',None)",
             "flash_attention_abi='TRUE' if abi_value is True else 'FALSE' if abi_value is False else 'UNSUPPORTED'",
             "flash_attention_wheel=expected.get('flashAttentionWheels',{}).get(flash_attention_abi)",
@@ -3414,8 +3432,9 @@ export function createRunpodRemoteVideoAdapter({
             "    flash_attention_wheel_sha256=digest.hexdigest()",
             "flash_attention_wheel_authorized=bool(flash_attention_wheel and flash_attention_wheel_sha256==flash_attention_wheel.get('sha256'))",
             "probe_env=dict(os.environ); probe_env.update({'HF_HUB_OFFLINE':'1','TRANSFORMERS_OFFLINE':'1','WANDB_MODE':'offline'})",
-            "cli=subprocess.run([sys.executable,os.path.join(repo,'generate.py'),'--help'],cwd=repo,env=probe_env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=120).returncode==0",
-            "payload={'pythonVersion':platform.python_version(),'torchVersion':str(torch.__version__),'torchCudaVersion':str(torch.version.cuda or ''),'cudaImageVersion':str(os.environ.get('CUDA_VERSION','')),'cuda':torch.cuda.is_available(),'gpuName':torch.cuda.get_device_name(0) if torch.cuda.is_available() else '', 'computeCapability':'.'.join(map(str,torch.cuda.get_device_capability(0))) if torch.cuda.is_available() else '', 'cudaProbe':cuda_probe,'flashAttentionCudaProbe':flash_attention_cuda_probe,'pipCheck':pip_check,'wanCliImport':cli,'imports':imports,'flashAttentionVersion':importlib.metadata.version('flash-attn') if imports.get('flash_attn') else '', 'flashAttentionWheelAbi':flash_attention_abi,'flashAttentionWheelSha256':flash_attention_wheel_sha256,'flashAttentionWheelAuthorized':flash_attention_wheel_authorized}",
+            "wan_cli_evidence=run_diagnostic([sys.executable,os.path.join(repo,'generate.py'),'--help'],cwd=repo,env=probe_env)",
+            "cli=wan_cli_evidence['exitCode']==0 and not wan_cli_evidence['timedOut']",
+            "payload={'pythonVersion':platform.python_version(),'torchVersion':str(torch.__version__),'torchCudaVersion':str(torch.version.cuda or ''),'cudaImageVersion':str(os.environ.get('CUDA_VERSION','')),'cuda':torch.cuda.is_available(),'gpuName':torch.cuda.get_device_name(0) if torch.cuda.is_available() else '', 'computeCapability':'.'.join(map(str,torch.cuda.get_device_capability(0))) if torch.cuda.is_available() else '', 'cudaProbe':cuda_probe,'flashAttentionCudaProbe':flash_attention_cuda_probe,'pipCheck':pip_check,'pipCheckExitCode':pip_check_evidence['exitCode'],'pipCheckStdout':pip_check_evidence['stdout'],'pipCheckStderr':pip_check_evidence['stderr'],'pipCheckTimedOut':pip_check_evidence['timedOut'],'wanCliImport':cli,'wanCliImportExitCode':wan_cli_evidence['exitCode'],'wanCliImportStdout':wan_cli_evidence['stdout'],'wanCliImportStderr':wan_cli_evidence['stderr'],'wanCliImportTimedOut':wan_cli_evidence['timedOut'],'imports':imports,'flashAttentionVersion':importlib.metadata.version('flash-attn') if imports.get('flash_attn') else '', 'flashAttentionWheelAbi':flash_attention_abi,'flashAttentionWheelSha256':flash_attention_wheel_sha256,'flashAttentionWheelAuthorized':flash_attention_wheel_authorized}",
             "payload['ok']=bool(payload['pythonVersion'].startswith(expected['pythonVersionPrefix']) and payload['torchVersion'].startswith(expected['torchVersionPrefix']) and payload['torchCudaVersion'].startswith(expected['torchCudaVersionPrefix']) and payload['computeCapability']==expected['computeCapability'] and payload['cudaProbe'] and payload['flashAttentionCudaProbe'] and payload['pipCheck'] and payload['wanCliImport'] and all(imports.values()) and payload['flashAttentionVersion']==expected['flashAttentionVersion'] and payload['flashAttentionWheelAuthorized'])",
             "open(target,'w',encoding='utf-8').write(json.dumps(payload,sort_keys=True,separators=(',',':'))+'\\n')",
             "raise SystemExit(0 if payload['ok'] else 1)",
@@ -3993,6 +4012,26 @@ export function createRunpodRemoteVideoAdapter({
             cacheStatus: String(progress?.cacheStatus || state.cacheStatus || "CACHE_MISS"),
             logTail: logTail || null,
             runtimePreflight,
+            pipCheckExitCode: Number.isInteger(runtimePreflight?.pipCheckExitCode)
+                ? runtimePreflight.pipCheckExitCode
+                : null,
+            pipCheckStdout: runtimePreflight && "pipCheckStdout" in runtimePreflight
+                ? sanitizeProviderText(runtimePreflight.pipCheckStdout, 2000)
+                : null,
+            pipCheckStderr: runtimePreflight && "pipCheckStderr" in runtimePreflight
+                ? sanitizeProviderText(runtimePreflight.pipCheckStderr, 2000)
+                : null,
+            pipCheckTimedOut: runtimePreflight?.pipCheckTimedOut === true,
+            wanCliImportExitCode: Number.isInteger(runtimePreflight?.wanCliImportExitCode)
+                ? runtimePreflight.wanCliImportExitCode
+                : null,
+            wanCliImportStdout: runtimePreflight && "wanCliImportStdout" in runtimePreflight
+                ? sanitizeProviderText(runtimePreflight.wanCliImportStdout, 2000)
+                : null,
+            wanCliImportStderr: runtimePreflight && "wanCliImportStderr" in runtimePreflight
+                ? sanitizeProviderText(runtimePreflight.wanCliImportStderr, 2000)
+                : null,
+            wanCliImportTimedOut: runtimePreflight?.wanCliImportTimedOut === true,
             runtimePredicateResults,
             runtimePredicateFailures,
             expectedObserved: runtimePreflight ? {

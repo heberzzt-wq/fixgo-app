@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -664,7 +664,19 @@ function runpodPhysicalHarness({
                     flashAttentionWheelAbi: "FALSE",
                     flashAttentionWheelSha256: RUNPOD_WAN22_GPU_PROFILES[gpuTypeId].flashAttentionWheels.FALSE.sha256,
                     pipCheck: scenario === "bootstrap-fail-stale-preflight",
+                    pipCheckExitCode: scenario === "bootstrap-fail-stale-preflight" ? 0 : 7,
+                    pipCheckStdout: scenario === "bootstrap-fail-stale-preflight"
+                        ? "No broken requirements found."
+                        : "dependency conflict: package-a requires package-b",
+                    pipCheckStderr: scenario === "bootstrap-fail-stale-preflight"
+                        ? ""
+                        : `RUNPOD_API_KEY=${env.RUNPOD_API_KEY} Authorization: Bearer ${env.RUNPOD_API_KEY}`,
+                    pipCheckTimedOut: false,
                     wanCliImport: true,
+                    wanCliImportExitCode: 0,
+                    wanCliImportStdout: "Wan help",
+                    wanCliImportStderr: "",
+                    wanCliImportTimedOut: false,
                     imports: { torch: true, flash_attn: scenario === "bootstrap-fail-stale-preflight" },
                     flashAttentionVersion: "2.8.3.post1"
                 })}\n`,
@@ -2883,6 +2895,204 @@ test("V142 RunPod adapter provisions one L40S Pod, transfers physical assets, re
     assert.doesNotMatch(harness.createdBody.imageName, /@sha256:/i);
 });
 
+test("V142 runtime preflight preserves bounded sanitized subprocess diagnostics", async () => {
+    const harness = runpodPhysicalHarness({ scenario: "runtime-preflight-diagnostics" });
+    const started = await harness.engine.start(harness.payload);
+    assert.equal(started.ok, true, JSON.stringify(started));
+    const stateBase = path.join(harness.root, ".jarvis-artifacts", ".video-worker", "runpod");
+    const bootstrapFile = fs.readdirSync(stateBase, { recursive: true })
+        .map(file => path.join(stateBase, String(file)))
+        .find(file => file.endsWith("bootstrap.sh"));
+    assert.ok(bootstrapFile);
+    const bootstrap = fs.readFileSync(bootstrapFile, "utf8");
+    await harness.engine.cancel({ operationName: started.operationName });
+
+    const preflightStartMarker = `cat > "$PREFLIGHT" <<'PY'\n`;
+    const preflightStart = bootstrap.indexOf(preflightStartMarker);
+    const preflightEnd = bootstrap.indexOf("\nPY\n", preflightStart + preflightStartMarker.length);
+    assert.ok(preflightStart >= 0 && preflightEnd > preflightStart);
+    const preflightProgram = bootstrap.slice(
+        preflightStart + preflightStartMarker.length,
+        preflightEnd
+    );
+
+    const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-runtime-preflight-"));
+    const stubs = path.join(fixtureRoot, "stubs");
+    const repository = path.join(fixtureRoot, "Wan2.2");
+    fs.mkdirSync(stubs, { recursive: true });
+    fs.mkdirSync(repository, { recursive: true });
+    fs.writeFileSync(path.join(stubs, "torch.py"), [
+        "class Tensor:",
+        "    is_cuda=True",
+        "    shape=(1,4,2,64)",
+        "    def __add__(self, other): return self",
+        "    def item(self): return 2",
+        "class Cuda:",
+        "    @staticmethod",
+        "    def is_available(): return True",
+        "    @staticmethod",
+        "    def synchronize(): return None",
+        "    @staticmethod",
+        "    def get_device_name(index): return 'NVIDIA L40S'",
+        "    @staticmethod",
+        "    def get_device_capability(index): return (8,9)",
+        "class Version: cuda='12.8'",
+        "class Core: _GLIBCXX_USE_CXX11_ABI=True",
+        "cuda=Cuda()",
+        "version=Version()",
+        "_C=Core()",
+        "__version__='2.8.0+cu128'",
+        "float16='float16'",
+        "def ones(*args, **kwargs): return Tensor()",
+        "def randn(shape, *args, **kwargs):",
+        "    value=Tensor(); value.shape=shape; return value",
+        ""
+    ].join("\n"));
+    fs.writeFileSync(path.join(stubs, "flash_attn.py"), [
+        "def flash_attn_func(q, k, v): return q",
+        ""
+    ].join("\n"));
+    for (const moduleName of [
+        "torchvision", "torchaudio", "cv2", "diffusers", "transformers", "tokenizers",
+        "accelerate", "tqdm", "imageio", "easydict", "ftfy", "dashscope",
+        "imageio_ffmpeg", "numpy", "PIL"
+    ]) {
+        fs.writeFileSync(path.join(stubs, `${moduleName}.py`), "# controlled import fixture\n");
+    }
+    const metadataDirectory = path.join(stubs, "flash_attn-2.8.3.post1.dist-info");
+    fs.mkdirSync(metadataDirectory, { recursive: true });
+    fs.writeFileSync(path.join(metadataDirectory, "METADATA"), [
+        "Metadata-Version: 2.1",
+        "Name: flash-attn",
+        "Version: 2.8.3.post1",
+        ""
+    ].join("\n"));
+    const pipPackage = path.join(stubs, "pip");
+    fs.mkdirSync(pipPackage, { recursive: true });
+    fs.writeFileSync(path.join(pipPackage, "__init__.py"), "# controlled pip fixture\n");
+    fs.writeFileSync(path.join(pipPackage, "__main__.py"), [
+        "import os,sys,time",
+        "mode=os.environ.get('JARVIS_PREFLIGHT_FIXTURE','pass')",
+        "secret=os.environ.get('JARVIS_PREFLIGHT_SECRET','')",
+        "if mode=='pip-fail':",
+        "    print('dependency conflict: package-a requires package-b')",
+        "    print(f'RUNPOD_API_KEY={secret} Authorization: Bearer {secret}',file=sys.stderr)",
+        "    raise SystemExit(7)",
+        "if mode=='huge':",
+        "    print('P'*12000)",
+        "    print('E'*12000,file=sys.stderr)",
+        "if mode=='pip-timeout':",
+        "    print('timeout-prefix-'+('T'*12000),flush=True)",
+        "    time.sleep(2)",
+        "raise SystemExit(0)",
+        ""
+    ].join("\n"));
+    fs.writeFileSync(path.join(repository, "generate.py"), [
+        "import os,sys,time",
+        "mode=os.environ.get('JARVIS_PREFLIGHT_FIXTURE','pass')",
+        "secret=os.environ.get('JARVIS_PREFLIGHT_SECRET','')",
+        "if mode=='wan-fail':",
+        "    print('Wan CLI import failed',file=sys.stdout)",
+        "    print(f'Traceback: missing decord RUNPOD_API_KEY={secret} Authorization: Bearer {secret}',file=sys.stderr)",
+        "    raise SystemExit(9)",
+        "if mode=='wan-timeout':",
+        "    print('wan-timeout',flush=True)",
+        "    time.sleep(2)",
+        "print('Wan help')",
+        ""
+    ].join("\n"));
+
+    const python = process.platform === "win32" ? "python" : "python3";
+    const secret = "controlled-runtime-preflight-secret";
+    const runCase = (name, mode, { timeoutSeconds = null } = {}) => {
+        const caseRoot = path.join(fixtureRoot, name);
+        const wheels = path.join(caseRoot, "wheels");
+        fs.mkdirSync(wheels, { recursive: true });
+        const wheelName = "flash-attn-controlled.whl";
+        const wheelBytes = Buffer.from("controlled-official-wheel");
+        fs.writeFileSync(path.join(wheels, wheelName), wheelBytes);
+        const programFile = path.join(caseRoot, "runtime-preflight.py");
+        const resultFile = path.join(caseRoot, "runtime-preflight.json");
+        const executableProgram = timeoutSeconds === null
+            ? preflightProgram
+            : preflightProgram.replaceAll("timeout=120", `timeout=${timeoutSeconds}`);
+        fs.writeFileSync(programFile, executableProgram);
+        const expected = {
+            pythonVersionPrefix: "3.",
+            torchVersionPrefix: "2.8.0+cu128",
+            torchCudaVersionPrefix: "12.8",
+            computeCapability: "8.9",
+            flashAttentionVersion: "2.8.3.post1",
+            flashAttentionWheels: {
+                TRUE: {
+                    fileName: wheelName,
+                    sha256: createHash("sha256").update(wheelBytes).digest("hex")
+                }
+            }
+        };
+        const execution = spawnSync(python, [
+            programFile,
+            JSON.stringify(expected),
+            repository,
+            resultFile
+        ], {
+            encoding: "utf8",
+            timeout: 10000,
+            env: {
+                ...process.env,
+                PYTHONPATH: [stubs, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter),
+                JARVIS_PREFLIGHT_FIXTURE: mode,
+                JARVIS_PREFLIGHT_SECRET: secret
+            }
+        });
+        assert.equal(execution.error, undefined, execution.error?.message);
+        assert.equal(fs.existsSync(resultFile), true, execution.stderr);
+        return {
+            execution,
+            evidence: JSON.parse(fs.readFileSync(resultFile, "utf8"))
+        };
+    };
+
+    const pipFailure = runCase("pip-fail", "pip-fail");
+    assert.equal(pipFailure.execution.status, 1);
+    assert.equal(pipFailure.evidence.pipCheck, false);
+    assert.equal(pipFailure.evidence.pipCheckExitCode, 7);
+    assert.match(pipFailure.evidence.pipCheckStdout, /dependency conflict/);
+    assert.match(pipFailure.evidence.pipCheckStderr, /\[REDACTED\]/);
+    assert.doesNotMatch(JSON.stringify(pipFailure.evidence), new RegExp(secret, "g"));
+
+    const wanFailure = runCase("wan-fail", "wan-fail");
+    assert.equal(wanFailure.execution.status, 1);
+    assert.equal(wanFailure.evidence.wanCliImport, false);
+    assert.equal(wanFailure.evidence.wanCliImportExitCode, 9);
+    assert.match(wanFailure.evidence.wanCliImportStdout, /Wan CLI import failed/);
+    assert.match(wanFailure.evidence.wanCliImportStderr, /Traceback: missing decord/);
+    assert.match(wanFailure.evidence.wanCliImportStderr, /\[REDACTED\]/);
+    assert.doesNotMatch(JSON.stringify(wanFailure.evidence), new RegExp(secret, "g"));
+
+    const passed = runCase("pass", "pass");
+    assert.equal(passed.execution.status, 0);
+    assert.equal(passed.evidence.ok, true);
+    assert.equal(passed.evidence.pipCheck, true);
+    assert.equal(passed.evidence.pipCheckExitCode, 0);
+    assert.equal(passed.evidence.wanCliImport, true);
+    assert.equal(passed.evidence.wanCliImportExitCode, 0);
+
+    const huge = runCase("huge", "huge");
+    assert.equal(huge.execution.status, 0);
+    assert.ok(huge.evidence.pipCheckStdout.length <= 2000);
+    assert.ok(huge.evidence.pipCheckStderr.length <= 2000);
+    assert.match(huge.evidence.pipCheckStdout, /\[TRUNCATED\]/);
+
+    const timedOut = runCase("timeout", "pip-timeout", { timeoutSeconds: 0.05 });
+    assert.equal(timedOut.execution.status, 1);
+    assert.equal(timedOut.evidence.pipCheck, false);
+    assert.equal(timedOut.evidence.pipCheckExitCode, null);
+    assert.equal(timedOut.evidence.pipCheckTimedOut, true);
+    assert.ok(timedOut.evidence.pipCheckStdout.length <= 2000);
+    assert.match(timedOut.evidence.pipCheckStderr, /PROCESS_TIMEOUT/);
+});
+
 test("V142 RunPod blocks OCI digest syntax in imageName before creating billable capacity", async () => {
     const harness = runpodPhysicalHarness({
         scenario: "digest-in-image-name",
@@ -3271,6 +3481,12 @@ test("V142 bootstrap failure persists sanitized physical diagnostics before mand
     assert.equal(state.bootstrapDiagnostics.runtimePreflight.ok, false);
     assert.ok(state.bootstrapDiagnostics.runtimePredicateFailures.includes("flashAttentionCudaProbe"));
     assert.ok(state.bootstrapDiagnostics.runtimePredicateFailures.includes("pipCheck"));
+    assert.equal(state.bootstrapDiagnostics.pipCheckExitCode, 7);
+    assert.match(state.bootstrapDiagnostics.pipCheckStdout, /dependency conflict/);
+    assert.match(state.bootstrapDiagnostics.pipCheckStderr, /\[REDACTED\]/);
+    assert.doesNotMatch(state.bootstrapDiagnostics.pipCheckStderr, /test-runpod-api-key-never-persist/);
+    assert.equal(state.bootstrapDiagnostics.wanCliImportExitCode, 0);
+    assert.match(state.bootstrapDiagnostics.wanCliImportStdout, /Wan help/);
     const evidenceIndex = harness.calls.findIndex(call => call.kind === "ssh" && call.command?.startsWith("tail "));
     const deleteIndex = harness.calls.findIndex(call => call.kind === "http" && call.method === "DELETE");
     assert.ok(evidenceIndex >= 0 && deleteIndex > evidenceIndex, JSON.stringify(harness.calls));
