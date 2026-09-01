@@ -2872,11 +2872,17 @@ test("V142 RunPod adapter provisions one L40S Pod, transfers physical assets, re
     assert.match(bootstrap, /pip install --no-deps "\$FLASH_ATTENTION_WHEEL"/);
     assert.match(bootstrap, /export PIP_ONLY_BINARY=flash-attn/);
     assert.match(bootstrap, /einops==0\.8\.1/);
+    assert.match(bootstrap, /decord==0\.6\.0/);
+    assert.match(bootstrap, /librosa==0\.11\.0/);
+    assert.match(bootstrap, /peft==0\.17\.1/);
     assert.match(
         bootstrap,
-        /printf '%s\\n' 'einops==0\.8\.1' >> "\$FILTERED_REQUIREMENTS"/
+        /printf '%s\\n' 'einops==0\.8\.1' 'decord==0\.6\.0' 'librosa==0\.11\.0' 'peft==0\.17\.1' >> "\$FILTERED_REQUIREMENTS"/
     );
     assert.match(bootstrap, /modules=\([^\n]*'einops'/);
+    assert.match(bootstrap, /modules=\([^\n]*'decord'/);
+    assert.match(bootstrap, /modules=\([^\n]*'librosa'/);
+    assert.match(bootstrap, /modules=\([^\n]*'peft'/);
     assert.doesNotMatch(bootstrap, /pip install "flash-attn==/);
     assert.doesNotMatch(bootstrap, /--no-build-isolation/);
     assert.match(bootstrap, /flash_attn_func/);
@@ -2961,7 +2967,7 @@ test("V142 runtime preflight preserves bounded sanitized subprocess diagnostics"
     for (const moduleName of [
         "torchvision", "torchaudio", "cv2", "diffusers", "transformers", "tokenizers",
         "accelerate", "tqdm", "imageio", "easydict", "ftfy", "dashscope",
-        "imageio_ffmpeg", "einops", "numpy", "PIL"
+        "imageio_ffmpeg", "einops", "decord", "librosa", "peft", "numpy", "PIL"
     ]) {
         fs.writeFileSync(path.join(stubs, `${moduleName}.py`), "# controlled import fixture\n");
     }
@@ -2973,14 +2979,21 @@ test("V142 runtime preflight preserves bounded sanitized subprocess diagnostics"
         "Version: 2.8.3.post1",
         ""
     ].join("\n"));
-    const einopsMetadataDirectory = path.join(stubs, "einops-0.8.1.dist-info");
-    fs.mkdirSync(einopsMetadataDirectory, { recursive: true });
-    fs.writeFileSync(path.join(einopsMetadataDirectory, "METADATA"), [
-        "Metadata-Version: 2.1",
-        "Name: einops",
-        "Version: 0.8.1",
-        ""
-    ].join("\n"));
+    for (const [distribution, version] of Object.entries({
+        einops: "0.8.1",
+        decord: "0.6.0",
+        librosa: "0.11.0",
+        peft: "0.17.1"
+    })) {
+        const metadataDirectory = path.join(stubs, `${distribution}-${version}.dist-info`);
+        fs.mkdirSync(metadataDirectory, { recursive: true });
+        fs.writeFileSync(path.join(metadataDirectory, "METADATA"), [
+            "Metadata-Version: 2.1",
+            `Name: ${distribution}`,
+            `Version: ${version}`,
+            ""
+        ].join("\n"));
+    }
     const pipPackage = path.join(stubs, "pip");
     fs.mkdirSync(pipPackage, { recursive: true });
     fs.writeFileSync(path.join(pipPackage, "__init__.py"), "# controlled pip fixture\n");
@@ -3036,7 +3049,12 @@ test("V142 runtime preflight preserves bounded sanitized subprocess diagnostics"
             torchVersionPrefix: "2.8.0+cu128",
             torchCudaVersionPrefix: "12.8",
             computeCapability: "8.9",
-            runtimeRequirements: { einops: "0.8.1" },
+            runtimeRequirements: {
+                einops: "0.8.1",
+                decord: "0.6.0",
+                librosa: "0.11.0",
+                peft: "0.17.1"
+            },
             flashAttentionVersion: "2.8.3.post1",
             flashAttentionWheels: {
                 TRUE: {

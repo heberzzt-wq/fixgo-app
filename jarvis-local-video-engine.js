@@ -167,7 +167,10 @@ const RUNPOD_WAN22_CACHE_BASE = Object.freeze({
     torchCudaVersionPrefix: "12.8",
     requirementsSha256: "8338a62490c93cfbf908bb289bbaa3fb104e5606415bb48cca6cae5175313c44",
     runtimeRequirements: Object.freeze({
-        einops: "0.8.1"
+        einops: "0.8.1",
+        decord: "0.6.0",
+        librosa: "0.11.0",
+        peft: "0.17.1"
     }),
     flashAttentionVersion: "2.8.3.post1",
     flashAttentionWheels: Object.freeze({
@@ -3324,6 +3327,14 @@ export function createRunpodRemoteVideoAdapter({
         const constraintsFile = `${cacheRoot}/constraints.txt`;
         const filteredRequirementsFile = `${cacheRoot}/requirements-without-flash-attn.txt`;
         const flashAttentionWheelDirectory = `${cacheRoot}/wheels`;
+        const runtimeRequirementPins = Object.entries(cacheContract.runtimeRequirements)
+            .map(([name, version]) => `${name}==${version}`);
+        const runtimeImportModules = [
+            "torch", "torchvision", "torchaudio", "cv2", "diffusers", "transformers",
+            "tokenizers", "accelerate", "tqdm", "imageio", "easydict", "ftfy", "dashscope",
+            "imageio_ffmpeg", "flash_attn", ...Object.keys(cacheContract.runtimeRequirements),
+            "numpy", "PIL"
+        ];
         const contractJson = JSON.stringify({
             pythonVersionPrefix: cacheContract.pythonVersionPrefix,
             torchVersionPrefix: cacheContract.torchVersionPrefix,
@@ -3405,7 +3416,7 @@ export function createRunpodRemoteVideoAdapter({
             "        stderr=bounded_diagnostic(error.stderr)",
             "        stderr=bounded_diagnostic((stderr+'\\n' if stderr else '')+'PROCESS_TIMEOUT:120s')",
             "        return {'exitCode':None,'stdout':bounded_diagnostic(error.stdout),'stderr':stderr,'timedOut':True}",
-            "modules=('torch','torchvision','torchaudio','cv2','diffusers','transformers','tokenizers','accelerate','tqdm','imageio','easydict','ftfy','dashscope','imageio_ffmpeg','flash_attn','einops','numpy','PIL')",
+            `modules=(${runtimeImportModules.map(shellSingleQuote).join(",")})`,
             "imports={}",
             "for name in modules:",
             "    try: importlib.import_module(name); imports[name]=True",
@@ -3480,12 +3491,12 @@ export function createRunpodRemoteVideoAdapter({
             "transformers==4.51.3",
             "tokenizers==0.21.4",
             "numpy==1.26.4",
-            `einops==${cacheContract.runtimeRequirements.einops}`,
+            ...runtimeRequirementPins,
             `flash-attn==${cacheContract.flashAttentionVersion}`,
             "huggingface-hub>=0.30,<1",
             "EOF",
             "grep -v -E '^(flash_attn|flash-attn)([<>=!~].*)?$' \"$WAN_REPO/requirements.txt\" > \"$FILTERED_REQUIREMENTS\"",
-            `printf '%s\\n' ${shellSingleQuote(`einops==${cacheContract.runtimeRequirements.einops}`)} >> "$FILTERED_REQUIREMENTS"`,
+            `printf '%s\\n' ${runtimeRequirementPins.map(shellSingleQuote).join(" ")} >> "$FILTERED_REQUIREMENTS"`,
             "\"$VENV/bin/python\" -m pip install --upgrade pip setuptools wheel packaging psutil",
             "\"$VENV/bin/python\" -m pip install --constraint \"$CONSTRAINTS\" --requirement \"$FILTERED_REQUIREMENTS\" 'huggingface_hub[cli]>=0.30,<1'",
             "FLASH_ATTENTION_ABI=$(\"$VENV/bin/python\" -c \"import torch; value=getattr(torch._C,'_GLIBCXX_USE_CXX11_ABI',None); print('TRUE' if value is True else 'FALSE' if value is False else 'UNSUPPORTED')\")",
