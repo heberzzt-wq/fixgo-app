@@ -100,6 +100,30 @@ test("one catalog authority projects the 19 Firestore-configured service switche
     );
 });
 
+test("the live Firestore skill and service-category universe keeps deterministic compatibility", () => {
+    const liveCompatibilityCases = [
+        { skills: ["fix"], category: "fix_ac", expected: true },
+        { skills: ["fix"], category: "fix_plomeria", expected: true },
+        { skills: ["tech"], category: "tech_cctv", expected: true },
+        { skills: ["e2e_codex_controlado"], category: "e2e_codex_controlado", expected: true }
+    ];
+
+    for (const fixture of liveCompatibilityCases) {
+        const profile = { skills: fixture.skills };
+        const service = { categoria_id: fixture.category };
+        assert.equal(browserContract.isSkillCompatible(profile, service), fixture.expected);
+        assert.equal(backendContract.isSkillCompatible(profile, service), fixture.expected);
+    }
+
+    assert.equal(
+        browserContract.isSkillCompatible(
+            { skills: ["e2e_codex_controlado"] },
+            { categoria_id: "fix_plomeria" }
+        ),
+        false
+    );
+});
+
 test("technician eligibility covers canonical, legacy, pending, suspended, incomplete, pedestrian and vehicle profiles", () => {
     assert.equal(browserContract.technicianEligibility(approvedTechnician()).ok, true);
 
