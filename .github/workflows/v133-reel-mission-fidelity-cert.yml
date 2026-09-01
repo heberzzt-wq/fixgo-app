@@ -102,8 +102,12 @@ jobs:
             local url="$1"
             local local_file="$2"
             local live_file="$RUNNER_TEMP/$(basename "$local_file").postdeploy"
+            local expected_file="$RUNNER_TEMP/$(basename "$local_file").expected"
+            git show "${GITHUB_SHA}:${local_file}" > "$expected_file"
             curl -fsS --retry 3 --retry-delay 2 -H 'Cache-Control: no-cache' "$url?postdeploy=${GITHUB_SHA}" -o "$live_file"
-            cmp -s "$local_file" "$live_file"
+            echo "EXPECTED_SHA256 $local_file $(sha256sum "$expected_file" | awk '{print $1}')"
+            echo "LIVE_SHA256 $local_file $(sha256sum "$live_file" | awk '{print $1}')"
+            cmp -s "$expected_file" "$live_file"
             echo "POST_DEPLOY_LIVE_EXACT $local_file $(sha256sum "$live_file" | awk '{print $1}')"
           }
           verify_exact 'https://fixgo-44e4d.web.app/gestia-terminal.html' 'gestia-terminal.html'
