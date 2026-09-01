@@ -16,12 +16,10 @@ import {
     where,
     onSnapshot,
     doc,
-    updateDoc,
-    setDoc, // 🔥 CORRECCIÓN VITAL: Importado para poder crear el documento de Configuración
-    serverTimestamp,
-    addDoc,
     orderBy,
-    limit 
+    limit,
+    actualizarGatewaysPagoB2C,
+    ejecutarAccionNocB2C
 } from "./firebase.js";
 
 // 🔥 INYECCIÓN DIRECTA DEL CDN PARA FUNCIONES PESADAS 
@@ -62,8 +60,10 @@ export async function iniciarMotorBI(contenedorId) {
     const contenedor = document.getElementById(contenedorId);
     if (!contenedor) {
         console.error("🚨 CRITICAL ERROR: No se encontró el contenedor para el Dashboard Analítico.");
-        return;
+        throw new Error("BI_CONTAINER_NOT_FOUND");
     }
+
+    console.info("[BI_CONTAINER_FOUND]");
 
     // Estructura Maestra del NOC (Visualización Táctica Premium)
     contenedor.innerHTML = `
@@ -186,6 +186,8 @@ export async function iniciarMotorBI(contenedorId) {
                             <div>
                                 <p class="text-white font-black uppercase tracking-widest">Motor Stripe</p>
                                 <p class="text-[10px] text-zinc-500 font-bold mt-1">Tarjetas y Retenciones</p>
+                                <p id="gatewayStripeStatus" class="text-[9px] text-zinc-500 font-black mt-2">Global: CARGANDO</p>
+                                <p id="gatewayStripeAudit" class="text-[8px] text-zinc-600 mt-1">Auditoría: pendiente</p>
                             </div>
                         </div>
                         <label class="relative inline-flex items-center cursor-pointer">
@@ -200,6 +202,8 @@ export async function iniciarMotorBI(contenedorId) {
                             <div>
                                 <p class="text-white font-black uppercase tracking-widest">Modo Bootstrapping</p>
                                 <p class="text-[10px] text-zinc-500 font-bold mt-1">Pago 100% en Domicilio</p>
+                                <p id="gatewayEfectivoStatus" class="text-[9px] text-zinc-500 font-black mt-2">Global: CARGANDO</p>
+                                <p id="gatewayEfectivoAudit" class="text-[8px] text-zinc-600 mt-1">Auditoría: pendiente</p>
                             </div>
                         </div>
                         <label class="relative inline-flex items-center cursor-pointer">
@@ -215,12 +219,12 @@ export async function iniciarMotorBI(contenedorId) {
                     <div>
                         <h3 class="text-white font-black text-lg uppercase tracking-tight flex items-center gap-3">
                             <i class="fas fa-money-bill-wave text-blue-400"></i> 
-                            Protocolo de Excepción: Cobro Manual
+                            Estado de Autoridad B2C
                         </h3>
-                        <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1">Autorización directa desde el NOC para eludir pasarela</p>
+                        <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1">Lectura del método y payment_authority canónicos; sin overrides del navegador</p>
                     </div>
                     <span class="bg-blue-900/30 text-blue-400 border border-blue-500/30 text-[10px] font-black px-4 py-2 rounded-full uppercase tracking-tighter shadow-lg">
-                        Terminales en Sitio: Monitor Activo
+                        Monitor sin bypass
                     </span>
                 </div>
                 <div id="biTicketsEfectivo" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-h-[400px] overflow-y-auto pr-4 custom-scrollbar">
@@ -234,9 +238,42 @@ export async function iniciarMotorBI(contenedorId) {
         </div>
     `;
 
-    iniciarEscuchaTelemetria();
-    iniciarEscuchaFlota();
-    iniciarEscuchaGateways(); // 🔥 INYECCIÓN: Lector de estado de switches
+    console.info("[BI_HTML_RENDERED]");
+    const subsystems = [
+        ["telemetry", iniciarEscuchaTelemetria],
+        ["fleet", iniciarEscuchaFlota],
+        ["gateways", iniciarEscuchaGateways]
+    ].map(async ([name, start]) => {
+        try {
+            return { name, ok: true, value: await start() };
+        } catch (error) {
+            console.error(`[BI_${String(name).toUpperCase()}_FAILED]`, error);
+            return { name, ok: false, error };
+        }
+    });
+    const results = await Promise.all(subsystems);
+    console.info("[BI_LISTENERS_READY]", results.map(({ name, ok }) => ({ name, ok })));
+    console.info("[BI_DONE]");
+    return { ok: results.every(result => result.ok), modules: results };
+}
+
+function renderBiError(targetId, message) {
+    const target = document.getElementById(targetId);
+    if (!target) return;
+    target.innerHTML = `<div class="rounded-xl border border-red-500/30 bg-red-950/20 p-4 text-xs font-bold text-red-300">${escaparHTML(message)}</div>`;
+}
+
+function subscribeBi(name, sourceFactory, onData, onFailure) {
+    const fail = (error) => {
+        console.error(`[BI_${name.toUpperCase()}_LISTENER_FAILED]`, error);
+        onFailure?.(error);
+    };
+    try {
+        return onSnapshot(sourceFactory(), onData, fail);
+    } catch (error) {
+        fail(error);
+        return () => {};
+    }
 }
 
 /**
@@ -245,19 +282,23 @@ export async function iniciarMotorBI(contenedorId) {
  * ======================================================================================
  */
 function iniciarEscuchaTelemetria() {
-    const qServices = query(collection(db, "services"), orderBy("created_at", "desc"), limit(250));
-    const qTrans = query(collection(db, "transacciones"), orderBy("fecha", "desc"), limit(100));
-
     let dataServicios = [];
-    
-    onSnapshot(qServices, (snap) => {
+
+    const unsubscribeServices = subscribeBi("services", () => (
+        query(collection(db, "services"), orderBy("created_at", "desc"), limit(250))
+    ), (snap) => {
         dataServicios = [];
         snap.forEach(doc => dataServicios.push({ id: doc.id, ...doc.data() }));
         procesarSemaforosOperativos(dataServicios);
         renderizarControlEfectivo(dataServicios); 
+    }, () => {
+        renderBiError("biSemaforos", "No fue posible cargar servicios. Verifica reglas o índices de Firestore.");
+        renderBiError("biTicketsEfectivo", "No fue posible cargar la autoridad de servicios B2C.");
     });
 
-    onSnapshot(qTrans, (snap) => {
+    const unsubscribeTransactions = subscribeBi("transactions", () => (
+        query(collection(db, "transacciones"), orderBy("fecha", "desc"), limit(100))
+    ), (snap) => {
         let transaccionesIngreso = [];
         let transaccionesStripeFeed = [];
 
@@ -273,84 +314,122 @@ function iniciarEscuchaTelemetria() {
 
         procesarMotorComercialLTV(transaccionesIngreso, dataServicios);
         actualizarMonitorStripe(transaccionesStripeFeed);
+    }, () => {
+        renderBiError("biRankingClientes", "No fue posible cargar Radar LTV.");
+        renderBiError("biStripeFeed", "No fue posible cargar el flujo transaccional.");
     });
+    return () => {
+        unsubscribeServices();
+        unsubscribeTransactions();
+    };
 }
 
 function iniciarEscuchaFlota() {
-    const qUsers = query(collection(db, "users"), where("rol", "==", "tecnico"));
-    const qTransProfit = query(collection(db, "transacciones"), where("tipo", "==", "ingreso_servicio"));
-
-    onSnapshot(qTransProfit, (transSnap) => {
+    let technicians = [];
+    let transactions = [];
+    const render = () => {
         const profitMap = {};
         const volumeMap = {};
         const countMap = {};
-        
-        transSnap.forEach(doc => {
-            const tx = doc.data();
+        transactions.forEach(tx => {
             if (tx.tecnico_id) {
                 profitMap[tx.tecnico_id] = (profitMap[tx.tecnico_id] || 0) + (tx.comision_fixgo || 0);
                 volumeMap[tx.tecnico_id] = (volumeMap[tx.tecnico_id] || 0) + (tx.monto_total || 0);
                 countMap[tx.tecnico_id] = (countMap[tx.tecnico_id] || 0) + 1;
             }
         });
+        procesarRankingYDisciplina(technicians.map(technician => ({
+                    ...technician,
+                    generated_profit: profitMap[technician.id] || 0,
+                    total_volume: volumeMap[technician.id] || 0,
+                    real_count: countMap[technician.id] || 0
+                })));
+    };
 
-        onSnapshot(qUsers, (snap) => {
-            let tecnicos = [];
-            snap.forEach(doc => {
-                const profit = profitMap[doc.id] || 0;
-                const volume = volumeMap[doc.id] || 0;
-                const count = countMap[doc.id] || 0;
-                tecnicos.push({ 
-                    id: doc.id, 
-                    generated_profit: profit, 
-                    total_volume: volume,
-                    real_count: count,
-                    ...doc.data() 
-                });
-            });
-            procesarRankingYDisciplina(tecnicos);
-        });
-    });
+    const unsubscribeTransactions = subscribeBi("fleet_profit", () => (
+        query(collection(db, "transacciones"), where("tipo", "==", "ingreso_servicio"))
+    ), (snap) => {
+        transactions = snap.docs.map(document => ({ id: document.id, ...document.data() }));
+        render();
+    }, () => renderBiError("biRankingTecnicos", "No fue posible calcular la rentabilidad de flota."));
+
+    const unsubscribeTechnicians = subscribeBi("fleet_users", () => (
+        query(collection(db, "users"), where("rol", "==", "tecnico"))
+    ), (snap) => {
+        technicians = snap.docs.map(document => ({
+                    id: document.id,
+                    ...document.data()
+                }));
+        render();
+    }, () => renderBiError("biRankingTecnicos", "No fue posible cargar la flota técnica."));
+
+    return () => {
+        unsubscribeTransactions();
+        unsubscribeTechnicians();
+    };
 }
 
 // 🔥 INYECCIÓN: Lector de Switches de Gateways de Pago
 function iniciarEscuchaGateways() {
-    onSnapshot(doc(db, "configuracion", "pagos"), (docSnap) => {
+    return subscribeBi("gateways", () => doc(db, "configuracion", "pagos"), (docSnap) => {
         const cbStripe = document.getElementById("toggleStripeGW");
         const cbEfectivo = document.getElementById("toggleEfectivoGW");
         const cardStripe = document.getElementById("cardGatewayStripe");
         const cardEfectivo = document.getElementById("cardGatewayEfectivo");
+        const statusStripe = document.getElementById("gatewayStripeStatus");
+        const statusEfectivo = document.getElementById("gatewayEfectivoStatus");
+        const auditStripe = document.getElementById("gatewayStripeAudit");
+        const auditEfectivo = document.getElementById("gatewayEfectivoAudit");
 
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            if(cbStripe) cbStripe.checked = data.stripe_activo === true;
-            if(cbEfectivo) cbEfectivo.checked = data.efectivo_activo === true;
+        const data = docSnap.exists() ? docSnap.data() : {};
+        const stripeActive = data.stripe_activo === true;
+        const cashActive = data.efectivo_activo === true;
+        if(cbStripe) cbStripe.checked = stripeActive;
+        if(cbEfectivo) cbEfectivo.checked = cashActive;
+        if(statusStripe) statusStripe.textContent = `Global: ${stripeActive ? "ACTIVO" : "INACTIVO"}`;
+        if(statusEfectivo) statusEfectivo.textContent = `Global: ${cashActive ? "ACTIVO" : "INACTIVO"}`;
+        const updatedAt = data.actualizado_at?.toDate?.();
+        const auditText = updatedAt
+            ? `${updatedAt.toLocaleString("es-MX", { timeZone: "America/Cancun" })} • ${data.actualizado_por || "backend"}`
+            : "sin timestamp administrativo";
+        if(auditStripe) auditStripe.textContent = `Auditoría: ${auditText}`;
+        if(auditEfectivo) auditEfectivo.textContent = `Auditoría: ${auditText}`;
             
-            // Efectos visuales de encendido/apagado
-            if(cardStripe) {
-                if(data.stripe_activo) cardStripe.classList.replace("border-zinc-800", "border-[#635BFF]/50");
-                else cardStripe.classList.replace("border-[#635BFF]/50", "border-zinc-800");
-            }
-            if(cardEfectivo) {
-                if(data.efectivo_activo) cardEfectivo.classList.replace("border-zinc-800", "border-emerald-500/50");
-                else cardEfectivo.classList.replace("border-emerald-500/50", "border-zinc-800");
-            }
+        if(cardStripe) {
+            if(stripeActive) cardStripe.classList.replace("border-zinc-800", "border-[#635BFF]/50");
+            else cardStripe.classList.replace("border-[#635BFF]/50", "border-zinc-800");
         }
+        if(cardEfectivo) {
+            if(cashActive) cardEfectivo.classList.replace("border-zinc-800", "border-emerald-500/50");
+            else cardEfectivo.classList.replace("border-emerald-500/50", "border-zinc-800");
+        }
+    }, () => {
+        const statusStripe = document.getElementById("gatewayStripeStatus");
+        const statusEfectivo = document.getElementById("gatewayEfectivoStatus");
+        if (statusStripe) statusStripe.textContent = "Global: ERROR DE LECTURA";
+        if (statusEfectivo) statusEfectivo.textContent = "Global: ERROR DE LECTURA";
     });
 }
 
 window.toggleGateway = async (campo, estado) => {
+    const cbStripe = document.getElementById("toggleStripeGW");
+    const cbEfectivo = document.getElementById("toggleEfectivoGW");
+    const previous = !estado;
+    if (cbStripe) cbStripe.disabled = true;
+    if (cbEfectivo) cbEfectivo.disabled = true;
     try {
-        await updateDoc(doc(db, "configuracion", "pagos"), { [campo]: estado });
+        const stripe = campo === "stripe_activo" ? estado : cbStripe?.checked === true;
+        const efectivo = campo === "efectivo_activo" ? estado : cbEfectivo?.checked === true;
+        await actualizarGatewaysPagoB2C(stripe, efectivo);
         console.log(`✅ Gateway ${campo} actualizado a: ${estado}`);
     } catch (error) {
-        // Si no existe el documento, lo creamos
-        try {
-            await setDoc(doc(db, "configuracion", "pagos"), { [campo]: estado }, { merge: true });
-        } catch (e) {
-            console.error("Error al actualizar Gateway:", e);
-            alert("Error de conexión al actualizar el Switch Global.");
-        }
+        if (campo === "stripe_activo" && cbStripe) cbStripe.checked = previous;
+        if (campo === "efectivo_activo" && cbEfectivo) cbEfectivo.checked = previous;
+        console.error("Error al actualizar Gateway:", error);
+        alert("No fue posible actualizar los gateways mediante la autoridad administrativa.");
+    } finally {
+        if (cbStripe) cbStripe.disabled = false;
+        if (cbEfectivo) cbEfectivo.disabled = false;
     }
 };
 
@@ -648,16 +727,20 @@ function renderizarControlEfectivo(servicios) {
             <div class="col-span-full py-16 text-center">
                 <div class="bg-zinc-900/30 border border-zinc-800/50 rounded-3xl p-10">
                     <i class="fas fa-check-double text-4xl text-zinc-800 mb-4 block opacity-30"></i>
-                    <p class="text-zinc-600 text-xs font-black uppercase tracking-[0.3em]">Operaciones Limpias: Sin Override Manual</p>
+                    <p class="text-zinc-600 text-xs font-black uppercase tracking-[0.3em]">No hay servicios B2C activos que auditar</p>
                 </div>
             </div>`;
         return;
     }
 
     contenedor.innerHTML = vivos.map(s => {
-        const cashOk = s.allowCashPayment === true;
+        const authority = s.payment_authority && typeof s.payment_authority === "object"
+            ? s.payment_authority
+            : {};
+        const effective = authority.effective === true;
+        const method = String(s.metodo_pago || "sin_metodo").toUpperCase();
         return `
-            <div class="bg-black p-5 rounded-[2rem] border ${cashOk ? 'border-emerald-500/50 shadow-2xl shadow-emerald-900/10' : 'border-zinc-800'} flex flex-col justify-between transition-all hover:border-blue-500/30">
+            <div class="bg-black p-5 rounded-[2rem] border ${effective ? 'border-emerald-500/50 shadow-2xl shadow-emerald-900/10' : 'border-amber-500/40'} flex flex-col justify-between transition-all">
                 <div class="mb-4">
                     <div class="flex justify-between items-start mb-2">
                         <p class="text-white font-black text-sm uppercase tracking-tight leading-none mb-1"><i class="fas fa-user text-blue-500 text-[10px] mr-2"></i> ${escaparHTML(s.cliente_nombre || 'S/N')}</p>
@@ -668,16 +751,12 @@ function renderizarControlEfectivo(servicios) {
                 </div>
                 
                 <div class="pt-5 border-t border-zinc-800/50">
-                    ${cashOk ? `
-                        <div class="text-emerald-400 text-[10px] font-black bg-emerald-900/20 px-4 py-4 rounded-2xl border border-emerald-500/30 text-center flex items-center justify-center gap-3 shadow-inner">
-                            <i class="fas fa-check-circle text-xl"></i> PAGO EN EFECTIVO AUTORIZADO
-                        </div>
-                    ` : `
-                        <button onclick="window.habilitarCobroEfectivo('${s.id}', '${escaparHTML(s.cliente_nombre || '')}')" 
-                                class="w-full bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-black py-4 rounded-2xl transition-all shadow-xl shadow-blue-900/40 uppercase tracking-widest active:scale-95 flex items-center justify-center gap-3">
-                            <i class="fas fa-unlock-alt"></i> INYECTAR OVERRIDE EFECTIVO
-                        </button>
-                    `}
+                    <div class="${effective ? 'text-emerald-400 bg-emerald-900/20 border-emerald-500/30' : 'text-amber-300 bg-amber-950/20 border-amber-500/30'} text-[10px] font-black px-4 py-4 rounded-2xl border shadow-inner space-y-1">
+                        <p>Método: ${escaparHTML(method)}</p>
+                        <p>Global: ${authority.global_enabled === true ? 'ACTIVO' : 'INACTIVO'}</p>
+                        <p>Cliente: ${authority.individual_authorized === true ? 'AUTORIZADO' : 'NO AUTORIZADO'}</p>
+                        <p>Resultado: ${effective ? 'DISPONIBLE' : 'BLOQUEADO'}</p>
+                    </div>
                 </div>
             </div>
         `;
@@ -689,27 +768,6 @@ function renderizarControlEfectivo(servicios) {
  * ⚡ DISPARADORES DE ACCIÓN Y SEGURIDAD
  * ======================================================================================
  */
-window.habilitarCobroEfectivo = async (servicioId, clienteNombre) => {
-    const confirmCode = prompt(`🔐 AUTORIZACIÓN DE NIVEL CERO\n\n¿Permitir que el cliente ${clienteNombre} liquide su ticket en EFECTIVO?\n\nEsta acción bypass la pasarela de Stripe.\n\nESCRIBE "AUTORIZAR" PARA PROCEDER:`);
-    if (confirmCode !== "AUTORIZAR") return;
-
-    try {
-        const btn = document.activeElement;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROCESANDO INYECCIÓN...';
-        btn.disabled = true;
-
-        await updateDoc(doc(db, "services", servicioId), { 
-            allowCashPayment: true,
-            cashAuthorizedAt: serverTimestamp(),
-            audit_log_cash: `NOC-ADMIN-AUTH: ${new Date().toISOString()}`
-        });
-        alert(`✅ OPERACIÓN EXITOSA: Protocolo de efectivo activado para ${clienteNombre}. El cliente ahora verá el botón de pago manual.`);
-    } catch (e) { 
-        console.error("🚨 FAIL:", e); 
-        alert("❌ ERROR CRÍTICO: No se pudo inyectar el permiso en Firebase."); 
-    }
-};
-
 window.aplicarStrike = async (uid, nivel, nombre) => {
     const sanciones = {
         1: { msg: "STRIKE 1: Suspensión 24h + Retención $200 MXN", estado: "suspendido", multa: 200, label: "ADVERTENCIA TIPO 1" },
@@ -721,25 +779,7 @@ window.aplicarStrike = async (uid, nivel, nombre) => {
     if (!confirm(`⚠️ PROTOCOLO DISCIPLINARIO NOC\n\n¿Estás 100% seguro de aplicar el ${s.msg} al técnico ${nombre}?\n\nEsta acción es auditable e irreversible en el historial del trabajador.`)) return;
 
     try {
-        // Bloqueo de terminal operativa
-        await updateDoc(doc(db, "users", uid), {
-            estado: s.estado,
-            strikes: nivel,
-            disponible: false,
-            lastNocPenalty: serverTimestamp(),
-            nocPenaltyLabel: s.label
-        });
-
-        // Inyección de multa en Wallet
-        await addDoc(collection(db, "transacciones"), {
-            tecnico_id: uid,
-            pago_tecnico: -Math.abs(s.multa),
-            monto_total: 0,
-            tipo: "penalizacion",
-            descripcion: `Protocolo NOC Disciplina: Strike ${nivel} (${s.label})`,
-            fecha: serverTimestamp(),
-            audit_ref: `NOC-PENALTY-${nivel}-${uid.substring(0,5)}`
-        });
+        await ejecutarAccionNocB2C({ action: "apply_strike", technicianId: uid, strikeLevel: nivel });
 
         alert(`✅ SANCIONADOR EJECUTADO: ${nombre} ha sido desconectado. Estado: ${s.estado.toUpperCase()}.`);
     } catch (e) { 
@@ -751,10 +791,7 @@ window.aplicarStrike = async (uid, nivel, nombre) => {
 window.levantarCastigo = async (uid) => {
     if(!confirm("🔓 ¿Solicitar restauración de terminal a estatus ACTIVO?\n\n(Nota: Los strikes anteriores permanecerán en el expediente como historial de riesgo)")) return;
     try {
-        await updateDoc(doc(db, "users", uid), { 
-            estado: "activo",
-            restoredByNoc: serverTimestamp() 
-        });
+        await ejecutarAccionNocB2C({ action: "restore_technician", technicianId: uid });
         alert("✅ OPERACIÓN EXITOSA: Terminal restaurada y sincronizada.");
     } catch(e) { alert("Error de comunicación con Firebase."); }
 };
@@ -768,36 +805,8 @@ window.evaluarComisionesDinamicas = async () => {
     if(!confirm("🤖 INICIANDO MOTOR DE GAMIFICACIÓN AJEDREZ 4D\n\nEste proceso ejecutará un escaneo masivo de la flota para reasignar beneficios económicos:\n\n- ORO: 24% GP Fee (Elite)\n- PLATA: 27% GP Fee (Senior)\n- BRONCE: 30% GP Fee (Junior/Riesgo)\n\n¿Proceder con el recalculo de rentabilidad?")) return;
     
     try {
-        const qUsers = query(collection(db, "users"), where("rol", "==", "tecnico"));
-        const snap = await getDocs(qUsers);
-        let promoted = 0; let demoted = 0; let stable = 0;
-
-        for (const docSnap of snap.docs) {
-            const t = docSnap.data();
-            const rep = t.reputacion || 0;
-            const svcs = t.servicios_completados || 0;
-            const s = t.strikes || 0;
-
-            let nv = "BRONCE"; 
-            let com = 0.30;
-
-            // Motor de Decisiones: Meritocracia Basada en Datos
-            if (rep >= 4.8 && svcs >= 50 && s === 0) { 
-                nv = "ORO"; com = 0.24; 
-            } else if (rep >= 4.5 && svcs >= 20 && s <= 1) { 
-                nv = "PLATA"; com = 0.27; 
-            }
-
-            if (t.nivel !== nv) {
-                if(com < (t.comision_asignada || 0.30)) promoted++; else demoted++;
-                await updateDoc(doc(db, "users", docSnap.id), { 
-                    nivel: nv, 
-                    comision_asignada: com,
-                    lastGamificationAudit: serverTimestamp()
-                });
-            } else { stable++; }
-        }
-        alert(`✅ AUDITORÍA DE CICLO FINALIZADA\n\n- Promovidos: ${promoted}\n- Degradados: ${demoted}\n- Sin cambios: ${stable}\n\nLos cambios en los márgenes de utilidad son efectivos de inmediato.`);
+        const result = await ejecutarAccionNocB2C({ action: "recalculate_commissions" });
+        alert(`✅ AUDITORÍA DE CICLO FINALIZADA\n\n- Promovidos: ${result.promoted}\n- Degradados: ${result.demoted}\n- Sin cambios: ${result.stable}\n\nLos cambios fueron aplicados por backend autoritativo.`);
     } catch(e) { console.error("🚨 MOTOR ERROR:", e); alert("❌ FALLO CRÍTICO: El algoritmo de comisiones falló."); }
 };
 

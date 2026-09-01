@@ -108,6 +108,18 @@ export async function actualizarPermisosPagoB2C(customerId, stripe_autorizado, e
     return result.data;
 }
 
+export async function actualizarGatewaysPagoB2C(stripe_activo, efectivo_activo) {
+    const updateGateways = httpsCallable(cloudFunctions, "setB2cGlobalPaymentGateways");
+    const result = await updateGateways({ stripe_activo, efectivo_activo });
+    return result.data;
+}
+
+export async function ejecutarAccionNocB2C(payload) {
+    const executeAction = httpsCallable(cloudFunctions, "executeB2cAdminNocAction");
+    const result = await executeAction(payload);
+    return result.data;
+}
+
 export async function migrarPerfilTecnicoB2C(technicianId, options = {}) {
     const migrate = httpsCallable(cloudFunctions, "migrateB2cTechnicianProfile");
     const result = await migrate({ technicianId, ...options });

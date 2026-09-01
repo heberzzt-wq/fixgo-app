@@ -98,8 +98,10 @@ const {
     createSyncB2cMarketplaceHandler
 } = require("./b2c-service-marketplace");
 const {
+    createAdminNocActionHandler,
     createB2cServiceHandler,
     createMigrateTechnicianProfileHandler,
+    createSetGlobalPaymentGatewaysHandler,
     createSetCustomerPaymentPermissionsHandler
 } = require("./b2c-platform-authority");
 const {
@@ -192,6 +194,12 @@ exports.createB2cService = functions.https.onCall(
 exports.setB2cCustomerPaymentPermissions = functions.https.onCall(
     createSetCustomerPaymentPermissionsHandler({ admin, db, functions })
 );
+exports.setB2cGlobalPaymentGateways = functions.https.onCall(
+    createSetGlobalPaymentGatewaysHandler({ admin, db, functions })
+);
+exports.executeB2cAdminNocAction = functions.https.onCall(
+    createAdminNocActionHandler({ admin, db, functions })
+);
 exports.migrateB2cTechnicianProfile = functions.https.onCall(
     createMigrateTechnicianProfileHandler({ admin, db, functions })
 );
@@ -203,7 +211,7 @@ exports.syncB2cMarketplace = functions.firestore
     .onWrite(createSyncB2cMarketplaceHandler({ admin, db }));
 exports.resyncB2cMarketplaceConfig = functions.firestore
     .document("configuracion/pagos")
-    .onUpdate(createResyncMarketplaceConfigHandler({ admin, db }));
+    .onWrite(createResyncMarketplaceConfigHandler({ admin, db }));
 exports.resyncB2cCustomerPayments = functions.firestore
     .document("users/{userId}")
     .onUpdate(createResyncCustomerPaymentsHandler({ admin, db }));

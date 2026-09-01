@@ -22,7 +22,8 @@ import {
  setDoc,
  getDoc,
  aprobarTecnicoB2C,
- actualizarPermisosPagoB2C
+ actualizarPermisosPagoB2C,
+ ejecutarAccionNocB2C
 } from "./firebase.js";
 import {
  normalizeTechnicianProfile,
@@ -36,6 +37,19 @@ import "./gestia-core/contracts/b2c-platform-contract.js";
 
 const platformContract = globalThis.GestiaB2CPlatformContract;
 if (!platformContract) throw new Error("B2C_PLATFORM_CONTRACT_UNAVAILABLE");
+
+function adminListenerError(surface, target, message, error) {
+ console.error(`[PANEL_ADMIN_${surface}_LISTENER_FAILED]`, error);
+ if (target) {
+ target.innerHTML = `<p class="rounded-xl border border-red-500/30 bg-red-950/20 p-4 text-center text-xs font-bold text-red-300">${message}</p>`;
+ }
+}
+
+function documentReferenceUrl(value) {
+ if (typeof value === "string") return value;
+ if (value && typeof value === "object" && typeof value.url === "string") return value.url;
+ return null;
+}
 
 export async function iniciarPanelAdmin(user) {
  console.log(" 🛡️ Iniciando Panel de Administrador (Modo BI V5.18.5 - Support Desk Activo)...");
@@ -83,16 +97,25 @@ export async function iniciarPanelAdmin(user) {
  elementos.kpiCAC.innerText = `$${cac.toFixed(2)}`;
  }
  }
+ }, (error) => {
+ console.error("[PANEL_ADMIN_CATALOG_CONFIG_LISTENER_FAILED]", error);
+ if (elementos.kpiCAC) elementos.kpiCAC.innerText = "N/D";
  });
 
 if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  const adminToolbar = document.createElement("div");
  adminToolbar.className = "mb-4 flex flex-col gap-2";
  adminToolbar.innerHTML = `
- <button id="btnAutorizarEfectivo" onclick="window.buscarYAutorizarCliente()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black py-3 px-4 rounded-xl shadow-lg border border-emerald-500/50 transition-transform active:scale-95 w-full flex items-center justify-center gap-2">
- <i class="fas fa-wallet"></i> GESTIONAR MÉTODOS DE PAGO B2C
- </button>
- <div id="gestorPagosCliente" class="hidden"></div>
+ <section id="autorizacionMetodosCliente" class="rounded-2xl border border-emerald-500/30 bg-emerald-950/10 p-3 space-y-2">
+   <p class="text-[10px] font-black uppercase tracking-widest text-emerald-300">Autorización de métodos por cliente</p>
+   <div class="flex gap-2">
+     <input id="adminPaymentCustomerEmail" type="email" autocomplete="off" placeholder="correo del cliente B2C" class="min-w-0 flex-1 rounded-xl border border-zinc-700 bg-black px-3 py-2 text-xs text-white">
+     <button id="btnAutorizarEfectivo" onclick="window.buscarYAutorizarCliente()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black py-2 px-3 rounded-xl shadow-lg border border-emerald-500/50 transition-transform active:scale-95 flex items-center justify-center gap-2">
+       <i class="fas fa-search"></i> BUSCAR
+     </button>
+   </div>
+   <div id="gestorPagosCliente" class="hidden"></div>
+ </section>
  <button id="btnBuscarB2B" onclick="window.buscarClienteParaB2B()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-black py-3 px-4 rounded-xl shadow-lg border border-blue-500/50 transition-transform active:scale-95 w-full flex items-center justify-center gap-2">
  <i class="fas fa-handshake"></i> GESTIONAR CONTRATO B2B (BUSCAR CLIENTE)
  </button>
@@ -101,12 +124,15 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  }
 
  window.buscarYAutorizarCliente = async () => {
- const email = prompt("Ingresa el CORREO ELECTRÓNICO del cliente B2C:");
+ const email = document.getElementById("adminPaymentCustomerEmail")?.value?.trim().toLowerCase();
  if(!email) return;
 
  try {
  const q = query(collection(db, "users"), where("email", "==", email.trim().toLowerCase()));
- const snap = await getDocs(q);
+ const [snap, paymentConfigSnapshot] = await Promise.all([
+ getDocs(q),
+ getDoc(doc(db, "configuracion", "pagos"))
+ ]);
  
  if(snap.empty) {
  alert("❌ No se encontró ningún cliente registrado con ese correo.");
@@ -119,10 +145,8 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  alert("⚠️ El perfil seleccionado no corresponde a un cliente B2C.");
  return;
  }
- const resolved = platformContract.resolvePaymentPermissions(
- { stripe_activo: true, efectivo_activo: true },
- clienteData
- );
+ const globalConfig = paymentConfigSnapshot.exists() ? paymentConfigSnapshot.data() : {};
+ const resolved = platformContract.resolvePaymentPermissions(globalConfig, clienteData);
  const gestor = document.getElementById("gestorPagosCliente");
  if (!gestor) return;
  gestor.dataset.customerId = clienteId;
@@ -132,12 +156,12 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
    <p class="text-white text-sm font-black">${escaparHTML(clienteData.nombre || "Cliente")}</p>
    <p class="text-zinc-500 text-[10px]">${escaparHTML(clienteData.email || email)}</p>
  </div>
- <label class="flex items-center justify-between bg-zinc-900 rounded-lg p-3">
-   <span class="text-xs font-bold text-blue-300">Stripe autorizado</span>
+ <label class="flex items-center justify-between bg-zinc-900 rounded-lg p-3 gap-3">
+   <span class="text-xs font-bold text-blue-300">STRIPE<br><small class="text-zinc-500">Global: ${resolved.global.stripe ? "ACTIVO" : "INACTIVO"}<br>Cliente: ${resolved.individual.stripe_autorizado ? "AUTORIZADO" : "NO AUTORIZADO"}<br>Resultado: ${resolved.stripe ? "DISPONIBLE" : "BLOQUEADO"}</small></span>
    <input id="adminStripeAutorizado" type="checkbox" ${resolved.individual.stripe_autorizado ? "checked" : ""}>
  </label>
- <label class="flex items-center justify-between bg-zinc-900 rounded-lg p-3">
-   <span class="text-xs font-bold text-emerald-300">Efectivo autorizado</span>
+ <label class="flex items-center justify-between bg-zinc-900 rounded-lg p-3 gap-3">
+   <span class="text-xs font-bold text-emerald-300">EFECTIVO<br><small class="text-zinc-500">Global: ${resolved.global.efectivo ? "ACTIVO" : "INACTIVO"}<br>Cliente: ${resolved.individual.efectivo_autorizado ? "AUTORIZADO" : "NO AUTORIZADO"}<br>Resultado: ${resolved.efectivo ? "DISPONIBLE" : "BLOQUEADO"}</small></span>
    <input id="adminEfectivoAutorizado" type="checkbox" ${resolved.individual.efectivo_autorizado ? "checked" : ""}>
  </label>
  ${resolved.individual.efectivo_source === "legacy_fallback"
@@ -237,14 +261,14 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
     const perfilCanonico = normalizeTechnicianProfile(data);
     const esPendiente = [TECHNICIAN_KYC_STATES.PENDING_REVIEW, TECHNICIAN_KYC_STATES.DOCUMENTS_UPLOADED].includes(perfilCanonico.estado);
     
-    const ineUrl = data.documentos?.ine || data.ine || data.ine_url || data.identificacion || null;
-    const csfUrl = data.documentos?.csf || data.csf || data.csf_url || data.constancia || null;
+    const ineUrl = documentReferenceUrl(perfilCanonico.documentos.ine);
+    const csfUrl = documentReferenceUrl(perfilCanonico.documentos.csf);
     
     const ineCheck = ineUrl ? '<span class="text-emerald-400"> ✅ INE</span>' : '<span class="text-red-500"> ❌ INE</span>';
     const csfCheck = csfUrl ? '<span class="text-emerald-400"> ✅ CSF</span>' : '<span class="text-red-500"> ❌ CSF</span>';
-    const skillsStr = data.skills ? data.skills.join(" • ").toUpperCase() : "GENERAL";
+    const skillsStr = perfilCanonico.skills.length ? perfilCanonico.skills.join(" • ").toUpperCase() : "GENERAL";
     
-    const fotoUrl = data.foto_perfil || data.fotoPerfil || data.foto || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.nombre)}&background=random`;
+    const fotoUrl = documentReferenceUrl(perfilCanonico.foto_perfil) || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.nombre)}&background=random`;
    
     const reputacion = data.reputacion || 5.0;
     const estrellas = "⭐".repeat(Math.round(reputacion));
@@ -318,7 +342,12 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
     elementos.countOnline.innerHTML = `${contOnline} <span class="text-sm text-gray-500">/ ${contTotal}</span>`;
     elementos.countOnline.style.color = contOnline > 0 ? "#10b981" : "white";
     }
-    });
+    }, (error) => adminListenerError(
+    "TECHNICIANS",
+    elementos.lista,
+    "No fue posible cargar técnicos. Verifica reglas o índices de Firestore.",
+    error
+    ));
  }
 
  const qServicios = query(collection(db, "services"), orderBy("created_at", "desc"), limit(50));
@@ -468,6 +497,10 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  elementos.kpiTasaCancelacion.innerText = `${tasa.toFixed(1)}%`;
  elementos.kpiTasaCancelacion.className = tasa > 15 ? "text-xl font-black text-red-500" : "text-xl font-black text-white";
  }
+ }, (error) => {
+ adminListenerError("SERVICES", elementos.actividad, "No fue posible cargar Actividad.", error);
+ adminListenerError("INVOICES", elementos.listaFacturasPendientes, "No fue posible cargar Facturación.", error);
+ if (elementos.countServ) elementos.countServ.innerText = "N/D";
  });
 
  // ======================================================================================
@@ -749,6 +782,11 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  </button>
  `;
  }
+ }, (error) => {
+ console.error("[PANEL_ADMIN_FINANCE_LISTENER_FAILED]", error);
+ [elementos.countMoney, elementos.countBovedaStripe, elementos.kpiTicketPromedio,
+  elementos.kpiLtvPromedio, elementos.kpiMargenNeto, elementos.kpiForecastRunRate]
+ .filter(Boolean).forEach(element => { element.innerText = "N/D"; });
  });
 
  window.exportarConciliacionCSV = async () => {
@@ -1196,17 +1234,11 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  if (isNaN(monto)) return;
 
  try {
- await addDoc(collection(db, "transacciones"), {
- tecnico_id: uid,
- pago_tecnico: -Math.abs(monto),
- monto_total: 0,
- tipo: "penalizacion",
- descripcion: `Admin: ${motivo}`,
- fecha: serverTimestamp()
- });
- 
- await updateDoc(doc(db, "users", uid), {
- reputacion: increment(-0.5)
+ await ejecutarAccionNocB2C({
+ action: "manual_penalty",
+ technicianId: uid,
+ amount: monto,
+ reason: `Admin: ${motivo}`
  });
 
  alert(`⛔ Penalización de $${monto} aplicada al técnico.`);
@@ -1223,14 +1255,7 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  if(!confirm(`¿Confirmas que recibiste $${monto} de ${nombre}? Esto borrará o reducirá su deuda en el sistema.`)) return;
 
  try {
- await addDoc(collection(db, "transacciones"), {
- tecnico_id: uid,
- pago_tecnico: Math.abs(monto), 
- monto_total: 0,
- tipo: "abono_deuda",
- descripcion: `Admin: Abono de deuda recibido (SPEI/OXXO)`,
- fecha: serverTimestamp()
- });
+ await ejecutarAccionNocB2C({ action: "record_technician_payment", technicianId: uid, amount: monto });
  alert(`✅ Abono de $${monto} registrado con éxito. La billetera del técnico se ha liberado.`);
  } catch (e) {
  console.error(e);
@@ -1410,7 +1435,12 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  `;
  elementos.listaRetiros.appendChild(card);
  });
- });
+ }, (error) => adminListenerError(
+ "WITHDRAWALS",
+ elementos.listaRetiros,
+ "No fue posible cargar retiros. Verifica reglas o el índice requerido.",
+ error
+ ));
 
  window.aprobarRetiro = async (retiroId, tecnicoId, monto) => {
  if(!confirm("¿Confirmas que ya realizaste la transferencia SPEI por $"+monto.toFixed(2)+"?\n\nEsto descontará el saldo de la wallet del técnico en automático.")) return;
@@ -1424,22 +1454,7 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  }
 
  try {
- await updateDoc(doc(db, "retiros", retiroId), {
- estado: "aprobado",
- fecha_aprobacion: serverTimestamp()
- });
-
- await addDoc(collection(db, "transacciones"), {
- servicio_id: "RETIRO_SPEI_" + retiroId.substring(0,5),
- tecnico_id: tecnicoId,
- monto_total: 0,
- comision_fixgo: 0,
- retencion_iva: 0,
- retencion_isr: 0,
- pago_tecnico: -Math.abs(monto), 
- fecha: serverTimestamp(),
- tipo: "retiro_fondos"
- });
+ await ejecutarAccionNocB2C({ action: "process_withdrawal", withdrawalId: retiroId });
 
  alert("✅ Retiro procesado exitosamente. Wallet del técnico actualizada.");
  } catch (error) {

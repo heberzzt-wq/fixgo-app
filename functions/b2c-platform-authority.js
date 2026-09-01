@@ -186,6 +186,196 @@ function createSetCustomerPaymentPermissionsHandler({ admin, db, functions }) {
     };
 }
 
+function createSetGlobalPaymentGatewaysHandler({ admin, db, functions }) {
+    if (!admin || !db || !functions) throw new Error("B2C_GLOBAL_GATEWAYS_DEPENDENCIES_REQUIRED");
+    return async (data, context) => {
+        const actorId = await requireAdmin({ db, functions, context });
+        if (typeof data?.stripe_activo !== "boolean" || typeof data?.efectivo_activo !== "boolean") {
+            throw callableError(functions, "invalid-argument", "Ambos gateways booleanos son obligatorios.");
+        }
+        const now = admin.firestore.FieldValue.serverTimestamp();
+        await db.collection("configuracion").doc("pagos").set({
+            stripe_activo: data.stripe_activo,
+            efectivo_activo: data.efectivo_activo,
+            actualizado_at: now,
+            actualizado_por: actorId,
+            contract_version: platformContract.CONTRACT_VERSION
+        }, { merge: true });
+        return {
+            ok: true,
+            gateways: {
+                stripe_activo: data.stripe_activo,
+                efectivo_activo: data.efectivo_activo
+            },
+            marketplaceResync: "triggered_by_config_write"
+        };
+    };
+}
+
+function createAdminNocActionHandler({ admin, db, functions }) {
+    if (!admin || !db || !functions) throw new Error("B2C_ADMIN_NOC_DEPENDENCIES_REQUIRED");
+    return async (data, context) => {
+        const actorId = await requireAdmin({ db, functions, context });
+        const action = clean(data?.action, 80);
+        const now = admin.firestore.FieldValue.serverTimestamp();
+
+        if (action === "recalculate_commissions") {
+            const snapshot = await db.collection("users").where("rol", "==", "tecnico").limit(450).get();
+            const batch = db.batch();
+            const counters = { promoted: 0, demoted: 0, stable: 0 };
+            snapshot.docs.forEach(document => {
+                const technician = document.data() || {};
+                const reputation = Number(technician.reputacion || 0);
+                const completed = Number(technician.servicios_completados || 0);
+                const strikes = Number(technician.strikes || 0);
+                let level = "BRONCE";
+                let commission = 0.30;
+                if (reputation >= 4.8 && completed >= 50 && strikes === 0) {
+                    level = "ORO";
+                    commission = 0.24;
+                } else if (reputation >= 4.5 && completed >= 20 && strikes <= 1) {
+                    level = "PLATA";
+                    commission = 0.27;
+                }
+                if (technician.nivel === level && Number(technician.comision_asignada || 0.30) === commission) {
+                    counters.stable += 1;
+                    return;
+                }
+                if (commission < Number(technician.comision_asignada || 0.30)) counters.promoted += 1;
+                else counters.demoted += 1;
+                batch.set(document.ref, {
+                    nivel: level,
+                    comision_asignada: commission,
+                    lastGamificationAudit: now,
+                    lastGamificationAuditBy: actorId
+                }, { merge: true });
+            });
+            await batch.commit();
+            return { ok: true, action, ...counters };
+        }
+
+        if (action === "process_withdrawal") {
+            const withdrawalId = clean(data?.withdrawalId, 160);
+            if (!withdrawalId) throw callableError(functions, "invalid-argument", "withdrawalId es obligatorio.");
+            const withdrawalRef = db.collection("retiros").doc(withdrawalId);
+            const auditRef = db.collection("transacciones").doc(`retiro_${withdrawalId}`);
+            return db.runTransaction(async transaction => {
+                const withdrawalSnapshot = await transaction.get(withdrawalRef);
+                if (!withdrawalSnapshot.exists) throw callableError(functions, "not-found", "Retiro no encontrado.");
+                const withdrawal = withdrawalSnapshot.data() || {};
+                if (clean(withdrawal.estado, 40) !== "pendiente") {
+                    throw callableError(functions, "failed-precondition", "El retiro ya no está pendiente.");
+                }
+                const amount = Number(withdrawal.monto);
+                const technicianId = clean(withdrawal.tecnico_id, 160);
+                if (!Number.isFinite(amount) || amount <= 0 || !technicianId) {
+                    throw callableError(functions, "failed-precondition", "El retiro no tiene monto o técnico válido.");
+                }
+                transaction.set(withdrawalRef, {
+                    estado: "aprobado",
+                    fecha_aprobacion: now,
+                    aprobado_por: actorId,
+                    transaccion_id: auditRef.id
+                }, { merge: true });
+                transaction.create(auditRef, {
+                    servicio_id: `RETIRO_SPEI_${withdrawalId.slice(0, 5)}`,
+                    retiro_id: withdrawalId,
+                    tecnico_id: technicianId,
+                    monto_total: 0,
+                    comision_fixgo: 0,
+                    retencion_iva: 0,
+                    retencion_isr: 0,
+                    pago_tecnico: -Math.abs(amount),
+                    fecha: now,
+                    tipo: "retiro_fondos",
+                    autorizado_por: actorId
+                });
+                return { ok: true, action, withdrawalId, technicianId, amount };
+            });
+        }
+
+        const technicianId = clean(data?.technicianId, 160);
+        if (!technicianId) throw callableError(functions, "invalid-argument", "technicianId es obligatorio.");
+        const technicianRef = db.collection("users").doc(technicianId);
+        const technicianSnapshot = await technicianRef.get();
+        if (!technicianSnapshot.exists) throw callableError(functions, "not-found", "Técnico no encontrado.");
+        const technician = technicianSnapshot.data() || {};
+        if (platformContract.normalizeToken(technician.rol || technician.role) !== "tecnico") {
+            throw callableError(functions, "failed-precondition", "El perfil no corresponde a un técnico.");
+        }
+
+        if (action === "restore_technician") {
+            await technicianRef.set({
+                estado: platformContract.TECHNICIAN_STATES.ACTIVE,
+                status: platformContract.TECHNICIAN_STATES.ACTIVE,
+                disponible: false,
+                restoredByNoc: now,
+                restoredByNocActor: actorId
+            }, { merge: true });
+            return { ok: true, action, technicianId };
+        }
+
+        if (action === "apply_strike") {
+            const level = Number(data?.strikeLevel);
+            const sanctions = {
+                1: { state: "suspendido", amount: 200, label: "ADVERTENCIA TIPO 1" },
+                2: { state: "suspendido_grave", amount: 500, label: "BLOQUEO TIPO 2" },
+                3: { state: "baneado_permanente", amount: 1000, label: "TERMINACIÓN DE CONTRATO" }
+            };
+            const sanction = sanctions[level];
+            if (!sanction) throw callableError(functions, "invalid-argument", "strikeLevel inválido.");
+            const auditRef = db.collection("transacciones").doc();
+            const batch = db.batch();
+            batch.set(technicianRef, {
+                estado: sanction.state,
+                status: sanction.state,
+                strikes: level,
+                disponible: false,
+                lastNocPenalty: now,
+                lastNocPenaltyBy: actorId,
+                nocPenaltyLabel: sanction.label
+            }, { merge: true });
+            batch.set(auditRef, {
+                tecnico_id: technicianId,
+                pago_tecnico: -Math.abs(sanction.amount),
+                monto_total: 0,
+                tipo: "penalizacion",
+                descripcion: `Protocolo NOC Disciplina: Strike ${level} (${sanction.label})`,
+                fecha: now,
+                audit_ref: `NOC-PENALTY-${level}-${technicianId.slice(0, 5)}`,
+                autorizado_por: actorId
+            });
+            await batch.commit();
+            return { ok: true, action, technicianId, strikeLevel: level, state: sanction.state };
+        }
+
+        if (["manual_penalty", "record_technician_payment"].includes(action)) {
+            const amount = Number(data?.amount);
+            if (!Number.isFinite(amount) || amount <= 0 || amount > 1000000) {
+                throw callableError(functions, "invalid-argument", "Monto inválido.");
+            }
+            const reason = clean(data?.reason, 500);
+            if (action === "manual_penalty" && reason.length < 8) {
+                throw callableError(functions, "invalid-argument", "La penalización requiere un motivo auditable.");
+            }
+            const transactionRef = db.collection("transacciones").doc();
+            await transactionRef.set({
+                tecnico_id: technicianId,
+                tecnico_nombre: clean(technician.nombre, 160),
+                pago_tecnico: action === "manual_penalty" ? -Math.abs(amount) : Math.abs(amount),
+                monto_total: 0,
+                tipo: action === "manual_penalty" ? "penalizacion" : "pago_tecnico",
+                descripcion: action === "manual_penalty" ? reason : "Pago a técnico registrado por Admin",
+                fecha: now,
+                autorizado_por: actorId
+            });
+            return { ok: true, action, technicianId, amount };
+        }
+
+        throw callableError(functions, "invalid-argument", "Acción NOC no permitida.");
+    };
+}
+
 function createMigrateTechnicianProfileHandler({ admin, db, functions }) {
     if (!admin || !db || !functions) throw new Error("B2C_TECHNICIAN_MIGRATION_DEPENDENCIES_REQUIRED");
     return async (data, context) => {
@@ -226,8 +416,10 @@ function createMigrateTechnicianProfileHandler({ admin, db, functions }) {
 }
 
 module.exports = {
+    createAdminNocActionHandler,
     createB2cServiceHandler,
     createMigrateTechnicianProfileHandler,
+    createSetGlobalPaymentGatewaysHandler,
     createSetCustomerPaymentPermissionsHandler,
     isAuthorizedAdmin
 };

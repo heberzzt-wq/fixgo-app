@@ -2,8 +2,10 @@
 
 const assert = require("node:assert/strict");
 const {
+    createAdminNocActionHandler,
     createB2cServiceHandler,
     createMigrateTechnicianProfileHandler,
+    createSetGlobalPaymentGatewaysHandler,
     createSetCustomerPaymentPermissionsHandler
 } = require("./b2c-platform-authority");
 
@@ -20,17 +22,26 @@ function snapshot(id, value, ref = null) {
 
 function fakeDb(seed) {
     const data = new Map(Object.entries(seed));
+    let autoId = 0;
     const ref = path => ({ path, id: path.split("/").pop(), async get() { return snapshot(this.id, data.get(path), this); }, async set(value, options) {
         data.set(path, options?.merge ? { ...(data.get(path) || {}), ...value } : value);
     } });
     return {
         data,
-        collection(name) { return { doc(id) { return ref(`${name}/${id}`); } }; },
+        collection(name) { return { doc(id = `auto-${++autoId}`) { return ref(`${name}/${id}`); } }; },
+        batch() {
+            const writes = [];
+            return {
+                set(target, value, options) { writes.push(() => data.set(target.path, options?.merge ? { ...(data.get(target.path) || {}), ...value } : value)); },
+                async commit() { writes.forEach(write => write()); }
+            };
+        },
         async runTransaction(callback) {
             const writes = [];
             const transaction = {
                 async get(target) { return snapshot(target.id, data.get(target.path), target); },
                 create(target, value) { writes.push(() => data.set(target.path, value)); },
+                set(target, value, options) { writes.push(() => data.set(target.path, options?.merge ? { ...(data.get(target.path) || {}), ...value } : value)); },
                 update(target, value) { writes.push(() => data.set(target.path, { ...(data.get(target.path) || {}), ...value })); }
             };
             const result = await callback(transaction);
@@ -92,6 +103,42 @@ const destination = {
     const updated = db.data.get("users/client-1");
     assert.equal(updated["pagos.stripe_autorizado"], true);
     assert.equal(updated["pagos.efectivo_autorizado"], false);
+
+    const setGateways = createSetGlobalPaymentGatewaysHandler({ admin, db, functions });
+    const gatewayResult = await setGateways(
+        { stripe_activo: true, efectivo_activo: false },
+        { auth: { uid: "admin-1", token: {} } }
+    );
+    assert.deepEqual(gatewayResult.gateways, { stripe_activo: true, efectivo_activo: false });
+    assert.equal(gatewayResult.marketplaceResync, "triggered_by_config_write");
+    assert.equal(db.data.get("configuracion/pagos").stripe_activo, true);
+    assert.equal(db.data.get("configuracion/pagos").efectivo_activo, false);
+    assert.equal(db.data.get("configuracion/pagos").actualizado_por, "admin-1");
+    await assert.rejects(
+        setGateways({ stripe_activo: true, efectivo_activo: true }, {}),
+        error => error.code === "unauthenticated"
+    );
+
+    db.data.set("users/tech-1", { rol: "tecnico", nombre: "Técnico Uno", estado: "activo" });
+    db.data.set("retiros/withdrawal-1", { estado: "pendiente", tecnico_id: "tech-1", monto: 350 });
+    const noc = createAdminNocActionHandler({ admin, db, functions });
+    const adminContext = { auth: { uid: "admin-1", token: {} } };
+    const strike = await noc(
+        { action: "apply_strike", technicianId: "tech-1", strikeLevel: 1 },
+        adminContext
+    );
+    assert.equal(strike.state, "suspendido");
+    assert.equal(db.data.get("users/tech-1").disponible, false);
+    const withdrawal = await noc(
+        { action: "process_withdrawal", withdrawalId: "withdrawal-1" },
+        adminContext
+    );
+    assert.equal(withdrawal.amount, 350);
+    assert.equal(db.data.get("retiros/withdrawal-1").estado, "aprobado");
+    await assert.rejects(
+        noc({ action: "process_withdrawal", withdrawalId: "withdrawal-1" }, adminContext),
+        error => error.code === "failed-precondition"
+    );
 
     db.data.set("users/tech-legacy", {
         rol: "tecnico",

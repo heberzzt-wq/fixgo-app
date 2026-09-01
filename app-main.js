@@ -81,6 +81,8 @@ import {
 
 } from "./app-bi.js";
 
+import { iniciarRuntimeAdmin } from "./admin-runtime.js";
+
 /* =====================================================
    COGNITIVE RUNTIME BOOTSTRAP
 ===================================================== */
@@ -1009,14 +1011,6 @@ observarAuth(async (userAuth) => {
   }
 };
 
-  if (userAuth.rol === "admin") {
-    window.runJarvis = runJarvis;
-    window.analyzeIntent = analyzeIntent;
-  } else {
-    delete window.runJarvis;
-    delete window.analyzeIntent;
-  }
-
   const routeDecision =
     resolveGestiaRouteDecision({
       user: userAuth,
@@ -1056,30 +1050,22 @@ observarAuth(async (userAuth) => {
 
   try {
     if (userAuth.rol === "admin") {
-      await iniciarPanelAdmin(userAuth);
-
-      setTimeout(() => {
-
-    const dashboard =
-
-        document.getElementById(
-            "dashboardAnalitico"
-        );
-
-    if (!dashboard) {
-
-        console.warn(
-            "⚠️ Dashboard BI aún no disponible"
-        );
-
-        return;
-    }
-
-    iniciarMotorBI(
-        "dashboardAnalitico"
-    );
-
-}, 500);
+      await iniciarRuntimeAdmin({
+        user: userAuth,
+        iniciarPanel: async () => {
+          console.info("[PANEL_ADMIN_START]");
+          const result = await iniciarPanelAdmin(userAuth);
+          console.info("[PANEL_ADMIN_LISTENERS_READY]");
+          return result;
+        },
+        iniciarBI: async () => {
+          console.info("[BI_START]");
+          const dashboard = document.getElementById("dashboardAnalitico");
+          if (!dashboard) throw new Error("BI_CONTAINER_NOT_FOUND");
+          console.info("[BI_CONTAINER_FOUND]");
+          return iniciarMotorBI("dashboardAnalitico");
+        }
+      });
     }
 
    else if (userAuth.rol === "tecnico") {
