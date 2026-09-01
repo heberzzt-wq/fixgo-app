@@ -1,4 +1,14 @@
 /** GestiaPremium canonical service worker. Scope: / */
+self.addEventListener("notificationclick", event => {
+    event.notification.close();
+    const targetUrl = normalizeNotificationUrl(event.notification.data?.url);
+    event.waitUntil(clients.matchAll({ type: "window", includeUncontrolled: true }).then(windowClients => {
+        const pathname = new URL(targetUrl, self.location.origin).pathname;
+        const current = windowClients.find(client => new URL(client.url).pathname === pathname);
+        return current?.focus?.() || clients.openWindow?.(targetUrl);
+    }));
+});
+
 importScripts("https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js");
 
@@ -64,16 +74,11 @@ async function showCanonicalNotification(payload = {}) {
     });
 }
 
-if (messaging) messaging.onBackgroundMessage(payload => showCanonicalNotification(payload));
-
-self.addEventListener("notificationclick", event => {
-    event.notification.close();
-    const targetUrl = normalizeNotificationUrl(event.notification.data?.url);
-    event.waitUntil(clients.matchAll({ type: "window", includeUncontrolled: true }).then(windowClients => {
-        const pathname = new URL(targetUrl, self.location.origin).pathname;
-        const current = windowClients.find(client => new URL(client.url).pathname === pathname);
-        return current?.focus?.() || clients.openWindow?.(targetUrl);
-    }));
+if (messaging) messaging.onBackgroundMessage(payload => {
+    // Los mensajes con notification los muestra FCM automáticamente en background.
+    // Conservamos el handler canónico como respaldo para mensajes data-only históricos.
+    if (payload?.notification) return undefined;
+    return showCanonicalNotification(payload);
 });
 
 self.addEventListener("install", event => {

@@ -211,7 +211,17 @@ function createFakeDb() {
         ref: { set: async patch => eventWrites.push(patch) }
     });
     assert.deepEqual(sentMessage.tokens, ["token-compatible"]);
+    assert.equal(sentMessage.notification.title, "Nueva solicitud disponible");
     assert.equal(sentMessage.data.alertProfile, "long_loud_vibration");
+    assert.equal(sentMessage.webpush.fcmOptions.link, "https://fixgo-44e4d.web.app/tecnico.html");
+    assert.equal(sentMessage.webpush.notification.silent, false);
+    assert.equal(sentMessage.webpush.notification.renotify, true);
+    assert.deepEqual(sentMessage.webpush.notification.vibrate, [700, 180, 700, 180, 700, 180, 1200]);
+    assert.equal(sentMessage.android.priority, "high");
+    assert.equal(sentMessage.android.notification.sound, "default");
+    assert.equal(sentMessage.android.notification.channelId, "gestia_requests");
+    assert.equal(sentMessage.apns.headers["apns-priority"], "10");
+    assert.equal(sentMessage.apns.payload.aps.sound, "default");
     assert.equal(eventWrites.at(-1).recipient_count, 1);
     assert.deepEqual(eventWrites.at(-1).recipient_fingerprints, [recipientFingerprint("tech-vertical")]);
     assert.deepEqual(eventWrites.at(-1).delivered_recipient_fingerprints, [recipientFingerprint("tech-vertical")]);

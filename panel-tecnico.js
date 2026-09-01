@@ -31,7 +31,8 @@ import { getDocs, arrayUnion, runTransaction, limit, increment } from "https://w
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
 import { iniciarTracking, detenerTracking } from "./gps-motor.js";
-import { escaparHTML, calcularDistancia, sonarAlerta, lanzarNotificacionPush, procesarEventoNotificacion, cargarLibreriaPDF, urlABase64 } from "./app-utils.js";
+import { escaparHTML, calcularDistancia, sonarAlerta, lanzarNotificacionPush, procesarEventoNotificacion, probarAlertaTecnicoLocal, cargarLibreriaPDF, urlABase64 } from "./app-utils.js";
+import { getPlatformServiceWorkerRegistration } from "./platform-release.js";
 import {
     TECHNICIAN_KYC_STATES,
     assertTechnicianCanOperate,
@@ -43,10 +44,45 @@ import {
 } from "./b2c-technician-profile.js";
 import { getConfirmedServiceDestination } from "./b2c-destination.js";
 
+let notificationRuntimeState = {
+    permission: "verificando",
+    workerRelease: null,
+    workerActive: false,
+    pushSubscription: false,
+    tokenRefreshed: false,
+    reason: null
+};
+
+function renderNotificationRuntimeState() {
+    const label = document.getElementById("b2cNotificationRuntimeLabel");
+    const button = document.getElementById("b2cNotificationTestButton");
+    if (!label || !button) return;
+    const state = notificationRuntimeState;
+    const healthy = state.permission === "granted" && state.workerActive && state.pushSubscription && state.tokenRefreshed;
+    const release = state.workerRelease ? state.workerRelease.slice(0, 8) : "sin SHA";
+    label.textContent = healthy
+        ? `RADIO LISTO · SW ${release} · PUSH VINCULADO`
+        : `RADIO PENDIENTE · ${state.permission} · ${state.reason || "revisando worker/push"}`;
+    label.className = `text-[9px] font-black ${healthy ? "text-emerald-400" : "text-amber-400"}`;
+    button.onclick = async () => {
+        button.disabled = true;
+        button.textContent = "PROBANDO...";
+        const result = await probarAlertaTecnicoLocal();
+        button.textContent = result.ok ? "ALERTA LOCAL ENVIADA" : `FALLÓ: ${result.reason}`;
+        setTimeout(() => {
+            button.disabled = false;
+            button.textContent = "PROBAR TIMBRE Y VIBRACIÓN";
+        }, 5000);
+    };
+}
+
+function setNotificationRuntimeState(patch = {}) {
+    notificationRuntimeState = { ...notificationRuntimeState, ...patch };
+    renderNotificationRuntimeState();
+}
+
 export async function iniciarPanelTecnico(user) {
     console.log(" 🔧 Iniciando Panel de Técnico (Modo Tarifas Inteligentes y Pase QR)...");
-    
-    activarMotorFCM(user.uid);
 
     const elementos = {
         statusLabel: document.getElementById("statusLabel"),
@@ -67,6 +103,8 @@ export async function iniciarPanelTecnico(user) {
         fotoPerfil: document.getElementById("fotoPerfil"),
         fotoIcono: document.getElementById("fotoIcono")
     };
+
+    void activarMotorFCM(user.uid);
 
     const tecnicoRef = doc(db, "users", user.uid);
     let perfilTecnicoActual = normalizeTechnicianProfile(user);
@@ -112,7 +150,14 @@ export async function iniciarPanelTecnico(user) {
                     <div><span class="text-zinc-500">Servicios</span><p class="text-white font-bold">${perfilCanonico.servicios_completados}</p></div>
                 </div>
                 <div class="flex flex-wrap gap-2 mt-3">${skills}</div>
+                <div class="border-t border-zinc-800 mt-3 pt-3 flex flex-col gap-2">
+                    <span id="b2cNotificationRuntimeLabel" class="text-[9px] font-black text-amber-400">RADIO PENDIENTE · VERIFICANDO</span>
+                    <button id="b2cNotificationTestButton" type="button" class="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-[9px] font-black py-2 px-3 rounded-lg">
+                        PROBAR TIMBRE Y VIBRACIÓN
+                    </button>
+                </div>
             </div>`;
+            renderNotificationRuntimeState();
         }
         
         let colorNivel = "text-orange-500 bg-orange-600/20 border-orange-500/30";
@@ -2131,39 +2176,69 @@ if (!isTechnicianSkillCompatible(tecnico, s)) return;
 async function activarMotorFCM(uid) {
     console.log("🛠️ [FCM DEBUG] Iniciando Motor FCM para UID:", uid);
     try {
-        const messaging = getMessaging(); 
-        
-        const permission = await Notification.requestPermission();
-        
-        if (permission === 'granted') {
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.ready.then(async (registration) => {
-                    try {
-                        const currentToken = await getToken(messaging, { 
-                            vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7Imx_shSMBFqLwQbzRTyNFCEs9n3b3OlEIoJI4U4jXPx6CLsYQ',
-                            serviceWorkerRegistration: registration 
-                        });
-                        
-                        if (currentToken) {
-                            await updateDoc(doc(db, "users", uid), { fcmToken: currentToken });
-                        }
-                    } catch (tokenError) {
-                        console.error("❌ [FCM CRÍTICO] Falló la obtención del Token. Error de Google:", tokenError);
-                    }
-                }).catch(swError => {
-                    console.error("❌ [FCM CRÍTICO] Error con el Service Worker:", swError);
-                });
-            }
+        if (!("Notification" in window) || !("serviceWorker" in navigator)) {
+            setNotificationRuntimeState({ permission: "unsupported", reason: "NOTIFICATION_OR_SW_UNSUPPORTED" });
+            return;
         }
+        const messaging = getMessaging();
         onMessage(messaging, (payload) => {
             const data = payload?.data || {};
             procesarEventoNotificacion({
                 eventType: data.eventType,
                 serviceId: data.serviceId,
-                messageId: data.messageId || payload?.messageId
+                messageId: data.messageId || payload?.messageId || `foreground_fcm_${Date.now()}`
+            }, {
+                title: payload?.notification?.title || data.title || "Nueva solicitud disponible",
+                body: payload?.notification?.body || data.body || "Tienes un servicio compatible con tu perfil operativo."
             });
+        });
+
+        const permission = Notification.permission === "default"
+            ? await Notification.requestPermission()
+            : Notification.permission;
+        setNotificationRuntimeState({ permission });
+        if (permission !== "granted") {
+            setNotificationRuntimeState({ reason: `NOTIFICATION_PERMISSION_${permission.toUpperCase()}` });
+            return;
+        }
+
+        const registration = await getPlatformServiceWorkerRegistration();
+        if (!registration?.active) throw new Error("ACTIVE_RELEASE_SERVICE_WORKER_REQUIRED");
+        const workerRelease = new URL(registration.active.scriptURL).searchParams.get("release_sha") || "";
+        const expectedRelease = globalThis.GESTIA_RELEASE?.git_sha || "";
+        if (!workerRelease || workerRelease !== expectedRelease) {
+            throw new Error("ACTIVE_RELEASE_SERVICE_WORKER_MISMATCH");
+        }
+
+        const currentToken = await getToken(messaging, {
+            vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7Imx_shSMBFqLwQbzRTyNFCEs9n3b3OlEIoJI4U4jXPx6CLsYQ',
+            serviceWorkerRegistration: registration
+        });
+        const subscription = await registration.pushManager.getSubscription();
+        if (!currentToken || !subscription) throw new Error("FCM_PUSH_SUBSCRIPTION_MISSING");
+
+        await updateDoc(doc(db, "users", uid), {
+            fcmToken: currentToken,
+            ultimaSincronizacionPush: serverTimestamp(),
+            push_runtime: {
+                version: "b2c-push-runtime-v1",
+                permission,
+                worker_release_sha: workerRelease,
+                worker_scope: registration.scope,
+                subscription_present: true,
+                token_refreshed_at: serverTimestamp()
+            }
+        });
+        setNotificationRuntimeState({
+            permission,
+            workerRelease,
+            workerActive: true,
+            pushSubscription: true,
+            tokenRefreshed: true,
+            reason: null
         });
     } catch (error) {
         console.error("❌ [FCM GENERAL] El motor Push falló al iniciar.", error);
+        setNotificationRuntimeState({ reason: error?.message || "FCM_RUNTIME_FAILED" });
     }
 }

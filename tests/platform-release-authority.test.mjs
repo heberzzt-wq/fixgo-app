@@ -3,7 +3,7 @@ import fs from "node:fs";
 import test from "node:test";
 
 import { buildReleaseArtifacts } from "../scripts/prepare-platform-release.mjs";
-import { workerMatchesRelease } from "../platform-release.js";
+import { waitForWorkerActivation, workerMatchesRelease } from "../platform-release.js";
 
 const SHA = "0123456789abcdef0123456789abcdef01234567";
 const firebaseConfig = {
@@ -35,6 +35,16 @@ test("service worker identity rejects mixed release URLs", () => {
     assert.equal(workerMatchesRelease({ scriptURL: "https://fixgo.test/sw.js" }, SHA), false);
 });
 
+test("release authority waits until the exact service worker is activated", async () => {
+    const worker = new EventTarget();
+    worker.state = "installed";
+    setTimeout(() => {
+        worker.state = "activated";
+        worker.dispatchEvent(new Event("statechange"));
+    }, 5);
+    assert.equal(await waitForWorkerActivation(worker, 100), worker);
+});
+
 test("repository has one physical worker and no parallel direct registration", () => {
     const root = new URL("../", import.meta.url);
     assert.equal(fs.existsSync(new URL("sw.js", root)), true);
@@ -53,4 +63,6 @@ test("background notification handler has one FCM path and stable deduplication"
     assert.equal((source.match(/addEventListener\("push"/g) || []).length, 0);
     assert.match(source, /messageId \|\| data\.serviceId/);
     assert.match(source, /renotify:\s*false/);
+    assert.ok(source.indexOf('addEventListener("notificationclick"') < source.indexOf("importScripts("));
+    assert.match(source, /if \(payload\?\.notification\) return undefined/);
 });

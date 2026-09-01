@@ -364,19 +364,53 @@ function createMarketplaceNotificationHandler({ admin, db }) {
             return null;
         }
         const messageId = clean(event.message_id, 180);
+        const notificationTitle = "Nueva solicitud disponible";
+        const notificationBody = "Hay un servicio compatible con tu perfil operativo.";
+        const technicianUrl = "https://fixgo-44e4d.web.app/tecnico.html";
         const response = await admin.messaging().sendEachForMulticast({
             tokens,
+            notification: {
+                title: notificationTitle,
+                body: notificationBody
+            },
             data: {
                 eventType: platformContract.EVENT_MARKETPLACE_SERVICE_AVAILABLE,
                 serviceId: clean(event.service_id, 160),
                 messageId,
-                title: "Nueva solicitud disponible",
-                body: "Hay un servicio compatible con tu perfil operativo.",
+                title: notificationTitle,
+                body: notificationBody,
                 alertProfile: "long_loud_vibration",
                 url: "/tecnico.html"
             },
-            android: { priority: "high" },
-            webpush: { fcmOptions: { link: "/tecnico.html" } }
+            android: {
+                priority: "high",
+                notification: { sound: "default", channelId: "gestia_requests" }
+            },
+            apns: {
+                headers: { "apns-priority": "10" },
+                payload: { aps: { sound: "default", badge: 1, contentAvailable: true } }
+            },
+            webpush: {
+                headers: { Urgency: "high", TTL: "300" },
+                notification: {
+                    title: notificationTitle,
+                    body: notificationBody,
+                    icon: "https://fixgo-44e4d.web.app/icono-192.png",
+                    badge: "https://fixgo-44e4d.web.app/icono-192.png",
+                    vibrate: [700, 180, 700, 180, 700, 180, 1200],
+                    requireInteraction: true,
+                    silent: false,
+                    renotify: true,
+                    tag: messageId,
+                    data: {
+                        url: "/tecnico.html",
+                        messageId,
+                        serviceId: clean(event.service_id, 160),
+                        eventType: platformContract.EVENT_MARKETPLACE_SERVICE_AVAILABLE
+                    }
+                },
+                fcmOptions: { link: technicianUrl }
+            }
         });
         await snapshot.ref.set({
             estado: "delivered",

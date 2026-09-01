@@ -209,6 +209,14 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.doesNotMatch(registration, /email:\s*email\.toLowerCase\(\)/);
     assert.match(technician, /collection\(db, "service_marketplace"\)/);
     assert.match(technician, /dispatchMarketplaceEventForTechnician\(obtenerTecnico\(\), listing/);
+    assert.match(technician, /getPlatformServiceWorkerRegistration\(\)/);
+    assert.match(technician, /push_runtime:/);
+    assert.match(technician, /ultimaSincronizacionPush:\s*serverTimestamp\(\)/);
+    assert.match(technician, /foreground_fcm_\$\{Date\.now\(\)\}/);
+    assert.match(technician, /payload\?\.notification\?\.title/);
+    assert.match(technician, /PROBAR TIMBRE Y VIBRACIÓN/);
+    assert.doesNotMatch(technician, /navigator\.serviceWorker\.ready\.then\(async \(registration\)/);
+    assert.match(utilities, /getPlatformServiceWorkerRegistration\(\)/);
     for (const source of [alerts, utilities, worker]) {
         assert.match(source, /700, 180, 700, 180, 700, 180, 1200/);
     }

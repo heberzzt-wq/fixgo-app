@@ -57,6 +57,30 @@ async function waitForReleaseWorker(registration, gitSha, timeoutMs = 10000) {
     });
 }
 
+async function waitForWorkerActivation(worker, timeoutMs = 10000) {
+    if (!worker) throw new Error("RELEASE_SERVICE_WORKER_MISSING");
+    if (worker.state === "activated") return worker;
+    return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+            worker.removeEventListener?.("statechange", inspect);
+            reject(new Error("RELEASE_SERVICE_WORKER_ACTIVATION_TIMEOUT"));
+        }, timeoutMs);
+        const inspect = () => {
+            if (worker.state === "activated") {
+                clearTimeout(timeout);
+                worker.removeEventListener?.("statechange", inspect);
+                resolve(worker);
+            } else if (worker.state === "redundant") {
+                clearTimeout(timeout);
+                worker.removeEventListener?.("statechange", inspect);
+                reject(new Error("RELEASE_SERVICE_WORKER_REDUNDANT"));
+            }
+        };
+        worker.addEventListener?.("statechange", inspect);
+        inspect();
+    });
+}
+
 async function initializePlatformRelease() {
     if (initializationPromise) return initializationPromise;
     initializationPromise = (async () => {
@@ -71,11 +95,15 @@ async function initializePlatformRelease() {
         );
         await registration.update();
         const worker = await waitForReleaseWorker(registration, manifest.git_sha);
-        const identity = await queryWorkerIdentity(worker);
+        await waitForWorkerActivation(worker);
+        const ready = await navigator.serviceWorker.ready;
+        if (!workerMatchesRelease(ready.active, manifest.git_sha)) {
+            throw new Error("RELEASE_ACTIVE_SERVICE_WORKER_MISMATCH");
+        }
+        const identity = await queryWorkerIdentity(ready.active);
         if (identity.git_sha !== manifest.git_sha) {
             throw new Error(`RELEASE_IDENTITY_MISMATCH:${identity.git_sha || "missing"}:${manifest.git_sha}`);
         }
-        const ready = await navigator.serviceWorker.ready;
         return { manifest, registration: ready, supported: true };
     })();
     return initializationPromise;
@@ -91,5 +119,6 @@ export {
     queryWorkerIdentity,
     SHA_PATTERN,
     waitForReleaseWorker,
+    waitForWorkerActivation,
     workerMatchesRelease
 };

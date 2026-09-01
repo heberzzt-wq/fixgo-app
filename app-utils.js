@@ -9,6 +9,7 @@
  */
 
 import { activarAlertas, alertaTecnico } from "./alert-engine.js";
+import { getPlatformServiceWorkerRegistration } from "./platform-release.js";
 
 /**
  * SANITIZADOR MAESTRO (PREVENCIÓN XSS)
@@ -60,24 +61,41 @@ export function sonarAlerta() {
  * 🔔 MOTOR DE NOTIFICACIONES PUSH (CORRECCIÓN ANDROID V5.18.2)
  * Se usa ServiceWorkerRegistration para garantizar compatibilidad móvil local.
  */
-export function lanzarNotificacionPush(titulo, cuerpo, options = {}) {
+export async function lanzarNotificacionPush(titulo, cuerpo, options = {}) {
     if (!("Notification" in window) || !("serviceWorker" in navigator)) {
-        return;
+        return { ok: false, reason: "NOTIFICATION_UNSUPPORTED" };
     }
-    if (Notification.permission === "granted") {
-        navigator.serviceWorker.ready.then((registration) => {
-            registration.showNotification(titulo, {
-                body: cuerpo,
-                icon: "icono-192.png",
-                badge: "icono-192.png",
-                vibrate: [700, 180, 700, 180, 700, 180, 1200],
-                silent: false,
-                tag: options.messageId || options.serviceId || "alerta-fixgo-unica",
-                renotify: false,
-                requireInteraction: true 
-            });
-        }).catch(err => console.error("Error al lanzar Push Nativo:", err));
+    if (Notification.permission !== "granted") {
+        return { ok: false, reason: `NOTIFICATION_PERMISSION_${Notification.permission.toUpperCase()}` };
     }
+    try {
+        const registration = await getPlatformServiceWorkerRegistration();
+        if (!registration) return { ok: false, reason: "ACTIVE_RELEASE_SERVICE_WORKER_REQUIRED" };
+        await registration.showNotification(titulo, {
+            body: cuerpo,
+            icon: "icono-192.png",
+            badge: "icono-192.png",
+            vibrate: [700, 180, 700, 180, 700, 180, 1200],
+            silent: false,
+            tag: options.messageId || options.serviceId || "alerta-fixgo-unica",
+            renotify: true,
+            requireInteraction: true
+        });
+        return { ok: true, reason: null };
+    } catch (error) {
+        console.error("Error al lanzar Push Nativo:", error);
+        return { ok: false, reason: "NOTIFICATION_DISPLAY_FAILED" };
+    }
+}
+
+export async function probarAlertaTecnicoLocal() {
+    await activarAlertas();
+    alertaTecnico();
+    return lanzarNotificacionPush(
+        "Prueba de alerta Gestia",
+        "Si ves, escuchas o sientes esta alerta, el canal local de Android está operativo.",
+        { messageId: `manual_notification_test_${Date.now()}` }
+    );
 }
 
 const PLATFORM_NOTIFICATION_LEDGER = "gestia_platform_notification_events_v1";
