@@ -241,3 +241,12 @@ test("active canonical profile without approval evidence requires migration revi
     delete raw.aprobadoEn;
     assert.equal(browserContract.technicianMigration(raw).classification, "requires_review");
 });
+
+test("technician migration inventories legacy aliases for explicit deletion", () => {
+    const migration = browserContract.technicianMigration(approvedTechnician({
+        fotoPerfil: "https://example.test/legacy-profile.jpg",
+        logistica: { vehiculo: "moto", placas: "ABC123" }
+    }));
+    assert.equal(migration.classification, "auto_migratable");
+    assert.deepEqual(migration.legacyFields, ["fotoPerfil", "logistica"]);
+});

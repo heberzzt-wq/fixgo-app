@@ -203,8 +203,12 @@ function createMigrateTechnicianProfileHandler({ admin, db, functions }) {
             throw callableError(functions, "failed-precondition", "MIGRATION_REVIEW_CONFIRMATION_REQUIRED");
         }
         const now = admin.firestore.FieldValue.serverTimestamp();
+        const legacyDeletes = Object.fromEntries(
+            migration.legacyFields.map(field => [field, admin.firestore.FieldValue.delete()])
+        );
         await ref.set({
             ...migration.canonical,
+            ...legacyDeletes,
             migration: {
                 ...(raw.migration || {}),
                 b2c_contract_v1: {

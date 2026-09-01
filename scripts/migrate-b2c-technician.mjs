@@ -69,6 +69,7 @@ const summary = {
     technician_id: technicianId,
     dry_run: !apply,
     classification: migration.classification,
+    legacy_fields: migration.legacyFields,
     reasons: migration.reasons,
     contract_version: contract.CONTRACT_VERSION,
     source_update_time: sourceDocument.updateTime
@@ -99,7 +100,9 @@ if (!apply) {
         actualizadoEn: appliedAt
     };
     const query = new URLSearchParams();
-    for (const field of Object.keys(fields)) query.append("updateMask.fieldPaths", field);
+    for (const field of [...Object.keys(fields), ...migration.legacyFields]) {
+        query.append("updateMask.fieldPaths", field);
+    }
     query.set("currentDocument.updateTime", sourceDocument.updateTime);
     const updateResponse = await fetch(`${documentUrl}?${query}`, {
         method: "PATCH",

@@ -53,6 +53,25 @@
         "direccion_manual"
     ]);
 
+    const TECHNICIAN_LEGACY_FIELDS = Object.freeze([
+        "role",
+        "fotoPerfil",
+        "foto",
+        "logistica",
+        "vehiculo_tipo",
+        "placas",
+        "certificado",
+        "ine",
+        "ine_url",
+        "csf",
+        "csf_url",
+        "licencia",
+        "banco",
+        "banco_nombre",
+        "clabe",
+        "clabe_interbancaria"
+    ]);
+
     const SERVICE_TRANSITIONS = Object.freeze({
         [SERVICE_STATES.STRIPE_STARTED]: Object.freeze([SERVICE_STATES.PENDING, SERVICE_STATES.CANCELLED]),
         [SERVICE_STATES.PENDING]: Object.freeze([SERVICE_STATES.ASSIGNED, SERVICE_STATES.CANCELLED]),
@@ -368,11 +387,8 @@
     function technicianMigration(raw = {}) {
         const normalized = normalizeTechnicianProfile(raw);
         const requirements = technicianKycRequirements(raw);
-        const hasLegacyShape = Boolean(
-            raw.logistica || raw.vehiculo_tipo || raw.placas ||
-            raw.documentos?.certificado || raw.certificado ||
-            raw.ine || raw.ine_url || raw.csf || raw.csf_url || raw.licencia
-        );
+        const legacyFields = TECHNICIAN_LEGACY_FIELDS.filter(field => Object.hasOwn(raw, field));
+        const hasLegacyShape = legacyFields.length > 0 || Object.hasOwn(raw.documentos || {}, "certificado");
         const canonicalShape = Boolean(
             raw.vehiculo && raw.documentos && raw.datos_bancarios && raw.kyc && Array.isArray(raw.skills)
         );
@@ -384,6 +400,7 @@
                 : "auto_migratable";
         return {
             classification,
+            legacyFields,
             reasons: [
                 ...(hasLegacyShape ? ["LEGACY_FIELDS_PRESENT"] : []),
                 ...(approvalConflict ? ["ACTIVE_WITHOUT_APPROVAL_EVIDENCE"] : []),
@@ -433,6 +450,7 @@
         PAYMENT_METHODS,
         SERVICE_STATES,
         SERVICE_TRANSITIONS,
+        TECHNICIAN_LEGACY_FIELDS,
         TECHNICIAN_STATES,
         assertPaymentMethodAllowed,
         buildMarketplaceListing,
