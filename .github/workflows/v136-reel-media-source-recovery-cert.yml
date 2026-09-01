@@ -57,7 +57,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
-          ! git diff --name-only ffb83de3360b64a07655fb8d01bb26caae8998e4..HEAD | grep -E '^functions/'
+          ! git diff --name-only 45c9231715ad1d8f50756328c6e4128deebba581..HEAD | grep -E '^functions/'
       - name: Guard clean v134-v136 staging
         shell: bash
         run: |
