@@ -204,6 +204,11 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(client, /confirmDestination/);
     assert.match(html, /btnExpandirMapa/);
     assert.match(html, /mapa-expandido/);
+    assert.match(client, /platformContract\.SERVICE_CATALOG/);
+    assert.match(client, /platformContract\.isServiceCategoryEnabled/);
+    assert.doesNotMatch(client, /const DEFINICION_VERTICALES\s*=\s*\{/);
+    assert.match(admin, /platformContract\.SERVICE_CATALOG/);
+    assert.doesNotMatch(admin, /const MASTER_STRUCTURE\s*=\s*\{/);
     assert.match(admin, /aprobarTecnicoB2C\(uid\)/);
     assert.match(registration, /emailSeguro/);
     assert.doesNotMatch(registration, /email:\s*email\.toLowerCase\(\)/);

@@ -66,3 +66,16 @@ test("background notification handler has one FCM path and stable deduplication"
     assert.ok(source.indexOf('addEventListener("notificationclick"') < source.indexOf("importScripts("));
     assert.match(source, /if \(payload\?\.notification\) return undefined/);
 });
+
+test("B2C and B2B obtain Web Push identity from the Firebase singleton", () => {
+    const root = new URL("../", import.meta.url);
+    const firebase = fs.readFileSync(new URL("firebase.js", root), "utf8");
+    const consumers = ["panel-tecnico.js", "app-tecnico-b2b.js", "panel-b2b-admin.js"]
+        .map(file => fs.readFileSync(new URL(file, root), "utf8"));
+
+    assert.equal((firebase.match(/GESTIA_FCM_VAPID_KEY\s*=/g) || []).length, 1);
+    for (const source of consumers) {
+        assert.match(source, /vapidKey:\s*GESTIA_FCM_VAPID_KEY/);
+        assert.equal((source.match(/vapidKey:\s*['"]/g) || []).length, 0);
+    }
+});

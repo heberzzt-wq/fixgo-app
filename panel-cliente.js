@@ -239,35 +239,7 @@ export async function iniciarPanelCliente(user) {
         onSnapshot(doc(db, "configuracion", "catalogo_global"), (docSnap) => {
             const dbConfig = docSnap.exists() ? docSnap.data() : {};
             
-            const DEFINICION_VERTICALES = {
-                road: [
-                    { id: "road_llanta", label: "Llantera Móvil", icon: "fa-car-crash" },
-                    { id: "road_cerrajero", label: "Cerrajería", icon: "fa-key" },
-                    { id: "road_grua", label: "Grúas", icon: "fa-truck-pickup" },
-                    { id: "road_mecanico", label: "Mecánico Gral.", icon: "fa-wrench" },
-                    { id: "road_corriente", label: "Paso Corriente", icon: "fa-car-battery" }
-                ],
-                fix: [
-                    { id: "fix_electricidad", label: "Electricidad", icon: "fa-plug" },
-                    { id: "fix_plomeria", label: "Plomería", icon: "fa-faucet" },
-                    { id: "fix_ac", label: "Aires Acondicionad.", icon: "fa-snowflake" },
-                    { id: "fix_jardin", label: "Jardinería", icon: "fa-leaf" },
-                    { id: "fix_pintura", label: "Pintura", icon: "fa-paint-roller" },
-                    { id: "fix_alberca", label: "Albercas", icon: "fa-swimming-pool" },
-                    { id: "fix_fumigacion", label: "Fumigación", icon: "fa-bug" }
-                ],
-                maint: [
-                    { id: "maint_general", label: "Mantenimiento Gral.", icon: "fa-building" }
-                ],
-                tech: [
-                    { id: "tech_cctv", label: "CCTV", icon: "fa-video" },
-                    { id: "tech_alarma", label: "Alarmas", icon: "fa-bell" },
-                    { id: "tech_acceso", label: "Accesos", icon: "fa-id-card" },
-                    { id: "tech_elevador", label: "Elevadores", icon: "fa-elevator" },
-                    { id: "tech_planta", label: "Plantas Eléc.", icon: "fa-charging-station" },
-                    { id: "tech_solar", label: "Paneles Solares", icon: "fa-solar-panel" }
-                ]
-            };
+            const DEFINICION_VERTICALES = platformContract.SERVICE_CATALOG;
 
             const renderizarCategoria = (categoriaClave, contenedor) => {
                 if(!contenedor) return;
@@ -275,7 +247,7 @@ export async function iniciarPanelCliente(user) {
                 let html = '<div class="grid grid-cols-2 gap-2 p-3 bg-black/50 rounded-b-xl border-x border-b border-zinc-800">';
                 
                 DEFINICION_VERTICALES[categoriaClave].forEach(srv => {
-                    const isActive = dbConfig[srv.id] !== false; 
+                    const isActive = platformContract.isServiceCategoryEnabled(srv.id, dbConfig);
                     
                     if (isActive) {
                         html += `

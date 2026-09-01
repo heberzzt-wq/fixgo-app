@@ -27,7 +27,7 @@ export function buildReleaseArtifacts({ gitSha, firestoreRules, storageRules, fi
     const manifest = {
         schema_version: "gestia-release-v1",
         git_sha: gitSha,
-        b2c_contract_version: "b2c-platform-contract-v1",
+        b2c_contract_version: "b2c-platform-contract-v2",
         b2c_contract_sha256: contractHash,
         prepared_at: new Date().toISOString()
     };

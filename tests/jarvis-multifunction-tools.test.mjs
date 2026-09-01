@@ -3626,6 +3626,28 @@ test("role authority produces deterministic route decisions for every main role"
     assert.equal(
         resolveGestiaRouteDecision({
             metadata: {
+                rol: "tecnico",
+                tipo_cuenta: "B2B",
+                sub_type: "tecnico_planta"
+            },
+            pathname: "/tecnico.html"
+        }).target,
+        "tecnico-b2b.html"
+    );
+
+    assert.equal(
+        resolveGestiaRouteDecision({
+            metadata: {
+                rol: "tecnico_interno"
+            },
+            pathname: "/tecnico.html"
+        }).target,
+        "tecnico-b2b.html"
+    );
+
+    assert.equal(
+        resolveGestiaRouteDecision({
+            metadata: {
                 rol: "admin_b2b"
             },
             pathname: "/login.html"

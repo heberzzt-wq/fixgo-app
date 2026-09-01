@@ -48,9 +48,11 @@ function createB2cServiceHandler({ admin, db, functions }) {
 
         const customerRef = db.collection("users").doc(customerId);
         const configRef = db.collection("configuracion").doc("pagos");
-        const [customerSnapshot, configSnapshot] = await Promise.all([
+        const catalogRef = db.collection("configuracion").doc("catalogo_global");
+        const [customerSnapshot, configSnapshot, catalogSnapshot] = await Promise.all([
             customerRef.get(),
-            configRef.get()
+            configRef.get(),
+            catalogRef.get()
         ]);
         if (!customerSnapshot.exists) throw callableError(functions, "failed-precondition", "Perfil de cliente no disponible.");
         const customer = customerSnapshot.data() || {};
@@ -71,6 +73,13 @@ function createB2cServiceHandler({ admin, db, functions }) {
         });
         if (!categoryId || !categoryId.includes("_")) {
             throw callableError(functions, "invalid-argument", "SERVICE_CATEGORY_INVALID");
+        }
+        if (!platformContract.getServiceDefinition(categoryId)) {
+            throw callableError(functions, "invalid-argument", "SERVICE_CATEGORY_UNKNOWN");
+        }
+        const catalogConfig = catalogSnapshot.exists ? catalogSnapshot.data() || {} : {};
+        if (!platformContract.isServiceCategoryEnabled(categoryId, catalogConfig)) {
+            throw callableError(functions, "failed-precondition", "SERVICE_CATEGORY_DISABLED");
         }
         const category = categoryId.split("_")[0];
         const subService = categoryId.split("_").slice(1).join("_");

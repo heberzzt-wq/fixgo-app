@@ -145,6 +145,26 @@ export function resolveGestiaRouteDecision({
             .trim()
             .toLowerCase();
 
+    const accountType =
+        String(
+            metadata?.tipo_cuenta ||
+            user?.tipo_cuenta ||
+            ""
+        )
+            .trim()
+            .toLowerCase();
+
+    const b2bSubTypes = new Set([
+        "saas",
+        "tecnico_planta",
+        "tecnico_interno"
+    ]);
+
+    const isB2BAccount =
+        accountType === "b2b" ||
+        b2bSubTypes.has(subType) ||
+        roleResolution.roleReal === "tecnico_interno";
+
     const stay = reason => ({
         ...roleResolution,
         page,
@@ -217,7 +237,7 @@ export function resolveGestiaRouteDecision({
 
     if (role === "tecnico") {
         const target =
-            subType === "saas"
+            isB2BAccount
                 ? "tecnico-b2b.html"
                 : "tecnico.html";
 
@@ -227,7 +247,7 @@ export function resolveGestiaRouteDecision({
     }
 
     if (role === "cliente") {
-        if (subType === "saas") {
+        if (isB2BAccount) {
             return page === "app-inquilino"
                 ? stay("saas_client_surface_allowed")
                 : redirect("app-inquilino.html", "saas_client_surface_protection");

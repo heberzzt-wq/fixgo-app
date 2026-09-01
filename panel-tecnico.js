@@ -24,7 +24,8 @@ import {
     setDoc,
     getDoc,
     reclamarServicioB2C,
-    enviarCotizacionB2C
+    enviarCotizacionB2C,
+    GESTIA_FCM_VAPID_KEY
 } from "./firebase.js";
 
 import { getDocs, arrayUnion, runTransaction, limit, increment } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -2211,7 +2212,7 @@ async function activarMotorFCM(uid) {
         }
 
         const currentToken = await getToken(messaging, {
-            vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7Imx_shSMBFqLwQbzRTyNFCEs9n3b3OlEIoJI4U4jXPx6CLsYQ',
+            vapidKey: GESTIA_FCM_VAPID_KEY,
             serviceWorkerRegistration: registration
         });
         const subscription = await registration.pushManager.getSubscription();

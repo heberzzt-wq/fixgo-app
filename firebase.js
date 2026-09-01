@@ -62,6 +62,9 @@ const firebaseConfig = {
     appId: "1:1005526685116:web:62f1a823ff8761da85c7b9"
 };
 
+// Única autoridad pública para vincular suscripciones Web Push/FCM.
+export const GESTIA_FCM_VAPID_KEY = "BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7Imx_shSMBFqLwQbzRTyNFCEs9n3b3OlEIoJI4U4jXPx6CLsYQ";
+
 
 // ======================================================
 // 2. INICIALIZACIÓN (MODO SINGLETON V5.66)

@@ -7,7 +7,7 @@
  * =====================================================
  */
 
-import { auth, db, storage, signOut } from "./firebase.js";
+import { auth, db, storage, signOut, GESTIA_FCM_VAPID_KEY } from "./firebase.js";
 import {
     getPlatformServiceWorkerRegistration,
     initializePlatformRelease
@@ -2029,7 +2029,7 @@ async function activarNotificacionesBolsillo(userId) {
 
             // 2. Pedimos el Token usando el registro explícito del SW v6.1
             const currentToken = await getToken(messaging, { 
-                vapidKey: 'BJ_qj7caLzTumvHvJxy3kdTK50gW1NYJBFKso7Imx_shSMBFqLwQbzRTyNFCEs9n3b3OlEIoJI4U4jXPx6CLsYQ',
+                vapidKey: GESTIA_FCM_VAPID_KEY,
                 serviceWorkerRegistration: registration 
             });
 

@@ -14,9 +14,44 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function createContract() {
     "use strict";
 
-    const CONTRACT_VERSION = "b2c-platform-contract-v1";
+    const CONTRACT_VERSION = "b2c-platform-contract-v2";
     const EVENT_MARKETPLACE_SERVICE_AVAILABLE = "marketplace_service_available";
     const B2C_SKILL_VERTICALS = Object.freeze(["fix", "road", "tech"]);
+    const SERVICE_VERTICAL_LABELS = Object.freeze({
+        road: "ROAD (Auxilio Vial)",
+        fix: "FIX (Hogar)",
+        maint: "MAINT (B2B)",
+        tech: "TECH (Sistemas)"
+    });
+    const SERVICE_CATALOG = Object.freeze({
+        road: Object.freeze([
+            Object.freeze({ id: "road_llanta", label: "Llantera Móvil", icon: "fa-car-crash" }),
+            Object.freeze({ id: "road_cerrajero", label: "Cerrajería", icon: "fa-key" }),
+            Object.freeze({ id: "road_grua", label: "Grúas", icon: "fa-truck-pickup" }),
+            Object.freeze({ id: "road_mecanico", label: "Mecánico Gral.", icon: "fa-wrench" }),
+            Object.freeze({ id: "road_corriente", label: "Paso Corriente", icon: "fa-car-battery" })
+        ]),
+        fix: Object.freeze([
+            Object.freeze({ id: "fix_electricidad", label: "Electricidad", icon: "fa-plug" }),
+            Object.freeze({ id: "fix_plomeria", label: "Plomería", icon: "fa-faucet" }),
+            Object.freeze({ id: "fix_ac", label: "Aires Acondicionad.", icon: "fa-snowflake" }),
+            Object.freeze({ id: "fix_jardin", label: "Jardinería", icon: "fa-leaf" }),
+            Object.freeze({ id: "fix_pintura", label: "Pintura", icon: "fa-paint-roller" }),
+            Object.freeze({ id: "fix_alberca", label: "Albercas", icon: "fa-swimming-pool" }),
+            Object.freeze({ id: "fix_fumigacion", label: "Fumigación", icon: "fa-bug" })
+        ]),
+        maint: Object.freeze([
+            Object.freeze({ id: "maint_general", label: "Mantenimiento Gral.", icon: "fa-building" })
+        ]),
+        tech: Object.freeze([
+            Object.freeze({ id: "tech_cctv", label: "CCTV", icon: "fa-video" }),
+            Object.freeze({ id: "tech_alarma", label: "Alarmas", icon: "fa-bell" }),
+            Object.freeze({ id: "tech_acceso", label: "Accesos", icon: "fa-id-card" }),
+            Object.freeze({ id: "tech_elevador", label: "Elevadores", icon: "fa-elevator" }),
+            Object.freeze({ id: "tech_planta", label: "Plantas Eléc.", icon: "fa-charging-station" }),
+            Object.freeze({ id: "tech_solar", label: "Paneles Solares", icon: "fa-solar-panel" })
+        ])
+    });
 
     const TECHNICIAN_STATES = Object.freeze({
         REGISTRATION_STARTED: "registro_iniciado",
@@ -292,6 +327,20 @@
         return CATEGORY_ALIASES[token] || token;
     }
 
+    function getServiceDefinition(input) {
+        const categoryId = normalizeCategoryKey(input);
+        for (const [vertical, services] of Object.entries(SERVICE_CATALOG)) {
+            const service = services.find(item => item.id === categoryId);
+            if (service) return { ...service, vertical };
+        }
+        return null;
+    }
+
+    function isServiceCategoryEnabled(input, catalogConfig = {}) {
+        const definition = getServiceDefinition(input);
+        return Boolean(definition && catalogConfig?.[definition.id] === true);
+    }
+
     function isSkillCompatible(profile = {}, service = {}) {
         const required = normalizeCategoryKey(service);
         if (!required || !required.includes("_")) return false;
@@ -453,14 +502,18 @@
         DESTINATION_SOURCES,
         EVENT_MARKETPLACE_SERVICE_AVAILABLE,
         PAYMENT_METHODS,
+        SERVICE_CATALOG,
         SERVICE_STATES,
         SERVICE_TRANSITIONS,
+        SERVICE_VERTICAL_LABELS,
         TECHNICIAN_LEGACY_FIELDS,
         TECHNICIAN_STATES,
         assertPaymentMethodAllowed,
         buildMarketplaceListing,
+        getServiceDefinition,
         isDocumentReference,
         isServiceTransitionAllowed,
+        isServiceCategoryEnabled,
         isSkillCompatible,
         marketplaceEventId,
         normalizeCategoryKey,

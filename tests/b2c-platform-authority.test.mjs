@@ -74,6 +74,32 @@ test("browser and Functions consume the same neutral authority", () => {
     }
 });
 
+test("one catalog authority projects the 19 Firestore-configured service switches", () => {
+    const definitions = Object.values(browserContract.SERVICE_CATALOG).flat();
+    assert.equal(definitions.length, 19);
+    assert.equal(new Set(definitions.map(item => item.id)).size, 19);
+    assert.deepEqual(
+        Object.keys(browserContract.SERVICE_CATALOG),
+        ["road", "fix", "maint", "tech"]
+    );
+    assert.deepEqual(
+        backendContract.getServiceDefinition("FIX-PLOMERÍA"),
+        { id: "fix_plomeria", label: "Plomería", icon: "fa-faucet", vertical: "fix" }
+    );
+    assert.equal(
+        browserContract.isServiceCategoryEnabled("fix_plomeria", { fix_plomeria: true }),
+        true
+    );
+    assert.equal(
+        browserContract.isServiceCategoryEnabled("fix_plomeria", { fix_plomeria: false }),
+        false
+    );
+    assert.equal(
+        browserContract.isServiceCategoryEnabled("fix_inventado", { fix_inventado: true }),
+        false
+    );
+});
+
 test("technician eligibility covers canonical, legacy, pending, suspended, incomplete, pedestrian and vehicle profiles", () => {
     assert.equal(browserContract.technicianEligibility(approvedTechnician()).ok, true);
 

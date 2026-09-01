@@ -63,6 +63,7 @@ const destination = {
 (async () => {
     const db = fakeDb({
         "configuracion/pagos": { stripe_activo: false, efectivo_activo: true },
+        "configuracion/catalogo_global": { fix_plomeria: true, fix_electricidad: false },
         "users/client-1": {
             rol: "cliente",
             tipo_cuenta: "B2C",
@@ -90,9 +91,17 @@ const destination = {
     assert.equal(service.payment_authority.effective, true);
     assert.deepEqual(service.auditoria, {
         create_authority: "createB2cService",
-        contract_version: "b2c-platform-contract-v1"
+        contract_version: "b2c-platform-contract-v2"
     });
     assert.equal(Object.hasOwn(service, "auditoria.create_authority"), false);
+    await assert.rejects(
+        create({ serviceId: "service_disabled_1", metodo_pago: "efectivo", categoria_id: "fix_electricidad", destino: destination }, context),
+        error => error.code === "failed-precondition" && error.message === "SERVICE_CATEGORY_DISABLED"
+    );
+    await assert.rejects(
+        create({ serviceId: "service_unknown_1", metodo_pago: "efectivo", categoria_id: "fix_inventado", destino: destination }, context),
+        error => error.code === "invalid-argument" && error.message === "SERVICE_CATEGORY_UNKNOWN"
+    );
 
     db.data.set("users/admin-1", { rol: "admin" });
     const setPayments = createSetCustomerPaymentPermissionsHandler({ admin, db, functions });

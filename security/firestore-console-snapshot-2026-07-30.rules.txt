@@ -60,7 +60,7 @@ service cloud.firestore {
              userStatus() == 'activo';
     }
 
-    // Adapter Firestore de b2c-platform-contract-v1. CI comprueba paridad con la
+    // Adapter Firestore de b2c-platform-contract-v2. CI comprueba paridad con la
     // autoridad neutral de browser/Functions.
     function isDocumentReference(value) {
       return (value is string && value.size() > 0) ||

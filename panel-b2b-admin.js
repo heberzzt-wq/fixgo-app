@@ -10,7 +10,7 @@
 import { 
     auth, db, doc, getDoc, getDocs, onSnapshot, collection, 
     addDoc, updateDoc, deleteDoc, serverTimestamp, 
-    query, where, orderBy, limit, setDoc, app 
+    query, where, orderBy, limit, setDoc, app, GESTIA_FCM_VAPID_KEY
 } from "./firebase.js";
 import { getPlatformServiceWorkerRegistration, initializePlatformRelease } from "./platform-release.js";
 
@@ -937,7 +937,7 @@ async function activarOidoJessica(userUid) {
 
         // 4. GENERACIÓN DE TOKEN
         const currentToken = await getToken(messaging, { 
-            vapidKey: 'BNOyPeWn7CVyc6uLzXurLbhBeVb523oA4MNzCTm1dILRVSBNHVyXxHMCl6jHJNdZz-6315Vfb0xgKrS6uZnqbHQ',
+            vapidKey: GESTIA_FCM_VAPID_KEY,
             serviceWorkerRegistration: registration 
         });
 

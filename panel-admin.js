@@ -1273,35 +1273,7 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  let config = {}; 
  if(docSnap.exists()) config = docSnap.data();
 
- const MASTER_STRUCTURE = {
- "ROAD (Auxilio Vial)": [
- { id: "road_llanta", label: "Llantera Móvil" },
- { id: "road_cerrajero", label: "Cerrajería" },
- { id: "road_grua", label: "Grúas" },
- { id: "road_mecanico", label: "Mecánico Gral." },
- { id: "road_corriente", label: "Paso Corriente" }
- ],
- "FIX (Hogar)": [
- { id: "fix_electricidad", label: "Electricidad" },
- { id: "fix_plomeria", label: "Plomería" },
- { id: "fix_ac", label: "Aires Acondicionad." },
- { id: "fix_jardin", label: "Jardinería" },
- { id: "fix_pintura", label: "Pintura" },
- { id: "fix_alberca", label: "Albercas" },
- { id: "fix_fumigacion", label: "Fumigación" }
- ],
- "MAINT (B2B)": [
- { id: "maint_general", label: "Mantenimiento Gral." }
- ],
- "TECH (Sistemas)": [
- { id: "tech_cctv", label: "CCTV" },
- { id: "tech_alarma", label: "Alarmas" },
- { id: "tech_acceso", label: "Accesos" },
- { id: "tech_elevador", label: "Elevadores" },
- { id: "tech_planta", label: "Plantas Eléc." },
- { id: "tech_solar", label: "Paneles Solares" }
- ]
- };
+ const MASTER_STRUCTURE = platformContract.SERVICE_CATALOG;
 
  if (container) {
  container.innerHTML = "";
@@ -1319,7 +1291,8 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  `;
  let indexCat = 0;
  
- for (const [categoria, servicios] of Object.entries(MASTER_STRUCTURE)) {
+ for (const [vertical, servicios] of Object.entries(MASTER_STRUCTURE)) {
+ const categoria = platformContract.SERVICE_VERTICAL_LABELS[vertical] || vertical.toUpperCase();
  const catId = `cat_admin_${indexCat}`;
  const isHidden = indexCat === 0 ? "" : "hidden";
  const isRotated = indexCat === 0 ? "rotate-180" : "";
