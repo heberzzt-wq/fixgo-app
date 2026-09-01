@@ -2871,6 +2871,12 @@ test("V142 RunPod adapter provisions one L40S Pod, transfers physical assets, re
     assert.match(bootstrap, /RUNPOD_FLASH_ATTENTION_ABI_UNAUTHORIZED/);
     assert.match(bootstrap, /pip install --no-deps "\$FLASH_ATTENTION_WHEEL"/);
     assert.match(bootstrap, /export PIP_ONLY_BINARY=flash-attn/);
+    assert.match(bootstrap, /einops==0\.8\.1/);
+    assert.match(
+        bootstrap,
+        /printf '%s\\n' 'einops==0\.8\.1' >> "\$FILTERED_REQUIREMENTS"/
+    );
+    assert.match(bootstrap, /modules=\([^\n]*'einops'/);
     assert.doesNotMatch(bootstrap, /pip install "flash-attn==/);
     assert.doesNotMatch(bootstrap, /--no-build-isolation/);
     assert.match(bootstrap, /flash_attn_func/);
@@ -2955,7 +2961,7 @@ test("V142 runtime preflight preserves bounded sanitized subprocess diagnostics"
     for (const moduleName of [
         "torchvision", "torchaudio", "cv2", "diffusers", "transformers", "tokenizers",
         "accelerate", "tqdm", "imageio", "easydict", "ftfy", "dashscope",
-        "imageio_ffmpeg", "numpy", "PIL"
+        "imageio_ffmpeg", "einops", "numpy", "PIL"
     ]) {
         fs.writeFileSync(path.join(stubs, `${moduleName}.py`), "# controlled import fixture\n");
     }
@@ -2965,6 +2971,14 @@ test("V142 runtime preflight preserves bounded sanitized subprocess diagnostics"
         "Metadata-Version: 2.1",
         "Name: flash-attn",
         "Version: 2.8.3.post1",
+        ""
+    ].join("\n"));
+    const einopsMetadataDirectory = path.join(stubs, "einops-0.8.1.dist-info");
+    fs.mkdirSync(einopsMetadataDirectory, { recursive: true });
+    fs.writeFileSync(path.join(einopsMetadataDirectory, "METADATA"), [
+        "Metadata-Version: 2.1",
+        "Name: einops",
+        "Version: 0.8.1",
         ""
     ].join("\n"));
     const pipPackage = path.join(stubs, "pip");
@@ -3022,6 +3036,7 @@ test("V142 runtime preflight preserves bounded sanitized subprocess diagnostics"
             torchVersionPrefix: "2.8.0+cu128",
             torchCudaVersionPrefix: "12.8",
             computeCapability: "8.9",
+            runtimeRequirements: { einops: "0.8.1" },
             flashAttentionVersion: "2.8.3.post1",
             flashAttentionWheels: {
                 TRUE: {

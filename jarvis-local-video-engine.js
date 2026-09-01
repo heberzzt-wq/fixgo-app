@@ -166,6 +166,9 @@ const RUNPOD_WAN22_CACHE_BASE = Object.freeze({
     torchVersionPrefix: "2.8.0+cu128",
     torchCudaVersionPrefix: "12.8",
     requirementsSha256: "8338a62490c93cfbf908bb289bbaa3fb104e5606415bb48cca6cae5175313c44",
+    runtimeRequirements: Object.freeze({
+        einops: "0.8.1"
+    }),
     flashAttentionVersion: "2.8.3.post1",
     flashAttentionWheels: Object.freeze({
         FALSE: Object.freeze({
@@ -3326,6 +3329,7 @@ export function createRunpodRemoteVideoAdapter({
             torchVersionPrefix: cacheContract.torchVersionPrefix,
             torchCudaVersionPrefix: cacheContract.torchCudaVersionPrefix,
             computeCapability: cacheContract.computeCapability,
+            runtimeRequirements: cacheContract.runtimeRequirements,
             flashAttentionVersion: cacheContract.flashAttentionVersion,
             flashAttentionWheels: cacheContract.flashAttentionWheels
         });
@@ -3401,11 +3405,12 @@ export function createRunpodRemoteVideoAdapter({
             "        stderr=bounded_diagnostic(error.stderr)",
             "        stderr=bounded_diagnostic((stderr+'\\n' if stderr else '')+'PROCESS_TIMEOUT:120s')",
             "        return {'exitCode':None,'stdout':bounded_diagnostic(error.stdout),'stderr':stderr,'timedOut':True}",
-            "modules=('torch','torchvision','torchaudio','cv2','diffusers','transformers','tokenizers','accelerate','tqdm','imageio','easydict','ftfy','dashscope','imageio_ffmpeg','flash_attn','numpy','PIL')",
+            "modules=('torch','torchvision','torchaudio','cv2','diffusers','transformers','tokenizers','accelerate','tqdm','imageio','easydict','ftfy','dashscope','imageio_ffmpeg','flash_attn','einops','numpy','PIL')",
             "imports={}",
             "for name in modules:",
             "    try: importlib.import_module(name); imports[name]=True",
             "    except Exception as error: imports[name]=False",
+            "runtime_requirement_versions={name:importlib.metadata.version(name) if imports.get(name) else '' for name in expected.get('runtimeRequirements',{})}",
             "torch=importlib.import_module('torch')",
             "cuda_probe=False",
             "flash_attention_cuda_probe=False",
@@ -3434,8 +3439,8 @@ export function createRunpodRemoteVideoAdapter({
             "probe_env=dict(os.environ); probe_env.update({'HF_HUB_OFFLINE':'1','TRANSFORMERS_OFFLINE':'1','WANDB_MODE':'offline'})",
             "wan_cli_evidence=run_diagnostic([sys.executable,os.path.join(repo,'generate.py'),'--help'],cwd=repo,env=probe_env)",
             "cli=wan_cli_evidence['exitCode']==0 and not wan_cli_evidence['timedOut']",
-            "payload={'pythonVersion':platform.python_version(),'torchVersion':str(torch.__version__),'torchCudaVersion':str(torch.version.cuda or ''),'cudaImageVersion':str(os.environ.get('CUDA_VERSION','')),'cuda':torch.cuda.is_available(),'gpuName':torch.cuda.get_device_name(0) if torch.cuda.is_available() else '', 'computeCapability':'.'.join(map(str,torch.cuda.get_device_capability(0))) if torch.cuda.is_available() else '', 'cudaProbe':cuda_probe,'flashAttentionCudaProbe':flash_attention_cuda_probe,'pipCheck':pip_check,'pipCheckExitCode':pip_check_evidence['exitCode'],'pipCheckStdout':pip_check_evidence['stdout'],'pipCheckStderr':pip_check_evidence['stderr'],'pipCheckTimedOut':pip_check_evidence['timedOut'],'wanCliImport':cli,'wanCliImportExitCode':wan_cli_evidence['exitCode'],'wanCliImportStdout':wan_cli_evidence['stdout'],'wanCliImportStderr':wan_cli_evidence['stderr'],'wanCliImportTimedOut':wan_cli_evidence['timedOut'],'imports':imports,'flashAttentionVersion':importlib.metadata.version('flash-attn') if imports.get('flash_attn') else '', 'flashAttentionWheelAbi':flash_attention_abi,'flashAttentionWheelSha256':flash_attention_wheel_sha256,'flashAttentionWheelAuthorized':flash_attention_wheel_authorized}",
-            "payload['ok']=bool(payload['pythonVersion'].startswith(expected['pythonVersionPrefix']) and payload['torchVersion'].startswith(expected['torchVersionPrefix']) and payload['torchCudaVersion'].startswith(expected['torchCudaVersionPrefix']) and payload['computeCapability']==expected['computeCapability'] and payload['cudaProbe'] and payload['flashAttentionCudaProbe'] and payload['pipCheck'] and payload['wanCliImport'] and all(imports.values()) and payload['flashAttentionVersion']==expected['flashAttentionVersion'] and payload['flashAttentionWheelAuthorized'])",
+            "payload={'pythonVersion':platform.python_version(),'torchVersion':str(torch.__version__),'torchCudaVersion':str(torch.version.cuda or ''),'cudaImageVersion':str(os.environ.get('CUDA_VERSION','')),'cuda':torch.cuda.is_available(),'gpuName':torch.cuda.get_device_name(0) if torch.cuda.is_available() else '', 'computeCapability':'.'.join(map(str,torch.cuda.get_device_capability(0))) if torch.cuda.is_available() else '', 'cudaProbe':cuda_probe,'flashAttentionCudaProbe':flash_attention_cuda_probe,'pipCheck':pip_check,'pipCheckExitCode':pip_check_evidence['exitCode'],'pipCheckStdout':pip_check_evidence['stdout'],'pipCheckStderr':pip_check_evidence['stderr'],'pipCheckTimedOut':pip_check_evidence['timedOut'],'wanCliImport':cli,'wanCliImportExitCode':wan_cli_evidence['exitCode'],'wanCliImportStdout':wan_cli_evidence['stdout'],'wanCliImportStderr':wan_cli_evidence['stderr'],'wanCliImportTimedOut':wan_cli_evidence['timedOut'],'imports':imports,'runtimeRequirementVersions':runtime_requirement_versions,'flashAttentionVersion':importlib.metadata.version('flash-attn') if imports.get('flash_attn') else '', 'flashAttentionWheelAbi':flash_attention_abi,'flashAttentionWheelSha256':flash_attention_wheel_sha256,'flashAttentionWheelAuthorized':flash_attention_wheel_authorized}",
+            "payload['ok']=bool(payload['pythonVersion'].startswith(expected['pythonVersionPrefix']) and payload['torchVersion'].startswith(expected['torchVersionPrefix']) and payload['torchCudaVersion'].startswith(expected['torchCudaVersionPrefix']) and payload['computeCapability']==expected['computeCapability'] and payload['cudaProbe'] and payload['flashAttentionCudaProbe'] and payload['pipCheck'] and payload['wanCliImport'] and all(imports.values()) and all(payload['runtimeRequirementVersions'].get(name)==version for name,version in expected.get('runtimeRequirements',{}).items()) and payload['flashAttentionVersion']==expected['flashAttentionVersion'] and payload['flashAttentionWheelAuthorized'])",
             "open(target,'w',encoding='utf-8').write(json.dumps(payload,sort_keys=True,separators=(',',':'))+'\\n')",
             "raise SystemExit(0 if payload['ok'] else 1)",
             "PY",
@@ -3475,10 +3480,12 @@ export function createRunpodRemoteVideoAdapter({
             "transformers==4.51.3",
             "tokenizers==0.21.4",
             "numpy==1.26.4",
+            `einops==${cacheContract.runtimeRequirements.einops}`,
             `flash-attn==${cacheContract.flashAttentionVersion}`,
             "huggingface-hub>=0.30,<1",
             "EOF",
             "grep -v -E '^(flash_attn|flash-attn)([<>=!~].*)?$' \"$WAN_REPO/requirements.txt\" > \"$FILTERED_REQUIREMENTS\"",
+            `printf '%s\\n' ${shellSingleQuote(`einops==${cacheContract.runtimeRequirements.einops}`)} >> "$FILTERED_REQUIREMENTS"`,
             "\"$VENV/bin/python\" -m pip install --upgrade pip setuptools wheel packaging psutil",
             "\"$VENV/bin/python\" -m pip install --constraint \"$CONSTRAINTS\" --requirement \"$FILTERED_REQUIREMENTS\" 'huggingface_hub[cli]>=0.30,<1'",
             "FLASH_ATTENTION_ABI=$(\"$VENV/bin/python\" -c \"import torch; value=getattr(torch._C,'_GLIBCXX_USE_CXX11_ABI',None); print('TRUE' if value is True else 'FALSE' if value is False else 'UNSUPPORTED')\")",
