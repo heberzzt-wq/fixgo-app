@@ -88,6 +88,16 @@ export async function iniciarPanelAdmin(user) {
  // 🔥 INYECCIÓN DE ESTADO GLOBAL PARA CAC EN TIEMPO REAL
  let gastoMarketingGlobal = 0;
  let clientesUnicosActivos = 1; 
+ let catalogCoverageProfiles = [];
+
+ const cargarPerfilesCoberturaCatalogo = async () => {
+  const usersSnapshot = await getDocs(collection(db, "users"));
+  catalogCoverageProfiles = usersSnapshot.docs.map(userDoc => ({
+   uid: userDoc.id,
+   ...(userDoc.data() || {})
+  }));
+  return catalogCoverageProfiles;
+ };
 
  onSnapshot(doc(db, "configuracion", "catalogo_global"), (docSnap) => {
  if (docSnap.exists()) {
@@ -1272,6 +1282,12 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  const docSnap = await getDoc(docRef);
  let config = {}; 
  if(docSnap.exists()) config = docSnap.data();
+ let coverageProfiles = null;
+ try {
+  coverageProfiles = await cargarPerfilesCoberturaCatalogo();
+ } catch (error) {
+  console.warn("[PANEL_ADMIN_CATALOG_COVERAGE_UNAVAILABLE]", error);
+ }
 
  const MASTER_STRUCTURE = platformContract.SERVICE_CATALOG;
 
@@ -1308,8 +1324,11 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  <div id="${catId}" class="${isHidden} p-4 pt-0 space-y-3 border-t border-zinc-800/50 mt-2">`;
  
  servicios.forEach(srv => {
+ const coverage = Array.isArray(coverageProfiles)
+  ? platformContract.serviceCoverageCount(srv.id, coverageProfiles)
+  : null;
  const isChecked = config[srv.id] === true;
- html += generarSwitchGranular(srv.id, srv.label, isChecked);
+ html += generarSwitchGranular(srv.id, srv.label, isChecked, coverage, platformContract.serviceAudience(srv.id));
  });
  
  html += `</div></div>`;
@@ -1487,12 +1506,16 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  }
 }
 
-function generarSwitchGranular(id, label, checked) {
+function generarSwitchGranular(id, label, checked, coverage = null, audience = null) {
+ const audienceLabel = audience === "b2b" ? "B2B" : "B2C";
+ const coverageLabel = Number.isInteger(coverage)
+  ? `${coverage} técnico${coverage === 1 ? '' : 's'} con cobertura`
+  : "cobertura no disponible";
  return `
  <div class="flex justify-between items-center bg-black p-3 rounded-lg border border-zinc-800">
- <span class="text-gray-300 text-xs md:text-sm font-medium">${label}</span>
+ <span class="text-gray-300 text-xs md:text-sm font-medium">${label}<small class="block mt-1 text-[8px] font-black uppercase tracking-wider ${coverage === 0 ? 'text-amber-400' : 'text-emerald-400'}">${audienceLabel} · ${coverageLabel}</small></span>
  <label class="relative inline-flex items-center cursor-pointer">
- <input type="checkbox" id="cfg_${id}" class="sr-only peer" ${checked ? 'checked' : ''}>
+ <input type="checkbox" id="cfg_${id}" class="sr-only peer" ${checked ? 'checked' : ''} data-coverage="${coverage ?? ''}">
  <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
  </label>
  </div>`;
@@ -1591,30 +1614,19 @@ window.guardarPerfilB2B = async () => {
     btn.disabled = true;
 
     try {
-        // Inyectamos los "billetitos falsos" directamente al documento del usuario
-        await updateDoc(doc(db, "users", id), {
-            b2b_activo: isB2B,
-            saldo_virtual: isB2B ? saldo : 0,
-            fecha_modificacion_b2b: serverTimestamp()
+        const result = await ejecutarAccionNocB2C({
+            action: "update_b2b_customer",
+            customerId: id,
+            enabled: isB2B,
+            balance: saldo
         });
 
-        // Opcional: Dejamos un rastro en las transacciones para auditoría
-        if (isB2B && saldo > 0) {
-            await addDoc(collection(db, "transacciones"), {
-                tecnico_id: id, // Usamos el ID del cliente aquí para tener el registro
-                tipo: "recarga_b2b",
-                monto_total: saldo,
-                descripcion: `Admin recargó saldo B2B virtual`,
-                fecha: serverTimestamp()
-            });
-        }
-
-        alert(`✅ ÉXITO: Perfil de ${document.getElementById('b2bClienteNombre').innerText} actualizado.\nModalidad B2B: ${isB2B ? 'ACTIVA' : 'INACTIVA'}\nSaldo Prepago: $${saldo} MXN.`);
+        alert(`✅ ÉXITO: Perfil de ${document.getElementById('b2bClienteNombre').innerText} actualizado.\nModalidad B2B: ${result.enabled ? 'ACTIVA' : 'INACTIVA'}\nSaldo Prepago: $${result.balance} MXN.`);
         document.getElementById('modalB2B').classList.add('hidden');
         
     } catch (error) {
         console.error("Fallo al guardar B2B:", error);
-        alert("❌ Error de Firebase al actualizar el contrato.");
+        alert(`❌ No se pudo actualizar el contrato B2B: ${error?.message || "error de autoridad"}`);
     } finally {
         btn.innerHTML = txtOrg;
         btn.disabled = false;

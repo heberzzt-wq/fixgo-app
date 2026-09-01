@@ -243,6 +243,16 @@ export async function iniciarPanelCliente(user) {
 
             const renderizarCategoria = (categoriaClave, contenedor) => {
                 if(!contenedor) return;
+                const audienceAllowed = platformContract.isServiceAllowedForCustomer(
+                    DEFINICION_VERTICALES[categoriaClave]?.[0]?.id,
+                    user
+                );
+                const categoryCard = contenedor.closest(".uber-card");
+                if (categoryCard) categoryCard.classList.toggle("hidden", !audienceAllowed);
+                if (!audienceAllowed) {
+                    contenedor.innerHTML = "";
+                    return;
+                }
                 contenedor.innerHTML = ""; 
                 let html = '<div class="grid grid-cols-2 gap-2 p-3 bg-black/50 rounded-b-xl border-x border-b border-zinc-800">';
                 
@@ -282,6 +292,10 @@ export async function iniciarPanelCliente(user) {
 
             window.seleccionarServicio = (id, label) => {
                 // 🔥 CAPA DE DEFENSA 1: BLOQUEO DE INTERFAZ 🔥
+                if (!platformContract.isServiceAllowedForCustomer(id, user)) {
+                    alert("Este servicio no corresponde al contrato de tu cuenta.");
+                    return;
+                }
                 if (window.clienteTieneTicketActivo) {
                     alert("⛔ BLOQUEO DE SISTEMA:\n\nYa tienes un servicio en proceso en este momento.\n\nPor favor, espera a que el técnico finalice el trabajo actual o cancela la solicitud pendiente antes de pedir otro servicio.");
                     return; // Cortamos la ejecución aquí, el formulario no se abre.
@@ -403,6 +417,13 @@ export async function iniciarPanelCliente(user) {
             await enviarSolicitudFinal(cat, dir, desc, destinoConfirmado, requiereFactura, datosFacturacion, isUrgencia, fotoFile, linkManual, isPrivada);
             
             async function enviarSolicitudFinal(categoriaFull, direccion, descripcion, destino, reqFac, datosFac, flagUrgencia, archivoFoto , linkManualText, flagPrivada) {
+                if (!platformContract.isServiceAllowedForCustomer(categoriaFull, user)) {
+                    alert("Este servicio no corresponde al contrato de tu cuenta.");
+                    btn.disabled = false;
+                    btn.innerHTML = textoOriginal;
+                    isSubmitting = false;
+                    return;
+                }
                 const partes = categoriaFull.split('_');
                 const vertical = partes[0].toUpperCase(); 
                 const servicio = partes[1] ? partes[1].toUpperCase() : 'GENERAL';
@@ -463,6 +484,7 @@ if (metodoSeleccionado === "b2b") {
                         categoria: vertical,
                         sub_servicio: servicio,
                         categoria_id: categoriaFull,
+                        tipo: "b2c",
                         destino: {
                             ...destino,
                             confirmado_at: serverTimestamp()
@@ -489,7 +511,7 @@ if (metodoSeleccionado === "b2b") {
                     };
 
                     if (metodoSeleccionado === "b2b") {
-                        await setDoc(serviceRef, payloadTicket);
+                        await setDoc(serviceRef, { ...payloadTicket, tipo: "mantenimiento" });
                     } else {
                         await crearServicioB2C({
                             serviceId: serviceRef.id,

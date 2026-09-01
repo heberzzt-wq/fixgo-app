@@ -99,6 +99,18 @@ export async function reclamarServicioB2C(serviceId) {
     return result.data;
 }
 
+export async function cancelarServicioB2C(serviceId, reason) {
+    const cancel = httpsCallable(cloudFunctions, "cancelB2cService");
+    const result = await cancel({ serviceId, reason });
+    return result.data;
+}
+
+export async function solicitarRetiroB2C(amount) {
+    const requestWithdrawal = httpsCallable(cloudFunctions, "solicitarRetiro");
+    const result = await requestWithdrawal({ amount });
+    return result.data;
+}
+
 export async function crearServicioB2C(payload) {
     const createService = httpsCallable(cloudFunctions, "createB2cService");
     const result = await createService(payload);

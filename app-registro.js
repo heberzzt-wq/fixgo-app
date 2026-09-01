@@ -480,7 +480,6 @@ if (btnRegistroTecnico) {
         if(form.querySelector('[name="skill_road"]')?.checked) skills.push("road");
         if(form.querySelector('[name="skill_fix"]')?.checked) skills.push("fix");
         if(form.querySelector('[name="skill_tech"]')?.checked) skills.push("tech");
-        if(form.querySelector('[name="skill_maint"]')?.checked) skills.push("maint");
 
         if(skills.length === 0) {
             alert("⚠️ Debes seleccionar al menos una especialidad (Skill)."); return;

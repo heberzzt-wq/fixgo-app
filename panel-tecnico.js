@@ -24,6 +24,8 @@ import {
     setDoc,
     getDoc,
     reclamarServicioB2C,
+    cancelarServicioB2C,
+    solicitarRetiroB2C,
     enviarCotizacionB2C,
     GESTIA_FCM_VAPID_KEY
 } from "./firebase.js";
@@ -636,13 +638,7 @@ export async function iniciarPanelTecnico(user) {
                     if(!confirm(`¿Deseas solicitar el retiro de $${saldoRealDisponible.toFixed(2)} a tu cuenta vía SPEI?`)) return;
                     elementos.btnRetiro.disabled = true;
                     try {
-                        await addDoc(collection(db, "retiros"), {
-                            tecnico_id: user.uid,
-                            tecnico_nombre: user.nombre || "Técnico",
-                            monto: saldoRealDisponible,
-                            estado: "pendiente",
-                            fecha_solicitud: serverTimestamp()
-                        });
+                        await solicitarRetiroB2C(saldoRealDisponible);
                         alert("✅ Solicitud de retiro enviada con éxito.");
                     } catch (error) {
                         console.error("Error al solicitar retiro:", error);
@@ -1338,35 +1334,11 @@ if (!isTechnicianSkillCompatible(tecnico, s)) return;
         if (!confirm("Último aviso: ¿Confirmas el abandono de esta misión? Tu saldo será descontado inmediatamente.")) return;
 
         try {
-            const sSnap = await getDoc(doc(db, "services", id));
-            if(sSnap.exists()) {
-                 const sData = sSnap.data();
-                 const nuevoEstado = sData.metodo_pago === 'stripe' ? 'pagado' : 'pendiente';
-                 
-                 await updateDoc(doc(db, "services", id), {
-                      estado: nuevoEstado,
-                      tecnico_id: null,
-                      tecnico_nombre: null,
-                      tecnico_telefono: null,
-                      tecnico_vehiculo: null,
-                      tecnico_placas: null,
-                      asignado_at: null,
-                      rejected_by: arrayUnion(user.uid) 
-                 });
-            }
-
-            await addDoc(collection(db, "transacciones"), {
-                tecnico_id: user.uid,
-                pago_tecnico: -150,
-                monto_total: 0,
-                tipo: "penalizacion",
-                descripcion: `Sistema: Abandono de servicio activo (Folio: ${id.substring(0,6)}) - Motivo: ${motivo}`,
-                fecha: serverTimestamp()
-            });
-
-            await updateDoc(doc(db, "users", user.uid), {
-                reputacion: increment(-0.3)
-            });
+            await cancelarServicioB2C(id, motivo);
+            const hiddenKey = `b2c_marketplace_hidden_${user.uid}`;
+            const hidden = new Set(JSON.parse(localStorage.getItem(hiddenKey) || "[]"));
+            hidden.add(id);
+            localStorage.setItem(hiddenKey, JSON.stringify([...hidden]));
 
             const rastreoRef = doc(db, "rastreo", user.uid);
             await setDoc(rastreoRef, { estado: "Disponible" }, { merge: true });

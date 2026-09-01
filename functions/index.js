@@ -90,8 +90,10 @@ const repoWriteIdempotencyFactory =
 const { createApproveTechnicianHandler } =
     require("./b2c-technician-approval");
 const {
+    createCancelB2cServiceHandler,
     createClaimB2cServiceHandler,
     createMarketplaceNotificationHandler,
+    createRequestB2cWithdrawalHandler,
     createReleaseTechnicianLockHandler,
     createResyncCustomerPaymentsHandler,
     createResyncMarketplaceConfigHandler,
@@ -188,6 +190,9 @@ exports.approveB2cTechnician = functions.https.onCall(
 exports.claimB2cService = functions.https.onCall(
     createClaimB2cServiceHandler({ admin, db, functions })
 );
+exports.cancelB2cService = functions.https.onCall(
+    createCancelB2cServiceHandler({ admin, db, functions })
+);
 exports.createB2cService = functions.https.onCall(
     createB2cServiceHandler({ admin, db, functions })
 );
@@ -210,7 +215,7 @@ exports.syncB2cMarketplace = functions.firestore
     .document("services/{serviceId}")
     .onWrite(createSyncB2cMarketplaceHandler({ admin, db }));
 exports.resyncB2cMarketplaceConfig = functions.firestore
-    .document("configuracion/pagos")
+    .document("configuracion/{configId}")
     .onWrite(createResyncMarketplaceConfigHandler({ admin, db }));
 exports.resyncB2cCustomerPayments = functions.firestore
     .document("users/{userId}")
@@ -1342,6 +1347,12 @@ exports.solicitarRetiro = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('internal', error.message);
     }
 });
+
+// La superficie pública histórica conserva su nombre, pero la decisión final usa
+// users + transacciones + retiros; la colección espejo tecnicos ya no es autoridad.
+exports.solicitarRetiro = functions.https.onCall(
+    createRequestB2cWithdrawalHandler({ admin, db, functions })
+);
 
 // ======================================================================================
 // 🧩 MÓDULO 5: MOTOR IA - VALIDACIÓN DE CIERRE (V5.55 FINAL CORE)

@@ -28,7 +28,16 @@ function fakeDb(seed) {
     } });
     return {
         data,
-        collection(name) { return { doc(id = `auto-${++autoId}`) { return ref(`${name}/${id}`); } }; },
+        collection(name) { return {
+            doc(id = `auto-${++autoId}`) { return ref(`${name}/${id}`); },
+            async get() {
+                const prefix = `${name}/`;
+                const docs = [...data.entries()]
+                    .filter(([path]) => path.startsWith(prefix) && !path.slice(prefix.length).includes("/"))
+                    .map(([path, value]) => snapshot(path.slice(prefix.length), value, ref(path)));
+                return { docs };
+            }
+        }; },
         batch() {
             const writes = [];
             return {
@@ -63,12 +72,33 @@ const destination = {
 (async () => {
     const db = fakeDb({
         "configuracion/pagos": { stripe_activo: false, efectivo_activo: true },
-        "configuracion/catalogo_global": { fix_plomeria: true, fix_electricidad: false },
+        "configuracion/catalogo_global": {
+            fix_plomeria: true,
+            fix_electricidad: false,
+            road_llanta: true,
+            maint_general: true
+        },
         "users/client-1": {
             rol: "cliente",
             tipo_cuenta: "B2C",
             nombre: "Cliente",
             pagos: { stripe_autorizado: false, efectivo_autorizado: true }
+        },
+        "users/tech-covered": {
+            rol: "tecnico",
+            tipo_cuenta: "B2C",
+            estado: "activo",
+            status: "activo",
+            disponible: true,
+            skills: ["fix"],
+            foto_perfil: "https://example.test/profile.jpg",
+            documentos: {
+                ine: "https://example.test/ine.pdf",
+                csf: "https://example.test/csf.pdf"
+            },
+            datos_bancarios: { banco: "Banco", clabe: "012345678901234567" },
+            vehiculo: { tipo: "peaton" },
+            kyc: { estado: "activo", aprobado: true }
         }
     });
     const create = createB2cServiceHandler({ admin, db, functions });
@@ -101,6 +131,18 @@ const destination = {
     await assert.rejects(
         create({ serviceId: "service_unknown_1", metodo_pago: "efectivo", categoria_id: "fix_inventado", destino: destination }, context),
         error => error.code === "invalid-argument" && error.message === "SERVICE_CATEGORY_UNKNOWN"
+    );
+    const adminEnabledWithoutCoverage = await create({
+        serviceId: "service_admin_enabled_1",
+        metodo_pago: "efectivo",
+        categoria_id: "road_llanta",
+        destino: destination
+    }, context);
+    assert.equal(adminEnabledWithoutCoverage.created, true);
+    assert.equal(db.data.get("services/service_admin_enabled_1").categoria_id, "road_llanta");
+    await assert.rejects(
+        create({ serviceId: "service_wrong_audience_1", metodo_pago: "efectivo", categoria_id: "maint_general", destino: destination }, context),
+        error => error.code === "failed-precondition" && error.message === "SERVICE_CATEGORY_ACCOUNT_MISMATCH"
     );
 
     db.data.set("users/admin-1", { rol: "admin" });
@@ -146,6 +188,24 @@ const destination = {
     assert.equal(db.data.get("retiros/withdrawal-1").estado, "aprobado");
     await assert.rejects(
         noc({ action: "process_withdrawal", withdrawalId: "withdrawal-1" }, adminContext),
+        error => error.code === "failed-precondition"
+    );
+
+    const b2bCustomer = await noc(
+        { action: "update_b2b_customer", customerId: "client-1", enabled: true, balance: 1250.457 },
+        adminContext
+    );
+    assert.equal(b2bCustomer.balance, 1250.46);
+    assert.equal(db.data.get("users/client-1").b2b_activo, true);
+    assert.equal(db.data.get("users/client-1").saldo_virtual, 1250.46);
+    const b2bAudit = [...db.data.entries()].find(([path, value]) => (
+        path.startsWith("transacciones/") && value.tipo === "configuracion_saldo_b2b"
+    ));
+    assert.ok(b2bAudit);
+    assert.equal(b2bAudit[1].cliente_id, "client-1");
+    assert.equal(b2bAudit[1].tecnico_id, undefined);
+    await assert.rejects(
+        noc({ action: "update_b2b_customer", customerId: "tech-1", enabled: true, balance: 100 }, adminContext),
         error => error.code === "failed-precondition"
     );
 

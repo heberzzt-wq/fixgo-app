@@ -20,6 +20,8 @@ test("services reserva la creación B2C al backend y conserva B2B", () => {
     assert.match(servicesBlock, /B2C se crea sólo mediante createB2cService/);
     assert.match(servicesBlock, /metodo_pago', ''\) == 'b2b'/);
     assert.match(servicesBlock, /userTipo\(\) == 'B2B'/);
+    assert.match(servicesBlock, /categoria_id', ''\) == 'maint_general'/);
+    assert.match(servicesBlock, /tipo', ''\) == 'mantenimiento'/);
     assert.match(servicesBlock, /serviceFinancialFieldsUnchanged\(\)/);
     assert.doesNotMatch(servicesBlock, /allow read:\s*if isAuth\(\)\s*;/);
     assert.doesNotMatch(servicesBlock, /isOperationalTechnician\(\) && resource\.data\.estado in \['pendiente', 'pagado'\]/);
@@ -32,12 +34,23 @@ test("la bolsa B2C publica una proyección y el claim no se autoriza desde regla
     assert.match(firestore, /El expediente completo permanece en services/);
 });
 
+test("retiros y transacciones financieras sólo se escriben desde backend", () => {
+    const financeBlock = firestore.slice(firestore.indexOf("match /transacciones/{txId}"), firestore.indexOf("match /rastreo/{userId}"));
+    assert.match(financeBlock, /allow create, update, delete: if false/);
+    assert.doesNotMatch(financeBlock, /allow create: if isAuth/);
+});
+
 test("Storage protege expedientes y niega rutas no inventariadas", () => {
     const expedienteBlock = storage.slice(storage.indexOf("match /expedientes"), storage.indexOf("match /solicitudes_iniciales"));
     assert.match(expedienteBlock, /request\.auth\.uid == uid/);
     assert.match(expedienteBlock, /authorizedAdmin\(\)/);
     assert.match(expedienteBlock, /validDocument/);
     assert.match(storage, /match \/service_initial\/\{serviceId\}\/\{customerId\}/);
+    assert.match(storage, /match \/firmas\/\{orderId\}\/\{fileName\}/);
+    assert.match(storage, /match \/perfiles_tecnicos\/\{fileName\}/);
+    assert.match(storage, /match \/pases_digitales\/\{edificioId\}\/\{fileName\}/);
+    assert.match(storage, /b2bTechnicianForOrder\(orderId\)/);
+    assert.match(storage, /b2bManagerForTenant\(edificioId\)/);
     assert.match(storage, /match \/\{allPaths=\*\*\}/);
     assert.match(storage, /allow read, write: if false/);
     assert.doesNotMatch(storage, /match \/b\/\{bucket\}\/o\s*\{\s*allow read, write: if request\.auth != null/);

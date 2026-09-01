@@ -38,8 +38,15 @@ service firebase.storage {
 
     function sameTenant(tenantId) {
       return signedIn() && (
-        userProfile().edificioId == tenantId ||
-        userProfile().tenantId == tenantId
+        userProfile().get('edificioId', '') == tenantId ||
+        userProfile().get('tenantId', '') == tenantId
+      );
+    }
+
+    function b2bManagerForTenant(tenantId) {
+      return authorizedAdmin() || (
+        sameTenant(tenantId) &&
+        userProfile().get('rol', '') in ["admin_b2b", "asistente_admin"]
       );
     }
 
@@ -73,9 +80,14 @@ service firebase.storage {
 
     function sameB2BOrderTenant(orderId) {
       return signedIn() && (
-        userProfile().edificioId == b2bOrderData(orderId).edificioId ||
-        userProfile().tenantId == b2bOrderData(orderId).edificioId
+        userProfile().get('edificioId', '') == b2bOrderData(orderId).edificioId ||
+        userProfile().get('tenantId', '') == b2bOrderData(orderId).edificioId
       );
+    }
+
+    function b2bTechnicianForOrder(orderId) {
+      return sameB2BOrderTenant(orderId) &&
+        userProfile().get('rol', '') in ["tecnico", "tecnico_gp", "tecnico_interno"];
     }
 
     // Evidencia sellada que debe ser procesable por canvas/dHash.
@@ -252,6 +264,44 @@ service firebase.storage {
 
       allow update: if false;
       allow delete: if masterAdmin();
+    }
+
+    // Firma de conformidad B2B vigente: un PNG estable por orden.
+    match /firmas/{orderId}/{fileName} {
+      allow read: if authorizedAdmin() || sameB2BOrderTenant(orderId);
+
+      allow create, update: if b2bTechnicianForOrder(orderId) &&
+        fileName == "conformidad.png" &&
+        validImage(512 * 1024);
+
+      allow delete: if authorizedAdmin();
+    }
+
+    // Avatar operativo B2B. El técnico sólo administra su propia imagen.
+    match /perfiles_tecnicos/{fileName} {
+      allow read: if authorizedAdmin() ||
+        (signedIn() && fileName == request.auth.uid + ".jpg");
+
+      allow create, update: if signedIn() &&
+        fileName == request.auth.uid + ".jpg" &&
+        userProfile().get('rol', '') in ["tecnico", "tecnico_gp", "tecnico_interno"] &&
+        validLegacyImage(10 * 1024 * 1024);
+
+      allow delete: if authorizedAdmin() ||
+        (signedIn() && fileName == request.auth.uid + ".jpg");
+    }
+
+    // Pase digital que genera el panel B2B para compartir por vínculo tokenizado.
+    match /pases_digitales/{edificioId}/{fileName} {
+      allow read: if b2bManagerForTenant(edificioId);
+
+      allow create, update: if b2bManagerForTenant(edificioId) &&
+        request.resource != null &&
+        request.resource.size > 0 &&
+        request.resource.size <= 512 * 1024 &&
+        request.resource.contentType == "text/html";
+
+      allow delete: if b2bManagerForTenant(edificioId);
     }
 
     // Cualquier ruta no inventariada queda denegada.

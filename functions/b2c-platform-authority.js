@@ -81,6 +81,9 @@ function createB2cServiceHandler({ admin, db, functions }) {
         if (!platformContract.isServiceCategoryEnabled(categoryId, catalogConfig)) {
             throw callableError(functions, "failed-precondition", "SERVICE_CATEGORY_DISABLED");
         }
+        if (!platformContract.isServiceAllowedForCustomer(categoryId, customer)) {
+            throw callableError(functions, "failed-precondition", "SERVICE_CATEGORY_ACCOUNT_MISMATCH");
+        }
         const category = categoryId.split("_")[0];
         const subService = categoryId.split("_").slice(1).join("_");
         const authority = {
@@ -300,6 +303,48 @@ function createAdminNocActionHandler({ admin, db, functions }) {
                     autorizado_por: actorId
                 });
                 return { ok: true, action, withdrawalId, technicianId, amount };
+            });
+        }
+
+        if (action === "update_b2b_customer") {
+            const customerId = clean(data?.customerId, 160);
+            const enabled = data?.enabled === true;
+            const requestedBalance = Number(data?.balance);
+            if (!customerId) throw callableError(functions, "invalid-argument", "customerId es obligatorio.");
+            if (!Number.isFinite(requestedBalance) || requestedBalance < 0 || requestedBalance > 10000000) {
+                throw callableError(functions, "invalid-argument", "Saldo B2B inválido.");
+            }
+            const balance = enabled ? Math.round(requestedBalance * 100) / 100 : 0;
+            const customerRef = db.collection("users").doc(customerId);
+            const auditRef = db.collection("transacciones").doc();
+            return db.runTransaction(async transaction => {
+                const customerSnapshot = await transaction.get(customerRef);
+                if (!customerSnapshot.exists) throw callableError(functions, "not-found", "Cliente no encontrado.");
+                const customer = customerSnapshot.data() || {};
+                if (platformContract.normalizeToken(customer.rol || customer.role) !== "cliente") {
+                    throw callableError(functions, "failed-precondition", "El perfil no corresponde a un cliente.");
+                }
+                const previousBalance = Number(customer.saldo_virtual || 0);
+                transaction.set(customerRef, {
+                    b2b_activo: enabled,
+                    saldo_virtual: balance,
+                    fecha_modificacion_b2b: now,
+                    b2b_modificado_por: actorId
+                }, { merge: true });
+                transaction.create(auditRef, {
+                    cliente_id: customerId,
+                    tipo: "configuracion_saldo_b2b",
+                    saldo_anterior: Number.isFinite(previousBalance) ? previousBalance : 0,
+                    saldo_nuevo: balance,
+                    ajuste: balance - (Number.isFinite(previousBalance) ? previousBalance : 0),
+                    b2b_activo: enabled,
+                    monto_total: 0,
+                    pago_tecnico: 0,
+                    descripcion: "Configuración de contrato y saldo B2B por Admin",
+                    fecha: now,
+                    autorizado_por: actorId
+                });
+                return { ok: true, action, customerId, enabled, balance, auditId: auditRef.id };
             });
         }
 

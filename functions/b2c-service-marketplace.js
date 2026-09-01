@@ -120,6 +120,9 @@ function createClaimB2cServiceHandler({ admin, db, functions, now = () => Date.n
             if (service.estado !== platformContract.SERVICE_STATES.PENDING || service.tecnico_id || listing.estado !== "disponible") {
                 throw new functions.https.HttpsError("already-exists", "Otro técnico ya tomó la solicitud.");
             }
+            if (Array.isArray(service.rejected_by) && service.rejected_by.includes(technicianId)) {
+                throw new functions.https.HttpsError("permission-denied", "La solicitud ya fue liberada por este técnico.");
+            }
             if (listing.service_id !== serviceId || service.tipo === "mantenimiento") {
                 throw new functions.https.HttpsError("failed-precondition", "La proyección de bolsa no corresponde al servicio B2C.");
             }
@@ -207,11 +210,84 @@ function paymentAuthoritySignature(value = {}) {
     ].join("|");
 }
 
+function createCancelB2cServiceHandler({ admin, db, functions }) {
+    if (!admin || !db || !functions) throw new Error("B2C_CANCEL_DEPENDENCIES_REQUIRED");
+    return async (data, context) => {
+        const technicianId = context?.auth?.uid;
+        if (!technicianId) {
+            throw new functions.https.HttpsError("unauthenticated", "Se requiere una sesión técnica.");
+        }
+        const serviceId = clean(data?.serviceId);
+        const reason = clean(data?.reason, 500);
+        if (!serviceId || reason.length < 5) {
+            throw new functions.https.HttpsError("invalid-argument", "serviceId y motivo auditable son obligatorios.");
+        }
+        const serviceRef = db.collection("services").doc(serviceId);
+        const profileRef = db.collection("users").doc(technicianId);
+        const lockRef = db.collection("technician_active_services").doc(technicianId);
+        const penaltyRef = db.collection("transacciones").doc(`cancel_${serviceId}_${technicianId}`);
+
+        return db.runTransaction(async transaction => {
+            const [serviceSnapshot, profileSnapshot, lockSnapshot, penaltySnapshot] = await Promise.all([
+                transaction.get(serviceRef),
+                transaction.get(profileRef),
+                transaction.get(lockRef),
+                transaction.get(penaltyRef)
+            ]);
+            if (!serviceSnapshot.exists || !profileSnapshot.exists) {
+                throw new functions.https.HttpsError("not-found", "Servicio o técnico no encontrado.");
+            }
+            const service = serviceSnapshot.data() || {};
+            const profile = profileSnapshot.data() || {};
+            if (clean(service.tecnico_id) !== technicianId || !ACTIVE_SERVICE_STATES.has(clean(service.estado, 60))) {
+                throw new functions.https.HttpsError("failed-precondition", "El servicio ya no puede liberarse desde esta cuenta.");
+            }
+            if (penaltySnapshot.exists) {
+                throw new functions.https.HttpsError("already-exists", "La liberación ya fue procesada.");
+            }
+            const timestamp = admin.firestore.FieldValue.serverTimestamp();
+            const rejected = [...new Set([...(Array.isArray(service.rejected_by) ? service.rejected_by : []), technicianId])];
+            transaction.update(serviceRef, {
+                estado: platformContract.SERVICE_STATES.PENDING,
+                tecnico_id: null,
+                tecnico_nombre: null,
+                tecnico_telefono: null,
+                tecnico_vehiculo: null,
+                tecnico_placas: null,
+                asignado_at: null,
+                rejected_by: rejected,
+                marketplace_revision: Math.max(0, Number(service.marketplace_revision) || 0) + 1,
+                liberado_por_tecnico_at: timestamp,
+                liberado_por_tecnico_motivo: reason,
+                "auditoria.cancel_authority": "cancelB2cService"
+            });
+            transaction.update(profileRef, {
+                reputacion: Math.max(0, (Number(profile.reputacion) || 5) - 0.3)
+            });
+            transaction.set(penaltyRef, {
+                tecnico_id: technicianId,
+                pago_tecnico: -150,
+                monto_total: 0,
+                tipo: "penalizacion",
+                descripcion: `Liberación de servicio ${serviceId.slice(0, 8)}: ${reason}`,
+                servicio_id: serviceId,
+                fecha: timestamp,
+                authority: "cancelB2cService"
+            });
+            if (lockSnapshot.exists && lockSnapshot.data()?.service_id === serviceId) {
+                transaction.delete(lockRef);
+            }
+            return { ok: true, serviceId, estado: platformContract.SERVICE_STATES.PENDING };
+        });
+    };
+}
+
 async function syncMarketplaceService({ admin, db, serviceId }) {
     if (!admin || !db || !serviceId) throw new Error("B2C_MARKETPLACE_SYNC_DEPENDENCIES_REQUIRED");
     const serviceRef = db.collection("services").doc(serviceId);
     const listingRef = db.collection("service_marketplace").doc(serviceId);
-    const configRef = db.collection("configuracion").doc("pagos");
+    const paymentConfigRef = db.collection("configuracion").doc("pagos");
+    const catalogConfigRef = db.collection("configuracion").doc("catalogo_global");
 
     return db.runTransaction(async transaction => {
         const serviceSnapshot = await transaction.get(serviceRef);
@@ -222,14 +298,16 @@ async function syncMarketplaceService({ admin, db, serviceId }) {
 
         const service = serviceSnapshot.data() || {};
         const customerRef = db.collection("users").doc(clean(service.cliente_id, 160) || "_missing_customer");
-        const [configSnapshot, customerSnapshot, listingSnapshot] = await Promise.all([
-            transaction.get(configRef),
+        const [paymentConfigSnapshot, catalogConfigSnapshot, customerSnapshot, listingSnapshot] = await Promise.all([
+            transaction.get(paymentConfigRef),
+            transaction.get(catalogConfigRef),
             transaction.get(customerRef),
             transaction.get(listingRef)
         ]);
-        const config = configSnapshot.exists ? configSnapshot.data() || {} : {};
+        const paymentConfig = paymentConfigSnapshot.exists ? paymentConfigSnapshot.data() || {} : {};
+        const catalogConfig = catalogConfigSnapshot.exists ? catalogConfigSnapshot.data() || {} : {};
         const customer = customerSnapshot.exists ? customerSnapshot.data() || {} : {};
-        const payment = platformContract.assertPaymentMethodAllowed(service.metodo_pago, config, customer);
+        const payment = platformContract.assertPaymentMethodAllowed(service.metodo_pago, paymentConfig, customer);
         const method = platformContract.normalizeToken(service.metodo_pago);
         const globalEnabled = method === platformContract.PAYMENT_METHODS.STRIPE
             ? payment.permissions?.global?.stripe === true
@@ -245,7 +323,8 @@ async function syncMarketplaceService({ admin, db, serviceId }) {
             contract_version: platformContract.CONTRACT_VERSION
         };
         const evaluatedService = { ...service, payment_authority: authority };
-        const shouldPublish = platformContract.shouldPublishMarketplace(evaluatedService);
+        const categoryEnabled = platformContract.isServiceCategoryEnabled(service, catalogConfig);
+        const shouldPublish = categoryEnabled && platformContract.shouldPublishMarketplace(evaluatedService);
         const currentSignature = paymentAuthoritySignature(service.payment_authority);
         const nextSignature = paymentAuthoritySignature(authority);
         if (currentSignature !== nextSignature) {
@@ -259,7 +338,12 @@ async function syncMarketplaceService({ admin, db, serviceId }) {
 
         if (!shouldPublish) {
             if (listingSnapshot.exists) transaction.delete(listingRef);
-            return { published: false, reason: payment.ok ? "SERVICE_NOT_ELIGIBLE" : payment.reason };
+            return {
+                published: false,
+                reason: categoryEnabled
+                    ? (payment.ok ? "SERVICE_NOT_ELIGIBLE" : payment.reason)
+                    : "SERVICE_CATEGORY_DISABLED"
+            };
         }
 
         const listing = buildMarketplaceListing(
@@ -269,7 +353,7 @@ async function syncMarketplaceService({ admin, db, serviceId }) {
         );
         transaction.set(listingRef, listing);
         if (!listingSnapshot.exists) {
-            const eventId = platformContract.marketplaceEventId(serviceId);
+            const eventId = platformContract.marketplaceEventId(serviceId, service.marketplace_revision);
             transaction.set(db.collection("platform_events").doc(eventId), {
                 event_type: platformContract.EVENT_MARKETPLACE_SERVICE_AVAILABLE,
                 message_id: eventId,
@@ -292,12 +376,71 @@ function createSyncB2cMarketplaceHandler({ admin, db }) {
     };
 }
 
+function createRequestB2cWithdrawalHandler({ admin, db, functions, now = () => Date.now() }) {
+    if (!admin || !db || !functions) throw new Error("B2C_WITHDRAWAL_DEPENDENCIES_REQUIRED");
+    return async (data, context) => {
+        const technicianId = context?.auth?.uid;
+        if (!technicianId) {
+            throw new functions.https.HttpsError("unauthenticated", "Se requiere una sesión técnica.");
+        }
+        const requestedAmount = Number(data?.amount);
+        if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) {
+            throw new functions.https.HttpsError("invalid-argument", "El monto solicitado no es válido.");
+        }
+
+        const profileRef = db.collection("users").doc(technicianId);
+        const ledgerQuery = db.collection("transacciones").where("tecnico_id", "==", technicianId);
+        const withdrawalsQuery = db.collection("retiros").where("tecnico_id", "==", technicianId);
+        const withdrawalRef = db.collection("retiros").doc();
+
+        return db.runTransaction(async transaction => {
+            const [profileSnapshot, ledgerSnapshot, withdrawalsSnapshot] = await Promise.all([
+                transaction.get(profileRef),
+                transaction.get(ledgerQuery),
+                transaction.get(withdrawalsQuery)
+            ]);
+            const profile = profileSnapshot.exists ? profileSnapshot.data() || {} : {};
+            if (!profileSnapshot.exists || !platformContract.technicianEligibility(profile, { requireAvailable: false }).ok) {
+                throw new functions.https.HttpsError("failed-precondition", "La cuenta técnica no está habilitada para retiros.");
+            }
+            const withdrawals = withdrawalsSnapshot.docs.map(snapshot => snapshot.data() || {});
+            if (withdrawals.some(withdrawal => clean(withdrawal.estado, 40) === "pendiente")) {
+                throw new functions.https.HttpsError("already-exists", "Ya existe un retiro pendiente.");
+            }
+            const available = calculateAvailableBalance(
+                ledgerSnapshot.docs.map(snapshot => snapshot.data() || {}),
+                withdrawals,
+                now()
+            );
+            const amount = Math.round(requestedAmount * 100) / 100;
+            if (amount > Math.round(available * 100) / 100) {
+                throw new functions.https.HttpsError("failed-precondition", "El monto supera el saldo disponible.");
+            }
+            transaction.set(withdrawalRef, {
+                tecnico_id: technicianId,
+                tecnico_nombre: clean(profile.nombre, 160) || "Técnico",
+                monto: amount,
+                estado: "pendiente",
+                fecha_solicitud: admin.firestore.FieldValue.serverTimestamp(),
+                authority: "solicitarRetiro",
+                contract_version: platformContract.CONTRACT_VERSION
+            });
+            return { ok: true, withdrawalId: withdrawalRef.id, amount };
+        });
+    };
+}
+
 function createResyncMarketplaceConfigHandler({ admin, db }) {
     if (!admin || !db) throw new Error("B2C_MARKETPLACE_CONFIG_DEPENDENCIES_REQUIRED");
-    return async change => {
+    return async (change, context = {}) => {
+        const configId = clean(context.params?.configId, 80);
+        if (configId !== "pagos" && configId !== "catalogo_global") return null;
         const before = change.before.data() || {};
         const after = change.after.data() || {};
-        if (before.stripe_activo === after.stripe_activo && before.efectivo_activo === after.efectivo_activo) return null;
+        if (configId === "pagos" &&
+            before.stripe_activo === after.stripe_activo &&
+            before.efectivo_activo === after.efectivo_activo) return null;
+        if (configId === "catalogo_global" && JSON.stringify(before) === JSON.stringify(after)) return null;
         const pending = await db.collection("services").where("estado", "==", "pendiente").get();
         for (const snapshot of pending.docs) {
             await syncMarketplaceService({ admin, db, serviceId: snapshot.id });
@@ -328,12 +471,16 @@ function createMarketplaceNotificationHandler({ admin, db }) {
     return async snapshot => {
         const event = snapshot.data() || {};
         if (event.event_type !== platformContract.EVENT_MARKETPLACE_SERVICE_AVAILABLE) return null;
-        const listingSnapshot = await db.collection("service_marketplace").doc(event.service_id).get();
-        if (!listingSnapshot.exists) {
+        const [listingSnapshot, serviceSnapshot] = await Promise.all([
+            db.collection("service_marketplace").doc(event.service_id).get(),
+            db.collection("services").doc(event.service_id).get()
+        ]);
+        if (!listingSnapshot.exists || !serviceSnapshot.exists) {
             await snapshot.ref.set({ estado: "cancelled_before_delivery" }, { merge: true });
             return null;
         }
         const listing = listingSnapshot.data() || {};
+        const rejectedTechnicians = new Set(serviceSnapshot.data()?.rejected_by || []);
         const technicianSnapshot = await db.collection("users")
             .where("rol", "==", "tecnico")
             .where("disponible", "==", true)
@@ -342,7 +489,7 @@ function createMarketplaceNotificationHandler({ admin, db }) {
         for (const item of technicianSnapshot.docs) {
             const profile = item.data() || {};
             const token = clean(profile.fcmToken, 4096);
-            if (!token || !isOperationalTechnician(profile) || !isCompatible(profile, listing)) continue;
+            if (rejectedTechnicians.has(item.id) || !token || !isOperationalTechnician(profile) || !isCompatible(profile, listing)) continue;
             if (!recipientsByToken.has(token)) {
                 recipientsByToken.set(token, {
                     token,
@@ -431,8 +578,10 @@ module.exports = {
     ACTIVE_SERVICE_STATES,
     buildMarketplaceListing,
     calculateAvailableBalance,
+    createCancelB2cServiceHandler,
     createClaimB2cServiceHandler,
     createMarketplaceNotificationHandler,
+    createRequestB2cWithdrawalHandler,
     createResyncCustomerPaymentsHandler,
     createResyncMarketplaceConfigHandler,
     createReleaseTechnicianLockHandler,

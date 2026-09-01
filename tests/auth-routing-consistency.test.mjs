@@ -3,6 +3,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import {
+    resolveGestiaRole,
+    resolveGestiaRouteDecision
+} from "../gestia-core/auth/role-authority.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, "..");
@@ -10,8 +14,7 @@ const root = path.join(__dirname, "..");
 test("login delegates authenticated routing to the central Firebase router", () => {
     const login = fs.readFileSync(path.join(root, "app-login.js"), "utf8");
 
-    assert.match(login, /profile\.rol\s*\|\|\s*profile\.role/);
-    assert.match(login, /\.toLowerCase\(\)\.trim\(\)/);
+    assert.match(login, /resolveGestiaRole\([\s\S]*?user,[\s\S]*?profile/);
     assert.match(login, /FirebaseCore\.verificarYRedireccionar/);
     assert.doesNotMatch(login, /window\.location\.href\s*=\s*[\r\n\s]*"cliente\.html"/);
     assert.doesNotMatch(login, /window\.location\.href\s*=\s*[\r\n\s]*"tecnico\.html"/);
@@ -27,10 +30,22 @@ test("central router preserves privileged admin surfaces and role aliases", () =
         "gestia-modulo",
         "noc"
     ]) {
-        assert.match(firebase, new RegExp(`"${surface}"`));
+        const result = resolveGestiaRouteDecision({
+            user: { rol: "admin" },
+            pathname: `/${surface}.html`
+        });
+        assert.equal(result.redirect, false, `${surface} must remain an admin surface`);
     }
 
-    assert.match(firebase, /if \(!isAdminSurface\)/);
-    assert.match(firebase, /"admin_b2b", "b2b_admin", "asistente_admin"/);
-    assert.match(firebase, /subType === "saas"/);
+    assert.equal(resolveGestiaRole({}, { role: " TECNICO " }).role, "tecnico");
+    assert.equal(resolveGestiaRole({}, { rol: "admin_b2b" }).role, "b2b_admin");
+    assert.equal(resolveGestiaRole({}, { rol: "asistente_admin" }).role, "b2b_admin");
+    assert.equal(
+        resolveGestiaRouteDecision({
+            user: { rol: "cliente", sub_type: "saas" },
+            pathname: "/login.html"
+        }).target,
+        "app-inquilino.html"
+    );
+    assert.match(firebase, /resolveGestiaRouteDecision/);
 });

@@ -206,11 +206,17 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(html, /mapa-expandido/);
     assert.match(client, /platformContract\.SERVICE_CATALOG/);
     assert.match(client, /platformContract\.isServiceCategoryEnabled/);
+    assert.match(client, /platformContract\.isServiceAllowedForCustomer/);
+    assert.match(client, /tipo:\s*"mantenimiento"/);
     assert.doesNotMatch(client, /const DEFINICION_VERTICALES\s*=\s*\{/);
     assert.match(admin, /platformContract\.SERVICE_CATALOG/);
+    assert.match(admin, /platformContract\.serviceCoverageCount/);
+    assert.match(admin, /nuevaConfig\[realId\]\s*=\s*input\.checked/);
+    assert.doesNotMatch(admin, /nuevaConfig\[realId\]\s*=\s*coverage\s*>\s*0/);
     assert.doesNotMatch(admin, /const MASTER_STRUCTURE\s*=\s*\{/);
     assert.match(admin, /aprobarTecnicoB2C\(uid\)/);
     assert.match(registration, /emailSeguro/);
+    assert.doesNotMatch(registration, /skill_maint/);
     assert.doesNotMatch(registration, /email:\s*email\.toLowerCase\(\)/);
     assert.match(technician, /collection\(db, "service_marketplace"\)/);
     assert.match(technician, /dispatchMarketplaceEventForTechnician\(obtenerTecnico\(\), listing/);

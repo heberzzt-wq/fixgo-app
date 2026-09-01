@@ -4,11 +4,15 @@ const assert = require("node:assert/strict");
 const {
     buildMarketplaceListing,
     calculateAvailableBalance,
+    createCancelB2cServiceHandler,
     createClaimB2cServiceHandler,
     createMarketplaceNotificationHandler,
+    createRequestB2cWithdrawalHandler,
+    createResyncMarketplaceConfigHandler,
     isCompatible,
     isOperationalTechnician,
     recipientFingerprint,
+    syncMarketplaceService,
     vehicleData
 } = require("./b2c-service-marketplace");
 
@@ -115,11 +119,12 @@ function createFakeDb() {
         }],
         ["service_marketplace/svc-race", { service_id: "svc-race", estado: "disponible" }]
     ]);
+    let autoId = 0;
     let queue = Promise.resolve();
     const db = {
         collection(name) {
             return {
-                doc(id) { return { kind: "doc", path: `${name}/${id}`, id }; },
+                doc(id = `auto-${++autoId}`) { return { kind: "doc", path: `${name}/${id}`, id }; },
                 where(field, operator, value) { return { kind: "query", name, field, operator, value }; }
             };
         },
@@ -168,6 +173,123 @@ function createFakeDb() {
     assert.equal(data.has("service_marketplace/svc-race"), false);
     console.log("PASS b2c-service-marketplace simultaneous claim");
 
+    const cancelDb = createFakeDb();
+    cancelDb.data.set("services/svc-race", {
+        ...cancelDb.data.get("services/svc-race"),
+        estado: "asignado",
+        tecnico_id: "tech-1",
+        tecnico_nombre: "Técnico",
+        asignado_at: "old-time"
+    });
+    cancelDb.data.set("technician_active_services/tech-1", {
+        service_id: "svc-race", technician_id: "tech-1", estado: "activo"
+    });
+    const cancelHandler = createCancelB2cServiceHandler({
+        db: cancelDb.db,
+        admin: { firestore: { FieldValue: { serverTimestamp: () => "server-time" } } },
+        functions: { https: { HttpsError } }
+    });
+    const cancelled = await cancelHandler(
+        { serviceId: "svc-race", reason: "No puedo continuar la misión" },
+        { auth: { uid: "tech-1" } }
+    );
+    assert.equal(cancelled.estado, "pendiente");
+    assert.equal(cancelDb.data.get("services/svc-race").marketplace_revision, 1);
+    assert.deepEqual(cancelDb.data.get("services/svc-race").rejected_by, ["tech-1"]);
+    assert.equal(cancelDb.data.has("technician_active_services/tech-1"), false);
+    assert.equal(cancelDb.data.get("transacciones/cancel_svc-race_tech-1").pago_tecnico, -150);
+    cancelDb.data.set("service_marketplace/svc-race", { service_id: "svc-race", estado: "disponible" });
+    await assert.rejects(
+        createClaimB2cServiceHandler({
+            db: cancelDb.db,
+            admin: { firestore: { FieldValue: { serverTimestamp: () => "server-time" } } },
+            functions: { https: { HttpsError } }
+        })({ serviceId: "svc-race" }, { auth: { uid: "tech-1" } }),
+        error => error.code === "permission-denied"
+    );
+    console.log("PASS b2c-service-marketplace canonical cancellation");
+
+    const withdrawalDb = createFakeDb();
+    withdrawalDb.data.set("transacciones/tx-available", {
+        tecnico_id: "tech-1",
+        pago_tecnico: 500,
+        tipo: "servicio",
+        fecha: "2026-08-29T11:00:00Z"
+    });
+    const withdrawalHandler = createRequestB2cWithdrawalHandler({
+        db: withdrawalDb.db,
+        admin: { firestore: { FieldValue: { serverTimestamp: () => "server-time" } } },
+        functions: { https: { HttpsError } },
+        now: () => Date.parse("2026-08-31T12:00:00Z")
+    });
+    const withdrawal = await withdrawalHandler({ amount: 500 }, { auth: { uid: "tech-1" } });
+    assert.equal(withdrawal.ok, true);
+    assert.equal(withdrawal.amount, 500);
+    assert.equal(withdrawalDb.data.get(`retiros/${withdrawal.withdrawalId}`).estado, "pendiente");
+    await assert.rejects(
+        withdrawalHandler({ amount: 1 }, { auth: { uid: "tech-1" } }),
+        error => error.code === "already-exists"
+    );
+    assert.equal([...withdrawalDb.data.keys()].some(path => path.startsWith("tecnicos/")), false);
+    console.log("PASS b2c-service-marketplace canonical withdrawal");
+
+    const admin = { firestore: { FieldValue: { serverTimestamp: () => "server-time" } } };
+    const marketplaceDb = createFakeDb();
+    marketplaceDb.data.set("services/svc-race", {
+        ...marketplaceDb.data.get("services/svc-race"),
+        destino: {
+            fuente: "mapa_pin",
+            confirmado_por_cliente: true,
+            coords: { lat: 21, lng: -86 }
+        }
+    });
+    marketplaceDb.data.set("users/customer", { pagos: { efectivo_autorizado: true } });
+    marketplaceDb.data.set("configuracion/pagos", { efectivo_activo: true, stripe_activo: false });
+    marketplaceDb.data.set("configuracion/catalogo_global", { fix_plomeria: true });
+    const enabledResult = await syncMarketplaceService({
+        admin,
+        db: marketplaceDb.db,
+        serviceId: "svc-race"
+    });
+    assert.equal(enabledResult.published, true);
+    marketplaceDb.data.set("configuracion/catalogo_global", { fix_plomeria: false });
+    const disabledResult = await syncMarketplaceService({
+        admin,
+        db: marketplaceDb.db,
+        serviceId: "svc-race"
+    });
+    assert.deepEqual(disabledResult, { published: false, reason: "SERVICE_CATEGORY_DISABLED" });
+    assert.equal(marketplaceDb.data.has("service_marketplace/svc-race"), false);
+
+    let resyncCount = 0;
+    const resyncDb = {
+        collection(name) {
+            if (name === "services") {
+                return {
+                    doc: id => marketplaceDb.db.collection(name).doc(id),
+                    where: () => ({
+                        get: async () => ({ docs: [{ id: "svc-race" }] })
+                    })
+                };
+            }
+            return marketplaceDb.db.collection(name);
+        },
+        runTransaction: async callback => {
+            resyncCount += 1;
+            return marketplaceDb.db.runTransaction(callback);
+        }
+    };
+    const resyncHandler = createResyncMarketplaceConfigHandler({ admin, db: resyncDb });
+    const configChange = {
+        before: fakeSnapshot("catalogo_global", { fix_plomeria: true }),
+        after: fakeSnapshot("catalogo_global", { fix_plomeria: false })
+    };
+    await resyncHandler(configChange, { params: { configId: "otro" } });
+    assert.equal(resyncCount, 0);
+    await resyncHandler(configChange, { params: { configId: "catalogo_global" } });
+    assert.equal(resyncCount, 1);
+    console.log("PASS b2c-service-marketplace admin catalog resync");
+
     const notificationTechnicians = [
         fakeSnapshot("tech-vertical", { ...operational, skills: ["FIX"], fcmToken: "token-compatible" }),
         fakeSnapshot("tech-specific-other", { ...operational, skills: ["fix_electricidad"], fcmToken: "token-other" }),
@@ -179,6 +301,9 @@ function createFakeDb() {
         collection(name) {
             if (name === "service_marketplace") {
                 return { doc: id => ({ get: async () => fakeSnapshot(id, { service_id: id, categoria_id: "fix_plomeria" }) }) };
+            }
+            if (name === "services") {
+                return { doc: id => ({ get: async () => fakeSnapshot(id, { rejected_by: ["tech-specific-other"] }) }) };
             }
             if (name === "users") {
                 const technicianQuery = {

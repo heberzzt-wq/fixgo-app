@@ -341,15 +341,63 @@
         return Boolean(definition && catalogConfig?.[definition.id] === true);
     }
 
+    function isB2BAccountProfile(profile = {}) {
+        const accountType = normalizeToken(profile.tipo_cuenta ?? profile.account_type);
+        const role = normalizeToken(profile.rol ?? profile.role);
+        const subType = normalizeToken(profile.sub_type ?? profile.subtype);
+        return profile.b2b_activo === true ||
+            accountType === "b2b" ||
+            ["admin_b2b", "b2b_admin", "asistente_admin", "inquilino_b2b", "tecnico_interno"].includes(role) ||
+            ["saas", "tecnico_planta", "tecnico_interno"].includes(subType);
+    }
+
+    function serviceAudience(input) {
+        const definition = getServiceDefinition(input);
+        if (!definition) return null;
+        return definition.vertical === "maint" ? "b2b" : "b2c";
+    }
+
+    function isServiceAllowedForCustomer(input, customer = {}) {
+        const audience = serviceAudience(input);
+        if (!audience) return false;
+        return isB2BAccountProfile(customer) ? audience === "b2b" : audience === "b2c";
+    }
+
     function isSkillCompatible(profile = {}, service = {}) {
-        const required = normalizeCategoryKey(service);
-        if (!required || !required.includes("_")) return false;
+        const definition = getServiceDefinition(service);
+        if (!definition || definition.vertical === "maint") return false;
+        const required = definition.id;
         const skills = Array.isArray(profile.skills)
             ? profile.skills.map(normalizeSkillKey).filter(Boolean)
             : [];
         return skills.some(skill =>
             skill === required ||
             (B2C_SKILL_VERTICALS.includes(skill) && required.startsWith(`${skill}_`))
+        );
+    }
+
+    function technicianProvidesServiceCoverage(raw = {}, service = {}) {
+        const audience = serviceAudience(service);
+        if (!audience) return false;
+
+        if (audience === "b2b") {
+            if (!isB2BAccountProfile(raw)) return false;
+            const role = normalizeToken(raw.rol ?? raw.role);
+            const state = normalizeToken(raw.estado ?? raw.status);
+            const suspended = raw.suspendido === true || ["suspendido", "suspendido_grave", "baneado_permanente"].includes(state);
+            return ["tecnico", "tecnico_interno"].includes(role) && state === "activo" && !suspended;
+        }
+
+        if (isB2BAccountProfile(raw)) return false;
+        const eligibility = technicianEligibility(raw, { requireAvailable: false });
+        return eligibility.ok && isSkillCompatible(eligibility.profile, service);
+    }
+
+    function serviceCoverageCount(service, profiles = []) {
+        if (!Array.isArray(profiles) || !getServiceDefinition(service)) return 0;
+        return profiles.reduce(
+            (count, profile) => count + (technicianProvidesServiceCoverage(profile, service) ? 1 : 0),
+            0
         );
     }
 
@@ -406,6 +454,7 @@
     }
 
     function shouldPublishMarketplace(service = {}) {
+        if (serviceAudience(service) !== "b2c") return false;
         if (normalizeToken(service.tipo) === "mantenimiento") return false;
         if (normalizeToken(service.metodo_pago) === PAYMENT_METHODS.B2B) return false;
         if (normalizeToken(service.estado) !== SERVICE_STATES.PENDING || text(service.tecnico_id)) return false;
@@ -433,8 +482,10 @@
         };
     }
 
-    function marketplaceEventId(serviceId) {
-        return `${EVENT_MARKETPLACE_SERVICE_AVAILABLE}_${text(serviceId).replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+    function marketplaceEventId(serviceId, revision = 0) {
+        const safeRevision = Math.max(0, Math.trunc(Number(revision) || 0));
+        const suffix = safeRevision > 0 ? `_r${safeRevision}` : "";
+        return `${EVENT_MARKETPLACE_SERVICE_AVAILABLE}_${text(serviceId).replace(/[^a-zA-Z0-9_-]/g, "_")}${suffix}`;
     }
 
     function technicianMigration(raw = {}) {
@@ -511,6 +562,8 @@
         assertPaymentMethodAllowed,
         buildMarketplaceListing,
         getServiceDefinition,
+        isB2BAccountProfile,
+        isServiceAllowedForCustomer,
         isDocumentReference,
         isServiceTransitionAllowed,
         isServiceCategoryEnabled,
@@ -524,8 +577,11 @@
         normalizeToken,
         paymentMigration,
         resolvePaymentPermissions,
+        serviceAudience,
+        serviceCoverageCount,
         shouldPublishMarketplace,
         technicianEligibility,
+        technicianProvidesServiceCoverage,
         technicianKycRequirements,
         technicianMigration
     });

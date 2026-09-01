@@ -304,6 +304,11 @@ service cloud.firestore {
       // contrato B2B independiente durante la transición.
       allow create: if isAuth() &&
         request.resource.data.get('metodo_pago', '') == 'b2b' &&
+        request.resource.data.get('tipo', '') == 'mantenimiento' &&
+        request.resource.data.get('categoria', '') == 'MAINT' &&
+        request.resource.data.get('categoria_id', '') == 'maint_general' &&
+        request.resource.data.get('sub_servicio', '') == 'GENERAL' &&
+        get(/databases/$(database)/documents/configuracion/catalogo_global).data.get('maint_general', false) == true &&
         request.resource.data.cliente_id == request.auth.uid &&
         userTipo() == 'B2B';
       allow update: if isAuth() && (
@@ -459,14 +464,13 @@ service cloud.firestore {
     match /transacciones/{txId} {
       allow read: if isAuth() && 
                   (resource.data.tecnico_id == request.auth.uid || isAdmin());
-      allow create: if isAuth();
+      allow create, update, delete: if false;
     }
 
     match /retiros/{retiroId} {
       allow read: if isAuth() && 
                   (resource.data.tecnico_id == request.auth.uid || isAdmin());
-      allow create: if isAuth() && 
-                    request.resource.data.tecnico_id == request.auth.uid;
+      allow create, update, delete: if false;
     }
 
     match /rastreo/{userId} {

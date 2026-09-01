@@ -1845,7 +1845,7 @@ const firmaData=canvas.toDataURL("image/png");
 
 const blob=await (await fetch(firmaData)).blob();
 
-const storageRef=ref(storage,`firmas/${ordenId}.png`);
+const storageRef=ref(storage,`firmas/${ordenId}/conformidad.png`);
 
 await uploadBytes(storageRef,blob);
 

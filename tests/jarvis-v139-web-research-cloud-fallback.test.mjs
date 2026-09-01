@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { registerJarvisMultifunctionTools } from "../gestia-core/jarvis/jarvis.multitool.pack.js";
 
-test("v139 web.research recovers a cloud 500 through the grounded local bridge", async () => {
+test("v139 web.research preserves the newer grounded local-primary authority", async () => {
     const previousAuth = globalThis.auth;
     const previousBridge = globalThis.JarvisLocalBridge;
     const previousFetch = globalThis.fetch;
@@ -31,6 +31,7 @@ test("v139 web.research recovers a cloud 500 through the grounded local bridge",
         }
     ];
     let bridgeCall = null;
+    let cloudCalls = 0;
 
     try {
         globalThis.auth = {
@@ -39,6 +40,7 @@ test("v139 web.research recovers a cloud 500 through the grounded local bridge",
             }
         };
         globalThis.fetch = async url => {
+            cloudCalls += 1;
             assert.match(String(url), /jarvisWebResearch$/);
             return {
                 ok: false,
@@ -80,10 +82,13 @@ test("v139 web.research recovers a cloud 500 through the grounded local bridge",
 
         assert.equal(result.ok, true);
         assert.equal(result.grounded, true);
-        assert.equal(result.status, "GROUNDED_LOCAL_SEARCH");
+        assert.equal(result.status, "GROUNDED_LOCAL_PRIMARY");
         assert.equal(result.source, "JARVIS_LOCAL_GROUNDED_WEB_RESEARCH");
-        assert.equal(result.cloudError, "WEB_RESEARCH_HTTP_500");
+        assert.equal(result.cloudResearchUsed, false);
+        assert.equal(result.externalApiUsed, false);
+        assert.equal(result.cloudError, undefined);
         assert.deepEqual(result.sources, localSources);
+        assert.equal(cloudCalls, 0);
 
         assert.equal(bridgeCall?.path, "/research");
         assert.equal(bridgeCall?.payload?.allowedDomain, "example.test");
@@ -94,7 +99,7 @@ test("v139 web.research recovers a cloud 500 through the grounded local bridge",
 
         assert.equal(globalThis.__JARVIS_WEB_RESEARCH_HEALTH__?.ok, true);
         assert.equal(globalThis.__JARVIS_WEB_RESEARCH_HEALTH__?.grounded, true);
-        assert.equal(globalThis.__JARVIS_WEB_RESEARCH_HEALTH__?.status, "GROUNDED_LOCAL_FALLBACK");
+        assert.equal(globalThis.__JARVIS_WEB_RESEARCH_HEALTH__?.status, "GROUNDED_LOCAL_PRIMARY");
     } finally {
         globalThis.auth = previousAuth;
         globalThis.JarvisLocalBridge = previousBridge;

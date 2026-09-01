@@ -105,7 +105,7 @@ test("the live Firestore skill and service-category universe keeps deterministic
         { skills: ["fix"], category: "fix_ac", expected: true },
         { skills: ["fix"], category: "fix_plomeria", expected: true },
         { skills: ["tech"], category: "tech_cctv", expected: true },
-        { skills: ["e2e_codex_controlado"], category: "e2e_codex_controlado", expected: true }
+        { skills: ["e2e_codex_controlado"], category: "e2e_codex_controlado", expected: false }
     ];
 
     for (const fixture of liveCompatibilityCases) {
@@ -122,6 +122,72 @@ test("the live Firestore skill and service-category universe keeps deterministic
         ),
         false
     );
+});
+
+test("B2C owns ROAD FIX TECH while B2B owns only MAINT general", () => {
+    assert.deepEqual(
+        browserContract.SERVICE_CATALOG.maint.map(service => service.id),
+        ["maint_general"]
+    );
+    assert.equal(browserContract.serviceAudience("maint_general"), "b2b");
+    assert.equal(browserContract.serviceAudience("fix_plomeria"), "b2c");
+    assert.equal(
+        browserContract.isServiceAllowedForCustomer("maint_general", { tipo_cuenta: "B2B", b2b_activo: true }),
+        true
+    );
+    assert.equal(
+        browserContract.isServiceAllowedForCustomer("fix_plomeria", { tipo_cuenta: "B2B", b2b_activo: true }),
+        false
+    );
+    assert.equal(
+        browserContract.isServiceAllowedForCustomer("maint_general", { tipo_cuenta: "B2C" }),
+        false
+    );
+    assert.equal(
+        browserContract.isServiceAllowedForCustomer("tech_cctv", { tipo_cuenta: "B2C" }),
+        true
+    );
+    assert.equal(
+        browserContract.isServiceAllowedForCustomer("maint_general", { rol: "tecnico_interno" }),
+        true,
+        "the live B2B internal-technician role remains recognizable without tipo_cuenta"
+    );
+    assert.equal(
+        browserContract.isServiceAllowedForCustomer("maint_general", { rol: "cliente", sub_type: "saas" }),
+        true
+    );
+});
+
+test("catalog coverage comes from registered technicians without mixing B2B and B2C", () => {
+    const b2cFixTech = approvedTechnician({ tipo_cuenta: "B2C", skills: ["fix"] });
+    const b2bGeneral = {
+        rol: "tecnico",
+        tipo_cuenta: "B2B",
+        estado: "activo",
+        status: "activo",
+        disponible: true
+    };
+    const synthetic = approvedTechnician({
+        tipo_cuenta: "B2C",
+        skills: ["e2e_codex_controlado"]
+    });
+    const profiles = [b2cFixTech, b2bGeneral, synthetic];
+
+    assert.equal(browserContract.serviceCoverageCount("fix_plomeria", profiles), 1);
+    assert.equal(browserContract.serviceCoverageCount("road_llanta", profiles), 0);
+    assert.equal(
+        browserContract.isServiceCategoryEnabled("road_llanta", { road_llanta: true }),
+        true,
+        "admin catalog authority must remain enabled even when coverage is zero"
+    );
+    assert.equal(browserContract.serviceCoverageCount("maint_general", profiles), 1);
+    assert.equal(
+        browserContract.serviceCoverageCount("maint_general", [
+            { rol: "tecnico_interno", estado: "activo", status: "activo" }
+        ]),
+        1
+    );
+    assert.equal(browserContract.serviceCoverageCount("e2e_codex_controlado", profiles), 0);
 });
 
 test("technician eligibility covers canonical, legacy, pending, suspended, incomplete, pedestrian and vehicle profiles", () => {
@@ -186,7 +252,7 @@ test("category and skill normalization resolves fix_plomeria without crossing ve
         [["ROAD"], "fix_plomeria", false],
         [["TECH"], "fix_plomeria", false],
         [["tech"], "tech_cctv", true],
-        [["e2e_codex_controlado"], "e2e_codex_controlado", true],
+        [["e2e_codex_controlado"], "e2e_codex_controlado", false],
         [["e2e"], "e2e_codex_controlado", false]
     ];
     for (const [skills, categoria_id, expected] of cases) {
@@ -276,6 +342,11 @@ test("one marketplace authority covers authorized cash and paid Stripe and remov
         "urgencia",
         "zona"
     ]);
+});
+
+test("marketplace re-publication preserves one service and advances an auditable event revision", () => {
+    assert.equal(browserContract.marketplaceEventId("svc-1"), "marketplace_service_available_svc-1");
+    assert.equal(browserContract.marketplaceEventId("svc-1", 2), "marketplace_service_available_svc-1_r2");
 });
 
 test("service transition authority rejects skipped or parallel legacy states", () => {
