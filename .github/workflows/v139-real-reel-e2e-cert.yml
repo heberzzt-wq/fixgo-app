@@ -60,7 +60,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
-          ! git diff --name-only 940f92959a4110216ebb4ba367c87f39226ceb01..HEAD | grep -E '^functions/'
+          ! git diff --name-only 5b0de5a7a3dfe2cc8eeaa311befbbd9ce3a6ed7a..HEAD | grep -E '^functions/'
 
       - name: Focal syntax contracts
         shell: bash

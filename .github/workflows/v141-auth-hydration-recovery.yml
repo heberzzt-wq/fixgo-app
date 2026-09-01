@@ -32,7 +32,7 @@ env:
   TARGET_BRANCH: v94-media-v4n-negative-claims
   FIREBASE_PROJECT_ID: fixgo-44e4d
   FIREBASE_SITE_ID: fixgo-44e4d
-  V141_CERTIFIED_B2C_FUNCTIONS_BASE_SHA: 940f92959a4110216ebb4ba367c87f39226ceb01
+  V141_CERTIFIED_B2C_FUNCTIONS_BASE_SHA: 5b0de5a7a3dfe2cc8eeaa311befbbd9ce3a6ed7a
 
 jobs:
   certify-linux:
