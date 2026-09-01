@@ -16,6 +16,7 @@
 
     const CONTRACT_VERSION = "b2c-platform-contract-v1";
     const EVENT_MARKETPLACE_SERVICE_AVAILABLE = "marketplace_service_available";
+    const B2C_SKILL_VERTICALS = Object.freeze(["fix", "road", "tech"]);
 
     const TECHNICIAN_STATES = Object.freeze({
         REGISTRATION_STARTED: "registro_iniciado",
@@ -297,7 +298,10 @@
         const skills = Array.isArray(profile.skills)
             ? profile.skills.map(normalizeSkillKey).filter(Boolean)
             : [];
-        return skills.includes(required);
+        return skills.some(skill =>
+            skill === required ||
+            (B2C_SKILL_VERTICALS.includes(skill) && required.startsWith(`${skill}_`))
+        );
     }
 
     function hasBoolean(object, key) {
@@ -445,6 +449,7 @@
 
     return Object.freeze({
         CONTRACT_VERSION,
+        B2C_SKILL_VERTICALS,
         DESTINATION_SOURCES,
         EVENT_MARKETPLACE_SERVICE_AVAILABLE,
         PAYMENT_METHODS,

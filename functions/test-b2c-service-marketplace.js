@@ -5,8 +5,10 @@ const {
     buildMarketplaceListing,
     calculateAvailableBalance,
     createClaimB2cServiceHandler,
+    createMarketplaceNotificationHandler,
     isCompatible,
     isOperationalTechnician,
+    recipientFingerprint,
     vehicleData
 } = require("./b2c-service-marketplace");
 
@@ -66,6 +68,11 @@ assert.equal(isOperationalTechnician({ ...operational, disponible: false }), fal
 assert.equal(isOperationalTechnician({ ...operational, kyc: { aprobado: false } }), false);
 assert.equal(isCompatible(operational, { categoria_id: "fix-plomeria" }), true);
 assert.equal(isCompatible(operational, { categoria_id: "electricidad" }), false);
+assert.equal(isCompatible({ ...operational, skills: ["FIX"] }, { categoria_id: "fix_plomeria" }), true);
+assert.equal(isCompatible({ ...operational, skills: ["FIX"] }, { categoria_id: "fix_electricidad" }), true);
+assert.equal(isCompatible({ ...operational, skills: ["fix_plomeria"] }, { categoria_id: "fix_electricidad" }), false);
+assert.equal(isCompatible({ ...operational, skills: ["ROAD"] }, { categoria_id: "fix_plomeria" }), false);
+assert.match(recipientFingerprint("tech-1"), /^[a-f0-9]{16}$/);
 assert.deepEqual(vehicleData(operational), { type: "peaton", plates: null });
 
 const now = Date.parse("2026-08-31T12:00:00Z");
@@ -160,6 +167,55 @@ function createFakeDb() {
     assert.equal(data.get("services/svc-race").estado, "asignado");
     assert.equal(data.has("service_marketplace/svc-race"), false);
     console.log("PASS b2c-service-marketplace simultaneous claim");
+
+    const notificationTechnicians = [
+        fakeSnapshot("tech-vertical", { ...operational, skills: ["FIX"], fcmToken: "token-compatible" }),
+        fakeSnapshot("tech-specific-other", { ...operational, skills: ["fix_electricidad"], fcmToken: "token-other" }),
+        fakeSnapshot("tech-road", { ...operational, skills: ["ROAD"], fcmToken: "token-road" })
+    ];
+    let sentMessage = null;
+    const eventWrites = [];
+    const notificationDb = {
+        collection(name) {
+            if (name === "service_marketplace") {
+                return { doc: id => ({ get: async () => fakeSnapshot(id, { service_id: id, categoria_id: "fix_plomeria" }) }) };
+            }
+            if (name === "users") {
+                const technicianQuery = {
+                    where() { return technicianQuery; },
+                    get: async () => ({ docs: notificationTechnicians })
+                };
+                return technicianQuery;
+            }
+            throw new Error(`Unexpected collection ${name}`);
+        }
+    };
+    const notificationHandler = createMarketplaceNotificationHandler({
+        db: notificationDb,
+        admin: {
+            firestore: { FieldValue: { serverTimestamp: () => "server-time" } },
+            messaging: () => ({
+                sendEachForMulticast: async message => {
+                    sentMessage = message;
+                    return { successCount: 1, failureCount: 0, responses: [{ success: true }] };
+                }
+            })
+        }
+    });
+    await notificationHandler({
+        data: () => ({
+            event_type: "marketplace_service_available",
+            service_id: "svc-notify",
+            message_id: "msg-notify"
+        }),
+        ref: { set: async patch => eventWrites.push(patch) }
+    });
+    assert.deepEqual(sentMessage.tokens, ["token-compatible"]);
+    assert.equal(sentMessage.data.alertProfile, "long_loud_vibration");
+    assert.equal(eventWrites.at(-1).recipient_count, 1);
+    assert.deepEqual(eventWrites.at(-1).recipient_fingerprints, [recipientFingerprint("tech-vertical")]);
+    assert.deepEqual(eventWrites.at(-1).delivered_recipient_fingerprints, [recipientFingerprint("tech-vertical")]);
+    console.log("PASS b2c-service-marketplace FCM compatibility parity");
 })().catch(error => {
     console.error(error);
     process.exitCode = 1;

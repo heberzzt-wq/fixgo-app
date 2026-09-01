@@ -21,6 +21,13 @@ export const normalizeTechnicianSkill = contract.normalizeSkillKey;
 export const normalizeServiceCategory = contract.normalizeCategoryKey;
 export const isTechnicianSkillCompatible = contract.isSkillCompatible;
 
+export function dispatchMarketplaceEventForTechnician(profile, listing, dispatch) {
+    if (!isTechnicianSkillCompatible(profile, listing)) return false;
+    if (typeof dispatch !== "function") throw new Error("MARKETPLACE_EVENT_DISPATCH_REQUIRED");
+    dispatch();
+    return true;
+}
+
 export function createTechnicianRegistrationProfile({ uid, email, nombre, provider = "password" } = {}) {
     const safeEmail = text(email).toLowerCase();
     return {

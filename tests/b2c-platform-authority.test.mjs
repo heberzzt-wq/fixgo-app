@@ -126,7 +126,25 @@ test("category and skill normalization resolves fix_plomeria without crossing ve
     assert.equal(browserContract.normalizeCategoryKey(service), "fix_plomeria");
     assert.equal(browserContract.isSkillCompatible({ skills: ["plomería"] }, service), true);
     assert.equal(browserContract.isSkillCompatible({ skills: ["road_plomeria"] }, service), false);
-    assert.equal(browserContract.isSkillCompatible({ skills: ["fix"] }, service), false);
+    const cases = [
+        [["FIX"], "fix_plomeria", true],
+        [["fix"], "fix_electricidad", true],
+        [["Plomería"], "fix_plomeria", true],
+        [["fix_plomeria"], "fix_plomeria", true],
+        [["fix_plomeria"], "fix_electricidad", false],
+        [["FIX"], "road_mecanico", false],
+        [["ROAD"], "fix_plomeria", false],
+        [["TECH"], "fix_plomeria", false],
+        [["tech"], "tech_cctv", true],
+        [["e2e_codex_controlado"], "e2e_codex_controlado", true],
+        [["e2e"], "e2e_codex_controlado", false]
+    ];
+    for (const [skills, categoria_id, expected] of cases) {
+        const fixture = { skills };
+        const target = { categoria_id };
+        assert.equal(browserContract.isSkillCompatible(fixture, target), expected);
+        assert.equal(backendContract.isSkillCompatible(fixture, target), expected);
+    }
 });
 
 test("payment availability is the strict global and individual intersection", () => {

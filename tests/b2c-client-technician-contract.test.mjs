@@ -5,6 +5,7 @@ import {
     assertTechnicianCanOperate,
     buildTechnicianReviewPatch,
     createTechnicianRegistrationProfile,
+    dispatchMarketplaceEventForTechnician,
     getTechnicianKycRequirements,
     normalizeTechnicianProfile,
     storagePathForTechnicianDocument,
@@ -85,6 +86,22 @@ test("un técnico no opera antes de aprobación ni durante suspensión", () => {
     const active = completeProfile({ estado: "activo", status: "activo", kyc: { estado: "activo", aprobado: true } });
     assert.equal(assertTechnicianCanOperate(active).ok, true);
     assert.equal(assertTechnicianCanOperate({ ...active, suspendido: true }).reason, "TECHNICIAN_SUSPENDED");
+});
+
+test("una alerta marketplace sólo se despacha para un listing compatible", () => {
+    let dispatches = 0;
+    const dispatch = () => { dispatches += 1; };
+    assert.equal(dispatchMarketplaceEventForTechnician(
+        { skills: ["FIX"] },
+        { categoria_id: "fix_plomeria" },
+        dispatch
+    ), true);
+    assert.equal(dispatchMarketplaceEventForTechnician(
+        { skills: ["ROAD"] },
+        { categoria_id: "fix_plomeria" },
+        dispatch
+    ), false);
+    assert.equal(dispatches, 1);
 });
 
 test("las rutas de expediente son estables para reintentos", () => {
@@ -178,6 +195,9 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     const admin = fs.readFileSync(new URL("../panel-admin.js", import.meta.url), "utf8");
     const registration = fs.readFileSync(new URL("../app-registro.js", import.meta.url), "utf8");
     const technician = fs.readFileSync(new URL("../panel-tecnico.js", import.meta.url), "utf8");
+    const alerts = fs.readFileSync(new URL("../alert-engine.js", import.meta.url), "utf8");
+    const utilities = fs.readFileSync(new URL("../app-utils.js", import.meta.url), "utf8");
+    const worker = fs.readFileSync(new URL("../sw.js", import.meta.url), "utf8");
     const marketplace = fs.readFileSync(new URL("../functions/b2c-service-marketplace.js", import.meta.url), "utf8");
     const firebaseConfig = JSON.parse(fs.readFileSync(new URL("../firebase.json", import.meta.url), "utf8"));
     assert.doesNotMatch(client, /SOBRESCRIBIMOS EL GPS|SNIPER DEL MAPA INTERACTIVO/);
@@ -188,6 +208,13 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(registration, /emailSeguro/);
     assert.doesNotMatch(registration, /email:\s*email\.toLowerCase\(\)/);
     assert.match(technician, /collection\(db, "service_marketplace"\)/);
+    assert.match(technician, /dispatchMarketplaceEventForTechnician\(obtenerTecnico\(\), listing/);
+    for (const source of [alerts, utilities, worker]) {
+        assert.match(source, /700, 180, 700, 180, 700, 180, 1200/);
+    }
+    assert.match(alerts, /index \* 380/);
+    assert.match(utilities, /silent:\s*false/);
+    assert.match(worker, /silent:\s*false/);
     assert.match(technician, /reclamarServicioB2C\(id\)/);
     assert.match(technician, /enviarCotizacionB2C/);
     assert.match(client, /responderCotizacionB2C/);

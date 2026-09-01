@@ -37,7 +37,7 @@ export async function activarAlertas() {
 
 
 // 3. LA MAGIA: Generador de Tonos (Sin archivos MP3)
-function generarTono(frecuencia, duracion, tipo = 'square') {
+function generarTono(frecuencia, duracion, tipo = 'square', volumen = 0.1) {
     if (!audioContext) return;
 
     // Oscilador (El que vibra)
@@ -49,7 +49,8 @@ function generarTono(frecuencia, duracion, tipo = 'square') {
     osc.frequency.setValueAtTime(frecuencia, audioContext.currentTime);
 
     // Envolvente de volumen (Para que no suene "seco")
-    gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+    const gananciaSegura = Math.min(Math.max(Number(volumen) || 0.1, 0.01), 0.55);
+    gainNode.gain.setValueAtTime(gananciaSegura, audioContext.currentTime);
     gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duracion);
 
     // Conectar cables: Oscilador -> Volumen -> Altavoces
@@ -65,25 +66,23 @@ function generarTono(frecuencia, duracion, tipo = 'square') {
 // 🎯 ALERTAS POR ROL (EXPORTS)
 // ================================
 
-// ALERTA TÉCNICO (Doble Beep Agudo - Estilo Walkie Talkie)
+// ALERTA TÉCNICO (timbre largo, fuerte y reconocible para solicitudes nuevas)
 export function alertaTecnico() {
     if (!sistemaActivo) return;
     
     console.log("🚨 ALERTA TÉCNICO DISPARADA");
 
-    // Sonido: "Ti-Ti-Ti" (Tres beeps rápidos agudos)
-    const now = audioContext.currentTime;
-    
-    // Beep 1
-    generarTono(880, 0.1, 'square'); 
-    // Beep 2 (con retraso de 150ms)
-    setTimeout(() => generarTono(880, 0.1, 'square'), 150);
-    // Beep 3 (con retraso de 300ms)
-    setTimeout(() => generarTono(1200, 0.3, 'square'), 300);
+    const secuencia = [880, 1046, 880, 1046, 988, 1175, 1046, 1318];
+    secuencia.forEach((frecuencia, index) => {
+        setTimeout(() => {
+            generarTono(frecuencia, index === secuencia.length - 1 ? 1.15 : 0.28, 'square', 0.42);
+            generarTono(frecuencia / 2, index === secuencia.length - 1 ? 1.15 : 0.28, 'sine', 0.24);
+        }, index * 380);
+    });
 
     // Vibración Física
     if ("vibrate" in navigator) {
-        navigator.vibrate([200, 100, 200, 100, 500]);
+        navigator.vibrate([700, 180, 700, 180, 700, 180, 1200]);
     }
 }
 

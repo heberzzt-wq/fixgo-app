@@ -70,7 +70,8 @@ export function lanzarNotificacionPush(titulo, cuerpo, options = {}) {
                 body: cuerpo,
                 icon: "icono-192.png",
                 badge: "icono-192.png",
-                vibrate: [200, 100, 200, 100, 200],
+                vibrate: [700, 180, 700, 180, 700, 180, 1200],
+                silent: false,
                 tag: options.messageId || options.serviceId || "alerta-fixgo-unica",
                 renotify: false,
                 requireInteraction: true 

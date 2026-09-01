@@ -1,5 +1,6 @@
 "use strict";
 
+const crypto = require("node:crypto");
 const platformContract = require("./b2c-platform-contract");
 
 const ACTIVE_SERVICE_STATES = new Set([
@@ -20,6 +21,10 @@ const IMMEDIATE_BALANCE_TYPES = new Set([
 
 function clean(value, maxLength = 160) {
     return String(value ?? "").trim().slice(0, maxLength);
+}
+
+function recipientFingerprint(technicianId) {
+    return crypto.createHash("sha256").update(clean(technicianId, 256)).digest("hex").slice(0, 16);
 }
 
 function buildMarketplaceListing(serviceId, service = {}, timestamp = null) {
@@ -333,15 +338,26 @@ function createMarketplaceNotificationHandler({ admin, db }) {
             .where("rol", "==", "tecnico")
             .where("disponible", "==", true)
             .get();
-        const tokens = [...new Set(technicianSnapshot.docs
-            .map(item => item.data() || {})
-            .filter(profile => isOperationalTechnician(profile) && isCompatible(profile, listing))
-            .map(profile => clean(profile.fcmToken, 4096))
-            .filter(Boolean))]
-            .slice(0, 500);
-        if (tokens.length === 0) {
+        const recipientsByToken = new Map();
+        for (const item of technicianSnapshot.docs) {
+            const profile = item.data() || {};
+            const token = clean(profile.fcmToken, 4096);
+            if (!token || !isOperationalTechnician(profile) || !isCompatible(profile, listing)) continue;
+            if (!recipientsByToken.has(token)) {
+                recipientsByToken.set(token, {
+                    token,
+                    fingerprint: recipientFingerprint(item.id)
+                });
+            }
+        }
+        const recipients = [...recipientsByToken.values()].slice(0, 500);
+        const tokens = recipients.map(recipient => recipient.token);
+        if (recipients.length === 0) {
             await snapshot.ref.set({
                 estado: "no_matching_recipients",
+                recipient_count: 0,
+                recipient_fingerprints: [],
+                delivered_recipient_fingerprints: [],
                 delivered_count: 0,
                 processed_at: admin.firestore.FieldValue.serverTimestamp()
             }, { merge: true });
@@ -356,6 +372,7 @@ function createMarketplaceNotificationHandler({ admin, db }) {
                 messageId,
                 title: "Nueva solicitud disponible",
                 body: "Hay un servicio compatible con tu perfil operativo.",
+                alertProfile: "long_loud_vibration",
                 url: "/tecnico.html"
             },
             android: { priority: "high" },
@@ -363,6 +380,11 @@ function createMarketplaceNotificationHandler({ admin, db }) {
         });
         await snapshot.ref.set({
             estado: "delivered",
+            recipient_count: recipients.length,
+            recipient_fingerprints: recipients.map(recipient => recipient.fingerprint),
+            delivered_recipient_fingerprints: recipients
+                .filter((_recipient, index) => response.responses?.[index]?.success === true)
+                .map(recipient => recipient.fingerprint),
             delivered_count: response.successCount,
             failed_count: response.failureCount,
             processed_at: admin.firestore.FieldValue.serverTimestamp()
@@ -383,6 +405,7 @@ module.exports = {
     createSyncB2cMarketplaceHandler,
     isCompatible,
     isOperationalTechnician,
+    recipientFingerprint,
     syncMarketplaceService,
     vehicleData
 };

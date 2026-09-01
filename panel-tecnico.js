@@ -35,6 +35,7 @@ import { escaparHTML, calcularDistancia, sonarAlerta, lanzarNotificacionPush, pr
 import {
     TECHNICIAN_KYC_STATES,
     assertTechnicianCanOperate,
+    dispatchMarketplaceEventForTechnician,
     getTechnicianKycRequirements,
     isTechnicianSkillCompatible,
     normalizeTechnicianProfile,
@@ -68,12 +69,20 @@ export async function iniciarPanelTecnico(user) {
     };
 
     const tecnicoRef = doc(db, "users", user.uid);
+    let perfilTecnicoActual = normalizeTechnicianProfile(user);
+    let bolsaController = null;
     onSnapshot(tecnicoRef, (docSnap) => {
         if (!docSnap.exists()) return;
         const data = docSnap.data();
         const kycResult = getTechnicianKycRequirements(data);
         const perfilCanonico = kycResult.profile;
+        perfilTecnicoActual = perfilCanonico;
         const estado = perfilCanonico.estado;
+        const elegibilidadMarketplace = assertTechnicianCanOperate(data, { requireAvailable: true });
+        if (!elegibilidadMarketplace.ok && bolsaController) {
+            bolsaController.stop();
+            bolsaController = null;
+        }
         const strikes = data.strikes || 0;
 
         const reputacion = data.reputacion || 5.0;
@@ -381,10 +390,14 @@ export async function iniciarPanelTecnico(user) {
             elementos.toggleONOFF.checked = data.disponible === true;
         }
 
-        if (data.disponible) {
+        if (elegibilidadMarketplace.ok) {
             iniciarTracking(user.uid);
             elementos.seccionBolsa?.classList.remove("hidden");
-            escucharBolsa(user, elementos.listaBolsa); 
+            if (!bolsaController) {
+                bolsaController = escucharBolsa(() => perfilTecnicoActual, elementos.listaBolsa);
+            } else {
+                bolsaController.refresh();
+            }
 
             if(elementos.statusLabel) {
                 elementos.statusLabel.innerText = "EN LÍNEA";
@@ -733,7 +746,7 @@ export async function iniciarPanelTecnico(user) {
         });
     }
 
-    function escucharBolsa(tecnico, contenedor) {
+    function escucharBolsa(obtenerTecnico, contenedor) {
     if(!contenedor) return;
 
         // B2B conserva services; B2C consume sólo una proyección sin datos privados.
@@ -769,6 +782,7 @@ export async function iniciarPanelTecnico(user) {
             documentos.forEach((docSnap) => {
                 const s = docSnap.data();
                 const id = docSnap.id;
+                const tecnico = obtenerTecnico();
 
                 // 1. FILTROS GENERALES DE ASIGNACIÓN
 
@@ -937,10 +951,12 @@ if (!isTechnicianSkillCompatible(tecnico, s)) return;
                 if (!esInicial() && nuevos.length > 0 && source === "b2c") {
                     for (const change of nuevos) {
                         const listing = change.doc.data() || {};
-                        procesarEventoNotificacion({
-                            eventType: listing.event_type || "marketplace_service_available",
-                            serviceId: listing.service_id || change.doc.id,
-                            messageId: `marketplace_service_available_${listing.service_id || change.doc.id}`
+                        dispatchMarketplaceEventForTechnician(obtenerTecnico(), listing, () => {
+                            procesarEventoNotificacion({
+                                eventType: listing.event_type || "marketplace_service_available",
+                                serviceId: listing.service_id || change.doc.id,
+                                messageId: `marketplace_service_available_${listing.service_id || change.doc.id}`
+                            });
                         });
                     }
                 } else if (!esInicial() && nuevos.length > 0) {
@@ -957,8 +973,15 @@ if (!isTechnicianSkillCompatible(tecnico, s)) return;
             }
         );
 
-        escucharFuente(qB2B, docs => { documentosB2B = docs; }, () => inicialB2B, () => { inicialB2B = false; }, "b2b");
-        escucharFuente(qB2C, docs => { documentosB2C = docs; }, () => inicialB2C, () => { inicialB2C = false; }, "b2c");
+        const detenerB2B = escucharFuente(qB2B, docs => { documentosB2B = docs; }, () => inicialB2B, () => { inicialB2B = false; }, "b2b");
+        const detenerB2C = escucharFuente(qB2C, docs => { documentosB2C = docs; }, () => inicialB2C, () => { inicialB2C = false; }, "b2c");
+        return {
+            refresh: renderizarBolsa,
+            stop() {
+                detenerB2B();
+                detenerB2C();
+            }
+        };
     }
 
     window.rechazarServicio = async (id, uid, boton = null) => {
