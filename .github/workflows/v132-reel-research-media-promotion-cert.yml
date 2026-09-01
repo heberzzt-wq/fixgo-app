@@ -37,7 +37,7 @@ jobs:
         run: |
           set -euo pipefail
           test "${GITHUB_REF_NAME}" = "v94-media-v4n-negative-claims"
-          ! git diff --name-only 107b7135409d0a82ce99512aa1ec2ce8dcb8dd99..HEAD | grep -E '^functions/'
+          ! git diff --name-only 940f92959a4110216ebb4ba367c87f39226ceb01..HEAD | grep -E '^functions/'
       - name: Confirm v132 staging cleanup
         shell: bash
         run: |
