@@ -17,6 +17,15 @@ function replaceExactOnce(file, before, after, label) {
   write(file, source);
 }
 
+function replaceIfPresentOnce(file, before, after, label) {
+  let source = sourceOf(file);
+  const count = source.split(before).length - 1;
+  if (count === 0) return;
+  if (count !== 1) throw new Error(`${label}_MATCH_COUNT_${count}`);
+  source = source.replace(before, after);
+  write(file, source);
+}
+
 function replaceWithinTest(file, title, before, after, label) {
   let source = sourceOf(file);
   const marker = `test("${title}"`;
@@ -80,7 +89,7 @@ function ensureIdentityFidelityCannotBeBypassed() {
     "V142_START_IDENTITY_FIDELITY_FAIL_CLOSED"
   );
 
-  replaceExactOnce(
+  replaceIfPresentOnce(
     bridgeFile,
     `                    invocationPayload.requiresIdentityFidelity = false;\n                    invocationPayload.requiresRunpodL40s = true;`,
     `                    invocationPayload.requiresRunpodL40s = true;`,
