@@ -104,3 +104,14 @@ test("technician page routes close and B2B start through existing canonical auth
     assert.doesNotMatch(source, /cliente_id:\s*["']admin_residencial["']/);
     assert.doesNotMatch(source, /transaction\.set\(transRef/);
 });
+
+test("shared PDF utility resolves remote Storage signatures before saving", () => {
+    const source = fs.readFileSync(new URL("../app-utils.js", import.meta.url), "utf8");
+    parse(source, { ecmaVersion: "latest", sourceType: "module" });
+    assert.match(source, /prepararJsPdfParaImagenesRemotas/);
+    assert.match(source, /\^https\?:\\\/\\\//);
+    assert.match(source, /urlABase64\(imageData\)/);
+    assert.match(source, /__gestiaPendingRemoteImages/);
+    assert.match(source, /Promise\.all\(pending\)/);
+    assert.match(source, /if \(url\.startsWith\('data:'\)\) return url/);
+});
