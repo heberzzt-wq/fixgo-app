@@ -24,728 +24,114 @@ function appendOnce(file, marker, addition) {
   write(file, source);
 }
 
-function ensureFirebaseVideoImportContract() {
-  const file = "jarvis-fs-bridge.js";
-  const before = [
-    "    const host = parsed.hostname.toLowerCase();",
-    "    if (",
-    "        parsed.protocol !== \"https:\" ||",
-    "        !(host === \"storage.googleapis.com\" || host.endsWith(\".storage.googleapis.com\"))",
-    "    ) {",
-    "        throw new Error(\"VIDEO_IMPORT_URL_NOT_ALLOWED\");",
-    "    }"
-  ].join("\n");
-  const after = [
-    "    const host = parsed.hostname.toLowerCase();",
-    "    const googleStorageHost =",
-    "        host === \"storage.googleapis.com\" ||",
-    "        host.endsWith(\".storage.googleapis.com\");",
-    "    const firebaseStorageDownload =",
-    "        host === \"firebasestorage.googleapis.com\" &&",
-    "        parsed.pathname.startsWith(\"/v0/b/fixgo-44e4d.firebasestorage.app/o/\") &&",
-    "        parsed.searchParams.get(\"alt\") === \"media\" &&",
-    "        Boolean(parsed.searchParams.get(\"token\"));",
-    "    if (",
-    "        parsed.protocol !== \"https:\" ||",
-    "        !(googleStorageHost || firebaseStorageDownload)",
-    "    ) {",
-    "        throw new Error(\"VIDEO_IMPORT_URL_NOT_ALLOWED\");",
-    "    }"
-  ].join("\n");
+function assertPreviousV142Materialization() {
+  const bridge = sourceOf("jarvis-fs-bridge.js");
+  const actuator = sourceOf("gestia-core/jarvis/jarvis.actuator.pack.js");
+  const engine = sourceOf("jarvis-local-video-engine.js");
 
-  replaceExactOnce(
-    file,
-    before,
-    after,
-    "V142_FIREBASE_VIDEO_IMPORT_ALLOWLIST"
-  );
-}
+  const required = [
+    [bridge, 'host === "firebasestorage.googleapis.com"', "V142_FIREBASE_VIDEO_IMPORT_ALLOWLIST"],
+    [bridge, 'videoEngine.resolve(req.body || {})', "V142_VIDEO_ENGINE_REQUIREMENT_ROUTING"],
+    [bridge, "requiresIdentityFidelity", "V142_IDENTITY_GATE_BRIDGE"],
+    [actuator, 'const artifact = await bridgeRequest("/video/import"', "V142_VIDEO_IMPORT"],
+    [actuator, 'action: "cleanup"', "V142_VIDEO_CLOUD_CLEANUP"],
+    [actuator, "requiresIdentityFidelity: referenceImages.length > 0", "V142_IDENTITY_GATE_ACTUATOR"],
+    [engine, "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED", "V142_IDENTITY_GATE_ENGINE"],
+    [engine, "maximumSourceReferenceAssets: 3", "V142_WAN22_SOURCE_REFERENCE_CAPACITY"]
+  ];
 
-function ensureCloudCleanupAfterPhysicalImport() {
-  const file = "gestia-core/jarvis/jarvis.actuator.pack.js";
-  const current = sourceOf(file);
-  const importIndex = current.indexOf('const artifact = await bridgeRequest("/video/import"');
-  const physicalVerificationIndex = current.indexOf("const physicalArtifactVerified =", importIndex);
-  const cleanupIndex = current.indexOf('action: "cleanup"', importIndex);
-  if (
-    importIndex >= 0 &&
-    physicalVerificationIndex > importIndex &&
-    cleanupIndex > physicalVerificationIndex
-  ) {
-    return;
+  for (const [source, marker, label] of required) {
+    if (!source.includes(marker)) throw new Error(`${label}_MISSING`);
   }
-  const before = [
-    "                let artifact;",
-    "                try {",
-    "                    artifact = await bridgeRequest(\"/video/import\", {",
-    "                        url: finalCloud.downloadUrl,",
-    "                        expectedSha256: finalCloud.sha256,",
-    "                        output,",
-    "                        provider: finalCloud.provider || \"google-veo\",",
-    "                        model: finalCloud.model",
-    "                    }, 240000);",
-    "                } finally {",
-    "                    if (finalCloud?.storageObject) {",
-    "                        try { await callAdminFunction(\"jarvisVideoGenerate\", { action: \"cleanup\", storageObject: finalCloud.storageObject }); } catch {}",
-    "                    }",
-    "                }"
-  ].join("\n");
-  const after = [
-    "                const artifact = await bridgeRequest(\"/video/import\", {",
-    "                    url: finalCloud.downloadUrl,",
-    "                    expectedSha256: finalCloud.sha256,",
-    "                    output,",
-    "                    provider: finalCloud.provider || \"google-veo\",",
-    "                    model: finalCloud.model",
-    "                }, 240000);",
-    "                if (finalCloud?.storageObject) {",
-    "                    try { await callAdminFunction(\"jarvisVideoGenerate\", { action: \"cleanup\", storageObject: finalCloud.storageObject }); } catch {}",
-    "                }"
-  ].join("\n");
 
-  replaceExactOnce(
-    file,
-    before,
-    after,
-    "V142_VIDEO_CLEANUP_AFTER_PHYSICAL_IMPORT"
-  );
-}
-
-function ensureLocalVideoRequirementRouting() {
-  const engineFile = "jarvis-local-video-engine.js";
-  const engineSource = sourceOf(engineFile);
-  const bridgeSource = sourceOf("jarvis-fs-bridge.js");
-  const actuatorSource = sourceOf("gestia-core/jarvis/jarvis.actuator.pack.js");
-  if (
-    engineSource.includes("export function resolveVideoEngine({ policy, health, requirements = {} } = {})") &&
-    engineSource.includes("const LOCAL_VIDEO_BACKEND_ORDER = Object.freeze([") &&
-    engineSource.includes("resolve: requirements => resolveVideoEngine({ policy, health: health(), requirements })") &&
-    bridgeSource.includes("return res.json(videoEngine.resolve(req.body || {}));") &&
-    actuatorSource.includes("const engineRequirements = {") &&
-    actuatorSource.includes("referenceCount: referenceImages.length")
-  ) {
-    return;
+  const importIndex = actuator.indexOf('const artifact = await bridgeRequest("/video/import"');
+  const cleanupIndex = actuator.indexOf('action: "cleanup"', importIndex);
+  if (!(importIndex >= 0 && cleanupIndex > importIndex)) {
+    throw new Error("V142_VIDEO_CLEANUP_ORDER_INVALID");
   }
-  const beforeResolver = `export function resolveVideoEngine({ policy, health } = {}) {
-    const effectivePolicy = policy || describeLocalVideoPolicy();
-    const mode = normalizedMode(effectivePolicy.mode);
-    const localReady = effectivePolicy.localVideoEnabled === true && health?.ok === true;
-    const common = {
-        policy: mode,
-        engineRequested: mode,
-        externalFallbackEnabled: effectivePolicy.externalFallbackEnabled === true,
-        fallbackUsed: false,
-        fallbackReason: null,
-        externalApiUsed: false,
-        externalEstimatedCostUsd: 0
-    };
-
-    if (mode === "CURRENT_STABLE") {
-        return {
-            ...common,
-            ok: true,
-            status: "VIDEO_ENGINE_CURRENT_STABLE",
-            engineUsed: "external",
-            provider: "google-veo"
-        };
-    }
-
-    if (mode === "LOCAL_TEST" || mode === "LOCAL_ONLY") {
-        if (!localReady) {
-            return {
-                ...common,
-                ok: false,
-                status: health?.status || "LOCAL_VIDEO_WORKER_UNAVAILABLE",
-                error: health?.status || "LOCAL_VIDEO_WORKER_UNAVAILABLE",
-                engineUsed: null,
-                provider: null,
-                retryable: false
-            };
-        }
-        return {
-            ...common,
-            ok: true,
-            status: mode === "LOCAL_TEST"
-                ? "VIDEO_ENGINE_LOCAL_TEST"
-                : "VIDEO_ENGINE_LOCAL_ONLY",
-            engineUsed: "local",
-            provider: "local"
-        };
-    }
-
-    const certifiedReady = localReady && effectivePolicy.localVideoCertified === true;
-    if (certifiedReady) {
-        return {
-            ...common,
-            ok: true,
-            status: "VIDEO_ENGINE_LOCAL_PREFERRED",
-            engineUsed: "local",
-            provider: "local"
-        };
-    }
-    const reason = health?.status || (
-        localReady ? "LOCAL_VIDEO_NOT_CERTIFIED" : "LOCAL_VIDEO_WORKER_UNAVAILABLE"
-    );
-    if (effectivePolicy.externalFallbackEnabled === true) {
-        return {
-            ...common,
-            ok: true,
-            status: "VIDEO_ENGINE_EXTERNAL_FALLBACK",
-            engineUsed: "external",
-            provider: "google-veo",
-            fallbackUsed: true,
-            fallbackReason: reason
-        };
-    }
-    return {
-        ...common,
-        ok: false,
-        status: reason,
-        error: reason,
-        engineUsed: null,
-        provider: null,
-        retryable: false
-    };
-}`;
-  const afterResolver = `export function resolveVideoEngine({ policy, health, requirements = {} } = {}) {
-    const effectivePolicy = policy || describeLocalVideoPolicy();
-    const mode = normalizedMode(effectivePolicy.mode);
-    const localReady = effectivePolicy.localVideoEnabled === true && health?.ok === true;
-    const referenceCount = Math.max(0, Number(requirements.referenceCount || 0));
-    const requiresImageToVideo = requirements.requiresImageToVideo === true || referenceCount > 0;
-    const selectedModel = health?.model || health?.modelRequirements || null;
-    let requirementFailure = null;
-    if (localReady && selectedModel) {
-        if (requiresImageToVideo && selectedModel.imageToVideo !== true) {
-            requirementFailure = "LOCAL_VIDEO_REFERENCES_UNSUPPORTED_BY_BACKEND";
-        }
-        else if (referenceCount > Number(selectedModel.maximumReferenceAssets || 0)) {
-            requirementFailure = "LOCAL_VIDEO_REFERENCE_LIMIT_EXCEEDED";
-        }
-    }
-    const localSuitable = localReady && requirementFailure === null;
-    const common = {
-        policy: mode,
-        engineRequested: mode,
-        selectedBackend: health?.selectedBackend || selectedModel?.backend || null,
-        selectedModel: selectedModel?.model || null,
-        imageToVideoSupported: selectedModel?.imageToVideo === true,
-        maximumReferenceAssets: Number(selectedModel?.maximumReferenceAssets || 0),
-        referenceCount,
-        externalFallbackEnabled: effectivePolicy.externalFallbackEnabled === true,
-        fallbackUsed: false,
-        fallbackReason: null,
-        externalApiUsed: false,
-        externalEstimatedCostUsd: 0
-    };
-
-    if (mode === "CURRENT_STABLE") {
-        return {
-            ...common,
-            ok: true,
-            status: "VIDEO_ENGINE_CURRENT_STABLE",
-            engineUsed: "external",
-            provider: "google-veo"
-        };
-    }
-
-    if (mode === "LOCAL_TEST" || mode === "LOCAL_ONLY") {
-        if (!localSuitable) {
-            const reason = requirementFailure || health?.status || "LOCAL_VIDEO_WORKER_UNAVAILABLE";
-            return {
-                ...common,
-                ok: false,
-                status: reason,
-                error: reason,
-                engineUsed: null,
-                provider: null,
-                retryable: false
-            };
-        }
-        return {
-            ...common,
-            ok: true,
-            status: mode === "LOCAL_TEST"
-                ? "VIDEO_ENGINE_LOCAL_TEST"
-                : "VIDEO_ENGINE_LOCAL_ONLY",
-            engineUsed: "local",
-            provider: "local"
-        };
-    }
-
-    const certifiedReady = localSuitable && effectivePolicy.localVideoCertified === true;
-    if (certifiedReady) {
-        return {
-            ...common,
-            ok: true,
-            status: "VIDEO_ENGINE_LOCAL_PREFERRED",
-            engineUsed: "local",
-            provider: "local"
-        };
-    }
-    const reason = requirementFailure || health?.status || (
-        localReady ? "LOCAL_VIDEO_NOT_CERTIFIED" : "LOCAL_VIDEO_WORKER_UNAVAILABLE"
-    );
-    if (effectivePolicy.externalFallbackEnabled === true) {
-        return {
-            ...common,
-            ok: true,
-            status: "VIDEO_ENGINE_EXTERNAL_FALLBACK",
-            engineUsed: "external",
-            provider: "google-veo",
-            fallbackUsed: true,
-            fallbackReason: reason
-        };
-    }
-    return {
-        ...common,
-        ok: false,
-        status: reason,
-        error: reason,
-        engineUsed: null,
-        provider: null,
-        retryable: false
-    };
-}`;
-  replaceExactOnce(
-    engineFile,
-    beforeResolver,
-    afterResolver,
-    "V142_LOCAL_VIDEO_REQUIREMENT_RESOLVER"
-  );
-
-  replaceExactOnce(
-    engineFile,
-    "        resolve: () => resolveVideoEngine({ policy, health: health() }),",
-    "        resolve: requirements => resolveVideoEngine({ policy, health: health(), requirements }),",
-    "V142_LOCAL_VIDEO_RESOLVE_REQUIREMENTS"
-  );
-
-  replaceExactOnce(
-    "jarvis-fs-bridge.js",
-    `    app.post("/video/engine/resolve", (req, res) => {
-        try {
-            return res.json(videoEngine.resolve());`,
-    `    app.post("/video/engine/resolve", (req, res) => {
-        try {
-            return res.json(videoEngine.resolve(req.body || {}));`,
-    "V142_VIDEO_ENGINE_RESOLVE_BODY"
-  );
-
-  replaceExactOnce(
-    "gestia-core/jarvis/jarvis.actuator.pack.js",
-    `                    engineDecision = await bridgeRequest("/video/engine/resolve", {
-                        capability: "video.generate",
-                        sceneCount: prompts.length,
-                        seriesId: seriesId || null,
-                        episodeId: episodeId || null
-                    }, 30000);`,
-    `                    engineDecision = await bridgeRequest("/video/engine/resolve", {
-                        capability: "video.generate",
-                        sceneCount: prompts.length,
-                        referenceCount: referenceImages.length,
-                        requiresImageToVideo: referenceImages.length > 0,
-                        aspectRatio,
-                        seriesId: seriesId || null,
-                        episodeId: episodeId || null
-                    }, 30000);`,
-    "V142_VIDEO_ENGINE_REQUIREMENTS_FROM_ACTUATOR"
-  );
-
-  appendOnce(
-    "tests/jarvis-local-video-engine-v142.test.mjs",
-    "V142 resolve gates local backends by mission reference requirements",
-    `test("V142 resolve gates local backends by mission reference requirements", () => {
-    const preferred = describeLocalVideoPolicy({
-        JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_PREFERRED",
-        JARVIS_LOCAL_VIDEO_ENABLED: "true",
-        JARVIS_LOCAL_VIDEO_CERTIFIED: "true",
-        JARVIS_EXTERNAL_FALLBACK_ENABLED: "true"
-    });
-    const lightHealth = {
-        ok: true,
-        status: "LOCAL_VIDEO_HARDWARE_READY",
-        selectedBackend: "wan21-t2v-1.3b",
-        model: {
-            backend: "wan21-t2v-1.3b",
-            model: "Wan2.1-T2V-1.3B",
-            imageToVideo: false,
-            maximumReferenceAssets: 0
-        }
-    };
-    const lightFallback = resolveVideoEngine({
-        policy: preferred,
-        health: lightHealth,
-        requirements: { referenceCount: 1, requiresImageToVideo: true }
-    });
-    assert.equal(lightFallback.ok, true);
-    assert.equal(lightFallback.engineUsed, "external");
-    assert.equal(lightFallback.fallbackUsed, true);
-    assert.equal(lightFallback.fallbackReason, "LOCAL_VIDEO_REFERENCES_UNSUPPORTED_BY_BACKEND");
-
-    const localOnly = describeLocalVideoPolicy({
-        JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_ONLY",
-        JARVIS_LOCAL_VIDEO_ENABLED: "true"
-    });
-    const fullHealth = {
-        ok: true,
-        status: "LOCAL_VIDEO_HARDWARE_READY",
-        selectedBackend: "wan22-ti2v-5b",
-        model: {
-            backend: "wan22-ti2v-5b",
-            model: "Wan2.2-TI2V-5B",
-            imageToVideo: true,
-            maximumReferenceAssets: 1
-        }
-    };
-    const tooMany = resolveVideoEngine({
-        policy: localOnly,
-        health: fullHealth,
-        requirements: { referenceCount: 2, requiresImageToVideo: true }
-    });
-    assert.equal(tooMany.ok, false);
-    assert.equal(tooMany.engineUsed, null);
-    assert.equal(tooMany.status, "LOCAL_VIDEO_REFERENCE_LIMIT_EXCEEDED");
-});`
-  );
 }
 
-function ensureIdentityFidelityEconomyGate() {
+function ensureRunpodL40sVideoAuthority() {
   const engineFile = "jarvis-local-video-engine.js";
   const actuatorFile = "gestia-core/jarvis/jarvis.actuator.pack.js";
   const bridgeFile = "jarvis-fs-bridge.js";
 
   replaceExactOnce(
     engineFile,
-    `function backendRequirementFailure(backend = {}, requirements = {}) {
-    const referenceCount = Math.max(0, Number(requirements.referenceCount || 0));
-    const requiresImageToVideo = requirements.requiresImageToVideo === true || referenceCount > 0;
-    if (requiresImageToVideo && backend.imageToVideo !== true) {`,
-    `function backendRequirementFailure(backend = {}, requirements = {}) {
-    const referenceCount = Math.max(0, Number(requirements.referenceCount || 0));
-    const requiresImageToVideo = requirements.requiresImageToVideo === true || referenceCount > 0;
-    const requiresIdentityFidelity = requirements.requiresIdentityFidelity === true;
-    if (requiresIdentityFidelity && referenceCount > 0) {
-        return "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED";
-    }
-    if (requiresImageToVideo && backend.imageToVideo !== true) {`,
-    "V142_IDENTITY_FIDELITY_BACKEND_GATE"
-  );
-
-  replaceExactOnce(
-    engineFile,
-    `    const referenceCount = Math.max(0, Number(requirements.referenceCount || 0));
-    const requiresImageToVideo = requirements.requiresImageToVideo === true || referenceCount > 0;
-    const excludedBackends = new Set(`,
-    `    const referenceCount = Math.max(0, Number(requirements.referenceCount || 0));
-    const requiresImageToVideo = requirements.requiresImageToVideo === true || referenceCount > 0;
-    const requiresIdentityFidelity = requirements.requiresIdentityFidelity === true;
-    const excludedBackends = new Set(`,
-    "V142_IDENTITY_FIDELITY_RESOLVER_INPUT"
-  );
-
-  replaceExactOnce(
-    engineFile,
-    `        engineRequested: mode,
-        referenceCount,
-        requiresImageToVideo,
-        aspectRatio: requirements.aspectRatio || null,`,
-    `        engineRequested: mode,
-        referenceCount,
-        requiresImageToVideo,
-        requiresIdentityFidelity,
-        aspectRatio: requirements.aspectRatio || null,`,
-    "V142_IDENTITY_FIDELITY_RESOLVER_EVIDENCE"
-  );
-
-  replaceExactOnce(
-    engineFile,
-    `    async function start(payload = {}) {
-        const currentHealth = health();
-        const referenceOutputs = Array.isArray(payload.referenceOutputs) ? payload.referenceOutputs : [];`,
-    `    async function start(payload = {}) {
-        const referenceOutputs = Array.isArray(payload.referenceOutputs) ? payload.referenceOutputs : [];
-        const requiresIdentityFidelity =
-            payload.requiresIdentityFidelity === true &&
-            referenceOutputs.length > 0;
-        if (requiresIdentityFidelity) {
-            return {
-                ok: false,
-                blocked: true,
-                status: "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED",
-                error: "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED",
-                requiresIdentityFidelity: true,
-                referenceCount: referenceOutputs.length,
-                retryable: false,
-                externalApiUsed: false,
-                externalEstimatedCostUsd: 0,
-                gpuRentalSeconds: 0,
-                gpuRentalEstimatedCost: 0,
-                gpuRentalActualCost: 0
-            };
-        }
-        const currentHealth = health();`,
-    "V142_IDENTITY_FIDELITY_START_PREHEALTH_GATE"
-  );
-
-  replaceExactOnce(
-    engineFile,
-    `            referenceCount: referenceOutputs.length,
-            requiresImageToVideo: referenceOutputs.length > 0,
-            aspectRatio: payload.aspectRatio === "16:9" ? "16:9" : "9:16",`,
-    `            referenceCount: referenceOutputs.length,
-            requiresImageToVideo: referenceOutputs.length > 0,
-            requiresIdentityFidelity,
-            aspectRatio: payload.aspectRatio === "16:9" ? "16:9" : "9:16",`,
-    "V142_IDENTITY_FIDELITY_LOCAL_REQUIREMENTS"
+    `            imageToVideo: model?.imageToVideo === true,\n            maximumReferenceAssets: Number(model?.maximumReferenceAssets || 0)`,
+    `            imageToVideo: model?.imageToVideo === true,\n            maximumReferenceAssets: Number(model?.maximumReferenceAssets || 0),\n            maximumSourceReferenceAssets: Number(model?.maximumSourceReferenceAssets ?? model?.maximumReferenceAssets ?? 0)`,
+    "V142_WAN22_SOURCE_REFERENCE_HEALTH"
   );
 
   replaceExactOnce(
     actuatorFile,
-    `                    requiresImageToVideo: referenceImages.length > 0,
-                    aspectRatio,`,
-    `                    requiresImageToVideo: referenceImages.length > 0,
-                    requiresIdentityFidelity: referenceImages.length > 0,
-                    aspectRatio,`,
-    "V142_IDENTITY_FIDELITY_ACTUATOR_REQUIREMENT"
+    `                const engineRequirements = {\n                    capability: "video.generate",\n                    sceneCount: prompts.length,`,
+    `                const engineRequirements = {\n                    capability: "video.generate",\n                    requiresRunpodL40s: true,\n                    sceneCount: prompts.length,`,
+    "V142_VIDEO_GENERATE_RUNPOD_L40S_REQUIREMENT"
+  );
+
+  replaceExactOnce(
+    actuatorFile,
+    `                if (engineDecision.ok !== true || !engineDecision.engineUsed) {\n                    return {\n                        ...engineDecision,\n                        ok: false,\n                        executionOk: false,\n                        objectiveSatisfied: false,\n                        blocked: true,\n                        retryable: false,\n                        externalApiUsed: false,\n                        externalEstimatedCostUsd: 0\n                    };\n                }\n\n                let episodeAudioOutput = "";`,
+    `                if (engineDecision.ok !== true || !engineDecision.engineUsed) {\n                    return {\n                        ...engineDecision,\n                        ok: false,\n                        executionOk: false,\n                        objectiveSatisfied: false,\n                        blocked: true,\n                        retryable: false,\n                        externalApiUsed: false,\n                        externalEstimatedCostUsd: 0\n                    };\n                }\n                if (\n                    engineRequirements.requiresRunpodL40s === true &&\n                    (\n                        engineDecision.engineUsed !== "local" ||\n                        engineDecision.selectedBackend !== "wan22-ti2v-5b" ||\n                        engineDecision.provider !== "runpod"\n                    )\n                ) {\n                    return {\n                        ...engineDecision,\n                        ok: false,\n                        executionOk: false,\n                        objectiveSatisfied: false,\n                        blocked: true,\n                        retryable: false,\n                        status: "RUNPOD_L40S_VIDEO_REQUIRED",\n                        error: "RUNPOD_L40S_VIDEO_REQUIRED",\n                        engineUsed: null,\n                        provider: null,\n                        fallbackUsed: false,\n                        externalApiUsed: false,\n                        externalEstimatedCostUsd: 0,\n                        gpuRentalSeconds: 0,\n                        gpuRentalEstimatedCost: 0,\n                        gpuRentalActualCost: 0\n                    };\n                }\n\n                let episodeAudioOutput = "";`,
+    "V142_VIDEO_GENERATE_FAIL_CLOSED_L40S"
+  );
+
+  replaceExactOnce(
+    actuatorFile,
+    `                            selectedBackend: engineDecision.selectedBackend || null,\n                            missionId: context?.missionId || null,`,
+    `                            selectedBackend: engineDecision.selectedBackend || null,\n                            requiresRunpodL40s: true,\n                            missionId: context?.missionId || null,`,
+    "V142_VIDEO_START_RUNPOD_L40S_REQUIREMENT"
   );
 
   replaceExactOnce(
     bridgeFile,
-    `            try {
-                const result = await videoEngine[action](req.body || {});
-                return res.status(result.ok === true ? 200 : 400).json(result);`,
-    `            try {
-                const payload = req.body || {};
-                const invocationPayload = action === "start"
-                    ? {
-                        ...payload,
-                        requiresIdentityFidelity:
-                            Array.isArray(payload.referenceOutputs) &&
-                            payload.referenceOutputs.length > 0
-                    }
-                    : payload;
-                const result = await videoEngine[action](invocationPayload);
-                return res.status(result.ok === true ? 200 : 400).json(result);`,
-    "V142_IDENTITY_FIDELITY_BRIDGE_FORCE"
+    `    app.post("/video/engine/resolve", (req, res) => {\n        try {\n            return res.json(videoEngine.resolve(req.body || {}));\n        }\n        catch(error) {\n            return res.status(503).json({\n                ok: false,\n                status: "VIDEO_ENGINE_RESOLUTION_FAILED",\n                error: error.message,\n                version: JARVIS_FS_BRIDGE_VERSION\n            });\n        }\n    });`,
+    `    app.post("/video/engine/resolve", (req, res) => {\n        try {\n            const requirements = req.body || {};\n            if (requirements.requiresRunpodL40s === true) {\n                const decision = videoEngine.resolve({\n                    ...requirements,\n                    requiresIdentityFidelity: false,\n                    selectedBackend: "wan22-ti2v-5b"\n                });\n                const exactRunpodL40sDecision =\n                    decision?.ok === true &&\n                    decision?.engineUsed === "local" &&\n                    decision?.selectedBackend === "wan22-ti2v-5b";\n                if (!exactRunpodL40sDecision) {\n                    return res.json({\n                        ...(decision || {}),\n                        ok: false,\n                        blocked: true,\n                        retryable: false,\n                        status: "RUNPOD_L40S_VIDEO_REQUIRED",\n                        error: "RUNPOD_L40S_VIDEO_REQUIRED",\n                        engineUsed: null,\n                        provider: null,\n                        selectedBackend: null,\n                        fallbackUsed: false,\n                        externalFallbackEnabled: false,\n                        externalApiUsed: false,\n                        externalEstimatedCostUsd: 0,\n                        gpuRentalSeconds: 0,\n                        gpuRentalEstimatedCost: 0,\n                        gpuRentalActualCost: 0,\n                        requiresRunpodL40s: true\n                    });\n                }\n                return res.json({\n                    ...decision,\n                    provider: "runpod",\n                    requiresRunpodL40s: true,\n                    fallbackUsed: false,\n                    fallbackReason: null,\n                    externalFallbackEnabled: false,\n                    externalApiUsed: false,\n                    externalEstimatedCostUsd: 0\n                });\n            }\n            return res.json(videoEngine.resolve(req.body || {}));\n        }\n        catch(error) {\n            return res.status(503).json({\n                ok: false,\n                status: "VIDEO_ENGINE_RESOLUTION_FAILED",\n                error: error.message,\n                version: JARVIS_FS_BRIDGE_VERSION\n            });\n        }\n    });`,
+    "V142_VIDEO_ENGINE_RUNPOD_L40S_RESOLUTION"
   );
 
+  replaceExactOnce(
+    bridgeFile,
+    `                const result = await videoEngine[action](invocationPayload);\n                return res.status(result.ok === true ? 200 : 400).json(result);`,
+    `                if (action === "start" && payload.requiresRunpodL40s === true) {\n                    const exactRunpodL40sConfiguration =\n                        runpodEnabled === true &&\n                        String(process.env.JARVIS_LOCAL_VIDEO_EXECUTION_TARGET || "").trim().toLowerCase() === "remote" &&\n                        String(process.env.JARVIS_REMOTE_GPU_PROVIDER || "").trim().toLowerCase() === "runpod" &&\n                        String(process.env.JARVIS_RUNPOD_GPU_TYPE_ID || "").trim() === "NVIDIA L40S" &&\n                        String(process.env.JARVIS_LOCAL_VIDEO_MODEL || "").trim().toLowerCase() === "wan22-ti2v-5b" &&\n                        String(process.env.JARVIS_VIDEO_ENGINE_POLICY || "").trim().toUpperCase() === "LOCAL_TEST" &&\n                        String(process.env.JARVIS_EXTERNAL_FALLBACK_ENABLED || "false").trim().toLowerCase() === "false";\n                    if (!exactRunpodL40sConfiguration) {\n                        return res.status(409).json({\n                            ok: false,\n                            blocked: true,\n                            retryable: false,\n                            status: "RUNPOD_L40S_VIDEO_REQUIRED",\n                            error: "RUNPOD_L40S_VIDEO_REQUIRED",\n                            requiredProvider: "runpod",\n                            requiredGpuTypeId: "NVIDIA L40S",\n                            requiredBackend: "wan22-ti2v-5b",\n                            requiredExecutionTarget: "remote",\n                            externalApiUsed: false,\n                            externalEstimatedCostUsd: 0,\n                            gpuRentalSeconds: 0,\n                            gpuRentalEstimatedCost: 0,\n                            gpuRentalActualCost: 0,\n                            version: JARVIS_FS_BRIDGE_VERSION\n                        });\n                    }\n                    invocationPayload.requiresIdentityFidelity = false;\n                    invocationPayload.requiresRunpodL40s = true;\n                }\n                const result = await videoEngine[action](invocationPayload);\n                return res.status(result.ok === true ? 200 : 400).json(result);`,
+    "V142_VIDEO_START_EXACT_RUNPOD_L40S_GATE"
+  );
+}
+
+function ensureRunpodL40sRegression() {
   appendOnce(
     "tests/jarvis-local-video-engine-v142.test.mjs",
-    "V142 identity fidelity blocks local actor generation before hardware inspection or GPU launch",
-    `test("V142 identity fidelity blocks local actor generation before hardware inspection or GPU launch", async () => {
-    let hardwareInspections = 0;
-    let launches = 0;
-    const engine = createLocalVideoEngine({
-        root: fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-identity-fidelity-gate-")),
-        env: {
-            JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_TEST",
-            JARVIS_LOCAL_VIDEO_ENABLED: "true"
-        },
-        inspectHardware() {
-            hardwareInspections += 1;
-            return healthyCapability();
-        },
-        launch() {
-            launches += 1;
-            throw new Error("IDENTITY_GATE_MUST_BLOCK_BEFORE_LAUNCH");
-        }
-    });
-    const result = await engine.start({
-        script: "Preserve the referenced actor exactly.",
-        prompts: ["Actor walks and turns toward camera."],
-        referenceOutputs: [".jarvis-artifacts/images/actor-reference.png"],
-        requiresIdentityFidelity: true,
-        output: ".jarvis-artifacts/videos/identity-gate.mp4"
-    });
-    assert.equal(result.ok, false);
-    assert.equal(result.blocked, true);
-    assert.equal(result.status, "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED");
-    assert.equal(result.requiresIdentityFidelity, true);
-    assert.equal(result.referenceCount, 1);
-    assert.equal(result.gpuRentalSeconds, 0);
-    assert.equal(result.gpuRentalEstimatedCost, 0);
-    assert.equal(result.gpuRentalActualCost, 0);
-    assert.equal(hardwareInspections, 0);
-    assert.equal(launches, 0);
-});
-
-test("V142 identity fidelity selects external fallback only at resolver level and never spends locally", () => {
-    const preferred = describeLocalVideoPolicy({
-        JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_PREFERRED",
-        JARVIS_LOCAL_VIDEO_ENABLED: "true",
-        JARVIS_LOCAL_VIDEO_CERTIFIED: "true",
-        JARVIS_EXTERNAL_FALLBACK_ENABLED: "true"
-    });
-    const health = {
-        ok: true,
-        status: "LOCAL_VIDEO_HARDWARE_READY",
-        selectedBackend: "wan22-ti2v-5b",
-        model: {
-            backend: "wan22-ti2v-5b",
-            model: "Wan2.2-TI2V-5B",
-            imageToVideo: true,
-            maximumReferenceAssets: 1
-        }
-    };
-    const fallback = resolveVideoEngine({
-        policy: preferred,
-        health,
-        requirements: {
-            referenceCount: 1,
-            requiresImageToVideo: true,
-            requiresIdentityFidelity: true
-        }
-    });
-    assert.equal(fallback.ok, true);
-    assert.equal(fallback.engineUsed, "external");
-    assert.equal(fallback.provider, "google-veo");
-    assert.equal(fallback.fallbackUsed, true);
-    assert.match(fallback.fallbackReason, /LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED/);
-    assert.equal(fallback.externalApiUsed, false);
-    assert.equal(fallback.externalEstimatedCostUsd, 0);
-
-    const localOnly = resolveVideoEngine({
-        policy: describeLocalVideoPolicy({
-            JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_TEST",
-            JARVIS_LOCAL_VIDEO_ENABLED: "true"
-        }),
-        health,
-        requirements: {
-            referenceCount: 1,
-            requiresImageToVideo: true,
-            requiresIdentityFidelity: true
-        }
-    });
-    assert.equal(localOnly.ok, false);
-    assert.equal(localOnly.engineUsed, null);
-    assert.match(localOnly.status, /LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED/);
-    assert.equal(localOnly.externalApiUsed, false);
-});
-
-test("V142 public bridge forces identity fidelity for every referenced video start", () => {
-    const bridge = fs.readFileSync(
-        new URL("../jarvis-fs-bridge.js", import.meta.url),
-        "utf8"
-    );
-    const actuator = fs.readFileSync(
-        new URL("../gestia-core/jarvis/jarvis.actuator.pack.js", import.meta.url),
-        "utf8"
-    );
-    assert.match(bridge, /requiresIdentityFidelity:[\\s\\S]*Array\\.isArray\\(payload\\.referenceOutputs\\)/);
-    assert.match(actuator, /requiresIdentityFidelity: referenceImages\\.length > 0/);
-});`
+    "V142 public video generation is fail closed to RunPod L40S",
+    `test("V142 public video generation is fail closed to RunPod L40S", () => {\n    const actuator = fs.readFileSync(\n        new URL("../gestia-core/jarvis/jarvis.actuator.pack.js", import.meta.url),\n        "utf8"\n    );\n    const bridge = fs.readFileSync(\n        new URL("../jarvis-fs-bridge.js", import.meta.url),\n        "utf8"\n    );\n    assert.match(actuator, /requiresRunpodL40s: true/);\n    assert.match(actuator, /RUNPOD_L40S_VIDEO_REQUIRED/);\n    assert.match(actuator, /engineDecision\\.provider !== "runpod"/);\n    assert.match(bridge, /requiredGpuTypeId: "NVIDIA L40S"/);\n    assert.match(bridge, /requiredBackend: "wan22-ti2v-5b"/);\n    assert.match(bridge, /JARVIS_LOCAL_VIDEO_EXECUTION_TARGET/);\n    assert.match(bridge, /JARVIS_EXTERNAL_FALLBACK_ENABLED/);\n    assert.match(bridge, /invocationPayload\\.requiresIdentityFidelity = false/);\n});\n\ntest("V142 Wan2.2 keeps three source references available for L40S routing", () => {\n    const policy = describeLocalVideoPolicy({\n        JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_TEST",\n        JARVIS_LOCAL_VIDEO_ENABLED: "true"\n    });\n    const resolved = resolveVideoEngine({\n        policy,\n        health: {\n            ok: true,\n            status: "REMOTE_VIDEO_PROVISIONING_CONFIGURED",\n            selectedBackend: "wan22-ti2v-5b",\n            modelRequirements: {\n                backend: "wan22-ti2v-5b",\n                model: "Wan2.2-TI2V-5B",\n                imageToVideo: true,\n                maximumReferenceAssets: 1,\n                maximumSourceReferenceAssets: 3\n            }\n        },\n        requirements: {\n            selectedBackend: "wan22-ti2v-5b",\n            referenceCount: 2,\n            requiresImageToVideo: true,\n            requiresIdentityFidelity: false\n        }\n    });\n    assert.equal(resolved.ok, true);\n    assert.equal(resolved.engineUsed, "local");\n    assert.equal(resolved.selectedBackend, "wan22-ti2v-5b");\n});`
   );
 }
 
-function ensureRegressionContract() {
-  const file = "tests/jarvis-mobile-web-research-recovery-v142.test.mjs";
-
-  const allowlistMarker =
-    "V142 video import accepts only the controlled Firebase Storage download URL";
-  appendOnce(
-    file,
-    allowlistMarker,
-    `test("${allowlistMarker}", () => {
-    const source = fs.readFileSync(
-        new URL("../jarvis-fs-bridge.js", import.meta.url),
-        "utf8"
-    );
-    assert.match(source, /host === \"firebasestorage\\.googleapis\\.com\"/);
-    assert.match(source, /fixgo-44e4d\\.firebasestorage\\.app/);
-    assert.match(source, /parsed\\.searchParams\\.get\\(\"alt\"\\) === \"media\"/);
-    assert.match(source, /parsed\\.searchParams\\.get\\(\"token\"\\)/);
-    assert.match(source, /VIDEO_IMPORT_SHA256_REQUIRED/);
-});`
-  );
-
-  const cleanupMarker =
-    "V142 video cloud cleanup happens only after the physical import succeeds";
-  appendOnce(
-    file,
-    cleanupMarker,
-    `test("${cleanupMarker}", () => {
-    const source = fs.readFileSync(
-        new URL("../gestia-core/jarvis/jarvis.actuator.pack.js", import.meta.url),
-        "utf8"
-    );
-    const importIndex = source.indexOf('const artifact = await bridgeRequest("/video/import"');
-    const cleanupIndex = source.indexOf('action: "cleanup"', importIndex);
-    assert.ok(importIndex >= 0);
-    assert.ok(cleanupIndex > importIndex);
-    assert.doesNotMatch(
-        source.slice(importIndex, cleanupIndex),
-        /finally\s*\{/
-    );
-});`
-  );
-
-  const routingMarker =
-    "V142 video engine resolver receives semantic media requirements before local start";
-  appendOnce(
-    file,
-    routingMarker,
-    `test("${routingMarker}", () => {
-    const actuator = fs.readFileSync(
-        new URL("../gestia-core/jarvis/jarvis.actuator.pack.js", import.meta.url),
-        "utf8"
-    );
-    const bridge = fs.readFileSync(
-        new URL("../jarvis-fs-bridge.js", import.meta.url),
-        "utf8"
-    );
-    assert.match(actuator, /referenceCount: referenceImages\\.length/);
-    assert.match(actuator, /requiresImageToVideo: referenceImages\\.length > 0/);
-    assert.match(actuator, /requiresIdentityFidelity: referenceImages\\.length > 0/);
-    assert.match(bridge, /videoEngine\\.resolve\\(req\\.body \\|\\| \\{\\}\\)/);
-    assert.match(bridge, /requiresIdentityFidelity/);
-});`
-  );
-}
-
-ensureFirebaseVideoImportContract();
-ensureCloudCleanupAfterPhysicalImport();
-ensureLocalVideoRequirementRouting();
-ensureIdentityFidelityEconomyGate();
-ensureRegressionContract();
+assertPreviousV142Materialization();
+ensureRunpodL40sVideoAuthority();
+ensureRunpodL40sRegression();
 
 const checks = [
-  ["gestia-core/jarvis/jarvis.multifunction.planner.js", [
-    "GENERALIST_CURRENT_TURN_POLICY",
-    "SEMANTIC_MINIDRAMA_SCENES_CONSOLIDATED",
-    "UNA sola llamada video.generate"
-  ]],
   ["gestia-core/jarvis/jarvis.actuator.pack.js", [
     'name: "video.generate"',
-    "transientPollFailures",
-    "VIDEO_GENERATION_POLL_TRANSPORT_TIMEOUT",
-    "VIDEO_IMPORT_PHYSICAL_VERIFICATION_FAILED",
-    'const artifact = await bridgeRequest("/video/import"',
-    'action: "cleanup"',
-    "referenceCount: referenceImages.length",
-    "requiresImageToVideo: referenceImages.length > 0",
-    "requiresIdentityFidelity: referenceImages.length > 0"
+    "requiresIdentityFidelity: referenceImages.length > 0",
+    "requiresRunpodL40s: true",
+    "RUNPOD_L40S_VIDEO_REQUIRED",
+    'engineDecision.provider !== "runpod"'
   ]],
   ["jarvis-fs-bridge.js", [
-    'app.post("/video/import"',
     'videoEngine.resolve(req.body || {})',
-    'host === "firebasestorage.googleapis.com"',
-    'fixgo-44e4d.firebasestorage.app',
-    'parsed.searchParams.get("alt") === "media"',
-    'parsed.searchParams.get("token")',
-    "VIDEO_IMPORT_SHA256_REQUIRED",
     "requiresIdentityFidelity",
-    "REEL_VIDEO_FRAME_DENSITY_LOW:",
-    "averageRenderedFps < 20"
+    "requiresRunpodL40s",
+    "RUNPOD_L40S_VIDEO_REQUIRED",
+    'requiredGpuTypeId: "NVIDIA L40S"',
+    'requiredBackend: "wan22-ti2v-5b"',
+    "invocationPayload.requiresIdentityFidelity = false"
   ]],
   ["jarvis-local-video-engine.js", [
-    "requirements = {}",
-    "LOCAL_VIDEO_REFERENCES_UNSUPPORTED_BY_BACKEND",
-    "LOCAL_VIDEO_REFERENCE_LIMIT_EXCEEDED",
     "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED",
-    "requiresIdentityFidelity",
-    "gpuRentalActualCost: 0",
-    "resolve: requirements => resolveVideoEngine"
+    "maximumSourceReferenceAssets: 3",
+    "maximumSourceReferenceAssets: Number(model?.maximumSourceReferenceAssets"
   ]]
 ];
 
@@ -753,28 +139,25 @@ for (const [file, markers] of checks) {
   const source = sourceOf(file);
   for (const marker of markers) {
     if (!source.includes(marker)) {
-      throw new Error(`V142_AUDIOVISUAL_CONTRACT_MISSING:${file}:${marker}`);
+      throw new Error(`V142_RUNPOD_L40S_AUTHORITY_MISSING:${file}:${marker}`);
     }
   }
 }
 
 console.log(JSON.stringify({
   ok: true,
-  status: "V142_ORIGINAL_REEL_PRODUCTION_ALIGNMENT_VERIFIED",
+  status: "V142_RUNPOD_L40S_VIDEO_AUTHORITY_VERIFIED",
   sameSemanticAuthority: true,
-  originalReelCreativeDefault: true,
-  sourceMediaEvidenceOnlyByDefault: true,
-  generatedCreativeTool: "image.generate",
-  finalVideoTool: "reel.create",
   miniDramaTool: "video.generate",
-  miniDramaSingleVideoCall: true,
-  miniDramaSameOperationPollRetry: true,
-  firebaseVideoImportStrictAllowlist: true,
-  cloudCleanupAfterPhysicalImport: true,
-  localVideoRequirementRouting: true,
-  identityFidelityEconomyGate: true,
-  minimumRenderedFps: 20,
-  lexicalRouting: false,
+  runpodL40sVideoAuthority: true,
+  remoteExecutionRequired: true,
+  provider: "runpod",
+  gpuTypeId: "NVIDIA L40S",
+  backend: "wan22-ti2v-5b",
+  maximumSourceReferenceAssets: 3,
+  externalFallbackAllowedForVideoGenerate: false,
+  localIdentityGenerationAllowed: false,
+  paidSpendGuardedByExistingRunpodAuthority: true,
   newFiles: false,
   newBrains: false
 }));
