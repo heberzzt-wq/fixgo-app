@@ -97,6 +97,31 @@ function ensureIdentityFidelityCannotBeBypassed() {
   );
 }
 
+function ensureIdentityReferencesStaySeparate() {
+  const engineFile = "jarvis-local-video-engine.js";
+
+  replaceExactOnce(
+    engineFile,
+    `        if (references.length > Number(model.maximumReferenceAssets || 0)) {`,
+    `        if (!requiresIdentityFidelity && references.length > Number(model.maximumReferenceAssets || 0)) {`,
+    "V142_IDENTITY_REFERENCES_SKIP_SHEET"
+  );
+
+  replaceExactOnce(
+    engineFile,
+    `            audioFile: audioReference?.file || null,\n            referencePreparation,\n            executionTarget:`,
+    `            audioFile: audioReference?.file || null,\n            referencePreparation,\n            requiresIdentityFidelity,\n            executionTarget:`,
+    "V142_JOB_PERSISTS_IDENTITY_REQUIREMENT"
+  );
+
+  replaceExactOnce(
+    engineFile,
+    `            sourceReferenceAssetCount: sourceReferences.length,\n            referencePreparation,\n            createdAt:`,
+    `            sourceReferenceAssetCount: sourceReferences.length,\n            referencePreparation,\n            requiresIdentityFidelity: job.requiresIdentityFidelity === true,\n            createdAt:`,
+    "V142_OPERATION_PERSISTS_IDENTITY_REQUIREMENT"
+  );
+}
+
 function ensureIdentityFidelityRegression() {
   const testFile = "tests/jarvis-local-video-engine-v142.test.mjs";
 
@@ -113,10 +138,17 @@ function ensureIdentityFidelityRegression() {
     "V142 referenced L40S video cannot disable identity fidelity",
     `test("V142 referenced L40S video cannot disable identity fidelity", () => {\n    const bridge = fs.readFileSync(\n        new URL("../jarvis-fs-bridge.js", import.meta.url),\n        "utf8"\n    );\n    const resolverStart = bridge.indexOf('app.post("/video/engine/resolve"');\n    const resolverEnd = bridge.indexOf('app.post("/local-ai/capability-report"', resolverStart);\n    const resolver = bridge.slice(resolverStart, resolverEnd);\n    const localStart = bridge.indexOf('["/video/local/start", "start"]');\n    const localEnd = bridge.indexOf('app.post("/video/import"', localStart);\n    const lifecycle = bridge.slice(localStart, localEnd);\n\n    assert.ok(resolverStart >= 0 && resolverEnd > resolverStart);\n    assert.ok(localStart >= 0 && localEnd > localStart);\n    assert.match(resolver, /requirements\\.requiresIdentityFidelity === true/);\n    assert.match(resolver, /Number\\(requirements\\.referenceCount \\|\\| 0\\) > 0/);\n    assert.match(resolver, /RUNPOD_L40S_IDENTITY_BACKEND_REQUIRED/);\n    assert.match(lifecycle, /payload\\.referenceOutputs\\.length > 0/);\n    assert.match(lifecycle, /RUNPOD_L40S_IDENTITY_BACKEND_REQUIRED/);\n    assert.doesNotMatch(bridge, /invocationPayload\\.requiresIdentityFidelity = false/);\n});`
   );
+
+  appendOnce(
+    testFile,
+    "V142 identity references remain separate until a certified identity runtime consumes them",
+    `test("V142 identity references remain separate until a certified identity runtime consumes them", () => {\n    const source = fs.readFileSync(\n        new URL("../jarvis-local-video-engine.js", import.meta.url),\n        "utf8"\n    );\n    assert.match(\n        source,\n        /if \\(!requiresIdentityFidelity && references\\.length > Number\\(model\\.maximumReferenceAssets \\|\\| 0\\)\\)/\n    );\n    assert.match(source, /referencePreparation,\\n\\s+requiresIdentityFidelity,\\n\\s+executionTarget:/);\n    assert.match(\n        source,\n        /requiresIdentityFidelity: job\\.requiresIdentityFidelity === true/\n    );\n});`
+  );
 }
 
 assertMaterializedV142Authority();
 ensureIdentityFidelityCannotBeBypassed();
+ensureIdentityReferencesStaySeparate();
 ensureIdentityFidelityRegression();
 
 const checks = [
@@ -133,7 +165,9 @@ const checks = [
   ]],
   ["jarvis-local-video-engine.js", [
     "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED",
-    "maximumSourceReferenceAssets: 3"
+    "maximumSourceReferenceAssets: 3",
+    "!requiresIdentityFidelity && references.length > Number(model.maximumReferenceAssets || 0)",
+    "requiresIdentityFidelity: job.requiresIdentityFidelity === true"
   ]]
 ];
 
@@ -161,6 +195,7 @@ console.log(JSON.stringify({
   gpuTypeId: "NVIDIA L40S",
   genericVideoBackend: "wan22-ti2v-5b",
   identityFidelityRequiredForReferences: true,
+  identityReferencesRemainSeparate: true,
   identitySpendBlockedUntilCertifiedBackend: true,
   externalFallbackAllowedForVideoGenerate: false,
   paidSpendGuardedByExistingRunpodAuthority: true,
