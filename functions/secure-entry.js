@@ -532,13 +532,12 @@ const settleCompletedService = createB2CServiceSettlementEngine({
 const secureOnServiceCompleted = functions.firestore
     .document("services/{serviceId}")
     .onUpdate(async (change, context) => {
-        const before = change.before.data();
         const after = change.after.data();
 
         if (
-            before.estado === "finalizado" ||
             after.estado !== "finalizado" ||
-            after.liquidado === true
+            after.liquidado === true ||
+            after.cierre_financiero_pendiente_backend !== true
         ) {
             return null;
         }
