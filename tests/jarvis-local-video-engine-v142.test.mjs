@@ -6365,3 +6365,19 @@ test("V142 referenced L40S video cannot disable identity fidelity", () => {
     assert.match(lifecycle, /RUNPOD_L40S_IDENTITY_BACKEND_REQUIRED/);
     assert.doesNotMatch(bridge, /invocationPayload\.requiresIdentityFidelity = false/);
 });
+
+test("V142 identity references remain separate until a certified identity runtime consumes them", () => {
+    const source = fs.readFileSync(
+        new URL("../jarvis-local-video-engine.js", import.meta.url),
+        "utf8"
+    );
+    assert.match(
+        source,
+        /if \(!requiresIdentityFidelity && references\.length > Number\(model\.maximumReferenceAssets \|\| 0\)\)/
+    );
+    assert.match(source, /referencePreparation,\n\s+requiresIdentityFidelity,\n\s+executionTarget:/);
+    assert.match(
+        source,
+        /requiresIdentityFidelity: job\.requiresIdentityFidelity === true/
+    );
+});

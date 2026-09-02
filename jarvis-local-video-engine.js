@@ -5352,7 +5352,7 @@ export function createLocalVideoEngine({
             };
         }
         let referencePreparation = null;
-        if (references.length > Number(model.maximumReferenceAssets || 0)) {
+        if (!requiresIdentityFidelity && references.length > Number(model.maximumReferenceAssets || 0)) {
             try {
                 const sheet = prepareReferenceSheet(
                     resolvedRoot,
@@ -5414,6 +5414,7 @@ export function createLocalVideoEngine({
             audioOutput: audioReference?.output || null,
             audioFile: audioReference?.file || null,
             referencePreparation,
+            requiresIdentityFidelity,
             executionTarget: String(env.JARVIS_LOCAL_VIDEO_EXECUTION_TARGET || "local")
                 .trim().toLowerCase() === "remote" ? "remote" : "local",
             runtimeCertificationOnly: booleanValue(
@@ -5445,6 +5446,7 @@ export function createLocalVideoEngine({
             referenceAssetCount: references.length,
             sourceReferenceAssetCount: sourceReferences.length,
             referencePreparation,
+            requiresIdentityFidelity: job.requiresIdentityFidelity === true,
             createdAt: now().toISOString(),
             updatedAt: now().toISOString(),
             engine: "local",
