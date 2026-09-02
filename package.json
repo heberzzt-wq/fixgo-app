@@ -7,7 +7,7 @@
     "migrate:b2c-technician": "node scripts/migrate-b2c-technician.mjs",
     "prepare:release": "node scripts/prepare-platform-release.mjs",
     "smoke:release": "node scripts/smoke-platform-release.mjs",
-    "test:b2c-platform": "npm run sync:b2c-contract && node --test tests/b2c-platform-authority.test.mjs tests/platform-release-authority.test.mjs && node functions/test-b2c-platform-authority.js",
+    "test:b2c-platform": "npm run sync:b2c-contract && node --test tests/b2c-platform-authority.test.mjs tests/platform-release-authority.test.mjs && node functions/test-b2c-platform-authority.js && node functions/test-b2c-technician-approval.js && node functions/test-b2c-service-marketplace.js && node functions/test-b2c-financial-policy.js && node functions/test-b2c-service-workflow.js && node functions/test-b2c-service-settlement.js",
     "test:b2c-emulators": "firebase emulators:exec --project fixgo-b2c-rules-test --only firestore,storage \"node --test tests/b2c-rules-emulator.test.mjs\"",
     "bridge": "node jarvis-upload-bridge.js",
     "nexo:bridge": "node jarvis-upload-bridge.js",
