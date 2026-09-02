@@ -237,6 +237,14 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(technician, /reclamarServicioB2C\(id\)/);
     assert.match(technician, /enviarCotizacionB2C/);
     assert.match(client, /responderCotizacionB2C/);
+    assert.match(client, /cancelarServicioB2C/);
+    assert.match(client, /s\.estado === "pendiente" && !s\.tecnico_id && s\.tipo !== "mantenimiento"/);
+    const customerCancellation = client.slice(
+        client.indexOf("window.cancelarTicketFantasma"),
+        client.indexOf("window.iniciarPagoSaldo")
+    );
+    assert.match(customerCancellation, /cancelarServicioB2C\(id,/);
+    assert.doesNotMatch(customerCancellation, /updateDoc\(/);
     assert.doesNotMatch(client, /Simulando éxito de Stripe/);
     assert.doesNotMatch(client, /setTimeout\(async \(\) => \{\s*await updateDoc\(doc\(db, "services", id\), \{ estado: "trabajando" \}\)/);
     assert.doesNotMatch(technician, /collection\(db, "services"\),\s*where\("estado", "in", \["pendiente", "pagado"\]\)/);
