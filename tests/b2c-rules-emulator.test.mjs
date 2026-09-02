@@ -110,12 +110,12 @@ test("binding de cierre sólo lo puede sellar el técnico asignado con evidencia
         technician_id: "tech-1",
         before: {
             sha256: sha,
-            storage_path: "servicios/svc-close/antes_1_123.jpg",
+            storage_path: "b2c_evidence/svc-close/tech-1/work_before/antes_1_123.jpg",
             download_url: "https://storage.test/antes.jpg"
         },
         after: {
             sha256: sha,
-            storage_path: "servicios/svc-close/despues_1_123.jpg",
+            storage_path: "b2c_evidence/svc-close/tech-1/work_after/despues_1_123.jpg",
             download_url: "https://storage.test/despues.jpg"
         },
         signature: {
