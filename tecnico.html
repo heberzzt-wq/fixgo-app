@@ -16,9 +16,9 @@
 
         body { background-color: #000000; font-family: 'Inter', sans-serif; }
         .card-tecnico {
-            background: rgba(10, 10, 10, 0.85); /* Ligeramente transparente para ver el fondo */
+            background: rgba(10, 10, 10, 0.85);
             border: 1px solid rgba(255,255,255,0.05);
-            backdrop-filter: blur(8px); /* Efecto vidrio ahumado */
+            backdrop-filter: blur(8px);
         }
         .status-badge {
             font-size: 10px;
@@ -26,12 +26,10 @@
             border-radius: 99px;
             text-transform: uppercase;
         }
-        /* Panel deslizante inferior */
         #panelAcciones {
             box-shadow: 0 -5px 20px rgba(0,0,0,0.8);
             transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        /* Animaciones de entrada */
         .animate-fade-in {
             animation: fadeIn 0.4s ease-out forwards;
         }
@@ -72,30 +70,24 @@
             </div>
             <div class="flex-1">
                 <h2 id="userName" class="text-xl font-black truncate">Cargando...</h2>
-                
                 <div id="contenedorEstrellas" class="text-lg mt-0.5 mb-0.5"></div>
                 <p id="txtServicios" class="text-[9px] text-emerald-500 font-bold mb-2 hidden">0 SERVICIOS FINALIZADOS</p>
-
                 <div class="flex items-center gap-2 mt-2 flex-wrap">
                     <span id="badgeNivel" class="bg-zinc-800/80 backdrop-blur-sm text-zinc-400 text-[10px] font-black px-2 py-0.5 rounded border border-zinc-700">CARGANDO...</span>
                     <button id="btnLogout" class="text-red-500 text-[10px] font-bold border border-red-900/50 px-2 py-0.5 rounded hover:bg-red-900/40 transition-colors">SALIR</button>
                     <button onclick="window.cambiarLogoFactura(window.currentUserUid)" class="bg-blue-900/40 hover:bg-blue-800/60 text-blue-400 font-bold border border-blue-500/50 px-2 py-0.5 rounded text-[10px] transition-colors flex items-center gap-1">
                         <i class="fas fa-image"></i> LOGO FACTURA
                     </button>
-
                     <button onclick="window.open('manual.html', '_blank')" class="bg-blue-900/40 hover:bg-blue-800/60 text-blue-400 font-bold border border-blue-500/50 px-2 py-0.5 rounded text-[10px] transition-colors flex items-center gap-1">
                         <i class="fas fa-book-open"></i> MANUAL DE OPERACIÓN
                     </button>
-
                 </div>
             </div>
         </div>
     </header>
 
     <main class="px-6 space-y-6">
-        
         <audio id="audioAlerta" src="https://fixgo.app/assets/sounds/alert.mp3" preload="auto"></audio>
-
         <div id="audioUnlocker" class="animate-fade-in">
             <div class="bg-emerald-500/10 border border-emerald-500/40 p-4 rounded-2xl">
                 <div class="flex items-center gap-3 mb-3">
@@ -107,7 +99,6 @@
                 </button>
             </div>
         </div>
-
         <div class="card-tecnico p-6 rounded-2xl flex justify-between items-center shadow-lg">
             <div>
                 <h3 class="font-black text-lg">Disponibilidad</h3>
@@ -118,7 +109,6 @@
                 <div class="relative w-14 h-8 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-7 after:w-7 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
             </label>
         </div>
-
         <div id="radarSection" class="opacity-50 grayscale transition-all duration-500">
             <p class="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-2 drop-shadow-md">Estado de Conexión</p>
             <div class="bg-emerald-900/20 backdrop-blur-sm border border-emerald-500/30 p-4 rounded-2xl flex items-center gap-3 shadow-lg">
@@ -129,7 +119,6 @@
                 <span id="txtRadar" class="text-emerald-200 text-sm font-bold">GPS Activo y Transmitiendo</span>
             </div>
         </div>
-
         <div id="seccionBolsa" class="hidden transition-all duration-500">
             <div class="flex items-center gap-2 mb-4">
                 <i class="fas fa-bolt text-yellow-500 animate-pulse drop-shadow-md"></i>
@@ -138,12 +127,9 @@
             <div id="listaBolsa" class="space-y-3"></div>
             <hr class="border-white/10 mt-6 mb-2">
         </div>
-
         <div id="listaServicios" class="space-y-4"></div>
-
         <div class="mt-8 mb-8">
             <h3 class="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-4 drop-shadow-md">Mi Cartera (Modo Efectivo)</h3>
-            
             <div class="bg-red-950/40 backdrop-blur-md border border-red-500/30 p-6 rounded-[2rem] mb-4 shadow-xl relative overflow-hidden">
                 <div class="flex justify-between items-start mb-4">
                     <div>
@@ -154,19 +140,16 @@
                         <i class="fas fa-hand-holding-usd text-xl"></i>
                     </div>
                 </div>
-                <p class="text-[9px] text-gray-300 mb-4 border-l-2 border-red-500 pl-2">Al cobrar en efectivo, retienes la comisión de GestiaPremium (32%). Límite de deuda permitido: -$1,000 MXN.</p>
-                
+                <p class="text-[9px] text-gray-300 mb-4 border-l-2 border-red-500 pl-2">Al cobrar en efectivo, retienes la comisión configurada por GestiaPremium. Límite de deuda permitido: -$1,000 MXN.</p>
                 <button onclick="document.getElementById('modalPagoDeuda').classList.remove('hidden')" class="w-full py-4 bg-red-600 hover:bg-red-500 text-white font-black rounded-xl text-sm shadow-lg shadow-red-900/40 transition-all transform active:scale-95 flex items-center justify-center gap-2 border border-red-500">
                     <i class="fas fa-file-invoice-dollar"></i> PAGAR MI DEUDA (SPEI/OXXO)
                 </button>
                 <button id="btnRetiro" class="hidden"></button>
             </div>
-
             <div id="contenedorHistorialRetiros" class="hidden mb-6">
                 <p class="text-slate-400 text-[9px] font-bold uppercase tracking-widest mt-6 mb-3 pl-2 drop-shadow-md">Últimos movimientos</p>
                 <div id="listaMisRetiros" class="space-y-2"></div>
             </div>
-
             <div class="mt-8">
                 <h3 class="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-4 drop-shadow-md">Historial de Tickets (Servicios)</h3>
                 <div id="listaMisTickets" class="space-y-3">
@@ -181,93 +164,54 @@
             <button onclick="document.getElementById('modalPagoDeuda').classList.add('hidden')" class="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"><i class="fas fa-times text-xl"></i></button>
             <h2 class="text-xl font-black text-white mb-2"><i class="fas fa-university text-red-500"></i> Liquidar Deuda</h2>
             <p class="text-xs text-gray-400 mb-6">Transfiere tu saldo pendiente a la cuenta oficial de GestiaPremium para liberar tu billetera.</p>
-            
             <div class="bg-black p-4 rounded-xl border border-zinc-800 space-y-3 mb-6 text-sm">
-                <div class="flex justify-between items-center border-b border-zinc-800 pb-2">
-                    <span class="text-gray-500 font-bold text-xs uppercase">Banco</span>
-                    <span class="text-white font-black">BBVA Bancomer</span>
-                </div>
-                <div class="flex justify-between items-center border-b border-zinc-800 pb-2">
-                    <span class="text-gray-500 font-bold text-xs uppercase">Beneficiario</span>
-                    <span class="text-white font-black">Heber (GestiaPremium)</span>
-                </div>
-                <div class="flex justify-between items-center border-b border-zinc-800 pb-2">
-                    <span class="text-gray-500 font-bold text-xs uppercase">CLABE SPEI</span>
-                    <span class="text-emerald-400 font-mono font-black tracking-widest text-xs">012345678901234567</span>
-                </div>
+                <div class="flex justify-between items-center border-b border-zinc-800 pb-2"><span class="text-gray-500 font-bold text-xs uppercase">Banco</span><span class="text-white font-black">BBVA Bancomer</span></div>
+                <div class="flex justify-between items-center border-b border-zinc-800 pb-2"><span class="text-gray-500 font-bold text-xs uppercase">Beneficiario</span><span class="text-white font-black">Heber (GestiaPremium)</span></div>
+                <div class="flex justify-between items-center border-b border-zinc-800 pb-2"><span class="text-gray-500 font-bold text-xs uppercase">CLABE SPEI</span><span class="text-emerald-400 font-mono font-black tracking-widest text-xs">012345678901234567</span></div>
             </div>
-
-            <a href="https://wa.me/529980000000?text=Hola,%20adjunto%20mi%20comprobante%20de%20pago%20de%20deuda%20GestiaPremium." target="_blank" class="w-full bg-green-600 hover:bg-green-500 text-white font-black py-4 rounded-xl text-sm transition-all shadow-lg flex justify-center items-center gap-2 border border-green-500">
-                <i class="fab fa-whatsapp text-xl"></i> ENVIAR COMPROBANTE
-            </a>
+            <a href="https://wa.me/529980000000?text=Hola,%20adjunto%20mi%20comprobante%20de%20pago%20de%20deuda%20GestiaPremium." target="_blank" class="w-full bg-green-600 hover:bg-green-500 text-white font-black py-4 rounded-xl text-sm transition-all shadow-lg flex justify-center items-center gap-2 border border-green-500"><i class="fab fa-whatsapp text-xl"></i> ENVIAR COMPROBANTE</a>
         </div>
     </div>
 
     <div id="modalDisputaPago" class="fixed inset-0 bg-black/95 z-[90] hidden flex-col p-4 animate-fade-in justify-center items-center backdrop-blur-sm">
         <div class="bg-zinc-900 w-full max-w-md rounded-3xl p-6 border border-red-500/50 shadow-2xl relative">
             <h3 class="text-xl font-black mb-2 text-red-500"><i class="fas fa-exclamation-triangle"></i> Problema de Pago</h3>
-            <p class="text-xs text-gray-400 mb-4">
-                ¿El cliente se niega a pagar o no tiene el efectivo completo? Reporta el problema para bloquear el servicio y abrir un ticket de soporte.
-            </p>
-
-            <input type="hidden" id="disputaServiceId" value="">
-            <input type="hidden" id="disputaCustomerId" value="">
-
-            <div class="mb-4">
-                <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Detalla el problema:</label>
-                <textarea id="disputaDescripcion" rows="4" class="w-full p-3 bg-black border border-zinc-800 rounded-xl text-white text-sm focus:border-red-500 focus:outline-none transition-colors" placeholder="Ej: El cliente dice que solo tiene $200 de los $500 acordados..."></textarea>
-            </div>
-
+            <p class="text-xs text-gray-400 mb-4">¿El cliente se niega a pagar o no tiene el efectivo completo? Reporta el problema para bloquear el servicio y abrir un ticket de soporte.</p>
+            <input type="hidden" id="disputaServiceId" value=""><input type="hidden" id="disputaCustomerId" value="">
+            <div class="mb-4"><label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Detalla el problema:</label><textarea id="disputaDescripcion" rows="4" class="w-full p-3 bg-black border border-zinc-800 rounded-xl text-white text-sm focus:border-red-500 focus:outline-none transition-colors" placeholder="Ej: El cliente dice que solo tiene $200 de los $500 acordados..."></textarea></div>
             <div class="flex justify-end gap-3 mt-6">
                 <button onclick="window.cerrarModalDisputa()" class="px-4 py-3 text-white font-bold bg-zinc-800 rounded-xl hover:bg-zinc-700 transition text-sm w-1/3 border border-zinc-700">Cancelar</button>
-                <button id="btnEnviarDisputa" onclick="window.enviarReportePago()" class="px-4 py-3 text-white font-black bg-red-600 rounded-xl hover:bg-red-500 transition shadow-lg shadow-red-900/40 text-sm w-2/3 flex items-center justify-center gap-2 border border-red-500">
-                    <i class="fas fa-paper-plane"></i> ENVIAR REPORTE
-                </button>
+                <button id="btnEnviarDisputa" onclick="window.enviarReportePago()" class="px-4 py-3 text-white font-black bg-red-600 rounded-xl hover:bg-red-500 transition shadow-lg shadow-red-900/40 text-sm w-2/3 flex items-center justify-center gap-2 border border-red-500"><i class="fas fa-paper-plane"></i> ENVIAR REPORTE</button>
             </div>
         </div>
     </div>
 
     <div id="panelAcciones" class="fixed bottom-0 left-0 w-full bg-zinc-900 border-t border-zinc-800 p-6 z-50 rounded-t-[2rem] translate-y-full">
         <div class="max-w-4xl mx-auto flex flex-col gap-3">
-            <div class="flex justify-between items-center mb-2">
-                 <span class="text-[10px] font-black uppercase text-slate-500 tracking-widest">CONTROL DE MISIÓN</span>
-                 <span class="text-emerald-500 text-xs font-bold animate-pulse">● EN VIVO</span>
-            </div>
-            <button id="btnEnCamino" class="hidden w-full bg-yellow-500 hover:bg-yellow-400 text-black font-black py-4 rounded-xl text-lg tracking-tight flex items-center justify-center gap-3 shadow-lg transition-all border border-yellow-400">
-                <i class="fas fa-car-side text-xl"></i> <span>VOY EN CAMINO</span>
-            </button>
-            <button id="btnLlegue" class="hidden w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-xl text-lg tracking-tight flex items-center justify-center gap-3 shadow-lg transition-all border border-emerald-400">
-                <i class="fas fa-map-marker-alt text-xl"></i> <span>YA LLEGUÉ AL SITIO</span>
-            </button>
+            <div class="flex justify-between items-center mb-2"><span class="text-[10px] font-black uppercase text-slate-500 tracking-widest">CONTROL DE MISIÓN</span><span class="text-emerald-500 text-xs font-bold animate-pulse">● EN VIVO</span></div>
+            <button id="btnEnCamino" class="hidden w-full bg-yellow-500 hover:bg-yellow-400 text-black font-black py-4 rounded-xl text-lg tracking-tight flex items-center justify-center gap-3 shadow-lg transition-all border border-yellow-400"><i class="fas fa-car-side text-xl"></i> <span>VOY EN CAMINO</span></button>
+            <button id="btnLlegue" class="hidden w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-4 rounded-xl text-lg tracking-tight flex items-center justify-center gap-3 shadow-lg transition-all border border-emerald-400"><i class="fas fa-map-marker-alt text-xl"></i> <span>YA LLEGUÉ AL SITIO</span></button>
         </div>
     </div>
 
     <script>
-        // SCRIPT: LÓGICA TÁCTICA DE AUDIO
         const audioAlerta = document.getElementById('audioAlerta');
         const btnActivarAudio = document.getElementById('btnActivarAudio');
         const audioUnlocker = document.getElementById('audioUnlocker');
-
         btnActivarAudio.onclick = function() {
             audioAlerta.play().then(() => {
                 console.log("GestiaPremium: Canal de audio desbloqueado con éxito.");
                 audioAlerta.pause();
                 audioAlerta.currentTime = 0;
-
                 btnActivarAudio.innerHTML = '<i class="fas fa-check"></i> RADAR ACTIVADO';
                 btnActivarAudio.classList.replace('bg-emerald-500', 'bg-zinc-800');
                 btnActivarAudio.classList.add('text-emerald-500');
-                
-                setTimeout(() => {
-                    audioUnlocker.classList.add('hidden');
-                }, 1000);
+                setTimeout(() => { audioUnlocker.classList.add('hidden'); }, 1000);
             }).catch(err => {
                 console.error("Error al desbloquear audio:", err);
                 alert("⚠️ Por favor activa los sonidos en la configuración de tu navegador.");
             });
         };
-
-        // SCRIPT: FONDO DINÁMICO ALEATORIO
         const bgContainer = document.getElementById('dynamic-bg');
         const images = [
             'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80',
@@ -275,277 +219,15 @@
             'https://images.unsplash.com/photo-1632759145351-1d592919f522?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80',
             'https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80'
         ];
-        const randomImg = images[Math.floor(Math.random() * images.length)];
-        bgContainer.style.backgroundImage = `url('${randomImg}')`;
+        bgContainer.style.backgroundImage = `url('${images[Math.floor(Math.random() * images.length)]}')`;
     </script>
-    
     <script type="module">
         import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { auth } from "./firebase.js";
-        onAuthStateChanged(auth, (user) => {
-            if (user) window.currentUserUid = user.uid;
-        });
+        onAuthStateChanged(auth, (user) => { if (user) window.currentUserUid = user.uid; });
     </script>
-
     <script type="module" src="./firebase.js"></script>
     <script type="module" src="./app-main.js?v=role-authority-v3-single-navigation-20260713"></script>
-    <script type="module">
-        import {
-            auth,
-            db,
-            storage,
-            doc,
-            getDoc,
-            setDoc,
-            serverTimestamp
-        } from "./firebase.js";
-        import { runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-        import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
-        import { normalizeTechnicianProfile } from "./b2c-technician-profile.js";
-
-        let serviceIdEnCierre = null;
-
-        const sha256Blob = async (blob) => {
-            const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
-            return [...new Uint8Array(digest)]
-                .map(byte => byte.toString(16).padStart(2, "0"))
-                .join("");
-        };
-
-        const validarImagenProcesable = (file) => {
-            if (!file) return null;
-            if (!/^image\/(jpeg|png|webp)$/i.test(file.type || "")) {
-                throw new Error("FORMATO_IMAGEN_NO_PROCESABLE");
-            }
-            return file;
-        };
-
-        const subirEvidenciaSellada = async (serviceId, file, slot) => {
-            if (!file) return null;
-            validarImagenProcesable(file);
-            const stamp = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-            const path = `servicios/${serviceId}/${slot}_${stamp}.jpg`;
-            const storageRef = ref(storage, path);
-            await uploadBytes(storageRef, file, { contentType: file.type || "image/jpeg" });
-            return {
-                storage_path: path,
-                download_url: await getDownloadURL(storageRef),
-                sha256: await sha256Blob(file)
-            };
-        };
-
-        const obtenerFirmaBlob = async () => {
-            const canvas = document.getElementById("canvasFirma");
-            if (!canvas) throw new Error("FIRMA_CANVAS_MISSING");
-            const ctx = canvas.getContext("2d");
-            const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-            let firmada = false;
-            for (let index = 3; index < pixels.length; index += 4) {
-                if (pixels[index] !== 0) {
-                    firmada = true;
-                    break;
-                }
-            }
-            if (!firmada) throw new Error("FIRMA_CLIENTE_REQUERIDA");
-            const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
-            if (!blob) throw new Error("FIRMA_BLOB_MISSING");
-            return blob;
-        };
-
-        const subirFirmaSellada = async (serviceId, uid) => {
-            const blob = await obtenerFirmaBlob();
-            const path = `servicios/${serviceId}/customer_signature_${Date.now()}.png`;
-            const storageRef = ref(storage, path);
-            await uploadBytes(storageRef, blob, {
-                contentType: "image/png",
-                customMetadata: {
-                    serviceId,
-                    actorUid: uid,
-                    actorRole: "tecnico",
-                    eventType: "customer_signature",
-                    base64Persisted: "false"
-                }
-            });
-            return {
-                present: true,
-                storage_path: path,
-                download_url: await getDownloadURL(storageRef),
-                sha256: await sha256Blob(blob),
-                base64_persisted: false
-            };
-        };
-
-        const iniciarMantenimientoCanonico = async (serviceId) => {
-            const uid = auth.currentUser?.uid;
-            if (!uid) throw new Error("AUTH_REQUIRED");
-            const serviceRef = doc(db, "services", serviceId);
-            const [serviceSnap, profileSnap] = await Promise.all([
-                getDoc(serviceRef),
-                getDoc(doc(db, "users", uid))
-            ]);
-            if (!serviceSnap.exists() || !profileSnap.exists()) throw new Error("B2B_CONTEXT_MISSING");
-            const service = serviceSnap.data() || {};
-            if (service.tipo !== "mantenimiento" || service.metodo_pago !== "b2b") {
-                throw new Error("B2B_SERVICE_CONTRACT_MISMATCH");
-            }
-            if (!service.cliente_id || service.cliente_id === "admin_residencial") {
-                throw new Error("B2B_CUSTOMER_AUTHORITY_MISSING");
-            }
-            if (!["pendiente", "pagado"].includes(service.estado)) {
-                throw new Error("B2B_SERVICE_STATE_INVALID");
-            }
-            const profile = normalizeTechnicianProfile(profileSnap.data() || {});
-            if (!profile.vehiculo.placas) {
-                throw new Error("B2B_PLATES_REQUIRED");
-            }
-            await runTransaction(db, async transaction => {
-                const current = await transaction.get(serviceRef);
-                if (!current.exists()) throw new Error("B2B_SERVICE_NOT_FOUND");
-                const data = current.data() || {};
-                if (!["pendiente", "pagado"].includes(data.estado)) throw new Error("B2B_SERVICE_STATE_CHANGED");
-                if (data.cliente_id !== service.cliente_id || data.metodo_pago !== "b2b" || data.tipo !== "mantenimiento") {
-                    throw new Error("B2B_IDENTITY_CHANGED");
-                }
-                transaction.update(serviceRef, {
-                    estado: "trabajando",
-                    tecnico_id: uid,
-                    tecnico_nombre: profile.nombre || "Técnico Residencial",
-                    tecnico_nombre_fiscal: profile.nombre_fiscal || profile.nombre || "Técnico Residencial",
-                    tecnico_rfc: profile.rfc || "XAXX010101000",
-                    tecnico_logo_factura: profile.logo_factura || null,
-                    tecnico_vehiculo: profile.vehiculo.tipo || "NO ESPECIFICADO",
-                    tecnico_placas: profile.vehiculo.placas,
-                    fecha_inicio: serverTimestamp(),
-                    actualizado_at: serverTimestamp()
-                });
-            });
-            alert("¡Mantenimiento iniciado! La identidad del cliente y el contrato B2B se conservaron intactos.");
-        };
-
-        const cerrarServicioCanonico = async (serviceId, button) => {
-            const uid = auth.currentUser?.uid;
-            if (!uid) throw new Error("AUTH_REQUIRED");
-            if (!storage) throw new Error("STORAGE_UNAVAILABLE");
-
-            const fA1 = document.getElementById("fileA1")?.files?.[0];
-            const fA2 = document.getElementById("fileA2")?.files?.[0];
-            const fD1 = document.getElementById("fileD1")?.files?.[0];
-            const fD2 = document.getElementById("fileD2")?.files?.[0];
-            if (!fA1 || !fD1) throw new Error("EVIDENCIA_MINIMA_REQUERIDA");
-
-            const original = button.innerHTML;
-            button.disabled = true;
-            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SELLANDO EVIDENCIA...';
-
-            try {
-                const [before, before2, after, after2, signature] = await Promise.all([
-                    subirEvidenciaSellada(serviceId, fA1, "antes_1"),
-                    subirEvidenciaSellada(serviceId, fA2, "antes_2"),
-                    subirEvidenciaSellada(serviceId, fD1, "despues_1"),
-                    subirEvidenciaSellada(serviceId, fD2, "despues_2"),
-                    subirFirmaSellada(serviceId, uid)
-                ]);
-
-                const serviceRef = doc(db, "services", serviceId);
-                const bindingRef = doc(db, "services", serviceId, "work_evidence_bindings", "current");
-                await runTransaction(db, async transaction => {
-                    const serviceSnap = await transaction.get(serviceRef);
-                    if (!serviceSnap.exists()) throw new Error("SERVICE_NOT_FOUND");
-                    const service = serviceSnap.data() || {};
-                    if (service.tecnico_id !== uid) throw new Error("TECHNICIAN_SERVICE_MISMATCH");
-                    if (service.estado !== "trabajando") throw new Error("SERVICE_NOT_WORKING");
-                    const total = Number(service.costo_final || 0);
-                    if (!Number.isFinite(total) || total <= 0) throw new Error("SERVICE_TOTAL_INVALID");
-
-                    transaction.set(bindingRef, {
-                        service_id: serviceId,
-                        technician_id: uid,
-                        before,
-                        after,
-                        signature,
-                        created_at: serverTimestamp(),
-                        authority: "technician_service_close"
-                    });
-
-                    transaction.update(serviceRef, {
-                        estado: "finalizado",
-                        finalizado_at: serverTimestamp(),
-                        folio_fiscal: service.folio_fiscal || `FX-${Math.random().toString(36).slice(2, 11).toUpperCase()}`,
-                        evidencia: {
-                            antes1: before.download_url,
-                            antes2: before2?.download_url || null,
-                            despues1: after.download_url,
-                            despues2: after2?.download_url || null,
-                            firma_cliente: signature.download_url,
-                            metadatos: {
-                                certificacion_legal: true,
-                                almacenamiento: "Google Cloud Storage + Firebase Auth",
-                                binding_path: bindingRef.path,
-                                firma_base64_persistida: false
-                            }
-                        },
-                        desglose: {
-                            subtotal: (total / 1.16).toFixed(2),
-                            iva: (total - (total / 1.16)).toFixed(2),
-                            total
-                        },
-                        cierre_operativo_completado: true,
-                        cierre_financiero_pendiente_backend: true,
-                        cierre_legacy_financiero_ejecutado: false,
-                        work_evidence_binding_path: bindingRef.path
-                    });
-                });
-
-                await setDoc(doc(db, "rastreo", uid), { estado: "Disponible" }, { merge: true });
-                document.getElementById("modalEvidencia")?.remove();
-                alert("✅ Evidencia y firma selladas. El backend está conciliando la liquidación y actualizará tu cartera de forma autoritativa.");
-            } catch (error) {
-                console.error("Cierre canónico rechazado:", error);
-                const reason = String(error?.message || error);
-                const messages = {
-                    FIRMA_CLIENTE_REQUERIDA: "La firma del cliente es obligatoria para cerrar.",
-                    EVIDENCIA_MINIMA_REQUERIDA: "Falta la foto principal del antes o del después.",
-                    FORMATO_IMAGEN_NO_PROCESABLE: "Usa imágenes JPEG, PNG o WebP para la evidencia.",
-                    SERVICE_TOTAL_INVALID: "El servicio no tiene un total final válido; no se puede liquidar.",
-                    SERVICE_NOT_WORKING: "El servicio cambió de estado y ya no puede cerrarse desde esta pantalla."
-                };
-                alert(messages[reason] || "No se pudo sellar el cierre. El servicio y las finanzas permanecen sin liquidar; puedes reintentar.");
-                button.disabled = false;
-                button.innerHTML = original;
-            }
-        };
-
-        const rewireCloseButton = () => {
-            const button = document.getElementById("btnSubirEvidencia");
-            if (!button || !serviceIdEnCierre || button.dataset.canonicalClose === "true") return;
-            button.dataset.canonicalClose = "true";
-            button.onclick = () => cerrarServicioCanonico(serviceIdEnCierre, button);
-        };
-
-        document.addEventListener("click", event => {
-            const trigger = event.target.closest("button[onclick]");
-            if (!trigger) return;
-            const source = trigger.getAttribute("onclick") || "";
-            const closeMatch = source.match(/window\.abrirEvidenciaGlobal\('([^']+)'\)/);
-            if (closeMatch) {
-                serviceIdEnCierre = closeMatch[1];
-                queueMicrotask(rewireCloseButton);
-                return;
-            }
-            const b2bMatch = source.match(/iniciarMantenimiento\('([^']+)'\)/);
-            if (b2bMatch) {
-                event.preventDefault();
-                event.stopImmediatePropagation();
-                iniciarMantenimientoCanonico(b2bMatch[1]).catch(error => {
-                    console.error("Inicio B2B canónico rechazado:", error);
-                    alert(error?.message || "No se pudo iniciar el mantenimiento sin alterar su contrato.");
-                });
-            }
-        }, true);
-
-        const closeObserver = new MutationObserver(rewireCloseButton);
-        closeObserver.observe(document.body, { childList: true, subtree: true });
-    </script>
     <script src="./soporte-whatsapp.js"></script>
 </body>
 </html>
