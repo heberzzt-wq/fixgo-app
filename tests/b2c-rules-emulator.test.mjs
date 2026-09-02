@@ -62,6 +62,22 @@ before(async () => {
             sub_servicio: "PLOMERIA",
             destino: { direccion: "Destino", confirmado_por_cliente: true }
         });
+        const b2bService = {
+            tipo: "mantenimiento",
+            cliente_id: "b2b-1",
+            tecnico_id: null,
+            estado: "pendiente",
+            metodo_pago: "b2b",
+            categoria: "MAINT",
+            categoria_id: "maint_general",
+            sub_servicio: "GENERAL",
+            edificioId: "uxmal39",
+            contrato_id: "contract-1",
+            destino: { direccion: "Edificio Uxmal 39", confirmado_por_cliente: true }
+        };
+        await setDoc(doc(db, "services/b2b-maint-safe"), b2bService);
+        await setDoc(doc(db, "services/b2b-maint-client-tamper"), b2bService);
+        await setDoc(doc(db, "services/b2b-maint-payment-tamper"), b2bService);
         await setDoc(doc(db, "servicios_b2b/order-1"), {
             edificioId: "uxmal39", tecnicoId: "b2b-tech", status: "en_proceso"
         });
@@ -89,6 +105,33 @@ test("creación B2C directa falla y el contrato B2B separado permanece", async (
     await assertFails(setDoc(doc(b2bDb, "services/direct-b2b-road"), {
         cliente_id: "b2b-1", metodo_pago: "b2b", estado: "pendiente",
         tipo: "mantenimiento", categoria: "ROAD", categoria_id: "road_llanta", sub_servicio: "LLANTA"
+    }));
+});
+
+test("mantenimiento B2B conserva cliente, pago, contrato y técnico asignado", async () => {
+    const techDb = environment.authenticatedContext("b2b-tech").firestore();
+    const otherDb = environment.authenticatedContext("b2b-other").firestore();
+
+    await assertFails(updateDoc(doc(techDb, "services/b2b-maint-client-tamper"), {
+        estado: "trabajando",
+        tecnico_id: "b2b-tech",
+        cliente_id: "admin_residencial"
+    }));
+    await assertFails(updateDoc(doc(techDb, "services/b2b-maint-payment-tamper"), {
+        estado: "trabajando",
+        tecnico_id: "b2b-tech",
+        metodo_pago: "efectivo"
+    }));
+    await assertSucceeds(updateDoc(doc(techDb, "services/b2b-maint-safe"), {
+        estado: "trabajando",
+        tecnico_id: "b2b-tech",
+        tecnico_nombre: "Técnico B2B",
+        fecha_inicio: new Date(),
+        actualizado_at: new Date()
+    }));
+    await assertFails(updateDoc(doc(otherDb, "services/b2b-maint-safe"), {
+        tecnico_id: "b2b-other",
+        estado: "trabajando"
     }));
 });
 
