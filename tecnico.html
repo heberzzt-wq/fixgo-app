@@ -289,6 +289,263 @@
 
     <script type="module" src="./firebase.js"></script>
     <script type="module" src="./app-main.js?v=role-authority-v3-single-navigation-20260713"></script>
+    <script type="module">
+        import {
+            auth,
+            db,
+            storage,
+            doc,
+            getDoc,
+            setDoc,
+            serverTimestamp
+        } from "./firebase.js";
+        import { runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+        import { normalizeTechnicianProfile } from "./b2c-technician-profile.js";
+
+        let serviceIdEnCierre = null;
+
+        const sha256Blob = async (blob) => {
+            const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
+            return [...new Uint8Array(digest)]
+                .map(byte => byte.toString(16).padStart(2, "0"))
+                .join("");
+        };
+
+        const validarImagenProcesable = (file) => {
+            if (!file) return null;
+            if (!/^image\/(jpeg|png|webp)$/i.test(file.type || "")) {
+                throw new Error("FORMATO_IMAGEN_NO_PROCESABLE");
+            }
+            return file;
+        };
+
+        const subirEvidenciaSellada = async (serviceId, file, slot) => {
+            if (!file) return null;
+            validarImagenProcesable(file);
+            const stamp = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+            const path = `servicios/${serviceId}/${slot}_${stamp}.jpg`;
+            const storageRef = ref(storage, path);
+            await uploadBytes(storageRef, file, { contentType: file.type || "image/jpeg" });
+            return {
+                storage_path: path,
+                download_url: await getDownloadURL(storageRef),
+                sha256: await sha256Blob(file)
+            };
+        };
+
+        const obtenerFirmaBlob = async () => {
+            const canvas = document.getElementById("canvasFirma");
+            if (!canvas) throw new Error("FIRMA_CANVAS_MISSING");
+            const ctx = canvas.getContext("2d");
+            const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+            let firmada = false;
+            for (let index = 3; index < pixels.length; index += 4) {
+                if (pixels[index] !== 0) {
+                    firmada = true;
+                    break;
+                }
+            }
+            if (!firmada) throw new Error("FIRMA_CLIENTE_REQUERIDA");
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+            if (!blob) throw new Error("FIRMA_BLOB_MISSING");
+            return blob;
+        };
+
+        const subirFirmaSellada = async (serviceId, uid) => {
+            const blob = await obtenerFirmaBlob();
+            const path = `servicios/${serviceId}/customer_signature_${Date.now()}.png`;
+            const storageRef = ref(storage, path);
+            await uploadBytes(storageRef, blob, {
+                contentType: "image/png",
+                customMetadata: {
+                    serviceId,
+                    actorUid: uid,
+                    actorRole: "tecnico",
+                    eventType: "customer_signature",
+                    base64Persisted: "false"
+                }
+            });
+            return {
+                present: true,
+                storage_path: path,
+                download_url: await getDownloadURL(storageRef),
+                sha256: await sha256Blob(blob),
+                base64_persisted: false
+            };
+        };
+
+        const iniciarMantenimientoCanonico = async (serviceId) => {
+            const uid = auth.currentUser?.uid;
+            if (!uid) throw new Error("AUTH_REQUIRED");
+            const serviceRef = doc(db, "services", serviceId);
+            const [serviceSnap, profileSnap] = await Promise.all([
+                getDoc(serviceRef),
+                getDoc(doc(db, "users", uid))
+            ]);
+            if (!serviceSnap.exists() || !profileSnap.exists()) throw new Error("B2B_CONTEXT_MISSING");
+            const service = serviceSnap.data() || {};
+            if (service.tipo !== "mantenimiento" || service.metodo_pago !== "b2b") {
+                throw new Error("B2B_SERVICE_CONTRACT_MISMATCH");
+            }
+            if (!service.cliente_id || service.cliente_id === "admin_residencial") {
+                throw new Error("B2B_CUSTOMER_AUTHORITY_MISSING");
+            }
+            if (!["pendiente", "pagado"].includes(service.estado)) {
+                throw new Error("B2B_SERVICE_STATE_INVALID");
+            }
+            const profile = normalizeTechnicianProfile(profileSnap.data() || {});
+            if (!profile.vehiculo.placas) {
+                throw new Error("B2B_PLATES_REQUIRED");
+            }
+            await runTransaction(db, async transaction => {
+                const current = await transaction.get(serviceRef);
+                if (!current.exists()) throw new Error("B2B_SERVICE_NOT_FOUND");
+                const data = current.data() || {};
+                if (!["pendiente", "pagado"].includes(data.estado)) throw new Error("B2B_SERVICE_STATE_CHANGED");
+                if (data.cliente_id !== service.cliente_id || data.metodo_pago !== "b2b" || data.tipo !== "mantenimiento") {
+                    throw new Error("B2B_IDENTITY_CHANGED");
+                }
+                transaction.update(serviceRef, {
+                    estado: "trabajando",
+                    tecnico_id: uid,
+                    tecnico_nombre: profile.nombre || "Técnico Residencial",
+                    tecnico_nombre_fiscal: profile.nombre_fiscal || profile.nombre || "Técnico Residencial",
+                    tecnico_rfc: profile.rfc || "XAXX010101000",
+                    tecnico_logo_factura: profile.logo_factura || null,
+                    tecnico_vehiculo: profile.vehiculo.tipo || "NO ESPECIFICADO",
+                    tecnico_placas: profile.vehiculo.placas,
+                    fecha_inicio: serverTimestamp(),
+                    actualizado_at: serverTimestamp()
+                });
+            });
+            alert("¡Mantenimiento iniciado! La identidad del cliente y el contrato B2B se conservaron intactos.");
+        };
+
+        const cerrarServicioCanonico = async (serviceId, button) => {
+            const uid = auth.currentUser?.uid;
+            if (!uid) throw new Error("AUTH_REQUIRED");
+            if (!storage) throw new Error("STORAGE_UNAVAILABLE");
+
+            const fA1 = document.getElementById("fileA1")?.files?.[0];
+            const fA2 = document.getElementById("fileA2")?.files?.[0];
+            const fD1 = document.getElementById("fileD1")?.files?.[0];
+            const fD2 = document.getElementById("fileD2")?.files?.[0];
+            if (!fA1 || !fD1) throw new Error("EVIDENCIA_MINIMA_REQUERIDA");
+
+            const original = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SELLANDO EVIDENCIA...';
+
+            try {
+                const [before, before2, after, after2, signature] = await Promise.all([
+                    subirEvidenciaSellada(serviceId, fA1, "antes_1"),
+                    subirEvidenciaSellada(serviceId, fA2, "antes_2"),
+                    subirEvidenciaSellada(serviceId, fD1, "despues_1"),
+                    subirEvidenciaSellada(serviceId, fD2, "despues_2"),
+                    subirFirmaSellada(serviceId, uid)
+                ]);
+
+                const serviceRef = doc(db, "services", serviceId);
+                const bindingRef = doc(db, "services", serviceId, "work_evidence_bindings", "current");
+                await runTransaction(db, async transaction => {
+                    const serviceSnap = await transaction.get(serviceRef);
+                    if (!serviceSnap.exists()) throw new Error("SERVICE_NOT_FOUND");
+                    const service = serviceSnap.data() || {};
+                    if (service.tecnico_id !== uid) throw new Error("TECHNICIAN_SERVICE_MISMATCH");
+                    if (service.estado !== "trabajando") throw new Error("SERVICE_NOT_WORKING");
+                    const total = Number(service.costo_final || 0);
+                    if (!Number.isFinite(total) || total <= 0) throw new Error("SERVICE_TOTAL_INVALID");
+
+                    transaction.set(bindingRef, {
+                        service_id: serviceId,
+                        technician_id: uid,
+                        before,
+                        after,
+                        signature,
+                        created_at: serverTimestamp(),
+                        authority: "technician_service_close"
+                    });
+
+                    transaction.update(serviceRef, {
+                        estado: "finalizado",
+                        finalizado_at: serverTimestamp(),
+                        folio_fiscal: service.folio_fiscal || `FX-${Math.random().toString(36).slice(2, 11).toUpperCase()}`,
+                        evidencia: {
+                            antes1: before.download_url,
+                            antes2: before2?.download_url || null,
+                            despues1: after.download_url,
+                            despues2: after2?.download_url || null,
+                            firma_cliente: signature.download_url,
+                            metadatos: {
+                                certificacion_legal: true,
+                                almacenamiento: "Google Cloud Storage + Firebase Auth",
+                                binding_path: bindingRef.path,
+                                firma_base64_persistida: false
+                            }
+                        },
+                        desglose: {
+                            subtotal: (total / 1.16).toFixed(2),
+                            iva: (total - (total / 1.16)).toFixed(2),
+                            total
+                        },
+                        cierre_operativo_completado: true,
+                        cierre_financiero_pendiente_backend: true,
+                        cierre_legacy_financiero_ejecutado: false,
+                        work_evidence_binding_path: bindingRef.path
+                    });
+                });
+
+                await setDoc(doc(db, "rastreo", uid), { estado: "Disponible" }, { merge: true });
+                document.getElementById("modalEvidencia")?.remove();
+                alert("✅ Evidencia y firma selladas. El backend está conciliando la liquidación y actualizará tu cartera de forma autoritativa.");
+            } catch (error) {
+                console.error("Cierre canónico rechazado:", error);
+                const reason = String(error?.message || error);
+                const messages = {
+                    FIRMA_CLIENTE_REQUERIDA: "La firma del cliente es obligatoria para cerrar.",
+                    EVIDENCIA_MINIMA_REQUERIDA: "Falta la foto principal del antes o del después.",
+                    FORMATO_IMAGEN_NO_PROCESABLE: "Usa imágenes JPEG, PNG o WebP para la evidencia.",
+                    SERVICE_TOTAL_INVALID: "El servicio no tiene un total final válido; no se puede liquidar.",
+                    SERVICE_NOT_WORKING: "El servicio cambió de estado y ya no puede cerrarse desde esta pantalla."
+                };
+                alert(messages[reason] || "No se pudo sellar el cierre. El servicio y las finanzas permanecen sin liquidar; puedes reintentar.");
+                button.disabled = false;
+                button.innerHTML = original;
+            }
+        };
+
+        const rewireCloseButton = () => {
+            const button = document.getElementById("btnSubirEvidencia");
+            if (!button || !serviceIdEnCierre || button.dataset.canonicalClose === "true") return;
+            button.dataset.canonicalClose = "true";
+            button.onclick = () => cerrarServicioCanonico(serviceIdEnCierre, button);
+        };
+
+        document.addEventListener("click", event => {
+            const trigger = event.target.closest("button[onclick]");
+            if (!trigger) return;
+            const source = trigger.getAttribute("onclick") || "";
+            const closeMatch = source.match(/window\.abrirEvidenciaGlobal\('([^']+)'\)/);
+            if (closeMatch) {
+                serviceIdEnCierre = closeMatch[1];
+                queueMicrotask(rewireCloseButton);
+                return;
+            }
+            const b2bMatch = source.match(/iniciarMantenimiento\('([^']+)'\)/);
+            if (b2bMatch) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                iniciarMantenimientoCanonico(b2bMatch[1]).catch(error => {
+                    console.error("Inicio B2B canónico rechazado:", error);
+                    alert(error?.message || "No se pudo iniciar el mantenimiento sin alterar su contrato.");
+                });
+            }
+        }, true);
+
+        const closeObserver = new MutationObserver(rewireCloseButton);
+        closeObserver.observe(document.body, { childList: true, subtree: true });
+    </script>
     <script src="./soporte-whatsapp.js"></script>
 </body>
 </html>
