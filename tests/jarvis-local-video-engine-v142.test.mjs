@@ -5393,18 +5393,32 @@ test("the physical Wan runner masters verified shots and narration, then resumes
     const jobFile = path.join(root, "job.json");
     const counterFile = path.join(root, "generate-count.txt");
     const audioFile = path.join(root, "narration.wav");
+    const referenceFile = path.join(root, "square-reference.png");
     fs.mkdirSync(wanRoot, { recursive: true });
     fs.mkdirSync(modelDirectory, { recursive: true });
     fs.writeFileSync(audioFile, pcmWavFixture());
+    execFileSync(physicalRunnerTools.ffmpeg, [
+        "-hide_banner", "-loglevel", "error", "-y",
+        "-f", "lavfi", "-i", "color=c=white:s=1020x1024",
+        "-frames:v", "1", referenceFile
+    ]);
     fs.writeFileSync(path.join(wanRoot, "generate.py"), `
-import argparse, os, shutil, subprocess
+import argparse, json, os, shutil, subprocess
 parser = argparse.ArgumentParser(add_help=False)
 parser.add_argument("--save_file", required=True)
+parser.add_argument("--image")
 args, _ = parser.parse_known_args()
 counter = os.environ["JARVIS_TEST_GENERATE_COUNTER"]
 count = int(open(counter, encoding="utf-8").read()) if os.path.exists(counter) else 0
 open(counter, "w", encoding="utf-8").write(str(count + 1))
 ffmpeg = os.environ["JARVIS_FFMPEG_PATH"]
+if args.image:
+    probe = json.loads(subprocess.check_output([
+        os.environ["JARVIS_FFPROBE_PATH"], "-v", "error", "-select_streams", "v:0",
+        "-show_entries", "stream=width,height", "-of", "json", args.image
+    ], text=True))
+    stream = probe["streams"][0]
+    assert stream["width"] == 704 and stream["height"] == 1280, stream
 duration = os.environ.get("JARVIS_TEST_SHOT_DURATION", "5.05")
 subprocess.run([ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=704x1280:rate=24", "-t", duration, "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", args.save_file], check=True)
 `, "utf8");
@@ -5431,7 +5445,7 @@ subprocess.run([ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi
         aspectRatio: "9:16",
         output: ".jarvis-artifacts/videos/physical-episode-master.mp4",
         outputFile,
-        referenceFiles: [],
+        referenceFiles: [referenceFile],
         audioFile,
         externalApiAllowed: false
     };
@@ -5459,6 +5473,11 @@ subprocess.run([ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi
     assert.equal(first.shotCount, 2);
     assert.equal(first.audioIncluded, true);
     assert.equal(first.audioMixMode, "narration_padded_to_episode");
+    assert.equal(first.referenceGeometry.expected.width, 704);
+    assert.equal(first.referenceGeometry.expected.height, 1280);
+    assert.equal(first.referenceGeometry.observed.width, 704);
+    assert.equal(first.referenceGeometry.observed.height, 1280);
+    assert.equal(first.referenceGeometry.valid, true);
     assert.equal(fs.readFileSync(counterFile, "utf8"), "2");
     const streams = JSON.parse(execFileSync(physicalRunnerTools.ffprobe, [
         "-v", "error", "-show_entries", "stream=codec_type", "-of", "json", outputFile

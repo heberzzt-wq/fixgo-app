@@ -213,6 +213,28 @@ attempt, the existing runner must persist structured observed and expected shot
 media evidence and the exact failed predicate; a generic invalid-shot status is
 not sufficient replay evidence.
 
+The next authorized diagnostic deliberately reduced the obligation to two
+five-second shots. Operation `8533c74a-91cb-4d44-8029-e21c593b7188`, Pod
+`wvzly9l3vhcvb4`, physically validated `CACHE_HIT`, spent roughly fifteen
+minutes in the CPU/T5-offload phase, and then completed all 50 diffusion steps
+for the first shot in 7m03s at about 8.48 seconds per step on a fully utilized
+L40S. The new structured evidence proved the generated MP4 itself was healthy:
+6,207,688 bytes, 5.041667 seconds, and 24 FPS. Only geometry failed: observed
+928x960 versus expected 704x1280 (`WIDTH_MISMATCH`, `HEIGHT_MISMATCH`). The
+assigned identity sheet was 1020x1024. Official Wan TI2V derives I2V output
+geometry from the input image aspect ratio and its maximum area, so the
+near-square reference—not RunPod or the GPU—caused the mismatch. The Pod was
+deleted and absence verified, the Network Volume was retained, measured rental
+was 1636.798 seconds, and estimated compute cost was USD 0.45011945. No final
+MP4 exists.
+
+Runner `1.3.1-v142-wan-episode-master` now fits and pads the complete assigned
+reference onto the exact backend canvas and verifies that canvas before paid
+inference. This covers both a multi-image identity sheet and a single reference
+without changing the public video contract. A physical regression converts a
+1020x1024 reference to 704x1280 before the mocked Wan call. Another paid attempt
+still requires separate human authority.
+
 ### Zero-cost gate versus paid physical preflight
 
 `JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED` defaults to `false`. It may

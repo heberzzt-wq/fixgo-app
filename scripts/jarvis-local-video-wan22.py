@@ -22,7 +22,7 @@ import tempfile
 from typing import Any
 
 
-RUNNER_VERSION = "1.3.0-v142-wan-episode-master"
+RUNNER_VERSION = "1.3.1-v142-wan-episode-master"
 WAN22_SHOT_FRAME_COUNT = 121
 MAX_SHOT_COUNT = 36
 MAX_MASTER_DURATION_SECONDS = 180.0
@@ -231,6 +231,74 @@ def valid_resumable_shot(
     return bool(inspect_resumable_shot(file, ffprobe, config, size).get("valid"))
 
 
+def prepare_reference_for_backend(
+    *,
+    reference_file: Path,
+    operation_dir: Path,
+    operation_id: str,
+    ffmpeg: str,
+    ffprobe: str,
+    size: str,
+) -> tuple[Path, dict[str, Any]]:
+    """Make TI2V input geometry deterministic before paid inference.
+
+    Official Wan TI2V derives output geometry from the input image aspect ratio
+    when ``--image`` is present. The requested ``--size`` only contributes the
+    maximum area in that path. Preserve the complete assigned reference on an
+    exact backend canvas so the generated shot and the public media contract
+    cannot diverge after inference.
+    """
+    width, height = parse_size(size)
+    prepared = operation_dir / f"reference-{operation_id}-{width}x{height}.png"
+    filter_graph = (
+        f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+        f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=white"
+    )
+    completed = subprocess.run(
+        [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel", "error",
+            "-nostdin",
+            "-y",
+            "-i", str(reference_file),
+            "-vf", filter_graph,
+            "-frames:v", "1",
+            str(prepared),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    if completed.returncode != 0:
+        diagnostic = str(completed.stderr or completed.stdout or "")[-1000:]
+        raise RuntimeError(
+            f"LOCAL_VIDEO_REFERENCE_GEOMETRY_PREPARATION_FAILED:{diagnostic}"
+        )
+    if not prepared.is_file() or prepared.stat().st_size < 1:
+        raise RuntimeError("LOCAL_VIDEO_REFERENCE_GEOMETRY_PREPARATION_EMPTY")
+    observed = inspect_video(prepared, ffprobe)
+    if (
+        int(observed.get("width") or 0) != width
+        or int(observed.get("height") or 0) != height
+    ):
+        raise RuntimeError("LOCAL_VIDEO_REFERENCE_GEOMETRY_MISMATCH")
+    return prepared, {
+        "sourceFile": str(reference_file),
+        "preparedFile": str(prepared),
+        "mode": "fit_and_pad_complete_reference",
+        "background": "white",
+        "expected": {"width": width, "height": height},
+        "observed": {
+            "width": int(observed.get("width") or 0),
+            "height": int(observed.get("height") or 0),
+        },
+        "bytes": prepared.stat().st_size,
+        "valid": True,
+    }
+
+
 def run_wan_shot(
     *,
     job: dict[str, Any],
@@ -377,6 +445,18 @@ def run(job_file: Path, result_file: Path) -> int:
     size = str(
         config["landscape_size"] if aspect_ratio == "16:9" else config["portrait_size"]
     )
+    generation_reference_files = reference_files
+    reference_geometry = None
+    if reference_files:
+        prepared_reference, reference_geometry = prepare_reference_for_backend(
+            reference_file=reference_files[0],
+            operation_dir=output_file.parent,
+            operation_id=str(job.get("operationId") or "video"),
+            ffmpeg=ffmpeg,
+            ffprobe=ffprobe,
+            size=size,
+        )
+        generation_reference_files = [prepared_reference]
     shot_plan = list(job.get("shotPlan") or [])
     requested_duration = float(job.get("requestedDurationSeconds") or 0)
     if shot_plan:
@@ -406,7 +486,7 @@ def run(job_file: Path, result_file: Path) -> int:
                     checkpoint_dir=checkpoint_dir,
                     output_file=shot_file,
                     size=size,
-                    reference_files=reference_files,
+                    reference_files=generation_reference_files,
                     prompt=prompt,
                 )
             shot_evidence = inspect_resumable_shot(shot_file, ffprobe, config, size)
@@ -430,7 +510,7 @@ def run(job_file: Path, result_file: Path) -> int:
             checkpoint_dir=checkpoint_dir,
             output_file=output_file,
             size=size,
-            reference_files=reference_files,
+            reference_files=generation_reference_files,
             prompt="",
         )
     if not output_file.is_file() or output_file.stat().st_size < 100000:
@@ -456,6 +536,10 @@ def run(job_file: Path, result_file: Path) -> int:
             "referenceAssetCount": len(reference_files),
             "referenceAssetLimit": int(config["max_reference_assets"]),
             "primaryReferenceUsed": str(reference_files[0]) if reference_files else None,
+            "primaryReferencePrepared": (
+                str(generation_reference_files[0]) if generation_reference_files else None
+            ),
+            "referenceGeometry": reference_geometry,
             "shotCount": len(shot_plan) if shot_plan else 1,
             "requestedDurationSeconds": requested_duration if shot_plan else None,
             "masteringMode": "ffmpeg_multishot_episode" if shot_plan else "single_wan_shot",
