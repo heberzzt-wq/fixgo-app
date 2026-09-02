@@ -2894,7 +2894,8 @@ test("V142 RunPod adapter provisions one L40S Pod, transfers physical assets, re
     assert.match(bootstrap, /progress MODEL_VALIDATION READY CACHE_MODEL_READY/);
     assert.doesNotMatch(bootstrap, /MAX_JOBS=/);
     assert.doesNotMatch(bootstrap, /build-essential/);
-    assert.match(bootstrap, /pip check/);
+    assert.match(bootstrap, /pip_check_evidence=run_diagnostic/);
+    assert.doesNotMatch(bootstrap, /"\$VENV\/bin\/python" -m pip check/);
     assert.match(bootstrap, /importlib\.import_module\(name\)/);
     assert.match(bootstrap, /'flash_attn'/);
     assert.match(bootstrap, /generate\.py.*--help/);

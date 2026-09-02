@@ -3522,7 +3522,6 @@ export function createRunpodRemoteVideoAdapter({
             "\"$VENV/bin/python\" -m pip install --no-deps \"$FLASH_ATTENTION_WHEEL\"",
             "progress RUNTIME_PREFLIGHT RUNNING CACHE_MISS",
             `\"$VENV/bin/python\" \"$PREFLIGHT\" ${shellSingleQuote(contractJson)} \"$WAN_REPO\" \"$PREFLIGHT_RESULT\"`,
-            "\"$VENV/bin/python\" -m pip check",
             "printf '%s\\n' \"$REQ_SHA\" > \"$CACHE_ROOT/requirements.sha256\"",
             "progress PYTHON_REQUIREMENTS READY \"$BOOTSTRAP_CACHE_STATUS\"",
             "progress RUNTIME_PREFLIGHT READY CACHE_MISS",
