@@ -133,11 +133,70 @@ export function procesarEventoNotificacion(event = {}, options = {}) {
     return true;
 }
 
+function prepararJsPdfParaImagenesRemotas(jspdfNamespace) {
+    const JsPdf = jspdfNamespace?.jsPDF;
+    if (!JsPdf?.prototype || JsPdf.prototype.__gestiaRemoteImageBridgeInstalled === true) {
+        return jspdfNamespace;
+    }
+
+    const originalAddImage = JsPdf.prototype.addImage;
+    const originalSave = JsPdf.prototype.save;
+    if (typeof originalAddImage !== "function" || typeof originalSave !== "function") {
+        return jspdfNamespace;
+    }
+
+    Object.defineProperty(JsPdf.prototype, "__gestiaRemoteImageBridgeInstalled", {
+        value: true,
+        configurable: false,
+        enumerable: false,
+        writable: false
+    });
+
+    JsPdf.prototype.addImage = function(imageData, ...args) {
+        if (typeof imageData === "string" && /^https?:\/\//i.test(imageData)) {
+            const pending = urlABase64(imageData).then((convertedImage) => {
+                if (!convertedImage) {
+                    throw new Error("PDF_REMOTE_IMAGE_UNAVAILABLE");
+                }
+                return originalAddImage.call(this, convertedImage, ...args);
+            });
+            if (!Array.isArray(this.__gestiaPendingRemoteImages)) {
+                Object.defineProperty(this, "__gestiaPendingRemoteImages", {
+                    value: [],
+                    configurable: true,
+                    enumerable: false,
+                    writable: true
+                });
+            }
+            this.__gestiaPendingRemoteImages.push(pending);
+            return this;
+        }
+        return originalAddImage.call(this, imageData, ...args);
+    };
+
+    JsPdf.prototype.save = function(...args) {
+        const pending = Array.isArray(this.__gestiaPendingRemoteImages)
+            ? this.__gestiaPendingRemoteImages.splice(0)
+            : [];
+        if (pending.length === 0) {
+            return originalSave.apply(this, args);
+        }
+        return Promise.all(pending)
+            .then(() => originalSave.apply(this, args))
+            .catch((error) => {
+                console.error("Error preparando imágenes remotas para PDF:", error);
+                throw error;
+            });
+    };
+
+    return jspdfNamespace;
+}
+
 // ======================================================================================
 // 📄 CARGADOR DINÁMICO DE PDF (OPTIMIZACIÓN V5.7)
 // ======================================================================================
 export async function cargarLibreriaPDF() {
-    if (window.jspdf) return window.jspdf; 
+    if (window.jspdf) return prepararJsPdfParaImagenesRemotas(window.jspdf);
     
     return new Promise((resolve, reject) => {
         console.log(" 📄 Cargando librería PDF bajo demanda...");
@@ -145,7 +204,7 @@ export async function cargarLibreriaPDF() {
         script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
         script.onload = () => {
             console.log(" 📄 Librería PDF cargada correctamente.");
-            resolve(window.jspdf);
+            resolve(prepararJsPdfParaImagenesRemotas(window.jspdf));
         };
         script.onerror = () => reject("Error crítico cargando la librería PDF desde CDN.");
         document.head.appendChild(script);
@@ -156,12 +215,15 @@ export async function cargarLibreriaPDF() {
 // Convierte URLs de Firebase en Base64 para que jsPDF pueda imprimirlas
 export const urlABase64 = async (url) => {
     if (!url || url.includes('via.placeholder')) return null;
+    if (url.startsWith('data:')) return url;
     try {
         const response = await fetch(url, { mode: 'cors' });
+        if (!response.ok) throw new Error(`PDF_IMAGE_HTTP_${response.status}`);
         const blob = await response.blob();
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
             reader.readAsDataURL(blob);
         });
     } catch (e) {
