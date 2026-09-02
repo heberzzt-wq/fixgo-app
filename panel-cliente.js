@@ -24,6 +24,7 @@ import {
     serverTimestamp,
     getDoc,
     crearServicioB2C,
+    cancelarServicioB2C,
     responderCotizacionB2C
 } from "./firebase.js";
 
@@ -640,6 +641,12 @@ if (metodoSeleccionado === "b2b") {
                 const destinoServicio = getConfirmedServiceDestination(s);
             
             let contenido = `<div class="p-4 bg-yellow-900/10 rounded-xl border border-yellow-500/30 mb-2"><span class="text-xs font-bold text-yellow-500 animate-pulse"> 🔎 RASTREANDO TÉCNICO EN LA ZONA...</span></div>`;
+            if (s.estado === "pendiente" && !s.tecnico_id && s.tipo !== "mantenimiento") {
+                contenido += `
+                <button onclick="window.cancelarTicketFantasma('${id}')" class="w-full bg-red-900/30 hover:bg-red-900/60 text-red-300 px-4 py-2 rounded-lg text-[10px] font-bold transition-all border border-red-500/30 shadow-lg">
+                    <i class="fas fa-times"></i> CANCELAR SOLICITUD
+                </button>`;
+            }
             
             if (s.estado === "iniciado_stripe") {
                 contenido = `
@@ -903,11 +910,17 @@ if (metodoSeleccionado === "b2b") {
     });
 
     window.cancelarTicketFantasma = async (id) => {
-        if(!confirm("¿Deseas cancelar esta solicitud que quedó pendiente de pago?")) return;
+        if(!confirm("¿Deseas cancelar esta solicitud pendiente?")) return;
         try {
-            await updateDoc(doc(db, "services", id), { estado: "cancelado", cancelado_razon: "Abortado por el usuario (Ticket Fantasma)" });
+            const result = await cancelarServicioB2C(id, "Cancelado por el cliente antes de asignación");
+            if (result?.ok) alert("Solicitud cancelada correctamente.");
         } catch(e) {
-            console.error("Error al cancelar ticket fantasma:", e);
+            console.error("Error al cancelar solicitud:", e);
+            if (/pago Stripe confirmado/i.test(String(e?.message || ""))) {
+                alert("Esta solicitud ya tiene un pago confirmado y requiere el flujo seguro de cancelación/reembolso.");
+            } else {
+                alert("No se pudo cancelar la solicitud en su estado actual.");
+            }
         }
     };
 
