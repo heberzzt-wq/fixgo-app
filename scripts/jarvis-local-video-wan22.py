@@ -27,6 +27,14 @@ WAN22_SHOT_FRAME_COUNT = 121
 MAX_SHOT_COUNT = 36
 MAX_MASTER_DURATION_SECONDS = 180.0
 DEFAULT_BACKEND = "wan22-ti2v-5b"
+
+
+class PhysicalShotInvalid(RuntimeError):
+    def __init__(self, evidence: dict[str, Any]):
+        super().__init__("LOCAL_VIDEO_PHYSICAL_SHOT_INVALID")
+        self.evidence = evidence
+
+
 BACKENDS: dict[str, dict[str, Any]] = {
     "wan22-ti2v-5b": {
         "model": "Wan2.2-TI2V-5B",
@@ -176,17 +184,51 @@ def offline_environment() -> dict[str, str]:
     return environment
 
 
+def inspect_resumable_shot(
+    file: Path, ffprobe: str, config: dict[str, Any], size: str
+) -> dict[str, Any]:
+    expected_width, expected_height = parse_size(size)
+    evidence: dict[str, Any] = {
+        "file": str(file),
+        "exists": file.is_file(),
+        "bytes": file.stat().st_size if file.is_file() else 0,
+        "expected": {
+            "minimumBytes": 100000,
+            "width": expected_width,
+            "height": expected_height,
+            "minimumDurationSeconds": 4.9,
+            "minimumFps": float(config["target_fps"]),
+        },
+        "observed": None,
+        "failedPredicates": [],
+    }
+    if not evidence["exists"]:
+        evidence["failedPredicates"].append("FILE_MISSING")
+        return evidence
+    if int(evidence["bytes"]) < 100000:
+        evidence["failedPredicates"].append("BYTES_BELOW_MINIMUM")
+    try:
+        media = inspect_video(file, ffprobe)
+        evidence["observed"] = media
+        if int(media.get("width") or 0) != expected_width:
+            evidence["failedPredicates"].append("WIDTH_MISMATCH")
+        if int(media.get("height") or 0) != expected_height:
+            evidence["failedPredicates"].append("HEIGHT_MISMATCH")
+        if float(media.get("durationSeconds") or 0) < 4.9:
+            evidence["failedPredicates"].append("DURATION_BELOW_MINIMUM")
+        if float(media.get("fps") or 0) + 0.01 < float(config["target_fps"]):
+            evidence["failedPredicates"].append("FPS_BELOW_BACKEND_TARGET")
+    except Exception as error:
+        evidence["failedPredicates"].append("FFPROBE_FAILED")
+        evidence["probeError"] = str(error)[:1000]
+    evidence["valid"] = len(evidence["failedPredicates"]) == 0
+    return evidence
+
+
 def valid_resumable_shot(
     file: Path, ffprobe: str, config: dict[str, Any], size: str
 ) -> bool:
-    if not file.is_file() or file.stat().st_size < 100000:
-        return False
-    try:
-        media = inspect_video(file, ffprobe)
-        verify_backend_media(media, config, size)
-        return float(media.get("durationSeconds") or 0) >= 4.9
-    except Exception:
-        return False
+    return bool(inspect_resumable_shot(file, ffprobe, config, size).get("valid"))
 
 
 def run_wan_shot(
@@ -367,8 +409,9 @@ def run(job_file: Path, result_file: Path) -> int:
                     reference_files=reference_files,
                     prompt=prompt,
                 )
-            if not valid_resumable_shot(shot_file, ffprobe, config, size):
-                raise RuntimeError("LOCAL_VIDEO_PHYSICAL_SHOT_INVALID")
+            shot_evidence = inspect_resumable_shot(shot_file, ffprobe, config, size)
+            if shot_evidence.get("valid") is not True:
+                raise PhysicalShotInvalid(shot_evidence)
             shot_files.append(shot_file)
         master_episode(
             shot_files=shot_files,
@@ -441,6 +484,7 @@ def main() -> int:
         return run(job_file, result_file)
     except Exception as error:  # durable manifest is the worker contract
         error_text = str(error) or "LOCAL_VIDEO_RUNNER_FAILED"
+        shot_evidence = getattr(error, "evidence", None)
         retryable = (
             error_text.startswith("LOCAL_VIDEO_WAN_EXIT_")
             or "timed out" in error_text.lower()
@@ -462,6 +506,7 @@ def main() -> int:
                 "provider": "local",
                 "externalApiUsed": False,
                 "externalEstimatedCostUsd": 0,
+                **({"shotEvidence": shot_evidence} if shot_evidence else {}),
             },
         )
         return 1

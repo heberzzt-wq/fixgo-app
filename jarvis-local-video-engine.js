@@ -1431,6 +1431,9 @@ function runpodPublicWorker(state = {}) {
         bootstrapProgress: state.bootstrapProgress || null,
         bootstrapStartedAt: state.bootstrapStartedAt || null,
         inferenceStartedAt: state.inferenceStartedAt || null,
+        gpuRentalSeconds: Number(state.gpuRentalSeconds || 0),
+        gpuRentalEstimatedCost: Number(state.gpuRentalEstimatedCost || 0),
+        externalComputeMeter: state.externalComputeMeter || null,
         stageTimeline: state.stageTimeline || {},
         assetManifest: Array.isArray(state.assetManifest)
             ? state.assetManifest.map(asset => ({
@@ -4183,6 +4186,27 @@ export function createRunpodRemoteVideoAdapter({
         const loaded = readState(operation);
         let state = loaded.state;
         const cost = rentalCost(state);
+        const measuredAt = now().toISOString();
+        state = writeState(loaded.file, state, {
+            gpuRentalSeconds: cost.seconds,
+            gpuRentalEstimatedCost: cost.estimatedCostUsd,
+            externalComputeMeter: {
+                schemaVersion: "jarvis.external-compute-meter.v1",
+                provider: "runpod",
+                resourceType: state.gpuTypeId ? "GPU" : "CPU",
+                resourceId: state.podId || null,
+                resourceProfile: state.gpuTypeId || null,
+                dataCenterId: state.dataCenterId || state.networkVolumeDataCenterId || null,
+                startedAt: state.provisionedAt || state.createdAt || null,
+                measuredAt,
+                elapsedSeconds: cost.seconds,
+                hourlyRateUsd: Number(state.hourlyRateUsd || 0),
+                estimatedCostUsd: cost.estimatedCostUsd,
+                hardBudgetUsd: Number(state.hardBudgetUsd || 0),
+                maximumSpendBeforeCleanupUsd: Number(state.maximumSpendBeforeCleanupUsd || 0),
+                status: "RUNNING"
+            }
+        });
         if (cost.estimatedCostUsd >= state.hardBudgetUsd * budgetStopRatio) {
             await writeLocalFailure(operation, resultFile, "RUNPOD_HARD_BUDGET_EXCEEDED", false);
             state = writeState(loaded.file, state, { phase: "BUDGET_EXCEEDED" });
@@ -4551,6 +4575,25 @@ export function createRunpodRemoteVideoAdapter({
                 gpuRentalSeconds: cost.seconds,
                 gpuRentalEstimatedCost: cost.estimatedCostUsd,
                 gpuRentalActualCost: actualCostUsd,
+                externalComputeMeter: {
+                    ...(state.externalComputeMeter || {}),
+                    schemaVersion: "jarvis.external-compute-meter.v1",
+                    provider: "runpod",
+                    resourceType: state.gpuTypeId ? "GPU" : "CPU",
+                    resourceId: state.podId || null,
+                    resourceProfile: state.gpuTypeId || null,
+                    dataCenterId: state.dataCenterId || state.networkVolumeDataCenterId || null,
+                    startedAt: state.provisionedAt || state.createdAt || null,
+                    measuredAt: now().toISOString(),
+                    endedAt: now().toISOString(),
+                    elapsedSeconds: cost.seconds,
+                    hourlyRateUsd: Number(state.hourlyRateUsd || 0),
+                    estimatedCostUsd: cost.estimatedCostUsd,
+                    actualCostUsd,
+                    hardBudgetUsd: Number(state.hardBudgetUsd || 0),
+                    maximumSpendBeforeCleanupUsd: Number(state.maximumSpendBeforeCleanupUsd || 0),
+                    status: "STOPPED"
+                },
                 networkVolumeId: state.networkVolumeId || null,
                 networkVolumeRetained: Boolean(state.networkVolumeId),
                 ...billingPatch

@@ -2810,6 +2810,18 @@ test("V142 RunPod adapter provisions one L40S Pod, transfers physical assets, re
     assert.equal("RUNPOD_API_KEY" in harness.createdBody.env, false);
     assert.equal(JSON.stringify(harness.createdBody).includes(harness.env.RUNPOD_API_KEY), false);
     const stateBase = path.join(harness.root, ".jarvis-artifacts", ".video-worker", "runpod");
+    const meteredState = JSON.parse(fs.readFileSync(
+        path.join(stateBase, `${started.operationId}.json`),
+        "utf8"
+    ));
+    assert.equal(meteredState.externalComputeMeter.schemaVersion, "jarvis.external-compute-meter.v1");
+    assert.equal(meteredState.externalComputeMeter.provider, "runpod");
+    assert.equal(meteredState.externalComputeMeter.resourceType, "GPU");
+    assert.equal(meteredState.externalComputeMeter.resourceProfile, "NVIDIA L40S");
+    assert.equal(meteredState.externalComputeMeter.hourlyRateUsd, 0.99);
+    assert.equal(meteredState.externalComputeMeter.status, "STOPPED");
+    assert.ok(meteredState.externalComputeMeter.elapsedSeconds >= 0);
+    assert.ok(meteredState.externalComputeMeter.estimatedCostUsd >= 0);
     const stateFiles = fs.readdirSync(stateBase, { recursive: true })
         .filter(file => String(file).endsWith(".json"));
     for (const stateFile of stateFiles) {
@@ -5393,7 +5405,8 @@ counter = os.environ["JARVIS_TEST_GENERATE_COUNTER"]
 count = int(open(counter, encoding="utf-8").read()) if os.path.exists(counter) else 0
 open(counter, "w", encoding="utf-8").write(str(count + 1))
 ffmpeg = os.environ["JARVIS_FFMPEG_PATH"]
-subprocess.run([ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=704x1280:rate=24", "-t", "5.05", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", args.save_file], check=True)
+duration = os.environ.get("JARVIS_TEST_SHOT_DURATION", "5.05")
+subprocess.run([ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=704x1280:rate=24", "-t", duration, "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", args.save_file], check=True)
 `, "utf8");
     const job = {
         operationId: "physical-episode-master-test",
@@ -5457,6 +5470,34 @@ subprocess.run([ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi
 
     executeRunner();
     assert.equal(fs.readFileSync(counterFile, "utf8"), "2");
+
+    const invalidJobFile = path.join(root, "invalid-job.json");
+    const invalidResultFile = path.join(root, "invalid-result.json");
+    fs.writeFileSync(invalidJobFile, JSON.stringify({
+        ...job,
+        operationId: "physical-invalid-shot-test",
+        operationName: "local-video/physical-invalid-shot-test",
+        outputFile: path.join(root, "invalid-episode.mp4"),
+        shotPlan: [job.shotPlan[0]],
+        requestedDurationSeconds: 5
+    }));
+    assert.throws(() => execFileSync(
+        physicalRunnerTools.python,
+        [runner, "--job", invalidJobFile, "--result", invalidResultFile],
+        {
+            cwd: root,
+            env: { ...env, JARVIS_TEST_SHOT_DURATION: "2" },
+            stdio: ["ignore", "pipe", "pipe"],
+            timeout: 240000
+        }
+    ));
+    const invalid = JSON.parse(fs.readFileSync(invalidResultFile, "utf8"));
+    assert.equal(invalid.status, "LOCAL_VIDEO_PHYSICAL_SHOT_INVALID");
+    assert.equal(invalid.shotEvidence.exists, true);
+    assert.ok(invalid.shotEvidence.bytes > 100000);
+    assert.equal(invalid.shotEvidence.observed.width, 704);
+    assert.equal(invalid.shotEvidence.observed.height, 1280);
+    assert.ok(invalid.shotEvidence.failedPredicates.includes("DURATION_BELOW_MINIMUM"));
 });
 
 test("reference-sheet preparation still fails closed when the production FFmpeg binary is unavailable", async () => {

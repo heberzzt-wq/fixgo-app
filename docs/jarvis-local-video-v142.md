@@ -171,6 +171,48 @@ hypothesis. Separating tag, registry digest, and runtime identity closes the
 known client-side ambiguity without claiming it caused the earlier provider
 response. A new physical attempt requires separate human authority.
 
+### Paid-attempt incident ledger and mandatory replay gate
+
+Before any paid `POST /pods`, inspect the latest physical operation state and
+result, name its exact terminal cause, and prove that the complete generated
+bootstrap removes that cause. A green sub-check is not enough when a later
+duplicate shell command can still contradict it. Also verify
+`JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT` resolves to the existing
+`scripts/jarvis-local-video-wan22.py`; the narrative `job.script` field is not
+a runner path.
+
+Operation `109c5ba5-c7a3-40ca-8bd0-2033e3c52cae` physically passed L40S,
+CUDA, FlashAttention, imports, Wan CLI, model-byte integrity, and the governed
+pip diagnostic, but the bootstrap then ran a second ungoverned
+`"$VENV/bin/python" -m pip check`. That duplicate rejected the already
+classified `decord 0.6.0 is not supported on this platform` advisory and ended
+as `RUNPOD_BOOTSTRAP_INCOMPLETE`. Pod `mwtny4oc0bbkbm` was deleted, Network
+Volume `su3d60su17` was retained, and estimated compute cost was USD
+0.053443225. Commit `0b084a5ce7db69e2e559ec4e3427a17232bcc642`
+removes only that contradictory command, keeps the governed diagnostic, and
+adds a regression that forbids its return; the V142 suite passed 218/218 before
+the next separately authorized physical attempt.
+
+Every future RunPod poll persists `jarvis.external-compute-meter.v1` inside the
+existing operation state. The meter records provider, CPU/GPU resource type,
+Pod ID, profile, datacenter, start and measurement times, elapsed seconds,
+hourly rate, estimated cost, hard budget, and cleanup threshold. Release stops
+the same meter and adds end time and provider-reported actual cost; it does not
+create a second billing authority or a separate workflow.
+
+The separately authorized operation
+`675989c3-6cb4-4162-8fa9-2b0ff9e52a3e` then reached `CACHE_READY`, passed the
+physical L40S/CUDA/FlashAttention/Wan runtime, and started real 704x1280
+inference. The first 121-frame shot completed after a long CPU-offload stage
+and full-GPU diffusion, but the runner returned
+`LOCAL_VIDEO_PHYSICAL_SHOT_INVALID` without identifying whether bytes,
+dimensions, duration, or FPS failed. Pod `igjbkgk1g2g9u6` was deleted, volume
+`su3d60su17` was retained, measured rental was 1767.708 seconds, and estimated
+compute cost was USD 0.4861197. No final MP4 exists. Before another paid
+attempt, the existing runner must persist structured observed and expected shot
+media evidence and the exact failed predicate; a generic invalid-shot status is
+not sufficient replay evidence.
+
 ### Zero-cost gate versus paid physical preflight
 
 `JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED` defaults to `false`. It may
