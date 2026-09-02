@@ -391,6 +391,28 @@ service cloud.firestore {
           resource.data.get('tipo', null) == 'mantenimiento' &&
           isTecnico() &&
           request.resource.data.get('tipo', null) == 'mantenimiento' &&
+          request.resource.data.get('cliente_id', null) == resource.data.get('cliente_id', null) &&
+          request.resource.data.get('metodo_pago', null) == resource.data.get('metodo_pago', null) &&
+          request.resource.data.get('categoria', null) == resource.data.get('categoria', null) &&
+          request.resource.data.get('categoria_id', null) == resource.data.get('categoria_id', null) &&
+          request.resource.data.get('sub_servicio', null) == resource.data.get('sub_servicio', null) &&
+          request.resource.data.get('destino', null) == resource.data.get('destino', null) &&
+          request.resource.data.get('contrato_id', null) == resource.data.get('contrato_id', null) &&
+          request.resource.data.get('contratoId', null) == resource.data.get('contratoId', null) &&
+          request.resource.data.get('edificioId', null) == resource.data.get('edificioId', null) &&
+          request.resource.data.get('tenantId', null) == resource.data.get('tenantId', null) &&
+          request.resource.data.get('empresa_id', null) == resource.data.get('empresa_id', null) &&
+          request.resource.data.get('empresaId', null) == resource.data.get('empresaId', null) &&
+          (
+            (
+              resource.data.get('tecnico_id', null) == null &&
+              request.resource.data.get('tecnico_id', null) == request.auth.uid
+            ) ||
+            (
+              resource.data.get('tecnico_id', null) == request.auth.uid &&
+              request.resource.data.get('tecnico_id', null) == request.auth.uid
+            )
+          ) &&
           serviceFinancialFieldsUnchanged()
         )
       );
