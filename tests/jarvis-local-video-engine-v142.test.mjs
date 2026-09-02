@@ -3001,6 +3001,13 @@ test("V142 runtime preflight preserves bounded sanitized subprocess diagnostics"
         "import os,sys,time",
         "mode=os.environ.get('JARVIS_PREFLIGHT_FIXTURE','pass')",
         "secret=os.environ.get('JARVIS_PREFLIGHT_SECRET','')",
+        "if mode=='pip-decord-platform-advisory':",
+        "    print('decord 0.6.0 is not supported on this platform')",
+        "    raise SystemExit(1)",
+        "if mode=='pip-decord-platform-advisory-plus-conflict':",
+        "    print('decord 0.6.0 is not supported on this platform')",
+        "    print('dependency conflict: package-a requires package-b')",
+        "    raise SystemExit(1)",
         "if mode=='pip-fail':",
         "    print('dependency conflict: package-a requires package-b')",
         "    print(f'RUNPOD_API_KEY={secret} Authorization: Bearer {secret}',file=sys.stderr)",
@@ -3093,6 +3100,27 @@ test("V142 runtime preflight preserves bounded sanitized subprocess diagnostics"
     assert.match(pipFailure.evidence.pipCheckStdout, /dependency conflict/);
     assert.match(pipFailure.evidence.pipCheckStderr, /\[REDACTED\]/);
     assert.doesNotMatch(JSON.stringify(pipFailure.evidence), new RegExp(secret, "g"));
+
+    const decordPlatformAdvisory = runCase(
+        "pip-decord-platform-advisory",
+        "pip-decord-platform-advisory"
+    );
+    assert.equal(decordPlatformAdvisory.execution.status, 0);
+    assert.equal(decordPlatformAdvisory.evidence.ok, true);
+    assert.equal(decordPlatformAdvisory.evidence.pipCheck, true);
+    assert.equal(decordPlatformAdvisory.evidence.pipCheckExitCode, 1);
+    assert.deepEqual(
+        decordPlatformAdvisory.evidence.pipCheckAdvisories,
+        ["decord 0.6.0 is not supported on this platform"]
+    );
+
+    const decordAdvisoryWithConflict = runCase(
+        "pip-decord-platform-advisory-plus-conflict",
+        "pip-decord-platform-advisory-plus-conflict"
+    );
+    assert.equal(decordAdvisoryWithConflict.execution.status, 1);
+    assert.equal(decordAdvisoryWithConflict.evidence.pipCheck, false);
+    assert.deepEqual(decordAdvisoryWithConflict.evidence.pipCheckAdvisories, []);
 
     const wanFailure = runCase("wan-fail", "wan-fail");
     assert.equal(wanFailure.execution.status, 1);

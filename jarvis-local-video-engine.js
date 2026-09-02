@@ -3435,7 +3435,11 @@ export function createRunpodRemoteVideoAdapter({
             "        flash_attention_cuda_probe=bool(out.is_cuda and out.shape==q.shape)",
             "    except Exception: flash_attention_cuda_probe=False",
             "pip_check_evidence=run_diagnostic([sys.executable,'-m','pip','check'])",
-            "pip_check=pip_check_evidence['exitCode']==0 and not pip_check_evidence['timedOut']",
+            "pip_check_messages=[line.strip() for stream in (pip_check_evidence['stdout'],pip_check_evidence['stderr']) for line in stream.splitlines() if line.strip()]",
+            "decord_version=expected.get('runtimeRequirements',{}).get('decord','')",
+            "decord_platform_advisory=f'decord {decord_version} is not supported on this platform'",
+            "pip_check_advisories=[decord_platform_advisory] if pip_check_evidence['exitCode'] not in (None,0) and not pip_check_evidence['timedOut'] and imports.get('decord') and runtime_requirement_versions.get('decord')==decord_version and pip_check_messages==[decord_platform_advisory] else []",
+            "pip_check=(pip_check_evidence['exitCode']==0 and not pip_check_evidence['timedOut']) or bool(pip_check_advisories)",
             "abi_value=getattr(torch._C,'_GLIBCXX_USE_CXX11_ABI',None)",
             "flash_attention_abi='TRUE' if abi_value is True else 'FALSE' if abi_value is False else 'UNSUPPORTED'",
             "flash_attention_wheel=expected.get('flashAttentionWheels',{}).get(flash_attention_abi)",
@@ -3450,7 +3454,7 @@ export function createRunpodRemoteVideoAdapter({
             "probe_env=dict(os.environ); probe_env.update({'HF_HUB_OFFLINE':'1','TRANSFORMERS_OFFLINE':'1','WANDB_MODE':'offline'})",
             "wan_cli_evidence=run_diagnostic([sys.executable,os.path.join(repo,'generate.py'),'--help'],cwd=repo,env=probe_env)",
             "cli=wan_cli_evidence['exitCode']==0 and not wan_cli_evidence['timedOut']",
-            "payload={'pythonVersion':platform.python_version(),'torchVersion':str(torch.__version__),'torchCudaVersion':str(torch.version.cuda or ''),'cudaImageVersion':str(os.environ.get('CUDA_VERSION','')),'cuda':torch.cuda.is_available(),'gpuName':torch.cuda.get_device_name(0) if torch.cuda.is_available() else '', 'computeCapability':'.'.join(map(str,torch.cuda.get_device_capability(0))) if torch.cuda.is_available() else '', 'cudaProbe':cuda_probe,'flashAttentionCudaProbe':flash_attention_cuda_probe,'pipCheck':pip_check,'pipCheckExitCode':pip_check_evidence['exitCode'],'pipCheckStdout':pip_check_evidence['stdout'],'pipCheckStderr':pip_check_evidence['stderr'],'pipCheckTimedOut':pip_check_evidence['timedOut'],'wanCliImport':cli,'wanCliImportExitCode':wan_cli_evidence['exitCode'],'wanCliImportStdout':wan_cli_evidence['stdout'],'wanCliImportStderr':wan_cli_evidence['stderr'],'wanCliImportTimedOut':wan_cli_evidence['timedOut'],'imports':imports,'runtimeRequirementVersions':runtime_requirement_versions,'flashAttentionVersion':importlib.metadata.version('flash-attn') if imports.get('flash_attn') else '', 'flashAttentionWheelAbi':flash_attention_abi,'flashAttentionWheelSha256':flash_attention_wheel_sha256,'flashAttentionWheelAuthorized':flash_attention_wheel_authorized}",
+            "payload={'pythonVersion':platform.python_version(),'torchVersion':str(torch.__version__),'torchCudaVersion':str(torch.version.cuda or ''),'cudaImageVersion':str(os.environ.get('CUDA_VERSION','')),'cuda':torch.cuda.is_available(),'gpuName':torch.cuda.get_device_name(0) if torch.cuda.is_available() else '', 'computeCapability':'.'.join(map(str,torch.cuda.get_device_capability(0))) if torch.cuda.is_available() else '', 'cudaProbe':cuda_probe,'flashAttentionCudaProbe':flash_attention_cuda_probe,'pipCheck':pip_check,'pipCheckExitCode':pip_check_evidence['exitCode'],'pipCheckStdout':pip_check_evidence['stdout'],'pipCheckStderr':pip_check_evidence['stderr'],'pipCheckTimedOut':pip_check_evidence['timedOut'],'pipCheckAdvisories':pip_check_advisories,'wanCliImport':cli,'wanCliImportExitCode':wan_cli_evidence['exitCode'],'wanCliImportStdout':wan_cli_evidence['stdout'],'wanCliImportStderr':wan_cli_evidence['stderr'],'wanCliImportTimedOut':wan_cli_evidence['timedOut'],'imports':imports,'runtimeRequirementVersions':runtime_requirement_versions,'flashAttentionVersion':importlib.metadata.version('flash-attn') if imports.get('flash_attn') else '', 'flashAttentionWheelAbi':flash_attention_abi,'flashAttentionWheelSha256':flash_attention_wheel_sha256,'flashAttentionWheelAuthorized':flash_attention_wheel_authorized}",
             "payload['ok']=bool(payload['pythonVersion'].startswith(expected['pythonVersionPrefix']) and payload['torchVersion'].startswith(expected['torchVersionPrefix']) and payload['torchCudaVersion'].startswith(expected['torchCudaVersionPrefix']) and payload['computeCapability']==expected['computeCapability'] and payload['cudaProbe'] and payload['flashAttentionCudaProbe'] and payload['pipCheck'] and payload['wanCliImport'] and all(imports.values()) and all(payload['runtimeRequirementVersions'].get(name)==version for name,version in expected.get('runtimeRequirements',{}).items()) and payload['flashAttentionVersion']==expected['flashAttentionVersion'] and payload['flashAttentionWheelAuthorized'])",
             "open(target,'w',encoding='utf-8').write(json.dumps(payload,sort_keys=True,separators=(',',':'))+'\\n')",
             "raise SystemExit(0 if payload['ok'] else 1)",
@@ -4040,6 +4044,12 @@ export function createRunpodRemoteVideoAdapter({
                 ? sanitizeProviderText(runtimePreflight.pipCheckStderr, 2000)
                 : null,
             pipCheckTimedOut: runtimePreflight?.pipCheckTimedOut === true,
+            pipCheckAdvisories: Array.isArray(runtimePreflight?.pipCheckAdvisories)
+                ? runtimePreflight.pipCheckAdvisories
+                    .map(value => sanitizeProviderText(value, 500))
+                    .filter(Boolean)
+                    .slice(0, 5)
+                : [],
             wanCliImportExitCode: Number.isInteger(runtimePreflight?.wanCliImportExitCode)
                 ? runtimePreflight.wanCliImportExitCode
                 : null,
