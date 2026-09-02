@@ -162,7 +162,7 @@
     <div id="modalPagoDeuda" class="fixed inset-0 bg-black/95 z-[80] hidden flex flex-col p-4 animate-fade-in justify-center items-center backdrop-blur-sm">
         <div class="bg-zinc-900 w-full max-w-md rounded-3xl p-6 border border-red-500/30 shadow-2xl relative">
             <button onclick="document.getElementById('modalPagoDeuda').classList.add('hidden')" class="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"><i class="fas fa-times text-xl"></i></button>
-            <h2 class="text-xl font-black text-white mb-2"><i class="fas fa-university text-red-500"></i> Liquidar Deuda</h2>
+            <h2 class="text-xl font-black mb-2"><i class="fas fa-university text-red-500"></i> Liquidar Deuda</h2>
             <p class="text-xs text-gray-400 mb-6">Transfiere tu saldo pendiente a la cuenta oficial de GestiaPremium para liberar tu billetera.</p>
             <div class="bg-black p-4 rounded-xl border border-zinc-800 space-y-3 mb-6 text-sm">
                 <div class="flex justify-between items-center border-b border-zinc-800 pb-2"><span class="text-gray-500 font-bold text-xs uppercase">Banco</span><span class="text-white font-black">BBVA Bancomer</span></div>
@@ -228,6 +228,219 @@
     </script>
     <script type="module" src="./firebase.js"></script>
     <script type="module" src="./app-main.js?v=role-authority-v3-single-navigation-20260713"></script>
+    <script type="module">
+        import { auth, db, storage, doc, getDoc, setDoc, serverTimestamp } from "./firebase.js";
+        import { runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+        import { normalizeTechnicianProfile } from "./b2c-technician-profile.js";
+
+        let pendingCloseServiceId = "";
+        const mimeExt = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+
+        async function sha256(blob) {
+            const hash = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
+            return [...new Uint8Array(hash)].map(v => v.toString(16).padStart(2, "0")).join("");
+        }
+
+        function validImage(file) {
+            if (!file || !mimeExt[file.type] || file.size <= 0 || file.size > 2 * 1024 * 1024) {
+                throw new Error("B2C_EVIDENCE_IMAGE_INVALID");
+            }
+            return file;
+        }
+
+        async function uploadEvidence(serviceId, uid, file, eventType) {
+            if (!file) return null;
+            validImage(file);
+            const path = `b2c_evidence/${serviceId}/${uid}/${eventType}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${mimeExt[file.type]}`;
+            const target = ref(storage, path);
+            await uploadBytes(target, file, {
+                contentType: file.type,
+                customMetadata: { actorUid: uid, actorRole: "tecnico", serviceId, eventType }
+            });
+            return { sha256: await sha256(file), storage_path: path, download_url: await getDownloadURL(target) };
+        }
+
+        async function signatureBlob() {
+            const canvas = document.getElementById("canvasFirma");
+            if (!canvas) throw new Error("B2C_SIGNATURE_CANVAS_MISSING");
+            const pixels = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+            let ink = false;
+            for (let i = 3; i < pixels.length; i += 4) {
+                if (pixels[i] !== 0) { ink = true; break; }
+            }
+            if (!ink) throw new Error("B2C_SIGNATURE_REQUIRED");
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+            if (!blob || blob.size <= 0 || blob.size > 512 * 1024) throw new Error("B2C_SIGNATURE_INVALID");
+            return blob;
+        }
+
+        async function uploadSignature(serviceId, uid) {
+            const blob = await signatureBlob();
+            const path = `servicios/${serviceId}/customer_signature_${Date.now()}.png`;
+            const target = ref(storage, path);
+            await uploadBytes(target, blob, {
+                contentType: "image/png",
+                customMetadata: {
+                    actorUid: uid,
+                    actorRole: "tecnico",
+                    serviceId,
+                    eventType: "customer_signature",
+                    base64Persisted: "false"
+                }
+            });
+            return {
+                present: true,
+                sha256: await sha256(blob),
+                storage_path: path,
+                download_url: await getDownloadURL(target),
+                base64_persisted: false
+            };
+        }
+
+        async function canonicalClose(serviceId, button) {
+            const uid = auth.currentUser?.uid;
+            if (!uid || !serviceId) throw new Error("B2C_CLOSE_CONTEXT_MISSING");
+            const beforeFile = document.getElementById("fileA1")?.files?.[0];
+            const before2File = document.getElementById("fileA2")?.files?.[0];
+            const afterFile = document.getElementById("fileD1")?.files?.[0];
+            const after2File = document.getElementById("fileD2")?.files?.[0];
+            if (!beforeFile || !afterFile) throw new Error("B2C_EVIDENCE_MINIMUM_REQUIRED");
+
+            const original = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SELLANDO CIERRE...';
+            try {
+                const [before, before2, after, after2, signature] = await Promise.all([
+                    uploadEvidence(serviceId, uid, beforeFile, "work_before"),
+                    uploadEvidence(serviceId, uid, before2File, "work_before"),
+                    uploadEvidence(serviceId, uid, afterFile, "work_after"),
+                    uploadEvidence(serviceId, uid, after2File, "work_after"),
+                    uploadSignature(serviceId, uid)
+                ]);
+                const serviceRef = doc(db, "services", serviceId);
+                const bindingRef = doc(db, "services", serviceId, "work_evidence_bindings", "current");
+                await runTransaction(db, async tx => {
+                    const snap = await tx.get(serviceRef);
+                    if (!snap.exists()) throw new Error("B2C_SERVICE_NOT_FOUND");
+                    const service = snap.data() || {};
+                    if (service.tecnico_id !== uid) throw new Error("B2C_SERVICE_TECHNICIAN_MISMATCH");
+                    if (service.estado !== "trabajando") throw new Error("B2C_SERVICE_NOT_WORKING");
+                    const total = Number(service.costo_final || 0);
+                    if (!Number.isFinite(total) || total <= 0) throw new Error("B2C_SERVICE_TOTAL_INVALID");
+                    tx.set(bindingRef, {
+                        service_id: serviceId,
+                        technician_id: uid,
+                        before,
+                        after,
+                        signature,
+                        created_at: serverTimestamp(),
+                        authority: "technician_service_close"
+                    });
+                    tx.update(serviceRef, {
+                        estado: "finalizado",
+                        finalizado_at: serverTimestamp(),
+                        folio_fiscal: service.folio_fiscal || `FX-${Math.random().toString(36).slice(2, 11).toUpperCase()}`,
+                        evidencia: {
+                            antes1: before.download_url,
+                            antes2: before2?.download_url || null,
+                            despues1: after.download_url,
+                            despues2: after2?.download_url || null,
+                            firma_cliente: signature.download_url,
+                            metadatos: {
+                                certificacion_legal: true,
+                                almacenamiento: "Google Cloud Storage + Firebase Auth",
+                                binding_path: bindingRef.path,
+                                firma_base64_persistida: false
+                            }
+                        },
+                        desglose: {
+                            subtotal: (total / 1.16).toFixed(2),
+                            iva: (total - total / 1.16).toFixed(2),
+                            total
+                        },
+                        cierre_operativo_completado: true,
+                        cierre_financiero_pendiente_backend: true,
+                        cierre_legacy_financiero_ejecutado: false,
+                        work_evidence_binding_path: bindingRef.path
+                    });
+                });
+                await setDoc(doc(db, "rastreo", uid), { estado: "Disponible" }, { merge: true });
+                document.getElementById("modalEvidencia")?.remove();
+                alert("✅ Cierre operativo sellado. La liquidación queda exclusivamente en el backend.");
+            } catch (error) {
+                console.error("B2C_CANONICAL_CLOSE_REJECTED", error);
+                button.disabled = false;
+                button.innerHTML = original;
+                alert(error?.message || "No fue posible cerrar el servicio; no se movió dinero.");
+            }
+        }
+
+        async function canonicalB2BStart(serviceId) {
+            const uid = auth.currentUser?.uid;
+            if (!uid || !serviceId) throw new Error("B2B_CONTEXT_MISSING");
+            const serviceRef = doc(db, "services", serviceId);
+            const [serviceSnap, profileSnap] = await Promise.all([
+                getDoc(serviceRef),
+                getDoc(doc(db, "users", uid))
+            ]);
+            if (!serviceSnap.exists() || !profileSnap.exists()) throw new Error("B2B_CONTEXT_MISSING");
+            const initial = serviceSnap.data() || {};
+            if (initial.tipo !== "mantenimiento" || initial.metodo_pago !== "b2b" || !initial.cliente_id) {
+                throw new Error("B2B_SERVICE_CONTRACT_INVALID");
+            }
+            const profile = normalizeTechnicianProfile(profileSnap.data() || {});
+            if (!profile.vehiculo.placas) throw new Error("B2B_PLATES_REQUIRED");
+            await runTransaction(db, async tx => {
+                const current = await tx.get(serviceRef);
+                if (!current.exists()) throw new Error("B2B_SERVICE_NOT_FOUND");
+                const data = current.data() || {};
+                if (!["pendiente", "pagado"].includes(data.estado)) throw new Error("B2B_SERVICE_STATE_INVALID");
+                if (data.cliente_id !== initial.cliente_id || data.metodo_pago !== "b2b" || data.tipo !== "mantenimiento") {
+                    throw new Error("B2B_SERVICE_IDENTITY_CHANGED");
+                }
+                tx.update(serviceRef, {
+                    estado: "trabajando",
+                    tecnico_id: uid,
+                    tecnico_nombre: profile.nombre || "Técnico Residencial",
+                    tecnico_nombre_fiscal: profile.nombre_fiscal || profile.nombre || "Técnico Residencial",
+                    tecnico_rfc: profile.rfc || "XAXX010101000",
+                    tecnico_logo_factura: profile.logo_factura || null,
+                    tecnico_vehiculo: profile.vehiculo.tipo || "NO ESPECIFICADO",
+                    tecnico_placas: profile.vehiculo.placas,
+                    fecha_inicio: serverTimestamp(),
+                    actualizado_at: serverTimestamp()
+                });
+            });
+            alert("¡Mantenimiento iniciado! Cliente y contrato B2B conservados.");
+        }
+
+        document.addEventListener("click", event => {
+            const button = event.target.closest("button");
+            if (!button) return;
+            const source = button.getAttribute("onclick") || "";
+            const closeOpen = source.match(/window\.abrirEvidenciaGlobal\('([^']+)'\)/);
+            if (closeOpen) {
+                pendingCloseServiceId = closeOpen[1];
+                return;
+            }
+            if (button.id === "btnSubirEvidencia" && pendingCloseServiceId) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                void canonicalClose(pendingCloseServiceId, button);
+                return;
+            }
+            const b2b = source.match(/iniciarMantenimiento\('([^']+)'\)/);
+            if (b2b) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                void canonicalB2BStart(b2b[1]).catch(error => {
+                    console.error("B2B_CANONICAL_START_REJECTED", error);
+                    alert(error?.message || "No fue posible iniciar el mantenimiento sin alterar su contrato.");
+                });
+            }
+        }, true);
+    </script>
     <script src="./soporte-whatsapp.js"></script>
 </body>
 </html>
