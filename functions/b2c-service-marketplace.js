@@ -213,9 +213,9 @@ function paymentAuthoritySignature(value = {}) {
 function createCancelB2cServiceHandler({ admin, db, functions }) {
     if (!admin || !db || !functions) throw new Error("B2C_CANCEL_DEPENDENCIES_REQUIRED");
     return async (data, context) => {
-        const technicianId = context?.auth?.uid;
-        if (!technicianId) {
-            throw new functions.https.HttpsError("unauthenticated", "Se requiere una sesión técnica.");
+        const actorId = context?.auth?.uid;
+        if (!actorId) {
+            throw new functions.https.HttpsError("unauthenticated", "Se requiere una sesión autenticada.");
         }
         const serviceId = clean(data?.serviceId);
         const reason = clean(data?.reason, 500);
@@ -223,30 +223,74 @@ function createCancelB2cServiceHandler({ admin, db, functions }) {
             throw new functions.https.HttpsError("invalid-argument", "serviceId y motivo auditable son obligatorios.");
         }
         const serviceRef = db.collection("services").doc(serviceId);
-        const profileRef = db.collection("users").doc(technicianId);
-        const lockRef = db.collection("technician_active_services").doc(technicianId);
-        const penaltyRef = db.collection("transacciones").doc(`cancel_${serviceId}_${technicianId}`);
 
         return db.runTransaction(async transaction => {
-            const [serviceSnapshot, profileSnapshot, lockSnapshot, penaltySnapshot] = await Promise.all([
-                transaction.get(serviceRef),
+            const serviceSnapshot = await transaction.get(serviceRef);
+            if (!serviceSnapshot.exists) {
+                throw new functions.https.HttpsError("not-found", "Servicio no encontrado.");
+            }
+
+            const service = serviceSnapshot.data() || {};
+            if (service.tipo === "mantenimiento") {
+                throw new functions.https.HttpsError("failed-precondition", "La cancelación B2B usa su autoridad contractual propia.");
+            }
+
+            const serviceState = clean(service.estado, 60);
+            const isCustomer = clean(service.cliente_id, 160) === actorId;
+            const isTechnician = clean(service.tecnico_id, 160) === actorId;
+
+            if (isCustomer) {
+                const customerCancelableStates = new Set([
+                    platformContract.SERVICE_STATES.PENDING,
+                    platformContract.SERVICE_STATES.STRIPE_STARTED
+                ]);
+                if (service.tecnico_id || !customerCancelableStates.has(serviceState)) {
+                    throw new functions.https.HttpsError("failed-precondition", "La solicitud ya no puede cancelarse antes de asignación.");
+                }
+                const stripePaymentConfirmed = service.metodo_pago === "stripe" && Boolean(
+                    service.fecha_pago ||
+                    service.ultimo_pago_id ||
+                    Number(service.monto_pagado || 0) > 0
+                );
+                if (stripePaymentConfirmed) {
+                    throw new functions.https.HttpsError("failed-precondition", "El servicio ya tiene un pago Stripe confirmado y requiere el flujo financiero de cancelación/reembolso.");
+                }
+
+                const timestamp = admin.firestore.FieldValue.serverTimestamp();
+                transaction.update(serviceRef, {
+                    estado: "cancelado",
+                    cancelado_razon: reason,
+                    cancelado_por_cliente_at: timestamp,
+                    cancelado_por_cliente_motivo: reason,
+                    "auditoria.cancel_authority": "cancelB2cService",
+                    "auditoria.cancel_actor": "cliente",
+                    "auditoria.cancelled_by": actorId,
+                    "auditoria.cancelled_at": timestamp
+                });
+                return { ok: true, serviceId, estado: "cancelado", actor: "cliente" };
+            }
+
+            if (!isTechnician || !ACTIVE_SERVICE_STATES.has(serviceState)) {
+                throw new functions.https.HttpsError("permission-denied", "La cuenta autenticada no puede cancelar o liberar este servicio.");
+            }
+
+            const profileRef = db.collection("users").doc(actorId);
+            const lockRef = db.collection("technician_active_services").doc(actorId);
+            const penaltyRef = db.collection("transacciones").doc(`cancel_${serviceId}_${actorId}`);
+            const [profileSnapshot, lockSnapshot, penaltySnapshot] = await Promise.all([
                 transaction.get(profileRef),
                 transaction.get(lockRef),
                 transaction.get(penaltyRef)
             ]);
-            if (!serviceSnapshot.exists || !profileSnapshot.exists) {
-                throw new functions.https.HttpsError("not-found", "Servicio o técnico no encontrado.");
+            if (!profileSnapshot.exists) {
+                throw new functions.https.HttpsError("not-found", "Técnico no encontrado.");
             }
-            const service = serviceSnapshot.data() || {};
             const profile = profileSnapshot.data() || {};
-            if (clean(service.tecnico_id) !== technicianId || !ACTIVE_SERVICE_STATES.has(clean(service.estado, 60))) {
-                throw new functions.https.HttpsError("failed-precondition", "El servicio ya no puede liberarse desde esta cuenta.");
-            }
             if (penaltySnapshot.exists) {
                 throw new functions.https.HttpsError("already-exists", "La liberación ya fue procesada.");
             }
             const timestamp = admin.firestore.FieldValue.serverTimestamp();
-            const rejected = [...new Set([...(Array.isArray(service.rejected_by) ? service.rejected_by : []), technicianId])];
+            const rejected = [...new Set([...(Array.isArray(service.rejected_by) ? service.rejected_by : []), actorId])];
             transaction.update(serviceRef, {
                 estado: platformContract.SERVICE_STATES.PENDING,
                 tecnico_id: null,
@@ -259,13 +303,14 @@ function createCancelB2cServiceHandler({ admin, db, functions }) {
                 marketplace_revision: Math.max(0, Number(service.marketplace_revision) || 0) + 1,
                 liberado_por_tecnico_at: timestamp,
                 liberado_por_tecnico_motivo: reason,
-                "auditoria.cancel_authority": "cancelB2cService"
+                "auditoria.cancel_authority": "cancelB2cService",
+                "auditoria.cancel_actor": "tecnico"
             });
             transaction.update(profileRef, {
                 reputacion: Math.max(0, (Number(profile.reputacion) || 5) - 0.3)
             });
             transaction.set(penaltyRef, {
-                tecnico_id: technicianId,
+                tecnico_id: actorId,
                 pago_tecnico: -150,
                 monto_total: 0,
                 tipo: "penalizacion",
@@ -277,7 +322,7 @@ function createCancelB2cServiceHandler({ admin, db, functions }) {
             if (lockSnapshot.exists && lockSnapshot.data()?.service_id === serviceId) {
                 transaction.delete(lockRef);
             }
-            return { ok: true, serviceId, estado: platformContract.SERVICE_STATES.PENDING };
+            return { ok: true, serviceId, estado: platformContract.SERVICE_STATES.PENDING, actor: "tecnico" };
         });
     };
 }
