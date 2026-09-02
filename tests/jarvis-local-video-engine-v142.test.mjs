@@ -6381,3 +6381,32 @@ test("V142 identity references remain separate until a certified identity runtim
         /requiresIdentityFidelity: job\.requiresIdentityFidelity === true/
     );
 });
+
+test("V142 HuMo identity candidate is pinned and cannot authorize paid execution", () => {
+    const source = fs.readFileSync(
+        new URL("../jarvis-local-video-engine.js", import.meta.url),
+        "utf8"
+    );
+    const start = source.indexOf("const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({");
+    const end = source.indexOf("const UNSUPPORTED_LOCAL_VIDEO_MODEL_PROFILE", start);
+    assert.ok(start >= 0 && end > start);
+    const candidate = source.slice(start, end);
+    assert.match(candidate, /sourceRevision: "845f44736e21be93aa5d8cf406b6eb01af9bff67"/);
+    assert.match(candidate, /modelRevision: "3a4a1610d399a5cbb932d54dc229944029803ff7"/);
+    assert.match(candidate, /bytes: 7037053233/);
+    assert.match(candidate, /04126194caa9820c7294c95e321739575491693f2e97f2f1205cd469cd321332/);
+    assert.match(candidate, /c458d9ea111ea1107a576183cc291daa78fffacbe280967c0a0807fed9200830/);
+    assert.match(candidate, /38071ab59bd94681c686fa51d75a1968f64e470262043be31f7a094e442fd981/);
+    assert.match(candidate, /sharedTextEncoderAuthority: "RUNPOD_WAN22_CACHE_BASE\.requiredFiles"/);
+    assert.match(candidate, /reuseExistingWan22TextEncoderAuthority: true/);
+    assert.equal((source.match(/models_t5_umt5-xxl-enc-bf16\.pth/g) || []).length, 1);
+    assert.match(candidate, /width: 480/);
+    assert.match(candidate, /height: 832/);
+    assert.match(candidate, /physicalRuntimeCertified: false/);
+    assert.match(candidate, /physicalPortraitCertified: false/);
+    assert.match(candidate, /paidExecutionAuthorized: false/);
+    assert.match(
+        source,
+        /RUNPOD_HUMO_IDENTITY_CANDIDATE\.paidExecutionAuthorized !== true/
+    );
+});

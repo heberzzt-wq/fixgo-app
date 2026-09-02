@@ -59,6 +59,46 @@ const WAN21_T2V_1_3B = Object.freeze({
     officialWeights: "https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B"
 });
 
+const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({
+    id: "humo-1.7b-identity",
+    role: "identity_fidelity_candidate",
+    sourceRepository: "Phantom-video/HuMo",
+    sourceRevision: "845f44736e21be93aa5d8cf406b6eb01af9bff67",
+    modelRepository: "bytedance-research/HuMo",
+    modelRevision: "3a4a1610d399a5cbb932d54dc229944029803ff7",
+    checkpoint: Object.freeze({
+        path: "HuMo-1.7B/ema.pth",
+        bytes: 7037053233,
+        sha256: "04126194caa9820c7294c95e321739575491693f2e97f2f1205cd469cd321332"
+    }),
+    zeroVae: Object.freeze({
+        path: "zero_vae_129frame.pt",
+        sha256: "c458d9ea111ea1107a576183cc291daa78fffacbe280967c0a0807fed9200830"
+    }),
+    wan21Vae: Object.freeze({
+        path: "Wan2.1_VAE.pth",
+        sha256: "38071ab59bd94681c686fa51d75a1968f64e470262043be31f7a094e442fd981"
+    }),
+    sharedTextEncoderAuthority: "RUNPOD_WAN22_CACHE_BASE.requiredFiles",
+    reuseExistingWan22TextEncoderAuthority: true,
+    officialRuntime: Object.freeze({
+        python: "3.11",
+        torch: "2.5.1",
+        torchCuda: "12.4",
+        flashAttention: "2.6.3"
+    }),
+    targetGpuTypeId: "NVIDIA L40S",
+    candidatePortrait: Object.freeze({
+        width: 480,
+        height: 832,
+        fps: 25,
+        frames: 97
+    }),
+    physicalRuntimeCertified: false,
+    physicalPortraitCertified: false,
+    paidExecutionAuthorized: false
+});
+
 const UNSUPPORTED_LOCAL_VIDEO_MODEL_PROFILE = Object.freeze({
     backend: null,
     id: null,
@@ -550,7 +590,13 @@ function backendRequirementFailure(backend = {}, requirements = {}) {
     const requiresImageToVideo = requirements.requiresImageToVideo === true || referenceCount > 0;
     const requiresIdentityFidelity = requirements.requiresIdentityFidelity === true;
     if (requiresIdentityFidelity && referenceCount > 0) {
-        return "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED";
+        if (
+            RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalRuntimeCertified !== true ||
+            RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalPortraitCertified !== true ||
+            RUNPOD_HUMO_IDENTITY_CANDIDATE.paidExecutionAuthorized !== true
+        ) {
+            return "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED";
+        }
     }
     if (requiresImageToVideo && backend.imageToVideo !== true) {
         return "LOCAL_VIDEO_REFERENCES_UNSUPPORTED_BY_BACKEND";
