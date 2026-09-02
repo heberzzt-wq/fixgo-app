@@ -216,6 +216,13 @@ function createB2CServiceSettlementEngine({
                     throw new Error("TECHNICIAN_ASSIGNMENT_MISSING");
                 }
 
+                const technicianRef = db.collection("users").doc(technicianId);
+                const technicianSnapshot = await transaction.get(technicianRef);
+                if (!technicianSnapshot.exists) {
+                    throw new Error("TECHNICIAN_PROFILE_NOT_FOUND");
+                }
+                const technicianProfile = technicianSnapshot.data() || {};
+
                 const binding = bindingSnapshot.exists
                     ? bindingSnapshot.data()
                     : null;
@@ -223,7 +230,13 @@ function createB2CServiceSettlementEngine({
                     throw new Error("FINAL_EVIDENCE_BINDING_INVALID");
                 }
 
-                const settlement = calculateSettlement(serviceData);
+                const settlementInput = {
+                    ...serviceData,
+                    comision_asignada:
+                        serviceData.comision_asignada ??
+                        technicianProfile.comision_asignada
+                };
+                const settlement = calculateSettlement(settlementInput);
                 assertPaymentCoverage(serviceData, settlement);
 
                 if (ledgerSnapshot.exists) {
@@ -318,6 +331,14 @@ function createB2CServiceSettlementEngine({
                             admin.firestore.FieldValue.serverTimestamp()
                     });
                 }
+
+                transaction.update(technicianRef, {
+                    reputacion: admin.firestore.FieldValue.increment(0.1),
+                    servicios_completados: admin.firestore.FieldValue.increment(1),
+                    ultimo_servicio: safeServiceId,
+                    fecha_ultima_ganancia:
+                        admin.firestore.FieldValue.serverTimestamp()
+                });
 
                 transaction.update(serviceRef, {
                     liquidado: true,
