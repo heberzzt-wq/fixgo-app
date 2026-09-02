@@ -736,6 +736,13 @@ export function resolveLocalExecutable(command, env = process.env) {
     return null;
 }
 
+export function resolveLocalVideoInspectionExecutable(hardware = {}, env = process.env) {
+    const reported = typeof hardware?.ffprobe === "string"
+        ? hardware.ffprobe.trim()
+        : "";
+    return reported || resolveLocalExecutable(env.JARVIS_FFPROBE_PATH || "ffprobe", env);
+}
+
 const commandPath = resolveLocalExecutable;
 
 function offlineLocalVideoEnvironment(env = process.env) {
@@ -5610,9 +5617,13 @@ export function createLocalVideoEngine({
             if (!stat.isFile() || stat.size < 100000) throw new Error("LOCAL_VIDEO_PHYSICAL_OUTPUT_INVALID");
             if (!verifyMp4Container(output.resolved)) throw new Error("LOCAL_VIDEO_MP4_CONTAINER_INVALID");
             const currentHealth = health();
+            const localFfprobe = resolveLocalVideoInspectionExecutable(currentHealth, env);
+            if (!inspectVideo && !localFfprobe) {
+                throw new Error("LOCAL_VIDEO_FFPROBE_REQUIRED");
+            }
             const media = inspectVideo
                 ? inspectVideo(output.resolved)
-                : defaultVideoInspection(output.resolved, currentHealth.ffprobe);
+                : defaultVideoInspection(output.resolved, localFfprobe);
             if (
                 !(Number(media.durationSeconds) > 0) ||
                 !(Number(media.fps) > 0) ||

@@ -16,6 +16,7 @@ import {
     RUNPOD_CPU_STAGING_PROFILE,
     RUNPOD_WAN22_GPU_PROFILES,
     resolveLocalExecutable,
+    resolveLocalVideoInspectionExecutable,
     resolveVideoEngine,
     writeLocalAiCapabilityReport
 } from "../jarvis-local-video-engine.js";
@@ -123,6 +124,33 @@ const physicalRunnerTools = {
     ffmpeg: resolveLocalExecutable(process.env.JARVIS_FFMPEG_PATH || "ffmpeg"),
     ffprobe: resolveLocalExecutable(process.env.JARVIS_FFPROBE_PATH || "ffprobe")
 };
+
+test("V142 remote result verification resolves local ffprobe when remote health has no executable path", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-local-ffprobe-"));
+    const configured = path.join(root, process.platform === "win32" ? "ffprobe.exe" : "ffprobe");
+    fs.writeFileSync(configured, "controlled ffprobe fixture\n");
+    try {
+        assert.equal(
+            resolveLocalVideoInspectionExecutable({ ffprobeAvailable: null }, {
+                JARVIS_FFPROBE_PATH: configured,
+                PATH: "",
+                PATHEXT: process.env.PATHEXT
+            }),
+            configured
+        );
+        assert.equal(
+            resolveLocalVideoInspectionExecutable({ ffprobe: configured }, {
+                JARVIS_FFPROBE_PATH: path.join(root, "missing-ffprobe"),
+                PATH: "",
+                PATHEXT: process.env.PATHEXT
+            }),
+            configured
+        );
+    }
+    finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
 
 function pcmWavFixture() {
     const dataBytes = 1600;
