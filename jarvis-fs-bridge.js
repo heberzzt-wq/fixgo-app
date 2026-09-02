@@ -6683,7 +6683,16 @@ export function createJarvisFsBridgeApp({
     ]) {
         app.post(route, async (req, res) => {
             try {
-                const result = await videoEngine[action](req.body || {});
+                const payload = req.body || {};
+                const invocationPayload = action === "start"
+                    ? {
+                        ...payload,
+                        requiresIdentityFidelity:
+                            Array.isArray(payload.referenceOutputs) &&
+                            payload.referenceOutputs.length > 0
+                    }
+                    : payload;
+                const result = await videoEngine[action](invocationPayload);
                 return res.status(result.ok === true ? 200 : 400).json(result);
             }
             catch(error) {

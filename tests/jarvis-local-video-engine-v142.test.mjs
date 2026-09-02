@@ -6190,3 +6190,106 @@ test("V142 resolve gates local backends by mission reference requirements", () =
         "LOCAL_VIDEO_BACKENDS_UNAVAILABLE:wan22-ti2v-5b=LOCAL_VIDEO_REFERENCE_LIMIT_EXCEEDED"
     );
 });
+
+test("V142 identity fidelity blocks local actor generation before hardware inspection or GPU launch", async () => {
+    let hardwareInspections = 0;
+    let launches = 0;
+    const engine = createLocalVideoEngine({
+        root: fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-identity-fidelity-gate-")),
+        env: {
+            JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_TEST",
+            JARVIS_LOCAL_VIDEO_ENABLED: "true"
+        },
+        inspectHardware() {
+            hardwareInspections += 1;
+            return healthyCapability();
+        },
+        launch() {
+            launches += 1;
+            throw new Error("IDENTITY_GATE_MUST_BLOCK_BEFORE_LAUNCH");
+        }
+    });
+    const result = await engine.start({
+        script: "Preserve the referenced actor exactly.",
+        prompts: ["Actor walks and turns toward camera."],
+        referenceOutputs: [".jarvis-artifacts/images/actor-reference.png"],
+        requiresIdentityFidelity: true,
+        output: ".jarvis-artifacts/videos/identity-gate.mp4"
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.blocked, true);
+    assert.equal(result.status, "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED");
+    assert.equal(result.requiresIdentityFidelity, true);
+    assert.equal(result.referenceCount, 1);
+    assert.equal(result.gpuRentalSeconds, 0);
+    assert.equal(result.gpuRentalEstimatedCost, 0);
+    assert.equal(result.gpuRentalActualCost, 0);
+    assert.equal(hardwareInspections, 0);
+    assert.equal(launches, 0);
+});
+
+test("V142 identity fidelity selects external fallback only at resolver level and never spends locally", () => {
+    const preferred = describeLocalVideoPolicy({
+        JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_PREFERRED",
+        JARVIS_LOCAL_VIDEO_ENABLED: "true",
+        JARVIS_LOCAL_VIDEO_CERTIFIED: "true",
+        JARVIS_EXTERNAL_FALLBACK_ENABLED: "true"
+    });
+    const health = {
+        ok: true,
+        status: "LOCAL_VIDEO_HARDWARE_READY",
+        selectedBackend: "wan22-ti2v-5b",
+        model: {
+            backend: "wan22-ti2v-5b",
+            model: "Wan2.2-TI2V-5B",
+            imageToVideo: true,
+            maximumReferenceAssets: 1
+        }
+    };
+    const fallback = resolveVideoEngine({
+        policy: preferred,
+        health,
+        requirements: {
+            referenceCount: 1,
+            requiresImageToVideo: true,
+            requiresIdentityFidelity: true
+        }
+    });
+    assert.equal(fallback.ok, true);
+    assert.equal(fallback.engineUsed, "external");
+    assert.equal(fallback.provider, "google-veo");
+    assert.equal(fallback.fallbackUsed, true);
+    assert.match(fallback.fallbackReason, /LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED/);
+    assert.equal(fallback.externalApiUsed, false);
+    assert.equal(fallback.externalEstimatedCostUsd, 0);
+
+    const localOnly = resolveVideoEngine({
+        policy: describeLocalVideoPolicy({
+            JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_TEST",
+            JARVIS_LOCAL_VIDEO_ENABLED: "true"
+        }),
+        health,
+        requirements: {
+            referenceCount: 1,
+            requiresImageToVideo: true,
+            requiresIdentityFidelity: true
+        }
+    });
+    assert.equal(localOnly.ok, false);
+    assert.equal(localOnly.engineUsed, null);
+    assert.match(localOnly.status, /LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED/);
+    assert.equal(localOnly.externalApiUsed, false);
+});
+
+test("V142 public bridge forces identity fidelity for every referenced video start", () => {
+    const bridge = fs.readFileSync(
+        new URL("../jarvis-fs-bridge.js", import.meta.url),
+        "utf8"
+    );
+    const actuator = fs.readFileSync(
+        new URL("../gestia-core/jarvis/jarvis.actuator.pack.js", import.meta.url),
+        "utf8"
+    );
+    assert.match(bridge, /requiresIdentityFidelity:[\s\S]*Array\.isArray\(payload\.referenceOutputs\)/);
+    assert.match(actuator, /requiresIdentityFidelity: referenceImages\.length > 0/);
+});

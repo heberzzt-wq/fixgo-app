@@ -1300,6 +1300,7 @@ export function registerJarvisActuatorTools(runtime) {
                     sceneCount: prompts.length,
                     referenceCount: referenceImages.length,
                     requiresImageToVideo: referenceImages.length > 0,
+                    requiresIdentityFidelity: referenceImages.length > 0,
                     aspectRatio,
                     seriesId: seriesId || null,
                     episodeId: episodeId || null

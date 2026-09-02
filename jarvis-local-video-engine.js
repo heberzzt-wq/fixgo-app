@@ -547,6 +547,10 @@ function orderedBackendHealth(health = {}) {
 function backendRequirementFailure(backend = {}, requirements = {}) {
     const referenceCount = Math.max(0, Number(requirements.referenceCount || 0));
     const requiresImageToVideo = requirements.requiresImageToVideo === true || referenceCount > 0;
+    const requiresIdentityFidelity = requirements.requiresIdentityFidelity === true;
+    if (requiresIdentityFidelity && referenceCount > 0) {
+        return "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED";
+    }
     if (requiresImageToVideo && backend.imageToVideo !== true) {
         return "LOCAL_VIDEO_REFERENCES_UNSUPPORTED_BY_BACKEND";
     }
@@ -570,6 +574,7 @@ export function resolveVideoEngine({ policy, health, requirements = {} } = {}) {
     const mode = normalizedMode(effectivePolicy.mode);
     const referenceCount = Math.max(0, Number(requirements.referenceCount || 0));
     const requiresImageToVideo = requirements.requiresImageToVideo === true || referenceCount > 0;
+    const requiresIdentityFidelity = requirements.requiresIdentityFidelity === true;
     const excludedBackends = new Set(
         (Array.isArray(requirements.excludedBackends) ? requirements.excludedBackends : [])
             .map(String)
@@ -620,6 +625,7 @@ export function resolveVideoEngine({ policy, health, requirements = {} } = {}) {
         engineRequested: mode,
         referenceCount,
         requiresImageToVideo,
+        requiresIdentityFidelity,
         aspectRatio: requirements.aspectRatio || null,
         sceneCount: Math.max(0, Number(requirements.sceneCount || 0)),
         seriesId: requirements.seriesId || null,
@@ -4997,8 +5003,27 @@ export function createLocalVideoEngine({
     }
 
     async function start(payload = {}) {
-        const currentHealth = health();
         const referenceOutputs = Array.isArray(payload.referenceOutputs) ? payload.referenceOutputs : [];
+        const requiresIdentityFidelity =
+            payload.requiresIdentityFidelity === true &&
+            referenceOutputs.length > 0;
+        if (requiresIdentityFidelity) {
+            return {
+                ok: false,
+                blocked: true,
+                status: "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED",
+                error: "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED",
+                requiresIdentityFidelity: true,
+                referenceCount: referenceOutputs.length,
+                retryable: false,
+                externalApiUsed: false,
+                externalEstimatedCostUsd: 0,
+                gpuRentalSeconds: 0,
+                gpuRentalEstimatedCost: 0,
+                gpuRentalActualCost: 0
+            };
+        }
+        const currentHealth = health();
         const shotPlan = (Array.isArray(payload.shotPlan) ? payload.shotPlan : [])
             .map((shot, index) => ({
                 shotId: String(shot?.shotId || `shot-${index + 1}`).trim(),
@@ -5038,6 +5063,7 @@ export function createLocalVideoEngine({
             sceneCount: shotPlan.length || (Array.isArray(payload.prompts) ? payload.prompts.length : 0),
             referenceCount: referenceOutputs.length,
             requiresImageToVideo: referenceOutputs.length > 0,
+            requiresIdentityFidelity,
             aspectRatio: payload.aspectRatio === "16:9" ? "16:9" : "9:16",
             seriesId: payload.seriesId || null,
             episodeId: payload.episodeId || null,
