@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
+import { parse } from "acorn";
 
 import { buildReleaseArtifacts } from "../scripts/prepare-platform-release.mjs";
 import { waitForWorkerActivation, workerMatchesRelease } from "../platform-release.js";
@@ -78,4 +79,28 @@ test("B2C and B2B obtain Web Push identity from the Firebase singleton", () => {
         assert.match(source, /vapidKey:\s*GESTIA_FCM_VAPID_KEY/);
         assert.equal((source.match(/vapidKey:\s*['"]/g) || []).length, 0);
     }
+});
+
+test("technician page routes close and B2B start through existing canonical authorities", () => {
+    const source = fs.readFileSync(new URL("../tecnico.html", import.meta.url), "utf8");
+    const inlineModules = [...source.matchAll(/<script\s+type="module">([\s\S]*?)<\/script>/g)]
+        .map(match => match[1])
+        .filter(Boolean);
+
+    assert.ok(inlineModules.length >= 2);
+    for (const moduleSource of inlineModules) {
+        parse(moduleSource, { ecmaVersion: "latest", sourceType: "module" });
+    }
+
+    assert.match(source, /b2c_evidence\/\$\{serviceId\}\/\$\{uid\}\/\$\{eventType\}/);
+    assert.match(source, /button\.id === "btnSubirEvidencia"/);
+    assert.match(source, /event\.stopImmediatePropagation\(\)/);
+    assert.match(source, /cierre_operativo_completado:\s*true/);
+    assert.match(source, /cierre_financiero_pendiente_backend:\s*true/);
+    assert.match(source, /cierre_legacy_financiero_ejecutado:\s*false/);
+    assert.match(source, /work_evidence_binding_path:\s*bindingRef\.path/);
+    assert.match(source, /base64_persisted:\s*false/);
+    assert.match(source, /data\.cliente_id !== initial\.cliente_id/);
+    assert.doesNotMatch(source, /cliente_id:\s*["']admin_residencial["']/);
+    assert.doesNotMatch(source, /transaction\.set\(transRef/);
 });
