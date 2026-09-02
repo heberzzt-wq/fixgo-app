@@ -122,6 +122,26 @@ function ensureIdentityReferencesStaySeparate() {
   );
 }
 
+function ensureIdentityRuntimeCandidatePinned() {
+  const engineFile = "jarvis-local-video-engine.js";
+  const candidateMarker = "const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({";
+  if (!sourceOf(engineFile).includes(candidateMarker)) {
+    replaceExactOnce(
+      engineFile,
+      `const UNSUPPORTED_LOCAL_VIDEO_MODEL_PROFILE = Object.freeze({`,
+      `const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({\n    id: "humo-1.7b-identity",\n    role: "identity_fidelity_candidate",\n    sourceRepository: "Phantom-video/HuMo",\n    sourceRevision: "845f44736e21be93aa5d8cf406b6eb01af9bff67",\n    modelRepository: "bytedance-research/HuMo",\n    modelRevision: "3a4a1610d399a5cbb932d54dc229944029803ff7",\n    checkpoint: Object.freeze({\n        path: "HuMo-1.7B/ema.pth",\n        bytes: 7037053233,\n        sha256: "04126194caa9820c7294c95e321739575491693f2e97f2f1205cd469cd321332"\n    }),\n    zeroVae: Object.freeze({\n        path: "zero_vae_129frame.pt",\n        sha256: "c458d9ea111ea1107a576183cc291daa78fffacbe280967c0a0807fed9200830"\n    }),\n    wan21Vae: Object.freeze({\n        path: "Wan2.1_VAE.pth",\n        sha256: "38071ab59bd94681c686fa51d75a1968f64e470262043be31f7a094e442fd981"\n    }),\n    sharedT5: Object.freeze({\n        path: "models_t5_umt5-xxl-enc-bf16.pth",\n        sha256: "7cace0da2b446bbbbc57d031ab6cf163a3d59b366da94e5afe36745b746fd81d",\n        reuseExistingWan22Cache: true\n    }),\n    officialRuntime: Object.freeze({\n        python: "3.11",\n        torch: "2.5.1",\n        torchCuda: "12.4",\n        flashAttention: "2.6.3"\n    }),\n    targetGpuTypeId: "NVIDIA L40S",\n    candidatePortrait: Object.freeze({\n        width: 480,\n        height: 832,\n        fps: 25,\n        frames: 97\n    }),\n    physicalRuntimeCertified: false,\n    physicalPortraitCertified: false,\n    paidExecutionAuthorized: false\n});\n\nconst UNSUPPORTED_LOCAL_VIDEO_MODEL_PROFILE = Object.freeze({`,
+      "V142_PIN_HUMO_IDENTITY_CANDIDATE"
+    );
+  }
+
+  replaceExactOnce(
+    engineFile,
+    `    if (requiresIdentityFidelity && referenceCount > 0) {\n        return "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED";\n    }`,
+    `    if (requiresIdentityFidelity && referenceCount > 0) {\n        if (\n            RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalRuntimeCertified !== true ||\n            RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalPortraitCertified !== true ||\n            RUNPOD_HUMO_IDENTITY_CANDIDATE.paidExecutionAuthorized !== true\n        ) {\n            return "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED";\n        }\n    }`,
+    "V142_IDENTITY_CANDIDATE_REMAINS_FAIL_CLOSED"
+  );
+}
+
 function ensureIdentityFidelityRegression() {
   const testFile = "tests/jarvis-local-video-engine-v142.test.mjs";
 
@@ -144,11 +164,18 @@ function ensureIdentityFidelityRegression() {
     "V142 identity references remain separate until a certified identity runtime consumes them",
     `test("V142 identity references remain separate until a certified identity runtime consumes them", () => {\n    const source = fs.readFileSync(\n        new URL("../jarvis-local-video-engine.js", import.meta.url),\n        "utf8"\n    );\n    assert.match(\n        source,\n        /if \\(!requiresIdentityFidelity && references\\.length > Number\\(model\\.maximumReferenceAssets \\|\\| 0\\)\\)/\n    );\n    assert.match(source, /referencePreparation,\\n\\s+requiresIdentityFidelity,\\n\\s+executionTarget:/);\n    assert.match(\n        source,\n        /requiresIdentityFidelity: job\\.requiresIdentityFidelity === true/\n    );\n});`
   );
+
+  appendOnce(
+    testFile,
+    "V142 HuMo identity candidate is pinned and cannot authorize paid execution",
+    `test("V142 HuMo identity candidate is pinned and cannot authorize paid execution", () => {\n    const source = fs.readFileSync(\n        new URL("../jarvis-local-video-engine.js", import.meta.url),\n        "utf8"\n    );\n    const start = source.indexOf("const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({");\n    const end = source.indexOf("const UNSUPPORTED_LOCAL_VIDEO_MODEL_PROFILE", start);\n    assert.ok(start >= 0 && end > start);\n    const candidate = source.slice(start, end);\n    assert.match(candidate, /sourceRevision: "845f44736e21be93aa5d8cf406b6eb01af9bff67"/);\n    assert.match(candidate, /modelRevision: "3a4a1610d399a5cbb932d54dc229944029803ff7"/);\n    assert.match(candidate, /bytes: 7037053233/);\n    assert.match(candidate, /04126194caa9820c7294c95e321739575491693f2e97f2f1205cd469cd321332/);\n    assert.match(candidate, /c458d9ea111ea1107a576183cc291daa78fffacbe280967c0a0807fed9200830/);\n    assert.match(candidate, /38071ab59bd94681c686fa51d75a1968f64e470262043be31f7a094e442fd981/);\n    assert.match(candidate, /7cace0da2b446bbbbc57d031ab6cf163a3d59b366da94e5afe36745b746fd81d/);\n    assert.match(candidate, /reuseExistingWan22Cache: true/);\n    assert.match(candidate, /width: 480/);\n    assert.match(candidate, /height: 832/);\n    assert.match(candidate, /physicalRuntimeCertified: false/);\n    assert.match(candidate, /physicalPortraitCertified: false/);\n    assert.match(candidate, /paidExecutionAuthorized: false/);\n    assert.match(\n        source,\n        /RUNPOD_HUMO_IDENTITY_CANDIDATE\\.paidExecutionAuthorized !== true/\n    );\n});`
+  );
 }
 
 assertMaterializedV142Authority();
 ensureIdentityFidelityCannotBeBypassed();
 ensureIdentityReferencesStaySeparate();
+ensureIdentityRuntimeCandidatePinned();
 ensureIdentityFidelityRegression();
 
 const checks = [
@@ -167,7 +194,13 @@ const checks = [
     "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED",
     "maximumSourceReferenceAssets: 3",
     "!requiresIdentityFidelity && references.length > Number(model.maximumReferenceAssets || 0)",
-    "requiresIdentityFidelity: job.requiresIdentityFidelity === true"
+    "requiresIdentityFidelity: job.requiresIdentityFidelity === true",
+    "RUNPOD_HUMO_IDENTITY_CANDIDATE",
+    'sourceRevision: "845f44736e21be93aa5d8cf406b6eb01af9bff67"',
+    'modelRevision: "3a4a1610d399a5cbb932d54dc229944029803ff7"',
+    "physicalRuntimeCertified: false",
+    "physicalPortraitCertified: false",
+    "paidExecutionAuthorized: false"
   ]]
 ];
 
@@ -196,6 +229,10 @@ console.log(JSON.stringify({
   genericVideoBackend: "wan22-ti2v-5b",
   identityFidelityRequiredForReferences: true,
   identityReferencesRemainSeparate: true,
+  identityRuntimeCandidate: "humo-1.7b-identity",
+  identityRuntimePinned: true,
+  identityRuntimePhysicallyCertified: false,
+  identityRuntimePaidExecutionAuthorized: false,
   identitySpendBlockedUntilCertifiedBackend: true,
   externalFallbackAllowedForVideoGenerate: false,
   paidSpendGuardedByExistingRunpodAuthority: true,
