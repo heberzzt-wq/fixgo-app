@@ -6309,7 +6309,8 @@ test("V142 public video generation is fail closed to RunPod L40S", () => {
     assert.match(bridge, /requiredBackend: "wan22-ti2v-5b"/);
     assert.match(bridge, /JARVIS_LOCAL_VIDEO_EXECUTION_TARGET/);
     assert.match(bridge, /JARVIS_EXTERNAL_FALLBACK_ENABLED/);
-    assert.match(bridge, /invocationPayload\.requiresIdentityFidelity = false/);
+    assert.doesNotMatch(bridge, /invocationPayload\.requiresIdentityFidelity = false/);
+    assert.match(bridge, /RUNPOD_L40S_IDENTITY_BACKEND_REQUIRED/);
 });
 
 test("V142 Wan2.2 keeps three source references available for L40S routing", () => {
@@ -6341,4 +6342,26 @@ test("V142 Wan2.2 keeps three source references available for L40S routing", () 
     assert.equal(resolved.ok, true);
     assert.equal(resolved.engineUsed, "local");
     assert.equal(resolved.selectedBackend, "wan22-ti2v-5b");
+});
+
+test("V142 referenced L40S video cannot disable identity fidelity", () => {
+    const bridge = fs.readFileSync(
+        new URL("../jarvis-fs-bridge.js", import.meta.url),
+        "utf8"
+    );
+    const resolverStart = bridge.indexOf('app.post("/video/engine/resolve"');
+    const resolverEnd = bridge.indexOf('app.post("/local-ai/capability-report"', resolverStart);
+    const resolver = bridge.slice(resolverStart, resolverEnd);
+    const localStart = bridge.indexOf('["/video/local/start", "start"]');
+    const localEnd = bridge.indexOf('app.post("/video/import"', localStart);
+    const lifecycle = bridge.slice(localStart, localEnd);
+
+    assert.ok(resolverStart >= 0 && resolverEnd > resolverStart);
+    assert.ok(localStart >= 0 && localEnd > localStart);
+    assert.match(resolver, /requirements\.requiresIdentityFidelity === true/);
+    assert.match(resolver, /Number\(requirements\.referenceCount \|\| 0\) > 0/);
+    assert.match(resolver, /RUNPOD_L40S_IDENTITY_BACKEND_REQUIRED/);
+    assert.match(lifecycle, /payload\.referenceOutputs\.length > 0/);
+    assert.match(lifecycle, /RUNPOD_L40S_IDENTITY_BACKEND_REQUIRED/);
+    assert.doesNotMatch(bridge, /invocationPayload\.requiresIdentityFidelity = false/);
 });

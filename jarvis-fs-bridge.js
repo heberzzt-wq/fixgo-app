@@ -6622,9 +6622,33 @@ export function createJarvisFsBridgeApp({
         try {
             const requirements = req.body || {};
             if (requirements.requiresRunpodL40s === true) {
+                const identityRequested =
+                    requirements.requiresIdentityFidelity === true ||
+                    Number(requirements.referenceCount || 0) > 0;
+                if (identityRequested) {
+                    return res.json({
+                        ok: false,
+                        blocked: true,
+                        retryable: false,
+                        status: "RUNPOD_L40S_IDENTITY_BACKEND_REQUIRED",
+                        error: "RUNPOD_L40S_IDENTITY_BACKEND_REQUIRED",
+                        engineUsed: null,
+                        provider: null,
+                        selectedBackend: null,
+                        fallbackUsed: false,
+                        externalFallbackEnabled: false,
+                        externalApiUsed: false,
+                        externalEstimatedCostUsd: 0,
+                        gpuRentalSeconds: 0,
+                        gpuRentalEstimatedCost: 0,
+                        gpuRentalActualCost: 0,
+                        requiresRunpodL40s: true,
+                        requiresIdentityFidelity: true,
+                        requiredGpuTypeId: "NVIDIA L40S"
+                    });
+                }
                 const decision = videoEngine.resolve({
                     ...requirements,
-                    requiresIdentityFidelity: false,
                     selectedBackend: "wan22-ti2v-5b"
                 });
                 const exactRunpodL40sDecision =
@@ -6736,6 +6760,27 @@ export function createJarvisFsBridgeApp({
                     }
                     : payload;
                 if (action === "start" && payload.requiresRunpodL40s === true) {
+                    const identityRequested =
+                        Array.isArray(payload.referenceOutputs) &&
+                        payload.referenceOutputs.length > 0;
+                    if (identityRequested) {
+                        return res.status(409).json({
+                            ok: false,
+                            blocked: true,
+                            retryable: false,
+                            status: "RUNPOD_L40S_IDENTITY_BACKEND_REQUIRED",
+                            error: "RUNPOD_L40S_IDENTITY_BACKEND_REQUIRED",
+                            requiredProvider: "runpod",
+                            requiredGpuTypeId: "NVIDIA L40S",
+                            requiredCapability: "identity_fidelity",
+                            externalApiUsed: false,
+                            externalEstimatedCostUsd: 0,
+                            gpuRentalSeconds: 0,
+                            gpuRentalEstimatedCost: 0,
+                            gpuRentalActualCost: 0,
+                            version: JARVIS_FS_BRIDGE_VERSION
+                        });
+                    }
                     const exactRunpodL40sConfiguration =
                         runpodEnabled === true &&
                         String(process.env.JARVIS_LOCAL_VIDEO_EXECUTION_TARGET || "").trim().toLowerCase() === "remote" &&
@@ -6763,7 +6808,6 @@ export function createJarvisFsBridgeApp({
                             version: JARVIS_FS_BRIDGE_VERSION
                         });
                     }
-                    invocationPayload.requiresIdentityFidelity = false;
                     invocationPayload.requiresRunpodL40s = true;
                 }
                 const result = await videoEngine[action](invocationPayload);
