@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "acorn": "^8.18.0",
-    "cors": "^8.6",
+    "cors": "^2.8.6",
     "docx": "^9.7.1",
     "exceljs": "^4.4.0",
     "express": "^5.2.1",
