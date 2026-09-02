@@ -1,12 +1,13 @@
-"""Offline Wan runner for the Jarvis V142 local video worker.
+"""Offline video runner for the Jarvis V142 local video worker.
 
 This process never calls a hosted inference API. It delegates generation to a
-locally checked-out official Wan repository and writes a durable result manifest
+locally checked-out official runtime and writes a durable result manifest
 consumed and independently verified by the Node bridge.
 
 The filename is retained for V142/backward compatibility. The worker accepts
-both the existing Wan2.2 TI2V-5B backend and an explicit lightweight Wan2.1
-T2V-1.3B backend without changing the public video.generate contract.
+the existing Wan2.2 TI2V-5B backend, the explicit lightweight Wan2.1 T2V-1.3B
+backend, and a pinned HuMo identity candidate that remains physically uncertified
+and non-executable until the existing authority explicitly certifies it.
 """
 
 from __future__ import annotations
@@ -63,6 +64,25 @@ BACKENDS: dict[str, dict[str, Any]] = {
             "--sample_shift", "8",
             "--sample_guide_scale", "6",
         ],
+    },
+    "humo-1.7b-identity": {
+        "model": "HuMo-1.7B",
+        "repo_env": "JARVIS_HUMO_REPO_DIR",
+        "runtime": "humo",
+        "entrypoint": "main.py",
+        "config_path": "humo/configs/inference/generate_1_7B.yaml",
+        "mode": "TIA",
+        "portrait_size": "480*832",
+        "landscape_size": "832*480",
+        "target_fps": 25.0,
+        "frame_count": 97,
+        "reference_assets": True,
+        "max_reference_assets": 3,
+        "audio_required": True,
+        "physical_runtime_certified": False,
+        "physical_portrait_certified": False,
+        "paid_execution_authorized": False,
+        "extra_args": [],
     },
 }
 
@@ -160,6 +180,13 @@ def resolve_backend(job: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     requested_model = str(job.get("model") or expected_model).strip()
     if requested_model != expected_model:
         raise RuntimeError("LOCAL_VIDEO_BACKEND_MODEL_MISMATCH")
+    if config.get("runtime") == "humo":
+        if (
+            config.get("physical_runtime_certified") is not True
+            or config.get("physical_portrait_certified") is not True
+            or config.get("paid_execution_authorized") is not True
+        ):
+            raise RuntimeError("LOCAL_VIDEO_IDENTITY_RUNTIME_NOT_CERTIFIED")
     return backend, config
 
 
