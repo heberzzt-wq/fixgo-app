@@ -17,6 +17,22 @@ function replaceExactOnce(file, before, after, label) {
   write(file, source);
 }
 
+function replaceWithinTest(file, title, before, after, label) {
+  let source = sourceOf(file);
+  const marker = `test("${title}"`;
+  const start = source.indexOf(marker);
+  if (start < 0) throw new Error(`${label}_TEST_NOT_FOUND`);
+  const next = source.indexOf('\ntest("', start + marker.length);
+  const end = next < 0 ? source.length : next;
+  let block = source.slice(start, end);
+  if (block.includes(after)) return;
+  const count = block.split(before).length - 1;
+  if (count !== 1) throw new Error(`${label}_MATCH_COUNT_${count}`);
+  block = block.replace(before, after);
+  source = `${source.slice(0, start)}${block}${source.slice(end)}`;
+  write(file, source);
+}
+
 function appendOnce(file, marker, addition) {
   let source = sourceOf(file);
   if (source.includes(marker)) return;
@@ -100,6 +116,25 @@ function ensureRunpodL40sVideoAuthority() {
 }
 
 function ensureRunpodL40sRegression() {
+  const legacyCloudTestFile = "tests/jarvis-actuator-pack.test.mjs";
+  const explicitLegacyResolver = `if (path === "/video/engine/resolve") {\n                    return {\n                        ok: true,\n                        policy: "CURRENT_STABLE",\n                        engineRequested: "CURRENT_STABLE",\n                        engineUsed: "external",\n                        fallbackUsed: false\n                    };\n                }\n                `;
+
+  replaceWithinTest(
+    legacyCloudTestFile,
+    "video generation recovers a transient poll on the same operation without a second start",
+    `async requestJson(path, payload) {\n                if (path === "/video/engine/authorize-external") {`,
+    `async requestJson(path, payload) {\n                ${explicitLegacyResolver}if (path === "/video/engine/authorize-external") {`,
+    "V142_EXPLICIT_LEGACY_CLOUD_POLL_TEST"
+  );
+
+  replaceWithinTest(
+    legacyCloudTestFile,
+    "video generation stays blocked when import does not prove a physical MP4",
+    `async requestJson() {\n                return {`,
+    `async requestJson(route) {\n                if (route === "/video/engine/resolve") {\n                    return {\n                        ok: true,\n                        policy: "CURRENT_STABLE",\n                        engineRequested: "CURRENT_STABLE",\n                        engineUsed: "external",\n                        fallbackUsed: false\n                    };\n                }\n                return {`,
+    "V142_EXPLICIT_LEGACY_CLOUD_IMPORT_TEST"
+  );
+
   appendOnce(
     "tests/jarvis-local-video-engine-v142.test.mjs",
     "V142 public video generation is fail closed to RunPod L40S",
