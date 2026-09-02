@@ -8,6 +8,9 @@ const {
     createSetGlobalPaymentGatewaysHandler,
     createSetCustomerPaymentPermissionsHandler
 } = require("./b2c-platform-authority");
+const {
+    createCancelB2cServiceHandler
+} = require("./b2c-service-marketplace");
 
 class HttpsError extends Error {
     constructor(code, message) {
@@ -51,7 +54,8 @@ function fakeDb(seed) {
                 async get(target) { return snapshot(target.id, data.get(target.path), target); },
                 create(target, value) { writes.push(() => data.set(target.path, value)); },
                 set(target, value, options) { writes.push(() => data.set(target.path, options?.merge ? { ...(data.get(target.path) || {}), ...value } : value)); },
-                update(target, value) { writes.push(() => data.set(target.path, { ...(data.get(target.path) || {}), ...value })); }
+                update(target, value) { writes.push(() => data.set(target.path, { ...(data.get(target.path) || {}), ...value })); },
+                delete(target) { writes.push(() => data.delete(target.path)); }
             };
             const result = await callback(transaction);
             writes.forEach(write => write());
@@ -82,6 +86,12 @@ const destination = {
             rol: "cliente",
             tipo_cuenta: "B2C",
             nombre: "Cliente",
+            pagos: { stripe_autorizado: false, efectivo_autorizado: true }
+        },
+        "users/client-2": {
+            rol: "cliente",
+            tipo_cuenta: "B2C",
+            nombre: "Otro cliente",
             pagos: { stripe_autorizado: false, efectivo_autorizado: true }
         },
         "users/tech-covered": {
@@ -124,6 +134,57 @@ const destination = {
         contract_version: "b2c-platform-contract-v2"
     });
     assert.equal(Object.hasOwn(service, "auditoria.create_authority"), false);
+
+    const cancel = createCancelB2cServiceHandler({ admin, db, functions });
+    const cancellation = await cancel(
+        { serviceId: "service_cash_1", reason: "Cancelado por el cliente antes de asignación" },
+        context
+    );
+    assert.equal(cancellation.ok, true);
+    assert.equal(cancellation.actor, "cliente");
+    assert.equal(cancellation.estado, "cancelado");
+    assert.equal(db.data.get("services/service_cash_1").estado, "cancelado");
+    assert.equal(db.data.get("services/service_cash_1")["auditoria.cancel_actor"], "cliente");
+    assert.equal(
+        [...db.data.values()].some(value => value?.tipo === "penalizacion" && value?.servicio_id === "service_cash_1"),
+        false
+    );
+
+    db.data.set("services/service_cash_foreign_1", {
+        tipo: "b2c",
+        estado: "pendiente",
+        cliente_id: "client-1",
+        metodo_pago: "efectivo",
+        tecnico_id: null
+    });
+    await assert.rejects(
+        cancel(
+            { serviceId: "service_cash_foreign_1", reason: "Intento de cancelación por tercero" },
+            { auth: { uid: "client-2", token: {} } }
+        ),
+        error => error.code === "permission-denied"
+    );
+    assert.equal(db.data.get("services/service_cash_foreign_1").estado, "pendiente");
+
+    db.data.set("services/service_stripe_paid_1", {
+        tipo: "b2c",
+        estado: "pendiente",
+        cliente_id: "client-1",
+        metodo_pago: "stripe",
+        tecnico_id: null,
+        fecha_pago: "server-time",
+        ultimo_pago_id: "checkout-paid",
+        monto_pagado: 550
+    });
+    await assert.rejects(
+        cancel(
+            { serviceId: "service_stripe_paid_1", reason: "Cliente solicita cancelar pago confirmado" },
+            context
+        ),
+        error => error.code === "failed-precondition" && /pago Stripe confirmado/i.test(error.message)
+    );
+    assert.equal(db.data.get("services/service_stripe_paid_1").estado, "pendiente");
+
     await assert.rejects(
         create({ serviceId: "service_disabled_1", metodo_pago: "efectivo", categoria_id: "fix_electricidad", destino: destination }, context),
         error => error.code === "failed-precondition" && error.message === "SERVICE_CATEGORY_DISABLED"
