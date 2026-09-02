@@ -342,6 +342,47 @@ service cloud.firestore {
       );
     }
 
+    // Sello de evidencia de cierre consumido por el settlement backend existente.
+    match /services/{serviceId}/work_evidence_bindings/{bindingId} {
+      function bindingService() {
+        return get(/databases/$(database)/documents/services/$(serviceId)).data;
+      }
+
+      allow read: if isAuth() && (
+        isAdmin() ||
+        bindingService().get('cliente_id', null) == request.auth.uid ||
+        bindingService().get('tecnico_id', null) == request.auth.uid
+      );
+
+      allow create: if isAuth() &&
+        bindingId == 'current' &&
+        bindingService().get('estado', '') == 'trabajando' &&
+        bindingService().get('tecnico_id', null) == request.auth.uid &&
+        request.resource.data.keys().hasOnly([
+          'service_id', 'technician_id', 'before', 'after', 'signature',
+          'created_at', 'authority'
+        ]) &&
+        request.resource.data.get('service_id', '') == serviceId &&
+        request.resource.data.get('technician_id', '') == request.auth.uid &&
+        request.resource.data.get('before', {}).get('sha256', '').matches('^[a-f0-9]{64}$') &&
+        request.resource.data.get('before', {}).get('storage_path', '').matches('^servicios/' + serviceId + '/antes_1_.*\\.jpg$') &&
+        request.resource.data.get('before', {}).get('download_url', '') is string &&
+        request.resource.data.get('before', {}).get('download_url', '').size() > 0 &&
+        request.resource.data.get('after', {}).get('sha256', '').matches('^[a-f0-9]{64}$') &&
+        request.resource.data.get('after', {}).get('storage_path', '').matches('^servicios/' + serviceId + '/despues_1_.*\\.jpg$') &&
+        request.resource.data.get('after', {}).get('download_url', '') is string &&
+        request.resource.data.get('after', {}).get('download_url', '').size() > 0 &&
+        request.resource.data.get('signature', {}).get('present', false) == true &&
+        request.resource.data.get('signature', {}).get('sha256', '').matches('^[a-f0-9]{64}$') &&
+        request.resource.data.get('signature', {}).get('storage_path', '').matches('^servicios/' + serviceId + '/customer_signature_.*\\.png$') &&
+        request.resource.data.get('signature', {}).get('download_url', '') is string &&
+        request.resource.data.get('signature', {}).get('download_url', '').size() > 0 &&
+        request.resource.data.get('signature', {}).get('base64_persisted', true) == false;
+
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
     // Proyección mínima de descubrimiento. El expediente completo permanece en services.
     match /service_marketplace/{serviceId} {
       allow read: if isOperationalTechnician() || isAdmin();
