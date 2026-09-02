@@ -539,7 +539,8 @@ function orderedBackendHealth(health = {}) {
             backend,
             model: model?.model || health?.model || null,
             imageToVideo: model?.imageToVideo === true,
-            maximumReferenceAssets: Number(model?.maximumReferenceAssets || 0)
+            maximumReferenceAssets: Number(model?.maximumReferenceAssets || 0),
+            maximumSourceReferenceAssets: Number(model?.maximumSourceReferenceAssets ?? model?.maximumReferenceAssets ?? 0)
         }]
         : [];
 }

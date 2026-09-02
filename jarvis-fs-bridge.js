@@ -6620,6 +6620,49 @@ export function createJarvisFsBridgeApp({
 
     app.post("/video/engine/resolve", (req, res) => {
         try {
+            const requirements = req.body || {};
+            if (requirements.requiresRunpodL40s === true) {
+                const decision = videoEngine.resolve({
+                    ...requirements,
+                    requiresIdentityFidelity: false,
+                    selectedBackend: "wan22-ti2v-5b"
+                });
+                const exactRunpodL40sDecision =
+                    decision?.ok === true &&
+                    decision?.engineUsed === "local" &&
+                    decision?.selectedBackend === "wan22-ti2v-5b";
+                if (!exactRunpodL40sDecision) {
+                    return res.json({
+                        ...(decision || {}),
+                        ok: false,
+                        blocked: true,
+                        retryable: false,
+                        status: "RUNPOD_L40S_VIDEO_REQUIRED",
+                        error: "RUNPOD_L40S_VIDEO_REQUIRED",
+                        engineUsed: null,
+                        provider: null,
+                        selectedBackend: null,
+                        fallbackUsed: false,
+                        externalFallbackEnabled: false,
+                        externalApiUsed: false,
+                        externalEstimatedCostUsd: 0,
+                        gpuRentalSeconds: 0,
+                        gpuRentalEstimatedCost: 0,
+                        gpuRentalActualCost: 0,
+                        requiresRunpodL40s: true
+                    });
+                }
+                return res.json({
+                    ...decision,
+                    provider: "runpod",
+                    requiresRunpodL40s: true,
+                    fallbackUsed: false,
+                    fallbackReason: null,
+                    externalFallbackEnabled: false,
+                    externalApiUsed: false,
+                    externalEstimatedCostUsd: 0
+                });
+            }
             return res.json(videoEngine.resolve(req.body || {}));
         }
         catch(error) {
@@ -6692,6 +6735,37 @@ export function createJarvisFsBridgeApp({
                             payload.referenceOutputs.length > 0
                     }
                     : payload;
+                if (action === "start" && payload.requiresRunpodL40s === true) {
+                    const exactRunpodL40sConfiguration =
+                        runpodEnabled === true &&
+                        String(process.env.JARVIS_LOCAL_VIDEO_EXECUTION_TARGET || "").trim().toLowerCase() === "remote" &&
+                        String(process.env.JARVIS_REMOTE_GPU_PROVIDER || "").trim().toLowerCase() === "runpod" &&
+                        String(process.env.JARVIS_RUNPOD_GPU_TYPE_ID || "").trim() === "NVIDIA L40S" &&
+                        String(process.env.JARVIS_LOCAL_VIDEO_MODEL || "").trim().toLowerCase() === "wan22-ti2v-5b" &&
+                        String(process.env.JARVIS_VIDEO_ENGINE_POLICY || "").trim().toUpperCase() === "LOCAL_TEST" &&
+                        String(process.env.JARVIS_EXTERNAL_FALLBACK_ENABLED || "false").trim().toLowerCase() === "false";
+                    if (!exactRunpodL40sConfiguration) {
+                        return res.status(409).json({
+                            ok: false,
+                            blocked: true,
+                            retryable: false,
+                            status: "RUNPOD_L40S_VIDEO_REQUIRED",
+                            error: "RUNPOD_L40S_VIDEO_REQUIRED",
+                            requiredProvider: "runpod",
+                            requiredGpuTypeId: "NVIDIA L40S",
+                            requiredBackend: "wan22-ti2v-5b",
+                            requiredExecutionTarget: "remote",
+                            externalApiUsed: false,
+                            externalEstimatedCostUsd: 0,
+                            gpuRentalSeconds: 0,
+                            gpuRentalEstimatedCost: 0,
+                            gpuRentalActualCost: 0,
+                            version: JARVIS_FS_BRIDGE_VERSION
+                        });
+                    }
+                    invocationPayload.requiresIdentityFidelity = false;
+                    invocationPayload.requiresRunpodL40s = true;
+                }
                 const result = await videoEngine[action](invocationPayload);
                 return res.status(result.ok === true ? 200 : 400).json(result);
             }

@@ -1099,6 +1099,15 @@ test("video generation recovers a transient poll on the same operation without a
         };
         globalThis.JarvisLocalBridge = {
             async requestJson(path, payload) {
+                if (path === "/video/engine/resolve") {
+                    return {
+                        ok: true,
+                        policy: "CURRENT_STABLE",
+                        engineRequested: "CURRENT_STABLE",
+                        engineUsed: "external",
+                        fallbackUsed: false
+                    };
+                }
                 if (path === "/video/engine/authorize-external") {
                     assert.equal(payload.segmentCount, 1);
                     return {
@@ -1260,7 +1269,16 @@ test("video generation stays blocked when import does not prove a physical MP4",
             };
         };
         globalThis.JarvisLocalBridge = {
-            async requestJson() {
+            async requestJson(route) {
+                if (route === "/video/engine/resolve") {
+                    return {
+                        ok: true,
+                        policy: "CURRENT_STABLE",
+                        engineRequested: "CURRENT_STABLE",
+                        engineUsed: "external",
+                        fallbackUsed: false
+                    };
+                }
                 return {
                     ok: true,
                     status: "VIDEO_IMPORT_REPORTED_WITHOUT_FILE",

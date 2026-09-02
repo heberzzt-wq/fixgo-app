@@ -6293,3 +6293,52 @@ test("V142 public bridge forces identity fidelity for every referenced video sta
     assert.match(bridge, /requiresIdentityFidelity:[\s\S]*Array\.isArray\(payload\.referenceOutputs\)/);
     assert.match(actuator, /requiresIdentityFidelity: referenceImages\.length > 0/);
 });
+
+test("V142 public video generation is fail closed to RunPod L40S", () => {
+    const actuator = fs.readFileSync(
+        new URL("../gestia-core/jarvis/jarvis.actuator.pack.js", import.meta.url),
+        "utf8"
+    );
+    const bridge = fs.readFileSync(
+        new URL("../jarvis-fs-bridge.js", import.meta.url),
+        "utf8"
+    );
+    assert.match(actuator, /requiresRunpodL40s: true/);
+    assert.match(actuator, /RUNPOD_L40S_VIDEO_REQUIRED/);
+    assert.match(bridge, /requiredGpuTypeId: "NVIDIA L40S"/);
+    assert.match(bridge, /requiredBackend: "wan22-ti2v-5b"/);
+    assert.match(bridge, /JARVIS_LOCAL_VIDEO_EXECUTION_TARGET/);
+    assert.match(bridge, /JARVIS_EXTERNAL_FALLBACK_ENABLED/);
+    assert.match(bridge, /invocationPayload\.requiresIdentityFidelity = false/);
+});
+
+test("V142 Wan2.2 keeps three source references available for L40S routing", () => {
+    const policy = describeLocalVideoPolicy({
+        JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_TEST",
+        JARVIS_LOCAL_VIDEO_ENABLED: "true"
+    });
+    const resolved = resolveVideoEngine({
+        policy,
+        health: {
+            ok: true,
+            status: "REMOTE_VIDEO_PROVISIONING_CONFIGURED",
+            selectedBackend: "wan22-ti2v-5b",
+            modelRequirements: {
+                backend: "wan22-ti2v-5b",
+                model: "Wan2.2-TI2V-5B",
+                imageToVideo: true,
+                maximumReferenceAssets: 1,
+                maximumSourceReferenceAssets: 3
+            }
+        },
+        requirements: {
+            selectedBackend: "wan22-ti2v-5b",
+            referenceCount: 2,
+            requiresImageToVideo: true,
+            requiresIdentityFidelity: false
+        }
+    });
+    assert.equal(resolved.ok, true);
+    assert.equal(resolved.engineUsed, "local");
+    assert.equal(resolved.selectedBackend, "wan22-ti2v-5b");
+});

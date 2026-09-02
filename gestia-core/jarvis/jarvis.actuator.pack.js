@@ -1297,6 +1297,7 @@ export function registerJarvisActuatorTools(runtime) {
                 let engineDecision;
                 const engineRequirements = {
                     capability: "video.generate",
+                    requiresRunpodL40s: true,
                     sceneCount: prompts.length,
                     referenceCount: referenceImages.length,
                     requiresImageToVideo: referenceImages.length > 0,
@@ -1313,15 +1314,23 @@ export function registerJarvisActuatorTools(runtime) {
                 }
                 if (!engineDecision || !engineDecision.policy) {
                     engineDecision = {
-                        ok: true,
-                        status: "VIDEO_ENGINE_CURRENT_STABLE_COMPATIBILITY",
-                        policy: "CURRENT_STABLE",
-                        engineRequested: "CURRENT_STABLE",
-                        engineUsed: "external",
+                        ok: false,
+                        blocked: true,
+                        retryable: false,
+                        status: "RUNPOD_L40S_VIDEO_REQUIRED",
+                        error: "RUNPOD_L40S_VIDEO_REQUIRED",
+                        policy: "LOCAL_TEST",
+                        engineRequested: "RUNPOD_L40S",
+                        engineUsed: null,
+                        provider: null,
+                        requiresRunpodL40s: true,
                         fallbackUsed: false,
                         fallbackReason: null,
                         externalApiUsed: false,
-                        externalEstimatedCostUsd: 0
+                        externalEstimatedCostUsd: 0,
+                        gpuRentalSeconds: 0,
+                        gpuRentalEstimatedCost: 0,
+                        gpuRentalActualCost: 0
                     };
                 }
                 if (engineDecision.ok !== true || !engineDecision.engineUsed) {
@@ -1399,6 +1408,7 @@ export function registerJarvisActuatorTools(runtime) {
                             seriesId: seriesId || null,
                             episodeId: episodeId || null,
                             selectedBackend: engineDecision.selectedBackend || null,
+                            requiresRunpodL40s: true,
                             missionId: context?.missionId || null,
                             objectiveId: context?.objectiveId || null,
                             obligationId: context?.obligationId || null,
