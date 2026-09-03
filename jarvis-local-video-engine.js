@@ -1776,26 +1776,211 @@ export function createRunpodRemoteVideoAdapter({
         }
     }
 
+    function configuredRemoteBackend() {
+        return LOCAL_VIDEO_MODEL_ALIASES[configuredBackend] || configuredBackend;
+    }
+
+    function isHuMoRemoteJob(job = null) {
+        const backend = String(job?.backend || configuredRemoteBackend()).trim().toLowerCase();
+        return (LOCAL_VIDEO_MODEL_ALIASES[backend] || backend) === HUMO_IDENTITY_PROBE.backend;
+    }
+
+    function remoteHuMoLifecycleContract(job = null) {
+        if (!isHuMoRemoteJob(job)) return null;
+        const runtime = RUNPOD_HUMO_IDENTITY_CANDIDATE.remoteRuntimeBase;
+        const cacheRoot = `${remoteBase}/cache/humo-1.7b`;
+        const weightsRoot = `${cacheRoot}/weights`;
+        const wanProfile = cacheContract || RUNPOD_WAN22_GPU_PROFILES[RUNPOD_HUMO_IDENTITY_CANDIDATE.targetGpuTypeId];
+        return {
+            kind: "humo",
+            backend: HUMO_IDENTITY_PROBE.backend,
+            model: HUMO_IDENTITY_PROBE.model,
+            cacheRoot,
+            repositoryDir: `${cacheRoot}/HuMo`,
+            weightsDir: `${weightsRoot}/HuMo`,
+            wan21Dir: `${weightsRoot}/Wan2.1-T2V-1.3B`,
+            whisperDir: `${weightsRoot}/whisper-large-v3`,
+            separatorFile: `${weightsRoot}/HuMo/${RUNPOD_HUMO_IDENTITY_CANDIDATE.audioSeparator.path}`,
+            venvDir: `${cacheRoot}/venv`,
+            runtimePreflightFile: `${cacheRoot}/runtime-preflight.json`,
+            profile: {
+                profile: "humo-1.7b-identity",
+                provisionImageTag: runtime.provisionImageTag,
+                expectedRegistryDigest: runtime.expectedRegistryDigest,
+                minimumRamGb: Number(wanProfile?.minimumRamGb || 62),
+                minimumVcpu: Number(wanProfile?.minimumVcpu || 16),
+                minimumVramGb: Number(HUMO_IDENTITY_PROBE.minimumVramGb),
+                computeCapability: String(wanProfile?.computeCapability || "8.9"),
+                runtimeIdentity: {
+                    operatingSystem: "ubuntu-22.04",
+                    pythonVersionPrefix: runtime.basePython + ".",
+                    torchVersionPrefix: runtime.baseTorch,
+                    torchCudaVersionPrefix: "12.4"
+                },
+                registry: runtime.registry,
+                repository: runtime.repository,
+                tag: runtime.tag,
+                modelRepository: RUNPOD_HUMO_IDENTITY_CANDIDATE.modelRepository,
+                modelRevision: RUNPOD_HUMO_IDENTITY_CANDIDATE.modelRevision,
+                sourceRevision: RUNPOD_HUMO_IDENTITY_CANDIDATE.sourceRevision
+            }
+        };
+    }
+
+    function assertHuMoPaidExecutionAuthority(job = null) {
+        if (!isHuMoRemoteJob(job)) return;
+        if (runtimeCertificationOnly === true) return;
+        if (RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalRuntimeCertified !== true) {
+            throw new Error("RUNPOD_HUMO_RUNTIME_PREFLIGHT_CERTIFICATION_REQUIRED");
+        }
+        if (RUNPOD_HUMO_IDENTITY_CANDIDATE.paidExecutionAuthorized !== true) {
+            throw new Error("RUNPOD_HUMO_PAID_EXECUTION_AUTHORITY_REQUIRED");
+        }
+    }
+
+    function inspectHuMoRuntimeCertificationPrecheck({ job = null, registryVerification = null } = {}) {
+        try {
+            const lifecycle = remoteHuMoLifecycleContract(job);
+            if (!lifecycle) throw new Error("RUNPOD_HUMO_BACKEND_REQUIRED");
+            if (provider !== "runpod") throw new Error("RUNPOD_PROVIDER_NOT_ENABLED");
+            if (configuredPolicy !== "LOCAL_TEST") throw new Error("RUNPOD_LOCAL_TEST_POLICY_REQUIRED");
+            if (runtimeCertificationOnly !== true) throw new Error("RUNPOD_HUMO_RUNTIME_CERTIFICATION_MODE_REQUIRED");
+            if (!hardBudgetExplicit) throw new Error("RUNPOD_HARD_BUDGET_REQUIRED");
+            if (gpuTypeId !== RUNPOD_HUMO_IDENTITY_CANDIDATE.targetGpuTypeId) {
+                throw new Error("RUNPOD_HUMO_L40S_REQUIRED");
+            }
+            if (networkVolumeId) throw new Error("RUNPOD_HUMO_NETWORK_VOLUME_CACHE_UNCERTIFIED");
+            if (!/^[a-f0-9]{40}$/.test(configuredCanonicalSha)) {
+                throw new Error("RUNPOD_CANONICAL_SHA_REQUIRED");
+            }
+            if (currentCanonicalSha() !== configuredCanonicalSha) {
+                throw new Error("RUNPOD_CANONICAL_SHA_MISMATCH");
+            }
+            const bridgeIdentity = currentBridgeIdentity();
+            if (bridgeIdentity.ok !== true || bridgeIdentity.status !== "BRIDGE_IDENTITY_OK") {
+                throw new Error("RUNPOD_BRIDGE_IDENTITY_REQUIRED");
+            }
+            if (job) {
+                if (
+                    job.executionTarget !== "remote" ||
+                    job.backend !== HUMO_IDENTITY_PROBE.backend ||
+                    job.model !== HUMO_IDENTITY_PROBE.model ||
+                    job.externalApiAllowed !== false ||
+                    !job.missionId || !job.objectiveId || !job.obligationId ||
+                    !/^[a-f0-9]{64}$/i.test(String(job.rootInstructionHash || ""))
+                ) {
+                    throw new Error("RUNPOD_HUMO_RUNTIME_CERTIFICATION_JOB_INVALID");
+                }
+            }
+            const verifiedRegistry = normalizedRegistryVerification(lifecycle.profile, registryVerification);
+            const hourlyRateUsd = Number(configuredTotalHourlyRateUsd);
+            const maximumSpendBeforeCleanupUsd = Number((hardBudgetUsd * budgetStopRatio).toFixed(6));
+            return {
+                ok: true,
+                phase: "HUMO_RUNTIME_CERTIFICATION_PREFLIGHT",
+                status: "RUNPOD_HUMO_RUNTIME_CERTIFICATION_READY_BLOCKED",
+                backend: HUMO_IDENTITY_PROBE.backend,
+                model: HUMO_IDENTITY_PROBE.model,
+                targetGpuTypeId: RUNPOD_HUMO_IDENTITY_CANDIDATE.targetGpuTypeId,
+                resourceCreationPossible: false,
+                inferencePossible: false,
+                providerTrafficUsed: false,
+                runtimeCertificationOnly: true,
+                releaseRequired: true,
+                economics: {
+                    hourlyRateUsd,
+                    hardBudgetUsd,
+                    stopRatio: budgetStopRatio,
+                    maximumSpendBeforeCleanupUsd,
+                    maximumAuthorizedSeconds: Math.floor(maximumSpendBeforeCleanupUsd * 3600 / hourlyRateUsd)
+                },
+                cache: { expectedStatus: "CACHE_MISS" },
+                contract: {
+                    provisionImageTag: lifecycle.profile.provisionImageTag,
+                    expectedRegistryDigest: lifecycle.profile.expectedRegistryDigest,
+                    registryVerification: verifiedRegistry,
+                    sourceRevision: lifecycle.profile.sourceRevision,
+                    modelRevision: lifecycle.profile.modelRevision
+                }
+            };
+        }
+        catch(error) {
+            return {
+                ok: false,
+                phase: "HUMO_RUNTIME_CERTIFICATION_PREFLIGHT",
+                status: error?.message || "RUNPOD_HUMO_RUNTIME_CERTIFICATION_PREFLIGHT_FAILED",
+                error: error?.message || "RUNPOD_HUMO_RUNTIME_CERTIFICATION_PREFLIGHT_FAILED",
+                resourceCreationPossible: false,
+                inferencePossible: false,
+                providerTrafficUsed: false
+            };
+        }
+    }
+
+    function inspectHuMoRemoteLifecyclePlan({ job = null, registryVerification = null } = {}) {
+        const precheck = inspectHuMoZeroCostPrecheck({ job, registryVerification });
+        if (precheck.ok !== true) return precheck;
+        const lifecycle = remoteHuMoLifecycleContract(job);
+        return {
+            ...precheck,
+            phase: "HUMO_REMOTE_LIFECYCLE_PLAN",
+            status: "RUNPOD_HUMO_REMOTE_LIFECYCLE_READY_BLOCKED",
+            resourceCreationPossible: false,
+            providerTrafficUsed: false,
+            releaseRequired: true,
+            lifecycle: {
+                kind: lifecycle.kind,
+                cacheRoot: lifecycle.cacheRoot,
+                repositoryDir: lifecycle.repositoryDir,
+                weightsDir: lifecycle.weightsDir,
+                wan21Dir: lifecycle.wan21Dir,
+                whisperDir: lifecycle.whisperDir,
+                separatorFile: lifecycle.separatorFile,
+                venvDir: lifecycle.venvDir,
+                provisionImageTag: lifecycle.profile.provisionImageTag,
+                expectedRegistryDigest: lifecycle.profile.expectedRegistryDigest,
+                sourceRevision: lifecycle.profile.sourceRevision,
+                modelRevision: lifecycle.profile.modelRevision,
+                runnerEnvironment: [
+                    "JARVIS_HUMO_REPO_DIR",
+                    "JARVIS_HUMO_WEIGHTS_DIR",
+                    "JARVIS_HUMO_WAN21_MODEL_DIR",
+                    "JARVIS_HUMO_WHISPER_DIR",
+                    "JARVIS_HUMO_AUDIO_SEPARATOR_FILE"
+                ]
+            }
+        };
+    }
+
     function assertZeroCostConfiguration(job, { allowDynamicPlacement = false } = {}) {
         if (provider !== "runpod") throw new Error("RUNPOD_PROVIDER_NOT_ENABLED");
         if (configuredPolicy !== "LOCAL_TEST") throw new Error("RUNPOD_LOCAL_TEST_POLICY_REQUIRED");
-        if (configuredBackend !== WAN22_TI2V_5B.backend) throw new Error("RUNPOD_WAN22_BACKEND_REQUIRED");
+        const requestedBackend = configuredRemoteBackend();
+        const humoLifecycle = requestedBackend === HUMO_IDENTITY_PROBE.backend;
+        if (!humoLifecycle && requestedBackend !== WAN22_TI2V_5B.backend) {
+            throw new Error("RUNPOD_WAN22_BACKEND_REQUIRED");
+        }
+        if (humoLifecycle && gpuTypeId && gpuTypeId !== RUNPOD_HUMO_IDENTITY_CANDIDATE.targetGpuTypeId) {
+            throw new Error("RUNPOD_HUMO_L40S_REQUIRED");
+        }
         if (!hardBudgetExplicit) throw new Error("RUNPOD_HARD_BUDGET_REQUIRED");
         if (!gpuTypeId && (!allowDynamicPlacement || paidResourceCreationAuthorized)) {
             throw new Error("RUNPOD_GPU_TYPE_EXPLICIT_AUTHORIZATION_REQUIRED");
         }
         if (gpuTypeId && !cacheContract) throw new Error("RUNPOD_GPU_TYPE_NOT_APPROVED_FOR_V142");
-        if (/@sha256:/i.test(provisionImageTag)) {
+        const humoContract = humoLifecycle ? remoteHuMoLifecycleContract(job) : null;
+        const configuredImageContract = humoContract?.profile || cacheContract || RUNPOD_WAN22_CACHE_BASE;
+        const configuredProvisionImageTag = humoContract?.profile?.provisionImageTag || provisionImageTag;
+        if (/@sha256:/i.test(configuredProvisionImageTag)) {
             throw new Error("RUNPOD_IMAGE_NAME_DIGEST_FORBIDDEN");
         }
-        const configuredImageContract = cacheContract || RUNPOD_WAN22_CACHE_BASE;
-        if (provisionImageTag !== configuredImageContract.provisionImageTag) {
+        if (configuredProvisionImageTag !== configuredImageContract.provisionImageTag) {
             throw new Error("RUNPOD_PROVISION_IMAGE_TAG_NOT_APPROVED_FOR_V142");
         }
         if (!/^sha256:[a-f0-9]{64}$/i.test(configuredImageContract.expectedRegistryDigest)) {
             throw new Error("RUNPOD_EXPECTED_REGISTRY_DIGEST_INVALID");
         }
-        assertFlashAttentionWheelAuthority(configuredImageContract);
+        if (!humoLifecycle) assertFlashAttentionWheelAuthority(configuredImageContract);
         if (
             minimumRamGb < configuredImageContract.minimumRamGb ||
             minimumVcpu < configuredImageContract.minimumVcpu
@@ -1824,7 +2009,37 @@ export function createRunpodRemoteVideoAdapter({
             throw new Error("RUNPOD_BRIDGE_IDENTITY_REQUIRED");
         }
         if (job) {
-            if (
+            if (humoLifecycle) {
+                const authority = job.identityRuntimeAuthority;
+                const shots = Array.isArray(job.shotPlan) ? job.shotPlan : [];
+                const shot = shots[0] || {};
+                if (
+                    job.executionTarget !== "remote" ||
+                    job.backend !== HUMO_IDENTITY_PROBE.backend ||
+                    job.model !== HUMO_IDENTITY_PROBE.model ||
+                    (!runtimeCertificationOnly && job.requiresIdentityFidelity !== true) ||
+                    (!runtimeCertificationOnly && job.aspectRatio !== "16:9")
+                ) {
+                    throw new Error("RUNPOD_HUMO_JOB_CONTRACT_INVALID");
+                }
+                if (networkVolumeId) {
+                    throw new Error("RUNPOD_HUMO_NETWORK_VOLUME_CACHE_UNCERTIFIED");
+                }
+                if (!runtimeCertificationOnly && (
+                    shots.length !== 1 ||
+                    shot.identityMode !== "single_identity" ||
+                    !Array.isArray(shot.characterIds) ||
+                    shot.characterIds.length !== 1 ||
+                    !Array.isArray(shot.identityReferenceOutputs) ||
+                    shot.identityReferenceOutputs.length < 1 ||
+                    !authority ||
+                    authority.id !== RUNPOD_HUMO_IDENTITY_CANDIDATE.id ||
+                    authority.runtimeAssetAuthorityPinned !== true
+                )) {
+                    throw new Error("RUNPOD_HUMO_JOB_CONTRACT_INVALID");
+                }
+            }
+            else if (
                 job.executionTarget !== "remote" ||
                 job.backend !== WAN22_TI2V_5B.backend ||
                 job.model !== WAN22_TI2V_5B.model
@@ -3605,6 +3820,90 @@ export function createRunpodRemoteVideoAdapter({
         ].join("\n") + "\n";
     }
 
+    function writeHuMoRuntimeBootstrapFile(bootstrapFile) {
+        const lifecycle = remoteHuMoLifecycleContract({ backend: HUMO_IDENTITY_PROBE.backend });
+        const authority = RUNPOD_HUMO_IDENTITY_CANDIDATE;
+        const cacheRoot = lifecycle.cacheRoot;
+        const bootstrap = [
+            "#!/usr/bin/env bash",
+            "set -eEuo pipefail",
+            "export DEBIAN_FRONTEND=noninteractive",
+            "export PIP_NO_CACHE_DIR=1",
+            "export HF_HUB_DISABLE_TELEMETRY=1",
+            `CACHE_ROOT=${shellSingleQuote(cacheRoot)}`,
+            `VENV=${shellSingleQuote(lifecycle.venvDir)}`,
+            `HUMO_REPO=${shellSingleQuote(lifecycle.repositoryDir)}`,
+            `HUMO_WEIGHTS=${shellSingleQuote(lifecycle.weightsDir)}`,
+            `WAN21_WEIGHTS=${shellSingleQuote(lifecycle.wan21Dir)}`,
+            `WHISPER_DIR=${shellSingleQuote(lifecycle.whisperDir)}`,
+            `SEPARATOR_FILE=${shellSingleQuote(lifecycle.separatorFile)}`,
+            `PREFLIGHT_RESULT=${shellSingleQuote(lifecycle.runtimePreflightFile)}`,
+            `RUNTIME_CERTIFICATION_ONLY=${runtimeCertificationOnly ? "1" : "0"}`,
+            `PROGRESS=${shellSingleQuote(`${remoteBase}/operations`)}/${path.basename(path.dirname(bootstrapFile))}/bootstrap-progress.json`,
+            "mkdir -p \"$CACHE_ROOT\" \"$HUMO_WEIGHTS\" \"$WAN21_WEIGHTS\" \"$WHISPER_DIR\" \"$(dirname \"$PROGRESS\")\"",
+            "progress() { local stage=\"$1\" status=\"$2\" cache; if test \"$RUNTIME_CERTIFICATION_ONLY\" = 1; then cache=CACHE_MISS; elif test \"$status\" = READY; then cache=CACHE_READY; else cache=CACHE_POPULATING; fi; python3 - \"$PROGRESS\" \"$stage\" \"$status\" \"$cache\" <<'PY'",
+            "import datetime,json,os,sys,tempfile",
+            "target,stage,status,cache=sys.argv[1:]",
+            "payload={'stage':stage,'status':status,'cacheStatus':cache,'modelBytes':0,'at':datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z')}",
+            "fd,tmp=tempfile.mkstemp(prefix='.progress-',dir=os.path.dirname(target)); os.close(fd)",
+            "open(tmp,'w',encoding='utf-8').write(json.dumps(payload,separators=(',',':'))+'\\n'); os.replace(tmp,target)",
+            "PY",
+            "}",
+            "trap 'progress HUMO_BOOTSTRAP FAILED' ERR",
+            "progress SYSTEM_DEPENDENCIES RUNNING",
+            "missing=(); for tool in git ffmpeg ffprobe curl; do command -v \"$tool\" >/dev/null || missing+=(\"$tool\"); done",
+            "if test ${#missing[@]} -gt 0; then apt-get update -qq; apt-get install -y -qq git ffmpeg curl python3-venv build-essential ninja-build; fi",
+            "progress SYSTEM_DEPENDENCIES READY",
+            "progress HUMO_REPOSITORY RUNNING",
+            "if test ! -d \"$HUMO_REPO/.git\"; then rm -rf \"$HUMO_REPO\"; git clone --filter=blob:none https://github.com/Phantom-video/HuMo.git \"$HUMO_REPO\"; fi",
+            `git -C "$HUMO_REPO" fetch --depth 1 origin ${authority.sourceRevision}`,
+            `git -C "$HUMO_REPO" checkout --detach ${authority.sourceRevision}`,
+            `test "$(git -C "$HUMO_REPO" rev-parse HEAD)" = ${shellSingleQuote(authority.sourceRevision)}`,
+            "progress HUMO_REPOSITORY READY",
+            "progress HUMO_RUNTIME RUNNING",
+            "test -x \"$VENV/bin/python\" || python3 -m venv \"$VENV\"",
+            "\"$VENV/bin/python\" -m pip install --upgrade pip setuptools wheel packaging ninja 'huggingface_hub[cli]>=0.30,<1'",
+            "\"$VENV/bin/python\" -m pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu124",
+            "MAX_JOBS=4 \"$VENV/bin/python\" -m pip install flash_attn==2.6.3 ",
+            "\"$VENV/bin/python\" -m pip install -r \"$HUMO_REPO/requirements.txt\"",
+            "\"$VENV/bin/python\" -m pip check",
+            "progress HUMO_RUNTIME READY",
+            "if test \"$RUNTIME_CERTIFICATION_ONLY\" = 1; then",
+            "  progress HUMO_ASSETS SKIPPED",
+            "else",
+            "  progress HUMO_ASSETS RUNNING",
+            `  "$VENV/bin/hf" download ${authority.modelRepository} --revision ${authority.modelRevision} --local-dir "$HUMO_WEIGHTS"`,
+            "  \"$VENV/bin/hf\" download Wan-AI/Wan2.1-T2V-1.3B --local-dir \"$WAN21_WEIGHTS\"",
+            `  "$VENV/bin/hf" download ${authority.whisper.repository} --revision ${authority.whisper.revision} --local-dir "$WHISPER_DIR"`,
+            `  test -f "$HUMO_WEIGHTS/${authority.checkpoint.path}"`,
+            `  test -f "$HUMO_WEIGHTS/${authority.zeroVae.path}"`,
+            `  test -f "$WAN21_WEIGHTS/${authority.wan21Vae.path}"`,
+            `  test -f "$SEPARATOR_FILE"`,
+            "  progress HUMO_ASSETS READY",
+            "fi",
+            "progress HUMO_RUNTIME_PREFLIGHT RUNNING",
+            "\"$VENV/bin/python\" - \"$PREFLIGHT_RESULT\" \"$HUMO_REPO\" <<'PY'",
+            "import datetime,importlib.metadata,json,os,platform,subprocess,sys,torch",
+            "target,repo=sys.argv[1:]",
+            "payload={'ok':False,'pythonVersion':platform.python_version(),'torchVersion':str(torch.__version__),'torchCudaVersion':str(torch.version.cuda or ''),'cuda':torch.cuda.is_available(),'gpuName':torch.cuda.get_device_name(0) if torch.cuda.is_available() else '','computeCapability':'.'.join(map(str,torch.cuda.get_device_capability(0))) if torch.cuda.is_available() else '','flashAttentionVersion':importlib.metadata.version('flash-attn'),'pipCheck':subprocess.run([sys.executable,'-m','pip','check'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0,'sourceRevision':subprocess.check_output(['git','-C',repo,'rev-parse','HEAD'],text=True).strip(),'checkedAt':datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z')}",
+            `payload['ok']=payload['pythonVersion'].startswith('${authority.remoteRuntimeBase.bootstrapPython}.') and payload['torchVersion'].startswith('${authority.remoteRuntimeBase.bootstrapTorch}') and payload['torchCudaVersion'].startswith('${authority.remoteRuntimeBase.bootstrapTorchCuda}') and payload['flashAttentionVersion']=='${authority.remoteRuntimeBase.bootstrapFlashAttention}' and payload['cuda'] and payload['sourceRevision']=='${authority.sourceRevision}' and payload['pipCheck']`,
+            "tmp=target+'.tmp'; open(tmp,'w',encoding='utf-8').write(json.dumps(payload,separators=(',',':'))+'\\n'); os.replace(tmp,target)",
+            "raise SystemExit(0 if payload['ok'] else 17)",
+            "PY",
+            "progress HUMO_RUNTIME_PREFLIGHT READY",
+            "touch \"$(dirname \"$PROGRESS\")/bootstrap.ready\""
+        ].join("\n") + "\n";
+        fs.writeFileSync(bootstrapFile, bootstrap, { encoding: "utf8", mode: 0o700 });
+    }
+
+    function writeRemoteRuntimeBootstrapFile(bootstrapFile, jobOrState = null) {
+        if (isHuMoRemoteJob(jobOrState)) {
+            writeHuMoRuntimeBootstrapFile(bootstrapFile);
+            return;
+        }
+        writeGpuRuntimeBootstrapFile(bootstrapFile);
+    }
+
     function writeGpuRuntimeBootstrapFile(bootstrapFile) {
         const cacheRoot = `${remoteBase}/cache/wan22-ti2v-5b`;
         const remoteVenv = `${cacheRoot}/venv`;
@@ -3861,7 +4160,9 @@ export function createRunpodRemoteVideoAdapter({
         const remoteOperationDir = `${remoteBase}/operations/${job.operationId}`;
         const remoteJob = {
             ...job,
-            modelDirectory: `${remoteBase}/cache/wan22-ti2v-5b/model`,
+            modelDirectory: isHuMoRemoteJob(job)
+                ? remoteHuMoLifecycleContract(job).weightsDir
+                : `${remoteBase}/cache/wan22-ti2v-5b/model`,
             outputFile: `${remoteOperationDir}/output.mp4`,
             referenceFiles: generationAssets,
             sourceReferenceFiles: sourceAssets,
@@ -3874,8 +4175,17 @@ export function createRunpodRemoteVideoAdapter({
         atomicJsonWrite(localJobFile, remoteJob);
         fs.copyFileSync(runnerSource, localRunnerFile);
         const bootstrapFile = path.join(operationDir, "bootstrap.sh");
-        writeGpuRuntimeBootstrapFile(bootstrapFile);
+        writeRemoteRuntimeBootstrapFile(bootstrapFile, job);
+        const remoteLifecycle = remoteHuMoLifecycleContract(job);
         return {
+            runtimeKind: remoteLifecycle?.kind || "wan22",
+            cacheRoot: remoteLifecycle?.cacheRoot || `${remoteBase}/cache/wan22-ti2v-5b`,
+            repositoryDir: remoteLifecycle?.repositoryDir || `${remoteBase}/cache/wan22-ti2v-5b/Wan2.2`,
+            weightsDir: remoteLifecycle?.weightsDir || `${remoteBase}/cache/wan22-ti2v-5b/model`,
+            wan21Dir: remoteLifecycle?.wan21Dir || null,
+            whisperDir: remoteLifecycle?.whisperDir || null,
+            separatorFile: remoteLifecycle?.separatorFile || null,
+            venvDir: remoteLifecycle?.venvDir || `${remoteBase}/cache/wan22-ti2v-5b/venv`,
             operationDir,
             privateKeyFile,
             publicKeyFile,
@@ -3934,7 +4244,70 @@ export function createRunpodRemoteVideoAdapter({
         ], { timeout });
     }
 
+    async function remoteHuMoHealth(state, full = false) {
+        const authority = RUNPOD_HUMO_IDENTITY_CANDIDATE;
+        const lifecycle = remoteHuMoLifecycleContract({ backend: HUMO_IDENTITY_PROBE.backend });
+        const python = full ? `${state.venvDir}/bin/python` : "python3";
+        const command = `${shellSingleQuote(python)} -c ${shellSingleQuote(
+            "import importlib.metadata,json,os,platform,shutil,subprocess,torch; " +
+            "cuda=torch.cuda.is_available(); " +
+            "d={'pythonVersion':platform.python_version(),'torchVersion':str(torch.__version__),'torchCudaVersion':str(torch.version.cuda or ''),'cuda':cuda,'gpuName':torch.cuda.get_device_name(0) if cuda else '','computeCapability':'.'.join(map(str,torch.cuda.get_device_capability(0))) if cuda else '','vramBytes':torch.cuda.get_device_properties(0).total_memory if cuda else 0,'ffmpeg':bool(shutil.which('ffmpeg')),'ffprobe':bool(shutil.which('ffprobe'))}; " +
+            (full
+                ? `p=json.load(open('${lifecycle.runtimePreflightFile}',encoding='utf-8')) if os.path.isfile('${lifecycle.runtimePreflightFile}') else {}; d.update({'runner':os.path.isfile('${state.remoteOperationDir}/jarvis-local-video-wan22.py'),'humoRepository':os.path.isfile('${lifecycle.repositoryDir}/main.py'),'weights':os.path.isfile('${lifecycle.weightsDir}/${authority.checkpoint.path}'),'wan21':os.path.isfile('${lifecycle.wan21Dir}/${authority.wan21Vae.path}'),'whisper':os.path.isfile('${lifecycle.whisperDir}/${authority.whisper.model.path}'),'separator':os.path.isfile('${lifecycle.separatorFile}'),'dependencyContract':p.get('ok') is True,'pipCheck':p.get('pipCheck') is True,'flashAttentionVersion':p.get('flashAttentionVersion'),'sourceRevision':p.get('sourceRevision')}); `
+                : "") +
+            "print(json.dumps(d))"
+        )}`;
+        const result = await sshCommand(state, command, 60000);
+        let health;
+        try { health = JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1)); }
+        catch { throw new Error("RUNPOD_HEALTH_RESPONSE_INVALID"); }
+        const runtime = authority.remoteRuntimeBase;
+        const expectedTorch = full ? runtime.bootstrapTorch : runtime.baseTorch;
+        const basePredicates = {
+            pythonVersion: String(health.pythonVersion || "").startsWith(runtime.basePython + "."),
+            torchVersion: String(health.torchVersion || "").startsWith(expectedTorch),
+            torchCudaVersion: String(health.torchCudaVersion || "").startsWith("12.4"),
+            cudaAvailable: health.cuda === true,
+            gpuName: String(health.gpuName || "").trim() === authority.targetGpuTypeId,
+            vramObserved: Number(health.vramBytes || 0) >= HUMO_IDENTITY_PROBE.minimumVramGb * RUNPOD_GIB
+        };
+        const baseFailures = Object.entries(basePredicates).filter(([, passed]) => passed !== true).map(([name]) => name);
+        if (baseFailures.length > 0) {
+            const failure = new Error("RUNPOD_HUMO_IMAGE_RUNTIME_MISMATCH");
+            failure.baseHealth = health;
+            failure.runtimePredicateResults = basePredicates;
+            failure.runtimePredicateFailures = baseFailures;
+            throw failure;
+        }
+        if (full) {
+            const fullPredicates = {
+                ffmpeg: health.ffmpeg === true,
+                ffprobe: health.ffprobe === true,
+                runner: health.runner === true,
+                humoRepository: health.humoRepository === true,
+                weights: state.runtimeCertificationOnly === true || health.weights === true,
+                wan21: state.runtimeCertificationOnly === true || health.wan21 === true,
+                whisper: state.runtimeCertificationOnly === true || health.whisper === true,
+                separator: state.runtimeCertificationOnly === true || health.separator === true,
+                dependencyContract: health.dependencyContract === true,
+                pipCheck: health.pipCheck === true,
+                flashAttentionVersion: String(health.flashAttentionVersion || "") === runtime.bootstrapFlashAttention,
+                sourceRevision: String(health.sourceRevision || "") === authority.sourceRevision
+            };
+            const fullFailures = Object.entries(fullPredicates).filter(([, passed]) => passed !== true).map(([name]) => name);
+            if (fullFailures.length > 0) {
+                const failure = new Error("RUNPOD_HUMO_RUNTIME_PREFLIGHT_FAILED");
+                failure.fullHealth = health;
+                failure.runtimePredicateResults = fullPredicates;
+                failure.runtimePredicateFailures = fullFailures;
+                throw failure;
+            }
+        }
+        return health;
+    }
+
     async function remoteHealth(state, full = false) {
+        if (state.runtimeKind === "humo") return remoteHuMoHealth(state, full);
         const cacheRoot = `${remoteBase}/cache/wan22-ti2v-5b`;
         const runtimePreflightFile = `${cacheRoot}/runtime-preflight.json`;
         const command = `python3 -c ${shellSingleQuote(
@@ -4013,8 +4386,11 @@ export function createRunpodRemoteVideoAdapter({
     async function launch({ job }) {
         assertZeroCostConfiguration(job);
         assertPaidResourceCreationAuthority();
+        assertHuMoPaidExecutionAuthority(job);
         assertProviderConfigured();
-        const registryVerification = await resolveRegistryVerification(cacheContract);
+        const lifecycle = remoteHuMoLifecycleContract(job);
+        const launchProfile = lifecycle?.profile || cacheContract;
+        const registryVerification = await resolveRegistryVerification(launchProfile);
         const file = stateFile(job.operationId);
         if (fs.existsSync(file)) {
             const existing = readJson(file);
@@ -4029,12 +4405,16 @@ export function createRunpodRemoteVideoAdapter({
                 runtimeCertificationOnly ? runtimeCertificationDataCenterId : null
             );
             const availability = await queryAvailability(selectedDataCenterId, job.operationId);
-            const zeroCostPrecheck = inspectZeroCostPrecheck({
-                job,
-                networkVolume,
-                availability,
-                registryVerification
-            });
+            const zeroCostPrecheck = lifecycle
+                ? (runtimeCertificationOnly
+                    ? inspectHuMoRuntimeCertificationPrecheck({ job, registryVerification })
+                    : inspectHuMoZeroCostPrecheck({ job, registryVerification }))
+                : inspectZeroCostPrecheck({
+                    job,
+                    networkVolume,
+                    availability,
+                    registryVerification
+                });
             if (zeroCostPrecheck.ok !== true) {
                 throw new Error(zeroCostPrecheck.error || "RUNPOD_ZERO_COST_PRECHECK_FAILED");
             }
@@ -4044,10 +4424,15 @@ export function createRunpodRemoteVideoAdapter({
                 prepared.publicKey,
                 networkVolume,
                 gpuTypeId,
-                cacheContract,
+                launchProfile,
                 selectedDataCenterId
             );
-            assertProvisionBody(body, networkVolume);
+            assertProvisionBody(body, networkVolume, gpuTypeId, launchProfile);
+            const hourlyRateForBudget = Number(availability?.hourlyRateUsd || configuredTotalHourlyRateUsd);
+            const maximumSpendBeforeCleanupUsd = Number((hardBudgetUsd * budgetStopRatio).toFixed(6));
+            const maximumAuthorizedSeconds = Math.floor(
+                maximumSpendBeforeCleanupUsd * 3600 / hourlyRateForBudget
+            );
             const pod = await apiRequest(`${apiBase}/pods`, {
                 method: "POST",
                 body: JSON.stringify(body)
@@ -4056,7 +4441,7 @@ export function createRunpodRemoteVideoAdapter({
             if (!podId) throw new Error("RUNPOD_PROVISION_RESPONSE_INVALID");
             const actualGpu = String(pod?.gpu?.id || pod?.machine?.gpuTypeId || gpuTypeId);
             const actualVram = Number(pod?.gpu?.memoryInGb || availability.vramGb || expectedVramGb);
-            if (actualGpu !== gpuTypeId || actualVram < cacheContract.minimumVramGb) {
+            if (actualGpu !== gpuTypeId || actualVram < launchProfile.minimumVramGb) {
                 throw new Error("RUNPOD_PROVISIONED_GPU_INCOMPATIBLE");
             }
             const hourlyRateUsd = Number(
@@ -4078,20 +4463,23 @@ export function createRunpodRemoteVideoAdapter({
                 hourlyRateUsd,
                 hardBudgetUsd,
                 budgetStopRatio,
-                maximumSpendBeforeCleanupUsd: zeroCostPrecheck.economics.maximumSpendBeforeCleanupUsd,
-                maximumAuthorizedSeconds: zeroCostPrecheck.economics.maximumAuthorizedSeconds,
+                maximumSpendBeforeCleanupUsd: zeroCostPrecheck.economics?.maximumSpendBeforeCleanupUsd ?? maximumSpendBeforeCleanupUsd,
+                maximumAuthorizedSeconds: zeroCostPrecheck.economics?.maximumAuthorizedSeconds ?? maximumAuthorizedSeconds,
                 networkVolumeId: networkVolume?.id || null,
                 networkVolumeDataCenterId: networkVolume?.dataCenterId || null,
                 networkVolumeSizeGb: networkVolume?.sizeGb || null,
                 dataCenterId: selectedDataCenterId || null,
                 runtimeCertificationOnly,
-                cacheProfile: cacheContract.profile,
-                modelContractRevision: cacheContract.modelRevision,
-                computeCapabilityRequired: cacheContract.computeCapability,
-                expectedCacheStatus: zeroCostPrecheck.cache.expectedStatus,
-                provisionImageTag,
-                expectedRegistryDigest: cacheContract.expectedRegistryDigest,
-                runtimeIdentity: { ...cacheContract.runtimeIdentity },
+                backend: job.backend,
+                model: job.model,
+                runtimeKind: lifecycle?.kind || "wan22",
+                cacheProfile: launchProfile.profile,
+                modelContractRevision: launchProfile.modelRevision,
+                computeCapabilityRequired: launchProfile.computeCapability,
+                expectedCacheStatus: zeroCostPrecheck.cache?.expectedStatus || "CACHE_MISS",
+                provisionImageTag: launchProfile.provisionImageTag,
+                expectedRegistryDigest: launchProfile.expectedRegistryDigest,
+                runtimeIdentity: { ...launchProfile.runtimeIdentity },
                 registryVerification,
                 cacheStatus: "CACHE_MISS",
                 bootstrapTimeoutSeconds,
@@ -4299,9 +4687,30 @@ export function createRunpodRemoteVideoAdapter({
             "bootstrap_log_tail"
         );
         const runtimePreflightRaw = await readDiagnostic(
-            `cat ${shellSingleQuote(remoteBase + "/cache/wan22-ti2v-5b/runtime-preflight.json")}`,
+            `cat ${shellSingleQuote(state.runtimeKind === "humo"
+                ? state.cacheRoot + "/runtime-preflight.json"
+                : remoteBase + "/cache/wan22-ti2v-5b/runtime-preflight.json")}`,
             "runtime_preflight"
         );
+        if (state.runtimeKind === "humo") {
+            let runtimePreflight = null;
+            if (runtimePreflightRaw) {
+                try { runtimePreflight = JSON.parse(runtimePreflightRaw); }
+                catch {}
+            }
+            return {
+                capturedAt: now().toISOString(),
+                exitCode: Number.parseInt(exitCodeRaw.trim(), 10) || null,
+                progress,
+                stage: String(progress?.stage || "HUMO_BOOTSTRAP"),
+                cacheStatus: String(progress?.cacheStatus || state.cacheStatus || "CACHE_MISS"),
+                logTail: logTail || null,
+                runtimePreflight,
+                runtimePredicateResults: runtimePreflight ? { ok: runtimePreflight.ok === true } : null,
+                runtimePredicateFailures: runtimePreflight?.ok === true ? [] : ["humoRuntimePreflight"],
+                ...(captureErrors.length > 0 ? { captureErrors } : {})
+            };
+        }
         let runtimePreflight = null;
         if (runtimePreflightRaw) {
             try { runtimePreflight = JSON.parse(runtimePreflightRaw); }
@@ -4459,7 +4868,7 @@ export function createRunpodRemoteVideoAdapter({
     }
 
     async function uploadOperation(state) {
-        writeGpuRuntimeBootstrapFile(state.bootstrapFile);
+        writeRemoteRuntimeBootstrapFile(state.bootstrapFile, state);
         await sshCommand(state, `mkdir -p ${shellSingleQuote(state.remoteOperationDir + "/assets")}`);
         await scpFile(state, state.localJobFile, `${state.remoteOperationDir}/job.json`);
         await scpFile(state, state.localRunnerFile, `${state.remoteOperationDir}/jarvis-local-video-wan22.py`);
@@ -4591,7 +5000,7 @@ export function createRunpodRemoteVideoAdapter({
                 );
                 const status = marker.stdout.trim().split(/\r?\n/).at(-1);
                 if (status === "FAILED") {
-                    writeGpuRuntimeBootstrapFile(state.bootstrapFile);
+                    writeRemoteRuntimeBootstrapFile(state.bootstrapFile, state);
                     const expectedBootstrapSha = createHash("sha256")
                         .update(fs.readFileSync(state.bootstrapFile))
                         .digest("hex");
@@ -4641,6 +5050,61 @@ export function createRunpodRemoteVideoAdapter({
                     }
                 }
                 const health = await remoteHealth(state, true);
+                if (state.runtimeCertificationOnly === true && state.runtimeKind === "humo") {
+                    const certifiedAt = now().toISOString();
+                    const result = {
+                        ok: true,
+                        done: true,
+                        status: "RUNPOD_HUMO_RUNTIME_PREFLIGHT_CERTIFIED",
+                        operationId: operation.operationId,
+                        operationName: operation.operationName,
+                        backend: operation.backend,
+                        model: operation.model,
+                        engine: "local",
+                        provider: "runpod",
+                        externalApiUsed: false,
+                        externalEstimatedCostUsd: 0,
+                        runtimeCertificationOnly: true,
+                        runtimePreflightVerified: true,
+                        physicalRuntimeCertified: true,
+                        inferenceStarted: false,
+                        gpuTypeId: state.gpuTypeId,
+                        gpuName: health.gpuName,
+                        providerVramGb: Number(state.providerVramGb || state.vramGb || 0),
+                        vramGb: Number(health.vramBytes || 0) / RUNPOD_GIB,
+                        vramBytes: Number(health.vramBytes || 0),
+                        computeCapability: health.computeCapability,
+                        pythonVersion: health.pythonVersion,
+                        torchVersion: health.torchVersion,
+                        torchCudaVersion: health.torchCudaVersion,
+                        flashAttentionVersion: health.flashAttentionVersion || null,
+                        sourceRevision: health.sourceRevision || null,
+                        provisionImageTag: state.provisionImageTag,
+                        expectedRegistryDigest: state.expectedRegistryDigest,
+                        cacheStatus: "CACHE_MISS",
+                        certifiedAt
+                    };
+                    atomicJsonWrite(resultFile, result);
+                    state = withStage(state, "bootstrap", "READY");
+                    state = withStage(state, "runtime_preflight", "READY");
+                    state = writeState(loaded.file, state, {
+                        phase: "RUNTIME_CERTIFIED",
+                        fullHealth: health,
+                        physicalHealthVerified: true,
+                        runtimePreflightVerified: true,
+                        physicalRuntimeCertified: true,
+                        inferenceStarted: false,
+                        cacheStatus: "CACHE_MISS",
+                        certifiedAt,
+                        stageTimeline: state.stageTimeline
+                    });
+                    return {
+                        ok: true,
+                        done: true,
+                        status: result.status,
+                        remoteWorker: runpodPublicWorker(state)
+                    };
+                }
                 if (state.runtimeCertificationOnly === true) {
                     const certifiedAt = now().toISOString();
                     const modelManifest = state.networkVolumeId
@@ -4711,7 +5175,9 @@ export function createRunpodRemoteVideoAdapter({
                         remoteWorker: runpodPublicWorker(state)
                     };
                 }
-                const runner = `env JARVIS_WAN22_REPO_DIR=${shellSingleQuote(remoteBase + "/cache/wan22-ti2v-5b/Wan2.2")} JARVIS_LOCAL_VIDEO_EXTERNAL_API_ALLOWED=false JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS=${Math.floor(inferenceTimeoutSeconds)} ${shellSingleQuote(remoteBase + "/cache/wan22-ti2v-5b/venv/bin/python")} ${shellSingleQuote(state.remoteOperationDir + "/jarvis-local-video-wan22.py")} --job ${shellSingleQuote(state.remoteOperationDir + "/job.json")} --result ${shellSingleQuote(state.remoteResultFile)}`;
+                const runner = state.runtimeKind === "humo"
+                    ? `env JARVIS_HUMO_REPO_DIR=${shellSingleQuote(state.repositoryDir)} JARVIS_HUMO_WEIGHTS_DIR=${shellSingleQuote(state.weightsDir)} JARVIS_HUMO_WAN21_MODEL_DIR=${shellSingleQuote(state.wan21Dir)} JARVIS_HUMO_WHISPER_DIR=${shellSingleQuote(state.whisperDir)} JARVIS_HUMO_AUDIO_SEPARATOR_FILE=${shellSingleQuote(state.separatorFile)} JARVIS_LOCAL_VIDEO_EXTERNAL_API_ALLOWED=false JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS=${Math.floor(inferenceTimeoutSeconds)} ${shellSingleQuote(state.venvDir + "/bin/python")} ${shellSingleQuote(state.remoteOperationDir + "/jarvis-local-video-wan22.py")} --job ${shellSingleQuote(state.remoteOperationDir + "/job.json")} --result ${shellSingleQuote(state.remoteResultFile)}`
+                    : `env JARVIS_WAN22_REPO_DIR=${shellSingleQuote(remoteBase + "/cache/wan22-ti2v-5b/Wan2.2")} JARVIS_LOCAL_VIDEO_EXTERNAL_API_ALLOWED=false JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS=${Math.floor(inferenceTimeoutSeconds)} ${shellSingleQuote(remoteBase + "/cache/wan22-ti2v-5b/venv/bin/python")} ${shellSingleQuote(state.remoteOperationDir + "/jarvis-local-video-wan22.py")} --job ${shellSingleQuote(state.remoteOperationDir + "/job.json")} --result ${shellSingleQuote(state.remoteResultFile)}`;
                 const started = await sshCommand(state, `nohup bash -lc ${shellSingleQuote(runner)} > ${shellSingleQuote(state.remoteOperationDir + "/runner.log")} 2>&1 & echo $!`);
                 const remotePid = Number(started.stdout.trim().split(/\r?\n/).at(-1));
                 if (!Number.isInteger(remotePid) || remotePid < 1) throw new Error("RUNPOD_REMOTE_JOB_START_FAILED");
@@ -5005,6 +5471,8 @@ export function createRunpodRemoteVideoAdapter({
         inspectHardware,
         inspectZeroCostPrecheck,
         inspectHuMoZeroCostPrecheck,
+        inspectHuMoRuntimeCertificationPrecheck,
+        inspectHuMoRemoteLifecyclePlan,
         inspectLiveZeroCostPrecheck,
         inspectCpuStagingPrecheck,
         inspectCpuStagingRuntimeIdentity,

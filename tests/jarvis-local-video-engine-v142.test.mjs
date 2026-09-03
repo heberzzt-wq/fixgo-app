@@ -6623,8 +6623,134 @@ test("V142 HuMo RunPod precheck is zero-cost and landscape probe does not requir
         ]);
 
         const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
-        assert.equal(engineSource.includes('if (configuredBackend !== WAN22_TI2V_5B.backend) throw new Error("RUNPOD_WAN22_BACKEND_REQUIRED")'), true);
+        assert.equal(engineSource.includes("function remoteHuMoLifecycleContract("), true);
+        assert.equal(engineSource.includes("RUNPOD_HUMO_PAID_EXECUTION_AUTHORITY_REQUIRED"), true);
         assert.equal(engineSource.includes("inspectHuMoZeroCostPrecheck"), true);
+        const runnerSource = fs.readFileSync(new URL("../scripts/jarvis-local-video-wan22.py", import.meta.url), "utf8");
+        const resolveStart = runnerSource.indexOf("def resolve_backend(");
+        const resolveEnd = runnerSource.indexOf("def offline_environment(", resolveStart);
+        const resolveBlock = runnerSource.slice(resolveStart, resolveEnd);
+        assert.equal(resolveBlock.includes('authority.get("physicalRuntimeCertified") is not True'), true);
+        assert.equal(resolveBlock.includes('authority.get("paidExecutionAuthorized") is not True'), true);
+        assert.equal(resolveBlock.includes('authority.get("physicalPortraitCertified")'), false);
+    }
+    finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test("V142 HuMo remote lifecycle is wired but paid execution remains fail-closed", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-humo-zero-cost-"));
+    const canonicalSha = "a".repeat(40);
+    let providerCalls = 0;
+    const forbiddenNetwork = async () => {
+        providerCalls += 1;
+        throw new Error("PROVIDER_TRAFFIC_MUST_NOT_OCCUR");
+    };
+    try {
+        const adapter = createRunpodRemoteVideoAdapter({
+            root,
+            env: {
+                JARVIS_REMOTE_GPU_PROVIDER: "runpod",
+                JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_TEST",
+                JARVIS_LOCAL_VIDEO_MODEL: "humo",
+                JARVIS_RUNPOD_GPU_TYPE_ID: "NVIDIA L40S",
+                JARVIS_REMOTE_GPU_HARD_BUDGET_USD: "2",
+                JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false",
+                JARVIS_RUNPOD_CANONICAL_SHA: canonicalSha
+            },
+            fetchImpl: forbiddenNetwork,
+            registryFetchImpl: forbiddenNetwork,
+            inspectBridgeIdentity: () => ({ ok: true, status: "BRIDGE_IDENTITY_OK" }),
+            resolveCanonicalSha: () => canonicalSha
+        });
+        const registryVerification = {
+            registry: "registry-1.docker.io",
+            repository: "runpod/pytorch",
+            tag: "2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04",
+            expectedDigest: "sha256:61a4aafb0094cd773f11eefa378929d5a687bd775febeb78eac62fc824141fb5",
+            observedDigest: "sha256:61a4aafb0094cd773f11eefa378929d5a687bd775febeb78eac62fc824141fb5",
+            checkedAt: "2026-09-03T00:00:00.000Z",
+            status: "REGISTRY_DIGEST_VERIFIED"
+        };
+        const report = adapter.inspectHuMoZeroCostPrecheck({ registryVerification });
+        assert.equal(report.ok, true, JSON.stringify(report));
+        assert.equal(report.status, "RUNPOD_HUMO_ZERO_COST_PREFLIGHT_READY");
+        assert.equal(report.resourceCreationPossible, false);
+        assert.equal(report.inferencePossible, false);
+        assert.equal(report.providerTrafficUsed, false);
+        assert.equal(providerCalls, 0);
+        assert.equal(report.contract.bootstrapPython, "3.11");
+        assert.equal(report.contract.bootstrapTorch, "2.5.1");
+        assert.equal(report.contract.bootstrapTorchCuda, "12.4");
+        assert.equal(report.contract.bootstrapFlashAttention, "2.6.3");
+        assert.equal(report.contract.runtimePreflightCertified, false);
+        assert.equal(report.physicalRuntimeCertified, false);
+        assert.equal(report.paidExecutionAuthorized, false);
+        assert.equal(report.portrait.certified, false);
+        assert.equal(report.portrait.status, "LOCAL_VIDEO_HUMO_PORTRAIT_UNCERTIFIED");
+        assert.deepEqual(report.executionBlockers, [
+            "RUNPOD_HUMO_RUNTIME_PREFLIGHT_CERTIFICATION_REQUIRED",
+            "RUNPOD_HUMO_PAID_EXECUTION_AUTHORITY_REQUIRED"
+        ]);
+
+        const lifecycle = adapter.inspectHuMoRemoteLifecyclePlan({ registryVerification });
+        assert.equal(lifecycle.ok, true, JSON.stringify(lifecycle));
+        assert.equal(lifecycle.status, "RUNPOD_HUMO_REMOTE_LIFECYCLE_READY_BLOCKED");
+        assert.equal(lifecycle.resourceCreationPossible, false);
+        assert.equal(lifecycle.providerTrafficUsed, false);
+        assert.equal(lifecycle.releaseRequired, true);
+        assert.equal(lifecycle.lifecycle.kind, "humo");
+        assert.equal(lifecycle.lifecycle.cacheRoot, "/workspace/jarvis-v142/cache/humo-1.7b");
+        assert.equal(lifecycle.lifecycle.repositoryDir, "/workspace/jarvis-v142/cache/humo-1.7b/HuMo");
+        assert.equal(lifecycle.lifecycle.venvDir, "/workspace/jarvis-v142/cache/humo-1.7b/venv");
+        assert.equal(lifecycle.lifecycle.provisionImageTag, "runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04");
+        assert.deepEqual(lifecycle.lifecycle.runnerEnvironment, [
+            "JARVIS_HUMO_REPO_DIR",
+            "JARVIS_HUMO_WEIGHTS_DIR",
+            "JARVIS_HUMO_WAN21_MODEL_DIR",
+            "JARVIS_HUMO_WHISPER_DIR",
+            "JARVIS_HUMO_AUDIO_SEPARATOR_FILE"
+        ]);
+        assert.equal(providerCalls, 0);
+
+        const certificationAdapter = createRunpodRemoteVideoAdapter({
+            root,
+            env: {
+                JARVIS_REMOTE_GPU_PROVIDER: "runpod",
+                JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_TEST",
+                JARVIS_LOCAL_VIDEO_MODEL: "humo",
+                JARVIS_RUNPOD_GPU_TYPE_ID: "NVIDIA L40S",
+                JARVIS_REMOTE_GPU_HARD_BUDGET_USD: "2",
+                JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false",
+                JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY: "true",
+                JARVIS_RUNPOD_CANONICAL_SHA: canonicalSha
+            },
+            fetchImpl: forbiddenNetwork,
+            registryFetchImpl: forbiddenNetwork,
+            inspectBridgeIdentity: () => ({ ok: true, status: "BRIDGE_IDENTITY_OK" }),
+            resolveCanonicalSha: () => canonicalSha
+        });
+        const certification = certificationAdapter.inspectHuMoRuntimeCertificationPrecheck({
+            registryVerification
+        });
+        assert.equal(certification.ok, true, JSON.stringify(certification));
+        assert.equal(certification.status, "RUNPOD_HUMO_RUNTIME_CERTIFICATION_READY_BLOCKED");
+        assert.equal(certification.runtimeCertificationOnly, true);
+        assert.equal(certification.resourceCreationPossible, false);
+        assert.equal(certification.inferencePossible, false);
+        assert.equal(certification.providerTrafficUsed, false);
+        assert.equal(providerCalls, 0);
+
+        const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+        assert.equal(engineSource.includes("function writeHuMoRuntimeBootstrapFile("), true);
+        assert.equal(engineSource.includes("function remoteHuMoHealth("), true);
+        assert.equal(engineSource.includes("assertHuMoPaidExecutionAuthority(job)"), true);
+        assert.equal(engineSource.includes("JARVIS_HUMO_REPO_DIR="), true);
+        assert.equal(engineSource.includes("JARVIS_HUMO_AUDIO_SEPARATOR_FILE="), true);
+        assert.equal(engineSource.includes("writeRemoteRuntimeBootstrapFile(state.bootstrapFile, state)"), true);
+        assert.equal(engineSource.includes("RUNPOD_HUMO_RUNTIME_PREFLIGHT_CERTIFIED"), true);
+        assert.equal(engineSource.includes("async function release(receipt = {})"), true);
         const runnerSource = fs.readFileSync(new URL("../scripts/jarvis-local-video-wan22.py", import.meta.url), "utf8");
         const resolveStart = runnerSource.indexOf("def resolve_backend(");
         const resolveEnd = runnerSource.indexOf("def offline_environment(", resolveStart);
