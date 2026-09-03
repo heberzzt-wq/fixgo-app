@@ -64,7 +64,9 @@ function assertMaterializedV142Authority() {
     [actuator, "requiresIdentityFidelity: referenceImages.length > 0", "V142_IDENTITY_REQUIREMENT_ACTUATOR"],
     [engine, "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED", "V142_IDENTITY_GATE_ENGINE"],
     [engine, "maximumSourceReferenceAssets: 3", "V142_SOURCE_REFERENCE_CAPACITY"],
-    [runner, '"wan22-ti2v-5b"', "V142_WAN22_RUNNER"]
+    [runner, '"wan22-ti2v-5b"', "V142_WAN22_RUNNER"],
+    [runner, "LOCAL_VIDEO_HUMO_EXECUTOR_NOT_IMPLEMENTED", "V142_HUMO_EXECUTOR_FAIL_CLOSED"],
+    [runner, "LOCAL_VIDEO_RUNTIME_UNSUPPORTED", "V142_UNKNOWN_RUNTIME_FAIL_CLOSED"]
   ];
 
   for (const [source, marker, label] of required) {
@@ -170,6 +172,12 @@ function ensureIdentityFidelityRegression() {
     "V142 HuMo identity candidate is pinned and cannot authorize paid execution",
     `test("V142 HuMo identity candidate is pinned and cannot authorize paid execution", () => {\n    const source = fs.readFileSync(\n        new URL("../jarvis-local-video-engine.js", import.meta.url),\n        "utf8"\n    );\n    const start = source.indexOf("const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({");\n    const end = source.indexOf("const UNSUPPORTED_LOCAL_VIDEO_MODEL_PROFILE", start);\n    assert.ok(start >= 0 && end > start);\n    const candidate = source.slice(start, end);\n    assert.match(candidate, /sourceRevision: "845f44736e21be93aa5d8cf406b6eb01af9bff67"/);\n    assert.match(candidate, /modelRevision: "3a4a1610d399a5cbb932d54dc229944029803ff7"/);\n    assert.match(candidate, /bytes: 7037053233/);\n    assert.match(candidate, /04126194caa9820c7294c95e321739575491693f2e97f2f1205cd469cd321332/);\n    assert.match(candidate, /c458d9ea111ea1107a576183cc291daa78fffacbe280967c0a0807fed9200830/);\n    assert.match(candidate, /38071ab59bd94681c686fa51d75a1968f64e470262043be31f7a094e442fd981/);\n    assert.match(candidate, /sharedTextEncoderAuthority: "RUNPOD_WAN22_CACHE_BASE\\.requiredFiles"/);\n    assert.match(candidate, /reuseExistingWan22TextEncoderAuthority: true/);\n    assert.equal((source.match(/models_t5_umt5-xxl-enc-bf16\\.pth/g) || []).length, 1);\n    assert.match(candidate, /width: 480/);\n    assert.match(candidate, /height: 832/);\n    assert.match(candidate, /physicalRuntimeCertified: false/);\n    assert.match(candidate, /physicalPortraitCertified: false/);\n    assert.match(candidate, /paidExecutionAuthorized: false/);\n    assert.match(\n        source,\n        /RUNPOD_HUMO_IDENTITY_CANDIDATE\\.paidExecutionAuthorized !== true/\n    );\n});`
   );
+
+  appendOnce(
+    testFile,
+    "V142 HuMo runner cannot fall through to Wan runtime",
+    `test("V142 HuMo runner cannot fall through to Wan runtime", () => {\n    const runner = fs.readFileSync(\n        new URL("../scripts/jarvis-local-video-wan22.py", import.meta.url),\n        "utf8"\n    );\n    const start = runner.indexOf("def resolve_backend(");\n    const end = runner.indexOf("def offline_environment(", start);\n    assert.ok(start >= 0 && end > start);\n    const resolver = runner.slice(start, end);\n    assert.match(resolver, /runtime = str\\(config\\.get\\("runtime"\\) or "wan22"\\)/);\n    assert.match(resolver, /LOCAL_VIDEO_IDENTITY_RUNTIME_NOT_CERTIFIED/);\n    assert.match(resolver, /LOCAL_VIDEO_HUMO_EXECUTOR_NOT_IMPLEMENTED/);\n    assert.match(resolver, /LOCAL_VIDEO_RUNTIME_UNSUPPORTED/);\n    assert.ok(\n        resolver.indexOf("LOCAL_VIDEO_HUMO_EXECUTOR_NOT_IMPLEMENTED") <\n        resolver.indexOf("return backend, config")\n    );\n});`
+  );
 }
 
 assertMaterializedV142Authority();
@@ -203,6 +211,10 @@ const checks = [
     "physicalRuntimeCertified: false",
     "physicalPortraitCertified: false",
     "paidExecutionAuthorized: false"
+  ]],
+  ["scripts/jarvis-local-video-wan22.py", [
+    "LOCAL_VIDEO_HUMO_EXECUTOR_NOT_IMPLEMENTED",
+    "LOCAL_VIDEO_RUNTIME_UNSUPPORTED"
   ]]
 ];
 
@@ -236,6 +248,7 @@ console.log(JSON.stringify({
   identityRuntimeReusesWan22TextEncoderAuthority: true,
   identityRuntimePhysicallyCertified: false,
   identityRuntimePaidExecutionAuthorized: false,
+  identityRunnerCannotFallThroughToWan: true,
   identitySpendBlockedUntilCertifiedBackend: true,
   externalFallbackAllowedForVideoGenerate: false,
   paidSpendGuardedByExistingRunpodAuthority: true,
