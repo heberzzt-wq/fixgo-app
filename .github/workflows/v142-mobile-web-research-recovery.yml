@@ -256,7 +256,8 @@ jobs:
           node .github/scripts/v142-mobile-web-research-recovery.mjs
           node .github/scripts/v142-final-contract-alignment.mjs
           node .github/scripts/v142-reel-closeout.mjs
-      - name: Windows syntax and focal contracts
+      - name: Windows syntax contracts
+        shell: pwsh
         run: |
           node --check gestia-core/tools.bridge.js
           node --check gestia-core/tools.runtime.js
@@ -272,7 +273,39 @@ jobs:
           node --check jarvis-local-video-engine.js
           python -c "import ast,pathlib; ast.parse(pathlib.Path('scripts/jarvis-local-video-wan22.py').read_text(encoding='utf-8'))"
           node --check modules/terminal/jarvis-attachments.js
-          node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-mission-orchestrator.test.mjs tests/jarvis-local-video-engine-v142.test.mjs tests/jarvis-video-reference-mission-continuity-v142.test.mjs tests/jarvis-video-operation-contract-v142.test.cjs tests/jarvis-series-continuity-v142.test.mjs tests/jarvis-reel-media-binder-v131.test.mjs tests/jarvis-reel-native-mp4-v138.test.mjs tests/jarvis-reel-terminal-delivery-v142.test.mjs
+      - name: Windows focal - mobile web research recovery
+        shell: pwsh
+        run: node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs
+      - name: Windows focal - upload bridge
+        shell: pwsh
+        run: node --test --test-concurrency=1 tests/jarvis-upload-bridge.test.mjs
+      - name: Windows focal - multifunction tools
+        shell: pwsh
+        run: node --test --test-concurrency=1 tests/jarvis-multifunction-tools.test.mjs
+      - name: Windows focal - mission orchestrator
+        shell: pwsh
+        run: node --test --test-concurrency=1 tests/jarvis-mission-orchestrator.test.mjs
+      - name: Windows focal - local video engine V142
+        shell: pwsh
+        run: node --test --test-concurrency=1 tests/jarvis-local-video-engine-v142.test.mjs
+      - name: Windows focal - video reference continuity
+        shell: pwsh
+        run: node --test --test-concurrency=1 tests/jarvis-video-reference-mission-continuity-v142.test.mjs
+      - name: Windows focal - video operation contract
+        shell: pwsh
+        run: node --test --test-concurrency=1 tests/jarvis-video-operation-contract-v142.test.cjs
+      - name: Windows focal - series continuity
+        shell: pwsh
+        run: node --test --test-concurrency=1 tests/jarvis-series-continuity-v142.test.mjs
+      - name: Windows focal - reel media binder
+        shell: pwsh
+        run: node --test --test-concurrency=1 tests/jarvis-reel-media-binder-v131.test.mjs
+      - name: Windows focal - reel native mp4
+        shell: pwsh
+        run: node --test --test-concurrency=1 tests/jarvis-reel-native-mp4-v138.test.mjs
+      - name: Windows focal - reel terminal delivery
+        shell: pwsh
+        run: node --test --test-concurrency=1 tests/jarvis-reel-terminal-delivery-v142.test.mjs
       - name: Windows persistent artifact download lifecycle
         shell: pwsh
         run: |
