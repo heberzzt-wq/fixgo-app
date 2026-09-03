@@ -115,7 +115,7 @@ const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({
         provisionImageTag: "runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04",
         expectedRegistryDigest: "sha256:61a4aafb0094cd773f11eefa378929d5a687bd775febeb78eac62fc824141fb5",
         basePython: "3.11",
-        baseTorch: "2.4.0",
+        baseTorch: "2.4.1",
         baseCuda: "12.4.1",
         bootstrapPython: "3.11",
         bootstrapTorch: "2.5.1",

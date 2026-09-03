@@ -6786,7 +6786,7 @@ test("V142 HuMo mocked runtime certification provisions polls and releases witho
         baseHealthOverrides: {
             operatingSystem: "ubuntu-22.04",
             pythonVersion: "3.11.9",
-            torchVersion: "2.4.0+cu124",
+            torchVersion: "2.4.1+cu124",
             torchCudaVersion: "12.4",
             cudaImageVersion: "12.4.1",
             cuda: true,
@@ -6910,4 +6910,10 @@ test("V142 HuMo runtime certification bypasses inference routing and is consumed
     assert.equal(engineSource.includes('"RUNPOD_HUMO_RUNTIME_PREFLIGHT_CERTIFIED"'), true);
     assert.equal(engineSource.includes("!humoRuntimeCertification || result.physicalRuntimeCertified === true"), true);
     assert.equal(engineSource.includes("runtimeCertificationOnly,"), true);
+});
+
+test("V142 HuMo physical base runtime authority matches observed RunPod L40S torch 2.4.1", () => {
+    const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+    assert.equal(engineSource.includes('baseTorch: "2.4.1"'), true);
+    assert.equal(engineSource.includes('baseTorch: "2.4.0"'), false);
 });
