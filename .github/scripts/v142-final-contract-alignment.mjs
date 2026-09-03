@@ -4,6 +4,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 const SOURCE_COMMIT = "3146353779869dabcce1323c90c2e71ecb3a4f20";
 const MATERIALIZER_PATH = ".github/scripts/v142-final-contract-alignment.mjs";
 const LOCAL_VIDEO_TEST = "tests/jarvis-local-video-engine-v142.test.mjs";
+// Non-functional V142 trigger: certify the already materialized HuMo lifecycle bytes on branch HEAD.
 
 function replaceExactOnce(source, before, after, label) {
   if (source.includes(after)) return source;
