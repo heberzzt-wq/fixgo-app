@@ -180,13 +180,17 @@ def resolve_backend(job: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     requested_model = str(job.get("model") or expected_model).strip()
     if requested_model != expected_model:
         raise RuntimeError("LOCAL_VIDEO_BACKEND_MODEL_MISMATCH")
-    if config.get("runtime") == "humo":
+    runtime = str(config.get("runtime") or "wan22").strip().lower()
+    if runtime == "humo":
         if (
             config.get("physical_runtime_certified") is not True
             or config.get("physical_portrait_certified") is not True
             or config.get("paid_execution_authorized") is not True
         ):
             raise RuntimeError("LOCAL_VIDEO_IDENTITY_RUNTIME_NOT_CERTIFIED")
+        raise RuntimeError("LOCAL_VIDEO_HUMO_EXECUTOR_NOT_IMPLEMENTED")
+    if runtime != "wan22":
+        raise RuntimeError("LOCAL_VIDEO_RUNTIME_UNSUPPORTED")
     return backend, config
 
 
