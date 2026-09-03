@@ -73,6 +73,16 @@ function ensureIdentityReferenceRegressionAuthorityAware() {
   );
 }
 
+function ensureHuMoSingleAuthorityRegression() {
+  const testFile = "tests/jarvis-local-video-engine-v142.test.mjs";
+  replaceExactOnce(
+    testFile,
+    `    assert.equal((source.match(/models_t5_umt5-xxl-enc-bf16\\.pth/g) || []).length, 1);`,
+    `    assert.equal((source.match(/const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object\\.freeze\\(\\{/g) || []).length, 1);`,
+    "V142_HUMO_SINGLE_AUTHORITY_REGRESSION"
+  );
+}
+
 function ensureRunnerPhysicalHashGate() {
   const runnerFile = "scripts/jarvis-local-video-wan22.py";
   const testFile = "tests/jarvis-local-video-engine-v142.test.mjs";
@@ -129,6 +139,7 @@ function ensureRunnerPhysicalHashGate() {
 assertV142Base();
 ensureIdentityRuntimeAuthorityInJob();
 ensureIdentityReferenceRegressionAuthorityAware();
+ensureHuMoSingleAuthorityRegression();
 ensureRunnerPhysicalHashGate();
 assertV142Base();
 
