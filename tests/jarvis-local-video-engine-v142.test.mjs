@@ -6532,3 +6532,36 @@ test("V142 HuMo job carries the single engine authority and runner hashes physic
     assert.doesNotMatch(runner, /"physical_runtime_certified": False/);
     assert.doesNotMatch(runner, /"paid_execution_authorized": False/);
 });
+
+test("V142 HuMo is explicit-only and fail-closed until physical identity certification", () => {
+    const source = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+    const candidateStart = source.indexOf("const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({");
+    const candidateEnd = source.indexOf("const HUMO_IDENTITY_PROBE = Object.freeze({", candidateStart);
+    assert.ok(candidateStart >= 0 && candidateEnd > candidateStart);
+    const candidate = source.slice(candidateStart, candidateEnd);
+    assert.equal(candidate.includes("remoteRuntimeBase: Object.freeze({"), true);
+    assert.equal(candidate.includes("runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04"), true);
+    assert.equal(candidate.includes("61a4aafb0094cd773f11eefa378929d5a687bd775febeb78eac62fc824141fb5"), true);
+    assert.equal(candidate.includes('bootstrapTorch: "2.5.1"'), true);
+    assert.equal(candidate.includes('bootstrapFlashAttention: "2.6.3"'), true);
+    assert.equal(candidate.includes("runtimePreflightCertified: false"), true);
+    assert.equal(candidate.includes("physicalRuntimeCertified: false"), true);
+    assert.equal(candidate.includes("physicalPortraitCertified: false"), true);
+    assert.equal(candidate.includes("paidExecutionAuthorized: false"), true);
+
+    assert.equal(source.includes("const HUMO_IDENTITY_PROBE = Object.freeze({"), true);
+    assert.equal(source.includes('backend: "humo-1.7b-identity"'), true);
+    assert.equal(source.includes("identityOnly: true"), true);
+    assert.equal(source.includes("identityProbeOnly: true"), true);
+    const orderStart = source.indexOf("const LOCAL_VIDEO_BACKEND_ORDER = Object.freeze([");
+    const orderEnd = source.indexOf("]);", orderStart);
+    const automaticOrder = source.slice(orderStart, orderEnd);
+    assert.equal(automaticOrder.includes("WAN22_TI2V_5B.backend"), true);
+    assert.equal(automaticOrder.includes("WAN21_T2V_1_3B.backend"), true);
+    assert.equal(automaticOrder.includes("HUMO_IDENTITY_PROBE"), false);
+    assert.equal(source.includes("function orderedBackendHealth(health = {})"), true);
+    assert.equal(source.includes("...reported.filter(item =>"), true);
+    assert.equal(source.includes("LOCAL_VIDEO_HUMO_PORTRAIT_UNCERTIFIED"), true);
+    assert.equal(source.includes("LOCAL_VIDEO_IDENTITY_RUNTIME_NOT_CERTIFIED"), true);
+    assert.equal(source.includes("LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED"), true);
+});

@@ -108,6 +108,21 @@ const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({
         torchCuda: "12.4",
         flashAttention: "2.6.3"
     }),
+    remoteRuntimeBase: Object.freeze({
+        registry: "registry-1.docker.io",
+        repository: "runpod/pytorch",
+        tag: "2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04",
+        provisionImageTag: "runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04",
+        expectedRegistryDigest: "sha256:61a4aafb0094cd773f11eefa378929d5a687bd775febeb78eac62fc824141fb5",
+        basePython: "3.11",
+        baseTorch: "2.4.0",
+        baseCuda: "12.4.1",
+        bootstrapPython: "3.11",
+        bootstrapTorch: "2.5.1",
+        bootstrapTorchCuda: "12.4",
+        bootstrapFlashAttention: "2.6.3",
+        runtimePreflightCertified: false
+    }),
     targetGpuTypeId: "NVIDIA L40S",
     candidateProbeGeometry: Object.freeze({
         width: 832,
@@ -121,6 +136,30 @@ const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({
     physicalRuntimeCertified: false,
     physicalPortraitCertified: false,
     paidExecutionAuthorized: false
+});
+
+const HUMO_IDENTITY_PROBE = Object.freeze({
+    backend: "humo-1.7b-identity",
+    id: RUNPOD_HUMO_IDENTITY_CANDIDATE.id,
+    model: "HuMo-1.7B",
+    provider: "local",
+    license: null,
+    textToVideo: false,
+    imageToVideo: true,
+    referenceAssets: true,
+    maximumReferenceAssets: 3,
+    maximumSourceReferenceAssets: 3,
+    targetResolution: "832x480-identity-probe",
+    targetFps: 25,
+    portraitSize: null,
+    landscapeSize: Object.freeze({ width: 832, height: 480 }),
+    minimumVramGb: 48,
+    checkpointSizeGb: 0,
+    minimumFreeDiskGb: 60,
+    identityOnly: true,
+    identityProbeOnly: true,
+    remoteModelDirectory: "/workspace/models/HuMo",
+    repositoryEntrypoint: "main.py"
 });
 
 const UNSUPPORTED_LOCAL_VIDEO_MODEL_PROFILE = Object.freeze({
@@ -145,7 +184,8 @@ const UNSUPPORTED_LOCAL_VIDEO_MODEL_PROFILE = Object.freeze({
 
 export const LOCAL_VIDEO_MODEL_PROFILES = Object.freeze({
     [WAN22_TI2V_5B.backend]: WAN22_TI2V_5B,
-    [WAN21_T2V_1_3B.backend]: WAN21_T2V_1_3B
+    [WAN21_T2V_1_3B.backend]: WAN21_T2V_1_3B,
+    [HUMO_IDENTITY_PROBE.backend]: HUMO_IDENTITY_PROBE
 });
 
 // Backward-compatible default. No existing deployment changes model unless explicitly configured.
@@ -161,7 +201,10 @@ const LOCAL_VIDEO_MODEL_ALIASES = Object.freeze({
     "wan2.1-t2v-1.3b": WAN21_T2V_1_3B.backend,
     "wan21-t2v-1.3b": WAN21_T2V_1_3B.backend,
     "light": WAN21_T2V_1_3B.backend,
-    "local-light": WAN21_T2V_1_3B.backend
+    "local-light": WAN21_T2V_1_3B.backend,
+    "humo": HUMO_IDENTITY_PROBE.backend,
+    "humo-1.7b": HUMO_IDENTITY_PROBE.backend,
+    "humo-1.7b-identity": HUMO_IDENTITY_PROBE.backend
 });
 
 const RUNPOD_GIB = 1024 ** 3;
@@ -586,14 +629,24 @@ const LOCAL_VIDEO_BACKEND_ORDER = Object.freeze([
 
 function orderedBackendHealth(health = {}) {
     if (Array.isArray(health?.backends)) {
+        const reported = health.backends
+            .filter(item => item && typeof item === "object");
         const byBackend = new Map(
-            health.backends
-                .filter(item => item && typeof item === "object")
-                .map(item => [String(item.backend || ""), item])
+            reported.map(item => [String(item.backend || ""), item])
         );
-        return LOCAL_VIDEO_BACKEND_ORDER
+        const ordered = LOCAL_VIDEO_BACKEND_ORDER
             .map(backend => byBackend.get(backend))
             .filter(Boolean);
+        const orderedBackends = new Set(
+            ordered.map(item => String(item.backend || ""))
+        );
+        return [
+            ...ordered,
+            ...reported.filter(item =>
+                String(item.backend || "") &&
+                !orderedBackends.has(String(item.backend || ""))
+            )
+        ];
     }
     const model = health?.model || health?.modelRequirements || null;
     const backend = health?.selectedBackend || model?.backend || null;
@@ -613,14 +666,23 @@ function backendRequirementFailure(backend = {}, requirements = {}) {
     const referenceCount = Math.max(0, Number(requirements.referenceCount || 0));
     const requiresImageToVideo = requirements.requiresImageToVideo === true || referenceCount > 0;
     const requiresIdentityFidelity = requirements.requiresIdentityFidelity === true;
-    if (requiresIdentityFidelity && referenceCount > 0) {
+    if (backend.backend === HUMO_IDENTITY_PROBE.backend) {
+        if (!requiresIdentityFidelity || referenceCount < 1) {
+            return "LOCAL_VIDEO_HUMO_IDENTITY_REQUIRED";
+        }
+        if (String(requirements.aspectRatio || "") !== "16:9") {
+            return "LOCAL_VIDEO_HUMO_PORTRAIT_UNCERTIFIED";
+        }
         if (
             RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalRuntimeCertified !== true ||
             RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalPortraitCertified !== true ||
             RUNPOD_HUMO_IDENTITY_CANDIDATE.paidExecutionAuthorized !== true
         ) {
-            return "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED";
+            return "LOCAL_VIDEO_IDENTITY_RUNTIME_NOT_CERTIFIED";
         }
+    }
+    else if (requiresIdentityFidelity && referenceCount > 0) {
+        return "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED";
     }
     if (requiresImageToVideo && backend.imageToVideo !== true) {
         return "LOCAL_VIDEO_REFERENCES_UNSUPPORTED_BY_BACKEND";
@@ -988,6 +1050,11 @@ const LOCAL_VIDEO_BACKEND_ENVIRONMENT = Object.freeze({
         modelDirectory: "JARVIS_WAN21_MODEL_DIR",
         repositoryDirectory: "JARVIS_WAN21_REPO_DIR",
         certified: "JARVIS_WAN21_CERTIFIED"
+    }),
+    [HUMO_IDENTITY_PROBE.backend]: Object.freeze({
+        modelDirectory: "JARVIS_HUMO_WEIGHTS_DIR",
+        repositoryDirectory: "JARVIS_HUMO_REPO_DIR",
+        certified: "JARVIS_HUMO_CERTIFIED"
     })
 });
 
@@ -1026,7 +1093,9 @@ function localBackendHealth({ profile, hardware, policy, env }) {
         .trim().toLowerCase() === "remote";
     const modelDirectory = configuredModelDirectory
         ? path.resolve(String(configuredModelDirectory))
-        : (remoteExecution ? "/workspace/models/Wan2.2-TI2V-5B" : null);
+        : (remoteExecution
+            ? (profile.remoteModelDirectory || "/workspace/models/Wan2.2-TI2V-5B")
+            : null);
     const repositoryDirectory = configuredRepositoryDirectory
         ? path.resolve(String(configuredRepositoryDirectory))
         : null;
@@ -1038,7 +1107,10 @@ function localBackendHealth({ profile, hardware, policy, env }) {
         : null;
     const runnerReady = Boolean(runner && runnerScript && fs.existsSync(runnerScript));
     const repositoryReady = remoteExecution || legacyConfiguration || Boolean(
-        repositoryDirectory && fs.existsSync(path.join(repositoryDirectory, "generate.py"))
+        repositoryDirectory && fs.existsSync(path.join(
+            repositoryDirectory,
+            profile.repositoryEntrypoint || "generate.py"
+        ))
     );
     const weightsReady = remoteExecution ? true : legacyConfiguration
         ? Boolean(modelDirectory && fs.existsSync(modelDirectory))
