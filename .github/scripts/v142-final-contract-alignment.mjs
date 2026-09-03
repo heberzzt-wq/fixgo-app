@@ -3,24 +3,26 @@ import fs from "node:fs";
 function sourceOf(file) {
   return fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
 }
+
 function write(file, source) {
   fs.writeFileSync(file, source, "utf8");
 }
+
 function replaceExactOnce(file, before, after, label) {
   let source = sourceOf(file);
   if (source.includes(after)) return;
   const count = source.split(before).length - 1;
   if (count !== 1) throw new Error(`${label}_MATCH_COUNT_${count}`);
-  source = source.replace(before, after);
-  write(file, source);
+  write(file, source.replace(before, after));
 }
+
 function appendOnce(file, marker, addition) {
-  let source = sourceOf(file);
+  const source = sourceOf(file);
   if (source.includes(marker)) return;
   write(file, `${source.trimEnd()}\n\n${addition.trim()}\n`);
 }
 
-function assertMaterializedV142Base() {
+function assertV142Base() {
   const bridge = sourceOf("jarvis-fs-bridge.js");
   const engine = sourceOf("jarvis-local-video-engine.js");
   const runner = sourceOf("scripts/jarvis-local-video-wan22.py");
@@ -37,8 +39,8 @@ function assertMaterializedV142Base() {
     [doc, "cleanup is download-first", "DOWNLOAD_FIRST"],
     [doc, "must never be merged into a contact sheet, collage, or identity sheet", "NO_IDENTITY_SHEET"]
   ];
-  for (const [source, marker, label] of required) {
-    if (!source.includes(marker)) throw new Error(`V142_${label}_MISSING`);
+  for (const [value, marker, label] of required) {
+    if (!value.includes(marker)) throw new Error(`V142_${label}_MISSING`);
   }
   if (bridge.includes("invocationPayload.requiresIdentityFidelity = false")) {
     throw new Error("V142_IDENTITY_FIDELITY_BYPASS_STILL_PRESENT");
@@ -46,24 +48,22 @@ function assertMaterializedV142Base() {
 }
 
 function ensureIdentityRuntimeAuthorityInJob() {
-  const engineFile = "jarvis-local-video-engine.js";
-
+  const file = "jarvis-local-video-engine.js";
   replaceExactOnce(
-    engineFile,
+    file,
     `            referencePreparation,\n            requiresIdentityFidelity,\n            executionTarget: String(env.JARVIS_LOCAL_VIDEO_EXECUTION_TARGET || "local")`,
     `            referencePreparation,\n            requiresIdentityFidelity,\n            identityRuntimeAuthority: requiresIdentityFidelity ? {\n                ...RUNPOD_HUMO_IDENTITY_CANDIDATE,\n                sharedTextEncoderFiles: RUNPOD_WAN22_CACHE_BASE.requiredFiles.filter(item =>\n                    item.path === "models_t5_umt5-xxl-enc-bf16.pth" ||\n                    item.path.startsWith("google/umt5-xxl/")\n                )\n            } : null,\n            executionTarget: String(env.JARVIS_LOCAL_VIDEO_EXECUTION_TARGET || "local")`,
     "V142_HUMO_AUTHORITY_JOB_PROPAGATION"
   );
-
   replaceExactOnce(
-    engineFile,
+    file,
     `            referencePreparation,\n            requiresIdentityFidelity: job.requiresIdentityFidelity === true,\n            createdAt: now().toISOString(),`,
     `            referencePreparation,\n            requiresIdentityFidelity: job.requiresIdentityFidelity === true,\n            identityRuntimeAuthority: job.identityRuntimeAuthority || null,\n            createdAt: now().toISOString(),`,
     "V142_HUMO_AUTHORITY_OPERATION_PERSISTENCE"
   );
 }
 
-function ensureRunnerUsesSingleAuthorityAndPhysicalHashes() {
+function ensureRunnerPhysicalHashGate() {
   const runnerFile = "scripts/jarvis-local-video-wan22.py";
   const testFile = "tests/jarvis-local-video-engine-v142.test.mjs";
 
@@ -112,24 +112,28 @@ function ensureRunnerUsesSingleAuthorityAndPhysicalHashes() {
   appendOnce(
     testFile,
     "V142 HuMo job carries the single engine authority and runner hashes physical assets before torchrun",
-    `test("V142 HuMo job carries the single engine authority and runner hashes physical assets before torchrun", () => {\n    const engine = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");\n    const runner = fs.readFileSync(new URL("../scripts/jarvis-local-video-wan22.py", import.meta.url), "utf8");\n    assert.match(engine, /identityRuntimeAuthority: requiresIdentityFidelity \? \{/);\n    assert.match(engine, /\.\.\.RUNPOD_HUMO_IDENTITY_CANDIDATE/);\n    assert.match(engine, /sharedTextEncoderFiles: RUNPOD_WAN22_CACHE_BASE\.requiredFiles\.filter/);\n    assert.match(engine, /identityRuntimeAuthority: job\.identityRuntimeAuthority \|\| null/);\n    assert.match(runner, /authority = job\.get\("identityRuntimeAuthority"\)/);\n    assert.match(runner, /LOCAL_VIDEO_HUMO_RUNTIME_AUTHORITY_REQUIRED/);\n    assert.match(runner, /def _sha256_file\(/);\n    assert.match(runner, /LOCAL_VIDEO_HUMO_ASSET_SHA256_MISMATCH/);\n    assert.match(runner, /LOCAL_VIDEO_HUMO_SOURCE_REVISION_MISMATCH/);\n    assert.match(runner, /runtime_asset_evidence = _verify_humo_runtime_authority\(/);\n    assert.ok(\n        runner.indexOf("runtime_asset_evidence = _verify_humo_runtime_authority(") <\n        runner.indexOf("command = [", runner.indexOf("def run_humo_identity_probe("))\n    );\n    assert.doesNotMatch(runner, /"physical_runtime_certified": False/);\n    assert.doesNotMatch(runner, /"paid_execution_authorized": False/);\n});`
+    `test("V142 HuMo job carries the single engine authority and runner hashes physical assets before torchrun", () => {\n    const engine = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");\n    const runner = fs.readFileSync(new URL("../scripts/jarvis-local-video-wan22.py", import.meta.url), "utf8");\n    assert.match(engine, /identityRuntimeAuthority: requiresIdentityFidelity \\? \\{/);\n    assert.match(engine, /\\.\\.\\.RUNPOD_HUMO_IDENTITY_CANDIDATE/);\n    assert.match(engine, /sharedTextEncoderFiles: RUNPOD_WAN22_CACHE_BASE\\.requiredFiles\\.filter/);\n    assert.match(engine, /identityRuntimeAuthority: job\\.identityRuntimeAuthority \\|\\| null/);\n    assert.match(runner, /authority = job\\.get\\("identityRuntimeAuthority"\\)/);\n    assert.match(runner, /LOCAL_VIDEO_HUMO_RUNTIME_AUTHORITY_REQUIRED/);\n    assert.equal(runner.includes("def _sha256_file("), true);\n    assert.match(runner, /LOCAL_VIDEO_HUMO_ASSET_SHA256_MISMATCH/);\n    assert.match(runner, /LOCAL_VIDEO_HUMO_SOURCE_REVISION_MISMATCH/);\n    assert.equal(runner.includes("runtime_asset_evidence = _verify_humo_runtime_authority("), true);\n    assert.ok(\n        runner.indexOf("runtime_asset_evidence = _verify_humo_runtime_authority(") <\n        runner.indexOf("command = [", runner.indexOf("def run_humo_identity_probe("))\n    );\n    assert.doesNotMatch(runner, /"physical_runtime_certified": False/);\n    assert.doesNotMatch(runner, /"paid_execution_authorized": False/);\n});`
   );
 }
 
-assertMaterializedV142Base();
+assertV142Base();
 ensureIdentityRuntimeAuthorityInJob();
-ensureRunnerUsesSingleAuthorityAndPhysicalHashes();
-assertMaterializedV142Base();
+ensureRunnerPhysicalHashGate();
+assertV142Base();
 
 const engine = sourceOf("jarvis-local-video-engine.js");
 const runner = sourceOf("scripts/jarvis-local-video-wan22.py");
 const testSource = sourceOf("tests/jarvis-local-video-engine-v142.test.mjs");
+
 for (const marker of [
   "identityRuntimeAuthority: requiresIdentityFidelity ? {",
   "...RUNPOD_HUMO_IDENTITY_CANDIDATE",
   "sharedTextEncoderFiles: RUNPOD_WAN22_CACHE_BASE.requiredFiles.filter",
   "identityRuntimeAuthority: job.identityRuntimeAuthority || null"
-]) if (!engine.includes(marker)) throw new Error(`V142_HUMO_JOB_AUTHORITY_MISSING:${marker}`);
+]) {
+  if (!engine.includes(marker)) throw new Error(`V142_HUMO_JOB_AUTHORITY_MISSING:${marker}`);
+}
+
 for (const marker of [
   "import hashlib",
   'authority = job.get("identityRuntimeAuthority")',
@@ -138,13 +142,19 @@ for (const marker of [
   "LOCAL_VIDEO_HUMO_SOURCE_REVISION_MISMATCH",
   "identityRuntimeAuthorityVerified",
   "identityRuntimeAssetEvidence"
-]) if (!runner.includes(marker)) throw new Error(`V142_HUMO_PHYSICAL_VERIFIER_MISSING:${marker}`);
+]) {
+  if (!runner.includes(marker)) throw new Error(`V142_HUMO_PHYSICAL_VERIFIER_MISSING:${marker}`);
+}
+
 for (const forbidden of [
   '"runtime_assets_pinned": False',
   '"physical_runtime_certified": False',
   '"physical_portrait_certified": False',
   '"paid_execution_authorized": False'
-]) if (runner.includes(forbidden)) throw new Error(`V142_DUPLICATE_HUMO_AUTHORITY_REMAINS:${forbidden}`);
+]) {
+  if (runner.includes(forbidden)) throw new Error(`V142_DUPLICATE_HUMO_AUTHORITY_REMAINS:${forbidden}`);
+}
+
 if (!testSource.includes("V142 HuMo job carries the single engine authority and runner hashes physical assets before torchrun")) {
   throw new Error("V142_HUMO_PHYSICAL_AUTHORITY_REGRESSION_MISSING");
 }
