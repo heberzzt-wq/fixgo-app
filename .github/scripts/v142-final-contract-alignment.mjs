@@ -5,6 +5,8 @@ const SOURCE_COMMIT = "3146353779869dabcce1323c90c2e71ecb3a4f20";
 const MATERIALIZER_PATH = ".github/scripts/v142-final-contract-alignment.mjs";
 const LOCAL_VIDEO_ENGINE = "jarvis-local-video-engine.js";
 const LOCAL_VIDEO_TEST = "tests/jarvis-local-video-engine-v142.test.mjs";
+const FS_BRIDGE = "jarvis-fs-bridge.js";
+const FS_BRIDGE_TEST = "tests/jarvis-fs-bridge-v2.test.mjs";
 
 function replaceExactOnce(source, before, after, label) {
   if (source.includes(after)) return source;
@@ -122,6 +124,20 @@ replaceFileExactOnce(
   `        if (command.includes("python3 -c")) {`,
   `        if (\n            (\n                command.includes("python3 -c") ||\n                command.includes("'python3' -c") ||\n                command.includes("/bin/python' -c")\n            ) &&\n            command.includes("torch")\n        ) {`,
   "V142_HUMO_MOCK_HEALTH_COMMAND"
+);
+
+replaceFileExactOnce(
+  FS_BRIDGE,
+  `const RUNTIME_CONTRACT_FILE =\n    "jarvis-runtime-contract.json";`,
+  `const RUNTIME_CONTRACT_FILE =\n    "jarvis-runtime-contract.json";\n\nexport function resolveRunpodCredentialEnvironment({\n    env = process.env,\n    platform = process.platform,\n    homeDir = os.homedir(),\n    existsSync = fs.existsSync,\n    execFileSyncImpl = execFileSync\n} = {}) {\n    const resolvedEnv = { ...env };\n    if (String(resolvedEnv.RUNPOD_API_KEY || "").trim()) {\n        return { env: resolvedEnv, credentialLoaded: true, credentialSource: "environment" };\n    }\n    if (platform !== "win32") {\n        return { env: resolvedEnv, credentialLoaded: false, credentialSource: null };\n    }\n    const localAppData = String(\n        resolvedEnv.LOCALAPPDATA || path.join(homeDir, "AppData", "Local")\n    ).trim();\n    const credentialFile = path.join(\n        localAppData,\n        "PeninsulaTech",\n        "Jarvis",\n        "runpod-api-key.clixml"\n    );\n    if (!existsSync(credentialFile)) {\n        return { env: resolvedEnv, credentialLoaded: false, credentialSource: null };\n    }\n    const script = [\n        "$secure = Import-Clixml -LiteralPath $env:JARVIS_RUNPOD_CREDENTIAL_FILE",\n        "$bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)",\n        "try { [Console]::Out.Write([Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)) } finally { if ($bstr -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) } }"\n    ].join("; ");\n    try {\n        const credential = String(execFileSyncImpl(\n            "powershell.exe",\n            ["-NoProfile", "-NonInteractive", "-Command", script],\n            {\n                encoding: "utf8",\n                windowsHide: true,\n                maxBuffer: 1024 * 1024,\n                env: {\n                    ...resolvedEnv,\n                    JARVIS_RUNPOD_CREDENTIAL_FILE: credentialFile\n                }\n            }\n        ) || "").trim();\n        if (credential.length < 20 || /[\\r\\n]/.test(credential)) {\n            return {\n                env: resolvedEnv,\n                credentialLoaded: false,\n                credentialSource: null,\n                credentialError: "RUNPOD_PERSISTED_CREDENTIAL_INVALID"\n            };\n        }\n        resolvedEnv.RUNPOD_API_KEY = credential;\n        return {\n            env: resolvedEnv,\n            credentialLoaded: true,\n            credentialSource: "windows-dpapi-clixml"\n        };\n    }\n    catch {\n        return {\n            env: resolvedEnv,\n            credentialLoaded: false,\n            credentialSource: null,\n            credentialError: "RUNPOD_PERSISTED_CREDENTIAL_UNAVAILABLE"\n        };\n    }\n}`,
+  "V142_RUNPOD_DPAPI_CREDENTIAL_RESOLVER"
+);
+
+replaceFileExactOnce(
+  FS_BRIDGE,
+  `    const runpodEnabled = String(process.env.JARVIS_REMOTE_GPU_PROVIDER || "")\n        .trim().toLowerCase() === "runpod";\n    const runpod = runpodEnabled\n        ? createRunpodRemoteVideoAdapter({\n            root,\n            env: process.env,\n            inspectBridgeIdentity: () => describeJarvisBridgeIdentity(root)\n        })\n        : null;`,
+  `    const runpodEnabled = String(process.env.JARVIS_REMOTE_GPU_PROVIDER || "")\n        .trim().toLowerCase() === "runpod";\n    const runpodCredential = runpodEnabled\n        ? resolveRunpodCredentialEnvironment({ env: process.env })\n        : { env: process.env, credentialLoaded: false, credentialSource: null };\n    const runpod = runpodEnabled\n        ? createRunpodRemoteVideoAdapter({\n            root,\n            env: runpodCredential.env,\n            inspectBridgeIdentity: () => describeJarvisBridgeIdentity(root)\n        })\n        : null;`,
+  "V142_RUNPOD_DPAPI_ADAPTER_ENV"
 );
 
 appendFileOnce(
@@ -265,11 +281,29 @@ test("V142 HuMo bootstrap and poll diagnostics are backend-aware before paid exe
 });`
 );
 
+appendFileOnce(
+  FS_BRIDGE_TEST,
+  "V142 bridge auto-loads persisted RunPod credential only into adapter memory on Windows",
+  String.raw`
+test("V142 bridge auto-loads persisted RunPod credential only into adapter memory on Windows", () => {
+    const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
+    assert.equal(bridgeSource.includes("resolveRunpodCredentialEnvironment"), true);
+    assert.equal(bridgeSource.includes("runpod-api-key.clixml"), true);
+    assert.equal(bridgeSource.includes("Import-Clixml"), true);
+    assert.equal(bridgeSource.includes("SecureStringToBSTR"), true);
+    assert.equal(bridgeSource.includes("ZeroFreeBSTR"), true);
+    assert.equal(bridgeSource.includes('credentialSource: "windows-dpapi-clixml"'), true);
+    assert.equal(bridgeSource.includes("env: runpodCredential.env"), true);
+    assert.equal(bridgeSource.includes("process.env.RUNPOD_API_KEY ="), false);
+});`
+);
+
 execFileSync(process.execPath, ["--check", "jarvis-local-video-engine.js"], { stdio: "inherit" });
+execFileSync(process.execPath, ["--check", "jarvis-fs-bridge.js"], { stdio: "inherit" });
 
 console.log(JSON.stringify({
   ok: true,
-  status: "V142_HUMO_PAID_RUN_DIAGNOSTICS_HARDENED",
+  status: "V142_HUMO_PERSISTED_RUNPOD_CREDENTIAL_HARDENED",
   sourceCommit: SOURCE_COMMIT,
   providerTrafficUsed: false,
   resourceCreationPossible: false,
@@ -278,6 +312,9 @@ console.log(JSON.stringify({
   flashAttentionBuildIsolation: false,
   backendAwareBootstrapStatus: true,
   backendAwareRuntimeFailurePhase: true,
+  persistedRunpodCredentialSource: "windows-dpapi-clixml",
+  persistedRunpodCredentialProcessOnly: true,
+  paidAuthorityDefaultUnchanged: true,
   mockedInferenceStarted: false,
   staleWanOnlyAssertionRemoved: true,
   newFiles: false,
