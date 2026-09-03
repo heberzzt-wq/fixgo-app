@@ -245,17 +245,41 @@ const cliImplementation = [
   "}"
 ].join("\n");
 
-replaceFileExactOnce(
-  FS_BRIDGE,
-  cliAnchor,
-  cliImplementation,
-  "V142_HUMO_RUNTIME_CERTIFICATION_CLI"
-);
+const currentBridgeSource = fs.readFileSync(FS_BRIDGE, "utf8").replace(/\r\n/g, "\n");
+if (currentBridgeSource.includes("runHuMoRuntimeCertificationCli")) {
+  replaceFileExactOnce(
+    FS_BRIDGE,
+    '        JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: "0.99",',
+    '        JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: "1.09",',
+    "V142_HUMO_AUTHENTICATED_L40S_RATE"
+  );
+  replaceFileExactOnce(
+    FS_BRIDGE,
+    '            hardBudgetUsd: 2,\n            maximumOperationalMinutes: 30,',
+    '            hardBudgetUsd: 2,\n            authorizedHourlyRateUsd: 1.09,\n            maximumOperationalMinutes: 30,',
+    "V142_HUMO_AUTHENTICATED_L40S_RATE_RECEIPT"
+  );
+}
+else {
+  replaceFileExactOnce(
+    FS_BRIDGE,
+    cliAnchor,
+    cliImplementation,
+    "V142_HUMO_RUNTIME_CERTIFICATION_CLI"
+  );
+}
 
 appendFileOnce(
   FS_BRIDGE_TEST,
   "V142 HuMo runtime certification CLI is explicit-authority budgeted and cleanup-verified",
   `test("V142 HuMo runtime certification CLI is explicit-authority budgeted and cleanup-verified", () => {\n    const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");\n    assert.equal(bridgeSource.includes("runHuMoRuntimeCertificationCli"), true);\n    assert.equal(bridgeSource.includes('process.argv.includes("--humo-runtime-certification")'), true);\n    assert.equal(bridgeSource.includes("RUNPOD_PAID_RESOURCE_CREATION_NOT_AUTHORIZED"), true);\n    assert.equal(bridgeSource.includes('JARVIS_REMOTE_GPU_HARD_BUDGET_USD: "2"'), true);\n    assert.equal(bridgeSource.includes('JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: "1.09"'), true);\n    assert.equal(bridgeSource.includes('JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY: "true"'), true);\n    assert.equal(bridgeSource.includes("delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID"), true);\n    assert.equal(bridgeSource.includes("Date.now() + 30 * 60 * 1000"), true);\n    assert.equal(bridgeSource.includes("await engine.cancel({ operationName })"), true);\n    assert.equal(bridgeSource.includes("workerRelease?.terminationVerified !== true"), true);\n    assert.equal(bridgeSource.includes('final.status !== "RUNPOD_HUMO_RUNTIME_PREFLIGHT_CERTIFIED"'), true);\n});`
+);
+
+replaceFileExactOnce(
+  FS_BRIDGE_TEST,
+  '    assert.equal(bridgeSource.includes(\'JARVIS_REMOTE_GPU_HARD_BUDGET_USD: "2"\'), true);\n    assert.equal(bridgeSource.includes(\'JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY: "true"\'), true);',
+  '    assert.equal(bridgeSource.includes(\'JARVIS_REMOTE_GPU_HARD_BUDGET_USD: "2"\'), true);\n    assert.equal(bridgeSource.includes(\'JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: "1.09"\'), true);\n    assert.equal(bridgeSource.includes(\'JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY: "true"\'), true);',
+  "V142_HUMO_AUTHENTICATED_L40S_RATE_TEST"
 );
 
 execFileSync(process.execPath, ["--check", "jarvis-fs-bridge.js"], { stdio: "inherit" });
@@ -276,6 +300,7 @@ console.log(JSON.stringify({
   networkVolumeReuse: false,
   inferenceAuthorized: false,
   cleanupVerifiedRequired: true,
+  idempotentExistingCliMigration: true,
   newFiles: false,
   newBrains: false
 }));
