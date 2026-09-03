@@ -666,7 +666,8 @@ function backendRequirementFailure(backend = {}, requirements = {}) {
     const referenceCount = Math.max(0, Number(requirements.referenceCount || 0));
     const requiresImageToVideo = requirements.requiresImageToVideo === true || referenceCount > 0;
     const requiresIdentityFidelity = requirements.requiresIdentityFidelity === true;
-    if (backend.backend === HUMO_IDENTITY_PROBE.backend) {
+    const runtimeCertificationOnly = requirements.runtimeCertificationOnly === true;
+    if (backend.backend === HUMO_IDENTITY_PROBE.backend && !runtimeCertificationOnly) {
         if (!requiresIdentityFidelity || referenceCount < 1) {
             return "LOCAL_VIDEO_HUMO_IDENTITY_REQUIRED";
         }
@@ -5773,6 +5774,10 @@ export function createLocalVideoEngine({
     }
 
     async function start(payload = {}) {
+        const runtimeCertificationOnly = booleanValue(
+            env.JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY,
+            false
+        );
         const referenceOutputs = Array.isArray(payload.referenceOutputs) ? payload.referenceOutputs : [];
         const requiresIdentityFidelity =
             payload.requiresIdentityFidelity === true &&
@@ -5849,6 +5854,7 @@ export function createLocalVideoEngine({
             referenceCount: referenceOutputs.length,
             requiresImageToVideo: referenceOutputs.length > 0,
             requiresIdentityFidelity,
+            runtimeCertificationOnly,
             aspectRatio: payload.aspectRatio === "16:9" ? "16:9" : "9:16",
             seriesId: payload.seriesId || null,
             episodeId: payload.episodeId || null,
@@ -5869,7 +5875,7 @@ export function createLocalVideoEngine({
             .filter(Boolean)
             .slice(0, shotPlan.length > 0 ? LOCAL_VIDEO_MAX_SHOT_COUNT : 4);
         const script = String(payload.script || prompts.join(" ")).trim();
-        if (!script || prompts.length < 1) {
+        if (!runtimeCertificationOnly && (!script || prompts.length < 1)) {
             return { ok: false, status: "LOCAL_VIDEO_PROMPT_REQUIRED", error: "LOCAL_VIDEO_PROMPT_REQUIRED" };
         }
         let references;
@@ -6378,7 +6384,12 @@ export function createLocalVideoEngine({
             operation = released.operation;
             return { ...operation, ok: false, done: true };
         }
-        if (result.status === "RUNPOD_RUNTIME_PREFLIGHT_CERTIFIED") {
+        if ([
+            "RUNPOD_RUNTIME_PREFLIGHT_CERTIFIED",
+            "RUNPOD_HUMO_RUNTIME_PREFLIGHT_CERTIFIED"
+        ].includes(result.status)) {
+            const humoRuntimeCertification =
+                result.status === "RUNPOD_HUMO_RUNTIME_PREFLIGHT_CERTIFIED";
             const mountedCacheCertification = Boolean(operation.remoteWorker?.networkVolumeId);
             const cacheReceiptMatches = mountedCacheCertification
                 ? ["CACHE_READY", "CACHE_HIT"].includes(String(result.cacheStatus || ""))
@@ -6387,6 +6398,7 @@ export function createLocalVideoEngine({
                 operation.runtimeCertificationOnly === true &&
                 result.runtimeCertificationOnly === true &&
                 result.runtimePreflightVerified === true &&
+                (!humoRuntimeCertification || result.physicalRuntimeCertified === true) &&
                 result.inferenceStarted === false &&
                 cacheReceiptMatches &&
                 String(result.operationId || "") === String(operation.operationId || "") &&

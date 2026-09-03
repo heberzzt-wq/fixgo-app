@@ -6901,3 +6901,13 @@ test("V142 HuMo bootstrap and poll diagnostics are backend-aware before paid exe
     assert.equal(engineSource.includes("RUNPOD_WAN22_BOOTSTRAPPING"), true);
     assert.equal(engineSource.includes("RUNPOD_WAN22_BOOTSTRAP_REFRESH_REQUIRED"), true);
 });
+
+test("V142 HuMo runtime certification bypasses inference routing and is consumed by local poll", () => {
+    const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+    assert.equal(engineSource.includes("const runtimeCertificationOnly = requirements.runtimeCertificationOnly === true"), true);
+    assert.equal(engineSource.includes("HUMO_IDENTITY_PROBE.backend && !runtimeCertificationOnly"), true);
+    assert.equal(engineSource.includes("!runtimeCertificationOnly && (!script || prompts.length < 1)"), true);
+    assert.equal(engineSource.includes('"RUNPOD_HUMO_RUNTIME_PREFLIGHT_CERTIFIED"'), true);
+    assert.equal(engineSource.includes("!humoRuntimeCertification || result.physicalRuntimeCertified === true"), true);
+    assert.equal(engineSource.includes("runtimeCertificationOnly,"), true);
+});
