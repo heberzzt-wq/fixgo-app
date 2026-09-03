@@ -81,6 +81,27 @@ const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({
     }),
     sharedTextEncoderAuthority: "RUNPOD_WAN22_CACHE_BASE.requiredFiles",
     reuseExistingWan22TextEncoderAuthority: true,
+    whisper: Object.freeze({
+        repository: "openai/whisper-large-v3",
+        revision: "d8411bd4e55c0bca39e60653a0fe26ae8591859a",
+        model: Object.freeze({
+            path: "model.safetensors",
+            bytes: 3087130976,
+            sha256: "a8e94b85976e5864ba3e9525c7e6c83b2a1eca42d4b797a0c7c24d778e40fd95"
+        }),
+        requiredMetadata: Object.freeze([
+            "config.json",
+            "preprocessor_config.json"
+        ])
+    }),
+    audioSeparator: Object.freeze({
+        repository: "bytedance-research/HuMo",
+        revision: "3a4a1610d399a5cbb932d54dc229944029803ff7",
+        path: "audio_separator/Kim_Vocal_2.onnx",
+        bytes: 66759214,
+        sha256: "ce74ef3b6a6024ce44211a07be9cf8bc6d87728cc852a68ab34eb8e58cde9c8b"
+    }),
+    runtimeAssetAuthorityPinned: true,
     officialRuntime: Object.freeze({
         python: "3.11",
         torch: "2.5.1",

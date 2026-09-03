@@ -6400,6 +6400,17 @@ test("V142 HuMo identity candidate is pinned and cannot authorize paid execution
     assert.match(candidate, /sharedTextEncoderAuthority: "RUNPOD_WAN22_CACHE_BASE\.requiredFiles"/);
     assert.match(candidate, /reuseExistingWan22TextEncoderAuthority: true/);
     assert.equal((source.match(/models_t5_umt5-xxl-enc-bf16\.pth/g) || []).length, 1);
+    assert.match(candidate, /repository: "openai\/whisper-large-v3"/);
+    assert.match(candidate, /revision: "d8411bd4e55c0bca39e60653a0fe26ae8591859a"/);
+    assert.match(candidate, /bytes: 3087130976/);
+    assert.match(candidate, /a8e94b85976e5864ba3e9525c7e6c83b2a1eca42d4b797a0c7c24d778e40fd95/);
+    assert.match(candidate, /requiredMetadata: Object\.freeze\(\[/);
+    assert.match(candidate, /"config\.json"/);
+    assert.match(candidate, /"preprocessor_config\.json"/);
+    assert.match(candidate, /path: "audio_separator\/Kim_Vocal_2\.onnx"/);
+    assert.match(candidate, /bytes: 66759214/);
+    assert.match(candidate, /ce74ef3b6a6024ce44211a07be9cf8bc6d87728cc852a68ab34eb8e58cde9c8b/);
+    assert.match(candidate, /runtimeAssetAuthorityPinned: true/);
     assert.match(candidate, /width: 832/);
     assert.match(candidate, /height: 480/);
     assert.match(candidate, /durationSeconds: 3\.88/);
