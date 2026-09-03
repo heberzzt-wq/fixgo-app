@@ -5527,6 +5527,13 @@ export function createLocalVideoEngine({
             audioFile: audioReference?.file || null,
             referencePreparation,
             requiresIdentityFidelity,
+            identityRuntimeAuthority: requiresIdentityFidelity ? {
+                ...RUNPOD_HUMO_IDENTITY_CANDIDATE,
+                sharedTextEncoderFiles: RUNPOD_WAN22_CACHE_BASE.requiredFiles.filter(item =>
+                    item.path === "models_t5_umt5-xxl-enc-bf16.pth" ||
+                    item.path.startsWith("google/umt5-xxl/")
+                )
+            } : null,
             executionTarget: String(env.JARVIS_LOCAL_VIDEO_EXECUTION_TARGET || "local")
                 .trim().toLowerCase() === "remote" ? "remote" : "local",
             runtimeCertificationOnly: booleanValue(
@@ -5559,6 +5566,7 @@ export function createLocalVideoEngine({
             sourceReferenceAssetCount: sourceReferences.length,
             referencePreparation,
             requiresIdentityFidelity: job.requiresIdentityFidelity === true,
+            identityRuntimeAuthority: job.identityRuntimeAuthority || null,
             createdAt: now().toISOString(),
             updatedAt: now().toISOString(),
             engine: "local",

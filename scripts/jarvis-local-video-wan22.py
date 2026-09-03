@@ -13,6 +13,7 @@ and non-executable until the existing authority explicitly certifies it.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -82,10 +83,6 @@ BACKENDS: dict[str, dict[str, Any]] = {
         "max_reference_assets": 3,
         "maximum_identity_count": 1,
         "audio_required": True,
-        "runtime_assets_pinned": False,
-        "physical_runtime_certified": False,
-        "physical_portrait_certified": False,
-        "paid_execution_authorized": False,
         "extra_args": [],
     },
 }
@@ -186,13 +183,16 @@ def resolve_backend(job: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         raise RuntimeError("LOCAL_VIDEO_BACKEND_MODEL_MISMATCH")
     runtime = str(config.get("runtime") or "wan22").strip().lower()
     if runtime == "humo":
+        authority = job.get("identityRuntimeAuthority")
+        if not isinstance(authority, dict):
+            raise RuntimeError("LOCAL_VIDEO_HUMO_RUNTIME_AUTHORITY_REQUIRED")
         if (
-            config.get("physical_runtime_certified") is not True
-            or config.get("physical_portrait_certified") is not True
-            or config.get("paid_execution_authorized") is not True
+            authority.get("physicalRuntimeCertified") is not True
+            or authority.get("physicalPortraitCertified") is not True
+            or authority.get("paidExecutionAuthorized") is not True
         ):
             raise RuntimeError("LOCAL_VIDEO_IDENTITY_RUNTIME_NOT_CERTIFIED")
-        if config.get("runtime_assets_pinned") is not True:
+        if authority.get("runtimeAssetAuthorityPinned") is not True:
             raise RuntimeError("LOCAL_VIDEO_HUMO_RUNTIME_ASSETS_INCOMPLETE")
         return backend, config
     if runtime != "wan22":
@@ -446,6 +446,114 @@ def _required_humo_path(value: str, status: str, directory: bool = False) -> Pat
     return candidate
 
 
+def _sha256_file(file: Path) -> str:
+    digest = hashlib.sha256()
+    with file.open("rb") as stream:
+        while True:
+            chunk = stream.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _verify_humo_asset(file: Path, evidence: dict[str, Any], label: str) -> dict[str, Any]:
+    if not file.is_file():
+        raise RuntimeError(f"LOCAL_VIDEO_HUMO_ASSET_MISSING:{label}")
+    expected_bytes = int(evidence.get("bytes") or 0)
+    observed_bytes = file.stat().st_size
+    if expected_bytes > 0 and observed_bytes != expected_bytes:
+        raise RuntimeError(f"LOCAL_VIDEO_HUMO_ASSET_BYTES_MISMATCH:{label}")
+    expected_sha = str(evidence.get("sha256") or "").strip().lower()
+    if not expected_sha or len(expected_sha) != 64:
+        raise RuntimeError(f"LOCAL_VIDEO_HUMO_ASSET_AUTHORITY_INVALID:{label}")
+    observed_sha = _sha256_file(file)
+    if observed_sha != expected_sha:
+        raise RuntimeError(f"LOCAL_VIDEO_HUMO_ASSET_SHA256_MISMATCH:{label}")
+    return {"label": label, "bytes": observed_bytes, "sha256": observed_sha}
+
+
+def _verify_humo_runtime_authority(
+    job: dict[str, Any],
+    humo_root: Path,
+    humo_weights: Path,
+    wan21_weights: Path,
+    whisper_root: Path,
+    separator_file: Path,
+) -> dict[str, Any]:
+    authority = job.get("identityRuntimeAuthority")
+    if not isinstance(authority, dict) or authority.get("runtimeAssetAuthorityPinned") is not True:
+        raise RuntimeError("LOCAL_VIDEO_HUMO_RUNTIME_AUTHORITY_REQUIRED")
+    source_revision = str(authority.get("sourceRevision") or "").strip()
+    if len(source_revision) != 40:
+        raise RuntimeError("LOCAL_VIDEO_HUMO_SOURCE_REVISION_AUTHORITY_INVALID")
+    observed_revision = subprocess.run(
+        ["git", "-C", str(humo_root), "rev-parse", "HEAD"],
+        check=True, capture_output=True, text=True, timeout=30
+    ).stdout.strip()
+    if observed_revision != source_revision:
+        raise RuntimeError("LOCAL_VIDEO_HUMO_SOURCE_REVISION_MISMATCH")
+
+    evidence = []
+    evidence.append(_verify_humo_asset(
+        humo_weights / str(authority.get("checkpoint", {}).get("path") or ""),
+        authority.get("checkpoint") or {}, "checkpoint"
+    ))
+    evidence.append(_verify_humo_asset(
+        humo_weights / str(authority.get("zeroVae", {}).get("path") or ""),
+        authority.get("zeroVae") or {}, "zero_vae"
+    ))
+    evidence.append(_verify_humo_asset(
+        wan21_weights / str(authority.get("wan21Vae", {}).get("path") or ""),
+        authority.get("wan21Vae") or {}, "wan21_vae"
+    ))
+
+    shared_files = authority.get("sharedTextEncoderFiles")
+    if not isinstance(shared_files, list) or not shared_files:
+        raise RuntimeError("LOCAL_VIDEO_HUMO_SHARED_T5_AUTHORITY_REQUIRED")
+    shared_map = {str(item.get("path") or ""): item for item in shared_files if isinstance(item, dict)}
+    for required_path in [
+        "models_t5_umt5-xxl-enc-bf16.pth",
+        "google/umt5-xxl/special_tokens_map.json",
+        "google/umt5-xxl/spiece.model",
+        "google/umt5-xxl/tokenizer.json",
+        "google/umt5-xxl/tokenizer_config.json",
+    ]:
+        item = shared_map.get(required_path)
+        if not item:
+            raise RuntimeError(f"LOCAL_VIDEO_HUMO_SHARED_T5_AUTHORITY_MISSING:{required_path}")
+        evidence.append(_verify_humo_asset(wan21_weights / required_path, item, f"t5:{required_path}"))
+
+    whisper = authority.get("whisper")
+    if not isinstance(whisper, dict):
+        raise RuntimeError("LOCAL_VIDEO_HUMO_WHISPER_AUTHORITY_REQUIRED")
+    whisper_model = whisper.get("model") or {}
+    evidence.append(_verify_humo_asset(
+        whisper_root / str(whisper_model.get("path") or ""),
+        whisper_model, "whisper_model"
+    ))
+    metadata = whisper.get("requiredMetadata")
+    if not isinstance(metadata, list) or not metadata:
+        raise RuntimeError("LOCAL_VIDEO_HUMO_WHISPER_METADATA_AUTHORITY_REQUIRED")
+    for relative in metadata:
+        metadata_file = whisper_root / str(relative)
+        if not metadata_file.is_file() or metadata_file.stat().st_size < 1:
+            raise RuntimeError(f"LOCAL_VIDEO_HUMO_WHISPER_METADATA_MISSING:{relative}")
+
+    separator = authority.get("audioSeparator")
+    if not isinstance(separator, dict):
+        raise RuntimeError("LOCAL_VIDEO_HUMO_AUDIO_SEPARATOR_AUTHORITY_REQUIRED")
+    evidence.append(_verify_humo_asset(separator_file, separator, "audio_separator"))
+    return {
+        "ok": True,
+        "sourceRevision": observed_revision,
+        "assetCount": len(evidence),
+        "assets": evidence,
+        "whisperRevision": str(whisper.get("revision") or ""),
+        "audioSeparatorRevision": str(separator.get("revision") or ""),
+    }
+
+
 def _humo_executable(value: str, fallback: str) -> str:
     requested = str(value or "").strip()
     if requested:
@@ -586,6 +694,9 @@ def run_humo_identity_probe(
         "LOCAL_VIDEO_HUMO_AUDIO_SEPARATOR_MISSING",
     )
     torchrun = _humo_executable(os.environ.get("JARVIS_HUMO_TORCHRUN", ""), "torchrun")
+    runtime_asset_evidence = _verify_humo_runtime_authority(
+        job, humo_root, humo_weights, wan21_weights, whisper, separator
+    )
 
     output_file = Path(str(job.get("outputFile") or "")).resolve()
     output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -681,6 +792,8 @@ def run_humo_identity_probe(
         "characterIds": character_ids,
         "identityReferenceOutputs": identity_outputs,
         "identityProbe": True,
+        "identityRuntimeAuthorityVerified": True,
+        "identityRuntimeAssetEvidence": runtime_asset_evidence,
         "portraitCertified": False,
         "probeGeometry": {
             "width": int(config["probe_width"]),

@@ -6375,7 +6375,10 @@ test("V142 identity references remain separate until a certified identity runtim
         source,
         /if \(!requiresIdentityFidelity && references\.length > Number\(model\.maximumReferenceAssets \|\| 0\)\)/
     );
-    assert.match(source, /referencePreparation,\r?\n\s+requiresIdentityFidelity,\r?\n\s+executionTarget:/);
+    assert.match(
+        source,
+        /referencePreparation,\r?\n\s+requiresIdentityFidelity,\r?\n\s+identityRuntimeAuthority: requiresIdentityFidelity \? \{[\s\S]*?\}\s*: null,\r?\n\s+executionTarget:/
+    );
     assert.match(
         source,
         /requiresIdentityFidelity: job\.requiresIdentityFidelity === true/
@@ -6399,7 +6402,7 @@ test("V142 HuMo identity candidate is pinned and cannot authorize paid execution
     assert.match(candidate, /38071ab59bd94681c686fa51d75a1968f64e470262043be31f7a094e442fd981/);
     assert.match(candidate, /sharedTextEncoderAuthority: "RUNPOD_WAN22_CACHE_BASE\.requiredFiles"/);
     assert.match(candidate, /reuseExistingWan22TextEncoderAuthority: true/);
-    assert.equal((source.match(/models_t5_umt5-xxl-enc-bf16\.pth/g) || []).length, 1);
+    assert.equal((source.match(/const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object\.freeze\(\{/g) || []).length, 1);
     assert.match(candidate, /repository: "openai\/whisper-large-v3"/);
     assert.match(candidate, /revision: "d8411bd4e55c0bca39e60653a0fe26ae8591859a"/);
     assert.match(candidate, /bytes: 3087130976/);
@@ -6507,4 +6510,25 @@ test("V142 successful remote generation downloads and verifies MP4 before Pod re
     assert.ok(mediaVerify > mp4Verify);
     assert.ok(verifiedSha > mediaVerify);
     assert.ok(generationRelease > verifiedSha);
+});
+
+test("V142 HuMo job carries the single engine authority and runner hashes physical assets before torchrun", () => {
+    const engine = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+    const runner = fs.readFileSync(new URL("../scripts/jarvis-local-video-wan22.py", import.meta.url), "utf8");
+    assert.match(engine, /identityRuntimeAuthority: requiresIdentityFidelity \? \{/);
+    assert.match(engine, /\.\.\.RUNPOD_HUMO_IDENTITY_CANDIDATE/);
+    assert.match(engine, /sharedTextEncoderFiles: RUNPOD_WAN22_CACHE_BASE\.requiredFiles\.filter/);
+    assert.match(engine, /identityRuntimeAuthority: job\.identityRuntimeAuthority \|\| null/);
+    assert.match(runner, /authority = job\.get\("identityRuntimeAuthority"\)/);
+    assert.match(runner, /LOCAL_VIDEO_HUMO_RUNTIME_AUTHORITY_REQUIRED/);
+    assert.equal(runner.includes("def _sha256_file("), true);
+    assert.match(runner, /LOCAL_VIDEO_HUMO_ASSET_SHA256_MISMATCH/);
+    assert.match(runner, /LOCAL_VIDEO_HUMO_SOURCE_REVISION_MISMATCH/);
+    assert.equal(runner.includes("runtime_asset_evidence = _verify_humo_runtime_authority("), true);
+    assert.ok(
+        runner.indexOf("runtime_asset_evidence = _verify_humo_runtime_authority(") <
+        runner.indexOf("command = [", runner.indexOf("def run_humo_identity_probe("))
+    );
+    assert.doesNotMatch(runner, /"physical_runtime_certified": False/);
+    assert.doesNotMatch(runner, /"paid_execution_authorized": False/);
 });
