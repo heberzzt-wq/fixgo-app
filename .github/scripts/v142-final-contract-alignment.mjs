@@ -63,6 +63,16 @@ function ensureIdentityRuntimeAuthorityInJob() {
   );
 }
 
+function ensureIdentityReferenceRegressionAuthorityAware() {
+  const testFile = "tests/jarvis-local-video-engine-v142.test.mjs";
+  replaceExactOnce(
+    testFile,
+    `    assert.match(source, /referencePreparation,\\r?\\n\\s+requiresIdentityFidelity,\\r?\\n\\s+executionTarget:/);`,
+    `    assert.match(\n        source,\n        /referencePreparation,\\r?\\n\\s+requiresIdentityFidelity,\\r?\\n\\s+identityRuntimeAuthority: requiresIdentityFidelity \\? \\{[\\s\\S]*?\\}\\s*: null,\\r?\\n\\s+executionTarget:/\n    );`,
+    "V142_IDENTITY_REFERENCE_REGRESSION_AUTHORITY_AWARE"
+  );
+}
+
 function ensureRunnerPhysicalHashGate() {
   const runnerFile = "scripts/jarvis-local-video-wan22.py";
   const testFile = "tests/jarvis-local-video-engine-v142.test.mjs";
@@ -118,6 +128,7 @@ function ensureRunnerPhysicalHashGate() {
 
 assertV142Base();
 ensureIdentityRuntimeAuthorityInJob();
+ensureIdentityReferenceRegressionAuthorityAware();
 ensureRunnerPhysicalHashGate();
 assertV142Base();
 
@@ -157,6 +168,9 @@ for (const forbidden of [
 
 if (!testSource.includes("V142 HuMo job carries the single engine authority and runner hashes physical assets before torchrun")) {
   throw new Error("V142_HUMO_PHYSICAL_AUTHORITY_REGRESSION_MISSING");
+}
+if (!testSource.includes("identityRuntimeAuthority: requiresIdentityFidelity")) {
+  throw new Error("V142_IDENTITY_REFERENCE_REGRESSION_AUTHORITY_AWARE_MISSING");
 }
 
 console.log(JSON.stringify({
