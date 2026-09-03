@@ -287,7 +287,20 @@ jobs:
         run: node --test --test-concurrency=1 tests/jarvis-mission-orchestrator.test.mjs
       - name: Windows focal - local video engine V142
         shell: pwsh
-        run: node --test --test-concurrency=1 tests/jarvis-local-video-engine-v142.test.mjs
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          node --test --test-concurrency=1 --test-reporter=tap tests/jarvis-local-video-engine-v142.test.mjs *> artifacts/windows-local-video-v142.tap
+          $code = $LASTEXITCODE
+          Get-Content artifacts/windows-local-video-v142.tap
+          exit $code
+      - name: Upload Windows local video V142 TAP
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-local-video-v142-tap
+          path: artifacts/windows-local-video-v142.tap
+          if-no-files-found: warn
+          retention-days: 1
       - name: Windows focal - video reference continuity
         shell: pwsh
         run: node --test --test-concurrency=1 tests/jarvis-video-reference-mission-continuity-v142.test.mjs
