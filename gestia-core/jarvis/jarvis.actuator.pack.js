@@ -74,7 +74,52 @@ export function parseTimestampedVideoTimeline(script = "") {
     }));
 }
 
-export function buildLocalSeriesShotPlan(timeline = []) {
+function normalizeSeriesIdentityLabel(value = "") {
+    return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toUpperCase();
+}
+
+function resolveShotIdentityBindings(activeSegments = [], cast = [], references = []) {
+    const directory = new Map();
+    for (const character of Array.isArray(cast) ? cast : []) {
+        const characterId = String(character?.characterId || "").trim();
+        if (!characterId) continue;
+        for (const label of [characterId, character?.displayName]) {
+            const normalized = normalizeSeriesIdentityLabel(label);
+            if (normalized) directory.set(normalized, characterId);
+        }
+    }
+    const characterIds = [];
+    for (const segment of Array.isArray(activeSegments) ? activeSegments : []) {
+        for (const rawLine of Array.isArray(segment?.lines) ? segment.lines : []) {
+            const speaker = /^([^:]{1,120}):\s*/u.exec(String(rawLine || "").trim())?.[1] || "";
+            const characterId = directory.get(normalizeSeriesIdentityLabel(speaker));
+            if (characterId && !characterIds.includes(characterId)) characterIds.push(characterId);
+        }
+    }
+    if (characterIds.length === 0 && Array.isArray(cast) && cast.length === 1) {
+        const onlyCharacterId = String(cast[0]?.characterId || "").trim();
+        if (onlyCharacterId) characterIds.push(onlyCharacterId);
+    }
+    const referenceOutputs = (Array.isArray(references) ? references : [])
+        .filter(reference => characterIds.includes(String(reference?.characterId || "").trim()))
+        .map(reference => String(reference?.sourceOutput || "").trim())
+        .filter((value, index, values) => Boolean(value) && values.indexOf(value) === index);
+    return {
+        characterIds,
+        referenceOutputs,
+        mode: characterIds.length === 0
+            ? "unassigned"
+            : characterIds.length === 1
+                ? "single_identity"
+                : "multi_identity"
+    };
+}
+
+export function buildLocalSeriesShotPlan(timeline = [], { cast = [], references = [] } = {}) {
     const segments = Array.isArray(timeline) ? timeline : [];
     const totalDurationSeconds = Number(segments.at(-1)?.endSeconds || 0);
     const shotCount = Math.ceil(totalDurationSeconds / WAN22_SHOT_DURATION_SECONDS);
@@ -89,12 +134,16 @@ export function buildLocalSeriesShotPlan(timeline = []) {
             Number(segment.startSeconds) < endSeconds &&
             Number(segment.endSeconds) > startSeconds
         );
+        const identity = resolveShotIdentityBindings(activeSegments, cast, references);
         return {
             shotId: `episode-shot-${index + 1}`,
             segmentId: activeSegments.map(segment => segment.segmentId).join("+") || null,
             segmentTitle: activeSegments.map(segment => segment.title).join(" -> ") || null,
             startSeconds,
             durationSeconds,
+            characterIds: identity.characterIds,
+            identityReferenceOutputs: identity.referenceOutputs,
+            identityMode: identity.mode,
             prompt: [
                 ...activeSegments.flatMap(segment => [segment.title, segment.text]),
                 activeSegments.length > 1
@@ -1221,7 +1270,10 @@ export function registerJarvisActuatorTools(runtime) {
                     ? parseTimestampedVideoTimeline(script)
                     : [];
                 const seriesShotPlan = seriesTimeline.length > 0
-                    ? buildLocalSeriesShotPlan(seriesTimeline)
+                    ? buildLocalSeriesShotPlan(seriesTimeline, {
+                        cast: seriesContext?.cast || [],
+                        references: seriesContext?.referenceAssets || []
+                    })
                     : [];
                 const maximumSceneCount = 4;
                 const maximumGeneratedDurationSeconds =

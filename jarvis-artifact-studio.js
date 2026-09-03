@@ -767,6 +767,10 @@ export function getSeriesGenerationContext({
         script: episode.script,
         scriptSha256: episode.scriptSha256,
         castIds: clone(episode.castIds),
+        cast: (episode.castIds || []).map(characterId => ({
+            characterId,
+            displayName: clean(canon.characters?.[characterId]?.displayName) || characterId
+        })),
         storyBeats: clone(episode.storyBeats),
         continuityStart: clone(episode.continuityStart),
         openingObligation: clean(episode.openingObligation),

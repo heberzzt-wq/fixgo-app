@@ -5,7 +5,10 @@ import test from "node:test";
 
 import { runJarvisMission } from "../gestia-core/jarvis/jarvis.mission.orchestrator.js";
 import { compactMissionPlannerObservation } from "../gestia-core/jarvis/jarvis.mission.planner-state.js";
-import { registerJarvisActuatorTools } from "../gestia-core/jarvis/jarvis.actuator.pack.js";
+import {
+    buildLocalSeriesShotPlan,
+    registerJarvisActuatorTools
+} from "../gestia-core/jarvis/jarvis.actuator.pack.js";
 import {
     buildLocalAiCapabilityReport,
     LOCAL_VIDEO_MODEL_PROFILE,
@@ -346,4 +349,36 @@ test("v142 local engine records best-GPU selection and pins the spawned worker t
     ]) {
         assert.equal(source.includes(marker), true, `missing local engine marker: ${marker}`);
     }
+});
+
+test("v142 series shots bind explicit character references without cross-identity collage", () => {
+    const timeline = [{
+        segmentId: "segment-1", title: "Heberto", startSeconds: 0, endSeconds: 5,
+        durationSeconds: 5, lines: ["HEBERTO: Ya quedo."], text: "HEBERTO: Ya quedo."
+    }, {
+        segmentId: "segment-2", title: "Roldan", startSeconds: 5, endSeconds: 10,
+        durationSeconds: 5, lines: ["ROLDAN: Falta nivelar."], text: "ROLDAN: Falta nivelar."
+    }, {
+        segmentId: "segment-3", title: "Ambos", startSeconds: 10, endSeconds: 15,
+        durationSeconds: 5, lines: ["HEBERTO: Sostengo.", "ROLDAN: Termino."],
+        text: "HEBERTO: Sostengo. ROLDAN: Termino."
+    }];
+    const cast = [
+        { characterId: "CHAR_HEBERTO", displayName: "Heberto" },
+        { characterId: "CHAR_ROLDAN", displayName: "Roldan" }
+    ];
+    const references = [
+        { characterId: "CHAR_HEBERTO", sourceOutput: ".jarvis-artifacts/images/heberto.png" },
+        { characterId: "CHAR_ROLDAN", sourceOutput: ".jarvis-artifacts/images/roldan.png" }
+    ];
+    const shots = buildLocalSeriesShotPlan(timeline, { cast, references });
+    assert.deepEqual(shots[0].characterIds, ["CHAR_HEBERTO"]);
+    assert.deepEqual(shots[0].identityReferenceOutputs, [references[0].sourceOutput]);
+    assert.equal(shots[0].identityMode, "single_identity");
+    assert.deepEqual(shots[1].characterIds, ["CHAR_ROLDAN"]);
+    assert.deepEqual(shots[1].identityReferenceOutputs, [references[1].sourceOutput]);
+    assert.equal(shots[1].identityMode, "single_identity");
+    assert.deepEqual(shots[2].characterIds, ["CHAR_HEBERTO", "CHAR_ROLDAN"]);
+    assert.deepEqual(shots[2].identityReferenceOutputs, references.map(item => item.sourceOutput));
+    assert.equal(shots[2].identityMode, "multi_identity");
 });

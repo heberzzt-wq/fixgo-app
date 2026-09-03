@@ -5097,6 +5097,17 @@ export function createLocalVideoEngine({
                 shotId: String(shot?.shotId || `shot-${index + 1}`).trim(),
                 segmentId: String(shot?.segmentId || "").trim() || null,
                 segmentTitle: String(shot?.segmentTitle || "").trim() || null,
+                characterIds: [...new Set((Array.isArray(shot?.characterIds) ? shot.characterIds : [])
+                    .map(value => String(value || "").trim())
+                    .filter(Boolean))],
+                identityReferenceOutputs: [...new Set((Array.isArray(shot?.identityReferenceOutputs)
+                    ? shot.identityReferenceOutputs
+                    : [])
+                    .map(value => String(value || "").trim().replaceAll("\\", "/"))
+                    .filter(Boolean))],
+                identityMode: new Set(["unassigned", "single_identity", "multi_identity"]).has(
+                    String(shot?.identityMode || "").trim()
+                ) ? String(shot.identityMode).trim() : "unassigned",
                 startSeconds: Number(shot?.startSeconds),
                 durationSeconds: Number(shot?.durationSeconds),
                 prompt: String(shot?.prompt || "").trim()
@@ -5107,6 +5118,10 @@ export function createLocalVideoEngine({
             !(requestedDurationSeconds > 0 && requestedDurationSeconds <= LOCAL_VIDEO_MAX_DURATION_SECONDS) ||
             shotPlan.some((shot, index) =>
                 !shot.shotId || !shot.prompt ||
+                (shot.identityMode === "single_identity" && shot.characterIds.length !== 1) ||
+                (shot.identityMode === "multi_identity" && shot.characterIds.length < 2) ||
+                (shot.identityMode === "unassigned" && shot.characterIds.length !== 0) ||
+                shot.identityReferenceOutputs.some(output => !referenceOutputs.includes(output)) ||
                 !(shot.durationSeconds > 0 && shot.durationSeconds <= 5) ||
                 !Number.isFinite(shot.startSeconds) ||
                 shot.startSeconds !== shotPlan.slice(0, index)
