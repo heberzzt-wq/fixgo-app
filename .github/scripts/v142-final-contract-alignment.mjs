@@ -164,7 +164,15 @@ function ensureIdentityFidelityRegression() {
   appendOnce(
     testFile,
     "V142 identity references remain separate until a certified identity runtime consumes them",
-    `test("V142 identity references remain separate until a certified identity runtime consumes them", () => {\n    const source = fs.readFileSync(\n        new URL("../jarvis-local-video-engine.js", import.meta.url),\n        "utf8"\n    );\n    assert.match(\n        source,\n        /if \\(!requiresIdentityFidelity && references\\.length > Number\\(model\\.maximumReferenceAssets \\|\\| 0\\)\\)/\n    );\n    assert.match(source, /referencePreparation,\\n\\s+requiresIdentityFidelity,\\n\\s+executionTarget:/);\n    assert.match(\n        source,\n        /requiresIdentityFidelity: job\\.requiresIdentityFidelity === true/\n    );\n});`
+    `test("V142 identity references remain separate until a certified identity runtime consumes them", () => {\n    const source = fs.readFileSync(\n        new URL("../jarvis-local-video-engine.js", import.meta.url),\n        "utf8"\n    );\n    assert.match(\n        source,\n        /if \\(!requiresIdentityFidelity && references\\.length > Number\\(model\\.maximumReferenceAssets \\|\\| 0\\)\\)/\n    );\n    assert.match(source, /referencePreparation,\\r?\\n\\s+requiresIdentityFidelity,\\r?\\n\\s+executionTarget:/);\n    assert.match(\n        source,\n        /requiresIdentityFidelity: job\\.requiresIdentityFidelity === true/\n    );\n});`
+  );
+
+  replaceWithinTest(
+    testFile,
+    "V142 identity references remain separate until a certified identity runtime consumes them",
+    `    assert.match(source, /referencePreparation,\\n\\s+requiresIdentityFidelity,\\n\\s+executionTarget:/);`,
+    `    assert.match(source, /referencePreparation,\\r?\\n\\s+requiresIdentityFidelity,\\r?\\n\\s+executionTarget:/);`,
+    "V142_IDENTITY_REFERENCE_REGRESSION_PLATFORM_EOL"
   );
 
   appendOnce(
