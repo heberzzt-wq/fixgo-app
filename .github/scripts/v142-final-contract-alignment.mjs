@@ -17,31 +17,6 @@ function replaceExactOnce(file, before, after, label) {
   write(file, source);
 }
 
-function replaceIfPresentOnce(file, before, after, label) {
-  let source = sourceOf(file);
-  const count = source.split(before).length - 1;
-  if (count === 0) return;
-  if (count !== 1) throw new Error(`${label}_MATCH_COUNT_${count}`);
-  source = source.replace(before, after);
-  write(file, source);
-}
-
-function replaceWithinTest(file, title, before, after, label) {
-  let source = sourceOf(file);
-  const marker = `test("${title}"`;
-  const start = source.indexOf(marker);
-  if (start < 0) throw new Error(`${label}_TEST_NOT_FOUND`);
-  const next = source.indexOf('\ntest("', start + marker.length);
-  const end = next < 0 ? source.length : next;
-  let block = source.slice(start, end);
-  if (block.includes(after)) return;
-  const count = block.split(before).length - 1;
-  if (count !== 1) throw new Error(`${label}_MATCH_COUNT_${count}`);
-  block = block.replace(before, after);
-  source = `${source.slice(0, start)}${block}${source.slice(end)}`;
-  write(file, source);
-}
-
 function appendOnce(file, marker, addition) {
   let source = sourceOf(file);
   if (source.includes(marker)) return;
@@ -49,7 +24,7 @@ function appendOnce(file, marker, addition) {
   write(file, source);
 }
 
-function assertMaterializedV142Authority() {
+function assertExistingV142IdentityAuthority() {
   const bridge = sourceOf("jarvis-fs-bridge.js");
   const actuator = sourceOf("gestia-core/jarvis/jarvis.actuator.pack.js");
   const engine = sourceOf("jarvis-local-video-engine.js");
@@ -59,11 +34,20 @@ function assertMaterializedV142Authority() {
     [bridge, 'host === "firebasestorage.googleapis.com"', "V142_FIREBASE_VIDEO_IMPORT_ALLOWLIST"],
     [bridge, 'app.post("/video/engine/resolve"', "V142_VIDEO_ENGINE_RESOLVER"],
     [bridge, "requiresRunpodL40s", "V142_RUNPOD_L40S_BRIDGE"],
+    [bridge, "RUNPOD_L40S_IDENTITY_BACKEND_REQUIRED", "V142_IDENTITY_BRIDGE_FAIL_CLOSED"],
     [actuator, 'name: "video.generate"', "V142_VIDEO_GENERATE_TOOL"],
     [actuator, "requiresRunpodL40s: true", "V142_RUNPOD_L40S_ACTUATOR"],
     [actuator, "requiresIdentityFidelity: referenceImages.length > 0", "V142_IDENTITY_REQUIREMENT_ACTUATOR"],
     [engine, "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED", "V142_IDENTITY_GATE_ENGINE"],
     [engine, "maximumSourceReferenceAssets: 3", "V142_SOURCE_REFERENCE_CAPACITY"],
+    [engine, "!requiresIdentityFidelity && references.length > Number(model.maximumReferenceAssets || 0)", "V142_IDENTITY_REFERENCES_STAY_SEPARATE"],
+    [engine, "requiresIdentityFidelity: job.requiresIdentityFidelity === true", "V142_IDENTITY_REQUIREMENT_PERSISTED"],
+    [engine, "RUNPOD_HUMO_IDENTITY_CANDIDATE", "V142_HUMO_CANDIDATE"],
+    [engine, 'sourceRevision: "845f44736e21be93aa5d8cf406b6eb01af9bff67"', "V142_HUMO_SOURCE_PIN"],
+    [engine, 'modelRevision: "3a4a1610d399a5cbb932d54dc229944029803ff7"', "V142_HUMO_MODEL_PIN"],
+    [engine, "physicalRuntimeCertified: false", "V142_HUMO_RUNTIME_UNCERTIFIED"],
+    [engine, "physicalPortraitCertified: false", "V142_HUMO_PORTRAIT_UNCERTIFIED"],
+    [engine, "paidExecutionAuthorized: false", "V142_HUMO_PAID_DENIED"],
     [runner, '"wan22-ti2v-5b"', "V142_WAN22_RUNNER"],
     [runner, "LOCAL_VIDEO_HUMO_EXECUTOR_NOT_IMPLEMENTED", "V142_HUMO_EXECUTOR_FAIL_CLOSED"],
     [runner, "LOCAL_VIDEO_RUNTIME_UNSUPPORTED", "V142_UNKNOWN_RUNTIME_FAIL_CLOSED"]
@@ -72,120 +56,9 @@ function assertMaterializedV142Authority() {
   for (const [source, marker, label] of required) {
     if (!source.includes(marker)) throw new Error(`${label}_MISSING`);
   }
-}
-
-function ensureIdentityFidelityCannotBeBypassed() {
-  const bridgeFile = "jarvis-fs-bridge.js";
-
-  replaceExactOnce(
-    bridgeFile,
-    `                const decision = videoEngine.resolve({\n                    ...requirements,\n                    requiresIdentityFidelity: false,\n                    selectedBackend: "wan22-ti2v-5b"\n                });`,
-    `                const identityRequested =\n                    requirements.requiresIdentityFidelity === true ||\n                    Number(requirements.referenceCount || 0) > 0;\n                if (identityRequested) {\n                    return res.json({\n                        ok: false,\n                        blocked: true,\n                        retryable: false,\n                        status: "RUNPOD_L40S_IDENTITY_BACKEND_REQUIRED",\n                        error: "RUNPOD_L40S_IDENTITY_BACKEND_REQUIRED",\n                        engineUsed: null,\n                        provider: null,\n                        selectedBackend: null,\n                        fallbackUsed: false,\n                        externalFallbackEnabled: false,\n                        externalApiUsed: false,\n                        externalEstimatedCostUsd: 0,\n                        gpuRentalSeconds: 0,\n                        gpuRentalEstimatedCost: 0,\n                        gpuRentalActualCost: 0,\n                        requiresRunpodL40s: true,\n                        requiresIdentityFidelity: true,\n                        requiredGpuTypeId: "NVIDIA L40S"\n                    });\n                }\n                const decision = videoEngine.resolve({\n                    ...requirements,\n                    selectedBackend: "wan22-ti2v-5b"\n                });`,
-    "V142_RESOLVER_IDENTITY_FIDELITY_FAIL_CLOSED"
-  );
-
-  replaceExactOnce(
-    bridgeFile,
-    `                if (action === "start" && payload.requiresRunpodL40s === true) {\n                    const exactRunpodL40sConfiguration =`,
-    `                if (action === "start" && payload.requiresRunpodL40s === true) {\n                    const identityRequested =\n                        Array.isArray(payload.referenceOutputs) &&\n                        payload.referenceOutputs.length > 0;\n                    if (identityRequested) {\n                        return res.status(409).json({\n                            ok: false,\n                            blocked: true,\n                            retryable: false,\n                            status: "RUNPOD_L40S_IDENTITY_BACKEND_REQUIRED",\n                            error: "RUNPOD_L40S_IDENTITY_BACKEND_REQUIRED",\n                            requiredProvider: "runpod",\n                            requiredGpuTypeId: "NVIDIA L40S",\n                            requiredCapability: "identity_fidelity",\n                            externalApiUsed: false,\n                            externalEstimatedCostUsd: 0,\n                            gpuRentalSeconds: 0,\n                            gpuRentalEstimatedCost: 0,\n                            gpuRentalActualCost: 0,\n                            version: JARVIS_FS_BRIDGE_VERSION\n                        });\n                    }\n                    const exactRunpodL40sConfiguration =`,
-    "V142_START_IDENTITY_FIDELITY_FAIL_CLOSED"
-  );
-
-  replaceIfPresentOnce(
-    bridgeFile,
-    `                    invocationPayload.requiresIdentityFidelity = false;\n                    invocationPayload.requiresRunpodL40s = true;`,
-    `                    invocationPayload.requiresRunpodL40s = true;`,
-    "V142_REMOVE_IDENTITY_FIDELITY_BYPASS"
-  );
-}
-
-function ensureIdentityReferencesStaySeparate() {
-  const engineFile = "jarvis-local-video-engine.js";
-
-  replaceExactOnce(
-    engineFile,
-    `        if (references.length > Number(model.maximumReferenceAssets || 0)) {`,
-    `        if (!requiresIdentityFidelity && references.length > Number(model.maximumReferenceAssets || 0)) {`,
-    "V142_IDENTITY_REFERENCES_SKIP_SHEET"
-  );
-
-  replaceExactOnce(
-    engineFile,
-    `            audioFile: audioReference?.file || null,\n            referencePreparation,\n            executionTarget:`,
-    `            audioFile: audioReference?.file || null,\n            referencePreparation,\n            requiresIdentityFidelity,\n            executionTarget:`,
-    "V142_JOB_PERSISTS_IDENTITY_REQUIREMENT"
-  );
-
-  replaceExactOnce(
-    engineFile,
-    `            sourceReferenceAssetCount: sourceReferences.length,\n            referencePreparation,\n            createdAt:`,
-    `            sourceReferenceAssetCount: sourceReferences.length,\n            referencePreparation,\n            requiresIdentityFidelity: job.requiresIdentityFidelity === true,\n            createdAt:`,
-    "V142_OPERATION_PERSISTS_IDENTITY_REQUIREMENT"
-  );
-}
-
-function ensureIdentityRuntimeCandidatePinned() {
-  const engineFile = "jarvis-local-video-engine.js";
-  const candidateMarker = "const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({";
-  if (!sourceOf(engineFile).includes(candidateMarker)) {
-    replaceExactOnce(
-      engineFile,
-      `const UNSUPPORTED_LOCAL_VIDEO_MODEL_PROFILE = Object.freeze({`,
-      `const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({\n    id: "humo-1.7b-identity",\n    role: "identity_fidelity_candidate",\n    sourceRepository: "Phantom-video/HuMo",\n    sourceRevision: "845f44736e21be93aa5d8cf406b6eb01af9bff67",\n    modelRepository: "bytedance-research/HuMo",\n    modelRevision: "3a4a1610d399a5cbb932d54dc229944029803ff7",\n    checkpoint: Object.freeze({\n        path: "HuMo-1.7B/ema.pth",\n        bytes: 7037053233,\n        sha256: "04126194caa9820c7294c95e321739575491693f2e97f2f1205cd469cd321332"\n    }),\n    zeroVae: Object.freeze({\n        path: "zero_vae_129frame.pt",\n        sha256: "c458d9ea111ea1107a576183cc291daa78fffacbe280967c0a0807fed9200830"\n    }),\n    wan21Vae: Object.freeze({\n        path: "Wan2.1_VAE.pth",\n        sha256: "38071ab59bd94681c686fa51d75a1968f64e470262043be31f7a094e442fd981"\n    }),\n    sharedTextEncoderAuthority: "RUNPOD_WAN22_CACHE_BASE.requiredFiles",\n    reuseExistingWan22TextEncoderAuthority: true,\n    officialRuntime: Object.freeze({\n        python: "3.11",\n        torch: "2.5.1",\n        torchCuda: "12.4",\n        flashAttention: "2.6.3"\n    }),\n    targetGpuTypeId: "NVIDIA L40S",\n    candidatePortrait: Object.freeze({\n        width: 480,\n        height: 832,\n        fps: 25,\n        frames: 97\n    }),\n    physicalRuntimeCertified: false,\n    physicalPortraitCertified: false,\n    paidExecutionAuthorized: false\n});\n\nconst UNSUPPORTED_LOCAL_VIDEO_MODEL_PROFILE = Object.freeze({`,
-      "V142_PIN_HUMO_IDENTITY_CANDIDATE"
-    );
+  if (bridge.includes("invocationPayload.requiresIdentityFidelity = false")) {
+    throw new Error("V142_IDENTITY_FIDELITY_BYPASS_STILL_PRESENT");
   }
-
-  replaceExactOnce(
-    engineFile,
-    `    if (requiresIdentityFidelity && referenceCount > 0) {\n        return "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED";\n    }`,
-    `    if (requiresIdentityFidelity && referenceCount > 0) {\n        if (\n            RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalRuntimeCertified !== true ||\n            RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalPortraitCertified !== true ||\n            RUNPOD_HUMO_IDENTITY_CANDIDATE.paidExecutionAuthorized !== true\n        ) {\n            return "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED";\n        }\n    }`,
-    "V142_IDENTITY_CANDIDATE_REMAINS_FAIL_CLOSED"
-  );
-}
-
-function ensureIdentityFidelityRegression() {
-  const testFile = "tests/jarvis-local-video-engine-v142.test.mjs";
-
-  replaceWithinTest(
-    testFile,
-    "V142 public video generation is fail closed to RunPod L40S",
-    `    assert.match(bridge, /invocationPayload\\.requiresIdentityFidelity = false/);`,
-    `    assert.doesNotMatch(bridge, /invocationPayload\\.requiresIdentityFidelity = false/);\n    assert.match(bridge, /RUNPOD_L40S_IDENTITY_BACKEND_REQUIRED/);`,
-    "V142_PUBLIC_L40S_TEST_PRESERVES_IDENTITY"
-  );
-
-  appendOnce(
-    testFile,
-    "V142 referenced L40S video cannot disable identity fidelity",
-    `test("V142 referenced L40S video cannot disable identity fidelity", () => {\n    const bridge = fs.readFileSync(\n        new URL("../jarvis-fs-bridge.js", import.meta.url),\n        "utf8"\n    );\n    const resolverStart = bridge.indexOf('app.post("/video/engine/resolve"');\n    const resolverEnd = bridge.indexOf('app.post("/local-ai/capability-report"', resolverStart);\n    const resolver = bridge.slice(resolverStart, resolverEnd);\n    const localStart = bridge.indexOf('["/video/local/start", "start"]');\n    const localEnd = bridge.indexOf('app.post("/video/import"', localStart);\n    const lifecycle = bridge.slice(localStart, localEnd);\n\n    assert.ok(resolverStart >= 0 && resolverEnd > resolverStart);\n    assert.ok(localStart >= 0 && localEnd > localStart);\n    assert.match(resolver, /requirements\\.requiresIdentityFidelity === true/);\n    assert.match(resolver, /Number\\(requirements\\.referenceCount \\|\\| 0\\) > 0/);\n    assert.match(resolver, /RUNPOD_L40S_IDENTITY_BACKEND_REQUIRED/);\n    assert.match(lifecycle, /payload\\.referenceOutputs\\.length > 0/);\n    assert.match(lifecycle, /RUNPOD_L40S_IDENTITY_BACKEND_REQUIRED/);\n    assert.doesNotMatch(bridge, /invocationPayload\\.requiresIdentityFidelity = false/);\n});`
-  );
-
-  appendOnce(
-    testFile,
-    "V142 identity references remain separate until a certified identity runtime consumes them",
-    `test("V142 identity references remain separate until a certified identity runtime consumes them", () => {\n    const source = fs.readFileSync(\n        new URL("../jarvis-local-video-engine.js", import.meta.url),\n        "utf8"\n    );\n    assert.match(\n        source,\n        /if \\(!requiresIdentityFidelity && references\\.length > Number\\(model\\.maximumReferenceAssets \\|\\| 0\\)\\)/\n    );\n    assert.match(source, /referencePreparation,\\r?\\n\\s+requiresIdentityFidelity,\\r?\\n\\s+executionTarget:/);\n    assert.match(\n        source,\n        /requiresIdentityFidelity: job\\.requiresIdentityFidelity === true/\n    );\n});`
-  );
-
-  replaceWithinTest(
-    testFile,
-    "V142 identity references remain separate until a certified identity runtime consumes them",
-    `    assert.match(source, /referencePreparation,\\n\\s+requiresIdentityFidelity,\\n\\s+executionTarget:/);`,
-    `    assert.match(source, /referencePreparation,\\r?\\n\\s+requiresIdentityFidelity,\\r?\\n\\s+executionTarget:/);`,
-    "V142_IDENTITY_REFERENCE_REGRESSION_PLATFORM_EOL"
-  );
-
-  appendOnce(
-    testFile,
-    "V142 HuMo identity candidate is pinned and cannot authorize paid execution",
-    `test("V142 HuMo identity candidate is pinned and cannot authorize paid execution", () => {\n    const source = fs.readFileSync(\n        new URL("../jarvis-local-video-engine.js", import.meta.url),\n        "utf8"\n    );\n    const start = source.indexOf("const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({");\n    const end = source.indexOf("const UNSUPPORTED_LOCAL_VIDEO_MODEL_PROFILE", start);\n    assert.ok(start >= 0 && end > start);\n    const candidate = source.slice(start, end);\n    assert.match(candidate, /sourceRevision: "845f44736e21be93aa5d8cf406b6eb01af9bff67"/);\n    assert.match(candidate, /modelRevision: "3a4a1610d399a5cbb932d54dc229944029803ff7"/);\n    assert.match(candidate, /bytes: 7037053233/);\n    assert.match(candidate, /04126194caa9820c7294c95e321739575491693f2e97f2f1205cd469cd321332/);\n    assert.match(candidate, /c458d9ea111ea1107a576183cc291daa78fffacbe280967c0a0807fed9200830/);\n    assert.match(candidate, /38071ab59bd94681c686fa51d75a1968f64e470262043be31f7a094e442fd981/);\n    assert.match(candidate, /sharedTextEncoderAuthority: "RUNPOD_WAN22_CACHE_BASE\\.requiredFiles"/);\n    assert.match(candidate, /reuseExistingWan22TextEncoderAuthority: true/);\n    assert.equal((source.match(/models_t5_umt5-xxl-enc-bf16\\.pth/g) || []).length, 1);\n    assert.match(candidate, /width: 480/);\n    assert.match(candidate, /height: 832/);\n    assert.match(candidate, /physicalRuntimeCertified: false/);\n    assert.match(candidate, /physicalPortraitCertified: false/);\n    assert.match(candidate, /paidExecutionAuthorized: false/);\n    assert.match(\n        source,\n        /RUNPOD_HUMO_IDENTITY_CANDIDATE\\.paidExecutionAuthorized !== true/\n    );\n});`
-  );
-
-  appendOnce(
-    testFile,
-    "V142 HuMo runner cannot fall through to Wan runtime",
-    `test("V142 HuMo runner cannot fall through to Wan runtime", () => {\n    const runner = fs.readFileSync(\n        new URL("../scripts/jarvis-local-video-wan22.py", import.meta.url),\n        "utf8"\n    );\n    const start = runner.indexOf("def resolve_backend(");\n    const end = runner.indexOf("def offline_environment(", start);\n    assert.ok(start >= 0 && end > start);\n    const resolver = runner.slice(start, end);\n    assert.match(resolver, /runtime = str\\(config\\.get\\("runtime"\\) or "wan22"\\)/);\n    assert.match(resolver, /LOCAL_VIDEO_IDENTITY_RUNTIME_NOT_CERTIFIED/);\n    assert.match(resolver, /LOCAL_VIDEO_HUMO_EXECUTOR_NOT_IMPLEMENTED/);\n    assert.match(resolver, /LOCAL_VIDEO_RUNTIME_UNSUPPORTED/);\n    assert.ok(\n        resolver.indexOf("LOCAL_VIDEO_HUMO_EXECUTOR_NOT_IMPLEMENTED") <\n        resolver.indexOf("return backend, config")\n    );\n});`
-  );
 }
 
 function ensurePlatformNeutralModelManifestRegression() {
@@ -198,56 +71,53 @@ function ensurePlatformNeutralModelManifestRegression() {
   );
 }
 
-assertMaterializedV142Authority();
-ensureIdentityFidelityCannotBeBypassed();
-ensureIdentityReferencesStaySeparate();
-ensureIdentityRuntimeCandidatePinned();
-ensureIdentityFidelityRegression();
-ensurePlatformNeutralModelManifestRegression();
+function ensureProvisionCleanupFailClosed() {
+  const engineFile = "jarvis-local-video-engine.js";
+  const testFile = "tests/jarvis-local-video-engine-v142.test.mjs";
 
-const checks = [
-  ["gestia-core/jarvis/jarvis.actuator.pack.js", [
-    'name: "video.generate"',
-    "requiresRunpodL40s: true",
-    "requiresIdentityFidelity: referenceImages.length > 0"
-  ]],
-  ["jarvis-fs-bridge.js", [
-    "requiresRunpodL40s",
-    "RUNPOD_L40S_VIDEO_REQUIRED",
-    "RUNPOD_L40S_IDENTITY_BACKEND_REQUIRED",
-    'requiredGpuTypeId: "NVIDIA L40S"'
-  ]],
-  ["jarvis-local-video-engine.js", [
-    "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED",
-    "maximumSourceReferenceAssets: 3",
-    "!requiresIdentityFidelity && references.length > Number(model.maximumReferenceAssets || 0)",
-    "requiresIdentityFidelity: job.requiresIdentityFidelity === true",
-    "RUNPOD_HUMO_IDENTITY_CANDIDATE",
-    'sourceRevision: "845f44736e21be93aa5d8cf406b6eb01af9bff67"',
-    'modelRevision: "3a4a1610d399a5cbb932d54dc229944029803ff7"',
-    'sharedTextEncoderAuthority: "RUNPOD_WAN22_CACHE_BASE.requiredFiles"',
-    "reuseExistingWan22TextEncoderAuthority: true",
-    "physicalRuntimeCertified: false",
-    "physicalPortraitCertified: false",
-    "paidExecutionAuthorized: false"
-  ]],
-  ["scripts/jarvis-local-video-wan22.py", [
-    "LOCAL_VIDEO_HUMO_EXECUTOR_NOT_IMPLEMENTED",
-    "LOCAL_VIDEO_RUNTIME_UNSUPPORTED"
-  ]]
-];
+  replaceExactOnce(
+    engineFile,
+    `        catch(error) {\n            if (podId) {\n                try {\n                    await terminatePod(podId, job.operationId, "provision_cleanup");\n                }\n                catch {}\n            }\n            if (error?.providerHttp) {`,
+    `        catch(error) {\n            let provisionCleanupError = null;\n            if (podId) {\n                try {\n                    await terminatePod(podId, job.operationId, "provision_cleanup");\n                }\n                catch(cleanupError) {\n                    provisionCleanupError = cleanupError;\n                }\n            }\n            if (provisionCleanupError) {\n                const cleanupFailure = new Error("RUNPOD_PROVISION_CLEANUP_FAILED");\n                cleanupFailure.retryable = false;\n                cleanupFailure.stage = "provision_cleanup";\n                cleanupFailure.podId = podId;\n                cleanupFailure.providerCode = provisionCleanupError?.providerCode || null;\n                cleanupFailure.providerMessage = provisionCleanupError?.providerMessage || null;\n                cleanupFailure.providerHttp = provisionCleanupError?.providerHttp || null;\n                cleanupFailure.remoteWorker = {\n                    provider: "runpod",\n                    podId,\n                    remoteJobId: \`runpod/\${podId}/\${job.operationId}\`,\n                    provisionedAt: now().toISOString(),\n                    operationId: job.operationId,\n                    operationName: job.operationName\n                };\n                error = cleanupFailure;\n            }\n            if (error?.providerHttp) {`,
+    "V142_PROVISION_CLEANUP_MUST_PROPAGATE_POD"
+  );
 
-for (const [file, markers] of checks) {
-  const source = sourceOf(file);
-  for (const marker of markers) {
-    if (!source.includes(marker)) {
-      throw new Error(`V142_L40S_IDENTITY_AUTHORITY_MISSING:${file}:${marker}`);
-    }
-  }
+  replaceExactOnce(
+    engineFile,
+    `            catch(error) {\n                const released = await failOperationAndRelease(operationPath, operation, {\n                    state: "FAILED",\n                    status: "LOCAL_VIDEO_RUNNER_START_FAILED",`,
+    `            catch(error) {\n                const failedOperation = error?.remoteWorker ? {\n                    ...operation,\n                    remoteWorker: error.remoteWorker,\n                    remoteJobId: error.remoteWorker.remoteJobId || null,\n                    podId: error.remoteWorker.podId || null\n                } : operation;\n                const released = await failOperationAndRelease(operationPath, failedOperation, {\n                    state: "FAILED",\n                    status: "LOCAL_VIDEO_RUNNER_START_FAILED",`,
+    "V142_RUNNER_START_FAILURE_MUST_RETAIN_REMOTE_WORKER"
+  );
+
+  appendOnce(
+    testFile,
+    "V142 provision cleanup failure cannot hide a billable Pod",
+    `test("V142 provision cleanup failure cannot hide a billable Pod", () => {\n    const source = fs.readFileSync(\n        new URL("../jarvis-local-video-engine.js", import.meta.url),\n        "utf8"\n    );\n    const launchStart = source.indexOf("async function launch({ job })");\n    const pollStart = source.indexOf("async function pollRemote", launchStart);\n    assert.ok(launchStart >= 0 && pollStart > launchStart);\n    const launchSource = source.slice(launchStart, pollStart);\n    assert.match(launchSource, /RUNPOD_PROVISION_CLEANUP_FAILED/);\n    assert.match(launchSource, /cleanupFailure\\.remoteWorker = \\{/);\n    assert.match(launchSource, /remoteJobId: \\`runpod\\/\\$\\{podId\\}\\/\\$\\{job\\.operationId\\}\\`/);\n    assert.doesNotMatch(\n        launchSource,\n        /await terminatePod\\(podId, job\\.operationId, "provision_cleanup"\\);\\r?\\n\\s*}\\r?\\n\\s*catch \\{\\}/\n    );\n\n    const durableStart = source.indexOf("async function launchDurableOperation");\n    const jobStart = source.indexOf("const job = {", durableStart);\n    assert.ok(durableStart >= 0 && jobStart > durableStart);\n    const durableSource = source.slice(durableStart, jobStart);\n    assert.match(durableSource, /error\\?\\.remoteWorker/);\n    assert.match(durableSource, /podId: error\\.remoteWorker\\.podId \\|\\| null/);\n});`
+  );
 }
 
-if (sourceOf("jarvis-fs-bridge.js").includes("invocationPayload.requiresIdentityFidelity = false")) {
-  throw new Error("V142_IDENTITY_FIDELITY_BYPASS_STILL_PRESENT");
+assertExistingV142IdentityAuthority();
+ensurePlatformNeutralModelManifestRegression();
+ensureProvisionCleanupFailClosed();
+assertExistingV142IdentityAuthority();
+
+const engine = sourceOf("jarvis-local-video-engine.js");
+const testSource = sourceOf("tests/jarvis-local-video-engine-v142.test.mjs");
+const postChecks = [
+  "RUNPOD_PROVISION_CLEANUP_FAILED",
+  "provisionCleanupError",
+  "cleanupFailure.remoteWorker",
+  "error?.remoteWorker",
+  "podId: error.remoteWorker.podId || null"
+];
+for (const marker of postChecks) {
+  if (!engine.includes(marker)) throw new Error(`V142_PROVISION_CLEANUP_AUTHORITY_MISSING:${marker}`);
+}
+if (!testSource.includes("V142 provision cleanup failure cannot hide a billable Pod")) {
+  throw new Error("V142_PROVISION_CLEANUP_REGRESSION_MISSING");
+}
+if (/await terminatePod\(podId, job\.operationId, "provision_cleanup"\);\n\s*}\n\s*catch \{\}/.test(engine)) {
+  throw new Error("V142_PROVISION_CLEANUP_FAILURE_STILL_SWALLOWED");
 }
 
 console.log(JSON.stringify({
@@ -269,6 +139,8 @@ console.log(JSON.stringify({
   identityRuntimePaidExecutionAuthorized: false,
   identityRunnerCannotFallThroughToWan: true,
   identitySpendBlockedUntilCertifiedBackend: true,
+  provisionCleanupFailureRetainsPodIdentity: true,
+  provisionCleanupFailureCannotBeSwallowed: true,
   externalFallbackAllowedForVideoGenerate: false,
   paidSpendGuardedByExistingRunpodAuthority: true,
   newFiles: false,
