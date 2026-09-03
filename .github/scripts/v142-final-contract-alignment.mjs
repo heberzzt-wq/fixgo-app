@@ -320,3 +320,84 @@ console.log(JSON.stringify({
   newFiles: false,
   newBrains: false
 }));
+
+replaceFileExactOnce(
+  LOCAL_VIDEO_ENGINE,
+  `function backendRequirementFailure(backend = {}, requirements = {}) {\n    const referenceCount = Math.max(0, Number(requirements.referenceCount || 0));\n    const requiresImageToVideo = requirements.requiresImageToVideo === true || referenceCount > 0;\n    const requiresIdentityFidelity = requirements.requiresIdentityFidelity === true;\n    if (backend.backend === HUMO_IDENTITY_PROBE.backend) {`,
+  `function backendRequirementFailure(backend = {}, requirements = {}) {\n    const referenceCount = Math.max(0, Number(requirements.referenceCount || 0));\n    const requiresImageToVideo = requirements.requiresImageToVideo === true || referenceCount > 0;\n    const requiresIdentityFidelity = requirements.requiresIdentityFidelity === true;\n    const runtimeCertificationOnly = requirements.runtimeCertificationOnly === true;\n    if (backend.backend === HUMO_IDENTITY_PROBE.backend && !runtimeCertificationOnly) {`,
+  "V142_HUMO_RUNTIME_CERTIFICATION_ROUTING_GATE"
+);
+
+replaceFileExactOnce(
+  LOCAL_VIDEO_ENGINE,
+  `    async function start(payload = {}) {\n        const referenceOutputs = Array.isArray(payload.referenceOutputs) ? payload.referenceOutputs : [];`,
+  `    async function start(payload = {}) {\n        const runtimeCertificationOnly = booleanValue(\n            env.JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY,\n            false\n        );\n        const referenceOutputs = Array.isArray(payload.referenceOutputs) ? payload.referenceOutputs : [];`,
+  "V142_HUMO_RUNTIME_CERTIFICATION_START_MODE"
+);
+
+replaceFileExactOnce(
+  LOCAL_VIDEO_ENGINE,
+  `            requiresImageToVideo: referenceOutputs.length > 0,\n            requiresIdentityFidelity,\n            aspectRatio: payload.aspectRatio === "16:9" ? "16:9" : "9:16",`,
+  `            requiresImageToVideo: referenceOutputs.length > 0,\n            requiresIdentityFidelity,\n            runtimeCertificationOnly,\n            aspectRatio: payload.aspectRatio === "16:9" ? "16:9" : "9:16",`,
+  "V142_HUMO_RUNTIME_CERTIFICATION_REQUIREMENT"
+);
+
+replaceFileExactOnce(
+  LOCAL_VIDEO_ENGINE,
+  `        if (!script || prompts.length < 1) {\n            return { ok: false, status: "LOCAL_VIDEO_PROMPT_REQUIRED", error: "LOCAL_VIDEO_PROMPT_REQUIRED" };\n        }`,
+  `        if (!runtimeCertificationOnly && (!script || prompts.length < 1)) {\n            return { ok: false, status: "LOCAL_VIDEO_PROMPT_REQUIRED", error: "LOCAL_VIDEO_PROMPT_REQUIRED" };\n        }`,
+  "V142_HUMO_RUNTIME_CERTIFICATION_PROMPT_BYPASS"
+);
+
+replaceFileExactOnce(
+  LOCAL_VIDEO_ENGINE,
+  `            runtimeCertificationOnly: booleanValue(\n                env.JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY,\n                false\n            ),`,
+  `            runtimeCertificationOnly,`,
+  "V142_HUMO_RUNTIME_CERTIFICATION_JOB_FLAG"
+);
+
+replaceFileExactOnce(
+  LOCAL_VIDEO_ENGINE,
+  `        if (result.status === "RUNPOD_RUNTIME_PREFLIGHT_CERTIFIED") {\n            const mountedCacheCertification = Boolean(operation.remoteWorker?.networkVolumeId);`,
+  `        if ([\n            "RUNPOD_RUNTIME_PREFLIGHT_CERTIFIED",\n            "RUNPOD_HUMO_RUNTIME_PREFLIGHT_CERTIFIED"\n        ].includes(result.status)) {\n            const humoRuntimeCertification =\n                result.status === "RUNPOD_HUMO_RUNTIME_PREFLIGHT_CERTIFIED";\n            const mountedCacheCertification = Boolean(operation.remoteWorker?.networkVolumeId);`,
+  "V142_HUMO_RUNTIME_CERTIFICATION_POLL_STATUS"
+);
+
+replaceFileExactOnce(
+  LOCAL_VIDEO_ENGINE,
+  `                result.runtimeCertificationOnly === true &&\n                result.runtimePreflightVerified === true &&\n                result.inferenceStarted === false &&`,
+  `                result.runtimeCertificationOnly === true &&\n                result.runtimePreflightVerified === true &&\n                (!humoRuntimeCertification || result.physicalRuntimeCertified === true) &&\n                result.inferenceStarted === false &&`,
+  "V142_HUMO_RUNTIME_CERTIFICATION_RECEIPT_GATE"
+);
+
+appendFileOnce(
+  LOCAL_VIDEO_TEST,
+  "V142 HuMo runtime certification bypasses inference routing and is consumed by local poll",
+  String.raw`
+test("V142 HuMo runtime certification bypasses inference routing and is consumed by local poll", () => {
+    const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+    assert.equal(engineSource.includes("const runtimeCertificationOnly = requirements.runtimeCertificationOnly === true"), true);
+    assert.equal(engineSource.includes("HUMO_IDENTITY_PROBE.backend && !runtimeCertificationOnly"), true);
+    assert.equal(engineSource.includes("!runtimeCertificationOnly && (!script || prompts.length < 1)"), true);
+    assert.equal(engineSource.includes('"RUNPOD_HUMO_RUNTIME_PREFLIGHT_CERTIFIED"'), true);
+    assert.equal(engineSource.includes("!humoRuntimeCertification || result.physicalRuntimeCertified === true"), true);
+    assert.equal(engineSource.includes("runtimeCertificationOnly,"), true);
+});`
+);
+
+execFileSync(process.execPath, ["--check", "jarvis-local-video-engine.js"], { stdio: "inherit" });
+
+console.log(JSON.stringify({
+  ok: true,
+  status: "V142_HUMO_RUNTIME_CERTIFICATION_ROUTING_CLOSED",
+  providerTrafficUsed: false,
+  resourceCreationPossible: false,
+  runtimeCertificationBypassesIdentityInferenceGate: true,
+  runtimeCertificationPromptRequired: false,
+  humoCertificationPollConsumed: true,
+  humoPhysicalReceiptRequired: true,
+  inferenceAuthorizationUnchanged: true,
+  paidAuthorityDefaultUnchanged: true,
+  newFiles: false,
+  newBrains: false
+}));
