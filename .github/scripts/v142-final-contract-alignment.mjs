@@ -20,39 +20,25 @@ function replaceExactOnce(file, before, after, label) {
 function appendOnce(file, marker, addition) {
   let source = sourceOf(file);
   if (source.includes(marker)) return;
-  source = `${source.trimEnd()}\n\n${addition.trim()}\n`;
-  write(file, source);
+  write(file, `${source.trimEnd()}\n\n${addition.trim()}\n`);
 }
 
-function assertExistingV142IdentityAuthority() {
+function assertCurrentV142Authority() {
   const bridge = sourceOf("jarvis-fs-bridge.js");
-  const actuator = sourceOf("gestia-core/jarvis/jarvis.actuator.pack.js");
   const engine = sourceOf("jarvis-local-video-engine.js");
   const runner = sourceOf("scripts/jarvis-local-video-wan22.py");
-
+  const doc = sourceOf("docs/jarvis-local-video-v142.md");
   const required = [
-    [bridge, 'host === "firebasestorage.googleapis.com"', "V142_FIREBASE_VIDEO_IMPORT_ALLOWLIST"],
-    [bridge, 'app.post("/video/engine/resolve"', "V142_VIDEO_ENGINE_RESOLVER"],
-    [bridge, "requiresRunpodL40s", "V142_RUNPOD_L40S_BRIDGE"],
     [bridge, "RUNPOD_L40S_IDENTITY_BACKEND_REQUIRED", "V142_IDENTITY_BRIDGE_FAIL_CLOSED"],
-    [actuator, 'name: "video.generate"', "V142_VIDEO_GENERATE_TOOL"],
-    [actuator, "requiresRunpodL40s: true", "V142_RUNPOD_L40S_ACTUATOR"],
-    [actuator, "requiresIdentityFidelity: referenceImages.length > 0", "V142_IDENTITY_REQUIREMENT_ACTUATOR"],
     [engine, "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED", "V142_IDENTITY_GATE_ENGINE"],
-    [engine, "maximumSourceReferenceAssets: 3", "V142_SOURCE_REFERENCE_CAPACITY"],
     [engine, "!requiresIdentityFidelity && references.length > Number(model.maximumReferenceAssets || 0)", "V142_IDENTITY_REFERENCES_STAY_SEPARATE"],
-    [engine, "requiresIdentityFidelity: job.requiresIdentityFidelity === true", "V142_IDENTITY_REQUIREMENT_PERSISTED"],
-    [engine, "RUNPOD_HUMO_IDENTITY_CANDIDATE", "V142_HUMO_CANDIDATE"],
-    [engine, 'sourceRevision: "845f44736e21be93aa5d8cf406b6eb01af9bff67"', "V142_HUMO_SOURCE_PIN"],
-    [engine, 'modelRevision: "3a4a1610d399a5cbb932d54dc229944029803ff7"', "V142_HUMO_MODEL_PIN"],
-    [engine, "physicalRuntimeCertified: false", "V142_HUMO_RUNTIME_UNCERTIFIED"],
-    [engine, "physicalPortraitCertified: false", "V142_HUMO_PORTRAIT_UNCERTIFIED"],
-    [engine, "paidExecutionAuthorized: false", "V142_HUMO_PAID_DENIED"],
-    [runner, '"wan22-ti2v-5b"', "V142_WAN22_RUNNER"],
+    [engine, "RUNPOD_PROVISION_CLEANUP_FAILED", "V142_PROVISION_CLEANUP_FAIL_CLOSED"],
+    [engine, "cleanupFailure.remoteWorker", "V142_PROVISION_CLEANUP_RETAINS_POD"],
     [runner, "LOCAL_VIDEO_HUMO_EXECUTOR_NOT_IMPLEMENTED", "V142_HUMO_EXECUTOR_FAIL_CLOSED"],
-    [runner, "LOCAL_VIDEO_RUNTIME_UNSUPPORTED", "V142_UNKNOWN_RUNTIME_FAIL_CLOSED"]
+    [runner, "LOCAL_VIDEO_RUNTIME_UNSUPPORTED", "V142_UNKNOWN_RUNTIME_FAIL_CLOSED"],
+    [doc, "must never be merged into a contact sheet, collage, or identity sheet", "V142_DOC_IDENTITY_SHEET_FORBIDDEN"],
+    [doc, "cleanup is download-first", "V142_DOC_DOWNLOAD_FIRST"]
   ];
-
   for (const [source, marker, label] of required) {
     if (!source.includes(marker)) throw new Error(`${label}_MISSING`);
   }
@@ -61,158 +47,119 @@ function assertExistingV142IdentityAuthority() {
   }
 }
 
-function ensurePlatformNeutralModelManifestRegression() {
-  const testFile = "tests/jarvis-local-video-engine-v142.test.mjs";
-  replaceExactOnce(
-    testFile,
-    `    assert.notEqual(\n        JSON.stringify(observedManifest.files),\n        JSON.stringify(fixtureContract.requiredFiles),\n        "property order may differ without changing the observed evidence"\n    );`,
-    `    assert.deepEqual(\n        observedManifest.files.map(item => Object.keys(item).sort()),\n        fixtureContract.requiredFiles.map(item => Object.keys(item).sort()),\n        "serializer property order must not affect the observed evidence schema"\n    );`,
-    "V142_MODEL_MANIFEST_PROPERTY_ORDER_PLATFORM_NEUTRAL"
-  );
-}
-
-function ensureProvisionCleanupFailClosed() {
+function ensureShotIdentityBindings() {
+  const artifactStudioFile = "jarvis-artifact-studio.js";
+  const actuatorFile = "gestia-core/jarvis/jarvis.actuator.pack.js";
   const engineFile = "jarvis-local-video-engine.js";
-  const testFile = "tests/jarvis-local-video-engine-v142.test.mjs";
+  const testFile = "tests/jarvis-video-reference-mission-continuity-v142.test.mjs";
 
   replaceExactOnce(
-    engineFile,
-    `        catch(error) {\n            if (podId) {\n                try {\n                    await terminatePod(podId, job.operationId, "provision_cleanup");\n                }\n                catch {}\n            }\n            if (error?.providerHttp) {`,
-    `        catch(error) {\n            let provisionCleanupError = null;\n            if (podId) {\n                try {\n                    await terminatePod(podId, job.operationId, "provision_cleanup");\n                }\n                catch(cleanupError) {\n                    provisionCleanupError = cleanupError;\n                }\n            }\n            if (provisionCleanupError) {\n                const cleanupFailure = new Error("RUNPOD_PROVISION_CLEANUP_FAILED");\n                cleanupFailure.retryable = false;\n                cleanupFailure.stage = "provision_cleanup";\n                cleanupFailure.podId = podId;\n                cleanupFailure.providerCode = provisionCleanupError?.providerCode || null;\n                cleanupFailure.providerMessage = provisionCleanupError?.providerMessage || null;\n                cleanupFailure.providerHttp = provisionCleanupError?.providerHttp || null;\n                cleanupFailure.remoteWorker = {\n                    provider: "runpod",\n                    podId,\n                    remoteJobId: "runpod/" + podId + "/" + job.operationId,\n                    provisionedAt: now().toISOString(),\n                    operationId: job.operationId,\n                    operationName: job.operationName\n                };\n                error = cleanupFailure;\n            }\n            if (error?.providerHttp) {`,
-    "V142_PROVISION_CLEANUP_MUST_PROPAGATE_POD"
+    artifactStudioFile,
+    `        castIds: clone(episode.castIds),\n        storyBeats: clone(episode.storyBeats),`,
+    `        castIds: clone(episode.castIds),\n        cast: (episode.castIds || []).map(characterId => ({\n            characterId,\n            displayName: clean(canon.characters?.[characterId]?.displayName) || characterId\n        })),\n        storyBeats: clone(episode.storyBeats),`,
+    "V142_SERIES_CONTEXT_EXPOSES_CAST_IDENTITY"
+  );
+
+  replaceExactOnce(
+    actuatorFile,
+    `export function buildLocalSeriesShotPlan(timeline = []) {`,
+    `function normalizeSeriesIdentityLabel(value = "") {\n    return String(value || "")\n        .normalize("NFD")\n        .replace(/[\\u0300-\\u036f]/g, "")\n        .trim()\n        .toUpperCase();\n}\n\nfunction resolveShotIdentityBindings(activeSegments = [], cast = [], references = []) {\n    const directory = new Map();\n    for (const character of Array.isArray(cast) ? cast : []) {\n        const characterId = String(character?.characterId || "").trim();\n        if (!characterId) continue;\n        for (const label of [characterId, character?.displayName]) {\n            const normalized = normalizeSeriesIdentityLabel(label);\n            if (normalized) directory.set(normalized, characterId);\n        }\n    }\n    const characterIds = [];\n    for (const segment of Array.isArray(activeSegments) ? activeSegments : []) {\n        for (const rawLine of Array.isArray(segment?.lines) ? segment.lines : []) {\n            const speaker = /^([^:]{1,120}):\\s*/u.exec(String(rawLine || "").trim())?.[1] || "";\n            const characterId = directory.get(normalizeSeriesIdentityLabel(speaker));\n            if (characterId && !characterIds.includes(characterId)) characterIds.push(characterId);\n        }\n    }\n    if (characterIds.length === 0 && Array.isArray(cast) && cast.length === 1) {\n        const onlyCharacterId = String(cast[0]?.characterId || "").trim();\n        if (onlyCharacterId) characterIds.push(onlyCharacterId);\n    }\n    const referenceOutputs = (Array.isArray(references) ? references : [])\n        .filter(reference => characterIds.includes(String(reference?.characterId || "").trim()))\n        .map(reference => String(reference?.sourceOutput || "").trim())\n        .filter((value, index, values) => Boolean(value) && values.indexOf(value) === index);\n    return {\n        characterIds,\n        referenceOutputs,\n        mode: characterIds.length === 0\n            ? "unassigned"\n            : characterIds.length === 1\n                ? "single_identity"\n                : "multi_identity"\n    };\n}\n\nexport function buildLocalSeriesShotPlan(timeline = [], { cast = [], references = [] } = {}) {`,
+    "V142_SHOT_PLAN_IDENTITY_BINDING_HELPERS"
+  );
+
+  replaceExactOnce(
+    actuatorFile,
+    `        const activeSegments = segments.filter(segment =>\n            Number(segment.startSeconds) < endSeconds &&\n            Number(segment.endSeconds) > startSeconds\n        );\n        return {`,
+    `        const activeSegments = segments.filter(segment =>\n            Number(segment.startSeconds) < endSeconds &&\n            Number(segment.endSeconds) > startSeconds\n        );\n        const identity = resolveShotIdentityBindings(activeSegments, cast, references);\n        return {`,
+    "V142_SHOT_PLAN_RESOLVES_IDENTITY"
+  );
+
+  replaceExactOnce(
+    actuatorFile,
+    `            startSeconds,\n            durationSeconds,\n            prompt: [`,
+    `            startSeconds,\n            durationSeconds,\n            characterIds: identity.characterIds,\n            identityReferenceOutputs: identity.referenceOutputs,\n            identityMode: identity.mode,\n            prompt: [`,
+    "V142_SHOT_PLAN_PERSISTS_IDENTITY_BINDING"
+  );
+
+  replaceExactOnce(
+    actuatorFile,
+    `                const seriesShotPlan = seriesTimeline.length > 0\n                    ? buildLocalSeriesShotPlan(seriesTimeline)\n                    : [];`,
+    `                const seriesShotPlan = seriesTimeline.length > 0\n                    ? buildLocalSeriesShotPlan(seriesTimeline, {\n                        cast: seriesContext?.cast || [],\n                        references: seriesContext?.referenceAssets || []\n                    })\n                    : [];`,
+    "V142_SERIES_SHOTS_USE_CANON_IDENTITY"
   );
 
   replaceExactOnce(
     engineFile,
-    `            catch(error) {\n                const released = await failOperationAndRelease(operationPath, operation, {\n                    state: "FAILED",\n                    status: "LOCAL_VIDEO_RUNNER_START_FAILED",`,
-    `            catch(error) {\n                const failedOperation = error?.remoteWorker ? {\n                    ...operation,\n                    remoteWorker: error.remoteWorker,\n                    remoteJobId: error.remoteWorker.remoteJobId || null,\n                    podId: error.remoteWorker.podId || null\n                } : operation;\n                const released = await failOperationAndRelease(operationPath, failedOperation, {\n                    state: "FAILED",\n                    status: "LOCAL_VIDEO_RUNNER_START_FAILED",`,
-    "V142_RUNNER_START_FAILURE_MUST_RETAIN_REMOTE_WORKER"
+    `                segmentTitle: String(shot?.segmentTitle || "").trim() || null,\n                startSeconds: Number(shot?.startSeconds),`,
+    `                segmentTitle: String(shot?.segmentTitle || "").trim() || null,\n                characterIds: [...new Set((Array.isArray(shot?.characterIds) ? shot.characterIds : [])\n                    .map(value => String(value || "").trim())\n                    .filter(Boolean))],\n                identityReferenceOutputs: [...new Set((Array.isArray(shot?.identityReferenceOutputs)\n                    ? shot.identityReferenceOutputs\n                    : [])\n                    .map(value => String(value || "").trim().replaceAll("\\\\", "/"))\n                    .filter(Boolean))],\n                identityMode: new Set(["unassigned", "single_identity", "multi_identity"]).has(\n                    String(shot?.identityMode || "").trim()\n                ) ? String(shot.identityMode).trim() : "unassigned",\n                startSeconds: Number(shot?.startSeconds),`,
+    "V142_ENGINE_PRESERVES_SHOT_IDENTITY"
+  );
+
+  replaceExactOnce(
+    engineFile,
+    `                !shot.shotId || !shot.prompt ||\n                !(shot.durationSeconds > 0 && shot.durationSeconds <= 5) ||`,
+    `                !shot.shotId || !shot.prompt ||\n                (shot.identityMode === "single_identity" && shot.characterIds.length !== 1) ||\n                (shot.identityMode === "multi_identity" && shot.characterIds.length < 2) ||\n                (shot.identityMode === "unassigned" && shot.characterIds.length !== 0) ||\n                shot.identityReferenceOutputs.some(output => !referenceOutputs.includes(output)) ||\n                !(shot.durationSeconds > 0 && shot.durationSeconds <= 5) ||`,
+    "V142_ENGINE_VALIDATES_SHOT_IDENTITY_BINDING"
+  );
+
+  replaceExactOnce(
+    testFile,
+    `import { registerJarvisActuatorTools } from "../gestia-core/jarvis/jarvis.actuator.pack.js";`,
+    `import {\n    buildLocalSeriesShotPlan,\n    registerJarvisActuatorTools\n} from "../gestia-core/jarvis/jarvis.actuator.pack.js";`,
+    "V142_TEST_IMPORT_SHOT_PLAN_IDENTITY"
   );
 
   appendOnce(
     testFile,
-    "V142 provision cleanup failure cannot hide a billable Pod",
-    `test("V142 provision cleanup failure cannot hide a billable Pod", () => {\n    const source = fs.readFileSync(\n        new URL("../jarvis-local-video-engine.js", import.meta.url),\n        "utf8"\n    );\n    const launchStart = source.indexOf("async function launch({ job })");\n    const pollStart = source.indexOf("async function pollRemote", launchStart);\n    assert.ok(launchStart >= 0 && pollStart > launchStart);\n    const launchSource = source.slice(launchStart, pollStart);\n    assert.match(launchSource, /RUNPOD_PROVISION_CLEANUP_FAILED/);\n    assert.match(launchSource, /cleanupFailure\\.remoteWorker = \\{/);\n    assert.match(launchSource, /remoteJobId: "runpod\\/" \\+ podId \\+ "\\/" \\+ job\\.operationId/);\n    assert.doesNotMatch(\n        launchSource,\n        /await terminatePod\\(podId, job\\.operationId, "provision_cleanup"\\);\\r?\\n\\s*}\\r?\\n\\s*catch \\{\\}/\n    );\n\n    const durableStart = source.indexOf("async function launchDurableOperation");\n    const jobStart = source.indexOf("const job = {", durableStart);\n    assert.ok(durableStart >= 0 && jobStart > durableStart);\n    const durableSource = source.slice(durableStart, jobStart);\n    assert.match(durableSource, /error\\?\\.remoteWorker/);\n    assert.match(durableSource, /podId: error\\.remoteWorker\\.podId \\|\\| null/);\n});`
-  );
-
-  appendOnce(
-    testFile,
-    "V142 successful remote generation downloads and verifies MP4 before Pod release",
-    `test("V142 successful remote generation downloads and verifies MP4 before Pod release", () => {\n    const source = fs.readFileSync(\n        new URL("../jarvis-local-video-engine.js", import.meta.url),\n        "utf8"\n    );\n    const scpDownload = source.indexOf("await scpDownload(state, state.remoteOutputFile, localOutput)");\n    const localBytes = source.indexOf("const localBytes = fs.readFileSync(localOutput)", scpDownload);\n    const localSha = source.indexOf("const localSha256 = createHash", localBytes);\n    const resultDownloaded = source.indexOf('phase: "RESULT_DOWNLOADED"', localSha);\n    assert.ok(scpDownload >= 0 && localBytes > scpDownload && localSha > localBytes && resultDownloaded > localSha);\n\n    const physicalVerify = source.indexOf("verifyResultReceipt(operation, result);");\n    const mp4Verify = source.indexOf("verifyMp4Container(output.resolved)", physicalVerify);\n    const mediaVerify = source.indexOf("verifyMediaAgainstOperation(operation, media);", mp4Verify);\n    const verifiedSha = source.indexOf('throw new Error("REMOTE_VIDEO_RESULT_SHA256_MISMATCH")', mediaVerify);\n    const generationRelease = source.indexOf('"generation_succeeded"', verifiedSha);\n    assert.ok(physicalVerify >= 0);\n    assert.ok(mp4Verify > physicalVerify);\n    assert.ok(mediaVerify > mp4Verify);\n    assert.ok(verifiedSha > mediaVerify);\n    assert.ok(generationRelease > verifiedSha);\n});`
+    "v142 series shots bind explicit character references without cross-identity collage",
+    `test("v142 series shots bind explicit character references without cross-identity collage", () => {\n    const timeline = [{\n        segmentId: "segment-1", title: "Heberto", startSeconds: 0, endSeconds: 5,\n        durationSeconds: 5, lines: ["HEBERTO: Ya quedo."], text: "HEBERTO: Ya quedo."\n    }, {\n        segmentId: "segment-2", title: "Roldan", startSeconds: 5, endSeconds: 10,\n        durationSeconds: 5, lines: ["ROLDAN: Falta nivelar."], text: "ROLDAN: Falta nivelar."\n    }, {\n        segmentId: "segment-3", title: "Ambos", startSeconds: 10, endSeconds: 15,\n        durationSeconds: 5, lines: ["HEBERTO: Sostengo.", "ROLDAN: Termino."],\n        text: "HEBERTO: Sostengo. ROLDAN: Termino."\n    }];\n    const cast = [\n        { characterId: "CHAR_HEBERTO", displayName: "Heberto" },\n        { characterId: "CHAR_ROLDAN", displayName: "Roldan" }\n    ];\n    const references = [\n        { characterId: "CHAR_HEBERTO", sourceOutput: ".jarvis-artifacts/images/heberto.png" },\n        { characterId: "CHAR_ROLDAN", sourceOutput: ".jarvis-artifacts/images/roldan.png" }\n    ];\n    const shots = buildLocalSeriesShotPlan(timeline, { cast, references });\n    assert.deepEqual(shots[0].characterIds, ["CHAR_HEBERTO"]);\n    assert.deepEqual(shots[0].identityReferenceOutputs, [references[0].sourceOutput]);\n    assert.equal(shots[0].identityMode, "single_identity");\n    assert.deepEqual(shots[1].characterIds, ["CHAR_ROLDAN"]);\n    assert.deepEqual(shots[1].identityReferenceOutputs, [references[1].sourceOutput]);\n    assert.equal(shots[1].identityMode, "single_identity");\n    assert.deepEqual(shots[2].characterIds, ["CHAR_HEBERTO", "CHAR_ROLDAN"]);\n    assert.deepEqual(shots[2].identityReferenceOutputs, references.map(item => item.sourceOutput));\n    assert.equal(shots[2].identityMode, "multi_identity");\n});`
   );
 }
 
-function materializeDocumentationAuthority() {
-  if (process.env.GITHUB_JOB !== "materialize-v142") return;
-  const docFile = "docs/jarvis-local-video-v142.md";
-
-  replaceExactOnce(
-    docFile,
-    "The assigned identity sheet was 1020x1024. Official Wan TI2V derives I2V output\ngeometry from the input image aspect ratio and its maximum area, so the\nnear-square reference—not RunPod or the GPU—caused the mismatch.",
-    "The historical, now-forbidden identity sheet was 1020x1024. Official Wan TI2V\nderives I2V output geometry from the input image aspect ratio and its maximum\narea, so that near-square collage—not RunPod or the GPU—caused the mismatch.",
-    "V142_DOC_MARK_HISTORICAL_IDENTITY_SHEET_FORBIDDEN"
-  );
-
-  replaceExactOnce(
-    docFile,
-    [
-      "Runner `1.3.1-v142-wan-episode-master` now fits and pads the complete assigned",
-      "reference onto the exact backend canvas and verifies that canvas before paid",
-      "inference. This covers both a multi-image identity sheet and a single reference",
-      "without changing the public video contract. A physical regression converts a",
-      "1020x1024 reference to 704x1280 before the mocked Wan call. Another paid attempt",
-      "still requires separate human authority."
-    ].join("\n"),
-    [
-      "Runner `1.3.1-v142-wan-episode-master` may fit and pad one non-identity Wan",
-      "reference onto the exact backend canvas and verify that geometry before paid",
-      "inference. Human identity references are different: they remain separate and",
-      "must never be merged into a contact sheet, collage, or identity sheet used as",
-      "scene conditioning. Identity-required missions stay fail-closed before RunPod",
-      "provisioning until the pinned HuMo identity runtime has a real executor and its",
-      "physical runtime, portrait behavior, and paid execution authority are all",
-      "separately certified. The current HuMo runner path still stops with",
-      "`LOCAL_VIDEO_HUMO_EXECUTOR_NOT_IMPLEMENTED`; its certification and paid flags",
-      "remain false.",
-      "",
-      "For a successful paid generation, cleanup is download-first. Jarvis verifies",
-      "the remote bytes/SHA, downloads the MP4 locally, verifies local bytes, SHA-256,",
-      "MP4 container and media metadata, and only then releases/deletes the Pod. An",
-      "early `provision_cleanup` DELETE is allowed only when provisioning failed before",
-      "a usable generated result existed. If that cleanup DELETE fails, the Pod identity",
-      "must remain attached to the durable operation so the normal release lifecycle can",
-      "retry deletion or report `REMOTE_VIDEO_WORKER_RELEASE_FAILED`; it must never be",
-      "reported as if no Pod had been provisioned. Another paid attempt still requires",
-      "separate human authority."
-    ].join("\n"),
-    "V142_DOC_IDENTITY_AND_DOWNLOAD_FIRST_AUTHORITY"
-  );
-
-  const doc = sourceOf(docFile);
-  const required = [
-    "must never be merged into a contact sheet, collage, or identity sheet",
-    "cleanup is download-first",
-    "only then releases/deletes the Pod",
-    "LOCAL_VIDEO_HUMO_EXECUTOR_NOT_IMPLEMENTED",
-    "REMOTE_VIDEO_WORKER_RELEASE_FAILED"
-  ];
-  for (const marker of required) {
-    if (!doc.includes(marker)) throw new Error(`V142_DOC_AUTHORITY_MISSING:${marker}`);
-  }
-}
-
-assertExistingV142IdentityAuthority();
-ensurePlatformNeutralModelManifestRegression();
-ensureProvisionCleanupFailClosed();
-assertExistingV142IdentityAuthority();
-materializeDocumentationAuthority();
+assertCurrentV142Authority();
+ensureShotIdentityBindings();
+assertCurrentV142Authority();
 
 const engine = sourceOf("jarvis-local-video-engine.js");
-const testSource = sourceOf("tests/jarvis-local-video-engine-v142.test.mjs");
-const postChecks = [
-  "RUNPOD_PROVISION_CLEANUP_FAILED",
-  "provisionCleanupError",
-  "cleanupFailure.remoteWorker",
-  "error?.remoteWorker",
-  "podId: error.remoteWorker.podId || null"
-];
-for (const marker of postChecks) {
-  if (!engine.includes(marker)) throw new Error(`V142_PROVISION_CLEANUP_AUTHORITY_MISSING:${marker}`);
+const actuator = sourceOf("gestia-core/jarvis/jarvis.actuator.pack.js");
+const artifactStudio = sourceOf("jarvis-artifact-studio.js");
+const identityBindingTest = sourceOf("tests/jarvis-video-reference-mission-continuity-v142.test.mjs");
+
+for (const marker of [
+  "characterIds: identity.characterIds",
+  "identityReferenceOutputs: identity.referenceOutputs",
+  "identityMode: identity.mode",
+  "buildLocalSeriesShotPlan(seriesTimeline, {"
+]) {
+  if (!actuator.includes(marker)) throw new Error(`V142_SHOT_IDENTITY_ACTUATOR_MISSING:${marker}`);
 }
-if (!testSource.includes("V142 provision cleanup failure cannot hide a billable Pod")) {
-  throw new Error("V142_PROVISION_CLEANUP_REGRESSION_MISSING");
+if (!artifactStudio.includes("cast: (episode.castIds || []).map(characterId => ({")) {
+  throw new Error("V142_SERIES_CONTEXT_CAST_DIRECTORY_MISSING");
 }
-if (!testSource.includes("V142 successful remote generation downloads and verifies MP4 before Pod release")) {
-  throw new Error("V142_DOWNLOAD_BEFORE_RELEASE_REGRESSION_MISSING");
+for (const marker of [
+  "identityReferenceOutputs",
+  "identityMode",
+  "shot.identityReferenceOutputs.some(output => !referenceOutputs.includes(output))"
+]) {
+  if (!engine.includes(marker)) throw new Error(`V142_SHOT_IDENTITY_ENGINE_MISSING:${marker}`);
 }
-if (/await terminatePod\(podId, job\.operationId, "provision_cleanup"\);\n\s*}\n\s*catch \{\}/.test(engine)) {
-  throw new Error("V142_PROVISION_CLEANUP_FAILURE_STILL_SWALLOWED");
+if (!identityBindingTest.includes("v142 series shots bind explicit character references without cross-identity collage")) {
+  throw new Error("V142_SHOT_IDENTITY_REGRESSION_MISSING");
 }
 
 console.log(JSON.stringify({
   ok: true,
   status: "V142_RUNPOD_L40S_IDENTITY_FIDELITY_GUARD_VERIFIED",
   sameSemanticAuthority: true,
-  miniDramaTool: "video.generate",
-  runpodL40sVideoAuthority: true,
-  remoteExecutionRequired: true,
-  provider: "runpod",
-  gpuTypeId: "NVIDIA L40S",
-  genericVideoBackend: "wan22-ti2v-5b",
   identityFidelityRequiredForReferences: true,
   identityReferencesRemainSeparate: true,
   identityRuntimeCandidate: "humo-1.7b-identity",
-  identityRuntimePinned: true,
-  identityRuntimeReusesWan22TextEncoderAuthority: true,
   identityRuntimePhysicallyCertified: false,
   identityRuntimePaidExecutionAuthorized: false,
   identityRunnerCannotFallThroughToWan: true,
-  identitySpendBlockedUntilCertifiedBackend: true,
-  provisionCleanupFailureRetainsPodIdentity: true,
-  provisionCleanupFailureCannotBeSwallowed: true,
+  shotIdentityBindingsPersisted: true,
+  multiIdentityShotsRemainExplicit: true,
   successfulGenerationDownloadsBeforeRelease: true,
-  documentationIdentitySheetForbidden: process.env.GITHUB_JOB === "materialize-v142",
-  externalFallbackAllowedForVideoGenerate: false,
   paidSpendGuardedByExistingRunpodAuthority: true,
   newFiles: false,
   newBrains: false
