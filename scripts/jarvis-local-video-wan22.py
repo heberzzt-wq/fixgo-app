@@ -72,13 +72,17 @@ BACKENDS: dict[str, dict[str, Any]] = {
         "entrypoint": "main.py",
         "config_path": "humo/configs/inference/generate_1_7B.yaml",
         "mode": "TIA",
-        "portrait_size": "480*832",
-        "landscape_size": "832*480",
+        "probe_size": "832*480",
+        "probe_width": 832,
+        "probe_height": 480,
         "target_fps": 25.0,
         "frame_count": 97,
+        "probe_duration_seconds": 3.88,
         "reference_assets": True,
         "max_reference_assets": 3,
+        "maximum_identity_count": 1,
         "audio_required": True,
+        "runtime_assets_pinned": False,
         "physical_runtime_certified": False,
         "physical_portrait_certified": False,
         "paid_execution_authorized": False,
@@ -188,7 +192,9 @@ def resolve_backend(job: dict[str, Any]) -> tuple[str, dict[str, Any]]:
             or config.get("paid_execution_authorized") is not True
         ):
             raise RuntimeError("LOCAL_VIDEO_IDENTITY_RUNTIME_NOT_CERTIFIED")
-        raise RuntimeError("LOCAL_VIDEO_HUMO_EXECUTOR_NOT_IMPLEMENTED")
+        if config.get("runtime_assets_pinned") is not True:
+            raise RuntimeError("LOCAL_VIDEO_HUMO_RUNTIME_ASSETS_INCOMPLETE")
+        return backend, config
     if runtime != "wan22":
         raise RuntimeError("LOCAL_VIDEO_RUNTIME_UNSUPPORTED")
     return backend, config
@@ -427,6 +433,266 @@ def master_episode(
     os.replace(temporary_output, output_file)
 
 
+def _required_humo_path(value: str, status: str, directory: bool = False) -> Path:
+    raw = str(value or "").strip()
+    if not raw:
+        raise RuntimeError(status)
+    candidate = Path(raw).resolve()
+    if directory:
+        if not candidate.is_dir():
+            raise RuntimeError(status)
+    elif not candidate.is_file():
+        raise RuntimeError(status)
+    return candidate
+
+
+def _humo_executable(value: str, fallback: str) -> str:
+    requested = str(value or "").strip()
+    if requested:
+        resolved = shutil.which(requested) if not Path(requested).is_absolute() else requested
+        if resolved and Path(resolved).is_file():
+            return str(resolved)
+        raise RuntimeError("LOCAL_VIDEO_HUMO_TORCHRUN_UNAVAILABLE")
+    resolved = shutil.which(fallback)
+    if not resolved:
+        raise RuntimeError("LOCAL_VIDEO_HUMO_TORCHRUN_UNAVAILABLE")
+    return str(resolved)
+
+
+def _trim_humo_probe_audio(
+    source: Path,
+    target: Path,
+    ffmpeg: str,
+    start_seconds: float,
+    duration_seconds: float,
+) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    completed = subprocess.run(
+        [
+            ffmpeg,
+            "-hide_banner", "-nostdin", "-loglevel", "error", "-y",
+            "-ss", f"{start_seconds:.6f}",
+            "-t", f"{duration_seconds:.6f}",
+            "-i", str(source),
+            "-ar", "16000", "-ac", "1",
+            str(target),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    if completed.returncode != 0 or not target.is_file() or target.stat().st_size <= 44:
+        diagnostic = str(completed.stderr or completed.stdout or "")[-1000:]
+        raise RuntimeError(f"LOCAL_VIDEO_HUMO_AUDIO_PREPARATION_FAILED:{diagnostic}")
+
+
+def run_humo_identity_probe(
+    job: dict[str, Any], result_file: Path, config: dict[str, Any]
+) -> int:
+    shot_plan = list(job.get("shotPlan") or [])
+    if len(shot_plan) != 1:
+        raise RuntimeError("LOCAL_VIDEO_HUMO_IDENTITY_PROBE_SINGLE_SHOT_REQUIRED")
+    shot = shot_plan[0]
+    identity_mode = str(shot.get("identityMode") or "").strip()
+    character_ids = [str(value or "").strip() for value in shot.get("characterIds") or [] if str(value or "").strip()]
+    if identity_mode == "multi_identity" or len(character_ids) > int(config["maximum_identity_count"]):
+        raise RuntimeError("LOCAL_VIDEO_HUMO_MULTI_IDENTITY_UNSUPPORTED")
+    if identity_mode != "single_identity" or len(character_ids) != 1:
+        raise RuntimeError("LOCAL_VIDEO_HUMO_IDENTITY_ASSIGNMENT_REQUIRED")
+    duration_seconds = float(shot.get("durationSeconds") or 0)
+    maximum_duration = float(config["probe_duration_seconds"])
+    if not 0 < duration_seconds <= maximum_duration + 0.001:
+        raise RuntimeError("LOCAL_VIDEO_HUMO_IDENTITY_PROBE_DURATION_UNSUPPORTED")
+
+    reference_outputs = [str(value or "").strip().replace("\\", "/") for value in job.get("referenceOutputs") or []]
+    reference_files = [Path(str(value)).resolve() for value in job.get("referenceFiles") or []]
+    if len(reference_outputs) != len(reference_files):
+        raise RuntimeError("LOCAL_VIDEO_HUMO_REFERENCE_BINDING_INVALID")
+    reference_map = dict(zip(reference_outputs, reference_files))
+    identity_outputs = [
+        str(value or "").strip().replace("\\", "/")
+        for value in shot.get("identityReferenceOutputs") or []
+        if str(value or "").strip()
+    ]
+    identity_files = [reference_map.get(output) for output in identity_outputs]
+    if (
+        not identity_files
+        or len(identity_files) > int(config["max_reference_assets"])
+        or any(file is None or not file.is_file() for file in identity_files)
+    ):
+        raise RuntimeError("LOCAL_VIDEO_HUMO_REFERENCE_BINDING_INVALID")
+
+    audio_raw = str(job.get("audioFile") or "").strip()
+    audio_file = _required_humo_path(audio_raw, "LOCAL_VIDEO_HUMO_AUDIO_REFERENCE_REQUIRED")
+    ffmpeg = os.environ.get("JARVIS_FFMPEG_PATH") or shutil.which("ffmpeg")
+    ffprobe = os.environ.get("JARVIS_FFPROBE_PATH") or shutil.which("ffprobe")
+    if not ffmpeg:
+        raise RuntimeError("LOCAL_VIDEO_FFMPEG_UNAVAILABLE")
+    if not ffprobe:
+        raise RuntimeError("LOCAL_VIDEO_FFPROBE_UNAVAILABLE")
+
+    humo_root = _required_humo_path(
+        os.environ.get("JARVIS_HUMO_REPO_DIR", ""),
+        "LOCAL_VIDEO_HUMO_REPOSITORY_NOT_CONFIGURED",
+        directory=True,
+    )
+    main_file = _required_humo_path(
+        str(humo_root / str(config["entrypoint"])),
+        "LOCAL_VIDEO_HUMO_REPOSITORY_NOT_READY",
+    )
+    config_file = _required_humo_path(
+        str(humo_root / str(config["config_path"])),
+        "LOCAL_VIDEO_HUMO_CONFIG_NOT_READY",
+    )
+    humo_weights = _required_humo_path(
+        os.environ.get("JARVIS_HUMO_WEIGHTS_DIR", ""),
+        "LOCAL_VIDEO_HUMO_WEIGHTS_NOT_CONFIGURED",
+        directory=True,
+    )
+    wan21_weights = _required_humo_path(
+        os.environ.get("JARVIS_HUMO_WAN21_MODEL_DIR", ""),
+        "LOCAL_VIDEO_HUMO_WAN21_ASSETS_NOT_CONFIGURED",
+        directory=True,
+    )
+    checkpoint = _required_humo_path(
+        str(humo_weights / "HuMo-1.7B" / "ema.pth"),
+        "LOCAL_VIDEO_HUMO_CHECKPOINT_MISSING",
+    )
+    zero_vae = _required_humo_path(
+        str(humo_weights / "zero_vae_129frame.pt"),
+        "LOCAL_VIDEO_HUMO_ZERO_VAE_MISSING",
+    )
+    wan21_vae = _required_humo_path(
+        str(wan21_weights / "Wan2.1_VAE.pth"),
+        "LOCAL_VIDEO_HUMO_WAN21_VAE_MISSING",
+    )
+    t5_checkpoint = _required_humo_path(
+        str(wan21_weights / "models_t5_umt5-xxl-enc-bf16.pth"),
+        "LOCAL_VIDEO_HUMO_T5_MISSING",
+    )
+    t5_tokenizer = _required_humo_path(
+        str(wan21_weights / "google" / "umt5-xxl"),
+        "LOCAL_VIDEO_HUMO_T5_TOKENIZER_MISSING",
+        directory=True,
+    )
+    whisper = _required_humo_path(
+        os.environ.get("JARVIS_HUMO_WHISPER_DIR", ""),
+        "LOCAL_VIDEO_HUMO_WHISPER_MISSING",
+        directory=True,
+    )
+    separator = _required_humo_path(
+        os.environ.get("JARVIS_HUMO_AUDIO_SEPARATOR_FILE", ""),
+        "LOCAL_VIDEO_HUMO_AUDIO_SEPARATOR_MISSING",
+    )
+    torchrun = _humo_executable(os.environ.get("JARVIS_HUMO_TORCHRUN", ""), "torchrun")
+
+    output_file = Path(str(job.get("outputFile") or "")).resolve()
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    operation_id = str(job.get("operationId") or "identity-probe").replace("/", "-")
+    probe_root = output_file.parent / f"humo-probe-{operation_id}"
+    probe_output = probe_root / "output"
+    probe_output.mkdir(parents=True, exist_ok=True)
+    item_name = "identity_probe"
+    prompt_file = probe_root / "prompt.json"
+    probe_audio = probe_root / "audio.wav"
+    _trim_humo_probe_audio(
+        audio_file,
+        probe_audio,
+        str(ffmpeg),
+        float(shot.get("startSeconds") or 0),
+        duration_seconds,
+    )
+    write_json_atomic(prompt_file, {
+        item_name: {
+            "img_paths": [str(file) for file in identity_files],
+            "audio_path": str(probe_audio),
+            "prompt": build_prompt(job, str(shot.get("prompt") or "")),
+        }
+    })
+
+    command = [
+        torchrun,
+        "--standalone",
+        "--nnodes=1",
+        "--nproc_per_node=1",
+        str(main_file),
+        str(config_file),
+        "dit.sp_size=1",
+        f"generation.frames={int(config['frame_count'])}",
+        "generation.seed=666666",
+        "generation.scale_t=7.0",
+        "generation.scale_i=4.0",
+        "generation.scale_a=7.5",
+        "generation.mode=TIA",
+        f"generation.height={int(config['probe_height'])}",
+        f"generation.width={int(config['probe_width'])}",
+        "diffusion.timesteps.sampling.steps=50",
+        f"generation.positive_prompt={prompt_file}",
+        f"generation.output.dir={probe_output}",
+        f"dit.checkpoint_dir={checkpoint}",
+        f"dit.zero_vae_path={zero_vae}",
+        f"vae.checkpoint={wan21_vae}",
+        f"text.t5_checkpoint={t5_checkpoint}",
+        f"text.t5_tokenizer={t5_tokenizer}",
+        f"audio.vocal_separator={separator}",
+        f"audio.wav2vec_model={whisper}",
+    ]
+    completed = subprocess.run(
+        command,
+        cwd=humo_root,
+        env=offline_environment(),
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=int(os.environ.get("JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS", "7200")),
+    )
+    if completed.returncode != 0:
+        diagnostic = str(completed.stderr or completed.stdout or "")[-2000:]
+        raise RuntimeError(f"LOCAL_VIDEO_HUMO_EXIT_{completed.returncode}:{diagnostic}")
+
+    generated = probe_output / f"{item_name}_seed666666.mp4"
+    if not generated.is_file() or generated.stat().st_size < 100000:
+        raise RuntimeError("LOCAL_VIDEO_HUMO_PHYSICAL_OUTPUT_INVALID")
+    media = inspect_video(generated, str(ffprobe))
+    if (
+        int(media.get("width") or 0) != int(config["probe_width"])
+        or int(media.get("height") or 0) != int(config["probe_height"])
+        or float(media.get("fps") or 0) + 0.01 < float(config["target_fps"])
+    ):
+        raise RuntimeError("LOCAL_VIDEO_HUMO_PROBE_MEDIA_MISMATCH")
+    os.replace(generated, output_file)
+    media = inspect_video(output_file, str(ffprobe))
+    write_json_atomic(result_file, {
+        "ok": True,
+        "status": "LOCAL_VIDEO_HUMO_IDENTITY_PROBE_COMPLETED",
+        "runnerVersion": RUNNER_VERSION,
+        "operationId": str(job.get("operationId") or ""),
+        "operationName": str(job.get("operationName") or ""),
+        "output": str(job.get("output") or ""),
+        "mimeType": "video/mp4",
+        "backend": str(job.get("backend") or "humo-1.7b-identity"),
+        "model": str(config["model"]),
+        "engine": "local",
+        "provider": "local",
+        "externalApiUsed": False,
+        "externalEstimatedCostUsd": 0,
+        "identityMode": "single_identity",
+        "characterIds": character_ids,
+        "identityReferenceOutputs": identity_outputs,
+        "identityProbe": True,
+        "portraitCertified": False,
+        "probeGeometry": {
+            "width": int(config["probe_width"]),
+            "height": int(config["probe_height"]),
+            "fps": float(config["target_fps"]),
+            "frames": int(config["frame_count"]),
+        },
+        **media,
+    })
+    return 0
+
+
 def run(job_file: Path, result_file: Path) -> int:
     job = read_json(job_file)
     if job.get("externalApiAllowed") is not False:
@@ -435,6 +701,8 @@ def run(job_file: Path, result_file: Path) -> int:
         raise RuntimeError("LOCAL_VIDEO_PROCESS_NETWORK_POLICY_INVALID")
 
     backend, config = resolve_backend(job)
+    if str(config.get("runtime") or "wan22").strip().lower() == "humo":
+        return run_humo_identity_probe(job, result_file, config)
     repo_env = str(config["repo_env"])
     wan_root_raw = str(os.environ.get(repo_env, "")).strip()
     if not wan_root_raw:

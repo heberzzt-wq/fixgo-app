@@ -6400,8 +6400,10 @@ test("V142 HuMo identity candidate is pinned and cannot authorize paid execution
     assert.match(candidate, /sharedTextEncoderAuthority: "RUNPOD_WAN22_CACHE_BASE\.requiredFiles"/);
     assert.match(candidate, /reuseExistingWan22TextEncoderAuthority: true/);
     assert.equal((source.match(/models_t5_umt5-xxl-enc-bf16\.pth/g) || []).length, 1);
-    assert.match(candidate, /width: 480/);
-    assert.match(candidate, /height: 832/);
+    assert.match(candidate, /width: 832/);
+    assert.match(candidate, /height: 480/);
+    assert.match(candidate, /durationSeconds: 3\.88/);
+    assert.match(candidate, /portraitTargetUnresolved: true/);
     assert.match(candidate, /physicalRuntimeCertified: false/);
     assert.match(candidate, /physicalPortraitCertified: false/);
     assert.match(candidate, /paidExecutionAuthorized: false/);
@@ -6411,7 +6413,7 @@ test("V142 HuMo identity candidate is pinned and cannot authorize paid execution
     );
 });
 
-test("V142 HuMo runner cannot fall through to Wan runtime", () => {
+test("V142 HuMo identity probe executor exists but remains behind certification and asset authority", () => {
     const runner = fs.readFileSync(
         new URL("../scripts/jarvis-local-video-wan22.py", import.meta.url),
         "utf8"
@@ -6422,12 +6424,30 @@ test("V142 HuMo runner cannot fall through to Wan runtime", () => {
     const resolver = runner.slice(start, end);
     assert.match(resolver, /runtime = str\(config\.get\("runtime"\) or "wan22"\)/);
     assert.match(resolver, /LOCAL_VIDEO_IDENTITY_RUNTIME_NOT_CERTIFIED/);
-    assert.match(resolver, /LOCAL_VIDEO_HUMO_EXECUTOR_NOT_IMPLEMENTED/);
+    assert.match(resolver, /LOCAL_VIDEO_HUMO_RUNTIME_ASSETS_INCOMPLETE/);
     assert.match(resolver, /LOCAL_VIDEO_RUNTIME_UNSUPPORTED/);
-    assert.ok(
-        resolver.indexOf("LOCAL_VIDEO_HUMO_EXECUTOR_NOT_IMPLEMENTED") <
-        resolver.indexOf("return backend, config")
-    );
+    assert.doesNotMatch(resolver, /LOCAL_VIDEO_HUMO_EXECUTOR_NOT_IMPLEMENTED/);
+
+    const executorStart = runner.indexOf("def run_humo_identity_probe(");
+    const runStart = runner.indexOf("def run(job_file:", executorStart);
+    assert.ok(executorStart >= 0 && runStart > executorStart);
+    const executor = runner.slice(executorStart, runStart);
+    for (const marker of [
+        "LOCAL_VIDEO_HUMO_IDENTITY_PROBE_SINGLE_SHOT_REQUIRED",
+        "LOCAL_VIDEO_HUMO_MULTI_IDENTITY_UNSUPPORTED",
+        "LOCAL_VIDEO_HUMO_IDENTITY_ASSIGNMENT_REQUIRED",
+        "LOCAL_VIDEO_HUMO_IDENTITY_PROBE_DURATION_UNSUPPORTED",
+        "generation.mode=TIA",
+        "generation.height=",
+        "generation.width=",
+        "generation.positive_prompt=",
+        "audio.vocal_separator=",
+        "audio.wav2vec_model=",
+        "LOCAL_VIDEO_HUMO_IDENTITY_PROBE_COMPLETED"
+    ]) assert.equal(executor.includes(marker), true, marker);
+    assert.match(runner, /"probe_width": 832/);
+    assert.match(runner, /"probe_height": 480/);
+    assert.match(runner, /"probe_duration_seconds": 3\.88/);
 });
 
 test("V142 provision cleanup failure cannot hide a billable Pod", () => {

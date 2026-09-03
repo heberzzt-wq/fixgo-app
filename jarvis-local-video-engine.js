@@ -88,12 +88,15 @@ const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({
         flashAttention: "2.6.3"
     }),
     targetGpuTypeId: "NVIDIA L40S",
-    candidatePortrait: Object.freeze({
-        width: 480,
-        height: 832,
+    candidateProbeGeometry: Object.freeze({
+        width: 832,
+        height: 480,
         fps: 25,
-        frames: 97
+        frames: 97,
+        durationSeconds: 3.88,
+        orientation: "landscape"
     }),
+    portraitTargetUnresolved: true,
     physicalRuntimeCertified: false,
     physicalPortraitCertified: false,
     paidExecutionAuthorized: false
