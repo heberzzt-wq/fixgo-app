@@ -114,6 +114,76 @@ const DEFAULT_ROOT =
 const RUNTIME_CONTRACT_FILE =
     "jarvis-runtime-contract.json";
 
+export function resolveRunpodCredentialEnvironment({
+    env = process.env,
+    platform = process.platform,
+    homeDir = os.homedir(),
+    existsSync = fs.existsSync,
+    execFileSyncImpl = execFileSync
+} = {}) {
+    const resolvedEnv = { ...env };
+    if (String(resolvedEnv.RUNPOD_API_KEY || "").trim()) {
+        return { env: resolvedEnv, credentialLoaded: true, credentialSource: "environment" };
+    }
+    if (platform !== "win32") {
+        return { env: resolvedEnv, credentialLoaded: false, credentialSource: null };
+    }
+    const localAppData = String(
+        resolvedEnv.LOCALAPPDATA || path.join(homeDir, "AppData", "Local")
+    ).trim();
+    const credentialFile = path.join(
+        localAppData,
+        "PeninsulaTech",
+        "Jarvis",
+        "runpod-api-key.clixml"
+    );
+    if (!existsSync(credentialFile)) {
+        return { env: resolvedEnv, credentialLoaded: false, credentialSource: null };
+    }
+    const script = [
+        "$secure = Import-Clixml -LiteralPath $env:JARVIS_RUNPOD_CREDENTIAL_FILE",
+        "$bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)",
+        "try { [Console]::Out.Write([Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)) } finally { if ($bstr -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) } }"
+    ].join("; ");
+    try {
+        const credential = String(execFileSyncImpl(
+            "powershell.exe",
+            ["-NoProfile", "-NonInteractive", "-Command", script],
+            {
+                encoding: "utf8",
+                windowsHide: true,
+                maxBuffer: 1024 * 1024,
+                env: {
+                    ...resolvedEnv,
+                    JARVIS_RUNPOD_CREDENTIAL_FILE: credentialFile
+                }
+            }
+        ) || "").trim();
+        if (credential.length < 20 || /[\r\n]/.test(credential)) {
+            return {
+                env: resolvedEnv,
+                credentialLoaded: false,
+                credentialSource: null,
+                credentialError: "RUNPOD_PERSISTED_CREDENTIAL_INVALID"
+            };
+        }
+        resolvedEnv.RUNPOD_API_KEY = credential;
+        return {
+            env: resolvedEnv,
+            credentialLoaded: true,
+            credentialSource: "windows-dpapi-clixml"
+        };
+    }
+    catch {
+        return {
+            env: resolvedEnv,
+            credentialLoaded: false,
+            credentialSource: null,
+            credentialError: "RUNPOD_PERSISTED_CREDENTIAL_UNAVAILABLE"
+        };
+    }
+}
+
 function safeFileStem(value = "artifact") {
     const normalized = String(value || "artifact").normalize("NFD").toLowerCase();
     let result = "";
@@ -4653,10 +4723,13 @@ export function createJarvisFsBridgeApp({
         express();
     const runpodEnabled = String(process.env.JARVIS_REMOTE_GPU_PROVIDER || "")
         .trim().toLowerCase() === "runpod";
+    const runpodCredential = runpodEnabled
+        ? resolveRunpodCredentialEnvironment({ env: process.env })
+        : { env: process.env, credentialLoaded: false, credentialSource: null };
     const runpod = runpodEnabled
         ? createRunpodRemoteVideoAdapter({
             root,
-            env: process.env,
+            env: runpodCredential.env,
             inspectBridgeIdentity: () => describeJarvisBridgeIdentity(root)
         })
         : null;

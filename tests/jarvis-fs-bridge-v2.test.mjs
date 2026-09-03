@@ -1383,3 +1383,15 @@ test("PDF edit route records local artifact approval and safe placement contract
         /placementAdjustments/
     );
 });
+
+test("V142 bridge auto-loads persisted RunPod credential only into adapter memory on Windows", () => {
+    const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
+    assert.equal(bridgeSource.includes("resolveRunpodCredentialEnvironment"), true);
+    assert.equal(bridgeSource.includes("runpod-api-key.clixml"), true);
+    assert.equal(bridgeSource.includes("Import-Clixml"), true);
+    assert.equal(bridgeSource.includes("SecureStringToBSTR"), true);
+    assert.equal(bridgeSource.includes("ZeroFreeBSTR"), true);
+    assert.equal(bridgeSource.includes('credentialSource: "windows-dpapi-clixml"'), true);
+    assert.equal(bridgeSource.includes("env: runpodCredential.env"), true);
+    assert.equal(bridgeSource.includes("process.env.RUNPOD_API_KEY ="), false);
+});
