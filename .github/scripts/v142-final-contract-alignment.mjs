@@ -42,61 +42,211 @@ function ensureHuMoRemoteRuntimeAuthority() {
   const file = "jarvis-local-video-engine.js";
   replaceExactOnce(
     file,
-    `    officialRuntime: Object.freeze({\n        python: "3.11",\n        torch: "2.5.1",\n        torchCuda: "12.4",\n        flashAttention: "2.6.3"\n    }),\n    targetGpuTypeId: "NVIDIA L40S",`,
-    `    officialRuntime: Object.freeze({\n        python: "3.11",\n        torch: "2.5.1",\n        torchCuda: "12.4",\n        flashAttention: "2.6.3"\n    }),\n    remoteRuntimeBase: Object.freeze({\n        registry: "registry-1.docker.io",\n        repository: "runpod/pytorch",\n        tag: "2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04",\n        provisionImageTag: "runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04",\n        expectedRegistryDigest: "sha256:61a4aafb0094cd773f11eefa378929d5a687bd775febeb78eac62fc824141fb5",\n        basePython: "3.11",\n        baseTorch: "2.4.0",\n        baseCuda: "12.4.1",\n        bootstrapPython: "3.11",\n        bootstrapTorch: "2.5.1",\n        bootstrapTorchCuda: "12.4",\n        bootstrapFlashAttention: "2.6.3",\n        runtimePreflightCertified: false\n    }),\n    targetGpuTypeId: "NVIDIA L40S",`,
+    `    officialRuntime: Object.freeze({
+        python: "3.11",
+        torch: "2.5.1",
+        torchCuda: "12.4",
+        flashAttention: "2.6.3"
+    }),
+    targetGpuTypeId: "NVIDIA L40S",`,
+    `    officialRuntime: Object.freeze({
+        python: "3.11",
+        torch: "2.5.1",
+        torchCuda: "12.4",
+        flashAttention: "2.6.3"
+    }),
+    remoteRuntimeBase: Object.freeze({
+        registry: "registry-1.docker.io",
+        repository: "runpod/pytorch",
+        tag: "2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04",
+        provisionImageTag: "runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04",
+        expectedRegistryDigest: "sha256:61a4aafb0094cd773f11eefa378929d5a687bd775febeb78eac62fc824141fb5",
+        basePython: "3.11",
+        baseTorch: "2.4.0",
+        baseCuda: "12.4.1",
+        bootstrapPython: "3.11",
+        bootstrapTorch: "2.5.1",
+        bootstrapTorchCuda: "12.4",
+        bootstrapFlashAttention: "2.6.3",
+        runtimePreflightCertified: false
+    }),
+    targetGpuTypeId: "NVIDIA L40S",`,
     "V142_HUMO_REMOTE_RUNTIME_BASE"
   );
 }
 
 function ensureHuMoResolverProfile() {
   const file = "jarvis-local-video-engine.js";
+
   replaceExactOnce(
     file,
     `const UNSUPPORTED_LOCAL_VIDEO_MODEL_PROFILE = Object.freeze({`,
-    `const HUMO_IDENTITY_PROBE = Object.freeze({\n    backend: "humo-1.7b-identity",\n    id: RUNPOD_HUMO_IDENTITY_CANDIDATE.id,\n    model: "HuMo-1.7B",\n    provider: "local",\n    license: null,\n    textToVideo: false,\n    imageToVideo: true,\n    referenceAssets: true,\n    maximumReferenceAssets: 3,\n    maximumSourceReferenceAssets: 3,\n    targetResolution: "832x480-identity-probe",\n    targetFps: 25,\n    portraitSize: null,\n    landscapeSize: Object.freeze({ width: 832, height: 480 }),\n    minimumVramGb: 48,\n    checkpointSizeGb: 0,\n    minimumFreeDiskGb: 60,\n    identityOnly: true,\n    identityProbeOnly: true,\n    remoteModelDirectory: "/workspace/models/HuMo",\n    repositoryEntrypoint: "main.py"\n});\n\nconst UNSUPPORTED_LOCAL_VIDEO_MODEL_PROFILE = Object.freeze({`,
+    `const HUMO_IDENTITY_PROBE = Object.freeze({
+    backend: "humo-1.7b-identity",
+    id: RUNPOD_HUMO_IDENTITY_CANDIDATE.id,
+    model: "HuMo-1.7B",
+    provider: "local",
+    license: null,
+    textToVideo: false,
+    imageToVideo: true,
+    referenceAssets: true,
+    maximumReferenceAssets: 3,
+    maximumSourceReferenceAssets: 3,
+    targetResolution: "832x480-identity-probe",
+    targetFps: 25,
+    portraitSize: null,
+    landscapeSize: Object.freeze({ width: 832, height: 480 }),
+    minimumVramGb: 48,
+    checkpointSizeGb: 0,
+    minimumFreeDiskGb: 60,
+    identityOnly: true,
+    identityProbeOnly: true,
+    remoteModelDirectory: "/workspace/models/HuMo",
+    repositoryEntrypoint: "main.py"
+});
+
+const UNSUPPORTED_LOCAL_VIDEO_MODEL_PROFILE = Object.freeze({`,
     "V142_HUMO_MODEL_PROFILE"
   );
 
   replaceExactOnce(
     file,
-    `export const LOCAL_VIDEO_MODEL_PROFILES = Object.freeze({\n    [WAN22_TI2V_5B.backend]: WAN22_TI2V_5B,\n    [WAN21_T2V_1_3B.backend]: WAN21_T2V_1_3B\n});`,
-    `export const LOCAL_VIDEO_MODEL_PROFILES = Object.freeze({\n    [WAN22_TI2V_5B.backend]: WAN22_TI2V_5B,\n    [WAN21_T2V_1_3B.backend]: WAN21_T2V_1_3B,\n    [HUMO_IDENTITY_PROBE.backend]: HUMO_IDENTITY_PROBE\n});`,
+    `export const LOCAL_VIDEO_MODEL_PROFILES = Object.freeze({
+    [WAN22_TI2V_5B.backend]: WAN22_TI2V_5B,
+    [WAN21_T2V_1_3B.backend]: WAN21_T2V_1_3B
+});`,
+    `export const LOCAL_VIDEO_MODEL_PROFILES = Object.freeze({
+    [WAN22_TI2V_5B.backend]: WAN22_TI2V_5B,
+    [WAN21_T2V_1_3B.backend]: WAN21_T2V_1_3B,
+    [HUMO_IDENTITY_PROBE.backend]: HUMO_IDENTITY_PROBE
+});`,
     "V142_HUMO_PROFILE_REGISTRATION"
   );
 
   replaceExactOnce(
     file,
-    `    "light": WAN21_T2V_1_3B.backend,\n    "local-light": WAN21_T2V_1_3B.backend\n});`,
-    `    "light": WAN21_T2V_1_3B.backend,\n    "local-light": WAN21_T2V_1_3B.backend,\n    "humo": HUMO_IDENTITY_PROBE.backend,\n    "humo-1.7b": HUMO_IDENTITY_PROBE.backend,\n    "humo-1.7b-identity": HUMO_IDENTITY_PROBE.backend\n});`,
+    `    "light": WAN21_T2V_1_3B.backend,
+    "local-light": WAN21_T2V_1_3B.backend
+});`,
+    `    "light": WAN21_T2V_1_3B.backend,
+    "local-light": WAN21_T2V_1_3B.backend,
+    "humo": HUMO_IDENTITY_PROBE.backend,
+    "humo-1.7b": HUMO_IDENTITY_PROBE.backend,
+    "humo-1.7b-identity": HUMO_IDENTITY_PROBE.backend
+});`,
     "V142_HUMO_MODEL_ALIASES"
   );
 
   replaceExactOnce(
     file,
-    `const LOCAL_VIDEO_BACKEND_ORDER = Object.freeze([\n    WAN22_TI2V_5B.backend,\n    WAN21_T2V_1_3B.backend\n]);`,
-    `const LOCAL_VIDEO_BACKEND_ORDER = Object.freeze([\n    WAN22_TI2V_5B.backend,\n    WAN21_T2V_1_3B.backend,\n    HUMO_IDENTITY_PROBE.backend\n]);`,
-    "V142_HUMO_BACKEND_ORDER"
-  );
-
-  replaceExactOnce(
-    file,
-    `    [WAN21_T2V_1_3B.backend]: Object.freeze({\n        modelDirectory: "JARVIS_WAN21_MODEL_DIR",\n        repositoryDirectory: "JARVIS_WAN21_REPO_DIR",\n        certified: "JARVIS_WAN21_CERTIFIED"\n    })\n});`,
-    `    [WAN21_T2V_1_3B.backend]: Object.freeze({\n        modelDirectory: "JARVIS_WAN21_MODEL_DIR",\n        repositoryDirectory: "JARVIS_WAN21_REPO_DIR",\n        certified: "JARVIS_WAN21_CERTIFIED"\n    }),\n    [HUMO_IDENTITY_PROBE.backend]: Object.freeze({\n        modelDirectory: "JARVIS_HUMO_WEIGHTS_DIR",\n        repositoryDirectory: "JARVIS_HUMO_REPO_DIR",\n        certified: "JARVIS_HUMO_CERTIFIED"\n    })\n});`,
+    `    [WAN21_T2V_1_3B.backend]: Object.freeze({
+        modelDirectory: "JARVIS_WAN21_MODEL_DIR",
+        repositoryDirectory: "JARVIS_WAN21_REPO_DIR",
+        certified: "JARVIS_WAN21_CERTIFIED"
+    })
+});`,
+    `    [WAN21_T2V_1_3B.backend]: Object.freeze({
+        modelDirectory: "JARVIS_WAN21_MODEL_DIR",
+        repositoryDirectory: "JARVIS_WAN21_REPO_DIR",
+        certified: "JARVIS_WAN21_CERTIFIED"
+    }),
+    [HUMO_IDENTITY_PROBE.backend]: Object.freeze({
+        modelDirectory: "JARVIS_HUMO_WEIGHTS_DIR",
+        repositoryDirectory: "JARVIS_HUMO_REPO_DIR",
+        certified: "JARVIS_HUMO_CERTIFIED"
+    })
+});`,
     "V142_HUMO_BACKEND_ENVIRONMENT"
   );
 
   replaceExactOnce(
     file,
-    `    const modelDirectory = configuredModelDirectory\n        ? path.resolve(String(configuredModelDirectory))\n        : (remoteExecution ? "/workspace/models/Wan2.2-TI2V-5B" : null);`,
-    `    const modelDirectory = configuredModelDirectory\n        ? path.resolve(String(configuredModelDirectory))\n        : (remoteExecution\n            ? (profile.remoteModelDirectory || "/workspace/models/Wan2.2-TI2V-5B")\n            : null);`,
+    `    const modelDirectory = configuredModelDirectory
+        ? path.resolve(String(configuredModelDirectory))
+        : (remoteExecution ? "/workspace/models/Wan2.2-TI2V-5B" : null);`,
+    `    const modelDirectory = configuredModelDirectory
+        ? path.resolve(String(configuredModelDirectory))
+        : (remoteExecution
+            ? (profile.remoteModelDirectory || "/workspace/models/Wan2.2-TI2V-5B")
+            : null);`,
     "V142_REMOTE_PROFILE_MODEL_DIRECTORY"
   );
 
   replaceExactOnce(
     file,
-    `    const repositoryReady = remoteExecution || legacyConfiguration || Boolean(\n        repositoryDirectory && fs.existsSync(path.join(repositoryDirectory, "generate.py"))\n    );`,
-    `    const repositoryReady = remoteExecution || legacyConfiguration || Boolean(\n        repositoryDirectory && fs.existsSync(path.join(\n            repositoryDirectory,\n            profile.repositoryEntrypoint || "generate.py"\n        ))\n    );`,
+    `    const repositoryReady = remoteExecution || legacyConfiguration || Boolean(
+        repositoryDirectory && fs.existsSync(path.join(repositoryDirectory, "generate.py"))
+    );`,
+    `    const repositoryReady = remoteExecution || legacyConfiguration || Boolean(
+        repositoryDirectory && fs.existsSync(path.join(
+            repositoryDirectory,
+            profile.repositoryEntrypoint || "generate.py"
+        ))
+    );`,
     "V142_PROFILE_REPOSITORY_ENTRYPOINT"
+  );
+
+  replaceExactOnce(
+    file,
+    `function orderedBackendHealth(health = {}) {
+    if (Array.isArray(health?.backends)) {
+        const byBackend = new Map(
+            health.backends
+                .filter(item => item && typeof item === "object")
+                .map(item => [String(item.backend || ""), item])
+        );
+        return LOCAL_VIDEO_BACKEND_ORDER
+            .map(backend => byBackend.get(backend))
+            .filter(Boolean);
+    }
+    const model = health?.model || health?.modelRequirements || null;
+    const backend = health?.selectedBackend || model?.backend || null;
+    return backend
+        ? [{
+            ...health,
+            backend,
+            model: model?.model || health?.model || null,
+            imageToVideo: model?.imageToVideo === true,
+            maximumReferenceAssets: Number(model?.maximumReferenceAssets || 0),
+            maximumSourceReferenceAssets: Number(model?.maximumSourceReferenceAssets ?? model?.maximumReferenceAssets ?? 0)
+        }]
+        : [];
+}`,
+    `function orderedBackendHealth(health = {}) {
+    if (Array.isArray(health?.backends)) {
+        const reported = health.backends
+            .filter(item => item && typeof item === "object");
+        const byBackend = new Map(
+            reported.map(item => [String(item.backend || ""), item])
+        );
+        const ordered = LOCAL_VIDEO_BACKEND_ORDER
+            .map(backend => byBackend.get(backend))
+            .filter(Boolean);
+        const orderedBackends = new Set(
+            ordered.map(item => String(item.backend || ""))
+        );
+        return [
+            ...ordered,
+            ...reported.filter(item =>
+                String(item.backend || "") &&
+                !orderedBackends.has(String(item.backend || ""))
+            )
+        ];
+    }
+    const model = health?.model || health?.modelRequirements || null;
+    const backend = health?.selectedBackend || model?.backend || null;
+    return backend
+        ? [{
+            ...health,
+            backend,
+            model: model?.model || health?.model || null,
+            imageToVideo: model?.imageToVideo === true,
+            maximumReferenceAssets: Number(model?.maximumReferenceAssets || 0),
+            maximumSourceReferenceAssets: Number(model?.maximumSourceReferenceAssets ?? model?.maximumReferenceAssets ?? 0)
+        }]
+        : [];
+}`,
+    "V142_EXPLICIT_HUMO_HEALTH_ORDER"
   );
 }
 
@@ -104,8 +254,33 @@ function ensureIdentityResolverFailsClosedOnHuMo() {
   const file = "jarvis-local-video-engine.js";
   replaceExactOnce(
     file,
-    `    if (requiresIdentityFidelity && referenceCount > 0) {\n        if (\n            RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalRuntimeCertified !== true ||\n            RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalPortraitCertified !== true ||\n            RUNPOD_HUMO_IDENTITY_CANDIDATE.paidExecutionAuthorized !== true\n        ) {\n            return "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED";\n        }\n    }`,
-    `    if (backend.backend === HUMO_IDENTITY_PROBE.backend) {\n        if (!requiresIdentityFidelity || referenceCount < 1) {\n            return "LOCAL_VIDEO_HUMO_IDENTITY_REQUIRED";\n        }\n        if (String(requirements.aspectRatio || "") !== "16:9") {\n            return "LOCAL_VIDEO_HUMO_PORTRAIT_UNCERTIFIED";\n        }\n        if (\n            RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalRuntimeCertified !== true ||\n            RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalPortraitCertified !== true ||\n            RUNPOD_HUMO_IDENTITY_CANDIDATE.paidExecutionAuthorized !== true\n        ) {\n            return "LOCAL_VIDEO_IDENTITY_RUNTIME_NOT_CERTIFIED";\n        }\n    }\n    else if (requiresIdentityFidelity && referenceCount > 0) {\n        return "LOCAL_VIDEO_IDENTITY_BACKEND_REQUIRED";\n    }`,
+    `    if (requiresIdentityFidelity && referenceCount > 0) {
+        if (
+            RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalRuntimeCertified !== true ||
+            RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalPortraitCertified !== true ||
+            RUNPOD_HUMO_IDENTITY_CANDIDATE.paidExecutionAuthorized !== true
+        ) {
+            return "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED";
+        }
+    }`,
+    `    if (backend.backend === HUMO_IDENTITY_PROBE.backend) {
+        if (!requiresIdentityFidelity || referenceCount < 1) {
+            return "LOCAL_VIDEO_HUMO_IDENTITY_REQUIRED";
+        }
+        if (String(requirements.aspectRatio || "") !== "16:9") {
+            return "LOCAL_VIDEO_HUMO_PORTRAIT_UNCERTIFIED";
+        }
+        if (
+            RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalRuntimeCertified !== true ||
+            RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalPortraitCertified !== true ||
+            RUNPOD_HUMO_IDENTITY_CANDIDATE.paidExecutionAuthorized !== true
+        ) {
+            return "LOCAL_VIDEO_IDENTITY_RUNTIME_NOT_CERTIFIED";
+        }
+    }
+    else if (requiresIdentityFidelity && referenceCount > 0) {
+        return "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED";
+    }`,
     "V142_HUMO_RESOLVER_FAIL_CLOSED"
   );
 }
@@ -114,8 +289,39 @@ function ensureRegression() {
   const file = "tests/jarvis-local-video-engine-v142.test.mjs";
   appendOnce(
     file,
-    "V142 HuMo is a resolver-visible identity-only backend but cannot provision while uncertified",
-    `test("V142 HuMo is a resolver-visible identity-only backend but cannot provision while uncertified", () => {\n    const source = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");\n    const candidateStart = source.indexOf("const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({");\n    const candidateEnd = source.indexOf("const HUMO_IDENTITY_PROBE = Object.freeze({", candidateStart);\n    assert.ok(candidateStart >= 0 && candidateEnd > candidateStart);\n    const candidate = source.slice(candidateStart, candidateEnd);\n    assert.match(candidate, /remoteRuntimeBase: Object\\.freeze\\(\\{/);\n    assert.match(candidate, /runpod\\/pytorch:2\\.4\\.0-py3\\.11-cuda12\\.4\\.1-devel-ubuntu22\\.04/);\n    assert.match(candidate, /61a4aafb0094cd773f11eefa378929d5a687bd775febeb78eac62fc824141fb5/);\n    assert.match(candidate, /bootstrapTorch: "2\\.5\\.1"/);\n    assert.match(candidate, /bootstrapFlashAttention: "2\\.6\\.3"/);\n    assert.match(candidate, /runtimePreflightCertified: false/);\n    assert.match(candidate, /physicalRuntimeCertified: false/);\n    assert.match(candidate, /physicalPortraitCertified: false/);\n    assert.match(candidate, /paidExecutionAuthorized: false/);\n\n    assert.match(source, /const HUMO_IDENTITY_PROBE = Object\\.freeze\\(\\{/);\n    assert.match(source, /backend: "humo-1\\.7b-identity"/);\n    assert.match(source, /identityOnly: true/);\n    assert.match(source, /identityProbeOnly: true/);\n    assert.match(source, /HUMO_IDENTITY_PROBE\\.backend/);\n    assert.match(source, /LOCAL_VIDEO_HUMO_PORTRAIT_UNCERTIFIED/);\n    assert.match(source, /LOCAL_VIDEO_IDENTITY_RUNTIME_NOT_CERTIFIED/);\n    assert.match(source, /LOCAL_VIDEO_IDENTITY_BACKEND_REQUIRED/);\n});`
+    "V142 HuMo is explicit-only and fail-closed until physical identity certification",
+    `test("V142 HuMo is explicit-only and fail-closed until physical identity certification", () => {
+    const source = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+    const candidateStart = source.indexOf("const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({");
+    const candidateEnd = source.indexOf("const HUMO_IDENTITY_PROBE = Object.freeze({", candidateStart);
+    assert.ok(candidateStart >= 0 && candidateEnd > candidateStart);
+    const candidate = source.slice(candidateStart, candidateEnd);
+    assert.match(candidate, /remoteRuntimeBase: Object\.freeze\(\{/);
+    assert.match(candidate, /runpod\/pytorch:2\.4\.0-py3\.11-cuda12\.4\.1-devel-ubuntu22\.04/);
+    assert.match(candidate, /61a4aafb0094cd773f11eefa378929d5a687bd775febeb78eac62fc824141fb5/);
+    assert.match(candidate, /bootstrapTorch: "2\.5\.1"/);
+    assert.match(candidate, /bootstrapFlashAttention: "2\.6\.3"/);
+    assert.match(candidate, /runtimePreflightCertified: false/);
+    assert.match(candidate, /physicalRuntimeCertified: false/);
+    assert.match(candidate, /physicalPortraitCertified: false/);
+    assert.match(candidate, /paidExecutionAuthorized: false/);
+
+    assert.match(source, /const HUMO_IDENTITY_PROBE = Object\.freeze\(\{/);
+    assert.match(source, /backend: "humo-1\.7b-identity"/);
+    assert.match(source, /identityOnly: true/);
+    assert.match(source, /identityProbeOnly: true/);
+    const orderStart = source.indexOf("const LOCAL_VIDEO_BACKEND_ORDER = Object.freeze([");
+    const orderEnd = source.indexOf("]);", orderStart);
+    const automaticOrder = source.slice(orderStart, orderEnd);
+    assert.match(automaticOrder, /WAN22_TI2V_5B\.backend/);
+    assert.match(automaticOrder, /WAN21_T2V_1_3B\.backend/);
+    assert.doesNotMatch(automaticOrder, /HUMO_IDENTITY_PROBE/);
+    assert.match(source, /function orderedBackendHealth\(health = \{\}\)/);
+    assert.match(source, /\.\.\.reported\.filter\(item =>/);
+    assert.match(source, /LOCAL_VIDEO_HUMO_PORTRAIT_UNCERTIFIED/);
+    assert.match(source, /LOCAL_VIDEO_IDENTITY_RUNTIME_NOT_CERTIFIED/);
+    assert.match(source, /LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED/);
+});`
   );
 }
 
@@ -134,18 +340,26 @@ for (const marker of [
   "sha256:61a4aafb0094cd773f11eefa378929d5a687bd775febeb78eac62fc824141fb5",
   "const HUMO_IDENTITY_PROBE = Object.freeze({",
   "LOCAL_VIDEO_HUMO_PORTRAIT_UNCERTIFIED",
-  "LOCAL_VIDEO_IDENTITY_RUNTIME_NOT_CERTIFIED"
+  "LOCAL_VIDEO_IDENTITY_RUNTIME_NOT_CERTIFIED",
+  "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED"
 ]) {
   if (!engine.includes(marker)) throw new Error(`V142_HUMO_RESOLVER_MARKER_MISSING:${marker}`);
 }
-if (!tests.includes("V142 HuMo is a resolver-visible identity-only backend but cannot provision while uncertified")) {
-  throw new Error("V142_HUMO_RESOLVER_REGRESSION_MISSING");
+const orderStart = engine.indexOf("const LOCAL_VIDEO_BACKEND_ORDER = Object.freeze([");
+const orderEnd = engine.indexOf("]);", orderStart);
+if (engine.slice(orderStart, orderEnd).includes("HUMO_IDENTITY_PROBE")) {
+  throw new Error("V142_HUMO_MUST_NOT_ENTER_AUTOMATIC_WAN_ORDER");
+}
+if (!tests.includes("V142 HuMo is explicit-only and fail-closed until physical identity certification")) {
+  throw new Error("V142_HUMO_EXPLICIT_ONLY_REGRESSION_MISSING");
 }
 
 console.log(JSON.stringify({
   ok: true,
-  status: "V142_HUMO_RESOLVER_FAIL_CLOSED_MATERIALIZED",
-  humoResolverVisible: true,
+  status: "V142_HUMO_EXPLICIT_ONLY_FAIL_CLOSED_MATERIALIZED",
+  humoResolverVisibleWhenExplicitlyRequested: true,
+  humoInAutomaticWanOrder: false,
+  legacyWanIdentityStatusPreserved: true,
   remoteRuntimeBasePinned: true,
   remoteRuntimePreflightCertified: false,
   physicalRuntimeCertified: false,
