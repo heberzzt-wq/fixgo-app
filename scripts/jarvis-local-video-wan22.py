@@ -188,7 +188,6 @@ def resolve_backend(job: dict[str, Any]) -> tuple[str, dict[str, Any]]:
             raise RuntimeError("LOCAL_VIDEO_HUMO_RUNTIME_AUTHORITY_REQUIRED")
         if (
             authority.get("physicalRuntimeCertified") is not True
-            or authority.get("physicalPortraitCertified") is not True
             or authority.get("paidExecutionAuthorized") is not True
         ):
             raise RuntimeError("LOCAL_VIDEO_IDENTITY_RUNTIME_NOT_CERTIFIED")

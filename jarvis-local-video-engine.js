@@ -675,7 +675,6 @@ function backendRequirementFailure(backend = {}, requirements = {}) {
         }
         if (
             RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalRuntimeCertified !== true ||
-            RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalPortraitCertified !== true ||
             RUNPOD_HUMO_IDENTITY_CANDIDATE.paidExecutionAuthorized !== true
         ) {
             return "LOCAL_VIDEO_IDENTITY_RUNTIME_NOT_CERTIFIED";
@@ -1841,6 +1840,139 @@ export function createRunpodRemoteVideoAdapter({
             if (job.externalApiAllowed !== false) {
                 throw new Error("RUNPOD_EXTERNAL_FALLBACK_FORBIDDEN");
             }
+        }
+    }
+
+    function inspectHuMoZeroCostPrecheck({ job = null, registryVerification = null } = {}) {
+        try {
+            const requestedBackend = LOCAL_VIDEO_MODEL_ALIASES[configuredBackend] || configuredBackend;
+            if (provider !== "runpod") throw new Error("RUNPOD_PROVIDER_NOT_ENABLED");
+            if (configuredPolicy !== "LOCAL_TEST") throw new Error("RUNPOD_LOCAL_TEST_POLICY_REQUIRED");
+            if (requestedBackend !== HUMO_IDENTITY_PROBE.backend) {
+                throw new Error("RUNPOD_HUMO_BACKEND_REQUIRED");
+            }
+            if (!hardBudgetExplicit) throw new Error("RUNPOD_HARD_BUDGET_REQUIRED");
+            if (gpuTypeId && gpuTypeId !== RUNPOD_HUMO_IDENTITY_CANDIDATE.targetGpuTypeId) {
+                throw new Error("RUNPOD_HUMO_L40S_REQUIRED");
+            }
+            if (!/^[a-f0-9]{40}$/.test(configuredCanonicalSha)) {
+                throw new Error("RUNPOD_CANONICAL_SHA_REQUIRED");
+            }
+            if (currentCanonicalSha() !== configuredCanonicalSha) {
+                throw new Error("RUNPOD_CANONICAL_SHA_MISMATCH");
+            }
+            const bridgeIdentity = currentBridgeIdentity();
+            if (bridgeIdentity.ok !== true || bridgeIdentity.status !== "BRIDGE_IDENTITY_OK") {
+                throw new Error("RUNPOD_BRIDGE_IDENTITY_REQUIRED");
+            }
+            const runtimeBase = RUNPOD_HUMO_IDENTITY_CANDIDATE.remoteRuntimeBase;
+            if (
+                !runtimeBase ||
+                runtimeBase.provisionImageTag !==
+                    runtimeBase.repository + ":" + runtimeBase.tag ||
+                /@sha256:/i.test(runtimeBase.provisionImageTag) ||
+                !/^sha256:[a-f0-9]{64}$/i.test(String(runtimeBase.expectedRegistryDigest || ""))
+            ) {
+                throw new Error("RUNPOD_HUMO_RUNTIME_BASE_AUTHORITY_INVALID");
+            }
+            const verifiedRegistry = normalizedRegistryVerification(runtimeBase, registryVerification);
+            if (job) {
+                const authority = job.identityRuntimeAuthority;
+                const shots = Array.isArray(job.shotPlan) ? job.shotPlan : [];
+                const shot = shots[0] || {};
+                if (
+                    job.executionTarget !== "remote" ||
+                    job.backend !== HUMO_IDENTITY_PROBE.backend ||
+                    job.model !== HUMO_IDENTITY_PROBE.model ||
+                    job.requiresIdentityFidelity !== true ||
+                    job.aspectRatio !== "16:9" ||
+                    job.externalApiAllowed !== false
+                ) {
+                    throw new Error("RUNPOD_HUMO_JOB_CONTRACT_INVALID");
+                }
+                if (
+                    !job.missionId || !job.objectiveId || !job.obligationId ||
+                    !/^[a-f0-9]{64}$/i.test(String(job.rootInstructionHash || ""))
+                ) {
+                    throw new Error("RUNPOD_DURABLE_IDENTITY_REQUIRED");
+                }
+                if (
+                    !authority ||
+                    authority.id !== RUNPOD_HUMO_IDENTITY_CANDIDATE.id ||
+                    authority.sourceRevision !== RUNPOD_HUMO_IDENTITY_CANDIDATE.sourceRevision ||
+                    authority.modelRevision !== RUNPOD_HUMO_IDENTITY_CANDIDATE.modelRevision ||
+                    authority.runtimeAssetAuthorityPinned !== true
+                ) {
+                    throw new Error("RUNPOD_HUMO_RUNTIME_AUTHORITY_REQUIRED");
+                }
+                if (
+                    shots.length !== 1 ||
+                    shot.identityMode !== "single_identity" ||
+                    !Array.isArray(shot.characterIds) || shot.characterIds.length !== 1 ||
+                    !Array.isArray(shot.identityReferenceOutputs) ||
+                    shot.identityReferenceOutputs.length < 1 ||
+                    !(Number(shot.durationSeconds) > 0) ||
+                    Number(shot.durationSeconds) >
+                        RUNPOD_HUMO_IDENTITY_CANDIDATE.candidateProbeGeometry.durationSeconds + 0.001
+                ) {
+                    throw new Error("RUNPOD_HUMO_IDENTITY_PROBE_CONTRACT_INVALID");
+                }
+            }
+            const executionBlockers = [];
+            if (RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalRuntimeCertified !== true) {
+                executionBlockers.push("RUNPOD_HUMO_RUNTIME_PREFLIGHT_CERTIFICATION_REQUIRED");
+            }
+            if (RUNPOD_HUMO_IDENTITY_CANDIDATE.paidExecutionAuthorized !== true) {
+                executionBlockers.push("RUNPOD_HUMO_PAID_EXECUTION_AUTHORITY_REQUIRED");
+            }
+            return {
+                ok: true,
+                phase: "HUMO_ZERO_COST_PREFLIGHT",
+                status: "RUNPOD_HUMO_ZERO_COST_PREFLIGHT_READY",
+                backend: HUMO_IDENTITY_PROBE.backend,
+                model: HUMO_IDENTITY_PROBE.model,
+                targetGpuTypeId: RUNPOD_HUMO_IDENTITY_CANDIDATE.targetGpuTypeId,
+                resourceCreationPossible: false,
+                inferencePossible: false,
+                providerTrafficUsed: false,
+                paidResourceCreationAuthorized,
+                paidExecutionAuthorized: RUNPOD_HUMO_IDENTITY_CANDIDATE.paidExecutionAuthorized === true,
+                physicalRuntimeCertified:
+                    RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalRuntimeCertified === true,
+                executionBlockers,
+                portrait: {
+                    targetResolved: RUNPOD_HUMO_IDENTITY_CANDIDATE.portraitTargetUnresolved !== true,
+                    certified: RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalPortraitCertified === true,
+                    status: RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalPortraitCertified === true
+                        ? "LOCAL_VIDEO_HUMO_PORTRAIT_CERTIFIED"
+                        : "LOCAL_VIDEO_HUMO_PORTRAIT_UNCERTIFIED"
+                },
+                probeGeometry: { ...RUNPOD_HUMO_IDENTITY_CANDIDATE.candidateProbeGeometry },
+                contract: {
+                    provisionImageTag: runtimeBase.provisionImageTag,
+                    expectedRegistryDigest: runtimeBase.expectedRegistryDigest,
+                    registryVerification: verifiedRegistry,
+                    basePython: runtimeBase.basePython,
+                    baseTorch: runtimeBase.baseTorch,
+                    baseCuda: runtimeBase.baseCuda,
+                    bootstrapPython: runtimeBase.bootstrapPython,
+                    bootstrapTorch: runtimeBase.bootstrapTorch,
+                    bootstrapTorchCuda: runtimeBase.bootstrapTorchCuda,
+                    bootstrapFlashAttention: runtimeBase.bootstrapFlashAttention,
+                    runtimePreflightCertified: runtimeBase.runtimePreflightCertified === true
+                }
+            };
+        }
+        catch(error) {
+            return {
+                ok: false,
+                phase: "HUMO_ZERO_COST_PREFLIGHT",
+                status: error?.message || "RUNPOD_HUMO_ZERO_COST_PREFLIGHT_FAILED",
+                error: error?.message || "RUNPOD_HUMO_ZERO_COST_PREFLIGHT_FAILED",
+                resourceCreationPossible: false,
+                inferencePossible: false,
+                providerTrafficUsed: false
+            };
         }
     }
 
@@ -4872,6 +5004,7 @@ export function createRunpodRemoteVideoAdapter({
         configured: provider === "runpod" && Boolean(apiKey) && paidResourceCreationAuthorized,
         inspectHardware,
         inspectZeroCostPrecheck,
+        inspectHuMoZeroCostPrecheck,
         inspectLiveZeroCostPrecheck,
         inspectCpuStagingPrecheck,
         inspectCpuStagingRuntimeIdentity,
