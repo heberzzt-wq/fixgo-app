@@ -7689,7 +7689,7 @@ export async function runHuMoRuntimeCertificationCli({
         JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "true",
         JARVIS_REMOTE_GPU_HARD_BUDGET_USD: "2",
         JARVIS_REMOTE_GPU_BUDGET_STOP_RATIO: "0.95",
-        JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: "0.99",
+        JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: "1.09",
         JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY: "true",
         JARVIS_RUNPOD_EXPECTED_VRAM_GB: "48",
         JARVIS_RUNPOD_MIN_RAM_GB: "62",
@@ -7743,6 +7743,7 @@ export async function runHuMoRuntimeCertificationCli({
             operationName,
             podId: started?.remoteWorker?.podId || started?.podId || null,
             hardBudgetUsd: 2,
+            authorizedHourlyRateUsd: 1.09,
             maximumOperationalMinutes: 30,
             runtimeCertificationOnly: true
         });

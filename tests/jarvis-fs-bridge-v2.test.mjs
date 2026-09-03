@@ -1402,6 +1402,7 @@ test("V142 HuMo runtime certification CLI is explicit-authority budgeted and cle
     assert.equal(bridgeSource.includes('process.argv.includes("--humo-runtime-certification")'), true);
     assert.equal(bridgeSource.includes("RUNPOD_PAID_RESOURCE_CREATION_NOT_AUTHORIZED"), true);
     assert.equal(bridgeSource.includes('JARVIS_REMOTE_GPU_HARD_BUDGET_USD: "2"'), true);
+    assert.equal(bridgeSource.includes('JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: "1.09"'), true);
     assert.equal(bridgeSource.includes('JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY: "true"'), true);
     assert.equal(bridgeSource.includes("delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID"), true);
     assert.equal(bridgeSource.includes("Date.now() + 30 * 60 * 1000"), true);
