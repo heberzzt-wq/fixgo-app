@@ -400,7 +400,9 @@ function runpodPhysicalHarness({
             if (scenario === "registry-unverifiable") return mockHttpResponse(503, { error: "controlled" });
             const expectedDigest = String(url).includes("/library/ubuntu/")
                 ? RUNPOD_CPU_STAGING_PROFILE.expectedRegistryDigest
-                : gpuImageProfile.expectedRegistryDigest;
+                : String(url).includes("2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04")
+                    ? "sha256:61a4aafb0094cd773f11eefa378929d5a687bd775febeb78eac62fc824141fb5"
+                    : gpuImageProfile.expectedRegistryDigest;
             return mockHttpResponse(200, null, {
                 "content-type": "application/vnd.oci.image.index.v1+json",
                 "docker-content-digest": scenario === "registry-digest-mismatch"
@@ -574,7 +576,14 @@ function runpodPhysicalHarness({
         }
         const command = String(args.at(-1) || "");
         calls.push({ kind: "ssh", command });
-        if (command.includes("python3 -c")) {
+        if (
+            (
+                command.includes("python3 -c") ||
+                command.includes("'python3' -c") ||
+                command.includes("/bin/python' -c")
+            ) &&
+            command.includes("torch")
+        ) {
             healthCalls += 1;
             const health = scenario === "health-fail" && healthCalls === 1
                 ? { python: true, torch: true, cuda: false, gpuName: "", vramGb: 0, freeDiskGb: 100 }
@@ -6762,4 +6771,123 @@ test("V142 HuMo remote lifecycle is wired but paid execution remains fail-closed
     finally {
         fs.rmSync(root, { recursive: true, force: true });
     }
+});
+
+test("V142 HuMo mocked runtime certification provisions polls and releases without inference", async () => {
+    const humoSourceRevision = "845f44736e21be93aa5d8cf406b6eb01af9bff67";
+    const harness = runpodPhysicalHarness({
+        scenario: "humo-runtime-certification",
+        envOverrides: {
+            JARVIS_LOCAL_VIDEO_MODEL: "humo",
+            JARVIS_RUNPOD_CLOUD_TYPE: "SECURE",
+            JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY: "true",
+            JARVIS_RUNPOD_DATACENTER_ID: "EU-NL-1"
+        },
+        baseHealthOverrides: {
+            operatingSystem: "ubuntu-22.04",
+            pythonVersion: "3.11.9",
+            torchVersion: "2.4.0+cu124",
+            torchCudaVersion: "12.4",
+            cudaImageVersion: "12.4.1",
+            cuda: true,
+            gpuName: "NVIDIA L40S",
+            computeCapability: "8.9",
+            vramGb: 48,
+            vramBytes: 48 * 1024 ** 3,
+            freeDiskGb: 100,
+            ffmpeg: true,
+            ffprobe: true
+        },
+        runtimeHealthOverrides: {
+            operatingSystem: "ubuntu-22.04",
+            pythonVersion: "3.11.9",
+            torchVersion: "2.5.1+cu124",
+            torchCudaVersion: "12.4",
+            cudaImageVersion: "12.4.1",
+            cuda: true,
+            gpuName: "NVIDIA L40S",
+            computeCapability: "8.9",
+            vramGb: 48,
+            vramBytes: 48 * 1024 ** 3,
+            freeDiskGb: 100,
+            ffmpeg: true,
+            ffprobe: true,
+            runner: true,
+            humoRepository: true,
+            weights: false,
+            wan21: false,
+            whisper: false,
+            separator: false,
+            dependencyContract: true,
+            pipCheck: true,
+            flashAttentionVersion: "2.6.3",
+            sourceRevision: humoSourceRevision
+        }
+    });
+    const job = {
+        ...harness.dryRunJob,
+        backend: "humo-1.7b-identity",
+        model: "HuMo-1.7B",
+        output: ".jarvis-artifacts/videos/humo-runtime-certification.mp4",
+        referenceOutputs: [],
+        referenceFiles: [],
+        sourceReferenceOutputs: [],
+        sourceReferenceFiles: []
+    };
+    const resultFile = path.join(harness.root, "humo-runtime-certification-result.json");
+
+    const launched = await harness.adapter.launch({ job });
+    assert.equal(launched.remoteWorker.provider, "runpod");
+    assert.equal(launched.remoteWorker.podId, "pod-l40s-v142");
+    assert.equal(harness.createdBody.imageName, "runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04");
+    assert.equal(harness.createdBody.cloudType, "SECURE");
+    assert.deepEqual(harness.createdBody.dataCenterIds, ["EU-NL-1"]);
+    assert.deepEqual(harness.createdBody.gpuTypeIds, ["NVIDIA L40S"]);
+    assert.equal("networkVolumeId" in harness.createdBody, false);
+    assert.equal(harness.createdBody.volumeInGb, 100);
+
+    let certified = null;
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+        certified = await harness.adapter.poll({ operation: job, resultFile });
+        if (certified.done === true) break;
+    }
+    assert.equal(certified?.ok, true, JSON.stringify(certified));
+    assert.equal(certified?.done, true, JSON.stringify(certified));
+    assert.equal(certified?.status, "RUNPOD_HUMO_RUNTIME_PREFLIGHT_CERTIFIED");
+    assert.equal(harness.bootstrapStarts, 1);
+    assert.equal(harness.inferenceStarts, 0);
+    const physicalReceipt = JSON.parse(fs.readFileSync(resultFile, "utf8"));
+    assert.equal(physicalReceipt.runtimeCertificationOnly, true);
+    assert.equal(physicalReceipt.runtimePreflightVerified, true);
+    assert.equal(physicalReceipt.physicalRuntimeCertified, true);
+    assert.equal(physicalReceipt.inferenceStarted, false);
+    assert.equal(physicalReceipt.gpuTypeId, "NVIDIA L40S");
+    assert.equal(physicalReceipt.pythonVersion.startsWith("3.11."), true);
+    assert.equal(physicalReceipt.torchVersion.startsWith("2.5.1"), true);
+    assert.equal(physicalReceipt.torchCudaVersion.startsWith("12.4"), true);
+    assert.equal(physicalReceipt.flashAttentionVersion, "2.6.3");
+    assert.equal(physicalReceipt.sourceRevision, humoSourceRevision);
+
+    const released = await harness.adapter.release({
+        ...job,
+        remoteWorker: launched.remoteWorker,
+        reason: "runtime_certification_complete"
+    });
+    assert.equal(released.ok, true, JSON.stringify(released));
+    assert.equal(released.terminationVerified, true, JSON.stringify(released));
+    assert.equal(harness.deleted, true);
+    assert.equal(
+        harness.calls.filter(call => call.kind === "http" && call.url?.endsWith("/pods") && call.method === "POST").length,
+        1
+    );
+    assert.equal(
+        harness.calls.some(call => call.kind === "ssh" && call.command?.includes("jarvis-local-video-wan22.py") && call.command?.includes("nohup")),
+        false
+    );
+    const persistedState = fs.readFileSync(
+        path.join(harness.root, ".jarvis-artifacts", ".video-worker", "runpod", job.operationId + ".json"),
+        "utf8"
+    );
+    assert.equal(persistedState.includes(harness.env.RUNPOD_API_KEY), false);
+    assert.equal(persistedState.includes("controlled-private-key"), false);
 });
