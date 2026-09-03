@@ -4269,7 +4269,7 @@ export function createRunpodRemoteVideoAdapter({
             torchCudaVersion: String(health.torchCudaVersion || "").startsWith("12.4"),
             cudaAvailable: health.cuda === true,
             gpuName: String(health.gpuName || "").trim() === authority.targetGpuTypeId,
-            vramObserved: Number(health.vramBytes || 0) >= HUMO_IDENTITY_PROBE.minimumVramGb * RUNPOD_GIB
+            vramObserved: Number(health.vramBytes || 0) >= 44 * RUNPOD_GIB
         };
         const baseFailures = Object.entries(basePredicates).filter(([, passed]) => passed !== true).map(([name]) => name);
         if (baseFailures.length > 0) {
