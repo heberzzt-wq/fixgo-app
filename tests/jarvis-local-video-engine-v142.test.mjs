@@ -6429,3 +6429,51 @@ test("V142 HuMo runner cannot fall through to Wan runtime", () => {
         resolver.indexOf("return backend, config")
     );
 });
+
+test("V142 provision cleanup failure cannot hide a billable Pod", () => {
+    const source = fs.readFileSync(
+        new URL("../jarvis-local-video-engine.js", import.meta.url),
+        "utf8"
+    );
+    const launchStart = source.indexOf("async function launch({ job })");
+    const pollStart = source.indexOf("async function pollRemote", launchStart);
+    assert.ok(launchStart >= 0 && pollStart > launchStart);
+    const launchSource = source.slice(launchStart, pollStart);
+    assert.match(launchSource, /RUNPOD_PROVISION_CLEANUP_FAILED/);
+    assert.match(launchSource, /cleanupFailure\.remoteWorker = \{/);
+    assert.match(launchSource, /remoteJobId: "runpod\/" \+ podId \+ "\/" \+ job\.operationId/);
+    assert.doesNotMatch(
+        launchSource,
+        /await terminatePod\(podId, job\.operationId, "provision_cleanup"\);\r?\n\s*}\r?\n\s*catch \{\}/
+    );
+
+    const durableStart = source.indexOf("async function launchDurableOperation");
+    const jobStart = source.indexOf("const job = {", durableStart);
+    assert.ok(durableStart >= 0 && jobStart > durableStart);
+    const durableSource = source.slice(durableStart, jobStart);
+    assert.match(durableSource, /error\?\.remoteWorker/);
+    assert.match(durableSource, /podId: error\.remoteWorker\.podId \|\| null/);
+});
+
+test("V142 successful remote generation downloads and verifies MP4 before Pod release", () => {
+    const source = fs.readFileSync(
+        new URL("../jarvis-local-video-engine.js", import.meta.url),
+        "utf8"
+    );
+    const scpDownload = source.indexOf("await scpDownload(state, state.remoteOutputFile, localOutput)");
+    const localBytes = source.indexOf("const localBytes = fs.readFileSync(localOutput)", scpDownload);
+    const localSha = source.indexOf("const localSha256 = createHash", localBytes);
+    const resultDownloaded = source.indexOf('phase: "RESULT_DOWNLOADED"', localSha);
+    assert.ok(scpDownload >= 0 && localBytes > scpDownload && localSha > localBytes && resultDownloaded > localSha);
+
+    const physicalVerify = source.indexOf("verifyResultReceipt(operation, result);");
+    const mp4Verify = source.indexOf("verifyMp4Container(output.resolved)", physicalVerify);
+    const mediaVerify = source.indexOf("verifyMediaAgainstOperation(operation, media);", mp4Verify);
+    const verifiedSha = source.indexOf('throw new Error("REMOTE_VIDEO_RESULT_SHA256_MISMATCH")', mediaVerify);
+    const generationRelease = source.indexOf('"generation_succeeded"', verifiedSha);
+    assert.ok(physicalVerify >= 0);
+    assert.ok(mp4Verify > physicalVerify);
+    assert.ok(mediaVerify > mp4Verify);
+    assert.ok(verifiedSha > mediaVerify);
+    assert.ok(generationRelease > verifiedSha);
+});

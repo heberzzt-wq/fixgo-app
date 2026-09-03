@@ -3897,11 +3897,32 @@ export function createRunpodRemoteVideoAdapter({
             return { pid: null, remoteWorker: runpodPublicWorker(state), kill() {} };
         }
         catch(error) {
+            let provisionCleanupError = null;
             if (podId) {
                 try {
                     await terminatePod(podId, job.operationId, "provision_cleanup");
                 }
-                catch {}
+                catch(cleanupError) {
+                    provisionCleanupError = cleanupError;
+                }
+            }
+            if (provisionCleanupError) {
+                const cleanupFailure = new Error("RUNPOD_PROVISION_CLEANUP_FAILED");
+                cleanupFailure.retryable = false;
+                cleanupFailure.stage = "provision_cleanup";
+                cleanupFailure.podId = podId;
+                cleanupFailure.providerCode = provisionCleanupError?.providerCode || null;
+                cleanupFailure.providerMessage = provisionCleanupError?.providerMessage || null;
+                cleanupFailure.providerHttp = provisionCleanupError?.providerHttp || null;
+                cleanupFailure.remoteWorker = {
+                    provider: "runpod",
+                    podId,
+                    remoteJobId: "runpod/" + podId + "/" + job.operationId,
+                    provisionedAt: now().toISOString(),
+                    operationId: job.operationId,
+                    operationName: job.operationName
+                };
+                error = cleanupFailure;
             }
             if (error?.providerHttp) {
                 let previous = null;
@@ -5302,7 +5323,13 @@ export function createLocalVideoEngine({
                 return { operation, ok: true };
             }
             catch(error) {
-                const released = await failOperationAndRelease(operationPath, operation, {
+                const failedOperation = error?.remoteWorker ? {
+                    ...operation,
+                    remoteWorker: error.remoteWorker,
+                    remoteJobId: error.remoteWorker.remoteJobId || null,
+                    podId: error.remoteWorker.podId || null
+                } : operation;
+                const released = await failOperationAndRelease(operationPath, failedOperation, {
                     state: "FAILED",
                     status: "LOCAL_VIDEO_RUNNER_START_FAILED",
                     error: error?.message || "LOCAL_VIDEO_RUNNER_START_FAILED",
