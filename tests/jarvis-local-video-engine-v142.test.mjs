@@ -6891,3 +6891,13 @@ test("V142 HuMo mocked runtime certification provisions polls and releases witho
     assert.equal(persistedState.includes(harness.env.RUNPOD_API_KEY), false);
     assert.equal(persistedState.includes("controlled-private-key"), false);
 });
+
+test("V142 HuMo bootstrap and poll diagnostics are backend-aware before paid execution", () => {
+    const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+    assert.equal(engineSource.includes("flash_attn==2.6.3 --no-build-isolation"), true);
+    assert.equal(engineSource.includes("RUNPOD_HUMO_BOOTSTRAPPING"), true);
+    assert.equal(engineSource.includes("RUNPOD_HUMO_BOOTSTRAP_REFRESH_REQUIRED"), true);
+    assert.equal(engineSource.includes("RUNPOD_HUMO_RUNTIME_PREFLIGHT_FAILED"), true);
+    assert.equal(engineSource.includes("RUNPOD_WAN22_BOOTSTRAPPING"), true);
+    assert.equal(engineSource.includes("RUNPOD_WAN22_BOOTSTRAP_REFRESH_REQUIRED"), true);
+});

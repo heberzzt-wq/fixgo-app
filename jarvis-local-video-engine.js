@@ -3864,7 +3864,7 @@ export function createRunpodRemoteVideoAdapter({
             "test -x \"$VENV/bin/python\" || python3 -m venv \"$VENV\"",
             "\"$VENV/bin/python\" -m pip install --upgrade pip setuptools wheel packaging ninja 'huggingface_hub[cli]>=0.30,<1'",
             "\"$VENV/bin/python\" -m pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu124",
-            "MAX_JOBS=4 \"$VENV/bin/python\" -m pip install flash_attn==2.6.3 ",
+            "MAX_JOBS=4 \"$VENV/bin/python\" -m pip install flash_attn==2.6.3 --no-build-isolation",
             "\"$VENV/bin/python\" -m pip install -r \"$HUMO_REPO/requirements.txt\"",
             "\"$VENV/bin/python\" -m pip check",
             "progress HUMO_RUNTIME READY",
@@ -4970,7 +4970,7 @@ export function createRunpodRemoteVideoAdapter({
                     lastBootstrapProgressAt: bootstrapStartedAt,
                     stageTimeline: state.stageTimeline
                 });
-                return { ok: true, done: false, status: "RUNPOD_WAN22_BOOTSTRAPPING", remoteWorker: runpodPublicWorker(state) };
+                return { ok: true, done: false, status: state.runtimeKind === "humo" ? "RUNPOD_HUMO_BOOTSTRAPPING" : "RUNPOD_WAN22_BOOTSTRAPPING", remoteWorker: runpodPublicWorker(state) };
             }
             if (state.phase === "BOOTSTRAPPING") {
                 const progress = await readBootstrapProgress(state);
@@ -5013,7 +5013,9 @@ export function createRunpodRemoteVideoAdapter({
                         return {
                             ok: true,
                             done: false,
-                            status: "RUNPOD_WAN22_BOOTSTRAP_REFRESH_REQUIRED",
+                            status: state.runtimeKind === "humo"
+                                ? "RUNPOD_HUMO_BOOTSTRAP_REFRESH_REQUIRED"
+                                : "RUNPOD_WAN22_BOOTSTRAP_REFRESH_REQUIRED",
                             remoteWorker: runpodPublicWorker(state)
                         };
                     }
@@ -5036,7 +5038,7 @@ export function createRunpodRemoteVideoAdapter({
                     return { ok: false, done: true, status: "RUNPOD_BOOTSTRAP_INCOMPLETE", remoteWorker: runpodPublicWorker(state) };
                 }
                 if (status !== "READY") {
-                    return { ok: true, done: false, status: "RUNPOD_WAN22_BOOTSTRAPPING", remoteWorker: runpodPublicWorker(state) };
+                    return { ok: true, done: false, status: state.runtimeKind === "humo" ? "RUNPOD_HUMO_BOOTSTRAPPING" : "RUNPOD_WAN22_BOOTSTRAPPING", remoteWorker: runpodPublicWorker(state) };
                 }
                 const finalProgress = await readBootstrapProgress(state);
                 state = persistBootstrapProgress(loaded.file, state, finalProgress);
@@ -5258,7 +5260,10 @@ export function createRunpodRemoteVideoAdapter({
                 };
             }
             const failureStatus = error?.message || "RUNPOD_REMOTE_POLL_FAILED";
-            const failurePhase = failureStatus === "RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED"
+            const failurePhase = [
+                "RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED",
+                "RUNPOD_HUMO_RUNTIME_PREFLIGHT_FAILED"
+            ].includes(failureStatus)
                 ? "RUNTIME_PREFLIGHT_FAILED"
                 : failureStatus === "RUNPOD_IMAGE_RUNTIME_MISMATCH"
                     ? "IMAGE_RUNTIME_MISMATCH"
