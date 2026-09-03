@@ -221,19 +221,33 @@ for the first shot in 7m03s at about 8.48 seconds per step on a fully utilized
 L40S. The new structured evidence proved the generated MP4 itself was healthy:
 6,207,688 bytes, 5.041667 seconds, and 24 FPS. Only geometry failed: observed
 928x960 versus expected 704x1280 (`WIDTH_MISMATCH`, `HEIGHT_MISMATCH`). The
-assigned identity sheet was 1020x1024. Official Wan TI2V derives I2V output
-geometry from the input image aspect ratio and its maximum area, so the
-near-square reference—not RunPod or the GPU—caused the mismatch. The Pod was
-deleted and absence verified, the Network Volume was retained, measured rental
-was 1636.798 seconds, and estimated compute cost was USD 0.45011945. No final
-MP4 exists.
+historical, now-forbidden identity sheet was 1020x1024. Official Wan TI2V
+derives I2V output geometry from the input image aspect ratio and its maximum
+area, so that near-square collage—not RunPod or the GPU—caused the mismatch.
+The Pod was deleted and absence verified, the Network Volume was retained,
+measured rental was 1636.798 seconds, and estimated compute cost was USD
+0.45011945. No final MP4 exists.
 
-Runner `1.3.1-v142-wan-episode-master` now fits and pads the complete assigned
-reference onto the exact backend canvas and verifies that canvas before paid
-inference. This covers both a multi-image identity sheet and a single reference
-without changing the public video contract. A physical regression converts a
-1020x1024 reference to 704x1280 before the mocked Wan call. Another paid attempt
-still requires separate human authority.
+Runner `1.3.1-v142-wan-episode-master` may fit and pad one non-identity Wan
+reference onto the exact backend canvas and verify that geometry before paid
+inference. Human identity references are different: they remain separate and
+must never be merged into a contact sheet, collage, or identity sheet used as
+scene conditioning. Identity-required missions stay fail-closed before RunPod
+provisioning until the pinned HuMo identity runtime has a real executor and its
+physical runtime, portrait behavior, and paid execution authority are all
+separately certified. The current HuMo runner path still stops with
+`LOCAL_VIDEO_HUMO_EXECUTOR_NOT_IMPLEMENTED`; its certification and paid flags
+remain false.
+
+For a successful paid generation, cleanup is download-first. Jarvis verifies
+the remote bytes/SHA, downloads the MP4 locally, verifies local bytes, SHA-256,
+MP4 container and media metadata, and only then releases/deletes the Pod. An
+early `provision_cleanup` DELETE is allowed only when provisioning failed before
+a usable generated result existed. If that cleanup DELETE fails, the Pod identity
+must remain attached to the durable operation so the normal release lifecycle can
+retry deletion or report `REMOTE_VIDEO_WORKER_RELEASE_FAILED`; it must never be
+reported as if no Pod had been provisioned. Another paid attempt still requires
+separate human authority.
 
 ### Zero-cost gate versus paid physical preflight
 
