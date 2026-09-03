@@ -30,6 +30,13 @@ source = replaceExactOnce(
   "V142_HUMO_WAN21_SHELL_QUOTES"
 );
 
+source = replaceExactOnce(
+  source,
+  String.raw`        assert.equal(engineSource.includes('if (configuredBackend !== WAN22_TI2V_5B.backend) throw new Error("RUNPOD_WAN22_BACKEND_REQUIRED")'), true);`,
+  String.raw`        assert.equal(engineSource.includes("remoteHuMoLifecycleContract"), true);\n        assert.equal(engineSource.includes("RUNPOD_HUMO_PAID_EXECUTION_AUTHORITY_REQUIRED"), true);`,
+  "V142_HUMO_PRECHECK_REGRESSION_ARCHITECTURE"
+);
+
 const materialized = spawnSync(process.execPath, ["--input-type=module", "-"], {
   cwd: process.cwd(),
   input: source,
@@ -45,11 +52,12 @@ execFileSync(process.execPath, ["--check", "jarvis-local-video-engine.js"], { st
 
 console.log(JSON.stringify({
   ok: true,
-  status: "V142_HUMO_REMOTE_LIFECYCLE_MATERIALIZER_REPAIRED",
+  status: "V142_HUMO_REMOTE_LIFECYCLE_REGRESSION_ALIGNED",
   sourceCommit: SOURCE_COMMIT,
   providerTrafficUsed: false,
   resourceCreationPossible: false,
   paidLaunchBlockedBeforeProviderTraffic: true,
+  staleWanOnlyAssertionRemoved: true,
   newFiles: false,
   newBrains: false
 }));
