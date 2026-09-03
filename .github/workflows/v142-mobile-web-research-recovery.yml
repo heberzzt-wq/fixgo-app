@@ -478,3 +478,204 @@ jobs:
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
             -d "$payload" >/dev/null
+
+  humo-runtime-certification:
+    needs: [certify-linux, certify-windows]
+    if: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[humo-runtime-cert]') && needs.certify-linux.result == 'success' && needs.certify-windows.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 38
+    env:
+      RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+      JARVIS_REMOTE_GPU_PROVIDER: runpod
+      JARVIS_VIDEO_ENGINE_POLICY: LOCAL_TEST
+      JARVIS_LOCAL_VIDEO_MODEL: humo
+      JARVIS_RUNPOD_GPU_TYPE_ID: NVIDIA L40S
+      JARVIS_RUNPOD_CANONICAL_SHA: ${{ github.sha }}
+      JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: 'true'
+      JARVIS_REMOTE_GPU_HARD_BUDGET_USD: '2'
+      JARVIS_REMOTE_GPU_BUDGET_STOP_RATIO: '0.95'
+      JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: '0.99'
+      JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY: 'true'
+      JARVIS_RUNPOD_EXPECTED_VRAM_GB: '48'
+      JARVIS_RUNPOD_MIN_RAM_GB: '62'
+      JARVIS_RUNPOD_MIN_VCPU: '16'
+      JARVIS_RUNPOD_BOOTSTRAP_TIMEOUT_SECONDS: '1500'
+      JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS: '1800'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install root dependencies
+        run: npm ci
+      - name: Certify physical HuMo runtime on one L40S
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$RUNPOD_API_KEY"
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import { createHash, randomUUID } from 'node:crypto';
+          import { createRunpodRemoteVideoAdapter } from './jarvis-local-video-engine.js';
+
+          const key = String(process.env.RUNPOD_API_KEY || '');
+          if (!key) throw new Error('RUNPOD_API_KEY_REQUIRED');
+          const query = `query { myself { id } gpuTypes(input: { id: "NVIDIA L40S" }) { id displayName memoryInGb lowestPrice(input: { gpuCount: 1, secureCloud: true }) { stockStatus uninterruptablePrice availableGpuCounts } } dataCenters { id gpuAvailability(input: { gpuCount: 1, secureCloud: true }) { gpuTypeId stockStatus available } } }`;
+          const endpoint = `https://api.runpod.io/graphql?api_key=${encodeURIComponent(key)}`;
+          const inventoryResponse = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query })
+          });
+          if (!inventoryResponse.ok) throw new Error(`RUNPOD_INVENTORY_HTTP_${inventoryResponse.status}`);
+          const inventory = await inventoryResponse.json();
+          if (Array.isArray(inventory?.errors) && inventory.errors.length) throw new Error('RUNPOD_AVAILABILITY_QUERY_FAILED');
+          if (!String(inventory?.data?.myself?.id || '').trim()) throw new Error('RUNPOD_AVAILABILITY_UNAUTHENTICATED');
+          const gpu = inventory?.data?.gpuTypes?.[0];
+          const price = Number(gpu?.lowestPrice?.uninterruptablePrice || 0);
+          const stock = String(gpu?.lowestPrice?.stockStatus || '').toUpperCase();
+          const documented = new Set(['HIGH', 'MEDIUM', 'LOW']);
+          if (gpu?.id !== 'NVIDIA L40S' || Number(gpu?.memoryInGb || 0) < 48 || !documented.has(stock)) {
+            throw new Error('RUNPOD_COMPATIBLE_GPU_UNAVAILABLE');
+          }
+          if (!(price > 0) || price > 0.99) throw new Error('RUNPOD_AUTHORIZED_PRICE_EXCEEDED');
+          const rank = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+          const candidates = (Array.isArray(inventory?.data?.dataCenters) ? inventory.data.dataCenters : [])
+            .flatMap(dc => (Array.isArray(dc?.gpuAvailability) ? dc.gpuAvailability : [])
+              .filter(item => item?.gpuTypeId === 'NVIDIA L40S' && item?.available === true && documented.has(String(item?.stockStatus || '').toUpperCase()))
+              .map(item => ({ id: String(dc.id || ''), stock: String(item.stockStatus || '').toUpperCase() })))
+            .filter(item => item.id)
+            .sort((a, b) => rank[a.stock] - rank[b.stock] || a.id.localeCompare(b.id));
+          if (!candidates.length) throw new Error('RUNPOD_COMPATIBLE_GPU_UNAVAILABLE');
+          process.env.JARVIS_RUNPOD_DATACENTER_ID = candidates[0].id;
+          console.log(JSON.stringify({
+            status: 'RUNPOD_HUMO_PHYSICAL_PLACEMENT_SELECTED',
+            gpuTypeId: 'NVIDIA L40S',
+            dataCenterId: candidates[0].id,
+            stockStatus: candidates[0].stock,
+            hourlyRateUsd: price,
+            hardBudgetUsd: 2,
+            maximumSpendBeforeCleanupUsd: 1.9,
+            runtimeCertificationOnly: true
+          }));
+
+          const adapter = createRunpodRemoteVideoAdapter({
+            root: process.cwd(),
+            env: process.env,
+            inspectBridgeIdentity: () => ({ ok: true, status: 'BRIDGE_IDENTITY_OK' }),
+            resolveCanonicalSha: () => String(process.env.GITHUB_SHA || '')
+          });
+          const operationId = randomUUID();
+          const job = {
+            operationId,
+            operationName: `local-video/${operationId}`,
+            executionTarget: 'remote',
+            backend: 'humo-1.7b-identity',
+            model: 'HuMo-1.7B',
+            missionId: `MISSION-HUMO-RUNTIME-${operationId}`,
+            objectiveId: `OBJECTIVE-HUMO-RUNTIME-${operationId}`,
+            obligationId: `video.runtime-certification:${operationId}`,
+            rootInstructionHash: createHash('sha256').update(`humo-runtime-certification:${process.env.GITHUB_SHA}`).digest('hex'),
+            externalApiAllowed: false,
+            output: '.jarvis-artifacts/videos/humo-runtime-certification.mp4',
+            referenceOutputs: [],
+            referenceFiles: [],
+            sourceReferenceOutputs: [],
+            sourceReferenceFiles: []
+          };
+          const resultFile = path.join(process.cwd(), '.jarvis-artifacts', 'humo-runtime-certification-result.json');
+          fs.mkdirSync(path.dirname(resultFile), { recursive: true });
+          let launched = null;
+          let primaryError = null;
+          let result = null;
+          let releaseReceipt = null;
+          const deadline = Date.now() + 30 * 60 * 1000;
+          try {
+            launched = await adapter.launch({ job });
+            if (!launched?.remoteWorker?.podId) throw new Error('RUNPOD_HUMO_PHYSICAL_POD_ID_MISSING');
+            console.log(JSON.stringify({
+              status: 'RUNPOD_HUMO_PHYSICAL_POD_PROVISIONED',
+              podId: launched.remoteWorker.podId,
+              runtimeCertificationOnly: true
+            }));
+            while (Date.now() < deadline) {
+              const polled = await adapter.poll({ operation: job, resultFile });
+              console.log(JSON.stringify({ status: polled.status, done: polled.done === true }));
+              if (polled.done === true) {
+                if (polled.ok !== true || polled.status !== 'RUNPOD_HUMO_RUNTIME_PREFLIGHT_CERTIFIED') {
+                  throw new Error(polled.status || 'RUNPOD_HUMO_RUNTIME_PREFLIGHT_FAILED');
+                }
+                result = JSON.parse(fs.readFileSync(resultFile, 'utf8'));
+                break;
+              }
+              await new Promise(resolve => setTimeout(resolve, 15000));
+            }
+            if (!result) throw new Error('RUNPOD_HUMO_RUNTIME_CERTIFICATION_DEADLINE_EXCEEDED');
+            const expectedSource = '845f44736e21be93aa5d8cf406b6eb01af9bff67';
+            if (
+              result.runtimeCertificationOnly !== true ||
+              result.runtimePreflightVerified !== true ||
+              result.physicalRuntimeCertified !== true ||
+              result.inferenceStarted !== false ||
+              result.gpuTypeId !== 'NVIDIA L40S' ||
+              !String(result.pythonVersion || '').startsWith('3.11.') ||
+              !String(result.torchVersion || '').startsWith('2.5.1') ||
+              !String(result.torchCudaVersion || '').startsWith('12.4') ||
+              result.flashAttentionVersion !== '2.6.3' ||
+              result.sourceRevision !== expectedSource
+            ) {
+              throw new Error('RUNPOD_HUMO_RUNTIME_CERTIFICATION_RECEIPT_INVALID');
+            }
+          }
+          catch (error) {
+            primaryError = error;
+          }
+          finally {
+            if (launched?.remoteWorker) {
+              try {
+                releaseReceipt = await adapter.release({
+                  ...job,
+                  remoteWorker: launched.remoteWorker,
+                  reason: 'runtime_certification_complete'
+                });
+              }
+              catch (releaseError) {
+                if (!primaryError) primaryError = releaseError;
+                else primaryError = new Error(`${primaryError.message};RELEASE:${releaseError.message}`);
+              }
+            }
+            const receipt = {
+              ...(result || {}),
+              runtimeCertificationOnly: true,
+              inferenceStarted: false,
+              cleanupAttempted: Boolean(launched?.remoteWorker),
+              terminationVerified: releaseReceipt?.terminationVerified === true,
+              releaseStatus: releaseReceipt?.status || null,
+              finalError: primaryError?.message || null
+            };
+            fs.writeFileSync(resultFile, JSON.stringify(receipt, null, 2) + '\n');
+          }
+          if (launched?.remoteWorker && (releaseReceipt?.ok !== true || releaseReceipt?.terminationVerified !== true)) {
+            throw new Error('RUNPOD_HUMO_RELEASE_NOT_VERIFIED');
+          }
+          if (primaryError) throw primaryError;
+          console.log(JSON.stringify({
+            status: 'RUNPOD_HUMO_PHYSICAL_RUNTIME_CERTIFIED_AND_RELEASED',
+            physicalRuntimeCertified: true,
+            inferenceStarted: false,
+            terminationVerified: true
+          }));
+          NODE
+      - name: Upload HuMo physical runtime receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: humo-physical-runtime-certification
+          path: .jarvis-artifacts/humo-runtime-certification-result.json
+          if-no-files-found: warn
+          retention-days: 7
