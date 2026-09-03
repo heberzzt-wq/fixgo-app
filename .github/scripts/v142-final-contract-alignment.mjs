@@ -9,7 +9,7 @@ function write(file, source) {
 }
 
 function replaceExactOnce(file, before, after, label) {
-  let source = sourceOf(file);
+  const source = sourceOf(file);
   if (source.includes(after)) return;
   const count = source.split(before).length - 1;
   if (count !== 1) throw new Error(`${label}_MATCH_COUNT_${count}`);
@@ -22,184 +22,137 @@ function appendOnce(file, marker, addition) {
   write(file, `${source.trimEnd()}\n\n${addition.trim()}\n`);
 }
 
-function assertV142Base() {
-  const bridge = sourceOf("jarvis-fs-bridge.js");
+function assertCurrentV142() {
   const engine = sourceOf("jarvis-local-video-engine.js");
   const runner = sourceOf("scripts/jarvis-local-video-wan22.py");
-  const doc = sourceOf("docs/jarvis-local-video-v142.md");
-  const required = [
-    [bridge, "RUNPOD_L40S_IDENTITY_BACKEND_REQUIRED", "IDENTITY_BRIDGE_FAIL_CLOSED"],
-    [engine, "RUNPOD_PROVISION_CLEANUP_FAILED", "PROVISION_CLEANUP_FAIL_CLOSED"],
-    [engine, "runtimeAssetAuthorityPinned: true", "HUMO_ASSET_AUTHORITY_PINNED"],
-    [engine, 'repository: "openai/whisper-large-v3"', "HUMO_WHISPER_PIN"],
-    [engine, 'path: "audio_separator/Kim_Vocal_2.onnx"', "HUMO_SEPARATOR_PIN"],
-    [engine, "identityReferenceOutputs", "SHOT_IDENTITY_ENGINE"],
+  const testSource = sourceOf("tests/jarvis-local-video-engine-v142.test.mjs");
+  for (const [value, marker, label] of [
+    [engine, "RUNPOD_PROVISION_CLEANUP_FAILED", "PROVISION_CLEANUP"],
+    [engine, "identityRuntimeAuthority: requiresIdentityFidelity ? {", "HUMO_JOB_AUTHORITY"],
+    [engine, "runtimeAssetAuthorityPinned: true", "HUMO_ASSET_AUTHORITY"],
     [runner, "def run_humo_identity_probe(", "HUMO_EXECUTOR"],
-    [runner, "LOCAL_VIDEO_HUMO_MULTI_IDENTITY_UNSUPPORTED", "MULTI_IDENTITY_BLOCK"],
-    [doc, "cleanup is download-first", "DOWNLOAD_FIRST"],
-    [doc, "must never be merged into a contact sheet, collage, or identity sheet", "NO_IDENTITY_SHEET"]
-  ];
-  for (const [value, marker, label] of required) {
+    [runner, "def _verify_humo_runtime_authority(", "HUMO_HASH_GATE"],
+    [testSource, "V142 successful remote generation downloads and verifies MP4 before Pod release", "DOWNLOAD_FIRST_REGRESSION"]
+  ]) {
     if (!value.includes(marker)) throw new Error(`V142_${label}_MISSING`);
-  }
-  if (bridge.includes("invocationPayload.requiresIdentityFidelity = false")) {
-    throw new Error("V142_IDENTITY_FIDELITY_BYPASS_STILL_PRESENT");
   }
 }
 
-function ensureIdentityRuntimeAuthorityInJob() {
+function ensureHuMoRemoteRuntimeAuthority() {
   const file = "jarvis-local-video-engine.js";
   replaceExactOnce(
     file,
-    `            referencePreparation,\n            requiresIdentityFidelity,\n            executionTarget: String(env.JARVIS_LOCAL_VIDEO_EXECUTION_TARGET || "local")`,
-    `            referencePreparation,\n            requiresIdentityFidelity,\n            identityRuntimeAuthority: requiresIdentityFidelity ? {\n                ...RUNPOD_HUMO_IDENTITY_CANDIDATE,\n                sharedTextEncoderFiles: RUNPOD_WAN22_CACHE_BASE.requiredFiles.filter(item =>\n                    item.path === "models_t5_umt5-xxl-enc-bf16.pth" ||\n                    item.path.startsWith("google/umt5-xxl/")\n                )\n            } : null,\n            executionTarget: String(env.JARVIS_LOCAL_VIDEO_EXECUTION_TARGET || "local")`,
-    "V142_HUMO_AUTHORITY_JOB_PROPAGATION"
+    `    officialRuntime: Object.freeze({\n        python: "3.11",\n        torch: "2.5.1",\n        torchCuda: "12.4",\n        flashAttention: "2.6.3"\n    }),\n    targetGpuTypeId: "NVIDIA L40S",`,
+    `    officialRuntime: Object.freeze({\n        python: "3.11",\n        torch: "2.5.1",\n        torchCuda: "12.4",\n        flashAttention: "2.6.3"\n    }),\n    remoteRuntimeBase: Object.freeze({\n        registry: "registry-1.docker.io",\n        repository: "runpod/pytorch",\n        tag: "2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04",\n        provisionImageTag: "runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04",\n        expectedRegistryDigest: "sha256:61a4aafb0094cd773f11eefa378929d5a687bd775febeb78eac62fc824141fb5",\n        basePython: "3.11",\n        baseTorch: "2.4.0",\n        baseCuda: "12.4.1",\n        bootstrapPython: "3.11",\n        bootstrapTorch: "2.5.1",\n        bootstrapTorchCuda: "12.4",\n        bootstrapFlashAttention: "2.6.3",\n        runtimePreflightCertified: false\n    }),\n    targetGpuTypeId: "NVIDIA L40S",`,
+    "V142_HUMO_REMOTE_RUNTIME_BASE"
   );
+}
+
+function ensureHuMoResolverProfile() {
+  const file = "jarvis-local-video-engine.js";
   replaceExactOnce(
     file,
-    `            referencePreparation,\n            requiresIdentityFidelity: job.requiresIdentityFidelity === true,\n            createdAt: now().toISOString(),`,
-    `            referencePreparation,\n            requiresIdentityFidelity: job.requiresIdentityFidelity === true,\n            identityRuntimeAuthority: job.identityRuntimeAuthority || null,\n            createdAt: now().toISOString(),`,
-    "V142_HUMO_AUTHORITY_OPERATION_PERSISTENCE"
+    `const UNSUPPORTED_LOCAL_VIDEO_MODEL_PROFILE = Object.freeze({`,
+    `const HUMO_IDENTITY_PROBE = Object.freeze({\n    backend: "humo-1.7b-identity",\n    id: RUNPOD_HUMO_IDENTITY_CANDIDATE.id,\n    model: "HuMo-1.7B",\n    provider: "local",\n    license: null,\n    textToVideo: false,\n    imageToVideo: true,\n    referenceAssets: true,\n    maximumReferenceAssets: 3,\n    maximumSourceReferenceAssets: 3,\n    targetResolution: "832x480-identity-probe",\n    targetFps: 25,\n    portraitSize: null,\n    landscapeSize: Object.freeze({ width: 832, height: 480 }),\n    minimumVramGb: 48,\n    checkpointSizeGb: 0,\n    minimumFreeDiskGb: 60,\n    identityOnly: true,\n    identityProbeOnly: true,\n    remoteModelDirectory: "/workspace/models/HuMo",\n    repositoryEntrypoint: "main.py"\n});\n\nconst UNSUPPORTED_LOCAL_VIDEO_MODEL_PROFILE = Object.freeze({`,
+    "V142_HUMO_MODEL_PROFILE"
+  );
+
+  replaceExactOnce(
+    file,
+    `export const LOCAL_VIDEO_MODEL_PROFILES = Object.freeze({\n    [WAN22_TI2V_5B.backend]: WAN22_TI2V_5B,\n    [WAN21_T2V_1_3B.backend]: WAN21_T2V_1_3B\n});`,
+    `export const LOCAL_VIDEO_MODEL_PROFILES = Object.freeze({\n    [WAN22_TI2V_5B.backend]: WAN22_TI2V_5B,\n    [WAN21_T2V_1_3B.backend]: WAN21_T2V_1_3B,\n    [HUMO_IDENTITY_PROBE.backend]: HUMO_IDENTITY_PROBE\n});`,
+    "V142_HUMO_PROFILE_REGISTRATION"
+  );
+
+  replaceExactOnce(
+    file,
+    `    "light": WAN21_T2V_1_3B.backend,\n    "local-light": WAN21_T2V_1_3B.backend\n});`,
+    `    "light": WAN21_T2V_1_3B.backend,\n    "local-light": WAN21_T2V_1_3B.backend,\n    "humo": HUMO_IDENTITY_PROBE.backend,\n    "humo-1.7b": HUMO_IDENTITY_PROBE.backend,\n    "humo-1.7b-identity": HUMO_IDENTITY_PROBE.backend\n});`,
+    "V142_HUMO_MODEL_ALIASES"
+  );
+
+  replaceExactOnce(
+    file,
+    `const LOCAL_VIDEO_BACKEND_ORDER = Object.freeze([\n    WAN22_TI2V_5B.backend,\n    WAN21_T2V_1_3B.backend\n]);`,
+    `const LOCAL_VIDEO_BACKEND_ORDER = Object.freeze([\n    WAN22_TI2V_5B.backend,\n    WAN21_T2V_1_3B.backend,\n    HUMO_IDENTITY_PROBE.backend\n]);`,
+    "V142_HUMO_BACKEND_ORDER"
+  );
+
+  replaceExactOnce(
+    file,
+    `    [WAN21_T2V_1_3B.backend]: Object.freeze({\n        modelDirectory: "JARVIS_WAN21_MODEL_DIR",\n        repositoryDirectory: "JARVIS_WAN21_REPO_DIR",\n        certified: "JARVIS_WAN21_CERTIFIED"\n    })\n});`,
+    `    [WAN21_T2V_1_3B.backend]: Object.freeze({\n        modelDirectory: "JARVIS_WAN21_MODEL_DIR",\n        repositoryDirectory: "JARVIS_WAN21_REPO_DIR",\n        certified: "JARVIS_WAN21_CERTIFIED"\n    }),\n    [HUMO_IDENTITY_PROBE.backend]: Object.freeze({\n        modelDirectory: "JARVIS_HUMO_WEIGHTS_DIR",\n        repositoryDirectory: "JARVIS_HUMO_REPO_DIR",\n        certified: "JARVIS_HUMO_CERTIFIED"\n    })\n});`,
+    "V142_HUMO_BACKEND_ENVIRONMENT"
+  );
+
+  replaceExactOnce(
+    file,
+    `    const modelDirectory = configuredModelDirectory\n        ? path.resolve(String(configuredModelDirectory))\n        : (remoteExecution ? "/workspace/models/Wan2.2-TI2V-5B" : null);`,
+    `    const modelDirectory = configuredModelDirectory\n        ? path.resolve(String(configuredModelDirectory))\n        : (remoteExecution\n            ? (profile.remoteModelDirectory || "/workspace/models/Wan2.2-TI2V-5B")\n            : null);`,
+    "V142_REMOTE_PROFILE_MODEL_DIRECTORY"
+  );
+
+  replaceExactOnce(
+    file,
+    `    const repositoryReady = remoteExecution || legacyConfiguration || Boolean(\n        repositoryDirectory && fs.existsSync(path.join(repositoryDirectory, "generate.py"))\n    );`,
+    `    const repositoryReady = remoteExecution || legacyConfiguration || Boolean(\n        repositoryDirectory && fs.existsSync(path.join(\n            repositoryDirectory,\n            profile.repositoryEntrypoint || "generate.py"\n        ))\n    );`,
+    "V142_PROFILE_REPOSITORY_ENTRYPOINT"
   );
 }
 
-function ensureIdentityReferenceRegressionAuthorityAware() {
-  const testFile = "tests/jarvis-local-video-engine-v142.test.mjs";
+function ensureIdentityResolverFailsClosedOnHuMo() {
+  const file = "jarvis-local-video-engine.js";
   replaceExactOnce(
-    testFile,
-    `    assert.match(source, /referencePreparation,\\r?\\n\\s+requiresIdentityFidelity,\\r?\\n\\s+executionTarget:/);`,
-    `    assert.match(\n        source,\n        /referencePreparation,\\r?\\n\\s+requiresIdentityFidelity,\\r?\\n\\s+identityRuntimeAuthority: requiresIdentityFidelity \\? \\{[\\s\\S]*?\\}\\s*: null,\\r?\\n\\s+executionTarget:/\n    );`,
-    "V142_IDENTITY_REFERENCE_REGRESSION_AUTHORITY_AWARE"
+    file,
+    `    if (requiresIdentityFidelity && referenceCount > 0) {\n        if (\n            RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalRuntimeCertified !== true ||\n            RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalPortraitCertified !== true ||\n            RUNPOD_HUMO_IDENTITY_CANDIDATE.paidExecutionAuthorized !== true\n        ) {\n            return "LOCAL_VIDEO_IDENTITY_FIDELITY_UNSUPPORTED";\n        }\n    }`,
+    `    if (backend.backend === HUMO_IDENTITY_PROBE.backend) {\n        if (!requiresIdentityFidelity || referenceCount < 1) {\n            return "LOCAL_VIDEO_HUMO_IDENTITY_REQUIRED";\n        }\n        if (String(requirements.aspectRatio || "") !== "16:9") {\n            return "LOCAL_VIDEO_HUMO_PORTRAIT_UNCERTIFIED";\n        }\n        if (\n            RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalRuntimeCertified !== true ||\n            RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalPortraitCertified !== true ||\n            RUNPOD_HUMO_IDENTITY_CANDIDATE.paidExecutionAuthorized !== true\n        ) {\n            return "LOCAL_VIDEO_IDENTITY_RUNTIME_NOT_CERTIFIED";\n        }\n    }\n    else if (requiresIdentityFidelity && referenceCount > 0) {\n        return "LOCAL_VIDEO_IDENTITY_BACKEND_REQUIRED";\n    }`,
+    "V142_HUMO_RESOLVER_FAIL_CLOSED"
   );
 }
 
-function ensureHuMoSingleAuthorityRegression() {
-  const testFile = "tests/jarvis-local-video-engine-v142.test.mjs";
-  replaceExactOnce(
-    testFile,
-    `    assert.equal((source.match(/models_t5_umt5-xxl-enc-bf16\\.pth/g) || []).length, 1);`,
-    `    assert.equal((source.match(/const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object\\.freeze\\(\\{/g) || []).length, 1);`,
-    "V142_HUMO_SINGLE_AUTHORITY_REGRESSION"
-  );
-}
-
-function ensureRunnerPhysicalHashGate() {
-  const runnerFile = "scripts/jarvis-local-video-wan22.py";
-  const testFile = "tests/jarvis-local-video-engine-v142.test.mjs";
-
-  replaceExactOnce(
-    runnerFile,
-    `import argparse\nimport json\nimport os`,
-    `import argparse\nimport hashlib\nimport json\nimport os`,
-    "V142_HUMO_HASHLIB_IMPORT"
-  );
-
-  replaceExactOnce(
-    runnerFile,
-    `        "maximum_identity_count": 1,\n        "audio_required": True,\n        "runtime_assets_pinned": False,\n        "physical_runtime_certified": False,\n        "physical_portrait_certified": False,\n        "paid_execution_authorized": False,\n        "extra_args": [],`,
-    `        "maximum_identity_count": 1,\n        "audio_required": True,\n        "extra_args": [],`,
-    "V142_REMOVE_DUPLICATE_HUMO_RUNNER_AUTHORITY"
-  );
-
-  replaceExactOnce(
-    runnerFile,
-    `    if runtime == "humo":\n        if (\n            config.get("physical_runtime_certified") is not True\n            or config.get("physical_portrait_certified") is not True\n            or config.get("paid_execution_authorized") is not True\n        ):\n            raise RuntimeError("LOCAL_VIDEO_IDENTITY_RUNTIME_NOT_CERTIFIED")\n        if config.get("runtime_assets_pinned") is not True:\n            raise RuntimeError("LOCAL_VIDEO_HUMO_RUNTIME_ASSETS_INCOMPLETE")\n        return backend, config`,
-    `    if runtime == "humo":\n        authority = job.get("identityRuntimeAuthority")\n        if not isinstance(authority, dict):\n            raise RuntimeError("LOCAL_VIDEO_HUMO_RUNTIME_AUTHORITY_REQUIRED")\n        if (\n            authority.get("physicalRuntimeCertified") is not True\n            or authority.get("physicalPortraitCertified") is not True\n            or authority.get("paidExecutionAuthorized") is not True\n        ):\n            raise RuntimeError("LOCAL_VIDEO_IDENTITY_RUNTIME_NOT_CERTIFIED")\n        if authority.get("runtimeAssetAuthorityPinned") is not True:\n            raise RuntimeError("LOCAL_VIDEO_HUMO_RUNTIME_ASSETS_INCOMPLETE")\n        return backend, config`,
-    "V142_HUMO_RESOLVER_SINGLE_ENGINE_AUTHORITY"
-  );
-
-  replaceExactOnce(
-    runnerFile,
-    `    return candidate\n\n\ndef _humo_executable(value: str, fallback: str) -> str:`,
-    `    return candidate\n\n\ndef _sha256_file(file: Path) -> str:\n    digest = hashlib.sha256()\n    with file.open("rb") as stream:\n        while True:\n            chunk = stream.read(1024 * 1024)\n            if not chunk:\n                break\n            digest.update(chunk)\n    return digest.hexdigest()\n\n\ndef _verify_humo_asset(file: Path, evidence: dict[str, Any], label: str) -> dict[str, Any]:\n    if not file.is_file():\n        raise RuntimeError(f"LOCAL_VIDEO_HUMO_ASSET_MISSING:{label}")\n    expected_bytes = int(evidence.get("bytes") or 0)\n    observed_bytes = file.stat().st_size\n    if expected_bytes > 0 and observed_bytes != expected_bytes:\n        raise RuntimeError(f"LOCAL_VIDEO_HUMO_ASSET_BYTES_MISMATCH:{label}")\n    expected_sha = str(evidence.get("sha256") or "").strip().lower()\n    if not expected_sha or len(expected_sha) != 64:\n        raise RuntimeError(f"LOCAL_VIDEO_HUMO_ASSET_AUTHORITY_INVALID:{label}")\n    observed_sha = _sha256_file(file)\n    if observed_sha != expected_sha:\n        raise RuntimeError(f"LOCAL_VIDEO_HUMO_ASSET_SHA256_MISMATCH:{label}")\n    return {"label": label, "bytes": observed_bytes, "sha256": observed_sha}\n\n\ndef _verify_humo_runtime_authority(\n    job: dict[str, Any],\n    humo_root: Path,\n    humo_weights: Path,\n    wan21_weights: Path,\n    whisper_root: Path,\n    separator_file: Path,\n) -> dict[str, Any]:\n    authority = job.get("identityRuntimeAuthority")\n    if not isinstance(authority, dict) or authority.get("runtimeAssetAuthorityPinned") is not True:\n        raise RuntimeError("LOCAL_VIDEO_HUMO_RUNTIME_AUTHORITY_REQUIRED")\n    source_revision = str(authority.get("sourceRevision") or "").strip()\n    if len(source_revision) != 40:\n        raise RuntimeError("LOCAL_VIDEO_HUMO_SOURCE_REVISION_AUTHORITY_INVALID")\n    observed_revision = subprocess.run(\n        ["git", "-C", str(humo_root), "rev-parse", "HEAD"],\n        check=True, capture_output=True, text=True, timeout=30\n    ).stdout.strip()\n    if observed_revision != source_revision:\n        raise RuntimeError("LOCAL_VIDEO_HUMO_SOURCE_REVISION_MISMATCH")\n\n    evidence = []\n    evidence.append(_verify_humo_asset(\n        humo_weights / str(authority.get("checkpoint", {}).get("path") or ""),\n        authority.get("checkpoint") or {}, "checkpoint"\n    ))\n    evidence.append(_verify_humo_asset(\n        humo_weights / str(authority.get("zeroVae", {}).get("path") or ""),\n        authority.get("zeroVae") or {}, "zero_vae"\n    ))\n    evidence.append(_verify_humo_asset(\n        wan21_weights / str(authority.get("wan21Vae", {}).get("path") or ""),\n        authority.get("wan21Vae") or {}, "wan21_vae"\n    ))\n\n    shared_files = authority.get("sharedTextEncoderFiles")\n    if not isinstance(shared_files, list) or not shared_files:\n        raise RuntimeError("LOCAL_VIDEO_HUMO_SHARED_T5_AUTHORITY_REQUIRED")\n    shared_map = {str(item.get("path") or ""): item for item in shared_files if isinstance(item, dict)}\n    for required_path in [\n        "models_t5_umt5-xxl-enc-bf16.pth",\n        "google/umt5-xxl/special_tokens_map.json",\n        "google/umt5-xxl/spiece.model",\n        "google/umt5-xxl/tokenizer.json",\n        "google/umt5-xxl/tokenizer_config.json",\n    ]:\n        item = shared_map.get(required_path)\n        if not item:\n            raise RuntimeError(f"LOCAL_VIDEO_HUMO_SHARED_T5_AUTHORITY_MISSING:{required_path}")\n        evidence.append(_verify_humo_asset(wan21_weights / required_path, item, f"t5:{required_path}"))\n\n    whisper = authority.get("whisper")\n    if not isinstance(whisper, dict):\n        raise RuntimeError("LOCAL_VIDEO_HUMO_WHISPER_AUTHORITY_REQUIRED")\n    whisper_model = whisper.get("model") or {}\n    evidence.append(_verify_humo_asset(\n        whisper_root / str(whisper_model.get("path") or ""),\n        whisper_model, "whisper_model"\n    ))\n    metadata = whisper.get("requiredMetadata")\n    if not isinstance(metadata, list) or not metadata:\n        raise RuntimeError("LOCAL_VIDEO_HUMO_WHISPER_METADATA_AUTHORITY_REQUIRED")\n    for relative in metadata:\n        metadata_file = whisper_root / str(relative)\n        if not metadata_file.is_file() or metadata_file.stat().st_size < 1:\n            raise RuntimeError(f"LOCAL_VIDEO_HUMO_WHISPER_METADATA_MISSING:{relative}")\n\n    separator = authority.get("audioSeparator")\n    if not isinstance(separator, dict):\n        raise RuntimeError("LOCAL_VIDEO_HUMO_AUDIO_SEPARATOR_AUTHORITY_REQUIRED")\n    evidence.append(_verify_humo_asset(separator_file, separator, "audio_separator"))\n    return {\n        "ok": True,\n        "sourceRevision": observed_revision,\n        "assetCount": len(evidence),\n        "assets": evidence,\n        "whisperRevision": str(whisper.get("revision") or ""),\n        "audioSeparatorRevision": str(separator.get("revision") or ""),\n    }\n\n\ndef _humo_executable(value: str, fallback: str) -> str:`,
-    "V142_HUMO_PHYSICAL_ASSET_VERIFIER"
-  );
-
-  replaceExactOnce(
-    runnerFile,
-    `    separator = _required_humo_path(\n        os.environ.get("JARVIS_HUMO_AUDIO_SEPARATOR_FILE", ""),\n        "LOCAL_VIDEO_HUMO_AUDIO_SEPARATOR_MISSING",\n    )\n    torchrun = _humo_executable(os.environ.get("JARVIS_HUMO_TORCHRUN", ""), "torchrun")\n\n    output_file = Path(str(job.get("outputFile") or "")).resolve()`,
-    `    separator = _required_humo_path(\n        os.environ.get("JARVIS_HUMO_AUDIO_SEPARATOR_FILE", ""),\n        "LOCAL_VIDEO_HUMO_AUDIO_SEPARATOR_MISSING",\n    )\n    torchrun = _humo_executable(os.environ.get("JARVIS_HUMO_TORCHRUN", ""), "torchrun")\n    runtime_asset_evidence = _verify_humo_runtime_authority(\n        job, humo_root, humo_weights, wan21_weights, whisper, separator\n    )\n\n    output_file = Path(str(job.get("outputFile") or "")).resolve()`,
-    "V142_HUMO_VERIFY_ASSETS_BEFORE_EXECUTION"
-  );
-
-  replaceExactOnce(
-    runnerFile,
-    `        "identityProbe": True,\n        "portraitCertified": False,`,
-    `        "identityProbe": True,\n        "identityRuntimeAuthorityVerified": True,\n        "identityRuntimeAssetEvidence": runtime_asset_evidence,\n        "portraitCertified": False,`,
-    "V142_HUMO_RESULT_PERSISTS_ASSET_EVIDENCE"
-  );
-
+function ensureRegression() {
+  const file = "tests/jarvis-local-video-engine-v142.test.mjs";
   appendOnce(
-    testFile,
-    "V142 HuMo job carries the single engine authority and runner hashes physical assets before torchrun",
-    `test("V142 HuMo job carries the single engine authority and runner hashes physical assets before torchrun", () => {\n    const engine = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");\n    const runner = fs.readFileSync(new URL("../scripts/jarvis-local-video-wan22.py", import.meta.url), "utf8");\n    assert.match(engine, /identityRuntimeAuthority: requiresIdentityFidelity \\? \\{/);\n    assert.match(engine, /\\.\\.\\.RUNPOD_HUMO_IDENTITY_CANDIDATE/);\n    assert.match(engine, /sharedTextEncoderFiles: RUNPOD_WAN22_CACHE_BASE\\.requiredFiles\\.filter/);\n    assert.match(engine, /identityRuntimeAuthority: job\\.identityRuntimeAuthority \\|\\| null/);\n    assert.match(runner, /authority = job\\.get\\("identityRuntimeAuthority"\\)/);\n    assert.match(runner, /LOCAL_VIDEO_HUMO_RUNTIME_AUTHORITY_REQUIRED/);\n    assert.equal(runner.includes("def _sha256_file("), true);\n    assert.match(runner, /LOCAL_VIDEO_HUMO_ASSET_SHA256_MISMATCH/);\n    assert.match(runner, /LOCAL_VIDEO_HUMO_SOURCE_REVISION_MISMATCH/);\n    assert.equal(runner.includes("runtime_asset_evidence = _verify_humo_runtime_authority("), true);\n    assert.ok(\n        runner.indexOf("runtime_asset_evidence = _verify_humo_runtime_authority(") <\n        runner.indexOf("command = [", runner.indexOf("def run_humo_identity_probe("))\n    );\n    assert.doesNotMatch(runner, /"physical_runtime_certified": False/);\n    assert.doesNotMatch(runner, /"paid_execution_authorized": False/);\n});`
+    file,
+    "V142 HuMo is a resolver-visible identity-only backend but cannot provision while uncertified",
+    `test("V142 HuMo is a resolver-visible identity-only backend but cannot provision while uncertified", () => {\n    const source = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");\n    const candidateStart = source.indexOf("const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({");\n    const candidateEnd = source.indexOf("const HUMO_IDENTITY_PROBE = Object.freeze({", candidateStart);\n    assert.ok(candidateStart >= 0 && candidateEnd > candidateStart);\n    const candidate = source.slice(candidateStart, candidateEnd);\n    assert.match(candidate, /remoteRuntimeBase: Object\\.freeze\\(\\{/);\n    assert.match(candidate, /runpod\\/pytorch:2\\.4\\.0-py3\\.11-cuda12\\.4\\.1-devel-ubuntu22\\.04/);\n    assert.match(candidate, /61a4aafb0094cd773f11eefa378929d5a687bd775febeb78eac62fc824141fb5/);\n    assert.match(candidate, /bootstrapTorch: "2\\.5\\.1"/);\n    assert.match(candidate, /bootstrapFlashAttention: "2\\.6\\.3"/);\n    assert.match(candidate, /runtimePreflightCertified: false/);\n    assert.match(candidate, /physicalRuntimeCertified: false/);\n    assert.match(candidate, /physicalPortraitCertified: false/);\n    assert.match(candidate, /paidExecutionAuthorized: false/);\n\n    assert.match(source, /const HUMO_IDENTITY_PROBE = Object\\.freeze\\(\\{/);\n    assert.match(source, /backend: "humo-1\\.7b-identity"/);\n    assert.match(source, /identityOnly: true/);\n    assert.match(source, /identityProbeOnly: true/);\n    assert.match(source, /HUMO_IDENTITY_PROBE\\.backend/);\n    assert.match(source, /LOCAL_VIDEO_HUMO_PORTRAIT_UNCERTIFIED/);\n    assert.match(source, /LOCAL_VIDEO_IDENTITY_RUNTIME_NOT_CERTIFIED/);\n    assert.match(source, /LOCAL_VIDEO_IDENTITY_BACKEND_REQUIRED/);\n});`
   );
 }
 
-assertV142Base();
-ensureIdentityRuntimeAuthorityInJob();
-ensureIdentityReferenceRegressionAuthorityAware();
-ensureHuMoSingleAuthorityRegression();
-ensureRunnerPhysicalHashGate();
-assertV142Base();
+assertCurrentV142();
+ensureHuMoRemoteRuntimeAuthority();
+ensureHuMoResolverProfile();
+ensureIdentityResolverFailsClosedOnHuMo();
+ensureRegression();
+assertCurrentV142();
 
 const engine = sourceOf("jarvis-local-video-engine.js");
-const runner = sourceOf("scripts/jarvis-local-video-wan22.py");
-const testSource = sourceOf("tests/jarvis-local-video-engine-v142.test.mjs");
-
+const tests = sourceOf("tests/jarvis-local-video-engine-v142.test.mjs");
 for (const marker of [
-  "identityRuntimeAuthority: requiresIdentityFidelity ? {",
-  "...RUNPOD_HUMO_IDENTITY_CANDIDATE",
-  "sharedTextEncoderFiles: RUNPOD_WAN22_CACHE_BASE.requiredFiles.filter",
-  "identityRuntimeAuthority: job.identityRuntimeAuthority || null"
+  "remoteRuntimeBase: Object.freeze({",
+  "runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04",
+  "sha256:61a4aafb0094cd773f11eefa378929d5a687bd775febeb78eac62fc824141fb5",
+  "const HUMO_IDENTITY_PROBE = Object.freeze({",
+  "LOCAL_VIDEO_HUMO_PORTRAIT_UNCERTIFIED",
+  "LOCAL_VIDEO_IDENTITY_RUNTIME_NOT_CERTIFIED"
 ]) {
-  if (!engine.includes(marker)) throw new Error(`V142_HUMO_JOB_AUTHORITY_MISSING:${marker}`);
+  if (!engine.includes(marker)) throw new Error(`V142_HUMO_RESOLVER_MARKER_MISSING:${marker}`);
 }
-
-for (const marker of [
-  "import hashlib",
-  'authority = job.get("identityRuntimeAuthority")',
-  "def _verify_humo_runtime_authority(",
-  "LOCAL_VIDEO_HUMO_ASSET_SHA256_MISMATCH",
-  "LOCAL_VIDEO_HUMO_SOURCE_REVISION_MISMATCH",
-  "identityRuntimeAuthorityVerified",
-  "identityRuntimeAssetEvidence"
-]) {
-  if (!runner.includes(marker)) throw new Error(`V142_HUMO_PHYSICAL_VERIFIER_MISSING:${marker}`);
-}
-
-for (const forbidden of [
-  '"runtime_assets_pinned": False',
-  '"physical_runtime_certified": False',
-  '"physical_portrait_certified": False',
-  '"paid_execution_authorized": False'
-]) {
-  if (runner.includes(forbidden)) throw new Error(`V142_DUPLICATE_HUMO_AUTHORITY_REMAINS:${forbidden}`);
-}
-
-if (!testSource.includes("V142 HuMo job carries the single engine authority and runner hashes physical assets before torchrun")) {
-  throw new Error("V142_HUMO_PHYSICAL_AUTHORITY_REGRESSION_MISSING");
-}
-if (!testSource.includes("identityRuntimeAuthority: requiresIdentityFidelity")) {
-  throw new Error("V142_IDENTITY_REFERENCE_REGRESSION_AUTHORITY_AWARE_MISSING");
+if (!tests.includes("V142 HuMo is a resolver-visible identity-only backend but cannot provision while uncertified")) {
+  throw new Error("V142_HUMO_RESOLVER_REGRESSION_MISSING");
 }
 
 console.log(JSON.stringify({
   ok: true,
-  status: "V142_HUMO_JOB_AUTHORITY_AND_PHYSICAL_HASH_GATE_MATERIALIZED",
-  singleIdentityAuthority: "RUNPOD_HUMO_IDENTITY_CANDIDATE",
-  runnerDuplicateAuthorityRemoved: true,
-  jobCarriesIdentityRuntimeAuthority: true,
-  sourceRevisionVerifiedBeforeTorchrun: true,
-  physicalAssetSha256VerifiedBeforeTorchrun: true,
-  whisperPhysicalHashGate: true,
-  audioSeparatorPhysicalHashGate: true,
-  sharedT5PhysicalHashGate: true,
-  identityRuntimePhysicallyCertified: false,
-  identityRuntimePaidExecutionAuthorized: false,
-  portraitTargetUnresolved: true,
+  status: "V142_HUMO_RESOLVER_FAIL_CLOSED_MATERIALIZED",
+  humoResolverVisible: true,
+  remoteRuntimeBasePinned: true,
+  remoteRuntimePreflightCertified: false,
+  physicalRuntimeCertified: false,
+  physicalPortraitCertified: false,
+  paidExecutionAuthorized: false,
   multiIdentityExecutionBlocked: true,
-  successfulGenerationDownloadsBeforeRelease: true,
+  gpuProvisioningOpened: false,
   newFiles: false,
   newBrains: false
 }));
