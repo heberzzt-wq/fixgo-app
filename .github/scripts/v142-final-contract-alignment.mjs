@@ -102,10 +102,70 @@ function ensureProvisionCleanupFailClosed() {
   );
 }
 
+function materializeDocumentationAuthority() {
+  if (process.env.GITHUB_JOB !== "materialize-v142") return;
+  const docFile = "docs/jarvis-local-video-v142.md";
+
+  replaceExactOnce(
+    docFile,
+    "The assigned identity sheet was 1020x1024. Official Wan TI2V derives I2V output\ngeometry from the input image aspect ratio and its maximum area, so the\nnear-square reference—not RunPod or the GPU—caused the mismatch.",
+    "The historical, now-forbidden identity sheet was 1020x1024. Official Wan TI2V\nderives I2V output geometry from the input image aspect ratio and its maximum\narea, so that near-square collage—not RunPod or the GPU—caused the mismatch.",
+    "V142_DOC_MARK_HISTORICAL_IDENTITY_SHEET_FORBIDDEN"
+  );
+
+  replaceExactOnce(
+    docFile,
+    [
+      "Runner `1.3.1-v142-wan-episode-master` now fits and pads the complete assigned",
+      "reference onto the exact backend canvas and verifies that canvas before paid",
+      "inference. This covers both a multi-image identity sheet and a single reference",
+      "without changing the public video contract. A physical regression converts a",
+      "1020x1024 reference to 704x1280 before the mocked Wan call. Another paid attempt",
+      "still requires separate human authority."
+    ].join("\n"),
+    [
+      "Runner `1.3.1-v142-wan-episode-master` may fit and pad one non-identity Wan",
+      "reference onto the exact backend canvas and verify that geometry before paid",
+      "inference. Human identity references are different: they remain separate and",
+      "must never be merged into a contact sheet, collage, or identity sheet used as",
+      "scene conditioning. Identity-required missions stay fail-closed before RunPod",
+      "provisioning until the pinned HuMo identity runtime has a real executor and its",
+      "physical runtime, portrait behavior, and paid execution authority are all",
+      "separately certified. The current HuMo runner path still stops with",
+      "`LOCAL_VIDEO_HUMO_EXECUTOR_NOT_IMPLEMENTED`; its certification and paid flags",
+      "remain false.",
+      "",
+      "For a successful paid generation, cleanup is download-first. Jarvis verifies",
+      "the remote bytes/SHA, downloads the MP4 locally, verifies local bytes, SHA-256,",
+      "MP4 container and media metadata, and only then releases/deletes the Pod. An",
+      "early `provision_cleanup` DELETE is allowed only when provisioning failed before",
+      "a usable generated result existed. If that cleanup DELETE fails, the Pod identity",
+      "must remain attached to the durable operation so the normal release lifecycle can",
+      "retry deletion or report `REMOTE_VIDEO_WORKER_RELEASE_FAILED`; it must never be",
+      "reported as if no Pod had been provisioned. Another paid attempt still requires",
+      "separate human authority."
+    ].join("\n"),
+    "V142_DOC_IDENTITY_AND_DOWNLOAD_FIRST_AUTHORITY"
+  );
+
+  const doc = sourceOf(docFile);
+  const required = [
+    "must never be merged into a contact sheet, collage, or identity sheet",
+    "cleanup is download-first",
+    "only then releases/deletes the Pod",
+    "LOCAL_VIDEO_HUMO_EXECUTOR_NOT_IMPLEMENTED",
+    "REMOTE_VIDEO_WORKER_RELEASE_FAILED"
+  ];
+  for (const marker of required) {
+    if (!doc.includes(marker)) throw new Error(`V142_DOC_AUTHORITY_MISSING:${marker}`);
+  }
+}
+
 assertExistingV142IdentityAuthority();
 ensurePlatformNeutralModelManifestRegression();
 ensureProvisionCleanupFailClosed();
 assertExistingV142IdentityAuthority();
+materializeDocumentationAuthority();
 
 const engine = sourceOf("jarvis-local-video-engine.js");
 const testSource = sourceOf("tests/jarvis-local-video-engine-v142.test.mjs");
@@ -151,6 +211,7 @@ console.log(JSON.stringify({
   provisionCleanupFailureRetainsPodIdentity: true,
   provisionCleanupFailureCannotBeSwallowed: true,
   successfulGenerationDownloadsBeforeRelease: true,
+  documentationIdentitySheetForbidden: process.env.GITHUB_JOB === "materialize-v142",
   externalFallbackAllowedForVideoGenerate: false,
   paidSpendGuardedByExistingRunpodAuthority: true,
   newFiles: false,
