@@ -180,11 +180,22 @@ function ensureIdentityFidelityRegression() {
   );
 }
 
+function ensurePlatformNeutralModelManifestRegression() {
+  const testFile = "tests/jarvis-local-video-engine-v142.test.mjs";
+  replaceExactOnce(
+    testFile,
+    `    assert.notEqual(\n        JSON.stringify(observedManifest.files),\n        JSON.stringify(fixtureContract.requiredFiles),\n        "property order may differ without changing the observed evidence"\n    );`,
+    `    assert.deepEqual(\n        observedManifest.files.map(item => Object.keys(item).sort()),\n        fixtureContract.requiredFiles.map(item => Object.keys(item).sort()),\n        "serializer property order must not affect the observed evidence schema"\n    );`,
+    "V142_MODEL_MANIFEST_PROPERTY_ORDER_PLATFORM_NEUTRAL"
+  );
+}
+
 assertMaterializedV142Authority();
 ensureIdentityFidelityCannotBeBypassed();
 ensureIdentityReferencesStaySeparate();
 ensureIdentityRuntimeCandidatePinned();
 ensureIdentityFidelityRegression();
+ensurePlatformNeutralModelManifestRegression();
 
 const checks = [
   ["gestia-core/jarvis/jarvis.actuator.pack.js", [
