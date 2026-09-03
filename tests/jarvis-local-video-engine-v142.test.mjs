@@ -2159,10 +2159,10 @@ test("V142 CPU model staging bootstrap is Ubuntu-minimal safe and structurally c
     assert.equal(Object.hasOwn(observedManifest, "expectedModelBytes"), false);
     assert.equal(Object.hasOwn(observedManifest, "requiredRuntimeModelBytes"), false);
     assert.equal(Object.hasOwn(observedManifest, "requiredFiles"), false);
-    assert.notEqual(
-        JSON.stringify(observedManifest.files),
-        JSON.stringify(fixtureContract.requiredFiles),
-        "property order may differ without changing the observed evidence"
+    assert.deepEqual(
+        observedManifest.files.map(item => Object.keys(item).sort()),
+        fixtureContract.requiredFiles.map(item => Object.keys(item).sort()),
+        "serializer property order must not affect the observed evidence schema"
     );
     assert.equal(
         fs.readdirSync(temp).some(name => name.startsWith(".model-manifest-")),
@@ -6375,7 +6375,7 @@ test("V142 identity references remain separate until a certified identity runtim
         source,
         /if \(!requiresIdentityFidelity && references\.length > Number\(model\.maximumReferenceAssets \|\| 0\)\)/
     );
-    assert.match(source, /referencePreparation,\n\s+requiresIdentityFidelity,\n\s+executionTarget:/);
+    assert.match(source, /referencePreparation,\r?\n\s+requiresIdentityFidelity,\r?\n\s+executionTarget:/);
     assert.match(
         source,
         /requiresIdentityFidelity: job\.requiresIdentityFidelity === true/
@@ -6408,5 +6408,24 @@ test("V142 HuMo identity candidate is pinned and cannot authorize paid execution
     assert.match(
         source,
         /RUNPOD_HUMO_IDENTITY_CANDIDATE\.paidExecutionAuthorized !== true/
+    );
+});
+
+test("V142 HuMo runner cannot fall through to Wan runtime", () => {
+    const runner = fs.readFileSync(
+        new URL("../scripts/jarvis-local-video-wan22.py", import.meta.url),
+        "utf8"
+    );
+    const start = runner.indexOf("def resolve_backend(");
+    const end = runner.indexOf("def offline_environment(", start);
+    assert.ok(start >= 0 && end > start);
+    const resolver = runner.slice(start, end);
+    assert.match(resolver, /runtime = str\(config\.get\("runtime"\) or "wan22"\)/);
+    assert.match(resolver, /LOCAL_VIDEO_IDENTITY_RUNTIME_NOT_CERTIFIED/);
+    assert.match(resolver, /LOCAL_VIDEO_HUMO_EXECUTOR_NOT_IMPLEMENTED/);
+    assert.match(resolver, /LOCAL_VIDEO_RUNTIME_UNSUPPORTED/);
+    assert.ok(
+        resolver.indexOf("LOCAL_VIDEO_HUMO_EXECUTOR_NOT_IMPLEMENTED") <
+        resolver.indexOf("return backend, config")
     );
 });
