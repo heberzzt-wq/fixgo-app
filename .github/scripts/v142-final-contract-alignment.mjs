@@ -3,6 +3,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 
 const SOURCE_COMMIT = "3146353779869dabcce1323c90c2e71ecb3a4f20";
 const MATERIALIZER_PATH = ".github/scripts/v142-final-contract-alignment.mjs";
+const LOCAL_VIDEO_ENGINE = "jarvis-local-video-engine.js";
 const LOCAL_VIDEO_TEST = "tests/jarvis-local-video-engine-v142.test.mjs";
 
 function replaceExactOnce(source, before, after, label) {
@@ -56,6 +57,13 @@ if (materialized.status !== 0) {
 }
 
 replaceFileExactOnce(
+  LOCAL_VIDEO_ENGINE,
+  `            vramObserved: Number(health.vramBytes || 0) >= HUMO_IDENTITY_PROBE.minimumVramGb * RUNPOD_GIB`,
+  `            vramObserved: Number(health.vramBytes || 0) >= 44 * RUNPOD_GIB`,
+  "V142_HUMO_L40S_PHYSICAL_VRAM_PREDICATE"
+);
+
+replaceFileExactOnce(
   LOCAL_VIDEO_TEST,
   `        assert.equal(engineSource.includes('if (configuredBackend !== WAN22_TI2V_5B.backend) throw new Error("RUNPOD_WAN22_BACKEND_REQUIRED")'), true);`,
   [
@@ -85,6 +93,7 @@ appendFileOnce(
   String.raw`
 test("V142 HuMo mocked runtime certification provisions polls and releases without inference", async () => {
     const humoSourceRevision = "845f44736e21be93aa5d8cf406b6eb01af9bff67";
+    const physicalL40sBytes = 46068 * 1024 ** 2;
     const harness = runpodPhysicalHarness({
         scenario: "humo-runtime-certification",
         envOverrides: {
@@ -102,8 +111,8 @@ test("V142 HuMo mocked runtime certification provisions polls and releases witho
             cuda: true,
             gpuName: "NVIDIA L40S",
             computeCapability: "8.9",
-            vramGb: 48,
-            vramBytes: 48 * 1024 ** 3,
+            vramGb: physicalL40sBytes / 1024 ** 3,
+            vramBytes: physicalL40sBytes,
             freeDiskGb: 100,
             ffmpeg: true,
             ffprobe: true
@@ -117,8 +126,8 @@ test("V142 HuMo mocked runtime certification provisions polls and releases witho
             cuda: true,
             gpuName: "NVIDIA L40S",
             computeCapability: "8.9",
-            vramGb: 48,
-            vramBytes: 48 * 1024 ** 3,
+            vramGb: physicalL40sBytes / 1024 ** 3,
+            vramBytes: physicalL40sBytes,
             freeDiskGb: 100,
             ffmpeg: true,
             ffprobe: true,
@@ -172,6 +181,7 @@ test("V142 HuMo mocked runtime certification provisions polls and releases witho
     assert.equal(physicalReceipt.physicalRuntimeCertified, true);
     assert.equal(physicalReceipt.inferenceStarted, false);
     assert.equal(physicalReceipt.gpuTypeId, "NVIDIA L40S");
+    assert.equal(physicalReceipt.vramBytes, physicalL40sBytes);
     assert.equal(physicalReceipt.pythonVersion.startsWith("3.11."), true);
     assert.equal(physicalReceipt.torchVersion.startsWith("2.5.1"), true);
     assert.equal(physicalReceipt.torchCudaVersion.startsWith("12.4"), true);
@@ -212,6 +222,7 @@ console.log(JSON.stringify({
   providerTrafficUsed: false,
   resourceCreationPossible: false,
   mockedLifecycle: ["launch", "poll", "runtime_certification", "release"],
+  mockedPhysicalL40sMiB: 46068,
   mockedInferenceStarted: false,
   staleWanOnlyAssertionRemoved: true,
   newFiles: false,
