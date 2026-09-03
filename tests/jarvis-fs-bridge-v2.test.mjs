@@ -1395,3 +1395,17 @@ test("V142 bridge auto-loads persisted RunPod credential only into adapter memor
     assert.equal(bridgeSource.includes("env: runpodCredential.env"), true);
     assert.equal(bridgeSource.includes("process.env.RUNPOD_API_KEY ="), false);
 });
+
+test("V142 HuMo runtime certification CLI is explicit-authority budgeted and cleanup-verified", () => {
+    const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
+    assert.equal(bridgeSource.includes("runHuMoRuntimeCertificationCli"), true);
+    assert.equal(bridgeSource.includes('process.argv.includes("--humo-runtime-certification")'), true);
+    assert.equal(bridgeSource.includes("RUNPOD_PAID_RESOURCE_CREATION_NOT_AUTHORIZED"), true);
+    assert.equal(bridgeSource.includes('JARVIS_REMOTE_GPU_HARD_BUDGET_USD: "2"'), true);
+    assert.equal(bridgeSource.includes('JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY: "true"'), true);
+    assert.equal(bridgeSource.includes("delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID"), true);
+    assert.equal(bridgeSource.includes("Date.now() + 30 * 60 * 1000"), true);
+    assert.equal(bridgeSource.includes("await engine.cancel({ operationName })"), true);
+    assert.equal(bridgeSource.includes("workerRelease?.terminationVerified !== true"), true);
+    assert.equal(bridgeSource.includes('final.status !== "RUNPOD_HUMO_RUNTIME_PREFLIGHT_CERTIFIED"'), true);
+});
