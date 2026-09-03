@@ -19,6 +19,14 @@ function replaceFileExactOnce(file, before, after, label) {
   if (next !== source) fs.writeFileSync(file, next, "utf8");
 }
 
+function replaceFileExactCount(file, before, after, expectedCount, label) {
+  const source = fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
+  if (source.includes(after) && !source.includes(before)) return;
+  const count = source.split(before).length - 1;
+  if (count !== expectedCount) throw new Error(`${label}_MATCH_COUNT_${count}`);
+  fs.writeFileSync(file, source.split(before).join(after), "utf8");
+}
+
 function appendFileOnce(file, marker, addition) {
   const source = fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
   if (source.includes(marker)) return;
@@ -61,6 +69,35 @@ replaceFileExactOnce(
   `            vramObserved: Number(health.vramBytes || 0) >= HUMO_IDENTITY_PROBE.minimumVramGb * RUNPOD_GIB`,
   `            vramObserved: Number(health.vramBytes || 0) >= 44 * RUNPOD_GIB`,
   "V142_HUMO_L40S_PHYSICAL_VRAM_PREDICATE"
+);
+
+replaceFileExactOnce(
+  LOCAL_VIDEO_ENGINE,
+  `            "MAX_JOBS=4 \\\"$VENV/bin/python\\\" -m pip install flash_attn==2.6.3 ",`,
+  `            "MAX_JOBS=4 \\\"$VENV/bin/python\\\" -m pip install flash_attn==2.6.3 --no-build-isolation",`,
+  "V142_HUMO_FLASH_ATTN_NO_BUILD_ISOLATION"
+);
+
+replaceFileExactCount(
+  LOCAL_VIDEO_ENGINE,
+  `return { ok: true, done: false, status: "RUNPOD_WAN22_BOOTSTRAPPING", remoteWorker: runpodPublicWorker(state) };`,
+  `return { ok: true, done: false, status: state.runtimeKind === "humo" ? "RUNPOD_HUMO_BOOTSTRAPPING" : "RUNPOD_WAN22_BOOTSTRAPPING", remoteWorker: runpodPublicWorker(state) };`,
+  2,
+  "V142_HUMO_BOOTSTRAP_STATUS"
+);
+
+replaceFileExactOnce(
+  LOCAL_VIDEO_ENGINE,
+  `                            status: "RUNPOD_WAN22_BOOTSTRAP_REFRESH_REQUIRED",`,
+  `                            status: state.runtimeKind === "humo"\n                                ? "RUNPOD_HUMO_BOOTSTRAP_REFRESH_REQUIRED"\n                                : "RUNPOD_WAN22_BOOTSTRAP_REFRESH_REQUIRED",`,
+  "V142_HUMO_BOOTSTRAP_REFRESH_STATUS"
+);
+
+replaceFileExactOnce(
+  LOCAL_VIDEO_ENGINE,
+  `            const failurePhase = failureStatus === "RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED"\n                ? "RUNTIME_PREFLIGHT_FAILED"`,
+  `            const failurePhase = [\n                "RUNPOD_WAN22_RUNTIME_PREFLIGHT_FAILED",\n                "RUNPOD_HUMO_RUNTIME_PREFLIGHT_FAILED"\n            ].includes(failureStatus)\n                ? "RUNTIME_PREFLIGHT_FAILED"`,
+  "V142_HUMO_RUNTIME_PREFLIGHT_FAILURE_PHASE"
 );
 
 replaceFileExactOnce(
@@ -213,16 +250,34 @@ test("V142 HuMo mocked runtime certification provisions polls and releases witho
 });`
 );
 
+appendFileOnce(
+  LOCAL_VIDEO_TEST,
+  "V142 HuMo bootstrap and poll diagnostics are backend-aware before paid execution",
+  String.raw`
+test("V142 HuMo bootstrap and poll diagnostics are backend-aware before paid execution", () => {
+    const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+    assert.equal(engineSource.includes("flash_attn==2.6.3 --no-build-isolation"), true);
+    assert.equal(engineSource.includes("RUNPOD_HUMO_BOOTSTRAPPING"), true);
+    assert.equal(engineSource.includes("RUNPOD_HUMO_BOOTSTRAP_REFRESH_REQUIRED"), true);
+    assert.equal(engineSource.includes("RUNPOD_HUMO_RUNTIME_PREFLIGHT_FAILED"), true);
+    assert.equal(engineSource.includes("RUNPOD_WAN22_BOOTSTRAPPING"), true);
+    assert.equal(engineSource.includes("RUNPOD_WAN22_BOOTSTRAP_REFRESH_REQUIRED"), true);
+});`
+);
+
 execFileSync(process.execPath, ["--check", "jarvis-local-video-engine.js"], { stdio: "inherit" });
 
 console.log(JSON.stringify({
   ok: true,
-  status: "V142_HUMO_MOCKED_PHYSICAL_LIFECYCLE_MATERIALIZED",
+  status: "V142_HUMO_PAID_RUN_DIAGNOSTICS_HARDENED",
   sourceCommit: SOURCE_COMMIT,
   providerTrafficUsed: false,
   resourceCreationPossible: false,
   mockedLifecycle: ["launch", "poll", "runtime_certification", "release"],
   mockedPhysicalL40sMiB: 46068,
+  flashAttentionBuildIsolation: false,
+  backendAwareBootstrapStatus: true,
+  backendAwareRuntimeFailurePhase: true,
   mockedInferenceStarted: false,
   staleWanOnlyAssertionRemoved: true,
   newFiles: false,
