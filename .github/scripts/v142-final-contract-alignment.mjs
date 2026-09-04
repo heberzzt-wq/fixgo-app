@@ -1,8 +1,7 @@
 import fs from "node:fs";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 
-const BASE_MATERIALIZER_COMMIT = "20e627289205b08e679389432c8376bbf45799f2";
-const MATERIALIZER_PATH = ".github/scripts/v142-final-contract-alignment.mjs";
+const PRODUCT_BASE_COMMIT = "20e627289205b08e679389432c8376bbf45799f2";
 const LOCAL_VIDEO_ENGINE = "jarvis-local-video-engine.js";
 const LOCAL_VIDEO_TEST = "tests/jarvis-local-video-engine-v142.test.mjs";
 
@@ -36,23 +35,6 @@ function appendFileOnce(file, marker, addition) {
   const source = fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
   if (source.includes(marker)) return;
   fs.writeFileSync(file, `${source.trimEnd()}\n\n${addition.trim()}\n`, "utf8");
-}
-
-const baseMaterializer = execFileSync(
-  "git",
-  ["show", `${BASE_MATERIALIZER_COMMIT}:${MATERIALIZER_PATH}`],
-  { encoding: "utf8", maxBuffer: 8 * 1024 * 1024 }
-).replace(/\r\n/g, "\n");
-
-const materialized = spawnSync(process.execPath, ["--input-type=module", "-"], {
-  cwd: process.cwd(),
-  input: baseMaterializer,
-  encoding: "utf8",
-  stdio: ["pipe", "inherit", "inherit"]
-});
-if (materialized.error) throw materialized.error;
-if (materialized.status !== 0) {
-  throw new Error(`V142_BASE_MATERIALIZER_EXIT_${materialized.status}`);
 }
 
 replaceFileExactOnce(
@@ -149,7 +131,7 @@ execFileSync(process.execPath, ["--check", LOCAL_VIDEO_ENGINE], { stdio: "inheri
 console.log(JSON.stringify({
   ok: true,
   status: "V142_HUMO_FLASH_ATTN_PINNED_WHEEL_MATERIALIZED",
-  baseMaterializerCommit: BASE_MATERIALIZER_COMMIT,
+  productBaseCommit: PRODUCT_BASE_COMMIT,
   wheelRelease: "v0.0.2",
   wheelFile: FLASH_ATTN_WHEEL_FILE,
   wheelBytes: FLASH_ATTN_WHEEL_BYTES,
