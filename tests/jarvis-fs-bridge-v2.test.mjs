@@ -1410,3 +1410,13 @@ test("V142 HuMo runtime certification CLI is explicit-authority budgeted and cle
     assert.equal(bridgeSource.includes("workerRelease?.terminationVerified !== true"), true);
     assert.equal(bridgeSource.includes('final.status !== "RUNPOD_HUMO_RUNTIME_PREFLIGHT_CERTIFIED"'), true);
 });
+
+test("V142 HuMo runtime certification CLI exposes remote bootstrap progress and nonzero wall clock cost", () => {
+    const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
+    assert.equal(bridgeSource.includes("remotePhase: remoteWorker?.phase || null"), true);
+    assert.equal(bridgeSource.includes("bootstrapStage: bootstrapProgress?.stage || null"), true);
+    assert.equal(bridgeSource.includes("bootstrapStatus: bootstrapProgress?.status || null"), true);
+    assert.equal(bridgeSource.includes("wallClockUpperBoundCostUsd"), true);
+    assert.equal(bridgeSource.includes("providerReportedCostUsd"), true);
+    assert.equal(bridgeSource.includes("terminationVerified: polled?.workerRelease?.terminationVerified === true"), true);
+});

@@ -7747,14 +7747,30 @@ export async function runHuMoRuntimeCertificationCli({
             maximumOperationalMinutes: 30,
             runtimeCertificationOnly: true
         });
+        const certificationStartedMs = Date.now();
         while (Date.now() < deadlineMs) {
             const polled = await engine.poll({ operationName });
+            const remoteWorker = polled?.remoteWorker || {};
+            const bootstrapProgress = remoteWorker?.bootstrapProgress || null;
+            const elapsedSeconds = Math.max(0, (Date.now() - certificationStartedMs) / 1000);
+            const providerReportedCostUsd = Number(
+                polled?.gpuRentalEstimatedCost || remoteWorker?.gpuRentalEstimatedCost || 0
+            );
+            const wallClockUpperBoundCostUsd = Number((elapsedSeconds * 1.09 / 3600).toFixed(6));
             log({
                 ok: polled?.ok === true,
                 status: polled?.status || null,
                 done: polled?.done === true,
-                podId: polled?.podId || polled?.remoteWorker?.podId || null,
-                gpuRentalEstimatedCost: Number(polled?.gpuRentalEstimatedCost || 0)
+                podId: polled?.podId || remoteWorker?.podId || null,
+                remotePhase: remoteWorker?.phase || null,
+                bootstrapStage: bootstrapProgress?.stage || null,
+                bootstrapStatus: bootstrapProgress?.status || null,
+                bootstrapAt: bootstrapProgress?.at || null,
+                cacheStatus: remoteWorker?.cacheStatus || bootstrapProgress?.cacheStatus || null,
+                elapsedSeconds: Number(elapsedSeconds.toFixed(1)),
+                providerReportedCostUsd,
+                wallClockUpperBoundCostUsd,
+                terminationVerified: polled?.workerRelease?.terminationVerified === true
             });
             if (polled?.done === true) {
                 final = polled;
