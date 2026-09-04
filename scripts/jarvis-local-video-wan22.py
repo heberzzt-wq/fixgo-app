@@ -6,8 +6,8 @@ consumed and independently verified by the Node bridge.
 
 The filename is retained for V142/backward compatibility. The worker accepts
 the existing Wan2.2 TI2V-5B backend, the explicit lightweight Wan2.1 T2V-1.3B
-backend, and a pinned HuMo identity candidate that remains physically uncertified
-and non-executable until the existing authority explicitly certifies it.
+backend, and a pinned HuMo identity candidate whose GPU runtime is physically certified
+but remains non-executable until explicit paid execution authority is granted.
 """
 
 from __future__ import annotations

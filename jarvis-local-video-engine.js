@@ -121,7 +121,7 @@ const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({
         bootstrapTorch: "2.5.1",
         bootstrapTorchCuda: "12.4",
         bootstrapFlashAttention: "2.6.3",
-        runtimePreflightCertified: false
+        runtimePreflightCertified: true
     }),
     targetGpuTypeId: "NVIDIA L40S",
     candidateProbeGeometry: Object.freeze({
@@ -133,7 +133,19 @@ const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({
         orientation: "landscape"
     }),
     portraitTargetUnresolved: true,
-    physicalRuntimeCertified: false,
+    physicalRuntimeCertified: true,
+    physicalRuntimeCertification: Object.freeze({
+        status: "RUNPOD_HUMO_RUNTIME_PREFLIGHT_CERTIFIED",
+        canonicalSha: "e9e96fc7cc622ff9092eb2926c5af047fca1c7ea",
+        operationName: "local-video/0c1a1082-dce4-40c4-993d-053255859fc6",
+        podId: "0qildg0t1wyosk",
+        runtimeCertificationOnly: true,
+        physicalRuntimeCertified: true,
+        inferenceStarted: false,
+        terminationVerified: true,
+        gpuRentalSeconds: 872.338,
+        gpuRentalEstimatedCostUsd: 0.2641245611111111
+    }),
     physicalPortraitCertified: false,
     paidExecutionAuthorized: false
 });

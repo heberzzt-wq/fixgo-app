@@ -6430,7 +6430,7 @@ test("V142 HuMo identity candidate is pinned and cannot authorize paid execution
     assert.match(candidate, /height: 480/);
     assert.match(candidate, /durationSeconds: 3\.88/);
     assert.match(candidate, /portraitTargetUnresolved: true/);
-    assert.match(candidate, /physicalRuntimeCertified: false/);
+    assert.match(candidate, /physicalRuntimeCertified: true/);
     assert.match(candidate, /physicalPortraitCertified: false/);
     assert.match(candidate, /paidExecutionAuthorized: false/);
     assert.match(
@@ -6545,7 +6545,7 @@ test("V142 HuMo job carries the single engine authority and runner hashes physic
     assert.doesNotMatch(runner, /"paid_execution_authorized": False/);
 });
 
-test("V142 HuMo is explicit-only and fail-closed until physical identity certification", () => {
+test("V142 HuMo is explicit-only and fail-closed until paid identity execution authorization", () => {
     const source = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
     const candidateStart = source.indexOf("const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({");
     const candidateEnd = source.indexOf("const HUMO_IDENTITY_PROBE = Object.freeze({", candidateStart);
@@ -6556,8 +6556,8 @@ test("V142 HuMo is explicit-only and fail-closed until physical identity certifi
     assert.equal(candidate.includes("61a4aafb0094cd773f11eefa378929d5a687bd775febeb78eac62fc824141fb5"), true);
     assert.equal(candidate.includes('bootstrapTorch: "2.5.1"'), true);
     assert.equal(candidate.includes('bootstrapFlashAttention: "2.6.3"'), true);
-    assert.equal(candidate.includes("runtimePreflightCertified: false"), true);
-    assert.equal(candidate.includes("physicalRuntimeCertified: false"), true);
+    assert.equal(candidate.includes("runtimePreflightCertified: true"), true);
+    assert.equal(candidate.includes("physicalRuntimeCertified: true"), true);
     assert.equal(candidate.includes("physicalPortraitCertified: false"), true);
     assert.equal(candidate.includes("paidExecutionAuthorized: false"), true);
 
@@ -6624,13 +6624,12 @@ test("V142 HuMo RunPod precheck is zero-cost and landscape probe does not requir
         assert.equal(report.contract.bootstrapTorch, "2.5.1");
         assert.equal(report.contract.bootstrapTorchCuda, "12.4");
         assert.equal(report.contract.bootstrapFlashAttention, "2.6.3");
-        assert.equal(report.contract.runtimePreflightCertified, false);
-        assert.equal(report.physicalRuntimeCertified, false);
+        assert.equal(report.contract.runtimePreflightCertified, true);
+        assert.equal(report.physicalRuntimeCertified, true);
         assert.equal(report.paidExecutionAuthorized, false);
         assert.equal(report.portrait.certified, false);
         assert.equal(report.portrait.status, "LOCAL_VIDEO_HUMO_PORTRAIT_UNCERTIFIED");
         assert.deepEqual(report.executionBlockers, [
-            "RUNPOD_HUMO_RUNTIME_PREFLIGHT_CERTIFICATION_REQUIRED",
             "RUNPOD_HUMO_PAID_EXECUTION_AUTHORITY_REQUIRED"
         ]);
 
@@ -6696,13 +6695,12 @@ test("V142 HuMo remote lifecycle is wired but paid execution remains fail-closed
         assert.equal(report.contract.bootstrapTorch, "2.5.1");
         assert.equal(report.contract.bootstrapTorchCuda, "12.4");
         assert.equal(report.contract.bootstrapFlashAttention, "2.6.3");
-        assert.equal(report.contract.runtimePreflightCertified, false);
-        assert.equal(report.physicalRuntimeCertified, false);
+        assert.equal(report.contract.runtimePreflightCertified, true);
+        assert.equal(report.physicalRuntimeCertified, true);
         assert.equal(report.paidExecutionAuthorized, false);
         assert.equal(report.portrait.certified, false);
         assert.equal(report.portrait.status, "LOCAL_VIDEO_HUMO_PORTRAIT_UNCERTIFIED");
         assert.deepEqual(report.executionBlockers, [
-            "RUNPOD_HUMO_RUNTIME_PREFLIGHT_CERTIFICATION_REQUIRED",
             "RUNPOD_HUMO_PAID_EXECUTION_AUTHORITY_REQUIRED"
         ]);
 
@@ -6955,4 +6953,22 @@ test("V142 HuMo ephemeral runtime certification allows provider-selected secure 
     assert.equal(engineSource.includes("expectedRuntimeCertificationDataCenterId"), true);
     assert.equal(engineSource.includes('Object.hasOwn(body, "dataCenterIds")'), true);
     assert.equal(engineSource.includes('runtimeCertificationOnly ? runtimeCertificationDataCenterId : null'), true);
+});
+
+test("V142 HuMo physical runtime certification is durable while paid inference stays closed", () => {
+    const source = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+    const start = source.indexOf("const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({");
+    const end = source.indexOf("const HUMO_IDENTITY_PROBE = Object.freeze({", start);
+    assert.ok(start >= 0 && end > start);
+    const candidate = source.slice(start, end);
+    assert.match(candidate, /runtimePreflightCertified: true/);
+    assert.match(candidate, /physicalRuntimeCertified: true/);
+    assert.match(candidate, /canonicalSha: "e9e96fc7cc622ff9092eb2926c5af047fca1c7ea"/);
+    assert.match(candidate, /operationName: "local-video\/0c1a1082-dce4-40c4-993d-053255859fc6"/);
+    assert.match(candidate, /podId: "0qildg0t1wyosk"/);
+    assert.match(candidate, /runtimeCertificationOnly: true/);
+    assert.match(candidate, /inferenceStarted: false/);
+    assert.match(candidate, /terminationVerified: true/);
+    assert.match(candidate, /paidExecutionAuthorized: false/);
+    assert.match(candidate, /physicalPortraitCertified: false/);
 });
