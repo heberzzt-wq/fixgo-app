@@ -1,4 +1,10 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": {
+      "v94-media-v4n-negative-claims": false
+    }
+  },
   "headers": [
     {
       "source": "/(.*)\\.(js|css|html)",
