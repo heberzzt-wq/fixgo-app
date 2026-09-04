@@ -1,0 +1,62 @@
+# Keep Vercel deployments aligned with the public static surface.
+# The primary production host is Firebase; Vercel is retained only as a manual/fallback surface.
+
+# CI, diagnostics and internal runtime state
+.github/**
+.sia7/**
+.vscode/**
+repo_sandbox/**
+tests/**
+
+# Firebase backend code is deployed by Firebase, never by Vercel
+functions/**
+.firebase/**
+firebase.json
+firebase.cmd
+.firebaserc
+
+# Dependencies, build products and native/Android tooling
+node_modules/**
+**/node_modules/**
+build/**
+.gradle/**
+gradle/**
+gradlew
+gradlew.bat
+build.gradle
+settings.gradle
+gradle.properties
+android.keystore
+*.apk
+*.aab
+*.idsig
+*.keystore
+*.jks
+
+# Root package metadata is CI/runtime tooling for this static Vercel project
+package.json
+package-lock.json
+
+# Secrets and platform credentials
+serviceAccountKey.json
+firebase-adminsdk-*.json
+google-services.json
+GoogleService-Info.plist
+*.pem
+*.key
+*.p12
+
+# Internal data/docs not part of the served application
+activos_uxmal39.json
+mantenimiento_edificio.json
+*.md
+
+# Generated/local-only artifacts
+.jarvis-artifacts/**
+.firebase-release/**
+coverage/**
+.nyc_output/**
+.cache/**
+.tmp/**
+tmp/**
+temp/**
