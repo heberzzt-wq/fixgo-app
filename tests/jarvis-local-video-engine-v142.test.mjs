@@ -7064,3 +7064,23 @@ test("V142 HuMo probes forbid persistent RunPod storage and use temporary contai
     assert.equal(bridgeSource.includes("JARVIS_RUNPOD_VOLUME_DISK_GB: \"0\""), true);
     assert.equal(bridgeSource.includes("delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID"), true);
 });
+
+test("V142 HuMo single GPU inference follows upstream rendezvous contract and preserves child errors", () => {
+    const runner = fs.readFileSync(new URL("../scripts/jarvis-local-video-wan22.py", import.meta.url), "utf8");
+    assert.equal(runner.includes("\"--standalone\""), false);
+    assert.equal(runner.includes("\"--node_rank=0\""), true);
+    assert.equal(runner.includes("\"--nproc_per_node=1\""), true);
+    assert.equal(runner.includes("\"--nnodes=1\""), true);
+    assert.equal(runner.includes("\"--rdzv_endpoint=127.0.0.1:12345\""), true);
+    assert.equal(runner.includes("\"--rdzv_conf=timeout=900,join_timeout=900,read_timeout=900\""), true);
+    assert.equal(runner.includes("inference_env[\"CUDA_VISIBLE_DEVICES\"] = \"0\""), true);
+    assert.equal(runner.includes("inference_env[\"PYTHONFAULTHANDLER\"] = \"1\""), true);
+    assert.equal(runner.includes("inference_env[\"TORCH_DISTRIBUTED_DEBUG\"] = \"DETAIL\""), true);
+    assert.equal(runner.includes("ROOT_LINES:"), true);
+    assert.equal(runner.includes("STDERR_HEAD:"), true);
+    assert.equal(runner.includes("STDERR_TAIL:"), true);
+    assert.equal(runner.includes("STDOUT_HEAD:"), true);
+    assert.equal(runner.includes("STDOUT_TAIL:"), true);
+    assert.equal(runner.includes("LOCAL_VIDEO_HUMO_CERTIFIED_VENV_REQUIRED"), true);
+    assert.equal(runner.includes("\"torch.distributed.run\""), true);
+});

@@ -746,9 +746,11 @@ def run_humo_identity_probe(
         runtime_python,
         "-m",
         "torch.distributed.run",
-        "--standalone",
-        "--nnodes=1",
+        "--node_rank=0",
         "--nproc_per_node=1",
+        "--nnodes=1",
+        "--rdzv_endpoint=127.0.0.1:12345",
+        "--rdzv_conf=timeout=900,join_timeout=900,read_timeout=900",
         str(main_file),
         str(config_file),
         "dit.sp_size=1",
@@ -771,17 +773,39 @@ def run_humo_identity_probe(
         f"audio.vocal_separator={separator}",
         f"audio.wav2vec_model={whisper}",
     ]
+    inference_env = offline_environment()
+    inference_env["CUDA_VISIBLE_DEVICES"] = "0"
+    inference_env["PYTHONFAULTHANDLER"] = "1"
+    inference_env["TORCH_DISTRIBUTED_DEBUG"] = "DETAIL"
     completed = subprocess.run(
         command,
         cwd=humo_root,
-        env=offline_environment(),
+        env=inference_env,
         check=False,
         capture_output=True,
         text=True,
         timeout=int(os.environ.get("JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS", "7200")),
     )
     if completed.returncode != 0:
-        diagnostic = str(completed.stderr or completed.stdout or "")[-2000:]
+        stderr_text = str(completed.stderr or "")
+        stdout_text = str(completed.stdout or "")
+        markers = (
+            "Error", "Exception", "Traceback", "RuntimeError", "ValueError",
+            "AssertionError", "ModuleNotFoundError", "FileNotFoundError",
+            "KeyError", "OSError", "CUDA", "out of memory", "FAILED"
+        )
+        root_lines = []
+        for line in (stderr_text + "\n" + stdout_text).splitlines():
+            if any(marker in line for marker in markers):
+                root_lines.append(line)
+        root_summary = "\n".join(root_lines[:40])[-6000:]
+        diagnostic = "\n".join([
+            "ROOT_LINES:\n" + root_summary,
+            "STDERR_HEAD:\n" + stderr_text[:6000],
+            "STDERR_TAIL:\n" + stderr_text[-6000:],
+            "STDOUT_HEAD:\n" + stdout_text[:3000],
+            "STDOUT_TAIL:\n" + stdout_text[-3000:],
+        ])[-22000:]
         raise RuntimeError(f"LOCAL_VIDEO_HUMO_EXIT_{completed.returncode}:{diagnostic}")
 
     generated = probe_output / f"{item_name}_seed666666.mp4"
