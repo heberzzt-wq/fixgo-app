@@ -9,6 +9,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
     buildLocalAiCapabilityReport,
+    buildHuMoIdentityRuntimeAuthority,
     createLocalVideoEngine,
     createRunpodRemoteVideoAdapter,
     describeLocalVideoPolicy,
@@ -6971,4 +6972,37 @@ test("V142 HuMo physical runtime certification is durable while paid inference s
     assert.match(candidate, /terminationVerified: true/);
     assert.match(candidate, /paidExecutionAuthorized: false/);
     assert.match(candidate, /physicalPortraitCertified: false/);
+});
+
+test("V142 HuMo paid identity probe authority is mission scoped and never opens the public candidate", () => {
+    const closed = buildHuMoIdentityRuntimeAuthority();
+    const scoped = buildHuMoIdentityRuntimeAuthority({ paidExecutionAuthorized: true });
+    assert.equal(closed.physicalRuntimeCertified, true);
+    assert.equal(closed.paidExecutionAuthorized, false);
+    assert.equal(scoped.physicalRuntimeCertified, true);
+    assert.equal(scoped.paidExecutionAuthorized, true);
+    assert.equal(scoped.runtimeAssetAuthorityPinned, true);
+    assert.ok(Array.isArray(scoped.sharedTextEncoderFiles));
+    assert.ok(scoped.sharedTextEncoderFiles.length >= 5);
+
+    const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+    const candidateStart = engineSource.indexOf("const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({");
+    const candidateEnd = engineSource.indexOf("export function buildHuMoIdentityRuntimeAuthority", candidateStart);
+    assert.ok(candidateStart >= 0 && candidateEnd > candidateStart);
+    const candidate = engineSource.slice(candidateStart, candidateEnd);
+    assert.match(candidate, /physicalRuntimeCertified: true/);
+    assert.match(candidate, /paidExecutionAuthorized: false/);
+    assert.doesNotMatch(candidate, /paidExecutionAuthorized: true/);
+    assert.match(engineSource, /JARVIS_HUMO_IDENTITY_PROBE_PAID_EXECUTION_AUTHORIZED/);
+    assert.match(engineSource, /JARVIS_HUMO_IDENTITY_PROBE_AUTHORIZATION_ID/);
+    assert.match(engineSource, /JARVIS_HUMO_IDENTITY_PROBE_CHARACTER_ID/);
+    assert.match(engineSource, /identityProbeExecutionAuthority/);
+    assert.match(engineSource, /scope === "single_identity_probe"/);
+
+    const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
+    assert.match(bridgeSource, /runHuMoIdentityProbeCli/);
+    assert.match(bridgeSource, /--humo-identity-probe/);
+    assert.match(bridgeSource, /requestedHardBudgetUsd > 1/);
+    assert.match(bridgeSource, /fullEpisodeAuthorized: false/);
+    assert.match(bridgeSource, /HUMO_IDENTITY_PROBE_COMPLETED_AND_RELEASED/);
 });

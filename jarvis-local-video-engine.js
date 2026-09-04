@@ -150,6 +150,17 @@ const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({
     paidExecutionAuthorized: false
 });
 
+export function buildHuMoIdentityRuntimeAuthority({ paidExecutionAuthorized = false } = {}) {
+    return {
+        ...RUNPOD_HUMO_IDENTITY_CANDIDATE,
+        paidExecutionAuthorized: paidExecutionAuthorized === true,
+        sharedTextEncoderFiles: RUNPOD_WAN22_CACHE_BASE.requiredFiles.filter(item =>
+            item.path === "models_t5_umt5-xxl-enc-bf16.pth" ||
+            item.path.startsWith("google/umt5-xxl/")
+        )
+    };
+}
+
 const HUMO_IDENTITY_PROBE = Object.freeze({
     backend: "humo-1.7b-identity",
     id: RUNPOD_HUMO_IDENTITY_CANDIDATE.id,
@@ -1728,6 +1739,16 @@ export function createRunpodRemoteVideoAdapter({
         env.JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY,
         false
     );
+    const humoIdentityProbePaidExecutionAuthorized = booleanValue(
+        env.JARVIS_HUMO_IDENTITY_PROBE_PAID_EXECUTION_AUTHORIZED,
+        false
+    );
+    const humoIdentityProbeAuthorizationId = String(
+        env.JARVIS_HUMO_IDENTITY_PROBE_AUTHORIZATION_ID || ""
+    ).trim();
+    const humoIdentityProbeCharacterId = String(
+        env.JARVIS_HUMO_IDENTITY_PROBE_CHARACTER_ID || ""
+    ).trim();
     const runtimeCertificationDataCenterId = String(
         env.JARVIS_RUNPOD_DATACENTER_ID || ""
     ).trim();
@@ -1840,13 +1861,47 @@ export function createRunpodRemoteVideoAdapter({
         };
     }
 
+    function huMoIdentityProbeExecutionAuthorized(job = null) {
+        if (!isHuMoRemoteJob(job) || runtimeCertificationOnly === true) return false;
+        const authority = job?.identityRuntimeAuthority;
+        const executionAuthority = job?.identityProbeExecutionAuthority;
+        const shots = Array.isArray(job?.shotPlan) ? job.shotPlan : [];
+        const shot = shots[0] || {};
+        const characterIds = Array.isArray(shot.characterIds) ? shot.characterIds.map(String) : [];
+        const durationSeconds = Number(shot.durationSeconds || 0);
+        return (
+            RUNPOD_HUMO_IDENTITY_CANDIDATE.paidExecutionAuthorized === false &&
+            RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalRuntimeCertified === true &&
+            humoIdentityProbePaidExecutionAuthorized === true &&
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(humoIdentityProbeAuthorizationId) &&
+            /^CHAR_[A-Z0-9_]+$/.test(humoIdentityProbeCharacterId) &&
+            authority?.id === RUNPOD_HUMO_IDENTITY_CANDIDATE.id &&
+            authority?.physicalRuntimeCertified === true &&
+            authority?.runtimeAssetAuthorityPinned === true &&
+            authority?.paidExecutionAuthorized === true &&
+            executionAuthority?.authorized === true &&
+            executionAuthority?.scope === "single_identity_probe" &&
+            executionAuthority?.consumableOnce === true &&
+            executionAuthority?.authorizationId === humoIdentityProbeAuthorizationId &&
+            executionAuthority?.characterId === humoIdentityProbeCharacterId &&
+            job?.obligationId === `video.identity-probe:${humoIdentityProbeAuthorizationId}` &&
+            job?.requiresIdentityFidelity === true &&
+            job?.aspectRatio === "16:9" &&
+            shots.length === 1 &&
+            shot.identityMode === "single_identity" &&
+            characterIds.length === 1 &&
+            characterIds[0] === humoIdentityProbeCharacterId &&
+            durationSeconds > 0 && durationSeconds <= 3.881
+        );
+    }
+
     function assertHuMoPaidExecutionAuthority(job = null) {
         if (!isHuMoRemoteJob(job)) return;
         if (runtimeCertificationOnly === true) return;
         if (RUNPOD_HUMO_IDENTITY_CANDIDATE.physicalRuntimeCertified !== true) {
             throw new Error("RUNPOD_HUMO_RUNTIME_PREFLIGHT_CERTIFICATION_REQUIRED");
         }
-        if (RUNPOD_HUMO_IDENTITY_CANDIDATE.paidExecutionAuthorized !== true) {
+        if (!huMoIdentityProbeExecutionAuthorized(job)) {
             throw new Error("RUNPOD_HUMO_PAID_EXECUTION_AUTHORITY_REQUIRED");
         }
     }
