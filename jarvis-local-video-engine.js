@@ -2784,7 +2784,8 @@ export function createRunpodRemoteVideoAdapter({
             body.dataCenterIds = [networkVolume.dataCenterId];
         }
         else {
-            body.volumeInGb = volumeInGb;
+            const persistentVolumeDisabled = isHuMoRemoteJob(job);
+            body.volumeInGb = persistentVolumeDisabled ? 0 : volumeInGb;
             if (selectedDataCenterId) body.dataCenterIds = [selectedDataCenterId];
         }
         return body;
@@ -2794,7 +2795,8 @@ export function createRunpodRemoteVideoAdapter({
         body,
         networkVolume = null,
         selectedGpuTypeId = gpuTypeId,
-        profile = cacheContract
+        profile = cacheContract,
+        job = null
     ) {
         if (
             body.cloudType !== cloudType || body.computeType !== "GPU" ||
@@ -2820,8 +2822,14 @@ export function createRunpodRemoteVideoAdapter({
                 throw new Error("RUNPOD_NETWORK_VOLUME_PAYLOAD_INVALID");
             }
         }
-        else if (body.volumeInGb !== volumeInGb || Object.hasOwn(body, "networkVolumeId")) {
-            throw new Error("RUNPOD_EPHEMERAL_VOLUME_PAYLOAD_INVALID");
+        else {
+            const expectedVolumeInGb = isHuMoRemoteJob(job) ? 0 : volumeInGb;
+            if (body.volumeInGb !== expectedVolumeInGb || Object.hasOwn(body, "networkVolumeId")) {
+                throw new Error("RUNPOD_EPHEMERAL_VOLUME_PAYLOAD_INVALID");
+            }
+            if (isHuMoRemoteJob(job) && body.volumeInGb !== 0) {
+                throw new Error("RUNPOD_HUMO_PERSISTENT_STORAGE_FORBIDDEN");
+            }
         }
         const expectedRuntimeCertificationDataCenterId =
             networkVolume?.dataCenterId || runtimeCertificationDataCenterId || null;
@@ -2908,7 +2916,7 @@ export function createRunpodRemoteVideoAdapter({
                     selectedProfile
                 );
             if (body) {
-                assertProvisionBody(body, plannedVolume, selectedGpuTypeId, selectedProfile);
+                assertProvisionBody(body, plannedVolume, selectedGpuTypeId, selectedProfile, job);
             }
             const hourlyRateUsd = Number(
                 selectedAvailability?.hourlyRateUsd || configuredTotalHourlyRateUsd
@@ -4555,7 +4563,7 @@ export function createRunpodRemoteVideoAdapter({
                 launchProfile,
                 selectedDataCenterId
             );
-            assertProvisionBody(body, networkVolume, gpuTypeId, launchProfile);
+            assertProvisionBody(body, networkVolume, gpuTypeId, launchProfile, job);
             const hourlyRateForBudget = Number(availability?.hourlyRateUsd || configuredTotalHourlyRateUsd);
             const maximumSpendBeforeCleanupUsd = Number((hardBudgetUsd * budgetStopRatio).toFixed(6));
             const maximumAuthorizedSeconds = Math.floor(

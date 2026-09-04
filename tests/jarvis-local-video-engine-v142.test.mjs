@@ -6845,7 +6845,7 @@ test("V142 HuMo mocked runtime certification provisions polls and releases witho
     assert.equal("dataCenterIds" in harness.createdBody, false);
     assert.deepEqual(harness.createdBody.gpuTypeIds, ["NVIDIA L40S"]);
     assert.equal("networkVolumeId" in harness.createdBody, false);
-    assert.equal(harness.createdBody.volumeInGb, 100);
+    assert.equal(harness.createdBody.volumeInGb, 0);
 
     let certified = null;
     for (let attempt = 0; attempt < 4; attempt += 1) {
@@ -7052,4 +7052,15 @@ test("V142 HuMo inference is bound to the certified venv Python instead of globa
     assert.equal(runner.includes("import importlib.metadata,omegaconf,torch"), true);
     assert.equal(runner.includes("flash-attn"), true);
     assert.equal(runner.includes("2.6.3"), true);
+});
+
+test("V142 HuMo probes forbid persistent RunPod storage and use temporary container disk", () => {
+    const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+    assert.equal(engineSource.includes("persistentVolumeDisabled = isHuMoRemoteJob(job)"), true);
+    assert.equal(engineSource.includes("persistentVolumeDisabled ? 0 : volumeInGb"), true);
+    assert.equal(engineSource.includes("RUNPOD_HUMO_PERSISTENT_STORAGE_FORBIDDEN"), true);
+    const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
+    assert.equal(bridgeSource.includes("JARVIS_RUNPOD_CONTAINER_DISK_GB: \"60\""), true);
+    assert.equal(bridgeSource.includes("JARVIS_RUNPOD_VOLUME_DISK_GB: \"0\""), true);
+    assert.equal(bridgeSource.includes("delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID"), true);
 });
