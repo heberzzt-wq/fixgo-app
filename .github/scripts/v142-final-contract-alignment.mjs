@@ -1,8 +1,7 @@
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 
-const PRODUCT_BASE_COMMIT = "69f50705a25dd3a7ccb755aca1df67e646edc457";
-const WAN21_REVISION = "37ec512624d61f7aa208f7ea8140a131f93afc9a";
+const PRODUCT_BASE_COMMIT = "d10b619060e644532f3658625df3d46d7c8551e6";
 const LOCAL_VIDEO_ENGINE = "jarvis-local-video-engine.js";
 const LOCAL_VIDEO_RUNNER = "scripts/jarvis-local-video-wan22.py";
 const LOCAL_VIDEO_TEST = "tests/jarvis-local-video-engine-v142.test.mjs";
@@ -28,71 +27,6 @@ function appendOnce(source, marker, addition) {
   return `${source.trimEnd()}\n\n${addition.trim()}\n`;
 }
 
-let runner = read(LOCAL_VIDEO_RUNNER);
-runner = replaceExactOnce(
-  runner,
-  '    torchrun = _humo_executable(os.environ.get("JARVIS_HUMO_TORCHRUN", ""), "torchrun")\n',
-  [
-    '    runtime_python = str(Path(sys.executable).absolute())',
-    '    if not runtime_python.replace("\\\\", "/").endswith("/venv/bin/python"):',
-    '        raise RuntimeError("LOCAL_VIDEO_HUMO_CERTIFIED_VENV_REQUIRED")',
-    '    runtime_check = subprocess.run(',
-    '        [',
-    '            runtime_python,',
-    '            "-c",',
-    '            (',
-    '                "import importlib.metadata,omegaconf,torch; "',
-    '                "assert str(torch.__version__).startswith(\\\"2.5.1\\\"); "',
-    '                "assert str(torch.version.cuda or \\\"\\\").startswith(\\\"12.4\\\"); "',
-    '                "assert importlib.metadata.version(\\\"flash-attn\\\")==\\\"2.6.3\\\""',
-    '            ),',
-    '        ],',
-    '        check=False,',
-    '        capture_output=True,',
-    '        text=True,',
-    '        timeout=60,',
-    '    )',
-    '    if runtime_check.returncode != 0:',
-    '        diagnostic = str(runtime_check.stderr or runtime_check.stdout or "")[-1000:]',
-    '        raise RuntimeError(f"LOCAL_VIDEO_HUMO_CERTIFIED_VENV_INVALID:{diagnostic}")',
-    ''
-  ].join("\n"),
-  "V142_HUMO_CERTIFIED_VENV_GATE"
-);
-
-runner = replaceExactOnce(
-  runner,
-  [
-    '    command = [',
-    '        torchrun,',
-    '        "--standalone",'
-  ].join("\n"),
-  [
-    '    command = [',
-    '        runtime_python,',
-    '        "-m",',
-    '        "torch.distributed.run",',
-    '        "--standalone",'
-  ].join("\n"),
-  "V142_HUMO_VENV_DISTRIBUTED_LAUNCH"
-);
-
-for (const marker of [
-  'LOCAL_VIDEO_HUMO_CERTIFIED_VENV_REQUIRED',
-  'LOCAL_VIDEO_HUMO_CERTIFIED_VENV_INVALID',
-  'runtime_python,',
-  '"torch.distributed.run"',
-  'import importlib.metadata,omegaconf,torch',
-  'flash-attn',
-  '2.6.3'
-]) {
-  if (!runner.includes(marker)) throw new Error(`V142_HUMO_VENV_MARKER_MISSING:${marker}`);
-}
-if (runner.includes('torchrun = _humo_executable(os.environ.get("JARVIS_HUMO_TORCHRUN", ""), "torchrun")')) {
-  throw new Error("V142_HUMO_GLOBAL_TORCHRUN_REGRESSION");
-}
-write(LOCAL_VIDEO_RUNNER, runner);
-
 let engine = read(LOCAL_VIDEO_ENGINE);
 for (const marker of [
   "HF_HUB_DISABLE_XET=1",
@@ -101,43 +35,161 @@ for (const marker of [
   "HUMO_ASSETS_WAN21",
   "HUMO_ASSETS_WHISPER",
   "HUMO_ASSETS_VERIFY",
-  WAN21_REVISION,
   "physicalRuntimeCertified: true",
   "paidExecutionAuthorized: false"
 ]) {
   if (!engine.includes(marker)) throw new Error(`V142_HUMO_EXISTING_CONTRACT_REGRESSION:${marker}`);
 }
+
+engine = replaceExactOnce(
+  engine,
+  [
+    "        else {",
+    "            body.volumeInGb = volumeInGb;",
+    "            if (selectedDataCenterId) body.dataCenterIds = [selectedDataCenterId];",
+    "        }",
+    "        return body;"
+  ].join("\n"),
+  [
+    "        else {",
+    "            const persistentVolumeDisabled = isHuMoRemoteJob(job);",
+    "            body.volumeInGb = persistentVolumeDisabled ? 0 : volumeInGb;",
+    "            if (selectedDataCenterId) body.dataCenterIds = [selectedDataCenterId];",
+    "        }",
+    "        return body;"
+  ].join("\n"),
+  "V142_HUMO_ZERO_PERSISTENT_VOLUME_PAYLOAD"
+);
+
+engine = replaceExactOnce(
+  engine,
+  [
+    "    function assertProvisionBody(",
+    "        body,",
+    "        networkVolume = null,",
+    "        selectedGpuTypeId = gpuTypeId,",
+    "        profile = cacheContract",
+    "    ) {"
+  ].join("\n"),
+  [
+    "    function assertProvisionBody(",
+    "        body,",
+    "        networkVolume = null,",
+    "        selectedGpuTypeId = gpuTypeId,",
+    "        profile = cacheContract,",
+    "        job = null",
+    "    ) {"
+  ].join("\n"),
+  "V142_HUMO_STORAGE_ASSERT_JOB_CONTEXT"
+);
+
+engine = replaceExactOnce(
+  engine,
+  [
+    "        else if (body.volumeInGb !== volumeInGb || Object.hasOwn(body, \"networkVolumeId\")) {",
+    "            throw new Error(\"RUNPOD_EPHEMERAL_VOLUME_PAYLOAD_INVALID\");",
+    "        }"
+  ].join("\n"),
+  [
+    "        else {",
+    "            const expectedVolumeInGb = isHuMoRemoteJob(job) ? 0 : volumeInGb;",
+    "            if (body.volumeInGb !== expectedVolumeInGb || Object.hasOwn(body, \"networkVolumeId\")) {",
+    "                throw new Error(\"RUNPOD_EPHEMERAL_VOLUME_PAYLOAD_INVALID\");",
+    "            }",
+    "            if (isHuMoRemoteJob(job) && body.volumeInGb !== 0) {",
+    "                throw new Error(\"RUNPOD_HUMO_PERSISTENT_STORAGE_FORBIDDEN\");",
+    "            }",
+    "        }"
+  ].join("\n"),
+  "V142_HUMO_STORAGE_ASSERTION"
+);
+
+engine = replaceExactOnce(
+  engine,
+  "                assertProvisionBody(body, plannedVolume, selectedGpuTypeId, selectedProfile);",
+  "                assertProvisionBody(body, plannedVolume, selectedGpuTypeId, selectedProfile, job);",
+  "V142_HUMO_STORAGE_PRECHECK_CALL"
+);
+engine = replaceExactOnce(
+  engine,
+  "            assertProvisionBody(body, networkVolume, gpuTypeId, launchProfile);",
+  "            assertProvisionBody(body, networkVolume, gpuTypeId, launchProfile, job);",
+  "V142_HUMO_STORAGE_LAUNCH_CALL"
+);
+
+for (const marker of [
+  "persistentVolumeDisabled = isHuMoRemoteJob(job)",
+  "persistentVolumeDisabled ? 0 : volumeInGb",
+  "RUNPOD_HUMO_PERSISTENT_STORAGE_FORBIDDEN",
+  "assertProvisionBody(body, plannedVolume, selectedGpuTypeId, selectedProfile, job)",
+  "assertProvisionBody(body, networkVolume, gpuTypeId, launchProfile, job)"
+]) {
+  if (!engine.includes(marker)) throw new Error(`V142_HUMO_STORAGE_MARKER_MISSING:${marker}`);
+}
 write(LOCAL_VIDEO_ENGINE, engine);
 
+let bridge = read(FS_BRIDGE);
+bridge = replaceExactOnce(
+  bridge,
+  [
+    '        JARVIS_RUNPOD_EXPECTED_VRAM_GB: "48",',
+    '        JARVIS_RUNPOD_MIN_RAM_GB: "62",',
+    '        JARVIS_RUNPOD_MIN_VCPU: "16",'
+  ].join("\n"),
+  [
+    '        JARVIS_RUNPOD_EXPECTED_VRAM_GB: "48",',
+    '        JARVIS_RUNPOD_MIN_RAM_GB: "62",',
+    '        JARVIS_RUNPOD_MIN_VCPU: "16",',
+    '        JARVIS_RUNPOD_CONTAINER_DISK_GB: "60",',
+    '        JARVIS_RUNPOD_VOLUME_DISK_GB: "0",'
+  ].join("\n"),
+  "V142_HUMO_PROBE_TEMP_STORAGE_ENV"
+);
+for (const marker of [
+  'JARVIS_RUNPOD_CONTAINER_DISK_GB: "60"',
+  'JARVIS_RUNPOD_VOLUME_DISK_GB: "0"',
+  "delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID",
+  "HUMO_IDENTITY_PROBE_FAILED_AND_RELEASED"
+]) {
+  if (!bridge.includes(marker)) throw new Error(`V142_HUMO_STORAGE_BRIDGE_MARKER_MISSING:${marker}`);
+}
+write(FS_BRIDGE, bridge);
+
 let tests = read(LOCAL_VIDEO_TEST);
-const venvLaunchTest = [
-  'test("V142 HuMo inference is bound to the certified venv Python instead of global torchrun", () => {',
-  '    const runner = fs.readFileSync(new URL("../scripts/jarvis-local-video-wan22.py", import.meta.url), "utf8");',
-  '    assert.equal(runner.includes("torchrun = _humo_executable(os.environ.get(\\\"JARVIS_HUMO_TORCHRUN\\\", \\\"\\\"), \\\"torchrun\\\")"), false);',
-  '    assert.equal(runner.includes("LOCAL_VIDEO_HUMO_CERTIFIED_VENV_REQUIRED"), true);',
-  '    assert.equal(runner.includes("LOCAL_VIDEO_HUMO_CERTIFIED_VENV_INVALID"), true);',
-  '    assert.equal(runner.includes("runtime_python,"), true);',
-  '    assert.equal(runner.includes("\\\"-m\\\""), true);',
-  '    assert.equal(runner.includes("\\\"torch.distributed.run\\\""), true);',
-  '    assert.equal(runner.includes("import importlib.metadata,omegaconf,torch"), true);',
-  '    assert.equal(runner.includes("flash-attn"), true);',
-  '    assert.equal(runner.includes("2.6.3"), true);',
+tests = replaceExactOnce(
+  tests,
+  '    assert.equal(harness.createdBody.volumeInGb, 100);',
+  '    assert.equal(harness.createdBody.volumeInGb, 0);',
+  "V142_HUMO_RUNTIME_CERT_ZERO_VOLUME_EXPECTATION"
+);
+
+const storageTest = [
+  'test("V142 HuMo probes forbid persistent RunPod storage and use temporary container disk", () => {',
+  '    const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");',
+  '    assert.equal(engineSource.includes("persistentVolumeDisabled = isHuMoRemoteJob(job)"), true);',
+  '    assert.equal(engineSource.includes("persistentVolumeDisabled ? 0 : volumeInGb"), true);',
+  '    assert.equal(engineSource.includes("RUNPOD_HUMO_PERSISTENT_STORAGE_FORBIDDEN"), true);',
+  '    const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");',
+  '    assert.equal(bridgeSource.includes("JARVIS_RUNPOD_CONTAINER_DISK_GB: \\\"60\\\""), true);',
+  '    assert.equal(bridgeSource.includes("JARVIS_RUNPOD_VOLUME_DISK_GB: \\\"0\\\""), true);',
+  '    assert.equal(bridgeSource.includes("delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID"), true);',
   '});'
 ].join("\n");
 tests = appendOnce(
   tests,
-  "V142 HuMo inference is bound to the certified venv Python instead of global torchrun",
-  venvLaunchTest
+  "V142 HuMo probes forbid persistent RunPod storage and use temporary container disk",
+  storageTest
 );
 write(LOCAL_VIDEO_TEST, tests);
 
-const bridge = read(FS_BRIDGE);
+const runner = read(LOCAL_VIDEO_RUNNER);
 for (const marker of [
-  "runHuMoIdentityProbeCli",
-  "HUMO_IDENTITY_PROBE_FAILED_AND_RELEASED",
-  "fullEpisodeAuthorized: false"
+  "LOCAL_VIDEO_HUMO_CERTIFIED_VENV_REQUIRED",
+  "LOCAL_VIDEO_HUMO_CERTIFIED_VENV_INVALID",
+  '"torch.distributed.run"',
+  "import importlib.metadata,omegaconf,torch"
 ]) {
-  if (!bridge.includes(marker)) throw new Error(`V142_HUMO_PROBE_BRIDGE_REGRESSION:${marker}`);
+  if (!runner.includes(marker)) throw new Error(`V142_HUMO_VENV_REGRESSION:${marker}`);
 }
 
 execFileSync(process.execPath, ["--check", LOCAL_VIDEO_ENGINE], { stdio: "inherit" });
@@ -147,15 +199,15 @@ execFileSync(python, ["-c", `import ast,pathlib; ast.parse(pathlib.Path('${LOCAL
 
 console.log(JSON.stringify({
   ok: true,
-  status: "V142_HUMO_CERTIFIED_VENV_INFERENCE_MATERIALIZED",
+  status: "V142_HUMO_ZERO_PERSISTENT_STORAGE_MATERIALIZED",
   productBaseCommit: PRODUCT_BASE_COMMIT,
-  globalTorchrunAllowed: false,
-  certifiedVenvPythonRequired: true,
-  distributedLaunch: "python -m torch.distributed.run",
-  requiredRuntimeImports: ["omegaconf", "torch", "flash-attn"],
-  expectedTorch: "2.5.1",
-  expectedTorchCuda: "12.4",
-  expectedFlashAttention: "2.6.3",
+  currentRunpodTestBalanceUsd: 3.86,
+  persistentVolumeInGb: 0,
+  networkVolumeAllowedForHuMoProbe: false,
+  temporaryContainerDiskInGb: 60,
+  containerDiskLifetime: "pod_only",
+  releaseRequiresTerminationVerification: true,
+  paidProbeHardCapUsd: 1,
   inferenceAuthorized: false,
   providerTrafficUsed: false,
   runpodTrafficUsed: false,
