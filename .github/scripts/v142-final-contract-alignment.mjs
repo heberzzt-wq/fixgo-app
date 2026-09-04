@@ -132,16 +132,20 @@ let bridge = read(FS_BRIDGE);
 bridge = replaceExactOnce(
   bridge,
   [
+    '        JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY: "false",',
     '        JARVIS_RUNPOD_EXPECTED_VRAM_GB: "48",',
     '        JARVIS_RUNPOD_MIN_RAM_GB: "62",',
-    '        JARVIS_RUNPOD_MIN_VCPU: "16",'
+    '        JARVIS_RUNPOD_MIN_VCPU: "16",',
+    '        JARVIS_RUNPOD_BOOTSTRAP_TIMEOUT_SECONDS: "3300",'
   ].join("\n"),
   [
+    '        JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY: "false",',
     '        JARVIS_RUNPOD_EXPECTED_VRAM_GB: "48",',
     '        JARVIS_RUNPOD_MIN_RAM_GB: "62",',
     '        JARVIS_RUNPOD_MIN_VCPU: "16",',
     '        JARVIS_RUNPOD_CONTAINER_DISK_GB: "60",',
-    '        JARVIS_RUNPOD_VOLUME_DISK_GB: "0",'
+    '        JARVIS_RUNPOD_VOLUME_DISK_GB: "0",',
+    '        JARVIS_RUNPOD_BOOTSTRAP_TIMEOUT_SECONDS: "3300",'
   ].join("\n"),
   "V142_HUMO_PROBE_TEMP_STORAGE_ENV"
 );
