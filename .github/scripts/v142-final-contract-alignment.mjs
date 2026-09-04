@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 
-const PRODUCT_BASE_COMMIT = "e22cb88b4f494f10bf4590a75a4ceb0d2ad47de5";
+const PRODUCT_BASE_COMMIT = "50e2a4daa6197ca0e2b9be12a33976164fdc0129";
 const WAN21_REVISION = "37ec512624d61f7aa208f7ea8140a131f93afc9a";
 const LOCAL_VIDEO_ENGINE = "jarvis-local-video-engine.js";
 const LOCAL_VIDEO_TEST = "tests/jarvis-local-video-engine-v142.test.mjs";
@@ -31,170 +31,121 @@ let engine = read(LOCAL_VIDEO_ENGINE);
 
 engine = replaceExactOnce(
   engine,
+  '            `  humo_hf_download ${authority.modelRepository} --revision ${authority.modelRevision} --local-dir "$HUMO_WEIGHTS"`,',
+  '            `  humo_hf_download ${authority.modelRepository} ${authority.checkpoint.path} ${authority.zeroVae.path} ${authority.audioSeparator.path} --revision ${authority.modelRevision} --local-dir "$HUMO_WEIGHTS"`,',
+  "V142_HUMO_SELECTIVE_MODEL_ASSETS"
+);
+
+engine = replaceExactOnce(
+  engine,
+  `            "  humo_hf_download Wan-AI/Wan2.1-T2V-1.3B --revision ${WAN21_REVISION} --local-dir \\\"$WAN21_WEIGHTS\\\"",`,
+  `            "  humo_hf_download Wan-AI/Wan2.1-T2V-1.3B Wan2.1_VAE.pth models_t5_umt5-xxl-enc-bf16.pth google/umt5-xxl/special_tokens_map.json google/umt5-xxl/spiece.model google/umt5-xxl/tokenizer.json google/umt5-xxl/tokenizer_config.json --revision ${WAN21_REVISION} --local-dir \\\"$WAN21_WEIGHTS\\\"",`,
+  "V142_HUMO_SELECTIVE_WAN21_ASSETS"
+);
+
+engine = replaceExactOnce(
+  engine,
+  '            `  humo_hf_download ${authority.whisper.repository} --revision ${authority.whisper.revision} --local-dir "$WHISPER_DIR"`,',
+  '            `  humo_hf_download ${authority.whisper.repository} ${authority.whisper.model.path} ${authority.whisper.requiredMetadata.join(" ")} --revision ${authority.whisper.revision} --local-dir "$WHISPER_DIR"`,',
+  "V142_HUMO_SELECTIVE_WHISPER_ASSETS"
+);
+
+engine = replaceExactOnce(
+  engine,
   [
-    '            "  progress HUMO_ASSETS RUNNING",',
-    '            `  "$VENV/bin/hf" download ${authority.modelRepository} --revision ${authority.modelRevision} --local-dir "$HUMO_WEIGHTS"`,',
-    '            "  \\\"$VENV/bin/hf\\\" download Wan-AI/Wan2.1-T2V-1.3B --local-dir \\\"$WAN21_WEIGHTS\\\"",',
-    '            `  "$VENV/bin/hf" download ${authority.whisper.repository} --revision ${authority.whisper.revision} --local-dir "$WHISPER_DIR"`,',
-    '            `  test -f "$HUMO_WEIGHTS/${authority.checkpoint.path}"`,'
-  ].join("\n"),
-  [
-    '            "  export HF_HUB_DISABLE_XET=1",',
-    '            "  export HF_HUB_DOWNLOAD_TIMEOUT=60",',
-    '            "  humo_hf_download() {",',
-    '            "    \\\"$VENV/bin/hf\\\" download \\\"$@\\\" --max-workers 1 && return 0",',
-    '            "    sleep 5",',
-    '            "    \\\"$VENV/bin/hf\\\" download \\\"$@\\\" --max-workers 1",',
-    '            "  }",',
-    '            "  progress HUMO_ASSETS_HUMO RUNNING",',
-    '            `  humo_hf_download ${authority.modelRepository} --revision ${authority.modelRevision} --local-dir "$HUMO_WEIGHTS"`,',
-    '            "  progress HUMO_ASSETS_HUMO READY",',
-    '            "  progress HUMO_ASSETS_WAN21 RUNNING",',
-    `            "  humo_hf_download Wan-AI/Wan2.1-T2V-1.3B --revision ${WAN21_REVISION} --local-dir \\\"$WAN21_WEIGHTS\\\"",`,
-    '            "  progress HUMO_ASSETS_WAN21 READY",',
-    '            "  progress HUMO_ASSETS_WHISPER RUNNING",',
-    '            `  humo_hf_download ${authority.whisper.repository} --revision ${authority.whisper.revision} --local-dir "$WHISPER_DIR"`,',
-    '            "  progress HUMO_ASSETS_WHISPER READY",',
     '            "  progress HUMO_ASSETS_VERIFY RUNNING",',
     '            `  test -f "$HUMO_WEIGHTS/${authority.checkpoint.path}"`,'
   ].join("\n"),
-  "V142_HUMO_ASSET_DOWNLOAD_HARDENING"
-);
-
-engine = replaceExactOnce(
-  engine,
-  '            "  progress HUMO_ASSETS READY",',
-  '            "  progress HUMO_ASSETS_VERIFY READY",',
-  "V142_HUMO_ASSET_VERIFY_STAGE"
+  [
+    '            "  progress HUMO_ASSETS_VERIFY RUNNING",',
+    '            "  test ! -e \\\"$HUMO_WEIGHTS/HuMo-17B\\\"",',
+    '            "  test ! -e \\\"$WAN21_WEIGHTS/diffusion_pytorch_model.safetensors\\\"",',
+    '            `  test -f "$HUMO_WEIGHTS/${authority.checkpoint.path}"`,'
+  ].join("\n"),
+  "V142_HUMO_FORBID_UNUSED_LARGE_MODELS"
 );
 
 engine = replaceExactOnce(
   engine,
   [
-    '        externalComputeMeter: state.externalComputeMeter || null,',
-    '        stageTimeline: state.stageTimeline || {},'
+    '            `  test -f "$WAN21_WEIGHTS/${authority.wan21Vae.path}"`,',
+    '            `  test -f "$SEPARATOR_FILE"`,',
+    '            "  progress HUMO_ASSETS_VERIFY READY",'
   ].join("\n"),
   [
-    '        externalComputeMeter: state.externalComputeMeter || null,',
-    '        bootstrapDiagnostics: state.bootstrapDiagnostics ? {',
-    '            capturedAt: state.bootstrapDiagnostics.capturedAt || null,',
-    '            exitCode: Number.isInteger(state.bootstrapDiagnostics.exitCode)',
-    '                ? state.bootstrapDiagnostics.exitCode',
-    '                : null,',
-    '            stage: state.bootstrapDiagnostics.stage || null,',
-    '            cacheStatus: state.bootstrapDiagnostics.cacheStatus || null,',
-    '            logTail: state.bootstrapDiagnostics.logTail || null,',
-    '            captureErrors: Array.isArray(state.bootstrapDiagnostics.captureErrors)',
-    '                ? state.bootstrapDiagnostics.captureErrors',
-    '                : []',
-    '        } : null,',
-    '        stageTimeline: state.stageTimeline || {},'
+    '            `  test -f "$WAN21_WEIGHTS/${authority.wan21Vae.path}"`,',
+    '            "  test -f \\\"$WAN21_WEIGHTS/models_t5_umt5-xxl-enc-bf16.pth\\\"",',
+    '            "  test -f \\\"$WAN21_WEIGHTS/google/umt5-xxl/special_tokens_map.json\\\"",',
+    '            "  test -f \\\"$WAN21_WEIGHTS/google/umt5-xxl/spiece.model\\\"",',
+    '            "  test -f \\\"$WAN21_WEIGHTS/google/umt5-xxl/tokenizer.json\\\"",',
+    '            "  test -f \\\"$WAN21_WEIGHTS/google/umt5-xxl/tokenizer_config.json\\\"",',
+    '            `  test -f "$WHISPER_DIR/${authority.whisper.model.path}"`,',
+    '            "  test -f \\\"$WHISPER_DIR/config.json\\\"",',
+    '            "  test -f \\\"$WHISPER_DIR/preprocessor_config.json\\\"",',
+    '            `  test -f "$SEPARATOR_FILE"`,',
+    '            "  progress HUMO_ASSETS_VERIFY READY",'
   ].join("\n"),
-  "V142_HUMO_PUBLIC_BOOTSTRAP_DIAGNOSTICS"
+  "V142_HUMO_SELECTIVE_ASSET_EXISTENCE_GATES"
 );
 
+const forbiddenFullSnapshots = [
+  'humo_hf_download ${authority.modelRepository} --revision ${authority.modelRevision}',
+  `humo_hf_download Wan-AI/Wan2.1-T2V-1.3B --revision ${WAN21_REVISION}`,
+  'humo_hf_download ${authority.whisper.repository} --revision ${authority.whisper.revision}'
+];
+for (const marker of forbiddenFullSnapshots) {
+  if (engine.includes(marker)) throw new Error(`V142_HUMO_FULL_SNAPSHOT_STILL_PRESENT:${marker}`);
+}
 for (const marker of [
+  "${authority.checkpoint.path} ${authority.zeroVae.path} ${authority.audioSeparator.path}",
+  "Wan2.1_VAE.pth models_t5_umt5-xxl-enc-bf16.pth",
+  "google/umt5-xxl/special_tokens_map.json",
+  "google/umt5-xxl/spiece.model",
+  "google/umt5-xxl/tokenizer.json",
+  "google/umt5-xxl/tokenizer_config.json",
+  '${authority.whisper.model.path} ${authority.whisper.requiredMetadata.join(" ")}',
+  "test ! -e \\\"$HUMO_WEIGHTS/HuMo-17B\\\"",
+  "test ! -e \\\"$WAN21_WEIGHTS/diffusion_pytorch_model.safetensors\\\"",
   "HF_HUB_DISABLE_XET=1",
-  "HF_HUB_DOWNLOAD_TIMEOUT=60",
   "--max-workers 1",
-  WAN21_REVISION,
-  "HUMO_ASSETS_HUMO",
-  "HUMO_ASSETS_WAN21",
-  "HUMO_ASSETS_WHISPER",
-  "HUMO_ASSETS_VERIFY",
-  "bootstrapDiagnostics: state.bootstrapDiagnostics ?"
+  WAN21_REVISION
 ]) {
-  if (!engine.includes(marker)) throw new Error(`V142_HUMO_ASSET_HARDENING_MARKER_MISSING:${marker}`);
+  if (!engine.includes(marker)) throw new Error(`V142_HUMO_SELECTIVE_ASSET_MARKER_MISSING:${marker}`);
 }
 write(LOCAL_VIDEO_ENGINE, engine);
-
-let bridge = read(FS_BRIDGE);
-bridge = replaceExactOnce(
-  bridge,
-  [
-    '        if (!final?.done) throw new Error("HUMO_IDENTITY_PROBE_DEADLINE_EXCEEDED");',
-    '        if (final.ok !== true) throw new Error(final.error || final.status || "HUMO_IDENTITY_PROBE_FAILED");'
-  ].join("\n"),
-  [
-    '        if (!final?.done) throw new Error("HUMO_IDENTITY_PROBE_DEADLINE_EXCEEDED");',
-    '        if (final.ok !== true) {',
-    '            log({',
-    '                ok: false,',
-    '                status: final.status || "HUMO_IDENTITY_PROBE_FAILED",',
-    '                error: final.error || final.status || "HUMO_IDENTITY_PROBE_FAILED",',
-    '                podId: launched?.remoteWorker?.podId || null,',
-    '                bootstrapDiagnostics: final?.remoteWorker?.bootstrapDiagnostics || null,',
-    '                inferenceStarted: final?.remoteWorker?.inferenceStartedAt != null || final?.inferenceStarted === true,',
-    '                providerReportedCostUsd: Number(final?.gpuRentalEstimatedCost || final?.remoteWorker?.gpuRentalEstimatedCost || 0)',
-    '            });',
-    '            throw new Error(final.error || final.status || "HUMO_IDENTITY_PROBE_FAILED");',
-    '        }'
-  ].join("\n"),
-  "V142_HUMO_PROBE_DIAGNOSTICS_VISIBLE"
-);
-
-bridge = replaceExactOnce(
-  bridge,
-  [
-    '    if (primaryError) throw primaryError;',
-    '    const bytes = fs.statSync(outputFile).size;'
-  ].join("\n"),
-  [
-    '    if (primaryError) {',
-    '        log({',
-    '            ok: false,',
-    '            status: "HUMO_IDENTITY_PROBE_FAILED_AND_RELEASED",',
-    '            error: primaryError?.message || String(primaryError),',
-    '            podId: launched?.remoteWorker?.podId || null,',
-    '            terminationVerified: releaseReceipt?.terminationVerified === true,',
-    '            gpuRentalSeconds: Number(releaseReceipt?.gpuRentalSeconds || final?.gpuRentalSeconds || 0),',
-    '            gpuRentalEstimatedCost: Number(releaseReceipt?.gpuRentalEstimatedCost || final?.gpuRentalEstimatedCost || 0),',
-    '            gpuRentalActualCost: Number(releaseReceipt?.gpuRentalActualCost || 0),',
-    '            inferenceStarted: final?.remoteWorker?.inferenceStartedAt != null || final?.inferenceStarted === true',
-    '        });',
-    '        throw primaryError;',
-    '    }',
-    '    const bytes = fs.statSync(outputFile).size;'
-  ].join("\n"),
-  "V142_HUMO_PROBE_FAILURE_RELEASE_RECEIPT"
-);
-
-for (const marker of [
-  "bootstrapDiagnostics: final?.remoteWorker?.bootstrapDiagnostics || null",
-  "HUMO_IDENTITY_PROBE_FAILED_AND_RELEASED",
-  "terminationVerified: releaseReceipt?.terminationVerified === true"
-]) {
-  if (!bridge.includes(marker)) throw new Error(`V142_HUMO_DIAGNOSTIC_BRIDGE_MARKER_MISSING:${marker}`);
-}
-write(FS_BRIDGE, bridge);
 
 let tests = read(LOCAL_VIDEO_TEST);
 tests = appendOnce(
   tests,
-  "V142 HuMo asset bootstrap disables Xet and serializes pinned resumable downloads",
-  `test("V142 HuMo asset bootstrap disables Xet and serializes pinned resumable downloads", () => {\n    const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");\n    assert.match(engineSource, /HF_HUB_DISABLE_XET=1/);\n    assert.match(engineSource, /HF_HUB_DOWNLOAD_TIMEOUT=60/);\n    assert.match(engineSource, /--max-workers 1/);\n    assert.match(engineSource, /37ec512624d61f7aa208f7ea8140a131f93afc9a/);\n    for (const stage of ["HUMO_ASSETS_HUMO", "HUMO_ASSETS_WAN21", "HUMO_ASSETS_WHISPER", "HUMO_ASSETS_VERIFY"]) {\n        assert.match(engineSource, new RegExp(stage));\n    }\n    assert.match(engineSource, /bootstrapDiagnostics: state\\.bootstrapDiagnostics/);\n    const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");\n    assert.match(bridgeSource, /bootstrapDiagnostics: final\\?\\.remoteWorker\\?\\.bootstrapDiagnostics/);\n    assert.match(bridgeSource, /HUMO_IDENTITY_PROBE_FAILED_AND_RELEASED/);\n    assert.match(bridgeSource, /terminationVerified: releaseReceipt\\?\\.terminationVerified === true/);\n});`
+  "V142 HuMo bootstrap downloads only the exact 1.7B identity runtime assets",
+  `test("V142 HuMo bootstrap downloads only the exact 1.7B identity runtime assets", () => {\n    const source = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");\n    assert.doesNotMatch(source, /humo_hf_download \\${authority\\.modelRepository} --revision \\${authority\\.modelRevision}/);\n    assert.doesNotMatch(source, /humo_hf_download Wan-AI\\/Wan2\\.1-T2V-1\\.3B --revision 37ec512624d61f7aa208f7ea8140a131f93afc9a/);\n    assert.doesNotMatch(source, /humo_hf_download \\${authority\\.whisper\\.repository} --revision \\${authority\\.whisper\\.revision}/);\n    assert.match(source, /\\${authority\\.checkpoint\\.path} \\${authority\\.zeroVae\\.path} \\${authority\\.audioSeparator\\.path}/);\n    assert.match(source, /Wan2\\.1_VAE\\.pth models_t5_umt5-xxl-enc-bf16\\.pth/);\n    assert.match(source, /google\\/umt5-xxl\\/special_tokens_map\\.json/);\n    assert.match(source, /google\\/umt5-xxl\\/spiece\\.model/);\n    assert.match(source, /google\\/umt5-xxl\\/tokenizer\\.json/);\n    assert.match(source, /google\\/umt5-xxl\\/tokenizer_config\\.json/);\n    assert.match(source, /\\${authority\\.whisper\\.model\\.path} \\${authority\\.whisper\\.requiredMetadata\\.join\\(" "\\)}/);\n    assert.match(source, /test ! -e .*HuMo-17B/);\n    assert.match(source, /test ! -e .*diffusion_pytorch_model\\.safetensors/);\n    assert.match(source, /HF_HUB_DISABLE_XET=1/);\n    assert.match(source, /--max-workers 1/);\n});`
 );
 write(LOCAL_VIDEO_TEST, tests);
+
+const bridge = read(FS_BRIDGE);
+for (const marker of [
+  "runHuMoIdentityProbeCli",
+  "HUMO_IDENTITY_PROBE_FAILED_AND_RELEASED",
+  "fullEpisodeAuthorized: false"
+]) {
+  if (!bridge.includes(marker)) throw new Error(`V142_HUMO_IDENTITY_PROBE_REGRESSION:${marker}`);
+}
 
 execFileSync(process.execPath, ["--check", LOCAL_VIDEO_ENGINE], { stdio: "inherit" });
 execFileSync(process.execPath, ["--check", FS_BRIDGE], { stdio: "inherit" });
 
 console.log(JSON.stringify({
   ok: true,
-  status: "V142_HUMO_ASSET_DOWNLOAD_HARDENING_MATERIALIZED",
+  status: "V142_HUMO_SELECTIVE_ASSET_BOOTSTRAP_MATERIALIZED",
   productBaseCommit: PRODUCT_BASE_COMMIT,
+  fullHuMoSnapshotDownload: false,
+  huMo17BDownloadAllowed: false,
+  fullWan21SnapshotDownload: false,
+  wan21DiffusionModelDownloadAllowed: false,
+  fullWhisperSnapshotDownload: false,
   hfXetDisabled: true,
-  hfDownloadTimeoutSeconds: 60,
   hfMaxWorkers: 1,
   wan21Revision: WAN21_REVISION,
-  assetStages: [
-    "HUMO_ASSETS_HUMO",
-    "HUMO_ASSETS_WAN21",
-    "HUMO_ASSETS_WHISPER",
-    "HUMO_ASSETS_VERIFY"
-  ],
-  bootstrapDiagnosticsVisible: true,
-  failureReleaseReceiptVisible: true,
   inferenceAuthorized: false,
   providerTrafficUsed: false,
   runpodTrafficUsed: false,
