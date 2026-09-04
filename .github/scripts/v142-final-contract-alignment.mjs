@@ -10,25 +10,63 @@ const FS_BRIDGE = "jarvis-fs-bridge.js";
 function read(file) {
   return fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
 }
-
-function write(file, source) {
-  fs.writeFileSync(file, source, "utf8");
-}
-
+function write(file, source) { fs.writeFileSync(file, source, "utf8"); }
 function replaceExactOnce(source, before, after, label) {
   if (source.includes(after)) return source;
   const count = source.split(before).length - 1;
   if (count !== 1) throw new Error(`${label}_MATCH_COUNT_${count}`);
   return source.replace(before, after);
 }
-
 function appendOnce(source, marker, addition) {
   if (source.includes(marker)) return source;
   return `${source.trimEnd()}\n\n${addition.trim()}\n`;
 }
 
 let runner = read(LOCAL_VIDEO_RUNNER);
-
+runner = replaceExactOnce(
+  runner,
+  [
+    "    command = [",
+    "        runtime_python,",
+    "        \"-m\",",
+    "        \"torch.distributed.run\",",
+    "        \"--standalone\",",
+    "        \"--nnodes=1\",",
+    "        \"--nproc_per_node=1\"," 
+  ].join("\n"),
+  [
+    "    command = [",
+    "        runtime_python,",
+    "        \"-m\",",
+    "        \"torch.distributed.run\",",
+    "        \"--node_rank=0\",",
+    "        \"--nproc_per_node=1\",",
+    "        \"--nnodes=1\",",
+    "        \"--rdzv_endpoint=127.0.0.1:12345\",",
+    "        \"--rdzv_conf=timeout=900,join_timeout=900,read_timeout=900\"," 
+  ].join("\n"),
+  "V142_HUMO_UPSTREAM_SINGLE_GPU_LAUNCH"
+);
+runner = replaceExactOnce(
+  runner,
+  [
+    "    completed = subprocess.run(",
+    "        command,",
+    "        cwd=humo_root,",
+    "        env=offline_environment(),"
+  ].join("\n"),
+  [
+    "    inference_env = offline_environment()",
+    "    inference_env[\"CUDA_VISIBLE_DEVICES\"] = \"0\"",
+    "    inference_env[\"PYTHONFAULTHANDLER\"] = \"1\"",
+    "    inference_env[\"TORCH_DISTRIBUTED_DEBUG\"] = \"DETAIL\"",
+    "    completed = subprocess.run(",
+    "        command,",
+    "        cwd=humo_root,",
+    "        env=inference_env,"
+  ].join("\n"),
+  "V142_HUMO_UPSTREAM_SINGLE_GPU_ENV"
+);
 runner = replaceExactOnce(
   runner,
   [
@@ -63,18 +101,18 @@ runner = replaceExactOnce(
 );
 
 for (const marker of [
-  "ROOT_LINES:",
-  "STDERR_HEAD:",
-  "STDERR_TAIL:",
-  "STDOUT_HEAD:",
-  "STDOUT_TAIL:",
-  "root_lines[:40]",
-  ")[-22000:]",
-  "LOCAL_VIDEO_HUMO_CERTIFIED_VENV_REQUIRED",
-  '"torch.distributed.run"'
+  '"--node_rank=0"',
+  '"--rdzv_endpoint=127.0.0.1:12345"',
+  '"--rdzv_conf=timeout=900,join_timeout=900,read_timeout=900"',
+  'inference_env["CUDA_VISIBLE_DEVICES"] = "0"',
+  'inference_env["PYTHONFAULTHANDLER"] = "1"',
+  'inference_env["TORCH_DISTRIBUTED_DEBUG"] = "DETAIL"',
+  "ROOT_LINES:", "STDERR_HEAD:", "STDERR_TAIL:", "STDOUT_HEAD:", "STDOUT_TAIL:",
+  "LOCAL_VIDEO_HUMO_CERTIFIED_VENV_REQUIRED", '"torch.distributed.run"'
 ]) {
-  if (!runner.includes(marker)) throw new Error(`V142_HUMO_DIAGNOSTIC_MARKER_MISSING:${marker}`);
+  if (!runner.includes(marker)) throw new Error(`V142_HUMO_LAUNCH_MARKER_MISSING:${marker}`);
 }
+if (runner.includes('"--standalone"')) throw new Error("V142_HUMO_STANDALONE_LAUNCH_REGRESSION");
 if (runner.includes('diagnostic = str(completed.stderr or completed.stdout or "")[-2000:]')) {
   throw new Error("V142_HUMO_TRUNCATED_DIAGNOSTIC_REGRESSION");
 }
@@ -86,15 +124,11 @@ for (const marker of [
   "persistentVolumeDisabled ? 0 : volumeInGb",
   "RUNPOD_HUMO_PERSISTENT_STORAGE_FORBIDDEN",
   "HF_HUB_DISABLE_XET=1",
-  "HUMO_ASSETS_HUMO",
-  "HUMO_ASSETS_WAN21",
-  "HUMO_ASSETS_WHISPER",
-  "physicalRuntimeCertified: true",
-  "paidExecutionAuthorized: false"
+  "HUMO_ASSETS_HUMO", "HUMO_ASSETS_WAN21", "HUMO_ASSETS_WHISPER",
+  "physicalRuntimeCertified: true", "paidExecutionAuthorized: false"
 ]) {
   if (!engine.includes(marker)) throw new Error(`V142_HUMO_EXISTING_CONTRACT_REGRESSION:${marker}`);
 }
-
 const bridge = read(FS_BRIDGE);
 for (const marker of [
   'JARVIS_RUNPOD_CONTAINER_DISK_GB: "60"',
@@ -106,25 +140,31 @@ for (const marker of [
 }
 
 let tests = read(LOCAL_VIDEO_TEST);
-const diagnosticTest = [
-  'test("V142 HuMo inference preserves inner child errors before elastic wrapper noise", () => {',
+const launchTest = [
+  'test("V142 HuMo single GPU inference follows upstream rendezvous contract and preserves child errors", () => {',
   '    const runner = fs.readFileSync(new URL("../scripts/jarvis-local-video-wan22.py", import.meta.url), "utf8");',
+  '    assert.equal(runner.includes("\\\"--standalone\\\""), false);',
+  '    assert.equal(runner.includes("\\\"--node_rank=0\\\""), true);',
+  '    assert.equal(runner.includes("\\\"--nproc_per_node=1\\\""), true);',
+  '    assert.equal(runner.includes("\\\"--nnodes=1\\\""), true);',
+  '    assert.equal(runner.includes("\\\"--rdzv_endpoint=127.0.0.1:12345\\\""), true);',
+  '    assert.equal(runner.includes("\\\"--rdzv_conf=timeout=900,join_timeout=900,read_timeout=900\\\""), true);',
+  '    assert.equal(runner.includes("inference_env[\\\"CUDA_VISIBLE_DEVICES\\\"] = \\\"0\\\""), true);',
+  '    assert.equal(runner.includes("inference_env[\\\"PYTHONFAULTHANDLER\\\"] = \\\"1\\\""), true);',
+  '    assert.equal(runner.includes("inference_env[\\\"TORCH_DISTRIBUTED_DEBUG\\\"] = \\\"DETAIL\\\""), true);',
   '    assert.equal(runner.includes("ROOT_LINES:"), true);',
   '    assert.equal(runner.includes("STDERR_HEAD:"), true);',
   '    assert.equal(runner.includes("STDERR_TAIL:"), true);',
   '    assert.equal(runner.includes("STDOUT_HEAD:"), true);',
   '    assert.equal(runner.includes("STDOUT_TAIL:"), true);',
-  '    assert.equal(runner.includes("root_lines[:40]"), true);',
-  '    assert.equal(runner.includes(")[-22000:]"), true);',
-  '    assert.equal(runner.includes("diagnostic = str(completed.stderr or completed.stdout or \\\"\\\")[-2000:]"), false);',
   '    assert.equal(runner.includes("LOCAL_VIDEO_HUMO_CERTIFIED_VENV_REQUIRED"), true);',
   '    assert.equal(runner.includes("\\\"torch.distributed.run\\\""), true);',
   '});'
 ].join("\n");
 tests = appendOnce(
   tests,
-  "V142 HuMo inference preserves inner child errors before elastic wrapper noise",
-  diagnosticTest
+  "V142 HuMo single GPU inference follows upstream rendezvous contract and preserves child errors",
+  launchTest
 );
 write(LOCAL_VIDEO_TEST, tests);
 
@@ -135,11 +175,12 @@ execFileSync(python, ["-c", `import ast,pathlib; ast.parse(pathlib.Path('${LOCAL
 
 console.log(JSON.stringify({
   ok: true,
-  status: "V142_HUMO_INNER_ERROR_DIAGNOSTICS_MATERIALIZED",
+  status: "V142_HUMO_UPSTREAM_SINGLE_GPU_LAUNCH_MATERIALIZED",
   productBaseCommit: PRODUCT_BASE_COMMIT,
+  launchAuthority: "Phantom-video/HuMo scripts/infer_tia_1_7B.sh",
+  certifiedVenvPythonRequired: true,
+  upstreamRendezvousAligned: true,
   childErrorRootLinesVisible: true,
-  stderrHeadTailVisible: true,
-  stdoutHeadTailVisible: true,
   diagnosticCharacterBudget: 22000,
   previousRunpodTestBalanceUsd: 3.86,
   lastProbeEstimatedCostUsd: 0.4124381361111112,
