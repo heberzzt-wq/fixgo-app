@@ -108,8 +108,20 @@ replaceFileExactOnce(
 
 replaceFileExactOnce(
   LOCAL_VIDEO_TEST,
-  '    assert.deepEqual(harness.createdBody.dataCenterIds, ["EU-NL-1"]);',
-  '    assert.equal("dataCenterIds" in harness.createdBody, false);',
+  [
+    '    assert.equal(harness.createdBody.imageName, "runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04");',
+    '    assert.equal(harness.createdBody.cloudType, "SECURE");',
+    '    assert.deepEqual(harness.createdBody.dataCenterIds, ["EU-NL-1"]);',
+    '    assert.deepEqual(harness.createdBody.gpuTypeIds, ["NVIDIA L40S"]);',
+    '    assert.equal("networkVolumeId" in harness.createdBody, false);'
+  ].join("\n"),
+  [
+    '    assert.equal(harness.createdBody.imageName, "runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04");',
+    '    assert.equal(harness.createdBody.cloudType, "SECURE");',
+    '    assert.equal("dataCenterIds" in harness.createdBody, false);',
+    '    assert.deepEqual(harness.createdBody.gpuTypeIds, ["NVIDIA L40S"]);',
+    '    assert.equal("networkVolumeId" in harness.createdBody, false);'
+  ].join("\n"),
   "V142_HUMO_RUNTIME_CERT_TEST_EPHEMERAL_PLACEMENT"
 );
 
