@@ -1,30 +1,11 @@
 import fs from "node:fs";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 
-const BASE_MATERIALIZER_COMMIT = "20e627289205b08e679389432c8376bbf45799f2";
-const MATERIALIZER_PATH = ".github/scripts/v142-final-contract-alignment.mjs";
-
-const baseMaterializer = execFileSync(
-  "git",
-  ["show", `${BASE_MATERIALIZER_COMMIT}:${MATERIALIZER_PATH}`],
-  { encoding: "utf8", maxBuffer: 8 * 1024 * 1024 }
-).replace(/\r\n/g, "\n");
-
-const materialized = spawnSync(process.execPath, ["--input-type=module", "-"], {
-  cwd: process.cwd(),
-  input: baseMaterializer,
-  encoding: "utf8",
-  stdio: ["pipe", "inherit", "inherit"]
-});
-if (materialized.error) throw materialized.error;
-if (materialized.status !== 0) {
-  throw new Error(`V142_BASE_MATERIALIZER_EXIT_${materialized.status}`);
-}
+const fileName = "flash_attn-2.6.3+cu124torch2.5-cp311-cp311-linux_x86_64.whl";
+const wheelUrl = "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.0.2/flash_attn-2.6.3%2Bcu124torch2.5-cp311-cp311-linux_x86_64.whl";
+const expectedBytes = 182448642;
 
 if (process.platform === "linux" && process.env.GITHUB_JOB === "certify-linux") {
-  const fileName = "flash_attn-2.6.3+cu124torch2.5-cp311-cp311-linux_x86_64.whl";
-  const wheelUrl = "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.0.0/flash_attn-2.6.3%2Bcu124torch2.5-cp311-cp311-linux_x86_64.whl";
-  const expectedBytes = 182448572;
   const wheelFile = `/tmp/${fileName}`;
   try {
     execFileSync(
@@ -46,6 +27,7 @@ if (process.platform === "linux" && process.env.GITHUB_JOB === "certify-linux") 
     console.log(JSON.stringify({
       ok: true,
       status: "V142_HUMO_FLASH_ATTN_WHEEL_SHA256_DISCOVERED",
+      release: "v0.0.2",
       fileName,
       bytes,
       sha256,
@@ -62,12 +44,15 @@ if (process.platform === "linux" && process.env.GITHUB_JOB === "certify-linux") 
 console.log(JSON.stringify({
   ok: true,
   status: "V142_HUMO_FLASH_ATTN_WHEEL_FINGERPRINT_PROBE_READY",
-  baseMaterializerCommit: BASE_MATERIALIZER_COMMIT,
+  release: "v0.0.2",
+  fileName,
+  expectedBytes,
   runpodTrafficUsed: false,
   paidProviderTrafficUsed: false,
   billableGpuCreated: false,
   runtimeCertificationOnly: true,
   inferenceAuthorized: false,
+  legacyMaterializerChainExecuted: false,
   newFiles: false,
   newBrains: false
 }));
