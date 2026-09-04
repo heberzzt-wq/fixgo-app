@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 
-const BASE_MATERIALIZER_COMMIT = "456a8e4e1a07377d84137eae702d80f3aa1a7a9a";
+const BASE_MATERIALIZER_COMMIT = "127ea463d98c1560244bc63eb2e0cd25602c3d3d";
 const MATERIALIZER_PATH = ".github/scripts/v142-final-contract-alignment.mjs";
-const LOCAL_VIDEO_ENGINE = "jarvis-local-video-engine.js";
-const LOCAL_VIDEO_TEST = "tests/jarvis-local-video-engine-v142.test.mjs";
+const FS_BRIDGE = "jarvis-fs-bridge.js";
+const FS_BRIDGE_TEST = "tests/jarvis-fs-bridge-v2.test.mjs";
 
 function replaceExactOnce(source, before, after, label) {
   if (source.includes(after)) return source;
@@ -43,46 +43,41 @@ if (materialized.status !== 0) {
 }
 
 replaceFileExactOnce(
-  LOCAL_VIDEO_ENGINE,
-  '        baseTorch: "2.4.0",',
-  '        baseTorch: "2.4.1",',
-  "V142_HUMO_PHYSICAL_BASE_TORCH_AUTHORITY"
-);
-
-replaceFileExactOnce(
-  LOCAL_VIDEO_TEST,
-  '            torchVersion: "2.4.0+cu124",',
-  '            torchVersion: "2.4.1+cu124",',
-  "V142_HUMO_PHYSICAL_BASE_TORCH_MOCK"
+  FS_BRIDGE,
+  `        while (Date.now() < deadlineMs) {\n            const polled = await engine.poll({ operationName });\n            log({\n                ok: polled?.ok === true,\n                status: polled?.status || null,\n                done: polled?.done === true,\n                podId: polled?.podId || polled?.remoteWorker?.podId || null,\n                gpuRentalEstimatedCost: Number(polled?.gpuRentalEstimatedCost || 0)\n            });\n            if (polled?.done === true) {`,
+  `        const certificationStartedMs = Date.now();\n        while (Date.now() < deadlineMs) {\n            const polled = await engine.poll({ operationName });\n            const remoteWorker = polled?.remoteWorker || {};\n            const bootstrapProgress = remoteWorker?.bootstrapProgress || null;\n            const elapsedSeconds = Math.max(0, (Date.now() - certificationStartedMs) / 1000);\n            const providerReportedCostUsd = Number(\n                polled?.gpuRentalEstimatedCost || remoteWorker?.gpuRentalEstimatedCost || 0\n            );\n            const wallClockUpperBoundCostUsd = Number((elapsedSeconds * 1.09 / 3600).toFixed(6));\n            log({\n                ok: polled?.ok === true,\n                status: polled?.status || null,\n                done: polled?.done === true,\n                podId: polled?.podId || remoteWorker?.podId || null,\n                remotePhase: remoteWorker?.phase || null,\n                bootstrapStage: bootstrapProgress?.stage || null,\n                bootstrapStatus: bootstrapProgress?.status || null,\n                bootstrapAt: bootstrapProgress?.at || null,\n                cacheStatus: remoteWorker?.cacheStatus || bootstrapProgress?.cacheStatus || null,\n                elapsedSeconds: Number(elapsedSeconds.toFixed(1)),\n                providerReportedCostUsd,\n                wallClockUpperBoundCostUsd,\n                terminationVerified: polled?.workerRelease?.terminationVerified === true\n            });\n            if (polled?.done === true) {`,
+  "V142_HUMO_RUNTIME_CERTIFICATION_PROGRESS_OBSERVABILITY"
 );
 
 appendFileOnce(
-  LOCAL_VIDEO_TEST,
-  "V142 HuMo physical base runtime authority matches observed RunPod L40S torch 2.4.1",
-  `test("V142 HuMo physical base runtime authority matches observed RunPod L40S torch 2.4.1", () => {\n    const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");\n    assert.equal(engineSource.includes('baseTorch: "2.4.1"'), true);\n    assert.equal(engineSource.includes('baseTorch: "2.4.0"'), false);\n});`
+  FS_BRIDGE_TEST,
+  "V142 HuMo runtime certification CLI exposes remote bootstrap progress and nonzero wall clock cost",
+  `test("V142 HuMo runtime certification CLI exposes remote bootstrap progress and nonzero wall clock cost", () => {\n    const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");\n    assert.equal(bridgeSource.includes("remotePhase: remoteWorker?.phase || null"), true);\n    assert.equal(bridgeSource.includes("bootstrapStage: bootstrapProgress?.stage || null"), true);\n    assert.equal(bridgeSource.includes("bootstrapStatus: bootstrapProgress?.status || null"), true);\n    assert.equal(bridgeSource.includes("wallClockUpperBoundCostUsd"), true);\n    assert.equal(bridgeSource.includes("providerReportedCostUsd"), true);\n    assert.equal(bridgeSource.includes("terminationVerified: polled?.workerRelease?.terminationVerified === true"), true);\n});`
 );
 
-execFileSync(process.execPath, ["--check", LOCAL_VIDEO_ENGINE], { stdio: "inherit" });
+execFileSync(process.execPath, ["--check", FS_BRIDGE], { stdio: "inherit" });
 
 console.log(JSON.stringify({
   ok: true,
-  status: "V142_HUMO_PHYSICAL_BASE_TORCH_AUTHORITY_ALIGNED",
+  status: "V142_HUMO_RUNTIME_CERTIFICATION_PROGRESS_OBSERVABILITY_READY",
   baseMaterializerCommit: BASE_MATERIALIZER_COMMIT,
   providerTrafficUsed: false,
   resourceCreationPossible: false,
-  observedPhysicalRuntime: {
-    pythonVersion: "3.11.10",
-    torchVersion: "2.4.1+cu124",
-    torchCudaVersion: "12.4",
-    gpuName: "NVIDIA L40S",
-    vramBytes: 47665709056
-  },
-  runtimeCertificationOnly: true,
-  bootstrapTorchUnchanged: "2.5.1",
-  inferenceAuthorized: false,
+  bootstrapTimeoutSecondsUnchanged: 1500,
   hardBudgetUsd: 2,
   authorizedHourlyRateUsd: 1.09,
-  previousPodTerminationVerified: true,
+  runtimeCertificationOnly: true,
+  inferenceAuthorized: false,
+  progressFields: [
+    "remotePhase",
+    "bootstrapStage",
+    "bootstrapStatus",
+    "bootstrapAt",
+    "cacheStatus",
+    "providerReportedCostUsd",
+    "wallClockUpperBoundCostUsd",
+    "terminationVerified"
+  ],
   newFiles: false,
   newBrains: false
 }));
