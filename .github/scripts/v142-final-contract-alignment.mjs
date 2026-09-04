@@ -158,8 +158,18 @@ write(FS_BRIDGE, bridge);
 let tests = read(LOCAL_VIDEO_TEST);
 tests = replaceExactOnce(
   tests,
-  '    assert.equal(harness.createdBody.volumeInGb, 100);',
-  '    assert.equal(harness.createdBody.volumeInGb, 0);',
+  [
+    '    assert.equal("networkVolumeId" in harness.createdBody, false);',
+    '    assert.equal(harness.createdBody.volumeInGb, 100);',
+    '',
+    '    let certified = null;'
+  ].join("\n"),
+  [
+    '    assert.equal("networkVolumeId" in harness.createdBody, false);',
+    '    assert.equal(harness.createdBody.volumeInGb, 0);',
+    '',
+    '    let certified = null;'
+  ].join("\n"),
   "V142_HUMO_RUNTIME_CERT_ZERO_VOLUME_EXPECTATION"
 );
 
