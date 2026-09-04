@@ -856,8 +856,8 @@ app.post("/create-checkout-session", async (req, res) => {
                 quantity: 1,
             }],
             mode: 'payment',
-            success_url: 'https://fixgo-app-sf2l.vercel.app/cliente.html?pago=exito&serviceId=' + serviceId,
-            cancel_url: 'https://fixgo-app-sf2l.vercel.app/cliente.html?pago=cancelado',
+            success_url: 'https://fixgo-44e4d.web.app/cliente.html?pago=exito&serviceId=' + serviceId,
+            cancel_url: 'https://fixgo-44e4d.web.app/cliente.html?pago=cancelado',
             metadata: {
                 serviceId: serviceId, 
                 tipo_pago: tipo_pago || 'garantia_inicial',
@@ -1323,7 +1323,7 @@ exports.solicitarRetiro = functions.https.onCall(async (data, context) => {
             
             return { 
                 success: true, 
-                payoutId: result.payoutId, 
+                payoutId: result.payoutId,
                 monto: result.monto,
                 traceId: result.traceId 
             };
@@ -1964,7 +1964,7 @@ exports.onScheduleMantenimiento = functions.pubsub
     .schedule('0 0 * * *') // Ejecución diaria a medianoche
     .timeZone('America/Mexico_City')
     .onRun(async (context) => {
-        // 🛡️ 0. DESPERTAR EL MOTOR (Lazy-Load Sentinel V5.55)
+        // 🛡️ 0. DESPERTAR EL MOTOR (Lazy-load Sentinel V5.55)
         initCore();
 
         const hoy = admin.firestore.Timestamp.now();
@@ -2053,7 +2053,7 @@ exports.onScheduleMantenimiento = functions.pubsub
 
             console.log(JSON.stringify({
                 level: "SUCCESS",
-                message: `🚀 [SCHEDULER V5.55] ${serviciosGeneradosCount} servicios sellados.`,
+                message: `🧹 [SCHEDULER V5.55] ${serviciosGeneradosCount} servicios sellados.`,
                 ingresosProyectados,
                 traceId
             }));
@@ -2081,9 +2081,10 @@ exports.onScheduleMantenimiento = functions.pubsub
  * 🧩 MÓDULO 9: OPERACIONES - AMENIDADES Y RESERVAS (SENTINEL V5.55 FINAL CORE)
  * ======================================================================================
  * OBJETIVO: Gestión de espacios comunes con prevención de traslapes y auditoría.
- * ACTUALIZACIÓN V5.55: Sincronización con el Radar V5.55 y Batch Commit Hardened.
+ * ACTUALIZACIÓN V5.55: Sincronización con el Radar V5.55 y limpieza de FCM Hardened.
  * --------------------------------------------------------------------------------------
  */
+
 exports.reservarCancha = functions.https.onCall(async (data, context) => {
     // 🛡️ 0. DESPERTAR EL MOTOR (Lazy-load Sentinel V5.55)
     initCore();
@@ -2297,7 +2298,7 @@ exports.crearAcceso = functions.https.onCall(async (data, context) => {
  * Cierre de ciclo operativo con marca de tiempo del servidor.
  */
 exports.registrarSalida = functions.https.onCall(async (data, context) => {
-    // 🛡️ 0. DESPERTAR EL MOTOR (Lazy-Load Injection)
+    // 🛡️ 0. DESPERTAR EL MOTOR (Lazy-load Injection)
     initCore();
 
     // 🛡️ 1. VALIDACIÓN DE IDENTIDAD
