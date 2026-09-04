@@ -7022,3 +7022,21 @@ test("V142 HuMo asset bootstrap disables Xet and serializes pinned resumable dow
     assert.match(bridgeSource, /HUMO_IDENTITY_PROBE_FAILED_AND_RELEASED/);
     assert.match(bridgeSource, /terminationVerified: releaseReceipt\?\.terminationVerified === true/);
 });
+
+test("V142 HuMo bootstrap downloads only the exact 1.7B identity runtime assets", () => {
+    const source = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+    assert.equal(source.includes("humo_hf_download ${authority.modelRepository} --revision ${authority.modelRevision}"), false);
+    assert.equal(source.includes("humo_hf_download Wan-AI/Wan2.1-T2V-1.3B --revision 37ec512624d61f7aa208f7ea8140a131f93afc9a"), false);
+    assert.equal(source.includes("humo_hf_download ${authority.whisper.repository} --revision ${authority.whisper.revision}"), false);
+    assert.equal(source.includes("${authority.checkpoint.path} ${authority.zeroVae.path} ${authority.audioSeparator.path}"), true);
+    assert.equal(source.includes("Wan2.1_VAE.pth models_t5_umt5-xxl-enc-bf16.pth"), true);
+    assert.equal(source.includes("google/umt5-xxl/special_tokens_map.json"), true);
+    assert.equal(source.includes("google/umt5-xxl/spiece.model"), true);
+    assert.equal(source.includes("google/umt5-xxl/tokenizer.json"), true);
+    assert.equal(source.includes("google/umt5-xxl/tokenizer_config.json"), true);
+    assert.equal(source.includes("${authority.whisper.model.path} ${authority.whisper.requiredMetadata.join(\" \")}"), true);
+    assert.match(source, /test ! -e .*HuMo-17B/);
+    assert.match(source, /test ! -e .*diffusion_pytorch_model\.safetensors/);
+    assert.equal(source.includes("HF_HUB_DISABLE_XET=1"), true);
+    assert.equal(source.includes("--max-workers 1"), true);
+});
