@@ -95,15 +95,65 @@ replaceFileExactOnce(
 replaceFileExactOnce(
   LOCAL_VIDEO_TEST,
   [
+    'test("V142 HuMo mocked runtime certification provisions polls and releases without inference", async () => {',
+    '    const humoSourceRevision = "845f44736e21be93aa5d8cf406b6eb01af9bff67";',
+    '    const harness = runpodPhysicalHarness({',
+    '        scenario: "humo-runtime-certification",',
+    '        envOverrides: {',
+    '            JARVIS_LOCAL_VIDEO_MODEL: "humo",',
     '            JARVIS_RUNPOD_CLOUD_TYPE: "SECURE",',
     '            JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY: "true",',
-    '            JARVIS_RUNPOD_DATACENTER_ID: "EU-NL-1"'
+    '            JARVIS_RUNPOD_DATACENTER_ID: "EU-NL-1"',
+    '        },'
   ].join("\n"),
   [
+    'test("V142 HuMo mocked runtime certification provisions polls and releases without inference", async () => {',
+    '    const humoSourceRevision = "845f44736e21be93aa5d8cf406b6eb01af9bff67";',
+    '    const harness = runpodPhysicalHarness({',
+    '        scenario: "humo-runtime-certification",',
+    '        envOverrides: {',
+    '            JARVIS_LOCAL_VIDEO_MODEL: "humo",',
     '            JARVIS_RUNPOD_CLOUD_TYPE: "SECURE",',
-    '            JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY: "true"'
+    '            JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY: "true"',
+    '        },'
   ].join("\n"),
   "V142_HUMO_RUNTIME_CERT_TEST_NO_DEFAULT_DATACENTER"
+);
+
+replaceFileExactOnce(
+  LOCAL_VIDEO_TEST,
+  [
+    '    await t.test("16 paid runtime authority requires one exact datacenter", () => {',
+    '        const missing = runtimeHarness("a40-missing-runtime-dc", {',
+    '            dataCenterId: "",',
+    '            envOverrides: { JARVIS_RUNPOD_DATACENTER_ID: "" }',
+    '        });',
+    '        const report = missing.adapter.inspectZeroCostPrecheck({',
+    '            job: missing.dryRunJob,',
+    '            registryVerification: missing.gpuRegistryVerification',
+    '        });',
+    '        assert.equal(report.error, "RUNPOD_RUNTIME_CERTIFICATION_DATACENTER_REQUIRED");',
+    '        assert.equal(missing.calls.length, 0);',
+    '    });'
+  ].join("\n"),
+  [
+    '    await t.test("16 paid ephemeral runtime authority allows provider-selected secure datacenter", () => {',
+    '        const missing = runtimeHarness("a40-missing-runtime-dc", {',
+    '            dataCenterId: "",',
+    '            envOverrides: { JARVIS_RUNPOD_DATACENTER_ID: "" }',
+    '        });',
+    '        const report = missing.adapter.inspectZeroCostPrecheck({',
+    '            job: missing.dryRunJob,',
+    '            registryVerification: missing.gpuRegistryVerification',
+    '        });',
+    '        assert.equal(report.ok, true, JSON.stringify(report));',
+    '        assert.equal(report.payload.cloudType, "SECURE");',
+    '        assert.equal("dataCenterIds" in report.payload, false);',
+    '        assert.deepEqual(report.payload.gpuTypeIds, ["NVIDIA A40"]);',
+    '        assert.equal(missing.calls.length, 0);',
+    '    });'
+  ].join("\n"),
+  "V142_RUNTIME_CERT_PROVIDER_SELECTED_DATACENTER_TEST"
 );
 
 replaceFileExactOnce(
