@@ -692,7 +692,28 @@ def run_humo_identity_probe(
         os.environ.get("JARVIS_HUMO_AUDIO_SEPARATOR_FILE", ""),
         "LOCAL_VIDEO_HUMO_AUDIO_SEPARATOR_MISSING",
     )
-    torchrun = _humo_executable(os.environ.get("JARVIS_HUMO_TORCHRUN", ""), "torchrun")
+    runtime_python = str(Path(sys.executable).absolute())
+    if not runtime_python.replace("\\", "/").endswith("/venv/bin/python"):
+        raise RuntimeError("LOCAL_VIDEO_HUMO_CERTIFIED_VENV_REQUIRED")
+    runtime_check = subprocess.run(
+        [
+            runtime_python,
+            "-c",
+            (
+                "import importlib.metadata,omegaconf,torch; "
+                "assert str(torch.__version__).startswith(\"2.5.1\"); "
+                "assert str(torch.version.cuda or \"\").startswith(\"12.4\"); "
+                "assert importlib.metadata.version(\"flash-attn\")==\"2.6.3\""
+            ),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    if runtime_check.returncode != 0:
+        diagnostic = str(runtime_check.stderr or runtime_check.stdout or "")[-1000:]
+        raise RuntimeError(f"LOCAL_VIDEO_HUMO_CERTIFIED_VENV_INVALID:{diagnostic}")
     runtime_asset_evidence = _verify_humo_runtime_authority(
         job, humo_root, humo_weights, wan21_weights, whisper, separator
     )
@@ -722,7 +743,9 @@ def run_humo_identity_probe(
     })
 
     command = [
-        torchrun,
+        runtime_python,
+        "-m",
+        "torch.distributed.run",
         "--standalone",
         "--nnodes=1",
         "--nproc_per_node=1",

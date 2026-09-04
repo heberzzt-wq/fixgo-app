@@ -7040,3 +7040,16 @@ test("V142 HuMo bootstrap downloads only the exact 1.7B identity runtime assets"
     assert.equal(source.includes("HF_HUB_DISABLE_XET=1"), true);
     assert.equal(source.includes("--max-workers 1"), true);
 });
+
+test("V142 HuMo inference is bound to the certified venv Python instead of global torchrun", () => {
+    const runner = fs.readFileSync(new URL("../scripts/jarvis-local-video-wan22.py", import.meta.url), "utf8");
+    assert.equal(runner.includes("torchrun = _humo_executable(os.environ.get(\"JARVIS_HUMO_TORCHRUN\", \"\"), \"torchrun\")"), false);
+    assert.equal(runner.includes("LOCAL_VIDEO_HUMO_CERTIFIED_VENV_REQUIRED"), true);
+    assert.equal(runner.includes("LOCAL_VIDEO_HUMO_CERTIFIED_VENV_INVALID"), true);
+    assert.equal(runner.includes("runtime_python,"), true);
+    assert.equal(runner.includes("\"-m\""), true);
+    assert.equal(runner.includes("\"torch.distributed.run\""), true);
+    assert.equal(runner.includes("import importlib.metadata,omegaconf,torch"), true);
+    assert.equal(runner.includes("flash-attn"), true);
+    assert.equal(runner.includes("2.6.3"), true);
+});
