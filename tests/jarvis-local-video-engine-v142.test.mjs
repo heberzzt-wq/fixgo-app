@@ -6894,7 +6894,9 @@ test("V142 HuMo mocked runtime certification provisions polls and releases witho
 
 test("V142 HuMo bootstrap and poll diagnostics are backend-aware before paid execution", () => {
     const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
-    assert.equal(engineSource.includes("flash_attn==2.6.3 --no-build-isolation"), true);
+    assert.equal(engineSource.includes("flash_attn==2.6.3 --no-build-isolation"), false);
+    assert.equal(engineSource.includes("flash_attn-2.6.3+cu124torch2.5-cp311-cp311-linux_x86_64.whl"), true);
+    assert.equal(engineSource.includes("55f8853bc1947a82eea50109f641487adabc7978bf16afb0a9eb6addc6dc51d3"), true);
     assert.equal(engineSource.includes("RUNPOD_HUMO_BOOTSTRAPPING"), true);
     assert.equal(engineSource.includes("RUNPOD_HUMO_BOOTSTRAP_REFRESH_REQUIRED"), true);
     assert.equal(engineSource.includes("RUNPOD_HUMO_RUNTIME_PREFLIGHT_FAILED"), true);
@@ -6924,8 +6926,23 @@ test("V142 HuMo runtime bootstrap exposes venv torch flash-attention and require
         assert.equal(engineSource.includes("progress " + stage + " RUNNING"), true);
         assert.equal(engineSource.includes("progress " + stage + " READY"), true);
     }
-    assert.equal(engineSource.includes("FLASH_ATTN_PID=$!"), true);
-    assert.equal(engineSource.includes("while kill -0"), true);
-    assert.equal(engineSource.includes("MAX_JOBS=4"), true);
-    assert.equal(engineSource.includes("flash_attn==2.6.3 --no-build-isolation"), true);
+    assert.equal(engineSource.includes("FLASH_ATTN_PID=$!"), false);
+    assert.equal(engineSource.includes("MAX_JOBS=4"), false);
+    assert.equal(engineSource.includes("https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.0.2/flash_attn-2.6.3%2Bcu124torch2.5-cp311-cp311-linux_x86_64.whl"), true);
+    assert.equal(engineSource.includes("182448642"), true);
+    assert.equal(engineSource.includes("flash_attn==2.6.3 --no-build-isolation"), false);
+    assert.equal(engineSource.includes("flash_attn-2.6.3+cu124torch2.5-cp311-cp311-linux_x86_64.whl"), true);
+    assert.equal(engineSource.includes("55f8853bc1947a82eea50109f641487adabc7978bf16afb0a9eb6addc6dc51d3"), true);
+});
+
+test("V142 HuMo FlashAttention wheel is SHA-pinned and must execute a real CUDA kernel", () => {
+    const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+    assert.equal(engineSource.includes("flash_attn-2.6.3+cu124torch2.5-cp311-cp311-linux_x86_64.whl"), true);
+    assert.equal(engineSource.includes("55f8853bc1947a82eea50109f641487adabc7978bf16afb0a9eb6addc6dc51d3"), true);
+    assert.equal(engineSource.includes("sha256sum -c -"), true);
+    assert.equal(engineSource.includes("pip install --no-deps"), true);
+    assert.equal(engineSource.includes("flashAttentionCudaProbe"), true);
+    assert.equal(engineSource.includes("from flash_attn import flash_attn_func"), true);
+    assert.equal(engineSource.includes("torch.cuda.synchronize()"), true);
+    assert.equal(engineSource.includes("and payload['flashAttentionCudaProbe']"), true);
 });
