@@ -1,9 +1,10 @@
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 
-const PRODUCT_BASE_COMMIT = "50e2a4daa6197ca0e2b9be12a33976164fdc0129";
+const PRODUCT_BASE_COMMIT = "69f50705a25dd3a7ccb755aca1df67e646edc457";
 const WAN21_REVISION = "37ec512624d61f7aa208f7ea8140a131f93afc9a";
 const LOCAL_VIDEO_ENGINE = "jarvis-local-video-engine.js";
+const LOCAL_VIDEO_RUNNER = "scripts/jarvis-local-video-wan22.py";
 const LOCAL_VIDEO_TEST = "tests/jarvis-local-video-engine-v142.test.mjs";
 const FS_BRIDGE = "jarvis-fs-bridge.js";
 
@@ -27,117 +28,106 @@ function appendOnce(source, marker, addition) {
   return `${source.trimEnd()}\n\n${addition.trim()}\n`;
 }
 
-let engine = read(LOCAL_VIDEO_ENGINE);
-
-engine = replaceExactOnce(
-  engine,
-  '            `  humo_hf_download ${authority.modelRepository} --revision ${authority.modelRevision} --local-dir "$HUMO_WEIGHTS"`,',
-  '            `  humo_hf_download ${authority.modelRepository} ${authority.checkpoint.path} ${authority.zeroVae.path} ${authority.audioSeparator.path} --revision ${authority.modelRevision} --local-dir "$HUMO_WEIGHTS"`,',
-  "V142_HUMO_SELECTIVE_MODEL_ASSETS"
-);
-
-engine = replaceExactOnce(
-  engine,
-  `            "  humo_hf_download Wan-AI/Wan2.1-T2V-1.3B --revision ${WAN21_REVISION} --local-dir \\\"$WAN21_WEIGHTS\\\"",`,
-  `            "  humo_hf_download Wan-AI/Wan2.1-T2V-1.3B Wan2.1_VAE.pth models_t5_umt5-xxl-enc-bf16.pth google/umt5-xxl/special_tokens_map.json google/umt5-xxl/spiece.model google/umt5-xxl/tokenizer.json google/umt5-xxl/tokenizer_config.json --revision ${WAN21_REVISION} --local-dir \\\"$WAN21_WEIGHTS\\\"",`,
-  "V142_HUMO_SELECTIVE_WAN21_ASSETS"
-);
-
-engine = replaceExactOnce(
-  engine,
-  '            `  humo_hf_download ${authority.whisper.repository} --revision ${authority.whisper.revision} --local-dir "$WHISPER_DIR"`,',
-  '            `  humo_hf_download ${authority.whisper.repository} ${authority.whisper.model.path} ${authority.whisper.requiredMetadata.join(" ")} --revision ${authority.whisper.revision} --local-dir "$WHISPER_DIR"`,',
-  "V142_HUMO_SELECTIVE_WHISPER_ASSETS"
-);
-
-engine = replaceExactOnce(
-  engine,
+let runner = read(LOCAL_VIDEO_RUNNER);
+runner = replaceExactOnce(
+  runner,
+  '    torchrun = _humo_executable(os.environ.get("JARVIS_HUMO_TORCHRUN", ""), "torchrun")\n',
   [
-    '            "  progress HUMO_ASSETS_VERIFY RUNNING",',
-    '            `  test -f "$HUMO_WEIGHTS/${authority.checkpoint.path}"`,'
+    '    runtime_python = str(Path(sys.executable).absolute())',
+    '    if not runtime_python.replace("\\\\", "/").endswith("/venv/bin/python"):',
+    '        raise RuntimeError("LOCAL_VIDEO_HUMO_CERTIFIED_VENV_REQUIRED")',
+    '    runtime_check = subprocess.run(',
+    '        [',
+    '            runtime_python,',
+    '            "-c",',
+    '            (',
+    '                "import importlib.metadata,omegaconf,torch; "',
+    '                "assert str(torch.__version__).startswith(\\\"2.5.1\\\"); "',
+    '                "assert str(torch.version.cuda or \\\"\\\").startswith(\\\"12.4\\\"); "',
+    '                "assert importlib.metadata.version(\\\"flash-attn\\\")==\\\"2.6.3\\\""',
+    '            ),',
+    '        ],',
+    '        check=False,',
+    '        capture_output=True,',
+    '        text=True,',
+    '        timeout=60,',
+    '    )',
+    '    if runtime_check.returncode != 0:',
+    '        diagnostic = str(runtime_check.stderr or runtime_check.stdout or "")[-1000:]',
+    '        raise RuntimeError(f"LOCAL_VIDEO_HUMO_CERTIFIED_VENV_INVALID:{diagnostic}")',
+    ''
+  ].join("\n"),
+  "V142_HUMO_CERTIFIED_VENV_GATE"
+);
+
+runner = replaceExactOnce(
+  runner,
+  [
+    '    command = [',
+    '        torchrun,',
+    '        "--standalone",'
   ].join("\n"),
   [
-    '            "  progress HUMO_ASSETS_VERIFY RUNNING",',
-    '            "  test ! -e \\\"$HUMO_WEIGHTS/HuMo-17B\\\"",',
-    '            "  test ! -e \\\"$WAN21_WEIGHTS/diffusion_pytorch_model.safetensors\\\"",',
-    '            `  test -f "$HUMO_WEIGHTS/${authority.checkpoint.path}"`,'
+    '    command = [',
+    '        runtime_python,',
+    '        "-m",',
+    '        "torch.distributed.run",',
+    '        "--standalone",'
   ].join("\n"),
-  "V142_HUMO_FORBID_UNUSED_LARGE_MODELS"
+  "V142_HUMO_VENV_DISTRIBUTED_LAUNCH"
 );
 
-engine = replaceExactOnce(
-  engine,
-  [
-    '            `  test -f "$WAN21_WEIGHTS/${authority.wan21Vae.path}"`,',
-    '            `  test -f "$SEPARATOR_FILE"`,',
-    '            "  progress HUMO_ASSETS_VERIFY READY",'
-  ].join("\n"),
-  [
-    '            `  test -f "$WAN21_WEIGHTS/${authority.wan21Vae.path}"`,',
-    '            "  test -f \\\"$WAN21_WEIGHTS/models_t5_umt5-xxl-enc-bf16.pth\\\"",',
-    '            "  test -f \\\"$WAN21_WEIGHTS/google/umt5-xxl/special_tokens_map.json\\\"",',
-    '            "  test -f \\\"$WAN21_WEIGHTS/google/umt5-xxl/spiece.model\\\"",',
-    '            "  test -f \\\"$WAN21_WEIGHTS/google/umt5-xxl/tokenizer.json\\\"",',
-    '            "  test -f \\\"$WAN21_WEIGHTS/google/umt5-xxl/tokenizer_config.json\\\"",',
-    '            `  test -f "$WHISPER_DIR/${authority.whisper.model.path}"`,',
-    '            "  test -f \\\"$WHISPER_DIR/config.json\\\"",',
-    '            "  test -f \\\"$WHISPER_DIR/preprocessor_config.json\\\"",',
-    '            `  test -f "$SEPARATOR_FILE"`,',
-    '            "  progress HUMO_ASSETS_VERIFY READY",'
-  ].join("\n"),
-  "V142_HUMO_SELECTIVE_ASSET_EXISTENCE_GATES"
-);
-
-const forbiddenFullSnapshots = [
-  'humo_hf_download ${authority.modelRepository} --revision ${authority.modelRevision}',
-  `humo_hf_download Wan-AI/Wan2.1-T2V-1.3B --revision ${WAN21_REVISION}`,
-  'humo_hf_download ${authority.whisper.repository} --revision ${authority.whisper.revision}'
-];
-for (const marker of forbiddenFullSnapshots) {
-  if (engine.includes(marker)) throw new Error(`V142_HUMO_FULL_SNAPSHOT_STILL_PRESENT:${marker}`);
-}
 for (const marker of [
-  "${authority.checkpoint.path} ${authority.zeroVae.path} ${authority.audioSeparator.path}",
-  "Wan2.1_VAE.pth models_t5_umt5-xxl-enc-bf16.pth",
-  "google/umt5-xxl/special_tokens_map.json",
-  "google/umt5-xxl/spiece.model",
-  "google/umt5-xxl/tokenizer.json",
-  "google/umt5-xxl/tokenizer_config.json",
-  '${authority.whisper.model.path} ${authority.whisper.requiredMetadata.join(" ")}',
-  "test ! -e \\\"$HUMO_WEIGHTS/HuMo-17B\\\"",
-  "test ! -e \\\"$WAN21_WEIGHTS/diffusion_pytorch_model.safetensors\\\"",
+  'LOCAL_VIDEO_HUMO_CERTIFIED_VENV_REQUIRED',
+  'LOCAL_VIDEO_HUMO_CERTIFIED_VENV_INVALID',
+  'runtime_python,',
+  '"torch.distributed.run"',
+  'import importlib.metadata,omegaconf,torch',
+  'flash-attn',
+  '2.6.3'
+]) {
+  if (!runner.includes(marker)) throw new Error(`V142_HUMO_VENV_MARKER_MISSING:${marker}`);
+}
+if (runner.includes('torchrun = _humo_executable(os.environ.get("JARVIS_HUMO_TORCHRUN", ""), "torchrun")')) {
+  throw new Error("V142_HUMO_GLOBAL_TORCHRUN_REGRESSION");
+}
+write(LOCAL_VIDEO_RUNNER, runner);
+
+let engine = read(LOCAL_VIDEO_ENGINE);
+for (const marker of [
   "HF_HUB_DISABLE_XET=1",
   "--max-workers 1",
-  WAN21_REVISION
+  "HUMO_ASSETS_HUMO",
+  "HUMO_ASSETS_WAN21",
+  "HUMO_ASSETS_WHISPER",
+  "HUMO_ASSETS_VERIFY",
+  WAN21_REVISION,
+  "physicalRuntimeCertified: true",
+  "paidExecutionAuthorized: false"
 ]) {
-  if (!engine.includes(marker)) throw new Error(`V142_HUMO_SELECTIVE_ASSET_MARKER_MISSING:${marker}`);
+  if (!engine.includes(marker)) throw new Error(`V142_HUMO_EXISTING_CONTRACT_REGRESSION:${marker}`);
 }
 write(LOCAL_VIDEO_ENGINE, engine);
 
 let tests = read(LOCAL_VIDEO_TEST);
-const selectiveAssetTest = [
-  'test("V142 HuMo bootstrap downloads only the exact 1.7B identity runtime assets", () => {',
-  '    const source = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");',
-  '    assert.equal(source.includes("humo_hf_download ${authority.modelRepository} --revision ${authority.modelRevision}"), false);',
-  '    assert.equal(source.includes("humo_hf_download Wan-AI/Wan2.1-T2V-1.3B --revision 37ec512624d61f7aa208f7ea8140a131f93afc9a"), false);',
-  '    assert.equal(source.includes("humo_hf_download ${authority.whisper.repository} --revision ${authority.whisper.revision}"), false);',
-  '    assert.equal(source.includes("${authority.checkpoint.path} ${authority.zeroVae.path} ${authority.audioSeparator.path}"), true);',
-  '    assert.equal(source.includes("Wan2.1_VAE.pth models_t5_umt5-xxl-enc-bf16.pth"), true);',
-  '    assert.equal(source.includes("google/umt5-xxl/special_tokens_map.json"), true);',
-  '    assert.equal(source.includes("google/umt5-xxl/spiece.model"), true);',
-  '    assert.equal(source.includes("google/umt5-xxl/tokenizer.json"), true);',
-  '    assert.equal(source.includes("google/umt5-xxl/tokenizer_config.json"), true);',
-  '    assert.equal(source.includes("${authority.whisper.model.path} ${authority.whisper.requiredMetadata.join(\\\" \\\")}"), true);',
-  '    assert.match(source, /test ! -e .*HuMo-17B/);',
-  '    assert.match(source, /test ! -e .*diffusion_pytorch_model\\.safetensors/);',
-  '    assert.equal(source.includes("HF_HUB_DISABLE_XET=1"), true);',
-  '    assert.equal(source.includes("--max-workers 1"), true);',
+const venvLaunchTest = [
+  'test("V142 HuMo inference is bound to the certified venv Python instead of global torchrun", () => {',
+  '    const runner = fs.readFileSync(new URL("../scripts/jarvis-local-video-wan22.py", import.meta.url), "utf8");',
+  '    assert.equal(runner.includes("torchrun = _humo_executable(os.environ.get(\\\"JARVIS_HUMO_TORCHRUN\\\", \\\"\\\"), \\\"torchrun\\\")"), false);',
+  '    assert.equal(runner.includes("LOCAL_VIDEO_HUMO_CERTIFIED_VENV_REQUIRED"), true);',
+  '    assert.equal(runner.includes("LOCAL_VIDEO_HUMO_CERTIFIED_VENV_INVALID"), true);',
+  '    assert.equal(runner.includes("runtime_python,"), true);',
+  '    assert.equal(runner.includes("\\\"-m\\\""), true);',
+  '    assert.equal(runner.includes("\\\"torch.distributed.run\\\""), true);',
+  '    assert.equal(runner.includes("import importlib.metadata,omegaconf,torch"), true);',
+  '    assert.equal(runner.includes("flash-attn"), true);',
+  '    assert.equal(runner.includes("2.6.3"), true);',
   '});'
 ].join("\n");
 tests = appendOnce(
   tests,
-  "V142 HuMo bootstrap downloads only the exact 1.7B identity runtime assets",
-  selectiveAssetTest
+  "V142 HuMo inference is bound to the certified venv Python instead of global torchrun",
+  venvLaunchTest
 );
 write(LOCAL_VIDEO_TEST, tests);
 
@@ -147,24 +137,25 @@ for (const marker of [
   "HUMO_IDENTITY_PROBE_FAILED_AND_RELEASED",
   "fullEpisodeAuthorized: false"
 ]) {
-  if (!bridge.includes(marker)) throw new Error(`V142_HUMO_IDENTITY_PROBE_REGRESSION:${marker}`);
+  if (!bridge.includes(marker)) throw new Error(`V142_HUMO_PROBE_BRIDGE_REGRESSION:${marker}`);
 }
 
 execFileSync(process.execPath, ["--check", LOCAL_VIDEO_ENGINE], { stdio: "inherit" });
 execFileSync(process.execPath, ["--check", FS_BRIDGE], { stdio: "inherit" });
+const python = process.platform === "win32" ? "python" : "python3";
+execFileSync(python, ["-c", `import ast,pathlib; ast.parse(pathlib.Path('${LOCAL_VIDEO_RUNNER}').read_text(encoding='utf-8'))`], { stdio: "inherit" });
 
 console.log(JSON.stringify({
   ok: true,
-  status: "V142_HUMO_SELECTIVE_ASSET_BOOTSTRAP_MATERIALIZED",
+  status: "V142_HUMO_CERTIFIED_VENV_INFERENCE_MATERIALIZED",
   productBaseCommit: PRODUCT_BASE_COMMIT,
-  fullHuMoSnapshotDownload: false,
-  huMo17BDownloadAllowed: false,
-  fullWan21SnapshotDownload: false,
-  wan21DiffusionModelDownloadAllowed: false,
-  fullWhisperSnapshotDownload: false,
-  hfXetDisabled: true,
-  hfMaxWorkers: 1,
-  wan21Revision: WAN21_REVISION,
+  globalTorchrunAllowed: false,
+  certifiedVenvPythonRequired: true,
+  distributedLaunch: "python -m torch.distributed.run",
+  requiredRuntimeImports: ["omegaconf", "torch", "flash-attn"],
+  expectedTorch: "2.5.1",
+  expectedTorchCuda: "12.4",
+  expectedFlashAttention: "2.6.3",
   inferenceAuthorized: false,
   providerTrafficUsed: false,
   runpodTrafficUsed: false,
