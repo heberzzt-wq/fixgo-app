@@ -1613,6 +1613,18 @@ function runpodPublicWorker(state = {}) {
         gpuRentalSeconds: Number(state.gpuRentalSeconds || 0),
         gpuRentalEstimatedCost: Number(state.gpuRentalEstimatedCost || 0),
         externalComputeMeter: state.externalComputeMeter || null,
+        bootstrapDiagnostics: state.bootstrapDiagnostics ? {
+            capturedAt: state.bootstrapDiagnostics.capturedAt || null,
+            exitCode: Number.isInteger(state.bootstrapDiagnostics.exitCode)
+                ? state.bootstrapDiagnostics.exitCode
+                : null,
+            stage: state.bootstrapDiagnostics.stage || null,
+            cacheStatus: state.bootstrapDiagnostics.cacheStatus || null,
+            logTail: state.bootstrapDiagnostics.logTail || null,
+            captureErrors: Array.isArray(state.bootstrapDiagnostics.captureErrors)
+                ? state.bootstrapDiagnostics.captureErrors
+                : []
+        } : null,
         stageTimeline: state.stageTimeline || {},
         assetManifest: Array.isArray(state.assetManifest)
             ? state.assetManifest.map(asset => ({
@@ -3957,15 +3969,28 @@ export function createRunpodRemoteVideoAdapter({
             "if test \"$RUNTIME_CERTIFICATION_ONLY\" = 1; then",
             "  progress HUMO_ASSETS SKIPPED",
             "else",
-            "  progress HUMO_ASSETS RUNNING",
-            `  "$VENV/bin/hf" download ${authority.modelRepository} --revision ${authority.modelRevision} --local-dir "$HUMO_WEIGHTS"`,
-            "  \"$VENV/bin/hf\" download Wan-AI/Wan2.1-T2V-1.3B --local-dir \"$WAN21_WEIGHTS\"",
-            `  "$VENV/bin/hf" download ${authority.whisper.repository} --revision ${authority.whisper.revision} --local-dir "$WHISPER_DIR"`,
+            "  export HF_HUB_DISABLE_XET=1",
+            "  export HF_HUB_DOWNLOAD_TIMEOUT=60",
+            "  humo_hf_download() {",
+            "    \"$VENV/bin/hf\" download \"$@\" --max-workers 1 && return 0",
+            "    sleep 5",
+            "    \"$VENV/bin/hf\" download \"$@\" --max-workers 1",
+            "  }",
+            "  progress HUMO_ASSETS_HUMO RUNNING",
+            `  humo_hf_download ${authority.modelRepository} --revision ${authority.modelRevision} --local-dir "$HUMO_WEIGHTS"`,
+            "  progress HUMO_ASSETS_HUMO READY",
+            "  progress HUMO_ASSETS_WAN21 RUNNING",
+            "  humo_hf_download Wan-AI/Wan2.1-T2V-1.3B --revision 37ec512624d61f7aa208f7ea8140a131f93afc9a --local-dir \"$WAN21_WEIGHTS\"",
+            "  progress HUMO_ASSETS_WAN21 READY",
+            "  progress HUMO_ASSETS_WHISPER RUNNING",
+            `  humo_hf_download ${authority.whisper.repository} --revision ${authority.whisper.revision} --local-dir "$WHISPER_DIR"`,
+            "  progress HUMO_ASSETS_WHISPER READY",
+            "  progress HUMO_ASSETS_VERIFY RUNNING",
             `  test -f "$HUMO_WEIGHTS/${authority.checkpoint.path}"`,
             `  test -f "$HUMO_WEIGHTS/${authority.zeroVae.path}"`,
             `  test -f "$WAN21_WEIGHTS/${authority.wan21Vae.path}"`,
             `  test -f "$SEPARATOR_FILE"`,
-            "  progress HUMO_ASSETS READY",
+            "  progress HUMO_ASSETS_VERIFY READY",
             "fi",
             "progress HUMO_RUNTIME_PREFLIGHT RUNNING",
             "\"$VENV/bin/python\" - \"$PREFLIGHT_RESULT\" \"$HUMO_REPO\" <<'PY'",

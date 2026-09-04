@@ -8063,7 +8063,18 @@ export async function runHuMoIdentityProbeCli({
             await sleepMs(10000);
         }
         if (!final?.done) throw new Error("HUMO_IDENTITY_PROBE_DEADLINE_EXCEEDED");
-        if (final.ok !== true) throw new Error(final.error || final.status || "HUMO_IDENTITY_PROBE_FAILED");
+        if (final.ok !== true) {
+            log({
+                ok: false,
+                status: final.status || "HUMO_IDENTITY_PROBE_FAILED",
+                error: final.error || final.status || "HUMO_IDENTITY_PROBE_FAILED",
+                podId: launched?.remoteWorker?.podId || null,
+                bootstrapDiagnostics: final?.remoteWorker?.bootstrapDiagnostics || null,
+                inferenceStarted: final?.remoteWorker?.inferenceStartedAt != null || final?.inferenceStarted === true,
+                providerReportedCostUsd: Number(final?.gpuRentalEstimatedCost || final?.remoteWorker?.gpuRentalEstimatedCost || 0)
+            });
+            throw new Error(final.error || final.status || "HUMO_IDENTITY_PROBE_FAILED");
+        }
         if (!fs.existsSync(resultFile)) throw new Error("HUMO_IDENTITY_PROBE_RESULT_MISSING");
         const physical = JSON.parse(fs.readFileSync(resultFile, "utf8"));
         if (
@@ -8103,7 +8114,20 @@ export async function runHuMoIdentityProbeCli({
             }
         }
     }
-    if (primaryError) throw primaryError;
+    if (primaryError) {
+        log({
+            ok: false,
+            status: "HUMO_IDENTITY_PROBE_FAILED_AND_RELEASED",
+            error: primaryError?.message || String(primaryError),
+            podId: launched?.remoteWorker?.podId || null,
+            terminationVerified: releaseReceipt?.terminationVerified === true,
+            gpuRentalSeconds: Number(releaseReceipt?.gpuRentalSeconds || final?.gpuRentalSeconds || 0),
+            gpuRentalEstimatedCost: Number(releaseReceipt?.gpuRentalEstimatedCost || final?.gpuRentalEstimatedCost || 0),
+            gpuRentalActualCost: Number(releaseReceipt?.gpuRentalActualCost || 0),
+            inferenceStarted: final?.remoteWorker?.inferenceStartedAt != null || final?.inferenceStarted === true
+        });
+        throw primaryError;
+    }
     const bytes = fs.statSync(outputFile).size;
     const sha256 = sha256File(outputFile);
     const estimatedCostUsd = Number(

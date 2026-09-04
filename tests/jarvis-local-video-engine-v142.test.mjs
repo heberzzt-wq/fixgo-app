@@ -7006,3 +7006,19 @@ test("V142 HuMo paid identity probe authority is mission scoped and never opens 
     assert.match(bridgeSource, /fullEpisodeAuthorized: false/);
     assert.match(bridgeSource, /HUMO_IDENTITY_PROBE_COMPLETED_AND_RELEASED/);
 });
+
+test("V142 HuMo asset bootstrap disables Xet and serializes pinned resumable downloads", () => {
+    const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+    assert.match(engineSource, /HF_HUB_DISABLE_XET=1/);
+    assert.match(engineSource, /HF_HUB_DOWNLOAD_TIMEOUT=60/);
+    assert.match(engineSource, /--max-workers 1/);
+    assert.match(engineSource, /37ec512624d61f7aa208f7ea8140a131f93afc9a/);
+    for (const stage of ["HUMO_ASSETS_HUMO", "HUMO_ASSETS_WAN21", "HUMO_ASSETS_WHISPER", "HUMO_ASSETS_VERIFY"]) {
+        assert.match(engineSource, new RegExp(stage));
+    }
+    assert.match(engineSource, /bootstrapDiagnostics: state\.bootstrapDiagnostics/);
+    const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
+    assert.match(bridgeSource, /bootstrapDiagnostics: final\?\.remoteWorker\?\.bootstrapDiagnostics/);
+    assert.match(bridgeSource, /HUMO_IDENTITY_PROBE_FAILED_AND_RELEASED/);
+    assert.match(bridgeSource, /terminationVerified: releaseReceipt\?\.terminationVerified === true/);
+});
